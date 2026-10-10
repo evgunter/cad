@@ -95,7 +95,7 @@ vertex pierce the top with one Out run per prism. Two fixes:
   in all 728 configurations of the P − U grids. Before it, the zips'
   crossing built rings through one vertex (k = 2) or, at k ≥ 3, crossed
   faces this PR refused typed; that refusal retired with the crossing
-  (`work/join/two-representations-of-holes-meeting-at-a-point.md`).
+  (`two-representations-of-holes-meeting-at-a-point`, JOIN, closed by PR 4129).
 
 Rows (`crates/topo/tests/holes_meeting_at_a_vertex.rs` and
 `crates/editor-core/tests/union_pinch_member_order.rs`):

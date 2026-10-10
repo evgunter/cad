@@ -556,7 +556,8 @@ impl core::fmt::Display for CensusSubject {
 /// different lanes, and until this was carried they all arrived at a
 /// consumer as one sentence about an uncertifiable inventory. That
 /// sentence is not always the true cause: a chart-region
-/// [`WitnessBudgetExhausted`](ChartRegionError::WitnessBudgetExhausted)
+/// [`WitnessSegmentCapExceeded`](ChartRegionError::WitnessSegmentCapExceeded)
+/// or [`WitnessCellCapExceeded`](ChartRegionError::WitnessCellCapExceeded)
 /// decline means the interior-witness SEARCH STOPPED on a pair whose
 /// overlap may be fat and perfectly decidable, and its recourse is to
 /// simplify the trims — not to declare the geometry or separate it.
@@ -586,11 +587,16 @@ impl core::fmt::Display for CensusSubject {
 /// aside, and is the refusal, [`Escalated`](ChartRegionError::Escalated),
 /// only where no direction answers). A graze carries no margin to size
 /// a tolerance by; moving the point changes the answer.
-/// [`WitnessBudgetExhausted`](ChartRegionError::WitnessBudgetExhausted)
-/// is the opposite: its cap stops the arrangement being BUILT, so
-/// nothing was measured at all, and the work it declined to do would
-/// have returned a definite answer on a fat overlap. One says the
-/// geometry is undecidable here; the other says nobody looked.
+/// The witness caps are the opposite. The segment cap
+/// ([`WitnessSegmentCapExceeded`](ChartRegionError::WitnessSegmentCapExceeded))
+/// stops the arrangement being BUILT, so nothing was measured at all;
+/// the cell cap
+/// ([`WitnessCellCapExceeded`](ChartRegionError::WitnessCellCapExceeded))
+/// stops the walk with cells unprobed, and a probe that failed to
+/// certify measured nothing against the overlap. Either way the work
+/// declined would have returned a definite answer on a fat overlap.
+/// One says the geometry is undecidable here; the other says nobody
+/// finished looking.
 ///
 /// Carrying the arm itself says all of that and pre-judges none of
 /// it.
@@ -1104,10 +1110,11 @@ pub enum ValidationError {
     /// ([`WedgeCheck`] names which): the wedge between its two faces'
     /// tangent planes is in the sliver band or unclassifiable (poison at
     /// a surface singularity, an unimplemented kind); on a smooth edge,
-    /// whether the faces separate at second order is in band; or the
-    /// material sides the faces are on, or which end of the wedge they
-    /// make, do not read consistently along the edge. Every edge must
-    /// classify definitely, never sliver.
+    /// whether the faces separate at second order is in band; the
+    /// faces' material pairing is in band, or decided zero over an arm
+    /// too short to read a side; or the material sides the faces are
+    /// on, or which end of the wedge they make, do not read consistently
+    /// along the edge. Every edge must classify definitely, never sliver.
     SliverDihedral {
         /// The edge whose wedge cannot be classified definitely.
         edge: EdgeKey,
@@ -1382,8 +1389,8 @@ pub enum ValidationError {
     ///   rectangle (`geom_brep::props`' `props_rim_level`, S58) and
     ///   the certified-quadrature lane consumes only conic/NURBS trims.
     /// * `RingOnCurvedFace` — **row 2** as well: a ringed curved face
-    ///   other than a rim-and-ruling cylinder wall, which a boolean
-    ///   pierce leaves in the face it pierces.
+    ///   other than a cone wall or a rim-and-ruling cylinder or torus
+    ///   wall, which a boolean pierce leaves in the face it pierces.
     /// * `Corrupt`, `NullScaffoldEdge` — **row 1** by their own docs:
     ///   unresolvable structure and a mid-surgery body carrying M3
     ///   null-edge scaffolding.
@@ -2348,6 +2355,10 @@ pub enum WedgeCheck {
     /// On a definitely-smooth edge, whether the faces separate at second
     /// order (the surfaces determine the locus) or not.
     SecondOrder,
+    /// On a definitely-smooth edge, whether the faces' outward normals
+    /// are aligned or opposed ([`geom_brep::MATERIAL_PAIRING`]): in band,
+    /// or decided zero over an arm too short to read a side.
+    MaterialPairing,
     /// On a definitely-smooth edge, which material side each face is on
     /// and which end of the wedge they make, where the samples disagree
     /// or a side read after the decisions before it came out definite
@@ -2400,6 +2411,9 @@ impl WedgeCheck {
                     "whether two faces meeting smoothly at an edge curve apart there"
                 )
             }
+            Self::MaterialPairing => {
+                geom_core::undecided!(geom_brep::material_pairing_clause!())
+            }
             Self::MaterialSide => {
                 "which side of an edge the material of its two smoothly meeting faces lies \
                  on could not be read consistently along it"
@@ -2416,6 +2430,9 @@ impl WedgeCheck {
                 .into(),
             Self::Dihedral => WEDGE.recourse(arm, Reading::AtRest).into(),
             Self::SecondOrder => SEPARATION.recourse(arm, Reading::AtRest).into(),
+            Self::MaterialPairing => geom_brep::MATERIAL_PAIRING
+                .recourse(arm, Reading::AtRest)
+                .into(),
             // A split along the edge, or a side read after the decisions
             // before it came out definite: no margin of its own gives a
             // size or a lever.
@@ -2460,33 +2477,31 @@ const TOLERANCE: &str = "Recourse: set a finite, positive tolerance";
 /// spline face cannot be expressed on — the lane's own.
 const REPARAMETERIZE: &str = geom_brep::CARRIER_DOMAIN_RECOURSE;
 
-/// The recourse for a margin the band could not decide, where a
-/// coincidence between two things has an object to declare: the
-/// shared menu ([`geom_core::COINCIDENCE_RECOURSE`], which
-/// `too_close_spells_the_shared_menu` holds these two spellings to),
-/// prefixed by the input check a poisoned margin wants first.
-fn too_close(margin: Option<&geom_core::MarginDiag>) -> &'static str {
-    match margin {
-        Some(margin) if margin.is_invalid() => concat!(
-            "Recourse: check the inputs that built this body, then ",
-            geom_core::coincidence_declare_arm!(),
-            ", or ",
-            geom_core::coincidence_move_arm!()
-        ),
-        _ => concat!(
+/// The ending of a margin the band could not decide, where a coincidence
+/// between two things has an object to declare: the shared menu
+/// ([`geom_core::COINCIDENCE_RECOURSE`], which
+/// `too_close_spells_the_shared_menu` holds this spelling to), or, for a
+/// poisoned margin, the defect ending, as [`own_close`] gives it: no
+/// declaration or move makes the margin readable.
+fn too_close(margin: &geom_core::MarginDiag) -> &'static str {
+    own_close(
+        margin,
+        concat!(
             "Recourse: ",
             geom_core::coincidence_declare_arm!(),
             ", or ",
             geom_core::coincidence_move_arm!()
         ),
-    }
+    )
 }
 
-/// The ending of an undecided margin about ONE thing, where "declare the
-/// coincidence" has no object and the refusal does not carry which of
-/// its site's decisions it is: the site's lever alone, since no one
-/// decision's margin gives a tolerance to tighten below (D4 ¶1 (i)), or,
-/// for a poisoned margin (not a number at all), the kernel defect it is.
+/// The ending of an undecided margin whose refusal does not carry which
+/// of its site's decisions it is: `lever` alone, since no one decision's
+/// margin gives a tolerance to tighten below (D4 ¶1 (i)), or, on a
+/// poisoned margin ([`geom_core::MarginDiag::is_invalid`]: a NaN, or the
+/// invalid margin a site mints where it has none to report), the defect
+/// ending, since no lever makes the margin readable. `lever` is a site's
+/// own, or [`too_close`]'s coincidence menu.
 fn own_close(margin: &geom_core::MarginDiag, lever: &'static str) -> &'static str {
     if margin.is_invalid() { DEFECT } else { lever }
 }
@@ -2498,7 +2513,7 @@ const PLANAR_CORNER: Unsized = Unsized::Defect;
 
 /// A flat face's edge on its plane: a residual of a carrier the kernel may
 /// have fitted.
-const PLANAR_BOUNDARY: Unsized = Unsized::LastResort;
+const PLANAR_BOUNDARY: Unsized = Unsized::Fit;
 
 /// The ring-torus convention `R − r > 0`: a size the user may intend, and
 /// the stored radii are what the lever edits.
@@ -2631,6 +2646,8 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
     use geom_brep::AnalyticRung3Refusal as A;
     use geom_brep::PlaneNurbsRefusal as P;
     const MISMATCH: &str = "its stored description does not match its geometry";
+    const BOUND: &str = "the check's certified bound on how far it strays from its faces \
+                         exceeds the tolerance";
     const KIND: &str = "the kernel cannot yet check an edge of this kind";
     // The lead is this window's own.
     let why = match e {
@@ -2642,9 +2659,28 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             verdict: Refused::Negative { .. },
         }
         | CertifyError::WindingExceeded
-        | CertifyError::ResidualExceeded { .. }
-        | CertifyError::PlaneNurbs(P::PcurveFit | P::Limb { .. })
-        | CertifyError::AnalyticRung3(A::Limb { .. }) => MISMATCH,
+        | CertifyError::PlaneNurbs(P::PcurveFit) => MISMATCH,
+        CertifyError::ResidualExceeded { check, .. } => {
+            if check.bounds_a_miss() {
+                BOUND
+            } else {
+                MISMATCH
+            }
+        }
+        CertifyError::PlaneNurbs(P::Limb { limb, .. }) => {
+            if limb.check().bounds_a_miss() {
+                BOUND
+            } else {
+                MISMATCH
+            }
+        }
+        CertifyError::AnalyticRung3(A::Limb { limb, .. }) => {
+            if A::check(*limb).bounds_a_miss() {
+                BOUND
+            } else {
+                MISMATCH
+            }
+        }
         CertifyError::AnalyticRung3(A::NoOffsetBound { .. }) => {
             "its curve's distance from a face has no certified bound (it reaches a cone's \
              apex height or the other nappe)"
@@ -2697,8 +2733,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::PlaneNurbs(P::TransversalityEscalated { .. }) => {
             certify_undecided(CertCheck::Transversality)
         }
-        CertifyError::PlaneNurbs(P::Escalated { limb, .. })
-        | CertifyError::AnalyticRung3(A::Escalated { limb, .. }) => certify_undecided(limb.check()),
+        CertifyError::PlaneNurbs(P::Escalated { limb, .. }) => certify_undecided(limb.check()),
+        CertifyError::AnalyticRung3(A::Escalated { limb, .. }) => {
+            certify_undecided(A::check(*limb))
+        }
         CertifyError::PlaneNurbs(P::ReportedTransversalityPoisoned(_)) => {
             certify_undecided(CertCheck::PlaneNurbsReportedTransversality)
         }
@@ -2796,7 +2834,8 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         | CertCheck::MappedSource
         | CertCheck::ChartResidual
         | CertCheck::PlaneNurbsOnLocus
-        | CertCheck::PlaneNurbsHull => {
+        | CertCheck::PlaneNurbsHull
+        | CertCheck::AnalyticHull => {
             geom_core::undecided!("whether it lies where its description says")
         }
         CertCheck::PlaneNurbsReportedTransversality => {
@@ -3305,12 +3344,13 @@ fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
         ),
         ChartRegionError::Escalated(diag) => (
             geom_core::undecided!("their overlap"),
-            too_close(Some(&diag.margin)),
+            too_close(&diag.margin),
         ),
         // The rays are the check's own: no coincidence to declare, and no
         // margin to size a tolerance by (`ray_walk::NoRaySettled`).
         ChartRegionError::RayExhausted => (GRAZED, MOVE_GEOMETRY),
-        ChartRegionError::WitnessBudgetExhausted { .. } => (
+        ChartRegionError::WitnessSegmentCapExceeded { .. }
+        | ChartRegionError::WitnessCellCapExceeded { .. } => (
             "their boundaries cross too many times for the check to finish",
             "Recourse: simplify the faces' boundaries",
         ),
@@ -3758,7 +3798,7 @@ impl fmt::Display for ValidationError {
                     geom_core::undecided!("whether two parts of the body touch"),
                     ". {}"
                 ),
-                too_close(Some(&cause.margin))
+                too_close(&cause.margin)
             ),
             Self::CensusUnsupported { subject, cause } => {
                 let (why, recourse) = classify_census_cause(cause);
@@ -5498,12 +5538,13 @@ pub(crate) enum MaterialArmOutcome {
 /// second-order walk ([`geom_brep::second_order_walk`]): the faces'
 /// material pairing before each station's second-order decision, and
 /// the wedge end after a `Positive` one. A read that escalates stops
-/// the walk with its cause, which the caller reports.
+/// the walk with its cause and the check it was ([`MaterialStop`]),
+/// which the caller reports.
 ///
 /// The one home of those reads: check 4 walks an edge's
 /// [`geom_brep::interior_stations`] with it and reports a stop as
 /// `SliverDihedral`; `boolean::rim_wedge` walks a closed rim's every
-/// uniform phase with it and returns a stop through `?`. Both fold the
+/// uniform phase with it and returns a stop's cause. Both fold the
 /// flags through [`MaterialStations::outcome`].
 pub(crate) struct MaterialStations<'s, T: Real> {
     s_plus: &'s Surface<T>,
@@ -5552,10 +5593,19 @@ impl<'s, T: Real> MaterialStations<'s, T> {
     }
 }
 
-impl<T: Decide> geom_brep::StationHook<T> for MaterialStations<'_, T> {
-    type Break = Indeterminate;
+/// Which of [`MaterialStations`]' reads stopped the walk, and its cause.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct MaterialStop {
+    /// [`WedgeCheck::MaterialPairing`] or [`WedgeCheck::MaterialSide`].
+    pub(crate) check: WedgeCheck,
+    /// The read's escalation, with the margin its decision decided.
+    pub(crate) cause: Indeterminate,
+}
 
-    fn before_decision(&mut self, station: &geom_brep::Station<T>) -> ControlFlow<Indeterminate> {
+impl<T: Decide> geom_brep::StationHook<T> for MaterialStations<'_, T> {
+    type Break = MaterialStop;
+
+    fn before_decision(&mut self, station: &geom_brep::Station<T>) -> ControlFlow<MaterialStop> {
         match classify_material_pairing(
             self.s_plus,
             self.sense_plus,
@@ -5567,7 +5617,12 @@ impl<T: Decide> geom_brep::StationHook<T> for MaterialStations<'_, T> {
         ) {
             Ok(MaterialPairing::Aligned) => self.opposed = false,
             Ok(MaterialPairing::Opposed) => self.aligned = false,
-            Err(cause) => return ControlFlow::Break(cause),
+            Err(cause) => {
+                return ControlFlow::Break(MaterialStop {
+                    check: WedgeCheck::MaterialPairing,
+                    cause,
+                });
+            }
         }
         ControlFlow::Continue(())
     }
@@ -5576,27 +5631,24 @@ impl<T: Decide> geom_brep::StationHook<T> for MaterialStations<'_, T> {
     /// material frame, of the quantity whose magnitude just classified
     /// definitely positive — so neither `Zero` nor an escalation is
     /// reachable through a margin the run can read. Both are announced
-    /// anyway, as an escalation: a state that cannot occur is reported,
-    /// never swallowed, and a validator's "I cannot say" is an error in
-    /// its vector, not a panic.
-    fn after_positive(&mut self, station: &geom_brep::Station<T>) -> ControlFlow<Indeterminate> {
+    /// anyway, through the gate that refuses a `Zero` with its margin: a
+    /// state that cannot occur is reported, never swallowed, and a
+    /// validator's "I cannot say" is an error in its vector, not a panic.
+    fn after_positive(&mut self, station: &geom_brep::Station<T>) -> ControlFlow<MaterialStop> {
         let signed = geom_brep::material_kappa_rel(station.jet.kappa_rel, self.sense_plus);
-        let this = match decide(
+        let this = match decide_nonzero(
             "material_cusp_side",
             Margin::sagitta(signed, station.arm),
             self.band,
         ) {
-            Ok(Sign::Positive) => MaterialWedge::Cusp,
-            Ok(Sign::Negative) => MaterialWedge::Slit,
-            Ok(Sign::Zero) => {
-                return ControlFlow::Break(Indeterminate {
-                    margin: geom_core::MarginDiag::INVALID,
-                    band: self.band,
-                    predicate: Some("material_cusp_side"),
-                    terminal_sliver: false,
+            Ok(geom_core::k_stats::NonzeroSign::Positive) => MaterialWedge::Cusp,
+            Ok(geom_core::k_stats::NonzeroSign::Negative) => MaterialWedge::Slit,
+            Err(cause) => {
+                return ControlFlow::Break(MaterialStop {
+                    check: WedgeCheck::MaterialSide,
+                    cause,
                 });
             }
-            Err(cause) => return ControlFlow::Break(cause),
         };
         match self.side {
             Some(seen) if seen != this => self.side_mixed = true,
@@ -6679,9 +6731,7 @@ pub(crate) fn tier3_local_checks_marked<
                 geom_brep::SecondOrderWalk::InBand(cause) => {
                     (true, Some((WedgeCheck::SecondOrder, cause)))
                 }
-                geom_brep::SecondOrderWalk::Stopped(cause) => {
-                    (true, Some((WedgeCheck::MaterialSide, cause)))
-                }
+                geom_brep::SecondOrderWalk::Stopped(stop) => (true, Some((stop.check, stop.cause))),
             };
             let jet_escalated = escalation.is_some();
             if let Some((check, cause)) = escalation {
@@ -11073,17 +11123,49 @@ mod tests {
         }
     }
 
-    /// `too_close`'s two sentences are the shared coincidence menu,
-    /// spelled once in `geom_core` — the plain one, and the poisoned
-    /// margin's with its input check first.
+    /// `too_close` spells the shared coincidence menu, once in
+    /// `geom_core`, on a margin that was read.
     #[test]
     fn too_close_spells_the_shared_menu() {
         let menu = geom_core::COINCIDENCE_RECOURSE;
-        assert_eq!(super::too_close(None), format!("Recourse: {menu}"));
         assert_eq!(
-            super::too_close(Some(&geom_core::MarginDiag::INVALID)),
-            format!("Recourse: check the inputs that built this body, then {menu}")
+            super::too_close(&geom_core::MarginDiag::value(5e-9)),
+            format!("Recourse: {menu}")
         );
+    }
+
+    /// **A poisoned margin at a coincidence-menu ending ends in the
+    /// defect ending at rest** (D4 ¶1 (i)): no declaration and no move
+    /// makes an unreadable margin readable, so neither arm of the menu is
+    /// offered. Both of `too_close`'s readers: the census's own escalation,
+    /// and the chart-region overlap it carries.
+    #[test]
+    fn a_poisoned_coincidence_menu_ends_in_the_defect_ending() {
+        use crate::chart_region::ChartRegionError as R;
+        let cause = Indeterminate {
+            margin: geom_core::MarginDiag::INVALID,
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("material_wedge_side"),
+            terminal_sliver: false,
+        };
+        let rows = [
+            ("census", ValidationError::CensusEscalated { cause }),
+            (
+                "chart region",
+                ValidationError::CensusUnsupported {
+                    subject: CensusSubject::FacePair(FaceKey::default(), FaceKey::default()),
+                    cause: CensusUnsupportedCause::ChartRegion(R::Escalated(cause)),
+                },
+            ),
+        ];
+        for (label, e) in rows {
+            let text = e.to_string();
+            assert!(
+                text.ends_with(&format!(". {DEFECT}")),
+                "{label}: the defect ending, alone: {text}"
+            );
+            assert!(!text.contains("declare"), "{label}: {text}");
+        }
     }
 
     /// No ending this module renders tells the user to lower the
@@ -11091,21 +11173,19 @@ mod tests {
     /// band-decided arm of a sized decision, conditionally and with its
     /// value. The coincidence menu `too_close` spells is
     /// `geom_core::COINCIDENCE_RECOURSE`'s wording, the constant's own to
-    /// change, so it is taken out of exactly the arms that compose it, and
-    /// those arms are held to composing it.
+    /// change, so it is taken out of exactly the arms that compose it (on
+    /// a margin that was read), and those arms are held to composing it.
     #[test]
     fn no_validate_ending_says_lower_the_tolerance() {
         use crate::chart_region::ChartRegionError as R;
         let menu = geom_core::COINCIDENCE_RECOURSE;
-        let composes = |e: &ValidationError| {
-            matches!(
-                e,
-                ValidationError::CensusEscalated { .. }
-                    | ValidationError::CensusUnsupported {
-                        cause: CensusUnsupportedCause::ChartRegion(R::Escalated(_)),
-                        ..
-                    }
-            )
+        let composes = |e: &ValidationError| match e {
+            ValidationError::CensusEscalated { cause: diag }
+            | ValidationError::CensusUnsupported {
+                cause: CensusUnsupportedCause::ChartRegion(R::Escalated(diag)),
+                ..
+            } => !diag.margin.is_invalid(),
+            _ => false,
         };
         let samples = crate::test_support_samples::validation_error_samples();
         let mut problems = Vec::new();
@@ -11233,6 +11313,24 @@ mod tests {
                  or, if this curvature difference is intended, tighten the tolerance below \
                  5e-10 m"
                     .to_owned(),
+            ),
+            (
+                "material pairing, in band",
+                sliver(WedgeCheck::MaterialPairing, in_band),
+                "which side of an edge the material of its two smoothly meeting faces lies on \
+                 is undecided. Recourse: move the geometry so that edge is clearly longer and no \
+                 face curves tightly there, or, if this length is intended, tighten the \
+                 tolerance below 5e-10 m"
+                    .to_owned(),
+            ),
+            (
+                "material pairing, poisoned",
+                sliver(WedgeCheck::MaterialPairing, diag(MarginDiag::INVALID)),
+                format!(
+                    "Recourse: move the geometry so that edge is clearly longer and no face \
+                     curves tightly there; {}",
+                    geom_core::UNREADABLE_STORED_MARGIN_NOTE
+                ),
             ),
             (
                 "material side",
@@ -15130,7 +15228,7 @@ mod tests {
     /// The pair here is the sharpest one the chart-region doors have. A
     /// `TouchingBoundary` decline is a statement about the GEOMETRY —
     /// the trims touch, the area is not decidable at this ε — and a
-    /// `WitnessBudgetExhausted` decline is a statement about the
+    /// witness-cap decline (either cap) is a statement about the
     /// WORK: the interior-witness search stopped, on a pair whose
     /// overlap may be fat and perfectly decidable. The repairs are
     /// unrelated, and while the census flattened both onto its
@@ -15140,9 +15238,10 @@ mod tests {
     /// either push site in `census.rs` and the two messages coincide
     /// again.
     ///
-    /// **Every quantity here is derived, none restated.** The segment
-    /// figure comes from [`crate::chart_region::WITNESS_BUDGET`], so
-    /// raising the cap moves this row with it instead of leaving it
+    /// **Every quantity here is derived, none restated.** The cap
+    /// figures come from [`crate::chart_region::WITNESS_SEGMENT_CAP`]
+    /// and [`crate::chart_region::WITNESS_CELL_CAP`], so raising a cap
+    /// moves this row with it instead of leaving it
     /// green over a state the guard can no longer reach; and each
     /// arm's reason is asserted as its classifier's own output rather
     /// than as a fragment this row believes the classifier emits.
@@ -15168,28 +15267,33 @@ mod tests {
         let thin = says(CensusUnsupportedCause::ChartRegion(
             ChartRegionError::TouchingBoundary,
         ));
-        // One past the cap: the state the guard actually answers, and
-        // it moves when the cap moves.
-        let over_cap = crate::chart_region::WITNESS_BUDGET.segments + 1;
-        let stopped = says(CensusUnsupportedCause::ChartRegion(
-            ChartRegionError::WitnessBudgetExhausted {
-                segments: over_cap,
-                cells: 0,
+        // Each cap's state as its guard answers it, derived so it
+        // moves when the cap moves. Both caps keep the one census
+        // answer.
+        use crate::chart_region::{WITNESS_CELL_CAP, WITNESS_SEGMENT_CAP};
+        let not_run = says(CensusUnsupportedCause::ChartRegion(
+            ChartRegionError::WitnessSegmentCapExceeded {
+                segments: WITNESS_SEGMENT_CAP + 1,
             },
         ));
-        assert_ne!(thin, stopped);
-        assert!(
-            stopped.contains("their boundaries cross too many times for the check to finish"),
-            "{stopped}"
-        );
+        let stopped = says(CensusUnsupportedCause::ChartRegion(
+            ChartRegionError::WitnessCellCapExceeded {
+                segments: WITNESS_SEGMENT_CAP,
+                cells: WITNESS_CELL_CAP,
+            },
+        ));
+        for capped in [&not_run, &stopped] {
+            assert_ne!(&thin, capped);
+            assert!(
+                capped.contains("their boundaries cross too many times for the check to finish"),
+                "{capped}"
+            );
+            assert!(!capped.contains("separate the geometry"), "{capped}");
+        }
         assert!(
             thin.contains("the faces' edges touch at this tolerance"),
             "{thin}"
         );
-        // And the blanket recourse the arm used to append to every
-        // decline is gone: it is the inventory lanes' repair, and it
-        // is the wrong instruction for a stopped search.
-        assert!(!stopped.contains("separate the geometry"), "{stopped}");
 
         // The other two lanes compose from their own vocabularies.
         // The `what` is one of production's own, copied from
@@ -15904,6 +16008,43 @@ mod certify_escalation_rows {
                 )),
                 "its stored description does not match its geometry. There is no way through: \
                  this is a kernel defect or a damaged file; report it",
+            ),
+            // A certified bound on the miss past the tolerance
+            // contradicts nothing stored: the certificate's limit.
+            (
+                says(CertifyError::ResidualExceeded {
+                    check: CertCheck::TangentHull,
+                    sample: 0,
+                    margin: geom_core::MarginDiag::value(3e-8),
+                }),
+                "the check's certified bound on how far it strays from its faces exceeds the \
+                 tolerance. Recourse: loosen the tolerance, as a last resort; this refusal may \
+                 indicate a kernel bug worth reporting",
+            ),
+            (
+                says(CertifyError::PlaneNurbs(
+                    geom_brep::PlaneNurbsRefusal::Limb {
+                        limb: geom_brep::ssi::SsiLimb::HullSup,
+                        value: 2.0e-8,
+                        margin: geom_core::MarginDiag::value(2.0e-8),
+                    },
+                )),
+                "the check's certified bound on how far it strays from its faces exceeds the \
+                 tolerance. Recourse: loosen the tolerance, as a last resort; this refusal may \
+                 indicate a kernel bug worth reporting",
+            ),
+            (
+                says(CertifyError::AnalyticRung3(
+                    geom_brep::AnalyticRung3Refusal::Limb {
+                        operand: geom::SurfaceKind::Plane,
+                        limb: geom_brep::ssi::SsiLimb::HullSup,
+                        value: 2.0e-8,
+                        margin: geom_core::MarginDiag::value(2.0e-8),
+                    },
+                )),
+                "the check's certified bound on how far it strays from its faces exceeds the \
+                 tolerance. Recourse: loosen the tolerance, as a last resort; this refusal may \
+                 indicate a kernel bug worth reporting",
             ),
             // A span shorter than the tolerance is a length a user may
             // intend; one of no length is one no construction mints; a

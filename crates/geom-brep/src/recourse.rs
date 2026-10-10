@@ -114,9 +114,16 @@ pub fn not_yet(arm: RefusedArm<'_>, reading: Reading) -> String {
 pub enum Unsized {
     /// The kernel built what it claims exactly, so a miss is a defect.
     Defect,
-    /// The kernel approximated (a fitted carrier, a certified bound), so
-    /// a miss may be the approximation's limit (D4 ¶1 (i)'s last resort).
-    LastResort,
+    /// The kernel approximated (a fitted carrier, a settled root, a
+    /// spent budget), so a miss may be the approximation's limit (D4 ¶1
+    /// (i)'s last resort): at a build on every arm, and at rest on an
+    /// undecided one. A definite miss read at rest is a stored
+    /// contradiction.
+    Fit,
+    /// The refused margin is a certified upper bound on the miss, not
+    /// the miss: a loose bound is the certificate's own limit, and
+    /// contradicts nothing stored.
+    Bound,
 }
 
 impl Unsized {
@@ -127,15 +134,18 @@ impl Unsized {
     /// the kernel approximated, an arm read at a build, and an undecided
     /// arm read at rest, end in the last resort; a definite arm at rest
     /// ends in the file's defect ending, since no loosening repairs a
-    /// stored contradiction. An arm whose margin could not be read ends
-    /// in the defect ending too: no tolerance makes it readable.
+    /// stored contradiction. A bound ends in the last resort on every
+    /// arm at every reading. An arm whose margin could not be read ends
+    /// in the defect ending, whatever the decision: no tolerance makes it
+    /// readable.
     #[must_use]
     pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
         let defect = defect_ending(reading);
         match self {
             Self::Defect => defect.to_owned(),
-            Self::LastResort if arm.unreadable() => defect.to_owned(),
-            Self::LastResort => match (reading, arm) {
+            Self::Fit | Self::Bound if arm.unreadable() => defect.to_owned(),
+            Self::Bound => KERNEL_LIMIT_RECOURSE.to_owned(),
+            Self::Fit => match (reading, arm) {
                 (Reading::Build, _)
                 | (Reading::AtRest, RefusedArm::Undecided(_) | RefusedArm::Straddle) => {
                     KERNEL_LIMIT_RECOURSE.to_owned()
@@ -153,24 +163,30 @@ impl Unsized {
     /// as a stopgap, beside re-exporting the file more precisely
     /// ([`FileCoincidence::miss_recourse_in_file`]). A residual passes
     /// only at zero, so its refused margin is a miss, on the sign-certain
-    /// arm too, which every residual refusal carries its reading on.
+    /// arm too, which every residual refusal carries its reading on; a
+    /// bound's is a bound on the miss, on its undecided and sign-certain
+    /// arms alike.
     #[must_use]
     pub fn residual_in_file(self, arm: RefusedArm<'_>, file: FileCoincidence) -> String {
         let reading = ReadAt::File(file).reading();
-        let miss = match arm {
-            RefusedArm::Undecided(cause) => MissReading::Banded(cause.margin, cause.band),
-            RefusedArm::Zero(Classified { margin, band }) => MissReading::Banded(margin, band),
-            RefusedArm::SignCertain(Some(margin)) => MissReading::Definite(margin),
+        let miss = match (self, arm) {
+            // A bound at zero refuses nothing a residual would.
+            (Self::Bound, RefusedArm::Zero(_)) => return self.recourse(arm, reading),
+            (Self::Bound, RefusedArm::Undecided(cause)) => MissReading::Bound(cause.margin),
+            (Self::Bound, RefusedArm::SignCertain(Some(margin))) => MissReading::Bound(margin),
+            (_, RefusedArm::Undecided(cause)) => MissReading::Banded(cause.margin, cause.band),
+            (_, RefusedArm::Zero(Classified { margin, band })) => MissReading::Banded(margin, band),
+            (_, RefusedArm::SignCertain(Some(margin))) => MissReading::Definite(margin),
             // A straddle, or a sign-certain arm without its reading,
             // carries no single reading of the miss to compare with the
             // file's coincidence distance: it ends at rest.
-            RefusedArm::SignCertain(None) | RefusedArm::Straddle => {
+            (_, RefusedArm::SignCertain(None) | RefusedArm::Straddle) => {
                 return self.recourse(arm, reading);
             }
         };
         let source = match self {
             Self::Defect => MissSource::File,
-            Self::LastResort => MissSource::Fit,
+            Self::Fit | Self::Bound => MissSource::Fit,
         };
         file.miss_recourse_in_file(miss, source, &self.recourse(arm, reading))
     }
@@ -279,7 +295,7 @@ impl RefusedArm<'_> {
     }
 
     /// Whether the arm's margin could not be read: the test
-    /// [`Unsized::LastResort`] ends in the defect ending on.
+    /// [`Unsized::Fit`] and [`Unsized::Bound`] end in the defect ending on.
     fn unreadable(self) -> bool {
         self.banded().is_some_and(MarginDiag::is_invalid)
     }
@@ -699,7 +715,7 @@ mod tests {
         let tol = geom_core::Tol::witness();
         let file = FileCoincidence::new(1e3 * tol.eps());
         let miss = MarginDiag::value(1e2 * tol.eps());
-        for residual in [Unsized::Defect, Unsized::LastResort] {
+        for residual in [Unsized::Defect, Unsized::Fit] {
             let valued = residual.residual_in_file(RefusedArm::SignCertain(Some(miss)), file);
             let unvalued = residual.residual_in_file(RefusedArm::SignCertain(None), file);
             assert!(
@@ -732,7 +748,7 @@ mod tests {
             );
         }
         assert_eq!(
-            Unsized::LastResort.recourse(RefusedArm::Straddle, Reading::AtRest),
+            Unsized::Fit.recourse(RefusedArm::Straddle, Reading::AtRest),
             KERNEL_LIMIT_RECOURSE
         );
     }
@@ -873,7 +889,7 @@ mod tests {
                 endings.push(not_yet(arm, reading));
                 endings.push(LeverOnly { lever: "L" }.recourse(arm, reading));
             }
-            for residual in [Unsized::Defect, Unsized::LastResort] {
+            for residual in [Unsized::Defect, Unsized::Fit, Unsized::Bound] {
                 for reading in [Reading::Build, Reading::AtRest] {
                     assert_eq!(
                         residual.recourse(arm, reading),
@@ -902,7 +918,7 @@ mod tests {
         };
         for reading in [Reading::Build, Reading::AtRest] {
             assert_eq!(
-                Unsized::LastResort.recourse(RefusedArm::Undecided(&read), reading),
+                Unsized::Fit.recourse(RefusedArm::Undecided(&read), reading),
                 KERNEL_LIMIT_RECOURSE,
                 "a read margin at {reading:?}"
             );

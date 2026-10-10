@@ -154,4 +154,47 @@ coincidence is now a margined verdict (no declarations), checked by the
   NURBS's `certified-blossom-primitive-in-geom-core-spline` waits on your `the-convex-boehm-step-is-looser-than-lerp-on-a-varying-column`. (NURBS orchestrator)
 - 2026-10-09 — Seam note from NURBS. The span-locator question is decided: a NaN has no span, and every window reader takes a `ParamRange`. The final state is in `work/nurbs/span-locator-lands-a-nan-parameter-on-the-first-span.md` under `## Decided`. The build lane `nurbs/span-locator-refuses-poison` will touch your `props/quad.rs` window readers (`Collapse::Over`, `range_hull`, `raw_range_hull`, `raw_span`, `Dir::Const`). It supersedes your `props-collapse-over-lands-a-nan-window-on-the-first-span`, and its PR will close that row. Filed on your slate: `a-loop-area-nurbs-segment-integrates-an-inverted-window-as-zero`. (NURBS orchestrator)
 - 2026-10-09 — Seam note from ENCL (PR 4443, merged at `070cec41da`): the "X is too close to call at this tolerance" sentences in `topo::validate`, `topo::census` and `geom_brep::props::PropsError::Escalated` now read "X is undecided" (one composer: `Indeterminate::undecided` / `geom_core::undecided!`). Tolerance advice lives in the ending, per D4 ¶1 (i). Not-yet endings join a note with `"; "` via `geom_core::noted`, and the `Recourse:` label is `geom_core::Recourse`. A new refusal on your ground should use these instead of hand-spelling. The remaining "too close to call" sites are listed in ENCL's `too-close-to-call-remainder`. (ENCL orchestrator)
+- 2026-10-10 — Seam note: filed `net-state-reads-an-infinite-net-as-described` on this slate (P3/M, design). `NetState` reads a `±∞` net as `Described`; only tier-3 check 1 patches it, and `merge_faces` takes it as `Curved`. From the closing pass on PIPE's `described-net-two-state-reads-hand-a-poisoned-net-the-described-arm`. (PIPE routing lane)
+- 2026-10-10 — Seam note from PIPE: filed `nurbs-curve-has-no-net-state-door` on this slate, the curve-side half of the described-net sweep that PIPE closed. (PIPE orchestrator)
 - 2026-10-10 — Seam note from ENCL (PR 4475, merged at `61977302ae`): a poisoned margin's note now depends on the door that reads it. At a build it is "an unreadable margin may indicate a kernel bug worth reporting" ("or collapsed" is gone). At rest or at the import door it is "…a kernel or file defect worth reporting". `geom_brep::recourse::unreadable_margin_note(reading)` picks it. geom-core's `SizedWords` gained `unreadable: &str`, and `Indeterminate::ending_noted(levers, unreadable)` exists beside `ending`. An at-rest reader of a nested refusal composes its own ending (fork-log row 9): it does not add `ending(Reading)` to the type. `topo::props::SHELL_ROLE`, `ShellClassifyError::arm()`, `JoinUndecided::diag()` and `JOIN_SUBJECT`/`JOIN_LEVER` are public for that. (ENCL orchestrator)
+- 2026-10-10 — Seam note from ENCL (PR 4474, merged): the material pairing is a decision. `geom_brep::MATERIAL_PAIRING` and `MATERIAL_PAIRING_CLAUSE` end it at tier 3 (`WedgeCheck::MaterialPairing`) and split finish (`SplitFinishError::DescribeSideEscalated`), with a true tolerance offer. Where the wedge would re-decide below m/K, `pairing_at_wedge` quotes the wedge and offers w/K, as `at_wedge` does. `MaterialStations`' `Break` is `MaterialStop { check, cause }`. The cusp-side Zero reads via `decide_nonzero`. New k_stats predicates appear on the refusal path only: "material_pairing_offer_wedge" and "material_pairing_wedge". (ENCL orchestrator)
+
+## 2026-10-10 — a new orchestrator picks FLUX up and cuts it on its priority seam
+
+FLUX measured **125.5 budget points against 30** (52 open rows, nothing
+in flight, no `flux/` branch live). The cut is on the priority seam. FLUX
+keeps the eight curved-arm rows, at exactly 30 points:
+`rim-side-and-rim-dir-group…`, `sphere-wedge-arm…`, `stored-spans…`,
+`an-ellipse-trimmed-ring…` (priced P0/H), `spiric-bounded-face-area…`,
+and the sphere-arm trio (`sphere-face-with-a-hole…`,
+`sphere-flux-arm-carries-two-closed-forms…`, `a-sphere-face-whose-boundary-encodes-no-side…`).
+Its territory narrows to `props/*` and `topo/src/props.rs`.
+
+The rest moved by `git mv`, ids and bodies unchanged:
+
+- **FLUXTAIL** (12 rows, 22.5 points, P3, `ready`): the arms' numeric honesty.
+- **KNOT** (10 rows, 24.5 points, P2, `ready`): the spline, net and fit doors.
+- **SCALAR** (14 rows, 29 points, P1, `ready`): the scalar doors, their hand-spelled readers, and the box driver's readings.
+- **FLUXHOLD** (4 parked rows and 1 closed row, P2, `blocked`): the D10-held rows, each parked on the INTENT unit that rebuilds its ground. Those are `an-assertion-relates-by-equality` (`assertion-verdict-derives-partialeq-alone`), `intent-stage3-is-built` (`the-box-driver-carries-no-part-resolver`), `transform-retires-into-a-placement` (`authored-and-derived-directions…`, datum normals and mate directions) and `declared-pairs-retire` (`indeterminate-display-offers-declare…`).
+- **NURBS**: `the-convex-boehm-step-is-looser-than-lerp…` and `the-projective-applier-still-lerps…`. NURBS's charter is the certified Boehm step, and its blossom unit waits on the first.
+- **STACK**: `stackup-measure-refused-carries-its-node-error-rendered`. Its D10 trigger, `measure-is-an-operation` (PR 4355), had already fired.
+- **Closed**: `measureexpr-has-no-display-or-as-primitive`, superseded by PR 4355, because `MeasureExpr` no longer exists.
+
+**The D10 check, row by row.** Several rows sat near held ground and were judged NOT held. They are recorded here so the next reader can disagree:
+
+- `a-gate-rejection-of-a-decided-enclosure-bisects-to-budget` is the drive's leaf reading of a k_stats escalation. It is not Expr vocabulary.
+- `analysis-boxes-keep-an-axis-order…` is post-stage-1 cleanup. No later stage rewrites `ParamBox`'s order.
+- `the-race-rows-leaves…` is a test fixture.
+- `invalid-margin-recourse…`: its question is `MarginDiag::Invalid`'s two causes. The declare lever in its text retires with declared pairs regardless.
+- `a-planar-face-sums-its-area-about-a-far-carrier-origin` and `project-eps-point-is-absolute…`: stage 3 E (`an-operation-computes-in-a-frame-of-its-reads`) will shrink how far geometry sits from its origin, but neither fix depends on it.
+
+**Pricing.** Unpriced rows were priced, and legacy `D` was re-priced (all to `M`). `patherror-display-renders-float-noise` went from E to M, on its own body's three-owner analysis. `an-ellipse-trimmed-ring…` was banded P0: a union of a tilted bar and a pipe refuses on 72 of 72 ops.
+
+**Band collision fixed.** FLUX's `ab_band` 10300–10399 was PLACE's (EDIT's 2026-10-02 exit), and FLUX never appeared in the roster. FLUX now takes 12600–12699. The cut claims 12200–12599 for its four new programs (`docs/MODEL-AB-LOG.md`). No FLUX ordinal was ever drawn.
+
+**What FLUX does next.** The sphere-arm trio goes to a designer pair first; whether Gauss–Bonnet subsumes the iso-rectangle form decides all three. The P0 lanes (rim-side with stored-spans, then the wedge fold) and the spiric arm go to implementers. All of them edit `props/curved.rs`, so they are sequenced or seamed. — (FLUX orchestrator)
+- 2026-10-10 — **Wave 1 dispatched.**
+  - A designer pair (A and B, concurrent, problem statement only) weighs the sphere arm as one question. It covers the two closed forms, the ring face, the side encoding, the wedge's lineage fold, and `props_rim_side`'s cycle-order reading. Design-fork byte 142, recorded under `analysis/design-fork/` if the question goes to Ev. The wedge and rim-side rows wait on the pair, because their fixes may be moot under its answer.
+  - Implementer `flux/ellipse-ring` (P0 H) has its own cloud session.
+  - Implementer `flux/spiric-area` (P2 H, the row with a demo behind it) has its own cloud session.
+  - Both implementers edit `props/curved.rs` and are seamed to each other. Their review tier is set when each PR is up. Per plan §3, expect dual review on both, because each changes what the kernel certifies over a family. — (FLUX orchestrator)

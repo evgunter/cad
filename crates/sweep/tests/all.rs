@@ -304,6 +304,8 @@ mod blend_operand_gate;
 mod blend_seam_split_rim;
 #[path = "blend_tworims.rs"]
 mod blend_tworims;
+#[path = "blend_value_decided_rows.rs"]
+mod blend_value_decided_rows;
 #[path = "bool5r1_probes.rs"]
 mod bool5r1_probes;
 #[path = "cert5_offgrid_knot_rational.rs"]

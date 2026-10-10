@@ -1390,6 +1390,109 @@ impl<P> Doc<P> {
         self.ordered().0
     }
 
+    /// **The observed variables** (D10): every [`Node::Measure`]'s
+    /// output — a function of the built geometry — and every definition
+    /// reading one, directly or through another definition. Only an
+    /// assertion reads one ([`crate::EditError::ConstructionReadsObserved`]).
+    pub fn observed(&self) -> std::collections::BTreeSet<VarId> {
+        let mut observed: std::collections::BTreeSet<VarId> = self
+            .vars
+            .keys()
+            .copied()
+            .filter(|&id| self.measured_output(id))
+            .collect();
+        if observed.is_empty() {
+            return observed;
+        }
+        for id in self.definition_order() {
+            let Some(expr) = self.vars.get(&id).and_then(|v| v.def().defined()) else {
+                continue;
+            };
+            let mut reads = Vec::new();
+            expr.var_reads(&mut reads);
+            if reads.iter().any(|(read, _)| observed.contains(read)) {
+                observed.insert(id);
+            }
+        }
+        observed
+    }
+
+    /// **The first slot of `node` reading an observed variable**
+    /// (`observed`, [`Self::observed`]), with the variable, when `node`
+    /// is a construction: every node but an assertion, which is the one
+    /// reader of a measured value (D10). `None` otherwise.
+    pub(crate) fn observed_read(
+        &self,
+        observed: &std::collections::BTreeSet<VarId>,
+        node: &Node<P>,
+    ) -> Option<(crate::SlotId, VarId)>
+    where
+        P: crate::ProfilePayload,
+    {
+        if observed.is_empty() || matches!(node, Node::Assertion { .. }) {
+            return None;
+        }
+        node.rows()
+            .into_iter()
+            .find(|(_, var)| observed.contains(var))
+            .map(|(slot, &var)| (slot, var))
+    }
+
+    /// **The first construction in this document reading an observed
+    /// variable** ([`Self::observed_read`]), in node order: the node,
+    /// the slot and the variable. `None` for a document in which only
+    /// assertions read measured values.
+    pub(crate) fn observed_read_fault(&self) -> Option<(RecipeNodeId, crate::SlotId, VarId)>
+    where
+        P: crate::ProfilePayload,
+    {
+        let observed = self.observed();
+        if observed.is_empty() {
+            return None;
+        }
+        self.nodes.iter().find_map(|(&id, node)| {
+            self.observed_read(&observed, node)
+                .map(|(slot, var)| (id, slot, var))
+        })
+    }
+
+    /// **The measures' outputs `var` reads**, through definitions: `var`
+    /// itself when it is one, else every one its definition's closure
+    /// reads, each once, in first-read order. Empty for a variable that
+    /// is not observed ([`Self::observed`]).
+    pub fn observed_outputs(&self, var: VarId) -> Vec<VarId> {
+        let mut out = Vec::new();
+        let mut seen = std::collections::BTreeSet::new();
+        let mut stack = vec![var];
+        while let Some(at) = stack.pop() {
+            if !seen.insert(at) {
+                continue;
+            }
+            let Some(held) = self.vars.get(&at) else {
+                continue;
+            };
+            if held.def().output().is_some() {
+                if self.measured_output(at) {
+                    out.push(at);
+                }
+                continue;
+            }
+            if let Some(expr) = held.def().defined() {
+                let mut reads = Vec::new();
+                expr.var_reads(&mut reads);
+                stack.extend(reads.into_iter().rev().map(|(read, _)| read));
+            }
+        }
+        out
+    }
+
+    /// Whether `var` is a [`Node::Measure`]'s output: the one kind of
+    /// output that is observed.
+    fn measured_output(&self, var: VarId) -> bool {
+        self.operation_of(var)
+            .is_some_and(|node| matches!(self.nodes.get(&node), Some(Node::Measure { .. })))
+    }
+
     /// [`Self::definition_order`], and how many of its variables
     /// Kahn's algorithm placed: the rest are on a cycle or read one.
     fn ordered(&self) -> (Vec<VarId>, usize) {
@@ -1574,12 +1677,15 @@ impl<P> Doc<P> {
 
     /// **The operations `node` depends on** (D10: reading is the only
     /// dependency): the operations defining the variables its operands
-    /// read ([`Node::operand_rows`]), then the live nodes a measure's
-    /// sited references are read at ([`Node::measure_sites`]). In read
-    /// order, each once; a read this document does not resolve, or a
-    /// site no live node is, contributes nothing (an unresolved read is
-    /// the reader's refusal at evaluation, not an edge). Empty for a
-    /// node this document does not hold.
+    /// read ([`Node::operand_rows`]), then those defining the measured
+    /// values its expressions read through definitions
+    /// ([`Self::observed_outputs`]: an assertion's value), then the live
+    /// nodes a measure's sited references are read at
+    /// ([`Node::measure_sites`]). In read order, each once; a read this
+    /// document does not resolve, or a site no live node is, contributes
+    /// nothing (an unresolved read is the reader's refusal at
+    /// evaluation, not an edge). Empty for a node this document does not
+    /// hold.
     ///
     /// A slot reads free and defined variables, which no operation
     /// defines; a slot reading an operation's output refuses at
@@ -1600,10 +1706,16 @@ impl<P> Doc<P> {
         P: crate::ProfilePayload,
     {
         let mut out: Vec<RecipeNodeId> = Vec::new();
+        let observed = node
+            .exprs()
+            .into_iter()
+            .flat_map(|&var| self.observed_outputs(var))
+            .filter_map(|var| self.operation_of(var));
         let at = node
             .operand_rows()
             .into_iter()
             .filter_map(|(_, var)| self.operation_of(var))
+            .chain(observed)
             .chain(
                 node.measure_sites()
                     .into_iter()
@@ -1782,6 +1894,30 @@ impl<P> Doc<P> {
     /// `id` as a sentence names it: its name, or `variable <tag>`.
     pub fn spoken_var(&self, id: VarId) -> crate::spoken::SpokenVar {
         crate::spoken::SpokenVar::new(id, self.var_names.get(&id).cloned())
+    }
+
+    /// **A value as a report speaks it**: a named variable by its name,
+    /// an operation's output as the value of its operation, and an
+    /// unnamed definition as the value its one reader reads (VR7: it is
+    /// spoken by its reader).
+    pub fn spoken_value(&self, id: VarId) -> String
+    where
+        P: crate::ProfilePayload,
+    {
+        if let Some(name) = self.var_names.get(&id) {
+            return name.to_string();
+        }
+        if let Some(node) = self.operation_of(id) {
+            return format!("the value of {}", self.spoken(node));
+        }
+        match self
+            .nodes
+            .iter()
+            .find(|(_, node)| node.exprs().contains(&&id))
+        {
+            Some((&reader, _)) => format!("the value {} reads", self.spoken(reader)),
+            None => self.spoken_var(id).to_string(),
+        }
     }
 
     /// **How a declare of `def` under `name` speaks its variable**:
@@ -2129,31 +2265,39 @@ impl<P> Doc<P> {
             }
         }
         for id in self.definition_order() {
-            let Some(expr) = self.vars.get(&id).and_then(|v| v.def().defined()) else {
-                continue;
-            };
-            env.bindings.remove(&id);
-            env.refused.remove(&id);
-            if self.var_names.contains_key(&id) {
-                env.written.remove(&id);
-            } else {
-                env.written.insert(id);
+            self.bind_definition(id, env);
+        }
+    }
+
+    /// **Bind the one defined variable `id`** in `env` from its
+    /// definition, evaluated over `env` at `env`'s scalar, or record its
+    /// refusal ([`Self::bind_definitions`]' step). Nothing for a
+    /// variable that is not defined.
+    pub(crate) fn bind_definition<T: Decide>(&self, id: VarId, env: &mut VarEnv<T>) {
+        let Some(expr) = self.vars.get(&id).and_then(|v| v.def().defined()) else {
+            return;
+        };
+        env.bindings.remove(&id);
+        env.refused.remove(&id);
+        if self.var_names.contains_key(&id) {
+            env.written.remove(&id);
+        } else {
+            env.written.insert(id);
+        }
+        let bound = if expr.dim() == Dimension::Count {
+            crate::expr::eval_count(expr, env).map(ParamValue::Count)
+        } else {
+            crate::expr::eval(expr, env).map(|value| ParamValue::Continuous {
+                dim: expr.dim(),
+                value,
+            })
+        };
+        match bound {
+            Ok(bound) => {
+                env.bindings.insert(id, bound);
             }
-            let bound = if expr.dim() == Dimension::Count {
-                crate::expr::eval_count(expr, env).map(ParamValue::Count)
-            } else {
-                crate::expr::eval(expr, env).map(|value| ParamValue::Continuous {
-                    dim: expr.dim(),
-                    value,
-                })
-            };
-            match bound {
-                Ok(bound) => {
-                    env.bindings.insert(id, bound);
-                }
-                Err(refusal) => {
-                    env.refused.insert(id, refusal);
-                }
+            Err(refusal) => {
+                env.refused.insert(id, refusal);
             }
         }
     }

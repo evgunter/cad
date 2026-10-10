@@ -24,9 +24,9 @@ use editor_core::stackup::{SensitivityOutcome, sensitivities};
 use editor_core::{
     CancelToken, CarryForwardDoor, Dimension, Distribution, DocEdit, DocumentId, EditError,
     EvalError, EvalOptions, Evaluation, ExtrudeSide, Formula, FreeValue, FreeVar, InlineError,
-    Maintenance, MeasureExpr, Node, NodeErrorKind, NodeResult, ParamBox, ParamValue, PersistError,
-    ProfileDoc, ProfileProgram, RecipeNodeId, SeedError, UnitSym, VarDecl, VarId, VarName, apply,
-    evaluate, inline, load, save, var_env_over,
+    Maintenance, Node, NodeErrorKind, NodeResult, ParamBox, ParamValue, PersistError, ProfileDoc,
+    ProfileProgram, RecipeNodeId, SeedError, UnitSym, VarDecl, VarId, VarName, apply, evaluate,
+    inline, load, save, var_env_over,
 };
 use geom_core::predicate::{Band, Margin, Sign};
 use geom_core::{Bounds, Interval, Real, Sym, SymBudget, SymRules, Tol};
@@ -239,24 +239,7 @@ fn a_defined_variable_carries_its_inputs_derivative_and_takes_no_seed() {
         },
     )
     .doc;
-    let applied = step(
-        &doc,
-        DocEdit::InsertNode {
-            node: Box::new(Node::measure(MeasureExpr::value(named("h")), Vec::new()).unwrap()),
-            fresh: Vec::new(),
-        },
-    );
-    let measure = applied.record.minted.expect("an insert mints");
-    let entries = sensitivities(
-        &applied.doc,
-        measure,
-        None,
-        None,
-        false,
-        None,
-        Tol::witness(),
-    )
-    .unwrap();
+    let entries = sensitivities(&doc, h, None, None, false, None, Tol::witness()).unwrap();
     assert_eq!(
         entries.iter().map(|e| e.param).collect::<Vec<_>>(),
         vec![w],
@@ -1105,10 +1088,10 @@ fn inline_carries_a_definition_at_the_carried_ids() {
     assert!(failures(&eval_after(&inlined.doc, None)).is_empty());
 }
 
-/// Monte Carlo over a document holding `h := 2·w`, `w` toleranced:
-/// every draw binds `h` from that draw's `w`, so `h`'s summary is
-/// exactly twice `w`'s (doubling is exact in binary), and no draw goes
-/// unmeasured.
+/// Monte Carlo over a document holding `h := 2·w`, `w` toleranced, and
+/// a measure whose value is each: every draw binds `h` from that draw's
+/// `w`, so `h`'s summary is exactly twice `w`'s (doubling is exact in
+/// binary), and no draw goes unmeasured.
 #[test]
 fn monte_carlo_binds_a_definition_in_every_draw() {
     let doc = w_and_h("intent-literals-a-mc");
@@ -1120,17 +1103,15 @@ fn monte_carlo_binds_a_definition_in_every_draw() {
         },
     )
     .doc;
-    let mut doc = doc;
+    // A measure whose value is each variable's own.
+    let mut r = crate::fixture::Recorder {
+        doc,
+        edits: Vec::new(),
+    };
     for name in ["w", "h"] {
-        doc = step(
-            &doc,
-            DocEdit::InsertNode {
-                node: Box::new(Node::measure(MeasureExpr::value(named(name)), Vec::new()).unwrap()),
-                fresh: Vec::new(),
-            },
-        )
-        .doc;
+        r.measure_of_translation(name);
     }
+    let doc = r.doc;
     let config = editor_core::mc::McConfig {
         samples: 64,
         ..editor_core::mc::McConfig::default()

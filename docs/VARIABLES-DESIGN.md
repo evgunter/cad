@@ -34,7 +34,7 @@ definition may not reach its own variable (refused at the edit door and
 at load). Distributions live only on free variables; a defined
 variable's uncertainty is the pushforward of its inputs'. Later stages
 add kinds (`Point` … `Frame`, the discrete kinds, `Face`, `Edge`,
-`Body`) and the `Output { node, port }` definition as arms of the same
+`Vertex`, `Body`) and the `Output { node, port }` definition as arms of the same
 enums. A `Count` may be defined as an index, `index(N)` or
 `index(N) within j`, ranging over `0..N`, and `Count` arithmetic is
 exact and includes `mod`. Every kind has a family, keyed by index
@@ -43,16 +43,14 @@ reads reach an index defines one (D10, Repetition).
 
 **VR4 — A slot holds a `VarId`.** Every slot — a feature's depth, an
 index's count, a member read's index, a profile step's argument, a
-placement step, an assertion's bound — holds a read, one variable id, or a
-list of reads (a union's or intersect's `Bodies` spelled as its members,
-a placement's shapes: REFERENCES DM4), and nothing else; a read of a family
-carries one `Count` expression per index, each such a slot (REFERENCES
-DM3). A slot
-showing `w * 2` holds an anonymous defined variable; a slot showing
-`5 mm` an anonymous free one. Formulas have one home: definitions. The
-exception is a `Measure`'s arithmetic over measured primitives, which
-stays a formula in the node until stage 2 makes `Measure` an operation;
-its value leaves and an assertion's bound are slots.
+placement step, an assertion's value and its bound — holds a read, one
+variable id, or a list of reads (a union's or intersect's `Bodies`
+spelled as its members, a placement's shapes: REFERENCES DM4), and
+nothing else; a read of a family carries one `Count` expression per
+index, each such a slot (REFERENCES DM3). A slot showing `w * 2` holds
+an anonymous defined variable; a slot showing `5 mm` an anonymous free
+one. Formulas have one home: definitions, arithmetic over measured
+values included.
 
 **VR5 — `Expr` holds no float.** Its leaves are `Var(VarId)` (caching
 the kind, which cannot change), exact rational constants (`Scalar`,

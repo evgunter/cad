@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-09
 priority: P3
 cost: M
-refs: [a-steep-ellipse-travel-margin-ties-band-apart-sites-and-falls-back-to-the-chord]
+refs: [4396]
 ---
 
 

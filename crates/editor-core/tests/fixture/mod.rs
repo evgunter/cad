@@ -486,6 +486,109 @@ pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId)
     (doc, minted.unwrap())
 }
 
+/// **A primitive over indices into `refs`, sited**: the rows' spelling
+/// of a measure over references they list once.
+///
+/// # Panics
+///
+/// When an index is past the end of `refs`.
+pub fn sited(
+    p: editor_core::MeasurePrimitive<u32>,
+    refs: &[editor_core::SitedRef],
+) -> editor_core::MeasurePrimitive {
+    p.try_map(|&i| refs.get(i as usize).cloned().ok_or(i))
+        .unwrap_or_else(|i| panic!("reference {i} of {}", refs.len()))
+}
+
+/// **Measures, inserted** ([`editor_core::measure`]): one per primitive,
+/// each [`sited`] over `refs`; the document after them, and the
+/// measures with their outputs. A refusal is a loud test failure.
+pub fn measure(
+    doc: ProfileDoc,
+    primitives: &[editor_core::MeasurePrimitive<u32>],
+    refs: &[editor_core::SitedRef],
+) -> (ProfileDoc, editor_core::Measured) {
+    let sited: Vec<_> = primitives.iter().map(|&p| sited(p, refs)).collect();
+    let out = editor_core::measure(&doc, &sited, Tol::witness(), &RefusingReach)
+        .expect("the measures insert");
+    (out.doc, out.measured)
+}
+
+/// **One measure inserted**: the document after it, and the measure
+/// node.
+pub fn measure_node(
+    doc: &ProfileDoc,
+    primitive: editor_core::MeasurePrimitive<u32>,
+    refs: Vec<editor_core::SitedRef>,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, measured) = measure(doc.clone(), &[primitive], &refs);
+    (doc, measured.measures[0])
+}
+
+/// **A reader of `measure`'s value**, authored: the formula an
+/// assertion's `value` holds to bound one measure's output.
+///
+/// # Panics
+///
+/// When `measure` defines no scalar in `doc`.
+pub fn value_of(doc: &ProfileDoc, measure: RecipeNodeId) -> Formula {
+    let var = doc.output(measure, 0).expect("a measure defines its value");
+    let dim = doc
+        .var(var)
+        .and_then(|v| v.kind().dimension())
+        .expect("a measure's value is a scalar");
+    Formula::var(var, dim)
+}
+
+/// **A reader of `var`**, authored at its kind's dimension: the formula
+/// an assertion's `value` holds to bound a measured value.
+///
+/// # Panics
+///
+/// When `var` is not a scalar of `doc`.
+pub fn read_var(doc: &ProfileDoc, var: editor_core::VarId) -> Formula {
+    let dim = doc
+        .var(var)
+        .and_then(|v| v.kind().dimension())
+        .expect("a scalar variable");
+    Formula::var(var, dim)
+}
+
+/// **`var`'s value in `ev`** ([`editor_core::Evaluation::reading`]):
+/// `None` when it has none at this scalar or refuses.
+pub fn reading<T: geom_core::Decide>(
+    doc: &ProfileDoc,
+    ev: &editor_core::Evaluation<T>,
+    var: editor_core::VarId,
+) -> Option<T> {
+    match ev.reading(doc, var) {
+        Ok(editor_core::Observed::Value(v)) => Some(v),
+        _ => None,
+    }
+}
+
+/// **`measure`'s value**: the variable its one port defines.
+///
+/// # Panics
+///
+/// When `measure` defines nothing in `doc`.
+pub fn output(doc: &ProfileDoc, measure: RecipeNodeId) -> editor_core::VarId {
+    doc.output(measure, 0).expect("a measure defines its value")
+}
+
+/// **The variable an assertion reads**: its measured value, for a row
+/// that asks a stackup or a reading of it.
+///
+/// # Panics
+///
+/// When `assertion` is not a live assertion of `doc`.
+pub fn assertion_value(doc: &ProfileDoc, assertion: RecipeNodeId) -> editor_core::VarId {
+    match doc.node(assertion) {
+        Some(Node::Assertion { value, .. }) => *value,
+        other => panic!("{assertion} is not an assertion: {other:?}"),
+    }
+}
+
 /// **One copy of `body` in the world** (A10), at the identity: the
 /// document's product is the copies its placements define.
 pub fn place(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
@@ -1029,6 +1132,90 @@ impl Recorder {
         applied.record.minted
     }
 
+    /// Inserts measures ([`editor_core::measure`]), one per primitive
+    /// [`sited`] over `refs`, recording their edits; returns the measures
+    /// and their outputs.
+    pub fn measure(
+        &mut self,
+        primitives: &[editor_core::MeasurePrimitive<u32>],
+        refs: &[editor_core::SitedRef],
+    ) -> editor_core::Measured {
+        let sited: Vec<_> = primitives.iter().map(|&p| sited(p, refs)).collect();
+        let out = editor_core::measure(&self.doc, &sited, Tol::witness(), &RefusingReach)
+            .expect("the measures insert");
+        self.edits.extend(out.edits);
+        self.doc = out.doc;
+        out.measured
+    }
+
+    /// **`formula` declared as the defined variable `name`**, returning
+    /// its id: a measurement's arithmetic over measure outputs, named.
+    pub fn define(&mut self, name: &str, formula: Formula) -> editor_core::VarId {
+        let name = editor_core::VarName::new(name).expect("a valid name");
+        self.push(DocEdit::DeclareVar {
+            name: name.clone(),
+            def: editor_core::VarDecl::Defined(formula),
+        });
+        self.doc.resolve_var(&name.into()).expect("declared")
+    }
+
+    /// The length an output of this recorder's document reads.
+    pub fn len_of(&self, var: editor_core::VarId) -> Formula {
+        read_var(&self.doc, var)
+    }
+
+    /// **A measure whose value is the length variable `param`**: a unit
+    /// cube and its copy translated by `param` along x, measured from the
+    /// cube's vertex at the origin to the copy's, which is `|param − 0|`
+    /// with no geometry standing between the variable and the reading.
+    /// Returns the measure.
+    pub fn measure_of_translation(&mut self, param: &str) -> RecipeNodeId {
+        let name = editor_core::VarName::new(param).expect("a valid name");
+        let profile = self.profile(
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+        );
+        let cube = self.insert(Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        });
+        let copy = self.insert(Node::transform(
+            cube,
+            editor_core::Step::Rigid {
+                translation: [
+                    Formula::named(name, editor_core::Dimension::Length),
+                    len(0.0),
+                    len(0.0),
+                ],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ));
+        let ev = editor_core::evaluate::<f64>(
+            &self.doc,
+            None,
+            &editor_core::CancelToken::new(),
+            &editor_core::EvalOptions::default(),
+            Tol::witness(),
+        );
+        let vertex = editor_core::all_vertices(&ev, cube)
+            .into_iter()
+            .find(|v| {
+                let p = editor_core::vertex_position(&ev, cube, v).expect("a vertex");
+                (p.x, p.y, p.z) == (0.0, 0.0, 0.0)
+            })
+            .expect("the cube has a vertex at the origin");
+        self.insert(Node::Measure {
+            primitive: editor_core::MeasurePrimitive::Distance {
+                a: editor_core::SitedRef::new(cube, vertex.clone()),
+                b: editor_core::SitedRef::new(copy, vertex),
+            },
+        })
+    }
+
     /// Inserts a node, returning its minted id.
     pub fn insert(&mut self, node: AuthoredNode) -> RecipeNodeId {
         self.push(DocEdit::InsertNode {
@@ -1285,6 +1472,11 @@ pub fn minted(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName 
 /// One face name at a node (authoring shorthand).
 pub fn fname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
     minted(EntityKind::Face, node, seg)
+}
+
+/// An extrude's cap, read at the extrude (authoring shorthand).
+pub fn cap_ref(node: RecipeNodeId, end: editor_core::CapEnd) -> editor_core::SitedRef {
+    editor_core::SitedRef::new(node, fname(node, editor_core::RoleSeg::Cap(end)))
 }
 
 /// One vertex name at a node (authoring shorthand).
