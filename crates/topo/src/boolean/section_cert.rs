@@ -71,8 +71,9 @@
 //!
 //! # The refusals
 //!
-//! - **R-reach**: a kind pair or pose with no arm (torus against an
-//!   oblique cylinder, a non-coaxial torus; a cone against an oblique
+//! - **R-reach**: a kind pair or pose with no arm (torus against a
+//!   cylinder neither parallel nor square to its axis, a non-coaxial
+//!   torus; a cone against an oblique
 //!   cylinder, a tilted or parallel-axis cone or a non-coaxial torus; a NURBS or
 //!   approximated face paired with anything but a plane, and a NURBS
 //!   face whose control net a plane cuts). Every pair with a face that
@@ -197,6 +198,18 @@
 //!   `ρ ∈ [|e − ρc|, e + ρc]` against `[R − r, R + r]`, inside gives two
 //!   loops encircling the cylinder, across one bound a single null loop
 //!   (witness at the extreme ruling), across both two `(0,1)` loops.
+//! - **Torus × square cylinder** (the wall's axis square to the torus
+//!   axis: a radial hole through the tube, or one off the axis). In the
+//!   meridian plane `Π` normal to the wall's axis, the wall's trace `K`
+//!   is a circle, met by the tube circles `T±` and the strip `|z| ≤ r`
+//!   in closed form. Each component of the section is the lift of a run
+//!   of `K` (on the torus's outer or inner sheet over it) between two
+//!   points of `K` on `T±`, through `Π` there: null on the wall, and
+//!   winding about the torus axis iff those points lie on different
+//!   tube circles. Or it is one of a mirror pair over a run with no such
+//!   point: essential on the wall for `K` inside the strip, else null
+//!   there and winding about the tube iff the run crosses the strip.
+//!   Every component carries a witness ([`torus_square_cylinder`]).
 //! - **Cylinder × cylinder** (common-perpendicular offset `δ₀`):
 //!   `|δ₀| + r_min < r_max` gives two loops encircling the thinner
 //!   axis; `|r₁ − r₂| < |δ₀| < r₁ + r₂` a single null saddle loop,
@@ -699,7 +712,10 @@ fn torus_pair<T: Decide>(
             Pose::Parallel { e, toward } => {
                 torus_parallel_cylinder(c, a, big_r, r, e, toward, rc, band)
             }
-            Pose::Other => Section::Intractable,
+            Pose::Other => match square_pose(c, a, origin, unit(d), reach, band) {
+                Some(wall) => torus_square_cylinder(c, a, big_r, r, &wall, rc, band),
+                None => Section::Intractable,
+            },
         },
         geom::Surface::Torus {
             center: c2,
@@ -1054,6 +1070,399 @@ fn torus_parallel_cylinder<T: Decide>(
         // Across the outer bound only: the null loop at θ = π.
         (true, true, true, false) => lone(c + toward * (e - rc) + a * height(rho_min)),
     }
+}
+
+/// **A cylinder whose axis stands square to the torus axis**, read in the
+/// meridian plane `Π` through the torus centre normal to it: `d` the
+/// wall's unit axis, `across = a × d`, and `(e, z0)` the axis's trace in
+/// `Π`, `e` along `across` and `z0` along `a`.
+#[derive(Clone, Copy, Debug)]
+struct SquareWall<T: Real> {
+    d: Vec3<T>,
+    across: Vec3<T>,
+    e: T,
+    z0: T,
+}
+
+/// Decides whether the partner axis `(o, d)` stands square to the torus
+/// axis `a`: `a·d` levered as [`axis_pose`] levers a tilt. Square, the
+/// wall is read with its axis turned square to `a` about the pivot, which
+/// moves it by less than the band anywhere the section can matter. An
+/// undecided margin is not a pose this arm claims.
+fn square_pose<T: Decide>(
+    c: Point3<T>,
+    a: Vec3<T>,
+    o: Point3<T>,
+    d: Vec3<T>,
+    reach: Reach<T>,
+    band: Band,
+) -> Option<SquareWall<T>> {
+    let at = pivot(o, d, reach);
+    let lever = ((reach.centre - at).norm() + reach.radius) * T::from_f64(2.0);
+    if sign(
+        "section_torus_square_wall_tilt",
+        Margin::levered(a.dot(d), lever),
+        band,
+    ) != Some(Sign::Zero)
+    {
+        return None;
+    }
+    let (along, n) = square_to(d, a);
+    let d = along / n;
+    let across = a.cross(d);
+    let w = at - c;
+    Some(SquareWall {
+        d,
+        across,
+        e: w.dot(across),
+        z0: w.dot(a),
+    })
+}
+
+/// A point where the wall's trace `K` crosses a tube circle, `T₊` at
+/// `y = R` (`plus`) or `T₋`, on its outer half (`|y| > R`) or its inner.
+#[derive(Clone, Copy, Debug)]
+struct Fold<T: Real> {
+    plus: bool,
+    y: T,
+    z: T,
+    outer: bool,
+}
+
+/// A point where `K` crosses an edge of the strip `|z| ≤ r` (`top`:
+/// `z = r`), whether it stands over the torus's parallel there
+/// (`|y| < R`), and its side of `K`'s centre (`right`: along `across`).
+#[derive(Clone, Copy, Debug)]
+struct Edge {
+    top: bool,
+    over: bool,
+    right: bool,
+}
+
+const SQUARE_WALK: &str = "section_torus_square_wall_walk";
+
+/// **Torus × a cylinder whose axis is square to the torus's**, the wall
+/// `wall` of radius `rc`.
+///
+/// `Π` holds the torus axis and stands normal to the wall's, so the wall
+/// is the union of the lines `P + t·d` normal to `Π` through the points
+/// `P = (Y, Z)` of its trace `K`, the circle of radius `rc` about
+/// `(e, z0)`. Such a line stays at height `Z` and at distance
+/// `√(t² + Y²)` from the torus axis, so it meets the torus where
+/// `√(t² + Y²) = R ± √(r² − Z²)`: on each SHEET `ρ = R ± √(r² − Z²)` over
+/// the strip `|Z| ≤ r`, at `t = ±√(ρ² − Y²)` where `ρ ≥ |Y|`. The sheets
+/// join on the strip's edges, at `ρ = R`. So the section is the double
+/// cover, `t ↦ −t`, of the curve `γ` of points `(P, sheet)` with
+/// `ρ ≥ |Y|`, folded where `ρ = |Y|`: where `P` lies on a tube circle
+/// `T±` (centred `(±R, 0)` in `Π`), on the outer sheet on the circle's
+/// outer half and on the inner sheet on its inner half.
+///
+/// `γ`'s components are `K`'s arcs in the strip, each an oval running
+/// out along the outer sheet and back along the inner, or with `K` inside
+/// the open strip the two sheets as two loops. On each, `ρ ≥ |Y|` holds on
+/// alternate runs between folds; a run between two folds lifts to ONE
+/// closed component through `t = 0` at those two folds, and a fold-free
+/// component wholly in `ρ > |Y|` lifts to TWO, one at `t > 0` and its
+/// mirror. Their classes:
+///
+/// - a component through two folds is its own mirror, so the mirror acts
+///   on it as a reflection with those two folds fixed. It is null on the
+///   wall (an essential curve the mirror fixes would lie in `t = 0`), and
+///   its tube angle retraces itself (`q = 0`). It winds once about the
+///   torus axis iff its folds lie on different tube circles: it crosses
+///   `Π` only there, on the half-planes `u = ±π/2`;
+/// - a fold-free lift lies in one half-space `±t > 0`, where the torus is
+///   a tube segment (`p = 0`). A loop of a sheet is essential on the
+///   wall and stays on one half of the tube (null on the torus); an oval
+///   is null on the wall, and winds once about the tube iff it runs from
+///   one strip edge to the other.
+///
+/// Every fold and strip crossing is a circle meeting a circle or a line
+/// in `Π`, in closed form; each component's witness is one of its folds,
+/// or for a fold-free lift a point where its sheets stand apart. Any
+/// margin `Zero` or undecided — `K` tangent to a tube circle or a strip
+/// edge, a fold or strip crossing at a tube circle's top or bottom, two
+/// crossings in one place along `K` — refuses R-tan.
+fn torus_square_cylinder<T: Decide>(
+    c: Point3<T>,
+    a: Vec3<T>,
+    big_r: T,
+    r: T,
+    wall: &SquareWall<T>,
+    rc: T,
+    band: Band,
+) -> Section<T> {
+    let &SquareWall { d, across, e, z0 } = wall;
+    let at = |y: T, z: T, t: T| c + across * y + a * z + d * t;
+    let parts = match signs(
+        [
+            ("section_torus_square_wall_top", z0 + rc - r),
+            ("section_torus_square_wall_bottom", rc - z0 - r),
+        ],
+        band,
+    ) {
+        Ok([false, false]) => square_folds([big_r, r], (e, z0, rc), band)
+            .and_then(|folds| inside_strip([big_r, r], (e, z0, rc), &folds, at, band)),
+        Ok([top, bottom]) => square_folds([big_r, r], (e, z0, rc), band).and_then(|folds| {
+            across_strip([big_r, r], (e, z0, rc), [top, bottom], &folds, at, band)
+        }),
+        Err(tan) => Err(tan.into()),
+    };
+    match parts {
+        Ok(parts) => {
+            let single = parts.len() == 1;
+            Section::Components { parts, single }
+        }
+        Err(s) => s,
+    }
+}
+
+/// `K`'s crossings with the tube circles `T±`: none or two each.
+fn square_folds<T: Decide>(
+    [big_r, r]: [T; 2],
+    (e, z0, rc): (T, T, T),
+    band: Band,
+) -> Result<Vec<Fold<T>>, Section<T>> {
+    let mut out = Vec::new();
+    for plus in [true, false] {
+        let sigma = if plus { T::one() } else { -T::one() };
+        let dy = e - sigma * big_r;
+        let dist = Vec3::new(dy, z0, T::zero()).norm();
+        let [cut] = signs(
+            [(
+                "section_torus_square_wall_tube",
+                (rc + r - dist).min(dist - (rc - r).abs()),
+            )],
+            band,
+        )?;
+        if !cut {
+            continue;
+        }
+        // Circle against circle: `T_σ` about `(σR, 0)` radius `r`, `K`
+        // about `(e, z0)` radius `rc`, `dist` apart.
+        let (uy, uz) = (dy / dist, z0 / dist);
+        let along = (dist.powi(2) + (r - rc) * (r + rc)) / (dist + dist);
+        let half = ((r - along) * (r + along)).sqrt();
+        for s in [half, -half] {
+            let (y, z) = (sigma * big_r + uy * along - uz * s, uz * along + uy * s);
+            let [outer] = signs(
+                [("section_torus_square_wall_fold_half", sigma * y - big_r)],
+                band,
+            )?;
+            out.push(Fold { plus, y, z, outer });
+        }
+    }
+    Ok(out)
+}
+
+/// The radius of the sheet `ρ = R ± √(r² − z²)` at height `z`.
+fn sheet<T: Real>([big_r, r]: [T; 2], z: T, outer: bool) -> T {
+    let h = ((r - z.abs()) * (r + z.abs())).sqrt();
+    if outer { big_r + h } else { big_r - h }
+}
+
+/// The two lifts of a fold-free component of `γ` through `(y, z)` on the
+/// sheet of radius `rho > |y|`.
+fn lifts<T: Real>(
+    (y, z, rho): (T, T, T),
+    essential: [bool; 2],
+    at: impl Fn(T, T, T) -> Point3<T>,
+) -> [Component<T>; 2] {
+    let t = ((rho - y) * (rho + y)).sqrt();
+    [t, -t].map(|t| Component {
+        unbounded: false,
+        essential_f: essential[0],
+        essential_g: essential[1],
+        witness: Some(at(y, z, t)),
+    })
+}
+
+fn through<T: Real>(
+    f: Fold<T>,
+    essential_f: bool,
+    at: impl Fn(T, T, T) -> Point3<T>,
+) -> Component<T> {
+    Component {
+        unbounded: false,
+        essential_f,
+        essential_g: false,
+        witness: Some(at(f.y, f.z, T::zero())),
+    }
+}
+
+/// **`K` inside the open strip**: the sheets are two loops over all of
+/// `K`, the outer meeting the folds on outer halves, the inner those on
+/// inner halves. A tube circle's two folds share a half: `K` meets the
+/// segment `y = ±R` of the strip only inside that circle's disc. On the
+/// outer loop each tube circle's folds bound `K`'s arc inside its disc,
+/// in `ρ ≥ |Y|`: one component each. On the inner loop, one circle's
+/// folds bound the rest of `K`, which then stands between the discs;
+/// both circles' folds bound the two arcs of `K` between the discs, each
+/// from `T₊` to `T₋` and winding about the torus axis. A fold-free loop
+/// lies wholly on one side, read at `K`'s farthest reach from the torus
+/// axis, `|e| + rc` at height `z0`.
+fn inside_strip<T: Decide>(
+    ring: [T; 2],
+    (e, z0, rc): (T, T, T),
+    folds: &[Fold<T>],
+    at: impl Fn(T, T, T) -> Point3<T> + Copy,
+    band: Band,
+) -> Result<Vec<Component<T>>, Section<T>> {
+    let mut parts = Vec::new();
+    for outer in [true, false] {
+        let on = |plus: bool| -> Vec<Fold<T>> {
+            folds
+                .iter()
+                .copied()
+                .filter(|f| f.outer == outer && f.plus == plus)
+                .collect()
+        };
+        match (on(true).as_slice(), on(false).as_slice()) {
+            ([], []) => {
+                let rho = sheet(ring, z0, outer);
+                if signs(
+                    [("section_torus_square_wall_sheet", rho - e.abs() - rc)],
+                    band,
+                )? == [true]
+                {
+                    parts.extend(lifts((e - rc, z0, rho), [false, true], at));
+                }
+            }
+            ([f, _], []) | ([], [f, _]) => parts.push(through(*f, false, at)),
+            ([p, _], [_, _]) if outer => {
+                parts.push(through(*p, false, at));
+                parts.push(through(on(false)[0], false, at));
+            }
+            ([p1, p2], [_, _]) => {
+                parts.push(through(*p1, true, at));
+                parts.push(through(*p2, true, at));
+            }
+            _ => return Err(Section::Tangent(SQUARE_WALK)),
+        }
+    }
+    Ok(parts)
+}
+
+/// **`K` across a strip edge**: `γ` is one oval per arc of `K` in the
+/// strip. Read along `K` from a point outside the strip (its top when it
+/// crosses `z = r`, else its bottom), the strip crossings alternate in
+/// and out, and with two arcs (`K` across both edges) they are `K`'s
+/// left and right flanks. Every fold lies inside its arc, in the open
+/// strip, so folds are ordered among themselves only, never against a
+/// strip crossing. An arc's oval runs out along the outer sheet
+/// through its outer-half folds and back along the inner through its
+/// inner-half ones; at its strip crossings both sheets lie in `ρ ≥ |Y|`
+/// iff the crossing stands over the parallel (`|y| < R`).
+fn across_strip<T: Decide>(
+    ring: [T; 2],
+    (e, z0, rc): (T, T, T),
+    [top, bottom]: [bool; 2],
+    folds: &[Fold<T>],
+    at: impl Fn(T, T, T) -> Point3<T> + Copy,
+    band: Band,
+) -> Result<Vec<Component<T>>, Section<T>> {
+    let [big_r, r] = ring;
+    if top != bottom {
+        let m = if top { r - (z0 - rc) } else { z0 + rc + r };
+        if signs([("section_torus_square_wall_meets", m)], band)? == [false] {
+            return Ok(Vec::new());
+        }
+    }
+    let kappa = if top { T::one() } else { -T::one() };
+    // The angle along `K` from the cut, `(−π, π)` everywhere off it.
+    let psi = |y: T, z: T| (kappa * (y - e)).atan2(-kappa * (z - z0));
+    let mut edges = Vec::new();
+    for (edge, crossed) in [(true, top), (false, bottom)] {
+        if !crossed {
+            continue;
+        }
+        let z = if edge { r } else { -r };
+        let h = (z - z0).abs();
+        let w = ((rc - h) * (rc + h)).sqrt();
+        for right in [true, false] {
+            let y = if right { e + w } else { e - w };
+            let [over] = signs(
+                [("section_torus_square_wall_edge_over", big_r - y.abs())],
+                band,
+            )?;
+            edges.push((
+                psi(y, z),
+                Edge {
+                    top: edge,
+                    over,
+                    right,
+                },
+            ));
+        }
+    }
+    along_k(&mut edges, rc, band)?;
+    let arcs: Vec<[Edge; 2]> = edges.chunks(2).map(|p| [p[0].1, p[1].1]).collect();
+    let mut on_arc: Vec<Vec<(T, Fold<T>)>> = vec![Vec::new(); arcs.len()];
+    for &f in folds {
+        let k = if arcs.len() == 1 {
+            0
+        } else {
+            let [right] = signs([("section_torus_square_wall_fold_side", f.y - e)], band)?;
+            usize::from(arcs[0][0].right != right)
+        };
+        on_arc[k].push((psi(f.y, f.z), f));
+    }
+    let mut parts = Vec::new();
+    for ([start, end], mut on) in arcs.into_iter().zip(on_arc) {
+        along_k(&mut on, rc, band)?;
+        // Out along the outer sheet, back along the inner.
+        let (outward, inner): (Vec<Fold<T>>, Vec<Fold<T>>) =
+            on.into_iter().map(|(_, f)| f).partition(|f| f.outer);
+        let crossed_out = outward.len();
+        let ring_order: Vec<Fold<T>> = outward.into_iter().chain(inner.into_iter().rev()).collect();
+        if (crossed_out % 2 == 0) != (start.over == end.over) || ring_order.len() % 2 == 1 {
+            return Err(Section::Tangent(SQUARE_WALK));
+        }
+        if ring_order.is_empty() {
+            if start.over {
+                // Edge to edge: `K`'s point at `z = 0`, where the sheets
+                // stand `2r` apart; else the arc's extreme.
+                let essential = start.top != end.top;
+                let (y, z) = if essential {
+                    let h = z0.abs();
+                    let w = ((rc - h) * (rc + h)).sqrt();
+                    (if start.right { e + w } else { e - w }, T::zero())
+                } else {
+                    (e, z0 - kappa * rc)
+                };
+                parts.extend(lifts((y, z, sheet(ring, z, true)), [essential, false], at));
+            }
+            continue;
+        }
+        // The runs in `ρ ≥ |Y|` pair the folds, the first run wrapping
+        // through `start` when it stands over the parallel.
+        let n = ring_order.len();
+        let skip = usize::from(start.over);
+        for k in (0..n).step_by(2) {
+            let (f1, f2) = (ring_order[(k + skip) % n], ring_order[(k + skip + 1) % n]);
+            parts.push(through(f1, f1.plus != f2.plus, at));
+        }
+    }
+    Ok(parts)
+}
+
+/// Sorts points of `K` by their angle along it, every final neighbour
+/// pair decided apart (as arc length): two in one place within the band
+/// refuse R-tan.
+fn along_k<T: Decide, X: Copy>(xs: &mut [(T, X)], rc: T, band: Band) -> Result<(), Section<T>> {
+    const ORDER: &str = "section_torus_square_wall_order";
+    for i in 1..xs.len() {
+        let mut j = i;
+        while j > 0 {
+            match sign(ORDER, Margin::levered(xs[j - 1].0 - xs[j].0, rc), band) {
+                Some(Sign::Positive) => xs.swap(j - 1, j),
+                Some(Sign::Negative) => break,
+                _ => return Err(Section::Tangent(ORDER)),
+            }
+            j -= 1;
+        }
+    }
+    Ok(())
 }
 
 /// The cone arms: `k` is a cone, `p` its partner. Components are listed
@@ -1670,3 +2079,8 @@ mod section_cert_cone_rows;
 #[cfg(test)]
 #[path = "section_cert_rows.rs"]
 mod section_cert_rows;
+#[cfg(test)]
+#[path = "section_cert_square_rows.rs"]
+mod section_cert_square_rows;
+#[cfg(test)]
+mod square_search;

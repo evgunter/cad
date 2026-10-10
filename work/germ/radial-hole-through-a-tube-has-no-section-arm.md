@@ -7,6 +7,8 @@ opened: 2026-09-28
 priority: P2
 cost: M
 refs: [torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere]
+branch: germ/radial-hole-through-a-tube
+pr: 4530
 ---
 
 ## What

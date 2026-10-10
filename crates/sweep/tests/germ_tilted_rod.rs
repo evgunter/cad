@@ -3,8 +3,12 @@
 //! crossings the rod makes through the cap are the only ones the join
 //! sees, and the body it builds drops the lens. That body is valid at
 //! tier 3 and passes the volume backstop, so the section certificate is
-//! what refuses it: it has no arm for a torus against an oblique
-//! cylinder, and refuses those pairs on reach.
+//! what refuses it. The rod's axis turns in the torus's equatorial
+//! plane, square to its axis at every tilt, so the certificate's
+//! square-wall arm classifies each torus × rod-wall pair: it certifies
+//! the lens's rim a loop interior to both faces (R-loop) where the rod
+//! reaches past the inner equator, and clears every pair where it stops
+//! short, so those poses answer.
 //!
 //! Other spins of the same rod, and steeper tilts, refuse earlier, in
 //! the join, before any body is built.
@@ -91,59 +95,130 @@ fn outcome(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
     }
 }
 
-/// **The poses that reach the section certificate refuse every op
-/// there**, on a torus × rod-wall pair, in both operand orders of ∖ and
-/// ∩: the item's pose (tilt 0.5, spin π/2) and every spin at two
-/// shallower tilts. Every torus × rod-wall pair reads `Err(Reach)`,
-/// never a certified loop. Red against a reach refusal waved through:
-/// every op then answers a `Seamed` body valid at tier 3 that the
-/// volume backstop passes, and at the item's pose that body is wrong
-/// (∪ drops the lens, `c ∖ h` keeps only the stub above the cap).
+/// The torus × rod-wall verdicts of the section report at a pose.
+fn torus_wall(h: &AtRestBody<f64>, c: &AtRestBody<f64>) -> Vec<String> {
+    topo::test_support::section_report(Op::Union, h, c, Tol::witness())
+        .expect("the reduction runs")
+        .into_iter()
+        .filter(|(fa, fb, _)| {
+            kind_of(h, *fa) == Some(SurfaceKind::Torus)
+                && kind_of(c, *fb) == Some(SurfaceKind::Cylinder)
+        })
+        .map(|(.., v)| v)
+        .collect()
+}
+
+/// **The rod that pokes the lens refuses every op on the certified
+/// loop**, in both operand orders of ∖ and ∩ (tilt 0.5, spin π/2): the
+/// lens's rim is the one torus × rod-wall pair the certificate does not
+/// clear, and it reads `Err(Loop)`, a loop certified inside both faces;
+/// every other pair clears. Red against a lens pair cleared (its witness
+/// read `Out`, or its loop flagged essential): every op then answers a
+/// `Seamed` body valid at tier 3 that the volume backstop passes, and
+/// wrong (∪ drops the lens, `c ∖ h` keeps only the stub above the cap).
 #[test]
-fn the_tilted_rod_refuses_every_op_at_the_certificate_on_reach() {
+fn the_rod_that_pokes_the_lens_refuses_every_op_on_its_certified_loop() {
+    let (h, c) = (half_donut(), rod(0.5, FRAC_PI_2));
+    for (op, rod_first, what, r) in every_op(&h, &c) {
+        let (kind, other) = if rod_first {
+            (SurfaceKind::Cylinder, SurfaceKind::Torus)
+        } else {
+            (SurfaceKind::Torus, SurfaceKind::Cylinder)
+        };
+        match r {
+            Err(BooleanError::CurvedPairUnsupported {
+                op: Some(o),
+                site,
+                kind: k,
+                other_kind: ok,
+                ..
+            }) => assert_eq!(
+                (site, o, k, ok),
+                (topo::PairRefusalSite::InteriorLoopGuard, op, kind, other),
+                "{what}"
+            ),
+            r => panic!("{what}: not refused at the certificate: {}", outcome(&r)),
+        }
+    }
+    let verdicts = torus_wall(&h, &c);
+    let loops = verdicts.iter().filter(|v| *v == "Err(Loop)").count();
+    assert!(
+        loops == 1
+            && verdicts
+                .iter()
+                .all(|v| v == "Err(Loop)" || v.starts_with("Ok(")),
+        "the torus × rod-wall pairs: {verdicts:?}"
+    );
+}
+
+/// **The rod short of the inner equator answers every op in closed
+/// form** (tilts 0.3 and 0.4, every spin): it comes no nearer the donut's
+/// axis than `1.8 cos β − 0.15 > 1.5`, so it pokes out nowhere, and below
+/// the cap (`z = 0`) it lies wholly inside the tube. The plane through
+/// its axis point `t = 0` leaves `πr²·1.4` of it inside the half donut
+/// (`π²/2`), of its `πr²·1.7`. Probes: on the axis above the cap (the
+/// rod only), on it below the cap (both), and in the far half of the
+/// tube (the half donut only), each answered, except an outside probe of
+/// a rod piece the at-infinity probe cannot measure. Each torus ×
+/// rod-wall pair clears.
+/// Refused on reach before the square-wall arm.
+#[test]
+fn the_rod_short_of_the_inner_equator_answers_every_op() {
+    use core::f64::consts::PI;
     let h = half_donut();
-    let spins = [0.0, 0.5, 1.0, FRAC_PI_2, 2.5];
-    let poses = spins.iter().flat_map(|&s| [(0.3, s), (0.4, s)]);
-    for (beta, spin) in std::iter::once((0.5, FRAC_PI_2)).chain(poses) {
+    let rod_area = PI * 0.15 * 0.15;
+    let (vh, vc, vo) = (PI * PI / 2.0, rod_area * 1.7, rod_area * 1.4);
+    for (beta, spin) in [0.0, 0.5, 1.0, FRAC_PI_2, 2.5]
+        .iter()
+        .flat_map(|&s| [(0.3, s), (0.4, s)])
+    {
         let c = rod(beta, spin);
         let pose = format!("β {beta}, spin {spin:.4}");
+        let axis = |t: f64| Point3::new(1.8, 0.0, 0.0) + dir(beta) * t;
+        let probes = [axis(-0.15), axis(0.7), Point3::new(-2.0, 0.0, -0.1)];
         for (op, rod_first, what, r) in every_op(&h, &c) {
-            let (kind, other) = if rod_first {
-                (SurfaceKind::Cylinder, SurfaceKind::Torus)
-            } else {
-                (SurfaceKind::Torus, SurfaceKind::Cylinder)
+            let (want, inside) = match (op, rod_first) {
+                (Op::Union, _) => (vh + vc - vo, [true, true, true]),
+                (Op::Intersect, _) => (vo, [false, true, false]),
+                (Op::Subtract, false) => (vh - vo, [false, false, true]),
+                (Op::Subtract, true) => (vc - vo, [true, false, false]),
             };
-            match r {
-                Err(BooleanError::CurvedPairUnsupported {
-                    op: Some(o),
-                    site,
-                    kind: k,
-                    other_kind: ok,
-                    ..
-                }) => assert_eq!(
-                    (site, o, k, ok),
-                    (topo::PairRefusalSite::InteriorLoopGuard, op, kind, other),
-                    "{what} at {pose}"
-                ),
-                r => panic!(
-                    "{what} at {pose}: not refused at the certificate: {}",
-                    outcome(&r)
-                ),
+            let r = r.unwrap_or_else(|e| panic!("{what} at {pose}: {e:?}"));
+            let b = r
+                .body()
+                .unwrap_or_else(|| panic!("{what} at {pose}: empty"));
+            assert_eq!(
+                topo::validate_geometric(&b.body, Tol::witness()),
+                Ok(()),
+                "{what} at {pose}: tier 3"
+            );
+            let got = topo::mass_properties(&b.body, Tol::witness())
+                .expect("the volume integrates")
+                .volume;
+            assert!(
+                (got - want).abs() <= 1e-9 * want.max(1.0),
+                "{what} at {pose}: volume {got} against the closed form {want}"
+            );
+            // The rod pieces (∩, `c ∖ h`) carry the cap's ellipse on
+            // their wall, which the at-infinity probe cannot measure in
+            // closed form: a ray from outside that misses them refuses
+            // `VolumeUncertified`
+            // (`work/restread/at-infinity-probe-measures-in-closed-form-only.md`).
+            let trimmed = matches!((op, rod_first), (Op::Intersect, _) | (Op::Subtract, true));
+            for (q, inside) in probes.into_iter().zip(inside) {
+                let band = geom_core::Band::linear(Tol::witness()).expect("the run's band");
+                let got = topo::point_in_solid(&b.body, q, band, Tol::witness());
+                let uncertified = matches!(got, Err(topo::PointInSolidError::VolumeUncertified));
+                assert!(
+                    in_solid(&b.body, q) == Some(inside) || (trimmed && !inside && uncertified),
+                    "{what} at {pose}, {q:?}: {got:?}"
+                );
             }
         }
-        let report = topo::test_support::section_report(Op::Union, &h, &c, Tol::witness())
-            .expect("the reduction runs");
-        let torus_wall: Vec<&str> = report
-            .iter()
-            .filter(|(fa, fb, _)| {
-                kind_of(&h, *fa) == Some(SurfaceKind::Torus)
-                    && kind_of(&c, *fb) == Some(SurfaceKind::Cylinder)
-            })
-            .map(|(.., v)| v.as_str())
-            .collect();
+        let verdicts = torus_wall(&h, &c);
         assert!(
-            !torus_wall.is_empty() && torus_wall.iter().all(|v| *v == "Err(Reach)"),
-            "the torus × rod-wall pairs at {pose}: {report:?}"
+            !verdicts.is_empty() && verdicts.iter().all(|v| v.starts_with("Ok(")),
+            "the torus × rod-wall pairs at {pose}: {verdicts:?}"
         );
     }
 }

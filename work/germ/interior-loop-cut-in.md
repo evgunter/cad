@@ -59,3 +59,23 @@ at `(0, 0, 0.95)`:
 The cut-in that serves the no-crossings path would serve this one too:
 the crossings path would cut the sphere pair's R-loop in before the
 join instead of guarding it.
+
+## Evidence (2026-10-10, `germ/radial-hole-through-a-tube`)
+
+The square-wall arm (a cylinder whose axis is square to the torus axis)
+certifies two R-loops that refused on reach before:
+
+- the tilted rod's lens (`crates/sweep/tests/germ_tilted_rod.rs`, tilt
+  0.5, spin π/2): the rim of the lens it pokes out of the half donut's
+  inner equator, on one torus × rod-wall pair, while the rod's crossings
+  through the cap are events elsewhere; every op refuses at the
+  interior-loop guard
+  (`the_rod_that_pokes_the_lens_refuses_every_op_on_its_certified_loop`);
+- the grazing cylinder of `crates/sweep/tests/germ_torus_doors.rs`
+  `subtract_and_intersect_refuse_where_union_does`: the bite a wall
+  sunk `0.05` into the tube takes out of the outer side, with no
+  crossing at all, refused by the section pass.
+
+Cutting either in is this row's work; the arm gives each loop a
+closed-form point and the run of the wall's meridian trace it lies over
+(`section_cert.rs` `torus_square_cylinder`).
