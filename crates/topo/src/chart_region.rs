@@ -3746,6 +3746,48 @@ mod tests {
         rect(u0, v0, u0 + core::f64::consts::TAU, v1)
     }
 
+    /// The band is the corners' own values, never their bits re-entered
+    /// as constants: built at `Sym<f64>` with the seam and the band's
+    /// ends as parameters, the returned `v` ends re-value with the
+    /// parameters, and the full-period span discharges as a theorem.
+    #[test]
+    fn the_wrap_band_keeps_its_corners_in_t() {
+        use geom_core::sym::revalue::revalue;
+        use geom_core::sym::with_session;
+        use geom_core::{ParamSymbol, Real, Sym, SymBudget};
+        type S = Sym<f64>;
+        let (seam, lo, hi) = (
+            ParamSymbol::new(1),
+            ParamSymbol::new(2),
+            ParamSymbol::new(3),
+        );
+        let budget = SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        let (revalued, counts) = with_session(budget, || {
+            let u0 = S::from_f64(0.3) + S::param(seam, 0.0);
+            let u1 = u0 + S::tau();
+            let v0 = S::param(lo, 0.0);
+            let v1 = S::from_f64(1.0) + S::param(hi, 0.0);
+            let corners = [(u0, v0), (u1, v0), (u1, v1), (u0, v1)].map(|(u, v)| Point2::new(u, v));
+            let (b0, b1) = wrap_band(&corners, S::from_f64(2.0), band())
+                .unwrap()
+                .expect("a full-period rectangle is a band");
+            let at = |s: ParamSymbol| Some(if s == hi { 0.125 } else { 0.0625 });
+            (revalue(b0.node(), &at), revalue(b1.node(), &at))
+        });
+        assert_eq!(
+            revalued,
+            (Some(0.0625), Some(1.125)),
+            "the band's ends are the corners' expressions, re-valued at the moved parameters"
+        );
+        assert_eq!(
+            counts.symbolic_zero, 1,
+            "the span (u0 + τ) − u0 − τ is the zero polynomial in the seam parameter"
+        );
+    }
+
     #[test]
     fn mate5_wrap_band_reads_structure_and_meters_the_span() {
         let r = 2.0;
