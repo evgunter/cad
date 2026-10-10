@@ -75,6 +75,8 @@ mod a_swept_cusp_is_legal_at_rest;
 mod a_tube_ending_on_a_ball;
 #[path = "an_annular_tube_through_a_plate.rs"]
 mod an_annular_tube_through_a_plate;
+#[path = "a_tangent_arc_at_other_boolean_vertices.rs"]
+mod a_tangent_arc_at_other_boolean_vertices;
 #[path = "an_arc_tangent_at_a_boolean_vertex.rs"]
 mod an_arc_tangent_at_a_boolean_vertex;
 #[path = "at_rest_pcurve_faces.rs"]
