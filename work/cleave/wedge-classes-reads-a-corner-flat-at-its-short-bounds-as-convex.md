@@ -55,3 +55,40 @@ convexity undecided, not convex: route such a corner to `cone_read`
 cannot decide), or refuse. Measure which cells of the suite move first:
 every flat-within-the-band corner of three faces takes that branch
 today.
+
+## Built (branch cleave/wedge-classes-flat)
+
+**Measured on main (7e607dd).** `sectors::cone_fuzz` (seed
+0xf8152e99bbefedec) counted 3, 15 and 0 long-probe `wedge_classes`
+readings known wrong at ε 1e-9, 1e-6 and 1e-12. Through the public
+doors: a roof creased along `+x` (`z = 0` over `y < 0`, `z = g·y` over
+`y > 0`, `g` = ε/2 over 1 mm) whose crease ends at a corner with 1 mm
+bounds across it (its end cut back by two slanted planes), against a
+pyramid standing on that corner with one edge running 0.9 m between the
+two planes. Every op, both operand orders, at all three ε: the result
+builds, validates, and its material is right, but
+`BooleanNaming::edge_classes` reads that edge `Out` where its midpoint
+lies 80 ε inside the roof. A silent wrong naming row; `editor-core`'s
+senses read it as given.
+
+**Cause.** The convexity loop let a bound read `On` against another
+face's plane vote for nothing, so every flat-within-the-band corner read
+convex (or, with an `In` elsewhere, convex despite a reflex edge hidden
+in the band); an in-band reading refused while the corner might be
+convex. Both say the same thing, that the bound does not decide the
+corner at its own reach, and edges reaching farther read the gap as
+metres.
+
+**Fix.** A bound is read only against the faces it does not bound (its
+own and the one across it on the shared-bound chain); an `On` or in-band
+reading there sends the corner to `cone_read`, which reads each edge at
+its own reach. The two-face wedge's bisector, whose `On` voted met, takes
+the same story. After it: 0 wrong at every ε; `wedge_classes` refusals
+on the fuzz fall from 292/89/14 to 143/44/2 (the in-band arm now reads
+through `cone_read`, as `cone_side` does: 143/43/2). The fuzz asserts
+the long-probe family again.
+
+**Pins.** `tests/a_corner_flat_at_its_short_bounds.rs` (every pose,
+both dent signs, six op orders; red on main),
+`sectors::tests::a_reflex_edge_on_or_in_band_reads_as_a_polygon_cone`,
+and the fuzz's long-probe column.

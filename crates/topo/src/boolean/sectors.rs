@@ -1494,14 +1494,21 @@ pub(super) struct WedgeRead {
 /// A wedge is the two faces' inner half-spaces, met where the edge
 /// between them is convex and joined where it is reflex. Which one is
 /// read off one face's subdivision bisector, a direction inside it,
-/// against the other face's plane; a bisector on that plane is two
-/// faces tangent along the edge, whose half-spaces agree there and are
-/// read as convex. A wedge with no bisector to read is not classified.
+/// against the other face's plane. A wedge with no bisector to read is
+/// not classified.
 /// A corner of three or more faces is convex when every bound of every
-/// sector lies behind or on every other face's plane, and is then the
-/// faces' inner half-spaces met; it is hollow when every bound lies in
-/// front of or on every other face's plane, its complement then convex,
-/// and is the faces' inner half-spaces joined.
+/// sector lies decidedly behind the plane of every face it does not
+/// bound, and is then the faces' inner half-spaces met; it is hollow
+/// when every such bound lies decidedly in front, its complement then
+/// convex, and is the faces' inner half-spaces joined. A bound bounds
+/// its own sector's face and the face across it, the next sector's
+/// along the shared-bound chain (module docs).
+///
+/// A bisector or bound on, or in band of, a plane it is read against
+/// leaves the wedge or corner unread at that bound's reach: the faces
+/// may part either way by up to the band there, which an edge reaching
+/// farther reads as metres. Such a wedge or corner is read as a polygon
+/// cone, each edge at its own reach.
 ///
 /// A direction's class is its side codes against the faces combined:
 /// met, `Out` past any face, else `On` on any, else `In`; joined, `In`
@@ -1532,39 +1539,37 @@ pub(super) fn wedge_classes<T: Decide>(
             let Some((dir, reach)) = inside else {
                 return Ok(None);
             };
-            (code(dir, reach, *n1)? != SideCode::Out, false)
+            match code(dir, reach, *n1) {
+                Ok(SideCode::In) => (true, false),
+                Ok(SideCode::Out) => (false, true),
+                Ok(SideCode::On) | Err(_) => return cone_read(own, other, band),
+            }
         }
         [_, _, _, ..] => {
-            // Convex while no bound lies past another face's plane, and
-            // its complement convex while none lies behind one. A
-            // reading in band refuses only while the corner may still be
-            // convex; past that the corner is read as a polygon cone.
+            let n = other.len();
             let (mut convex, mut reflex) = (true, true);
-            for s in other {
-                for &(f, n) in &faces {
-                    if f == s.face {
-                        continue;
-                    }
-                    for (dir, reach) in [(s.start, s.start_reach), (s.end, s.end_reach)] {
-                        match code(dir, reach, n) {
+            for (k, s) in other.iter().enumerate() {
+                let (next, prev) = (&other[(k + 1) % n], &other[(k + n - 1) % n]);
+                for (dir, reach, across) in [
+                    (s.start, s.start_reach, next.face),
+                    (s.end, s.end_reach, prev.face),
+                ] {
+                    for &(f, normal) in &faces {
+                        if f == s.face || f == across {
+                            continue;
+                        }
+                        match code(dir, reach, normal) {
                             Ok(SideCode::Out) => convex = false,
                             Ok(SideCode::In) => reflex = false,
-                            Ok(SideCode::On) => {}
-                            Err(e) if convex => return Err(e),
-                            Err(_) => return cone_read(own, other, band),
-                        }
-                        if !convex && !reflex {
-                            return cone_read(own, other, band);
+                            Ok(SideCode::On) | Err(_) => return cone_read(own, other, band),
                         }
                     }
                 }
             }
-            // A corner both ways at once (every bound on every plane)
-            // reads as convex, as it did before hollow corners were read.
             match (convex, reflex) {
-                (true, _) => (true, false),
+                (true, false) => (true, false),
                 (false, true) => (false, true),
-                (false, false) => return cone_read(own, other, band),
+                _ => return cone_read(own, other, band),
             }
         }
         _ => return Ok(None),
@@ -2026,10 +2031,10 @@ mod tests {
         Band::linear(Tol::witness()).unwrap()
     }
 
-    /// **A flat corner reads as convex**: three faces on one plane, every
-    /// bound on every other face's plane, read met, so an edge below
-    /// the plane is In and one above it Out, as before hollow corners
-    /// were read.
+    /// **A flat corner reads as its polygon cone**: three faces on one
+    /// plane, every bound on every other face's plane, so neither convex
+    /// nor hollow is decided; its cone is its material, an edge below
+    /// the plane In and one above it Out.
     #[test]
     fn a_flat_three_face_corner_reads_met() {
         let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
@@ -2079,12 +2084,13 @@ mod tests {
     /// The sectors of a cone's corner at the origin over the closed
     /// polygon `base` (counterclockwise from above): the material inside
     /// the cone, or outside it where `hollow`. Face `k` lies between
-    /// corners `k` and `k + 1`, keyed `11 + k`.
+    /// corners `k` and `k + 1`, keyed `11 + k`; the sectors run in orbit
+    /// order, each sharing its start with the next one's end.
     fn cone_sectors(base: &[Vec3<f64>], hollow: bool) -> Vec<BoolSector<f64>> {
         let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
         let o = Point3::new(0.0, 0.0, 0.0);
         let n = base.len();
-        (0..n)
+        let mut sectors: Vec<_> = (0..n)
             .map(|k| {
                 let (a, b) = (base[k], base[(k + 1) % n]);
                 let (start, end, normal) = if hollow {
@@ -2109,7 +2115,11 @@ mod tests {
                     arm: 1.0,
                 }
             })
-            .collect()
+            .collect();
+        if hollow {
+            sectors.reverse();
+        }
+        sectors
     }
 
     /// One own edge per direction, keyed `21 + k`, each a line edge.
@@ -2372,21 +2382,33 @@ mod tests {
         );
     }
 
-    /// **A reflex edge read in band refuses while the corner may still be
-    /// convex**: a dart whose notch is an in-band offset deep reads its
-    /// first bound in band before any reads past another face, and
-    /// escalates as that side reading, rather than read as convex.
+    /// **A reflex edge on or in band of a plane leaves the corner to the
+    /// polygon-cone reader**: a dart whose notch is half the zero band
+    /// deep, or halfway between the bands, reads a direction inside a
+    /// lobe In and its void Out, rather than read as convex or refuse,
+    /// and decides no class for a direction into the notch, which lies
+    /// within the band of its faces.
     #[test]
-    fn an_in_band_reflex_edge_escalates_rather_than_read_convex() {
+    fn a_reflex_edge_on_or_in_band_reads_as_a_polygon_cone() {
         let b = band();
-        let mid = (b.zero() + b.escalate()) / 2.0;
-        let dirs = [Vec3::new(0.6, 0.05, 1.0)];
-        let got = wedge_classes(&probes(&dirs), &cone_sectors(&dart(mid / 2.0), false), b);
-        match got {
-            Err(BooleanError::Escalated { diag, .. }) => {
-                assert_eq!(diag.predicate, Some("bool_chord_side"), "{diag:?}");
+        for depth in [b.zero() / 2.0, (b.zero() + b.escalate()) / 4.0] {
+            for (hollow, lobe) in [(false, SideCode::In), (true, SideCode::Out)] {
+                let cone = cone_sectors(&dart(depth), hollow);
+                let read = wedge_classes(&probes(&[Vec3::new(0.6, 0.05, 1.0)]), &cone, b);
+                assert_eq!(
+                    read.unwrap().map(|r| classes(&r)),
+                    Some(vec![lobe]),
+                    "a lobe at depth {depth:e}, hollow {hollow}"
+                );
+                let notch = Vec3::new(depth / 2.0, 0.0, 1.0);
+                if let Ok(Some(read)) = wedge_classes(&probes(&[notch]), &cone, b) {
+                    assert_eq!(
+                        classes(&read),
+                        [SideCode::On],
+                        "the notch at depth {depth:e}, hollow {hollow}"
+                    );
+                }
             }
-            other => panic!("an in-band reflex edge escalates, got {other:?}"),
         }
     }
 
