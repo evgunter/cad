@@ -31,3 +31,16 @@ door choice gone. Solving the moved charts together needs only
 intermediate (moved, held) arm, so this should land before or with
 `a-fitted-wall-has-no-section-with-a-moved-cap`'s arm. O4's paragraph in
 `crates/geom-brep/README.md` (the door ladder) is re-worded with it.
+
+## Where it stands (unit 18)
+
+`shell-moves-every-chart-of-a-solid-through-one-simultaneous-door` landed the general door, `topo::offset_surfaces_together`.
+- It takes a distance per chart; a decided-zero distance holds.
+- `replace_faces_offset` is its one-chart spelling: one body, `replace_face::offset_charts_staged`.
+- `shell`'s per-chart arm is gone, and its rim lift reads the same door decision as the cavity.
+
+What remains of this item is the closed forms and the door choice:
+- `offset_planes_together` and `offset_charts_together` are still separate doors.
+- `shell` still picks one of them per solid.
+
+That unit's Decided 4 kept the closed forms as the ladder's fast paths. Each one carries an edge's conventional data through the move, which the general door's sections would re-mint. Folding them in is therefore a bit-moving change that this item would have to argue.
