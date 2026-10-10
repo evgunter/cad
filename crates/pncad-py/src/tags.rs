@@ -1010,6 +1010,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::Naming => "naming",
         C::DeclareResolve => "declare_resolve",
         C::DeclareUnsupportedPair => "declare_unsupported_pair",
+        C::DeclaredContactUnbacked => "declared_contact_unbacked",
         C::DeclareSiteNotAnOperand => "declare_site_not_an_operand",
         C::UnionFoldStep => "union_fold_step",
         C::FilletSelectionEmpty => "fillet_selection_empty",
@@ -1190,6 +1191,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::DeclareResolve { error, .. } => Some(resolve_error_tag(error)),
         NodeErrorKind::DeclareSiteNotAnOperand { .. } => None,
         NodeErrorKind::DeclareUnsupportedPair { .. } => None,
+        NodeErrorKind::DeclaredContactUnbacked { .. } => None,
         // The step's own refusal crosses in the message.
         NodeErrorKind::UnionFoldStep { .. } => None,
         NodeErrorKind::BlendSelectionEmpty { .. } => None,
@@ -3004,6 +3006,9 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::BatteryTurn => "battery_turn",
         S::BatteryJoint => "battery_joint",
         S::BatterySupportAxis => "battery_support_axis",
+        S::VertexFusion => "vertex_fusion",
+        S::CensusAtRest => "census_at_rest",
+        S::ImportAnchor => "import_anchor",
         S::ProfileJunction => "profile_junction",
     }
 }

@@ -813,11 +813,11 @@ pub use body::Body;
 pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
     BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
-    CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, Cell,
-    Coincide, CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, ContactRecords,
-    ContainDecision, ContainError, Contradiction, CurveContact, DeclarationRead, DiscardRow,
-    EdgeJoin, EdgePieceClass, EeContact, FaceContainment, FacePairDeclaration, Fusions, HeldEdge,
-    JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided, LeverArm,
+    CarriedContacts, CarriedRecord, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError,
+    CarrierRelation, Cell, Coincide, CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent,
+    ContactRecords, ContainDecision, ContainError, Contradiction, CurveContact, DeclarationRead,
+    DiscardRow, EdgeJoin, EdgePieceClass, EeContact, FaceContainment, FacePairDeclaration, Fusions,
+    HeldEdge, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided, LeverArm,
     NullEdgePairRecord, Operand, OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread,
     PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation,
     PlaneRung, PointInSolidError, SectorRead, SectorRung, SelfCheck, Settling, ShellOrientation,
@@ -844,7 +844,7 @@ pub use chord_join::face_azimuth_window_traces;
 // The census's idealized/realized pair (its `Candidates`): the
 // vocabulary always, the door on the boolean sweep's terms.
 pub use attach::Rechart;
-pub use census::{CensusStrategy, CensusTrace, SweepPairs};
+pub use census::{CensusStrategy, CensusTrace, SweepPairs, census_rest_decision};
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
 pub use contact::{
@@ -876,7 +876,9 @@ pub use coherence::{
     CoherenceCondition, CoherenceFinding, CoherenceReport, StructureRead, Unexaminable, Unexamined,
     examine_chart_coherence, gap_is_noise,
 };
-pub use coincidence::{Coincidence, DecisionSite, Discharge, Relation, RowCell};
+pub use coincidence::{
+    Backing, Cited, Cites, Coincidence, DecisionSite, Discharge, Relation, RowCell,
+};
 pub use geom::Curve3;
 pub use geom::Surface;
 pub use geom_brep::{

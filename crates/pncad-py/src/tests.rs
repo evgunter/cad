@@ -2433,6 +2433,7 @@ fn node_error_tags_are_the_published_words() {
         DeclareResolve => "declare_resolve",
         DeclareSiteNotAnOperand => "declare_site_not_an_operand",
         DeclareUnsupportedPair => "declare_unsupported_pair",
+        DeclaredContactUnbacked => "declared_contact_unbacked",
         UnionFoldStep => "union_fold_step",
         FilletSelectionEmpty => "fillet_selection_empty",
         ChamferSelectionEmpty => "chamfer_selection_empty",
@@ -5069,11 +5070,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "battery_support_axis",
             "battery_turn",
             "carrier_ladder",
+            "census_at_rest",
             "coaxial_sphere",
+            "import_anchor",
             "plane_ladder",
             "profile_junction",
             "split_on",
             "tangent_witness",
+            "vertex_fusion",
         ],
         delegates: &[],
     },
@@ -5561,6 +5565,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "declare_resolve",
             "declare_site_not_an_operand",
             "declare_unsupported_pair",
+            "declared_contact_unbacked",
             "degenerate_direction",
             "degenerate_spacing",
             "degenerate_step",
@@ -10739,6 +10744,7 @@ mod product_memo_rows {
         let ev = evaluated(&doc);
         let cfg = d::ChecksConfig {
             separation: d::Advisory::Off,
+            unproven_coincidence: d::Advisory::Off,
             ..d::ChecksConfig::default()
         };
         assert!(!cfg.needs_a_subject());

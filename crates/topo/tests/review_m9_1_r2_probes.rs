@@ -235,10 +235,13 @@ fn probe_replay_partial_eq_bites_on_mutation() {
     } else {
         // No vv rows: mutate by inserting a fabricated patch row.
         let fk = x.body.faces().next().map(|(k, _)| k).unwrap();
-        mutated.patches.push(topo::PatchContact {
-            face_a: fk,
-            face_b: fk,
-        });
+        mutated.patches.push(topo::Cited::new(
+            topo::PatchContact {
+                face_a: fk,
+                face_b: fk,
+            },
+            topo::Cites::decided(0),
+        ));
         assert_ne!(mutated, x.contacts, "an added row must show");
     }
 }
@@ -263,16 +266,22 @@ fn probe_census_gate_contradicts_curve_and_refuses_patch() {
     let f1 = face_of(edge.he_plus);
     let f2 = face_of(edge.he_minus);
     let mut contacts = ContactRecords::default();
-    contacts.curves.push(topo::CurveContact {
-        face_a: f1,
-        face_b: f2,
-        witness: ek,
-    });
+    contacts.curves.push(topo::Cited::new(
+        topo::CurveContact {
+            face_a: f1,
+            face_b: f2,
+            witness: ek,
+        },
+        topo::Cites::decided(0),
+    ));
     let fk = a.faces().next().map(|(k, _)| k).unwrap();
-    contacts.patches.push(topo::PatchContact {
-        face_a: fk,
-        face_b: fk,
-    });
+    contacts.patches.push(topo::Cited::new(
+        topo::PatchContact {
+            face_a: fk,
+            face_b: fk,
+        },
+        topo::Cites::decided(0),
+    ));
     let errors = topo::validate_pseudomanifold(&a, &contacts, Tol::witness())
         .expect_err("fabricated contact records must be refused at rest");
     assert!(

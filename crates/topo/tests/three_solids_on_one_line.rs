@@ -782,9 +782,7 @@ fn a_declaration_at_the_contact_line_serves_the_undeclared_body_or_refuses() {
 /// builds the undeclared fold's body.
 #[test]
 fn carrying_each_steps_records_serves_the_same_body() {
-    use topo::{
-        BooleanDeclarations, CarriedContacts, CarriedVf, CarriedVv, ContactClass, union_with,
-    };
+    use topo::{BooleanDeclarations, CarriedContacts, ContactClass, union_with};
     let eps = t().eps();
     for (label, prisms) in [
         ("three", three()),
@@ -810,17 +808,7 @@ fn carrying_each_steps_records_serves_the_same_body() {
                         other => panic!("{what}: step {k}: {other:?}"),
                     };
                     let c = &r.contacts;
-                    carried = CarriedContacts {
-                        vv: c.vv.iter().map(|&pair| CarriedVv { pair, class }).collect(),
-                        vf: c
-                            .a_on_b
-                            .iter()
-                            .chain(&c.b_on_a)
-                            .map(|&rest| CarriedVf { rest, class })
-                            .collect(),
-                        ve: c.ve.clone(),
-                        ee: c.ee.clone(),
-                    };
+                    carried = c.carried(class);
                     body = r.body;
                 }
                 assert!(shape(&body) == undeclared, "{what}: another body");
