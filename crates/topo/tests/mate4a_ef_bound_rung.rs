@@ -182,19 +182,12 @@ fn the_bare_overhang_seat_still_refuses() {
 /// overlap stays a hard finding, and the census is exactly as loud as
 /// with no declaration at all.
 ///
-/// What this row does and does NOT say. It says the rung reads the
-/// declared pair's own incidence, so a pair incident to NEITHER the
-/// vertex's faces nor a face of the edge backs nothing. It does not say
-/// that only the resting pair backs this bound: `ve_face_backed` asks
-/// for a pair holding some face incident to the vertex against some
-/// face the edge bounds, and never names the face whose overlap is
-/// being certified — so pairs with no relation to the resting interface
-/// back the arm too, a declaration the confirm pass itself refutes
-/// included. That reach is the ratified region-unconfined strength
-/// working as ruled, not a leak, and
-/// `review_mate4a_r2_probes::r2_an_unrelated_declared_pair_backs_the_ef_bound`
-/// is where it is demonstrated rather than left to be inferred from
-/// this row's silence.
+/// The rung is region-confined: a declared pair backs a bound only
+/// where the bound lies in both faces' closed regions on their carriers
+/// and the pair's own overlap verifies, so a pair with no relation to
+/// the resting interface backs nothing —
+/// `review_mate4a_r2_probes::r2_an_unrelated_declared_pair_backs_no_ef_bound`
+/// is that row for a pair incident to the bound's entities.
 #[test]
 fn a_wrong_pair_backs_no_ef_bound() {
     let (body, post_top, _, shelf_top) = overhang_seat();
