@@ -56,3 +56,17 @@ answer with no edit there. The interval scalar already reads `±∞` as
 NaI (`geom-core/src/interval.rs`, `from_f64_poisons_non_reals`), so
 option 1 would also make the state sets agree more closely across
 scalars.
+
+## Two more consumers (PIPE, from S350's lane and its review, PR 4482)
+
+Two box doors pass `±∞` straight through, so an infinite net folds to a
+box with infinite ends:
+- `geom::surfaces::boxes::nurbs_surface_aabb`, whose `any_poison` screen
+  is NaN-only at `f64`;
+- `Aabb::from_points`.
+
+The census reach arm (`census.rs`'s `face_reach`, after S350) reads
+`net_state()` and so inherits the same reading. Not reproduced as a
+false clear. A finiteness screen at `net::any_poison` (options 1/3
+above) closes both. This was filed separately on 4482's branch, and
+folded here as one item on one decision.
