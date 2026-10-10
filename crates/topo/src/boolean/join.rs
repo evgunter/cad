@@ -2505,16 +2505,14 @@ pub(super) fn pair_section_frame_at<T: Decide>(
             across,
             round,
         } => {
-            let read = |across| {
-                let reach = geom_brep::Reach::Face {
-                    at,
-                    below,
-                    above,
-                    across,
-                };
-                geom_brep::plane_cylinder_section_read(plane_s, cyl_s, &reach, band)
+            let reach = crate::chord_join::WallReach {
+                at,
+                below,
+                above,
+                span: across,
+                round,
             };
-            crate::chord_join::agreed_section(read(across), read(round), band)
+            crate::chord_join::agreed_section(plane_s, cyl_s, reach, band)
         }
         FrameExtent::Radii | FrameExtent::Span(_) => geom_brep::plane_cylinder_section(
             plane_s,

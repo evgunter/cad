@@ -54,12 +54,19 @@ returned `MarginDiag::INVALID`, and an open `k_stats::Bracket` held no
 escalation for any of them. C7 is not reachable without the test-only
 identity pass.
 
-- **The doors (geom-core, SCALAR's ground).** `k_stats::straddle(name,
-  one, other, band)` takes two decided readings of one quantity. It
-  records their enclosure (`MarginDiag::hull`) on the frame and panics
-  if the two do not straddle the band. `k_stats::gate_rejection(name,
-  decided, band, passes)` is a gate's rejection of a verdict the funnel
-  already reached, and the gate doors now mint through it too.
+- **The doors (geom-core, SCALAR's ground).**
+  - `k_stats::straddle(name, lower, upper, band)` takes two `Decided`
+    bounds of one quantity. It records their enclosure
+    (`MarginDiag::hull`) on the frame. It is `unreachable!` unless each
+    verdict is one its margin supports (`MarginDiag::admits_verdict`)
+    and the lower bound's verdict is below the upper's.
+  - `k_stats::gate_rejection(name, decided, band, passes)` is a gate's
+    rejection of a verdict the funnel already reached. It is
+    `unreachable!` for a verdict its margin does not support, or one
+    `passes` admits.
+  - The gate doors mint through the same private `mint_rejection`,
+    inside `classify_gated_reported` (#4571's shape), so there is one
+    rejection path.
 - **C6.** Both `ReadEscalation::straddle` sites hand the straddle door
   the two bounds' decided readings (`decide_reported`,
   `decide_magnitude_reported`). The span's straddle and the hit's carry
@@ -81,12 +88,14 @@ identity pass.
   two of them share a verdict and the loop returns on the second. So
   the fallback is reached only with an undecided component in hand, and
   that component's own escalation is returned.
-- **C9.** `geom_brep::plane_cylinder_section_read` returns the readings
-  that settled the class (`PlaneCylinderReading`). `agreed_section`
-  straddles them: `pc_axis_plane_parallel_straddle` between the conic
-  lane and the rulings' lane, `pc_parallel_gap_straddle` within the
-  rulings' lane. Both reaches are read at one point, so a rim and a
-  tilted ellipse cannot part, and that arm is `unreachable!`.
+- **C9.** `geom_brep::plane_cylinder_section_read` returns
+  `pc_axis_plane_parallel`'s `Decided`. `agreed_section` takes one
+  `WallReach` (one `at`, two `across` measures) and builds both reaches
+  from it. The conic lane and the rulings' lane parting is
+  `pc_axis_plane_parallel_straddle`. Any other parting is
+  `unreachable!`, with its values:
+  - within the rulings' lane the gap datum is one number;
+  - within the conic lane, the rows that part it read no reach.
 
 Endings were pinned before and after at the three ε rows.
 - Unchanged: the walk's `Boundary` and `ArcSpan` straddles, which end
@@ -100,3 +109,12 @@ Endings were pinned before and after at the three ε rows.
     the defect ending to `too_close`'s menu.
 
   Both are now the ending `RefusedArm::Straddle` gives.
+- Moved, traced in the fix pass, and pinned in `refusal_routes`: a
+  `bool_contact_arc_straddle` read through `rim_wedge`'s seam cover
+  (`lift` → `departures` → `Coincide::Rim` / `TangentLocus` with
+  `Spent(Seam)`). It went from the lever plus the unreadable-margin
+  note to the lever alone. A rim spent as another class ends in its
+  frontier both before and after.
+- Not reached: editor-core's `clearance.rs` `is_invalid()` route. Its
+  `source` is the clearance site's own `decide` on the bound's margin,
+  so no straddle reaches it.

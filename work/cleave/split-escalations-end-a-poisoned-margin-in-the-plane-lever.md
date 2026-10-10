@@ -53,7 +53,7 @@ This moves mints, so `agreed_section`, `rules:197` and `rules:319` wait on `topo
 
 `agreed_section` now carries a straddle: the enclosure of the two
 readings, through `k_stats::straddle`, under
-`pc_axis_plane_parallel_straddle` or `pc_parallel_gap_straddle`. The
+`pc_axis_plane_parallel_straddle`. The
 same holds for the walk's conic straddles (`*_conic_straddle`,
 `bool_contact_arc_straddle`, `pm_census_ef_cross_arc_straddle`,
 `bool_sphere_region_arc_straddle`).

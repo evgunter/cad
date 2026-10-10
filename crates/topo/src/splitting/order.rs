@@ -399,6 +399,45 @@ mod tests {
     use super::*;
     use geom_core::Tol;
 
+    /// **The frame's one refusal quotes the member nearest to passing**:
+    /// the largest arm of the schedule's oblique members, not the first.
+    /// The plane's normal lies along the first oblique member (and tilted
+    /// off it), so that member's arm is the smallest, and a refusal on it
+    /// would quote a margin no tightened tolerance passes first.
+    #[test]
+    fn the_frame_refusal_quotes_the_member_nearest_to_passing() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let exact = exact_band().unwrap();
+        let (_, oblique) = super::super::containment::SCHEDULE.split_at(3);
+        for tilt in [0.0, 1e-3, 3e-2] {
+            let n = (oblique[0] + Vec3::new(tilt, -tilt, 0.0)).normalize();
+            let plane = crate::test_support::split_plane(Point3::new(0.0, 0.0, 0.0), n, tol);
+            let o = plane.origin;
+            let d = n.cross(Vec3::new(1.0, 0.0, 0.0)).normalize() * (0.4 * band.zero());
+            let points = [o, o + d, o - d];
+            let arm = points.iter().fold(0.0f64, |m, p| m.max((*p - o).norm()));
+            let n = plane.normal.get();
+            let arms: Vec<f64> = oblique
+                .iter()
+                .map(|r| (*r - n * n.dot(*r)).norm() / r.norm() * arm)
+                .collect();
+            let nearest = arms.iter().copied().fold(0.0f64, f64::max);
+            assert!(
+                arms[0] < nearest,
+                "tilt {tilt}: the first member is not the nearest"
+            );
+            let Err(diag) = sort_indices_by_point(&points, &plane, band, exact) else {
+                panic!("tilt {tilt}: expected a refusal");
+            };
+            assert_eq!(
+                diag.margin.diagnostic_f64_for_error_text().value(),
+                Some(nearest),
+                "tilt {tilt}: the arm quoted, of {arms:?}"
+            );
+        }
+    }
+
     /// **Points all within the zero band of the plane's origin give the
     /// frame no direction**: every schedule member's arm decides Zero, and
     /// the frame refuses once, on the gate's rejection of the member

@@ -24,7 +24,7 @@ use crate::live::{linked, proven};
 use crate::ray_walk::ParityRows;
 use crate::splitting::containment::placement_sized;
 use crate::splitting::containment::{
-    BoundaryRows, CarrierLoop, ConicRows, EdgeContact, OffEdge, carrier_loop, carrier_loop_side,
+    BoundaryRows, ConicRows, OffLoop, OnEdge, OnLoop, carrier_loop, carrier_loop_side,
 };
 use crate::splitting::spiric_arc::SpiricRows;
 use crate::splitting::{Escalation, LoopDecision, PointInLoopError, Uncrossable};
@@ -398,8 +398,8 @@ pub(crate) fn contfp_decided<T: Decide>(
     // each read on its edges' own carriers by a walk that trusts the
     // pre-pass above — `q` is definitely off every edge — so it answers
     // inside or outside.
-    let inside = |(lk, lp, off): &ReadLoop<T>| -> Result<bool, ContainError> {
-        Ok(carrier_loop_side(*lk, lp, off, normal, q, band)?)
+    let inside = |(lk, read): &ReadLoop<T>| -> Result<bool, ContainError> {
+        Ok(carrier_loop_side(*lk, read, normal, q, band)?)
     };
     let Some((outer, rings)) = read.split_first() else {
         unreachable!("the pre-pass reads every loop of the face, and a face has its outer loop")
@@ -578,67 +578,64 @@ fn boundary_pre_pass<T: Decide>(
     }
     let mut read = Vec::with_capacity(loops.len());
     for &lk in loops {
-        let lp = carrier_loop(body, lk, ROWS, band)?;
-        let n = lp.verts.len();
-        let mut off = Vec::with_capacity(n);
-        for (i, edge) in lp.edges.iter().enumerate() {
-            let ends = (lp.verts[i], lp.verts[(i + 1) % n]);
-            match edge
-                .contact(ends, q, ROWS, band)
-                .map_err(|e| ContainError::Escalated {
-                    decision: Some(LoopDecision::Boundary.into()),
-                    escalation: e.escalation,
-                    diag: e.diag,
-                })? {
-                EdgeContact::On(margin) => {
-                    return Ok(PrePass::On(FaceContainment::OnEdge(lp.keys[i]), margin));
-                }
-                EdgeContact::Off => off.push(OffEdge::Off),
-                EdgeContact::Carrier => off.push(OffEdge::Carrier),
-                EdgeContact::Unread => off.push(OffEdge::Unread),
-                // Within the band of a curved edge's END, which the vertex
-                // pass above placed definitely clear of both of this edge's
-                // vertices. The end is read exactly (a circle through its
-                // radius, an ellipse or a spiric as a distance from `q`), so the two
-                // passes disagree only by as much as the carrier's ends
-                // sit off the stored vertices, on its own row
-                // (`bool_contact_arc_end_vertex`). Certification pins each
-                // carrier end to its vertex within the zero band of the
-                // band the body was CERTIFIED at (`geom_brep`'s
-                // `carrier_endpoint_{start,end}` rows); a body certified
-                // at a coarser band than this query's carries up to that
-                // band's `ε`, which is no defect, so the answer is always
-                // an escalation — on that margin where it is in band, and
-                // otherwise on the row itself.
-                EdgeContact::End => {
-                    let Some(carrier_ends) = edge.carrier_ends() else {
-                        unreachable!("only a conic or spiric arc reads End")
-                    };
-                    for c in carrier_ends {
-                        for v in [ends.0, ends.1] {
-                            if let Err(diag) = decide(END_VERTEX, Margin::norm3(v - c), band) {
-                                return Err(ContainError::on(ContainDecision::ArcEnd, diag));
-                            }
+        let OnLoop { lp, edge: i, on } = match carrier_loop(body, lk, ROWS, band)?
+            .place_off(q, ROWS, band)
+            .map_err(|e| ContainError::Escalated {
+                decision: Some(LoopDecision::Boundary.into()),
+                escalation: e.escalation,
+                diag: e.diag,
+            })? {
+            Ok(off) => {
+                read.push((lk, off));
+                continue;
+            }
+            Err(on) => on,
+        };
+        match on {
+            OnEdge::On(margin) => {
+                return Ok(PrePass::On(FaceContainment::OnEdge(lp.keys[i]), margin));
+            }
+            // Within the band of a curved edge's END, which the vertex
+            // pass above placed definitely clear of both of this edge's
+            // vertices. The end is read exactly (a circle through its
+            // radius, an ellipse or a spiric as a distance from `q`), so the two
+            // passes disagree only by as much as the carrier's ends
+            // sit off the stored vertices, on its own row
+            // (`bool_contact_arc_end_vertex`). Certification pins each
+            // carrier end to its vertex within the zero band of the
+            // band the body was CERTIFIED at (`geom_brep`'s
+            // `carrier_endpoint_{start,end}` rows); a body certified
+            // at a coarser band than this query's carries up to that
+            // band's `ε`, which is no defect, so the answer is always
+            // an escalation — on that margin where it is in band, and
+            // otherwise on the row itself.
+            OnEdge::End => {
+                let Some(carrier_ends) = lp.edges[i].carrier_ends() else {
+                    unreachable!("only a conic or spiric arc reads End")
+                };
+                let ends = (lp.verts[i], lp.verts[(i + 1) % lp.verts.len()]);
+                for c in carrier_ends {
+                    for v in [ends.0, ends.1] {
+                        if let Err(diag) = decide(END_VERTEX, Margin::norm3(v - c), band) {
+                            return Err(ContainError::on(ContainDecision::ArcEnd, diag));
                         }
                     }
-                    // Every end decided against every vertex: the row,
-                    // decided, still leaves the point in the band of the end.
-                    return Err(ContainError::Escalated {
-                        decision: Some(ContainDecision::ArcEnd),
-                        escalation: Escalation::Decided,
-                        diag: crate::invalid_margin::invalid(band, END_VERTEX),
-                    });
                 }
+                // Every end decided against every vertex: the row,
+                // decided, still leaves the point in the band of the end.
+                return Err(ContainError::Escalated {
+                    decision: Some(ContainDecision::ArcEnd),
+                    escalation: Escalation::Decided,
+                    diag: crate::invalid_margin::invalid(band, END_VERTEX),
+                });
             }
         }
-        read.push((lk, lp, off));
     }
     Ok(PrePass::Off(read))
 }
 
-/// A loop read on its carriers, with what the boundary pass read of `q`
-/// against each of its edges, in edge order: off every one.
-type ReadLoop<T> = (LoopKey, CarrierLoop<T>, Vec<OffEdge>);
+/// A loop the boundary pass read `q` off every edge of.
+type ReadLoop<T> = (LoopKey, OffLoop<T>);
 
 /// What [`boundary_pre_pass`] found: a boundary verdict, or every loop
 /// read on its carriers — with `q` definitely off each of their edges —

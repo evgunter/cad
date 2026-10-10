@@ -1469,11 +1469,24 @@ impl MarginDiag {
         Some(Self::enclosure(lo0.min(lo1), hi0.max(hi1)))
     }
 
-    /// Whether this reading lies neither within `band`'s zero band nor
-    /// past its escalation band: for the hull of two decided readings,
-    /// that the two straddle the band.
-    pub(crate) fn undecided_in(self, band: Band) -> bool {
-        self.placement(band) == Placement::Undecided
+    /// Whether `sign` is a verdict classification can have reached on this
+    /// reading against `band`: a definite sign on a reading past the band
+    /// on that side, and `Zero` on one not past it — within the zero band,
+    /// or, under the test-only staged-ceiling dial, the in-band reading it
+    /// passes as `Zero` (`k_stats`' `IDENTITY_PASS`). Never a poisoned
+    /// reading.
+    pub(crate) fn admits_verdict(self, sign: Sign, band: Band) -> bool {
+        let past = self.placement(band) == Placement::Past;
+        let positive = match self.0 {
+            Reading::Value(m, _) => m > 0.0,
+            Reading::Enclosure { lo, .. } => lo > 0.0,
+            Reading::Invalid => return false,
+        };
+        match sign {
+            Sign::Zero => !past,
+            Sign::Positive => past && positive,
+            Sign::Negative => past && !positive,
+        }
     }
 
     /// The sign the classifier decided, where this reading is a gate's
