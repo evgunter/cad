@@ -15,10 +15,9 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    BooleanValue, Datum, Dimension, DimensionError, Doc, DocumentId, EditError,
-    EvalError, Evaluation, HeldNodes, Node, NodeErrorKind, ParseError, ProfileProgram,
-    RecipeNodeId, Said, SlotId, Speaker, SpokenNode, SpokenVar, ValuePayload, VarId, VarName,
-    held_by,
+    BooleanValue, Datum, Dimension, DimensionError, Doc, DocumentId, EditError, EvalError,
+    Evaluation, HeldNodes, Node, NodeErrorKind, ParseError, ProfileProgram, RecipeNodeId, Said,
+    SlotId, Speaker, SpokenNode, SpokenVar, ValuePayload, VarId, VarName, held_by,
 };
 use pncad::prelude::{Body, StableName, SurfaceKind};
 use pncad::select::{FlushFinding, InterrogateError, face_carrier_kind};
@@ -38,8 +37,8 @@ use crate::docio::DocIoError;
 use crate::frame::Tone;
 use crate::generation::Generation;
 use crate::history::History;
-use crate::session::author::BooleanSpec;
 use crate::props::{self, Notation, SlotValue};
+use crate::session::author::BooleanSpec;
 use crate::session::{FaceSelection, SessionOp};
 
 /// The node kind a creation op's seat requires — the payload of
@@ -334,10 +333,6 @@ pub enum Refusal {
     /// condition `apply` refuses is refused there and rendered in
     /// `EditError`'s words; a flat arm restating one would be two
     /// spellings of a rule with one home (`crates/viewer/README.md`).
-    /// One node in both operand seats used to be such an arm and is
-    /// now this one: `Node::input_fault`'s pairwise-distinct rule is a
-    /// fact about ANY node's inputs, so the boolean tool, `SetMembers`
-    /// and the load validator all reach it at the same door.
     ///
     /// Boxed, as `Io` is below: these two payloads are an order of
     /// magnitude larger than every other arm, and a refusal is
@@ -1476,14 +1471,9 @@ mod refused_boolean {
     #[test]
     fn a_pair_already_declared_is_refused_as_a_defect_not_offered() {
         with_refusal(|doc, kind, operands| {
-            let first = RefusedBoolean::of(
-                doc,
-                kind,
-                operands.clone(),
-                Vec::new(),
-                Generation::FIRST,
-            )
-            .expect("the premise: the plain union's refusal is offerable");
+            let first =
+                RefusedBoolean::of(doc, kind, operands.clone(), Vec::new(), Generation::FIRST)
+                    .expect("the premise: the plain union's refusal is offerable");
             assert!(first.offer().is_some(), "the premise: it offers");
             let again = RefusedBoolean::of(
                 doc,
@@ -1524,14 +1514,8 @@ mod refused_boolean {
                 diag: *diag,
             };
             assert!(
-                RefusedBoolean::of(
-                    doc,
-                    &one_operand,
-                    operands,
-                    Vec::new(),
-                    Generation::FIRST
-                )
-                .is_none(),
+                RefusedBoolean::of(doc, &one_operand, operands, Vec::new(), Generation::FIRST)
+                    .is_none(),
                 "a one-operand pair is left to the node's own row"
             );
         });

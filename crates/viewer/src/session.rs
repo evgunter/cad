@@ -57,11 +57,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pncad::document::{
-    Assembly, AssemblyError, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
-    DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeValue, FreeVar,
-    HeldNodes, Label, LoopProgram, Maintenance, Node, PartReach, PartResolver, ProductError,
-    ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, VarId, VarName,
-    apply, assemble_gathered, cascade_delete_order, parse_formula, product_recorded, run_checks_on,
+    Assembly, AssemblyError, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc, DocEdit,
+    DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, HeldNodes,
+    Label, LoopProgram, Maintenance, Node, PartReach, PartResolver, ProductError, ProfileProgram,
+    RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, VarId, VarName, apply,
+    assemble_gathered, cascade_delete_order, parse_formula, product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -90,7 +90,9 @@ pub mod probe;
 pub mod refuse;
 pub mod select;
 
-pub use author::{BooleanSpec, DatumSpec, PartSelectSpec, PatternRuleSpec, ProfilePlane, ProfileShape};
+pub use author::{
+    BooleanSpec, DatumSpec, PartSelectSpec, PatternRuleSpec, ProfilePlane, ProfileShape,
+};
 pub use delete::DeleteAffordance;
 pub use op::{
     CancelDoor, Creation, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueGestureName,

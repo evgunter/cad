@@ -16,10 +16,10 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-use viewer::session::BooleanSpec;
-use pncad::document::Bodies;
 use crate::common;
+use pncad::document::Bodies;
 use pncad::document::ExtrudeSide;
+use viewer::session::BooleanSpec;
 
 use pncad::document::{CancelToken, EvalOptions, NodeResult, evaluate};
 use pncad::geom_core::Tol;

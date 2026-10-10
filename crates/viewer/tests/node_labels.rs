@@ -6,9 +6,9 @@
 
 #![allow(clippy::expect_used, clippy::panic)]
 
-use viewer::session::BooleanSpec;
 use crate::common;
 use pncad::document::ExtrudeSide;
+use viewer::session::BooleanSpec;
 
 use pncad::document::{Doc, DocEdit, Label, Node, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;

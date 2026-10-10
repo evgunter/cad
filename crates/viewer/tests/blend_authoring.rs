@@ -23,8 +23,8 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-use viewer::session::BooleanSpec;
 use crate::common;
+use viewer::session::BooleanSpec;
 
 use common::{ang, len, len3, plate_index, scl3, session_insert};
 use pncad::document::{

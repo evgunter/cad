@@ -127,11 +127,11 @@ class EditError(PncadError):
       inside a function (`sin(w)` at a length slot reads `w` as an
       angle).
     - `slot` is the slot's word; at an operand it is the field's
-      (`profile`, `target`, `a`, `member`, ...), with `index` the
-      position of a section or a member.
-    - `count` is how many entries a short list would have had. It is
-      NOT `found`: a count and a dimension are two types, and one
-      attribute carries one.
+      (`profile`, `target`, `from`, `cut`, `member`, ...), with
+      `index` the position of a section or a member.
+    - `count` is how many nodes a definition expands to
+      (`definition_too_large`). It is NOT `found`: a count and a
+      dimension are two types, and one attribute carries one.
     - `first` and `again` are POSITIONS in a node's name designation,
       and `variant` decides what `first` means. On
       `repeated_designation` (a shell's ordered `open` list) the two
@@ -238,7 +238,8 @@ class EvaluationError(PncadError):
     `kind == "undeclared_coincidence"`, it carries the candidate
     declaration as a typed `FlushFinding` — the same value
     `Evaluation.find_flush_candidates` answers with, ready for
-    `Node.boolean`'s `declare=` or `Doc.declare`. The menu has exactly
+    `Node.union`'s, `Node.intersect`'s or `Node.subtract`'s `declare=`
+    or `Doc.declare`. The menu has exactly
     two arms:
     declare that finding, or move the geometry.
 
@@ -1868,13 +1869,6 @@ class NodeId:
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
-class BooleanOp:
-    """The regularized Boolean operator."""
-
-    Union: Final[BooleanOp]
-    Intersect: Final[BooleanOp]
-    Subtract: Final[BooleanOp]
-
 class ExtrudeSide:
     """Which side of its sketch plane a `Node.extrude` goes toward:
     along the plane's normal `u x v`, or against it."""
@@ -2539,45 +2533,72 @@ class Node:
         `slot_dimension_mismatch` naming that step's slot)."""
 
     @staticmethod
-    def boolean(
-        op: BooleanOp, a: _Operand, b: _Operand, declare: list[FlushFinding] = []
+    def union(
+        members: Sequence[_Operand] | _Operand, declare: list[FlushFinding] = []
     ) -> Node:
-        """A Boolean of two upstream solids. `declare` is its declared
-        contact pairs, given as the INSPECTED findings (each carries
-        its pair and class) and held as the node's own payload; an
-        empty list declares nothing, and then operands that merely
-        TOUCH refuse with the typed menu (`EvaluationError`,
+        """The UNION: the material in any member, folded into ONE body
+        in the members' order.
+
+        `members` is a sequence of operands, each read on its own, or
+        ONE operand reading a whole family — a pattern's output — whose
+        bodies are the members in index order. Any count is a union:
+        one member is that body, none is the typed empty body, and a
+        read listed twice is the same material twice (`[a, a]` is
+        `a`). A family read beside single reads in one list refuses at
+        `Doc.insert` (`slot_var_kind`), as does a member the document
+        does not hold (`unresolved_input`). Whether a member is a BODY
+        is the kernel's question at `evaluate`.
+
+        Not `placed_union`, whose members are one prototype under a
+        placement rule: here the membership is data, which
+        `DocEdit.set_members` rewrites on the live node.
+
+        `declare` is the node's declared contact pairs, given as the
+        INSPECTED findings (each carries its pair, sited at the two
+        member reads, and its class) and held as the node's own
+        payload; each pair is fed at the fold step its two members meet
+        at. An empty list declares nothing, and then members that
+        merely TOUCH refuse with the typed menu (`EvaluationError`,
         `kind == "undeclared_coincidence"`, `finding` attached) — the
         kernel never infers that two faces are the same face.
         `Doc.declare` / `Doc.declare_all` set the list on the live
         node.
 
-        A closed surface of one operand that lies wholly on the
-        other's — one body at both seats, or a member carried into a
-        union unchanged — is answered where every face of it is the
-        same face as one of the other's, by recipe or by declaration
-        (`A ∪ A` and `A ∩ A` are `A`, `A − A` is empty); where they
+        A closed surface of one member that lies wholly on another's —
+        one read at two seats, or a member carried into a union
+        unchanged — is answered where every face of it is the same face
+        as one of the other's, by recipe or by declaration; where they
         do not show that, the evaluation refuses with
         `inner_kind == "coincident_shell"`."""
 
     @staticmethod
-    def union(members: Sequence[_Operand], declare: list[FlushFinding] = []) -> Node:
-        """The N-ARY union: two or more member bodies folded into ONE
-        body, in the LIST's order.
+    def intersect(
+        members: Sequence[_Operand] | _Operand, declare: list[FlushFinding] = []
+    ) -> Node:
+        """The INTERSECT: the material in every member, folded in the
+        members' order.
 
-        Not `boolean`, which is the binary operation over two named
-        operand slots, and not `placed_union`, whose members are one
-        prototype under a placement rule: here the members are
-        authored independently and the membership is a list, which
-        `DocEdit.set_members` rewrites on the live node. `declare` is
-        the same declared-pair list `boolean` takes, each pair fed at
-        the fold step its two members meet at; without one, members
-        that merely TOUCH refuse (`undeclared_coincidence`).
+        `members` and `declare` are `union`'s, read the same way: a
+        sequence of operands or one family read, any count — one
+        member is that body, none is the typed empty body, and
+        `[a, a]` is `a`. A fold step whose members share no material
+        is the typed empty body, not a refusal. `DocEdit.set_members`
+        rewrites the list on the live node."""
 
-        Refuses at `Doc.insert` on the list as stated: `too_few_members`
-        (with the `count` found), `duplicate_input`,
-        `unresolved_input`. Whether a member is a BODY is the kernel's
-        question at `evaluate`."""
+    @staticmethod
+    def subtract(
+        from_: _Operand, tool: _Operand, declare: list[FlushFinding] = []
+    ) -> Node:
+        """The SUBTRACT: `from_` with the material of `tool` cut away.
+
+        The one pair node — difference neither commutes nor associates
+        — so its operands are named slots: `from` (spelled `from_`,
+        since `from` is a Python keyword; its slot word is `from`) and
+        `tool` (slot word `cut`). Several tools are one subtract of
+        their union, `Node.subtract(body, Node.union([t1, t2]))`. A
+        body cut by itself, `Node.subtract(a, a)`, is the typed empty
+        body. `declare` is `union`'s declared-pair list, sited at the
+        two operand reads."""
 
     @staticmethod
     def pattern(input: _Operand, count: _CountArg, kind: PatternKind) -> Node:
@@ -3415,37 +3436,44 @@ class DocEdit:
         document does not hold (`unknown_node`) or an edit that would
         leave the label as it is (`label_unchanged`)."""
     @staticmethod
-    def set_members(node: NodeId, members: Sequence[_Operand]) -> DocEdit:
-        """Replace a node's whole LIST input — a `Node.union`'s
-        members, a `Node.loft`'s sections — with the list stated in
-        full.
+    def set_members(node: NodeId, members: Sequence[_Operand] | _Operand) -> DocEdit:
+        """Replace a node's whole LIST input — a `Node.union`'s or a
+        `Node.intersect`'s members, a `Node.loft`'s sections — with the
+        list stated in full. `members` takes `Node.union`'s shape: a
+        sequence of operands, or one operand reading a family whole.
 
         The one edit that changes a live node's inputs: no positional
         spelling and no per-entry arm, so nothing is inferred about
         which old entry survived. Dropping a member is this edit
-        without it plus `delete_node` of the orphan; a union's
-        declared pairs are left as they were.
+        without it plus `delete_node` of the orphan. The node's
+        declared pairs are left as they were: a pair whose member read
+        was dropped refuses at the next evaluation
+        (`declare_site_not_an_operand`).
 
         Every input check `Doc.insert` makes is remade of the
-        REWRITTEN node — `unresolved_input`, `duplicate_input`,
-        `too_few_members`, `would_cycle` — and a node carrying no list
-        refuses `set_members_on_non_list`."""
+        REWRITTEN node — `unresolved_input`, `slot_var_kind` (a family
+        read beside single reads), `would_cycle`. Any count is a list:
+        one member, or none, is a union or intersect still. A loft's
+        sections are spelled one read each, so a family there refuses
+        `loft_sections_spelled`, and a node carrying no list refuses
+        `set_members_on_non_list`."""
 
     @staticmethod
     def set_declare(node: NodeId, findings: list[FlushFinding]) -> DocEdit:
-        """Replace a live boolean's or union's whole declared-pair list
-        with the pairs and classes of `findings`, the inspected
-        `FlushFinding`s `Node.boolean`'s `declare=` takes. An empty
-        list clears the declaration.
+        """Replace a live union's, intersect's or subtract's whole
+        declared-pair list with the pairs and classes of `findings`,
+        the inspected `FlushFinding`s `Node.union`'s `declare=` takes.
+        An empty list clears the declaration.
 
-        Refuses `set_declare_on_non_declaring` on a node that is
-        neither a boolean nor a union, `unknown_node` for a node the
-        document does not hold, the name checks an insert runs
+        Refuses `set_declare_on_non_declaring` on a node that is none
+        of the three, `unknown_node` for a node the document does not
+        hold, the name checks an insert runs
         (`declare_names_missing_node`, `name_step_never_minted`,
         `read_site_missing_node`), and the pair rule an insert asks:
-        `declared_site_not_an_operand` for a pair read at a node that
-        is not one of `node`'s operands, `declared_name_not_upstream`
-        for a name not minted before `node`."""
+        `declared_site_not_an_operand` for a pair sited at a read that
+        is not one of `node`'s operand reads (the read rides `param`),
+        `declared_name_not_upstream` for a name not minted before
+        `node`."""
 
     @staticmethod
     def set_param(node: NodeId, slot: str, value: _SlotArg | NodeId) -> DocEdit:
@@ -3467,11 +3495,12 @@ class DocEdit:
         here; the `bind_*_param` trio is where they are edited.
 
         An operand is a slot too: at an operand's word (`profile`,
-        `target`, `a`, `input`, ...) the value is a read — a `NodeId`,
-        read at its output in that seat, or a `Var` — and the node reads
-        it from then on. A loft's `section` and a union's `member` carry
-        a position the word does not; `set_members` writes those lists
-        whole.
+        `target`, `from`, `cut`, `input`, ...) the value is a read — a
+        `NodeId`, read at its output in that seat, or a `Var` — and the
+        node reads it from then on. A subtract's `tool` is the slot word
+        `cut` (`tool` is a split's plane). A loft's `section` and a
+        union's or an intersect's `member` carry a position the word
+        does not; `set_members` writes those lists whole.
 
         Refuses typed: `unknown_node`, `unknown_slot` naming the slot
         the node lacks, `slot_dimension_mismatch` carrying what the
@@ -3479,7 +3508,7 @@ class DocEdit:
         operand among them), and `slot_unknown_var_name` /
         `slot_var_kind` for a read the slot does not take; at an
         operand also `operand_unresolved`, `ambiguous_output`,
-        `defines_nothing`, `would_cycle` and `duplicate_input`."""
+        `defines_nothing` and `would_cycle`."""
 
     @staticmethod
     def set_tolerance(eps: float) -> DocEdit: ...

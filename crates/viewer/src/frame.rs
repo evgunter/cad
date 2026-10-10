@@ -2338,10 +2338,9 @@ fn coincidence_cells(
                 let node = landed.operation_of(*input)?;
                 Some((by.node(node).to_string(), Selection::Node(node)))
             }
-            NamedCell::Piece { profile, .. } => Some((
-                by.node(*profile).to_string(),
-                Selection::Node(*profile),
-            )),
+            NamedCell::Piece { profile, .. } => {
+                Some((by.node(*profile).to_string(), Selection::Node(*profile)))
+            }
         })
         .collect()
 }

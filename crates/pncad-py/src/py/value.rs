@@ -144,7 +144,7 @@ pub(crate) fn refused(
     // refusal carries its candidate declaration as a typed
     // `FlushFinding` on the exception — the same value shape
     // `Evaluation.find_flush_candidates` answers with, ready for
-    // `Node.boolean`'s `declare=` or `Doc.declare`. `None` on every
+    // a boolean node's `declare=` or `Doc.declare`. `None` on every
     // other kind.
     let finding = match kind {
         d::NodeErrorKind::UndeclaredCoincidence { finding, .. } => {
@@ -1685,8 +1685,9 @@ impl Evaluation {
     ///
     /// Findings come back in canonical order and are only ever
     /// DEFINITE values — inspect them, then hand the inspected
-    /// findings to `Node.boolean`'s `declare=`, or to `Doc.declare` /
-    /// `Doc.declare_all` on the live boolean or union.
+    /// findings to `Node.union`'s, `Node.intersect`'s or
+    /// `Node.subtract`'s `declare=`, or to `Doc.declare` /
+    /// `Doc.declare_all` on the live node.
     /// Detection and declaration are separate doors ON PURPOSE (the
     /// ruled no-fusion boundary).
     ///

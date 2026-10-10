@@ -243,8 +243,8 @@ fn declare_err(py: Python<'_>, err: &pncad::select::DeclareError) -> PyErr {
     )
 }
 
-/// The kernel's declared-pair list for a boolean's or union's
-/// `declare=` or a `DocEdit.set_declare`: each inspected finding's pair
+/// The kernel's declared-pair list for a union's, an intersect's or a
+/// subtract's `declare=` or a `DocEdit.set_declare`: each inspected finding's pair
 /// and class. An empty list is the undeclared node.
 fn declared_pairs(findings: Vec<super::flush::FlushFinding>) -> Vec<d::DeclaredPair> {
     let kernel: Vec<pncad::select::FlushFinding> = findings.into_iter().map(|f| f.0).collect();
@@ -1522,7 +1522,8 @@ impl Doc {
     }
 
     /// ADD one inspected finding's pair to the declared pairs of the
-    /// live boolean or union `node`, keeping every pair it declares
+    /// live union, intersect or subtract `node`, keeping every pair it
+    /// declares
     /// already — the detect/declare protocol's declare arm
     /// (SELECT-DESIGN §3), and the door an `undeclared_coincidence`
     /// refusal's recourse names: following each refusal with its
@@ -1533,9 +1534,9 @@ impl Doc {
     /// (the ruled no-fusion boundary).
     ///
     /// Raises `EditError`: `set_declare_on_non_declaring` when `node`
-    /// is neither a boolean nor a union, `unknown_node` for a node the
-    /// document does not hold, `declared_site_not_an_operand` for a
-    /// finding inspected between other operands than `node`'s, and the
+    /// is none of the three, `unknown_node` for a node the document
+    /// does not hold, `declared_site_not_an_operand` for a finding
+    /// inspected between other operand reads than `node`'s, and the
     /// name checks an insert runs on a pair naming a node or step the
     /// document does not hold.
     fn declare(
@@ -1548,8 +1549,8 @@ impl Doc {
         self.accept_declared(py, applied)
     }
 
-    /// Declare a SET of inspected findings on the live boolean or union
-    /// `node`, replacing its whole declared-pair list —
+    /// Declare a SET of inspected findings on the live union, intersect
+    /// or subtract `node`, replacing its whole declared-pair list —
     /// `DocEdit.set_declare`'s replace, where `declare` adds (the
     /// boundary is fusion, not arity). Same refusals as `declare`; an
     /// EMPTY list refuses (`no_findings`) rather than
@@ -4117,20 +4118,21 @@ impl DocEdit {
         }
     }
 
-    /// **Replace a live boolean's or union's whole declared-pair
-    /// list** with the pairs and classes of `findings` — the inspected
-    /// `FlushFinding`s, as `Node.boolean`'s `declare=` takes them. An
+    /// **Replace a live union's, intersect's or subtract's whole
+    /// declared-pair list** with the pairs and classes of `findings` —
+    /// the inspected `FlushFinding`s, as `Node.union`'s `declare=` takes
+    /// them. An
     /// empty list clears the declaration. Nothing is inferred about
     /// the old list: it is replaced whole.
     ///
     /// Refuses typed on `EditError`: `set_declare_on_non_declaring`
-    /// for a node that is neither a boolean nor a union,
+    /// for a node that is none of the three,
     /// `unknown_node` for a node the document does not hold, the name
     /// checks an insert runs (`declare_names_missing_node`,
     /// `name_step_never_minted`, `read_site_missing_node`) on a pair
     /// naming what the document does not hold, and the pair rule an
-    /// insert asks: `declared_site_not_an_operand` for a pair read at a
-    /// node that is not one of `node`'s operands,
+    /// insert asks: `declared_site_not_an_operand` for a pair sited at
+    /// a read that is not one of `node`'s operand reads,
     /// `declared_name_not_upstream` for a name not minted before `node`.
     #[staticmethod]
     fn set_declare(node: &NodeId, findings: Vec<super::flush::FlushFinding>) -> PyResult<Self> {
@@ -4179,7 +4181,7 @@ impl DocEdit {
     /// required and offered pair), and `slot_unknown_var_name` /
     /// `slot_var_kind` for a read the slot does not take; at an operand
     /// also `operand_unresolved`, `ambiguous_output`,
-    /// `defines_nothing`, `would_cycle` and `duplicate_input`.
+    /// `defines_nothing` and `would_cycle`.
     #[staticmethod]
     fn set_param(py: Python<'_>, node: &NodeId, slot: &str, value: SlotValueArg) -> PyResult<Self> {
         let slot = slot_from_text(slot)?;

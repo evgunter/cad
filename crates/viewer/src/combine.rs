@@ -104,10 +104,7 @@ impl BooleanTool {
         self.held = match (held, op) {
             (BooleanPicks::Members(members), BooleanOp::Subtract) => {
                 let mut first = members.into_iter();
-                BooleanPicks::Pair(Seats::holding(
-                    SUBTRACT_SEATS,
-                    [first.next(), first.next()],
-                ))
+                BooleanPicks::Pair(Seats::holding(SUBTRACT_SEATS, [first.next(), first.next()]))
             }
             (BooleanPicks::Pair(seats), BooleanOp::Union | BooleanOp::Intersect) => {
                 BooleanPicks::Members(seats.spoken().iter().flatten().cloned().collect())
@@ -140,14 +137,14 @@ impl BooleanTool {
     /// ([`crate::seats::picks_line`]), each pick as `doc` speaks it.
     pub fn line(&self, doc: &Doc<ProfileProgram>) -> String {
         match &self.held {
-            BooleanPicks::Members(members) => picks_line(members.iter().enumerate().map(
-                |(i, node)| {
+            BooleanPicks::Members(members) => {
+                picks_line(members.iter().enumerate().map(|(i, node)| {
                     (
                         format!("{} {}", Seat::Member.name(), i + 1),
                         Some(doc.spoken(node.id()).to_string()),
                     )
-                },
-            )),
+                }))
+            }
             BooleanPicks::Pair(seats) => seat_line(seats, doc),
         }
     }

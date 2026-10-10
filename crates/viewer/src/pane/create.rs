@@ -7,8 +7,8 @@ use std::collections::BTreeMap;
 
 use eframe::egui;
 use pncad::document::{
-    AxisSense, Doc, DocumentId, MatePrimitive, ProfileProgram, RecipeNodeId, Said,
-    Speaker, SpokenNode,
+    AxisSense, Doc, DocumentId, MatePrimitive, ProfileProgram, RecipeNodeId, Said, Speaker,
+    SpokenNode,
 };
 use pncad::select::SplitHalf;
 use pncad::topo::BooleanOp;
@@ -213,9 +213,7 @@ pub(crate) fn declare_offer_rows(
 /// for union and intersect, the two seats in order for subtract.
 pub(crate) fn boolean_prompt(op: BooleanOp) -> &'static str {
     match op {
-        BooleanOp::Union | BooleanOp::Intersect => {
-            "pick the bodies, one or more, then commit"
-        }
+        BooleanOp::Union | BooleanOp::Intersect => "pick the bodies, one or more, then commit",
         BooleanOp::Subtract => "pick the body to keep, then the body to remove",
     }
 }
@@ -1998,13 +1996,13 @@ mod tests {
         part_selector_rows, profile_plane_row,
     };
     use crate::combine::BooleanTool;
-    use crate::frame::Tone;
-    use pncad::topo::BooleanOp;
     use crate::forms::PartSelectChoice;
+    use crate::frame::Tone;
     use crate::matetool::MateToolState;
     use crate::pane::headless::{painted_after_clicking, painted_text, painted_while_hovering};
     use crate::session::FaceSelection;
     use crate::theme::Theme;
+    use pncad::topo::BooleanOp;
 
     /// A face pick on the body of `node`.
     fn face_on(node: u64) -> FaceSelection {
@@ -2788,8 +2786,8 @@ mod declared_union {
     use pncad::document::{Bodies, Node, RecipeNodeId};
     use pncad::geom_core::Tol;
     use pncad::prelude::{CapEnd, RoleSeg};
-    use pncad::topo::BooleanOp;
     use pncad::select::{BooleanCoincidence, ContactClass};
+    use pncad::topo::BooleanOp;
 
     use super::declare_offer_rows;
     use crate::combine::BooleanTool;
@@ -2974,12 +2972,7 @@ mod declared_union {
         let (mut session, block, boss) = scene(tol);
         let tool = holding(&session, block, boss);
         let (_, offer) = refused_union(&mut session, &tool);
-        let (_, held, ops) = panel(
-            &session,
-            offer,
-            &tool,
-            Some(DeclareOffer::DECLINE_LABEL),
-        );
+        let (_, held, ops) = panel(&session, offer, &tool, Some(DeclareOffer::DECLINE_LABEL));
         assert_eq!(held, None, "the offer is dropped");
         assert!(ops.is_empty(), "and nothing is queued: {ops:?}");
     }

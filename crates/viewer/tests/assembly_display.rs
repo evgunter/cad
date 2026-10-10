@@ -13,9 +13,9 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-use viewer::session::BooleanSpec;
-use pncad::document::Bodies;
 use crate::common;
+use pncad::document::Bodies;
+use viewer::session::BooleanSpec;
 
 use common::asm;
 use pncad::document::{Frame, RecipeNodeId, product};

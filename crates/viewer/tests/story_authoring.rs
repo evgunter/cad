@@ -35,8 +35,8 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-use viewer::session::BooleanSpec;
 use crate::common;
+use viewer::session::BooleanSpec;
 
 use core::f64::consts::{FRAC_PI_2, PI};
 

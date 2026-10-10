@@ -21,9 +21,7 @@
 use crate::common;
 use pncad::document::ExtrudeSide;
 
-use pncad::document::{
-    Doc, DocEdit, Node, ProfileProgram, RecipeNodeId, cascade_delete_order,
-};
+use pncad::document::{Doc, DocEdit, Node, ProfileProgram, RecipeNodeId, cascade_delete_order};
 use pncad::geom_core::Tol;
 use viewer::session::{DocSession, SessionOp};
 

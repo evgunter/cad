@@ -20,8 +20,8 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-use pncad::document::Bodies;
 use crate::common;
+use pncad::document::Bodies;
 use pncad::document::ExtrudeSide;
 
 use std::collections::BTreeMap;

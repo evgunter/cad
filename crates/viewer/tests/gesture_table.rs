@@ -87,17 +87,17 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-use viewer::session::BooleanSpec;
 use crate::common;
 use pncad::document::ExtrudeSide;
 use pncad::document::Formula;
+use viewer::session::BooleanSpec;
 
 use std::collections::BTreeSet;
 
 use common::{len, len3, scl3};
 use pncad::document::{
-    Alignment, AxisSense, Dimension, Doc, DocEdit, DocumentId, Frame, FreeVar,
-    MateFrame, MatePrimitive, Node, ProfileProgram, RecipeNodeId, SlotId, VarId, VarName,
+    Alignment, AxisSense, Dimension, Doc, DocEdit, DocumentId, Frame, FreeVar, MateFrame,
+    MatePrimitive, Node, ProfileProgram, RecipeNodeId, SlotId, VarId, VarName,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, MM, StableName};

@@ -20,24 +20,24 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-use pncad::topo::BooleanOp;
-use viewer::session::BooleanSpec;
-use pncad::document::Bodies;
 use crate::common;
 use pncad::document::AuthoredNode;
+use pncad::document::Bodies;
 use pncad::document::ExtrudeSide;
+use pncad::topo::BooleanOp;
 use test_utils::refusal::tagged;
+use viewer::session::BooleanSpec;
 
 use common::{ang, body_volume, len, len2, len3, near, scl2, scl3, session_insert, shape};
+use pncad::document::BooleanValue;
 use pncad::document::SplitSide;
 use pncad::document::{
-    Axis3, Datum, Dimension, DimensionError, Doc, EditError, Expr, Formula, LoopProgram,
-    Node, NodeError, NodeErrorKind, NodeResult, NodeStanding, PartSelect, PatternKind,
-    ProfileProgram, RecipeNodeId, SlotId,
+    Axis3, Datum, Dimension, DimensionError, Doc, EditError, Expr, Formula, LoopProgram, Node,
+    NodeError, NodeErrorKind, NodeResult, NodeStanding, PartSelect, PatternKind, ProfileProgram,
+    RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName, ValuePayload};
-use pncad::document::BooleanValue;
 use pncad::select::SplitHalf;
 use viewer::combine::{
     BooleanTool, DUPLICATE_GAP, DuplicateFault, MEASURE_CHORD, PartTool, PatternOutputChoice,
@@ -197,7 +197,11 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
         "every pick landed"
     );
     let tool = tools.boolean().expect("the boolean tool is open");
-    assert_eq!(tool.operation(), BooleanOp::Union, "the tool opens on union");
+    assert_eq!(
+        tool.operation(),
+        BooleanOp::Union,
+        "the tool opens on union"
+    );
     let op = tool.op().expect("three members are held");
     assert!(tools.commits_open_tool(&op), "the union is the tool's edit");
     let steps = session.history().len();
@@ -235,20 +239,14 @@ fn subtraction_is_not_commutative_in_the_authored_order() {
     let a_minus_b = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            spec: BooleanSpec::Subtract {
-                from: a,
-                tool: b,
-            },
+            spec: BooleanSpec::Subtract { from: a, tool: b },
             declare: Vec::new(),
         },
     );
     let b_minus_a = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            spec: BooleanSpec::Subtract {
-                from: b,
-                tool: a,
-            },
+            spec: BooleanSpec::Subtract { from: b, tool: a },
             declare: Vec::new(),
         },
     );
@@ -307,7 +305,10 @@ fn the_boolean_door_refuses_a_non_body_operand_and_glues_a_repeated_body() {
         for spec in [
             BooleanSpec::Union(vec![wrong, a]),
             BooleanSpec::Intersect(vec![a, a, wrong]),
-            BooleanSpec::Subtract { from: a, tool: wrong },
+            BooleanSpec::Subtract {
+                from: a,
+                tool: wrong,
+            },
         ] {
             let refused = session.perform(SessionOp::AddBoolean {
                 spec,
@@ -1184,7 +1185,11 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     // further pick replaces the SECOND, so the kept body stays where it
     // was put. Changing the operation re-seats the first two members.
     boolean.set_operation(BooleanOp::Subtract);
-    assert_eq!(boolean.picks(), [a, b], "re-seated from the first two members");
+    assert_eq!(
+        boolean.picks(),
+        [a, b],
+        "re-seated from the first two members"
+    );
     boolean.pick(session.committed_doc(), a);
     assert_eq!(boolean.picks(), [a, a]);
     boolean.pick(session.committed_doc(), b);
@@ -1822,7 +1827,10 @@ fn a_tool_closes_on_its_own_committed_edit() {
         (
             ToolKind::Boolean,
             SessionOp::AddBoolean {
-                spec: BooleanSpec::Union(vec![RecipeNodeId::new(0, tagged(1)), RecipeNodeId::new(0, tagged(2))]),
+                spec: BooleanSpec::Union(vec![
+                    RecipeNodeId::new(0, tagged(1)),
+                    RecipeNodeId::new(0, tagged(2)),
+                ]),
                 declare: Vec::new(),
             },
         ),

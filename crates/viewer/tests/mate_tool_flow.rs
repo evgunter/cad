@@ -7,8 +7,8 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-use viewer::session::BooleanSpec;
 use crate::common;
+use viewer::session::BooleanSpec;
 
 use common::asm;
 use common::{ang, len, scl};

@@ -3670,14 +3670,27 @@ mod properties_pane_tests {
     /// through the whole frame — survival step included.
     #[test]
     fn a_seated_tool_panel_shows_its_held_picks() {
-        let (body, painted) = painted_with_tool(crate::tools::ToolKind::Boolean, |body| {
+        let (body, painted) = painted_with_tool(crate::tools::ToolKind::Split, |body| {
             vec![Selection::Node(body)]
         });
         // The startup body is an extrude, spoken by its kind and tag.
         let line = format!(
-            "first operand: Extrude {}; second operand: —",
+            "split target: Extrude {}; split plane: —",
             test_utils::refusal::tag(body.0.digest())
         );
+        assert!(painted.contains(&line), "{line:?} in {painted:?}");
+    }
+
+    /// **The boolean panel, painted by the app**: a union's held member
+    /// in its list, reaching the Properties pane through the whole
+    /// frame.
+    #[test]
+    fn the_boolean_panel_lists_its_held_members() {
+        let (body, painted) = painted_with_tool(crate::tools::ToolKind::Boolean, |body| {
+            vec![Selection::Node(body), Selection::Node(body)]
+        });
+        let tag = test_utils::refusal::tag(body.0.digest());
+        let line = format!("member 1: Extrude {tag}; member 2: Extrude {tag}");
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
 

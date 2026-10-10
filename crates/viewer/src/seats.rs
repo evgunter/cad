@@ -16,6 +16,12 @@
 //! needed seat is filled — is one behaviour, and a second copy of it is
 //! a second place for it to drift.
 //!
+//! A union's or an intersect's member list is not seats: it holds any
+//! number of picks, each appended, so the boolean tool keeps it beside
+//! its subtraction's [`Seats`] (`crate::combine::BooleanTool`) and says
+//! its drops and its empty refusal in this module's words, naming
+//! [`Seat::Member`].
+//!
 //! # The picks are ROLES
 //!
 //! A seat means a particular thing, and no pair here is symmetric — not

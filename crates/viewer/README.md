@@ -1182,7 +1182,8 @@ between items of its own and is NOT a consumer by it, because it
 reaches no `frame::Message` and nothing counts or introduces its items:
 `seats::picks_line`, which composes the seated panels' and the mate
 panel's held-picks line — every seated panel reaches it through
-`seats::seat_line` and the mate panel through `MateToolState::line`;
+`seats::seat_line`, the boolean panel's member list through
+`BooleanTool::line` and the mate panel through `MateToolState::line`;
 the blend panel's held-picks line is drawn in its own panel and lists
 nothing. Its doc comment carries
 the argument, and why the mark earns no constant of its own either.
@@ -1864,6 +1865,43 @@ it against the list are gone with the hand-written list they existed to
 check. `ALL` stays `pub`: the suites that read it are integration
 tests, which see only this crate's public surface, and a suite-local
 copy would be the hand-written list again with nothing forcing it.
+
+### The boolean tool takes N picks, or two seats
+
+The boolean tool commits one `Node::Union`, `Node::Intersect` or
+`Node::Subtract` through `SessionOp::AddBoolean`, whose payload is a
+`session::BooleanSpec` — a member list for union and intersect, a
+`from`/`tool` pair for subtract — so a subtraction of the wrong count
+has no spelling. The operation choice is the kernel's own
+`topo::BooleanOp`, one radio button per entry of its `ALL`.
+
+**The operation is tool state, because it decides what a pick does.**
+Under union and intersect every pick appends a member, in pick order,
+and the panel lists them as `member 1`, `member 2`, …; the commit
+button commits whatever is held from one member on, and refuses typed
+(`SeatError::Empty` naming `Seat::Member`) while none is. Under subtract
+the tool holds two role-typed seats on the `seats` rule — the body kept
+(`from`), then the body removed (`tool`), a further pick replacing the
+removed one, a drop emptying its seat without promoting the survivor —
+and both are needed to commit. Changing the operation re-seats what is
+held in pick order: a member list becomes the two seats from its first
+two members, and two seats become a member list of what they hold.
+`Clear picks` empties the tool and keeps the operation.
+
+**A body picked twice is not refused anywhere.** A repeated read
+glues — `A ∪ A` and `A ∩ A` are `A`, `A ∖ A` the typed empty body — so
+the tool lists it twice and the session door commits it like any other
+document; the door's only per-operand check is the node kind
+(`Refusal::WrongNodeKind`), at every operand.
+
+**The declare offer is keyed by the whole spec.** The door evaluates
+the boolean before recording it; an undeclared contact comes back as
+`Refusal::Contact` with a `DeclareOffer` whose findings are sited at
+the operand READS (`SitedRef<VarId>`, the operand node's output) and
+named in the panel by the node defining each read. The offer stands
+while the session is at the generation it was refused at and the tool
+would commit the same `BooleanSpec` — same operation, same picks, same
+order; a further member, another operation or an edit drops it unshown.
 
 ### Closed vocabularies are declared once
 
