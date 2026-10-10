@@ -2,10 +2,11 @@
 id: wedge-classes-reads-a-corner-flat-at-its-short-bounds-as-convex
 kind: issue
 title: wedge_classes reads a corner whose reflex edge is flat within the band at its short bounds as convex, and classes long edges wrong far out of band
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P1
 cost: M
+branch: cleave/wedge-classes-flat
 ---
 
 Filed by PR 4289's fourth review (m1). Pre-existing: main (8d11c126)

@@ -2,10 +2,11 @@
 id: a-split-through-a-vertex-whose-above-runs-nest-crosses-its-section-face
 kind: issue
 title: A split through a vertex whose above runs nest under one builds a section face whose corners there overlap
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P1
 cost: M
+branch: cleave/apex-section-corners
 ---
 
 

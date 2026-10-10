@@ -5,6 +5,7 @@ title: A loft cap's Newell plane is summed from the authored start vertex, so re
 status: open
 opened: 2026-10-06
 priority: P2
+cost: M
 ---
 
 

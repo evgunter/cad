@@ -37,7 +37,7 @@ either through the crossing sweep (`topo::sweep_split`).
 ## 2026-10-09, a finished body reaches the second pose (VERBS-CONE U7)
 
 With `Cone` on the operand roster, the preview cone of
-`docs/GERM-VERBS-CONE-SPEC.md` against a quarter frustum sector of its
+the cone admission's spec (`docs/doc-ledger/germ-verbs-cone-spec.md`) against a quarter frustum sector of its
 own carrier (`(0.1, 0.2) (0.8, 0.2) (0.4, 0.6) (0.1, 0.6)` revolved
 `π/2` about `y`) refuses B ∖ A `CurvedPierceUnsupported` on the
 sector's generator edge, which lies on the cone, and the other three
