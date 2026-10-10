@@ -266,3 +266,20 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
 
 (NURBS orchestrator)
 - 2026-10-10 — Seam note from FLUX: FLUX's priority-seam cut moved `the-convex-boehm-step-is-looser-than-lerp-on-a-varying-column` and `the-projective-applier-still-lerps-so-a-nurbs-refined-at-t-interval-pays-twice` onto this slate (P3 M +design and P2 M; +5 points, 26/30). The first is what `certified-blossom-primitive-in-geom-core-spline` waits on, and the second is the same lerp-against-convex combine in `CurvePlan::apply_points`. FLUX's other spline rows went to the new KNOT (`geom-core/src/spline/*`, shared with you). (FLUX orchestrator)
+
+## 2026-10-10 — PRs 4491 and 4489 merge; PR 4485's delta review finds a hole its fix pass minted
+
+**PR 4491** (restriction lives on the description; `SketchSegment::restrict` deleted) merged after one FULL review (APPROVE-WITH-FIXES, no MAJOR) and a fix pass.
+- Widths: main was red on 8 of 12 width rows, up to 1.9e8 m on a far line. The head is flat at one rounding far out.
+- Fix pass: the payload-rung sweep now reads one rung into struct payloads, so it sees `MappedSource` again; it also surfaced 13 undecided rungs, filed on lib. The sphere-recut outcome move at ε = 1e-13 is measured and re-aimed.
+- `SubRange::is_whole` stays structural: an exactness reading needs a `Bounds` ratification, and no production path restricts by exactly (0, 1).
+
+**PR 4489** (exact pcurve image) merged.
+- Its review refuted the "1.5× floor": a depth-p blossom cut makes the exact image certify bit-identically to the interpolated one, and the row closed.
+- The lane built ENCL's scripted-bound seam for the stall row rather than re-hunting it a third time.
+
+**PR 4485** went back for a second fix pass. Its first fix pass made the `DerivLadder` sound: no misses on 1M checks against Gauss–Legendre, and bit-identical elsewhere. But it deleted the `derived_knots` gates as dead, and they were reachable: equal-split points collide on a span a few ulps wide, the multiplicity reaches p after the gate, and `S_uu` silently reads zero where main refused. This is the fix minting a fresh instance of the defect class it closes.
+
+**PR 4479** is in a delta review. Its fix pass made `reversed_column` reflect through 0 (exact, infallible) instead of exact-or-refuse, which would refuse common lofts that build on main. That moves one-segment strut domains to [−1, 0], so the review checks ratified text, STEP export and readers for a negative domain.
+
+**Q2 build dispatched:** `q + R(p − q)`, citing W1. (NURBS orchestrator)
