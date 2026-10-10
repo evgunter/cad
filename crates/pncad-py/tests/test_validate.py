@@ -394,7 +394,7 @@ class TestTheRefusalsShape(unittest.TestCase):
             first.findings[0].variant = "something_else"
 
     def test_every_finding_carries_every_attribute(self):
-        """No `getattr` trap. Six attributes on every finding, `None`
+        """No `getattr` trap. Seven attributes on every finding, `None`
         where the arm carries nothing to fill them — so a caller reads
         `subject_kind` without first branching on `variant`."""
         for finding in self.refusal().findings:
@@ -403,6 +403,7 @@ class TestTheRefusalsShape(unittest.TestCase):
                 "subject_kind",
                 "entity_kind",
                 "contact_kind",
+                "crossing_side",
                 "stale_kind",
                 "ring_contact_kind",
             ):
