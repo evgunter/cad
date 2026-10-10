@@ -800,3 +800,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - PR 4478 (apex-point snap, M, SEQUENTIAL byte 109): a single Opus review on frozen head `08472c20d`. The PR reports that `offset_derive` read `ApexPoint` as `NoBranch`, a live wrong answer this fixes.
   - Cleared about 9 GB of stale lane targets and clones.
 - 2026-10-10 05:05 — PR 4484 (U-S5) pair is in. R1 gave APPROVE-WITH-FIXES and R2 APPROVE, with no MAJOR on either side. Each fuzzed about 2,400 bodies at three ε with 0 wrong, and both confirmed the Stokes closed form against independent quadrature. Coded (`scratchpad/dr4484/coding.md`): 10 groups, 0 tallied, pair found no MAJOR, fair. The fix pass on the union is a cloud session, `session_019XoUfpKmt2yTQ5ev5ZMjBb`. Its headline: R1's 1e-12 escalations on correct bodies, where the winding is a multiple of 2π but is decided as a zero test.
+- 2026-10-10 05:43 — PR 4478 (apex-point snap, SEQUENTIAL byte 109): the review on `08472c20d` gave APPROVE-WITH-FIXES with no MAJOR, so it is the only review (`scratchpad/dr4478-review.md`). The geometry was confirmed with mpmath at 30 digits, M1–M4 and the closure move check out, and a 150k fuzz found 0 contradictions. MINORs:
+  - the body's semi-major lower bound is false (no code depends on it);
+  - no fixed row pins the band boundary (the halved-lever mutant is caught only by the fuzz);
+  - the `offset_derive` wrong answer is argued, not shown, and no boolean pose reaches the new branches.
+  The fix pass is a cloud session, `session_01S4DYWEhPnoQLyGtK29uHHi`.
