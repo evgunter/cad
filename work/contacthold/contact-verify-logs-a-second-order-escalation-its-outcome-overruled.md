@@ -2,11 +2,12 @@
 id: contact-verify-logs-a-second-order-escalation-its-outcome-overruled
 kind: issue
 title: contact_verify's tangency ladder leaves its early second-order escalation on the node log when a definite parallelism defect refuses, or a declaration bridges it
-status: review
+status: closed
 opened: 2026-09-28
 priority: P3
 cost: M
 pr: 4558
+closed: 2026-10-10
 ---
 
 
@@ -91,3 +92,7 @@ every production caller pass `declared = true`, so it is now the normal
 case, and whether a bridged node should refine is still unmeasured. No read in
 the 8257-test corpus had the second-order reading in band, so this was
 latent.
+
+## Closed (2026-10-10, PR 4558)
+
+Merged after a full single review and a verified fix pass.
