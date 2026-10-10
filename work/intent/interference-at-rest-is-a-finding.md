@@ -2,10 +2,11 @@
 id: interference-at-rest-is-a-finding
 kind: issue
 title: D10 stage 5 PR B: interference between copies is its own finding, quiet only under a one-sided Gap assertion whose own faces bound the overlap
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P0
 cost: H
+branch: intent/s5-b-interference
 ---
 
 INTENT stage 5, PR B. Ev approved the design in PR 4319 (fork log row
