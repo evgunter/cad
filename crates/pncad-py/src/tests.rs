@@ -6435,7 +6435,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "unlocalized_tag",
-        values: &["containment", "empty", "invalid", "lane", "refused", "unnamed"],
+        values: &[
+            "containment",
+            "empty",
+            "invalid",
+            "lane",
+            "refused",
+            "unnamed",
+        ],
         delegates: &[],
     },
     TagEntry {
