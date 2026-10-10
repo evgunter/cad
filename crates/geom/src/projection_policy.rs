@@ -34,7 +34,10 @@
 //!   selected parameter, so the distance and the orthogonality
 //!   residuals are the consumer's own scalar — an enclosure on the
 //!   interval lane, which is what makes a rung-3 certificate against a
-//!   NURBS operand exist there at all.
+//!   NURBS operand exist there at all. Every parameter the search
+//!   hands `T` (a seed, an iterate, a step) enters through
+//!   `Real::from_computed`: at `Sym` it is an unknown, never the
+//!   constant its bits spell.
 //!
 //! The bound is the sole-bound `T: Bounds` the discipline reserves for
 //! certification/driver code (`geom_core::real`'s scope rule): reading

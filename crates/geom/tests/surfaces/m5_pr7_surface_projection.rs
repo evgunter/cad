@@ -239,3 +239,46 @@ fn an_overflowing_residual_refuses_rather_than_reporting_an_infinite_foot() {
         Ok(pr) => panic!("an overflowed residual was reported as a foot point: {pr:?}"),
     }
 }
+
+/// The foot is a function of the query point only through the selected
+/// parameters, which a numerical search produced: at `Sym<f64>`, with
+/// the query point's `z` a parameter, the foot and its distance carry
+/// them as unknowns and so re-value to no claim at all, never to the
+/// foot of the stale parameters. The crown query takes the cosine exit
+/// and the one off the `u = 0` edge the stagnation exit.
+#[test]
+fn selected_parameters_enter_the_foot_as_unknowns() {
+    use geom_core::sym::revalue::revalue;
+    use geom_core::sym::with_session;
+    use geom_core::{ParamSymbol, Real, Sym, SymBudget};
+    type S = Sym<f64>;
+    let lift = ParamSymbol::new(1);
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    for (label, (x, y, z)) in [
+        ("crown foot", (0.5, 0.5, 2.0)),
+        ("clamped edge", (-4.0, 0.5, 0.0)),
+    ] {
+        let (revalued, _) = with_session(budget, || {
+            let s = bump_patch().map_scalar(S::from_f64);
+            let p = Point3::new(
+                S::from_f64(x),
+                S::from_f64(y),
+                S::from_f64(z) + S::param(lift, 0.0),
+            );
+            let pr = s.project(p).unwrap();
+            let at = |_: ParamSymbol| Some(0.25);
+            (
+                revalue(pr.foot.z.node(), &at),
+                revalue(pr.distance.node(), &at),
+            )
+        });
+        assert_eq!(
+            revalued,
+            (None, None),
+            "{label}: the foot and its distance re-value through unknowns, not constant parameters"
+        );
+    }
+}

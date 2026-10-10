@@ -244,3 +244,47 @@ fn an_overflowing_residual_refuses_rather_than_reporting_an_infinite_foot() {
         Ok(pr) => panic!("an overflowed residual was reported as a foot point: {pr:?}"),
     }
 }
+
+/// The foot is a function of the query point only through the selected
+/// parameter, which a numerical search produced: at `Sym<f64>`, with
+/// the query point's `x` a parameter, the foot and its distance carry
+/// that parameter as an unknown and so re-value to no claim at all,
+/// never to the foot of the stale parameter. The interior query takes
+/// the cosine exit and the one past the end the stagnation exit.
+#[test]
+fn a_selected_parameter_enters_the_foot_as_an_unknown() {
+    use geom_core::sym::revalue::revalue;
+    use geom_core::sym::with_session;
+    use geom_core::{ParamSymbol, Real, Sym, SymBudget};
+    type S = Sym<f64>;
+    let c = center();
+    let shift = ParamSymbol::new(1);
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    for (label, (bx, by)) in [
+        ("interior foot", (3.0 * SQRT2_2, 3.0 * SQRT2_2)),
+        ("clamped end", (-3.0, 3.0)),
+    ] {
+        let (revalued, _) = with_session(budget, || {
+            let arc = quarter_arc().map_scalar(S::from_f64);
+            let p = Point3::new(
+                S::from_f64(c.x + bx) + S::param(shift, 0.0),
+                S::from_f64(c.y + by),
+                S::from_f64(c.z),
+            );
+            let proj = arc.project(p).unwrap();
+            let at = |_: ParamSymbol| Some(0.25);
+            (
+                revalue(proj.foot.x.node(), &at),
+                revalue(proj.distance.node(), &at),
+            )
+        });
+        assert_eq!(
+            revalued,
+            (None, None),
+            "{label}: the foot and its distance re-value through an unknown, not a constant parameter"
+        );
+    }
+}
