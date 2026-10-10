@@ -22,7 +22,9 @@ use crate::common::shell_operands::{
     roles_by_solid, tube, two_void_box, vessel,
 };
 use crate::common::stations::cut_stations;
-use crate::common::torus_walls::{klein_elbow, props_door};
+use crate::common::torus_walls::{
+    assert_hollow_volume, disc_cut_volume, klein_elbow, strip_cut_volume,
+};
 use geom_core::k_stats::Bracket;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
@@ -770,27 +772,44 @@ fn a_dome_sectors_arc_bounded_end_walls_clear() {
 /// bowl, whose one carrier ball (centred on the arc's midpoint, radius
 /// its speed bound times its half-width, over `2` here) reaches that
 /// line: read as that ball the pair overlapped by `1.65` and refused
-/// `OffsetsCross`. Cut on its carrier it clears, and the sector goes on
-/// to the closing validation, where a planar cap bounded by a spiric
-/// has no volume yet
-/// (`work/flux/spiric-bounded-face-area-is-unimplemented.md`): this
-/// row turns to a closed-form volume when that lands.
+/// `OffsetsCross`. Cut on its carrier it clears, and the sector passes
+/// tier 3, its spiric-bounded caps measured by the spiric quadrature
+/// lane. The profile is convex (the floor arc meets each wall at a
+/// left turn), so the solid and its cavity are both
+/// `{lo ≤ ρ ≤ hi, floor(ρ) ≤ y ≤ top}` — the floor the arc's lower
+/// half at radius `R` and `R − t` — and the volume is their cut
+/// revolves' difference (`strip_cut_volume`).
 #[test]
 fn a_bowl_sectors_spiric_bounded_end_walls_clear() {
     let tol = Tol::witness();
-    let e = topo::shell(
-        &finished("the sector", bowl_sector(0.8, 120.0), tol),
-        0.05,
+    let (bulge, t) = (0.8, 0.05);
+    let hollow = topo::shell(
+        &finished("the sector", bowl_sector(bulge, 120.0), tol),
+        t,
         tol,
     )
-    .expect_err("a spiric cap has no volume yet");
-    let (_, source) = props_door(&e).unwrap_or_else(|| {
-        panic!("the end walls clear, so the sector stops at the props door, got {e}")
-    });
-    assert_eq!(
-        source,
-        geom_brep::PropsError::Unimplemented,
-        "the spiric cap's area lane"
+    .unwrap_or_else(|e| panic!("the end walls clear and the sector hollows, got {e}"))
+    .body;
+    // The floor arc from `(0.3, 0)` to `(3, 0)`, sagging `s` below its
+    // chord: radius `(c² + s²)/(2s)` over the half-chord `c`, centred
+    // above the chord.
+    let (half, sag) = (1.35, 1.35 * bulge);
+    let radius = (half * half + sag * sag) / (2.0 * sag);
+    let (rho_c, y_c) = (1.65, radius - sag);
+    let floor = |rad: f64| move |rho: f64| y_c - (rad * rad - (rho - rho_c).powi(2)).sqrt();
+    let theta = 120.0_f64.to_radians();
+    assert_hollow_volume(
+        "the bowl sector",
+        &hollow,
+        strip_cut_volume(theta, t, 0.0, (0.3, 3.0), 1.0, floor(radius))
+            - strip_cut_volume(
+                theta,
+                t,
+                2.0,
+                (0.3 + t, 3.0 - t),
+                1.0 - t,
+                floor(radius - t),
+            ),
     );
 }
 
@@ -1551,30 +1570,37 @@ fn circle_loop(r: f64) -> ProfileLoop<f64> {
     ])
 }
 
+/// The klein elbow's quarter turn.
+const KLEIN_TURN: f64 = core::f64::consts::FRAC_PI_2;
+
+/// The klein elbow's spine radius, its axis's stand-off from the
+/// profile's centre (`klein_elbow`).
+const KLEIN_SPINE: f64 = 1.2;
+
 /// **Shelling the hand-built wall pair decides its caps' ring nesting.**
 /// Hollowing the annular elbow by `0.01` assembles a thin solid whose two
 /// planar end caps each carry a ring inside an outer loop with a spiric
 /// edge, every ring vertex inside the ball that spiric's arc lies in.
 /// Check 9 reads each ring against its outer loop across the spiric
-/// itself, so tier 3's one refusal is check 7's: the spiric-bounded
-/// cap's area (`Unimplemented`).
+/// itself, and check 7 measures the spiric-bounded caps — rings
+/// included — and walls: the volume is the annulus's quarter turn less
+/// its inset annulus's cut revolve.
 #[test]
-fn the_hand_built_klein_wall_hollows_past_ring_nesting_to_the_props_door() {
-    let by_hand = klein_elbow(vec![
-        circle_loop(KLEIN_R + KLEIN_WALL / 2.0),
-        circle_loop(KLEIN_R - KLEIN_WALL / 2.0),
-    ]);
-    let e = topo::shell(
+fn the_hand_built_klein_wall_hollows_past_ring_nesting_to_its_measured_volume() {
+    let (r_out, r_in, t) = (KLEIN_R + KLEIN_WALL / 2.0, KLEIN_R - KLEIN_WALL / 2.0, 0.01);
+    let by_hand = klein_elbow(vec![circle_loop(r_out), circle_loop(r_in)]);
+    let hollow = topo::shell(
         &finished("the operand", by_hand.clone(), Tol::witness()),
-        0.01,
+        t,
         Tol::witness(),
     )
-    .expect_err("check 7's volume");
-    let (face, source) = props_door(&e).unwrap_or_else(|| panic!("not the props door: {e:?}"));
-    assert_eq!(
-        source,
-        geom_brep::PropsError::Unimplemented,
-        "a spiric-bounded cap's area, at {face:?}"
+    .unwrap_or_else(|e| panic!("the wall pair hollows, got {e:?}"))
+    .body;
+    let disc = |caps: f64, a: f64| disc_cut_volume(KLEIN_TURN, t, caps, KLEIN_SPINE, a);
+    assert_hollow_volume(
+        "the hand-built wall pair",
+        &hollow,
+        (disc(0.0, r_out) - disc(0.0, r_in)) - (disc(2.0, r_out - t) - disc(2.0, r_in + t)),
     );
 }
 
@@ -1599,15 +1625,15 @@ fn the_hand_built_klein_wall_hollows_past_ring_nesting_to_the_props_door() {
 /// the hand-built one: same topology, no spiric left, volume equal to
 /// it and to Pappus within `1e-12`.
 ///
-/// **The sealed arm still stops at the props door** (check 7): its
-/// cavity keeps both off-axis caps, and a spiric-bounded cap's area is
-/// FLUX's `spiric-bounded-face-area-is-unimplemented`.
+/// **The sealed arm measures** (check 7): its cavity keeps both
+/// off-axis caps, each bounded by spirics, and its volume is the disc's
+/// quarter turn less the inset disc's cut revolve.
 ///
 /// Under the demo rule the contract is **naturalness, not
 /// byte-identity**: one radius instead of two, and the wall stops being
 /// a number the author has to keep consistent across two call sites.
 #[test]
-fn the_klein_wall_pair_seals_to_the_props_door_and_opens_to_the_hand_built_tube() {
+fn the_klein_wall_pair_seals_to_its_measured_volume_and_opens_to_the_hand_built_tube() {
     // The hand construction still builds, unchanged — the debt is real
     // and the demo is not broken, it is just paid by hand.
     let by_hand = klein_elbow(vec![
@@ -1633,19 +1659,20 @@ fn the_klein_wall_pair_seals_to_the_props_door_and_opens_to_the_hand_built_tube(
         .collect();
     assert_eq!(caps.len(), 2, "a partial revolve has two meridian end caps");
 
-    // The sealed arm hollows to tier 3 and stops at the props door.
+    // The sealed arm hollows through tier 3 and measures.
     let sealed = topo::shell(
         &finished("the operand", solid.clone(), Tol::witness()),
         KLEIN_WALL,
         Tol::witness(),
     )
-    .expect_err("the sealed arm's volume");
-    let (face, source) =
-        props_door(&sealed).unwrap_or_else(|| panic!("the sealed arm's props door: {sealed:?}"));
-    assert_eq!(
-        source,
-        geom_brep::PropsError::Unimplemented,
-        "a spiric-bounded cap's area, at {face:?}"
+    .unwrap_or_else(|e| panic!("the sealed arm hollows, got {e:?}"))
+    .body;
+    let r = KLEIN_R + KLEIN_WALL / 2.0;
+    let disc = |caps: f64, a: f64| disc_cut_volume(KLEIN_TURN, KLEIN_WALL, caps, KLEIN_SPINE, a);
+    assert_hollow_volume(
+        "the sealed klein arm",
+        &sealed,
+        disc(0.0, r) - disc(2.0, r - KLEIN_WALL),
     );
 
     // The opened arm SHELLS: the lift takes the axial door (the cavity's
@@ -1707,13 +1734,14 @@ fn the_klein_wall_pair_seals_to_the_props_door_and_opens_to_the_hand_built_tube(
 /// cap back onto its meridian plane while the other cavity cap stays
 /// where the cavity door left it, off the axis, its spiric rims held
 /// (an edge whose two charts do not move keeps its carrier). So the
-/// opened arm builds through every stage and stops where the sealed
-/// arm does: at check 7's props door, on that held cap, whose
-/// spiric-bounded area is FLUX's
-/// `spiric-bounded-face-area-is-unimplemented`.
+/// opened arm builds through every stage, and check 7 measures the held
+/// spiric-bounded cap: the cavity keeps the turn `θ − asin(t/ρ)` at
+/// radius `ρ`, one cap moved, and the volume is the disc's quarter turn
+/// less that cut revolve.
 #[test]
-fn the_klein_elbow_opens_at_one_cap() {
-    let solid = klein_elbow(vec![circle_loop(KLEIN_R + KLEIN_WALL / 2.0)]);
+fn the_klein_elbow_opens_at_one_cap_to_its_measured_volume() {
+    let r = KLEIN_R + KLEIN_WALL / 2.0;
+    let solid = klein_elbow(vec![circle_loop(r)]);
     let cap = solid
         .faces()
         .find(|(_, f)| {
@@ -1730,13 +1758,18 @@ fn the_klein_elbow_opens_at_one_cap() {
         &[cap],
         Tol::witness(),
     )
-    .expect_err("the held cap's area");
-    let (face, source) =
-        props_door(&open).unwrap_or_else(|| panic!("the one-cap arm's props door: {open:?}"));
+    .unwrap_or_else(|e| panic!("the one-cap arm opens, got {e:?}"))
+    .body;
     assert_eq!(
-        source,
-        geom_brep::PropsError::Unimplemented,
-        "a spiric-bounded cap's area, at {face:?}"
+        open.shells().count(),
+        1,
+        "the cavity opens through the designated cap"
+    );
+    let disc = |caps: f64, a: f64| disc_cut_volume(KLEIN_TURN, KLEIN_WALL, caps, KLEIN_SPINE, a);
+    assert_hollow_volume(
+        "the one-cap klein arm",
+        &open,
+        disc(0.0, r) - disc(1.0, r - KLEIN_WALL),
     );
 }
 

@@ -3,8 +3,8 @@
 //! wall is a meridian arc about a centre OFF the axis), the klein elbow
 //! (a disc swept a quarter turn about an axis off its centre), and the
 //! tour's sectioned vessel with the cavity the axial door carves in it
-//! (a partial revolve whose rims mint as spirics); and the one reader
-//! of the door the elbow's hollow stops at ([`props_door`]).
+//! (a partial revolve whose rims mint as spirics); and the volume
+//! oracle their hollows are measured against ([`assert_hollow_volume`]).
 //!
 //! A row that hollows one of these and a row that asks `point_in_solid`
 //! of it are about each other only while they build THE SAME BODY
@@ -31,7 +31,7 @@ use profile::path::{Open, Start};
 use profile::{ArcSweep, Center, Profile, ProfileLoop, SketchPlane};
 use sweep::test_support::revolved_about_y;
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::{Body, FaceKey, ShellError};
+use topo::Body;
 
 use super::bulge;
 use super::charts::hollow_moves;
@@ -174,23 +174,128 @@ pub fn vessel_cavity(t: f64) -> (Body<f64>, Body<f64>) {
     (quarter, cavity)
 }
 
-/// **The door the klein elbow's hollow stops at**: tier 3's check 7
-/// refusing the assembled thin solid because one face's volume flux
-/// is not computable — the face and the props refusal, or `None` for
-/// any other refusal. A spiric-bounded cap's loop area is an elliptic
-/// integral (`Unimplemented`), the sectioned vessel's door too.
-pub fn props_door(e: &ShellError<f64>) -> Option<(FaceKey, geom_brep::PropsError)> {
-    let ShellError::NotValid { errors } = e else {
-        return None;
-    };
-    let [
-        topo::ValidationError::VolumeUncomputable {
-            source: topo::MassPropsError::Face { face, source },
-            ..
+/// Composite Simpson over `[a, b]` at `n` (even) pieces.
+fn simpson(f: impl Fn(f64) -> f64, a: f64, b: f64, n: usize) -> f64 {
+    let h = (b - a) / n as f64;
+    let inner: f64 = (1..n)
+        .map(|i| f(a + h * i as f64) * if i % 2 == 1 { 4.0 } else { 2.0 })
+        .sum();
+    (f(a) + inner + f(b)) * h / 3.0
+}
+
+/// **The turn a cut revolve keeps at radius `ρ`.** A partial revolve
+/// of turn `theta` whose `caps` meridian caps (0, 1 or 2) have moved `t`
+/// inward along their normals keeps, at radius `ρ` from the axis, the
+/// azimuth window `θ − caps·asin(t/ρ)` (each moved cap is a plane
+/// parallel to the axis at stand-off `t`, which a circle of radius `ρ`
+/// meets at `asin(t/ρ)` from its old meridian), and nothing where that
+/// closes.
+fn kept_turn(theta: f64, t: f64, caps: f64, rho: f64) -> f64 {
+    if rho <= t {
+        return if caps == 0.0 { theta } else { 0.0 };
+    }
+    (theta - caps * (t / rho).asin()).max(0.0)
+}
+
+/// `∫ ρ·(θ − caps·asin(t/ρ)) dρ` in closed form,
+/// `θρ²/2 − caps·(ρ²·asin(t/ρ) + t·√(ρ² − t²))/2`, and the radius
+/// `t/sin(θ/caps)` below which the window is closed.
+fn cut_moment(theta: f64, t: f64, caps: f64, rho: f64) -> f64 {
+    theta * rho * rho / 2.0
+        - caps * (rho * rho * (t / rho).asin() + t * (rho * rho - t * t).sqrt()) / 2.0
+}
+
+/// **The volume of a disc's cut revolve**: the disc of radius `a`
+/// centred `rho_c` from the axis, revolved `theta` with `caps` caps
+/// moved `t` inward — `∬ ρ·kept_turn dA`, by `ρ = ρ_c + a·cos φ` (the
+/// chord at `ρ` is `2a·sin φ`, so the integrand is smooth and
+/// Simpson's error at 4096 pieces is below `1e-13` of the value;
+/// cross-checked against a 50-digit quadrature, PR description).
+pub fn disc_cut_volume(theta: f64, t: f64, caps: f64, rho_c: f64, a: f64) -> f64 {
+    simpson(
+        |phi| {
+            let rho = rho_c + a * phi.cos();
+            2.0 * a * a * phi.sin().powi(2) * rho * kept_turn(theta, t, caps, rho)
         },
-    ] = &errors[..]
-    else {
-        return None;
-    };
-    Some((*face, source.clone()))
+        0.0,
+        core::f64::consts::PI,
+        4096,
+    )
+}
+
+/// **The volume of a strip's cut revolve**: the region
+/// `lo ≤ ρ ≤ hi`, `floor(ρ) ≤ y ≤ top`, revolved `theta` with `caps`
+/// caps moved `t` inward (Simpson at 4096 pieces; the integrand is
+/// smooth on the strip).
+pub fn strip_cut_volume(
+    theta: f64,
+    t: f64,
+    caps: f64,
+    (lo, hi): (f64, f64),
+    top: f64,
+    floor: impl Fn(f64) -> f64,
+) -> f64 {
+    simpson(
+        |rho| rho * kept_turn(theta, t, caps, rho) * (top - floor(rho)),
+        lo,
+        hi,
+        4096,
+    )
+}
+
+/// **The sectioned vessel's hollow volume at wall `t`** — the quarter
+/// turn of [`vessel_quarter`]'s meridian less its cavity: the meridian
+/// inset by `t` along every edge but the axis (the moved faces meet in
+/// mitres at the two reflex shoulders), revolved with both caps moved
+/// `t` inward. Each height's inner integral is [`cut_moment`]'s closed
+/// form; Simpson in the height over each smooth piece.
+pub fn vessel_hollow_volume(t: f64) -> f64 {
+    let theta = core::f64::consts::FRAC_PI_2;
+    let u = 1.0 / 64.0;
+    let (r_foot, r_neck, y_foot, y_shoulder, y_mouth) =
+        (5.0 * u, 7.0 * u, 4.0 * u, 12.0 * u, 24.0 * u);
+    // The band: the circle of radius `b` about `(a, c)`, outer side.
+    let (a, b, c) = (6.0 * u, 5.0 * u, 8.0 * u);
+    let band = |rad: f64| move |y: f64| a + (rad * rad - (y - c).powi(2)).sqrt();
+    let solid = |rho: f64| theta * rho * rho / 2.0;
+    let n = 4096;
+    let outer = solid(r_foot) * y_foot
+        + simpson(|y| solid(band(b)(y)), y_foot, y_shoulder, n)
+        + solid(r_neck) * (y_mouth - y_shoulder);
+    let rho_0 = t / (theta / 2.0).sin();
+    let cut = |rho: f64| cut_moment(theta, t, 2.0, rho) - cut_moment(theta, t, 2.0, rho_0);
+    let cavity = cut(r_foot - t) * y_foot
+        + simpson(|y| cut(band(b - t)(y)), y_foot + t, y_shoulder - t, n)
+        + cut(r_neck - t) * (y_mouth - y_shoulder);
+    outer - cavity
+}
+
+/// **The hollow's certified volume holds `want`.** Its bracket
+/// `volume ± volume_pad` must contain the oracle to `1e-10` of it (the
+/// oracles' stated tolerance), and the pad must sit at the quadrature's
+/// reporting level: each face converges once its flux width over three
+/// times its area is under `1024·ε`, so the summed volume half-width is
+/// under `512·ε` times the surface area — a pad that converged to
+/// something worth reporting, not merely to something sound.
+pub fn assert_hollow_volume(label: &str, hollow: &Body<f64>, want: f64) {
+    let tol = Tol::witness();
+    let props = topo::mass_properties(hollow, tol)
+        .unwrap_or_else(|e| panic!("{label}: the hollow measures, got {e:?}"));
+    println!(
+        "[measured] {label}: volume {} ± {}, oracle {want}",
+        props.volume, props.volume_pad
+    );
+    assert!(
+        (props.volume - want).abs() <= props.volume_pad + 1e-10 * want.abs(),
+        "{label}: volume {} ± {} misses the oracle {want}",
+        props.volume,
+        props.volume_pad
+    );
+    let reporting = 512.0 * tol.eps() * props.surface_area;
+    assert!(
+        props.volume_pad > 0.0 && props.volume_pad <= reporting,
+        "{label}: a spiric face is a quadrature, and its pad {} is under the reporting \
+         level {reporting}",
+        props.volume_pad
+    );
 }

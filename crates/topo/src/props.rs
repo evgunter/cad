@@ -2539,9 +2539,22 @@ fn face_flux<T: Decide>(
     let mut open_at = None;
     let mut converged_at = None;
     let mut refusal = None;
-    let contribution: FaceContribution<T> = match *surface {
-        Surface::Plane { .. } => {
-            closed_form_of(surface, &face_loops(body, face)?, face.sense, band).map_err(wrap)?
+    // A plane bounded by a spiric anywhere on its boundary has no closed
+    // form (its vector area is an elliptic integral) and takes the
+    // quadrature lane, whatever loop the spiric is on.
+    let plane_loops = match surface {
+        Surface::Plane { .. } => Some(face_loops(body, face)?),
+        _ => None,
+    };
+    let spiric_plane = plane_loops.as_ref().is_some_and(|loops| {
+        loops
+            .iter()
+            .flatten()
+            .any(|e| matches!(e.carrier, geom::Curve3::Spiric { .. }))
+    });
+    let contribution: FaceContribution<T> = match plane_loops {
+        Some(loops) if !spiric_plane => {
+            closed_form_of(surface, &loops, face.sense, band).map_err(wrap)?
         }
         _ => {
             // A cylinder or torus face's closed form reads every loop
@@ -2559,14 +2572,15 @@ fn face_flux<T: Decide>(
                     )
                 })
             };
-            if !rings.is_empty()
+            if !spiric_plane
+                && !rings.is_empty()
                 && !(matches!(surface, Surface::Cylinder { .. } | Surface::Torus { .. })
                     && rings.iter().all(|r| untrimmed(r)))
             {
                 return Err(MassPropsError::RingOnCurvedFace { face: face_key });
             }
             let (outer, hes) = loop_edges(body, face.outer)?;
-            if !rings.is_empty() && !untrimmed(&outer) {
+            if !spiric_plane && !rings.is_empty() && !untrimmed(&outer) {
                 return Err(MassPropsError::RingOnCurvedFace { face: face_key });
             }
             // Structural dispatch (C5: on the carrier KIND, never a
@@ -2589,15 +2603,11 @@ fn face_flux<T: Decide>(
                             | geom::Curve3::Nurbs(_)
                     )
                 });
-            // A described NURBS face ALWAYS takes the quadrature
-            // lane (M6-3): its flux has no closed form regardless
-            // of what bounds it, and the patch engine reads the
-            // stored iso pcurves rather than the carriers.
             // A described SPLINE face always takes the quadrature lane
             // (M6-3): its flux has no closed form regardless of what
             // bounds it. An approximating face is one — the flux of
             // its fit, which is the geometry the face actually carries.
-            let quad_out = if is_trimmed || surface.spline_chart().is_some() {
+            let quad_out = if is_trimmed || spiric_plane || surface.spline_chart().is_some() {
                 quad(body, surface, &outer, &hes, band, tol, window).map_err(wrap)?
             } else {
                 None

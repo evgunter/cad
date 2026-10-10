@@ -1,8 +1,9 @@
-use geom_brep::Pcurve;
 use geom_brep::props::quad::{
     self, FaceCutBounds, HarmChan, RoundOutcome, RoundWindow, TrimChord, TrimEdgeQ, TrimPiece,
 };
+use geom_brep::props::spiric;
 use geom_brep::props::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
+use geom_brep::{Pcurve, SpiricImage};
 use geom_core::Tol;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
@@ -93,16 +94,14 @@ fn trig_at_start<T: Decide + Bounds + CertifiedEnclosure>(
         // The spiric's chart images are not harmonic (its `m`
         // channel is `√((R + r cos v)² − d²)`), so the trig
         // brackets this lane reads do not exist for it. Unreachable
-        // by construction: this lane is entered only for a CYLINDER
-        // chart (`cut_face_rounds`'s chart gate), and a spiric lies
-        // on no cylinder — the arm names the kind so the gate's
-        // removal would meet a typed refusal here rather than a
-        // wildcard. The props quadrature lane for a spiric-bounded
-        // face is the spiric unit's props PR.
+        // by construction: a spiric lies on no cylinder, and a plane or
+        // torus chart takes `spiric_face` before this lane — the arm
+        // names the kind so a gate's removal would meet a typed
+        // refusal here rather than a wildcard.
         Curve3::Spiric { .. } => Err(PropsError::QuadratureUnsupported {
-            what: "spiric trim carrier on an ANALYTIC chart's quadrature lane — the \
-                   hollowed partial revolve's torus wall and plane cap; the spiric \
-                   quadrature lane is not yet written",
+            what: "spiric trim carrier on the CYLINDER chart's quadrature lane — a \
+                   spiric lies on its plane and its torus only, whose faces take the \
+                   spiric lane",
         }),
         Curve3::Nurbs(_) => Err(PropsError::QuadratureUnsupported {
             what: "B-spline trim carrier on an ANALYTIC chart's quadrature lane — \
@@ -219,16 +218,35 @@ pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
 }
 
 /// A face's vector area `A⃗ = ∫ n dA`, from its loops, each summed about
-/// a point of its own (a closed loop's does not depend on it).
+/// a point of its own (a closed loop's does not depend on it). A spiric
+/// edge's term is the spiric lane's enclosure at a fixed resolution —
+/// sound at any, so this reader needs no schedule.
 fn loops_vector_area(
     loops: &[Vec<LoopEdge<Interval>>],
 ) -> Result<geom_core::Vec3<Interval>, PropsError> {
+    const SPIRIC_PIECES: usize = 1024;
     let mut va = geom_core::Vec3::zero();
     for edges in loops {
         let Some(anchor) = edges.first().map(|e| e.carrier.eval(e.t0)) else {
             return Err(PropsError::DegenerateFace);
         };
-        va = va + loop_vector_area(edges, anchor)?;
+        if !edges
+            .iter()
+            .any(|e| matches!(e.carrier, Curve3::Spiric { .. }))
+        {
+            va = va + loop_vector_area(edges, anchor)?;
+            continue;
+        }
+        for e in edges {
+            va = va
+                + match spiric_edge_q(e, anchor, None) {
+                    Some(q) => {
+                        let [x, y, z] = spiric::spiric_vector_area(&q, SPIRIC_PIECES);
+                        geom_core::Vec3::new(x, y, z)
+                    }
+                    None => loop_vector_area(core::slice::from_ref(e), anchor)?,
+                };
+        }
     }
     Ok(va)
 }
@@ -433,9 +451,10 @@ pub(super) fn polygon_face_about(
 /// quadrature module's two levels); [`super::QuadLane`] holds this
 /// and reads it at either level. A cone face never arrives: the face
 /// walk routes it to its closed form
-/// ([`geom_brep::props::cone_face_closed_form`]). Sphere and torus
-/// charts mint stored pcurves but have no flux lane here, and refuse
-/// typed.
+/// ([`geom_brep::props::cone_face_closed_form`]). A plane or torus face
+/// reaches this lane only with a spiric on its boundary
+/// ([`spiric_face`]); a sphere chart mints stored pcurves but has no
+/// flux lane here, and refuses typed.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     body: &Body<T>,
@@ -457,6 +476,17 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     // mesh tolerance makes).
     if let Some(payload) = surface.spline_chart() {
         return nurbs_face(body, payload, outer, hes, band, tol, window, centre);
+    }
+    // A spiric bounds a plane cap or a torus wall and nothing else
+    // (`Pcurve::Spiric` certifies on those two charts only); the face
+    // walk routes a plane here only when a spiric is on its boundary.
+    if matches!(surface, Surface::Plane { .. })
+        || (matches!(surface, Surface::Torus { .. })
+            && outer
+                .iter()
+                .any(|e| matches!(e.carrier, Curve3::Spiric { .. })))
+    {
+        return spiric_face(body, surface, outer, hes, band, tol, window, centre);
     }
     let Surface::Cylinder { origin, radius, .. } = surface else {
         return Err(PropsError::QuadratureUnsupported {
@@ -537,6 +567,266 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
         band,
         window,
     )
+}
+
+/// A loop edge read at the interval scalar.
+fn lift_edge<T: Decide + Bounds + CertifiedEnclosure>(e: &LoopEdge<T>) -> LoopEdge<Interval> {
+    LoopEdge {
+        carrier: e.carrier.map_scalar(Interval::from_certified),
+        carrier_id: e.carrier_id,
+        t0: Interval::from_certified(e.t0),
+        t1: Interval::from_certified(e.t1),
+        forward: e.forward,
+        start: e.start,
+        end: e.end,
+    }
+}
+
+/// An upper bound on an edge's length: a line's speed `|dir|`, an arc's radius (an
+/// ellipse's major) times its span, a spiric's speed bound
+/// `r(R − r)/f_min` times its span.
+fn length_bound(e: &LoopEdge<Interval>) -> Result<f64, PropsError> {
+    let span = (e.t1 - e.t0).mag();
+    Ok(match e.carrier {
+        Curve3::Line { dir, .. } => (dir.norm() * Interval::point(span)).mag(),
+        Curve3::Circle { radius, .. } => (radius * Interval::point(span)).mag(),
+        Curve3::Ellipse { major, .. } => (major * Interval::point(span)).mag(),
+        Curve3::Spiric {
+            major_radius,
+            minor_radius,
+            offset,
+            ..
+        } => {
+            let gap = major_radius - minor_radius;
+            let f_min = (gap.sqr() - offset.sqr()).sqrt();
+            (minor_radius * gap / f_min * Interval::point(span)).mag()
+        }
+        Curve3::Nurbs(_) => {
+            return Err(PropsError::QuadratureUnsupported {
+                what: "a B-spline edge on a spiric-bounded face — the spiric lane bounds \
+                       line, conic and spiric edges only",
+            });
+        }
+    })
+}
+
+fn rv(p: geom_core::Vec3<Interval>) -> quad::RVec3 {
+    [p.x, p.y, p.z]
+}
+
+/// One spiric edge for [`geom_brep::props::spiric`], its centre taken
+/// relative to `reference`; `None` for any other carrier.
+fn spiric_edge_q(
+    e: &LoopEdge<Interval>,
+    reference: Point3<Interval>,
+    wall: Option<spiric::WallImageQ>,
+) -> Option<spiric::SpiricEdgeQ> {
+    let Curve3::Spiric {
+        center,
+        axis,
+        u_ref,
+        major_radius,
+        minor_radius,
+        offset,
+    } = e.carrier
+    else {
+        return None;
+    };
+    Some(spiric::SpiricEdgeQ {
+        centre: rv(center - reference),
+        axis: rv(axis),
+        normal: rv(u_ref),
+        major: major_radius,
+        minor: minor_radius,
+        offset,
+        t0: e.t0,
+        t1: e.t1,
+        forward: e.forward,
+        wall,
+    })
+}
+
+/// A harmonic chart image's coefficient read as exact `f64` structure
+/// (C6): `Some` only for a point bracket.
+fn exact<T: Decide + Bounds + CertifiedEnclosure>(x: T) -> Option<f64> {
+    let x = Interval::from_certified(x);
+    (x.is_certified() && x.lo() == x.hi()).then_some(x.lo())
+}
+
+/// **The spiric-bounded face lane**: a plane cap or a torus wall with a
+/// `Curve3::Spiric` on its boundary, assembled for
+/// [`spiric::spiric_face_rounds`] (its module docs carry the
+/// formulation).
+///
+/// A cap reads every loop of its face through its carriers, as the
+/// closed-form plane does: the closed-form edges' vector-area terms at
+/// the interval scalar, each spiric's through the lane, the flux as a
+/// point of the face less `centre` dotted with `A⃗`. A wall reads its
+/// one loop through the LIFTED chart images (`lifted_images`): a
+/// spiric's exact `SpiricImage::Wall`, and each other edge's harmonic
+/// image, which must be iso — a rim (`v` fixed, `u` linear) or a
+/// meridian (`u` fixed, `v` linear) — read as exact structure. Any
+/// other image refuses typed.
+#[allow(clippy::too_many_arguments)]
+fn spiric_face<T: Decide + Bounds + CertifiedEnclosure>(
+    body: &Body<T>,
+    surface: &Surface<T>,
+    outer: &[LoopEdge<T>],
+    hes: &[HalfEdgeKey],
+    band: Band,
+    tol: Tol,
+    window: RoundWindow,
+    centre: Option<Point3<Interval>>,
+) -> Result<RoundOutcome, PropsError> {
+    let centre = centre.unwrap_or_else(Point3::origin);
+    let unsupported = |what| PropsError::QuadratureUnsupported { what };
+    let face = match surface {
+        Surface::Plane { .. } => {
+            let corrupt =
+                || unsupported("corrupt body reaching the spiric lane (a key did not resolve)");
+            let first = hes.first().ok_or_else(corrupt)?;
+            let lk = body.half_edges.get(*first).ok_or_else(corrupt)?.parent_loop;
+            let fk = body.loops.get(lk).ok_or_else(corrupt)?.face;
+            let face = body.faces.get(fk).ok_or_else(corrupt)?;
+            let mut loops = vec![outer.iter().map(lift_edge).collect::<Vec<_>>()];
+            for &rk in &face.rings {
+                let (ring, _) = super::loop_edges(body, rk).map_err(|_| corrupt())?;
+                loops.push(ring.iter().map(lift_edge).collect());
+            }
+            let Some(anchor) = loops[0].first().map(|e| e.carrier.eval(e.t0)) else {
+                return Err(PropsError::DegenerateFace);
+            };
+            let mut closed_va = [Interval::zero(); 3];
+            let mut spirics = Vec::new();
+            let mut perimeter = 0.0;
+            for e in loops.iter().flatten() {
+                perimeter += length_bound(e)?;
+                match spiric_edge_q(e, anchor, None) {
+                    Some(q) => spirics.push(q),
+                    None => {
+                        let va = rv(loop_vector_area(core::slice::from_ref(e), anchor)?);
+                        closed_va = [0, 1, 2].map(|k| closed_va[k] + va[k]);
+                    }
+                }
+            }
+            spiric::SpiricFaceQ {
+                closed_va,
+                spirics,
+                lever: rv(anchor - centre),
+                perimeter,
+                wall: None,
+            }
+        }
+        Surface::Torus {
+            center,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let c = Point3::new(
+                Interval::from_certified(center.x),
+                Interval::from_certified(center.y),
+                Interval::from_certified(center.z),
+            );
+            let mut chart = spiric::WallChartQ {
+                major: Interval::from_certified(*major_radius),
+                minor: Interval::from_certified(*minor_radius),
+                rims: Vec::new(),
+                meridians: Vec::new(),
+            };
+            let mut closed_va = [Interval::zero(); 3];
+            let mut spirics = Vec::new();
+            let mut perimeter = 0.0;
+            let lifted = crate::pcurves::lifted_images(body, hes);
+            for ((le, he), image) in outer.iter().zip(hes).zip(&lifted) {
+                let (Some(cache), Some(image)) = (body.pcurve(*he), image) else {
+                    return Err(unsupported(
+                        "a spiric-bounded torus wall's half-edge carries no lifted pcurve — \
+                         the offset-axial door mints them",
+                    ));
+                };
+                let e = lift_edge(le);
+                perimeter += length_bound(&e)?;
+                let env = Interval::from_certified(cache.certificate().envelope);
+                let (t0, t1) = cache.params();
+                let span = Interval::from_certified(t1) - Interval::from_certified(t0);
+                let signed = |x: Interval| if le.forward { x } else { -x };
+                match (image, &e.carrier) {
+                    (
+                        Pcurve::Spiric {
+                            image: SpiricImage::Wall { v0, sense, .. },
+                            ..
+                        },
+                        Curve3::Spiric { .. },
+                    ) => {
+                        let sense = match exact(*sense) {
+                            Some(s) if s == 1.0 || s == -1.0 => s,
+                            _ => {
+                                return Err(unsupported(
+                                    "a spiric wall image whose sense is not exactly ±1",
+                                ));
+                            }
+                        };
+                        let wall = spiric::WallImageQ {
+                            sense,
+                            v0: Interval::from_certified(*v0),
+                            env,
+                        };
+                        spirics.extend(spiric_edge_q(&e, c, Some(wall)));
+                        continue;
+                    }
+                    (Pcurve::Harmonic { p0, pa, pb, pl }, _) => {
+                        let zero = |x: T| exact(x) == Some(0.0);
+                        if !(zero(pa.x) && zero(pa.y) && zero(pb.x) && zero(pb.y)) {
+                            return Err(unsupported(
+                                "a torus wall edge beside a spiric whose harmonic image is \
+                                 not a line of its chart — the spiric lane reads rims and \
+                                 meridians",
+                            ));
+                        }
+                        if zero(pl.y) {
+                            chart.rims.push(spiric::RimQ {
+                                v: Interval::from_certified(p0.y),
+                                du: signed(Interval::from_certified(pl.x) * span),
+                                env,
+                            });
+                        } else if zero(pl.x) {
+                            chart.meridians.push(spiric::MeridianQ {
+                                dv: signed(Interval::from_certified(pl.y) * span),
+                                env,
+                            });
+                        } else {
+                            return Err(unsupported(
+                                "a torus wall edge beside a spiric whose harmonic image is \
+                                 neither a rim nor a meridian",
+                            ));
+                        }
+                    }
+                    _ => {
+                        return Err(unsupported(
+                            "a torus wall edge beside a spiric whose lifted image is neither \
+                             a spiric wall image nor a harmonic rim or meridian",
+                        ));
+                    }
+                }
+                let va = rv(loop_vector_area(core::slice::from_ref(&e), c)?);
+                closed_va = [0, 1, 2].map(|k| closed_va[k] + va[k]);
+            }
+            spiric::SpiricFaceQ {
+                closed_va,
+                spirics,
+                lever: rv(c - centre),
+                perimeter,
+                wall: Some(chart),
+            }
+        }
+        _ => {
+            return Err(unsupported(
+                "a spiric on a chart other than its plane or its torus",
+            ));
+        }
+    };
+    spiric::spiric_face_rounds::<T>(&face, tol.eps(), band, window)
 }
 
 /// **The NURBS-patch flux lane** (M6-3 Leg C; RATIONAL since

@@ -4321,12 +4321,8 @@ fn torus_classify<'a, T: Decide>(
                 // kind was considered. Reached through the closed-form
                 // door (`curved_face`) directly; `topo`'s own face flux
                 // never gets here for a spiric-bounded face — a loop
-                // carrying one routes to the quadrature lane first,
-                // which refuses at its chart gate (`props.rs`,
-                // `cut_face_rounds`: only the cylinder chart has a
-                // lane) — and a stored pcurve cache does not change
-                // that. The spiric quadrature lane is the spiric unit's
-                // props PR.
+                // carrying one routes to the quadrature lane, whose
+                // spiric arm measures it (`super::spiric`).
                 Curve3::Spiric { .. } => PropsError::NotIsoRectangle {
                     what: "torus boundary edge is not a circle",
                 },
