@@ -820,3 +820,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - defensive checks reached or documented;
   - one quadric spelling.
   PR 4530 (radial hole) is open; its lane is still writing the body.
+- 2026-10-10 12:50 — PR 4530 (radial hole through a tube, M HOLDOUT byte 222): the lane is done, CI is green, and the head is frozen at `102aa89a7`. A concurrent pair, r4530a and r4530b, runs from one brief (sha256 `7362d14bf8fc`). Coding byte 115, odd, so A = R2. The arm is a meridian-plane double cover, so it isolates no roots: every fold and every crossing is a circle meeting a circle or a line.
