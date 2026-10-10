@@ -1383,3 +1383,9 @@ Ev said go.
   - Docs, the wrap row's reflection guard, and the domain assumption go into the same pass.
 - **Unit 17's DR row became DR-145.** NURBS's PR 4518 took DR-144 first, and that row was the 20th M-tier unit, so the full readout under rule 9 is the NURBS orchestrator's to raise. Unit 17 is the 21st.
   - Main also carried a stale duplicate tally line, left by DR-143's commit; the DR-145 commit removes it.
+- **Unit 18 dual review** (PR 4524, head 610099b473; byte 0, so A = R1 and B = R2). Both reviewers said APPROVE-WITH-FIXES, and both raised the same MAJOR, each executed.
+  - The MAJOR: a G1 (plane × cylinder) corner refuses `Escalated{MarginDiag(Invalid)}` from a NaN. Newton runs with g·d = 0 before the graze check, where base refused honestly `EdgeSection Tangent`. Repros: a stadium prism, a filleted box, and a box with every edge rounded.
+  - Bilateral MINORs: the collapse payload reads the first mover's d, and the curved-cap row has no z check.
+  - R1's unilateral MINOR: G1 transport is unused at a whole-solid corner, and a tangent candidate is fatal even when a transversal one exists.
+  - Tally: 0, since the MAJOR is bilateral. The pair counts as fair: no glimpse was disclosed, and the brief forbade system-wide process listings.
+  - Ruling: fix both MAJORs' root and the MINORs, plus the docs and style items, in one pass. The pre-existing unnamed collapse refusal is filed rather than fixed.
