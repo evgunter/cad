@@ -2,63 +2,74 @@
 
 what a sweep verb builds and how it describes it
 
-Re-scoped 2026-10-06 by CARVE's second priority-seam cut
-(`work/README.md`, Track size): the P0 rows stay, the rest went to
-CARVETAIL and STRUT (`work/carve/log.md`).
+Re-scoped 2026-10-10, at the close of the sitting that landed six of
+the seven P0 rows. The slate is what that sitting's reviews found
+behind them, plus two rows other programs filed, cut at the P2/P3
+seam (`work/README.md`, Track size). The P3 and P4 rows went to
+CARVEREST (`work/carve/log.md`).
 
 ## The slate
 
-**30 budget points** of dispatchable work against a ceiling of 30.
+**20 budget points** of dispatchable work against a ceiling of 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P0 | `intersection-pair-order-is-unpinned-and-extrude-disagrees-with-itself` | M +design | EdgeDescription::Intersection's (s1, s2) order is unpinned, and extrude writes it one way on cap rims and another on struts |
-| P0 | `loft-v-parameterization-is-the-first-strips-so-a-rolled-section-changes-the-body` | H +design | loft_geometry takes the whole surface's v from the first strip, so a section rolled about its own normal builds a different body |
-| P0 | `self-closed-link-sharing-its-vertex-records-two-junctions` | H | walk_chains records two junctions at one vertex and closes the chain when a self-closed link shares its vertex with one other requested link |
-| P0 | `self-overlapping-spines-build-and-validate` | H +design | A loft or sweep whose spine revisits itself builds a self-overlapping body and every validation tier says Ok |
-| P0 | `skin-coincident-section-check-is-an-unbanded-f64-compare` | H | skin.rs refuses coincident loft sections by a bare f64 strict comparison |
-| P0 | `sweep-cap-plane-winds-against-a-convex-arc-region` | M | extrude and loft mint a cap plane inside out when a big convex arc makes the inscribed polygon wind against the region |
-| P0 | `two-section-loft-with-an-inverted-top-normal-builds` | H | A two-section loft whose top section's plane normal points down builds and tier 3 says Ok |
+| P1 | `a-wall-pinned-between-two-loft-sections-refuses-at-the-wrong-door` | H | a loft section hinged on one of its own edges collapses that wall, and refuses at the attach gate rather than naming the pinned wall |
+| P1 | `a-reflected-loft-placement-evades-both-normal-checks` | M | a loft section placed with a reflected frame passes both stacking decides and builds a zero-volume body that tier 3 accepts |
+| P1 | `sweep-frame-is-a-minimal-rotation-from-the-start-tangent` | H +design | sweep_places carries each station by the minimal rotation from the START tangent, so the section spins near anti-parallel |
+| P2 | `a-loft-caps-plane-is-summed-in-the-authored-vertex-order` | M | a loft cap's Newell plane is summed from the authored start vertex, so re-spelling a section moves the cap's bits |
+| P2 | `sweep-dihedral-readers-drop-the-arm-rung` | M | extrude and revolve upgrade word an arm escalation as the wedge's sliver |
+| P2 | `a-rational-wall-beside-an-integral-one-skins-its-shared-corner-off-unit-weight` | M | a rational loft wall skins its shared corner rows an ulp off weight 1, so its seam refuses against the integral neighbour |
+
+Parked: `self-overlapping-spines-build-and-validate` (P0, H, design),
+on SHELL-3's clearance certificate and CLEAR's
+`window-of-refuses-an-untrimmed-iso-bounded-nurbs-patch` and
+`self-intersection-drops-every-vertex-sharing-face-pair-globally`.
+Its row carries the cost of the interim: the far-normal decide
+(PR 4188) over-refuses the hood and the oblique arc sweep, and those
+rows should build once the certificate lands.
 
 ## Order
 
-Two streams at once.
+`a-reflected-loft-placement-evades-both-normal-checks` first: it is
+the one row here that builds a wrong body silently, and it lives on
+the stacking fold PR 4188 just wrote. Then
+`a-wall-pinned-between-two-loft-sections-refuses-at-the-wrong-door`,
+the same fold's other gap (the wall is refused, but at the wrong
+door).
 
-**Built now**, because each row's fix shape is written and no choice
-on it is Ev's: `sweep-cap-plane-winds-against-a-convex-arc-region`
-(orient the cap by the profile's arc-exact winding),
-`skin-coincident-section-check-is-an-unbanded-f64-compare` (one
-banded decide, stated once) and
-`self-closed-link-sharing-its-vertex-records-two-junctions` (count a
-self-closed link's vertex twice).
+`sweep-frame-is-a-minimal-rotation-from-the-start-tangent` is a design
+row: an Opus and a Fable designer weigh the frame law before anything
+is built (`memories/orchestration-model.md`). Its answer decides
+whether a sweep's v can become its path parameter, which the
+designers of PR 4193 recommended and the orchestrator deferred to this
+row; CARVETAIL's `a-half-turn-spine-sweeps-only-off-its-exact-tangents`
+is the same frame's other symptom, and the weighing reads it.
 
-**Weighed first** by an Opus and a Fable designer
-(`memories/orchestration-model.md`), each pair given the problem and
-not the options:
+Two of the P2 rows finish the loft's order-freedom. After PR 4193 the
+walls and parameters are a function of the section set; these rows do
+the same for the caps' bits and the rational corner rows. CARVETAIL's
+`skinned-wall-weights-drift-an-ulp-along-the-stacking` is the same
+skin interpolation rounding a weight that every section holds equal,
+and the per-row lane the rational-wall row asks for should settle it
+too.
 
-- `self-overlapping-spines-build-and-validate` together with
-  `two-section-loft-with-an-inverted-top-normal-builds`. Both are
-  bodies the loft builds and validates when it should refuse, and both
-  are a placement of the sections that the loft never checks.
-- `loft-v-parameterization-is-the-first-strips-so-a-rolled-section-changes-the-body`.
-- `intersection-pair-order-is-unpinned-and-extrude-disagrees-with-itself`.
-
-A pair that agrees on something that is not Ev's fork gets built. One
-that is Ev's fork goes to an `[ev]` PR.
+`sweep-dihedral-readers-drop-the-arm-rung` (filed by ENCL) is refusal
+truth. ENCL's PR 4450 made the reading reach `Display`, and the repair
+is now `sweep::swept::sliver_text`'s arm wording plus a closed decision
+per reading at each site.
 
 ## The D10 hold
 
-None of the seven rows reads declared pairs, declared contact,
-placement or the node vocabulary. The coincident-section row decides a
-coincidence inside one operation by a margined verdict, which is what
-D10 says a coincidence is. The three rows the hold does cover went to
-CARVETAIL parked.
+None of these rows reads declared pairs, declared contact, placement
+vocabulary or the node vocabulary. The sweep frame is the kernel's own
+carrying law along a path, not a user's placement; a weighing that
+finds it wants a user-declared frame stops and says so rather than
+adding the vocabulary.
 
 ## Review posture
 
-Protocol v7 (`docs/DUAL-REVIEW-PROTOCOL.md`): the dual review only on
-units triaged in. Answered at this sitting's first dispatch: none of
-the three built-now units is triaged in. Each gets a single FULL review,
-because each is a confident wrong answer if it is wrong (a cap's sense,
-a section's verdict, a chain's closure). The weighed rows are triaged
-when their build is dispatched.
+Protocol v7 (`docs/DUAL-REVIEW-PROTOCOL.md`), triaged per unit at its
+dispatch. The last sitting's posture held: a single FULL review per
+unit, because each was a confident wrong answer if wrong; the reflected
+placement is the same shape and gets the same.

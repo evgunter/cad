@@ -2,10 +2,11 @@
 id: ellipse-torus-graze-certifies-six-roots-where-the-true-distance-crosses-four
 kind: issue
 title: the ellipse x torus arm certifies 6 roots on a graze where the true distance crosses 4 times (fuzz seed 0xb471af1930331750, eps 1e-9, graze 91)
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P1
 cost: M
+branch: cleave/ellipse-torus-graze
 ---
 
 
