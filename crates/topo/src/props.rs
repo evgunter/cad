@@ -4952,3 +4952,22 @@ mod shell_role_refusal_tests {
         }
     }
 }
+
+/// PR 4554 verify probe: the whole-body walk's runs re-derived
+/// (`rederive`) at `tight`, `(volume, area, recentred)`.
+#[doc(hidden)]
+pub fn verify4554_rederive(
+    body: &Body<f64>,
+    tol: Tol,
+    tight: bool,
+) -> Result<(Interval, Interval, bool), MassPropsError> {
+    let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
+    let lane = QuadLane::certified();
+    let hook = reporting_hook(Some(lane));
+    let faces = crate::query::all_faces(body);
+    let runs = decide_faces_serially(&faces, |&face_key| {
+        face_flux(body, face_key, band, &hook, tol, RoundWindow::SCHEDULE)
+    })?;
+    let r = rederive(body, band, tol, lane, &runs, tight)?;
+    Ok((r.volume, r.area, r.recentred))
+}

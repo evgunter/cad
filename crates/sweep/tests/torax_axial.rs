@@ -1224,3 +1224,53 @@ fn torax_re_authored_arcs_put_both_corners_on_the_moved_circle() {
         "FIXTURE: no re-authored sketch arc reached the row"
     );
 }
+
+/// PR 4554 verify probe (C): the klein elbow hollow translated far from
+/// the origin, re-derived untight (a spiric face sends the walk about the
+/// world origin, unrecentred) and tight; both must contain the oracle.
+#[test]
+fn verify4554_far_elbow_rederive_is_sound_and_its_width_is_measured() {
+    use geom_core::Bounds;
+    let r = 0.275_f64;
+    let elbow = klein_elbow(vec![bulge_loop(vec![
+        (Point2::new(-r, 0.0), 1.0),
+        (Point2::new(r, 0.0), 1.0),
+    ])]);
+    let hollow = topo::shell(&finished("the operand", elbow, tol()), 0.05, tol())
+        .unwrap_or_else(|e| panic!("the elbow hollows, got {e:?}"))
+        .body;
+    let theta = core::f64::consts::FRAC_PI_2;
+    let want = disc_cut_volume(theta, 0.05, 0.0, 1.2, r)
+        - disc_cut_volume(theta, 0.05, 2.0, 1.2, r - 0.05);
+    for off in [0.0, 1e1, 1e3, 1e5] {
+        let map = geom_core::Affine3::translation(geom_core::Vec3::new(off, -0.7 * off, 0.3 * off));
+        let body = transform_rigid(&hollow, &map, tol()).unwrap();
+        let props = topo::mass_properties(&body, tol());
+        match &props {
+            Ok(p) => println!(
+                "[c] off {off:e}: mass_properties volume {} ± {} (oracle {want}), contains {}",
+                p.volume,
+                p.volume_pad,
+                (p.volume - want).abs() <= p.volume_pad
+            ),
+            Err(e) => println!("[c] off {off:e}: mass_properties refused {e:?}"),
+        }
+        for tight in [false, true] {
+            match topo::test_support::verify4554_rederive(&body, tol(), tight) {
+                Ok((v, a, rec)) => {
+                    println!(
+                        "[c] off {off:e} tight {tight}: volume [{:e}, {:e}] width {:e} \
+                         recentred {rec} contains {}",
+                        v.lo(),
+                        v.hi(),
+                        v.hi() - v.lo(),
+                        v.lo() <= want && want <= v.hi()
+                    );
+                    let _ = a;
+                    assert!(v.lo() <= want && want <= v.hi(), "off {off} tight {tight}");
+                }
+                Err(e) => println!("[c] off {off:e} tight {tight}: refused {e:?}"),
+            }
+        }
+    }
+}

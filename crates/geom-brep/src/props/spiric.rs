@@ -1459,4 +1459,152 @@ mod tests {
             }
         }
     }
+
+    /// PR 4554 verify probe (B): `span_rates` bounds the sampled exact
+    /// `|u′| = |d|·r·|sin t|/(ρ f)` and speed `r·√(1 + d²sin²/f²)` over
+    /// random spans — crossing `0` and `π`, multi-turn, `|d| > R − r` arcs,
+    /// non-thin endpoint brackets and non-thin radii (sampled inside them).
+    #[test]
+    #[allow(clippy::cast_precision_loss)]
+    fn verify4554_span_rates_bound_the_sampled_rates() {
+        let mut g = Lcg(0xb4554);
+        let (mut worst_du, mut worst_s, mut checked, mut none) = (0.0_f64, 0.0_f64, 0, 0);
+        for case in 0..20_000 {
+            let big = g.range(0.5, 3.0);
+            let r = big * g.range(0.05, 0.9);
+            let through = case % 3 == 0;
+            let d = if through {
+                // |d| in (R − r, R + r): f real only where ρ > |d|.
+                ((big - r) + 2.0 * r * g.range(0.01, 0.95))
+                    * if g.next() < 0.5 { -1.0 } else { 1.0 }
+            } else {
+                (big - r) * g.range(0.0, 0.999) * if g.next() < 0.5 { -1.0 } else { 1.0 }
+            };
+            let (t0, t1) = if through {
+                // The arc about t = 2πk where ρ > |d|.
+                let half = ((d.abs() - big) / r).clamp(-1.0, 1.0).acos();
+                let k = (g.range(-2.0, 2.0)).round() * 2.0 * PI;
+                let a = k + g.range(-half, half) * 0.999;
+                let b = k + g.range(-half, half) * 0.999;
+                (a.min(b), a.max(b))
+            } else {
+                let t0 = g.range(-8.0, 8.0);
+                let pick = g.next();
+                // Short spans, spans about 0 or π, and long ones.
+                let t0 = if pick < 0.2 {
+                    -g.range(0.0, 0.3)
+                } else if pick < 0.4 {
+                    PI - g.range(0.0, 0.3)
+                } else {
+                    t0
+                };
+                (t0, t0 + g.range(0.0, 7.0))
+            };
+            let wb = if case % 5 == 0 {
+                g.range(0.0, 1e-3)
+            } else {
+                0.0
+            };
+            let wr = if case % 7 == 0 {
+                g.range(0.0, 1e-3)
+            } else {
+                0.0
+            };
+            let e = SpiricEdgeQ {
+                centre: [Interval::zero(); 3],
+                axis: [pt(0.0), pt(0.0), pt(1.0)],
+                normal: [pt(1.0), pt(0.0), pt(0.0)],
+                major: Interval::from_bounds(big - wr, big + wr),
+                minor: Interval::from_bounds(r - wr * 0.5, r + wr * 0.5),
+                offset: pt(d),
+                t0: Interval::from_bounds(t0 - wb, t0 + wb),
+                t1: Interval::from_bounds(t1 - wb, t1 + wb),
+                forward: true,
+                wall: None,
+            };
+            let Some((speed, du)) = span_rates(&e) else {
+                none += 1;
+                // A refusal is sound; the non-through case must not refuse.
+                assert!(
+                    through || wr > 0.0 || wb > 0.0,
+                    "case {case}: refused R={big} r={r} d={d} [{t0}, {t1}]"
+                );
+                continue;
+            };
+            for j in 0..=400 {
+                let t = (t0 - wb) + (t1 - t0 + 2.0 * wb) * (j as f64 / 400.0);
+                for (bb, rr) in [(big - wr, r - wr * 0.5), (big + wr, r + wr * 0.5), (big, r)] {
+                    let rho = bb + rr * t.cos();
+                    let f2 = rho * rho - d * d;
+                    if f2 <= 0.0 {
+                        continue;
+                    }
+                    let f = f2.sqrt();
+                    let u1 = (d * rr * t.sin() / (rho * f)).abs();
+                    let sp = rr * (1.0 + (d * t.sin() / f).powi(2)).sqrt();
+                    let rel = 1.0 + 1e-12;
+                    assert!(
+                        u1 <= du.hi() * rel,
+                        "case {case}: |u'| {u1} at t={t} exceeds {:?}; R={big} r={r} d={d} [{t0}, {t1}] wb {wb} wr {wr}",
+                        du
+                    );
+                    assert!(
+                        sp <= speed.hi() * rel,
+                        "case {case}: speed {sp} at t={t} exceeds {:?}; R={big} r={r} d={d} [{t0}, {t1}]",
+                        speed
+                    );
+                    worst_du = worst_du.max(u1 / du.hi());
+                    worst_s = worst_s.max(sp / speed.hi());
+                    checked += 1;
+                }
+            }
+        }
+        println!(
+            "[b] {checked} samples, {none} refused windows, max |u'|/bound {worst_du}, max speed/bound {worst_s}"
+        );
+    }
+
+    /// PR 4554 verify probe (D): `trig_range` at hostile f64 ends either
+    /// refuses or returns certified brackets; its half-width read never
+    /// sees a refused operand.
+    #[test]
+    fn verify4554_trig_range_at_hostile_ends() {
+        let vals = [
+            f64::NAN,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::MAX,
+            -f64::MAX,
+            f64::MIN_POSITIVE,
+            -0.0,
+            0.0,
+            1e300,
+            -1e300,
+            1e16,
+            -1e16,
+            3.0,
+            -3.0,
+        ];
+        for &lo in &vals {
+            for &hi in &vals {
+                let (c, s) = trig_range(lo, hi);
+                let ok = c.is_certified() && s.is_certified();
+                let refused = !c.is_certified() && !s.is_certified();
+                assert!(ok || refused, "mixed at [{lo}, {hi}]: {c:?} {s:?}");
+                if ok {
+                    assert!(
+                        lo <= hi && lo.is_finite() && hi.is_finite(),
+                        "[{lo}, {hi}] certified: {c:?} {s:?}"
+                    );
+                    assert!(
+                        c.lo().is_finite()
+                            && c.hi().is_finite()
+                            && s.lo().is_finite()
+                            && s.hi().is_finite()
+                    );
+                }
+                println!("[d] [{lo:e}, {hi:e}] -> certified {ok}: {c:?} {s:?}");
+            }
+        }
+    }
 }
