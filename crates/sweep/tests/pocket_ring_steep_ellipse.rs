@@ -505,8 +505,9 @@ fn miss(
 /// `REFUSES_AT_1E6`.
 const REFUSES_AT_1E6: (f64, &str) = (70.0, "bool_pierce_sector_side_curved");
 
-/// **The poses the chord order paired wrongly build sound or refuse
-/// typed.** The quad prism poses are review r1's: at `k = 6`,
+/// **The poses the chord order paired wrongly build sound**, save the
+/// θ = 70° mirrored pose at ε = 1e-6, which escalates typed
+/// ([`REFUSES_AT_1E6`]). The quad prism poses are review r1's: at `k = 6`,
 /// `[200, 230, 300, 120]`, `ψ = 1.75`, ∩ AB, the chord paired a germ
 /// across its true partner and shipped a body failing tier 3′ and the
 /// certificate; at `[225, 240, 320, 110]` every op refused
@@ -518,7 +519,7 @@ const REFUSES_AT_1E6: (f64, &str) = (70.0, "bool_pierce_sector_side_curved");
 /// differential `outcome`'s operand check), which every plate body of
 /// this shape refuses on main too.
 #[test]
-fn steep_ellipse_poses_build_sound_or_refuse_typed() {
+fn steep_ellipse_poses_build_sound() {
     let ops = door;
     let mut misses = Vec::new();
 

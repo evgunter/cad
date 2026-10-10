@@ -239,3 +239,8 @@ refuse here — `props_quad_converged` with margins of −6.8e-9 and the
 like, inside the band's escalate half, at every tilt θ ∈ {30, 50, 60,
 70, 78}° and both thicknesses, ∩ rows (no ring on the wall) among them.
 A run that refined one more round instead would measure.
+
+Related, from review R2 of PR 4557 (NOTE-2, its probes on
+`review/4557-01DDWu57`): hair-thin (1e-3 m) bars through the unit pipe
+refuse `QuadratureBudget` on their ringless walls — the lane's other
+number-wanting outcome on hairline faces, and not that PR's change.

@@ -3043,6 +3043,16 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 DEFECT.into(),
                 true,
             ),
+            P::RingWoundWithFace => reading(
+                "a hole in a face is wound the same way as the face",
+                DEFECT.into(),
+                true,
+            ),
+            P::ChartPeriodJump => reading(
+                "a face's stored boundary images do not meet on its chart",
+                DEFECT.into(),
+                true,
+            ),
             // Raised on an extent decided zero at the band and on a
             // quadrature area whose enclosure reaches zero: a face too
             // thin to certify, not a contradiction in the body.

@@ -439,12 +439,12 @@ fn digest() -> String {
 /// unchanged.
 ///
 /// **Re-cut at all three ε when the cylinder quadrature began deciding
-/// that each loop closes on the chart** (`props_quad_chart_loop_closed`,
-/// one decision per junction, so that it can read a face's rings).
-/// Only `tilted_cut_upper`'s verdict count moves, by 8 at every ε
-/// (4 → 12, 10 → 18, 16 → 24 at ε = 1e-6 / 1e-9 / 1e-12), and its hash
-/// with it; its volume, area and pads are bit-identical and no other
-/// line moves.
+/// that no junction of a loop is a period off on the chart**
+/// (`props_quad_junction_period`, one decision per junction, so that it
+/// can read a face's rings). Only `tilted_cut_upper`'s verdict count
+/// moves, by 8 at every ε (4 → 12, 10 → 18, 16 → 24 at ε = 1e-6 / 1e-9 /
+/// 1e-12), and its hash with it; its volume, area and pads are
+/// bit-identical and no other line moves.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

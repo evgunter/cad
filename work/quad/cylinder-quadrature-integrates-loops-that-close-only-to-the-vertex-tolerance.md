@@ -9,22 +9,25 @@ opened: 2026-10-10
 
 ## What
 
-`geom_brep::props::quad::cylinder_cut_face_rounds` sums `∮ u dv` over
-each loop's stored harmonic pcurves, edge by edge
+`geom_brep::props::quad::cylinder_cut_face_rounds` sums `∮ u dv`
+over each loop's stored harmonic pcurves, edge by edge
 (`harmonic_edge_integral`). Green's form is exact for a closed chart
 curve, and consecutive pcurves meet only to the vertex tolerance:
-measured on the unit pipe ∩ the brick `(−1.1, 1.1) × (0.2, 0.7) ×
-(−0.15, 0.15)` turned 0.3 rad about the x axis
-(`verbs_germarms::a_wall_ringed_by_ellipse_arcs_measures`), the wall's
-ellipse-to-ruling junctions miss by `|Δv| ≈ 1.37e-9` at ε = 1e-9. The
-open chain's integral differs from the closed region's by the gap's
-connector, `≈ ½(u₁ + u₀)·Δv`, a few 1e-9 here, and no pad covers it:
-the endpoint-bracket pad covers a `t` bracket's width and the
-map-residual pad a pcurve's distance from its carrier, neither the
-distance between two carriers' ends.
+measured at the junctions' midpoints (each end read at its
+`TrimEdgeQ::limits`), single-loop faces in
+`pocket_ring_steep_ellipse::steep_ellipse_poses_build_sound` miss by up
+to `1.12e-9` (`R·|Δu| + |Δv|`) at ε = 1e-9. On the turned-bar rows of
+`verbs_germarms` the midpoint gaps are `≤ 2.3e-15`; the `≈ 1.4e-9` first
+recorded here for them was the endpoint brackets' WIDTH, not a gap
+(review R2 of PR 4557, re-measured). The open chain's integral differs
+from the closed region's by the gap's connector, `≈ ½(u₁ + u₀)·Δv`, and
+no pad covers it: the endpoint-bracket pad covers a `t` bracket's width
+and the map-residual pad a pcurve's distance from its carrier, neither
+the distance between two carriers' ends.
 
-`require_chart_loops` (added by `flux/ellipse-ring`) decides only that a
-gap is not an azimuth period; it does not close the gap.
+`require_no_period_jump` (`props_quad_junction_period`, added by
+`flux/ellipse-ring`) decides only that a gap is not an azimuth period;
+it does not close the gap.
 
 ## Tried, and why it did not land
 

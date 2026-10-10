@@ -9,16 +9,19 @@
 //!
 //! With chart `S(u, v) = o + û·r·cos u + v̂·r·sin u + â·v` the chart
 //! normal is radial and `dA = r du dv`, so for a face whose trim region
-//! is Ω (traversed by the loop with interior-left, outward normals):
+//! is Ω (bounded by its loops, the outer one and its rings, each
+//! traversed with the interior on its left about the outward normal):
 //!
 //! ```text
-//! A_s   = ∮ u dv           (signed UV area; A_s = s_f·|Ω|)
+//! A_s   = Σ_loops ∮ u dv   (signed UV area; A_s = s_f·|Ω|)
 //! area  = r·|A_s|
-//! flux  = ∮ p·n dA = r²·A_s + o·A⃗    (A⃗ the exact vector area)
+//! flux  = ∮ p·n dA = r²·A_s + o·A⃗    (A⃗ the exact vector area, summed over the loops)
 //! ```
 //!
-//! — the loop's own traversal sign carries `s_f`, so no separate
-//! orientation classification is needed. The boundary is the face's
+//! — the loops' own traversal signs carry `s_f`, a ring's opposite to
+//! its face's, so no separate orientation classification is needed;
+//! what is decided is that the stored loops say so (no junction a period
+//! off on the chart, every ring wound against its face). The boundary is the face's
 //! **pcurves** (PR 6 caches; C4's first hot consumer): per edge the
 //! contribution is `σ·∫ u(t)·v'(t) dt` over the stored carrier
 //! interval.
@@ -345,6 +348,15 @@ pub struct TrimEdgeQ {
     pub env: Interval,
 }
 
+impl TrimEdgeQ {
+    /// The integration limits every reading of the edge takes: the
+    /// midpoints of its parameter brackets, whose widths the
+    /// endpoint-bracket pad repays.
+    fn limits(&self) -> (f64, f64) {
+        (mid(self.t0), mid(self.t1))
+    }
+}
+
 // ---------------------------------------------------------------------
 // Transcendental-free trig enclosures (module docs)
 // ---------------------------------------------------------------------
@@ -502,7 +514,7 @@ impl HarmChan {
 /// resolution, plus the edge's two honesty pads (endpoint-bracket and
 /// map-residual — the latter needs `radius` for the metric length).
 fn harmonic_edge_integral(e: &TrimEdgeQ, pieces: usize, radius: Interval) -> Interval {
-    let (a, b) = (mid(e.t0), mid(e.t1));
+    let (a, b) = e.limits();
     let span = b - a;
     if !(span.is_finite() && span >= 0.0) || pieces == 0 {
         return Interval::refused();
@@ -570,7 +582,7 @@ fn harmonic_edge_integral(e: &TrimEdgeQ, pieces: usize, radius: Interval) -> Int
 /// A certified upper bound on the edge's METRIC length (metres):
 /// `∫ √(r²u'² + v'²) dt ≤ (r·sup|u'| + sup|v'|)·span`.
 fn edge_metric_length(e: &TrimEdgeQ, radius: Interval) -> f64 {
-    let (a, b) = (mid(e.t0), mid(e.t1));
+    let (a, b) = e.limits();
     let span = b - a;
     let (c_all, s_all) = trig_over(e.trig0, 0.0, span);
     let t_all = Interval::from_bounds(a, b);
@@ -793,8 +805,9 @@ fn round_exit(
 /// # Errors
 ///
 /// [`PropsError`] — an escalated funnel decision, a degenerate face,
-/// a loop that does not close on the chart or a ring wound with its
-/// face ([`require_chart_loops`], [`require_rings_wound_against`]), or
+/// a loop a period off on the chart ([`PropsError::ChartPeriodJump`]),
+/// a ring wound with its face at any round it returns
+/// ([`PropsError::RingWoundWithFace`]), or
 /// the typed [`PropsError::QuadratureBudget`] refusal when the
 /// enclosure will not tighten to target within the round budget.
 pub fn cylinder_cut_face<T: Decide>(
@@ -835,7 +848,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
         "a window resuming at round {} is past this lane's last round {QUAD_MAX_ROUNDS}",
         window.first
     );
-    require_chart_loops::<T>(loops, radius, band)?;
+    require_no_period_jump::<T>(loops, radius, band)?;
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
     let first = window.first.min(QUAD_MAX_ROUNDS);
     let mut pieces = QUAD_INIT_PIECES << first;
@@ -882,7 +895,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
             }
-            require_rings_wound_against::<T>(loops, &per_loop, a_s, radius, band)?;
+            require_holes_wound_against(loops, &per_loop, a_s, radius, band)?;
             return Ok(RoundOutcome::Converged(FaceCutBounds { flux, area }));
         }
         if let Some(out) = round_exit(
@@ -892,6 +905,10 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
             FaceCutBounds { flux, area },
             (width_len, target_len),
         ) {
+            // An open enclosure is read too (a sign walk settles on
+            // one), and it encloses the face's flux only if its rings
+            // are holes.
+            require_holes_wound_against(loops, &per_loop, a_s, radius, band)?;
             return Ok(out);
         }
         pieces *= 2;
@@ -900,10 +917,9 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
 }
 
 /// An edge's chart point `(u, v)` where its traversal starts (`end`
-/// false) or ends, at the integration limits [`harmonic_edge_integral`]
-/// reads.
+/// false) or ends, at its [`TrimEdgeQ::limits`].
 fn chart_end(e: &TrimEdgeQ, end: bool) -> (Interval, Interval) {
-    let (a, b) = (mid(e.t0), mid(e.t1));
+    let (a, b) = e.limits();
     let (trig, t) = if end == e.forward {
         (trig_at(e.trig0, b - a), b)
     } else {
@@ -915,20 +931,25 @@ fn chart_end(e: &TrimEdgeQ, end: bool) -> (Interval, Interval) {
     )
 }
 
-/// **Each loop closes on the chart** (`props_quad_chart_loop_closed`).
+/// **No junction of a loop is a period off on the chart**
+/// (`props_quad_junction_period`, [`PropsError::ChartPeriodJump`]).
 ///
 /// `∮ u dv` is Green's form for a closed curve of the chart, and the
 /// azimuth is periodic: an image stored a period off its neighbour, or
 /// a loop that winds the cylinder, closes in space and not on the
 /// chart, and its `∮ u dv` is not the region's area. Each edge's chart
 /// image ends where the next one's starts to within the stored
-/// geometry's own tolerance (carriers within `ε` of the vertex they
-/// share, pcurves within their envelopes), or a period away, `2πR` in
-/// the metric `R·|Δu| + |Δv|`; the gap is decided against half a
-/// period, so a jump is definite and a tolerance-scale gap is never
-/// near the margin. A loop closed on the chart winds the cylinder zero
-/// times, so the face's loops do too.
-fn require_chart_loops<T: Decide>(
+/// geometry's tolerance, or a whole period away, `2πR` in the metric
+/// `R·|Δu| + |Δv|`; the gap is decided against half a period, so a jump
+/// is definite and a tolerance-scale gap is never near the margin. This
+/// is NOT a decision that the loop closes to tolerance: the closed
+/// forms decide that in space (`props_loop_closed`), on carriers whose
+/// ends meet at shared vertices, and the residue a tolerance-scale gap
+/// leaves in this lane's integral is
+/// `work/quad/cylinder-quadrature-integrates-loops-that-close-only-to-the-vertex-tolerance`.
+/// A loop with no period jump winds the cylinder zero times, so the
+/// face's loops do too.
+fn require_no_period_jump<T: Decide>(
     loops: &[&[TrimEdgeQ]],
     radius: Interval,
     band: Band,
@@ -939,57 +960,56 @@ fn require_chart_loops<T: Decide>(
             let (u0, v0) = chart_end(next, false);
             let gap = radius * (u1 - u0).abs_enclosure() + (v1 - v0).abs_enclosure();
             if classify_len::<T>(
-                "props_quad_chart_loop_closed",
+                "props_quad_junction_period",
                 Margin::of(hi_or_refuse(gap - pt(core::f64::consts::PI) * radius)),
                 band,
                 PropsCheck::Inventory,
             )? != Sign::Negative
             {
-                return Err(PropsError::NotIsoRectangle {
-                    what: "props_quad_chart_loop_closed",
-                });
+                return Err(PropsError::ChartPeriodJump);
             }
         }
     }
     Ok(())
 }
 
-/// **A ring winds against its face** (`props_quad_ring_winding`): a
-/// hole is traversed opposite to the region it is cut from, so each
-/// ring's signed area must be definitely of the opposite sign to the
-/// face's whole, metered as the ring's mean width `area/perimeter` as
-/// the extent gate meters the face's. A ring wound the same way would
-/// be added to the face's area, silently.
-fn require_rings_wound_against<T: Decide>(
+/// **Every ring winds against its face**, through the closed forms' own
+/// decision ([`super::curved::require_holes_wound_against`], the mean
+/// width `2·A/P` of the face's whole and of each ring, in m² over m) at
+/// the interval scalar: a ring definitely opposite to the whole passes,
+/// one definitely the same way refuses
+/// ([`PropsError::RingWoundWithFace`]), and an enclosure that straddles
+/// the band escalates rather than takes a side. A face with no ring
+/// decides nothing here.
+fn require_holes_wound_against(
     loops: &[&[TrimEdgeQ]],
     per_loop: &[Interval],
     a_s: Interval,
     radius: Interval,
     band: Band,
 ) -> Result<(), PropsError> {
-    // The extent gate has certified `|R·A_s|` positive, so `A_s`
-    // excludes zero and its sign is the face's side on the chart.
-    let side = if lo_or_refuse(a_s) > 0.0 {
-        pt(1.0)
-    } else {
-        pt(-1.0)
-    };
-    for (edges, &ring) in loops.iter().zip(per_loop).skip(1) {
-        let perim: f64 = edges.iter().map(|e| edge_metric_length(e, radius)).sum();
-        let against = -(side * radius * ring);
-        if classify_len::<T>(
-            "props_quad_ring_winding",
-            Margin::over_lever(lo_or_refuse(against), perim),
-            band,
-            PropsCheck::Inventory,
-        )? != Sign::Positive
-        {
-            return Err(PropsError::NotIsoRectangle {
-                what: "props_quad_ring_winding",
-            });
-        }
+    if loops.len() < 2 {
+        return Ok(());
     }
-    Ok(())
+    let length = |edges: &[TrimEdgeQ]| {
+        pt(edges
+            .iter()
+            .map(|e| edge_metric_length(e, radius))
+            .sum::<f64>())
+    };
+    let whole = (
+        radius * a_s,
+        loops
+            .iter()
+            .fold(Interval::zero(), |l, edges| l + length(edges)),
+    );
+    let holes: Vec<(Interval, Interval)> = loops
+        .iter()
+        .zip(per_loop)
+        .skip(1)
+        .map(|(edges, &ring)| (radius * ring, length(edges)))
+        .collect();
+    super::curved::require_holes_wound_against("props_chart_area_side", whole, &holes, band)
 }
 
 // ---------------------------------------------------------------------
@@ -5728,27 +5748,40 @@ mod tests {
         );
     }
 
-    /// **A ring wound with its face refuses** (`props_quad_ring_winding`)
-    /// rather than adding its area to the face's.
+    /// **A ring wound with its face refuses** (`props_ring_winding`)
+    /// rather than adding its area to the face's — at every round a
+    /// window can return, not only at convergence: a sign walk settles on
+    /// an open round's enclosure, and a ring wound with its face puts the
+    /// face's true flux outside it.
     #[test]
-    fn a_ring_wound_with_its_face_refuses() {
+    fn a_ring_wound_with_its_face_refuses_at_every_round() {
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
         let eps = Tol::witness().get().eps;
         let [outer, ring] = ringed_rectangle(false, 0.0);
-        let got = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&outer, &ring], eps, band);
+        let loops: [&[TrimEdgeQ]; 2] = [&outer, &ring];
+        for round in 0..4 {
+            let got = cylinder_cut_face_rounds::<f64>(
+                pt(1.0),
+                Interval::zero(),
+                &loops,
+                eps,
+                band,
+                RoundWindow::at(round),
+            );
+            assert!(
+                matches!(got, Err(PropsError::RingWoundWithFace)),
+                "round {round}: {got:?}"
+            );
+        }
+        let got = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &loops, eps, band);
         assert!(
-            matches!(
-                got,
-                Err(PropsError::NotIsoRectangle {
-                    what: "props_quad_ring_winding"
-                })
-            ),
-            "got {got:?}"
+            matches!(got, Err(PropsError::RingWoundWithFace)),
+            "the whole schedule: {got:?}"
         );
     }
 
     /// **A loop stored a period off on the chart refuses**
-    /// (`props_quad_chart_loop_closed`): the ring's second arc carried
+    /// (`props_quad_junction_period`): the ring's second arc carried
     /// `2π` along the azimuth closes in space, not on the chart.
     #[test]
     fn a_loop_a_period_off_on_the_chart_refuses() {
@@ -5757,12 +5790,7 @@ mod tests {
         let [outer, ring] = ringed_rectangle(true, core::f64::consts::TAU);
         let got = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&outer, &ring], eps, band);
         assert!(
-            matches!(
-                got,
-                Err(PropsError::NotIsoRectangle {
-                    what: "props_quad_chart_loop_closed"
-                })
-            ),
+            matches!(got, Err(PropsError::ChartPeriodJump)),
             "got {got:?}"
         );
     }

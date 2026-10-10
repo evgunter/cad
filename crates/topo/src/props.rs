@@ -1161,7 +1161,8 @@ fn rederive_about<T: Decide>(
     let mut recentred = centre.is_some();
     for run in runs {
         let (face, surface) = resolve_face(body, run.face);
-        let loops = face_loops(body, face)?;
+        let flat = flat_loops(body, face)?;
+        let loops = edges_of(&flat);
         let refused = |source| MassPropsError::Face {
             face: run.face,
             source,
@@ -1177,15 +1178,7 @@ fn rederive_about<T: Decide>(
                     .or(run.converged_at)
                     .map_or(RoundWindow::SCHEDULE, RoundWindow::at);
                 let rerun = if tight {
-                    (lane.cut_face_rounds)(
-                        body,
-                        surface,
-                        &flat_loops(body, face)?,
-                        band,
-                        tol,
-                        window,
-                        Some(centre),
-                    )
+                    (lane.cut_face_rounds)(body, surface, &flat, band, tol, window, Some(centre))
                 } else {
                     Err(PropsError::QuadratureUnsupported {
                         what: "the untight read keeps the walk's enclosure",
@@ -1255,8 +1248,7 @@ fn shell_polygons<T: Decide>(
     let mut polygons = Vec::with_capacity(runs.len());
     for run in runs {
         let (face, surface) = resolve_face(body, run.face);
-        let loops = face_loops(body, face)?;
-        match vertex_rings(body, face, surface, &loops, lane)? {
+        match vertex_rings(body, surface, &flat_loops(body, face)?, lane)? {
             Some(rings) => polygons.push(rings),
             None => return Ok(None),
         }
@@ -1293,26 +1285,23 @@ fn rederive_polygons<T: Decide>(
 /// traversal order, lifted through `lane`; `None` for any other face.
 fn vertex_rings<T: Decide>(
     body: &Body<T>,
-    face: &crate::entity::Face,
     surface: &Surface<T>,
-    loops: &[Vec<LoopEdge<T>>],
+    loops: &[FlatLoop<T>],
     lane: QuadLane<T>,
 ) -> Result<Option<Rings>, MassPropsError> {
     let lines = loops
         .iter()
-        .flatten()
+        .flat_map(|(edges, _)| edges)
         .all(|e| matches!(e.carrier, geom::Curve3::Line { .. }));
     if !matches!(surface, Surface::Plane { .. }) || !lines {
         return Ok(None);
     }
     let lift = |p: Point3<T>| Point3::new((lane.lift)(p.x), (lane.lift)(p.y), (lane.lift)(p.z));
-    core::iter::once(&face.outer)
-        .chain(&face.rings)
-        .map(|&lk| {
-            loop_edges(body, lk)?
-                .1
-                .into_iter()
-                .map(|he| {
+    loops
+        .iter()
+        .map(|(_, hes)| {
+            hes.iter()
+                .map(|&he| {
                     body.half_edge_start_point(he)
                         .map(lift)
                         .ok_or(MassPropsError::Corrupt {
@@ -2497,15 +2486,17 @@ fn flat_loops<T: Decide>(
         .collect()
 }
 
-/// A face's loops flattened, the outer first, then the rings.
+/// A face's loops flattened ([`flat_loops`]), their edges alone.
 fn face_loops<T: Decide>(
     body: &Body<T>,
     face: &crate::entity::Face,
 ) -> Result<Vec<Vec<LoopEdge<T>>>, MassPropsError> {
-    core::iter::once(&face.outer)
-        .chain(&face.rings)
-        .map(|&lk| Ok(loop_edges(body, lk)?.0))
-        .collect()
+    Ok(edges_of(&flat_loops(body, face)?))
+}
+
+/// Flattened loops' edges alone.
+fn edges_of<T: Decide>(loops: &[FlatLoop<T>]) -> Vec<Vec<LoopEdge<T>>> {
+    loops.iter().map(|(edges, _)| edges.clone()).collect()
 }
 
 /// **A face's closed form**, at whatever scalar its geometry is read
@@ -2559,14 +2550,15 @@ fn face_flux<T: Decide>(
         }
         _ => {
             let loops = flat_loops(body, face)?;
-            let trimmed = loops.iter().flat_map(|(edges, _)| edges).any(|e| {
-                matches!(
-                    e.carrier,
+            let trimmed = loops
+                .iter()
+                .flat_map(|(edges, _)| edges)
+                .any(|e| match e.carrier {
+                    geom::Curve3::Line { .. } | geom::Curve3::Circle { .. } => false,
                     geom::Curve3::Ellipse { .. }
-                        | geom::Curve3::Spiric { .. }
-                        | geom::Curve3::Nurbs(_)
-                )
-            });
+                    | geom::Curve3::Spiric { .. }
+                    | geom::Curve3::Nurbs(_) => true,
+                });
             // Which lanes read a ring: the cone's closed form (every
             // loop's vector area, whatever trims it), the cylinder's
             // closed form and quadrature alike (each a Green form summed

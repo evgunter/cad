@@ -678,89 +678,97 @@ fn gauss_2d(f: impl Fn(f64, f64) -> f64, (a0, a1): (f64, f64), (b0, b1): (f64, f
         .sum()
 }
 
-/// **A wall ringed by ellipse arcs measures.** The brick
-/// `x ∈ (−1.1, 1.1)`, `y ∈ (0.2, 0.7)`, `z ∈ (−0.15, 0.15)` turned about
-/// the x axis through `(0, 0.45, 0)` crosses the pipe's wall in two
-/// rings of ellipse arcs, one each side of the axis. The ∪ and
-/// pipe ∖ bar walls carry those rings, which the cylinder's quadrature
-/// reads as loops of their own. Every row is checked against the exact
-/// ∩, `∬ 2·√(1 − y²)` over the turned section (each chord of the
-/// section crosses the disc whole, since `|x| ≤ 1.1` and `|y| < 1`):
-/// ∩ itself, `∪ = pipe + bar − ∩`, `pipe ∖ bar = pipe − ∩` and
-/// `bar ∖ pipe = bar − ∩`. One pose is moved to the axis `(3, −2)`,
-/// where a ring's share of the wall's `origin·A⃗` is not zero.
-#[test]
-fn a_wall_ringed_by_ellipse_arcs_measures() {
+/// The brick `x ∈ (cx − 1.1, cx + 1.1)`, `y ∈ (cy + 0.2, cy + 0.7)`,
+/// `z ∈ (−0.15, 0.15)` turned by `theta` about the x axis through
+/// `(cx, cy + 0.45, 0)`, against [`pipe_at`] `(cx, cy)`: each of `ops`
+/// builds, passes tier 3 and meets its exact volume. ∩ is
+/// `∬ 2·√(1 − y²)` over the turned section (each chord of the section
+/// crosses the disc whole, since `|x − cx| ≤ 1.1` and `|y − cy| < 1`),
+/// and `∪ = pipe + bar − ∩`, `pipe ∖ bar = pipe − ∩`, `bar ∖ pipe = bar − ∩`.
+fn assert_turned_bar_through_the_pipe(theta: f64, (cx, cy): (f64, f64), ops: &[&str]) {
     let tol = Tol::witness();
     let v_pipe = 4.0 * PI;
     let v_bar = 2.2 * 0.5 * 0.3;
-    for (theta, (cx, cy)) in [
-        (0.3, (0.0, 0.0)),
-        (0.7, (0.0, 0.0)),
-        (1.0, (0.0, 0.0)),
-        (1.3, (0.0, 0.0)),
-        (0.7, (3.0, -2.0)),
-    ] {
-        let pipe = pipe_at((cx, cy));
-        let bar = brick(
-            (cx - 1.1, cx + 1.1),
-            (cy + 0.2, cy + 0.7),
-            (-0.15, 0.15),
-            tol,
+    let pipe = pipe_at((cx, cy));
+    let bar = brick(
+        (cx - 1.1, cx + 1.1),
+        (cy + 0.2, cy + 0.7),
+        (-0.15, 0.15),
+        tol,
+    );
+    let bar = topo::transform_rigid(
+        &bar,
+        &Affine3::rotation_about_axis(
+            geom_core::Point3::new(cx, cy + 0.45, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            theta,
+        ),
+        tol,
+    )
+    .expect("a rigid pose");
+    let bar = finished("the turned bar", bar, tol);
+    let (c, s) = (theta.cos(), theta.sin());
+    let v_cap = gauss_2d(
+        |a, b| {
+            let y = 0.45 + a * c - b * s;
+            2.0 * (1.0 - y * y).sqrt()
+        },
+        (-0.25, 0.25),
+        (-0.15, 0.15),
+    );
+    for &op in ops {
+        let (out, exact) = match op {
+            "∩" => (topo::intersect(&pipe, &bar, tol), v_cap),
+            "∪" => (topo::union(&pipe, &bar, tol), v_pipe + v_bar - v_cap),
+            "pipe ∖ bar" => (topo::subtract(&pipe, &bar, tol), v_pipe - v_cap),
+            "bar ∖ pipe" => (topo::subtract(&bar, &pipe, tol), v_bar - v_cap),
+            other => panic!("no such op {other}"),
+        };
+        let pose = format!("θ = {theta}, axis at ({cx}, {cy}), {op}");
+        let topo::BooleanResult::Body(out) =
+            out.unwrap_or_else(|e| panic!("{pose}: refused {e:?}"))
+        else {
+            panic!("{pose}: came back empty");
+        };
+        assert_eq!(
+            topo::validate_geometric(&out.body, tol),
+            Ok(()),
+            "{pose}: tier 3"
         );
-        let bar = topo::transform_rigid(
-            &bar,
-            &Affine3::rotation_about_axis(
-                geom_core::Point3::new(cx, cy + 0.45, 0.0),
-                Vec3::new(1.0, 0.0, 0.0),
-                theta,
-            ),
-            tol,
-        )
-        .expect("a rigid pose");
-        let bar = finished("the turned bar", bar, tol);
-        let (c, s) = (theta.cos(), theta.sin());
-        let v_cap = gauss_2d(
-            |a, b| {
-                let y = 0.45 + a * c - b * s;
-                2.0 * (1.0 - y * y).sqrt()
-            },
-            (-0.25, 0.25),
-            (-0.15, 0.15),
+        let m = topo::mass_properties(&out.body, tol)
+            .unwrap_or_else(|e| panic!("{pose}: mass properties {e:?}"));
+        assert!(
+            (m.volume - exact).abs() <= m.volume_pad + 1e-9 * exact,
+            "{pose}: volume {} ± {} against the exact {exact}",
+            m.volume,
+            m.volume_pad
         );
-        for (op, out, exact) in [
-            ("∩", topo::intersect(&pipe, &bar, tol), v_cap),
-            ("∪", topo::union(&pipe, &bar, tol), v_pipe + v_bar - v_cap),
-            (
-                "pipe ∖ bar",
-                topo::subtract(&pipe, &bar, tol),
-                v_pipe - v_cap,
-            ),
-            (
-                "bar ∖ pipe",
-                topo::subtract(&bar, &pipe, tol),
-                v_bar - v_cap,
-            ),
-        ] {
-            let pose = format!("θ = {theta}, axis at ({cx}, {cy}), {op}");
-            let topo::BooleanResult::Body(out) =
-                out.unwrap_or_else(|e| panic!("{pose}: refused {e:?}"))
-            else {
-                panic!("{pose}: came back empty");
-            };
-            assert_eq!(
-                topo::validate_geometric(&out.body, tol),
-                Ok(()),
-                "{pose}: tier 3"
-            );
-            let m = topo::mass_properties(&out.body, tol)
-                .unwrap_or_else(|e| panic!("{pose}: mass properties {e:?}"));
-            assert!(
-                (m.volume - exact).abs() <= m.volume_pad + 1e-9 * exact,
-                "{pose}: volume {} ± {} against the exact {exact}",
-                m.volume,
-                m.volume_pad
-            );
-        }
     }
+}
+
+/// **A wall ringed by ellipse arcs measures**, at every tilt the item
+/// names and in every op ([`assert_turned_bar_through_the_pipe`]): the
+/// brick turned about the x axis crosses the pipe's wall in two rings
+/// of ellipse arcs, one each side of the axis, which the ∪ and
+/// pipe ∖ bar walls carry and the cylinder's quadrature reads as loops
+/// of their own.
+#[test]
+fn a_wall_ringed_by_ellipse_arcs_measures() {
+    for theta in [0.3, 0.7, 1.0, 1.3] {
+        assert_turned_bar_through_the_pipe(
+            theta,
+            (0.0, 0.0),
+            &["∩", "∪", "pipe ∖ bar", "bar ∖ pipe"],
+        );
+    }
+}
+
+/// **The ringed wall off the axis**: with the pipe's axis at `(3, −2)`
+/// a ring's share of the wall's `origin·A⃗` is not zero, so the ∪ and
+/// pipe ∖ bar walls miss their volumes by the ring's share unless the
+/// quadrature sums every loop's vector area. (At the origin a ring on
+/// a wall bounds no axial vector area and the term drops out.)
+#[test]
+fn a_ringed_wall_off_the_origin_counts_its_rings_position() {
+    assert_turned_bar_through_the_pipe(0.7, (3.0, -2.0), &["∪", "pipe ∖ bar"]);
 }

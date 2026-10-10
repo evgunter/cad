@@ -455,11 +455,10 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     // widen this quadrature (the same deliberate omission the
     // mesh tolerance makes).
     if let Some(payload) = surface.spline_chart() {
-        let [(outer, hes)] = loops else {
-            return Err(PropsError::QuadratureUnsupported {
-                what: "a ring on a described spline face — the patch lanes read one loop",
-            });
-        };
+        // One loop: the face walk refuses a ring on any curved kind
+        // but the cylinder, cone and torus (`RingOnCurvedFace`).
+        debug_assert_eq!(loops.len(), 1, "a ring reached the spline patch lanes");
+        let (outer, hes) = &loops[0];
         return nurbs_face(body, payload, outer, hes, band, tol, window, centre);
     }
     let Surface::Cylinder { origin, radius, .. } = surface else {
@@ -1093,8 +1092,8 @@ mod tests {
         use crate::body::Body;
         use crate::entity::{FaceKey, LoopBoundary};
         use crate::props::{
-            FaceRun, QuadLane, corner_of, decide_faces_serially, face_flux, face_loops, rederive,
-            reporting_hook, resolve_face, shell_polygons, vertex_rings,
+            FaceRun, QuadLane, corner_of, decide_faces_serially, face_flux, face_loops, flat_loops,
+            rederive, reporting_hook, resolve_face, shell_polygons, vertex_rings,
         };
 
         /// `m · 2^e`, exactly.
@@ -1196,8 +1195,8 @@ mod tests {
             let mut exact = Dyadic::of(0.0);
             for (key, _) in body.faces() {
                 let (face, surface) = resolve_face(body, key);
-                let loops = face_loops(body, face).unwrap();
-                let rings = vertex_rings(body, face, surface, &loops, lane)
+                let loops = flat_loops(body, face).unwrap();
+                let rings = vertex_rings(body, surface, &loops, lane)
                     .unwrap()
                     .expect("a planar face bounded by lines");
                 let f = super::super::polygon_face_about(&rings, centre).unwrap();
@@ -1350,7 +1349,9 @@ mod tests {
                 flux = flux + c.flux;
                 area = area + c.area;
                 polygon = polygon
-                    + match vertex_rings(&body, face, surface, &loops, lane).unwrap() {
+                    + match vertex_rings(&body, surface, &flat_loops(&body, face).unwrap(), lane)
+                        .unwrap()
+                    {
                         Some(rings) => {
                             super::super::polygon_face_about(&rings, centre)
                                 .unwrap()

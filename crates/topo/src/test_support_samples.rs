@@ -652,6 +652,8 @@ fn props_errors() -> Vec<PropsError> {
             what: "props_sphere_loop_closed",
         },
         PropsError::SenseContradicted,
+        PropsError::RingWoundWithFace,
+        PropsError::ChartPeriodJump,
         PropsError::NotOneChartBranch {
             edge: 2,
             what: "the edge crosses the seam",
