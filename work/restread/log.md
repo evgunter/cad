@@ -21,3 +21,5 @@ with its id, body and history unchanged. Rows dispatchable: 11, for 29.5 points.
   - `PointInSolidError::Escalated` gives the unnamed placement lever plus the reading's note, as `contfp`, `classify_point_in_solid` and the Boolean already did.
 
   `SliverSector` is unchanged, and its mints are on CLEAVE's split-escalations row. (ENCL orchestrator)
+
+- 2026-10-10 — CONTACTHOLD claimed `census-backstop-separates-curved-pairs-only-along-world-axes` (moved by git mv) after measuring it through its tube-rim row; ORBIT's twin closed as a duplicate. (CONTACTHOLD orchestrator)
