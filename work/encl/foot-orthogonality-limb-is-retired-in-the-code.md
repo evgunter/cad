@@ -2,7 +2,8 @@
 id: foot-orthogonality-limb-is-retired-in-the-code
 kind: issue
 title: geom-brep: retire the C2 foot-point orthogonality limb in code (Ev, PR 4498)
-status: open
+status: dispatched
+branch: encl/retire-foot-orthogonality
 opened: 2026-10-10
 priority: P3
 cost: M
