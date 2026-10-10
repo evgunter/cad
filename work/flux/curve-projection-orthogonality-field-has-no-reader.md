@@ -20,7 +20,7 @@ The curve module doc still tells the clamp story the surface half lost: "a bound
 
 ## Repair shape
 
-Delete the field and reword the curve module doc to the distance-only reading the surface half now has (`crates/geom/src/surfaces/projection.rs`, "Honesty, in two parameters"). Keep `ProjectionInconclusive::last_orthogonality`: the refusal's Display reads it.
+Delete the field and reword the curve module doc to the distance-only reading the surface half now has (`crates/geom/src/surfaces/projection.rs`, "Honesty, in two parameters"). Keep `ProjectionInconclusive::last_orthogonality`: the refusal's Display reads it. Reword the module doc's "C2.1's both-residuals point" comment with the rest.
 
 Tests that read the field:
 - `crates/geom/tests/curves/projection.rs` (`domain_end_clamp_carries_an_honest_failing_orthogonality_residual` and others);

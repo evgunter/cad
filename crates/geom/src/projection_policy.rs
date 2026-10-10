@@ -47,7 +47,7 @@
 //! is a search for structure; the honesty is entirely in the residuals
 //! it reports, which are reported at the consumer's scalar.
 //!
-//! # Honesty (C2.1): a bad projection cannot launder a bad cache
+//! # Honesty (C2 limb 1): the distance is the residual
 //!
 //! Newton converges to *stationary points* of the distance, so a
 //! deliberately bad seed can converge to a far branch or sheet with a

@@ -113,7 +113,8 @@ fn projection_residual_matches_a_recomputation_from_the_reported_foot() {
 
 #[test]
 fn a_wrong_sheet_seed_is_visible_in_the_distance_not_the_orthogonality() {
-    // THE C2.1 row: "a bad projection cannot launder a bad cache".
+    // C2 limb 1: the distance is the residual, and any surface point
+    // bounds it from above, so a far-sheet foot reads too far, never too near.
     let s = cylinder_patch();
     // Off-axis inside the cylinder: near wall at 0.8, far wall at 1.2.
     let p = Point3::new(0.2, 0.0, 0.5);
@@ -146,8 +147,10 @@ fn a_domain_edge_foot_clamps_to_the_edge_with_its_honest_distance() {
     let p = Point3::new(-4.0, 0.5, 0.0);
     let pr = s.project(p).unwrap();
     assert!(pr.u <= PROJECT_EPS_POINT, "clamped to u = 0: {pr:?}");
-    // Distance is the honest boundary distance.
-    assert!(pr.distance > 3.9, "{pr:?}");
+    // The bump vanishes on the boundary ring, so the u = 0 edge is the
+    // segment x = z = 0 with y = v, and the exact foot is (0, 0.5, 0).
+    assert!((pr.distance - 4.0).abs() < 1e-9, "{pr:?}");
+    assert!((pr.v - 0.5).abs() < 1e-6, "{pr:?}");
 }
 
 #[test]

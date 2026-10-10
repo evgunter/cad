@@ -208,7 +208,7 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
     /// — the raw entry behind [`Self::project`] (module docs: iteration
     /// policy, acceptance conditions, clamping, honesty). A bad seed
     /// converges to whatever stationary point it converges to; the
-    /// carried residuals stay honest, which is the point.
+    /// carried distance stays honest, which is the point.
     ///
     /// # Errors
     ///
