@@ -1799,7 +1799,9 @@ fn attribute(
         // over face keys can match. `InstanceInterference` is that
         // arm's decided verdict — two solids and a vertex, a statement
         // about placement that no contact record makes and no mate
-        // answers for (recorded gate-skips do not exist).
+        // answers for. Between two copies the gate takes it out first
+        // (`checks::at_rest::partition`), so what reaches here is an
+        // overlap inside one copy's body.
         ValidationError::UndeclaredContact { .. }
         | ValidationError::StaleContactDeclaration {
             declaration:

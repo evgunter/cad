@@ -372,11 +372,25 @@ such row in gather order, before this document's own unminted rows and
 before the at-rest gate: an outer assembly is unusable while an inner
 part's contact is unverified.
 
-*Interference.* An interference fit (one instance's material containing
-a vertex of another's) is decided by the census's material test and
-refused typed (`ValidationError::InstanceInterference`). The recorded
-gate-skips that `crates/topo/README.md`'s C6 declares are not
-implemented.
+*Interference.* An overlap of two copies' material is a finding of its
+own, never a refusal (D10; `checks::at_rest`). The census decides that
+two copies interfere: a vertex of one strictly inside the other's
+material (`ValidationError::InstanceInterference`), an edge piercing a
+face (`CensusContact::EdgeFacePierce`), or an in-plane crossing whose
+side test reads `SameSide`. The gate takes those verdicts out of its
+refusal, along with the containment arm's undecided verdict on a pair
+whose crossing is decided interference, and intersects the two copies.
+Each connected solid of the intersection is one `InterferenceFinding`
+on `Assembly::interference`, named by the faces of both copies that
+bound it. An intersection the kernel cannot form leaves one
+`Overlap::Unlocalized` finding for the pair, which is loud and which
+nothing quiets. A finding is quiet when a holding assertion reads a
+`Gap`'s output directly over an opposed pair of faces of the two
+copies, admits only negative values (`≤ b` or `= b`, `b` decided
+negative), its two faces bound the overlap, and every face bounding the
+overlap lies between their carriers. Every other overlap is loud.
+Between two solids of one copy an overlap stays the kernel's typed
+error.
 
 ## Mirror
 

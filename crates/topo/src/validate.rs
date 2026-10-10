@@ -1790,9 +1790,9 @@ pub enum ValidationError {
     /// DECIDED by the material test and not undecidable. A vertex
     /// strictly inside another instance's material is an overlap of
     /// the two materials by itself (`census.rs` arm 2 states what the
-    /// arm probes and why). Recorded gate-skips — the declaration that
-    /// would admit a deliberate interference — do not exist, so no
-    /// record can answer for this finding.
+    /// arm probes and why). No record answers for this finding; between
+    /// two copies at rest the assembly layer reports it as an
+    /// interference finding.
     InstanceInterference {
         /// The instance whose material holds the witness. Nothing about
         /// size or nesting is implied: the arm probes both instances'
@@ -2192,10 +2192,9 @@ pub enum CensusContact {
         edge: EdgeKey,
     },
     /// An edge piercing a face transversally at both interiors — a
-    /// transverse dive, interpenetration at rest: categorically
-    /// undeclarable until the C6 interference-fit era's recorded
-    /// gate-skips exist (the MATE-4b staging defers this class to
-    /// that era by name).
+    /// transverse dive, interpenetration at rest, which no record
+    /// backs. Between two copies the assembly layer reports it as an
+    /// interference finding.
     EdgeFacePierce {
         /// The piercing edge.
         edge: EdgeKey,

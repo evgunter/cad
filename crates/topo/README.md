@@ -336,8 +336,10 @@ the backstop's containment arm decides the nested-instance class by a
 material test — a nested placement sharing no material clears; an
 instance with a vertex inside another's material refuses typed
 (`ValidationError::InstanceInterference`) — and no declaration admits an
-interference. Invariant: an undeclared interference is always a typed
-error; no blanket "disable interference checking" exists.
+interference. Invariant: inside one body an interference is always a
+typed error, and at rest between two copies it is always a finding
+(ASSEMBLY A5 *Interference.*), loud unless an assertion at its site
+quiets it; no blanket "disable interference checking" exists.
 
 **C7 — The join lane.** At the curved coplanar-lump sites (`vtxfac.rs`,
 `recl.rs`) a tangent pair the witness lane decides, declared or not (the
@@ -447,8 +449,10 @@ declared-pair machinery D10 retires
 (`work/contacthold/ef-bound-backed-migrates-to-region-confinement.md`).
 
 **`EdgeFacePierce` stays categorical.** A transverse dive is
-interpenetration until a C6 vocabulary exists; the recourse is
-separating the bodies or making the crossing a boolean's working state.
+interpenetration, and no declaration backs it. Inside one body the
+recourse is separating the solids or making the crossing a boolean's
+working state; at rest between two copies it is interference evidence,
+reported as ASSEMBLY A5's interference finding.
 
 **The `interior_witness` schedule.** A flush seat's trims share a
 boundary, so the region walk refuses `TouchingBoundary`; the witness rung

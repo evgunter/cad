@@ -27,11 +27,11 @@
 //!   the chart-region predicate); declared curve/patch records (the
 //!   jet schedule; the patch certifier). A proper pierce
 //!   (`EdgeFacePierce`) is CATEGORICALLY undeclarable at rest — a
-//!   transverse dive is interpenetration, and the vocabulary that
-//!   could admit one (C6's recorded interference gate-skips) does
-//!   not exist yet; the MATE-4b ruling defers that arm to C6's era
-//!   BY NAME. The recourse is separating the bodies or making the
-//!   crossing a boolean's working state. An in-plane `EdgeEdgeCross`
+//!   transverse dive is interpenetration, and no record backs it.
+//!   Between two copies at rest the assembly layer reports it as an
+//!   interference finding; inside one body the recourse is separating
+//!   the solids or making the crossing a boolean's working state. An
+//!   in-plane `EdgeEdgeCross`
 //!   at a declared seat is different: it is what an overhanging seat
 //!   looks like from the census's side, and it is backable at the
 //!   unified strength ([`ee_cross_backed`] — the crossing point in
@@ -1847,14 +1847,11 @@ fn pair_edge_face<T: Decide>(
             //
             // NO backing rung is consulted, deliberately: a
             // transverse dive through a face's interior is
-            // interpenetration however the seat is declared,
-            // and the vocabulary that could admit one —
-            // C6's recorded interference gate-skips — does
-            // not exist yet. The MATE-4b ruling defers this
-            // class to that era BY NAME (staging, stage 2);
-            // the crossing rung [`ee_cross_backed`] is the
-            // in-contact-plane stage 1 and does not reach
-            // here.
+            // interpenetration however the seat is declared
+            // (between two copies at rest, the assembly
+            // layer's interference evidence); the crossing
+            // rung [`ee_cross_backed`] is the in-contact-plane
+            // case and does not reach here.
             if contain(body, f, q, band, errors) == Some(FaceContainment::In) {
                 errors.push(ValidationError::UndeclaredContact {
                     contact: CensusContact::EdgeFacePierce {
@@ -2496,8 +2493,8 @@ enum CrossingBacking {
 /// paragraph, not an accident.
 ///
 /// Curved pairs are outside the planar-first rung and never answer;
-/// `EdgeFacePierce` takes NO rung at all (the MATE-4b staging: a
-/// transverse dive is interpenetration until C6's era, by name).
+/// `EdgeFacePierce` takes NO rung at all: a transverse dive is
+/// interpenetration.
 #[allow(clippy::too_many_arguments)] // the rung's whole state, no less
 fn ee_cross_backed<T: Decide>(
     body: &Body<T>,
@@ -5254,10 +5251,10 @@ pub(crate) fn gate_role<T: Decide + crate::props::AtRestPolicy>(
 /// The unsound direction is a deferral keyed on *whether* records
 /// exist: a truthful declaration then switches the containment
 /// examination off, and an instance embedded in another's material
-/// validates clean — which it did until the deferral was removed. What
-/// a recorded interference fit is, and what it may skip, is C6's
-/// ratified text (`crates/editor-core/ASSEMBLY.md`); recorded
-/// gate-skips are not implemented.
+/// validates clean — which it did until the deferral was removed. No
+/// record admits an interference: between two copies at rest the
+/// assembly layer reports it as a finding (ASSEMBLY A5
+/// *Interference.*).
 #[allow(clippy::too_many_arguments)] // the census's fixed sweep signature plus `tol` for one consumer
 fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,

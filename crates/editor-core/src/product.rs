@@ -57,8 +57,8 @@
 //! compares one solid against another and solids that OVERLAP pass THIS
 //! call undetected — inter-solid interference is not among its checks.
 //! It is not local in what it REPORTS (`attribute_at_rest`). Undeclared
-//! cross-instance contact is A5's hard error and interference fits are
-//! C6's recorded-gate-skips territory; both are decided by the tier-3′
+//! cross-instance contact is A5's hard error and an overlap between
+//! copies is A5's interference finding; both are decided by the tier-3′
 //! door ([`topo::validate_pseudomanifold`]), which the ASSEMBLY gate
 //! runs over this gather's output ([`crate::assemble`]) and which this
 //! function does not. The aggregate gate's verdict rides on the
