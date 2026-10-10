@@ -2,10 +2,10 @@
 //! its evidence enums, crossing Rust → Python.
 //!
 //! A finding is a REPORT — `Evaluation.find_flush_candidates` answers
-//! with these values, the caller INSPECTS them, and `Node.boolean` /
-//! `Node.union`'s `declare=`, `Doc.declare` / `Doc.declare_all` and
-//! `DocEdit.set_declare` put inspected findings on a boolean or union
-//! as its declared pairs. The no-fusion boundary is kept
+//! with these values, the caller INSPECTS them, and `Node.union` /
+//! `Node.intersect` / `Node.subtract`'s `declare=`, `Doc.declare` /
+//! `Doc.declare_all` and `DocEdit.set_declare` put inspected findings
+//! on one of those nodes as its declared pairs. The no-fusion boundary is kept
 //! across the language boundary: no door here both detects and
 //! declares.
 //!
@@ -76,7 +76,8 @@ pub(crate) enum FlushRung {
 }
 
 /// One flush finding: "this face pair would verify as declared" — a
-/// VALUE to inspect and pass to a boolean's or union's `declare=`,
+/// VALUE to inspect and pass to a union's, an intersect's or a
+/// subtract's `declare=`,
 /// `Doc.declare` / `Doc.declare_all` or `DocEdit.set_declare`, never
 /// itself a declaration. The detector's reach
 /// is the carrier ladder's, so the pair may be cosurface on a plane, a
@@ -84,12 +85,12 @@ pub(crate) enum FlushRung {
 ///
 /// `a` and `b` are the pair's names as opaque text (`a` from the
 /// query's first node, `b` from its second). Each side also carries
-/// the NODE it was read at, which is what makes a finding declarable
-/// straight back through `Doc.declare` / `declare=` — the site is
-/// the side, so nothing downstream has to recover it. That site is
-/// not exposed as an attribute: a name here is opaque text, and a
-/// node id beside it would be the one part a caller could act on
-/// wrongly. `relation` is the verify
+/// the READ it is sited at — the node's output the declaring node takes
+/// it in through — which is what makes a finding declarable straight
+/// back through `Doc.declare` / `declare=` — the site is the side, so
+/// nothing downstream has to recover it. That site is not exposed as
+/// an attribute: a name here is opaque text, and a read beside it
+/// would be the one part a caller could act on wrongly. `relation` is the verify
 /// door's own verdict (`SameOpposite` = resting contact, opposed
 /// material sides; `SameOriented` = flush walls, a continuation);
 /// `class_` names what a declaration would assert (trailing underscore:

@@ -466,7 +466,6 @@ fn a_split_keeps_a_named_crossing_selection_shared() {
 #[test]
 fn inline_rehosts_a_selection_downstream_of_the_instance() {
     use crate::fixture::resolver::PartStore;
-    use editor_core::BooleanOp;
     use std::sync::Arc;
     let (doc, p) = placed_prism(ProfileDoc::empty(
         editor_core::DocumentId::derive("s2e-inline-downstream"),
@@ -475,10 +474,8 @@ fn inline_rehosts_a_selection_downstream_of_the_instance() {
     let (doc, q) = prism(doc, 0.5);
     let (doc, union) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: p.extrude.into(),
-            b: q.node.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![p.extrude.into(), q.node.into()]),
             declare: Vec::new(),
         },
     );
@@ -525,10 +522,8 @@ fn stranded_selections(rows: &[editor_core::Maintenance]) -> usize {
 fn union_of(doc: ProfileDoc, a: RecipeNodeId, b: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     )
@@ -536,7 +531,7 @@ fn union_of(doc: ProfileDoc, a: RecipeNodeId, b: RecipeNodeId) -> (ProfileDoc, R
 
 /// **A re-point strands a named selection whether or not anything
 /// reads it**, as a delete does. A fillet's selection of a union is
-/// named and the fillet deleted; re-pointing the union's first operand
+/// named and the fillet deleted; re-pointing the union's first member
 /// away from the prism the name was minted on reports the selection,
 /// once, exactly as deleting that prism does.
 #[test]
@@ -563,7 +558,7 @@ fn a_re_point_reports_an_unread_named_selection_as_a_delete_does() {
         &doc,
         DocEdit::SetParam {
             node: u,
-            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::A),
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Member(0)),
             value: editor_core::SlotValue::Read(Operand::Node(r.node)),
             fresh: Vec::new(),
         },

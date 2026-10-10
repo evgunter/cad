@@ -37,11 +37,12 @@ use std::time::Instant;
 use crate::corpus::{self, Recorder};
 use crate::fixture::{self, len, scl};
 use editor_core::{
-    BooleanOp, Diagnosis, EntityKind, EvalOptions, Evaluation, ExtrudeSide, FaceName, Formula,
-    HitTestError, InterrogateError, NameTable, NameTables, Node, NodeError, NodeErrorKind,
-    PatternKind, PickHit, ProfileDoc, RecipeEditRef, RecipeNodeId, ResolveError, RoleSeg,
-    SelectRefusal, Speaker, StableName,
+    Diagnosis, EntityKind, EvalOptions, Evaluation, ExtrudeSide, FaceName, Formula, HitTestError,
+    InterrogateError, NameTable, NameTables, Node, NodeError, NodeErrorKind, PatternKind, PickHit,
+    ProfileDoc, RecipeEditRef, RecipeNodeId, ResolveError, RoleSeg, SelectRefusal, Speaker,
+    StableName,
 };
+use topo::BooleanOp;
 
 /// **The rows admitted over the word budget at the 90th-percentile
 /// name, and the most words each may render**: a ratchet, so a row
@@ -51,9 +52,16 @@ use editor_core::{
 /// body's names are held twice, by the body and by its world copy, so
 /// the 90th-percentile name is a longer one of the same corpus (37
 /// words in full). No name a document held before grew.
+///
+/// Both rows forward two names, and the corpus's 90th-percentile name
+/// is a die pip's band face joined into the cutting tool and cut into
+/// the die: every member of a union says its join (FORK-DM4), so that
+/// name says two joins where a pair boolean's `a` operand said none.
+/// The crossing row says its claimed name by tag, which says each read
+/// a carry came through.
 const OVER_BUDGET: &[(&str, usize)] = &[
-    ("SelectRefusal::PairInBand", 76),
-    ("NodeErrorKind::CrossingUnverified", 76),
+    ("SelectRefusal::PairInBand", 82),
+    ("NodeErrorKind::CrossingUnverified", 80),
 ];
 
 /// **The rows whose own prose states its recourse in words the standard
@@ -85,9 +93,18 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// so its longer names weigh twice in the tail and the full p99 reads
 /// 106. The total fell by twice main's drop; the p50s, the scoped row
 /// and the maxima held.
+///
+/// Every number rose with the three boolean nodes (FORK-DM4): a union's
+/// or an intersect's every member says its join and the read it came in
+/// through ("…, joined at Union d1aa from Extrude e548"), where a pair
+/// boolean's `a` operand was silent and its `b` said the join alone. A
+/// list has no primary member, so the longer names are the reading, not
+/// a regression. Merged over INTENT stage 2 C and D, both effects add:
+/// a world copy says its body's name, joins and all, under "the world
+/// copy of".
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 38, 38, 49_844]),
-    ("full", [19, 106, 181, 365_724]),
+    ("scoped faces", [16, 43, 57, 55_693]),
+    ("full", [19, 123, 196, 411_350]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -123,12 +140,9 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// `… cd9c076ade6a`). The placement is minted after the assertion,
 /// whose stored field `dir` became `relation`.
 ///
-/// INTENT stage 2 PR E, merged over stage 5 A: 6558 of 46614 words
-/// moved, every one a node tag — with each tag masked the two word
-/// lists are equal. A blend, shell, face frame or measure now reads a
-/// selection its insert mints, so its id and every id minted after it
-/// in the seven documents that hold one moved.
-const SAID_DIGEST: u64 = 0x163c_215a_961e_d3a1;
+/// The three boolean nodes moved it with [`NAME_WORDS`]: every member
+/// says its join, and a carry said by tag says the read it came through.
+const SAID_DIGEST: u64 = 0x923c_f479_cf51_72a7;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -571,11 +585,21 @@ fn moved(r: &mut Recorder, input: RecipeNodeId, by: [f64; 3]) -> RecipeNodeId {
 }
 
 fn boolean(r: &mut Recorder, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> RecipeNodeId {
-    r.insert(Node::Boolean {
-        op,
-        a: a.into(),
-        b: b.into(),
-        declare: Vec::new(),
+    let declare = Vec::new();
+    r.insert(match op {
+        BooleanOp::Subtract => Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
+            declare,
+        },
+        BooleanOp::Union => Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            declare,
+        },
+        BooleanOp::Intersect => Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            declare,
+        },
     })
 }
 
@@ -838,14 +862,28 @@ fn each_boolean_join_says_its_operation() {
             .unwrap_or_else(|| panic!("{op:?} evaluates: {:?}", corpus::failures(&ev)))
             .name_table;
         let by = Speaker::of(&r.doc);
+        let pin_read = fixture::out(&r.doc, pin);
+        // A member's join also says the read it came in through; a
+        // subtract's tool is its one cut-in read, said by the verb alone.
+        let from = match op {
+            BooleanOp::Subtract => String::new(),
+            BooleanOp::Union | BooleanOp::Intersect => {
+                format!(" from Extrude {}", test_utils::refusal::tag(pin.0.digest()))
+            }
+        };
         let join = format!(
-            ", {verb} at {noun} {}",
+            ", {verb} at {noun} {}{from}",
             test_utils::refusal::tag(at.0.digest())
         );
         let through_b: Vec<String> = table
             .iter()
             .map(|(name, _)| name)
-            .filter(|name| matches!(name.path.as_slice(), [RoleSeg::FromB(_)]))
+            .filter(|name| {
+                matches!(
+                    name.path.as_slice(),
+                    [RoleSeg::From { read, .. }] if *read == pin_read
+                )
+            })
             .map(|name| by.name(name).to_string())
             .collect();
         assert!(
@@ -871,7 +909,7 @@ fn two_copies_of_one_body_read_apart_where_a_sentence_names_both() {
     let two = moved(&mut r, block, [0.5, 0.0, 0.0]);
     let doc = r.doc;
     let ev = fixture::run(&doc, &EvalOptions::default());
-    let findings = editor_core::find_flush_candidates(&ev, one, two, fixture::tol())
+    let findings = editor_core::find_flush_candidates(&ev, &doc, one, two, fixture::tol())
         .expect("the copies' flush faces are decided");
     let alike = findings
         .iter()

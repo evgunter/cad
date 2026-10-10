@@ -29,10 +29,9 @@ use editor_core::Formula;
 use std::collections::BTreeMap;
 
 use editor_core::{
-    Alignment, AxisSense, BooleanOp, CapEnd, ContactClass, ContentPin, DocRef, DocumentId,
-    EvalOptions, MateFrame, MatePrimitive, MateReach, Node, NodeErrorKind, NodeResult, PartFault,
-    PartResolver, ProfileDoc, ReachRefusal, RecipeNodeId, ResolveFailure, ResolveFault, mate_reach,
-    product,
+    Alignment, AxisSense, CapEnd, ContactClass, ContentPin, DocRef, DocumentId, EvalOptions,
+    MateFrame, MatePrimitive, MateReach, Node, NodeErrorKind, NodeResult, PartFault, PartResolver,
+    ProfileDoc, ReachRefusal, RecipeNodeId, ResolveFailure, ResolveFault, mate_reach, product,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{at_the_door, insert, len, on_frame, run, square};
@@ -87,10 +86,8 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
     );
     let (doc, union) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: block.into(),
-            b: boss.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![block.into(), boss.into()]),
             declare: Vec::new(),
         },
     );

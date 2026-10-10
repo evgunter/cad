@@ -1436,7 +1436,13 @@ pub(crate) fn mint<P: crate::ProfilePayload, T: Decide>(
                     "a live mate's two references resolved to one face: \
                      the solve door's `SelfMate` refusal was bypassed"
                 );
-                at_rest.decide(id, body, (a, face_a), (b, face_b), band);
+                // Each side's cell is named at its instance's read: an
+                // instance defines its body's variable at insert.
+                let read = |r: &crate::node::SitedFace| {
+                    doc.output(r.at, 0)
+                        .unwrap_or_else(|| unreachable!("an instance defines its output"))
+                };
+                at_rest.decide(id, body, (a, face_a, read(a)), (b, face_b, read(b)), band);
             }
             other => {
                 unminted.push(MintRefusal::NoAtRestRecord {
@@ -1488,8 +1494,8 @@ impl AtRestRows {
         &mut self,
         mate: RecipeNodeId,
         body: &topo::Body<T>,
-        (a, face_a): (&SitedFace, FaceKey),
-        (b, face_b): (&SitedFace, FaceKey),
+        (a, face_a, read_a): (&SitedFace, FaceKey, crate::VarId),
+        (b, face_b, read_b): (&SitedFace, FaceKey, crate::VarId),
         band: Result<geom_core::Band, geom_core::BandError>,
     ) {
         let decided = match band {
@@ -1498,15 +1504,15 @@ impl AtRestRows {
         };
         match decided {
             Ok(row) => {
-                let cell = |r: &SitedFace| crate::coincide::NamedCell::Entity {
-                    input: r.at,
+                let cell = |r: &SitedFace, input| crate::coincide::NamedCell::Entity {
+                    input,
                     name: (*r.name).clone(),
                 };
                 let k = u32::try_from(self.coincidences.len()).unwrap_or(u32::MAX);
                 self.coincidences.push(AtRestRow {
                     mate,
                     row: crate::coincide::NamedCoincidence {
-                        cells: [cell(a), cell(b)],
+                        cells: [cell(a, read_a), cell(b, read_b)],
                         relation: row.relation,
                         site: row.site,
                         margin: row.margin,
@@ -1636,7 +1642,15 @@ fn resolve_face<P: crate::ProfilePayload, T: Decide>(
                 continue;
             };
             let defined_by = |var| doc.read_operation(var);
-            for step in crate::names::lift(consumer, consumer_node, node, &name, &defined_by) {
+            let selected_body = |var| doc.selection(var).map_or(var, |select| select.body);
+            for step in crate::names::lift(
+                consumer,
+                consumer_node,
+                node,
+                &name,
+                &defined_by,
+                &selected_body,
+            ) {
                 match step {
                     crate::names::Lift::Spelled(carried) if spells(consumer, &carried) => {
                         frontier.push_back((consumer, carried));

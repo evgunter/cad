@@ -70,7 +70,7 @@ test_utils::f6_variants! {
         UnplaceableFrame, MatePlaced, Unplaced,
         MovedMemberOffset, PartDeadGauge, MateFrameCrosses, MatePairSplits,
         InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep,
-        StrandedPartName, Edit,
+        StrandedPartName, StrandedPartRead, Edit,
     ];
 }
 
@@ -313,6 +313,10 @@ fn inline_refusals() -> Vec<InlineError> {
         InlineError::StrandedPartName {
             name: name(),
             missing: s(6, "Extrude"),
+        },
+        InlineError::StrandedPartRead {
+            name: name(),
+            read: editor_core::SpokenVar::new(editor_core::VarId::new(0, 6), None),
         },
         InlineError::Edit {
             error: Box::new(EditError::UnknownNode {

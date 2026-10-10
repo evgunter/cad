@@ -332,7 +332,7 @@ fn die(tol: Tol) -> Die {
     assert!(
         matches!(doc.node(composed), Some(Node::Fillet { .. }))
             && matches!(doc.node(box_blend), Some(Node::Fillet { .. }))
-            && matches!(doc.node(cut), Some(Node::Boolean { .. }))
+            && matches!(doc.node(cut), Some(Node::Subtract { .. }))
             && matches!(doc.node(cube), Some(Node::Extrude { .. })),
         "the die is rim-blend over box-blend over cut over extrude"
     );

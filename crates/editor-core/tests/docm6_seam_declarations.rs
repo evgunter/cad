@@ -1210,10 +1210,8 @@ fn union_with_far_cube(
     let doc = place(doc, far, [50.0, 0.0, 0.0]);
     insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: a.into(),
-            b: far.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), far.into()]),
             declare: Vec::new(),
         },
     )

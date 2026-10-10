@@ -22,7 +22,7 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, CountMismatch, DocEdit, EditError, Formula, Frame, Node, NodeErrorKind, NodeResult,
+    CountMismatch, DocEdit, EditError, Formula, Frame, Node, NodeErrorKind, NodeResult,
     PatternKind, PlacementRuleFault, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, ValuePayload,
     apply,
 };
@@ -141,10 +141,8 @@ fn the_fin_group_equals_the_transform_union_chain() {
                 let u = apply(
                     &chain,
                     &DocEdit::InsertNode {
-                        node: Box::new(Node::Boolean {
-                            op: BooleanOp::Union,
-                            a: a.into(),
-                            b: placed.into(),
+                        node: Box::new(Node::Union {
+                            members: editor_core::Bodies::Spelled(vec![a.into(), placed.into()]),
                             declare: Vec::new(),
                         }),
                         fresh: Vec::new(),
@@ -258,10 +256,7 @@ fn the_die_tool_is_one_node_and_still_cuts() {
     for id in d.doc.ids() {
         match d.doc.node(id) {
             Some(Node::PlacedUnion { .. }) => groups += 1,
-            Some(Node::Boolean {
-                op: BooleanOp::Union,
-                ..
-            }) => unions += 1,
+            Some(Node::Union { .. }) => unions += 1,
             Some(Node::Transform { .. }) => transforms += 1,
             _ => {}
         }
@@ -916,10 +911,8 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
                 let u = apply(
                     &cdoc,
                     &DocEdit::InsertNode {
-                        node: Box::new(Node::Boolean {
-                            op: BooleanOp::Union,
-                            a: a.into(),
-                            b: placed.into(),
+                        node: Box::new(Node::Union {
+                            members: editor_core::Bodies::Spelled(vec![a.into(), placed.into()]),
                             declare: Vec::new(),
                         }),
                         fresh: Vec::new(),

@@ -9,10 +9,13 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::AuthoredNode;
-use pncad::document::{Datum, Dimension, DimensionError, Formula, Node, Operand, RecipeNodeId};
+use pncad::document::{
+    Bodies, Datum, DeclaredPair, Dimension, DimensionError, Formula, Node, Operand, RecipeNodeId,
+};
 use pncad::prelude::StableName;
 use pncad::profile::SketchPlane;
 use pncad::select::SplitHalf;
+use pncad::topo::BooleanOp;
 
 /// The literal payload of one add-datum form (GAUTH-1): plain numbers
 /// in canonical units. The SESSION mints the `Expr` literals and
@@ -263,6 +266,71 @@ pub enum PartSelectSpec {
     SplitHalf(SplitHalf),
     /// The `i`-th instance of a `Node::Pattern` value.
     Instance(i64),
+}
+
+/// **What one boolean authors**: the operation and its operands, in
+/// the shape the node it lowers to takes ([`BooleanSpec::node`]).
+///
+/// Union and intersect take a LIST — any count is a document the door
+/// accepts (one member builds that body, none the typed empty body,
+/// and a node spelled twice glues) — while subtract takes exactly two
+/// operands that are not interchangeable: `from` is the body KEPT and
+/// `tool` the body REMOVED. Three arms rather than an operation beside
+/// a list, so a subtraction of the wrong count has no spelling.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BooleanSpec {
+    /// The material in any member, members in fold order.
+    Union(Vec<RecipeNodeId>),
+    /// The material in every member, members in fold order.
+    Intersect(Vec<RecipeNodeId>),
+    /// `from` with `tool` cut away.
+    Subtract {
+        /// The body kept.
+        from: RecipeNodeId,
+        /// The body removed.
+        tool: RecipeNodeId,
+    },
+}
+
+impl BooleanSpec {
+    /// The operation — the kernel's enum, the boolean form's choice.
+    pub fn op(&self) -> BooleanOp {
+        match self {
+            Self::Union(_) => BooleanOp::Union,
+            Self::Intersect(_) => BooleanOp::Intersect,
+            Self::Subtract { .. } => BooleanOp::Subtract,
+        }
+    }
+
+    /// Every operand, in the node's order: the members, or `from`
+    /// then `tool`.
+    pub fn operands(&self) -> Vec<RecipeNodeId> {
+        match self {
+            Self::Union(members) | Self::Intersect(members) => members.clone(),
+            Self::Subtract { from, tool } => vec![*from, *tool],
+        }
+    }
+
+    /// Lower to the node, carrying `declare` as its declared pairs.
+    pub fn node(&self, declare: Vec<DeclaredPair>) -> AuthoredNode {
+        let spelled =
+            |members: &[RecipeNodeId]| Bodies::Spelled(members.iter().map(Into::into).collect());
+        match self {
+            Self::Union(members) => Node::Union {
+                members: spelled(members),
+                declare,
+            },
+            Self::Intersect(members) => Node::Intersect {
+                members: spelled(members),
+                declare,
+            },
+            Self::Subtract { from, tool } => Node::Subtract {
+                from: (*from).into(),
+                tool: (*tool).into(),
+                declare,
+            },
+        }
+    }
 }
 
 /// Lower one datum spec to its node.

@@ -1077,7 +1077,7 @@ pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'sta
         }
         Node::Datum(_) => (family::DATUM, false),
         Node::Profile(_) => (family::PROFILE, false),
-        Node::Boolean { .. } => (family::BOOLEAN, true),
+        Node::Subtract { .. } => (family::BOOLEAN, true),
         Node::Split { .. } => (family::SPLIT, false),
         Node::Pattern { .. } => (family::INSTANCES, true),
         Node::Mate { .. } => (family::MATE, false),
@@ -1094,6 +1094,7 @@ pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'sta
         | Node::Chamfer { .. }
         | Node::Shell { .. }
         | Node::Union { .. }
+        | Node::Intersect { .. }
         | Node::PlacedUnion { .. }
         | Node::Part { .. }
         | Node::PlaceInWorld { .. }
@@ -1681,17 +1682,6 @@ pub enum NodeErrorKind {
         /// The empty half.
         half: crate::names::SplitHalf,
     },
-    /// A union read two of its members out of one operation — a
-    /// split's two halves. Its names key each member by the operation
-    /// it reads (DM4), so the two would carry one key; it refuses
-    /// before any fold rather than naming one member's faces as the
-    /// other's.
-    MembersShareAnOperation {
-        /// The operation both members are read out of.
-        operation: RecipeNodeId,
-        /// The two members' positions in the list, earlier first.
-        members: (u32, u32),
-    },
     /// A [`crate::Node::Part`] indexed a pattern's instances outside
     /// `0..count`. A negative index lands here too — the index is
     /// neither wrapped nor clamped, because either would be a body the
@@ -1865,8 +1855,11 @@ pub enum NodeErrorKind {
     /// only a fold step raises names the step, so it is never read as a
     /// pair's.
     UnionFoldStep {
-        /// The member the refusing step folds in.
-        member: RecipeNodeId,
+        /// The position, in the node's member list, of the member the
+        /// refusing step folds in: members of one family share a read.
+        member: u32,
+        /// That member's read.
+        read: crate::VarId,
         /// The step's refusal.
         refusal: Box<NodeErrorKind>,
     },
@@ -1901,8 +1894,8 @@ pub enum NodeErrorKind {
     /// table that holds the name, so a name neither half holds, or
     /// both, lands on this arm.
     DeclareSiteNotAnOperand {
-        /// The site the pair named.
-        at: crate::node::RecipeNodeId,
+        /// The read the pair named as its site.
+        at: crate::VarId,
     },
     /// A declared pair outside the v1 threading vocabulary, which is
     /// enumerated once — in `eval::wire`'s `DeclaredStep` — and is
@@ -2398,18 +2391,6 @@ impl crate::spoken::Say for NodeErrorKind {
                 },
                 by.node(*input)
             ),
-            Self::MembersShareAnOperation {
-                operation,
-                members: (i, j),
-            } => write!(
-                f,
-                "members {} and {} of this union are both read out of {}, and a union keys \
-                 each member's names by the operation it reads; join the two with a pair \
-                 boolean",
-                u64::from(*i) + 1,
-                u64::from(*j) + 1,
-                by.node(*operation)
-            ),
             Self::InstanceOutOfRange {
                 input,
                 index,
@@ -2588,10 +2569,14 @@ impl crate::spoken::Say for NodeErrorKind {
             // kernel refusal riding the variant — it has no other route
             // to a human, so it is carried through rather than dropped.
             Self::Naming(e) => write!(f, "name emission failed: {}", Said(e, by)),
-            Self::UnionFoldStep { member, refusal } => write!(
+            Self::UnionFoldStep {
+                member,
+                read,
+                refusal,
+            } => write!(
                 f,
-                "the union's fold refused at the step that folds in {}: {}",
-                by.node(*member),
+                "the fold refused at the step that folds in member {member} ({}): {}",
+                by.read(*read),
                 Said(refusal.as_ref(), by)
             ),
             Self::DeclareResolve { error, reference } => resolve_failed(
@@ -2604,10 +2589,9 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::DeclareSiteNotAnOperand { at } => write!(
                 f,
                 "a declared entity is sited at {}, and no one operand of this node read \
-                 there holds it — site each side at the member (or the boolean operand) whose \
-                 table holds it; the two halves of one split share their site, so a side \
-                 between them names an entity only one half holds",
-                by.node(*at)
+                 through it holds it — site each side at the read (a member, or the subtract's \
+                 `from` or `tool`) whose table holds it",
+                by.read(*at)
             ),
             Self::DeclareUnsupportedPair { kinds, .. } => write!(
                 f,
@@ -4731,6 +4715,20 @@ mod tag {
             ABSENT = 0,
             PRESENT = 1,
         }
+        /// A union's or an intersect's argument form, read before its
+        /// declared pairs: a family read whole, or reads spelled.
+        bodies {
+            FAMILY = 1,
+            SPELLED = 2,
+        }
+        /// The word before a node's indexed reads ([`crate::BodyRead`]),
+        /// written only by a node holding one, so a node of plain reads
+        /// keeps its stream; then each indexed read's place among the
+        /// node's body seats and its number of indices. The index
+        /// values are slots, fed with the slot values.
+        index {
+            READS = 1,
+        }
         /// The mate's fault flag, read after its role word: whether the
         /// solve recorded a fault against the node.
         fault {
@@ -5225,11 +5223,12 @@ where
         Node::Extrude { .. } => document_verb_tag(verbs::VerbKind::Extrude),
         Node::Revolve { .. } => document_verb_tag(verbs::VerbKind::Revolve),
         Node::Split { .. } => document_verb_tag(verbs::VerbKind::Split),
-        // The numbers are not written here: a migrated verb's tag is a
-        // function of the KERNEL's name for it, and the boolean's name
-        // carries its op (`VerbKind::Boolean(op)` — the three
-        // regularized ops are three names in the vocabulary).
-        Node::Boolean { op, .. } => document_verb_tag(verbs::VerbKind::Boolean(*op)),
+        // The number is not written here: a migrated verb's tag is a
+        // function of the KERNEL's name for it, the regularized
+        // difference (`VerbKind::Boolean(Subtract)`).
+        Node::Subtract { .. } => {
+            document_verb_tag(verbs::VerbKind::Boolean(topo::BooleanOp::Subtract))
+        }
         Node::Transform { .. } => 11,
         Node::Pattern { kind, .. } => match kind {
             PatternKind::Linear { .. } => 12,
@@ -5284,15 +5283,13 @@ where
         // different payloads, so a shared key would serve one's geometry
         // for the other out of the memo.
         Node::Datum(Datum::AxisInPlane { .. }) => 30,
-        // The n-ary union's tag. It does NOT share the pair union's 8:
-        // both carry declared pairs, but their operands differ (a
-        // member list against two named operands) and they mint
-        // different names, so a shared key would serve one's geometry
-        // and table for the other out of the memo. The member list
-        // itself is not written here — members are input EDGES, and
-        // the inputs' own keys carry them in list order below, which
-        // is the rule `Loft`'s profiles already run on.
+        // The union's tag, and the intersect's fresh word. The member
+        // list itself is not written here — members are input EDGES,
+        // and the inputs' own keys carry them in list order below,
+        // which is the rule `Loft`'s profiles already run on; whether
+        // the argument is a family or spelled is payload, fed below.
         Node::Union { .. } => 31,
+        Node::Intersect { .. } => 38,
         // The derived sketch frame. It does NOT share the authored
         // frame's 27 even though it evaluates to the same value kind:
         // the two carry different payloads (a body edge, a face name
@@ -5574,18 +5571,19 @@ where
         }
         // The declared pairs are payload, not edges, so they feed the
         // key by hand ([`feed_declared`]).
-        // The op is in the tag (`VerbKind::Boolean(op)`); the operands
-        // and the members are input edges.
-        Node::Boolean {
-            op: _,
-            a: _,
-            b: _,
-            declare,
-        }
-        | Node::Union {
-            members: _,
+        // The operands and the members are input edges.
+        Node::Subtract {
+            from: _,
+            tool: _,
             declare,
         } => {
+            feed_declared(&mut h, declare);
+        }
+        Node::Union { members, declare } | Node::Intersect { members, declare } => {
+            h.write_tag(match members {
+                crate::Bodies::Family(_) => tag::bodies::FAMILY,
+                crate::Bodies::Spelled(_) => tag::bodies::SPELLED,
+            });
             feed_declared(&mut h, declare);
         }
         // LIB-PLACEDUNION: an `Explicit` rule's FRAMES are recipe
@@ -5819,6 +5817,21 @@ where
             placement,
         } => {
             feed_placement_shape(&mut h, placement);
+        }
+    }
+    let indexed: Vec<(usize, usize)> = node
+        .body_reads()
+        .into_iter()
+        .enumerate()
+        .filter(|(_, (_, read))| read.is_indexed())
+        .map(|(place, (_, read))| (place, read.at.len()))
+        .collect();
+    if !indexed.is_empty() {
+        h.write_tag(tag::index::READS);
+        h.write_u64(indexed.len() as u64);
+        for (place, rank) in indexed {
+            h.write_u64(place as u64);
+            h.write_u64(rank as u64);
         }
     }
     // Evaluated slot values, in the node's deterministic slot order,
@@ -6527,9 +6540,7 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::RevolveCap => 13,
         S::Pole => 14,
         S::AxisEdge => 15,
-        S::FromA => 16,
-        S::FromB => 17,
-        S::FromMember => 41,
+        S::From => 52,
         S::Seam => 18,
         S::Crossing => 47,
         S::EdgeCrossing => 48,
@@ -6541,7 +6552,6 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::SplitFragment => 24,
         S::CrossingVertex => 25,
         S::OnToolVertex => 27,
-        S::FromTarget => 28,
         S::BlendFace => 29,
         S::CornerFace => 30,
         S::TrimEdge => 31,
@@ -6724,11 +6734,14 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::AxisEdge(r) => {
             run(h, r);
         }
-        RoleSeg::FromA(inner) => {
-            h.name(inner);
-        }
-        RoleSeg::FromB(inner) => {
-            h.name(inner);
+        // An entity carried in: BOTH halves feed. Two members of one
+        // union can be placements of ONE body and then carry the same
+        // inner name, so a key without the read would give their
+        // entities one key — the memo hazard the segment vocabulary
+        // exists to prevent.
+        RoleSeg::From { read, of } => {
+            h.write_id(read.0);
+            h.name(of);
         }
         RoleSeg::Seam { a, b } => {
             h.name(a);
@@ -6790,9 +6803,6 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             h.write_u64(u64::from(*i));
             h.name(of);
         }
-        RoleSeg::FromTarget(n) => {
-            h.name(n);
-        }
         RoleSeg::BlendFace(n) => {
             h.name(n);
         }
@@ -6836,16 +6846,6 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             for n in band {
                 h.name(n);
             }
-        }
-        // The n-ary union's member key. BOTH halves feed: two members
-        // of one union can be
-        // placements of ONE prototype and then carry the same inner
-        // name, so a key without the member edge would give their
-        // entities one key — the memo hazard the segment vocabulary
-        // exists to prevent.
-        RoleSeg::FromMember { member, of } => {
-            h.write_id(member.0);
-            h.name(of);
         }
         // The shell's three roles. Each wraps one source name; the hole
         // rim carries its pairing index beside it, the way `Instance`
@@ -7193,11 +7193,11 @@ mod tag_vocabulary_tests {
             seen.push((*seg, tag));
         }
         assert_eq!(seen.len(), SegTag::ALL.len());
-        // The newest words, pinned: the union's member key and the
+        // The newest words, pinned: the carried-in read key and the
         // shell's three roles, read off the source the numbers were
         // committed in.
         for (seg, want) in [
-            (SegTag::FromMember, 41),
+            (SegTag::From, 52),
             (SegTag::Inner, 42),
             (SegTag::Rim, 43),
             (SegTag::HoleRim, 44),

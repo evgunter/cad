@@ -252,7 +252,7 @@ node should not hide the state of every other node. So `evaluate` is
 *total* — it always returns, and each node carries its own outcome.
 
 ```python
-from pncad import BooleanOp, Doc, EvaluationError, Formula, Node, evaluate, mm
+from pncad import Doc, EvaluationError, Formula, Node, evaluate, mm
 
 
 def slab(doc, z0, z1):
@@ -275,7 +275,7 @@ def slab(doc, z0, z1):
 doc = Doc()
 lower = slab(doc, 0 * mm, 10 * mm)
 upper = slab(doc, 10.000002 * mm, 20 * mm)
-fused = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
+fused = doc.insert(Node.union([lower, upper]))
 
 ev = evaluate(doc)                     # does NOT raise
 assert ev.succeeded(lower)             # the operands are fine...
@@ -296,7 +296,7 @@ margins decided one surface, each naming its two faces by the names
 their own operands gave them.
 
 ```python
-from pncad import BooleanOp, Doc, Formula, Node, evaluate, mm
+from pncad import Doc, Formula, Node, evaluate, mm
 
 
 def slab(doc, z0, z1):
@@ -317,7 +317,7 @@ def slab(doc, z0, z1):
 doc = Doc()
 lower = slab(doc, 0 * mm, 10 * mm)
 upper = slab(doc, 10 * mm, 20 * mm)   # they meet exactly at z = 10 mm
-glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
+glued = doc.insert(Node.union([lower, upper]))
 
 ev = evaluate(doc)
 body = ev.value(glued).body()
@@ -337,7 +337,7 @@ A node downstream of a failure is not itself broken — it is
 **poisoned**, and it says so, naming the node that actually failed:
 
 ```python
-from pncad import BooleanOp, Doc, EvaluationError, Formula, Node, evaluate, mm
+from pncad import Doc, EvaluationError, Formula, Node, evaluate, mm
 
 doc = Doc()
 
@@ -359,9 +359,9 @@ def slab(z0, z1):
 
 lower = slab(0 * mm, 10 * mm)
 upper = slab(10.000002 * mm, 20 * mm)  # a sliver above `lower`
-broken = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
+broken = doc.insert(Node.union([lower, upper]))
 third = slab(-20 * mm, -10 * mm)
-downstream = doc.insert(Node.boolean(BooleanOp.Union, broken, third))
+downstream = doc.insert(Node.union([broken, third]))
 
 ev = evaluate(doc)
 try:

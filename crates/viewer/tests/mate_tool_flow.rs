@@ -8,6 +8,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use viewer::session::BooleanSpec;
 
 use common::asm;
 use common::{ang, len, scl};
@@ -478,10 +479,11 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
     let _ = moved;
 }
 
-/// **A9 — a pick on a FUSED body is still refused.** A boolean is not
-/// a pass-through: it mints its own geometry and its own names, and
+/// **A9 — a pick on a CUT body is still refused.** A subtraction is
+/// not a pass-through: it mints its own geometry and its own names, and
 /// no member of A11's vocabulary stands on it, so no frame read there
-/// is in any member's part coordinates. The walk refuses for the
+/// is in any member's part coordinates (a union is the one boolean the
+/// member walk descends, below). The walk refuses for the
 /// reason the tool's own hand-written guard used to — reaching the
 /// operand's node and finding neither a transform to continue
 /// through nor a live instance to stop on.
@@ -493,9 +495,10 @@ fn a_pick_on_a_fused_body_is_not_an_instance_pick() {
     let fused = common::session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: pncad::document::BooleanOp::Union,
-            a: bench.post_b,
-            b: bench.post_a,
+            spec: BooleanSpec::Subtract {
+                from: bench.post_b,
+                tool: bench.post_a,
+            },
             declare: Vec::new(),
         },
     );
@@ -504,7 +507,7 @@ fn a_pick_on_a_fused_body_is_not_an_instance_pick() {
     let fused_copy = common::copy_of(session.committed_doc(), fused);
     assert_eq!(
         post_top.node, fused_copy,
-        "the ray met the fusion's copy: post_b's placement, re-pointed"
+        "the ray met the cut's copy: post_b's placement, re-pointed"
     );
     let shelf_bottom = asm::shelf_underside(&session);
     let mut tool = MateTool::new();
@@ -519,13 +522,13 @@ fn a_pick_on_a_fused_body_is_not_an_instance_pick() {
                 node
             }) if node.id() == fused_copy
         ),
-        "a boolean is not a pass-through"
+        "a subtraction is not a pass-through"
     );
 }
 
 /// **A pick on a UNION of placed instances is admitted** at the member
 /// the ray met. A union carries each member's face under the member's
-/// name (`FromMember`), and the member walk descends it at the member
+/// read (`RoleSeg::From`), and the member walk descends it at the member
 /// that name says — so the pick reads at the union, stands on the
 /// instance below, and proposes a valid mate.
 #[test]
@@ -537,11 +540,15 @@ fn a_pick_on_a_union_of_instances_stands_on_the_member() {
     let union = common::insert_into(
         &mut doc,
         pncad::document::Node::Union {
-            members: vec![bench.post_a.into(), bench.post_b.into()],
+            members: pncad::document::Bodies::Spelled(vec![
+                bench.post_a.into(),
+                bench.post_b.into(),
+            ]),
             declare: Vec::new(),
         },
         tol,
     );
+    let post_b_read = doc.output(bench.post_b, 0);
     // The union takes the two posts' place in the world (A10).
     for copy in [bench.post_a_copy, bench.post_b_copy] {
         common::edit_into(
@@ -560,7 +567,7 @@ fn a_pick_on_a_union_of_instances_stands_on_the_member() {
     assert!(
         matches!(
             post_top.name.copy_of().and_then(|(_, own)| own.path.first()),
-            Some(RoleSeg::FromMember { member, .. }) if *member == bench.post_b
+            Some(RoleSeg::From { read, .. }) if Some(*read) == post_b_read
         ),
         "the union names post_b's face as its member's: {:?}",
         post_top.name

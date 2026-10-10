@@ -12,10 +12,9 @@ use crate::fixture::resolver::PartStore;
 use crate::fixture::value_channel::body_digest;
 use crate::fixture::{insert, len, on_frame, place, square};
 use editor_core::{
-    AssertionRelation, BooleanOp, CapEnd, ChecksConfig, DocEdit, DocumentId, EntityKind,
-    ExtrudeSide, InlineError, Maintenance, MeasurePrimitive, Node, NodeResult, ProductError,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, SplitError, StableName, product, product_named,
-    run_checks,
+    AssertionRelation, CapEnd, ChecksConfig, DocEdit, DocumentId, EntityKind, ExtrudeSide,
+    InlineError, Maintenance, MeasurePrimitive, Node, NodeResult, ProductError, ProfileDoc,
+    RecipeNodeId, RoleSeg, SitedRef, SplitError, StableName, product, product_named, run_checks,
 };
 use geom_core::Tol;
 
@@ -279,10 +278,8 @@ fn inserting_a_boolean_over_two_placed_blocks_places_nothing() {
     let placements = doc.placements();
     let (doc, fused) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
@@ -463,10 +460,8 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
     let (host, other) = block(host, 0.75);
     let (host, fused) = insert(
         host,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: instance.into(),
-            b: other.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![instance.into(), other.into()]),
             declare: Vec::new(),
         },
     );
@@ -477,12 +472,16 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
         Err(InlineError::Edit { error }) => panic!("inline refused an edit: {error}"),
         Err(other) => panic!("inline of a read instance succeeds: {other}"),
     };
-    let Some(Node::Boolean { a, .. }) = inlined.doc.node(fused) else {
-        panic!("the boolean stays")
+    let Some(Node::Union {
+        members: editor_core::Bodies::Spelled(members),
+        ..
+    }) = inlined.doc.node(fused)
+    else {
+        panic!("the union stays")
     };
     let read = inlined
         .doc
-        .operation_of(*a)
+        .operation_of(members[0].read)
         .expect("the boolean's read is live");
     assert!(
         matches!(inlined.doc.node(read), Some(Node::Extrude { .. })),
@@ -507,10 +506,8 @@ fn no_slot_reads_a_world_copy_at_the_door_or_at_load() {
     let copy = doc
         .output(placement, 0)
         .expect("the placement defines its copy");
-    let boolean = |a: editor_core::Operand| Node::Boolean {
-        op: BooleanOp::Union,
-        a,
-        b: b.into(),
+    let boolean = |a: editor_core::Operand| Node::Union {
+        members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         declare: Vec::new(),
     };
     let refused_naming_placement =
@@ -542,7 +539,7 @@ fn no_slot_reads_a_world_copy_at_the_door_or_at_load() {
         doc.apply(
             &DocEdit::SetParam {
                 node: fused,
-                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::A),
+                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Member(0)),
                 value: editor_core::SlotValue::Read(copy.into()),
                 fresh: Vec::new(),
             },
@@ -552,18 +549,21 @@ fn no_slot_reads_a_world_copy_at_the_door_or_at_load() {
         "SetParam",
     );
 
-    // The same read written into a file: the boolean's `a` swapped for
-    // the copy, on the wire.
+    // The same read written into a file: the union's first member
+    // swapped for the copy, on the wire.
     let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
-    let wire = |var| serde_json::to_string(&var).expect("an id serializes");
     let body_a = doc.output(a, 0).expect("the block's body");
-    let read = format!("\"a\": {}", wire(body_a));
-    assert_eq!(
-        text.matches(&read).count(),
-        1,
-        "the boolean's one read of the block"
-    );
-    let forged = text.replace(&read, &format!("\"a\": {}", wire(copy)));
+    let key = serde_json::to_value(fused).expect("an id serializes");
+    let key = key.as_str().expect("a node id is a string");
+    let forged = crate::wire::doctored(&text, |body| {
+        let member = &mut body["snapshot"]["nodes"][key]["Union"]["members"]["Spelled"][0];
+        assert_eq!(
+            *member,
+            serde_json::to_value(body_a).expect("an id serializes"),
+            "the union's first member is the block's body"
+        );
+        *member = serde_json::to_value(copy).expect("an id serializes");
+    });
     match editor_core::persist::load(&forged, Tol::witness()) {
         Err(error) => {
             let said = error.to_string();
@@ -682,10 +682,8 @@ fn inline_refuses_a_reader_of_an_instance_whose_part_places_at_a_pose() {
     let (host, other) = block(host, 0.75);
     let (host, fused) = insert(
         host,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: instance.into(),
-            b: other.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![instance.into(), other.into()]),
             declare: Vec::new(),
         },
     );

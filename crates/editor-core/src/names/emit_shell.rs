@@ -9,18 +9,18 @@
 //!
 //! | record row | result entity | role |
 //! |---|---|---|
-//! | `outer` (survivors keep operand keys) | outer wall face | [`RoleSeg::FromTarget`] |
+//! | `outer` (survivors keep operand keys) | outer wall face | [`RoleSeg::From`] |
 //! | `inner`, `inner_edges`, `inner_vertices` | cavity twin | [`RoleSeg::Inner`] |
 //! | `rims[i].rim` | the chart's annular rim face | [`RoleSeg::Rim`] of `sources[0]`'s name — `RimNaming::sources` preserves designation order, which is what makes "the first designated face" a fact of the record |
 //! | `rims[i].sources[1..]`, where live | a seamed band's other branch faces | [`RoleSeg::Rim`] of each one's own name |
 //! | `rims[i].ring_edges` / `ring_vertices` | the rim's ring | rows of `inner_edges` / `inner_vertices` verbatim, so `Inner` of the boundary edge — no second role |
 //! | `rims[i].holes[j].face` | a promoted hole annulus, or the second band of a chart that wraps between two boundaries | [`RoleSeg::HoleRim`], `j` in pairing order |
-//! | `rims[i].seam_pieces` | the pieces a band's divided seam became | each the divided edge's own name (its `FromTarget`, or its twin's `Inner` on a void) as a piece: its line + `Fragment(Ends)` (`emit_topo::name_edge_pieces`) |
+//! | `rims[i].seam_pieces` | the pieces a band's divided seam became | each the divided edge's own name (its `From`, or its twin's `Inner` on a void) as a piece: its line + `Fragment(Ends)` (`emit_topo::name_edge_pieces`) |
 //! | `dead` | nothing | nothing — a designated face's own name VANISHES |
 //! | `edge_joins` | an edge the closing join made | its input edges' names: the one it covers, or a [`RoleSeg::Merged`] set of each covered edge's name by the rows above |
 //!
 //! Every surviving edge and vertex is a source entity carried through
-//! ([`RoleSeg::FromTarget`]): the rim face keeps its designated face's
+//! ([`RoleSeg::From`]): the rim face keeps its designated face's
 //! outer loop, so those edges are the operand's, and every other
 //! surviving edge or vertex is the outer wall's — save a divided seam's
 //! pieces, which its `seam_pieces` row names as pieces.
@@ -84,6 +84,7 @@ use crate::node::RecipeNodeId;
 pub(crate) fn name_shell<T: geom_core::Real>(
     node: RecipeNodeId,
     target_node: RecipeNodeId,
+    target_read: crate::VarId,
     target: &NameTable,
     body: &Body<T>,
     rec: &ShellNaming,
@@ -181,7 +182,10 @@ pub(crate) fn name_shell<T: geom_core::Real>(
             None => {
                 let u = up_e(m)?;
                 super::join_names::Member::Image {
-                    seg: RoleSeg::FromTarget(u.name),
+                    seg: RoleSeg::From {
+                        read: target_read,
+                        of: u.name,
+                    },
                     tied: u.tied,
                 }
             }
@@ -221,7 +225,10 @@ pub(crate) fn name_shell<T: geom_core::Real>(
                 std::collections::btree_map::Entry::Vacant(v) => {
                     let u = up_e(source)?;
                     let seg = match rim.side {
-                        topo::RimShell::Outer => RoleSeg::FromTarget(u.name),
+                        topo::RimShell::Outer => RoleSeg::From {
+                            read: target_read,
+                            of: u.name,
+                        },
                         topo::RimShell::Void => RoleSeg::Inner(u.name),
                     };
                     v.insert((seg, u.tied, Vec::new()))
@@ -265,7 +272,13 @@ pub(crate) fn name_shell<T: geom_core::Real>(
                     });
                 }
                 let u = up(key)?;
-                (RoleSeg::FromTarget(u.name), u.tied)
+                (
+                    RoleSeg::From {
+                        read: target_read,
+                        of: u.name,
+                    },
+                    u.tied,
+                )
             }
         };
         put_row(
@@ -303,6 +316,13 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
+
+    fn carried_in(of: crate::names::NameRef) -> RoleSeg {
+        RoleSeg::From {
+            read: crate::VarId::new(1, 77),
+            of,
+        }
+    }
     use crate::names::role::{
         MeridianEnd, ProfileEdgeRef, ProfileVertexRef, band, meridian_vertex,
     };
@@ -520,8 +540,15 @@ mod tests {
             4,
             "two on the ring, two on its twin"
         );
-        let t = name_shell(NODE, TARGET, &target, &shelled.body, &shelled.naming)
-            .expect("the shell is named");
+        let t = name_shell(
+            NODE,
+            TARGET,
+            crate::VarId::new(1, 77),
+            &target,
+            &shelled.body,
+            &shelled.naming,
+        )
+        .expect("the shell is named");
         let names: BTreeSet<_> = shelled
             .body
             .edges()
@@ -529,7 +556,7 @@ mod tests {
             .collect();
         let of = |e: EdgeKey| target.name_of(&ent(0, EntityKey::Edge(e))).unwrap().clone();
         for pieces in halves {
-            for role in [RoleSeg::FromTarget, RoleSeg::Inner] {
+            for role in [carried_in, RoleSeg::Inner] {
                 let want = super::super::merged::edge_set(
                     NODE,
                     pieces
@@ -543,7 +570,7 @@ mod tests {
 
     /// **A joined edge's set is flat** (N3): where a covered edge's own
     /// name is already a set (an edge a boolean's join made), the
-    /// shell's set lists that set's edges, read through `FromTarget` and
+    /// shell's set lists that set's edges, read through `From` and
     /// `Inner` as through a boolean's wrappers, never the set itself.
     #[test]
     fn a_joined_edge_over_an_upstream_set_is_one_flat_set() {
@@ -557,8 +584,15 @@ mod tests {
             tol,
         )
         .expect("the split window opens");
-        let t = name_shell(NODE, TARGET, &target, &shelled.body, &shelled.naming)
-            .expect("the shell is named");
+        let t = name_shell(
+            NODE,
+            TARGET,
+            crate::VarId::new(1, 77),
+            &target,
+            &shelled.body,
+            &shelled.naming,
+        )
+        .expect("the shell is named");
         let mut sets = 0;
         for (e, _) in shelled.body.edges() {
             let name = t.name_of(&ent(0, EntityKey::Edge(e))).unwrap();
@@ -599,8 +633,15 @@ mod tests {
             12,
             "three per arc, ring and twin"
         );
-        let t = name_shell(NODE, TARGET, &target, &shelled.body, &shelled.naming)
-            .expect("the shell is named");
+        let t = name_shell(
+            NODE,
+            TARGET,
+            crate::VarId::new(1, 77),
+            &target,
+            &shelled.body,
+            &shelled.naming,
+        )
+        .expect("the shell is named");
         let names: BTreeSet<_> = shelled
             .body
             .edges()
@@ -609,7 +650,7 @@ mod tests {
         let of = |e: EdgeKey| target.name_of(&ent(0, EntityKey::Edge(e))).unwrap().clone();
         for arc in pieces {
             assert_eq!(arc.len(), 4);
-            for role in [RoleSeg::FromTarget, RoleSeg::Inner] {
+            for role in [carried_in, RoleSeg::Inner] {
                 let want = super::super::merged::edge_set(
                     NODE,
                     arc.iter()

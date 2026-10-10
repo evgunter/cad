@@ -19,7 +19,6 @@ import unittest
 
 import pncad
 from pncad import (
-    BooleanOp,
     Doc,
     Formula,
     Node,
@@ -459,7 +458,7 @@ class TestCrossCheckOnBooleanGeometry(unittest.TestCase):
             )
         )
         tool = doc.insert(Node.extrude(tool_p, Formula.length_in(1, m)))
-        cut = doc.insert(Node.boolean(BooleanOp.Subtract, base, tool))
+        cut = doc.insert(Node.subtract(base, tool))
         body = body_of(doc, cut)
         body.validate()
 

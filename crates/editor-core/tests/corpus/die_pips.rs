@@ -77,8 +77,8 @@
 use editor_core::ExtrudeSide;
 use editor_core::Formula;
 use editor_core::{
-    Axis3, BooleanOp, DocEdit, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, SlotId,
+    Axis3, DocEdit, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    SlotId,
 };
 
 use crate::fixture::{ang, axis_in_plane, frame, len, len2, scl, xy_frame};
@@ -154,10 +154,9 @@ pub fn document() -> CorpusDoc {
             angle: ang(0.0),
         },
     ));
-    let pipped = r.insert(Node::Boolean {
-        op: BooleanOp::Subtract,
-        a: cube.into(),
-        b: pip.into(),
+    let pipped = r.insert(Node::Subtract {
+        from: cube.into(),
+        tool: pip.into(),
         declare: Vec::new(),
     });
 

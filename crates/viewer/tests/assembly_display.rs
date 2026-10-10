@@ -14,6 +14,8 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::Bodies;
+use viewer::session::BooleanSpec;
 
 use common::asm;
 use pncad::document::{Frame, RecipeNodeId, product};
@@ -297,10 +299,8 @@ fn fused_pair(tag: &str, tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, R
     );
     let weld = common::insert_into(
         &mut doc,
-        pncad::document::Node::Boolean {
-            op: pncad::document::BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        pncad::document::Node::Union {
+            members: Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
         tol,
@@ -383,7 +383,7 @@ fn a_fused_instances_refusal_lists_the_others_in_document_order() {
         let union = common::insert_into(
             &mut doc,
             pncad::document::Node::Union {
-                members: members.clone().into_iter().map(Into::into).collect(),
+                members: Bodies::Spelled(members.clone().into_iter().map(Into::into).collect()),
                 declare: Vec::new(),
             },
             tol,
@@ -466,7 +466,7 @@ fn a_fused_instances_section_is_drawn_and_its_display_controls_are_refused() {
     assert_eq!(
         fault.to_string(),
         format!(
-            "InstantiatePart {}'s geometry is fused into Boolean {} together with InstantiatePart \
+            "InstantiatePart {}'s geometry is fused into Union {} together with InstantiatePart \
              {} — a display operation cannot address it separately",
             test_utils::refusal::tag(a.0.digest()),
             test_utils::refusal::tag(weld.0.digest()),
@@ -988,9 +988,7 @@ fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
     assert!(session.display().is_hidden(bench.post_b));
 
     let outcome = session.perform(SessionOp::AddBoolean {
-        op: pncad::document::BooleanOp::Union,
-        a: bench.post_b,
-        b: bench.post_a,
+        spec: BooleanSpec::Union(vec![bench.post_b, bench.post_a]),
         declare: Vec::new(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);

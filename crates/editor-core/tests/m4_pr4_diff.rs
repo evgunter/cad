@@ -18,8 +18,8 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, CancelToken, DocEdit, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId,
-    RunStatus, SlotId, diff_verdicts, evaluate,
+    CancelToken, DocEdit, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, RunStatus,
+    SlotId, diff_verdicts, evaluate,
 };
 use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
@@ -93,10 +93,8 @@ fn slide_union(tx: f64) -> Slide {
     let decl = fixture::declare_x_offset_flush_at(&doc, (a, a), (transform, b0));
     let (doc, union) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: transform.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), transform.into()]),
             declare: decl,
         },
     );
@@ -268,10 +266,8 @@ fn parallel_schedule_preserves_verdict_logs() {
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, _uni) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );

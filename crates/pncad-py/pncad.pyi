@@ -125,11 +125,12 @@ class EditError(PncadError):
       inside a function (`sin(w)` at a length slot reads `w` as an
       angle).
     - `slot` is the slot's word; at an operand it is the field's
-      (`profile`, `target`, `a`, `member`, ...), with `index` the
-      position of a section or a member.
-    - `count` is how many entries a short list would have had. It is
-      NOT `found`: a count and a dimension are two types, and one
-      attribute carries one.
+      (`profile`, `target`, `from`, `cut`, `member`, ...), with
+      `index` the position of a section or a member.
+    - `count` is how many nodes a definition expands to
+      (`definition_too_large`), or how many entities a selection meant
+      to name one names (`selection_shape`). It is NOT `found`: a count
+      and a dimension are two types, and one attribute carries one.
     - `first` and `again` are POSITIONS in a selection's names, and
       the fault (`fault`) decides what `first` means. On `repeated` (a
       face set names a face twice) the two are the entry's first
@@ -631,7 +632,8 @@ class SelectRefusal(PncadError):
 
     `reason` is `in_band`, `tied_disagrees`, `unreadable`,
     `not_a_datum`, `datum_has_no_value`, `node_has_no_value`,
-    `not_a_length`, `pair_in_band`, `bad_value`, `band`, or
+    `node_has_no_output` (a flush query's node defines no output for a
+    finding to be sited at), `not_a_length`, `pair_in_band`, `bad_value`, `band`, or
     `distinct_finding` (a kernel defect). The other attributes are
     the refusing arm's payload, always present and `None` where
     inapplicable: `name` (the candidate's opaque name text, a flush
@@ -1830,13 +1832,22 @@ class NodeId:
 
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
+    def __getitem__(self, index: _CountArg) -> IndexedRead:
+        """One member of the family this node's output is (a pattern's),
+        at `index`: `xs[i]`, taken at every body seat."""
 
-class BooleanOp:
-    """The regularized Boolean operator."""
+class IndexedRead:
+    """One member of a family, read by index: `xs[i]`, written on the
+    family's operand (`NodeId` or `Var`) with a count. It reads the
+    family, not a variable: an operation reading it names the member's
+    entities by the family's read, so `Node.union(xs)` and
+    `Node.union([xs[0], xs[1], xs[2]])` name alike. Every body seat
+    takes one; reading a node that is not a family refuses
+    `slot_var_kind` at `Doc.insert`, and an index outside the family
+    refuses `instance_out_of_range` at `evaluate`. The index is a
+    structural slot of the reading node (slot word `index`)."""
 
-    Union: Final[BooleanOp]
-    Intersect: Final[BooleanOp]
-    Subtract: Final[BooleanOp]
+    def __repr__(self) -> str: ...
 
 class ExtrudeSide:
     """Which side of its sketch plane a `Node.extrude` goes toward:
@@ -2408,7 +2419,7 @@ class Node:
         """
 
     @staticmethod
-    def split(target: _Operand, tool: _Operand) -> Node:
+    def split(target: _BodyArg, tool: _Operand) -> Node:
         """Split `target` by `tool` (a `datum_plane`). The value is a
         split — read it with `Value.split()`, not `Value.body()`."""
 
@@ -2433,54 +2444,81 @@ class Node:
         `slot_dimension_mismatch` naming that step's slot)."""
 
     @staticmethod
-    def place_in_world(body: _Operand, pose: Optional[Placement] = None) -> Node:
+    def place_in_world(body: _BodyArg, pose: Optional[Placement] = None) -> Node:
         """One copy of `body` in the world at `pose`, the identity when
         `None`: the operation whose output is a product copy. Inserting
         it is `Doc.place`. The pose is a `Placement` chain, checked as
         `Node.transform_by`'s is."""
 
     @staticmethod
-    def boolean(
-        op: BooleanOp, a: _Operand, b: _Operand, declare: list[FlushFinding] = []
+    def union(
+        members: Sequence[_BodyArg] | _Operand, declare: list[FlushFinding] = []
     ) -> Node:
-        """A Boolean of two upstream solids. `declare` is its declared
-        contact pairs, given as the INSPECTED findings (each carries
-        its pair and class) and held as the node's own payload; an
-        empty list declares nothing. Operands whose faces a margin
+        """The UNION: the material in any member, folded into ONE body
+        in the members' order.
+
+        `members` is a sequence of reads, each on its own (an operand,
+        or one member of a family, `xs[i]`), or ONE operand reading a
+        whole family — a pattern's output — whose bodies are the
+        members in index order. Any count is a union:
+        one member is that body, none is the typed empty body, and a
+        read listed twice is the same material twice (`[a, a]` is
+        `a`). A family read beside single reads in one list refuses at
+        `Doc.insert` (`slot_var_kind`), as does a member the document
+        does not hold (`unresolved_input`). Whether a member is a BODY
+        is the kernel's question at `evaluate`.
+
+        Not `placed_union`, whose members are one prototype under a
+        placement rule: here the membership is data, which
+        `DocEdit.set_members` rewrites on the live node.
+
+        `declare` is the node's declared contact pairs, given as the
+        INSPECTED findings (each carries its pair, sited at the two
+        member reads, and its class) and held as the node's own
+        payload; each pair is fed at the fold step its two members meet
+        at. An empty list declares nothing. Members whose faces a margin
         decides on one surface glue there, declared or not, and each
         such coincidence is recorded for the `unproven_coincidence`
-        check. A declaration adds its verification, and bridges a
-        residue inside the tolerance band. `Doc.declare` /
-        `Doc.declare_all` set the list on the live node.
+        check; a declaration adds its verification. A refusal only a
+        fold step raises is `kind == "union_fold_step"`, naming the
+        member it folds in. `Doc.declare` / `Doc.declare_all` set the
+        list on the live node.
 
-        A closed surface of one operand that lies wholly on the
-        other's — one body at both seats, or a member carried into a
-        union unchanged — is answered where every face of it is the
-        same face as one of the other's, by recipe or by declaration
-        (`A ∪ A` and `A ∩ A` are `A`, `A − A` is empty); where they
+        A closed surface of one member that lies wholly on another's —
+        one read at two seats, or a member carried into a union
+        unchanged — is answered where every face of it is the same face
+        as one of the other's, by recipe or by declaration; where they
         do not show that, the evaluation refuses with
         `inner_kind == "coincident_shell"`."""
 
     @staticmethod
-    def union(members: Sequence[_Operand], declare: list[FlushFinding] = []) -> Node:
-        """The N-ARY union: two or more member bodies folded into ONE
-        body, in the LIST's order.
+    def intersect(
+        members: Sequence[_BodyArg] | _Operand, declare: list[FlushFinding] = []
+    ) -> Node:
+        """The INTERSECT: the material in every member, folded in the
+        members' order.
 
-        Not `boolean`, which is the binary operation over two named
-        operand slots, and not `placed_union`, whose members are one
-        prototype under a placement rule: here the members are
-        authored independently and the membership is a list, which
-        `DocEdit.set_members` rewrites on the live node. `declare` is
-        the same declared-pair list `boolean` takes, each pair fed at
-        the fold step its two members meet at. Members that touch glue
-        as a binary boolean's operands do; each pair of members is
-        judged before the fold, and a refusal only a fold step raises
-        is `kind == "union_fold_step"`, naming the member it folds in.
+        `members` and `declare` are `union`'s, read the same way: a
+        sequence of operands or one family read, any count — one
+        member is that body, none is the typed empty body, and
+        `[a, a]` is `a`. A fold step whose members share no material
+        is the typed empty body, not a refusal. `DocEdit.set_members`
+        rewrites the list on the live node."""
 
-        Refuses at `Doc.insert` on the list as stated: `too_few_members`
-        (with the `count` found), `duplicate_input`,
-        `unresolved_input`. Whether a member is a BODY is the kernel's
-        question at `evaluate`."""
+    @staticmethod
+    def subtract(
+        from_: _BodyArg, tool: _BodyArg, declare: list[FlushFinding] = []
+    ) -> Node:
+        """The SUBTRACT: `from_` with the material of `tool` cut away.
+
+        The one pair node — difference neither commutes nor associates
+        — so its operands are named slots: `from` (spelled `from_`,
+        since `from` is a Python keyword; its slot word is `from`) and
+        `tool` (slot word `cut`). Several tools are one subtract of
+        their union, `Node.subtract(body, Node.union([t1, t2]))`. A
+        body cut by itself, `Node.subtract(a, a)`, is the typed empty
+        body. `declare` is `union`'s declared-pair list, sited at the
+        two operand reads."""
 
     @staticmethod
     def pattern(input: _Operand, count: _CountArg, kind: PatternKind) -> Node:
@@ -2709,6 +2747,9 @@ several, a revolve's body and axis or a split's two halves, refuses
 `ambiguous_output`: read its port with `Doc.output(node, port)`), or a
 variable — an output by `Doc.output`, or a named one. The slot admits
 one kind, and a read of another refuses `slot_var_kind`."""
+_BodyArg: TypeAlias = NodeId | Var | IndexedRead
+"""What a body seat takes: an operand, or one member of a family
+(`xs[i]`, `IndexedRead`)."""
 
 class Formula:
     """A dimension-checked expression — the recipe's arithmetic, as a
@@ -2883,6 +2924,8 @@ class Var:
         where the document held no such variable."""
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
+    def __getitem__(self, index: _CountArg) -> IndexedRead:
+        """One member of the family this variable holds, at `index`."""
 
 # --- parameter uncertainty and the analysis lane ----------------------
 # ERROR-DESIGN E1/E2. A distribution is inert document metadata: it
@@ -3354,37 +3397,44 @@ class DocEdit:
         document does not hold (`unknown_node`) or an edit that would
         leave the label as it is (`label_unchanged`)."""
     @staticmethod
-    def set_members(node: NodeId, members: Sequence[_Operand]) -> DocEdit:
-        """Replace a node's whole LIST input — a `Node.union`'s
-        members, a `Node.loft`'s sections — with the list stated in
-        full.
+    def set_members(node: NodeId, members: Sequence[_BodyArg] | _Operand) -> DocEdit:
+        """Replace a node's whole LIST input — a `Node.union`'s or a
+        `Node.intersect`'s members, a `Node.loft`'s sections — with the
+        list stated in full. `members` takes `Node.union`'s shape: a
+        sequence of operands, or one operand reading a family whole.
 
         The one edit that changes a live node's inputs: no positional
         spelling and no per-entry arm, so nothing is inferred about
         which old entry survived. Dropping a member is this edit
-        without it plus `delete_node` of the orphan; a union's
-        declared pairs are left as they were.
+        without it plus `delete_node` of the orphan. The node's
+        declared pairs are left as they were: a pair whose member read
+        was dropped refuses at the next evaluation
+        (`declare_site_not_an_operand`).
 
         Every input check `Doc.insert` makes is remade of the
-        REWRITTEN node — `unresolved_input`, `duplicate_input`,
-        `too_few_members`, `would_cycle` — and a node carrying no list
-        refuses `set_members_on_non_list`."""
+        REWRITTEN node — `unresolved_input`, `slot_var_kind` (a family
+        read beside single reads), `would_cycle`. Any count is a list:
+        one member, or none, is a union or intersect still. A loft's
+        sections are spelled one read each, so a family there refuses
+        `loft_sections_spelled`, and a node carrying no list refuses
+        `set_members_on_non_list`."""
 
     @staticmethod
     def set_declare(node: NodeId, findings: list[FlushFinding]) -> DocEdit:
-        """Replace a live boolean's or union's whole declared-pair list
-        with the pairs and classes of `findings`, the inspected
-        `FlushFinding`s `Node.boolean`'s `declare=` takes. An empty
-        list clears the declaration.
+        """Replace a live union's, intersect's or subtract's whole
+        declared-pair list with the pairs and classes of `findings`,
+        the inspected `FlushFinding`s `Node.union`'s `declare=` takes.
+        An empty list clears the declaration.
 
-        Refuses `set_declare_on_non_declaring` on a node that is
-        neither a boolean nor a union, `unknown_node` for a node the
-        document does not hold, the name checks an insert runs
+        Refuses `set_declare_on_non_declaring` on a node that is none
+        of the three, `unknown_node` for a node the document does not
+        hold, the name checks an insert runs
         (`declare_names_missing_node`, `name_step_never_minted`,
         `read_site_missing_node`), and the pair rule an insert asks:
-        `declared_site_not_an_operand` for a pair read at a node that
-        is not one of `node`'s operands, `declared_name_not_upstream`
-        for a name not minted before `node`."""
+        `declared_site_not_an_operand` for a pair sited at a read that
+        is not one of `node`'s operand reads (the read rides `param`),
+        `declared_name_not_upstream` for a name not minted before
+        `node`."""
 
     @staticmethod
     def set_param(node: NodeId, slot: str, value: _SlotArg | NodeId) -> DocEdit:
@@ -3406,11 +3456,12 @@ class DocEdit:
         here; the `bind_*_param` trio is where they are edited.
 
         An operand is a slot too: at an operand's word (`profile`,
-        `target`, `a`, `input`, ...) the value is a read — a `NodeId`,
-        read at its output in that seat, or a `Var` — and the node reads
-        it from then on. A loft's `section` and a union's `member` carry
-        a position the word does not; `set_members` writes those lists
-        whole.
+        `target`, `from`, `cut`, `input`, ...) the value is a read — a
+        `NodeId`, read at its output in that seat, or a `Var` — and the
+        node reads it from then on. A subtract's `tool` is the slot word
+        `cut` (`tool` is a split's plane). A loft's `section` and a
+        union's or an intersect's `member` carry a position the word
+        does not; `set_members` writes those lists whole.
 
         Refuses typed: `unknown_node`, `unknown_slot` naming the slot
         the node lacks, `slot_dimension_mismatch` carrying what the
@@ -3418,7 +3469,7 @@ class DocEdit:
         operand among them), and `slot_unknown_var_name` /
         `slot_var_kind` for a read the slot does not take; at an
         operand also `operand_unresolved`, `ambiguous_output`,
-        `defines_nothing`, `would_cycle` and `duplicate_input`."""
+        `defines_nothing` and `would_cycle`."""
 
     @staticmethod
     def set_tolerance(eps: float) -> DocEdit: ...
@@ -3893,15 +3944,9 @@ class Doc:
 
         The vocabulary, in full: `datum`, `profile`, `extrude`,
         `revolve`, `tube`, `hollow_tube`, `loft`, `sweep`, `fillet`,
-        `chamfer`, `shell`, `split`, `boolean_union`, `boolean_intersect`,
-        `boolean_subtract`, `union`, `transform`, `place_in_world`,
-        `pattern`, `part`, `placed_union`, `instantiate_part`, `mate`,
-        `gauge`,
-        `measure`, `assertion`. A Boolean answers a word per
-        OPERATION, because union, intersect and subtract are three
-        kernel operations sharing one payload shape; the unprefixed
-        `union` is the different node, the n-ary one that folds a
-        member list.
+        `chamfer`, `shell`, `split`, `union`, `intersect`, `subtract`,
+        `transform`, `place_in_world`, `pattern`, `part`, `placed_union`,
+        `instantiate_part`, `mate`, `gauge`, `measure`, `assertion`.
 
         This is the NODE's kind, never its VALUE's: an extrude, a
         transform and a placed union all evaluate to a value whose
@@ -3972,7 +4017,7 @@ class Doc:
 
     def place(
         self,
-        body: _Operand,
+        body: _BodyArg,
         pose: Optional[Placement] = None,
         *,
         label: Optional[str] = None,
@@ -3991,14 +4036,14 @@ class Doc:
 
     def declare(self, node: NodeId, finding: FlushFinding) -> None:
         """ADD one inspected finding's pair to the declared pairs of the
-        live boolean or union `node`, keeping every pair it declares
-        already (the detect/declare protocol's declare arm). A pair on
+        live union, intersect or subtract `node`, keeping every pair it
+        declares already (the detect/declare protocol's declare arm). A pair on
         the same two sides as one already declared replaces it. Raises
         EditError, typed: `set_declare_on_non_declaring` on a node
-        that is neither a boolean nor a union, `unknown_node`,
+        that is none of the three, `unknown_node`,
         `declared_site_not_an_operand` for a finding inspected between
-        other operands than `node`'s, and the name checks an insert
-        runs."""
+        other operand reads than `node`'s, and the name checks an
+        insert runs."""
 
     def declare_all(self, node: NodeId, findings: list[FlushFinding]) -> None:
         """Set `node`'s whole declared-pair list to a SET of findings —
@@ -4360,6 +4405,7 @@ class SegTag:
     op-minted role, grouped by the op that mints it."""
 
     OutputBody: Final[SegTag]
+    From: Final[SegTag]
     Cap: Final[SegTag]
     Lateral: Final[SegTag]
     RimEdge: Final[SegTag]
@@ -4376,9 +4422,6 @@ class SegTag:
     RevolveCap: Final[SegTag]
     Pole: Final[SegTag]
     AxisEdge: Final[SegTag]
-    FromA: Final[SegTag]
-    FromB: Final[SegTag]
-    FromMember: Final[SegTag]
     Seam: Final[SegTag]
     Crossing: Final[SegTag]
     EdgeCrossing: Final[SegTag]
@@ -4390,7 +4433,6 @@ class SegTag:
     SplitFragment: Final[SegTag]
     CrossingVertex: Final[SegTag]
     OnToolVertex: Final[SegTag]
-    FromTarget: Final[SegTag]
     BlendFace: Final[SegTag]
     CornerFace: Final[SegTag]
     TrimEdge: Final[SegTag]
@@ -4414,11 +4456,12 @@ class SegTag:
 class OpGroup:
     """The op group a role segment belongs to (`SegPat.group`).
 
-    `Shell` groups the hollowing verb's cavity twins and rims (`Inner`,
-    `Rim`, `HoleRim`). A shell's OUTER walls are carried through and
-    speak as `FromTarget`, which groups under `Fillet` — the tag names
-    the shape (an entity carried through one op), and which op carried
-    it is the minting node's business.
+    `Shared` groups `OutputBody` and `From`, an entity carried in
+    through a read: a union's, intersect's or subtract's operand
+    entities, a blend's surviving supports, a shell's outer walls. The
+    tag names the shape, and which op carried it is the minting node's
+    business. `Shell` groups the hollowing verb's cavity twins and rims
+    (`Inner`, `Rim`, `HoleRim`).
     """
 
     Shared: Final[OpGroup]
@@ -4631,10 +4674,12 @@ def meridian_vertex(end: MeridianEnd, node: NodeId, piece: Piece) -> str:
     `MeridianEnd.End`) on a partial revolve, or the surviving meridian
     vertex (`MeridianEnd.Seam`) on a full one. A vertex."""
 
-def carried(node: NodeId, inner: str) -> str:
+def carried(node: NodeId, read: Var, inner: str) -> str:
     """The name a survivor of `node` takes: the name `inner` it had in
-    the target's table, wrapped — the single-operand pass-through a
-    blend's shrunk support or a shell's outer wall wears one op later.
+    the table of `read` — the target read `node` takes its body in
+    through, `Doc.output(target, 0)` — wrapped: the single-operand
+    pass-through a blend's shrunk support or a shell's outer wall wears
+    one op later.
 
     `inner` is a name text like any other, and the kind is its own: a
     survivor is the same entity carried through one op, so the wrapper
@@ -4979,10 +5024,10 @@ class Verdict:
 # --- detect / declare -------------------------------------------------
 # The flush-contact protocol's value vocabulary. A finding is a
 # REPORT: `Evaluation.find_flush_candidates` answers with them, the
-# caller inspects, and `Node.boolean` / `Node.union`'s `declare=`,
-# `Doc.declare` / `Doc.declare_all` and `DocEdit.set_declare` put
-# inspected findings on a boolean or union as its declared pairs.
-# Detection and declaration are separate doors ON PURPOSE: no fused
+# caller inspects, and `Node.union` / `Node.intersect` /
+# `Node.subtract`'s `declare=`, `Doc.declare` / `Doc.declare_all` and
+# `DocEdit.set_declare` put inspected findings on one of those nodes as
+# its declared pairs. Detection and declaration are separate doors ON PURPOSE: no fused
 # detect-and-declare door exists.
 
 class PlaneRelation:
@@ -6958,10 +7003,11 @@ class Coincidence:
     """One coincidence a node decided from values (D10), with what the
     coincidence door decided about it.
 
-    `cells` are `(node, name)` pairs: the input node whose table names
-    the cell, and the name there (the opaque text the materializers
-    answer with); the plane a split cuts with is `(node, None)`, and a
-    profile's own piece is `(profile, piece)`. `relation` is
+    `cells` are pairs: an entity is `(read, name)`, the `Var` the
+    deciding node took it in through, whose table names it, and the
+    name there (the opaque text the materializers answer with); the
+    plane a split cuts with is `(read, None)`; and a profile's own piece
+    is `(profile, piece)`, the profile's `NodeId`. `relation` is
     `same_oriented`, `same_opposite`, `on_carrier`, `equal_angles`,
     `tangent`, `cusp`, `tangent_contact`, `seam`, `coaxial` or
     `co_ruled`; `site` is `plane_ladder`, `carrier_ladder`,
@@ -6976,7 +7022,7 @@ class Coincidence:
     what separates the two constructions."""
 
     @property
-    def cells(self) -> list[tuple[NodeId, Optional[str]]]: ...
+    def cells(self) -> list[tuple[Var | NodeId, Optional[str]]]: ...
     @property
     def relation(self) -> str: ...
     @property

@@ -39,9 +39,8 @@
 //!   costs a lookup and it catches a `tag` that answers for a class
 //!   the search cannot then find. That refusal has no test row and can
 //!   have none — in a build whose read table is complete, nothing
-//!   constructs the state it guards — exactly as the sibling
-//!   `boolean_op` module's does; what the suite reaches is the admit
-//!   path, through the schema round trip.
+//!   constructs the state it guards; what the suite reaches is the
+//!   admit path, through the schema round trip.
 
 use crate::node::SitedRef;
 use serde::de::Error as _;
@@ -193,7 +192,10 @@ pub(crate) mod pairs {
     use serde::ser::Error as _;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    type Pairs = Vec<((SitedRef, SitedRef), BooleanCoincidence)>;
+    type Pairs = Vec<(
+        (SitedRef<crate::VarId>, SitedRef<crate::VarId>),
+        BooleanCoincidence,
+    )>;
 
     /// # Errors
     ///
@@ -220,7 +222,8 @@ pub(crate) mod pairs {
     /// An unknown spelling refuses typed, quoting the table and the
     /// `Fit` deferral.
     pub(crate) fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<Pairs, D::Error> {
-        let raw: Vec<((SitedRef, SitedRef), String)> = Vec::deserialize(de)?;
+        type Sited = (SitedRef<crate::VarId>, SitedRef<crate::VarId>);
+        let raw: Vec<(Sited, String)> = Vec::deserialize(de)?;
         raw.into_iter()
             .map(|(pair, t)| {
                 coincidence_untag(&t)

@@ -8,8 +8,9 @@
 
 use crate::common;
 use pncad::document::ExtrudeSide;
+use viewer::session::BooleanSpec;
 
-use pncad::document::{BooleanOp, Doc, DocEdit, Label, Node, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, DocEdit, Label, Node, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;
 use test_utils::refusal::tag;
 use viewer::session::{Creation, DocSession, ProfilePlane, SessionOp};
@@ -328,9 +329,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     run(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Intersect,
-            a: block,
-            b: moved,
+            spec: BooleanSpec::Intersect(vec![block, moved]),
             declare: Vec::new(),
         },
         "overlap",
@@ -588,36 +587,54 @@ fn a_kept_refusal_speaks_its_node_and_a_rename_retires_it() {
 /// **An edit the kernel door refuses speaks its node on the line as the
 /// document the batch leaves holds it** (`EditError::respoken`): the
 /// door spoke the node at the refusal, and a rename later in the same
-/// batch is the label the line says. Red if the line says the label
-/// from before the rename.
+/// batch is the label the line says. The refusal is a declaration
+/// naming the block's face at the block's read on a union whose only
+/// member is the boss — a read that is no operand of it, which the edit
+/// door refuses. Red if the line says the label from before the
+/// rename.
 #[test]
 fn an_edit_door_refusal_says_a_rename_later_in_its_batch() {
     let tol = Tol::witness();
-    let (doc, extrude) = extruded("viewer-node-labels-edit-refusal", tol);
-    let doc = relabelled(&doc, extrude, "plate", tol);
+    let (doc, block, boss) =
+        viewer::test_support::boss_on_block("viewer-node-labels-edit-refusal", tol);
+    let doc = relabelled(&doc, block, "plate", tol);
     let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    // The detector's real pair between the two operands, block side
+    // first.
+    let findings = pncad::select::find_flush_candidates(
+        session.evaluation().expect("the scene lands"),
+        session.committed_doc(),
+        block,
+        boss,
+        tol,
+    )
+    .expect("the detector answers block x boss");
+    assert!(
+        !findings.is_empty(),
+        "the premise: the boss rests on the block"
+    );
     let line = batch_line(
         &mut session,
         &[
             SessionOp::AddBoolean {
-                op: BooleanOp::Union,
-                a: extrude,
-                b: extrude,
-                declare: Vec::new(),
+                spec: BooleanSpec::Union(vec![boss]),
+                declare: findings,
             },
             SessionOp::SetLabel {
-                node: extrude,
+                node: block,
                 label: Some(label("slab")),
             },
         ],
     );
     let said = line.map(|m| m.text().to_owned()).unwrap_or_default();
     assert!(
-        said.contains(&format!(
-            "Extrude \"slab\" ({}) is taken as an input twice",
-            tag(extrude.0.digest())
-        )),
+        said.contains(&format!("Extrude \"slab\" ({})", tag(block.0.digest()))),
         "{said}"
+    );
+    assert!(
+        !said.contains("plate"),
+        "and not the label from before the rename: {said}"
     );
 }
 

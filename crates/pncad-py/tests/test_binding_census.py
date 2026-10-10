@@ -125,8 +125,8 @@ What `BOUND_AS` claims: a Python caller can do the thing the curated
 Rust name does, at that spelling. What it does NOT claim: the same
 signature, the same receiver, or the same layer. Python's surface is
 document-layer-first, so the kernel's direct body operations arrive as
-recipe-node constructors (`union` and its two siblings are one
-`Node.boolean` taking a `BooleanOp`), and a mapping is a pointer to the
+recipe-node constructors (`union`, `intersect` and `subtract` are
+`Node.union`, `Node.intersect` and `Node.subtract`), and a mapping is a pointer to the
 door, not an assertion that the two are interchangeable. Semantics are
 not checked at all: nothing here verifies that Python's `Frame` is the
 `Frame` the façade curates. That is `ty`'s and the corpus tests' job.
@@ -553,9 +553,8 @@ def audit_gap_ids():
 #:   Python speaks the document layer (the stub says so in its first
 #:   paragraph), so `extrude`, `revolve`, `loft_body`, `fillet_edges`
 #:   and `transform_rigid` arrive as `Node.*`, and the three Boolean
-#:   verbs plus their `_with` siblings arrive as ONE `Node.boolean`
-#:   taking a `BooleanOp` — the arm split moved from the verb to an
-#:   argument.
+#:   verbs plus their `_with` siblings arrive as `Node.union`,
+#:   `Node.intersect` and `Node.subtract`.
 #: - **A type became the door that reads it.** `DatumValue` is what
 #:   `Value.datum` answers, and `geom_core::UnitVec3` — the witness
 #:   that makes a datum's normal unit, so that an unnormalized one has
@@ -1320,7 +1319,8 @@ BOUND_AS = {
     # `InputFault` (DM5) is the same shape one door further: the rule
     # is stated once on the node and rendered by three doors, and the
     # two a Python caller can reach are edit doors, so it crosses as
-    # `EditError.variant` — `duplicate_input` and `too_few_members`.
+    # `EditError.variant` — `repeated_designation` and
+    # `selection_not_canonical`.
     # The third renderer is the load validator's `SnapshotError`, which
     # this façade does not carry at all.
     # The edit door's PAYLOAD, projected at LIB-DOORS-1. `SlotId` is
@@ -1378,15 +1378,15 @@ BOUND_AS = {
     "declare_all": "Doc.declare_all",
     # A finding's pair and class become a declared pair at the
     # `declare=` seat; the list is the argument, not a value of its own.
-    "declared_pairs": "Node.boolean",
+    "declared_pairs": "Node.union",
     "extrude": "Node.extrude",
     "chamfer_edges": "Node.chamfer",
     "tube_along_arc": "Node.tube",
     "tube_along_arc_hollow": "Node.hollow_tube",
     "fillet_edges": "Node.fillet",
     "find_flush_candidates": "Evaluation.find_flush_candidates",
-    "intersect": "Node.boolean",
-    "intersect_with": "Node.boolean",
+    "intersect": "Node.intersect",
+    "intersect_with": "Node.intersect",
     "loft_body": "Node.loft",
     "mass_properties": "Body.mass_properties",
     # The façade's lattice-backed loop door and the document layer's
@@ -1403,12 +1403,12 @@ BOUND_AS = {
     "select": "Evaluation.select",
     "select_where": "Evaluation.select_where",
     "step_string": "Evaluation.step_string",
-    "subtract": "Node.boolean",
+    "subtract": "Node.subtract",
     "tessellate": "Body.tessellate",
-    "subtract_with": "Node.boolean",
+    "subtract_with": "Node.subtract",
     "transform_rigid": "Node.transform",
-    "union": "Node.boolean",
-    "union_with": "Node.boolean",
+    "union": "Node.union",
+    "union_with": "Node.union",
     "validate": "Body.validate",
     "validate_closed": "Body.validate_closed",
     "validate_geometric": "Body.validate_geometric",
@@ -2302,6 +2302,17 @@ NOT_BOUND = {
     # carry, and writes one as a `NodeId` or a `Var` argument.
     "SlotKind": SHAPE,
     "OperandSlot": SHAPE,
+    # A union's or an intersect's members argument: Python writes it as
+    # a sequence of operands or as one family read (`Node.union`'s
+    # `members`), and the kernel's two arms are those two shapes.
+    "Bodies": SHAPE,
+    # A read at a body seat: Python writes a plain one as a `NodeId` or
+    # a `Var` and an indexed one as `op[i]` (`IndexedRead`).
+    "BodyRead": SHAPE,
+    # The kernel's operator choice: Python picks the node instead —
+    # `Node.union`, `Node.intersect`, `Node.subtract` — so there is no
+    # operator value to pass.
+    "BooleanOp": SHAPE,
     # What the slot door writes: Python hands `DocEdit.set_param` a
     # formula, a value, a `Var` or a `NodeId`, and the slot's word says
     # which the kernel lowers it to.
@@ -3676,15 +3687,15 @@ MEMBERS_BOUND_AS = {
     "EditError::ProfileProgramRefused": "EditError.variant",
     "EditError::UnresolvedInput": "EditError.variant",
     "EditError::WouldCycle": "EditError.variant",
-    "EditError::DuplicateInput": "EditError.variant",
     "EditError::SelectionShape": "EditError.variant",
+    "EditError::IndexedRead": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
+    "EditError::LoftSectionsSpelled": "EditError.variant",
     "EditError::SetDeclareOnNonDeclaring": "EditError.variant",
     "EditError::SetProgramOnNonProfile": "EditError.variant",
     "EditError::SetExtrudeSideOnNonExtrude": "EditError.variant",
     "EditError::StepIdsRefused": "EditError.variant",
     "EditError::NameStepNeverMinted": "EditError.variant",
-    "EditError::TooFewMembers": "EditError.variant",
     "EditError::OperandUnresolved": "EditError.variant",
     "EditError::AmbiguousOutput": "EditError.variant",
     "EditError::DefinesNothing": "EditError.variant",
@@ -3812,6 +3823,7 @@ MEMBERS_BOUND_AS = {
     "InlineError::InstanceBodyNameReferenced": "InlineError.variant",
     "InlineError::ForeignInstanceName": "InlineError.variant",
     "InlineError::StrandedPartName": "InlineError.variant",
+    "InlineError::StrandedPartRead": "InlineError.variant",
     "InlineError::NameOnDroppedStep": "InlineError.variant",
     "InlineError::Edit": "InlineError.variant",
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
@@ -3927,6 +3939,7 @@ MEMBERS_BOUND_AS = {
     "SelectRefusal::NotADatum": "SelectRefusal.reason",
     "SelectRefusal::DatumHasNoValue": "SelectRefusal.reason",
     "SelectRefusal::NodeHasNoValue": "SelectRefusal.reason",
+    "SelectRefusal::NodeHasNoOutput": "SelectRefusal.reason",
     "SelectRefusal::NotALength": "SelectRefusal.reason",
     "SelectRefusal::PairInBand": "SelectRefusal.reason",
     "SelectRefusal::BadValue": "SelectRefusal.reason",

@@ -40,7 +40,6 @@ import time
 import unittest
 
 from pncad import (
-    BooleanOp,
     CancelToken,
     Doc,
     EvaluationError,
@@ -99,7 +98,7 @@ def stack(count):
         fused = (
             box
             if fused is None
-            else doc.insert(Node.boolean(BooleanOp.Union, fused, box))
+            else doc.insert(Node.union([fused, box]))
         )
     return doc, fused
 

@@ -13,7 +13,7 @@
 //! are pinned by the boolean's own acceptance suites.
 
 use editor_core::ExtrudeSide;
-use editor_core::{BooleanOp, DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
+use editor_core::{DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
 
 use crate::fixture::{frame, len, xy_frame};
 
@@ -59,10 +59,8 @@ pub fn document() -> CorpusDoc {
         side: ExtrudeSide::Along,
     });
 
-    let union = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: plate.into(),
-        b: boss.into(),
+    let union = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
         declare: Vec::new(),
     });
 

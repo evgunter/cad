@@ -6,9 +6,9 @@
 //! A merged face's name is a FLAT set of face names; a merge over a
 //! merged face lists the faces, never the merge. Two things follow
 //! for a reader. A name that is itself a merged face — read THROUGH
-//! its descent wrappers, a pair boolean's `FromA`/`FromB` and a
-//! union's `FromMember`, since a face carried through untouched
-//! booleans or into a union is still that face — stands for its
+//! its descent wrappers, the `From` an operation carries an input's
+//! entity in by, since a face carried through untouched booleans or
+//! into a union is still that face — stands for its
 //! constituents re-wrapped by that same chain
 //! ([`constituents_through_wrappers`]); and a merged row COVERS a name
 //! when the name is one of its constituents, or when the name is a
@@ -27,19 +27,15 @@ use super::role::{CapEnd, EntityKind, MeridianEnd, NameRef, PieceRun, RoleSeg, S
 pub(crate) const NESTED_MERGED: &str =
     "a boolean table carries a merged face whose constituent is itself a merged face";
 
-/// One descent wrapper a set-holding name is read through: a pair
-/// boolean's `FromA`/`FromB`, a union's `FromMember`, with the member
-/// it names, or a one-operand door's `FromTarget` (an entity carried
-/// through it) and the shell's `Inner` (a cavity twin). A face carried
+/// One descent wrapper a set-holding name is read through: the `From`
+/// an operation carries an input's entity in by, with the read it
+/// names, and the shell's `Inner` (a cavity twin). A face carried
 /// through any of them untouched is still that face, and a twin of a
 /// set is the set of the twins, so its set is read through them and
 /// each constituent re-wrapped by the same chain.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Wrap {
-    A,
-    B,
-    Member(crate::node::RecipeNodeId),
-    Target,
+    From(crate::VarId),
     Inner,
 }
 
@@ -56,10 +52,7 @@ impl Wrap {
             kind,
             node,
             path: vec![match self {
-                Self::A => RoleSeg::FromA(inner),
-                Self::B => RoleSeg::FromB(inner),
-                Self::Member(member) => RoleSeg::FromMember { member, of: inner },
-                Self::Target => RoleSeg::FromTarget(inner),
+                Self::From(read) => RoleSeg::From { read, of: inner },
                 Self::Inner => RoleSeg::Inner(inner),
             }],
         }
@@ -70,10 +63,7 @@ impl Wrap {
 /// `None` when `name` is not one.
 fn peel(name: &StableName) -> Option<(Wrap, &StableName)> {
     match name.path.as_slice() {
-        [RoleSeg::FromA(inner)] => Some((Wrap::A, inner)),
-        [RoleSeg::FromB(inner)] => Some((Wrap::B, inner)),
-        [RoleSeg::FromMember { member, of }] => Some((Wrap::Member(*member), of)),
-        [RoleSeg::FromTarget(inner)] => Some((Wrap::Target, inner)),
+        [RoleSeg::From { read, of }] => Some((Wrap::From(*read), of)),
         [RoleSeg::Inner(inner)] => Some((Wrap::Inner, inner)),
         _ => None,
     }
@@ -364,11 +354,23 @@ mod tests {
     }
 
     fn from_a(node: u64, inner: StableName) -> StableName {
-        face(node, vec![RoleSeg::FromA(inner.into())])
+        face(
+            node,
+            vec![RoleSeg::From {
+                read: crate::names::FOLD_A,
+                of: inner.into(),
+            }],
+        )
     }
 
     fn from_b(node: u64, inner: StableName) -> StableName {
-        face(node, vec![RoleSeg::FromB(inner.into())])
+        face(
+            node,
+            vec![RoleSeg::From {
+                read: crate::names::FOLD_B,
+                of: inner.into(),
+            }],
+        )
     }
 
     fn merged(node: u64, mut set: Vec<StableName>) -> StableName {
@@ -425,19 +427,18 @@ mod tests {
     fn from_member(union: u64, member: u64, inner: StableName) -> StableName {
         face(
             union,
-            vec![RoleSeg::FromMember {
-                member: RecipeNodeId::new(0, member),
+            vec![RoleSeg::From {
+                read: crate::VarId::new(1, member),
                 of: inner.into(),
             }],
         )
     }
 
     /// **A union over a union reads the inner merge through its
-    /// `FromMember`** as a boolean over a boolean reads it through
-    /// `FromA`: the inner merged face stands for its constituents, each
-    /// keyed by the same member, and the outer flat row covers it. The
-    /// member id is part of the wrapper: the same face keyed by another
-    /// member is not covered.
+    /// `From`**, keyed by the member read that holds it: the inner merged
+    /// face stands for its constituents, each keyed by the same read, and
+    /// the outer flat row covers it. The read is part of the wrapper: the
+    /// same face keyed by another read is not covered.
     #[test]
     fn a_union_over_a_union_reads_the_inner_merge_through_from_member() {
         let inner = merged(
@@ -486,7 +487,7 @@ mod tests {
         let [RoleSeg::Merged(listed)] = set.path.as_slice() else {
             panic!("an edge set is one Merged segment: {set:?}");
         };
-        assert_eq!(listed.len(), 3, "flat through FromMember: {listed:?}");
+        assert_eq!(listed.len(), 3, "flat through From: {listed:?}");
         // A run wall a union carries covers its pieces' walls under the
         // same member.
         let run = from_member(12, 3, lateral(3, &[7, 8]));

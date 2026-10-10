@@ -142,8 +142,9 @@ pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
         | Node::Fillet { .. }
         | Node::Chamfer { .. }
         | Node::Shell { .. }
-        | Node::Boolean { .. }
+        | Node::Subtract { .. }
         | Node::Union { .. }
+        | Node::Intersect { .. }
         | Node::Transform { .. }
         | Node::Part { .. }
         | Node::PlacedUnion { .. }
@@ -324,10 +325,6 @@ pub enum Refusal {
     /// condition `apply` refuses is refused there and rendered in
     /// `EditError`'s words; a flat arm restating one would be two
     /// spellings of a rule with one home (`crates/viewer/README.md`).
-    /// One node in both operand seats used to be such an arm and is
-    /// now this one: `Node::input_fault`'s pairwise-distinct rule is a
-    /// fact about ANY node's inputs, so the boolean tool, `SetMembers`
-    /// and the load validator all reach it at the same door.
     ///
     /// Boxed, as `Io` is below: these two payloads are an order of
     /// magnitude larger than every other arm, and a refusal is

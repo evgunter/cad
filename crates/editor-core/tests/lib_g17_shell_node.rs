@@ -67,7 +67,11 @@ fn cup_names(doc: &ProfileDoc, blank: RecipeNodeId, shell: RecipeNodeId) -> [Sta
             EntityKind::Face,
             RoleSeg::Inner(cup::bottom(blank).into()),
         ),
-        editor_core::carried(shell, fixture::fname(blank, fixture::wall(doc, blank, 0))),
+        editor_core::carried(
+            shell,
+            fixture::out(doc, blank),
+            fixture::fname(blank, fixture::wall(doc, blank, 0)),
+        ),
     ]
 }
 
@@ -209,8 +213,8 @@ fn the_rim_inner_and_outer_names_resolve() {
         );
     }
     // The designated face's own name is gone: what a selector says for
-    // the mouth is `Rim(top)`, never `FromTarget(top)`.
-    let carried_top = editor_core::carried(shell, cup::top(blank));
+    // the mouth is `Rim(top)`, never `From(top)`.
+    let carried_top = editor_core::carried(shell, fixture::out(&d.doc, blank), cup::top(blank));
     assert!(
         table.lookup(&carried_top).is_none(),
         "the opened face's own name must vanish"
@@ -220,7 +224,7 @@ fn the_rim_inner_and_outer_names_resolve() {
         .iter()
         .map(|(n, _)| match n.path.first().expect("a role path") {
             RoleSeg::OutputBody => "body",
-            RoleSeg::FromTarget(_) => "survivor",
+            RoleSeg::From { .. } => "survivor",
             RoleSeg::Inner(_) => "inner",
             RoleSeg::Rim(_) => "rim",
             RoleSeg::HoleRim { .. } => "hole rim",
@@ -813,7 +817,6 @@ fn a_tubes_wall_opens_into_two_bands_and_its_seam_pieces_are_named() {
                 && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))))
         })
         .collect();
-    eprintln!("PIECES {pieces:#?}");
     assert_eq!(pieces.len(), 2, "the divided seam's two pieces: {pieces:?}");
     // The line both hang off is the wall's own seam: the revolve's seam
     // edge swept from the wall's meridian piece, carried through.
@@ -828,7 +831,10 @@ fn a_tubes_wall_opens_into_two_bands_and_its_seam_pieces_are_named() {
     for (name, _) in &pieces {
         assert_eq!(
             name.path[0],
-            RoleSeg::FromTarget(wall_seam.clone().into()),
+            RoleSeg::From {
+                read: fixture::out(&r.doc, tube),
+                of: wall_seam.clone().into()
+            },
             "each is a piece of the wall's own seam: {name:?}"
         );
     }

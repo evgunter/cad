@@ -21,11 +21,12 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::Bodies;
 use pncad::document::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
-use pncad::document::{BooleanOp, Doc, Node, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Node, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;
 use viewer::tree;
 
@@ -87,10 +88,9 @@ fn a_chain_of_booleans_stays_at_one_level_however_long_it_gets() {
         doc = next;
         let (next, cut) = common::inserted(
             &doc,
-            Node::Boolean {
-                op: BooleanOp::Subtract,
-                a: accumulated.into(),
-                b: tool.into(),
+            Node::Subtract {
+                from: accumulated.into(),
+                tool: tool.into(),
                 declare: Vec::new(),
             },
             tol,
@@ -138,10 +138,8 @@ fn a_tool_that_is_itself_a_branch_indents_one_level_further() {
     // right; used as a branch it draws one deeper still.
     let (next, compound_tool) = common::inserted(
         &doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: tool_a.into(),
-            b: tool_b.into(),
+        Node::Union {
+            members: Bodies::Spelled(vec![tool_a.into(), tool_b.into()]),
             declare: Vec::new(),
         },
         tol,
@@ -149,10 +147,9 @@ fn a_tool_that_is_itself_a_branch_indents_one_level_further() {
     doc = next;
     let (doc, cut) = common::inserted(
         &doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: base.into(),
-            b: compound_tool.into(),
+        Node::Subtract {
+            from: base.into(),
+            tool: compound_tool.into(),
             declare: Vec::new(),
         },
         tol,

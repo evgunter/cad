@@ -124,7 +124,9 @@ fn placement_reading(doc: &ProfileDoc, body: RecipeNodeId) -> RecipeNodeId {
         .placements()
         .into_iter()
         .filter(|&p| match doc.node(p) {
-            Some(Node::PlaceInWorld { body: read, .. }) => doc.operation_of(*read) == Some(body),
+            Some(Node::PlaceInWorld { body: read, .. }) => {
+                doc.operation_of(read.read) == Some(body)
+            }
             _ => false,
         })
         .collect();
@@ -140,9 +142,9 @@ fn placed_bodies(doc: &ProfileDoc) -> Vec<RecipeNodeId> {
     doc.placements()
         .into_iter()
         .map(|p| match doc.node(p) {
-            Some(Node::PlaceInWorld { body, .. }) => {
-                doc.operation_of(*body).expect("a placement reads a body")
-            }
+            Some(Node::PlaceInWorld { body, .. }) => doc
+                .operation_of(body.read)
+                .expect("a placement reads a body"),
             other => panic!("a placement, got {other:?}"),
         })
         .collect()
@@ -1150,14 +1152,15 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     let straddler = StableName {
         kind: EntityKind::Edge,
         node: kept_e,
-        path: vec![RoleSeg::FromA(
-            StableName {
+        path: vec![RoleSeg::From {
+            read: crate::fixture::out(&doc, cut_e),
+            of: StableName {
                 kind: EntityKind::Edge,
                 node: cut_e,
                 path: vec![RoleSeg::OutputBody],
             }
             .into(),
-        )],
+        }],
     };
     let partner = StableName {
         kind: EntityKind::Edge,
@@ -1173,13 +1176,14 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
             side: ExtrudeSide::Along,
         },
     );
+    let kept_read = crate::fixture::out(&doc, kept_e);
     let (doc, _) = insert(
         doc,
         Node::Union {
-            members: vec![kept_e.into(), kept_twin.into()],
+            members: editor_core::Bodies::Spelled(vec![kept_e.into(), kept_twin.into()]),
             declare: editor_core::declare_rest(vec![(
-                SitedRef::at_mint(straddler.clone()),
-                SitedRef::at_mint(partner),
+                SitedRef::new(kept_read, straddler.clone()),
+                SitedRef::new(kept_read, partner),
             )]),
         },
     );
@@ -1255,21 +1259,20 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
 /// A's block, and A's block is named.
 #[test]
 fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
-    use editor_core::{BooleanOp, EntityKind, derivation_nodes};
+    use editor_core::{EntityKind, derivation_nodes};
     let doc = ProfileDoc::empty_derived("asm4-reach-earliest", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 0.5);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
     let ev = run(&doc, &EvalOptions::default());
     let table = &ev.value(u).expect("the union evaluates").name_table;
+    let a_read = crate::fixture::out(&doc, a);
     let from_a = table
         .iter()
         .map(|(n, _)| n.clone())
@@ -1277,7 +1280,7 @@ fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
             n.kind == EntityKind::Face
                 && n.path
                     .first()
-                    .is_some_and(|s| matches!(s, RoleSeg::FromA(_)))
+                    .is_some_and(|s| matches!(s, RoleSeg::From { read, .. } if *read == a_read))
         })
         .expect("the union keeps a face of operand A");
     let reached = derivation_nodes(&from_a);
@@ -1347,21 +1350,20 @@ fn fillet_of(doc: &ProfileDoc, cut: &BTreeSet<RecipeNodeId>) -> RecipeNodeId {
 /// deleted node that sorts first.
 #[test]
 fn a_reaching_name_names_a_live_node_before_a_deleted_one() {
-    use editor_core::{BooleanOp, EntityKind, derivation_nodes};
+    use editor_core::{EntityKind, derivation_nodes};
     let doc = ProfileDoc::empty_derived("asm4-reach-deleted", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 0.5);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
     let ev = run(&doc, &EvalOptions::default());
     let table = &ev.value(u).expect("the union evaluates").name_table;
+    let a_read = crate::fixture::out(&doc, a);
     let from_a = table
         .iter()
         .map(|(n, _)| n.clone())
@@ -1369,7 +1371,7 @@ fn a_reaching_name_names_a_live_node_before_a_deleted_one() {
             n.kind == EntityKind::Face
                 && n.path
                     .first()
-                    .is_some_and(|s| matches!(s, RoleSeg::FromA(_)))
+                    .is_some_and(|s| matches!(s, RoleSeg::From { read, .. } if *read == a_read))
         })
         .expect("the union keeps a face of operand A");
     let reached = derivation_nodes(&from_a);
@@ -1517,8 +1519,9 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     let foreign = StableName {
         kind: EntityKind::Face,
         node: kept_e,
-        path: vec![RoleSeg::FromA(
-            wrap(
+        path: vec![RoleSeg::From {
+            read: crate::fixture::out(&host, inst),
+            of: wrap(
                 inst,
                 &StableName {
                     kind: EntityKind::Face,
@@ -1527,7 +1530,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
                 },
             )
             .into(),
-        )],
+        }],
     };
     let (host, _) = step(
         host,
@@ -1588,16 +1591,15 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
         other => panic!("expected InstanceBodyNameReferenced, got {other:?}"),
     }
 
-    // StrandedPartName: the referenced document carries an N5-stranded
-    // declared-pair reference (its node deleted after authoring) — there is
-    // no node to remap it onto. BOTH shapes run. The FLAT name is
-    // minted AT the deleted node, so the node the refusal carries is
-    // the name's own mint; the NESTED name is minted at the SURVIVING
-    // body and embeds the deleted node's name in a path segment, so
-    // the node that stranded is a segment DOWN from the name the
-    // refusal can report. The pair is the property: the two coincide
-    // in the flat case and come apart in the nested one, which is why
-    // the name alone does not answer "which node stranded".
+    // StrandedPartName / StrandedPartRead: the referenced document
+    // carries an N5-stranded declared-pair reference (its node deleted
+    // after authoring) — there is nothing to remap it onto. BOTH shapes
+    // run. The FLAT name is minted AT the deleted node, so the node the
+    // refusal carries is the name's own mint; the NESTED name is minted
+    // at the SURVIVING body and carries the deleted node's name in
+    // through that node's read, so what stranded is a segment DOWN from
+    // the name, and the refusal names it separately: the read, which no
+    // operation of the part defines any more.
     for nested in [false, true] {
         let mut store = PartStore::default();
         let part_doc = part("asm4-min2-stranded-part", 0.0, 1.0);
@@ -1625,11 +1627,15 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             node: extra,
             path: vec![RoleSeg::OutputBody],
         };
+        let extra_read = crate::fixture::out(&part_doc, extra);
         let stranded = if nested {
             StableName {
                 kind: EntityKind::Edge,
                 node: body,
-                path: vec![RoleSeg::FromA(at_extra.into())],
+                path: vec![RoleSeg::From {
+                    read: extra_read,
+                    of: at_extra.into(),
+                }],
             }
         } else {
             at_extra
@@ -1648,16 +1654,17 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
                 side: ExtrudeSide::Along,
             },
         );
+        let anchor_read = crate::fixture::out(&part_doc, anchor.node);
         let (part_doc, union) = insert(
             part_doc,
             Node::Union {
-                members: vec![body.into(), twin.into(), extra.into()],
+                members: editor_core::Bodies::Spelled(vec![body.into(), twin.into(), extra.into()]),
                 // Both sides are READ at the surviving body; the
                 // stranded side's NAME derives from the extra node,
                 // which is what the delete below strands.
                 declare: editor_core::declare_rest(vec![(
-                    SitedRef::new(anchor.node, stranded.clone()),
-                    SitedRef::at_mint(anchor),
+                    SitedRef::new(anchor_read, stranded.clone()),
+                    SitedRef::new(anchor_read, anchor),
                 )]),
             },
         );
@@ -1665,7 +1672,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             part_doc,
             DocEdit::SetMembers {
                 node: union,
-                members: vec![body.into(), twin.into()],
+                members: editor_core::Bodies::Spelled(vec![body.into(), twin.into()]),
             },
         );
         let (part_doc, _) = step(part_doc, DocEdit::DeleteNode { id: extra });
@@ -1678,7 +1685,29 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
         );
         let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
         match inline(&host, inst, &resolver, Tol::witness()) {
-            Err(InlineError::StrandedPartName { name, missing }) => {
+            // NESTED: the segment carries the name in through the deleted
+            // node's read, and the read is the first local id of the
+            // segment the walk meets; with its node gone nothing defines
+            // it, so the refusal names the read itself.
+            Err(InlineError::StrandedPartRead { name, read }) if nested => {
+                assert_eq!(name.name(), &stranded);
+                assert_eq!(
+                    read.id(),
+                    extra_read,
+                    "the refusal carries the read the deleted node defined"
+                );
+                assert_eq!(
+                    minter_label(&name),
+                    Some("part body"),
+                    "a carried name is the part's, spoken from it: {name}"
+                );
+                let msg = format!("{}", InlineError::StrandedPartRead { name, read });
+                assert!(
+                    msg.contains("no operation of the referenced document defines"),
+                    "the message states the fault: {msg}"
+                );
+            }
+            Err(InlineError::StrandedPartName { name, missing }) if !nested => {
                 assert_eq!(name.name(), &stranded);
                 assert_eq!(
                     missing,
@@ -1686,33 +1715,22 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
                     "the refusal carries the deleted node, which the part no longer holds, \
                      nested={nested}"
                 );
-                if nested {
-                    assert_eq!(
-                        minter_label(&name),
-                        Some("part body"),
-                        "a carried name is the part's, spoken from it: {name}"
-                    );
-                    assert_ne!(
-                        missing.id(),
-                        name.name().node,
-                        "nested: the node that stranded is inside a path segment, so the name \
-                         alone does not name it"
-                    );
-                } else {
-                    assert_eq!(
-                        missing.id(),
-                        name.name().node,
-                        "flat: the name IS minted at the stranded node, so the two coincide — \
-                         the case that cannot tell the id from the name"
-                    );
-                }
+                assert_eq!(
+                    missing.id(),
+                    name.name().node,
+                    "flat: the name IS minted at the stranded node, so the two coincide — \
+                     the case that cannot tell the id from the name"
+                );
                 let msg = format!("{}", InlineError::StrandedPartName { name, missing });
                 assert!(
                     msg.contains("no longer has"),
                     "the message states the fault: {msg}"
                 );
             }
-            other => panic!("expected StrandedPartName, got {other:?}"),
+            other => panic!(
+                "expected StrandedPartName (flat) or StrandedPartRead (nested), \
+                 nested={nested}, got {other:?}"
+            ),
         }
     }
 }

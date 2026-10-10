@@ -331,11 +331,11 @@ fn both_sweeps_evaluate_in_one_document() {
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x3fb1_d208_1d37_5a93),
-        ("corner_table", 0xdb95_b8fc_06b7_a993),
+        ("die", 0x58cb_f848_4903_f14b),
+        ("corner_table", 0x5308_7bf8_7b8c_a9b5),
         ("cut_cylinder", 0x4318_92f9_c696_0fd1),
-        ("boss_union", 0x05b4_17a8_c844_6429),
-        ("kitchen_sink", 0x98c0_fba7_09be_e02d),
+        ("boss_union", 0x1882_87ad_8e5e_93f3),
+        ("kitchen_sink", 0x9a17_85a9_db7c_a173),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -871,10 +871,8 @@ fn one_declared_radius_pinches_at_the_germ_as_its_kernel_twin_does() {
     let (doc, b) = spin(doc, b, [0.0, 1.0, 0.0], PHI);
     let (doc, union) = insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );

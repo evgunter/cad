@@ -78,7 +78,7 @@ impl DeleteAffordance {
 }
 
 /// A census of node kinds, most numerous first and ties broken by
-/// name, as `20 × Boolean, 1 × Fillet` — the readable form of a list
+/// name, as `20 × Subtract, 1 × Fillet` — the readable form of a list
 /// whose LENGTH is the thing being warned about.
 fn kind_census(doc: &Doc<ProfileProgram>, nodes: &[RecipeNodeId]) -> String {
     let mut counts: std::collections::BTreeMap<&'static str, usize> =

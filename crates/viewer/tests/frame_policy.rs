@@ -3644,7 +3644,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             ToolNotice::Seated {
                 tool: ToolKind::Boolean,
                 event: SeatEvent::PickLost {
-                    seat: Seat::OperandA,
+                    seat: Seat::Member,
                     node: viewer::test_support::spoken(RecipeNodeId::new(0, tagged(3)), None),
                 },
             },

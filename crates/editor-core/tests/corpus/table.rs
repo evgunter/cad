@@ -57,8 +57,8 @@
 
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanOp, CancelToken, DocEdit, EvalOptions, Evaluation, Node, RoleSeg, SlotId,
-    declared_pairs, evaluate, find_flush_candidates,
+    CancelToken, DocEdit, EvalOptions, Evaluation, Node, RoleSeg, SlotId, declared_pairs, evaluate,
+    find_flush_candidates,
 };
 use topo::PlaneRelation;
 
@@ -123,7 +123,7 @@ pub fn document() -> CorpusDoc {
             &EvalOptions::default(),
             Tol::witness(),
         );
-        let findings = find_flush_candidates(&ev, acc, ext, Tol::witness())
+        let findings = find_flush_candidates(&ev, &r.doc, acc, ext, Tol::witness())
             .expect("corner-table flush pairs are definite");
         // The inspection. Each leg shares planes with the accumulated
         // body in three families: its two corner wall planes (against
@@ -152,10 +152,8 @@ pub fn document() -> CorpusDoc {
                 "leg {i}: no Merged-named wall in {findings:#?}"
             );
         }
-        let uni = r.insert(Node::Boolean {
-            op: BooleanOp::Union,
-            a: acc.into(),
-            b: ext.into(),
+        let uni = r.insert(Node::Union {
+            members: editor_core::Bodies::Spelled(vec![acc.into(), ext.into()]),
             declare: declared_pairs(&findings),
         });
         acc = uni;

@@ -67,9 +67,10 @@ use crate::node::RecipeNodeId;
 pub(crate) fn name_chamfer<T: geom_core::Real>(
     node: RecipeNodeId,
     target_node: RecipeNodeId,
+    target_read: crate::VarId,
     target: &NameTable,
     body: &Body<T>,
     rec: &BlendNaming,
 ) -> Result<Arc<NameTable>, NamingError> {
-    super::emit_blend::name_blend(node, target_node, target, body, rec)
+    super::emit_blend::name_blend(node, target_node, target_read, target, body, rec)
 }

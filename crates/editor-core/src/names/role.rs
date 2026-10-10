@@ -43,6 +43,7 @@ use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use super::canonical;
 use super::nest::{Descent, Kept, Stopped, descend};
 use crate::node::{RecipeNodeId, StepId};
+use crate::var::VarId;
 
 /// **The handle a role segment holds its argument [`StableName`] by**:
 /// a shared, immutable name plus one word of ORDER CACHE.
@@ -655,11 +656,8 @@ pub(crate) fn edge_line(name: &NameRef) -> NameRef {
 macro_rules! wrapped_edge_of {
     ($seg:expr) => {
         match $seg {
-            RoleSeg::FromA(n)
-            | RoleSeg::FromB(n)
-            | RoleSeg::FromMember { of: n, .. }
+            RoleSeg::From { of: n, .. }
             | RoleSeg::SplitFragment { parent: n, .. }
-            | RoleSeg::FromTarget(n)
             | RoleSeg::InPart { of: n }
             | RoleSeg::Instance { of: n, .. } => Some(n),
             _ => None,
@@ -679,7 +677,7 @@ fn wrapped_edge_mut(seg: &mut RoleSeg) -> Option<&mut NameRef> {
 }
 
 /// A sequence of role segments (N1). Usually length 1; composition
-/// (`[FromA(..), Fragment(..)]`) grows it.
+/// (`[From { .. }, Fragment(..)]`) grows it.
 pub type RolePath = Vec<RoleSeg>;
 
 /// Which end of the sweep vector a cap face closes. The sweep vector
@@ -1153,6 +1151,21 @@ pub enum RimSupport {
     Mate,
 }
 
+/// **The accumulation's side of a union fold step** ([`RoleSeg::From`]):
+/// a read no document mints, since mint ordinals count from one. The
+/// union descends through it to the member read at its foot, and no
+/// table it publishes holds it.
+pub(crate) const FOLD_A: VarId = VarId::new(0, 0);
+
+/// **The joining member's side of a union fold step**, as [`FOLD_A`].
+pub(crate) const FOLD_B: VarId = VarId::new(0, 1);
+
+/// Whether `read` is one of a union fold step's two sides
+/// ([`FOLD_A`], [`FOLD_B`]) rather than a read a document holds.
+pub(crate) fn is_fold_side(read: VarId) -> bool {
+    read == FOLD_A || read == FOLD_B
+}
+
 /// One op-typed role segment (N1; closed enum, spec D2). Grouped by
 /// op; each group versions with its op's contract.
 #[derive(
@@ -1215,72 +1228,32 @@ pub enum RoleSeg {
     /// (partial).
     AxisEdge(PieceRun),
 
-    // ---- Booleans ----
-    /// An entity surviving from operand A (argument: its name in the
-    /// A operand's table).
-    FromA(NameRef),
-    /// An entity surviving from operand B.
-    FromB(NameRef),
-    /// **An entity surviving from one MEMBER of an n-ary union**
-    /// ([`crate::Node::Union`]; DM4 as amended): which member, and
-    /// which entity of it.
+    // ---- Carried in from an input ----
+    /// **An entity an operation carries in from an input** (DM4; N1):
+    /// `read` is the variable the input slot holds and `of` the
+    /// entity's name in that variable's table. One segment serves a
+    /// union's and an intersect's members, a subtract's two seats and a
+    /// one-input operation's input (a shell's, a blend's); which seat a
+    /// read sits in is the node's to say, never the name's.
     ///
-    /// The union's value is a fold of the pair verb, so the fold's own
-    /// tables carry `FromA`/`FromB` descent chains whose depth is the
-    /// member's POSITION in the list. This segment is what the union's
-    /// emitter mints instead: one wrapper, whatever the depth. A
-    /// member's own names are therefore a function of the member's
-    /// identity alone — neither its position nor how many members
-    /// precede it — which is what lets a member be dropped without
-    /// renaming the rest. A declaration, which names a member's entity
-    /// SITED at that member and is rewritten into this wrapper at the
-    /// routing door, keeps that identity through the fold's MERGES: a
-    /// member's face that a declared merge has consumed resolves, at
-    /// the step its pair is fed to, to the accumulation's `Merged` row
-    /// whose flat constituent set holds it. A face another member
-    /// contained whole leaves no row behind, and a pair naming it is
-    /// satisfied. A face surviving only in pieces — split by a later
-    /// member, or inside a merged row later fragmented — has no one
-    /// entity to resolve to, and a pair naming it refuses, saying which
-    /// of the two consumed it; once every piece is contained whole, no
-    /// piece survives and the pair is satisfied instead
-    /// ([`crate::Node::Union`] states the rule).
+    /// The key is the read, never the inner name's minting node: a
+    /// placement adds no name segment, so two members that are
+    /// placements of one body carry identical tables and only the read
+    /// tells them apart. Nor is it the operation the read reaches: two
+    /// outputs of one operation are two variables, so a union of a
+    /// split's two halves names them apart. No position is recorded,
+    /// so removing a member leaves every other member's names as they
+    /// were. A read spelled twice is one key, and its two members glue
+    /// to each other (REFERENCES DM5).
     ///
-    /// That is a statement about the WRAPPER, and about nothing else.
-    /// Which of a union's names exist at all is still the pair verb's
-    /// answer at every step, and the pair verb is not symmetric in its
-    /// two operands: a declared merge keeps operand A's carrier and
-    /// splits operand A's rims, so reordering the member list moves
-    /// `Fragment` rows from one member to the other and
-    /// changes the merged face's carrier origin. Measured on a bare
-    /// [`crate::Node::Boolean`] with no union in the picture
-    /// (`work/wire/the-pair-verbs-declared-merge-is-asymmetric-in-its-operands.md`),
-    /// so it is the verb's asymmetry showing through a fold rather
-    /// than anything the fold or this segment adds.
-    ///
-    /// # Why the member EDGE and not just the inner name
-    ///
-    /// Because an inner name does not say which member it came from.
-    /// A pass-through op mints no name of its own (N1: a transform
-    /// adds no segment and `node` stays the original minter), so N
-    /// placements of one prototype carry N IDENTICAL tables — which
-    /// is the die's twenty-one pips exactly. Keying on the inner name
-    /// alone collapses them onto one name and the emitter refuses.
-    /// The member's own node id is the list edge, and it is the only
-    /// thing that distinguishes one member from another.
-    ///
-    /// It is a bare [`RecipeNodeId`] rather than a name, which is new
-    /// in this vocabulary, and it is the honest shape: what is being
-    /// recorded IS a recipe edge, not another entity. `Instance { i,
-    /// of }` is the precedent — a recipe-structural discriminator
-    /// beside the name it qualifies — with an id where that one has an
-    /// index, because a union's members are named by the DAG and a
-    /// pattern's instances are counted.
-    FromMember {
-        /// The member node this entity came from — a DAG edge of the
-        /// union, and the identity that makes the name position-free.
-        member: RecipeNodeId,
-        /// The entity's name in that member's own table.
+    /// Inside a union's fold the two operands of a step are keyed by
+    /// [`FOLD_A`] and [`FOLD_B`], which no document mints; the union
+    /// descends through them to the member read at their foot, and no
+    /// table it publishes holds either.
+    From {
+        /// The variable the input slot holds.
+        read: VarId,
+        /// The entity's name in that variable's table.
         of: NameRef,
     },
     /// A zip-minted seam entity: the crossing of an A-operand entity
@@ -1342,7 +1315,7 @@ pub enum RoleSeg {
     /// "Flush edges at a union"): the sorted, FLAT set of constituent
     /// names retires into this name (N3; canonical order = name order). A
     /// constituent is never itself a BARE merged name, through any
-    /// `FromA`/`FromB`/`FromMember` wrapping — a merge of a merged face lists the
+    /// `From` wrapping — a merge of a merged face lists the
     /// faces, never the merge, and an edge set lists edges. The one
     /// carve-out, stated here and
     /// pointed at from every other site: a FRAGMENT of a merged face
@@ -1350,8 +1323,8 @@ pub enum RoleSeg {
     /// legitimate constituent, and is not nesting.
     Merged(Vec<StableName>),
     /// A fragment discriminator, composed AFTER the parent-bearing
-    /// segment: `[FromA(f), Fragment(q)]` reads "the q-qualified
-    /// fragment of A's face f" (N2).
+    /// segment: `[From { read, of: f }, Fragment(q)]` reads "the
+    /// q-qualified fragment of face f of `read`" (N2).
     Fragment(Qualifier),
 
     // ---- Split ----
@@ -1421,16 +1394,9 @@ pub enum RoleSeg {
     //
     // Every segment carries the SOURCE entity's OWN stable name, so a
     // fillet name composes covariantly under an upstream bump exactly
-    // as the boolean emitter's `FromA`/`Seam` do: the target's names
+    // as the boolean emitter's `From`/`Seam` do: the target's names
     // move, and these move with them, without this emitter deciding
     // anything about geometry.
-    /// An entity carried through from the op's target (argument: its
-    /// name in the target's table) — a blend's shrunk support face,
-    /// untouched edge or far vertex, or a shell's outer wall. The
-    /// single-operand analogue of [`RoleSeg::FromA`], shared by every
-    /// single-operand verb whose survivors keep their operand keys;
-    /// which verb carried the entity is the minting node's business.
-    FromTarget(NameRef),
     /// The blend face rounding a source edge.
     BlendFace(NameRef),
     /// The octant (sphere patch) rounding a source vertex.
@@ -1552,7 +1518,7 @@ pub enum RoleSeg {
     // an upstream bump exactly as the blend segments do: the target's
     // names move, and these move with them. The outer wall is not
     // here — a survivor keeps its operand key and is named
-    // [`RoleSeg::FromTarget`], the blend's pass-through, because it IS
+    // [`RoleSeg::From`], the blend's pass-through, because it IS
     // the same entity carried through one op.
     /// **The cavity twin of a source entity**: the face, edge or
     /// vertex the inward offset minted for the named one. A designated
@@ -1691,45 +1657,45 @@ pub fn meridian_vertex(
     }
 }
 
-/// **The name a survivor of `node` takes**: [`RoleSeg::FromTarget`]
-/// of the name `inner` it had in the target's table — the
-/// single-operand pass-through a blend's shrunk support or a shell's
-/// outer wall wears one op later.
+/// **The name a survivor of `node` takes**: [`RoleSeg::From`] the
+/// target's read `read` of the name `inner` it had in that variable's
+/// table — the single-operand pass-through a blend's shrunk support or
+/// a shell's outer wall wears one op later.
 ///
 /// The kind is `inner`'s and cannot be anything else: a survivor is
 /// the same entity carried through one op, so the wrapper renames it
 /// without re-kinding it.
 #[must_use]
-pub fn carried(node: RecipeNodeId, inner: StableName) -> StableName {
+pub fn carried(node: RecipeNodeId, read: VarId, inner: StableName) -> StableName {
     StableName {
         kind: inner.kind,
         node,
-        path: vec![RoleSeg::FromTarget(NameRef::new(inner))],
+        path: vec![RoleSeg::From {
+            read,
+            of: NameRef::new(inner),
+        }],
     }
 }
 
-/// **The bare recipe-node id a segment carries, if any** — the third
-/// question about a segment's payload, beside "which names does it
-/// embed" and "which side does it name".
+/// **The read a segment carries, if any** — the third question about a
+/// segment's payload, beside "which names does it embed" and "which
+/// side does it name".
 ///
-/// One variant answers today: [`RoleSeg::FromMember`]'s member edge.
-/// It matters because such an id is a LOCAL node reference like the
-/// minting one — it must be re-mapped when a subgraph is copied into
-/// another document, fed to the naming key, and held to the document's
-/// mint log when a file is read — and a walk that only visits
-/// embedded NAMES cannot see it.
+/// One variant answers: [`RoleSeg::From`]'s read. It matters because
+/// such an id is a LOCAL reference like the minting node — it must be
+/// re-mapped when a subgraph is copied into another document, fed to
+/// the naming key, and held to the document's variables when a file is
+/// read — and a walk that only visits embedded NAMES cannot see it.
 ///
 /// The match is EXHAUSTIVE on purpose (the `walk_names` rule): a
-/// future variant carrying a node id must be classified here or the
+/// future variant carrying an id must be classified here or the
 /// compile breaks, rather than defaulting to "carries none" and
 /// crossing a re-map with an id from another document's space.
-pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
+pub(crate) fn read_edge(seg: &RoleSeg) -> Option<VarId> {
     match seg {
-        RoleSeg::FromMember { member, .. } => Some(*member),
+        RoleSeg::From { read, .. } => Some(*read),
         name_free_seg!() => None,
-        RoleSeg::FromA(_)
-        | RoleSeg::FromB(_)
-        | RoleSeg::Seam { .. }
+        RoleSeg::Seam { .. }
         | RoleSeg::Crossing { .. }
         | RoleSeg::EdgeCrossing { .. }
         | RoleSeg::Merged(_)
@@ -1738,7 +1704,6 @@ pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
         | RoleSeg::SplitFragment { .. }
         | RoleSeg::CrossingVertex { .. }
         | RoleSeg::OnToolVertex { .. }
-        | RoleSeg::FromTarget(_)
         | RoleSeg::BlendFace(_)
         | RoleSeg::CornerFace(_)
         | RoleSeg::TrimEdge { .. }
@@ -1828,8 +1793,9 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
         | Node::Fillet { .. }
         | Node::Chamfer { .. }
         | Node::Shell { .. }
-        | Node::Boolean { .. }
+        | Node::Subtract { .. }
         | Node::Union { .. }
+        | Node::Intersect { .. }
         | Node::Pattern { .. }
         | Node::PlaceInWorld { .. }
         | Node::PlacedUnion { .. }
@@ -1863,8 +1829,10 @@ pub(crate) enum Lift {
 
 /// **How `node` (the consumer, minted as `consumer`) carries `name`, an
 /// entity of its input `input`**: one [`Lift`] per seat whose read
-/// `defined_by` resolves to `input` (a selection's, through its body), empty when `node` reads none of
-/// `input`'s outputs.
+/// `defined_by` resolves to `input` (a selection's, through its body),
+/// empty when `node` reads none of `input`'s outputs. `selected_body`
+/// answers the body read a selection read reads (the read itself for any
+/// other), which keys a blend's or a shell's carried names.
 ///
 /// The match is exhaustive with no wildcard, and every arm names its
 /// variant's fields (as [`crate::node::Node::operand_rows`] does), so a new
@@ -1876,10 +1844,10 @@ pub(crate) enum Lift {
 ///   rows, verbatim) and a `Split`'s target (its intact entities keep
 ///   their names; a face it cuts is a fragment, absent under the
 ///   name).
-/// - **Spelled under the consumer**: a `Union` member's entity as
-///   [`super::member_name`]; a pair `Boolean`'s as `FromA` / `FromB`;
-///   a `Fillet`'s, `Chamfer`'s or `Shell`'s target's survivor as
-///   `FromTarget`; a world placement's copy as `Placed`.
+/// - **Spelled under the consumer**, as [`RoleSeg::From`] the seat's
+///   read: a `Union`'s or `Intersect`'s member, a `Subtract`'s seat, and
+///   a `Fillet`'s, `Chamfer`'s or `Shell`'s survivor, under its
+///   selection's body read; a world placement's copy as `Placed`.
 /// - **Moved**: a `Transform`, a `Pattern` and a `PlacedUnion` place
 ///   their input again.
 /// - **Dropped**: every other seat — the datum, profile, path, axis
@@ -1890,13 +1858,17 @@ pub(crate) fn lift<P>(
     input: RecipeNodeId,
     name: &StableName,
     defined_by: &dyn Fn(crate::VarId) -> Option<RecipeNodeId>,
+    selected_body: &dyn Fn(crate::VarId) -> crate::VarId,
 ) -> Vec<Lift> {
     use crate::node::{Datum, Node, PatternKind};
-    let under = |seg: fn(NameRef) -> RoleSeg| {
+    let under = |read: crate::VarId| {
         Lift::Spelled(StableName {
             kind: name.kind,
             node: consumer,
-            path: vec![seg(NameRef::new(name.clone()))],
+            path: vec![RoleSeg::From {
+                read,
+                of: NameRef::new(name.clone()),
+            }],
         })
     };
     let reads = |at: crate::VarId| defined_by(at) == Some(input);
@@ -1914,7 +1886,7 @@ pub(crate) fn lift<P>(
             .into_iter()
             .collect(),
         Node::Split { target, tool } => [
-            seat(*target, Lift::Spelled(name.clone())),
+            seat(target.read, Lift::Spelled(name.clone())),
             seat(*tool, Lift::Dropped),
         ]
         .into_iter()
@@ -1923,23 +1895,26 @@ pub(crate) fn lift<P>(
         Node::Union {
             members,
             declare: _,
+        }
+        | Node::Intersect {
+            members,
+            declare: _,
         } => members
-            .iter()
-            .filter(|&&m| reads(m))
-            .map(|_| Lift::Spelled(super::member_name(consumer, input, name)))
+            .reads()
+            .filter(|m| reads(m.read))
+            .map(|m| under(m.read))
             .collect(),
-        Node::Boolean {
-            op: _,
-            a,
-            b,
+        Node::Subtract {
+            from,
+            tool,
             declare: _,
         } => [
-            seat(*a, under(RoleSeg::FromA)),
-            seat(*b, under(RoleSeg::FromB)),
+            seat(from.read, under(from.read)),
+            seat(tool.read, under(tool.read)),
         ]
-        .into_iter()
-        .flatten()
-        .collect(),
+            .into_iter()
+            .flatten()
+            .collect(),
         Node::Fillet {
             radius: _,
             selection: body,
@@ -1951,7 +1926,9 @@ pub(crate) fn lift<P>(
         | Node::Shell {
             thickness: _,
             open: body,
-        } => seat(*body, under(RoleSeg::FromTarget)).into_iter().collect(),
+        } => seat(*body, under(selected_body(*body)))
+            .into_iter()
+            .collect(),
         Node::Transform {
             input: placed,
             placement: _,
@@ -1959,9 +1936,18 @@ pub(crate) fn lift<P>(
         // The copy is the body's, qualified by the placement; where the
         // pose puts it is the product's geometry, and the copy's name
         // reaches it there.
-        Node::PlaceInWorld { body, pose: _ } => seat(*body, under(|of| RoleSeg::Placed { of }))
-            .into_iter()
-            .collect(),
+        Node::PlaceInWorld { body, pose: _ } => seat(
+            body.read,
+            Lift::Spelled(StableName {
+                kind: name.kind,
+                node: consumer,
+                path: vec![RoleSeg::Placed {
+                    of: NameRef::new(name.clone()),
+                }],
+            }),
+        )
+        .into_iter()
+        .collect(),
         Node::Pattern {
             input: placed,
             count: _,
@@ -2237,15 +2223,15 @@ pub(crate) trait SegRewrite {
         Ok(Some(walked))
     }
 
-    /// The member edge of a [`RoleSeg::FromMember`] — a bare node id,
-    /// which is not a name and which a rewrite of the document's id
-    /// space has to move too.
+    /// The read of a [`RoleSeg::From`] — a bare variable id, which is
+    /// not a name and which a rewrite of the document's id space has to
+    /// move too.
     ///
     /// # Errors
     ///
     /// The rewriter's own.
-    fn member(&mut self, m: RecipeNodeId) -> Result<RecipeNodeId, Self::Error> {
-        Ok(m)
+    fn read(&mut self, r: VarId) -> Result<VarId, Self::Error> {
+        Ok(r)
     }
 }
 
@@ -2296,8 +2282,8 @@ impl<'s, W: SegRewrite> Deep<'_, 's, W> {
         self.w.vertex(v).map_err(Stopped::Refused)
     }
 
-    fn member(&mut self, m: RecipeNodeId) -> Result<RecipeNodeId, Stopped<'s, W::Error>> {
-        self.w.member(m).map_err(Stopped::Refused)
+    fn read(&mut self, r: VarId) -> Result<VarId, Stopped<'s, W::Error>> {
+        self.w.read(r).map_err(Stopped::Refused)
     }
 }
 
@@ -2432,12 +2418,10 @@ impl RoleSeg {
             R::Pole(v) => R::Pole(w.vertex(*v)?),
             R::AxisEdge(run) => R::AxisEdge(run.try_map(|e| w.edge(e))?),
             // The carried names.
-            R::FromA(n) => R::FromA(rewrite_ref(n, w)?),
-            R::FromB(n) => R::FromB(rewrite_ref(n, w)?),
-            // BOTH halves: the member edge is a local node id like the
-            // minting one, and a rewrite of the id space moves it too.
-            R::FromMember { member, of } => R::FromMember {
-                member: w.member(*member)?,
+            // BOTH halves: the read is a local id like the minting node,
+            // and a rewrite of the id space moves it too.
+            R::From { read, of } => R::From {
+                read: w.read(*read)?,
                 of: rewrite_ref(of, w)?,
             },
             R::Seam { a, b } => R::Seam {
@@ -2484,7 +2468,6 @@ impl RoleSeg {
                 side: *side,
                 of: rewrite_ref(of, w)?,
             },
-            R::FromTarget(n) => R::FromTarget(rewrite_ref(n, w)?),
             R::BlendFace(n) => R::BlendFace(rewrite_ref(n, w)?),
             R::CornerFace(n) => R::CornerFace(rewrite_ref(n, w)?),
             R::TrimEdge { edge, support } => R::TrimEdge {
@@ -2709,13 +2692,13 @@ impl SegRewrite for StepPieces {
 /// this" is ONE decision at one site instead of two that can be made
 /// differently.
 ///
-/// The seven it leaves out are the boolean table's own vocabulary:
-/// [`RoleSeg::OutputBody`], [`RoleSeg::FromA`], [`RoleSeg::FromB`],
-/// [`RoleSeg::FromMember`], [`RoleSeg::Seam`], [`RoleSeg::Merged`]
+/// The five it leaves out are the boolean table's own vocabulary:
+/// [`RoleSeg::OutputBody`], [`RoleSeg::From`], [`RoleSeg::Seam`],
+/// [`RoleSeg::Merged`]
 /// and [`RoleSeg::Fragment`]. Each of the two matches decides those
 /// for itself, because that is exactly where they differ:
-/// `FromA`/`FromB` are the fold's INTERNAL space (descended through
-/// by the rewrite), a `Seam` heads a name alone or as a junction's
+/// a `From` keyed by a fold side is the fold's INTERNAL space
+/// (descended through by the rewrite), a `Seam` heads a name alone or as a junction's
 /// run of lines, and a `Fragment` is a tail segment rather than a head
 /// one.
 macro_rules! never_in_a_boolean_table {
@@ -2742,7 +2725,6 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::SplitFragment { .. }
             | $crate::names::RoleSeg::CrossingVertex { .. }
             | $crate::names::RoleSeg::OnToolVertex { .. }
-            | $crate::names::RoleSeg::FromTarget(_)
             | $crate::names::RoleSeg::BlendFace(_)
             | $crate::names::RoleSeg::CornerFace(_)
             | $crate::names::RoleSeg::TrimEdge { .. }
@@ -2909,7 +2891,7 @@ mod tests {
                 .into(),
             )],
         };
-        let carried_wall = carried(RecipeNodeId::new(0, 9), wall(1, 4));
+        let carried_wall = carried(RecipeNodeId::new(0, 9), crate::VarId::new(1, 9), wall(1, 4));
         assert_eq!(
             carried_wall.piece_steps().into_iter().collect::<Vec<_>>(),
             vec![StepId::new(0, 4)]
@@ -2934,12 +2916,63 @@ mod tests {
         let inner = band_rim(N, edges()[0].start());
         let outer = RecipeNodeId::new(0, 9);
         assert_eq!(
-            carried(outer, inner.clone()),
+            carried(outer, crate::VarId::new(1, 7), inner.clone()),
             StableName {
                 kind: EntityKind::Edge,
                 node: outer,
-                path: vec![RoleSeg::FromTarget(NameRef::new(inner))],
+                path: vec![RoleSeg::From {
+                    read: crate::VarId::new(1, 7),
+                    of: NameRef::new(inner),
+                }],
             }
         );
+    }
+
+    /// **A subtract lifts each operand's names through that operand's
+    /// own seat** (review r2 of PR 4527, a surviving mutant): a name of
+    /// the `from` operand is keyed by `from`'s read, one of the tool by
+    /// the tool's, and neither by the other's.
+    #[test]
+    fn a_subtract_lifts_each_operands_names_by_its_own_seats_read() {
+        use super::{Lift, lift};
+        let (from_node, tool_node, cut) = (
+            RecipeNodeId::new(0, 1),
+            RecipeNodeId::new(0, 2),
+            RecipeNodeId::new(0, 3),
+        );
+        let (from_read, tool_read) = (crate::VarId::new(1, 11), crate::VarId::new(2, 22));
+        let node: crate::node::Node<crate::ProfileProgram> = crate::node::Node::Subtract {
+            from: crate::BodyRead::plain(from_read),
+            tool: crate::BodyRead::plain(tool_read),
+            declare: Vec::new(),
+        };
+        let defined_by = |read: crate::VarId| {
+            if read == from_read {
+                Some(from_node)
+            } else if read == tool_read {
+                Some(tool_node)
+            } else {
+                None
+            }
+        };
+        for (input, read) in [(from_node, from_read), (tool_node, tool_read)] {
+            let name = StableName {
+                kind: EntityKind::Face,
+                node: input,
+                path: vec![RoleSeg::OutputBody],
+            };
+            assert_eq!(
+                lift(cut, &node, input, &name, &defined_by, &|read| read),
+                vec![Lift::Spelled(StableName {
+                    kind: EntityKind::Face,
+                    node: cut,
+                    path: vec![RoleSeg::From {
+                        read,
+                        of: NameRef::new(name.clone()),
+                    }],
+                })],
+                "a name of {input} lifts through its own seat's read"
+            );
+        }
     }
 }

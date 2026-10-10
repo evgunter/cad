@@ -95,12 +95,13 @@ N2, and D10 Repetition state it:
   under DM4's same-member-pair rule.
 - `coincide::construction` and `NamedCell::Entity` take the read, not the
   operation (needed as soon as two halves build).
-- Persist: one load-time migration. `Boolean { Union, a, b }` →
-  `Union [a, b]`, `Intersect` likewise, `Subtract` to its seats; a chain
-  stays a chain (flattening is the author's edit, DM6). Names map
+- Persist: regenerated once; an ignored one-shot checks the total map
+  against the base's saves. `Boolean { Union, a, b }` → `Union [a, b]`,
+  `Intersect` likewise, `Subtract` to its seats; a chain stays a chain
+  (flattening is the author's edit, DM6). Names map
   `FromA`/`FromB`/`FromMember`/`FromTarget` → `From` by one total map.
   Stored documents: `plate_param.pncad`, `die_composed_tour.pncad`,
-  `pre_b_families.json`.
+  `die_tool.pncad`.
 - Python: `Node.boolean` and `BooleanOp` retire; `Node.union(members)`
   stays; `Node.intersect(members)` and `Node.subtract` arrive (two seats;
   `from` is a Python keyword, so the stub names that parameter);

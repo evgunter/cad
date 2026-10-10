@@ -2303,33 +2303,43 @@ pub struct CheckRow {
 }
 
 /// An unproven coincidence's cells as the selections that show them,
-/// each with its button's label.
-fn coincidence_cells(finding: &CheckFinding, by: Speaker<'_>) -> Vec<(String, Selection)> {
+/// each with its button's label. A cell named at an operand READ shows
+/// as the node defining that read in `landed`; a read `landed` holds no
+/// node for has no node to select and is left out.
+fn coincidence_cells(
+    finding: &CheckFinding,
+    by: Speaker<'_>,
+    landed: &Doc<ProfileProgram>,
+) -> Vec<(String, Selection)> {
     let CheckEvidence::UnprovenCoincidence { row, .. } = &finding.evidence else {
         return Vec::new();
     };
     row.cells
         .iter()
-        .map(|cell| match cell {
+        .filter_map(|cell| match cell {
             NamedCell::Entity { input, name } => {
+                let node = landed.operation_of(*input)?;
                 let select = match name.kind {
                     EntityKind::Face => Selection::Face(FaceSelection {
                         name: name.clone(),
-                        node: *input,
+                        node,
                         body: 0,
                     }),
                     EntityKind::Edge => Selection::Edge(EdgeSelection {
                         name: name.clone(),
-                        node: *input,
+                        node,
                         body: 0,
                     }),
-                    EntityKind::Vertex | EntityKind::Body => Selection::Node(*input),
+                    EntityKind::Vertex | EntityKind::Body => Selection::Node(node),
                 };
-                (by.name(name).to_string(), select)
+                Some((by.name(name).to_string(), select))
             }
-            NamedCell::Tool { input } => (by.node(*input).to_string(), Selection::Node(*input)),
+            NamedCell::Tool { input } => {
+                let node = landed.operation_of(*input)?;
+                Some((by.node(node).to_string(), Selection::Node(node)))
+            }
             NamedCell::Piece { profile, .. } => {
-                (by.node(*profile).to_string(), Selection::Node(*profile))
+                Some((by.node(*profile).to_string(), Selection::Node(*profile)))
             }
         })
         .collect()
@@ -2358,7 +2368,7 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
                 node,
                 button: by.node(node).to_string(),
                 sentence: Said(finding, by).to_string(),
-                cells: coincidence_cells(finding, by),
+                cells: coincidence_cells(finding, by, landed),
             }
         })
         .collect()

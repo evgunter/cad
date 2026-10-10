@@ -15,17 +15,18 @@
 //!   the leaf's own words, so a name a role cites keeps its feature:
 //!   "the blend face over the end rim edge over loop 0 step 2 of
 //!   Extrude e548 of Fillet 92b0".
-//! - **A join** is a carry through a secondary operand — a Boolean's B,
-//!   a union's member — said with its node, outermost first. A Boolean
-//!   is said by its operation: "…, cut in at Subtract 1669", "…, joined
-//!   at Union 2b40", "…, intersected at Intersect 77c1"; a union by its
-//!   member: "…, joined at Union d1aa from Transform 3218". By tag, or
-//!   where the document does not hold the Boolean, a B join says what
-//!   the name holds: "…, through operand B of node 1669". A carry
-//!   through a primary operand (a Boolean's A, the body a fillet's
-//!   selection reads) is the body's own continuation and is silent. Two names of one table first
-//!   differ at a node where one went through a secondary operand, which
-//!   a join says.
+//! - **A join** is a carry through a read the body joins ([`RoleSeg::From`]),
+//!   said with its node, outermost first: a subtract's tool as "…, cut
+//!   in at Subtract 1669", a union's or an intersect's member as "…,
+//!   joined at Union d1aa from Transform 3218", "…, intersected at
+//!   Intersect 77c1 from Extrude e548". A carry through a subtract's
+//!   `from` or a blend's or shell's target is the body's own
+//!   continuation and is silent. By tag, or where the document does not
+//!   hold the node, whether it joins is the document's to say, so the
+//!   carry says only the read it came through: "…, through read
+//!   478a00dd4941 at node a02b7dac9af0". Two names of one table first differ at a
+//!   node where one went through a read another did not, which a join
+//!   says.
 //! - **Wraps and joins are said in the order the path takes them.** A
 //!   join beneath a wrap is said inside it, in brackets: "instance 1's
 //!   copy of (the start cap of Extrude e548, cut in at Subtract 1669)"
@@ -40,9 +41,8 @@
 //!   as more of it.
 //!
 //! **The full form says two names alike only where they differ in a
-//! node it never says**: the node of a primary carry (silent above), or
-//! of a split's, a copy's, a band cut's or a part's carry, which the
-//! wrap's words leave unsaid. Every other difference between two names
+//! node it never says**: a split's, a copy's, a band cut's or a part's
+//! carry, which the wrap's words leave unsaid. Every other difference between two names
 //! is in their words.
 //!
 //! **Which node's output holds the entity is not the name's to say**:
@@ -82,7 +82,8 @@ use crate::names::role::{
     CapEnd, EntityKind, MeridianEnd, NameRef, PieceRun, ProfileEdgeRef, ProfileVertexRef,
     Qualifier, RimSupport, RoleSeg, SectionCircle, SplitHalf, StableName, fragment_tail_start,
 };
-use crate::node::{BooleanOp, RecipeNodeId};
+use crate::node::RecipeNodeId;
+use crate::spoken::Carry;
 use crate::spoken::{Said, Say, Speaker};
 use profile::PieceRole;
 
@@ -122,7 +123,7 @@ impl fmt::Display for LeafRole<'_> {
 /// that walk finds one).
 #[must_use]
 pub fn role_leaf(name: &StableName) -> &StableName {
-    walk(name).leaf
+    walk(name, Speaker::TAG).leaf
 }
 
 /// Where a cited name sits in a sentence: the index of each citation on
@@ -476,12 +477,12 @@ enum Wrap<'n> {
 }
 
 /// A carry through a secondary operand, at the node that carried it.
-enum Join {
-    B(RecipeNodeId),
-    Member {
-        union: RecipeNodeId,
-        member: RecipeNodeId,
-    },
+#[derive(Clone, Copy)]
+struct Join {
+    /// The node that carried the entity in.
+    at: RecipeNodeId,
+    /// The read it came through.
+    read: crate::VarId,
 }
 
 /// A carry the walk looked through and says: around the leaf, or as a
@@ -499,7 +500,9 @@ struct Walk<'n> {
     leaf: &'n StableName,
 }
 
-fn walk(name: &StableName) -> Walk<'_> {
+/// `name`'s walk as `by` says it: a join `by` says nothing of is no
+/// step, so it neither brackets nor runs a cited name on.
+fn walk<'n>(name: &'n StableName, by: Speaker<'_>) -> Walk<'n> {
     let mut steps = Vec::new();
     let mut at = name;
     loop {
@@ -517,14 +520,12 @@ fn walk(name: &StableName) -> Walk<'_> {
             return Walk { steps, leaf: at };
         };
         steps.extend(match carry {
-            CarriedAs::Primary => None,
-            CarriedAs::Secondary => Some(Step::Join(match seg {
-                RoleSeg::FromMember { member, .. } => Join::Member {
-                    union: at.node,
-                    member: *member,
-                },
-                _ => Join::B(at.node),
-            })),
+            CarriedAs::From(read) => {
+                let join = Join { at: at.node, read };
+                (!join_words(join, by).is_empty()).then_some(Step::Join(join))
+            }
+            // A world placement's copy is the same entity, placed.
+            CarriedAs::Placed => None,
             CarriedAs::Split(side) => Some(Step::Wrap(Wrap::Split(side))),
             CarriedAs::ToolCopy(side) => Some(Step::Wrap(Wrap::ToolCopy(side))),
             CarriedAs::Instance(i) => Some(Step::Wrap(Wrap::Instance(i))),
@@ -585,7 +586,7 @@ fn expand<'n, 's>(
         detail,
         by,
     };
-    let Walk { steps, leaf } = walk(name);
+    let Walk { steps, leaf } = walk(name, by);
     let levels = levels(&steps);
     let last = levels.len() - 1;
     let mut items: Vec<Item<'n, 's>> = Vec::new();
@@ -615,7 +616,7 @@ fn expand<'n, 's>(
         }
         for step in *joins {
             if let Step::Join(join) = step {
-                items.push(text(join_words(join, by)));
+                items.push(text(join_words(*join, by)));
             }
         }
     }
@@ -637,28 +638,32 @@ fn expand<'n, 's>(
     items
 }
 
-/// The words a join says after the name it carried.
-fn join_words(join: &Join, by: Speaker<'_>) -> String {
-    match *join {
-        Join::B(at) => match by.boolean_op(at) {
-            Some(op) => {
-                let verb = match op {
-                    BooleanOp::Subtract => "cut in",
-                    BooleanOp::Union => "joined",
-                    BooleanOp::Intersect => "intersected",
-                };
-                format!(
-                    ", {verb} at {}",
-                    by.node_as_kind(at, verbs::VerbKind::Boolean(op).noun())
-                )
-            }
-            // Which operation is the document's to say: the name holds
-            // only that it came in as operand B.
-            None => format!(", through operand B of {}", by.node(at)),
-        },
-        Join::Member { union, member } => {
-            format!(", joined at {} from {}", by.node(union), by.node(member))
-        }
+/// The words a join says after the name it carried: what the carrying
+/// node made of the read, and nothing where the entity is the body's
+/// own continuation (a target's survivor, a subtract's `from`).
+fn join_words(Join { at, read }: Join, by: Speaker<'_>) -> String {
+    match by.carry(at) {
+        Some(Carry::Continued) => String::new(),
+        Some(Carry::Subtract { from }) if from == read => String::new(),
+        Some(Carry::Subtract { .. }) => format!(", cut in at {}", by.node_as_kind(at, "Subtract")),
+        Some(Carry::Union) => format!(
+            ", joined at {} from {}",
+            by.node_as_kind(at, "Union"),
+            by.read(read)
+        ),
+        Some(Carry::Intersect) => format!(
+            ", intersected at {} from {}",
+            by.node_as_kind(at, "Intersect"),
+            by.read(read)
+        ),
+        // Whether the carry joins is the document's to say; the read it
+        // came through is the name's own, and two carries through two
+        // reads are two names.
+        None => format!(
+            ", through {} at {}",
+            crate::spoken::ReadTag(read),
+            by.node(at)
+        ),
     }
 }
 
@@ -974,13 +979,9 @@ fn role<'n, 's>(
         // operation mints: the walk looks through a lone carry, and a
         // qualifier never ends the head. Each still has words of its
         // own, so such a path reads apart from every other.
-        RoleSeg::FromA(of) => vec![cites.one(of), text(" from operand A")],
-        RoleSeg::FromB(of) => vec![cites.one(of), text(" from operand B")],
-        RoleSeg::FromMember { member, of } => vec![
-            cites.one(of),
-            text(format!(" from member {}", by.node(*member))),
-        ],
-        RoleSeg::FromTarget(of) => vec![cites.one(of), text(" from the target")],
+        RoleSeg::From { read, of } => {
+            vec![cites.one(of), text(format!(" through {}", by.read(*read)))]
+        }
         RoleSeg::SplitFragment { parent, side } => vec![
             text(format!("the part {} of ", half(*side))),
             cites.one(parent),
@@ -1021,7 +1022,6 @@ mod tests {
     const EXTRUDE: RecipeNodeId = RecipeNodeId::new(0, 1 << 16);
     const OTHER: RecipeNodeId = RecipeNodeId::new(0, 2 << 16);
     const OP: RecipeNodeId = RecipeNodeId::new(0, 3 << 16);
-    const MOVED: RecipeNodeId = RecipeNodeId::new(0, 4 << 16);
 
     fn name(kind: EntityKind, node: RecipeNodeId, path: Vec<RoleSeg>) -> StableName {
         StableName { kind, node, path }
@@ -1062,21 +1062,31 @@ mod tests {
         Detail::Open(at.iter().map(|pos| pos.to_vec()).collect())
     }
 
-    /// A carry through a primary operand is silent, and the sentence
-    /// says the feature that made the leaf; which node holds the name is
-    /// the enclosing sentence's to say.
+    /// By tag every carry says the read it came through, after the
+    /// feature that made the leaf; which node holds the name is the
+    /// enclosing sentence's to say.
     #[test]
-    fn a_primary_carry_is_silent_and_the_feature_is_said() {
+    fn by_tag_each_carry_says_its_read_and_the_feature_is_said() {
         let carried = name(
             EntityKind::Face,
             OP,
-            vec![RoleSeg::FromA(NameRef::new(name(
-                EntityKind::Face,
-                OTHER,
-                vec![RoleSeg::FromTarget(NameRef::new(cap(CapEnd::End)))],
-            )))],
+            vec![RoleSeg::From {
+                read: crate::VarId::new(1, 10 << 16),
+                of: NameRef::new(name(
+                    EntityKind::Face,
+                    OTHER,
+                    vec![RoleSeg::From {
+                        read: crate::VarId::new(1, 77 << 16),
+                        of: NameRef::new(cap(CapEnd::End)),
+                    }],
+                )),
+            }],
         );
-        assert_eq!(said(&carried), "the end cap of node 000000000001");
+        assert_eq!(
+            said(&carried),
+            "the end cap of node 000000000001, through read 00000000000a at node \
+             000000000003, through read 00000000004d at node 000000000002"
+        );
         assert_eq!(role_leaf(&carried).node, EXTRUDE);
         assert_eq!(said(&cap(CapEnd::End)), "the end cap of node 000000000001");
         assert_eq!(
@@ -1086,41 +1096,31 @@ mod tests {
         );
     }
 
-    /// Two copies of one master, brought into one body through two
-    /// secondary operands, differ in their joins: each is said, outermost
-    /// first. By tag a Boolean's B join says only what the name holds,
-    /// that it came in as operand B.
+    /// By tag a carry says the read it came through and the node that
+    /// carried it, and not what the node made of it: that is the
+    /// document's to say. Two copies of one master carried in through
+    /// two reads read apart.
     #[test]
-    fn a_secondary_carry_is_a_join_said_with_its_node() {
-        let through_b = |at: RecipeNodeId, inner: StableName| {
+    fn by_tag_a_carry_says_its_read() {
+        let through = |read| {
             name(
                 EntityKind::Face,
-                at,
-                vec![RoleSeg::FromB(NameRef::new(inner))],
+                OP,
+                vec![RoleSeg::From {
+                    read,
+                    of: NameRef::new(cap(CapEnd::End)),
+                }],
             )
         };
-        let member = name(
-            EntityKind::Face,
-            OTHER,
-            vec![RoleSeg::FromMember {
-                member: MOVED,
-                of: NameRef::new(cap(CapEnd::End)),
-            }],
+        let (one, two) = (
+            through(crate::VarId::new(1, 10 << 16)),
+            through(crate::VarId::new(1, 11 << 16)),
         );
         assert_eq!(
-            said(&through_b(OP, member.clone())),
-            "the end cap of node 000000000001, through operand B of node 000000000003, joined \
-             at node 000000000002 from node 000000000004"
+            said(&one),
+            format!("the end cap of node 000000000001, through read 00000000000a at node {OP}")
         );
-        assert_ne!(
-            said(&through_b(OP, cap(CapEnd::End))),
-            said(&name(
-                EntityKind::Face,
-                OP,
-                vec![RoleSeg::FromA(NameRef::new(cap(CapEnd::End)))]
-            )),
-            "B and A of one boolean read apart"
-        );
+        assert_ne!(said(&one), said(&two));
     }
 
     /// The parts of one cut face differ in what they border, or in
@@ -1132,19 +1132,24 @@ mod tests {
                 EntityKind::Face,
                 OP,
                 vec![
-                    RoleSeg::FromA(NameRef::new(cap(CapEnd::End))),
+                    RoleSeg::From {
+                        read: crate::VarId::new(1, 10),
+                        of: NameRef::new(cap(CapEnd::End)),
+                    },
                     RoleSeg::Fragment(q),
                 ],
             )
         };
         assert_eq!(
             said(&part(Qualifier::Borders(vec![wall(1)]))),
-            "the part of the end cap of node 000000000001 bordering the side wall over the \
-             profile step 000000000001 of node 000000000001"
+            "the part of (the end cap of node 000000000001, through read 000000000000 at node \
+             000000000003) bordering the side wall over the profile step 000000000001 of node \
+             000000000001"
         );
         assert_eq!(
             said(&part(Qualifier::OrderAlong { rank: 1, of: 3 })),
-            "part 1 of 3 of the end cap of node 000000000001"
+            "part 1 of 3 of (the end cap of node 000000000001, through read 000000000000 at node \
+             000000000003)"
         );
         let half = |side| {
             name(
@@ -1384,7 +1389,10 @@ mod tests {
             let top = name(
                 EntityKind::Face,
                 OP,
-                vec![RoleSeg::FromA(NameRef::new(cap(CapEnd::End)))],
+                vec![RoleSeg::From {
+                    read: crate::VarId::new(1, 10),
+                    of: NameRef::new(cap(CapEnd::End)),
+                }],
             );
             let said = within(&[&x, &w, &r, &top]);
             for (i, one) in said.iter().enumerate() {

@@ -434,7 +434,7 @@ pass through your hands as values, never straight into a recipe.
 
 ```
 use pncad::prelude::*;
-use pncad::document::{BooleanOp, BooleanValue, NodeResult};
+use pncad::document::{Bodies, BooleanValue, NodeResult};
 
 let tol = Tol::witness();
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
@@ -475,7 +475,7 @@ let (doc, block) = insert(&doc, Node::Extrude { profile: pf2.into(), distance: l
 // Undeclared, the union glues the rest its margin decides.
 let (doc, uni) = insert(
     &doc,
-    Node::Boolean { op: BooleanOp::Union, a: base.into(), b: block.into(), declare: Vec::new() },
+    Node::Union { members: Bodies::Spelled(vec![base.into(), block.into()]), declare: Vec::new() },
 );
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 assert!(matches!(ev.nodes.get(&uni), Some(NodeResult::Ok(_))));
@@ -483,7 +483,7 @@ assert!(matches!(ev.nodes.get(&uni), Some(NodeResult::Ok(_))));
 // The declare arm: detect, INSPECT, declare on the live union.
 // The declared union is the same body: the declaration names what
 // the margins decided, and is verified at use.
-let findings = find_flush_candidates(&ev, base, block, tol).expect("definite findings");
+let findings = find_flush_candidates(&ev, &doc, base, block, tol).expect("definite findings");
 assert_eq!(findings.len(), 1);
 assert_eq!(findings[0].class, BooleanCoincidence::REST);
 let applied = declare_all(&doc, uni, &findings, tol).expect("declarable");

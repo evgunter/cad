@@ -11,10 +11,10 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Attr, AttrKind, BooleanOp, BranchCertification, CancelToken, Dimension, DocEdit, EntityKind,
-    EvalOptions, ExprPath, Formula, FreeVar, MetaValue, Node, PersistError, ProfileDoc,
-    ProfileProgram, RecipeNodeId, Rgba8, RoleSeg, SlotId, StableName, VarName, WitnessDatum, apply,
-    evaluate, load, save,
+    Attr, AttrKind, BranchCertification, CancelToken, Dimension, DocEdit, EntityKind, EvalOptions,
+    ExprPath, Formula, FreeVar, MetaValue, Node, PersistError, ProfileDoc, ProfileProgram,
+    RecipeNodeId, Rgba8, RoleSeg, SlotId, StableName, VarName, WitnessDatum, apply, evaluate, load,
+    save,
 };
 use fixture::{desc, insert, len, on_frame, scl};
 use geom_core::Tol;
@@ -339,10 +339,8 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     let boole = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Box::new(Node::Boolean {
-                op: BooleanOp::Union,
-                a: e0.into(),
-                b: e1.into(),
+            node: Box::new(Node::Union {
+                members: editor_core::Bodies::Spelled(vec![e0.into(), e1.into()]),
                 declare: Vec::new(),
             }),
             fresh: Vec::new(),

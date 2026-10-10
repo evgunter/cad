@@ -1,7 +1,7 @@
 //! **Every walk over a [`StableName`] carries its own stack.**
 //!
 //! A name nests one whole name per derivation level: a boolean's
-//! survivor holds its operand's name ([`RoleSeg::FromA`]), a pattern
+//! survivor holds its operand's name ([`RoleSeg::From`]), a pattern
 //! copy its master's ([`RoleSeg::Instance`]), an instantiated part's
 //! entity its name in the part ([`RoleSeg::InPart`]), and so on down
 //! the chain. Nothing bounds the depth: a part nested
@@ -345,14 +345,11 @@ impl RoleSeg {
     pub(crate) fn each_name<'a>(&'a self, f: &mut impl FnMut(Hold<'a>)) {
         use Hold::{Owned, Shared};
         match self {
-            RoleSeg::FromA(n)
-            | RoleSeg::FromB(n)
-            | RoleSeg::FromMember { of: n, .. }
+            RoleSeg::From { of: n, .. }
             | RoleSeg::SectionEdge { face: n, .. }
             | RoleSeg::SplitFragment { parent: n, .. }
             | RoleSeg::CrossingVertex { edge: n, .. }
             | RoleSeg::OnToolVertex { of: n, .. }
-            | RoleSeg::FromTarget(n)
             | RoleSeg::BlendFace(n)
             | RoleSeg::CornerFace(n)
             | RoleSeg::Mitre { vertex: n }
@@ -400,14 +397,11 @@ impl RoleSeg {
     pub(crate) fn each_name_mut(&mut self, f: &mut impl FnMut(HoldMut<'_>)) {
         use HoldMut::{Owned, Shared};
         match self {
-            RoleSeg::FromA(n)
-            | RoleSeg::FromB(n)
-            | RoleSeg::FromMember { of: n, .. }
+            RoleSeg::From { of: n, .. }
             | RoleSeg::SectionEdge { face: n, .. }
             | RoleSeg::SplitFragment { parent: n, .. }
             | RoleSeg::CrossingVertex { edge: n, .. }
             | RoleSeg::OnToolVertex { of: n, .. }
-            | RoleSeg::FromTarget(n)
             | RoleSeg::BlendFace(n)
             | RoleSeg::CornerFace(n)
             | RoleSeg::Mitre { vertex: n }
@@ -1746,6 +1740,21 @@ pub(super) mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
+
+    fn from_a(of: crate::names::NameRef) -> RoleSeg {
+        RoleSeg::From {
+            read: crate::names::FOLD_A,
+            of,
+        }
+    }
+
+    fn from_b(of: crate::names::NameRef) -> RoleSeg {
+        RoleSeg::From {
+            read: crate::names::FOLD_B,
+            of,
+        }
+    }
+
     use crate::names::SegTag;
     use crate::names::role::{CapEnd, PieceRole, ProfileEdgeRef};
     use crate::node::StepId;
@@ -1839,10 +1848,16 @@ pub(super) mod tests {
                 R::RevolveCap(MeridianEnd::End),
                 R::Pole(v),
                 R::AxisEdge(e2.into()),
-                R::FromA(r(a)),
-                R::FromB(r(b)),
-                R::FromMember {
-                    member: RecipeNodeId::new(0, 3),
+                R::From {
+                    read: crate::names::FOLD_A,
+                    of: r(a),
+                },
+                R::From {
+                    read: crate::names::FOLD_B,
+                    of: r(b),
+                },
+                R::From {
+                    read: crate::VarId::new(1, 3),
                     of: r(a),
                 },
                 R::Seam { a: r(a), b: r(b) },
@@ -1884,7 +1899,10 @@ pub(super) mod tests {
                     side: SplitHalf::Above,
                     of: r(b),
                 },
-                R::FromTarget(r(a)),
+                R::From {
+                    read: crate::VarId::new(1, 77),
+                    of: r(a),
+                },
                 R::BlendFace(r(b)),
                 R::CornerFace(r(a)),
                 R::TrimEdge {
@@ -1947,7 +1965,10 @@ pub(super) mod tests {
                 named(
                     EntityKind::Face,
                     10,
-                    vec![RoleSeg::FromA(NameRef::new(n.clone()))],
+                    vec![RoleSeg::From {
+                        read: crate::names::FOLD_A,
+                        of: NameRef::new(n.clone()),
+                    }],
                 )
             };
             let (a, b) = (over(&x), over(&y));
@@ -2132,7 +2153,10 @@ pub(super) mod tests {
         for level in 0..DEEP {
             let r = NameRef::new(n.clone());
             let seg = match level % 7 {
-                0 => RoleSeg::FromA(r),
+                0 => RoleSeg::From {
+                    read: crate::names::FOLD_A,
+                    of: r,
+                },
                 1 => RoleSeg::Instance { i: 1, of: r },
                 2 => RoleSeg::InPart { of: r },
                 3 => RoleSeg::Merged(vec![n]),
@@ -2180,7 +2204,7 @@ pub(super) mod tests {
     /// before going on from their own stacks.
     #[test]
     fn the_native_levels_fit_a_quarter_of_the_smallest_stack() {
-        let tower = |bottom| wrapped(leaf(bottom), 3 * NATIVE_LEVELS as usize, 6, RoleSeg::FromA);
+        let tower = |bottom| wrapped(leaf(bottom), 3 * NATIVE_LEVELS as usize, 6, from_a);
         let run = std::thread::Builder::new()
             .stack_size(WASM_STACK / 4)
             .spawn(move || {
@@ -2221,8 +2245,8 @@ pub(super) mod tests {
         }
         for depth in [3, 100, 5_000] {
             let (a, b) = (
-                wrapped(leaf(1), depth, 5, RoleSeg::FromA),
-                wrapped(leaf(2), depth, 5, RoleSeg::FromA),
+                wrapped(leaf(1), depth, 5, from_a),
+                wrapped(leaf(2), depth, 5, from_a),
             );
             let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 core::hash::Hash::hash(&a, &mut Panicking(0));
@@ -2233,7 +2257,7 @@ pub(super) mod tests {
                 "after the panic, at depth {depth}"
             );
             assert!(a.clone() == a, "a clone after the panic, at depth {depth}");
-            let other = wrapped(leaf(7), depth.min(50), 5, RoleSeg::FromA);
+            let other = wrapped(leaf(7), depth.min(50), 5, from_a);
             let whole = format!("{other:?}");
             let mut showing = Showing(other, None);
             core::hash::Hash::hash(&a, &mut showing);
@@ -2270,14 +2294,14 @@ pub(super) mod tests {
                     b: NameRef::new(leaf(2)),
                 }],
             );
-            let through = wrapped(edge, DEEP, 6, RoleSeg::FromA);
+            let through = wrapped(edge, DEEP, 6, from_a);
             let (a, b) = super::super::seam_pair::seam_line_pair(&through).expect("a seam pair");
             assert_eq!(
                 (a.node.0.digest(), b.node.0.digest()),
                 (1, 2),
                 "the seam at the foot"
             );
-            let face = wrapped(leaf(1), DEEP, 6, RoleSeg::FromB);
+            let face = wrapped(leaf(1), DEEP, 6, from_b);
             assert!(
                 super::super::face_descends_from(&face, &leaf(1)),
                 "a face descends from its foot"
@@ -2288,17 +2312,14 @@ pub(super) mod tests {
                 vec![RoleSeg::Merged(vec![leaf(1), leaf(2)])],
             );
             let constituents = super::super::merged::constituents_through_wrappers(&wrapped(
-                merged,
-                DEEP,
-                6,
-                RoleSeg::FromA,
+                merged, DEEP, 6, from_a,
             ))
             .expect("a merged face under its wrappers");
             assert_eq!(
                 constituents,
                 vec![
-                    wrapped(leaf(1), DEEP, 6, RoleSeg::FromA),
-                    wrapped(leaf(2), DEEP, 6, RoleSeg::FromA)
+                    wrapped(leaf(1), DEEP, 6, from_a),
+                    wrapped(leaf(2), DEEP, 6, from_a)
                 ],
                 "each constituent re-wrapped by the whole chain"
             );
@@ -2329,12 +2350,12 @@ pub(super) mod tests {
             let member = named(
                 EntityKind::Face,
                 9,
-                vec![RoleSeg::FromMember {
-                    member: RecipeNodeId::new(0, 4),
+                vec![RoleSeg::From {
+                    read: crate::VarId::new(1, 4),
                     of: NameRef::new(leaf(4)),
                 }],
             );
-            let folded = wrapped(member.clone(), DEEP, 9, RoleSeg::FromA);
+            let folded = wrapped(member.clone(), DEEP, 9, from_a);
             let collapsed =
                 super::super::emit_union::collapse_name(union, &folded).expect("it collapses");
             assert_eq!(collapsed, member, "the descent is flattened to its foot");
@@ -2367,14 +2388,17 @@ pub(super) mod tests {
             named(
                 EntityKind::Face,
                 2,
-                vec![RoleSeg::FromA(NameRef::new(named(
-                    EntityKind::Face,
-                    1,
-                    vec![RoleSeg::Instance {
-                        i: 0,
-                        of: NameRef::new(piece(i)),
-                    }],
-                )))],
+                vec![RoleSeg::From {
+                    read: crate::names::FOLD_A,
+                    of: NameRef::new(named(
+                        EntityKind::Face,
+                        1,
+                        vec![RoleSeg::Instance {
+                            i: 0,
+                            of: NameRef::new(piece(i)),
+                        }],
+                    )),
+                }],
             )
         };
         let wide = named(
@@ -2404,8 +2428,8 @@ pub(super) mod tests {
                         named(
                             EntityKind::Face,
                             9,
-                            vec![RoleSeg::FromMember {
-                                member: RecipeNodeId::new(0, 100 + i as u64),
+                            vec![RoleSeg::From {
+                                read: crate::VarId::new(1, 100 + i as u64),
                                 of: NameRef::new(leaf(4)),
                             }],
                         )
@@ -2431,7 +2455,7 @@ pub(super) mod tests {
             let nest = |bottom: NamePat| {
                 (0..DEEP).fold(bottom, |p, _| NamePat::any().seg(SegPat::any().of([p])))
             };
-            let face = wrapped(leaf(1), DEEP, 6, RoleSeg::FromA);
+            let face = wrapped(leaf(1), DEEP, 6, from_a);
             let any = nest(NamePat::any());
             let copy = any.clone();
             assert!(copy == any, "a clone equals its source");
@@ -2461,11 +2485,15 @@ pub(super) mod tests {
     /// where some other value belongs, and a string holding a NUL.
     #[test]
     fn a_names_text_reads_and_refuses_as_the_derived_form_does() {
-        let deep = wrapped(leaf(1), 20, 3, RoleSeg::FromA);
+        let deep = wrapped(leaf(1), 20, 3, from_a);
         let text = deep.to_json().unwrap();
         let pretty = serde_json::to_string_pretty(&deep).unwrap();
-        let wrap =
-            |inner: &str| format!(r#"{{"kind":"Face","node":3,"path":[{{"FromA":{inner}}}]}}"#);
+        let wrap = |inner: &str| {
+            let read = serde_json::to_string(&crate::names::FOLD_A).unwrap();
+            format!(
+                r#"{{"kind":"Face","node":3,"path":[{{"From":{{"read":{read},"of":{inner}}}}}]}}"#
+            )
+        };
         let leaf_text = leaf(1).to_json().unwrap();
         let texts = [
             text.clone(),

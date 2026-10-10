@@ -128,7 +128,7 @@ The state of the mechanisms at the baseline:
   - an `EdgeEdgeCross` the side test read `SameSide`, which today reaches the refusal only as rendered witness text (`topo/README.md`, "Three-valued side verdict"). B gives the census a typed field for it (one `topo` field, the README's "no bool may stand there" honoured).
 - The rest keep today's attribution and refusal order (`Mint`, `CarriedMintRefusal`, `AtRest`, `Uncertified`) until stages 3, 4 and C.
 - **The overlap site** (FORK-S5-2, recommended (b)). For each interfering pair of copies, the gate intersects the two copies' bodies (`topo` boolean intersection, the f64 lane at the gate's ε).
-  - Each connected solid of the result is one `InterferenceFinding`, named by the face sites of both copies that bound it. The result's faces carry the operands' names, `FromA`/`FromB` (N-machinery).
+  - Each connected solid of the result is one `InterferenceFinding`, named by the face sites of both copies that bound it. The result's faces carry the operands' names, `From` keyed by each copy's read (N-machinery).
   - An intersection that refuses yields one finding for the pair with `overlap: Unlocalized(refusal)`. That finding is loud, never refuses at any severity, and cannot be quieted (test 9; DS6's frontier). A refusal as a sliver means the overlap is about ε thick, which the representation cannot tell from contact; a press fit well above ε intersects.
 - `Assembly` gains `interference: Vec<InterferenceFinding>` in census order. `assemble` returns `Ok` when interference findings are all there is.
 

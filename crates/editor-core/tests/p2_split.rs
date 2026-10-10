@@ -116,7 +116,7 @@ fn in_world_of(part: &ProfileDoc, name: StableName) -> StableName {
         .into_iter()
         .filter(|&at| {
             matches!(part.node(at), Some(Node::PlaceInWorld { body, .. })
-                if part.operation_of(*body) == Some(name.node))
+                if part.operation_of(body.read) == Some(name.node))
         })
         .collect();
     let [copy] = copies[..] else {

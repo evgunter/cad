@@ -17,7 +17,7 @@
 use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanCoincidence, BooleanOp, CapEnd, DocEdit, Node, ProfileDoc, RoleSeg, SitedRef, load, save,
+    BooleanCoincidence, CapEnd, DocEdit, Node, ProfileDoc, RoleSeg, SitedRef, load, save,
 };
 use geom_core::Tol;
 
@@ -33,7 +33,7 @@ fn a_declaration_round_trips_carrying_its_class() {
     let back: ProfileDoc = load(&text, Tol::witness())
         .expect("the saved text loads")
         .doc;
-    let Some(Node::Boolean { declare: pairs, .. }) = back.node(union) else {
+    let Some(Node::Union { declare: pairs, .. }) = back.node(union) else {
         panic!("the declaring union survives the round trip");
     };
     assert_eq!(pairs.len(), 2);
@@ -78,7 +78,12 @@ fn every_coincidence_round_trips_under_its_own_spelling() {
     let doc = ProfileDoc::empty_derived("m9_1_declaration_wire_all", Tol::witness());
     let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0, 1.0);
-    let cap = |node, end| SitedRef::new(node, fixture::fname(node, RoleSeg::Cap(end)));
+    let cap = |node, end| {
+        SitedRef::new(
+            fixture::out(&doc, node),
+            fixture::fname(node, RoleSeg::Cap(end)),
+        )
+    };
     let pairs: Vec<_> = BooleanCoincidence::ALL
         .iter()
         .map(|&class| ((cap(a, CapEnd::End), cap(b, CapEnd::Start)), class))
@@ -90,10 +95,8 @@ fn every_coincidence_round_trips_under_its_own_spelling() {
                 node: Box::new(Node::<
                     editor_core::ProfileProgram<editor_core::Formula>,
                     editor_core::Formula,
-                >::Boolean {
-                    op: BooleanOp::Union,
-                    a: a.into(),
-                    b: b.into(),
+                >::Union {
+                    members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
                     declare: pairs.clone(),
                 }),
                 fresh: Vec::new(),
@@ -110,7 +113,7 @@ fn every_coincidence_round_trips_under_its_own_spelling() {
     let back: ProfileDoc = load(&text, Tol::witness())
         .expect("the saved text loads")
         .doc;
-    let Some(Node::Boolean { declare: read, .. }) = back.node(decl) else {
+    let Some(Node::Union { declare: read, .. }) = back.node(decl) else {
         panic!("the declaring union survives the round trip");
     };
     assert_eq!(*read, pairs, "each coincidence reads back as itself");
@@ -124,11 +127,14 @@ fn declaring_doc() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m9_1_declaration_wire", Tol::witness());
     let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0, 1.0);
-    let cap = |node, end| SitedRef::new(node, fixture::fname(node, RoleSeg::Cap(end)));
-    let node: AuthoredNode = Node::Boolean {
-        op: BooleanOp::Union,
-        a: a.into(),
-        b: b.into(),
+    let cap = |node, end| {
+        SitedRef::new(
+            fixture::out(&doc, node),
+            fixture::fname(node, RoleSeg::Cap(end)),
+        )
+    };
+    let node: AuthoredNode = Node::Union {
+        members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         declare: vec![
             (
                 (cap(a, CapEnd::End), cap(b, CapEnd::Start)),

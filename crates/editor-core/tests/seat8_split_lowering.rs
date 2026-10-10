@@ -218,8 +218,8 @@ fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("cut_cylinder", 0x4318_92f9_c696_0fd1u64),
-        ("part_select", 0x90fb_17e7_6b0b_54f9),
-        ("kitchen_sink", 0x98c0_fba7_09be_e02d),
+        ("part_select", 0xe46a_3753_51cd_897b),
+        ("kitchen_sink", 0x9a17_85a9_db7c_a173),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

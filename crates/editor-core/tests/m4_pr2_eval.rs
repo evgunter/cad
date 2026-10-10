@@ -399,7 +399,7 @@ fn cancelation_returns_a_typed_partial_result() {
 
 #[test]
 fn disjoint_subtract_to_empty_is_a_typed_success() {
-    use editor_core::{BooleanOp, Node};
+    use editor_core::Node;
     // A 1×1×1 cube inside a 3×3×3 cube: inner ∖ outer = ∅.
     let doc = ProfileDoc::empty_derived("m4_pr2_eval", Tol::witness());
     let (doc, small_p) = fixture::on_frame(
@@ -434,10 +434,9 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
     );
     let (doc, sub) = fixture::insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: small.into(),
-            b: big.into(),
+        Node::Subtract {
+            from: small.into(),
+            tool: big.into(),
             declare: Vec::new(),
         },
     );
@@ -445,10 +444,8 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
     // failure, not a poison and not a panic.
     let (doc, consumer) = fixture::insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: sub.into(),
-            b: big.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![sub.into(), big.into()]),
             declare: Vec::new(),
         },
     );

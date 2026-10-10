@@ -16,10 +16,16 @@
 //! needed seat is filled — is one behaviour, and a second copy of it is
 //! a second place for it to drift.
 //!
+//! A union's or an intersect's member list is not seats: it holds any
+//! number of picks, each appended, so the boolean tool keeps it beside
+//! its subtraction's [`Seats`] (`crate::combine::BooleanTool`) and says
+//! its drops and its empty refusal in this module's words, naming
+//! [`Seat::Member`].
+//!
 //! # The picks are ROLES
 //!
 //! A seat means a particular thing, and no pair here is symmetric — not
-//! even the boolean's two operands, whose order is the difference
+//! even a subtraction's two operands, whose order is the difference
 //! between `A ∖ B` and `B ∖ A`. So seats fill in order, a further pick
 //! replaces the LAST one, and a drop empties the seat it was in without
 //! promoting the survivor: moving a node between seats that mean
@@ -102,10 +108,13 @@ vocabulary! {
         RevolveProfile,
         /// The axis a revolve sweeps about.
         RevolveAxis,
-        /// The boolean's first operand — the body `A ∖ B` KEEPS.
-        OperandA,
-        /// The boolean's second operand — the body `A ∖ B` REMOVES.
-        OperandB,
+        /// A union's or an intersect's member — one of any number, held
+        /// in pick order by the boolean tool rather than in a [`Seats`].
+        Member,
+        /// The body a subtraction KEEPS (`from`).
+        SubtractFrom,
+        /// The body a subtraction REMOVES (`tool`).
+        SubtractTool,
         /// The body a split cuts.
         SplitTarget,
         /// The datum plane a split cuts with.
@@ -154,8 +163,9 @@ impl Seat {
             Self::SplitPlane => NodeKindWanted::Plane,
             Self::PartSplit => NodeKindWanted::Split,
             Self::PartInstance => NodeKindWanted::Instances,
-            Self::OperandA
-            | Self::OperandB
+            Self::Member
+            | Self::SubtractFrom
+            | Self::SubtractTool
             | Self::SplitTarget
             | Self::TransformBody
             | Self::PatternBody
@@ -168,8 +178,9 @@ impl Seat {
         match self {
             Self::RevolveProfile => "profile",
             Self::RevolveAxis => "axis",
-            Self::OperandA => "first operand",
-            Self::OperandB => "second operand",
+            Self::Member => "member",
+            Self::SubtractFrom => "body kept",
+            Self::SubtractTool => "body removed",
             Self::SplitTarget => "split target",
             Self::SplitPlane => "split plane",
             Self::TransformBody => "transformed body",
@@ -268,6 +279,19 @@ impl Seats {
     /// `Option`'s worth of state because only the first is ever set).
     pub const fn one(role: Seat) -> Self {
         Self::new([role, role])
+    }
+
+    /// Two seats in their roles, holding `held` as already spoken — the
+    /// door a tool re-seating picks it already holds goes through (the
+    /// boolean tool's change of operation), so nothing is re-read.
+    pub(crate) fn holding(roles: [Seat; 2], held: [Option<SpokenNode>; 2]) -> Self {
+        Self { roles, held }
+    }
+
+    /// Each seat's pick as last spoken, in seat order (the pair
+    /// [`Seats::holding`] takes back).
+    pub(crate) fn spoken(&self) -> &[Option<SpokenNode>; 2] {
+        &self.held
     }
 
     /// The pick in seat `i` (0 or 1).

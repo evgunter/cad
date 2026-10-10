@@ -48,7 +48,13 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// and with it every row this hashes. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held untouched across the change.
-const DIAGNOSIS_DIGEST: u64 = 0x02a5_8939_7ddd_7bdd;
+///
+/// **Re-pinned for FORK-DM4**: the fixtures' pair booleans are unions and
+/// subtracts, whose names carry the read an entity came in through and
+/// whose ids re-minted. Every row keeps its shape (`PredicateFlip`,
+/// `Cascade`, `StructuralParam`, `NodeGone`, `Ambiguous`): a spelling
+/// change.
+const DIAGNOSIS_DIGEST: u64 = 0xa18f_603e_f72a_4033;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

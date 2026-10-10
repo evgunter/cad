@@ -27,12 +27,12 @@ use crate::corpus::body_of;
 use crate::docm7_union_declare::{block, failure, run};
 use crate::emit_shared_rim_several::permutations;
 use crate::emit_union_flush_names::parent_of;
-use crate::fixture::{ang, face_vertices, frame, insert, len, on_frame, scl, step, table};
+use crate::fixture::{ang, face_vertices, frame, insert, len, on_frame, out, scl, step, table};
 
 use editor_core::{
-    Axis3, BooleanOp, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NameTable,
-    NamingError, Node, NodeErrorKind, ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg,
-    SlotId, StableName,
+    Axis3, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NameTable, NamingError,
+    Node, NodeErrorKind, ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg, SlotId,
+    StableName,
 };
 use geom_core::Tol;
 
@@ -202,19 +202,31 @@ fn plane_label(ev: &Evaluation<f64>, node: RecipeNodeId, of: &StableName) -> Str
 }
 
 /// A face name's label, `member:plane`, read in the table of the node
-/// that minted what it cites: a union's `FromMember` or `Merged` of
-/// them, a pair boolean's `FromA`/`FromB`, or an operand's own name.
-fn label(ev: &Evaluation<f64>, labels: &BTreeMap<RecipeNodeId, &str>, n: &StableName) -> String {
+/// that minted what it cites: a `From` a labelled member's read, read
+/// in that member's table; a `Merged` of them; a `From` any other read,
+/// by what it carries; or an operand's own name.
+fn label(
+    ev: &Evaluation<f64>,
+    doc: &ProfileDoc,
+    labels: &BTreeMap<RecipeNodeId, &str>,
+    n: &StableName,
+) -> String {
     match n.path.as_slice() {
-        [RoleSeg::FromMember { member, of }] => {
-            format!("{}:{}", labels[member], plane_label(ev, *member, of))
+        [RoleSeg::From { read, of }] => {
+            match doc
+                .defined_by(*read)
+                .map(|(member, _)| member)
+                .filter(|member| labels.contains_key(member))
+            {
+                Some(member) => format!("{}:{}", labels[&member], plane_label(ev, member, of)),
+                None => label(ev, doc, labels, of),
+            }
         }
         [RoleSeg::Merged(set)] => set
             .iter()
-            .map(|c| label(ev, labels, c))
+            .map(|c| label(ev, doc, labels, c))
             .collect::<Vec<_>>()
             .join("+"),
-        [RoleSeg::FromA(of) | RoleSeg::FromB(of)] => label(ev, labels, of),
         _ => format!("{}:{}", labels[&n.node], plane_label(ev, n.node, n)),
     }
 }
@@ -223,6 +235,7 @@ fn label(ev: &Evaluation<f64>, labels: &BTreeMap<RecipeNodeId, &str>, n: &Stable
 /// sets (a tied row counts once per candidate).
 fn splits(
     ev: &Evaluation<f64>,
+    doc: &ProfileDoc,
     node: RecipeNodeId,
     labels: &BTreeMap<RecipeNodeId, &str>,
 ) -> BTreeMap<String, Vec<Vec<String>>> {
@@ -234,8 +247,8 @@ fn splits(
         if name.kind != EntityKind::Face {
             continue;
         }
-        let parent = label(ev, labels, &parent_of(name));
-        let mut set: Vec<String> = walls.iter().map(|w| label(ev, labels, w)).collect();
+        let parent = label(ev, doc, labels, &parent_of(name));
+        let mut set: Vec<String> = walls.iter().map(|w| label(ev, doc, labels, w)).collect();
         set.sort();
         let count = match entry {
             Entry::Unique(_) => 1,
@@ -257,7 +270,7 @@ fn splits(
 struct Fixture {
     label: &'static str,
     members: Vec<(&'static str, Mem)>,
-    pair: Option<BooleanOp>,
+    pair: Option<PairOp>,
     expect: Vec<(&'static str, Vec<Vec<String>>)>,
 }
 
@@ -297,15 +310,7 @@ fn check(fx: &Fixture) -> usize {
     let mut first: Option<(String, BTreeMap<StableName, [f64; 3]>)> = None;
     for order in &orders {
         let (d, n) = match fx.pair {
-            Some(op) => insert(
-                doc.clone(),
-                Node::Boolean {
-                    op,
-                    a: ids[0].into(),
-                    b: ids[1].into(),
-                    declare: Vec::new(),
-                },
-            ),
+            Some(op) => insert(doc.clone(), op.node(ids[0], ids[1])),
             None => {
                 let ordered: Vec<RecipeNodeId> = order.iter().map(|&i| ids[i]).collect();
                 crate::fixture::union_over(doc.clone(), &ordered, Vec::new())
@@ -314,7 +319,7 @@ fn check(fx: &Fixture) -> usize {
         let ev = run(&d);
         let at = format!("{} {order:?}", fx.label);
         assert!(failure(&ev, n).is_none(), "{at}: {:?}", failure(&ev, n));
-        assert_eq!(splits(&ev, n, &labels), want, "{at}: the wall sets");
+        assert_eq!(splits(&ev, &d, n, &labels), want, "{at}: the wall sets");
         let c = face_centroids(&ev, n);
         match &first {
             None => first = Some((at, c)),
@@ -349,10 +354,34 @@ fn u(
     }
 }
 
+/// Which two-operand boolean node a pair fixture builds.
+#[derive(Clone, Copy)]
+enum PairOp {
+    Union,
+    Subtract,
+}
+
+impl PairOp {
+    /// The node of this kind over `a` and `b`, declaring nothing.
+    fn node(self, a: RecipeNodeId, b: RecipeNodeId) -> editor_core::AuthoredNode {
+        match self {
+            Self::Union => Node::Union {
+                members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+                declare: Vec::new(),
+            },
+            Self::Subtract => Node::Subtract {
+                from: a.into(),
+                tool: b.into(),
+                declare: Vec::new(),
+            },
+        }
+    }
+}
+
 /// A pair-boolean fixture over the first two members.
 fn pair(
     label: &'static str,
-    op: BooleanOp,
+    op: PairOp,
     members: Vec<(&'static str, Mem)>,
     expect: Vec<(&'static str, Vec<Vec<String>>)>,
 ) -> Fixture {
@@ -575,12 +604,13 @@ fn a_boss_moved_onto_the_divider_is_the_border_delta() {
     let (doc, tr) = movable(doc, boss);
     let (doc, u) = union_of(doc, &[plate, slab_id, tr], &[0, 1, 2]);
     let doc2 = moved(doc.clone(), tr, Axis3::X, 0.65);
+    let (plate_read, tr_read) = (out(&doc, plate), out(&doc, tr));
     let pieces = |ev: &Evaluation<f64>| -> BTreeSet<StableName> {
         table(ev, u)
             .iter()
             .filter(|(n, _)| {
                 n.kind == EntityKind::Face
-                    && matches!(n.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == plate)
+                    && matches!(n.path.first(), Some(RoleSeg::From { read, .. }) if *read == plate_read)
                     && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Borders(_))))
             })
             .map(|(n, _)| n.clone())
@@ -618,7 +648,7 @@ fn a_boss_moved_onto_the_divider_is_the_border_delta() {
     assert_eq!(new.len(), 3, "the boss's three free walls: {new:?}");
     assert!(
         new.iter().all(
-            |n| matches!(n.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == tr)
+            |n| matches!(n.path.first(), Some(RoleSeg::From { read, .. }) if *read == tr_read)
         ),
         "every new wall is the boss's: {new:?}"
     );
@@ -914,19 +944,19 @@ fn the_pair_boolean_names_its_pieces_by_the_same_rule() {
     for fx in [
         pair(
             "pair_union_slab",
-            BooleanOp::Union,
+            PairOp::Union,
             vec![("plate", plate()), ("slab", slab())],
             vec![("plate:z=1.00", halves("slab")), slab_bottom()],
         ),
         pair(
             "pair_union_ptube",
-            BooleanOp::Union,
+            PairOp::Union,
             vec![("plate", plate()), ("tube", ptube())],
             vec![("plate:z=1.00", islanded("tube"))],
         ),
         pair(
             "sub_through_slot",
-            BooleanOp::Subtract,
+            PairOp::Subtract,
             vec![
                 ("plate", plate()),
                 ("slot", b((1.4, 1.6), (-1.0, 3.0), (-1.0, 3.0))),
@@ -940,7 +970,7 @@ fn the_pair_boolean_names_its_pieces_by_the_same_rule() {
         ),
         pair(
             "sub_blind_slot",
-            BooleanOp::Subtract,
+            PairOp::Subtract,
             vec![
                 ("plate", plate()),
                 ("slot", b((1.4, 1.6), (-1.0, 3.0), (0.5, 3.0))),
@@ -949,7 +979,7 @@ fn the_pair_boolean_names_its_pieces_by_the_same_rule() {
         ),
         pair(
             "sub_through_groove",
-            BooleanOp::Subtract,
+            PairOp::Subtract,
             vec![("plate", plate()), ("groove", groove(-1.0))],
             vec![
                 ("plate:z=0.00", islanded("groove")),
@@ -958,7 +988,7 @@ fn the_pair_boolean_names_its_pieces_by_the_same_rule() {
         ),
         pair(
             "sub_blind_groove",
-            BooleanOp::Subtract,
+            PairOp::Subtract,
             vec![("plate", plate()), ("groove", groove(0.5))],
             vec![("plate:z=1.00", islanded("groove"))],
         ),
@@ -999,10 +1029,9 @@ fn tied_prongs() -> (ProfileDoc, RecipeNodeId) {
     );
     insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: a.into(),
-            b: u.into(),
+        Node::Subtract {
+            from: a.into(),
+            tool: u.into(),
             declare: Vec::new(),
         },
     )
@@ -1012,16 +1041,18 @@ fn tied_prongs() -> (ProfileDoc, RecipeNodeId) {
 /// table ties, as (name, whether the row is tied).
 fn from_tied(
     ev: &Evaluation<f64>,
+    doc: &ProfileDoc,
     union: RecipeNodeId,
     member: RecipeNodeId,
 ) -> Vec<(StableName, bool)> {
     let own = table(ev, member);
+    let member_read = out(doc, member);
     table(ev, union)
         .iter()
         .filter(|(n, _)| n.kind == EntityKind::Face)
         .filter(|(n, _)| {
-            matches!(parent_of(n).path.as_slice(), [RoleSeg::FromMember { member: m, of }]
-                if *m == member && matches!(own.lookup(of), Some(Entry::Tied(_))))
+            matches!(parent_of(n).path.as_slice(), [RoleSeg::From { read, of }]
+                if *read == member_read && matches!(own.lookup(of), Some(Entry::Tied(_))))
         })
         .map(|(n, e)| (n.clone(), matches!(e, Entry::Tied(_))))
         .collect()
@@ -1052,7 +1083,7 @@ fn a_bar_that_divides_no_tied_face_leaves_the_tie() {
                     "{label} {order:?} {at}: {:?}",
                     failure(&ev, u)
                 );
-                let rows = from_tied(&ev, u, sub);
+                let rows = from_tied(&ev, d, u, sub);
                 assert!(
                     !rows.is_empty(),
                     "{label} {order:?} {at}: no face descends from the tie"
@@ -1086,6 +1117,7 @@ fn a_split_keeps_its_names_when_the_splitting_feature_moves() {
     let mut checked = 0;
     for order in permutations(&[0, 1, 2]) {
         let (doc1, u) = union_of(doc.clone(), &[a, tr, s2], &order);
+        let a_read = out(&doc1, a);
         let doc2 = moved(doc1.clone(), tr, Axis3::X, 0.05);
         let (ev1, ev2) = (run(&doc1), run(&doc2));
         for ev in [&ev1, &ev2] {
@@ -1108,7 +1140,7 @@ fn a_split_keeps_its_names_when_the_splitting_feature_moves() {
         let top_pieces = c1
             .keys()
             .filter(|n| {
-                matches!(n.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == a)
+                matches!(n.path.first(), Some(RoleSeg::From { read, .. }) if *read == a_read)
                     && n.path.len() == 2
             })
             .count();
@@ -1153,15 +1185,15 @@ fn a_divider_moved_onto_the_other_tied_face_moves_the_names_with_it() {
             );
             let c = face_centroids(&ev, u);
             let mut role: BTreeMap<String, (StableName, f64)> = BTreeMap::new();
-            let ceiling = from_tied(&ev, u, sub)
+            let ceiling = from_tied(&ev, d, u, sub)
                 .into_iter()
-                .filter(|(n, _)| label(&ev, &labels, &parent_of(n)) == "sub:z=3.00");
+                .filter(|(n, _)| label(&ev, d, &labels, &parent_of(n)) == "sub:z=3.00");
             for (n, tied) in ceiling {
                 assert!(!tied, "{order:?} {at}: {n:?} is still tied");
                 let key = match n.path.last() {
                     Some(RoleSeg::Fragment(Qualifier::Borders(walls))) => walls
                         .iter()
-                        .map(|w| label(&ev, &labels, w))
+                        .map(|w| label(&ev, d, &labels, w))
                         .collect::<Vec<_>>()
                         .join("+"),
                     _ => "bare".to_owned(),
@@ -1241,10 +1273,8 @@ fn a_curved_divider_names_as_the_pair_boolean_does() {
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (pair_doc, pair) = insert(
         doc.clone(),
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: plate.into(),
-            b: cyl.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![plate.into(), cyl.into()]),
             declare: Vec::new(),
         },
     );
@@ -1324,10 +1354,8 @@ fn a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls() {
     let (doc, slab) = block(doc, (1.4, 1.6), (-1.0, 4.0), 0.8, 1.2);
     let (pair_doc, pair) = insert(
         doc.clone(),
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: plate.into(),
-            b: boss.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
             declare: Vec::new(),
         },
     );
@@ -1339,10 +1367,9 @@ fn a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls() {
     for (label, doc, joined) in joins {
         let (doc, cut) = insert(
             doc,
-            Node::Boolean {
-                op: BooleanOp::Subtract,
-                a: joined.into(),
-                b: slab.into(),
+            Node::Subtract {
+                from: joined.into(),
+                tool: slab.into(),
                 declare: Vec::new(),
             },
         );
@@ -1379,10 +1406,8 @@ fn a_slot_along_x_across_a_sunk_boss_names() {
     let (doc, slab) = block(doc, (-1.0, 4.0), (1.4, 1.6), 0.8, 1.2);
     let (pair_doc, pair) = insert(
         doc.clone(),
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: plate.into(),
-            b: boss.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
             declare: Vec::new(),
         },
     );
@@ -1394,10 +1419,9 @@ fn a_slot_along_x_across_a_sunk_boss_names() {
     for (label, doc, joined) in joins {
         let (doc, cut) = insert(
             doc,
-            Node::Boolean {
-                op: BooleanOp::Subtract,
-                a: joined.into(),
-                b: slab.into(),
+            Node::Subtract {
+                from: joined.into(),
+                tool: slab.into(),
                 declare: Vec::new(),
             },
         );

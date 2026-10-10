@@ -202,7 +202,9 @@ pub fn document() -> CorpusDoc {
     let Some(Node::PlaceInWorld { body, .. }) = doc.node(placement) else {
         unreachable!("a placement is a world placement")
     };
-    let composed = doc.operation_of(*body).expect("the placed body is live");
+    let composed = doc
+        .operation_of(body.read)
+        .expect("the placed body is live");
     assert!(
         matches!(
             doc.node(composed).expect("the placed node"),

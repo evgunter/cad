@@ -1210,7 +1210,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "DeclareSiteNotAnOperand",
             NodeErrorKind::DeclareSiteNotAnOperand {
-                at: RecipeNodeId::new(0, tagged(3)),
+                at: editor_core::VarId::new(0, tagged(3)),
             },
         ),
         row(
@@ -3482,7 +3482,8 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "UnionFoldStep",
             NodeErrorKind::UnionFoldStep {
-                member: RecipeNodeId::new(0, tagged(2)),
+                member: 2,
+                read: editor_core::VarId::new(0, tagged(2)),
                 refusal: Box::new(NodeErrorKind::Boolean(topo::BooleanError::Escalated {
                     decision: topo::BooleanDecision::Coincidence(
                         topo::Coincide::Carriers,

@@ -392,10 +392,10 @@ mod tests {
         };
         let part_node = cut
             .doc
-            .operation_of(*body)
+            .operation_of(body.read)
             .expect("the placed body is live");
         assert!(
-            matches!(cut.doc.node(part_node), Some(Node::Boolean { .. })),
+            matches!(cut.doc.node(part_node), Some(Node::Subtract { .. })),
             "the placed body is the second cut"
         );
         let evaluation = evaluate::<f64>(

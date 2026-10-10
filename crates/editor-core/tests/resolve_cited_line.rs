@@ -12,7 +12,7 @@
 
 use crate::fixture::{insert, len, on_frame, step};
 use editor_core::{
-    Axis3, BooleanOp, CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation,
+    Axis3, CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation,
     ExtrudeSide, Node, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId,
     StableName, evaluate, resolve_with_prior,
 };
@@ -52,18 +52,12 @@ fn block(
     )
 }
 
-fn boolean(
-    doc: ProfileDoc,
-    op: BooleanOp,
-    a: RecipeNodeId,
-    b: RecipeNodeId,
-) -> (ProfileDoc, RecipeNodeId) {
+fn subtract(doc: ProfileDoc, from: RecipeNodeId, tool: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
-        Node::Boolean {
-            op,
-            a: a.into(),
-            b: b.into(),
+        Node::Subtract {
+            from: from.into(),
+            tool: tool.into(),
             declare: Vec::new(),
         },
     )
@@ -104,7 +98,7 @@ fn notched_bar(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived(label, Tol::witness());
     let (doc, bar) = block(doc, (0.0, 20.0), (0.0, 2.0), 0.0, 1.0);
     let (doc, notch) = block(doc, (9.0, 11.0), (1.5, 3.0), 0.5, 1.0);
-    boolean(doc, BooleanOp::Subtract, bar, notch)
+    subtract(doc, bar, notch)
 }
 
 fn failed<'a>(res: &'a Resolution, what: &str) -> &'a editor_core::ResolutionFailure {
@@ -139,9 +133,9 @@ fn crossings(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<(StableName, Stabl
 fn a_cascades_through_line_resolved_on_its_own_reads_the_lines_inside_it() {
     let (doc, notched) = notched_bar("cited-line-through");
     let (doc, strip) = moved_block(doc, (-1.0, 21.0), (2.2, 3.0), 0.6, 1.0);
-    let (doc, m) = boolean(doc, BooleanOp::Subtract, notched, strip);
+    let (doc, m) = subtract(doc, notched, strip);
     let (doc, slot) = block(doc, (3.0, 4.0), (1.5, 3.0), 0.5, 1.0);
-    let (doc, n) = boolean(doc, BooleanOp::Subtract, m, slot);
+    let (doc, n) = subtract(doc, m, slot);
     let doc2 = slide(&doc, strip, Axis3::Y, -0.5);
     let ev1 = run(&doc, None);
     let ev2 = run(&doc2, Some(&ev1));
@@ -201,7 +195,8 @@ fn a_cascades_through_line_resolved_on_its_own_reads_the_lines_inside_it() {
 fn a_vanished_piece_is_offered_the_pieces_of_its_line() {
     let (doc, notched) = notched_bar("cited-line-offers");
     let (doc, slot) = moved_block(doc, (3.0, 4.0), (1.5, 3.0), 0.5, 1.0);
-    let (doc, n) = boolean(doc, BooleanOp::Subtract, notched, slot);
+    let (doc, n) = subtract(doc, notched, slot);
+    let from_read = crate::fixture::out(&doc, notched);
     let doc2 = slide(&doc, slot, Axis3::Y, 1.0);
     let ev1 = run(&doc, None);
     let ev2 = run(&doc2, Some(&ev1));
@@ -217,9 +212,9 @@ fn a_vanished_piece_is_offered_the_pieces_of_its_line() {
                 && matches!(
                     name.path.as_slice(),
                     [
-                        RoleSeg::FromA(_),
+                        RoleSeg::From { read, .. },
                         RoleSeg::Fragment(editor_core::Qualifier::Ends(_))
-                    ]
+                    ] if *read == from_read
                 )
                 && t2.lookup(name).is_none()
         })
@@ -232,15 +227,19 @@ fn a_vanished_piece_is_offered_the_pieces_of_its_line() {
     );
     // The pieces the line has at `N` now: the two notch pieces, each
     // whole.
-    let Some(RoleSeg::FromA(line)) = halves[0].path.first() else {
+    let Some(RoleSeg::From { read, of: line }) = halves[0].path.first() else {
         panic!("a half is a piece of an operand edge's line");
     };
+    assert_eq!(
+        *read, from_read,
+        "a half is carried through the cut's `from`"
+    );
     let survivors: Vec<StableName> = t2
         .iter()
         .filter(|(name, _)| {
             name.kind == EntityKind::Edge
-                && matches!(name.path.as_slice(), [RoleSeg::FromA(inner)]
-                    if matches!(inner.path.last(), Some(RoleSeg::Fragment(editor_core::Qualifier::Ends(_))))
+                && matches!(name.path.as_slice(), [RoleSeg::From { read, of: inner }]
+                    if *read == from_read && matches!(inner.path.last(), Some(RoleSeg::Fragment(editor_core::Qualifier::Ends(_))))
                         && inner.node == notched
                         && inner.path.first() == line.path.first())
         })
@@ -286,7 +285,7 @@ fn a_union_reads_a_cited_member_line_by_its_rows() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: vec![notched.into(), post.into()],
+            members: editor_core::Bodies::Spelled(vec![notched.into(), post.into()]),
             declare: Vec::new(),
         },
     );
@@ -297,10 +296,11 @@ fn a_union_reads_a_cited_member_line_by_its_rows() {
         crate::docm7_union_declare::failure(&ev, u)
     );
     let bar_rows = &ev.value(notched).unwrap().name_table;
+    let bar_read = crate::fixture::out(&doc, notched);
     let cited: Vec<StableName> = crossings(&ev, u)
         .into_iter()
         .filter_map(|(_, edge)| match edge.path.as_slice() {
-            [RoleSeg::FromMember { member, of }] if *member == notched => Some((**of).clone()),
+            [RoleSeg::From { read, of }] if *read == bar_read => Some((**of).clone()),
             _ => None,
         })
         .collect();

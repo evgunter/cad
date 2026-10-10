@@ -28,7 +28,10 @@ use pyo3::types::{PyFloat, PyString};
 
 use crate::errors::{ErrorClass, EvalReason, ValidationRefusal, measurement_dimension_tag};
 use crate::py::quantity::Length;
-use crate::py::{doc::NodeId, typed_err};
+use crate::py::{
+    doc::{NodeId, Var},
+    typed_err,
+};
 use crate::tags::{
     export_error_tag, node_error_tag, node_inner_kind_tag, normalization_kind_tag,
     promoted_curve_kind_tag, promoted_kind_tag, step_import_error_tag,
@@ -1386,7 +1389,7 @@ impl Evaluation {
         value
             .coincidences
             .iter()
-            .map(|row| Coincidence::new(py, row, &d::coincide::prove(&self.doc, row)))
+            .map(|row| Coincidence::new(py, row, &d::coincide::prove(&self.doc, row), &self.doc))
             .collect()
     }
 
@@ -1719,8 +1722,9 @@ impl Evaluation {
     ///
     /// Findings come back in canonical order and are only ever
     /// DEFINITE values — inspect them, then hand the inspected
-    /// findings to `Node.boolean`'s `declare=`, or to `Doc.declare` /
-    /// `Doc.declare_all` on the live boolean or union.
+    /// findings to `Node.union`'s, `Node.intersect`'s or
+    /// `Node.subtract`'s `declare=`, or to `Doc.declare` /
+    /// `Doc.declare_all` on the live node.
     /// Detection and declaration are separate doors ON PURPOSE (the
     /// ruled no-fusion boundary).
     ///
@@ -1743,7 +1747,7 @@ impl Evaluation {
         b: &NodeId,
     ) -> PyResult<Vec<super::flush::FlushFinding>> {
         let tol = Tol::witness();
-        match pncad::select::find_flush_candidates(&self.inner, a.0, b.0, tol) {
+        match pncad::select::find_flush_candidates(&self.inner, &self.doc, a.0, b.0, tol) {
             Ok(findings) => Ok(findings
                 .into_iter()
                 .map(super::flush::FlushFinding)
@@ -2615,12 +2619,13 @@ pub(crate) fn evaluate(
 /// **One coincidence a node decided from values** (D10), with what the
 /// coincidence door decided about it.
 ///
-/// Its two cells cross as `(node, name)` pairs: the input node whose
-/// table names the cell and the name there, the same opaque text the
-/// materializers answer with; a tool cell (the plane a split cuts with)
-/// has no name and crosses as `(node, None)`, and a profile's own piece
-/// crosses as `(profile, piece)`, the piece's text as a step's pieces
-/// spell it. `rung` names the door's
+/// Its two cells cross as pairs: an entity cell as `(read, name)`,
+/// the `Var` the deciding node took the entity in through, whose table
+/// names it, and the name there, the same opaque text the materializers
+/// answer with; a tool cell (the plane a split cuts with) has no name
+/// and crosses as `(read, None)`; and a profile's own piece crosses as
+/// `(profile, piece)`, the profile's `NodeId` and the piece's text as a
+/// step's pieces spell it. `rung` names the door's
 /// rung that proved the row structural, `None` where none did, and then
 /// `residual` says what separates the two constructions, or why a
 /// cell's could not be read (`coincide::Unwalked`, said by its sentence
@@ -2629,7 +2634,7 @@ pub(crate) fn evaluate(
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Coincidence {
-    cells: Vec<(NodeId, Option<String>)>,
+    cells: Vec<(Cell, Option<String>)>,
     relation: &'static str,
     site: &'static str,
     rung: Option<&'static str>,
@@ -2642,18 +2647,21 @@ impl Coincidence {
         py: Python<'_>,
         row: &d::NamedCoincidence,
         proof: &d::Proof,
+        doc: &d::ProfileDoc,
     ) -> PyResult<Self> {
         let cells = row
             .cells
             .iter()
             .map(|cell| match cell {
-                d::NamedCell::Entity { input, name } => {
-                    Ok((NodeId(*input), Some(super::doc::name_text(py, name)?)))
-                }
-                d::NamedCell::Tool { input } => Ok((NodeId(*input), None)),
-                d::NamedCell::Piece { profile, piece } => {
-                    Ok((NodeId(*profile), Some(super::doc::piece_text(piece)?)))
-                }
+                d::NamedCell::Entity { input, name } => Ok((
+                    Cell::Read(Var::of(doc, *input)),
+                    Some(super::doc::name_text(py, name)?),
+                )),
+                d::NamedCell::Tool { input } => Ok((Cell::Read(Var::of(doc, *input)), None)),
+                d::NamedCell::Piece { profile, piece } => Ok((
+                    Cell::Node(NodeId(*profile)),
+                    Some(super::doc::piece_text(piece)?),
+                )),
             })
             .collect::<PyResult<_>>()?;
         let (rung, residual) = match proof {
@@ -2670,12 +2678,23 @@ impl Coincidence {
     }
 }
 
+/// One cell of a [`Coincidence`] as it crosses: the read an entity or
+/// a tool plane came in through, or the profile node a piece is of.
+#[derive(Clone, IntoPyObject)]
+pub(crate) enum Cell {
+    /// The read whose table names the cell.
+    Read(Var),
+    /// The profile whose piece the cell is.
+    Node(NodeId),
+}
+
 #[pymethods]
 impl Coincidence {
-    /// The two cells decided one, as `(input node, name)` pairs; a
-    /// tool cell's name is `None`.
+    /// The two cells decided one: `(read, name)` for an entity, the
+    /// `Var` whose table names it; `(read, None)` for a tool plane;
+    /// `(profile, piece)` for a profile's own piece.
     #[getter]
-    fn cells(&self) -> Vec<(NodeId, Option<String>)> {
+    fn cells(&self) -> Vec<(Cell, Option<String>)> {
         self.cells.clone()
     }
 

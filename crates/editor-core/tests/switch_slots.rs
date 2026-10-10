@@ -14,12 +14,12 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Alignment, AssertionRelation, AxisSense, BooleanOp, CancelToken, CapEnd, ContactClass,
-    ContentPin, Datum, Dimension, DocEdit, DocRef, DocumentId, EditError, EvalOptions, ExprPath,
-    Formula, Frame, FreeVar, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, Node,
-    NodeErrorKind, NodeResult, PartSelect, PatternKind, Placement, ProfileDoc, ProfileProgram,
-    ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId,
-    SplitHalf, Step, StepArg, TubeWindow, ValuePayload, VarName, evaluate,
+    Alignment, AssertionRelation, AxisSense, CancelToken, CapEnd, ContactClass, ContentPin, Datum,
+    Dimension, DocEdit, DocRef, DocumentId, EditError, EvalOptions, ExprPath, Formula, Frame,
+    FreeVar, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, Node, NodeErrorKind,
+    NodeResult, PartSelect, PatternKind, Placement, ProfileDoc, ProfileProgram, ProgramArcData,
+    ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId, SplitHalf, Step,
+    StepArg, TubeWindow, ValuePayload, VarName, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -566,8 +566,9 @@ test_utils::f6_variants! {
         Chamfer,
         Shell,
         Split,
-        Boolean,
+        Subtract,
         Union,
+        Intersect,
         Transform,
         PlaceInWorld,
         Pattern,
@@ -697,14 +698,17 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             target: nid(1).into(),
             tool: nid(2).into(),
         },
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: nid(1).into(),
-            b: nid(2).into(),
+        Node::Subtract {
+            from: nid(1).into(),
+            tool: nid(2).into(),
             declare: Vec::new(),
         },
         Node::Union {
-            members: vec![nid(1).into(), nid(2).into()],
+            members: editor_core::Bodies::Spelled(vec![nid(1).into(), nid(2).into()]),
+            declare: Vec::new(),
+        },
+        Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![nid(1).into(), nid(2).into()]),
             declare: Vec::new(),
         },
         Node::transform(
