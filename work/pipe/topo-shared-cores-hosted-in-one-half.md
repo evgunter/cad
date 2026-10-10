@@ -2,12 +2,14 @@
 id: topo-shared-cores-hosted-in-one-half
 kind: issue
 title: topo — two shared cores still hosted inside one half, finish and plane_crossing_lane
-status: open
+status: parked
 opened: 2026-08-20
 github: 695
 refs: [690, S5, S173]
 priority: P1
-cost: D
+cost: H
+design: true
+blocked_on: [booleans-glue-on-zero, declared-pairs-retire]
 ---
 
 ## From GitHub issue 695
@@ -76,3 +78,19 @@ Unit 2's core was renamed and widened in place rather than moved:
 boolean sweep reads its line / conic / no-lane dispatch from the split
 half too. The move this item asks for now carries that dispatch with
 the conic roots.
+
+## Parked behind INTENT stage 4's boolean rows (PIPE, 2026-10-10)
+
+This row is not on the D10 hold's ground; it is about where shared code
+lives. But D10 stage 4 is rewriting the ground it would move.
+`booleans-glue-on-zero` (dispatched, `intent/s4-e-glue-on-zero`) has a
+diff against main of +1609/−4830 over 56 `crates/topo/src` files. That
+includes `boolean/{join,reduce,mod}.rs`, `chord_join.rs` and
+`splitting/finish.rs`, and it deletes `source.rs` and
+`param_source.rs`. `declared-pairs-retire` then deletes the declared
+seats on the boolean. Extracting a shared core from code another lane
+is deleting half of would be a three-way merge for both sides, and the
+pipeline this row describes will look different once the declared
+rungs are gone. So the row waits on both. Once they land, it is
+re-read against the tree, and the two designers weigh the layering
+question before any lane moves a file (plan, Order).
