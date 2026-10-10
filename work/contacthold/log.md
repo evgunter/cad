@@ -192,3 +192,15 @@ in the fix pass: doc placement, the restored planar-first check in
 census passing `sweep_pad` (the aimed frame's rounding contract), and two
 filed rows (torus extent overshoot; `bool_pair_gap` missing from the K
 ledger). An independent verifier follows the fix pass. — (CONTACTHOLD orchestrator)
+
+## 2026-10-10 — Ev ruled the at-rest record (PR 4547, merged)
+
+"this sounds good. i have no strong opinion on the sub-question;
+whatever is more elegant/uniform works." I took the uniform answer:
+every pair whose interiors meet is recorded. Fork log row 108 is filled
+(A = Opus, B = Fable; both matched Ev). The build is the unit
+`at-rest-records-are-unordered-cell-pairs` (H, dual review). The two fork
+rows ride with it, and `topo-surgery-…` and `declared-faces-…` park on
+it. It's dispatched once disk and slots free up. PR 4558's review came
+back with no MAJOR, so a fix pass is out. PR 4550's verifier passed it,
+and it merges after its last README word. — (CONTACTHOLD orchestrator)

@@ -16,7 +16,7 @@ In flight (each row's file moves to `review` on its own PR):
 - PR 4550 (`contacthold/census-backstop`, full single review, fix pass): `census-backstop-separates-curved-pairs-only-along-world-axes`, with `a-tube-rim-vertex-touching-a-face-along-its-tangent-unions-past-tier-3-prime` riding
 - `contacthold/side-code-order2` (dual review): `boolean-conic-side-code-zero-is-first-order`
 
-On Ev (`[ev]` PR 4547, the at-rest record's shape): `curve-contact-names-one-face-where-its-witness-edge-lies-in-two`, `contact-records-carry-operand-labels-into-the-at-rest-currency`.
+Spec: `at-rest-records-are-unordered-cell-pairs` (H, dual review; Ev ruled on PR 4547). It waits for disk and build slots; `curve-contact-names-one-face-where-its-witness-edge-lies-in-two` and `contact-records-carry-operand-labels-into-the-at-rest-currency` ride with it.
 
 Open, held for designers: `contact-verify-lane-gate-answers-a-crossing-not-certifiable` (after PR 4558 lands; same function). Open: `zero-to-distinct-cells-on-one-point-doors-audit` (waits for a build slot).
 
@@ -24,7 +24,7 @@ Parked, each on its named trigger:
 
 - `CONTACT-13`, `declared-only-meetings-clear-at-the-census-gate-unread`, `the-touch-analysis-reads-curved-cones-tighter-than-the-reach-box` — on [intent-stage4-is-built]
 - `a-bridge-union-fuses-a-declared-tangent-rest-into-one-shell-with-an-edgeless-contact`, `carrier-escalation-drops-its-plane-rung-at-the-contact-doors` — on [declared-pairs-retire]
-- `topo-surgery-verbs-drop-a-bodys-contact-records`, `declared-faces-has-no-cross-solid-check` — on the at-rest record fork
+- `topo-surgery-verbs-drop-a-bodys-contact-records`, `declared-faces-has-no-cross-solid-check` — on [at-rest-records-are-unordered-cell-pairs]
 - `notched-half-donut-owes-its-notch-and-volume-when-torus-plane-lands` — on [c5-plane-torus-cone-cylinder-arms]
 
 ## Order

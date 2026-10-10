@@ -7,7 +7,7 @@ opened: 2026-09-16
 refs: [750]
 priority: P3
 cost: M
-blocked_on: [contact-records-carry-operand-labels-into-the-at-rest-currency]
+blocked_on: [at-rest-records-are-unordered-cell-pairs]
 design: true
 ---
 
