@@ -50,15 +50,12 @@ test_utils::gated_to![
     "crates/geom-core/src/linalg/",
 ];
 
+use super::search_kit::{band, offset, unit_vec};
 use super::*;
 use core::f64::consts::{PI, TAU};
 use geom::Surface;
-use geom_core::{Band, Point3, Tol, Vec3};
+use geom_core::{Point3, Vec3};
 use test_utils::fuzz::{self, Rng};
-
-pub(super) fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Class {
@@ -231,20 +228,6 @@ impl Frame {
     }
 }
 
-pub(super) fn unit_vec(rng: &mut Rng) -> Vec3<f64> {
-    loop {
-        let v = Vec3::new(
-            rng.range(-1.0, 1.0),
-            rng.range(-1.0, 1.0),
-            rng.range(-1.0, 1.0),
-        );
-        let n = v.norm();
-        if n > 0.2 && n < 1.0 {
-            return v / n;
-        }
-    }
-}
-
 pub(super) fn random_cone(rng: &mut Rng) -> Frame {
     let a = unit_vec(rng);
     let (e1, e2) = a.orthonormal_basis();
@@ -261,15 +244,6 @@ pub(super) fn random_cone(rng: &mut Rng) -> Frame {
         e2,
         alpha: rng.range(0.25, 1.2),
     }
-}
-
-/// An offset from a margin's zero, relative, either sign: half the
-/// draws log-uniform in `[0.03, 0.5]`, which the trace resolves, half
-/// in `[1e-12, 0.5]`, into the band and through it.
-pub(super) fn offset(rng: &mut Rng) -> f64 {
-    let floor = if rng.unit() < 0.5 { 0.03f64 } else { 1e-12 };
-    let m = (rng.range(floor.ln(), 0.5f64.ln())).exp();
-    if rng.unit() < 0.5 { m } else { -m }
 }
 
 /// `v`'s part square to the unit `a`, by the cross product (the oracle's

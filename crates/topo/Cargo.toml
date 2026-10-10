@@ -75,6 +75,10 @@ geom = { path = "../geom" }
 slotmap = { workspace = true }
 
 [dev-dependencies]
+# The symbolic tier's re-valuation instrument (`geom_core::sym::revalue`,
+# test-only), for the rows that pin a value kept in `T` rather than
+# re-entered as a constant (`chart_region`'s wrap band).
+geom-core = { path = "../geom-core", features = ["sym-revalue-testing"] }
 # Exact rationals for the polygon-cone reader's oracle
 # (`boolean/sectors/cone_fuzz.rs`).
 num-bigint = { workspace = true }
