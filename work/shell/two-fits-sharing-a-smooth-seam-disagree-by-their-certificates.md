@@ -1,7 +1,7 @@
 ---
 id: two-fits-sharing-a-smooth-seam-disagree-by-their-certificates
 kind: issue
-title: two walls offset independently agree along a shared smooth seam only to the sum of their fit certificates, so a vase-class shell refuses FittedBoundaryUnsupported; fitting them together is undesigned
+title: two walls offset independently agree along a shared smooth seam only to the sum of their fit certificates, so a vase-class seam has no edge after a move; fitting them together is undesigned
 status: open
 opened: 2026-10-08
 priority: P3
@@ -40,3 +40,14 @@ with another fitted face" (`crates/topo/src/replace_face.rs:2034`), and
 "… with a spline face" where the neighbour is an unmoved NURBS wall.
 Pinned in `crates/sweep/tests/encl_curved_loft_shell.rs`,
 `shelling_the_vase_refuses_at_its_rims_certificate`.
+
+2026-10-10, after the iso-row arm narrowed
+(`the-iso-row-arm-reads-a-u-moving-chart-image-as-a-u-row`): the
+guard and both of its strings are gone. A row of a moving fit beside a
+distinct spline or fitted face is not extracted:
+`offset_derive::holds_the_move` answers false for a spline neighbour
+rather than deciding the C7 normal-alignment margin along the seam,
+which is this item's, so the seam takes the section route and refuses
+`NeighborPairUnroutable` naming the pair (`Approx × Nurbs` beside an
+unmoved wall) until a NURBS × NURBS arm, and then this item's seam
+question, answer it.
