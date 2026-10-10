@@ -474,6 +474,15 @@ impl<T: KinkJacobian> Real for Dual<T> {
         Self::constant(T::from_f64(x))
     }
 
+    /// `T`'s computed value with a ZERO tangent. That is not the
+    /// derivative of whatever computed it, which no dual lane holds once
+    /// a value has left it: a dual consumer reading a tangent through a
+    /// computed value reads zero there. The value channel is `T`'s, so a
+    /// `Dual<Sym<_>>` would still carry its unknown.
+    fn from_computed(x: f64) -> Self {
+        Self::constant(T::from_computed(x))
+    }
+
     /// `(0, 0)`.
     fn zero() -> Self {
         Self::constant(T::zero())
