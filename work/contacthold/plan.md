@@ -18,13 +18,13 @@ In flight (each row's file moves to `review` on its own PR):
 
 On Ev (`[ev]` PR 4547, the at-rest record's shape): `curve-contact-names-one-face-where-its-witness-edge-lies-in-two`, `contact-records-carry-operand-labels-into-the-at-rest-currency`.
 
-Open, held for designers: `contact-verify-lane-gate-answers-a-crossing-not-certifiable` (after PR 4558 lands; same function), `declared-faces-has-no-cross-solid-check`. Open: `zero-to-distinct-cells-on-one-point-doors-audit`.
+Open, held for designers: `contact-verify-lane-gate-answers-a-crossing-not-certifiable` (after PR 4558 lands; same function). Open: `zero-to-distinct-cells-on-one-point-doors-audit` (waits for a build slot).
 
 Parked, each on its named trigger:
 
 - `CONTACT-13`, `declared-only-meetings-clear-at-the-census-gate-unread`, `the-touch-analysis-reads-curved-cones-tighter-than-the-reach-box` — on [intent-stage4-is-built]
 - `a-bridge-union-fuses-a-declared-tangent-rest-into-one-shell-with-an-edgeless-contact`, `carrier-escalation-drops-its-plane-rung-at-the-contact-doors` — on [declared-pairs-retire]
-- `topo-surgery-verbs-drop-a-bodys-contact-records` — on the at-rest record fork
+- `topo-surgery-verbs-drop-a-bodys-contact-records`, `declared-faces-has-no-cross-solid-check` — on the at-rest record fork
 - `notched-half-donut-owes-its-notch-and-volume-when-torus-plane-lands` — on [c5-plane-torus-cone-cylinder-arms]
 
 ## Order
