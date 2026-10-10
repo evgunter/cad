@@ -421,6 +421,80 @@ D10 Repetition's "`xs[i, j]` reads one member" (the definition reads one
 member), and DM3's "a definition reading the family". The amendment is
 D10's Variables sentence above.
 
+### Round 6 (Ev: union takes a list; "what is the problem with unioning something with itself?")
+
+1. **One argument, of type `Bodies`.** *Likely.*
+   - D10 already has `Bodies`: "an ordered list of bodies whose length is
+     a `Count`", the family of `Body`. A family `xs` is a `Bodies`, and so
+     is a list of reads `[a, b, c]` ("an irregular family is its members
+     written out").
+   - So there is one type with two ways of being defined, as every kind
+     has: by an operation (the family), or by a definition (the list of
+     reads).
+   - The slot holds one `VarId` of kind `Bodies` (VR4 unchanged). Typing
+     `[a, b, c]` into it mints an unnamed list definition, as typing
+     `xs[0]` mints a member definition.
+   - A mix is ill-typed: `[xs, a]` puts a `Bodies` where a `Body` element
+     goes, and is refused `SlotVarKind` at the door. Ev's "(list,
+     individual)" is unrepresentable rather than refused by a rule.
+   - **Item 4 simplifies; (i) stands.** `Union[xs, xs[0]]` can no longer
+     be written.
+     - `Union(xs)` names `From { read: xs, of: Member { (k, i), of } }`.
+     - `Union([xs[0], xs[1]])` names `From { read: d0, of: Member { (k, 0),
+       of } }`, where `d0` is the member definition. The key is the
+       element read the body came through; the list definition adds no
+       segment, like any pass-through.
+     - The two name apart because they are different programs (one
+       follows `N`).
+   - **The floor of two goes.** A list of one is its member, and a list of
+     none is the typed empty body. A family whose `N` is 1 or 0 is then
+     not an error.
+2. **Self-union. Recommend (b), likely.** The list's reads are a set, kept
+   in first-occurrence order for the glue rule. A repeated read is the same
+   statement said twice: it is read once and builds `A`, with no refusal.
+   - **(a) refuse.** This is a rule with nothing behind it once the key is
+     the read. Its only cause was that two identical keys would collide,
+     and (b) removes that without a refusal.
+   - **(b) collapse.** Names are `From { read: a, of }`, once.
+   - **(c) keep both and glue on Zero.** Both members carry the same key,
+     so every name collides unless something positional tells them apart,
+     which is the defect D10 removes. Keeping duplicates without position
+     reduces to (b), after a pointless boolean.
+   - **Two different variables holding one body** (`Part(Instance(0))`
+     beside its master, or two `d = xs[0]`) are two statements that agree
+     today and can diverge after an edit. They stay two members with two
+     keys. They glue structurally (one construction read twice), and their
+     faces are `Merged` of both members' names, as DM5 already says (`A ∪ A`
+     is `A`). The distinction is principled: a set over reads, not over
+     values.
+   - **DM5 therefore retires for union and intersect.** `Subtract { from:
+     X, tool: X }` answers as DM5 already answers distinct variables,
+     `A − A`, the typed empty result, so DM5's refusal can go there too.
+     It stays only where a repeat is degenerate rather than an identity
+     (a loft through one profile twice), which is a question for the
+     loft, not here.
+3. **Item 3 without "copy".** It holds.
+   - `P1` and `P2` are two placements of `X`. Each defines one output
+     carrying `X`'s rows, since a placement adds no name segment (N1), and
+     each is equally "a copy of the original". `X` itself, unplaced, is in
+     no product.
+   - If `P1` and `P2` are pinned into one space (both against the world,
+     or one against the other), `Place [P1, P2]` reads a list of shapes
+     of one space and defines two outputs with identical rows.
+   - One table per operation cannot hold them. The node is still unbuilt.
+
+**Ratified text that changes:**
+- **DM4:** a union reads one `Bodies`, a family or a list of reads; the
+  floor of two goes; the key is the element read.
+- **DM5:** repeated reads collapse for union and intersect; `X − X` is the
+  typed empty result; the refusal leaves the boolean family.
+- **D10 Repetition and FORK-PAT's "`union` reads a family as its
+  members":** union and intersect take one `Bodies`, a family or a list
+  of reads and never a mix, and the subtract part narrows as before.
+- **D10 Variables:** a `Bodies` is defined by an operation or by a list of
+  reads, as "an irregular family is its members written out" already
+  implies.
+
 ## For the orchestrator
 
 - Assumed: a `Body` variable is always a `VarDef::Output` (D10: "the
