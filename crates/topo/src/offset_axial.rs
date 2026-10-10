@@ -478,32 +478,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
     join: bool,
 ) -> Result<Vec<crate::boolean::EdgeJoin>, ReplaceFaceError<T>> {
     // ---- Decide: the chart moves are well formed. ----
-    //
-    // The planar door's own two preconditions, for the same reason: a
-    // caller's mistake must be named here rather than surfacing
-    // downstream as a refusal about something else.
-    let mut seen: Vec<FaceKey> = Vec::new();
-    for m in moves {
-        let Some(&first) = m.faces.first() else {
-            return Err(ReplaceFaceError::EmptyGroup);
-        };
-        let key = body
-            .get_face(first)
-            .ok_or(ReplaceFaceError::StaleFace { face: first })?
-            .surface;
-        for &face in &m.faces {
-            let data = body
-                .get_face(face)
-                .ok_or(ReplaceFaceError::StaleFace { face })?;
-            if data.surface != key {
-                return Err(ReplaceFaceError::TogetherChartMixed { face, other: first });
-            }
-            if seen.contains(&face) {
-                return Err(ReplaceFaceError::TogetherFaceRepeated { face });
-            }
-            seen.push(face);
-        }
-    }
+    let seen = crate::offset_together::well_formed(body, moves)?;
     // The scope is the SOLIDS the moves touch, and every face of each
     // of them must be in the set: a corner belongs to one solid, so a
     // solid named in part has corners whose answer depends on faces

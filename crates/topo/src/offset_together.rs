@@ -193,33 +193,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
     join: bool,
 ) -> Result<Vec<crate::boolean::EdgeJoin>, ReplaceFaceError<T>> {
     // ---- Decide: the chart moves are well formed. ----
-    //
-    // One surface key per chart and no face named twice: both are
-    // structural, both are one arena scan, and both are named HERE so
-    // a caller's mistake does not surface as a downstream refusal
-    // about something else.
-    let mut seen: Vec<FaceKey> = Vec::new();
-    for m in moves {
-        let Some(&first) = m.faces.first() else {
-            return Err(ReplaceFaceError::EmptyGroup);
-        };
-        let key = body
-            .get_face(first)
-            .ok_or(ReplaceFaceError::StaleFace { face: first })?
-            .surface;
-        for &face in &m.faces {
-            let data = body
-                .get_face(face)
-                .ok_or(ReplaceFaceError::StaleFace { face })?;
-            if data.surface != key {
-                return Err(ReplaceFaceError::TogetherChartMixed { face, other: first });
-            }
-            if seen.contains(&face) {
-                return Err(ReplaceFaceError::TogetherFaceRepeated { face });
-            }
-            seen.push(face);
-        }
-    }
+    well_formed(body, moves)?;
 
     // ---- Decide: the scope gate. ----
     //
@@ -912,6 +886,42 @@ impl Scope {
             .get(vertex)
             .is_some_and(|s| self.solids.contains(s))
     }
+}
+
+/// **The chart moves are well formed**: each names at least one face,
+/// every face resolves, a move's faces share ONE surface key
+/// ([`ReplaceFaceError::TogetherChartMixed`]), and no face is named twice
+/// across the call ([`ReplaceFaceError::TogetherFaceRepeated`]). Every
+/// simultaneous door checks this first, so a caller's mistake is named
+/// rather than surfacing downstream as a refusal about something else.
+/// The faces named, in the order named.
+pub(crate) fn well_formed<T: Real>(
+    body: &Body<T>,
+    moves: &[ChartMove<T>],
+) -> Result<Vec<FaceKey>, ReplaceFaceError<T>> {
+    let mut seen: Vec<FaceKey> = Vec::new();
+    for m in moves {
+        let Some(&first) = m.faces.first() else {
+            return Err(ReplaceFaceError::EmptyGroup);
+        };
+        let key = body
+            .get_face(first)
+            .ok_or(ReplaceFaceError::StaleFace { face: first })?
+            .surface;
+        for &face in &m.faces {
+            let data = body
+                .get_face(face)
+                .ok_or(ReplaceFaceError::StaleFace { face })?;
+            if data.surface != key {
+                return Err(ReplaceFaceError::TogetherChartMixed { face, other: first });
+            }
+            if seen.contains(&face) {
+                return Err(ReplaceFaceError::TogetherFaceRepeated { face });
+            }
+            seen.push(face);
+        }
+    }
+    Ok(seen)
 }
 
 /// The scope a move set names: the solids its faces lie on, in the

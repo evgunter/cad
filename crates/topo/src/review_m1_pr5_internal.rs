@@ -304,6 +304,12 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "runs `offset_charts_together_staged`, whose asserting door works on a staging clone \
          that `join_edges` finishes before it is adopted",
     ),
+    (
+        "offset_surfaces_together",
+        "runs `offset_charts_staged` (the body of `replace_faces_offset_staged`), whose \
+         asserting door works on a staging clone that `join_edges` finishes before it is \
+         adopted; with nothing moving it joins a staging clone alone",
+    ),
     // ---- Setters declaring the tier-1 postcondition. ----
     (
         "set_face_surface",

@@ -5171,6 +5171,13 @@ pub(crate) mod staleness_posture {
                 "the axial spelling of `offset_planes_together`, with the same re-mint",
             ),
             (
+                "offset_surfaces_together",
+                Maintains,
+                "runs `replace_faces_offset`'s body over every moving chart, which re-mints \
+                 the clone whole-body before adopting it; with nothing moving it adopts a \
+                 joined clone, whose join re-mints where it moved rows",
+            ),
+            (
                 "replace_face_offset",
                 Maintains,
                 "the one-face spelling of `replace_faces_offset`, which re-mints the clone \
