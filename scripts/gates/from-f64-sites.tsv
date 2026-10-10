@@ -58,7 +58,6 @@ crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weigh
 crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	s1	a partition piece's breakpoint, on the stored knots
 crates/geom-brep/src/pcurve_cache/projected.rs	3	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	a	a partition piece's breakpoint, on the stored knots
 crates/geom-brep/src/pcurve_cache/projected.rs	3	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	b	a partition piece's breakpoint, on the stored knots
-crates/geom-brep/src/props/curved.rs	1	constant	fraction	a fixed sample fraction
 crates/geom-brep/src/props/loop_area.rs	1	constant	*w	a Gauss weight
 crates/geom-brep/src/props/loop_area.rs	1	constant	*x	a Gauss node
 crates/geom-brep/src/props/loop_area.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	kv.knots()[index + 1]	a stored knot

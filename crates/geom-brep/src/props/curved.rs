@@ -2642,7 +2642,7 @@ fn side_of_sphere_loops<T: Decide>(
         }),
         [one] => pole_free_side(center, radius, axis, one, band),
         [_, rings @ ..] => {
-            let euler = T::one() - T::from_f64(rings.len() as f64);
+            let euler = rings.iter().fold(T::one(), |chi, _| chi - T::one());
             let solid = gauss.iter().fold(T::tau() * euler, |s, g| s - g.turning());
             match classify(
                 "props_sphere_area_side",
