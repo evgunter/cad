@@ -42,3 +42,13 @@ either a quadrature of the cap's Green integral over the spiric arc
 spiric image as a chord-able curve. The design doc
 (`docs/CURVED-SPIRIC-DESIGN.md`, Q5) recorded "the props lane funded as a separate numeric unit right
 behind" the carrier; this is that unit.
+
+**Also stops here (SHELL, 2026-10-09, PR 4467)**: `verbs_shell`'s
+`a_bowl_sectors_spiric_bounded_end_walls_clear`, an annular meridian
+with a torus floor revolved `120°` and shelled at `0.05`. Its cavity's
+end caps are bounded by spirics. Until PR 4467 the tilted wall read
+(`moved_walls_cross`) refused it `OffsetsCross` on the spiric's
+carrier ball before this door was reached. The row pins the props
+door's `Unimplemented` and turns to a closed-form volume when this
+lands. The same bowl at `150°`, `t = 0.02` reached this door on main
+before that PR.

@@ -2,11 +2,12 @@
 id: an-assertion-relates-by-equality
 kind: issue
 title: D10 stage 5 PR A: an Assertion's relation is ≤, ≥ or =
-status: parked
+status: dispatched
 opened: 2026-10-08
 priority: P0
 cost: M
 blocked_on: [measure-is-an-operation]
+branch: intent/s5-a-relation
 ---
 
 

@@ -27,42 +27,37 @@ The four PROPS never reached, in the order a lane should take them:
   amendment pinned anchoring invariance for its own predicate and left
   this one.
 
-Beside them, the arms' own smaller gaps:
-`a-notched-cylinder-wall-has-no-volume-measurement`,
-`props-collapse-over-lands-a-nan-window-on-the-first-span`,
-`props-reads-vector-norm-bounds-off-per-coordinate-hulls` (M, a
-frame-dependent bound — the same class the convex-insertion unit made
-frame-invariant one level down),
-`trim-piece-monotone-span-fold-drops-a-refused-window`,
-`stored-spans-read-raw-past-winding-bound`, and
-`the-gating-corpus-reaches-no-collapsed-arm-gate` (the corpus reaches
-five of eight gate predicates not at all).
+Beside them, two arm rows of the same family:
 
-## 2. The doors underneath
+- **`an-ellipse-trimmed-ring-on-a-cylinder-wall-has-no-volume-lane`**
+  (P0, H). A tilted bar unioned with a pipe refuses at the volume
+  backstop (`RingOnCurvedFace`): the cylinder's Green form reads rings
+  bounded by rims and rulings only, and the quadrature lane that reads
+  ellipse trims takes the outer loop only. The witness is 72 of 72 ops.
+- `stored-spans-read-raw-past-winding-bound` (M). The rim Δu sum reads
+  stored spans raw, the same `du_of_rims` ground as the rim-side row,
+  so the two want one lane or a strict order.
+- `sphere-face-with-a-hole-has-no-closed-form`,
+  `sphere-flux-arm-carries-two-closed-forms-for-one-face-kind` (design)
+  and `a-sphere-face-whose-boundary-encodes-no-side-is-measured-under-its-bit-alone`
+  are one question about the sphere arm. If Gauss–Bonnet subsumes the
+  iso-rectangle form, rings and the side encoding follow from it. They
+  want one designer pair before any lane.
 
-A flux arm is only as honest as the door it reads through, which is why
-these came across rather than staying with the text:
+## 2. What left at the cut (2026-10-10)
 
-- **`f64-refinement-inside-an-enclosure-has-five-more-sites`** — PROPS
-  closed site 5 (the convex form in `insert_once_ring`). Four remain,
-  and two of them are QUAD's ground by the 2026-09-20 cut, so the row
-  travels with an announced seam rather than a claim.
-- `brk-has-no-certified-door`, `certified-door-suite-does-not-sweep-sym`
-  — `CertifiedEnclosure`'s fourth implementor is unswept and `Brk` holds
-  a postcondition by hand.
-- `net-refinement-copies-the-differencing-skeleton-and-the-plan-ratio-is-optional`,
-  `surface-knot-insertion-writes-weights-validate-counts-refuses`,
-  `sqrt-up-respelled-where-a-zero-sup-moves-bits`,
-  `ring-refusal-readers-are-spelled-by-hand-at-every-site`,
-  `the-samplers-own-error-has-three-spellings-and-no-home`, `S114`.
-- `project-eps-point-is-absolute-so-a-km-model-refuses-off-geometry` (M)
-  — an absolute 1e-13 m below `ulp(2048)`, so a km-scale model refuses
-  for a reason that is not geometric.
-- `patherror-display-renders-float-noise` — a three-owner consolidation,
-  not the cost-E row its front matter claims; the row carries the
-  analysis and the constraint FIX left behind.
-- `assertion-verdict-derives-partialeq-alone`,
-  `measureexpr-has-no-display-or-as-primitive` (M).
+FLUX measured 125.5 budget points against 30 and was cut on its
+priority seam. The arms stayed here, at 30 points. The rest moved by
+`git mv` with ids unchanged:
+
+- **FLUXTAIL**: the arms' numeric honesty (rim levels, chord roots,
+  span folds, frame-dependent bounds, the gating corpus).
+- **KNOT**: the spline, net and fit doors.
+- **SCALAR**: the scalar doors, their hand-spelled readers, the recourse
+  of an invalid margin, and the box driver's readings.
+- **FLUXHOLD**: the rows on the D10 hold. It opens `blocked`.
+- **NURBS**: the certified Boehm step and the projective applier.
+  NURBS's blossom unit waits on the first.
 
 ## 3. Review posture
 

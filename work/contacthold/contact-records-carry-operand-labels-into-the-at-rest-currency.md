@@ -2,12 +2,12 @@
 id: contact-records-carry-operand-labels-into-the-at-rest-currency
 kind: issue
 title: ContactRecords' operand-labelled lists (a_on_b, b_on_a; VvContact a/b as A-clone/B-clone keys) are reduction vocabulary used as the at-rest declaration type
-status: open
+status: parked
 opened: 2026-10-02
 priority: P3
 cost: M
 refs: [3856]
-blocked_on: [coincidences-are-recorded-at-one-door]
+blocked_on: [contact-records-cite-their-decision]
 ---
 
 
@@ -20,3 +20,14 @@ Found by the TQUERY designer pair weighing `split-halves-have-no-contact-records
 ## Parked on the D10 hold (2026-10-08)
 
 `ContactRecords` is the record the one recording door replaces. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)
+
+## Re-parked on B2 (2026-10-10)
+
+Its trigger, stage 4 B (`coincidences-are-recorded-at-one-door`, PR
+4354), fired, but B left `ContactRecords` as it was (the S4-B ruling,
+option (b)); the record this row is about is rewritten by B2
+(`contact-records-cite-their-decision`, live on
+`intent/s4-b2-records-cite`), which makes every row cite its
+`Coincidence` across ~99 files. Building on the record's shape while
+B2 rewrites it would collide and be built twice. Re-read it against
+B2's merged record. (CONTACTHOLD orchestrator)

@@ -2,8 +2,10 @@
 id: a-certified-bound-refusal-reads-as-a-stored-contradiction
 kind: issue
 title: geom-brep: a refusal on a certified upper bound (hull limbs, TangentHull) ends as a kernel or file defect at rest and as the miss at the import door
-status: dispatched
+status: closed
+closed: 2026-10-10
 branch: encl/bound-kind
+pr: 4504
 opened: 2026-10-10
 priority: P3
 cost: M
@@ -11,7 +13,7 @@ cost: M
 
 
 
-(Filed by the ENCL orchestrator: the converged core of design-fork row 103, from `hull-sup-limb-reads-its-bound-as-the-miss-at-the-import-door`. Both designers agree, and no ratified text changes.)
+(Filed by the ENCL orchestrator: the converged core of design-fork row 104, from `hull-sup-limb-reads-its-bound-as-the-miss-at-the-import-door`. Both designers agree, and no ratified text changes.)
 
 ## What
 
@@ -42,3 +44,12 @@ The foot-orthogonality limb is the `[ev]` PR 4498 question. Leave it as it is in
 - the `Miss(Unsized::LastResort)` rows in certify.rs's ending-table test.
 
 `review_probes_m7_3::probe_refit_seam_refuses_typed` is a limb-1 measured miss and must not move.
+
+## Closed
+
+2026-10-10. PR 4504 merged after a full review (merge after a light pass) and the fix pass; hosted CI was green.
+- **`Unsized { Defect, Fit, Bound }`.** `LastResort` is renamed `Fit`, with no change in behaviour. `Bound` ends in `KERNEL_LIMIT_RECOURSE` at every reading.
+- **Import door.** `MissReading::Bound` names the bound when its far end is ≤ ε_in.
+- **Bound checks.** `TangentHull`, `PlaneNurbsHull` and a new `CertCheck::AnalyticHull` are `Residual(Unsized::Bound)`. `CertCheck::bounds_a_miss()` is the one home of the question "is this check a bound?".
+- **Readers.** The checks-window reason and the hull payload texts are reworded per fork-log row 9.
+- **Residue on PCERT:** `pcurve-envelope-bound-ends-as-a-stored-contradiction`.
