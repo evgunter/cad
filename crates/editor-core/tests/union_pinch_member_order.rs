@@ -218,27 +218,22 @@ struct Record {
 }
 
 fn record(body: &Body<f64>, c: &ContactRecords) -> Record {
-    let mut vv: Vec<[Point; 2]> =
-        c.vv.iter()
-            .map(|r| {
-                let mut ps = [at_point(body, r.a), at_point(body, r.b)];
-                ps.sort_unstable();
-                ps
-            })
-            .collect();
-    vv.sort_unstable();
-    let mut vf: Vec<Point> = c
-        .a_on_b
-        .iter()
-        .chain(&c.b_on_a)
-        .map(|r| at_point(body, r.vertex))
+    let mut vv: Vec<[Point; 2]> = c
+        .vertex_vertex()
+        .map(|(a, b)| {
+            let mut ps = [at_point(body, a), at_point(body, b)];
+            ps.sort_unstable();
+            ps
+        })
         .collect();
+    vv.sort_unstable();
+    let mut vf: Vec<Point> = c.vertex_face().map(|(v, _)| at_point(body, v)).collect();
     vf.sort_unstable();
     Record {
         vv,
         vf,
-        curves: c.curves.len(),
-        patches: c.patches.len(),
+        curves: c.edge_face().count(),
+        patches: c.face_face().count(),
     }
 }
 

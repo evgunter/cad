@@ -492,15 +492,14 @@ fn a_document_with_no_mates_gathers_exactly_what_it_did_before() {
 }
 
 /// INVARIANT (**the premise `attribute`'s `StaleContactDeclaration` arm
-/// reasons from**): what this door mints is `PatchContact`s of two
-/// DISTINCT faces, and never a `CurveContact`. The arm's unreachability
-/// argument rests on exactly that — the `CurveLocus` half needs a curve
-/// record no mate can author — so the claim is a row rather than a
-/// paragraph. (`mint` pins the distinctness half with its own
-/// `debug_assert`, which this row also exercises, tests being a debug
-/// build.)
+/// reasons from**): what this door mints is face–face records and
+/// nothing else, so no edge–face staleness names a mate's record — the
+/// claim is a row rather than a paragraph. (A record's two faces are
+/// distinct by its type; `mint` pins the same of the row it writes with
+/// its own `debug_assert`, which this row also exercises, tests being a
+/// debug build.)
 #[test]
-fn mint_makes_distinct_face_patches_and_no_curve_records() {
+fn mint_makes_face_face_records_and_nothing_else() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-shape-cube"), Tol::witness());
     let (doc, ids) = row_of("mate6-shape-row", part, 3, 4.0);
@@ -530,17 +529,13 @@ fn mint_makes_distinct_face_patches_and_no_curve_records() {
     let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
     assert_eq!(gathered.minted.len(), 2, "both mates minted");
-    assert!(
-        gathered.contacts.curves.is_empty(),
-        "a mate authors no curve record: {:?}",
-        gathered.contacts.curves
+    assert_eq!(
+        gathered.contacts.face_face().count(),
+        2,
+        "a mate authors face–face records only: {:?}",
+        gathered.contacts
     );
-    for patch in &gathered.contacts.patches {
-        assert_ne!(
-            patch.face_a, patch.face_b,
-            "a minted patch names two distinct faces"
-        );
-    }
+    assert_eq!(gathered.contacts.len(), 2, "{:?}", gathered.contacts);
     for m in &gathered.minted {
         assert_ne!(m.faces.0, m.faces.1, "and so does the row that records it");
     }
@@ -865,7 +860,7 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
         "one mate, one record"
     );
     assert_eq!(
-        product.contacts.patches[0].cites,
+        product.contacts.rows()[0].cites,
         topo::Cites::decided(0),
         "the record cites the product's row 0"
     );
@@ -944,7 +939,7 @@ fn an_instances_record_cites_the_parts_record() {
     let ev = run(&outer, &with_resolver(store));
     let value = ev.value(instances[0]).expect("the instance evaluates");
     assert_eq!(
-        value.contacts.patches[0].cites,
+        value.contacts.rows()[0].cites,
         topo::Cites::one(topo::Backing::Carried {
             input: 0,
             record: 0
@@ -956,7 +951,7 @@ fn an_instances_record_cites_the_parts_record() {
     );
     let product = product_recorded(&outer, &ev, Tol::witness()).expect("the row gathers");
     assert_eq!(
-        product.contacts.patches[0].cites,
+        product.contacts.rows()[0].cites,
         topo::Cites::one(topo::Backing::Carried {
             input: 0,
             record: 0

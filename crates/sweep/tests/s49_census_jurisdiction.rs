@@ -319,7 +319,10 @@ fn a_vf_record_defers_the_faces_at_its_own_interface_and_no_others() {
         1,
         "the fixture declares exactly one rest, on the brick's top face"
     );
-    assert_eq!(records.b_on_a[0].face, brick_top);
+    assert_eq!(
+        records.vertex_face().next().map(|(_, f)| f),
+        Some(brick_top)
+    );
     let (holding, apart) = walls_by_vertex(&body, v0);
     assert_eq!(holding.len(), 2, "two walls share each rim vertex");
     assert_eq!(apart.len(), 1, "one wall holds neither of its ends");

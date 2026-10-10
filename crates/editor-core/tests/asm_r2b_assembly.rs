@@ -286,10 +286,10 @@ fn row1_a_parts_declared_contacts_survive_instantiation() {
         part_product.contacts
     );
     let part_pair = {
-        let c = part_product.contacts.vv[0].record;
+        let (a, b) = part_product.contacts.vertex_vertex().next().unwrap();
         (
-            names_of(&part_product.names, EntityKey::Vertex(c.a)),
-            names_of(&part_product.names, EntityKey::Vertex(c.b)),
+            names_of(&part_product.names, EntityKey::Vertex(a)),
+            names_of(&part_product.names, EntityKey::Vertex(b)),
         )
     };
 
@@ -308,10 +308,10 @@ fn row1_a_parts_declared_contacts_survive_instantiation() {
         "the record crossed the seam, exactly once: {:?}",
         product.contacts
     );
-    let c = product.contacts.vv[0].record;
+    let (a, b) = product.contacts.vertex_vertex().next().unwrap();
     let moved = (
-        names_of(&product.names, EntityKey::Vertex(c.a)).map(|n| unwrap_in_part(&n)),
-        names_of(&product.names, EntityKey::Vertex(c.b)).map(|n| unwrap_in_part(&n)),
+        names_of(&product.names, EntityKey::Vertex(a)).map(|n| unwrap_in_part(&n)),
+        names_of(&product.names, EntityKey::Vertex(b)).map(|n| unwrap_in_part(&n)),
     );
     assert_eq!(
         moved, part_pair,
@@ -349,14 +349,14 @@ fn row2_a_solved_rest_mate_mints_its_declaration() {
     let result = assemble(&doc, &ev, Tol::witness());
     let (contacts, residue) = gate_records(&result);
 
-    // The record: one, a `PatchContact`, keyed to the faces the
+    // The record: one, a face–face pair, keyed to the faces the
     // references resolved to.
     assert_eq!(
-        contacts.patches.len(),
+        contacts.face_face().count(),
         1,
         "one mate, one minted record: {contacts:?}"
     );
-    let record: topo::PatchContact = contacts.patches[0].record;
+    let record = contacts.face_face().next().unwrap();
 
     // RE-BLESSED at #1063: this pair CERTIFIES now, so the minting is
     // read off the gate's own `minted` row rather than out of a
@@ -381,9 +381,10 @@ fn row2_a_solved_rest_mate_mints_its_declaration() {
         ),
         "and both of its references"
     );
+    let (fa, fb) = declared.faces;
     assert_eq!(
-        (record.face_a, record.face_b),
-        declared.faces,
+        record,
+        (fa.min(fb), fa.max(fb)),
         "the record is keyed to the faces the references resolved to"
     );
 }
@@ -557,7 +558,7 @@ fn row3_b_the_declared_touching_pair_is_not_an_undeclared_contact() {
         .as_ref()
         .expect("the declared touching pair certifies");
     assert_eq!(
-        contacts.patches.len(),
+        contacts.face_face().count(),
         1,
         "and the certification is OF the minted record: {contacts:?}"
     );
@@ -1799,7 +1800,7 @@ fn a_flush_seat_certifies_at_the_gate() {
     let result = assemble(&doc, &ev, Tol::witness());
     let (contacts, residue) = gate_records(&result);
     assert_eq!(
-        contacts.patches.len(),
+        contacts.face_face().count(),
         1,
         "the seat is declared once, at face granularity"
     );
@@ -2113,10 +2114,10 @@ fn two_solids_of_one_subject_are_skipped_by_the_guard_not_by_geometry() {
     // under test is the subject check and only the subject check.
     let contacts = &product.contacts;
     assert!(
-        contacts.vv.is_empty()
+        contacts.vertex_vertex().next().is_none()
             && contacts.vertex_face().next().is_none()
-            && contacts.curves.is_empty()
-            && contacts.patches.is_empty(),
+            && contacts.edge_face().next().is_none()
+            && contacts.face_face().next().is_none(),
         "the gather discovers no contacts (F1), so nothing here is declared: {contacts:?}"
     );
 

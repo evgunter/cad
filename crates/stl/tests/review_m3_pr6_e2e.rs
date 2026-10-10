@@ -39,7 +39,7 @@ fn die(x0: f64, y0: f64, z0: f64) -> AtRestBody<f64> {
     let BooleanResult::Body(b) = subtract(&cube, &cutter, Tol::witness()).unwrap() else {
         panic!("die subtract is a body");
     };
-    assert!(b.contacts.vertex_vertex().next().is_none() && b.contacts.a_on_b.is_empty());
+    assert!(b.contacts.is_empty());
     assert_eq!(
         mass_properties(&b.body, Tol::witness()).unwrap().volume,
         0.875

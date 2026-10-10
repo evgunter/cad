@@ -1675,7 +1675,7 @@ fn kiss_record(ev: &Evaluation<f64>, id: RecipeNodeId) -> editor_core::NamedCoin
     let ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) = &value.payload else {
         panic!("a boolean body: {:?}", value.payload);
     };
-    let [record] = contacts.vv.as_slice() else {
+    let [record] = contacts.rows() else {
         panic!("one vertex pair: {contacts:?}");
     };
     let cited: Vec<topo::Backing> = record.cites.iter().collect();

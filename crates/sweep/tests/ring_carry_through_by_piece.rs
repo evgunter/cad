@@ -450,7 +450,7 @@ fn a_ring_pinched_to_a_rim_vertex_builds_and_its_rim_fillet_refuses() {
         assert_eq!(
             (
                 bb.contacts.vertex_vertex().count(),
-                bb.contacts.a_on_b.len() + bb.contacts.b_on_a.len(),
+                bb.contacts.vertex_face().count(),
                 bb.contacts.vertex_edge().count(),
                 bb.contacts.edge_edge().count(),
             ),

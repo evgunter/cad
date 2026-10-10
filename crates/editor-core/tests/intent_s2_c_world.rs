@@ -630,7 +630,7 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
 
     let run = ev(&posed);
     let gathered = editor_core::product_recorded(&posed, &run, Tol::witness()).expect("gathers");
-    let [ref kiss] = gathered.contacts.vv[..] else {
+    let [kiss] = gathered.contacts.vertex_vertex().collect::<Vec<_>>()[..] else {
         panic!(
             "the copy carries the union's one v-v record: {:?}",
             gathered.contacts
@@ -646,7 +646,7 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
     };
     // A quarter turn about +z takes (1, 1, 1) to (−1, 1, 1).
     let want = [-1.0 + t[0], 1.0 + t[1], 1.0 + t[2]];
-    for got in [at(kiss.a), at(kiss.b)] {
+    for got in [at(kiss.0), at(kiss.1)] {
         assert!(
             got.iter().zip(want).all(|(g, w)| (g - w).abs() < 1e-9),
             "the kiss moved with the pose: {got:?} vs {want:?}"

@@ -974,11 +974,7 @@ fn a_union_records_a_vertex_touch_once() {
         else {
             panic!("{what}: a boolean body")
         };
-        assert_eq!(
-            contacts.rows().count(),
-            1,
-            "{what}: one record: {contacts:?}"
-        );
+        assert_eq!(contacts.len(), 1, "{what}: one record: {contacts:?}");
         all.push(got.len());
     }
     assert_eq!(all[0], all[1], "the union's rows are the pair's");

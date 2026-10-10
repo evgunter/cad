@@ -83,12 +83,10 @@ fn the_boss_union_lands_end_to_end() {
 #[test]
 fn the_curved_inventory_is_admitted_and_the_bogus_record_is_stale() {
     let b = boss();
-    let mut contacts = topo::ContactRecords::default();
-    let v = b.vertices().next().unwrap().0;
-    contacts.push(topo::Cited::new(
-        topo::Contact::new(&body, topo::Cell::Vertex(v), topo::Cell::Vertex(v)).unwrap(),
-        topo::Cites::decided(0),
-    ));
+    let mut vs = b.vertices().map(|(k, _)| k);
+    let (v, w) = (vs.next().unwrap(), vs.next().unwrap());
+    let contacts =
+        topo::test_support::records(&b, [(topo::Cell::Vertex(v), topo::Cell::Vertex(w))]);
     let errs = topo::validate_pseudomanifold(&b, &contacts, Tol::witness())
         .expect_err("the bogus record is refused");
     assert!(
@@ -99,7 +97,7 @@ fn the_curved_inventory_is_admitted_and_the_bogus_record_is_stale() {
     assert!(
         errs.iter()
             .any(|e| matches!(e, topo::ValidationError::StaleContactDeclaration { .. })),
-        "a == b is not a contact — the record is stale: {errs:?}"
+        "two vertices apart are not a contact — the record is stale: {errs:?}"
     );
 }
 

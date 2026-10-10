@@ -292,7 +292,7 @@ fn a_cube_touching_a_drum_at_a_corner_answers_its_closed_form() {
             assert_eq!(
                 (
                     void.body.shells().count(),
-                    void.contacts.a_on_b.len() + void.contacts.b_on_a.len()
+                    void.contacts.vertex_face().count()
                 ),
                 (2, 1),
                 "l {l} spin {spin}: drum ∖ inner is the drum and a void, its corner on the wall"
@@ -320,10 +320,13 @@ fn vf_reading(
     body: &topo::Body<f64>,
     record: topo::VfContact,
 ) -> Result<(), Vec<topo::ValidationError>> {
-    let contacts = topo::ContactRecords {
-        b_on_a: vec![topo::Cited::new(record, topo::Cites::decided(0))],
-        ..topo::ContactRecords::default()
-    };
+    let contacts = topo::test_support::records(
+        body,
+        [(
+            topo::Cell::Vertex(record.vertex),
+            topo::Cell::Face(record.face),
+        )],
+    );
     let errors: Vec<_> = topo::validate_pseudomanifold(body, &contacts, Tol::witness())
         .err()
         .unwrap_or_default()

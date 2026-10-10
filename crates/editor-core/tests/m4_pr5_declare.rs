@@ -175,7 +175,7 @@ fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
     );
     // Exactly the carried kiss survives as a v-v record (the mover
     // overlap is seam-crossing, not kissing — it declares nothing).
-    assert_eq!(contacts.vv.len(), 1, "{contacts:?}");
+    assert_eq!(contacts.vertex_vertex().count(), 1, "{contacts:?}");
 }
 
 /// D6.3, the #91 flush-plane narrative: the coincident-plane pair
