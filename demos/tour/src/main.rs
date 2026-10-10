@@ -101,7 +101,7 @@ use pncad::topo::{Body, ContactRecords, EulerCounts, VolumeReading};
 /// One body of a tour scene: its own STL/STEP exports, its own
 /// validation posture. `contacts` is `Some` exactly when the body is a
 /// boolean result — tier 3′ then runs `validate_pseudomanifold` with
-/// the op's OWN declared contacts (the M3 PR 6a contract).
+/// the op's OWN contact records.
 struct SceneBody {
     name: String,
     body: Body<f64>,
@@ -224,7 +224,7 @@ impl SceneBody {
     }
 
     /// A boolean RESULT: validated at tier 3′ against the op's own
-    /// declared contacts rather than through the plain geometric gate.
+    /// contact records rather than through the plain geometric gate.
     /// Curved results (M5 PR 11's boss ∪ plate, whose cylinder walls
     /// and circle seam arcs are what the curved arms were written for)
     /// take this door too — the contacts, not the surface kind, are
@@ -483,7 +483,7 @@ impl<T> Gated for T where
 }
 
 /// The tier-3 or tier-3′ gate a body that is not at rest passes — 3′
-/// with the op's declared contacts for a boolean result, plain tier 3
+/// with the op's contact records for a boolean result, plain tier 3
 /// otherwise (on contact-free bodies the two agree) — continued to the
 /// number where the quadrature can reach it. One home for the tour and
 /// the K sweep, so both measure a body through the same door.
@@ -497,7 +497,7 @@ fn gated<T: Gated>(
         Some(contacts) => continued(
             label,
             pncad::topo::validate_pseudomanifold_certificate(body, contacts, tol).unwrap_or_else(
-                |e| panic!("{label}: tier-3' (declared-contact) validation failed: {e:?}"),
+                |e| panic!("{label}: tier-3' (contact-record) validation failed: {e:?}"),
             ),
         ),
         None => continued(
@@ -524,7 +524,7 @@ fn run_body(
         .unwrap_or_else(|e| panic!("{label}: tier-2 closed-solid validation failed: {e:?}"));
 
     // Tier 3 / 3′: boolean results validate AS THEY ARE, with the
-    // op's declared contacts (3′); everything else through the plain
+    // op's contact records (3′); everything else through the plain
     // geometric gate (on contact-free bodies the two gates agree).
     //
     // Every arm takes the gate door that HANDS ITS MEASUREMENT BACK,

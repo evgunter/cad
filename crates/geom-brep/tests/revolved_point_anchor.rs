@@ -2,8 +2,9 @@
 //! certified scalar.
 //!
 //! A `RevolvedPoint` description evaluates through
-//! `Affine3::rotation_about_axis(axis_origin, axis_dir, range.at(s)·angle)`,
-//! and `restrict` narrows `range`, a sub-range of the whole sweep's
+//! `Affine3::rotate_point_about_axis(axis_origin, axis_dir, range.at(s)·angle, p)`,
+//! `q + R·(p − q)`, so an angle's width reaches the point times the
+//! radius about the axis, never the coordinates; `restrict` narrows `range`, a sub-range of the whole sweep's
 //! normalized parameter, while the stored placement stays as built. So
 //! the description pays for its rotation once per evaluation and never
 //! per split. An `ExtrudedPoint` description restricts the same way.
@@ -82,54 +83,114 @@ fn sampled_width(c: &MappedCurve<Interval>) -> f64 {
         .fold(0.0, f64::max)
 }
 
-/// The described point at `s = 0` is the placed sketch point, so **the
-/// axis origin's own enclosure must not reach it** — at any axis width.
+/// **An uncertain axis reaches the start sample at most twice over.**
+/// The described point at `s = 0` is the placed sketch point turned by
+/// zero about the axis, `q + R(0)·(p − q)`: the axis origin is mentioned
+/// twice, so its enclosure reaches the sample once through the offset
+/// and once added back — `2·width(axis_origin)` and no more. That is
+/// what turning the offset from the axis gives up against the
+/// point-anchored `p − (I − R)·(p − q)`, which kept the axis out of the
+/// start sample; no producer hands an axis wider than its point.
 ///
-/// Three axis widths six orders apart, and the start sample must read
-/// the same on all three: a spelling that mentioned the anchor twice
-/// (`q − R·q`) read `2·width(axis_origin)` here, 4e-9 on the last row.
-///
-/// What is left is the rotation's diagonal enclosure at the exact angle
-/// `0` — `t + c` on the axis component, `8.88e-16` wide — times the
-/// placed point's `z = 3`: 2.6645352591003757e-15. Why that floor is
-/// the backend's `cos` and not a spelling's is documented at
-/// `Mat3::rotation_about`'s width-floor paragraph.
+/// Three axis widths six orders apart. On the exact axis the sample is
+/// the rotation's own floor at the exact angle `0` (6.7e-16; why that
+/// floor is the backend's `cos` is at `Mat3::rotation_about`'s
+/// width-floor paragraph); on the wide ones it is `2·width + floor`
+/// (4.0015e-12 at width 2e-12, 4.0000014e-9 at 2e-9). A spelling that
+/// mentions the anchor a third time reads `≥ 3·width` and breaks the
+/// bound.
 ///
 /// ε-free: enclosure widths only.
 #[test]
-fn the_revolved_anchor_contributes_no_width_at_the_start_sample() {
-    let mut widths = [0.0f64; 3];
-    for (row, half) in [0.0f64, 1.0e-12, 1.0e-9].into_iter().enumerate() {
+fn an_uncertain_axis_reaches_the_start_sample_at_most_twice_over() {
+    let floor = point_width(rim(0.0).eval(iv(0.0)));
+    println!("exact axis: eval(0) width {floor:e}");
+    assert!(
+        floor <= 1.0e-15,
+        "the start sample on an exact axis is {floor:e} wide — the described point \
+         there is the placed sketch point, exact in this fixture up to the rotation's \
+         own floor"
+    );
+    for half in [1.0e-12, 1.0e-9] {
         let at_start = point_width(rim(half).eval(iv(0.0)));
-        println!("axis half-width {half:e}: eval(0) width {at_start:e}");
-        widths[row] = at_start;
+        let axis = 2.0 * half;
+        println!("axis width {axis:e}: eval(0) width {at_start:e}");
         assert!(
-            at_start <= 1.0e-14,
-            "the start sample of a revolved point on an axis of half-width \
-             {half:e} is {at_start:e} wide — the described point there is the \
-             placed sketch point, exact in this fixture up to the rotation's \
-             own floor"
+            at_start <= 2.0 * axis + 3.0 * floor,
+            "the start sample of a revolved point on an axis {axis:e} wide is \
+             {at_start:e} wide, over twice the axis's width plus the exact-axis floor \
+             {floor:e}: the anchor is mentioned more often than the offset and its \
+             add-back"
         );
     }
+}
+
+/// **Off the zero turn an uncertain axis reaches a sample at
+/// `(1 + Σⱼ|Rᵢⱼ|)·w` per coordinate**, the bound
+/// `Affine3::rotate_point_about_axis` derives: the offset `p − q` is a
+/// box `w` wide, row `i` of the rotation turns it into one `Σⱼ|Rᵢⱼ|·w`
+/// wide, and adding `q` back adds `w`. On a tilted axis at a 2.1 rad
+/// turn the widest coordinate reads 2.69·w, past the `2·w` that holds
+/// only at the zero turn (where `R` is the identity), and every
+/// coordinate stays within its row's bound plus the exact-axis floor.
+/// The bound itself is at most `(1 + √3)·w`.
+#[test]
+fn an_uncertain_axis_reaches_a_turned_sample_within_its_row_bound() {
+    let (angle, n) = (2.1, Vec3::new(0.3, -0.2, 1.0));
+    let rim = |half: f64| {
+        let w = |c: f64| Interval::from_bounds(c - half, c + half);
+        MappedCurve::whole(MappedSource::RevolvedPoint {
+            point: Point2::new(iv(2.0), iv(2.0)),
+            place: Affine3::translation(Vec3::new(iv(0.0), iv(0.0), iv(3.0))),
+            axis_origin: Point3::new(w(1.0), w(2.0), w(3.0)),
+            axis_dir: Vec3::new(iv(n.x), iv(n.y), iv(n.z)),
+            angle: iv(angle),
+        })
+    };
+    let wd = |e: Interval| e.hi() - e.lo();
+    let widths = |p: Point3<Interval>| [wd(p.x), wd(p.y), wd(p.z)];
+    let floor = widths(rim(0.0).eval(iv(1.0)));
+    let half = 1.0e-9;
+    let got = widths(rim(half).eval(iv(1.0)));
+    let w = 2.0 * half;
+    let r = geom_core::Mat3::rotation_about(n, angle);
+    let rows = [
+        r.c0.x.abs() + r.c1.x.abs() + r.c2.x.abs(),
+        r.c0.y.abs() + r.c1.y.abs() + r.c2.y.abs(),
+        r.c0.z.abs() + r.c1.z.abs() + r.c2.z.abs(),
+    ];
+    let mut widest: f64 = 0.0;
+    for i in 0..3 {
+        let bound = (1.0 + rows[i]) * w * (1.0 + 1.0e-6) + floor[i];
+        println!(
+            "coordinate {i}: width {:e} = {:.4}·w, row bound {:.4}·w",
+            got[i],
+            got[i] / w,
+            1.0 + rows[i]
+        );
+        assert!(
+            got[i] <= bound,
+            "coordinate {i} of a sample turned {angle} about an axis {w:e} wide is {:e} \
+             wide, over (1 + Σ|R|)·w + floor = {bound:e}",
+            got[i]
+        );
+        assert!(1.0 + rows[i] <= 1.0 + 3f64.sqrt() + 1.0e-12);
+        widest = widest.max(got[i]);
+    }
     assert!(
-        widths[2] <= 2.0 * widths[0] && widths[1] <= 2.0 * widths[0],
-        "the start sample tracks the axis origin's width ({:e} / {:e} / {:e} at \
-         half-widths 0 / 1e-12 / 1e-9) — the anchor is reaching a sample that \
-         does not depend on it",
-        widths[0],
-        widths[1],
-        widths[2],
+        widest > 2.5 * w,
+        "the widest coordinate is {widest:e}, within 2.5·w: this fixture no longer \
+         separates the row bound from the zero turn's 2·w"
     );
 }
 
 /// A restriction stores no anchored map, so the sub-curve's start
-/// sample is as tight as the whole curve's — on a wide axis as on an
+/// sample is no wider than the whole curve's — on a wide axis as on an
 /// exact one.
 ///
-/// A nonzero `s0` is measured too: there the axis width legitimately
-/// reaches the answer (rotating about an uncertain axis genuinely
-/// moves the point), so the bound is the honest `≈ 2·width(axis)` of a
-/// quarter turn rather than zero (measured 4.000015429994619e-9).
+/// A nonzero `s0` is measured too: there the axis's width reaches the
+/// answer as at every sample, `≈ 2·width(axis)` (measured
+/// 4.000002107318323e-9).
 #[test]
 fn restriction_does_not_store_the_anchor_round_trip() {
     let half = 1.0e-9;
@@ -211,40 +272,59 @@ fn widths_along(mut c: MappedCurve<Interval>, split: impl Fn(usize) -> Split) ->
 /// The near rim, a metre off an axis through `(1, 2, 3)`.
 const NEAR: [f64; 3] = [0.0, 0.0, 3.0];
 
+/// A hundred thousand metres out.
+const FARTHER: [f64; 3] = [1.0e5, 3.0e4, -2.0e4];
+
 /// **A split chain's stored width stays under a ceiling 2.5× what this
-/// form measures**, for every chain at both placements, at every count
+/// form measures**, for every chain at all three placements, at every count
 /// up to 64: each ceiling is 2.5× the worst width over its chain,
-/// rounded up. A range stored as its two ends and interpolated breaks
-/// one; an eval that rotates by the range's start and then by its span
-/// stays under them and breaks
-/// [`restriction_is_no_wider_than_composing_into_the_placement`].
+/// rounded up. A thousand metres out every chain with exact split
+/// parameters stays at one or two ulps of the coordinates
+/// (2.3e-13–3.4e-13) from the first split to the 64th: an angle's width
+/// reaches the point times the metre radius, under the coordinates'
+/// own rounding. An eval that levers the angle by the coordinates
+/// (`R·p + (I − R)·q`) reads 1.1e-10–1.9e-10 there. At 1e5 every
+/// chain stays at 1.46e-11 – 4.37e-11, one to three ulps, where that
+/// eval reads up to 1.9e-8.
 #[test]
 fn restricted_widths_stay_under_their_ceilings() {
-    let rows: [([f64; 3], &str, f64); 24] = [
-        (NEAR, "(0, 1/2)", 2.7e-14),
-        (NEAR, "(1/2, 1)", 2.8e-13),
-        (NEAR, "(0, a)", 4.9e-14),
-        (NEAR, "(a, 1)", 9.4e-13),
-        (NEAR, "(1/4, 3/4)", 1.5e-13),
-        (NEAR, "(0.3, 0.7)", 5.7e-13),
-        (NEAR, "(0.3, 0.7) as quotients", 6.1e-13),
-        (NEAR, "alternate (a, 1) / (0, a)", 4.7e-13),
-        (NEAR, "alternate, a = t/span", 4.7e-13),
-        (NEAR, "alternate, a ± 1e-13", 4.4e-11),
-        (NEAR, "(a ± 1e-13, 1)", 6.8e-11),
-        (NEAR, "(0, a ± 1e-13)", 1.8e-11),
-        (FAR, "(0, 1/2)", 1.6e-11),
-        (FAR, "(1/2, 1)", 1.4e-10),
-        (FAR, "(0, a)", 2.6e-11),
-        (FAR, "(a, 1)", 4.7e-10),
-        (FAR, "(1/4, 3/4)", 7.4e-11),
-        (FAR, "(0.3, 0.7)", 2.9e-10),
-        (FAR, "(0.3, 0.7) as quotients", 3.1e-10),
-        (FAR, "alternate (a, 1) / (0, a)", 2.4e-10),
-        (FAR, "alternate, a = t/span", 2.4e-10),
-        (FAR, "alternate, a ± 1e-13", 2.2e-8),
-        (FAR, "(a ± 1e-13, 1)", 3.4e-8),
-        (FAR, "(0, a ± 1e-13)", 8.6e-9),
+    let rows: [([f64; 3], &str, f64); 36] = [
+        (NEAR, "(0, 1/2)", 3.4e-15),
+        (NEAR, "(1/2, 1)", 6.8e-14),
+        (NEAR, "(0, a)", 5.6e-15),
+        (NEAR, "(a, 1)", 2.4e-13),
+        (NEAR, "(1/4, 3/4)", 3.5e-14),
+        (NEAR, "(0.3, 0.7)", 1.4e-13),
+        (NEAR, "(0.3, 0.7) as quotients", 1.5e-13),
+        (NEAR, "alternate (a, 1) / (0, a)", 1.2e-13),
+        (NEAR, "alternate, a = t/span", 1.2e-13),
+        (NEAR, "alternate, a ± 1e-13", 7.0e-12),
+        (NEAR, "(a ± 1e-13, 1)", 1.7e-11),
+        (NEAR, "(0, a ± 1e-13)", 2.3e-12),
+        (FAR, "(0, 1/2)", 5.7e-13),
+        (FAR, "(1/2, 1)", 8.6e-13),
+        (FAR, "(0, a)", 8.6e-13),
+        (FAR, "(a, 1)", 8.6e-13),
+        (FAR, "(1/4, 3/4)", 8.6e-13),
+        (FAR, "(0.3, 0.7)", 8.6e-13),
+        (FAR, "(0.3, 0.7) as quotients", 8.6e-13),
+        (FAR, "alternate (a, 1) / (0, a)", 8.6e-13),
+        (FAR, "alternate, a = t/span", 8.6e-13),
+        (FAR, "alternate, a ± 1e-13", 7.7e-12),
+        (FAR, "(a ± 1e-13, 1)", 1.8e-11),
+        (FAR, "(0, a ± 1e-13)", 2.9e-12),
+        (FARTHER, "(0, 1/2)", 7.3e-11),
+        (FARTHER, "(1/2, 1)", 7.3e-11),
+        (FARTHER, "(0, a)", 7.3e-11),
+        (FARTHER, "(a, 1)", 7.3e-11),
+        (FARTHER, "(1/4, 3/4)", 7.3e-11),
+        (FARTHER, "(0.3, 0.7)", 7.3e-11),
+        (FARTHER, "(0.3, 0.7) as quotients", 7.3e-11),
+        (FARTHER, "alternate (a, 1) / (0, a)", 7.3e-11),
+        (FARTHER, "alternate, a = t/span", 7.3e-11),
+        (FARTHER, "alternate, a ± 1e-13", 7.3e-11),
+        (FARTHER, "(a ± 1e-13, 1)", 7.3e-11),
+        (FARTHER, "(0, a ± 1e-13)", 7.3e-11),
     ];
     for (at, name, ceiling) in rows {
         let widths = widths_along(rim_at(at), |k| chain(name, k));
@@ -260,25 +340,37 @@ fn restricted_widths_stay_under_their_ceilings() {
     }
 }
 
-/// **A chain anchored at either end stays flat.** In the normalized
-/// parameter a dyadic split is exact, so `(0, ½)` and `(½, 1)` store no
-/// rounding at all, and `(0, a)` only scales the span: every count up to
-/// 52 stays within 1.5× of the widest of the unsplit rim and its first
-/// split. Past 52 halvings `(½, 1)`'s start `1 − 2⁻ⁿ` is no longer an
-/// `f64`, and the range — `2π·2⁻⁵³` of turn — rounds.
+/// **A chain anchored at either end stays at the f64 floor.** In the
+/// normalized parameter a dyadic split is exact, so `(0, ½)` and
+/// `(½, 1)` store no rounding at all, and `(0, a)` only scales the
+/// span: at every count up to 52, near the origin, a thousand and a
+/// hundred thousand metres out, every sample is within three ulps of
+/// the coordinates plus two ulps of a full turn times the metre radius
+/// (the angle's own rounding at a sample near `2π`), with no slack.
+/// Measured: 6.7e-16 – 2.4e-15 near; 2.27e-13 – 3.41e-13 at 1e3, the
+/// three ulps reached by `(½, 1)` at 9 splits; 1.46e-11 – 2.91e-11 at
+/// 1e5. An eval that levers the angle by the coordinates reads 6e-12
+/// at 1e3 before any split. Past 52 halvings `(½, 1)`'s start
+/// `1 − 2⁻ⁿ` is no longer an `f64`, and the range — `2π·2⁻⁵³` of turn
+/// — rounds.
 #[test]
-fn end_anchored_chains_stay_flat() {
-    for at in [NEAR, FAR] {
+fn end_anchored_chains_stay_at_the_f64_floor() {
+    for at in [NEAR, FAR, FARTHER] {
+        // The placed point, `at + (2, 2, 0)`, is the largest coordinate.
+        let scale = (at[0] + 2.0)
+            .abs()
+            .max((at[1] + 2.0).abs())
+            .max(at[2].abs());
+        let floor = 3.0 * (scale.next_up() - scale) + 2.0 * (TAU.next_up() - TAU);
         for name in ["(0, 1/2)", "(1/2, 1)", "(0, a)"] {
             let widths = widths_along(rim_at(at), |k| chain(name, k));
-            let base = widths[0].max(widths[1]);
             let worst = widths[..=52].iter().copied().fold(0.0, f64::max);
-            println!("{at:?} {name}: unsplit/first {base:e}, worst to 52 {worst:e}");
+            println!("{at:?} {name}: worst to 52 {worst:e} (floor {floor:e})");
             for (n, &w) in widths[..=52].iter().enumerate() {
                 assert!(
-                    w <= 1.5 * base,
-                    "at {at:?}, after {n} splits of {name} the stored width is {w:e} \
-                     against {base:e} unsplit or split once — an end-anchored chain grew"
+                    w <= floor,
+                    "at {at:?}, after {n} splits of {name} the stored width is {w:e}, over \
+                     the f64 floor {floor:e}"
                 );
             }
         }
@@ -365,49 +457,47 @@ impl Composed {
     }
 }
 
-/// **No chain is wider than composing its splits into the placement**,
-/// at either placement and every count up to 64, against the composed
-/// restriction spelled out by hand ([`Composed`]). End-anchored and
-/// dyadic chains stay at or under it; chains whose start moves by an
-/// inexact amount each split stay within 1.25×. Those pay one outward
-/// rounding of the start per split, at the start's own ulp; the
-/// anchored rotation carries that to the point at the coordinates'
-/// scale, as it carries the composed placement's per-split rotation
-/// (`work/nurbs/revolved-point-eval-levers-angle-width-by-the-coordinates.md`):
-/// `(0.3, 0.7)` far reaches 1.06× and its quotient form 1.03×.
+/// **Every chain sits well under composing its splits into the
+/// placement**, at either placement and every count up to 64, against
+/// the composed restriction spelled out by hand ([`Composed`]), which
+/// levers each split's rotation by the coordinates. Near the origin
+/// the worst chain reaches 0.24× of it, a thousand metres out 0.038×:
+/// a split whose start moves by an inexact amount rounds the start at
+/// its own ulp, and the turned offset carries that to the point times
+/// the metre radius, where the composite carries it times the
+/// coordinates.
 ///
-/// Each row's allowance is the lesser of that bar and 1.2× the ratio
-/// this form measures, so a chain that sits well under the composed
-/// rim must stay there: an eval that rotated by the range's start and
-/// then by its span pays the composed rim's width again, and reads
-/// 0.97–1.0 on chains this form holds at 0.5–0.7.
+/// Each row's allowance is 1.2× the ratio this form measures, rounded
+/// up. An eval that levers the angle by the coordinates reads
+/// 0.5–1.25× here, and one that rotated by the range's start and then
+/// by its span pays the composed rim's width again.
 #[test]
 fn restriction_is_no_wider_than_composing_into_the_placement() {
     let rows: [([f64; 3], &str, f64); 24] = [
-        (NEAR, "(0, 1/2)", 0.95),
-        (NEAR, "(1/2, 1)", 0.71),
-        (NEAR, "(0, a)", 1.00),
-        (NEAR, "(a, 1)", 0.94),
-        (NEAR, "(1/4, 3/4)", 0.58),
-        (NEAR, "(0.3, 0.7)", 0.69),
-        (NEAR, "(0.3, 0.7) as quotients", 0.87),
-        (NEAR, "alternate (a, 1) / (0, a)", 0.93),
-        (NEAR, "alternate, a = t/span", 0.87),
-        (NEAR, "alternate, a ± 1e-13", 1.16),
-        (NEAR, "(a ± 1e-13, 1)", 0.80),
-        (NEAR, "(0, a ± 1e-13)", 1.00),
-        (FAR, "(0, 1/2)", 1.00),
-        (FAR, "(1/2, 1)", 0.74),
-        (FAR, "(0, a)", 1.00),
-        (FAR, "(a, 1)", 1.12),
-        (FAR, "(1/4, 3/4)", 0.60),
-        (FAR, "(0.3, 0.7)", 1.25),
-        (FAR, "(0.3, 0.7) as quotients", 1.24),
-        (FAR, "alternate (a, 1) / (0, a)", 1.20),
-        (FAR, "alternate, a = t/span", 1.14),
-        (FAR, "alternate, a ± 1e-13", 1.18),
-        (FAR, "(a ± 1e-13, 1)", 0.83),
-        (FAR, "(0, a ± 1e-13)", 1.00),
+        (NEAR, "(0, 1/2)", 0.11),
+        (NEAR, "(1/2, 1)", 0.11),
+        (NEAR, "(0, a)", 0.15),
+        (NEAR, "(a, 1)", 0.24),
+        (NEAR, "(1/4, 3/4)", 0.044),
+        (NEAR, "(0.3, 0.7)", 0.13),
+        (NEAR, "(0.3, 0.7) as quotients", 0.13),
+        (NEAR, "alternate (a, 1) / (0, a)", 0.11),
+        (NEAR, "alternate, a = t/span", 0.11),
+        (NEAR, "alternate, a ± 1e-13", 0.2),
+        (NEAR, "(a ± 1e-13, 1)", 0.2),
+        (NEAR, "(0, a ± 1e-13)", 0.29),
+        (FAR, "(0, 1/2)", 0.037),
+        (FAR, "(1/2, 1)", 0.028),
+        (FAR, "(0, a)", 0.045),
+        (FAR, "(a, 1)", 0.011),
+        (FAR, "(1/4, 3/4)", 0.022),
+        (FAR, "(0.3, 0.7)", 0.013),
+        (FAR, "(0.3, 0.7) as quotients", 0.0094),
+        (FAR, "alternate (a, 1) / (0, a)", 0.013),
+        (FAR, "alternate, a = t/span", 0.011),
+        (FAR, "alternate, a ± 1e-13", 0.00041),
+        (FAR, "(a ± 1e-13, 1)", 0.00041),
+        (FAR, "(0, a ± 1e-13)", 0.019),
     ];
     for (at, name, allowed) in rows {
         let ours = widths_along(rim_at(at), |k| chain(name, k));
@@ -425,79 +515,55 @@ fn restriction_is_no_wider_than_composing_into_the_placement() {
     }
 }
 
-/// **A whole range evaluates as the unrestricted rotation, bit for
-/// bit**, at `f64` and at `Interval`, at every sample and placement:
-/// `SubRange::whole().at(s)` is `s` itself, so the angle is `s·angle`
-/// as it always was and nothing a body builds unrestricted moves.
-/// Struts likewise read `vec·s`.
+/// **On an axis through the origin a whole range evaluates as the
+/// composite map's `R·p`, bit for bit**: equal at `f64` and endpoint
+/// for endpoint at `Interval` to
+/// `rotation_about_axis(..).transform_point(p)`, whose translation
+/// `(I − R)·0` vanishes, at every sample and placement. There the
+/// turned offset changes no stored or built value. The point-anchored
+/// `p − (I − R)·(p − q)` differs here; off the origin every spelling
+/// does.
 #[test]
-fn a_whole_range_evaluates_as_the_unrestricted_motion_bit_for_bit() {
+fn on_an_origin_axis_a_whole_range_is_the_composite_maps_point_bit_for_bit() {
     let mut mismatches = Vec::new();
-    for angle in [TAU, -TAU, 1.0, -1.0, 1e-8, -0.3, core::f64::consts::PI] {
-        for at in [[0.0, 0.0, 0.0], [1000.0, -700.0, 300.0], [-3.0, 0.0, 0.0]] {
-            let place = Affine3::translation(Vec3::new(at[0], at[1], at[2]));
-            let q = Point3::new(at[0] + 1.0, at[1] + 2.0, at[2]);
+    for angle in [TAU, -1.0, 1e-8, core::f64::consts::PI] {
+        for at in [[0.0, 0.0, 0.0], [1000.0, -700.0, 300.0], [-3.0, 0.5, 2.0]] {
             let n = Vec3::new(0.3, -0.2, 1.0);
-            let pt = Point2::new(2.0, 2.0);
             let c = MappedCurve::whole(MappedSource::RevolvedPoint {
-                point: pt,
-                place,
-                axis_origin: q,
-                axis_dir: n,
-                angle,
-            });
-            let ci = MappedCurve::whole(MappedSource::RevolvedPoint {
-                point: Point2::new(iv(2.0), iv(2.0)),
+                point: Point2::new(iv(2.0), iv(-1.5)),
                 place: Affine3::translation(Vec3::new(iv(at[0]), iv(at[1]), iv(at[2]))),
-                axis_origin: Point3::new(iv(q.x), iv(q.y), iv(q.z)),
+                axis_origin: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
                 axis_dir: Vec3::new(iv(n.x), iv(n.y), iv(n.z)),
                 angle: iv(angle),
             });
-            for i in 0..=64 {
-                let s = if i == 7 {
-                    1.0 / 3.0
-                } else {
-                    f64::from(i) / 64.0
-                };
-                let p = place.transform_point(Point3::new(pt.x, pt.y, 0.0));
-                let want = Affine3::rotation_about_axis(q, n, s * angle).transform_point(p);
-                let got = c.eval(s);
-                for (a, b) in [(got.x, want.x), (got.y, want.y), (got.z, want.z)] {
-                    if a.to_bits() != b.to_bits() {
-                        mismatches
-                            .push(format!("f64 angle {angle} at {at:?} s {s}: {a:e} vs {b:e}"));
-                    }
-                }
-                let si = if i == 7 { iv(1.0) / iv(3.0) } else { iv(s) };
-                let pi = Affine3::translation(Vec3::new(iv(at[0]), iv(at[1]), iv(at[2])))
-                    .transform_point(Point3::new(iv(2.0), iv(2.0), iv(0.0)));
-                let want = Affine3::rotation_about_axis(
-                    Point3::new(iv(q.x), iv(q.y), iv(q.z)),
-                    Vec3::new(iv(n.x), iv(n.y), iv(n.z)),
-                    si * iv(angle),
-                )
-                .transform_point(pi);
-                let got = ci.eval(si);
-                for (a, b) in [(got.x, want.x), (got.y, want.y), (got.z, want.z)] {
-                    if a.lo().to_bits() != b.lo().to_bits() || a.hi().to_bits() != b.hi().to_bits()
-                    {
-                        mismatches.push(format!("Interval angle {angle} at {at:?} s {s}"));
-                    }
-                }
-            }
-            let v = Vec3::new(0.5, -1.5, angle);
-            let strut = MappedCurve::whole(MappedSource::ExtrudedPoint {
-                point: pt,
-                place,
-                vec: v,
-            });
+            let p = Affine3::translation(Vec3::new(iv(at[0]), iv(at[1]), iv(at[2])))
+                .transform_point(Point3::new(iv(2.0), iv(-1.5), iv(0.0)));
             for i in 0..=16 {
-                let s = f64::from(i) / 16.0;
-                let got = strut.eval(s);
-                let want = place.transform_point(Point3::new(pt.x, pt.y, 0.0)) + v * s;
+                let s = iv(f64::from(i) / 16.0);
+                let got = c.eval(s);
+                let want = Affine3::rotation_about_axis(
+                    Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                    Vec3::new(iv(n.x), iv(n.y), iv(n.z)),
+                    s * iv(angle),
+                )
+                .transform_point(p);
                 for (a, b) in [(got.x, want.x), (got.y, want.y), (got.z, want.z)] {
-                    if a.to_bits() != b.to_bits() {
-                        mismatches.push(format!("strut {v:?} at {at:?} s {s}: {a:e} vs {b:e}"));
+                    if a.lo() != b.lo() || a.hi() != b.hi() {
+                        mismatches.push(format!(
+                            "origin axis, angle {angle} at {at:?} s {}: {a:?} vs {b:?}",
+                            s.hi()
+                        ));
+                    }
+                }
+                let (pf, sf) = (Point3::new(p.x.hi(), p.y.hi(), p.z.hi()), s.hi());
+                let got = Affine3::rotate_point_about_axis(Point3::origin(), n, sf * angle, pf);
+                let want = Affine3::rotation_about_axis(Point3::origin(), n, sf * angle)
+                    .transform_point(pf);
+                for (a, b) in [(got.x, want.x), (got.y, want.y), (got.z, want.z)] {
+                    if a != b {
+                        mismatches.push(format!(
+                            "origin axis f64, angle {angle} at {at:?} s {sf}: {a:e} vs {b:e}"
+                        ));
                     }
                 }
             }
@@ -563,8 +629,17 @@ fn a_restriction_is_the_sub_range_of_the_same_trajectory() {
     let third = iv(1.0) / iv(3.0);
     let holds = |c: Interval, v: f64| c.lo() <= v && v <= c.hi();
 
-    // The rim: placed point (2, 2, 3), axis through (1, 2, 3) along +z.
-    let rim = rim_at([0.0, 0.0, 3.0]);
+    // The rim: placed point (2, 2, 3), axis through (1, 2, 3) along +z,
+    // turned by an enclosure of 2π itself — the exact answers below are
+    // at whole fractions of a turn, which `TAU`, 2.4e-16 short of one,
+    // reaches only within the rim's tightest enclosures.
+    let rim = MappedCurve::whole(MappedSource::RevolvedPoint {
+        point: Point2::new(iv(2.0), iv(2.0)),
+        place: Affine3::translation(Vec3::new(iv(0.0), iv(0.0), iv(3.0))),
+        axis_origin: Point3::new(iv(1.0), iv(2.0), iv(3.0)),
+        axis_dir: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+        angle: Interval::tau(),
+    });
     // [¼, ¾], then its [½, 1]: angles [π, 3π/2].
     let quarters = rim.restrict(iv(0.25), iv(0.75)).restrict(iv(0.5), iv(1.0));
     for (s, x, y) in [(0.0, 0.0, 2.0), (1.0, 1.0, 1.0)] {
@@ -627,18 +702,31 @@ fn a_restriction_is_the_sub_range_of_the_same_trajectory() {
 }
 
 /// The full-period sample, which revolve seams land on: `s = 1` at
-/// `angle = 2π` describes the start point again. The anchor operator's
-/// half-angle factors (`2·sin²(π)`, `2·sin(π)·cos(π)`) are near zero
-/// there, so the sample reads the start enclosure's own floor plus the
-/// axis's contribution over a full turn (measured 2.66e-15); a
-/// `1 − cos 2π` spelling paid 4.0e-9 on this fixture.
+/// `angle = 2π` describes the start point again, and its enclosure must
+/// meet the start's. On an exact axis it reads the rotation's own floor
+/// (measured 4.4e-16);
+/// a `1 − cos 2π` spelling of the turn paid an ulp of 1 times the
+/// coordinates. On an axis 2e-9 wide it reads what the start sample
+/// reads, within that floor: twice the axis's width
+/// ([`an_uncertain_axis_reaches_the_start_sample_at_most_twice_over`]).
 #[test]
 fn the_full_period_sample_returns_to_the_start_enclosure() {
-    let curve = rim(1.0e-9);
+    let floor = point_width(rim(0.0).eval(iv(1.0)));
+    println!("eval(1) at a full period, exact axis: width {floor:e}");
+    assert!(
+        floor <= 2.7e-14,
+        "the full-period sample on an exact axis is {floor:e} wide — the seam angle \
+         is being paid as an ulp-of-1 cancellation"
+    );
+    let half = 1.0e-9;
+    let curve = rim(half);
     let start = curve.eval(iv(0.0));
     let end = curve.eval(iv(1.0));
     let w = point_width(end);
-    println!("eval(1) at a full period: width {w:e}");
+    println!(
+        "eval(1) at a full period, axis {:e} wide: width {w:e}",
+        2.0 * half
+    );
     for (a, b, which) in [
         (start.x, end.x, "x"),
         (start.y, end.y, "y"),
@@ -654,10 +742,91 @@ fn the_full_period_sample_returns_to_the_start_enclosure() {
             a.hi(),
         );
     }
+    let at_start = point_width(start);
     assert!(
-        w <= 2.7e-14,
-        "the full-period sample is {w:e} wide — the anchor operator holds it \
-         to ~2.66e-15 here; a width in the 1e-9 range means the seam angle has \
-         gone back to being paid as an ulp-of-1 cancellation"
+        w <= at_start + floor,
+        "the full-period sample on an axis {:e} wide is {w:e} wide, over the start \
+         sample's {at_start:e} plus the exact-axis floor {floor:e}",
+        2.0 * half
     );
+}
+
+/// **A placed segment on a revolve's far cap reads within a few ulps
+/// of the coordinates of the exact turned point.** The far cap's
+/// segment description carries a placement, the turn composed into
+/// the sketch placement once (`rotation · place`), where its vertices
+/// are the sketch points placed and then turned on their offsets. On a
+/// tilted placement turned 1.9 rad about an axis in its plane, over 33
+/// points of a sketch arc, against a 70-digit reference: the composite
+/// reads 3.7 ulps of the coordinates off at 1e3 and 1.9 at 1e5, the
+/// turned point 0.76 and 0.85. The angle is the revolve's own and is
+/// never split, so this is one composition's rounding and does not
+/// grow; by W1 a few ulps of the coordinates decide nothing.
+///
+/// The row's reference is the turned point at `Interval` from the same
+/// `f64` inputs, whose own width is a few ulps, so it bounds the error
+/// from above: 6 and 4 ulps for the composite, 3 for the turned point.
+#[test]
+fn a_far_cap_placement_reads_within_ulps_of_the_turned_point() {
+    let ivp = |p: Point3<f64>| Point3::new(iv(p.x), iv(p.y), iv(p.z));
+    for at in [FAR, FARTHER] {
+        let place = Affine3::rotation_about_axis(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.2, 1.0, -0.4),
+            0.7,
+        ) * Affine3::translation(Vec3::new(at[0], at[1], at[2]));
+        let q = place.transform_point(Point3::new(0.5, 1.0, 0.0));
+        let n = place.transform_vec(Vec3::new(1.0, 0.4, 0.0));
+        let angle = 1.9;
+        let composite = Affine3::rotation_about_axis(q, n, angle) * place;
+        let (mut worst_map, mut worst_point, mut scale): (f64, f64, f64) = (0.0, 0.0, 0.0);
+        for k in 0..=32 {
+            let t = 0.1 * f64::from(k);
+            let x = Point3::new(2.0 + 0.7 * t.cos(), 2.0 + 0.7 * t.sin(), 0.0);
+            let placed = place.transform_point(x);
+            let exact = Affine3::rotate_point_about_axis(
+                ivp(q),
+                Vec3::new(iv(n.x), iv(n.y), iv(n.z)),
+                iv(angle),
+                Affine3::from_parts(
+                    place.linear.map(iv),
+                    Vec3::new(
+                        iv(place.translation.x),
+                        iv(place.translation.y),
+                        iv(place.translation.z),
+                    ),
+                )
+                .transform_point(ivp(x)),
+            );
+            let off = |p: Point3<f64>| {
+                [(p.x, exact.x), (p.y, exact.y), (p.z, exact.z)]
+                    .into_iter()
+                    .map(|(c, r)| (c - r.lo()).abs().max((r.hi() - c).abs()))
+                    .fold(0.0, f64::max)
+            };
+            scale = scale
+                .max(exact.x.hi().abs())
+                .max(exact.y.hi().abs())
+                .max(exact.z.hi().abs());
+            worst_map = worst_map.max(off(composite.transform_point(x)));
+            worst_point =
+                worst_point.max(off(Affine3::rotate_point_about_axis(q, n, angle, placed)));
+        }
+        let ulp = scale.next_up() - scale;
+        println!(
+            "at {at:?}: composite {worst_map:e} ({:.2} ulps), turned point {worst_point:e} ({:.2} ulps)",
+            worst_map / ulp,
+            worst_point / ulp
+        );
+        assert!(
+            worst_map <= 8.0 * ulp,
+            "at {at:?} the far cap's composed placement reads {worst_map:e} off the exact \
+             turned point, over 8 ulps of the coordinates ({ulp:e})"
+        );
+        assert!(
+            worst_point <= 4.0 * ulp,
+            "at {at:?} the turned point reads {worst_point:e} off exact, over an ulp of the \
+             coordinates four times over ({ulp:e})"
+        );
+    }
 }
