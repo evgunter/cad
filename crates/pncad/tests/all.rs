@@ -2578,11 +2578,12 @@ fn the_export_door_refuses_typed_not_vaguely() {
     use pncad::export::ExportError;
     let (doc, profile_node, first_box) = box_doc("all");
     // A failing Boolean and its downstream: the second box's floor
-    // stands 2 nm off the first's, inside the ambiguity band.
+    // stands 2ε off the first's, inside the ambiguity band at every ε.
+    let sliver = 2.0 * pncad::geom_core::Tol::witness().eps();
     let (doc, plane) = insert(
         doc,
         Node::Datum(pncad::document::Datum::Frame {
-            origin: [len(0.0), len(0.0), len(2e-9)],
+            origin: [len(0.0), len(0.0), len(sliver)],
             u: [scl(1.0), scl(0.0), scl(0.0)],
             v: [scl(0.0), scl(1.0), scl(0.0)],
         }),

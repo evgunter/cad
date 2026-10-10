@@ -252,12 +252,12 @@ fn an_empty_boolean_result_crosses_as_the_typed_empty() {
 }
 
 /// **A boolean refusal crosses unaltered.** The fixture is two cubes
-/// 2 nm apart, inside the ambiguity band — the in-band refusal,
-/// reached identically both ways.
+/// 2ε apart, inside the ambiguity band at every ε — the in-band
+/// refusal, reached identically both ways.
 #[test]
 fn a_boolean_refusal_crosses_the_dispatch_unaltered() {
     let a = unit_cube();
-    let b = shifted_cube(Vec3::new(1.0 + 2e-9, 0.0, 0.0));
+    let b = shifted_cube(Vec3::new(1.0 + 2.0 * tol().eps(), 0.0, 0.0));
 
     let door = boolean_op_with(
         BooleanOp::Union,

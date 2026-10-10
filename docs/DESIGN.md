@@ -1250,7 +1250,7 @@ variable whose type suits the slot. The types are the scalars (`Length`,
 `Angle`, `Scalar`, `Count`), the discrete kinds (a side, a half, a
 sense) and the poses (`Point`, `Direction`, `Axis`, `Plane`, `Frame`),
 which are only defined: read off a body's geometry (a face's plane, a
-carrier's axis or centre), by coordinates over scalar variables in a
+carrier's axis or centre, a vertex's point), by coordinates over scalar variables in a
 frame the definition reads, by a construction over other poses, as a
 pose of a copy, or as an output of an operation, so no pose is free,
 none is defined from nothing, and no construction reads one; the shapes
@@ -1259,8 +1259,10 @@ and `Profile`), which only an operation defines, a `Profile` being 2-D
 shape whose numbers are read only against each other, and a sweep
 reading a profile and, at most, a direction in the profile's own axes
 (an extrude's slant, held to one side of the profile's plane) or a 2-D
-axis line (a revolve's), never a frame; and the selections of a shape
-(`Face`, `Edge`, and their sets `Faces`, `Edges`). A variable is
+axis line (a revolve's), never a frame; and the selections of a shape:
+one cell of a body (`Face`, `Edge`, `Vertex`), or the set of them a
+reader takes (`Faces`, `Edges`; a set kind exists only for a slot that
+reads one). A variable is
 **free** — a value, its written unit (D6) and optionally a distribution
 — or **defined**, by an `Expr` over other variables, by a selection of a
 `Body` variable, or as an output of an operation. A dimensioned literal stands nowhere, neither in a slot
@@ -1281,7 +1283,7 @@ forgets in-plane motion, an axis slide and spin along itself; and the kinds are 
 slot holds its own kind; a finer value is read through its projection,
 and an incidence between poses (an axis in a plane, a point on an axis)
 is a construction over one variable, never a check between two. A face
-reads as a plane; no reader takes a carrier's reference direction. A 2-D
+reads as a plane and a vertex as a point; no reader takes a carrier's reference direction. A 2-D
 value (a profile's step, a revolve's axis line) lives in the node that
 holds its frame, as scalar slots, and is never a variable of a 2-D kind;
 its lift to a 3-D pose is how it leaves.
@@ -1310,8 +1312,8 @@ several positions is one body placed several times, each placement a
 copy. A pattern
 is a placement whose reads reach an index (FORK-PAT): one copy per
 value, the index entering as a value or through a mate's target. A document with nothing related to its world has
-an empty product. A `Face` or `Edge`
-variable, or a set of them, is a selection of a `Body` variable by
+an empty product. A `Face`, `Edge`
+or `Vertex` variable, or a set of them, is a selection of a `Body` variable by
 `StableName`: a definition, not a node, stating its body once, and the
 N5 resolution ladder lives there. A selection authored at two sites is
 two variables (the GUI offers the existing one), and a repair is
