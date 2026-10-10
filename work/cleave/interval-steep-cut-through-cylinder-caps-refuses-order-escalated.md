@@ -18,3 +18,67 @@ at f64; built and cut at `Interval`, `plane_section` refuses
 ±7e-15, also with the seams turned off the mirror plane. Measure first:
 whether the two crossings are distinct in truth (an over-wide enclosure
 on the join order's `u` key) or coincide (an honest refusal).
+
+## Built (branch cleave/interval-join-order)
+
+**Measured on main (`dfcd7f3504`).** The unit cylinder (`z ∈ [0, 1]`)
+cut through `(0, 0, 0.5)` with normal `(sin t, 0, cos t)`, `t = 1.2`:
+`f64` answers (area `2.13224086614229`, the closed form
+`2(x₀√(1 − x₀²) + asin x₀)/cos t`, `x₀ = 0.5·cot t`); `Interval`
+refuses `OrderEscalated` on `split_join_order_u`, enclosure
+`[−6.66e−15, 6.88e−15]`. Same at `t = 1.0, 1.4` and with the seams at
+0.7 rad. The pair it straddles on is the bottom cap's two crossings,
+`(0.19439, ∓0.98092, 0)` — distinct in truth, `2y₀ = 1.96` apart, and
+with `u` keys equal in truth (`0.5/sin t = 0.53646` for both). Not an
+over-wide enclosure (it encloses a true zero, ~30 ulps wide) and not a
+coincidence: the frame's `u` was the x axis projected into the plane,
+`(0.362, 0, −0.932)` — perpendicular to y, so every section line along
+y (a cap's chord) ties in `u`.
+
+**Fix.** `splitting::order::in_plane_frame`: an axis plane (two normal
+components exactly zero, `split_join_frame_axis` at the exact band)
+keeps the exact coordinate frame; any other plane takes the first
+OBLIQUE schedule member. All 24 tilted poses of the new row answer at
+`Interval`, enclosing the closed form. The oblique frame narrows the
+class rather than removing it: crossings on a face of normal `m` still
+tie where `det(n, m, r) = 0`, and the review measured cylinder poses on
+that circle (`n = (2, 1, ±1)`, `(2, 1, ±2)`, `(2, 1, 1.5)`) that the
+x-axis frame answered and this one refuses — filed as
+`interval-oblique-join-frame-ties-on-its-own-circles`.
+
+**What that exposed.** The new order reddened five `f64` rows
+(seam-ruling splits, `axis_parallel_cuts_left_to_the_book_rule_still_answer`,
+the near-tangent hole-wall row): a curved face whose section is two
+rulings was paired by the book's rule, which follows each ruling only
+where the rulings run along the order's `v` — a live `f64` defect on
+`dfcd7f3504` too (a cylinder along x cut parallel to its axis refused
+`DegenerateSection` in 6 of 12 poses where y and z answer). The branch
+first paired those faces along each ruling itself; main landed the same
+fix meanwhile (`join::ruling_pairs`, `df239fc8a1`), and the merge takes
+main's. With it no face's pairing reads the sweep order, which is what
+lets the frame change.
+
+Tests: `a_steep_cut_through_a_cylinders_caps_answers_at_f64_and_interval`,
+`an_axis_parallel_cut_of_a_cylinder_along_any_axis_pairs_each_ruling`,
+`a_cut_along_a_cylinders_axis_refuses_its_rims_tie_at_interval` (the
+axis-plane residual, filed as
+`interval-axis-plane-cut-along-a-cylinder-refuses-its-rims-tie`), and
+two `splitting::order` unit rows. The steep row and the oblique unit
+row go red on the old frame; the axis-parallel row goes red on `dfcd7f3504`
+and with ruling pairing disabled.
+
+**Fix pass (review of `576e7aa360`).** `split_join_frame_axis` decides
+the normal's components only until the verdict settles (two nonzero:
+oblique; two zero: axis plane), so a component straddling zero refuses
+only where the verdict turns on it — the cylinder cut with normal
+`([−1e−12, 1e−12], 0.3, 1)` answers again (pinned). Its margin is the
+component levered by the points' spread (`Margin::levered`, as
+`split_join_frame_arm` is), not `Margin::of`. Its refusal, and
+`split_join_frame_arm`'s, now say what was undecided (`OrderEscalated`'s
+sentence reads its predicate). The `SCHEDULE` split the frame reads is
+pinned (the axes first and only them; no two oblique members near one
+line). Stored `SectionFace` indices move on tilted multi-region splits
+(the evidence is on `emit`'s
+`section-face-and-hole-rim-are-ordinals-over-their-group`); the
+frame-building copies are filed on HONE
+(`join-order-frames-are-built-three-ways-from-one-schedule`).

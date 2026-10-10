@@ -12,11 +12,33 @@
 //! difference straddles zero: sorting on raw (x, y, z) would escalate
 //! spuriously. The sort key is therefore the pair of **in-plane
 //! coordinates** `(w·u, w·v)`, `w = p − origin`, against a
-//! deterministic in-plane frame built from the plane alone: the first
-//! member of the fixed [`containment schedule`](super::containment)
-//! whose projection into the plane has a definitely-positive length
-//! (**`split_join_frame_arm`**) gives `u`; `v = n × u`. For an
-//! axis-aligned plane the frame is an exact coordinate pair.
+//! deterministic in-plane frame built from the plane alone: a member
+//! of the fixed [`containment schedule`](super::containment) whose
+//! projection into the plane has a definitely-positive length
+//! (**`split_join_frame_arm`**) gives `u`; `v = n × u`. Which members
+//! are eligible depends on the plane:
+//!
+//! - **An axis plane** — two of the normal's components exactly zero
+//!   (**`split_join_frame_axis`**) — takes the first of the schedule's
+//!   three axes that lies in it, so the frame is an exact coordinate
+//!   pair and the keys are coordinates.
+//! - **Any other plane** takes the first of the schedule's oblique
+//!   members that projects definitely, `r` (for most normals
+//!   `(0.5, 0.25, 1)`). Its frame is inexact whatever member it starts
+//!   from.
+//!
+//! Two crossings on one planar face of normal `m` lie on the face's
+//! section line, along `n × m`, and `v = n × u` with `u` in the span of
+//! `n` and `r`; so they share `u` in truth exactly where
+//! `det(n, m, r) = 0`. That is one great circle of normals per face
+//! direction, and on it the interval lane cannot certify the tie. A
+//! frame built from the x axis puts the circles at `n_y = 0` for faces
+//! of normal z (the pencil of normals in the xz plane, which ties a
+//! cylinder cap's chord), `n_z = 0` for y, and every normal for x. The
+//! oblique `r` puts them at `n_x = 2n_y` for faces of normal z,
+//! `n_z = 2n_x` for y and `n_z = 4n_y` for x: the class is narrowed, not
+//! removed, and normals on those circles that the x-axis frame ordered
+//! now tie.
 //!
 //! # The exact-order band
 //!
@@ -32,10 +54,15 @@
 //!
 //! Interval-lane coverage, honestly: any split whose crossings share
 //! an in-plane u-coordinate arrived at through INEXACT arithmetic
-//! refuses typed (the **`split_join_order_u`** hairline straddles) —
-//! in practice the interval lane splits axis-aligned planes over
-//! dyadic geometry, and tilted planes refuse. Documented contract,
-//! not a bug.
+//! refuses typed (the **`split_join_order_u`** hairline straddles).
+//! On an axis plane that is any two computed crossings sharing a
+//! coordinate — the two rims of a cylinder cut along its axis; on any
+//! other plane, the crossings of a face on its `det(n, m, r) = 0`
+//! circle (above), and any others whose separation happens to lie
+//! along `v`.
+//! Several null edges at one point tie in both keys, which the interval
+//! lane certifies only where the keys are exact: on an axis plane, over
+//! points whose offsets from the plane's origin are exact.
 //!
 //! # One planar face's crossings, along the face's own line
 //!
@@ -76,8 +103,9 @@ pub(crate) fn exact_band() -> Result<Band, BandError> {
     Band::new(f64::from_bits(1), f64::from_bits(2))
 }
 
-/// The deterministic in-plane frame `(u, v)` (module docs): the first
-/// schedule member that projects definitely into the plane. `arm` is
+/// The deterministic in-plane frame `(u, v)` (module docs): on an axis
+/// plane the first schedule axis that projects definitely into it, on
+/// any other the first oblique member that does. `arm` is
 /// the caller's lever arm in meters (the spread of the points to be
 /// ordered): the SCHEDULE triples are bare numbers, so the projected
 /// norm alone would be a dimensionless comparand against the length band
@@ -94,17 +122,26 @@ pub(crate) fn exact_band() -> Result<Band, BandError> {
 ///
 /// # Errors
 ///
-/// When no member projects definitely — unreachable for a unit normal
-/// (the three axes are members) — the first in-band arm, else an
-/// invalid margin on the arm's row.
+/// [`axis_plane`]'s. When no eligible member projects definitely —
+/// unreachable for a unit normal (two axes lie in an axis plane, and no
+/// two oblique members lie near one line, so a normal is near at most
+/// one) — the first in-band arm, else an invalid margin on the arm's
+/// row.
 pub(super) fn in_plane_frame<T: Decide>(
     plane: &SplitPlane<T>,
     arm: T,
     band: Band,
+    exact: Band,
 ) -> Result<(Vec3<T>, Vec3<T>), Indeterminate> {
     let n = plane.normal.get();
+    let (axes, oblique) = super::containment::SCHEDULE.split_at(3);
+    let members = if axis_plane(n, arm, exact)? {
+        axes
+    } else {
+        oblique
+    };
     let mut first_in_band = None;
-    for r in &super::containment::SCHEDULE {
+    for r in members {
         let r = r.map(T::from_f64);
         let d = r - n * n.dot(r);
         match decide(
@@ -124,6 +161,40 @@ pub(super) fn in_plane_frame<T: Decide>(
     }
     Err(first_in_band
         .unwrap_or_else(|| crate::invalid_margin::invalid(band, "split_join_frame_arm")))
+}
+
+/// Whether the unit normal `n` is a coordinate axis: two of its
+/// components exactly zero (**`split_join_frame_axis`**, at the exact
+/// band). Each component is the cosine between `n` and an axis, levered
+/// by `arm` (the points' spread): the displacement along that axis the
+/// plane's tilt commands across the data. Components are decided in
+/// turn and only until the verdict is settled — two nonzero make the
+/// plane oblique, two zero make it an axis plane — so an undecided one
+/// refuses only where the verdict turns on it.
+///
+/// # Errors
+///
+/// The first undecided component, where the decided ones leave the
+/// verdict open (interval lane only: an enclosure straddling zero).
+fn axis_plane<T: Decide>(n: Vec3<T>, arm: T, exact: Band) -> Result<bool, Indeterminate> {
+    let (mut zero, mut nonzero) = (0, 0);
+    let mut undecided = None;
+    for c in [n.x, n.y, n.z] {
+        match decide("split_join_frame_axis", Margin::levered(c, arm), exact) {
+            Ok(Sign::Zero) => zero += 1,
+            Ok(_) => nonzero += 1,
+            Err(diag) => {
+                undecided.get_or_insert(diag);
+            }
+        }
+        if nonzero == 2 {
+            return Ok(false);
+        }
+        if zero == 2 {
+            return Ok(true);
+        }
+    }
+    Err(undecided.unwrap_or_else(|| crate::invalid_margin::invalid(exact, "split_join_frame_axis")))
 }
 
 /// Total lexicographic comparison of two on-plane points by their
@@ -181,7 +252,7 @@ pub(super) fn sort_indices_by_point<T: Decide>(
     for p in points {
         arm = arm.max((*p - plane.origin).norm());
     }
-    let frame = in_plane_frame(plane, arm, band)?;
+    let frame = in_plane_frame(plane, arm, band, exact)?;
     let mut order: Vec<usize> = (0..points.len()).collect();
     for i in 1..order.len() {
         let mut j = i;
@@ -332,13 +403,116 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let exact = exact_band().unwrap();
         let plane = plane_y1();
-        let frame = in_plane_frame(&plane, 1.0, band).unwrap();
+        let frame = in_plane_frame(&plane, 1.0, band, exact).unwrap();
         let a = Point3::new(1.0, 1.0, 0.0);
         let b = Point3::new(f64::from_bits(1.0f64.to_bits() + 1), 1.0, 0.0);
         let cmp = |p, q| lex_cmp(&p, &q, &plane.origin, frame, exact).unwrap();
         assert_eq!(cmp(a, b), core::cmp::Ordering::Less);
         assert_eq!(cmp(b, a), core::cmp::Ordering::Greater);
         assert_eq!(cmp(a, a), core::cmp::Ordering::Equal);
+    }
+
+    /// A cap chord's two crossings under a plane whose normal lies in
+    /// the xz plane, at the interval scalar: computed (the chord's
+    /// half-width is a square root), so each is an enclosure, and they
+    /// share every coordinate but y. The oblique frame orders them by
+    /// that separation; a frame built from the x axis is perpendicular
+    /// to it, and a straddling `split_join_order_u` refused them.
+    #[test]
+    fn an_oblique_plane_orders_a_chord_along_an_axis_at_interval() {
+        use geom_core::{Bounds, Interval, Real};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let exact = exact_band().unwrap();
+        let iv = Interval::from_f64;
+        for t in [0.9_f64, 1.2, 1.4] {
+            let plane = crate::test_support::split_plane(
+                Point3::new(iv(0.0), iv(0.0), iv(0.5)),
+                Vec3::new(iv(t.sin()), iv(0.0), iv(t.cos())),
+                tol,
+            );
+            let x0 = iv(0.5) * iv(t.cos()) / iv(t.sin());
+            let y0 = (iv(1.0) - x0 * x0).sqrt();
+            assert!(y0.hi() > y0.lo(), "tilt {t}: the crossings are computed");
+            let pts = [Point3::new(x0, y0, iv(0.0)), Point3::new(x0, -y0, iv(0.0))];
+            let order = sort_indices_by_point(&pts, &plane, band, exact)
+                .unwrap_or_else(|e| panic!("tilt {t}: {e:?}"));
+            assert_eq!(order, vec![1, 0], "tilt {t}: −y first");
+        }
+    }
+
+    /// A normal component the exact band cannot call zero or not, where
+    /// the verdict turns on it (one other component zero, one nonzero),
+    /// refuses naming the axis-plane test, and the join's sentence says
+    /// so: the two lanes would build different frames.
+    #[test]
+    fn a_normal_component_straddling_zero_refuses_the_frame() {
+        use geom_core::{Interval, Real};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let exact = exact_band().unwrap();
+        let iv = Interval::from_f64;
+        let plane = crate::test_support::split_plane(
+            Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+            Vec3::new(iv(1.0), Interval::from_bounds(-1e-300, 1e-300), iv(0.0)),
+            tol,
+        );
+        let err = in_plane_frame(&plane, iv(1.0), band, exact).unwrap_err();
+        assert_eq!(err.predicate, Some("split_join_frame_axis"));
+        let said = crate::chord_join::SplitJoinError::OrderEscalated { diag: err }.to_string();
+        assert!(
+            said.starts_with("whether the section plane's normal lies along a coordinate axis"),
+            "{said}"
+        );
+    }
+
+    /// A normal component straddling zero does not refuse where the
+    /// other two settle the verdict: two definitely nonzero components
+    /// make the plane oblique whatever the third reads.
+    #[test]
+    fn a_straddling_component_beside_two_nonzero_ones_is_an_oblique_plane() {
+        use geom_core::{Interval, Real};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let exact = exact_band().unwrap();
+        let iv = Interval::from_f64;
+        let plane = crate::test_support::split_plane(
+            Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+            Vec3::new(Interval::from_bounds(-1e-12, 1e-12), iv(0.3), iv(1.0)),
+            tol,
+        );
+        in_plane_frame(&plane, iv(1.0), band, exact)
+            .unwrap_or_else(|e| panic!("the frame refused: {e:?}"));
+    }
+
+    /// The split `in_plane_frame` reads off the schedule: the first
+    /// three members are the unit axes, and no later member is an axis
+    /// (each has at most one zero component).
+    #[test]
+    fn the_schedule_opens_with_the_three_axes_and_only_them() {
+        let (axes, oblique) = super::super::containment::SCHEDULE.split_at(3);
+        let unit = [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)];
+        for (a, want) in axes.iter().zip(unit) {
+            assert_eq!((a.x, a.y, a.z), want, "an axis member");
+        }
+        for r in oblique {
+            let zeros = [r.x, r.y, r.z].iter().filter(|c| **c == 0.0).count();
+            assert!(zeros <= 1, "{r:?} is an axis among the oblique members");
+        }
+    }
+
+    /// No two oblique members lie near one line (|cos| < 0.99, about 8°
+    /// apart), so a unit normal is within the frame gate's band of at
+    /// most one of them and the oblique search always finds a member.
+    #[test]
+    fn no_two_oblique_schedule_members_lie_near_one_line() {
+        let oblique = &super::super::containment::SCHEDULE[3..];
+        for (i, a) in oblique.iter().enumerate() {
+            for b in &oblique[i + 1..] {
+                let cos = a.dot(*b).abs() / (a.norm() * b.norm());
+                assert!(cos < 0.99, "{a:?} and {b:?}: |cos| = {cos}");
+            }
+        }
     }
 
     /// Along one line: ascending keys; keys a few ULPs apart (one point,
