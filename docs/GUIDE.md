@@ -1592,8 +1592,8 @@ is the latitude rim standing at the vertex the piece starts at and
 revolve of a profile touching the axis splits every rim in two (a
 blend over the whole rim names both),
 `meridian_vertex(end, node, piece)` is that vertex itself, and
-`carried(node, inner)` is the name a survivor of `node` wears one op
-later. Each answers the
+`carried(node, read, inner)` is the name a survivor of `node` wears
+one op later, carried in through the read `read`. Each answers the
 SAME opaque text a materializer answers for that entity, so a
 selection authored this way and one selected off an evaluation are the
 same bytes.
@@ -1675,7 +1675,7 @@ ev.value(rolled).body().validate()
 # survived the hollowing wear exactly `carried` of what they were.
 faces = NamePat.of_kind(EntityKind.Face)
 survivors = ev.select(cup, Selector.of(faces.seg(SegPat.tag(SegTag.From))))
-assert sorted(survivors) == sorted(carried(cup, band(ring, piece(leg))) for leg in (bottom, outer, section))
+assert sorted(survivors) == sorted(carried(cup, doc.output(ring, 0), band(ring, piece(leg))) for leg in (bottom, outer, section))
 ```
 
 ## 3. Parametric models
