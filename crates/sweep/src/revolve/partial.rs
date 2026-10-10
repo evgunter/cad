@@ -25,7 +25,7 @@ use super::turn::{TurnEnds, sweep_turn};
 use super::upgrade::upgrade_intersection;
 use super::{RevolveError, Revolved, RevolvedKind, SweptSeg};
 use crate::swept::{
-    CapEnd, cap_plane, cap_points, face_surface_key, placed_segment_spec, turn_axis,
+    CapEnd, Placing, cap_plane, cap_points, face_surface_key, placed_segment_spec, turn_axis,
 };
 use geom_core::Tol;
 
@@ -43,9 +43,9 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Revolved<T>, RevolveError> {
     let place = frame.place;
-    let rot = Affine3::rotation_about_axis(frame.o3, frame.a3, theta);
-    let place_end = rot * place;
-    let n_end = rot.linear * frame.n3;
+    let far = Placing::turned(place, frame.o3, frame.a3, theta);
+    let place_end = far.map();
+    let n_end = Affine3::rotation_about_axis(frame.o3, frame.a3, theta).linear * frame.n3;
     let axis_c = turn_axis(
         if reverse {
             Sign::Positive
@@ -82,12 +82,7 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
                     if col.cls.verts[j].pinned {
                         frame.world(s.a)
                     } else {
-                        Affine3::rotate_point_about_axis(
-                            frame.o3,
-                            frame.a3,
-                            theta,
-                            frame.world(s.a),
-                        )
+                        far.point(s.a)
                     }
                 })
                 .collect()
@@ -108,7 +103,7 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     let ends = |li: usize| TurnEnds {
         near: points[li][0],
         far: rpoints[li][0],
-        place_far: place_end,
+        place_far: far,
         n_far: n_end,
     };
     let seed = body.mvfs(
@@ -246,7 +241,7 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
                 frame,
                 theta,
                 axis_c,
-                place_end,
+                far,
                 n_end,
                 band,
                 tol,
@@ -259,7 +254,7 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
 
     // ---- Phase 4: the swept face survives as the end cap. ----
     let end_plane = cap_plane(
-        &cap_points(loops[0], &rpoints[0], place_end),
+        &cap_points(loops[0], &rpoints[0], far),
         place_end,
         reverse,
         CapEnd::End,
@@ -463,7 +458,7 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     frame: &AxisFrame<T>,
     theta: T,
     axis_c: geom_core::Vec3<T>,
-    place_end: Affine3<T>,
+    far: Placing<T>,
     n_end: geom_core::Vec3<T>,
     band: Band,
     tol: Tol,
@@ -524,7 +519,7 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                 },
             };
             let end = (j + 1) % n;
-            let far = placed_segment_spec(&segs[j], place_end, n_end, rq[j], rq[end], tol);
+            let far = placed_segment_spec(&segs[j], far, n_end, rq[j], rq[end], tol);
             Ok::<_, RevolveError>(Some((far, surface)))
         },
         tol,

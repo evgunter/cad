@@ -11,8 +11,9 @@
 //! ADOPTED FROM R2's review probe, which drove a body the table did not
 //! name at a magnitude between two that it did; they are what found the
 //! `(1e-9, 3.7e7)` cell below, where the bare lift refuses all three
-//! bodies and `Sym<f64>` builds all three with nothing disputed — the tier discharging identities the point channel could
-//! not, which no cell of the original table showed.
+//! bodies and `Sym<f64>` builds all three with nothing disputed — the
+//! tier discharging identities the point channel could not, which no
+//! cell of the original table showed.
 //!
 //! Driven at `Sym<f64>`, `Sym<Probe>` and `Sym<Interval>` inside a
 //! session so the receipt counts what the lane did, and at bare `f64`

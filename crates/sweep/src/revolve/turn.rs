@@ -8,14 +8,14 @@
 
 use geom::Curve3;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource};
-use geom_core::{Affine3, Decide, Point3, Tol, Vec3};
+use geom_core::{Decide, Point3, Tol, Vec3};
 use topo::{Body, FaceSurface, LoopKey};
 
 use super::axis::{AxisFrame, LoopClasses, WallClass};
 use super::partial::LoopSwept;
 use super::surfaces::wall_surface;
 use super::{RevolveError, SweptSeg};
-use crate::swept::{self, FullTurn, face_surface_key, placed_segment_spec};
+use crate::swept::{self, FullTurn, Placing, face_surface_key, placed_segment_spec};
 
 /// Where a one-segment loop's turn runs: its vertex at the start and at
 /// the end of the rotation, and the end's placement.
@@ -24,8 +24,9 @@ pub(super) struct TurnEnds<T: geom_core::Real> {
     pub(super) near: Point3<T>,
     /// The vertex rotated through `theta` (the far end).
     pub(super) far: Point3<T>,
-    /// The sketch placement rotated through `theta`.
-    pub(super) place_far: Affine3<T>,
+    /// The sketch placement, turned through `theta` when the far end
+    /// is not the near one.
+    pub(super) place_far: Placing<T>,
     /// Its sketch normal.
     pub(super) n_far: Vec3<T>,
 }
@@ -63,16 +64,24 @@ pub(super) fn sweep_turn<T: Decide + topo::AtRestPolicy>(
     let radius = cls.verts[0].r;
     let from_far = ends.far - center;
     swept::register_rim_identity(from_far, radius, tol);
+    // The strut runs far to near. A turned far end is the sketch point
+    // turned through `theta`, so the strut is that turn's own range run
+    // back, on the sketch placement: no turned placement is evaluated.
+    let turned = |angle: T| {
+        MappedCurve::whole(MappedSource::RevolvedPoint {
+            point: seg.a,
+            place: frame.place,
+            axis_origin: frame.o3,
+            axis_dir: frame.a3,
+            angle,
+        })
+    };
     let strut = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
-            MappedSource::RevolvedPoint {
-                point: seg.a,
-                place: ends.place_far,
-                axis_origin: frame.o3,
-                axis_dir: frame.a3,
-                angle: T::zero() - theta,
-            },
-        )),
+        description: EdgeDescriptionSpec::Scaffold(if ends.place_far.is_turned() {
+            turned(theta).restrict(T::one(), T::zero())
+        } else {
+            turned(T::zero() - theta)
+        }),
         carrier: Curve3::Circle {
             center,
             axis: Vec3::zero() - axis_c,

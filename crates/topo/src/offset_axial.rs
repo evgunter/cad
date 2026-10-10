@@ -3204,44 +3204,92 @@ mod tests {
         }
     }
 
-    /// **A turned start on a tilted far placement lands within four
-    /// ulps of the coordinates of its corner.** At `f64`, over 200 turns
-    /// in `[−3, 3]`, the re-authored description's start sample — the
-    /// corner turned back on its offset from the axis, read through
-    /// `place⁻¹`, placed and turned again — sits 2.3e-13 from the corner
-    /// at 1e3 (two ulps) and 1.5e-11 at 1e5 (one). Reading the corner
-    /// back through the composite `(R(φ)·place)⁻¹` instead lands 8.0e-13
-    /// and 5.8e-11 off, seven and four ulps: the read-back and the
-    /// description's own evaluation then turn the corner by two
-    /// different spellings. (Read and placed through that composite
-    /// alone, the corner lands 6.8e-13 and 2.9e-11 off, printed beside.)
+    /// **A turned start on a tilted far placement stores its sketch
+    /// point within a few ulps of the coordinates of exact.** At `f64`,
+    /// over 200 turns in `[−3, 3]`, the stored point is carried forward
+    /// at `Interval` — placed, then turned by the `φ` re-authoring read,
+    /// from the same `f64` data — and that enclosure's far endpoint
+    /// bounds its distance from the corner, which is exact data. The
+    /// placement is rigid, so that distance is the stored point's
+    /// error. The turn is checked against the stored range's start over
+    /// the angle, to a few ulps of the turn. Measured (an upper bound,
+    /// the reference's own width included): 4.5e-13 at 1e3 and
+    /// 4.4e-11 at 1e5, four and three ulps of the coordinates, under a
+    /// five-ulp bar. A corner read back through the composite
+    /// `(R(φ)·place)⁻¹` stores a point 9 and 6 ulps off, past it at both.
     #[test]
-    fn a_turned_start_on_a_tilted_far_placement_lands_within_ulps_of_its_corner() {
-        let mut worst = Vec::new();
+    fn a_turned_start_on_a_tilted_far_placement_stores_within_ulps_of_the_exact_read_back() {
+        let iv = Interval::from_f64;
         for at in [FAR, FARTHER] {
             let mapped = tilted_rim(at, |x| x);
             let rim = parts(mapped);
-            let (mut ours, mut main) = (0.0f64, 0.0f64);
+            let lift = |p: Point3<f64>| Point3::new(iv(p.x), iv(p.y), iv(p.z));
+            let place = rim.place;
+            let place_iv = Affine3::from_parts(
+                place.linear.map(iv),
+                Vec3::new(
+                    iv(place.translation.x),
+                    iv(place.translation.y),
+                    iv(place.translation.z),
+                ),
+            );
+            let (q, n) = (rim.axis_origin, rim.axis_dir);
+            let (mut ours, mut composite) = (0.0f64, 0.0f64);
             for k in 0..200 {
                 let theta = -3.0 + 6.0 * f64::from(k) / 199.0;
                 let corner = turned(&rim, theta);
-                let start = reauthored(mapped, corner, band()).eval(0.0);
-                ours = ours.max((start - corner).norm_inf());
-                let (q, plane) = composed_reading(&rim, main_turn(&rim, corner), corner);
-                main = main
-                    .max((plane.transform_point(Point3::new(q.x, q.y, 0.0)) - corner).norm_inf());
+                let a = n.normalize();
+                let radial = |p: Point3<f64>| {
+                    let v = p - q;
+                    v - a * v.dot(a)
+                };
+                let (from, to) = (radial(mapped.eval(0.0)), radial(corner));
+                let phi = a.dot(from.cross(to)).atan2(from.dot(to));
+                let geom_brep::MappedCurve {
+                    source: geom_brep::MappedSource::RevolvedPoint { point, angle, .. },
+                    range,
+                } = reauthored(mapped, corner, band())
+                else {
+                    panic!("a revolved point re-authors as one");
+                };
+                let read = range.start().expect("a turned start moves its range") * angle;
+                assert!(
+                    (read - phi).abs() <= 4.0 * f64::EPSILON * phi.abs().max(1.0),
+                    "at {at:?}, turn {theta}: re-authoring read the turn {read}, not {phi}"
+                );
+                // The stored point carried forward exactly, enclosed:
+                // placed, then turned by `φ`, at `Interval` from the
+                // same `f64` data. The placement is rigid, so its
+                // distance from the corner is the stored point's error.
+                let off = |x: f64, y: f64| {
+                    let f = Affine3::rotate_point_about_axis(
+                        lift(q),
+                        Vec3::new(iv(n.x), iv(n.y), iv(n.z)),
+                        iv(phi),
+                        place_iv.transform_point(Point3::new(iv(x), iv(y), iv(0.0))),
+                    );
+                    [(corner.x, f.x), (corner.y, f.y), (corner.z, f.z)]
+                        .into_iter()
+                        .map(|(c, r)| (c - r.lo()).abs().max((r.hi() - c).abs()))
+                        .fold(0.0, f64::max)
+                };
+                ours = ours.max(off(point.x, point.y));
+                let (main, _) = composed_reading(&rim, phi, corner);
+                composite = composite.max(off(main.x, main.y));
             }
-            println!("at {at:?}: worst start-sample distance {ours:e}, composed {main:e}");
-            worst.push((at, ours, main));
-        }
-        for (at, ours, main) in worst {
             let scale = at.iter().fold(0.0f64, |m, c| m.max(c.abs()));
             let ulp = scale.next_up() - scale;
+            println!(
+                "at {at:?}: stored point within {ours:e} of exact ({:.1} ulps), composite \
+                 read-back {composite:e} ({:.1} ulps)",
+                ours / ulp,
+                composite / ulp
+            );
             assert!(
-                ours <= 4.0 * ulp,
-                "at {at:?} a turned start re-authors {ours:e} from its corner, over four \
-                 ulps of the coordinates ({ulp:e} each; the composed placement lands \
-                 {main:e} off)"
+                ours <= 5.0 * ulp,
+                "at {at:?} a turned start stored a point {ours:e} from the exact read-back, \
+                 over five ulps of the coordinates ({ulp:e} each; the composite read-back \
+                 is {composite:e} off)"
             );
         }
     }
