@@ -9,7 +9,7 @@
 use crate::fixture::{self, cap_ref, insert, len, xform};
 use crate::wire::doctored;
 use editor_core::{
-    AssertionDir, AssertionVerdict, CapEnd, Dimension, DocEdit, EditError, Formula,
+    AssertionRelation, AssertionVerdict, CapEnd, Dimension, DocEdit, EditError, Formula,
     MeasurePrimitive, Node, NodeResult, PersistError, ProfileDoc, RecipeNodeId, SlotId,
     SnapshotError, ValuePayload, VarName, apply, load, save,
 };
@@ -99,7 +99,7 @@ fn measure_arithmetic_is_a_definition_the_assertion_reads() {
         Node::Assertion {
             value: margin,
             bound: len(1.0),
-            dir: AssertionDir::AtLeast,
+            relation: AssertionRelation::AtLeast,
         },
     );
     let value = fixture::assertion_value(&doc, assertion);
@@ -301,7 +301,7 @@ fn an_observed_variable_is_read_only_by_an_assertion() {
             )
             .unwrap(),
             bound: len(0.5),
-            dir: AssertionDir::AtLeast,
+            relation: AssertionRelation::AtLeast,
         },
     );
     assert!(matches!(
@@ -389,7 +389,7 @@ fn a_redefinition_over_a_measure_binds_after_the_measure_runs() {
         Node::Assertion {
             value: Formula::named(w.clone(), Dimension::Length),
             bound: len(0.0),
-            dir: AssertionDir::AtLeast,
+            relation: AssertionRelation::AtLeast,
         },
     );
     let (doc, measure) = fixture::measure_node(
@@ -442,7 +442,7 @@ fn an_assertion_over_a_definition_is_poisoned_by_the_measure_under_it() {
         Node::Assertion {
             value: Formula::add(Formula::var(out, Dimension::Length), len(1.0)).unwrap(),
             bound: len(0.0),
-            dir: AssertionDir::AtLeast,
+            relation: AssertionRelation::AtLeast,
         },
     );
     let ev = crate::corpus::eval::<f64>(&doc);
@@ -476,7 +476,7 @@ fn a_split_refuses_an_assertion_over_a_stranded_measure() {
         Node::Assertion {
             value: Formula::var(out, Dimension::Length),
             bound: len(0.0),
-            dir: AssertionDir::AtLeast,
+            relation: AssertionRelation::AtLeast,
         },
     );
     let (doc, _) = fixture::step(doc, DocEdit::DeleteNode { id: measure });
@@ -520,7 +520,7 @@ fn an_unavailable_side_keys_by_its_position() {
         Node::Assertion {
             value: gap.clone(),
             bound: len(0.5),
-            dir: AssertionDir::AtLeast,
+            relation: AssertionRelation::AtLeast,
         },
     );
     let (doc, high) = insert(
@@ -528,7 +528,7 @@ fn an_unavailable_side_keys_by_its_position() {
         Node::Assertion {
             value: len(0.5),
             bound: gap,
-            dir: AssertionDir::AtLeast,
+            relation: AssertionRelation::AtLeast,
         },
     );
     let ev = crate::corpus::eval::<f64>(&doc);

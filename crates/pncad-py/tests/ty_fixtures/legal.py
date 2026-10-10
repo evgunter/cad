@@ -12,7 +12,7 @@ from pncad import (
     Placement,
     Measured,
     Measurement,
-    AssertionDir,
+    AssertionRelation,
     Advisory,
     AnalysisPolicy,
     AnalyzedBox,
@@ -877,10 +877,15 @@ lone: NodeId = doc.insert(Node.measure(reach))
 # The bound is an EXPRESSION, because its dimension is the value's and
 # a slot address cannot fix it.
 requirement: NodeId = doc.insert(
-    Node.assertion(recorded.outputs[0], AssertionDir.AtLeast, doc.parse_formula("0.5 mm"))
+    Node.assertion(recorded.outputs[0], AssertionRelation.AtLeast, doc.parse_formula("0.5 mm"))
 )
 read_back: Measurement = evaluate(doc).reading(recorded.outputs[0])
-which_way: str = AssertionDir.AtMost.symbol
+which_way: str = AssertionRelation.AtMost.symbol
+equality: NodeId = doc.insert(
+    Node.assertion(
+        recorded.outputs[0], relation=AssertionRelation.Equal, bound=doc.parse_formula("0.5 mm")
+    )
+)
 
 # The two words a refusal carries, typed. Both are OPTIONAL strings and
 # the stub says so: `kind` is which door refused, `inner_kind` the arm
