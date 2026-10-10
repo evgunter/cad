@@ -332,14 +332,21 @@ fn both_sweeps_evaluate_in_one_document() {
 /// RE-BLESSED, `kitchen_sink` only, when a revolve's turned vertex came
 /// to turn its offset from the axis: 8 of its points moved by at most 2
 /// ulps (`m10_p_fence`'s header has the dump), and no name table did.
+///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`), re-taken on the tree holding every
+/// change above: the digest feeds each edge's description `Debug`,
+/// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
+/// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
+/// pins and `m5_pr8_bvh_diff` held.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x3fb1_d208_1d37_5a93),
-        ("corner_table", 0xdb95_b8fc_06b7_a993),
-        ("cut_cylinder", 0x4318_92f9_c696_0fd1),
-        ("boss_union", 0x05b4_17a8_c844_6429),
-        ("kitchen_sink", 0x00a8_c564_60a9_8611),
+        ("die", 0xd6c9_f1b0_d590_d99f),
+        ("corner_table", 0x4258_e6f3_cc74_7ad7),
+        ("cut_cylinder", 0x2f75_0d41_c9ca_4e19),
+        ("boss_union", 0x662b_d224_b6df_3ccf),
+        ("kitchen_sink", 0xd8ca_c8cc_c8f5_8725),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

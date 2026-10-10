@@ -899,6 +899,11 @@ fn run_at<T: editor_core::EvalScalar>(
 /// the three the hosted matrix runs; any other ε has no measurement and
 /// the row fails rather than pass on nothing.
 ///
+/// Re-taken when an intrinsic edge description's surfaces became a
+/// set (`geom_brep::SurfacePair`): the digest feeds the evaluated
+/// bodies' `Debug`, which spells the pair differently, and no pose moved
+/// (the id-free rows held).
+///
 /// The digest feeds node ids, so it moves whenever ids do — a declare
 /// extends the mint chain, and an insert's preimage holds its readers by
 /// variable id — with no pose moving: this file's id-free rows (each
@@ -929,11 +934,12 @@ fn run_at<T: editor_core::EvalScalar>(
 /// and a mate's content key reads its bodies' keys. Each instance's
 /// solved and world pose, each mate's role and whether it faulted,
 /// keyed by document position, measured equal on main and on the
-/// branch at all three ε.
+/// branch at all three ε. Taken over the surface pair's set spelling
+/// above, which landed beside it.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x4de1_7e41_a850_351e),
-    (1e-6, 0x4113_c9aa_797f_22a7),
-    (1e-12, 0xb82f_69cb_4afc_2bbb),
+    (1e-9, 0xb917_d447_d10b_70f6),
+    (1e-6, 0x0972_1080_d45a_cb46),
+    (1e-12, 0xf104_317b_97ae_0ad1),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, roles, faults and
