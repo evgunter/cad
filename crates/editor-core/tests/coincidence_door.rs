@@ -660,14 +660,15 @@ fn apart(op: BooleanOp, id: &str) -> (ProfileDoc, Evaluation<f64>, RecipeNodeId,
     (doc, ev, node, n)
 }
 
-/// **The containment fallback carries the declaration door's rows.**
-/// Two blocks apart, their flush faces declared: the union's boundaries
-/// never cross, so it is the fallback's assembly, and the subtraction's
-/// is operand A whole (the single-operand finish). Each records one row
-/// per declared pair all the same: the declaration door decided them
-/// before the fallback was chosen.
+/// **A declared pair whose faces never meet records no row, through
+/// the containment fallback too.** Two blocks apart, their flush faces
+/// declared: the union's boundaries never cross, so it is the
+/// fallback's assembly, and the subtraction's is operand A whole (the
+/// single-operand finish). The declaration door verified each pair one
+/// carrier, but no face of one block meets a face of the other, so the
+/// glue took no effect and the result records no row (D1).
 #[test]
-fn the_fallbacks_carry_the_declared_rows() {
+fn the_fallbacks_record_no_row_for_faces_that_never_meet() {
     for (op, id) in [
         (BooleanOp::Union, "coincide-apart-union"),
         (BooleanOp::Subtract, "coincide-apart-subtract"),
@@ -675,14 +676,8 @@ fn the_fallbacks_carry_the_declared_rows() {
         let (doc, ev, node, n) = apart(op, id);
         assert!(n > 0, "the premise: flush faces to declare");
         let got = rows(&ev, node);
-        assert_eq!(got.len(), n, "{op:?}: one row per declared pair: {got:?}");
-        assert!(
-            got.iter().all(
-                |r| r.relation == Relation::SameOriented && r.site == DecisionSite::PlaneLadder
-            ),
-            "{op:?}: {got:?}"
-        );
-        assert_eq!(unproven(&doc, &ev).len(), n, "{op:?}: two extrudes' faces");
+        assert!(got.is_empty(), "{op:?}: no row for faces apart: {got:?}");
+        assert!(unproven(&doc, &ev).is_empty(), "{op:?}");
     }
 }
 

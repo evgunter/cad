@@ -215,8 +215,8 @@ fn blocks_apart_record_no_row_axis_aligned_or_turned() {
 }
 
 /// **Blocks side by side record the same rows in any frame**: two unit
-/// blocks sharing a side face, their tops and bottoms continuing across
-/// it. Every face pair that meets is recorded, and the same number of
+/// blocks sharing a side face, their tops, bottoms, fronts and backs
+/// continuing across it. Every face pair that meets is recorded, and the same number of
 /// them axis-aligned and turned 45°, though the turned faces' boxes
 /// offer more pairs.
 #[test]
@@ -229,7 +229,10 @@ fn blocks_side_by_side_record_equal_rows_axis_aligned_and_turned() {
         face_pair_rows(&r)
     });
     assert_eq!(rows[0], rows[1], "axis-aligned vs turned: {rows:?}");
-    assert_eq!(rows[0], 3, "the side rest, the tops and the bottoms");
+    assert_eq!(
+        rows[0], 5,
+        "the side rest, and the tops, bottoms, fronts and backs continuing"
+    );
 }
 
 /// **A block standing apart in an L prism's notch records no row**: the
