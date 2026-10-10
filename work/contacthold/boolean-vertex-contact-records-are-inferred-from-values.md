@@ -2,12 +2,12 @@
 id: boolean-vertex-contact-records-are-inferred-from-values
 kind: issue
 title: The boolean records vertex-level contacts (VvContact/VfContact) from Zero verdicts with no declaration, and tier 3′ (ii) calls them declared — intent inferred from values, which tier 3′ (i) forbids
-status: parked
+status: open
 opened: 2026-10-03
 priority: P1
 cost: M
 design: true
-blocked_on: [contact-records-cite-their-decision]
+
 ---
 
 

@@ -83,14 +83,6 @@ fn placed(doc: ProfileDoc, input: RecipeNodeId, dx: f64) -> (ProfileDoc, RecipeN
     )
 }
 
-/// A node's contact records, read out of its boolean value.
-fn contacts_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> topo::ContactRecords {
-    match &ev.value(id).expect("the node evaluated").payload {
-        ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) => (**contacts).clone(),
-        other => panic!("expected a boolean body, got {other:?}"),
-    }
-}
-
 /// The tier-3′ verdict on a boolean node's value, over its own records.
 pub(crate) fn census_of(
     ev: &Evaluation<f64>,
@@ -1070,118 +1062,58 @@ fn a_declared_union_replays_bit_identically() {
 // The carried record.
 // ---------------------------------------------------------------------
 
-/// **Two names in ONE member are that member's carried contact, fed at
-/// that member's own step** — the pair chain's rule, on a member.
+/// **Two names in ONE member that its own operation records no contact
+/// between back nothing**: a declared same-operand pair is a contact the
+/// operand carries in, citing the operand's record of it (D1 (ii)), and
+/// this member records none, so the pair boolean refuses it typed. At a
+/// union's fold step a same-operand pair refuses whatever the member
+/// records: the step's records are not cited from the union, so the
+/// pair has nothing to cite there.
 ///
-/// A Vertex–Face pair inside one member is a carried 3′ contact. As
-/// operand B of the LAST step it reaches the union's value exactly as
-/// the pair boolean's does; as member 0 of a two-step fold it is fed at
-/// step 1, where member 0 is operand A, and does not reach the value —
-/// a contact fed at a step before the last is consumed there, which is
-/// what the pair chain does with it too.
+/// The claim is the member's own end-cap vertex on its own start cap,
+/// which nothing decided: red if any of the three nodes builds, which is
+/// a touch shipped without a decision.
 #[test]
-fn a_same_member_declared_pair_is_a_carried_record_at_its_step() {
+fn a_same_member_declared_pair_with_no_record_refuses_at_every_door() {
     let doc = ProfileDoc::empty_derived("docm7_carried", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, far) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, far2) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
     let vertex = fixture::cap_vertex(a, CapEnd::End, crate::fixture::vpiece(&doc, a, 0, 0));
     let face = fname(a, RoleSeg::Cap(CapEnd::Start));
-    // Two entities of ONE member, sited there: the same pair reads as
-    // that member's carried contact wherever the member sits.
     let carried = vec![(
         SitedRef::new(a, vertex.clone()),
         SitedRef::new(a, face.clone()),
     )];
-    // The pair boolean's reading of the same claim, for reference.
-    let pdecl = editor_core::declare_rest(carried.clone());
     let (doc, pair) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a: far.into(),
             b: a.into(),
-            declare: pdecl.clone(),
+            declare: editor_core::declare_rest(carried.clone()),
         },
     );
-    // Member `a` as operand B of the LAST step.
+    // Member `a` as operand B of the LAST step, and as member 0 of a
+    // two-step fold.
     let (doc, last) = declared_union(doc, &[far, a], carried.clone());
-    // Member `a` as member 0 of a two-step fold: fed at the first step,
-    // where it is operand A.
     let (doc, first) = declared_union(doc, &[a, far, far2], carried);
     let ev = run(&doc);
-    for id in [pair, last, first] {
-        assert!(failure(&ev, id).is_none(), "{id:?}: {:?}", failure(&ev, id));
-    }
-    assert_eq!(
-        contacts_of(&ev, pair).b_on_a.len(),
-        1,
-        "the pair boolean carries the claim"
-    );
-    assert_eq!(
-        contacts_of(&ev, last).b_on_a.len(),
-        1,
-        "the union fed it as operand B's carried record at the last step"
-    );
-    // Fed at the FIRST step and consumed there: the value's records
-    // are the LAST step's, which is exactly what the pair chain this
-    // fold replaces publishes. Asserted against that chain rather
-    // than against zero, so the row says what the record IS.
-    let (doc, chain0) = insert(
-        doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: far.into(),
-            declare: pdecl,
-        },
-    );
-    let (doc, chain1) = insert(
-        doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: chain0.into(),
-            b: far2.into(),
-            declare: Vec::new(),
-        },
-    );
-    let ev = run(&doc);
-    assert!(failure(&ev, chain1).is_none(), "{:?}", failure(&ev, chain1));
-    // The claim is the member's own end-cap vertex on its own start cap,
-    // which its geometry does not confirm: every value that carries the
-    // record ships it unconfirmed, and tier 3′ refuses it there; the
-    // door gates at tier 3 only (the census is parked,
-    // `work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
-    // Pinned as it stands
-    // (`work/fuse/a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms.md`);
-    // red when the record is confirmed or refused where it is fed.
-    for (what, id, carries) in [
-        ("pair", pair, true),
+    for (what, id, at_union_step) in [
+        ("pair", pair, false),
         ("last", last, true),
-        ("first", first, false),
-        ("chain0", chain0, true),
-        ("chain1", chain1, false),
+        ("first", first, true),
     ] {
-        match census_of(&ev, id) {
-            Ok(()) => assert!(!carries, "{what}: carries the record and passes 3′"),
-            Err(errors) => assert!(
-                carries
-                    && matches!(
-                        errors.as_slice(),
-                        [topo::ValidationError::StaleContactDeclaration {
-                            declaration: topo::StaleDeclaration::VertexOnFace { .. }
-                        }]
-                    ),
-                "{what}: 3′ refuses the unconfirmed vertex-on-face record only: {errors:?}"
+        assert!(
+            matches!(
+                failure(&ev, id),
+                Some(&NodeErrorKind::DeclaredContactUnbacked { reference: 0, at_union_step: u })
+                    if u == at_union_step
             ),
-        }
+            "{what}: {:?}",
+            failure(&ev, id)
+        );
     }
-    let (fold, chain) = (contacts_of(&ev, first), contacts_of(&ev, chain1));
-    assert_eq!(
-        (fold.b_on_a.len(), fold.a_on_b.len()),
-        (chain.b_on_a.len(), chain.a_on_b.len()),
-        "the fold publishes the last step's records, as the chain does"
-    );
 }
 
 // ---------------------------------------------------------------------
@@ -1483,6 +1415,7 @@ fn rebind_moves_the_name_and_leaves_the_site() {
     let applied = doc
         .apply(
             &DocEdit::Rebind {
+                body: None,
                 from: from.clone(),
                 to: to.clone(),
             },
@@ -1729,4 +1662,138 @@ fn redrawing_another_member_never_takes_a_held_flush_stretch() {
             );
         }
     }
+}
+
+// ---------------------------------------------------------------------
+// What a record cites.
+// ---------------------------------------------------------------------
+
+/// The one vertex-pair record of `id`'s boolean value, and the row of
+/// the node's own coincidences it cites.
+fn kiss_record(ev: &Evaluation<f64>, id: RecipeNodeId) -> editor_core::NamedCoincidence {
+    let value = ev.value(id).expect("the node evaluated");
+    let ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) = &value.payload else {
+        panic!("a boolean body: {:?}", value.payload);
+    };
+    let [record] = contacts.vv.as_slice() else {
+        panic!("one vertex pair: {contacts:?}");
+    };
+    let cited: Vec<topo::Backing> = record.cites.iter().collect();
+    let [topo::Backing::Decided(k)] = cited[..] else {
+        panic!("one decision of the node's own: {cited:?}");
+    };
+    value
+        .coincidences
+        .get(k as usize)
+        .unwrap_or_else(|| panic!("row {k} of {:?}", value.coincidences))
+        .clone()
+}
+
+/// **A corner kiss's record cites the vertex identity its node
+/// decided, and the node names its inputs by their reads**: two blocks
+/// meeting at one corner, joined by a pair boolean and by a union. Each
+/// node's one record cites a `VertexFusion` row of its own, naming the
+/// two members' corners; the boolean's records cite its inputs as its
+/// `a` and `b` reads. Red if a node publishes records citing rows it
+/// does not hold (a union's last fold step's rows unpublished).
+#[test]
+fn a_kiss_record_cites_its_vertex_fusion_row_at_the_boolean_and_the_union() {
+    let doc = ProfileDoc::empty_derived("docm7_kiss_cites", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 1.0);
+    let (doc, pair) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: a.into(),
+            b: b.into(),
+            declare: Vec::new(),
+        },
+    );
+    let (doc, union) = declared_union(doc, &[a, b], Vec::new());
+    let ev = run(&doc);
+    for (what, id) in [("pair", pair), ("union", union)] {
+        let row = kiss_record(&ev, id);
+        assert_eq!(row.site, topo::DecisionSite::VertexFusion, "{what}");
+        assert!(
+            row.cells
+                .iter()
+                .all(|c| matches!(c, editor_core::NamedCell::Entity { .. })),
+            "{what}: {row:?}"
+        );
+    }
+    let pair_value = ev.value(pair).expect("the pair evaluated");
+    let pair_row = kiss_record(&ev, pair);
+    let mut inputs: Vec<RecipeNodeId> = pair_row
+        .cells
+        .iter()
+        .filter_map(|c| match c {
+            editor_core::NamedCell::Entity { input, .. } => Some(*input),
+            _ => None,
+        })
+        .collect();
+    inputs.sort();
+    let mut want = vec![a, b];
+    want.sort();
+    assert_eq!(inputs, want, "the row names one corner of each operand");
+    let Some(Node::Boolean {
+        a: read_a,
+        b: read_b,
+        ..
+    }) = doc.node(pair)
+    else {
+        panic!("the pair is a boolean");
+    };
+    assert_eq!(
+        pair_value.cited_inputs.as_ref(),
+        [
+            editor_core::CitedInput::Read(*read_a),
+            editor_core::CitedInput::Read(*read_b)
+        ],
+        "the boolean cites its inputs by its reads"
+    );
+}
+
+/// **A declared same-operand pair the operand records cites that
+/// record by read**: the corpus's `kiss_carry` declares again the
+/// vertex pair its kiss operand records. The node's record of it cites
+/// `Carried { input, record }`, and `input` is the operand's read. Red
+/// if the carried record cites a decision of this node's, or names its
+/// operand by anything but the read.
+#[test]
+fn a_declared_carried_pair_cites_its_operands_record_by_read() {
+    let doc = crate::corpus::documents()
+        .into_iter()
+        .find(|d| d.name == "kiss_carry")
+        .expect("the corpus holds kiss_carry")
+        .doc;
+    let ev: Evaluation<f64> = crate::corpus::eval(&doc);
+    let mut cited = 0;
+    for id in doc.ids() {
+        let Some(Node::Boolean { a, b, declare, .. }) = doc.node(id) else {
+            continue;
+        };
+        if declare.is_empty() {
+            continue;
+        }
+        let value = ev.value(id).expect("the declaring boolean evaluates");
+        let ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) = &value.payload else {
+            panic!("a boolean body");
+        };
+        for cites in contacts.cites() {
+            for backing in cites.iter() {
+                let topo::Backing::Carried { input, .. } = backing else {
+                    continue;
+                };
+                let read = [*a, *b][input as usize];
+                assert_eq!(
+                    value.cited_inputs[input as usize],
+                    editor_core::CitedInput::Read(read),
+                    "the carried citation names its operand by read"
+                );
+                cited += 1;
+            }
+        }
+    }
+    assert!(cited > 0, "kiss_carry carries a declared pair in");
 }

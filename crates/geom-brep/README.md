@@ -515,7 +515,10 @@ coefficient are `f64` structure (`geom_core::spline`); control points are
 the only generically typed data; the fitting loops (`curves/fit.rs`)
 take `f64` points. The certificate re-evaluates against the pinned
 structure at any `Real`, so the interval lane proves what the f64 lane
-chose. No topology-determining predicate reads knot counts, spans or
+chose. A refinement made inside a certificate chooses nothing: its
+refined weights are generally not `f64`, so it is held only as
+homogeneous enclosures `(w·P, w)`, and the projective knot algebra has
+no meaning at the certification scalar. No topology-determining predicate reads knot counts, spans or
 fitted coefficients except through named certified margins; the name
 table is a function of recipe structure and verdicts only.
 

@@ -93,8 +93,8 @@ pub(crate) enum SegOrigin<'a> {
 /// three ways, with what tells two carried copies of one entity apart.
 #[derive(Clone, Copy)]
 pub(crate) enum CarriedAs {
-    /// Passed through whole from a primary operand (a boolean's `A`, a
-    /// fillet's target): the body's own continuation.
+    /// Passed through whole from a primary operand (a boolean's `A`, the
+    /// body a fillet's selection reads): the body's own continuation.
     Primary,
     /// Passed through whole from a secondary operand (a boolean's `B`,
     /// a union's member): joined into the body there.

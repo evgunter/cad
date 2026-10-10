@@ -338,7 +338,7 @@ fn corner_kiss_operands() {
     );
     assert_props(&body.body, 2.0, 12.0);
     assert_eq!(body.contacts.vv.len(), 1);
-    let c = body.contacts.vv[0];
+    let c = body.contacts.vv[0].record;
     assert!(body.body.get_vertex(c.a).is_some());
     assert!(body.body.get_vertex(c.b).is_some());
     // The kiss point is one position, two distinct vertices (3′

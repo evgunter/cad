@@ -67,12 +67,14 @@ fn both_roles() -> ProfileDoc {
     let (doc, _fillet) = insert(
         doc,
         Node::Fillet {
-            target: block.into(),
             radius: len(0.05),
-            selection: vec![
-                trim_name(block, RimSupport::Host),
-                trim_name(block, RimSupport::Mate),
-            ],
+            selection: editor_core::Operand::select(
+                block,
+                vec![
+                    trim_name(block, RimSupport::Host),
+                    trim_name(block, RimSupport::Mate),
+                ],
+            ),
         },
     );
     doc
@@ -96,7 +98,11 @@ fn both_rim_roles_round_trip() {
     // Frame, profile, the block, then the fillet over it.
     let (block, fillet) = (back.ids()[2], back.ids()[3]);
     let selection = match back.node(fillet) {
-        Some(Node::Fillet { selection, .. }) => selection.clone(),
+        Some(Node::Fillet { selection, .. }) => back
+            .selection(*selection)
+            .expect("the fillet reads a selection")
+            .names
+            .clone(),
         other => panic!("expected the fillet, got {other:?}"),
     };
     assert_eq!(

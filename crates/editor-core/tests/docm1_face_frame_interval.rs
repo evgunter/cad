@@ -181,8 +181,10 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
     // A rigid transform keeps its input's name table verbatim, so the
     // cap is still named by the extrude that minted it.
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        at: lifted.into(),
-        face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+        face: editor_core::Operand::select(
+            lifted,
+            vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
+        ),
         spin: ang(0.0),
     }));
     // The document ends at the boss PROFILE: the row below measures the
@@ -347,8 +349,10 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
         side: ExtrudeSide::Along,
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        at: cube.into(),
-        face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+        face: editor_core::Operand::select(
+            cube,
+            vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
+        ),
         spin: ang(0.0),
     }));
     let boss_p = r.insert(Node::Profile(fixture::desc(

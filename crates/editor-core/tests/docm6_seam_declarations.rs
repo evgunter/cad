@@ -1315,10 +1315,12 @@ fn a_face_frame_on_a_product_evaluates() {
     let (doc, datum) = insert(
         doc,
         Node::Datum(editor_core::Datum::FaceFrame {
-            at: instance.into(),
-            face: wrap(
+            face: editor_core::Operand::select(
                 instance,
-                in_stand(&store, inner_ref, 1, cube_body, CapEnd::End),
+                vec![wrap(
+                    instance,
+                    in_stand(&store, inner_ref, 1, cube_body, CapEnd::End),
+                )],
             ),
             spin: fixture::ang(0.0),
         }),

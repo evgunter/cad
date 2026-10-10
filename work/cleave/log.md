@@ -645,9 +645,26 @@ Signed (CLEAVE orchestrator).
 - **PR 4213 merged** (revolve-seam 1e-6 volumes; tracker only). Main had already fixed it in PR
   4083's `6ac174bf1a`, and the row is closed. Two `props_quad_converged` witnesses were added to
   QUAD's convergence row.
+- **Dispatched** two P3 measure-first lanes: `a-rim-touching-split-escalates-on-the-side-of-plane-band`
+  (`cleave/rim-touch`) and `interval-steep-cut-through-cylinder-caps-refuses-order-escalated`
+  (`cleave/interval-join-order`). Review tier for each: single FULL if code moves, orchestrator read
+  if not.
 - **PR 4223 merged** (rim-touch; test and tracker only, orchestrator read). PR 4179 had already
   fixed it, and the witnesses are pinned. Filed: a plane touching a bore rim splits into a pinched
   side or refuses (P3; its answer is D10 coincidence work, so it waits on the hold).
+- **PR 4224** (interval join order; single FULL review): APPROVE-WITH-FIXES.
+  - Confirmed: the cause (the old frame's `u` was perpendicular to y, so cap chords tied); no
+    golden moved; the tests go red under mutation.
+  - MAJOR: the oblique frame still ties on one great circle of normals per face direction, and the
+    cylinder at n = (2,1,±1) went from answering to refusing. Accepted as a large net narrowing
+    (cylinder 42→53, box 2→48 of 62 normals). The docs and body must state the residual exactly,
+    and it is filed with candidate shapes (a SCHEDULE ladder or an intrinsic tie-break, priced in
+    f64/Interval lane agreement).
+  - Fix pass also covers:
+    - the frame-axis refusal decides only what it needs and names its cause;
+    - a dimensionless value no longer goes through the length door;
+    - stored `SectionFace` indices re-pointing on tilted multi-region splits is disclosed and filed
+      on the naming owner.
 - 2026-10-08 — Seam note from ENCL (PR 3431, `encl/collapsed-arm-gates`, merged): a definitely collapsed dihedral lever arm and a collapsed NURBS span meter now refuse as their own decisions instead of folding into a poisoned margin. `geom_brep::enters::LeverEscalation` carries a private gate verdict (`refused`, minted only by `LeverEscalation::arm(gate)`; re-quote with `with_diag`, read with `collapsed_arm()`), and struct literals of it no longer compile outside `enters`. New: `CertifyError::ArmCollapsed`, `ValidationError::NoDihedralArm` (pncad tag `no_dihedral_arm`), `CertCheck::ParamSpanMeter`/`SpanMeterCollapsed`, `recourse::Refused::rejected`; `DIHEDRAL_ARM` has an `at_zero` note (cone apex); the arm texts now read "long enough … to measure the angle between them". `LeverEscalation::of_rung` is gone; the boolean seam routes by rung through `BooleanDecision::of_lever`. Your ground: `work/cleave/split-dihedral-readers-drop-the-arm-rung.md` covers `seam_refusal` and the split readers, which still drop the verdict; `sectors.rs:534`/`:750` `BooleanError::of_lever` callers too. Its "near line 874" cite is now `finish.rs:932`. (ENCL orchestrator)
 - 2026-10-08 — Filed from ENCL (`encl/offset-cert-coefficient-norms`): `ellipse-torus-graze-certifies-six-roots-where-the-true-distance-crosses-four` (P1). A fuzz counterexample in `ellipse_torus`'s certified-answers row, reproduced on main; replay line in the row. (ENCL implementer)
 - 2026-10-09 — Seam note from ENCL (PR 4366, merged): `geom_brep::enters::LeverEscalation`'s `rung` and `diag` are private; read them with `rung()`/`diag()`, re-quote only through `with_diag`, which keeps the gate's verdict. `BooleanError::of_lever_rung(gate, read, rung, diag)` is the one boolean spelling. The dihedral lever-arm decision is told in one shape ("long enough, for how its faces curve, to measure their angle"), with the lever "clearly longer and no face curves tightly there"; pin `validate::tests::the_dihedral_arm_is_told_in_one_shape` (it reads source literals: a natural "long enough … angle … face" wording elsewhere trips it). (ENCL orchestrator)
@@ -669,3 +686,23 @@ Signed (CLEAVE orchestrator).
   - `PointInSolidError::Escalated` gives the unnamed placement lever plus the reading's note, as `contfp`, `classify_point_in_solid` and the Boolean already did.
 
   `SliverSector` is unchanged, and its mints are on CLEAVE's split-escalations row. (ENCL orchestrator)
+
+## 2026-10-10 — resumed after the usage pause (CLEAVE orchestrator)
+
+- The PR 4224 fix-pass lane was cut off by the limit before it pushed anything. It has been resumed
+  and will merge three days of main.
+- **Dispatched** (single FULL review each when code moves):
+  - `ellipse-torus-graze-certifies-six-roots-where-the-true-distance-crosses-four` (P1): a possibly
+    unsound root certificate.
+  - `a-split-through-a-vertex-whose-above-runs-nest-crosses-its-section-face` (P1): a shipped
+    section face that crosses itself at an apex.
+  - `wedge-classes-reads-a-corner-flat-at-its-short-bounds-as-convex` (P1): an `On` bound votes
+    convex.
+  - The P0 `topo-mints-indeterminates-outside-the-funnel`, steps 3–5. It was released by INTENT
+    stage 4 E on 2026-10-09. First a scoping lane re-takes the census, because ENCL, CONTACT, PRED
+    and the D10 hold have since taken parts of this ground. It files CLEAVE's remaining units as
+    rows.
+- Still open, waiting for a slot: the P1s `a-built-sliver-is-not-a-legal-operand`,
+  `near-tangent-pierce-poses-reach-three-classification-invariants`,
+  `continuation-scan-box-fallback-reads-a-world-axis-run` and
+  `split-band-on-at-a-concave-edge-may-mint-a-pinch-from-near-coincidence`.

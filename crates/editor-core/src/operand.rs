@@ -36,6 +36,17 @@ pub enum Operand {
     Var(VarId),
     /// A variable, by name.
     Name(VarName),
+    /// **A selection authored at this seat** (D10): the entities `names`
+    /// names of the body `body` reads. The door mints one anonymous
+    /// selection variable of the seat's kind ([`crate::VarDef::Select`])
+    /// and the seat reads it, so a selection authored at two seats is
+    /// two variables; a seat shares one by reading it by id or name.
+    Select {
+        /// The body read.
+        body: Box<Operand>,
+        /// The entities, by name.
+        names: Vec<crate::names::StableName>,
+    },
 }
 
 impl From<RecipeNodeId> for Operand {
@@ -62,6 +73,29 @@ impl Operand {
     pub fn output(node: RecipeNodeId, port: u8) -> Self {
         Self::Output { node, port }
     }
+
+    /// The names this operand authors a selection of, its body's
+    /// included.
+    #[must_use]
+    pub fn selected_names(&self) -> Vec<&crate::names::StableName> {
+        match self {
+            Self::Select { body, names } => {
+                let mut held = body.selected_names();
+                held.extend(names);
+                held
+            }
+            Self::Node(_) | Self::Output { .. } | Self::Var(_) | Self::Name(_) => Vec::new(),
+        }
+    }
+
+    /// The selection of `names` in the body `body` reads.
+    #[must_use]
+    pub fn select(body: impl Into<Operand>, names: Vec<crate::names::StableName>) -> Self {
+        Self::Select {
+            body: Box::new(body.into()),
+            names,
+        }
+    }
 }
 
 impl core::fmt::Display for Operand {
@@ -71,6 +105,9 @@ impl core::fmt::Display for Operand {
             Self::Output { node, port } => write!(f, "port {port} of node {node}"),
             Self::Var(var) => write!(f, "{var}"),
             Self::Name(name) => write!(f, "{name}"),
+            Self::Select { body, names } => {
+                write!(f, "the selection of {} names in {body}", names.len())
+            }
         }
     }
 }
@@ -95,8 +132,17 @@ pub enum OperandSlot {
     /// each reads, so one slot (its field is `frame` on a tube and
     /// `plane` on the other two).
     Frame,
-    /// The body a blend, a shell or a split reshapes.
+    /// The body a split cuts.
     Target,
+    /// The edges a fillet or a chamfer blends.
+    Selection,
+    /// The faces a shell opens into rims.
+    Open,
+    /// The face a face frame is read off.
+    Face,
+    /// Reference `i` of a measure, in argument order, under its
+    /// primitive (which decides what the reference admits).
+    Measured(crate::MeasureVerb, u8),
     /// A split's plane.
     Tool,
     /// A boolean's first operand.
@@ -109,8 +155,6 @@ pub enum OperandSlot {
     Input,
     /// What a part projection picks from.
     Of,
-    /// The body a face frame reads its face out of.
-    At,
     /// The body a world placement places.
     Body,
 }
@@ -126,13 +170,17 @@ impl OperandSlot {
             Self::Axis => "axis".to_owned(),
             Self::Frame => "frame".to_owned(),
             Self::Target => "target".to_owned(),
+            Self::Selection => "selection".to_owned(),
+            Self::Open => "open faces".to_owned(),
+            Self::Face => "face".to_owned(),
+            Self::Measured(_, i) => format!("reference {}", u16::from(i) + 1),
             Self::Tool => "tool".to_owned(),
             Self::A => "first operand".to_owned(),
             Self::B => "second operand".to_owned(),
             Self::Member(i) => format!("member {}", u64::from(i) + 1),
             Self::Input => "input".to_owned(),
             Self::Of => "source".to_owned(),
-            Self::At | Self::Body => "body".to_owned(),
+            Self::Body => "body".to_owned(),
         }
     }
 
@@ -144,9 +192,13 @@ impl OperandSlot {
             Self::Axis => SlotKind::Is(VarKind::Axis),
             Self::Frame => SlotKind::Is(VarKind::Frame),
             Self::Tool => SlotKind::Is(VarKind::Plane),
-            Self::Target | Self::A | Self::B | Self::Member(_) | Self::At | Self::Body => {
+            Self::Target | Self::A | Self::B | Self::Member(_) | Self::Body => {
                 SlotKind::Is(VarKind::Body)
             }
+            Self::Selection => SlotKind::Is(VarKind::Edges),
+            Self::Open => SlotKind::Is(VarKind::Faces),
+            Self::Face => SlotKind::Is(VarKind::Face),
+            Self::Measured(verb, _) => SlotKind::Measured(verb),
             Self::Input | Self::Of => SlotKind::Placeable,
         }
     }
@@ -165,13 +217,18 @@ impl core::fmt::Display for OperandSlot {
 /// A scalar slot and an operand seat that holds one kind are
 /// [`SlotKind::Is`]. One operand seat admits a set of kinds:
 /// [`SlotKind::Placeable`] is exactly `{Body, Bodies}` (a placer places
-/// one body or a list of them).
+/// one body or a list of them), and [`SlotKind::Measured`] the kinds
+/// its primitive admits ([`crate::MeasureVerb::admits`]: one entity, or
+/// for `min_clearance` a whole body).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum SlotKind {
     /// Exactly this kind: a seat's own, or a scalar slot's dimension.
     Is(VarKind),
     /// `Body` or `Bodies`.
     Placeable,
+    /// What a reference of this primitive admits
+    /// ([`crate::MeasureVerb::admits`]).
+    Measured(crate::MeasureVerb),
 }
 
 impl SlotKind {
@@ -182,6 +239,30 @@ impl SlotKind {
         match self {
             Self::Is(is) => kind == is,
             Self::Placeable => matches!(kind, VarKind::Body | VarKind::Bodies),
+            Self::Measured(verb) => verb.admits(kind),
+        }
+    }
+
+    /// **The kind a selection authored at this seat is minted at**
+    /// ([`Operand::Select`]), given the entity kind its names name:
+    /// the seat's own selection kind, or at a seat admitting several,
+    /// the singleton of that entity kind. `None` where the seat holds no
+    /// selection of it.
+    #[must_use]
+    pub fn selection_kind(self, entity: crate::names::EntityKind) -> Option<VarKind> {
+        use crate::names::EntityKind as E;
+        match self {
+            Self::Is(kind) => kind.selection().is_some().then_some(kind),
+            // The singleton of the names' entity kind, whether or not
+            // the primitive admits it: the door mints it and the read's
+            // kind check refuses it as any seat's would.
+            Self::Measured(_) => match entity {
+                E::Face => Some(VarKind::Face),
+                E::Edge => Some(VarKind::Edge),
+                E::Vertex => Some(VarKind::Vertex),
+                E::Body => None,
+            },
+            Self::Placeable => None,
         }
     }
 }
@@ -191,6 +272,17 @@ impl core::fmt::Display for SlotKind {
         match self {
             Self::Is(kind) => write!(f, "{} {kind}", crate::sentence::article(&kind.to_string())),
             Self::Placeable => f.write_str("a body or a list of bodies"),
+            Self::Measured(verb) => f.write_str(&verb.admitted()),
         }
+    }
+}
+
+/// A sited reference as a measure seat reads it: the selection of its
+/// name in `at`'s body. The door reads a whole body's name as that body
+/// itself, once it has checked the name is the body's
+/// ([`crate::var::SelectionFault::OtherBody`]).
+impl From<crate::SitedRef> for Operand {
+    fn from(r: crate::SitedRef) -> Self {
+        Self::select(r.at, vec![r.name])
     }
 }
