@@ -1351,7 +1351,7 @@ fn square_folds<T: Decide>(
 
 /// `(x² + y²)^½`.
 fn hypot<T: Real>(x: T, y: T) -> T {
-    (x * x + y * y).sqrt()
+    (x.powi(2) + y.powi(2)).sqrt()
 }
 
 /// Whether `K` reaches past a strip edge's line, by the margin `m` of its
