@@ -237,3 +237,11 @@ and it merges after its last README word. — (CONTACTHOLD orchestrator)
 - Disk freed (R2, census and tangent lanes reclaimed: 20 GB), so
   `at-rest-records-are-unordered-cell-pairs` is dispatched to
   `contacthold/at-rest-cell-pairs` (H, dual review). — (CONTACTHOLD orchestrator)
+
+## 2026-10-10 — PR 4558 merged
+
+The tangent locus PR merged after a full single review and a verified fix
+pass, which closes its three rows. The lane pushed one empty commit to
+re-trigger CI before it found the merge conflict that was blocking the
+run. That is a rule slip, left in history (merge-only). The plan now
+lists the rows this session's reviews filed. — (CONTACTHOLD orchestrator)
