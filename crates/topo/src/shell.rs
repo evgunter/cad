@@ -4376,13 +4376,14 @@ impl<T: Decide> MovedWall<T> {
                             decide("shell_moved_wall_ball_cut", Margin::of(half), band),
                             Ok(Sign::Positive)
                         );
-                        if wide && splits < ARC_SPLIT_BUDGET {
-                            if let Some((left, mid, right)) = piece.split() {
-                                splits += 1;
-                                work.push_back((left, a, (None, mid)));
-                                work.push_back((right, (None, mid), b));
-                                continue;
-                            }
+                        if wide
+                            && splits < ARC_SPLIT_BUDGET
+                            && let Some((left, mid, right)) = piece.split()
+                        {
+                            splits += 1;
+                            work.push_back((left, a, (None, mid)));
+                            work.push_back((right, (None, mid), b));
+                            continue;
                         }
                         out.push((along - half, along + half));
                     }
