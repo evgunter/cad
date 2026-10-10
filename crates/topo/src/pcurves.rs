@@ -1109,10 +1109,8 @@ fn in_row_space(
     carrier: &geom_core::spline::KnotVector,
     row: &geom_core::spline::KnotVector,
 ) -> bool {
-    let (a, b) = row.domain();
-    let mirrored: Vec<f64> = row.knots().iter().rev().map(|k| a + b - k).collect();
-    carrier.degree() == row.degree()
-        && (carrier.knots() == row.knots() || carrier.knots() == &mirrored[..])
+    carrier.degree() == row.degree() && carrier.knots() == row.knots()
+        || row.is_reflection_of(carrier)
 }
 
 /// The uniform clamped degree-1 knot vector on `[0, 1]` with `spans`
@@ -7275,6 +7273,8 @@ mod villarceau_joint_tests {
 
 #[cfg(test)]
 mod row_space_tests {
+    #![allow(clippy::unwrap_used)]
+
     use super::in_row_space;
     use geom_core::spline::KnotVector;
 
@@ -7293,9 +7293,15 @@ mod row_space_tests {
             in_row_space(&kv(&[0.1, 0.1, 0.15, 0.3, 0.3]), &row),
             "an exact mirror the rounded reflection misses is in the row space"
         );
-        assert!(in_row_space(&row, &row), "the row's own knots are in its space");
         assert!(
-            !in_row_space(&kv(&[0.0, 0.0, 0.9, 1.0, 1.0]), &kv(&[0.0, 0.0, 0.1, 1.0, 1.0])),
+            in_row_space(&row, &row),
+            "the row's own knots are in its space"
+        );
+        assert!(
+            !in_row_space(
+                &kv(&[0.0, 0.0, 0.9, 1.0, 1.0]),
+                &kv(&[0.0, 0.0, 0.1, 1.0, 1.0])
+            ),
             "a vector the rounded reflection reproduces, a 2Sum residual off the exact \
              one, is not in the row space"
         );
