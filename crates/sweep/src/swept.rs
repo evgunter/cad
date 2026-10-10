@@ -47,7 +47,8 @@
 
 use geom::{Curve3, Surface};
 use geom_brep::{
-    EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, NewellError, SketchSegment, newell_plane,
+    EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, NewellError, SketchSegment,
+    newell_plane,
 };
 use geom_core::{
     Affine3, Arc2, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
@@ -580,10 +581,11 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
     q_to: Point3<T>,
     tol: Tol,
 ) -> EdgeCurveSpec<T> {
-    let description = EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
-        segment: sketch_segment(seg),
-        place,
-    });
+    let description =
+        EdgeDescriptionSpec::Scaffold(MappedCurve::whole(MappedSource::PlacedSegment {
+            segment: sketch_segment(seg),
+            place,
+        }));
     match seg.kind().get() {
         SegmentKind::Line => EdgeCurveSpec {
             description,
@@ -1715,8 +1717,12 @@ mod tests {
         turn: Sign,
     ) -> Vec<(&'static str, &'static str)> {
         let lit = T::from_f64;
-        let EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
-            segment: SketchSegment::Arc { arc, .. },
+        let EdgeDescriptionSpec::Scaffold(MappedCurve {
+            source:
+                MappedSource::PlacedSegment {
+                    segment: SketchSegment::Arc { arc, .. },
+                    ..
+                },
             ..
         }) = spec.description
         else {

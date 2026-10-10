@@ -1595,9 +1595,9 @@ impl<L: LeafSet> ExprTree<L> {
     }
 }
 
-/// The address of an expression subtree inside a document (spec D5,
-/// F7's "GeomSource's missing type"): a node, a NAMED slot (never an
-/// index), and a chain of AST-child indices. Stable under edits to
+/// The address of an expression subtree inside a document (spec D5):
+/// a node, a NAMED slot (never an index), and a chain of AST-child
+/// indices. Stable under edits to
 /// other expressions and to unrelated subtrees by construction.
 ///
 /// **Staleness caveat (M4 PR 1 review, non-blocker)**: within its OWN
@@ -1605,9 +1605,7 @@ impl<L: LeafSet> ExprTree<L> {
 /// ANCESTOR of the referent (or the whole slot) with a same-shape
 /// expression silently re-points an old path at a different
 /// subexpression; v1 has no slot generation/version to detect this.
-/// Consumers must re-derive their paths after any same-slot edit;
-/// PR 5's GeomSource must NOT assume same-slot staleness is
-/// detectable.
+/// Consumers must re-derive their paths after any same-slot edit.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExprPath {

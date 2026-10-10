@@ -4,7 +4,7 @@ This spec carries `work/germ/boolean-sector-algebra-has-no-cone-arm.md`
 (P1, H). It measures the whole chain of doors a cone operand meets past
 the pair gate (§0), specifies each door's arm (§1), checks each against
 the D10 hold (§2), and cuts the units (§3). Every unit here lands below
-the operand gate and precedes `docs/GERM-VERBS-CONE-SPEC.md`'s U7 (the
+the operand gate and precedes the cone admission spec's U7 (`docs/doc-ledger/germ-verbs-cone-spec.md`) (the
 roster flip). The spec is deleted when its last unit merges.
 
 Read on `c333c6ac65`. Line numbers ride beside names and may rot.
@@ -73,11 +73,11 @@ its own arm back off with the rest left on.
 | D4 | the germ-pair dispatch | `bool_connect`'s `no_arm` (`join.rs` :729, :808) | `CurvedBooleanUnsupported { kind: Cone }` |
 | D5 | the planar side's chord | `chord_join::bool_planar_chord_spec`'s wall guard (`chord_join.rs` :1577) | `Join(SectionInvariant { "… neither a cylinder nor a sphere (arm not wired)" })` |
 | D6 | the interior-loop guard | `ops::interior_loop_verdict` (:963, raised at :987): `section_cert::classify`'s `_ => Intractable` (:595) for every cone pair | `CurvedPairUnsupported { site: InteriorLoopGuard }` |
-| D7 | the result door's volume | `props::face_flux` (:2387): a ring on a cone face | `ResultInvalid { VolumeUncomputable { RingOnCurvedFace } }` |
+| D7 | the result door's volume | `props::face_flux` (:2387): a ring on a cone face | none since its arm landed (§1.7); `ResultInvalid { VolumeUncomputable { RingOnCurvedFace } }` before |
 
 | class | poses | chain | end of the road with every door peeled |
 |---|---|---|---|
-| **plane × cone, ellipse or circle** | R1, R2, R7, B4, C1, X3, T1 | **D1** (cone-first orders) or **D2** (other-first) → D1/D2 → D3 → D4 → D5 → D6 → D7 | **bodies**, all correct (§0.2). D7 stops ∪ and cone ∖ other where the result keeps a ring on the cone face (R2, T1). |
+| **plane × cone, ellipse or circle** | R1, R2, R7, B4, C1, X3, T1 | **D1** (cone-first orders) or **D2** (other-first) → D1/D2 → D3 → D4 → D5 → D6 → D7 | **bodies**, all correct (§0.2), ∪ and cone ∖ other included where the result keeps a ring on the cone face (R2, T1): D7's arm reads it (§1.7). |
 | **plane × cone, hyperbola or parabola** | B1, C2, C3, C4 | **D1/D2** → D3, where `plane_cone_section` refuses the conic | the conic refusal (by decision, below) |
 | **cone × cylinder, general pose** | R3, R4, B3 | **D1/D2** → D3, `(Cone, Cylinder)` has no frame | `GermFrameUnsupported`: `cone-pairs-in-general-pose-have-no-section-arm` |
 | **coaxial, events on the caps only** | R5, B2 | **D6** first: no germ lands on the cone face | **bodies**, all correct, once D6 lets the cone pairs through |
@@ -94,7 +94,7 @@ its own arm back off with the rest left on.
   germs are matched, before `bool_connect` dispatches the pair. TANG's
   "plane×cone germ lane" opened the frame and the dispatch together.
 - **Two more doors stand behind the chord: D6 and D7.** D6 is the
-  section certificate's cone rows (`GERM-VERBS-CONE-SPEC.md` U4). It is
+  section certificate's cone rows (the cone admission spec's U4). It is
   decided before the join and raised after it, only where a body would be
   returned. So D6 is the last refusal on the crossings path, and it fires
   even when every join door is open.
@@ -122,12 +122,12 @@ Two things the probe saw that are not wrong answers:
 - `point_in_solid` on R2's result refused at 872 of the 1500 points,
   `PartialConeFace`. The ∩ leaves an apex-closed cone sector, and
   `cone_trimmed_window` (`solid_contain.rs` :1715) refuses it. That is
-  `GERM-VERBS-CONE-SPEC.md`'s U3 (`cone-apex-closure`).
+  the cone admission spec's U3 (`cone-apex-closure`).
 - The ∪ and cone ∖ other results that keep a ring on the cone face
   refused at D7: built, then refused typed at the result door.
 
 **What this does not cover.** These are 20 poses, not a search. In
-particular, `GERM-VERBS-CONE-SPEC.md`'s P3 is not among them (the edges
+particular, the cone admission spec's P3 is not among them (the edges
 from nappe to nappe that `(Negative, Negative)` clears silently).
 REACH's lane closed that arm for the cone (R6 is its pose here); its
 certificate-row consequence is U4's to pin. The bypass also stopped
@@ -289,18 +289,18 @@ hyperbola's typed refusal (R1).
 
 ### 1.7 D6 and D7: not this spec's arms
 
-- **D6** is `GERM-VERBS-CONE-SPEC.md`'s U4 (the certificate's cone rows:
+- **D6** is the cone admission spec's U4 (the certificate's cone rows:
   cone × plane, the coaxial pairs). §0.2 says what the mutant that skips
   it returned on these poses. It says nothing about the poses U4 exists
   for: the premise-S pose P3, and the null loops.
-- **D7** is a new arm, the ring on a cone face in
-  `props::face_flux`. The cylinder and torus read a ring there in closed
-  form only when its edges are lines and circles. A cone face's rings in
-  these poses are ellipse arcs (T1, R2), so the closed form does not
-  reach them, and the quadrature lane reads no ring at all. Until this
-  arm lands, ∪ and cone ∖ other with a ring on a cone face are built and
-  then refused typed at the result door. That is safe, so the arm is not
-  on U7's path (Q5).
+- **D7** is its own arm, the ring on a cone face in
+  `props::face_flux`, built after U7 (Q5). The cylinder and torus read a
+  ring there in closed form only when its edges are lines and circles; a
+  cone face's rings in these poses are ellipse arcs (T1, R2), and the
+  cone's closed form reads them anyway: its flux and area are the
+  boundary's vector area, summed over every loop, its rings certified
+  holes in the face (`geom_brep::props::cone_face_closed_form`). So ∪
+  and cone ∖ other with a ring on a cone face build.
 
 ## 2. The D10 check, per door
 
@@ -344,7 +344,7 @@ rows pin them as refusals, never as bodies.
 
 ## 3. Units, in dependency order
 
-**How the units stay safe.** Like `GERM-VERBS-CONE-SPEC.md`'s, every
+**How the units stay safe.** Like the cone admission spec's, every
 unit here leaves `boolean_arm_exists` untouched. The cone keeps refusing
 at the operand gate, and the gate pins stay green:
 
@@ -369,12 +369,12 @@ optional.
 | U-S4 `plane-cone-join-lane` | D4 + D5: the dispatch arms and the chord guard (§1.4, §1.5) | U-S3 | M | dual |
 | U-S5 `cone-ring-volume` (not on U7's path) | D7: rings on a cone face in `face_flux`, the quadrature lane reading rings (§1.7) | — | H | dual |
 | U-S6 `near-apex-join-poison` | R6: measure the poison input, refuse at its source (§1.6) | U-S1, U-S2 | E–M | single |
-| — then `GERM-VERBS-CONE-SPEC.md` U4 (D6), U6, **U7** | | U-S1–U-S4, U-S6 | | |
+| — then the cone admission spec U4 (D6), U6, **U7** | | U-S1–U-S4, U-S6 | | |
 | U-H1 `cone-tangent-lump` | **HELD by D10**: the second-order lump on a cone pair | `d10-one-way-to-say-intent-is-unbuilt` | M | dual |
 | U-H2 `cone-on-carrier-sector` | **HELD by D10**: a cone sector on a curved face | `d10-one-way-to-say-intent-is-unbuilt` | H | dual |
 
 U-S1, U-S2 and U-S3 are independent and may land in any order. U-S4
-needs the frame. This spec's U-S3 + U-S4 is `GERM-VERBS-CONE-SPEC.md`'s
+needs the frame. This spec's U-S3 + U-S4 is the cone admission spec's
 U8 (the axis-normal join, "after the flip") and its Q1's ellipse, moved
 before the flip: the item says it must precede U7, and §0 measured that
 U8's own fixture (P5, here B4) answers once these land. Q1 asks how to
@@ -479,7 +479,7 @@ production pipeline after the join (`sweep/tests/cone_join_lane.rs`):
 
 ## 4. Open questions (⚑ = design fork)
 
-- **Q1 Reconciling with `GERM-VERBS-CONE-SPEC.md`.** Its U8 (the
+- **Q1 Reconciling with the cone admission spec.** Its U8 (the
   axis-normal join, after the flip) and Q1 (the tilted ellipse, ruled
   in by Ev on 2026-10-01) are this spec's U-S3 + U-S4, before the flip.
   Recommendation: retire U8 there and point it here. The orchestrator
@@ -517,11 +517,10 @@ production pipeline after the join (`sweep/tests/cone_join_lane.rs`):
   face 1 m long in `a_frustum_far_from_its_apex_is_levered_at_its_own_reach`),
   deciding margins the face cannot. It is not kept as a fallback; a
   plane×cone frame handed any other extent is a desync.
-- **Q5 U-S5's place.** The ring on a cone face is built and then refused
-  at the result door. That is safe, so U-S5 is off U7's path.
-  Recommendation: queue it after U7, and give U7's rows an explicit
-  `ResultInvalid` pin for T1's ∪ so the door's eventual opening is a
-  red row.
+- **Q5 U-S5's place.** The ring on a cone face was built and then
+  refused at the result door, which is safe, so U-S5 was off U7's path
+  and queued after it, U7's rows pinning T1's ∪ as `ResultInvalid` so
+  the door's opening would be a red row. U-S5 has landed (§1.7).
 - **Q6 The hold's two rows.** U-H1 and U-H2 park with
   `blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Under D10 the
   second, a coincident cone sector, may not be a GERM unit at all: it

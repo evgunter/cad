@@ -465,8 +465,7 @@ fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
     let (doc, carrier) = insert(
         doc,
         Node::Datum(editor_core::Datum::FaceFrame {
-            at: kept.into(),
-            face: named.clone(),
+            face: editor_core::Operand::select(kept, vec![named.clone()]),
             spin: fixture::ang(0.0),
         }),
     );
@@ -481,10 +480,16 @@ fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
     )
     .expect("a name is not an edge, so the delete lands");
     let reported = crate::fixture::without_anonymous(&applied.maintenance);
-    let [Maintenance::Strand { node, name, .. }] = reported.as_slice() else {
+    let [Maintenance::StrandedSelection { readers, name, .. }] = reported.as_slice() else {
         panic!("one strand, got {reported:?}");
     };
-    assert_eq!((node.id(), name.name()), (carrier, &named));
+    assert_eq!(
+        (
+            readers.iter().map(|r| r.id()).collect::<Vec<_>>(),
+            name.name()
+        ),
+        (vec![carrier], &named)
+    );
     assert_eq!(
         name.minter().label(),
         Some(&label("base plate")),
@@ -497,8 +502,8 @@ fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
             .next(),
         Some(
             format!(
-                "Datum frame (on face) \"mount\" ({}) carries a name for the side wall over \
-                 loop 0 step 1 of Extrude \"base plate\" ({})",
+                "Datum frame (on face) \"mount\" ({}) selects the side wall over loop 0 step \
+                 1 of Extrude \"base plate\" ({})",
                 tag(carrier.0.digest()),
                 tag(victim.0.digest())
             )
@@ -518,6 +523,7 @@ fn a_forwarded_name_speaks_its_labelled_minting_node() {
     let refused = refusal(
         &doc,
         DocEdit::Rebind {
+            body: None,
             from: unreferenced.clone(),
             to: fixture::fname(extrude, fixture::wall(&doc, extrude, 1)),
         },
@@ -662,16 +668,17 @@ fn forward_reference(id: &str) -> (ProfileDoc, editor_core::StableName, RecipeNo
     let (doc, _fillet) = insert(
         doc,
         Node::Fillet {
-            target: a.into(),
             radius: len(0.1),
-            selection: vec![early.clone()],
+            selection: editor_core::Operand::select(a, vec![early.clone()]),
         },
     );
     let (doc, [_, _, c]) = block(doc, 0.5);
     let late = fixture::fname(c, fixture::wall(&doc, c, 0));
+    let body = doc.output(a, 0);
     let (doc, _) = step(
         doc,
         DocEdit::Rebind {
+            body,
             from: early,
             to: late.clone(),
         },
@@ -1333,6 +1340,7 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
     let rebind = refusal(
         &doc,
         DocEdit::Rebind {
+            body: None,
             from: unreferenced.clone(),
             to: fixture::fname(extrude, fixture::wall(&doc, extrude, 1)),
         },

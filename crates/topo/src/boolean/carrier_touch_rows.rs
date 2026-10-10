@@ -259,7 +259,6 @@ fn a_ball_holding_a_face_vertex_in_the_band_of_its_foot_is_not_off_the_face() {
     let face = cyl_wall_sheet(
         &mut body,
         CylFrame::canonical(1.0),
-        None,
         (0.0, FRAC_PI_2),
         (0.0, 1.0),
         tol,

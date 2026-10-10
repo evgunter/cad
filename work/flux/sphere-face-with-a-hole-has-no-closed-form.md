@@ -27,9 +27,9 @@ ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1),
 
 The result is right to carry the hole: the slab's top face pierces the
 ball's face in a circle no seam crosses. `topo::props::face_flux`
-refuses any ring on a curved face but a rim-and-ruling cylinder wall,
-and `geom_brep::props::curved_face_loops` reads one loop for every
-other kind. The point-in-solid at-infinity probe reads the same
+refuses any ring on a curved face but a cone wall's or a rim-and-ruling
+cylinder or torus wall's, and `geom_brep::props::curved_face_loops`
+reads one loop on a sphere. The point-in-solid at-infinity probe reads the same
 volume (`solid_contain::at_infinity_side`, `VolumeUncertified`), so an
 operand with such a face cannot be classified either.
 

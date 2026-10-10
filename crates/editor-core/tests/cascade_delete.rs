@@ -89,12 +89,11 @@ fn fork() -> (TDoc, [RecipeNodeId; 4]) {
     let (doc, profile) = insert(&doc, Node::Profile(FakeProfile("square")));
     let (doc, body) = extrude(&doc, profile);
     let fillet = |target| Node::Fillet {
-        target,
         radius: len(0.001),
-        selection: Vec::new(),
+        selection: editor_core::Operand::select(target, Vec::new()),
     };
-    let (doc, left) = insert(&doc, fillet(body.into()));
-    let (doc, right) = insert(&doc, fillet(body.into()));
+    let (doc, left) = insert(&doc, fillet(body));
+    let (doc, right) = insert(&doc, fillet(body));
     (doc, [profile, body, left, right])
 }
 

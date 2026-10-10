@@ -42,6 +42,9 @@ test-utils = { path = "../test-utils" }
 proptest = { workspace = true }
 # Exact dyadic arithmetic for the oracle rows of the running bounds.
 num-bigint = { workspace = true }
+# `test-support` ON for `geom_core::test_support`, the suites' reading
+# of a reporting margin's upper end.
+geom-core = { path = "../geom-core", features = ["test-support"] }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.

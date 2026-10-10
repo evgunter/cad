@@ -60,9 +60,8 @@ pub fn try_intersect<S: Scalar>(
     pncad::topo::intersect(a, b, tol)
 }
 
-/// A ∪* B with the scene's flush contacts DECLARED (M4 PR 5: the
-/// author's coincidence intent, stated — the kernel never infers it
-/// from values).
+/// A ∪* B with the scene's flush contacts DECLARED: the author's
+/// coincidence intent, stated.
 pub fn try_union_declared<S: Scalar>(
     a: &AtRestBody<S>,
     b: &AtRestBody<S>,
@@ -129,7 +128,7 @@ pub fn flush_declarations<S: Scalar>(
 
 /// The oracle: volume of a boolean result vs the exact expectation.
 /// `Good` carries the whole [`BooleanBody`] (body + kind + the
-/// declared contacts the 3′ gate consumes); the two failure shapes
+/// contact records the 3′ gate consumes); the two failure shapes
 /// carry what actually happened, for narration.
 // Size skew vs the slim failure variants is inherent (same posture as
 // the kernel's own `BooleanResult`).

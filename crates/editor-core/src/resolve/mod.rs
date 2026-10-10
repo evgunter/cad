@@ -2218,8 +2218,8 @@ pub fn rebind_suggestions<T: Decide>(eval: &Evaluation<T>, name: &StableName) ->
 /// not checkable here and defer to evaluation-time resolution.
 ///
 /// Checked sites: every payload name an `InsertNode` carries
-/// ([`crate::node::Node::payload_names`] is the list) and `Rebind`'s
-/// target. Every other
+/// ([`crate::node::Node::payload_names`] is the list), every name a
+/// selection it or a `SetParam` authors carries, and `Rebind`'s target. Every other
 /// edit validates exactly as [`crate::edit::apply`] — including the
 /// four appearance edits, which DO carry a name: theirs resolves at
 /// evaluation, into a typed [`crate::appearance::AppearanceLoss`].
@@ -2260,7 +2260,14 @@ pub fn apply_with_names<T: Decide>(
     // unchecked group silently, which is the one outcome the split is
     // there to prevent.
     match edit {
-        DocEdit::InsertNode { node, .. } => names.extend(node.payload_names()),
+        DocEdit::InsertNode { node, .. } => {
+            names.extend(node.payload_names());
+            names.extend(node.selected_names());
+        }
+        DocEdit::SetParam {
+            value: crate::SlotValue::Read(read),
+            ..
+        } => names.extend(read.selected_names()),
         DocEdit::Rebind { to, .. } => names.push(to),
         DocEdit::SetDeclare { pairs, .. } => {
             names.extend(pairs.iter().flat_map(|((a, b), _)| [&a.name, &b.name]));

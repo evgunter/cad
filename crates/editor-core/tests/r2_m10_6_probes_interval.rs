@@ -59,7 +59,7 @@ use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_v
 use editor_core::mc::{McConfig, monte_carlo};
 use editor_core::report::{Dials, report_key};
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, EntityKind,
+    AssertionRelation, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, EntityKind,
     EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ProfileDoc,
     ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, StableName, UnitSym, ValuePayload, VarName,
     evaluate,
@@ -201,7 +201,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
         // The bound IS the measured value, so no enclosure separates
         // them: E10's third state at every leaf.
         bound: len(1.0),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     (r.doc, assertion)
 }
@@ -436,7 +436,7 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let assertion = r.insert(Node::Assertion {
         value: fixture::read_var(&r.doc, measure_value),
         bound: len(bound),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     (r.doc, measure, assertion)
 }

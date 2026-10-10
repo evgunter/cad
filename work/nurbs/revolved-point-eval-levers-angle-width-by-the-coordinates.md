@@ -93,3 +93,18 @@ geometry (about 2× worse) for interval width and `f64` accuracy at far
 placements (orders better). It is a design call on how the description
 should be evaluated, not a mechanical fix. The data above is the input
 for that call.
+
+**The segment arm shares the range, not the lever** (evidence from
+`nurbs/restriction-on-the-description`, which moved `SketchSegment`
+restriction onto the same range). A placed arc evaluates
+`Arc2::point_from(a, range.at(s))`, which turns the authored `a`
+about the carrier's centre, so the start's per-split rounding reaches
+the point times the radius·sweep and not the coordinates: over 64
+`(0.3, 0.7)` / `(a, 1)` splits of a unit half-turn arc it reaches
+3.1e-14 / 4.7e-14 at the origin and stays at 2.3e-13 – 3.4e-13 (one
+rounding of the coordinates) a thousand metres out
+(`crates/geom-brep/tests/sketch_segment_restriction.rs`
+`nested_segment_splits_stay_at_one_evaluations_width`). The near
+figures are 1.2–1.35× what re-deriving the endpoints stored at the same
+counts (2.3e-14 / 4.0e-14), the far ones 44–51× under it. A spelling
+chosen for `RevolvedPoint::eval` here does not reach the segment arm.

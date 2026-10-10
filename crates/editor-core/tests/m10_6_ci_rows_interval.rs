@@ -57,9 +57,9 @@ use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_vector, drive};
 use editor_core::report::{MassBasis, MassBudget};
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, EvalOptions,
-    Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ProfileDoc, ProfileLift,
-    ProfileProgram, RecipeNodeId, SitedRef, UnitSym, ValuePayload, VarName, evaluate,
+    AssertionRelation, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit,
+    EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ProfileDoc,
+    ProfileLift, ProfileProgram, RecipeNodeId, SitedRef, UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::Tol;
 
@@ -330,7 +330,7 @@ fn distributed_plate() -> ProfileDoc {
     r.insert(Node::Assertion {
         value: web,
         bound: len(SPACING - 2.0 * RADIUS - 100.0 * Tol::witness().eps()),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     r.doc
 }
@@ -452,7 +452,7 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
     r.insert(Node::Assertion {
         value: fixture::read_var(&r.doc, measure_value),
         bound: len(0.3),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     (r.doc, measure)
 }
@@ -893,7 +893,7 @@ fn plain_distance_doc() -> ProfileDoc {
     r.insert(Node::Assertion {
         value: fixture::read_var(&r.doc, measure_value),
         bound: len(0.5),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     r.doc
 }

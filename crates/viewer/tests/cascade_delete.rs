@@ -102,20 +102,12 @@ fn die_shaped(tol: Tol) -> Die {
     }
     let (doc, inner) = common::inserted(
         &doc,
-        Node::Fillet {
-            target: body.into(),
-            radius: common::len(0.001),
-            selection: Vec::new(),
-        },
+        Node::fillet(body, common::len(0.001), Vec::new()),
         tol,
     );
     let (doc, outer) = common::inserted(
         &doc,
-        Node::Fillet {
-            target: inner.into(),
-            radius: common::len(0.0005),
-            selection: Vec::new(),
-        },
+        Node::fillet(inner, common::len(0.0005), Vec::new()),
         tol,
     );
     Die {

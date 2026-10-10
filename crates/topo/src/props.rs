@@ -201,12 +201,12 @@ pub enum MassPropsError {
         /// The per-face failure.
         source: PropsError,
     },
-    /// A curved face carries interior rings and is neither a cylinder
-    /// wall (its closed form and its quadrature both read every loop:
-    /// `geom_brep::props::curved_face_loops`,
-    /// `geom_brep::props::quad::cylinder_cut_face`) nor a torus wall
-    /// bounded by circles and lines. A boolean pierce leaves a ring in
-    /// the wall it pierces.
+    /// A curved face carries interior rings and is neither a cone wall,
+    /// a cylinder wall (its closed form and its quadrature both read
+    /// every loop: `geom_brep::props::curved_face_loops`,
+    /// `geom_brep::props::quad::cylinder_cut_face`), nor a torus wall
+    /// bounded by rims and rulings. A boolean pierce leaves a ring in the
+    /// wall it pierces.
     RingOnCurvedFace {
         /// The offending face.
         face: FaceKey,
@@ -240,9 +240,9 @@ impl fmt::Display for MassPropsError {
             Self::RingOnCurvedFace { .. } => write!(
                 f,
                 "the kernel cannot yet measure the volume of a curved face with a hole, \
-                 other than a cylinder wall, or a torus wall bounded by circles and lines. \
-                 Recourse: move the cut so it crosses the face's edge instead of closing \
-                 inside the face"
+                 other than a cone wall, a cylinder wall, or a torus wall bounded by \
+                 circles about its axis and its own meridians. Recourse: move the cut so \
+                 it crosses the face's edge instead of closing inside the face"
             ),
             Self::Corrupt { what } => write!(
                 f,
@@ -268,7 +268,8 @@ impl std::error::Error for MassPropsError {}
 /// # Errors
 ///
 /// [`MassPropsError`] — a misconfigured band, an out-of-inventory
-/// face, rings on a curved face, or unresolvable structure.
+/// face, a ring on a curved face no closed form reads, or unresolvable
+/// structure.
 ///
 /// **Not every valid body computes**, and the sentence that used to
 /// stand here (*"bodies that pass the structural tiers and were built
@@ -2508,8 +2509,8 @@ fn face_loops<T: Decide>(
 }
 
 /// **A face's closed form**, at whatever scalar its geometry is read
-/// at: a plane, a cylinder and a torus over every loop, any other
-/// surface over its outer loop and its sense (a ring there is refused
+/// at: a plane, a cylinder, a torus and a cone over every loop, a
+/// sphere over its outer loop and its sense (a ring there is refused
 /// before this is reached, `RingOnCurvedFace`). The face walk runs it
 /// at the walk's scalar, and [`QuadLane`]'s `closed_form` at the
 /// interval scalar over the same geometry lifted.
@@ -2566,12 +2567,13 @@ fn face_flux<T: Decide>(
                         | geom::Curve3::Nurbs(_)
                 )
             });
-            // Which lanes read a ring: the cylinder's, closed form and
-            // quadrature alike (each a Green form summed over every
-            // loop), and the torus's closed form. No other curved kind
-            // reads one.
+            // Which lanes read a ring: the cone's closed form (every
+            // loop's vector area, whatever trims it), the cylinder's
+            // closed form and quadrature alike (each a Green form summed
+            // over every loop), and the torus's closed form over rims
+            // and rulings. No other curved kind reads one.
             let reads_rings = match surface {
-                Surface::Cylinder { .. } => true,
+                Surface::Cone { .. } | Surface::Cylinder { .. } => true,
                 Surface::Torus { .. } => !trimmed,
                 _ => false,
             };
@@ -3828,7 +3830,7 @@ pub trait AtRestPolicy: Decide {
         tol: Tol,
     ) -> Result<crate::AtRestBody<Self>, Vec<ValidationError>>;
 
-    /// The at-rest gate over a gated body with declared contacts — the
+    /// The at-rest gate over a gated body with contact records — the
     /// tier-3′ pass ([`crate::AtRestBody::validate_pseudomanifold`],
     /// which is [`crate::validate_pseudomanifold`] less the battery the
     /// kept verdict already answers, at certifying scalars; absent at

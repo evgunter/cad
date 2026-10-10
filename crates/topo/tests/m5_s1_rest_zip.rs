@@ -64,6 +64,23 @@ fn glue<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
 /// surviving records, rest records consumed (3′ ≡ tier 3). Exact
 /// volume equality is asserted by the f64 rows (the Interval lane has
 /// no scalar equality by design — NaI ≠ NaI).
+/// Declared and undeclared are one body (D10): the undeclared union of
+/// `a` and `b` is `glued`'s body, bit for bit.
+fn assert_undeclared_is_glued<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
+    a: &AtRestBody<T>,
+    b: &AtRestBody<T>,
+    glued: &BooleanBody<T>,
+) {
+    match union(a, b, Tol::witness()).expect("the undeclared union glues on Zero") {
+        BooleanResult::Body(undeclared) => assert_eq!(
+            format!("{:?}", undeclared.body),
+            format!("{:?}", glued.body),
+            "declared and undeclared are one body"
+        ),
+        BooleanResult::Empty => panic!("a glued union is not empty"),
+    }
+}
+
 fn assert_glued<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(g: &BooleanBody<T>) {
     assert_eq!(g.kind, BooleanResultKind::Seamed);
     assert_eq!(
@@ -86,17 +103,13 @@ fn assert_glued<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(g: 
 /// Stacked plates, full-face REST contact: the declared union is ONE
 /// body with the contact faces gone; the declared same-oriented side
 /// planes merge in the output stage, leaving the plain brick's six
-/// faces. Undeclared, the coincidence door refuses unchanged.
+/// faces. Undeclared, the union glues on Zero to the same body.
 fn stacked_plates_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
 -> BooleanBody<T> {
     let bot = finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
     let top = finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0));
-    let err = union(&bot, &top, Tol::witness()).unwrap_err();
-    assert!(
-        matches!(err, BooleanError::UndeclaredCoincidence { .. }),
-        "undeclared stacked union must refuse at the coincidence door: {err:?}"
-    );
     let g = glue(&bot, &top);
+    assert_undeclared_is_glued(&bot, &top, &g);
     assert_glued(&g);
     assert_eq!(
         g.body.faces().count(),
@@ -143,18 +156,14 @@ fn three_plate_chain() {
 /// Corner-flush REST (the tier-3′ fixture's shape): the contact square
 /// shares two edges with the slab's rim and pierces the top face with
 /// one interior corner (a pierce-ring vertex the seam chords consume).
-/// Declared, the union BUILDS; undeclared, the coincidence door
-/// refuses; ∖ stays operand A (no join door was ever reached).
+/// Declared or not, the union BUILDS, one body; ∖ stays operand A (no
+/// join door was ever reached).
 fn corner_flush_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
 -> (BooleanBody<T>, BooleanBody<T>) {
     let slab = finished_brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
     let corner = finished_brick::<T>((0.0, 1.0), (0.0, 1.0), (1.0, 3.0));
-    let err = union(&slab, &corner, Tol::witness()).unwrap_err();
-    assert!(
-        matches!(err, BooleanError::UndeclaredCoincidence { .. }),
-        "undeclared corner-flush union must refuse at the coincidence door: {err:?}"
-    );
     let g = glue(&slab, &corner);
+    assert_undeclared_is_glued(&slab, &corner, &g);
     assert_glued(&g);
     // ∖ disposition: pure REST subtract classifies structurally — the
     // whole of A survives (never a join refusal; SPEC §1 note).

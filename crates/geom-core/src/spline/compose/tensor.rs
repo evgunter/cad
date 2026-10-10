@@ -133,6 +133,7 @@
 //! bound, which fails every `≤ ε` comparison (D4 ¶2).
 
 use super::super::knots::{KnotVector, SplineError};
+use super::super::net::TensorCoeffs;
 use super::super::range::{ParamRange, last_at_or_below};
 use super::{
     BernsteinSpans, ComposeError, CurveCertData, bern_mul_row, binom_row, to_bezier_spans_extra,
@@ -283,18 +284,18 @@ struct TensorSpans {
 /// decomposition applied per v-column, then the v-direction one per
 /// (u-span, u-index) row — the tensor product of the two univariate
 /// insertions, `α` a ring quotient in **both** directions.
-fn tensor_channel(ku: &KnotVector, kv: &KnotVector, grid: &[Interval]) -> TensorSpans {
-    let nv = kv.control_count();
+fn tensor_channel(grid: &TensorCoeffs<'_>) -> TensorSpans {
+    let (ku, kv, net) = (grid.knots_u(), grid.knots_v(), grid.net());
     // Stage 1 (u): one decomposition per v-column; identical structure.
     let mut breaks_u = Vec::new();
     let mut deg_u = ku.degree();
     // stage1[su][a][jv]
     let mut stage1: Vec<Vec<Vec<Interval>>> = Vec::new();
-    for jv in 0..nv {
-        let col: Vec<Interval> = (0..ku.control_count())
-            .map(|iu| grid[iu * nv + jv])
-            .collect();
-        let bs = to_bezier_spans_extra(ku, &col, &[]);
+    for jv in 0..kv.control_count() {
+        let bs = ku.with_coeffs_from_fn(
+            |iu| net.get(iu, jv),
+            |pair| to_bezier_spans_extra(pair, &[]),
+        );
         if jv == 0 {
             breaks_u = bs.breaks.clone();
             deg_u = bs.degree;
@@ -318,7 +319,8 @@ fn tensor_channel(ku: &KnotVector, kv: &KnotVector, grid: &[Interval]) -> Tensor
     for span_rows in &stage1 {
         let mut cells: Vec<Vec<Interval>> = Vec::new();
         for (a, vrow) in span_rows.iter().enumerate() {
-            let bs = to_bezier_spans_extra(kv, vrow, &[]);
+            // `vrow` holds one entry per v-column: `kv`'s control count.
+            let bs = kv.with_coeffs_from_fn(|jv| vrow[jv], |pair| to_bezier_spans_extra(pair, &[]));
             if a == 0 {
                 breaks_v = bs.breaks.clone();
                 deg_v = bs.degree;
@@ -614,16 +616,16 @@ pub fn surface_curve_residual(
     // carried; spatial channels center-shifted at the lift.
     let homog = |data: &CurveCertData<'_>, d: usize, shift: f64| -> BernsteinSpans {
         let s = Interval::point(shift);
-        let coeffs: Vec<Interval> = data.coords[d]
-            .iter()
-            .zip(data.weights.iter())
-            .map(|(x, w)| Interval::point(*w) * (*x - s))
-            .collect();
-        to_bezier_spans_extra(data.kv, &coeffs, &merged)
+        data.kv.with_coeffs_from_fn(
+            |i| Interval::point(data.weights[i]) * (data.coords[d][i] - s),
+            |pair| to_bezier_spans_extra(pair, &merged),
+        )
     };
     let weight = |data: &CurveCertData<'_>| -> BernsteinSpans {
-        let coeffs: Vec<Interval> = data.weights.iter().map(|w| Interval::point(*w)).collect();
-        to_bezier_spans_extra(data.kv, &coeffs, &merged)
+        data.kv.with_coeffs_from_fn(
+            |i| Interval::point(data.weights[i]),
+            |pair| to_bezier_spans_extra(pair, &merged),
+        )
     };
     let (pu, pv, pw) = (homog(pcurve, 0, 0.0), homog(pcurve, 1, 0.0), weight(pcurve));
     let (ax, ay, az, cw) = (
@@ -635,21 +637,19 @@ pub fn surface_curve_residual(
 
     // The surface's four homogeneous channels, tensor-decomposed —
     // spatial channels shifted by the SAME center.
-    let lift = |f: &dyn Fn(usize) -> Interval| -> Vec<Interval> {
-        (0..surface.weights.len()).map(f).collect()
+    let nv = surface.kv.control_count();
+    let lift = |f: &dyn Fn(usize) -> Interval| -> TensorSpans {
+        tensor_channel(&TensorCoeffs::from_fn(surface.ku, surface.kv, |i, j| {
+            f(i * nv + j)
+        }))
     };
     let schan: Vec<TensorSpans> = (0..3)
         .map(|d| {
             let c = Interval::point(center[d]);
-            let grid = lift(&|i| Interval::point(surface.weights[i]) * (surface.coords[d][i] - c));
-            tensor_channel(surface.ku, surface.kv, &grid)
+            lift(&|i| Interval::point(surface.weights[i]) * (surface.coords[d][i] - c))
         })
         .collect();
-    let swt = tensor_channel(
-        surface.ku,
-        surface.kv,
-        &lift(&|i| Interval::point(surface.weights[i])),
-    );
+    let swt = lift(&|i| Interval::point(surface.weights[i]));
     let surf: [&TensorSpans; 4] = [&schan[0], &schan[1], &schan[2], &swt];
 
     // Per shared t-span: the parameter window, the cells it touches,
@@ -674,7 +674,7 @@ pub fn surface_curve_residual(
         };
         // Located in the SAME break arrays `cell_residual` indexes
         // below (`surf[0]`), not in a sibling channel's: all four
-        // channels are `tensor_channel(surface.ku, surface.kv, ..)` and
+        // channels are `tensor_channel` over `surface.ku × surface.kv` and
         // so carry identical breaks, but that is a construction fact
         // and nothing enforces it, so the index and the array it
         // indexes are one object here. `cells_touched` answers within

@@ -169,8 +169,9 @@ impl CheckId {
             // output exactly as connectedness is; no product, nothing
             // to gather.
             Self::ChartCoherence => false,
-            // The rows ride each node's value: no product.
-            Self::UnprovenCoincidence => false,
+            // The rows ride each node's value, and the at-rest census's
+            // ride the gathered product.
+            Self::UnprovenCoincidence => true,
         }
     }
 }
@@ -1234,8 +1235,17 @@ pub fn run_checks_on<
     }
     if cfg.severity(CheckId::UnprovenCoincidence) == Severity::Off {
         report.skipped.push(CheckId::UnprovenCoincidence);
+    } else if let Subject::Unavailable { refusal } = &subject
+        && holds_a_mate(doc)
+    {
+        // The at-rest rows are the mates' and ride the product, so a
+        // document with a mate and no product has rows nobody can read.
+        // One with no mate has none, and its node rows need no product.
+        return Err(ChecksError::Product {
+            refusal: refusal.clone(),
+        });
     } else {
-        unproven_coincidence(doc, ev, &mut report);
+        unproven_coincidence(doc, ev, &subject, &mut report);
     }
     if cfg.severity(CheckId::Separation) == Severity::Off {
         report.skipped.push(CheckId::Separation);
@@ -1252,28 +1262,48 @@ pub fn run_checks_on<
     Ok(report)
 }
 
+/// Whether `doc` holds a mate: a node whose pair the at-rest census
+/// decides on the gathered product, as the mint walks them.
+fn holds_a_mate<P>(doc: &Doc<P>) -> bool {
+    doc.ids()
+        .into_iter()
+        .any(|id| matches!(doc.node(id), Some(crate::Node::Mate { .. })))
+}
+
 /// The `unproven-coincidence` resident's pass (D10): every evaluated
-/// node's rows, in evaluation order then decision order, each the door
-/// leaves unproven a finding attributed to the node that decided it.
-fn unproven_coincidence<P, T: Decide>(doc: &Doc<P>, ev: &Evaluation<T>, report: &mut ChecksReport) {
-    for &node in &ev.order {
-        let Some(value) = ev.value(node) else {
-            continue;
-        };
-        for row in value.coincidences.iter() {
-            if let crate::coincide::Proof::Unproven { residual, recourse } =
-                crate::coincide::prove(doc, row)
-            {
-                report.findings.push(CheckFinding {
-                    check: CheckId::UnprovenCoincidence,
-                    subject: FindingSubject::Node(node),
-                    evidence: CheckEvidence::UnprovenCoincidence {
-                        row: Box::new(row.clone()),
-                        residual: Box::new(residual),
-                        recourse,
-                    },
-                });
-            }
+/// node's rows, in evaluation order then decision order, then the
+/// at-rest census's rows on the gathered product, in mint order; each
+/// the door leaves unproven a finding attributed to the node that
+/// decided it, or to the mate whose pair the census decided.
+fn unproven_coincidence<P, T: Decide>(
+    doc: &Doc<P>,
+    ev: &Evaluation<T>,
+    subject: &Subject<'_, T>,
+    report: &mut ChecksReport,
+) {
+    let at_rest = match subject {
+        Subject::Product(gathered) => gathered.coincidences.as_slice(),
+        Subject::EmptyProduct | Subject::Unavailable { .. } => &[],
+    };
+    let rows = ev
+        .order
+        .iter()
+        .filter_map(|&node| ev.value(node).map(|value| (node, value)))
+        .flat_map(|(node, value)| value.coincidences.iter().map(move |row| (node, row)))
+        .chain(at_rest.iter().map(|r| (r.mate, &r.row)));
+    for (node, row) in rows {
+        if let crate::coincide::Proof::Unproven { residual, recourse } =
+            crate::coincide::prove(doc, row)
+        {
+            report.findings.push(CheckFinding {
+                check: CheckId::UnprovenCoincidence,
+                subject: FindingSubject::Node(node),
+                evidence: CheckEvidence::UnprovenCoincidence {
+                    row: Box::new(row.clone()),
+                    residual: Box::new(residual),
+                    recourse,
+                },
+            });
         }
     }
 }

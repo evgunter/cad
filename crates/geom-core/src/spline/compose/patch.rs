@@ -59,7 +59,7 @@
 //! every coefficient is a [`Interval`]. Nothing here evaluates or
 //! samples anything.
 
-use super::super::knots::KnotVector;
+use super::super::net::TensorCoeffs;
 use super::{
     BernWeights, bern_mul_row_into, bern_mul_row_with, bern_weights, to_bezier_spans_extra,
 };
@@ -145,34 +145,26 @@ impl PatchSpans {
     }
 
     /// Tensor-product Bézier decomposition of one scalar channel of a
-    /// spline whose control grid is **row-major `iu·nv + iv`**, with
+    /// spline, its control grid paired with both knot vectors, with
     /// `extra_u`/`extra_v` break parameters injected in each direction
     /// so several channels land on one shared break list (module docs:
     /// alignment).
     ///
     /// Structure-filtered, never an error: an extra outside the open
     /// domain or duplicating a knot is dropped.
-    pub fn decompose(
-        ku: &KnotVector,
-        kv: &KnotVector,
-        grid: &[Interval],
-        extra_u: &[f64],
-        extra_v: &[f64],
-    ) -> Self {
-        let nu = ku.control_count();
-        let nv = kv.control_count();
-        if grid.len() != nu * nv {
-            return Self::refused(ku.degree(), kv.degree());
-        }
+    pub fn decompose(grid: &TensorCoeffs<'_>, extra_u: &[f64], extra_v: &[f64]) -> Self {
+        let (ku, kv, net) = (grid.knots_u(), grid.knots_v(), grid.net());
         // Stage 1 (u): one univariate decomposition per v-column;
         // identical structure across columns by construction.
         let mut breaks_u = Vec::new();
         let mut deg_u = ku.degree();
         // stage1[su][a][jv]
         let mut stage1: Vec<Vec<Vec<Interval>>> = Vec::new();
-        for jv in 0..nv {
-            let col: Vec<Interval> = (0..nu).map(|iu| grid[iu * nv + jv]).collect();
-            let bs = to_bezier_spans_extra(ku, &col, extra_u);
+        for jv in 0..kv.control_count() {
+            let bs = ku.with_coeffs_from_fn(
+                |iu| net.get(iu, jv),
+                |pair| to_bezier_spans_extra(pair, extra_u),
+            );
             if jv == 0 {
                 breaks_u = bs.breaks().to_vec();
                 deg_u = bs.degree();
@@ -196,7 +188,11 @@ impl PatchSpans {
         for span_rows in &stage1 {
             let mut row_cells: Vec<Vec<Interval>> = Vec::new();
             for (a, vrow) in span_rows.iter().enumerate() {
-                let bs = to_bezier_spans_extra(kv, vrow, extra_v);
+                // `vrow` holds one entry per v-column: `kv`'s control count.
+                let bs = kv.with_coeffs_from_fn(
+                    |jv| vrow[jv],
+                    |pair| to_bezier_spans_extra(pair, extra_v),
+                );
                 if a == 0 {
                     breaks_v = bs.breaks().to_vec();
                     deg_v = bs.degree();
@@ -497,6 +493,7 @@ mod tests {
     use super::super::tests::{bern_mul_row_base, same_bits};
     use super::*;
     use crate::real::Bounds;
+    use crate::spline::KnotVector;
 
     /// A patch of bidegree `(du, dv)` with one interior break in each
     /// direction, decomposed. Every operand here shares the same two
@@ -510,14 +507,12 @@ mod tests {
         };
         let ku = clamped(du, 0.4);
         let kv = clamped(dv, 0.6);
-        let (nu, nv) = (ku.control_count(), kv.control_count());
-        let grid: Vec<Interval> = (0..nu * nv)
-            .map(|n| {
-                let c = (n as f64 - 5.0) * seed / 3.0;
-                Interval::from_bounds(c - 2e-14, c + 5e-14)
-            })
-            .collect();
-        PatchSpans::decompose(&ku, &kv, &grid, &[], &[])
+        let nv = kv.control_count();
+        let grid = TensorCoeffs::from_fn(&ku, &kv, |i, j| {
+            let c = ((i * nv + j) as f64 - 5.0) * seed / 3.0;
+            Interval::from_bounds(c - 2e-14, c + 5e-14)
+        });
+        PatchSpans::decompose(&grid, &[], &[])
     }
 
     /// [`mul_block`] as it was before the weight tables existed: the
@@ -687,14 +682,12 @@ mod tests {
     fn decomposed(du: usize, dv: usize, seed: f64) -> PatchSpans {
         let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.4, 1.0, 1.0, 1.0], du).unwrap();
         let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.6, 1.0, 1.0, 1.0], dv).unwrap();
-        let (nu, nv) = (ku.control_count(), kv.control_count());
-        let grid: Vec<Interval> = (0..nu * nv)
-            .map(|n| {
-                let c = (n as f64 - 5.0) * seed / 3.0;
-                Interval::from_bounds(c - 2e-14, c + 5e-14)
-            })
-            .collect();
-        PatchSpans::decompose(&ku, &kv, &grid, &[], &[])
+        let nv = kv.control_count();
+        let grid = TensorCoeffs::from_fn(&ku, &kv, |i, j| {
+            let c = ((i * nv + j) as f64 - 5.0) * seed / 3.0;
+            Interval::from_bounds(c - 2e-14, c + 5e-14)
+        });
+        PatchSpans::decompose(&grid, &[], &[])
     }
 
     /// The tensor product is separable over cells: a cell's

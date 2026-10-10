@@ -88,3 +88,12 @@ every pose (`a_vertex_read_by_two_sector_passes::every_scene_builds_sound_or_ref
 so the refusal is the emitter's. `crates/editor-core/src/names/emit_topo.rs`,
 `touch_reread_rows::no_rule`, allows exactly these cells and cites this
 item.
+
+## Reached undeclared (INTENT stage 4 PR E, 2026-10-10)
+
+PR E glues `(a, h)`'s flush walls undeclared. In
+`emit_shared_rim_several::no_order_of_the_probe_corpus_refuses_several_shared_rims`
+only `(a, b)` is declared, and `row` and `rowids` now reach this
+residue in `[a, h, b, g]` and `[h, a, b, g]`. That is the same pair of
+orders the declared row measured. The test admits it by name
+(`RESIDUES`).

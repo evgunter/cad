@@ -81,10 +81,13 @@ fn lbracket(declared: bool, dx: f64) -> (Body<f64>, ContactRecords) {
         for v in vertices_where(&body, |p| {
             (p.x - (1.0 + dx)).abs() < 1e-12 && (1.1..2.1).contains(&p.y)
         }) {
-            records.b_on_a.push(VfContact {
-                vertex: v,
-                face: wall,
-            });
+            records.b_on_a.push(topo::Cited::new(
+                VfContact {
+                    vertex: v,
+                    face: wall,
+                },
+                topo::Cites::decided(0),
+            ));
         }
         assert_eq!(
             records.b_on_a.len(),
@@ -129,10 +132,13 @@ fn embedded() -> (Body<f64>, ContactRecords) {
     for v in vertices_where(&body, |p| {
         p.z.abs() < 1e-12 && (0.9..2.1).contains(&p.x) && (0.9..2.1).contains(&p.y)
     }) {
-        records.b_on_a.push(VfContact {
-            vertex: v,
-            face: big_bottom,
-        });
+        records.b_on_a.push(topo::Cited::new(
+            VfContact {
+                vertex: v,
+                face: big_bottom,
+            },
+            topo::Cites::decided(0),
+        ));
     }
     assert_eq!(records.b_on_a.len(), 4);
     (body, records)
@@ -490,10 +496,13 @@ fn split_straddle() -> (Body<f64>, ContactRecords) {
             ..
         } = e
         {
-            records.b_on_a.push(VfContact {
-                vertex: *vertex,
-                face: *face,
-            });
+            records.b_on_a.push(topo::Cited::new(
+                VfContact {
+                    vertex: *vertex,
+                    face: *face,
+                },
+                topo::Cites::decided(0),
+            ));
         }
     }
     assert_eq!(records.b_on_a.len(), 8, "{errors:?}");

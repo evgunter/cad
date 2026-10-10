@@ -382,7 +382,7 @@ pub(crate) fn d_tab_at(
     let assertion = r.insert(Node::Assertion {
         value: crate::fixture::read_var(&r.doc, measure_value),
         bound: len(1.78e-3),
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     });
     (r.doc, measure, assertion)
 }

@@ -72,19 +72,18 @@ fn declared_rest_unions_and_replays_records_bit_identically() {
     );
 }
 
-/// The undeclared kiss still refuses: value equality never glues, at
-/// any ε, at any backend (C4's invariant).
+/// The undeclared kiss glues on its decided zero (D10): the same body
+/// as the declared one.
 #[test]
-fn undeclared_kiss_still_refuses() {
+fn undeclared_kiss_glues_as_declared() {
     let (a, b) = stacked();
-    let err = topo::union(&a, &b, Tol::witness()).expect_err("an undeclared kiss must refuse");
-    assert!(
-        matches!(
-            err,
-            BooleanError::UndeclaredCoincidence { .. } | BooleanError::Escalated { .. }
-        ),
-        "{err:?}"
-    );
+    let decls = flush_declarations(&a, &b, Tol::witness());
+    let declared = union_with(&a, &b, &decls, Tol::witness()).expect("declared flush union runs");
+    let undeclared = topo::union(&a, &b, Tol::witness()).expect("an undeclared kiss glues");
+    let (BooleanResult::Body(x), BooleanResult::Body(y)) = (declared, undeclared) else {
+        panic!("an overlapping union cannot be Empty");
+    };
+    assert_eq!(format!("{:?}", y.body), format!("{:?}", x.body));
 }
 
 /// **The class is acted on, not carried and ignored** — the row a

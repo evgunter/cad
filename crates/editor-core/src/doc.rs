@@ -15,7 +15,7 @@ use crate::expr::{Dimension, Expr, ExprPath, ParamValue, VarEnv};
 use crate::ident::DocumentId;
 use crate::names::StableName;
 use crate::node::{Node, RecipeNodeId, SlotId};
-use crate::var::{Var, VarId};
+use crate::var::{Var, VarDef, VarId};
 use geom_core::Tol;
 
 /// A document-level parameter name (spec D4's "parameter refs").
@@ -897,6 +897,9 @@ pub(crate) enum Carrier {
     /// carriers (DM7), so this variant names the field and not its
     /// contents.
     Payloads,
+    /// The selections' names ([`crate::VarDef::Select`]): the names a
+    /// slot reads, each held by the variable that selects it.
+    Selections,
     /// The appearance store's keys: a `StableName` under Declare's N5
     /// semantics (`DocEdit::SetAppearance`), held by the document
     /// itself rather than by any node.
@@ -907,25 +910,33 @@ impl Carrier {
     /// Every carrier, in the order [`Doc::name_carriers`] walks them
     /// — which it walks them BY, so this is the order rather than a
     /// description of one.
-    pub(crate) const ALL: [Carrier; 2] = [Carrier::Payloads, Carrier::Appearance];
+    pub(crate) const ALL: [Carrier; 3] =
+        [Carrier::Payloads, Carrier::Selections, Carrier::Appearance];
 }
 
 /// **One [`StableName`] the document holds, and what holds it** — the
 /// element of [`Doc::name_carriers`].
 ///
-/// The two carriers are not the same shape and this does not flatten
-/// them: a payload name has a carrying node, which is the node a
-/// report names and a containment check tests; a store key has none,
-/// because the store holds the attachment itself. That difference is
-/// why DM7's report has two arms (`Maintenance::Strand` and
-/// `Maintenance::StrandedAppearance`), and they map onto these two
-/// variants one to one.
+/// The carriers are not the same shape and this does not flatten them:
+/// a payload name has a carrying node, which is the node a report names
+/// and a containment check tests; a selection's has a carrying
+/// variable; a store key has neither, because the store holds the
+/// attachment itself. DM7's report has one arm per variant
+/// (`Maintenance::Strand`, `Maintenance::StrandedSelection`,
+/// `Maintenance::StrandedAppearance`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum NameCarrier<'a> {
     /// A name in a live node's payload; that node carries it.
     Payload {
         /// The node whose payload holds the name.
         node: RecipeNodeId,
+        /// The name.
+        name: &'a StableName,
+    },
+    /// A name a selection holds; that variable carries it.
+    Select {
+        /// The selection.
+        var: VarId,
         /// The name.
         name: &'a StableName,
     },
@@ -949,7 +960,7 @@ impl<'a> NameCarrier<'a> {
     /// the accessor.
     pub(crate) fn name(self) -> &'a StableName {
         match self {
-            Self::Payload { name, .. } | Self::Store { name } => name,
+            Self::Payload { name, .. } | Self::Select { name, .. } | Self::Store { name } => name,
         }
     }
 }
@@ -1182,8 +1193,10 @@ impl<P> Doc<P> {
     /// free variable.
     pub(crate) fn definition_reads(&self, var: VarId) -> Vec<VarId> {
         let mut reads = Vec::new();
-        if let Some(expr) = self.vars.get(&var).and_then(|v| v.def().defined()) {
-            expr.var_reads(&mut reads);
+        match self.vars.get(&var).map(Var::def) {
+            Some(VarDef::Defined(expr)) => expr.var_reads(&mut reads),
+            Some(VarDef::Select(select)) => return vec![select.body],
+            Some(VarDef::Free(_) | VarDef::Output { .. }) | None => {}
         }
         reads.into_iter().map(|(read, _)| read).collect()
     }
@@ -1670,20 +1683,72 @@ impl<P> Doc<P> {
     }
 
     /// **The operation `var` is an output of** ([`Self::defined_by`]
-    /// without the port): what an operand reading `var` depends on.
+    /// without the port).
     pub fn operation_of(&self, var: VarId) -> Option<RecipeNodeId> {
         self.defined_by(var).map(|(node, _)| node)
+    }
+
+    /// **The selection `var` is defined by**, if it is one.
+    pub fn selection(&self, var: VarId) -> Option<&crate::var::Select> {
+        self.vars.get(&var)?.def().select()
+    }
+
+    /// **Rewrites the names of the selections of `body` through `map`**,
+    /// all at once, returning how many it rewrote: `map` answers the
+    /// name a selection now holds, or `None` to leave it. Each selection
+    /// rewritten returns to its kind's stored form
+    /// ([`crate::var::Select::canonical`]), so a rewrite onto an
+    /// already-selected entity shrinks the set by one; a singleton keeps
+    /// its one name. `Rebind`'s reach into the selections (N5's one
+    /// repair, addressed by body and name).
+    pub(crate) fn rewrite_selection_names(
+        &mut self,
+        body: VarId,
+        map: &mut dyn FnMut(&StableName) -> Option<StableName>,
+    ) -> usize {
+        let mut hits = 0usize;
+        for var in self.vars.values_mut() {
+            let kind = var.kind();
+            let Some(select) = var.select_mut() else {
+                continue;
+            };
+            if select.body != body {
+                continue;
+            }
+            let mut here = 0usize;
+            for name in &mut select.names {
+                if let Some(next) = map(name) {
+                    *name = next;
+                    here += 1;
+                }
+            }
+            if here > 0 {
+                select.names =
+                    crate::var::Select::canonical(kind, core::mem::take(&mut select.names));
+                hits += here;
+            }
+        }
+        hits
+    }
+
+    /// **The operation an operand reading `var` depends on**: the one
+    /// `var` is an output of, or for a selection the one its body is.
+    /// `None` for a read this document does not resolve.
+    pub fn read_operation(&self, var: VarId) -> Option<RecipeNodeId> {
+        match self.selection(var) {
+            Some(select) => self.operation_of(select.body),
+            None => self.operation_of(var),
+        }
     }
 
     /// **The operations `node` depends on** (D10: reading is the only
     /// dependency): the operations defining the variables its operands
     /// read ([`Node::operand_rows`]), then those defining the measured
     /// values its expressions read through definitions
-    /// ([`Self::observed_outputs`]: an assertion's value), then the live
-    /// nodes a measure's sited references are read at
-    /// ([`Node::measure_sites`]). In read order, each once; a read this
-    /// document does not resolve, or a site no live node is, contributes
-    /// nothing (an unresolved read is the reader's refusal at
+    /// ([`Self::observed_outputs`]: an assertion's value); a selection
+    /// read is its body's operation ([`Self::read_operation`]). In read
+    /// order, each once; a read this document does not resolve
+    /// contributes nothing (an unresolved read is the reader's refusal at
     /// evaluation, not an edge). Empty for a node this document does not
     /// hold.
     ///
@@ -1714,13 +1779,8 @@ impl<P> Doc<P> {
         let at = node
             .operand_rows()
             .into_iter()
-            .filter_map(|(_, var)| self.operation_of(var))
-            .chain(observed)
-            .chain(
-                node.measure_sites()
-                    .into_iter()
-                    .filter(|site| self.nodes.contains_key(site)),
-            );
+            .filter_map(|(_, var)| self.read_operation(var))
+            .chain(observed);
         for id in at {
             if !out.contains(&id) {
                 out.push(id);
@@ -2058,6 +2118,13 @@ impl<P> Doc<P> {
                     .into_iter()
                     .map(move |name| NameCarrier::Payload { node: id, name })
             })),
+            Carrier::Selections => Box::new(self.vars.iter().flat_map(|(&var, held)| {
+                held.def()
+                    .select()
+                    .into_iter()
+                    .flat_map(|select| select.names.iter())
+                    .map(move |name| NameCarrier::Select { var, name })
+            })),
             Carrier::Appearance => Box::new(
                 self.appearance
                     .keys()
@@ -2198,7 +2265,7 @@ impl<P> Doc<P> {
                 crate::VarDef::Defined(defined) => self
                     .anonymous_expansion(&crate::Formula::from(defined))
                     .ok(),
-                crate::VarDef::Output { .. } => None,
+                crate::VarDef::Output { .. } | crate::VarDef::Select(_) => None,
             }
         })
     }
@@ -2557,7 +2624,7 @@ mod tests {
         /// the match the macro writes: a carrier added to the enum
         /// leaves it non-exhaustive, and the census below compares
         /// this roster against [`Carrier::ALL`] in both directions.
-        const CARRIER: Carrier = [Payloads, Appearance];
+        const CARRIER: Carrier = [Payloads, Selections, Appearance];
     }
 
     fn name(node: u64, kind: EntityKind) -> StableName {

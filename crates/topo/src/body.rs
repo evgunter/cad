@@ -6,10 +6,8 @@
 //! each with its own key type, and three geometry kinds — and the side
 //! tables parallel to them: one D5 provenance `SecondaryMap` per
 //! topology kind (**uniform across all seven** — half-edges carry
-//! provenance like everything else); one [`crate::GeomOrigin`] row per
-//! geometric description, total over live keys; the per-field
-//! `ParamSource` rows beside the surfaces; the half-edges' fitted
-//! pcurves; and the null-face pairs.
+//! provenance like everything else); the half-edges' fitted pcurves
+//! and joint elements; and the null-face pairs.
 //!
 //! # Determinism (D9)
 //!
@@ -58,7 +56,7 @@
 //! from there:
 //!
 //! - **A door that reads the key's own slot** — an arena lookup, or a
-//!   side table kept parallel to an arena (provenance, origins, pcurves,
+//!   side table kept parallel to an arena (provenance, pcurves,
 //!   null-face marks) — hands back one wrong entity's row.
 //! - **A door that chains lookups** carries the foreign key onward
 //!   instead of stopping it. Each later hop reads a native key from the
@@ -84,11 +82,7 @@ use crate::euler::RunSite;
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::joint::JointElement;
 use crate::null::{CurveGeom, NullEdge, NullFacePair};
-use crate::param_source::{FieldSources, ParamAttachError, ParamSource, SurfaceField};
 use crate::provenance::Provenance;
-use crate::source::{
-    AxisAttachError, AxisRecord, AxisSource, GeomOrigin, GeomSource, SourceAttachError,
-};
 use crate::validate::ValidatorSeal;
 
 /// Outcome of a bounded half-edge traversal (crate-internal; the public
@@ -253,36 +247,6 @@ pub struct Body<T: Real> {
     pub(crate) half_edge_provenance: SecondaryMap<HalfEdgeKey, Provenance>,
     pub(crate) edge_provenance: SecondaryMap<EdgeKey, Provenance>,
     pub(crate) vertex_provenance: SecondaryMap<VertexKey, Provenance>,
-    // Where each geometric description came from (`crate::GeomOrigin`),
-    // parallel to the geometry arenas exactly as provenance parallels
-    // the topology arenas, and carried by clone and graft. ONE row per
-    // description: N6's recipe `GeomSource` (M4 PR 5) is the `Recipe`
-    // arm's payload, which `Body::surface_source` and its siblings
-    // project, and the other three arms are the origins a description
-    // with no recipe can have. TOTAL over live keys — the mint doors
-    // write `KernelDirect` — so a live key with no row is a kernel bug,
-    // not an origin. Absence of a RECIPE never certifies coincidence
-    // (the ladder's conservative direction); what it means is this
-    // row's arm, never an inference.
-    pub(crate) point_origins: SecondaryMap<PointKey, GeomOrigin>,
-    pub(crate) curve_origins: SecondaryMap<CurveKey, GeomOrigin>,
-    pub(crate) surface_origins: SecondaryMap<SurfaceKey, GeomOrigin>,
-    // ParamSource records (VERB-SEAT-DESIGN P1), one level finer than
-    // the GeomSource maps above: the recipe expression behind each
-    // STORED SCALAR FIELD of a surface description, stamped by the
-    // recipe layer at mint time. Absence is the normal state — the
-    // channel is opt-in and every kernel-direct construction leaves it
-    // empty. See `crate::param_source`.
-    pub(crate) surface_field_sources: SecondaryMap<SurfaceKey, FieldSources>,
-    // The axis channel (`crate::AxisSource`): the recipe-level axis a
-    // surface's AXIS COMPONENT came from, composed through placement.
-    // Opt-in like the field rows, but placement data — so, unlike
-    // them, `clear_geom_sources` marks these `Cleared`.
-    //
-    // Every table keyed by `SurfaceKey` is carried and dropped by
-    // `Body::carry_surface_rows` / `Body::drop_surface_rows`; a new one
-    // joins them there.
-    pub(crate) surface_axis_sources: SecondaryMap<SurfaceKey, AxisRecord>,
     // D1's tier-1 debug postcondition is paid ONCE PER PUBLIC DOOR
     // (the ruling on `work/perf/d1-per-op-tier1-sweep-price`), and
     // this is how an operator knows whether it is inside one: the
@@ -321,11 +285,6 @@ impl<T: Real> Body<T> {
             half_edge_provenance: SecondaryMap::new(),
             edge_provenance: SecondaryMap::new(),
             vertex_provenance: SecondaryMap::new(),
-            point_origins: SecondaryMap::new(),
-            curve_origins: SecondaryMap::new(),
-            surface_origins: SecondaryMap::new(),
-            surface_field_sources: SecondaryMap::new(),
-            surface_axis_sources: SecondaryMap::new(),
             #[cfg(debug_assertions)]
             surgery: crate::surgery::SurgeryDepth::default(),
         }
@@ -358,28 +317,17 @@ impl<T: Real> Body<T> {
     ///
     /// Crate-internal raw insertion (see the builder-API note in the
     /// source): no validity promises.
-    ///
-    /// **The point's origin is written here**
-    /// ([`GeomOrigin::KernelDirect`]): this is the one door a point
-    /// enters the arena through, and nothing above it carries recipe
-    /// context down. That is what makes the origin map total over live
-    /// keys — see [`GeomOrigin`].
     pub(crate) fn add_point(&mut self, point: Point3<T>) -> PointKey {
-        let key = self.points.insert(point);
-        self.point_origins.insert(key, GeomOrigin::KernelDirect);
-        key
+        self.points.insert(point)
     }
 
     /// Inserts curve geometry (a certified [`EdgeCurve`] — certification
     /// is the only way to build one), returning its key.
     ///
     /// Crate-internal raw insertion: no validity promises beyond what
-    /// the `EdgeCurve` itself carries. Writes the description's origin
-    /// ([`Body::add_point`]).
+    /// the `EdgeCurve` itself carries.
     pub(crate) fn add_curve(&mut self, curve: EdgeCurve<T>) -> CurveKey {
-        let key = self.curves.insert(CurveGeom::Certified(curve));
-        self.curve_origins.insert(key, GeomOrigin::KernelDirect);
-        key
+        self.curves.insert(CurveGeom::Certified(curve))
     }
 
     /// Inserts a null-edge scaffolding entry
@@ -388,23 +336,16 @@ impl<T: Real> Body<T> {
     ///
     /// Crate-internal raw insertion: no validity promises (the attribute
     /// vertices may dangle — scaffolding coherence is the minting op's
-    /// contract). Writes the entry's origin ([`Body::add_point`]): a
-    /// scaffolding entry occupies a live curve key like any other, so
-    /// the map stays total.
+    /// contract).
     pub(crate) fn add_null_curve(&mut self, attr: NullEdge) -> CurveKey {
-        let key = self.curves.insert(CurveGeom::NullScaffold(attr));
-        self.curve_origins.insert(key, GeomOrigin::KernelDirect);
-        key
+        self.curves.insert(CurveGeom::NullScaffold(attr))
     }
 
     /// Inserts surface geometry, returning its key.
     ///
-    /// Crate-internal raw insertion: no validity promises. Writes the
-    /// description's origin ([`Body::add_point`]).
+    /// Crate-internal raw insertion: no validity promises.
     pub(crate) fn add_surface(&mut self, surface: Surface<T>) -> SurfaceKey {
-        let key = self.surfaces.insert(surface);
-        self.surface_origins.insert(key, GeomOrigin::KernelDirect);
-        key
+        self.surfaces.insert(surface)
     }
 
     /// Inserts a vertex with its birth provenance (D5), returning its key.
@@ -560,7 +501,6 @@ impl<T: Real> Body<T> {
         let Some(removed) = self.curves.remove(curve) else {
             return false;
         };
-        self.curve_origins.remove(curve);
         for surface in Named::of(&removed).keys() {
             self.remove_surface_if_orphaned(surface);
         }
@@ -598,52 +538,7 @@ impl<T: Real> Body<T> {
         {
             return false;
         }
-        let removed = self.surfaces.remove(surface).is_some();
-        if removed {
-            self.drop_surface_rows(surface);
-        }
-        removed
-    }
-
-    /// **Every per-surface side row, carried to a new key.** The
-    /// origin row ([`GeomOrigin`]), the per-field [`ParamSource`] rows
-    /// and the axis row ([`AxisRecord`], `Cleared` included) of `src`'s
-    /// surface `from` land on this body's `to`, verbatim: a transplant
-    /// moves no description, so where each part of it came from is
-    /// unchanged. This and [`Body::drop_surface_rows`] are the one
-    /// spelling of the side tables' two obligations — a door that
-    /// transplants a surface carries its rows, a door that drops one
-    /// from the arena drops its rows — so a table added beside the
-    /// surface arena is carried and dropped by adding it here.
-    ///
-    /// The origin map is total over live keys (`GeomOrigin`), so a live
-    /// `from` without an origin row is a kernel bug, announced.
-    pub(crate) fn carry_surface_rows(&mut self, to: SurfaceKey, src: &Self, from: SurfaceKey) {
-        let Some(origin) = src.surface_origins.get(from) else {
-            unreachable!(
-                "carried surface {from:?} is live in the source body and carries no origin row: \
-                 the origin map is total over live keys (kernel bug)"
-            )
-        };
-        self.surface_origins.insert(to, origin.clone());
-        if let Some(fields) = src.surface_field_sources.get(from) {
-            self.surface_field_sources.insert(to, fields.clone());
-        }
-        if let Some(axis) = src.surface_axis_sources.get(from) {
-            self.surface_axis_sources.insert(to, axis.clone());
-        }
-    }
-
-    /// **Every per-surface side row, dropped with its key** — the
-    /// other half of [`Body::carry_surface_rows`]'s obligation, for a
-    /// surface just removed from the arena. Hygiene rather than a
-    /// guarded invariant: a re-minted key never reads a stranded row,
-    /// but the old key would go on answering for a description the
-    /// body no longer holds.
-    pub(crate) fn drop_surface_rows(&mut self, key: SurfaceKey) {
-        self.surface_origins.remove(key);
-        self.surface_field_sources.remove(key);
-        self.surface_axis_sources.remove(key);
+        self.surfaces.remove(surface).is_some()
     }
 
     /// Whether an intrinsic description's surface pair `(d1, d2)` is
@@ -730,415 +625,7 @@ impl<T: Real> Body<T> {
         if self.vertices.values().any(|vertex| vertex.point == point) {
             return false;
         }
-        let removed = self.points.remove(point).is_some();
-        if removed {
-            self.point_origins.remove(point);
-        }
-        removed
-    }
-
-    // ------------------------------------------------------------------
-    // Description provenance (N6's `GeomSource` on the `Recipe` arm,
-    // and where a description with no recipe came from) — see
-    // `crate::source`.
-    // ------------------------------------------------------------------
-
-    /// The recipe source of a surface description, if the recipe layer
-    /// stamped one — never coincidence-certifying. The projection of
-    /// [`GeomOrigin`]'s `Recipe` arm, and N6's whole channel.
-    ///
-    /// **`None` answers "is there a recipe source", not "where did
-    /// this come from".** Reading it as the second question conflates
-    /// an import, a hand-built description, a kernel-derived one and a
-    /// CLEARED one whose re-stamp never ran; [`Body::surface_origin`]
-    /// is the total read that separates them.
-    /// [A foreign key is not caught](self#key-validity-stale-vs-foreign).
-    pub fn surface_source(&self, key: SurfaceKey) -> Option<&GeomSource> {
-        self.surface_origins.get(key)?.source()
-    }
-
-    /// The recipe source of a curve description ([`Body::surface_source`]),
-    /// with the same caveat on `None` ([`Body::curve_origin`]);
-    /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
-    pub fn curve_source(&self, key: CurveKey) -> Option<&GeomSource> {
-        self.curve_origins.get(key)?.source()
-    }
-
-    /// The recipe source of a point ([`Body::surface_source`]), with the
-    /// same caveat on `None` ([`Body::point_origin`]);
-    /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
-    pub fn point_source(&self, key: PointKey) -> Option<&GeomSource> {
-        self.point_origins.get(key)?.source()
-    }
-
-    /// **Where the surface description at `key` came from**
-    /// ([`GeomOrigin`]) — total over live keys, with no absence arm.
-    ///
-    /// `None` here is not an origin and never was one: it is the key
-    /// failing to resolve, the same answer [`Body::get_face`] and every
-    /// other lookup on this type gives a stale key. A live description
-    /// always has an origin, and that is the point of the door.
-    /// [A foreign key is not caught](self#key-validity-stale-vs-foreign).
-    ///
-    /// # Panics
-    ///
-    /// `unreachable!` if the key resolves in the arena and carries no
-    /// origin row (D9 row 4, a state observable in a branch): the mint
-    /// doors write one, so a live description without one means a
-    /// description reached the arena outside [`Body::add_surface`], or
-    /// a door dropped the row of a description it kept.
-    pub fn surface_origin(&self, key: SurfaceKey) -> Option<&GeomOrigin> {
-        self.surfaces.get(key)?;
-        Some(self.surface_origins.get(key).unwrap_or_else(|| {
-            unreachable!(
-                "live surface {key:?} carries no origin row: `Body::add_surface` writes one at \
-                 every mint, so the map is total over live keys (kernel bug — a description \
-                 entered the arena outside the mint door, or a door dropped a live row)"
-            )
-        }))
-    }
-
-    /// Where the curve description at `key` came from
-    /// ([`Body::surface_origin`]); [a foreign key is not caught](self#key-validity-stale-vs-foreign).
-    ///
-    /// # Panics
-    ///
-    /// As [`Body::surface_origin`], for `Body::add_curve` and
-    /// `Body::add_null_curve`.
-    pub fn curve_origin(&self, key: CurveKey) -> Option<&GeomOrigin> {
-        self.curves.get(key)?;
-        Some(self.curve_origins.get(key).unwrap_or_else(|| {
-            unreachable!(
-                "live curve {key:?} carries no origin row: the curve mint doors write one at \
-                 every mint, so the map is total over live keys (kernel bug — a description \
-                 entered the arena outside a mint door, or a door dropped a live row)"
-            )
-        }))
-    }
-
-    /// Where the point at `key` came from ([`Body::surface_origin`]);
-    /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
-    ///
-    /// # Panics
-    ///
-    /// As [`Body::surface_origin`], for `Body::add_point`.
-    pub fn point_origin(&self, key: PointKey) -> Option<&GeomOrigin> {
-        self.points.get(key)?;
-        Some(self.point_origins.get(key).unwrap_or_else(|| {
-            unreachable!(
-                "live point {key:?} carries no origin row: `Body::add_point` writes one at \
-                 every mint, so the map is total over live keys (kernel bug — a point entered \
-                 the arena outside the mint door, or a door dropped a live row)"
-            )
-        }))
-    }
-
-    /// Stamps (or replaces) the recipe source of a surface description
-    /// — the recipe layer's post-op attachment door.
-    ///
-    /// **The description's origin becomes the recipe**
-    /// ([`GeomOrigin::Recipe`]), superseding whatever it was: a
-    /// [`GeomOrigin::Cleared`] mark is discharged exactly here, which
-    /// IS the re-stamp the clearing door expects.
-    ///
-    /// **Lossy in one direction, deliberately.** Stamping over
-    /// [`GeomOrigin::Imported`] erases the import fact for good — the
-    /// description reads `Recipe`, and a later
-    /// [`Body::clear_geom_sources`] leaves it `Cleared`, never
-    /// `Imported`. That is the right precedence (a recipe is the finer
-    /// identity, and a body the recipe layer evaluates is one the
-    /// document owns), and it is unreachable today: no in-tree caller
-    /// stamps an adopted body. The row
-    /// `geom_origin_rows::stamping_an_imported_body_erases_the_import_fact`
-    /// characterises it against the day one does.
-    ///
-    /// # Errors
-    ///
-    /// [`SourceAttachError::StaleKey`] if the key does not resolve
-    /// (attaching identity to nothing is a caller bug, refused loudly).
-    ///
-    /// # Panics
-    ///
-    /// Where debug assertions are compiled in (this workspace's release
-    /// profile keeps them), when another live key already carries
-    /// `source` over a description that differs — one recipe evaluates
-    /// to one description (N6). Two different surface kinds differ at
-    /// any scalar; within one kind a scalar with no bit channel (`Dual`,
-    /// `Sym`) offers no evidence, and only the parts that have one are
-    /// compared.
-    pub fn set_surface_source(
-        &mut self,
-        key: SurfaceKey,
-        source: GeomSource,
-    ) -> Result<(), SourceAttachError> {
-        if self.surfaces.get(key).is_none() {
-            return Err(SourceAttachError::StaleKey);
-        }
-        // The one door that can break N6 from outside the recipe layer.
-        // Every other holder is read, not the first that answers: with a
-        // disagreeing pair already present (a graft copies stamps
-        // unchecked), which holder answered first would be arena order.
-        // One scan per stamp is O(keys) — quadratic over a body stamped
-        // key by key — which the assertion build pays deliberately: an
-        // index keyed by source would be a second record of every origin
-        // write (graft, clear, reap) to keep coherent for a check.
-        #[cfg(debug_assertions)]
-        if let Some(stamped) = self.surfaces.get(key) {
-            for (other, _) in self
-                .surface_origins
-                .iter()
-                .filter(|&(k, origin)| k != key && origin.source() == Some(&source))
-            {
-                let Some(held) = self.surfaces.get(other) else {
-                    continue;
-                };
-                debug_assert!(
-                    crate::source::surface_bits_witness(stamped, held) != Some(false),
-                    "set_surface_source: {source:?} already stamps {other:?}, whose description \
-                     differs from {key:?}'s — one recipe evaluates to one description (N6)"
-                );
-            }
-        }
-        self.surface_origins.insert(key, GeomOrigin::Recipe(source));
-        Ok(())
-    }
-
-    /// Stamps the recipe source of a curve description
-    /// ([`Body::set_surface_source`]).
-    ///
-    /// # Errors
-    ///
-    /// [`SourceAttachError::StaleKey`] on a non-resolving key.
-    pub fn set_curve_source(
-        &mut self,
-        key: CurveKey,
-        source: GeomSource,
-    ) -> Result<(), SourceAttachError> {
-        if self.curves.get(key).is_none() {
-            return Err(SourceAttachError::StaleKey);
-        }
-        self.curve_origins.insert(key, GeomOrigin::Recipe(source));
-        Ok(())
-    }
-
-    /// Stamps the recipe source of a point ([`Body::set_surface_source`]).
-    ///
-    /// # Errors
-    ///
-    /// [`SourceAttachError::StaleKey`] on a non-resolving key.
-    pub fn set_point_source(
-        &mut self,
-        key: PointKey,
-        source: GeomSource,
-    ) -> Result<(), SourceAttachError> {
-        if self.points.get(key).is_none() {
-            return Err(SourceAttachError::StaleKey);
-        }
-        self.point_origins.insert(key, GeomOrigin::Recipe(source));
-        Ok(())
-    }
-
-    // ------------------------------------------------------------------
-    // ParamSource records (VERB-SEAT-DESIGN P1) — see
-    // `crate::param_source`.
-    // ------------------------------------------------------------------
-
-    /// The recipe expression behind one stored scalar field of a
-    /// surface description, if the recipe layer stamped one.
-    ///
-    /// `None` is the normal answer: the channel is opt-in, so every
-    /// kernel-direct construction, every import and every hand-built
-    /// body answers `None` everywhere. Absence NEVER certifies
-    /// anything — it routes the general rung
-    /// ([`crate::param_source::field_source_evidence`]).
-    /// [A foreign key is not caught](self#key-validity-stale-vs-foreign).
-    pub fn surface_field_source(
-        &self,
-        key: SurfaceKey,
-        field: SurfaceField,
-    ) -> Option<&ParamSource> {
-        self.surface_field_sources.get(key)?.get(field)
-    }
-
-    /// Stamps (or replaces) the recipe source of one stored scalar
-    /// field — the recipe layer's post-op attachment door, the
-    /// per-field spelling of [`Body::set_surface_source`].
-    ///
-    /// # Errors
-    ///
-    /// [`ParamAttachError::StaleKey`] if the key does not resolve;
-    /// [`ParamAttachError::FieldNotOnKind`] if the surface at that key
-    /// has no such field. Both are caller bugs — a flow declaration
-    /// naming a field its carrier does not store is exactly the wiring
-    /// mistake the declaration exists to make impossible, so it is
-    /// refused rather than recorded where nothing reads it.
-    pub fn set_surface_field_source(
-        &mut self,
-        key: SurfaceKey,
-        field: SurfaceField,
-        source: ParamSource,
-    ) -> Result<(), ParamAttachError> {
-        let Some(surface) = self.surfaces.get(key) else {
-            return Err(ParamAttachError::StaleKey);
-        };
-        if !field.belongs_to(surface) {
-            return Err(ParamAttachError::FieldNotOnKind { field });
-        }
-        let mut rows = self.surface_field_sources.remove(key).unwrap_or_default();
-        rows.set(field, source);
-        self.surface_field_sources.insert(key, rows);
-        Ok(())
-    }
-
-    // ------------------------------------------------------------------
-    // The axis channel — see `crate::AxisSource`.
-    // ------------------------------------------------------------------
-
-    /// The source of a surface's axis component, if the recipe layer
-    /// stamped one and no placement has cleared it since. `None` never
-    /// certifies anything; [`Body::surface_axis_record`] says which
-    /// `None` it is.
-    /// [A foreign key is not caught](self#key-validity-stale-vs-foreign).
-    pub fn surface_axis_source(&self, key: SurfaceKey) -> Option<&AxisSource> {
-        self.surface_axis_sources.get(key)?.source()
-    }
-
-    /// A surface's axis-channel row: `None` where nothing was attached,
-    /// [`AxisRecord::Cleared`] where a placement moved the axis and the
-    /// re-stamp has not run.
-    /// [A foreign key is not caught](self#key-validity-stale-vs-foreign).
-    pub fn surface_axis_record(&self, key: SurfaceKey) -> Option<&AxisRecord> {
-        self.surface_axis_sources.get(key)
-    }
-
-    /// Stamps (or replaces) the source of a surface's axis component —
-    /// the recipe layer's attachment door, and its re-stamp after a
-    /// placement ([`AxisSource::placed`]), which discharges an
-    /// [`AxisRecord::Cleared`] row.
-    ///
-    /// The token names a LINE the axis lies on ([`AxisSource`]): a
-    /// sphere is stamped with a line through its centre, whatever the
-    /// pole its chart stores.
-    ///
-    /// # Errors
-    ///
-    /// [`AxisAttachError::StaleKey`] if the key does not resolve;
-    /// [`AxisAttachError::NoAxisOnKind`] if the channel names no line
-    /// for the surface's kind ([`AxisSource::admits`]).
-    pub fn set_surface_axis_source(
-        &mut self,
-        key: SurfaceKey,
-        source: AxisSource,
-    ) -> Result<(), AxisAttachError> {
-        let Some(surface) = self.surfaces.get(key) else {
-            return Err(AxisAttachError::StaleKey);
-        };
-        if !AxisSource::admits(surface) {
-            return Err(AxisAttachError::NoAxisOnKind);
-        }
-        self.surface_axis_sources
-            .insert(key, AxisRecord::Source(source));
-        Ok(())
-    }
-
-    /// Marks `Cleared` every placement-bound source — each
-    /// description's `GeomSource` and each surface's axis row — the
-    /// honest posture after a kernel-level geometric rewrite without
-    /// recipe context
-    /// (`transform_rigid`): the old sources' bit-identity claim no
-    /// longer holds, so keeping them would let same-source certify
-    /// coincidence between bit-DIFFERENT descriptions. The recipe
-    /// layer re-stamps composed sources after the op (N6: the
-    /// transform node composes into `expr`).
-    ///
-    /// The per-field [`ParamSource`] records are deliberately NOT
-    /// cleared here, and that is the whole difference between the two
-    /// channels: a rigid map rewrites a description's bits but cannot
-    /// change a radius, so a field's identity survives the placement
-    /// verbatim (`crate::param_source`). The axis rows ARE cleared: an
-    /// axis is placement data, and a placement moves it.
-    ///
-    /// **The clear leaves a trace the re-stamp overwrites.** Every
-    /// description that held a source reads [`GeomOrigin::Cleared`]
-    /// afterwards ([`Body::surface_origin`]), and every axis row
-    /// [`AxisRecord::Cleared`], so a lost re-stamp is a state a reader
-    /// can NAME rather than a silence it cannot tell from a hand-built
-    /// body's. Descriptions that held no source are untouched: their
-    /// origin did not change, because nothing was dropped.
-    pub fn clear_geom_sources(&mut self) {
-        for (_, row) in self.surface_axis_sources.iter_mut() {
-            *row = AxisRecord::Cleared;
-        }
-        for (_, origin) in self.point_origins.iter_mut() {
-            if matches!(origin, GeomOrigin::Recipe(_)) {
-                *origin = GeomOrigin::Cleared;
-            }
-        }
-        for (_, origin) in self.curve_origins.iter_mut() {
-            if matches!(origin, GeomOrigin::Recipe(_)) {
-                *origin = GeomOrigin::Cleared;
-            }
-        }
-        for (_, origin) in self.surface_origins.iter_mut() {
-            if matches!(origin, GeomOrigin::Recipe(_)) {
-                *origin = GeomOrigin::Cleared;
-            }
-        }
-    }
-
-    /// **Declares every description this body now holds to have been
-    /// adopted from an exchange file** ([`GeomOrigin::Imported`], D7) —
-    /// the importer's door, called once on the body it ships.
-    ///
-    /// Body-wide rather than per-key because that is the claim a
-    /// producer is in a position to make: an importer knows the whole
-    /// body came out of a file, and no kernel op can tell one of its
-    /// descriptions from another's. Descriptions minted AFTER this call
-    /// read [`GeomOrigin::KernelDirect`] from their own mint, which is
-    /// the truth — a boolean run on an imported body derives new
-    /// geometry that was in no file.
-    ///
-    /// **It marks the [`GeomOrigin::KernelDirect`] arm and nothing
-    /// else**, because that is the only arm the claim is true of. The
-    /// claim is *a producer adopting a body it has just built from a
-    /// file*: every description of such a body is kernel-direct at the
-    /// moment of the call — the importer minted them all and no recipe
-    /// evaluated any of them — so the other two arms are descriptions
-    /// the caller did not get from the file.
-    ///
-    /// - [`GeomOrigin::Recipe`] is left alone: the recipe is the finer
-    ///   identity, and the two never coexist.
-    /// - [`GeomOrigin::Cleared`] is left alone, and that is the arm
-    ///   this matters for. `Cleared` says a recipe source was dropped
-    ///   and the re-stamp never ran — the defect this channel exists
-    ///   to name. Overwriting it with a legitimate origin would erase
-    ///   exactly that evidence, one public door over from the door
-    ///   that recorded it.
-    ///
-    /// **The direction it does NOT take** is refusing. A non-
-    /// `KernelDirect` row is not a caller bug this door can prove: the
-    /// caller is making a true statement about the descriptions it
-    /// minted and an unfounded one about the rest, and the narrower
-    /// answer — mark what the claim covers, leave what it does not —
-    /// costs no caller anything. The one in-tree caller
-    /// (`step-import`'s `import_step`) ships a body whose every row is
-    /// `KernelDirect`, so it marks all of them.
-    pub fn mark_imported(&mut self) {
-        for (_, origin) in self.point_origins.iter_mut() {
-            if matches!(origin, GeomOrigin::KernelDirect) {
-                *origin = GeomOrigin::Imported;
-            }
-        }
-        for (_, origin) in self.curve_origins.iter_mut() {
-            if matches!(origin, GeomOrigin::KernelDirect) {
-                *origin = GeomOrigin::Imported;
-            }
-        }
-        for (_, origin) in self.surface_origins.iter_mut() {
-            if matches!(origin, GeomOrigin::KernelDirect) {
-                *origin = GeomOrigin::Imported;
-            }
-        }
+        self.points.remove(point).is_some()
     }
 
     // ------------------------------------------------------------------
@@ -2837,41 +2324,6 @@ mod tests {
         t.body.half_edges.remove(dead);
         t.body.get_half_edge_mut(t.hes_a[0]).unwrap().next = dead;
         assert_eq!(t.body.loop_cycle(t.hes_a[0]), None);
-    }
-
-    /// `None` from an origin reader is the key failing to resolve, not
-    /// an origin — the same answer every other lookup on `Body` gives a
-    /// key it does not hold.
-    ///
-    /// The key is made stale **inside one body** (mint, remove, read),
-    /// not borrowed from another: a foreign key is documented as
-    /// possibly resolving to an arbitrary entity (module docs), so a
-    /// row that reads one against an empty body is pinning the fixture,
-    /// not staleness. These rows live here rather than in
-    /// `tests/geom_origin_rows.rs` because the mint and orphan doors
-    /// are crate-internal.
-    #[test]
-    fn a_stale_key_has_no_origin() {
-        let mut body = Body::<f64>::new();
-        let point = body.add_point(origin());
-        let surface = body.add_surface(Surface::Plane {
-            origin: Point3::origin(),
-            normal: geom_core::Vec3::new(0.0, 0.0, 1.0),
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
-        });
-        assert_eq!(body.point_origin(point), Some(&GeomOrigin::KernelDirect));
-        assert_eq!(
-            body.surface_origin(surface),
-            Some(&GeomOrigin::KernelDirect)
-        );
-
-        assert!(body.remove_point_if_orphaned(point));
-        assert!(body.remove_surface_if_orphaned(surface));
-        assert_eq!(body.point_origin(point), None);
-        assert_eq!(body.surface_origin(surface), None);
-        // And so does the projection the recipe layer reads.
-        assert_eq!(body.point_source(point), None);
-        assert_eq!(body.surface_source(surface), None);
     }
 
     /// The door against the chain it replaces, on the validator's own

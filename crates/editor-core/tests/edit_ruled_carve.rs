@@ -194,9 +194,8 @@ fn carve(
     let (doc, fillet) = fixture::insert(
         doc,
         Node::Fillet {
-            target: rod.into(),
             radius: len(ROD_FILLET),
-            selection,
+            selection: editor_core::Operand::select(rod, selection),
         },
     );
     Ruled {

@@ -2,10 +2,12 @@
 id: census-backstop-clears-a-curved-pair-only-along-world-axes
 kind: issue
 title: The census backstop clears a cross-solid pair with a curved side only by a gap along x, y or z, so CurvedWithinReach depends on the pose
-status: open
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: M
+closed: 2026-10-10
+refs: [census-backstop-separates-curved-pairs-only-along-world-axes]
 ---
 
 
@@ -52,3 +54,8 @@ about `z` and tilted 0° or 15°.
   join.
 - The lumps are a prong-width apart, but their reach boxes overlap in
   world axes.
+
+## Closed as a duplicate (2026-10-10)
+
+Same defect as `census-backstop-separates-curved-pairs-only-along-world-axes`, which CONTACTHOLD claimed and measured; this row's
+pointer to `boolean::separating::apart` is carried there. (CONTACTHOLD orchestrator)

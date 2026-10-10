@@ -91,11 +91,12 @@ use geom_brep::CERT_SAMPLES;
 use geom_brep::ssi::BranchEnd;
 use geom_brep::ssi::{
     self, ChartAxis, ChartCorner, ChartEnd, ChartSide, ChartSpeedRefusal, RefineStop, RefusedRound,
-    RoundMargin, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_STEPS, SSI_SEED_FLOOR, SSI_SETTLE_MAX,
-    SSI_TUBE_RADIUS, SettlingRefusal, SsiBoundaryContact, SsiDomain, SsiError, SsiLimb, SsiOperand,
-    SsiTube,
+    ResidualTrend, RoundMargin, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_STEPS, SSI_SEED_FLOOR,
+    SSI_SETTLE_MAX, SSI_TUBE_RADIUS, SettlingRefusal, SsiBoundaryContact, SsiDomain, SsiError,
+    SsiLimb, SsiOperand, SsiTube,
 };
 use geom_core::spline::KnotVector;
+use geom_core::test_support::upper;
 use geom_core::{Margin, Point3, Vec3};
 use test_utils::vacuity;
 
@@ -422,8 +423,8 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
     let n = carrier.control().len() / 2;
     let bad = displaced(&carrier, n, definitely_positive());
     match certify_against(&bad) {
-        Err(SsiError::CertificateLimb { limb, value, .. }) => {
-            assert_eq!(limb, SsiLimb::OnLocus, "LIMB-1: value = {value}");
+        Err(SsiError::CertificateLimb { limb, margin }) => {
+            assert_eq!(limb, SsiLimb::OnLocus, "LIMB-1: margin = {margin}");
         }
         other => panic!("LIMB-1: expected limb 1 to refuse, got {other:?}"),
     }
@@ -447,10 +448,9 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
         match certify_against(&bad) {
             Err(SsiError::CertificateLimb {
                 limb: SsiLimb::HullSup,
-                value,
-                ..
+                margin,
             }) => {
-                found = Some((d, value));
+                found = Some((d, upper(margin)));
                 break;
             }
             // A hull bound that lands just ABOVE ε is inside the
@@ -1099,7 +1099,7 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
     //
     // A pcurve corruption leaves limb 1 clean — the foot-point check
     // re-projects from the corrupted warm start and converges to the
-    // true foot, so on-locus distance and orthogonality stay in band —
+    // true foot, so the on-locus distance stays in band —
     // while limb 2, which consumes the pcurve AS the parameter map,
     // must see |S(P(t)) − C(t)| at the corruption's full size. The
     // displacement scales from the resolved band (definitely positive
@@ -1130,9 +1130,8 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
     match err {
         SsiError::CertificateLimb {
             limb: SsiLimb::HullSup,
-            value,
-            ..
-        } => assert!(value > eps(), "CORRUPT-PCURVE: {value:e}"),
+            margin,
+        } => assert!(upper(margin) > eps(), "CORRUPT-PCURVE: {margin:e}"),
         other => panic!("CORRUPT-PCURVE: expected limb 2 alone, got {other}"),
     }
 }
@@ -4807,10 +4806,10 @@ fn a_curved_domes_open_arc_is_refined_where_the_hull_limb_refused() {
 fn rounds_at_the_wall(
     at: &str,
     r: &Result<geom_brep::SsiOutcome, SsiError>,
-) -> (usize, Vec<RefusedRound>, String) {
+) -> (usize, Vec<RefusedRound>, String, ResidualTrend) {
     let Err(
         e @ SsiError::RefinementExhausted {
-            stop: RefineStop::StepBudget { budget },
+            stop: RefineStop::StepBudget { budget, trend },
             samples,
             refusal,
             earlier,
@@ -4827,7 +4826,7 @@ fn rounds_at_the_wall(
         "{at}: refused at the round that would overrun it: {samples} samples"
     );
     let last = match **refusal {
-        SsiError::CertificateLimb { limb, value, .. } => (limb, RoundMargin::Over(value)),
+        SsiError::CertificateLimb { limb, margin } => (limb, RoundMargin::Over(margin)),
         SsiError::CertificateEscalated { limb, cause } => (limb, RoundMargin::InBand(cause.margin)),
         ref other => panic!("{at}: a limb's refusal stands: {other:?}"),
     };
@@ -4841,6 +4840,7 @@ fn rounds_at_the_wall(
         *samples,
         rounds,
         e.render(geom_brep::recourse::Reading::Build),
+        *trend,
     )
 }
 
@@ -4850,8 +4850,9 @@ fn rounds_at_the_wall(
 /// refinement's first round asks about 23 400 steps, so the wall refuses
 /// before it, naming the one refused round. A branch never grows past the
 /// wall, and the refusal is the resource limit, not a verdict on the
-/// carrier. One round shows no margin falling or stopping, so the ending
-/// is the curvature-held march's: the domain, then the tolerance.
+/// carrier. One round shows no refused residual falling or stopping, so
+/// the ending is the curvature-held march's: the domain, then the
+/// tolerance.
 #[test]
 fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
     let d = 1.0;
@@ -4865,7 +4866,8 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
         return;
     }
     let r = ssi::plane_nurbs_ssi(&level, &dome_wall(d), dom, band_at(1e-14));
-    let (samples, rounds, shown) = rounds_at_the_wall("the level loop at 1e-14", &r);
+    let (samples, rounds, shown, trend) = rounds_at_the_wall("the level loop at 1e-14", &r);
+    assert_eq!(trend, ResidualTrend::Falling, "one round shows no stall");
     assert!(
         (18_000..18_600).contains(&samples),
         "the march's samples: {samples}"
@@ -4906,10 +4908,16 @@ fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
         return;
     }
     let r = ssi::plane_nurbs_ssi(&zcut, &dome_wall(d), dom, band_at(1e-14));
-    let (_, rounds, shown) = rounds_at_the_wall("the zcut at 1e-14", &r);
+    let (_, rounds, shown, trend) = rounds_at_the_wall("the zcut at 1e-14", &r);
+    assert_eq!(
+        trend,
+        ResidualTrend::Stalled,
+        "the floor stalled the residual"
+    );
     assert!(
         shown.contains(
-            "the margin stopped falling, so at this ε and scale it is the arithmetic's floor"
+            "the refused residual stopped falling, so at this ε and scale it is the \
+             arithmetic's floor"
         ),
         "the ending names the floor: {shown}"
     );
@@ -6082,7 +6090,7 @@ fn a_sliver_the_march_could_step_through_refuses_as_near_tangent() {
 /// after, `β = −3, 1`, at ε 1e-6: the march on the straight part can keep
 /// a step landing on the other branch, and its carrier, across the two,
 /// fails limbs 1 and 2 at a margin halving does not lower. Refinement
-/// asks limb 3 once where the refused margin stops falling, and the tube
+/// asks limb 3 once where the refused residual stops falling, and the tube
 /// refuses with the clearer angle's lever, as main refused both pairs,
 /// where refining on would add three samples a round to the step wall.
 /// Run at its own band.

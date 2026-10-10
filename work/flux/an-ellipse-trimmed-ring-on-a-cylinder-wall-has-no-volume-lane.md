@@ -6,6 +6,8 @@ status: review
 pr: 4557
 branch: flux/ellipse-ring
 opened: 2026-10-02
+priority: P0
+cost: H
 ---
 
 

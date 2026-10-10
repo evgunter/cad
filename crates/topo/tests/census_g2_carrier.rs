@@ -92,8 +92,8 @@ fn pair(slab: &Body<f64>, plate: &Body<f64>) -> (FaceKey, FaceKey) {
 // ---------------------------------------------------------------------
 
 /// INVARIANT: two independently authored coincident planar faces share
-/// no `SurfaceKey` and no `GeomSource`, and the world-carrier arm
-/// answers them anyway — with definite area, not a guess. This is the
+/// no `SurfaceKey` and do not read bit-identical, and the world-carrier
+/// arm answers them anyway — with definite area, not a guess. This is the
 /// gap #1063 names, closed.
 #[test]
 fn a_declared_planar_pair_with_no_structural_chart_certifies_on_the_world_carrier() {
@@ -285,7 +285,7 @@ fn a_bridged_door_one_declines_the_interior_witness_rung() {
 ///   (`declared_pair_overlap`'s kind gate).
 #[test]
 fn a_declared_curved_cross_instance_pair_is_still_refused() {
-    let build = |surface: &Surface<f64>| {
+    let build = |surface: &Surface<f64>, b_surface: &Surface<f64>| {
         let a: common::Prism<f64> = common::prism_z(
             &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)],
             0.0,
@@ -298,9 +298,9 @@ fn a_declared_curved_cross_instance_pair_is_still_refused() {
             2.0,
             Tol::witness(),
         );
-        // Re-describe both interface faces as the SAME curved surface:
-        // two independently authored curved descriptions, each in its
-        // own arena, with no shared key and no `GeomSource`.
+        // Re-describe both interface faces as one curved locus: two
+        // independently authored curved descriptions, each in its own
+        // arena, with no shared key.
         let (mut a_body, mut b_body) = (a.body, b.body);
         // Lifts RechartStrandsDescriptions: two independently authored curved descriptions are the declared pair.
         a_body
@@ -317,7 +317,7 @@ fn a_declared_curved_cross_instance_pair_is_still_refused() {
             .set_face_surface_unvouched_for_tests(
                 b.bottom_face,
                 FaceSurface::New {
-                    surface: surface.clone(),
+                    surface: b_surface.clone(),
                     sense: true,
                 },
             )
@@ -330,7 +330,7 @@ fn a_declared_curved_cross_instance_pair_is_still_refused() {
         radius: 1.0,
         u_ref: geom_core::Vec3::unit_x(),
     };
-    let (a_body, fa, b_body, fb) = build(&cyl);
+    let (a_body, fa, b_body, fb) = build(&cyl, &cyl);
     match declared_pair_overlap(&a_body, fa, &b_body, fb, ContactVerdict::Definite, band()) {
         Err(ChartRegionError::MissingCache { .. }) => {}
         other => panic!("the cylinder arm engages and refuses the uncached trims: {other:?}"),
@@ -341,7 +341,15 @@ fn a_declared_curved_cross_instance_pair_is_still_refused() {
         axis: geom_core::Vec3::unit_z(),
         u_ref: geom_core::Vec3::unit_x(),
     };
-    let (a_body, fa, b_body, fb) = build(&sphere);
+    // B charts the sphere from another reference direction: one
+    // description in both would be one chart by its bits.
+    let sphere_b = Surface::Sphere {
+        center: Point3::new(0.0, 0.0, 1.0),
+        radius: 1.0,
+        axis: geom_core::Vec3::unit_z(),
+        u_ref: geom_core::Vec3::unit_y(),
+    };
+    let (a_body, fa, b_body, fb) = build(&sphere, &sphere_b);
     match declared_pair_overlap(&a_body, fa, &b_body, fb, ContactVerdict::Definite, band()) {
         Err(ChartRegionError::ChartDivergence { .. }) => {}
         other => panic!("a sphere cross-instance declared pair stays refused: {other:?}"),

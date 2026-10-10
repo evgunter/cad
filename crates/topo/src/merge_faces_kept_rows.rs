@@ -18,7 +18,6 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey};
 use crate::geometry::SurfaceKey;
 use crate::merge_faces::MergeCoplanarOutcome;
-use crate::source::GeomSource;
 use crate::test_support_fixtures::{describe_as_intersections, prism_z};
 use crate::validate::{ValidationError, validate_geometric};
 
@@ -119,28 +118,22 @@ fn a_declared_merge_on_distinct_keys_returns_no_strand() {
     );
 }
 
-/// The undeclared door reaches distinct keys through a shared surface
-/// source, and returns no strand there either.
+/// The undeclared door glues distinct keys whose margins decide one
+/// plane, and returns no strand there either.
 #[test]
-fn a_same_source_merge_on_distinct_keys_returns_no_strand() {
+fn an_undeclared_merge_on_distinct_keys_returns_no_strand() {
     let tol = Tol::witness();
     let (mut body, kept, absorbed) = split_wall_prism(tol);
     let (ks, ka) = (surface_of(&body, kept), surface_of(&body, absorbed));
-    // One recipe surface evaluates to one description (N6): the
-    // absorbed key takes the survivor's description bit for bit — the
-    // same plane, so every certificate naming it still holds — and
-    // both keys carry one source.
+    // The absorbed key takes the survivor's description bit for bit —
+    // the same plane, so every certificate naming it still holds.
     let plane = body.get_surface(ks).expect("live").clone();
     *body.surfaces.get_mut(ka).expect("live") = plane;
-    body.set_surface_source(ks, GeomSource::minted(1, 0))
-        .expect("live");
-    body.set_surface_source(ka, GeomSource::minted(1, 0))
-        .expect("live");
     assert_eq!(intersections_naming(&body, ka).len(), 3);
 
     let outcome = body
         .merge_coplanar_faces(tol)
-        .expect("the same-source coplanar pair merges");
+        .expect("the coplanar pair merges");
 
     assert_one_group(&outcome, kept, absorbed);
     assert_eq!(intersections_naming(&body, ka), Vec::<EdgeKey>::new());
@@ -246,37 +239,34 @@ pub(crate) fn wall_beside_a_leaning_neighbour(tol: Tol) -> (Body<f64>, FaceKey, 
     (body, kept, absorbed, ops.struts[2].edge)
 }
 
-/// **The door's refusal is the door's own.** A kept face's boundary
-/// edge whose two faces' dihedral is in band refuses naming the kept
-/// face and the edge, with the merge's lever — and speaks of no seam.
+/// **An in-band lean between neighbours refuses at the merge's own
+/// scan.** The leaning neighbour's dihedral with the absorbed face is in
+/// band, so the merge's ladder reads the pair neither one plane nor two
+/// and refuses it as the neighbours' parallelism, before any face is
+/// absorbed and so before the kept face's boundary is described — and
+/// speaks of no seam.
 #[test]
-fn an_undecided_kept_boundary_edge_refuses_in_the_doors_words() {
+fn an_in_band_lean_between_neighbours_refuses_at_the_scan() {
     let tol = Tol::witness();
-    let (mut body, kept, absorbed, strut) = wall_beside_a_leaning_neighbour(tol);
+    let (mut body, kept, absorbed, _) = wall_beside_a_leaning_neighbour(tol);
     let before = crate::fixtures::deep_snapshot(&body);
     let pair = (surface_of(&body, kept), surface_of(&body, absorbed));
     let refusal = body
         .merge_coplanar_faces_declared(&[pair], tol)
-        .expect_err("the leaning neighbour's dihedral is in band at the kept face's edge");
+        .expect_err("the leaning neighbour's dihedral is in band");
     assert!(
         matches!(
             refusal,
-            crate::merge_faces::MergeCoplanarError::KeptBoundaryUndecided { face, edge, .. }
-                if face == kept && edge == strut
+            crate::merge_faces::MergeCoplanarError::Escalated {
+                decision: crate::merge_faces::MergeDecision::Neighbours(
+                    crate::boolean::PlaneRung::Parallel
+                ),
+                ..
+            }
         ),
-        "the refusal names the kept face and the edge: {refusal:?}"
+        "the scan's own refusal: {refusal:?}"
     );
     let text = refusal.to_string();
-    for words in [
-        "kept face",
-        "boundary edge",
-        "move the geometry so the faces at that edge clearly cross or are clearly smooth",
-    ] {
-        assert!(
-            text.contains(words),
-            "the door's text says {words:?}: {text}"
-        );
-    }
     assert!(!text.contains("seam"), "the door speaks of no seam: {text}");
     assert_eq!(
         crate::fixtures::deep_snapshot(&body),

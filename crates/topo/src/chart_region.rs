@@ -8,15 +8,15 @@
 //! # The certified lane is same-chart BY CONSTRUCTION
 //!
 //! "Overlap in the shared chart" presumes a shared chart. The lane
-//! admits exactly the pairs whose chart identity is structural:
+//! admits exactly the pairs whose chart identity is exact:
 //!
-//! - **at rest, one body**: the two faces carry the same `SurfaceKey`
-//!   — one description, one chart, trivially;
-//! - **cross-body, rung 2**: both surfaces carry the same
-//!   [`crate::GeomSource`] — the N6 retirement theorem gives
-//!   bit-identical descriptions, hence the identical chart.
+//! - **one key**: the two faces carry the same `SurfaceKey` — one
+//!   description, one chart, trivially;
+//! - **one description**: the two surfaces read bit-identical through
+//!   the bracketed exact comparator ([`surface_bits_equal`]) — the
+//!   identical chart, whichever arena holds each.
 //!
-//! **Rung-3 (declared) pairs have exactly TWO further authorities**
+//! **Declared pairs have exactly TWO further authorities**
 //! ([`declared_pair_overlap`]):
 //!
 //! - the shared WORLD CARRIER of a PLANAR pair (ratified as U-R2 with
@@ -217,13 +217,13 @@ pub enum ChartOverlap {
     strum_discriminants(name(ChartRegionErrorKind), vis(pub(crate)), derive(strum::EnumIter))
 )]
 pub enum ChartRegionError {
-    /// The pair has no structural chart identity (rung 3 or below):
-    /// C2's caveat — two descriptions of one locus may differ as
-    /// charts — makes a chart-space test unachievable; recourse is a
-    /// structural identity (shared key / same `GeomSource`), not a
-    /// numeric chart comparison.
+    /// The pair has no exact chart identity: C2's caveat — two
+    /// descriptions of one locus may differ as charts — makes a
+    /// chart-space test unachievable; recourse is one description
+    /// (a shared key, or bit-identical data), not a numeric chart
+    /// comparison.
     ChartDivergence {
-        /// What was missing (same-key, same-source, …).
+        /// What was missing (same key, bit-identical data, …).
         detail: &'static str,
     },
     /// A loop's chart image is outside the planar trim inventory
@@ -353,12 +353,12 @@ impl core::fmt::Display for ChartRegionError {
         match self {
             Self::ChartDivergence { detail } => write!(
                 f,
-                "chart-region: no structural chart identity ({detail}) — a declared \
-                 (rung-3) pair escalates: two descriptions of one locus may differ \
-                 as charts, so no chart-space overlap test exists for it. Give the \
-                 pair a structural identity — one shared surface key, or two \
-                 descriptions off the same `GeomSource` — since no numeric \
-                 comparison of two charts stands in for one"
+                "chart-region: no exact chart identity ({detail}) — the pair \
+                 escalates: two descriptions of one locus may differ as charts, so \
+                 no chart-space overlap test exists for it. Give the pair one \
+                 description — one shared surface key, or two bit-identical \
+                 descriptions — since no numeric comparison of two charts stands \
+                 in for one"
             ),
             Self::NonPlanarTrim {
                 face,
@@ -697,10 +697,10 @@ fn definite_diag<T: Bounds>(
 /// of two faces on one STRUCTURALLY-identified chart. Pass the same
 /// `&Body` twice for the at-rest (one-body) site.
 ///
-/// This is the structural door and it stays structural: a pair with no
-/// shared `SurfaceKey` and no shared `GeomSource` gets
+/// This is the exact door and it stays exact: a pair with no shared
+/// `SurfaceKey` and no bit-identical description gets
 /// [`ChartRegionError::ChartDivergence`] here however coincident its
-/// geometry looks, because value equality never glues (F6). A pair
+/// geometry looks, since two charts of one locus are not one chart. A pair
 /// whose chart authority is a VERIFIED DECLARATION is a different
 /// question, asked at [`declared_pair_overlap`] — which asks this one
 /// first.
@@ -762,10 +762,9 @@ pub fn chart_region_overlap<T: Decide + CertifiedBounds>(
 ///
 /// Three authorities answer the same question, in fixed order:
 ///
-/// - [`declared_chart`] — the recipe declared the descriptions ONE
-///   chart (shared key / same `GeomSource`, read bit-identical), so the
-///   trims are read in it directly. Strictly stronger, so it is asked
-///   first.
+/// - [`declared_chart`] — the descriptions are ONE chart (a shared
+///   key, or bit-identical data), so the trims are read in it
+///   directly. Strictly stronger, so it is asked first.
 /// - the **shared world carrier**, PLANAR pairs
 ///   ([`world_carrier`]): a representative frame, legitimate exactly
 ///   to the extent of that function's frame-invariance lemma, and only
@@ -2266,20 +2265,17 @@ fn candidate_points<T: Decide>(poly: &[Point2<T>]) -> Vec<Point2<T>> {
     out
 }
 
-/// **The chart the recipe declared the two faces share** (module
-/// docs' chart-identity gate): the recipe declared the two surfaces
-/// one ([`crate::source::surface_declaration`] — the gluing question,
-/// not [`Body::same_chart`]'s identity), and where that declaration is
-/// a shared [`crate::GeomSource`], the two descriptions read
-/// bit-identical through [`surface_bits_equal`]. Anything weaker
-/// escalates typed.
+/// **The chart two faces share** (module docs' chart-identity gate):
+/// one surface key, or two descriptions that read bit-identical through
+/// [`surface_bits_equal`], the bracketed exact comparator — one chart,
+/// not two charts that decide one carrier. Anything weaker escalates
+/// typed rather than certify overlap in an arbitrarily chosen chart.
 fn declared_chart<T: Decide + Bounds>(
     body_a: &Body<T>,
     face_a: FaceKey,
     body_b: &Body<T>,
     face_b: FaceKey,
 ) -> Result<Surface<T>, ChartRegionError> {
-    use crate::source::SurfaceDeclaration as D;
     let key_a = body_a
         .get_face(face_a)
         .ok_or(ChartRegionError::Corrupt)?
@@ -2288,33 +2284,17 @@ fn declared_chart<T: Decide + Bounds>(
         .get_face(face_b)
         .ok_or(ChartRegionError::Corrupt)?
         .surface;
-    let divergence = |detail| Err(ChartRegionError::ChartDivergence { detail });
-    match crate::source::surface_declaration(body_a, key_a, body_b, key_b) {
-        D::SameKey => body_a
-            .get_surface(key_a)
-            .cloned()
-            .ok_or(ChartRegionError::Corrupt),
-        // Two bodies' stamps were never compared (`crate::source`'s
-        // module docs): a same-source pair that does not read
-        // bit-identical refuses typed rather than certify overlap in an
-        // arbitrarily chosen chart.
-        D::SameSource => {
-            let s_a = body_a.get_surface(key_a).ok_or(ChartRegionError::Corrupt)?;
-            let s_b = body_b.get_surface(key_b).ok_or(ChartRegionError::Corrupt)?;
-            if surface_bits_equal(s_a, s_b) {
-                Ok(s_a.clone())
-            } else {
-                divergence(
-                    "same GeomSource with non-bit-identical descriptions — \
-                     the same-source theorem violated (forged or corrupted source attachment)",
-                )
-            }
-        }
-        D::Mirrored => divergence("same source base with flipped orientation — the charts mirror"),
-        D::DistinctSources => {
-            divergence("distinct GeomSources — equal-but-independent descriptions do not glue")
-        }
-        D::Unsourced => divergence("no shared SurfaceKey and no GeomSource on both faces"),
+    let s_a = body_a.get_surface(key_a).ok_or(ChartRegionError::Corrupt)?;
+    if std::ptr::eq(body_a, body_b) && key_a == key_b {
+        return Ok(s_a.clone());
+    }
+    let s_b = body_b.get_surface(key_b).ok_or(ChartRegionError::Corrupt)?;
+    if surface_bits_equal(s_a, s_b) {
+        Ok(s_a.clone())
+    } else {
+        Err(ChartRegionError::ChartDivergence {
+            detail: "two descriptions that do not read bit-identical — no one chart holds both",
+        })
     }
 }
 
@@ -4187,7 +4167,6 @@ mod tests {
     // ------------------------------------------------------------------
 
     use crate::euler::{FaceSurface, MefSite, MevSite};
-    use crate::source::GeomSource;
     use crate::test_support_fixtures::unit_cyl_sheet;
     use geom::Curve3;
     use geom_brep::EdgeCurveSpec;
@@ -4333,7 +4312,7 @@ mod tests {
     }
 
     #[test]
-    fn rung2_shared_source_certifies_and_rung3_escalates() {
+    fn bit_identical_charts_certify_and_divergent_ones_escalate() {
         let mut body_a = Body::<f64>::new();
         let fa = sheet(
             &mut body_a,
@@ -4346,7 +4325,6 @@ mod tests {
                 sense: true,
             },
         );
-        let ka = body_a.get_face(fa).unwrap().surface;
         let mut body_b = Body::<f64>::new();
         let fb = sheet(
             &mut body_b,
@@ -4359,43 +4337,29 @@ mod tests {
                 sense: true,
             },
         );
-        let kb = body_b.get_face(fb).unwrap().surface;
 
-        // No sources: value-equal descriptions do NOT glue (C2).
-        match chart_region_overlap(&body_a, fa, &body_b, fb, band()) {
-            Err(ChartRegionError::ChartDivergence { .. }) => {}
-            other => panic!("sourceless cross-body pair must escalate, got {other:?}"),
-        }
-
-        // Rung 2: the same GeomSource ⇒ bit-identical descriptions ⇒
-        // the identical chart (N6) — the pair certifies.
-        body_a
-            .set_surface_source(ka, GeomSource::minted(7, 0))
-            .unwrap();
-        body_b
-            .set_surface_source(kb, GeomSource::minted(7, 0))
-            .unwrap();
+        // Two bit-identical descriptions in two arenas are one chart.
         assert_eq!(
             chart_region_overlap(&body_a, fa, &body_b, fb, band()).unwrap(),
             ChartOverlap::PositiveArea
         );
 
-        // Rung 3 (independent recipes): typed chart divergence.
-        body_b
-            .set_surface_source(kb, GeomSource::minted(8, 0))
-            .unwrap();
-        match chart_region_overlap(&body_a, fa, &body_b, fb, band()) {
+        // The same locus on a rotated chart frame: typed divergence.
+        let mut body_c = Body::<f64>::new();
+        let fc = sheet(
+            &mut body_c,
+            1.0,
+            1.0,
+            3.0,
+            3.0,
+            FaceSurface::New {
+                surface: xy_plane_rotated(),
+                sense: true,
+            },
+        );
+        match chart_region_overlap(&body_a, fa, &body_c, fc, band()) {
             Err(ChartRegionError::ChartDivergence { .. }) => {}
-            other => panic!("distinct sources must escalate, got {other:?}"),
-        }
-
-        // Same base, flipped orientation: the mirrored chart diverges.
-        body_b
-            .set_surface_source(kb, GeomSource::minted(7, 0).reverted())
-            .unwrap();
-        match chart_region_overlap(&body_a, fa, &body_b, fb, band()) {
-            Err(ChartRegionError::ChartDivergence { .. }) => {}
-            other => panic!("reverted source must escalate, got {other:?}"),
+            other => panic!("divergent charts must escalate, got {other:?}"),
         }
     }
 
@@ -4591,10 +4555,10 @@ mod tests {
             assert_pt(pcurve_entry(&h, 0.5, 1.0, true).unwrap(), 0.75, 1.5);
         }
 
-        // ---- Claim 2: the same-chart lane is airtight (and its trust
-        // boundary is source attachment, not surface values).
+        // ---- Claim 2: the same-chart lane is airtight, its boundary
+        // the descriptions' bits.
         #[test]
-        fn r1_value_equal_but_distinct_keys_on_one_body_escalate() {
+        fn r1_bit_equal_distinct_keys_on_one_body_share_a_chart() {
             let mut body = Body::<f64>::new();
             let f1 = sheet(
                 &mut body,
@@ -4618,21 +4582,19 @@ mod tests {
                     sense: true,
                 },
             );
-            match chart_region_overlap(&body, f1, &body, f2, band()) {
-                Err(ChartRegionError::ChartDivergence { .. }) => {}
-                other => panic!("value-equal distinct keys must escalate, got {other:?}"),
-            }
+            assert_eq!(
+                chart_region_overlap(&body, f1, &body, f2, band()).unwrap(),
+                ChartOverlap::PositiveArea,
+                "bit-equal descriptions under distinct keys are one chart"
+            );
         }
 
         #[test]
-        fn r1_the_lane_trusts_source_attachment_not_surface_values() {
-            // The SAME minted source attached to value-DIFFERENT plane
-            // descriptions (u_ref x̂ vs ŷ). As reviewed, the lane
-            // admitted on recipe identity alone (this probe recorded
-            // PositiveArea); the union fix (U1) VERIFIES N6's
-            // bit-identity conclusion through the module's own
-            // exact-bracket comparator, so the forged pair now refuses
-            // typed — the rung-2 premise is checked, never assumed.
+        fn r1_the_lane_reads_surface_bits() {
+            // Value-DIFFERENT plane descriptions of one locus (u_ref x̂
+            // vs ŷ) across two arenas: the lane reads the descriptions'
+            // bits through the module's exact-bracket comparator, so
+            // the pair refuses typed.
             let mut a = Body::<f64>::new();
             let fa = sheet(
                 &mut a,
@@ -4645,7 +4607,6 @@ mod tests {
                     sense: true,
                 },
             );
-            let ka = a.get_face(fa).unwrap().surface;
             let mut b = Body::<f64>::new();
             let fb = sheet(
                 &mut b,
@@ -4658,12 +4619,9 @@ mod tests {
                     sense: true,
                 },
             );
-            let kb = b.get_face(fb).unwrap().surface;
-            a.set_surface_source(ka, GeomSource::minted(3, 0)).unwrap();
-            b.set_surface_source(kb, GeomSource::minted(3, 0)).unwrap();
             match chart_region_overlap(&a, fa, &b, fb, band()) {
                 Err(ChartRegionError::ChartDivergence { .. }) => {}
-                other => panic!("forged same-source pair must diverge, got {other:?}"),
+                other => panic!("value-different charts must diverge, got {other:?}"),
             }
         }
 

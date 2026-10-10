@@ -266,6 +266,7 @@ fn one_node_eval(
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
             coincidences: Arc::new([]),
+            cited_inputs: Arc::new([]),
             parts: 1,
             verdicts: Arc::new(log),
             escalations: Arc::new(vec![]),

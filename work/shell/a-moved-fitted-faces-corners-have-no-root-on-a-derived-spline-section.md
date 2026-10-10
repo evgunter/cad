@@ -2,11 +2,12 @@
 id: a-moved-fitted-faces-corners-have-no-root-on-a-derived-spline-section
 kind: issue
 title: A moved fitted face's corner has no root unless one of the fit's own rows meets it: solve_corners skips rooting on a spline surface and a derived spline section seeks no corner
-status: dispatched
+status: closed
 opened: 2026-10-09
 priority: P2
 refs: [a-fitted-wall-has-no-section-with-a-moved-cap]
-branch: shell/fitted-corners
+pr: 4472
+closed: 2026-10-09
 ---
 
 Found by the unit that routed plane × `Approx` over the fit
@@ -38,3 +39,21 @@ section's domain ends, which run with the old carrier), or a surface ×
 curve root on the fit along a held edge; either makes a moved fitted
 face bounded by planes movable, and the shell of such a body the first
 fitted wall to move.
+
+## Closed
+
+PR 4472. `incident_edges` seeds a held plane's root on a derived spline
+section from the section's domain end at that corner (the seeds
+`read_ends` reads its feet from), and `solve_corners` takes a carrier
+end within ε of the plane as the root. The fit is still not rooted along
+a held edge. A fitted cap wider than its face moves and builds
+(`encl_curved_loft_shell.rs`,
+`a_moved_fitted_cap_stands_its_corners_on_the_held_sides`), and so does
+a curved one at ε = 1e-6 (`a_moved_curved_fitted_cap_builds_where_its_fit_certifies`),
+which re-opens ENCL's
+`a-rigid-map-can-still-refuse-a-sound-approx-face-at-its-edges-or-meters`; what stops
+the rest is filed: `a-plane-section-along-a-fits-window-edge-proves-no-one-arc`
+(SSIEDGE, the whole-fit cap's recertify),
+`a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image` (QUAD, its
+volume), `the-iso-row-arm-reads-a-u-moving-chart-image-as-a-u-row`
+(SHELL).

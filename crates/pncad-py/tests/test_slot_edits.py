@@ -290,8 +290,8 @@ class TestTheNameRepair(unittest.TestCase):
         return box, top, doc.insert(Node.shell(box, Formula.length_in(T, m), [top]))
 
     def test_the_repair_rewrites_the_site_and_the_body_follows(self):
-        """A shell's open list is a name-carrying payload, so saying
-        what the mouth now denotes moves the mouth. The two closed
+        """A shell's open faces are a selection of the box's body, so
+        saying what the mouth now denotes in that body moves the mouth. The two closed
         forms are the cavity opened at the top and at a wall."""
         doc = Doc()
         _box, top, hollow = self.cup(doc)
@@ -299,7 +299,7 @@ class TestTheNameRepair(unittest.TestCase):
         self.assertEqual(volume(doc, hollow), L * L * H - inner * inner * (H - T))
 
         wall = walls_of(doc, _box)[0]
-        doc.apply(DocEdit.rebind(top, wall))
+        doc.apply(DocEdit.rebind(top, wall, body=doc.output(_box)))
         # The cavity now reaches the opened wall: it is walled on one
         # side in y and on both in x and z.
         self.assertEqual(
@@ -365,7 +365,7 @@ class TestTheNameRepair(unittest.TestCase):
         box, _top, _hollow = self.cup(doc)
         unreferenced, other = walls_of(doc, box)[:2]
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.rebind(unreferenced, other))
+            doc.apply(DocEdit.rebind(unreferenced, other, body=doc.output(box)))
         self.assertEqual(caught.exception.variant, "rebind_no_references")
         self.assertEqual(caught.exception.name, unreferenced)
 

@@ -163,7 +163,7 @@ pub(crate) fn plate(
     let assertion = r.insert(Node::Assertion {
         value: web,
         bound: len(WEB - 1.0e-4),
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     });
     let measure = fixture::assertion_value(&r.doc, assertion);
     (r.doc, measure, assertion)
