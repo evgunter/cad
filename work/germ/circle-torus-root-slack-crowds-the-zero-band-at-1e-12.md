@@ -8,7 +8,7 @@ priority: P2
 cost: M
 design: true
 needs_ev: true
-branch: germ/circle-torus-slack-klint
+branch: germ/ev-klint-bound-door
 refs: [sphere-region-root-slack-crowds-the-zero-band-at-1e-12]
 ---
 
@@ -211,3 +211,12 @@ general answer if a third family turns up.
 
 Until it is ruled, `k-lint (dev-probe)` stays red on these 10 (8 GERM
 + 1 GERM meridian + 1 HONE) once its sweep pre-pass is green again.
+
+## The question for Ev (designers weighed it, 2026-10-10)
+
+Two designers, from one problem statement, agree on the diagnosis and on its home:
+- **The root-slack rows are bounds, not coincidences.** `slack` is a non-negative upper bound on the kernel's own placement error, and the lane accepts the root iff the bound is at most ε. A three-way sign decision (Zero, in-band, Positive) answers a two-way question, so rule 2's zero arm, rule 1 (an in-band slack is logged as an escalation) and rule 3 (a Positive slack read as a feature) all misread these samples.
+- **Recommended:** a kernel-side bound or certification door in `geom_core::k_stats` that records `within` or `exceeded` with the sample's kind. k-lint derives the kind from the record, keeps these rows out of rules 1–4, and reports usage, meaning the closest approach to ε per file, as a fact about the scene and ε. There is no hand-kept roster. The five root-slack sites migrate, HONE's sphere-region slack among them.
+- **Separately:** the one remaining flag, `bool_circle_torus_meridian` at 1.04e-14, is a genuine coincidence whose honest rounding at a 5 m scene crosses ε/10² at 1e-12. Both designers recommend a zero-side ceiling on rule 2, cut from the coincidence zeros, the twin of M7-F1's definite-side cap, rather than re-cutting `PROXIMITY_FACTOR`.
+
+Their full texts, A and B, are on the `[ev]` PR.
