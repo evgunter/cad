@@ -61,8 +61,7 @@ where
     let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let spec = geom_brep::EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
-            s1: wall,
-            s2: nface.surface,
+            pair: geom_brep::SurfacePair::new(wall, nface.surface),
             witness: p0.lerp(p1, T::from_f64(0.5)),
         },
         carrier: geom::Curve3::Nurbs(std::sync::Arc::new(
@@ -158,8 +157,7 @@ where
     let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let spec = geom_brep::EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
-            s1: wall,
-            s2: plane,
+            pair: geom_brep::SurfacePair::new(wall, plane),
             witness: p0.lerp(mid, T::from_f64(0.5)),
         },
         carrier: geom::Curve3::Nurbs(std::sync::Arc::new(

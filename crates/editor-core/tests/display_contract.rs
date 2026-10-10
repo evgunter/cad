@@ -1244,7 +1244,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 slot: editor_core::SlotId::Operand(editor_core::OperandSlot::A),
                 placement: absent(9),
             },
-            vec!["reads the world copy", "only the product and export read"],
+            vec!["reads the world copy", "no construction reads"],
         ),
         (
             SnapshotError::SelectionShape {

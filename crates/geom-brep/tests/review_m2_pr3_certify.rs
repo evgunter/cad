@@ -18,7 +18,8 @@ use geom::Surface;
 use geom_brep::recourse::{Classified, Refused};
 use geom_brep::{
     CertCheck, CertifyError, DihedralClass, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec,
-    MappedCurve, MappedSource, NewellError, SketchSegment, classify_dihedral, newell_plane,
+    MappedCurve, MappedSource, NewellError, SketchSegment, SurfacePair, classify_dihedral,
+    newell_plane,
 };
 use geom_core::{Affine3, Arc2, Point2, Point3, Vec3};
 
@@ -243,8 +244,7 @@ fn survives_plane_cylinder_partial_rim_certifies() {
     let p1 = Point3::new(-1.0, 0.0, 0.0);
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1: keys[0],
-            s2: keys[1],
+            pair: SurfacePair::new(keys[0], keys[1]),
             witness: Point3::new(0.0, 1.0, 0.0),
         },
         carrier: Curve3::Circle {
@@ -293,8 +293,7 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
     let p1 = Point3::new(-1.0, 0.0, 0.0);
     let mk = |t1: f64| EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1: keys[0],
-            s2: keys[1],
+            pair: SurfacePair::new(keys[0], keys[1]),
             witness: Point3::new(0.0, 1.0, 0.0),
         },
         carrier: Curve3::Circle {
@@ -327,12 +326,11 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
     // by the mid-parameter pin (S2): witness at the lower arc's
     // midpoint, interval traversing the upper arc.
     let mut wrong_side = mk(PI);
-    let EdgeDescriptionSpec::Intersection { s1, s2, .. } = wrong_side.description else {
+    let EdgeDescriptionSpec::Intersection { pair, .. } = wrong_side.description else {
         panic!("mk builds an Intersection description");
     };
     wrong_side.description = EdgeDescriptionSpec::Intersection {
-        s1,
-        s2,
+        pair,
         witness: Point3::new(0.0, -1.0, 0.0),
     };
     let refusal = EdgeCurve::certify(wrong_side, p0, p1, &lookup, band()).unwrap_err();
@@ -380,8 +378,7 @@ fn fixed_full_period_rim_intersection_certifies() {
     let p = Point3::new(1.0, 0.0, 0.0);
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1: keys[0],
-            s2: keys[1],
+            pair: SurfacePair::new(keys[0], keys[1]),
             // The mid-parameter point of t: 0 → tau is carrier(pi).
             witness: Point3::new(-1.0, 0.0, 0.0),
         },
@@ -558,8 +555,7 @@ fn a_collapsed_spline_meter_refuses_as_the_meter_decision() {
         });
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1,
-                s2,
+                pair: SurfacePair::new(s1, s2),
                 witness: carrier.eval(0.5),
             },
             carrier: carrier.clone(),

@@ -218,6 +218,13 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// to turn its offset from the axis: 8 of its points moved by at most 2
 /// ulps (`m10_p_fence`'s header has the dump), and no name table did.
 ///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`), re-taken on the tree holding every
+/// change above: the digest feeds each edge's description `Debug`,
+/// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
+/// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
+/// pins and `m5_pr8_bvh_diff` held.
+///
 /// RE-BLESSED, `kitchen_sink` only, for INTENT stage 3 A (a revolve's
 /// axis is a line on the node): its in-plane axis datum left, so every
 /// later node id re-mints and the name table with it. No outcome or
@@ -227,9 +234,9 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x4318_92f9_c696_0fd1u64),
-        ("part_select", 0x90fb_17e7_6b0b_54f9),
-        ("kitchen_sink", 0xd620_6a3e_0abf_8866),
+        ("cut_cylinder", 0x2f75_0d41_c9ca_4e19u64),
+        ("part_select", 0x8cb2_3fff_8d52_7f5b),
+        ("kitchen_sink", 0x6e2b_dbd7_4572_fb8a),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -326,6 +333,13 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// and this digest feeds ids. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held untouched.
+///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`), re-taken on the tree holding every
+/// change above: the digest feeds each edge's description `Debug`,
+/// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
+/// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
+/// pins and `m5_pr8_bvh_diff` held.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -346,7 +360,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x392d4572060a0b1d,
+        got, 0x80bf_b0ea_1f66_8105,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

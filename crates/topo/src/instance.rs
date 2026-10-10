@@ -61,8 +61,9 @@
 //! (the C9-ring conformal-rest / partial-embedding class); one
 //! instance's extents nested inside another's go to the material
 //! test, which clears a part sitting in a concavity and refuses an
-//! embedded one typed (`InstanceInterference` — recorded gate-skips,
-//! the declaration that would admit it, do not exist yet). A pair of
+//! embedded one typed (`InstanceInterference`, which no record
+//! admits; between two copies at rest the assembly layer reports it as
+//! a finding). A pair of
 //! PLANAR faces is left
 //! to the sweeps only when both are bounded entirely by line edges,
 //! which is what puts a whole boundary in front of them — so an

@@ -430,20 +430,33 @@ fn classify_gated<T: Decide, R>(
     passes: SizedPass,
     admits: fn(Sign) -> Option<R>,
 ) -> Result<R, Indeterminate> {
+    classify_gated_reported(name, margin, band, passes, admits).map(|(verdict, _)| verdict)
+}
+
+/// [`classify_gated`], keeping the reporting margin a passing verdict
+/// was decided on.
+fn classify_gated_reported<T: Decide, R>(
+    name: &'static str,
+    margin: T,
+    band: Band,
+    passes: SizedPass,
+    admits: fn(Sign) -> Option<R>,
+) -> Result<(R, MarginDiag), Indeterminate> {
     // `admits` both TESTS the verdict and carries it into the caller's
     // own vocabulary, in one function: a gate that answered `bool` here
     // would leave every caller converting an already-tested sign a
     // second time, with an arm for the answer this door escalated — the
     // shape these doors exist to remove, reproduced one level up.
     let Decided { sign, margin } = classify(name, margin, band)?;
-    admits(sign).ok_or_else(|| {
-        record_escalation(Indeterminate {
+    match admits(sign) {
+        Some(verdict) => Ok((verdict, margin)),
+        None => Err(record_escalation(Indeterminate {
             margin: margin.rejected_by(sign, passes),
             band,
             predicate: Some(name),
             terminal_sliver: false,
-        })
-    })
+        })),
+    }
 }
 
 /// **A check named for the recorder and NOT logged as a verdict** —
@@ -738,6 +751,31 @@ pub fn decide_nonzero<T: Decide>(
     band: Band,
 ) -> Result<NonzeroSign, Indeterminate> {
     classify_gated(
+        name,
+        margin.value(),
+        band,
+        SizedPass::NonZero,
+        |sign| match sign {
+            Sign::Positive => Some(NonzeroSign::Positive),
+            Sign::Negative => Some(NonzeroSign::Negative),
+            Sign::Zero => None,
+        },
+    )
+}
+
+/// [`decide_nonzero`], keeping the reporting margin the passing sign was
+/// decided on, as [`decide_magnitude_reported`] keeps it: for a verdict a
+/// later refusal quotes.
+///
+/// # Errors
+///
+/// As [`decide_nonzero`].
+pub fn decide_nonzero_reported<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(NonzeroSign, MarginDiag), Indeterminate> {
+    classify_gated_reported(
         name,
         margin.value(),
         band,
