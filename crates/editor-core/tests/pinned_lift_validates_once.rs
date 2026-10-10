@@ -27,8 +27,7 @@ use geom_core::{Arc2, Real, Sign, Tol};
 use profile::{Profile, ProfileLoop, SegmentKind, SketchPlane, ValidatedProfile};
 
 /// The `f64` loop embedded at `T` through `from_f64`, vertex by
-/// vertex, the declared joints carried — the raw profile the lane's
-/// own validation would run on.
+/// vertex — the raw profile the lane's own validation would run on.
 fn embed<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
     lp.map_scalar(T::from_f64)
 }

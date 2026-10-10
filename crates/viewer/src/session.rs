@@ -1531,9 +1531,12 @@ impl DocSession {
             SessionOp::SetSlotExpression { node, slot, text } => {
                 self.set_slot_expression(node, slot, &text)
             }
-            SessionOp::SetSlotVariable { node, slot, var } => {
-                self.set_slot_variable(node, slot, var)
-            }
+            SessionOp::SetSlotVariable {
+                node,
+                slot,
+                var,
+                name,
+            } => self.set_slot_variable(node, slot, var, name),
             SessionOp::DeclineOffer { node, slot } => {
                 self.close_offer(node, slot);
                 OpOutcome::default()
@@ -1938,11 +1941,20 @@ impl DocSession {
     }
 
     /// **Accept an offer**: the slot reads `var` — the slot-write
-    /// gesture, one edit and one undo step. Only a variable on offer
+    /// gesture, one undo step. An unnamed `var` is named `name` in the
+    /// same step, since a variable two slots share has a name (VR2);
+    /// accepted without one, the door refuses it
+    /// (`EditError::SharedVarNeedsName`). Only a variable on offer
     /// there ([`Self::offered`]) is accepted, so a stale button can
     /// never join a slot to a variable chosen against a value it no
     /// longer holds; the door checks the kind.
-    fn set_slot_variable(&mut self, node: RecipeNodeId, slot: SlotId, var: VarId) -> OpOutcome {
+    fn set_slot_variable(
+        &mut self,
+        node: RecipeNodeId,
+        slot: SlotId,
+        var: VarId,
+        name: Option<VarName>,
+    ) -> OpOutcome {
         if !self
             .offered(node, slot)
             .iter()
@@ -1951,7 +1963,21 @@ impl DocSession {
             let spoken = self.committed_doc().spoken_var(var);
             return OpOutcome::refused(Refusal::NotOffered(spoken));
         }
-        let outcome = self.commit_written(props::slot_read_edit(node, slot, var));
+        if name.is_some() && self.committed_doc().var_name(var).is_some() {
+            let spoken = self.committed_doc().spoken_var(var);
+            return OpOutcome::refused(Refusal::OfferIsNamed(spoken));
+        }
+        let read = props::slot_read_edit(node, slot, var);
+        let outcome = match name {
+            None => self.commit_written(read),
+            Some(name) => self.commit_action(vec![
+                DocEdit::RenameVar {
+                    var: var.into(),
+                    name: Some(name),
+                },
+                read,
+            ]),
+        };
         if outcome.refusal.is_none() {
             self.close_offer(node, slot);
         }

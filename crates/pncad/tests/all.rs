@@ -1063,7 +1063,7 @@ fn the_polygon_door_authors_through_the_lattice() {
 
 /// **The identity claim**: the door changes how a polygon is SAID, not
 /// what it is. The emitted loop is the raw vertex table — every
-/// authored point in order, every bulge zero, no declared joints.
+/// authored point in order, every bulge zero, no constructed joints.
 ///
 /// The claim is pinned against the table rather than against a call to
 /// the raw minting door, because that door is unreachable from here by
@@ -1086,13 +1086,13 @@ fn the_polygon_door_emits_the_raw_vertex_table() {
         assert_eq!(format!("{:?}", loop_.segments()[i]), "Line", "segment {i}");
     }
     assert!(
-        loop_.tangent_joints().is_empty(),
-        "a polygon declares no tangent joint"
+        loop_.constructed_joints().is_empty(),
+        "a polygon constructs no tangent joint"
     );
 
     // And the same loop the hand-spelled chain emits: the door IS that
     // chain, not a second lowering of the same table.
-    let chain: ProfileLoop<f64> = Open
+    let chain: ConstructedLoop<f64> = Open
         .at(p2(0.0, 0.0))
         .line_to(p2(2.0, 0.0), tol)
         .and_then(|t| t.line_to(p2(2.0, 3.0), tol))
@@ -1100,7 +1100,7 @@ fn the_polygon_door_emits_the_raw_vertex_table() {
         .and_then(|t| t.line_to(p2(0.0, 3.0), tol))
         .and_then(|t| t.line_to(Start, tol))
         .expect("the hand-spelled chain authors")
-        .into();
+        .loop_;
     let hand = chain.vertices();
     assert_eq!(hand.len(), got.len());
     for (i, (g, h)) in got.iter().zip(hand).enumerate() {
@@ -1111,7 +1111,7 @@ fn the_polygon_door_emits_the_raw_vertex_table() {
             "segment {i}"
         );
     }
-    assert_eq!(chain.tangent_joints(), loop_.tangent_joints());
+    assert_eq!(chain.constructed_joints(), loop_.constructed_joints());
 }
 
 /// The validation ladder as the corpus actually walks it.
@@ -7088,4 +7088,56 @@ fn a_lattice_built_loft_section_decides_no_consistency_check() {
         asked.contains(&"arc_start_on_carrier"),
         "the tables decide the checks: {asked:?}"
     );
+}
+
+/// **The façade's slot arguments share a variable by its name** (VR2,
+/// VR9): passing a slot's unnamed variable to a second slot refuses
+/// `SharedVarNeedsName`, naming it; once it is named, the same insert
+/// shares it.
+#[test]
+fn a_facade_slot_shares_an_unnamed_variable_only_once_it_is_named() {
+    use pncad::document::{
+        Axis3, Datum, Dimension, DocEdit, EditError, Formula, Node, ProfileDoc, SlotId, VarName,
+    };
+    let point = |x: Formula| DocEdit::InsertNode {
+        node: Box::new(Node::Datum(Datum::Point {
+            position: [
+                x,
+                Formula::literal(0.0, Dimension::Length).unwrap(),
+                Formula::literal(0.0, Dimension::Length).unwrap(),
+            ],
+        })),
+        fresh: Vec::new(),
+    };
+    let apply = |doc: &ProfileDoc, edit: &DocEdit<_>| {
+        pncad::document::apply(doc, edit, Tol::witness(), &pncad::document::RefusingReach)
+    };
+    let doc = ProfileDoc::empty_derived("facade-fork7", Tol::witness());
+    let first = apply(
+        &doc,
+        &point(Formula::literal(0.5, Dimension::Length).unwrap()),
+    )
+    .expect("a typed point");
+    let a = first.record.minted.expect("minted");
+    let x = first
+        .doc
+        .slot(a, SlotId::Origin(Axis3::X))
+        .expect("a reads x");
+    let second = point(Formula::var(x, Dimension::Length));
+    match apply(&first.doc, &second) {
+        Err(EditError::SharedVarNeedsName { var }) => assert_eq!(var.id(), x),
+        other => panic!("an unnamed variable's second reader refuses, got {other:?}"),
+    }
+    let named = apply(
+        &first.doc,
+        &DocEdit::RenameVar {
+            var: x.into(),
+            name: Some(VarName::from_static("x")),
+        },
+    )
+    .expect("the name lands")
+    .doc;
+    let shared = apply(&named, &second).expect("a named variable is shared");
+    let b = shared.record.minted.expect("minted");
+    assert_eq!(shared.doc.slot(b, SlotId::Origin(Axis3::X)), Some(x));
 }

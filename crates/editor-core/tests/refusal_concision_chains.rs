@@ -296,8 +296,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Profile/SliverLoop",
     "Profile/Structure",
     "Profile/TangencyContradicted",
-    "Profile/TangentJointOutOfRange",
-    "Profile/UndeclaredTangency",
     "ProfileReplay/Path/ArcCenterNotEquidistant",
     "ProfileReplay/Path/ArcLegOnOpenFillet",
     "ProfileReplay/Path/ArcViaCollinear",
@@ -2750,15 +2748,6 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
                 loop_index: 0,
                 joint: 9,
                 count: 4,
-            },
-        ),
-        (
-            "UndeclaredTangency",
-            E::UndeclaredTangency {
-                first: a,
-                second: b,
-                joint: 2,
-                suggestion: "declare_tangent(loop=0, joint=2)".to_owned(),
             },
         ),
         (

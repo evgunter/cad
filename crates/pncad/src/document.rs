@@ -223,6 +223,9 @@ pub use editor_core::expr::{EvalError, eval, eval_count, eval_var, eval_var_coun
 // `VarDecl`, the variable edits take a `VarRef`, and `Formula::named`
 // takes a `VarName` — so without them the parametric flagship
 // (`plate_param`, guide §3.2) could not be authored façade-only.
+// `FreshEntry` is an entry of an edit's fresh table: a variable the
+// edit mints for its formulas, under a name when two readers share it
+// (an unnamed variable has one reader, VR2).
 // `SpokenVar` is a variable as a refusal speaks it.
 // `FreeValue` is the value half of a free variable, and the reason it is
 // curated is the door it opens: `DocEdit::SetVarValue` writes a new
@@ -248,8 +251,9 @@ pub use editor_core::expr::{EvalError, eval, eval_count, eval_var, eval_var_coun
 // `EditError::DefinitionTooLarge` refuses past, so a caller holding that
 // refusal's count can read what it was measured against.
 pub use editor_core::{
-    DEFINITION_NODE_BOUND, DisplayUnitRefusal, DistributionRefusal, FreeValue, FreeVar, UnitSym,
-    Var, VarDecl, VarDef, VarId, VarKind, VarName, VarNameFault, VarNameReason, VarRef, WrittenDef,
+    DEFINITION_NODE_BOUND, DisplayUnitRefusal, DistributionRefusal, FreeValue, FreeVar, FreshEntry,
+    UnitSym, Var, VarDecl, VarDef, VarId, VarKind, VarName, VarNameFault, VarNameReason, VarRef,
+    WrittenDef,
 };
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the
@@ -553,7 +557,8 @@ pub use editor_core::{
 // from values, and what the door decides about each — the payload of
 // `CheckEvidence::UnprovenCoincidence`. The record's relation and
 // decision site are the kernel's own words (`topo::coincidence`), and
-// the door is a module so its `Recourse` keeps its name.
+// the door is a module so its `Recourse` keeps its name. A cell on a
+// profile piece names it by `select`'s `ProfileEdgeRef`, curated there.
 pub use editor_core::coincide;
 pub use editor_core::{NamedCell, NamedCoincidence, Proof, Residual, Rung};
 /// The shell door's typed refusal, which two `CheckEvidence` arms

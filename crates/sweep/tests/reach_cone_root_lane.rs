@@ -1,13 +1,10 @@
 //! **An edge crossing a cone face**: the crossing layer's cone column,
 //! from finished bodies.
 //!
-//! The boolean does not admit a cone operand: its pair gate refuses any
-//! cone face whose box reaches the other operand, and past the gate its
-//! sector algebra has no cone arm (`work/germ/VERBS-CONE.md`). The first
-//! row pins that frontier through every public door. The rest reach the
-//! crossing layer through `topo::sweep_split_admitting_cones`, the
-//! `sweep-testing` door that runs both sweep directions with the cone on
-//! the pair gate's roster and hands back the split operands.
+//! The first row runs every op on two of the poses through the public
+//! doors. The rest reach the crossing layer through
+//! `topo::sweep_split`, the `sweep-testing` door that
+//! runs both sweep directions and hands back the split operands.
 //!
 //! Each split is held to an oracle that reads no kernel code: along every
 //! edge of the other operand, the sign changes of the cone's quadric form
@@ -19,7 +16,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::solid_truth::{self, Op, Solid, Want};
 use crate::revolve_common::{axis_y, validated};
+use core::f64::consts::PI;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use sweep::test_support::finished;
@@ -159,7 +158,7 @@ fn assert_split_matches_oracle(label: &str, f: Frustum, other: &AtRestBody<f64>)
         } else {
             (&*cone, &**other)
         };
-        let (sa, sb, _, _) = topo::sweep_split_admitting_cones(a, b, tol)
+        let (sa, sb, _, _) = topo::sweep_split(a, b, tol)
             .unwrap_or_else(|e| panic!("{label}: the sweep refused {e:?}"));
         let split = if swapped { sa } else { sb };
         let mut got = new_vertices(other, &split);
@@ -198,7 +197,7 @@ fn assert_sweep_refuses(
         ("frustum first", &*cone, &**other),
         ("frustum second", &**other, &*cone),
     ] {
-        match topo::sweep_split_admitting_cones(a, b, Tol::witness()) {
+        match topo::sweep_split(a, b, Tol::witness()) {
             Err(e) if want(&e) => {}
             other => panic!("{label}, {order}: got {:?}", other.map(|_| "a split")),
         }
@@ -285,50 +284,124 @@ fn rod(r: f64, h: f64, tilt: f64, c: [f64; 3]) -> AtRestBody<f64> {
     )
 }
 
-/// **The boolean does not admit a cone operand.** Every pose below, and
-/// every op, refuses at the pair gate naming the cone face, before the
-/// crossing layer runs. This row goes red when the cone's operand lane
-/// opens (`VERBS-CONE`), and the rows below are then the crossing
-/// layer's ground for it.
+/// The overlap of [`diagonal_cube`]`(0.4, [−0.75, 0.5, 0])` with
+/// [`WIDENING`], by a midpoint rule over the cube's box at 800³ cells
+/// outside the kernel, stable to 4e-6 from 200³.
+const CUBE_ON_THE_WIDENING_WALL: f64 = 0.030_601;
+
+/// **Every op on a cone wall answers its truth or refuses typed.** The
+/// turned cube across the widening wall builds under all four ops: each
+/// body's volume is its closed form from the frustum's, the cube's and
+/// their overlap, it passes tier 3, and `point_in_solid` agrees with
+/// both operands' closed-form membership over a grid. The tilted rod
+/// across the narrowing wall is a cone × oblique cylinder pair, which
+/// has no germ frame: every op refuses there, naming the pair.
 #[test]
-fn every_op_refuses_a_cone_operand_at_the_pair_gate() {
-    let poses = [
+fn every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed() {
+    let tol = Tol::witness();
+    let f = WIDENING;
+    let cone = f.body();
+    let cube = diagonal_cube(0.4, [-0.75, 0.5, 0.0]);
+    let frustum = Solid::Revolved {
+        y0: f.y0,
+        y1: f.y1,
+        r0: f.r0,
+        k: f.k,
+        window: None,
+    };
+    let d = Vec3::new(1.0, 1.0, 1.0) / 3f64.sqrt();
+    let turned = Solid::Brick([(-0.2, 0.2); 3]).posed(
+        Affine3::translation(Vec3::new(-0.75, 0.5, 0.0))
+            * Affine3::rotation_about_axis(
+                Point3::origin(),
+                Vec3::new(-1.0, 0.0, 1.0) / 2f64.sqrt(),
+                d.y.acos(),
+            ),
+    );
+    let (va, vb, vi) = (
+        PI / 3.0 * (0.25 + 0.5 + 1.0),
+        0.064,
+        CUBE_ON_THE_WIDENING_WALL,
+    );
+    let points = solid_truth::grid(Point3::new(-1.1, 0.0, -0.4), Point3::new(-0.4, 1.0, 0.4), 7);
+    for (op_label, got, op, x, y, v) in [
         (
-            "a turned cube across the widening wall",
-            WIDENING,
-            diagonal_cube(0.4, [-0.75, 0.5, 0.0]),
+            "∪",
+            topo::union(&cone, &cube, tol),
+            Op::Union,
+            &frustum,
+            &turned,
+            va + vb - vi,
         ),
         (
-            "a tilted rod across the narrowing wall",
-            NARROWING,
-            rod(0.12, 0.5, 0.3, [-0.75, 0.5, 0.0]),
+            "∩",
+            topo::intersect(&cone, &cube, tol),
+            Op::Intersect,
+            &frustum,
+            &turned,
+            vi,
         ),
-    ];
-    for (label, f, other) in &poses {
-        let cone = f.body();
-        for (op_label, op, a, b) in [
-            ("∪", BooleanOp::Union, &cone, other),
-            ("∩", BooleanOp::Intersect, &cone, other),
-            ("A ∖ B", BooleanOp::Subtract, &cone, other),
-            ("B ∖ A", BooleanOp::Subtract, other, &cone),
-        ] {
-            let got = match op {
-                BooleanOp::Union => topo::boolean::union(a, b, Tol::witness()),
-                BooleanOp::Intersect => topo::boolean::intersect(a, b, Tol::witness()),
-                BooleanOp::Subtract => topo::boolean::subtract(a, b, Tol::witness()),
-            };
-            assert!(
-                matches!(
-                    got,
-                    Err(BooleanError::CurvedPairUnsupported {
-                        kind: geom::SurfaceKind::Cone,
-                        ..
-                    })
-                ),
-                "{label}, {op_label}: got {:?}",
-                got.map(|_| "a result")
-            );
-        }
+        (
+            "A ∖ B",
+            topo::subtract(&cone, &cube, tol),
+            Op::Subtract,
+            &frustum,
+            &turned,
+            va - vi,
+        ),
+        (
+            "B ∖ A",
+            topo::subtract(&cube, &cone, tol),
+            Op::Subtract,
+            &turned,
+            &frustum,
+            vb - vi,
+        ),
+    ] {
+        // ∪ and A ∖ B keep a cone face bounded by the cube's tilted
+        // sections: one grid point refuses `PartialConeFace` there,
+        // measured at every ε row.
+        let partial = if matches!(op_label, "∪" | "A ∖ B") {
+            1
+        } else {
+            0
+        };
+        solid_truth::assert_is_but(
+            &format!("the turned cube, {op_label}"),
+            &got,
+            Want::Body(v, 1e-5),
+            &|q| op.depth(x, y, q),
+            &[],
+            &points,
+            partial,
+        );
+    }
+    let narrowing = NARROWING.body();
+    let rod = rod(0.12, 0.5, 0.3, [-0.75, 0.5, 0.0]);
+    for (op_label, op, a, b) in [
+        ("∪", BooleanOp::Union, &narrowing, &rod),
+        ("∩", BooleanOp::Intersect, &narrowing, &rod),
+        ("A ∖ B", BooleanOp::Subtract, &narrowing, &rod),
+        ("B ∖ A", BooleanOp::Subtract, &rod, &narrowing),
+    ] {
+        let got = match op {
+            BooleanOp::Union => topo::boolean::union(a, b, tol),
+            BooleanOp::Intersect => topo::boolean::intersect(a, b, tol),
+            BooleanOp::Subtract => topo::boolean::subtract(a, b, tol),
+        };
+        assert!(
+            matches!(
+                got,
+                Err(BooleanError::GermFrameUnsupported { a_kind, b_kind, .. })
+                    if matches!(
+                        [a_kind, b_kind],
+                        [geom::SurfaceKind::Cone, geom::SurfaceKind::Cylinder]
+                            | [geom::SurfaceKind::Cylinder, geom::SurfaceKind::Cone]
+                    )
+            ),
+            "the tilted rod, {op_label}: got {:?}",
+            got.map(|r| r.body().map(|b| b.kind))
+        );
     }
 }
 

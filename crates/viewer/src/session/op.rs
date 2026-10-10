@@ -132,8 +132,13 @@ pub enum SessionOp {
     /// **Accept a typed value's offer** (`DocSession::offered`): the
     /// slot reads the offered variable, by one `SetParam` (or
     /// `SetStructuralParam`) whose formula is the variable alone, so
-    /// two slots share one variable from then on. A variable not on
-    /// offer at that slot is refused (`Refusal::NotOffered`).
+    /// two slots share one variable from then on. An unnamed variable
+    /// has one reader (VR2), so accepting one names it: `name` is
+    /// written first, by a `RenameVar`, and the two edits are one
+    /// action and one undo step. A variable not on offer at that slot
+    /// is refused (`Refusal::NotOffered`), and a name for one that
+    /// already has a name (`Refusal::OfferIsNamed`): accepting renames
+    /// nothing.
     SetSlotVariable {
         /// The node.
         node: RecipeNodeId,
@@ -141,6 +146,8 @@ pub enum SessionOp {
         slot: SlotId,
         /// The variable it reads from now on.
         var: VarId,
+        /// The name the variable is shared under, for one that has none.
+        name: Option<VarName>,
     },
     /// **Decline a typed value's offer**: the slot keeps the variable
     /// its typed value minted, distinct from every variable offered

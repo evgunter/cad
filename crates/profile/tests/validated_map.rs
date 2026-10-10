@@ -18,7 +18,7 @@ use crate::common;
 
 use common::{annulus, bracket, chain, l_profile, lens, lift, profile, rounded_rect, tol};
 use geom_core::{Affine3, Arc2, Decide, Dual64, Point2, Real, Sign, Vec3};
-use profile::{LoopRole, Profile, RawLoop, SegmentKind, SketchPlane, ValidatedProfile};
+use profile::{LoopRole, Profile, SegmentKind, SketchPlane, ValidatedProfile};
 
 /// The fixtures, named: every canonical-form fact the door carries has
 /// an instance here.
@@ -87,7 +87,7 @@ fn fixtures() -> Vec<(&'static str, Profile<f64>)> {
 
 /// A rounded rectangle with its corner at (x0, y0): straight sides,
 /// counterclockwise quarter-arc corners of radius `r`, every joint
-/// declared tangent.
+/// tangent.
 fn rounded_hole(x0: f64, y0: f64, w: f64, h: f64, r: f64) -> profile::ProfileLoop<f64> {
     let b = common::quarter_bulge();
     chain(&[
@@ -100,7 +100,6 @@ fn rounded_hole(x0: f64, y0: f64, w: f64, h: f64, r: f64) -> profile::ProfileLoo
         (x0, y0 + h - r, 0.0),
         (x0, y0 + r, b),
     ])
-    .with_tangent_joints((0..8).collect())
 }
 
 /// Every scalar a validated profile stores, in one fixed order: the
