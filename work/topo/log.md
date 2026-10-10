@@ -7659,3 +7659,47 @@ Ev asked about PR 3970. The thread's last word was my 2026-10-04 06:42 promise t
   - the blend's carve strips chartless.
 - `zip_seam`'s retiring kills stay on `_minting` until choice 3. Privacy and tier 1 (step 4) are not in this unit.
 - The old impl lane `session_01KvmfitreFfbxkDUEQMZ5Aw` is archived.
+
+## 18:30 (2026-10-10): hand-back, `status: ready`
+
+**Step 2 stopped on a fork (PR 4562, merged `c0e756b1`, row only).** As briefed, none of the moves could be built without new refusals on sound inputs in the suite. Measured over the whole ci profile at the default eps, 1e-6 and 1e-12:
+- `merge_group` through the twin refuses 115 calls, all onto curved survivors. The PR 4204 review's 9,910/9,910 held for planar survivors only.
+- Chartless transients strand `Intersection(transient key, neighbour)` edges, because `vouch_move` asks the strand first:
+  - the chord join's null face: 8,684 of 43,830 calls;
+  - the blend strips: 7 of 9 `mef`s on nearly every call.
+- `cut_core`'s kill precedes completion, so re-charting at completion cannot cover it.
+
+The fork is F1 (merge on curved survivors) and F2 (chartless transients against the strand rule). It is recorded on the kef/kfmrh row, with every caller at option (c), staying on `_minting`. Every other option needs the restatement row's kind derivation, or narrows ruling 1. I added one correction to the row: the restatement row was released from the D10 hold, not held.
+
+**Landed this stint** (from 2026-10-06):
+- PRs 4091, 4080, 4105, 4099, 4154, 4165;
+- PR 3970: the kef/kfmrh rulings (1 = B, 2 = tier 1, 3 = A in outline; fork-log row 76);
+- PR 4204: series step 1, keys-only refusals plus describing twins, with the shared door/restater plan;
+- PR 4562: step 2's measurements and the fork.
+
+**For the next orchestrator, in order:**
+1. **The restatement fork.** `restatement-derives-each-moved-edges-kind` (choice 3's details and D2's prefer-intrinsic authority question) was released by INTENT stage 4 E "for a designer pass". F1 and F2 on the kef/kfmrh row are the same question: how an edge a kill moves gets described. Weigh all three together in one designer round.
+   - Ev weakly held designers on 2026-10-06 while D10 changes things, so ask Ev before running them.
+   - `offset-held-neighbour-image-…` waits on the same answer.
+2. **Series steps 3–4** (absorbing `_minting`, then field privacy, the tier-1 naming check and D1's text) follow that ruling. Two small moves are measured and buildable now (on the row): `split_side` through the twin, 24 of 24; `fuse_by_joint`'s hole arm as a same-key `kfmrh_describing`.
+3. **P2 rows, open:**
+   - `mfkrh-leaves-an-orphan-surface-under-the-per-op-scalpel` (filed by PR 4433's review);
+   - `movefac-torn-bodies-fuzz-seed-panics-at-the-door-postcondition`;
+   - `a-lone-site-placeholder-has-no-type-of-its-own` (needs designers; held with the rest, as above).
+4. **`torn-hops-read-as-absent-across-the-boolean`**: released by INTENT stage 4 E for its coincidence sites (`recl` ladder, `edge_covers`, `parents_distinct_from`, `edge_face_read`). The declared-pair-only sites may leave with `declared-pairs-retire` (F).
+5. **The P3 queue**, open:
+   - `a-listed-spec-cannot-name-a-fresh-chart-…`;
+   - `a-moving-door-carries-minted-rows-onto-an-unminted-face-…`;
+   - `a-moving-door-leaves-a-complete-spline-destination-half-minted`;
+   - `boolean-unreadable-norm-ends-as-a-kernel-defect`;
+   - `face-boundary-walks-spell-the-linked-prelude-by-hand` (back to `open`; its PR landed, and `pcurves.rs` plus the now-deleted `rest.rs` `patch_faces` remain);
+   - `kef-minting-clears-a-complete-face-…`;
+   - `minting-doors-take-a-callers-description-unasked-…`;
+   - `set-face-surfaces-describing-keeps-a-moved-edges-rows-…`;
+   - `the-site-mints-plan-reads-the-rewired-loop-whole-…`;
+   - `torn-body-refusal-families-beyond-the-six-doors`.
+6. **Parked** on INTENT stages 3 and 4: six rows (see `blocked_on`).
+
+Collisions left open by others: PR 4191 (shell, curved mouth, after `rename_loop_surface` went) and PR 3945 (pcert, test file). Both have heads-up comments.
+
+No lanes running; trigger deleted; subscriptions cleared.
