@@ -53,9 +53,9 @@
 #         = 12 + 13.5 (a+b)^2 / ((4a+b)(2a+5b))   [a = √73, b = √265]
 #         = 13.674079253555504 m³ = 13674079253.555504 mm³.
 #
-# The kernel's certified midpoint below is 13674079253.555506 -- ONE
-# ulp away (1.91e-6 mm³), which is 5.39e-2 of the certified pad: the
-# analytic value sits inside the certified enclosure with 18.5x margin
+# The kernel's certified midpoint below is 13674079253.55551 -- three
+# ulps away (5.72e-6 mm³), which is 0.282 of the certified pad: the
+# analytic value sits inside the certified enclosure with 3.5x margin
 # -- comfortably, but not by decades. RTOL stays at the 1e-9 default:
 # these walls are piecewise-POLYNOMIAL ruled patches (degree 1x2), well
 # inside GProp's Gauss order, exactly as for `loft_prism` (local FreeCAD
@@ -77,8 +77,8 @@ KERNEL_SHELLS=1
 KERNEL_FACES=6
 KERNEL_EDGES=12
 KERNEL_VERTICES=8
-KERNEL_VOLUME_MM3=13674079253.555506
-KERNEL_VOLUME_PAD_MM3=3.5379107051388324E-5
+KERNEL_VOLUME_MM3=13674079253.55551
+KERNEL_VOLUME_PAD_MM3=2.028007391648619E-5
 EXPECT_SOLIDS=1
 EXPECT_SHELLS=1
 EXPECT_FACES=6
