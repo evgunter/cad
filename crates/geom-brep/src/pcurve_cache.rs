@@ -1644,8 +1644,8 @@ pub enum PcurveCertifyError {
         /// The refused class, named.
         what: &'static str,
     },
-    /// The chart's control net disagrees with its knot vectors, or the
-    /// row or column read from it would not re-wrap as a curve —
+    /// The row or column read from the chart would not re-wrap as a
+    /// curve —
     /// unreachable for a chart that already validated, and surfaced
     /// with the spline layer's own refusal rather than swallowed
     /// (D4 ¶2).
