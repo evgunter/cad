@@ -5,15 +5,17 @@
 //!
 //! The pairwise pass judges every member pair in member space, and the
 //! fold reads one verdict per carrier pair through member lineage and
-//! re-decides none (`eval::wire`'s `debug_assert_given` holds that at
-//! the verdict site in every debug run). So each union below is
+//! re-glues none (`eval::wire`'s `debug_assert_given` holds that at the
+//! verdict site in every debug run). So each union below is
 //! evaluated under every order of its members, a seeded sample of
 //! [`SAMPLE`] orders where `n!` is larger, and these are equal across
 //! the orders:
 //!
 //! - **the outcome's kind**: every order builds, or every order refuses;
 //! - **a refusal**: the pass's own, the same in every order — or a
-//!   fold step's, which names its step ([`NodeErrorKind::UnionFoldStep`]);
+//!   fold step's ([`NodeErrorKind::UnionFoldStep`]), whose inner
+//!   refusal is of one kind in every order (the member it names is the
+//!   one each order folds in, and differs);
 //! - **the rows**: the union's coincidences, each an unordered pair of
 //!   the member cells it names, as a multiset;
 //! - **the names**: every name of the union's table beside the geometry
@@ -24,9 +26,20 @@
 //!
 //! **What follows list order on purpose, and is excluded by name:** the
 //! result's description bits. A glued face keeps the description of the
-//! member folded first (D10, operand A's), so two orders hold one solid
-//! in two descriptions of its glued faces; [`compare`] reads geometry
-//! through the names and the volume, never through `Body`'s bits.
+//! member folded first (D10, ordinarily operand A's), so two orders hold
+//! one solid in two descriptions of its glued faces; [`compare`] reads
+//! geometry through the names and the volume, never through `Body`'s
+//! bits.
+//!
+//! **Scope.** The corpus is planar blocks: rests, continuations, a
+//! transverse union and an in-band sliver. Unions known to decide by
+//! member order are pinned where their issues own them, not here:
+//! `emit_shared_rim_several`'s `RESIDUES` (`row`, `rowids` and `cross`
+//! reach an emitter residue in some orders and build in the others;
+//! `work/wire/a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission.md`,
+//! `work/emit/a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere.md`),
+//! and the capsule's rod ending on its joint
+//! (`work/tang/the-capsule-rod-ending-on-the-joint-parts-by-member-order.md`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;
@@ -151,8 +164,9 @@ enum Decided {
     },
     /// The pass refused, the same in every order.
     Refused(String),
-    /// A fold step refused, naming the member it folds in.
-    FoldStep,
+    /// A fold step refused: its inner refusal's kind, without the
+    /// member it names.
+    FoldStep(String),
 }
 
 /// The union of `members` in `order`, evaluated, read as [`Decided`].
@@ -168,7 +182,15 @@ fn decide(fixture: Members, order: &[usize]) -> Decided {
     );
     let ev = run(&doc);
     match failure(&ev, union) {
-        Some(NodeErrorKind::UnionFoldStep { .. }) => Decided::FoldStep,
+        Some(NodeErrorKind::UnionFoldStep { refusal, .. }) => {
+            let inner = format!("{refusal:?}");
+            let kind = inner
+                .split(|c: char| !c.is_alphanumeric() && c != '_')
+                .next()
+                .unwrap_or_default()
+                .to_string();
+            Decided::FoldStep(kind)
+        }
         Some(other) => Decided::Refused(format!("{other:?}")),
         None => built(&ev, union),
     }
@@ -303,6 +325,12 @@ fn the_corpus_reaches_its_classes() {
             !sliver,
             "{what}: {got:?}"
         );
+        if sliver {
+            assert!(
+                matches!(got, Decided::Refused(_)),
+                "{what}: the sliver refuses in the pass, not at a fold step: {got:?}"
+            );
+        }
         if let Decided::Built { rows, .. } = &got {
             let glued = !matches!(what, "posts and bar");
             assert_eq!(!rows.is_empty(), glued, "{what}: {rows:#?}");

@@ -786,7 +786,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             // did not glue over the faces.
             Ok((rel, _, margin)) => {
                 return Err(super::unglued_coincidence(
-                    margin.unwrap_or(geom_core::MarginDiag::INVALID),
+                    // A reading with no margin is one carrier by structure (one key,
+                    // or bit-identical descriptions): its offset is exactly zero.
+                    margin.unwrap_or(geom_core::MarginDiag::value(0.0)),
                     declared.carriers_read(pair, rel),
                     band,
                 ));

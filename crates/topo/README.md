@@ -231,7 +231,9 @@ carrier non-contradiction through the kind ladder, senses aligned as an
 exact bit. Opposed senses contradict it, as aligned senses contradict
 `Rest` at every door. A union merges a continuation, declared or decided
 by its margin: the merge stage reads the same ladder (D10), keeping the
-arena-first face's description, which is operand A's.
+description of the group's arena-first face that lies in no other
+member's hole. That is ordinarily operand A's, and B's where A's face
+plugs a hole of B's.
 
 **Seam.** Two faces, one from each operand, on DISTINCT carriers tangent
 along a curve with their senses ALIGNED are a *seam*: the two surfaces

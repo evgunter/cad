@@ -190,7 +190,8 @@ pub struct BooleanBody<T: Real> {
     pub body: AtRestBody<T>,
     /// How it was produced.
     pub kind: BooleanResultKind,
-    /// Declared contacts surviving into the result, in result keys
+    /// Contacts, declared or glued on a decided Zero, surviving into the
+    /// result, in result keys
     /// (module docs) — what a tier-3′ pass over the result reads
     /// (type-level docs); the door has not checked them.
     pub contacts: ContactRecords,
@@ -636,16 +637,17 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let band = Band::linear(tol)?;
-    let decls = &*super::glue::decided_declarations(a, b, decls, band)?;
-    let (red, connected, interior_loops) =
+    let (red, connected, interior_loops, glued) =
         match through_the_join(op, a, b, decls, strategy, recut, tol)? {
             Joined::Answered(result) => return Ok(*result),
             Joined::Connected {
                 red,
                 connected,
                 interior_loops,
-            } => (*red, *connected, interior_loops),
+                decls,
+            } => (*red, *connected, interior_loops, decls),
         };
+    let decls = &*glued;
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
     let coincidences = red.coincidences.clone();
@@ -790,15 +792,19 @@ pub(super) enum Joined<T: Real> {
         connected: Box<super::join::Connected>,
         /// [`interior_loop_verdict`]'s answer, not yet raised.
         interior_loops: Result<(), BooleanError>,
+        /// The declarations the pipeline ran on: the caller's, and the
+        /// pairs the glue door decided ([`super::glue`]).
+        decls: Box<BooleanDeclarations>,
     },
 }
 
-/// **The pipeline through its join**: the reduction, then the
-/// no-crossings path where there is no null pair, and otherwise the
-/// join.
+/// **The pipeline through its join**: the glue door over the caller's
+/// declarations `decls`, the reduction, then the no-crossings path where
+/// there is no null pair, and otherwise the join.
 /// [`boolean_op_recut`] finishes what it returns, and the test hook
 /// that stops at the join (`boolean::through_the_join`) reads it, so
-/// the two run one sequence.
+/// the two run one sequence. A re-cut re-enters with the caller's
+/// declarations, and the glue door reads the re-cut operands afresh.
 ///
 /// # Errors
 ///
@@ -815,7 +821,8 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Joined<T>, BooleanError> {
     let band = Band::linear(tol)?;
-    let mut red = super::boolean_reduce_declared_strategy(op, a, b, decls, strategy, tol)?;
+    let glued = super::glue::decided_declarations(a, b, decls, band)?;
+    let mut red = super::boolean_reduce_declared_strategy(op, a, b, &glued, strategy, tol)?;
 
     if red.null_pairs.is_empty() {
         if !red.null_edges.is_empty() {
@@ -875,11 +882,11 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // cylinder and cone face's pairs, certified per pair by the
         // section certificate or refused typed.
         section_extent_pass(a, b, &red.rest_contacts, band)?;
-        return fallback(op, &red, a, b, decls, band, tol)
+        return fallback(op, &red, a, b, &glued, band, tol)
             .map(|result| Joined::Answered(Box::new(result)));
     }
 
-    let interior_loops = interior_loop_verdict(op, a, b, &red, decls, band);
+    let interior_loops = interior_loop_verdict(op, a, b, &red, &glued, band);
     // The join carves both reduction operands through the Euler
     // operators; one scope per operand body, and what certifies the
     // result is `gate` below, over the body they are finished into.
@@ -900,6 +907,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         red: Box::new(red),
         connected: Box::new(connected),
         interior_loops,
+        decls: Box::new(glued.into_owned()),
     })
 }
 

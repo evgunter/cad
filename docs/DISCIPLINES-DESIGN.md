@@ -120,8 +120,11 @@ now the `unproven-coincidence` lint's, which reads each recorded
 coincidence and reports the ones nothing in the document proves. The
 identification grade is retired: carrier equality and contact carry
 no switch because nothing about them is gated, not because a
-declaration is mandatory. A declaration still bridges a margin in
-band, which the undeclared ladder refuses as a sliver.
+declaration is mandatory. One exception stands until declarations
+retire (stage 4 F, `work/intent/declared-pairs-retire.md`): a
+declaration bridges a margin in band, which the undeclared ladder
+refuses as a sliver, so in band, and only there, a declared pair builds
+where its undeclared twin refuses.
 
 **Classification-grade disciplines are everything else**: the
 stratum verdict tunes edge descriptions, legality, and messages, but

@@ -249,6 +249,8 @@ pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
         topo::Relation::EqualAngles => "makes an equal angle at its turn with",
         topo::Relation::Tangent { aligned: true } => "continues tangent into",
         topo::Relation::Tangent { aligned: false } => "turns back tangent into",
+        topo::Relation::TangentContact { seam: false } => "touches tangentially against",
+        topo::Relation::TangentContact { seam: true } => "continues tangentially into",
     }
 }
 

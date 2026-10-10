@@ -5111,8 +5111,8 @@ fn tangent_row(
             crate::RowCell::face(Operand::A, fa),
             crate::RowCell::face(Operand::B, fb),
         ],
-        relation: crate::Relation::Tangent {
-            aligned: claim == Tangency::Seam,
+        relation: crate::Relation::TangentContact {
+            seam: claim == Tangency::Seam,
         },
         site: crate::DecisionSite::TangentWitness,
         margin,

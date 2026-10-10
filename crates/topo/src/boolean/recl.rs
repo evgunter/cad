@@ -148,7 +148,9 @@ pub(super) fn require_same<T: Decide>(
         }),
         Ok((rel, ..)) if declared_one_carrier => Ok(rel),
         Ok((rel, _, margin)) => Err(super::unglued_coincidence(
-            margin.unwrap_or(geom_core::MarginDiag::INVALID),
+            // A reading with no margin is one carrier by structure (one key,
+            // or bit-identical descriptions): its offset is exactly zero.
+            margin.unwrap_or(geom_core::MarginDiag::value(0.0)),
             declared.carriers_read(pair, rel),
             band,
         )),

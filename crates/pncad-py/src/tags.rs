@@ -3018,6 +3018,8 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::EqualAngles => "equal_angles",
         R::Tangent { aligned: true } => "tangent",
         R::Tangent { aligned: false } => "cusp",
+        R::TangentContact { seam: false } => "tangent_contact",
+        R::TangentContact { seam: true } => "seam",
     }
 }
 

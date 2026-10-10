@@ -46,13 +46,6 @@ pub(crate) fn decided_declarations<'d, T: Decide + Bounds>(
     if decls.verdicts == super::Verdicts::Given {
         return Ok(Cow::Borrowed(decls));
     }
-    let pad = boxes::sweep_pad(band);
-    let b_keys: Vec<FaceKey> = b.faces().map(|(k, _)| k).collect();
-    let b_boxes = b_keys
-        .iter()
-        .map(|&k| boxes::face_box(b, k, pad, band))
-        .collect::<Result<Vec<_>, BooleanError>>()?;
-    let tree = bvh::Bvh::build(&b_boxes);
     let declared = |fa, fb| {
         decls
             .coincident_faces
@@ -60,26 +53,20 @@ pub(crate) fn decided_declarations<'d, T: Decide + Bounds>(
             .any(|d| d.a == fa && d.b == fb)
     };
     let mut found = Vec::new();
-    for (fa, _) in a.faces() {
-        let box_a = boxes::face_box(a, fa, pad, band)?;
-        for i in tree.overlapping(&box_a) {
-            let fb = *b_keys.get(i).ok_or(BooleanError::ClassificationInvariant {
-                what: "the glue door: the face tree returned an index past its input",
-            })?;
-            if declared(fa, fb) {
-                continue;
+    for (fa, fb) in overlapping_pairs(a, b, |_| true, band)? {
+        if declared(fa, fb) {
+            continue;
+        }
+        let class = match carrier_pair_relation(a, fa, b, fb, false, band) {
+            Ok(Ok(CarrierRelation::SameOpposite)) => Some(BooleanCoincidence::REST),
+            Ok(Ok(CarrierRelation::SameOriented)) => Some(BooleanCoincidence::Continuation),
+            Ok(Ok(CarrierRelation::Distinct)) | Err(PairUnread::OutsideInventory) => {
+                tangency(a, fa, b, fb, band)?
             }
-            let class = match carrier_pair_relation(a, fa, b, fb, false, band) {
-                Ok(Ok(CarrierRelation::SameOpposite)) => Some(BooleanCoincidence::REST),
-                Ok(Ok(CarrierRelation::SameOriented)) => Some(BooleanCoincidence::Continuation),
-                Ok(Ok(CarrierRelation::Distinct)) | Err(PairUnread::OutsideInventory) => {
-                    tangency(a, fa, b, fb, band)
-                }
-                Ok(Err(_)) | Err(PairUnread::Extent(_)) => None,
-            };
-            if let Some(class) = class {
-                found.push(FacePairDeclaration::new(fa, fb, class));
-            }
+            Ok(Err(_)) | Err(PairUnread::Extent(_)) => None,
+        };
+        if let Some(class) = class {
+            found.push(FacePairDeclaration::new(fa, fb, class));
         }
     }
     if found.is_empty() {
@@ -101,12 +88,15 @@ fn tangency<T: Decide>(
     b: &Body<T>,
     fb: FaceKey,
     band: Band,
-) -> Option<BooleanCoincidence> {
+) -> Result<Option<BooleanCoincidence>, BooleanError> {
     use geom::SurfaceKind::{Cylinder, Plane};
     let kind = |body: &Body<T>, f| {
         body.get_face(f)
             .and_then(|face| body.get_surface(face.surface))
             .map(geom::Surface::kind)
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "the glue door: a face it enumerated has no surface",
+            })
     };
     let ruled = matches!(
         (kind(a, fa)?, kind(b, fb)?),
@@ -118,12 +108,54 @@ fn tangency<T: Decide>(
             Ok(Some(_))
         )
     {
-        return None;
+        return Ok(None);
     }
-    [Tangency::Contact, Tangency::Seam]
+    Ok([Tangency::Contact, Tangency::Seam]
         .into_iter()
         .find(|&claim| verify_tangency_declaration(a, fa, b, fb, claim, band).is_ok())
-        .map(Tangency::coincidence)
+        .map(Tangency::coincidence))
+}
+
+/// **The cross pairs whose face boxes overlap**: each face of `a` against
+/// each face of `b` that `keep` admits, in `a`'s face order and `b`'s
+/// within each — the candidates both of this door's scans read.
+///
+/// # Errors
+///
+/// A face box's own refusal; [`BooleanError::ClassificationInvariant`]
+/// where the face tree returns an index past its input.
+fn overlapping_pairs<T: Decide + Bounds>(
+    a: &Body<T>,
+    b: &Body<T>,
+    keep: impl Fn(&geom::Surface<T>) -> bool,
+    band: Band,
+) -> Result<Vec<(FaceKey, FaceKey)>, BooleanError> {
+    let kept = |body: &Body<T>, f| {
+        body.get_face(f)
+            .and_then(|face| body.get_surface(face.surface))
+            .is_some_and(&keep)
+    };
+    let pad = boxes::sweep_pad(band);
+    let b_keys: Vec<FaceKey> = b.faces().map(|(k, _)| k).filter(|&k| kept(b, k)).collect();
+    let b_boxes = b_keys
+        .iter()
+        .map(|&k| boxes::face_box(b, k, pad, band))
+        .collect::<Result<Vec<_>, BooleanError>>()?;
+    let tree = bvh::Bvh::build(&b_boxes);
+    let mut out = Vec::new();
+    for (fa, _) in a.faces() {
+        if !kept(a, fa) {
+            continue;
+        }
+        let box_a = boxes::face_box(a, fa, pad, band)?;
+        for i in tree.overlapping(&box_a) {
+            let fb = *b_keys.get(i).ok_or(BooleanError::ClassificationInvariant {
+                what: "the glue door: the face tree returned an index past its input",
+            })?;
+            out.push((fa, fb));
+        }
+    }
+    Ok(out)
 }
 
 /// **The coaxial cylinder×sphere pairs of the two operands**, one row
@@ -150,57 +182,37 @@ pub(crate) fn coaxial_rows<T: Decide + Bounds>(
             .and_then(|face| body.get_surface(face.surface))
             .cloned()
     };
-    let curved = |body: &Body<T>, f| {
+    let curved = |s: &geom::Surface<T>| {
         matches!(
-            surface(body, f),
-            Some(geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. })
+            s,
+            geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. }
         )
     };
-    let pad = boxes::sweep_pad(band);
-    let b_keys: Vec<FaceKey> = b
-        .faces()
-        .map(|(k, _)| k)
-        .filter(|&k| curved(b, k))
-        .collect();
-    let b_boxes = b_keys
-        .iter()
-        .map(|&k| boxes::face_box(b, k, pad, band))
-        .collect::<Result<Vec<_>, BooleanError>>()?;
-    let tree = bvh::Bvh::build(&b_boxes);
     let mut rows = Vec::new();
-    for (fa, _) in a.faces() {
-        if !curved(a, fa) {
+    for (fa, fb) in overlapping_pairs(a, b, curved, band)? {
+        let (Some(sa), Some(sb)) = (surface(a, fa), surface(b, fb)) else {
             continue;
-        }
-        let box_a = boxes::face_box(a, fa, pad, band)?;
-        for i in tree.overlapping(&box_a) {
-            let fb = *b_keys.get(i).ok_or(BooleanError::ClassificationInvariant {
-                what: "the coaxial scan: the face tree returned an index past its input",
-            })?;
-            let (Some(sa), Some(sb)) = (surface(a, fa), surface(b, fb)) else {
-                continue;
-            };
-            let section = match (&sa, &sb) {
-                (geom::Surface::Cylinder { .. }, geom::Surface::Sphere { .. }) => {
-                    geom_brep::cylinder_sphere_section(&sa, &sb, band)
-                }
-                (geom::Surface::Sphere { .. }, geom::Surface::Cylinder { .. }) => {
-                    geom_brep::cylinder_sphere_section(&sb, &sa, band)
-                }
-                _ => continue,
-            };
-            if let Ok((_, margin)) = section {
-                rows.push(crate::Coincidence {
-                    cells: [
-                        crate::RowCell::face(Operand::A, fa),
-                        crate::RowCell::face(Operand::B, fb),
-                    ],
-                    relation: crate::Relation::OnCarrier,
-                    site: crate::DecisionSite::CoaxialSphere,
-                    margin,
-                    discharge: crate::Discharge::Numeric,
-                });
+        };
+        let section = match (&sa, &sb) {
+            (geom::Surface::Cylinder { .. }, geom::Surface::Sphere { .. }) => {
+                geom_brep::cylinder_sphere_section(&sa, &sb, band)
             }
+            (geom::Surface::Sphere { .. }, geom::Surface::Cylinder { .. }) => {
+                geom_brep::cylinder_sphere_section(&sb, &sa, band)
+            }
+            _ => continue,
+        };
+        if let Ok((_, margin)) = section {
+            rows.push(crate::Coincidence {
+                cells: [
+                    crate::RowCell::face(Operand::A, fa),
+                    crate::RowCell::face(Operand::B, fb),
+                ],
+                relation: crate::Relation::OnCarrier,
+                site: crate::DecisionSite::CoaxialSphere,
+                margin,
+                discharge: crate::Discharge::Numeric,
+            });
         }
     }
     Ok(rows)

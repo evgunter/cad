@@ -33,7 +33,7 @@ band end, not a coincidence of two cells, and is not listed.
 
 ## What closing it takes
 
-Each Zero arm records a row (`Relation::Tangent { aligned }` and a
+Each Zero arm records a row (`Relation::TangentContact { seam: true }` for a G1 seam and a
 coaxiality relation the record does not have yet; `DecisionSite`
 arms of their own), carried on `Blended::coincidences` beside the turn
 rows. The cells are the two links' edges, or the two supports. No unit
