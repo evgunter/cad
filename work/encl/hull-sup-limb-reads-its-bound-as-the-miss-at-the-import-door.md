@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-09
 priority: P3
 cost: M
+needs_ev: true
 ---
 
 
@@ -27,3 +28,16 @@ Three limbs are different: `ssi_hull_sup` and `ssi_hull_sup_chart` in `crates/ge
 Give the hull limbs an enclosure reading of [sampled `worst`, `sup`]; `analytic_limbs`/`nurbs_limbs` already compute `worst`. With that reading, `Within::Partly` gives "may lie within" when worst ≤ ε_in < sup.
 
 Building that `MarginDiag` needs a door-sanctioned constructor. `scripts/gates/reporting-margin-door.sh` counts mints, so the shape is a design question: weigh it per the fork protocol before implementing.
+
+## Weighed (design fork, 2026-10-10)
+
+Two designers weighed this one, under fork-log row 103. They converged on the core:
+- A certified bound is a kind of quantity, so it is recorded on the check (`Unsized { Defect, Fit, Bound }`), not patched at the door.
+- A bound refusal ends in the kernel-limit last resort at every reading, at rest included: a loose hull contradicts nothing.
+- At the import door, a bound within ε_in gets a sentence that names the bound (`MissReading::Bound`).
+- `TangentHull` is in the class, and the AnalyticRung3 hull limb gets its own check.
+- The filed [worst, sup] repair is wrong: limb 2 runs only after limb 1 passed every sample, so `worst ≤ ε` always, and the stopgap it offers fails.
+
+That core touches no ratified text and is implemented as its own unit.
+
+For Ev (the `[ev]` PR): retire `ssi_foot_orthogonality` and reword C2 limb 1. Its margin `|S_u·r|/|S_u| ≤ |r|` uses the same `r` and the same point as the distance limb, so it can refuse only on interval slop. The clause traces to the CURVED-DESIGN draft and PR 7's binding spec, so it may be ratified.
