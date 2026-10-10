@@ -345,6 +345,10 @@ fn both_sweeps_evaluate_in_one_document() {
 /// `source` beside one `range`, and these are the documents whose
 /// bodies store a sketch pushforward. No point moved (`m10_p_fence`'s
 /// f64 and Interval rows held), and no name table did.
+///
+/// RE-BLESSED, `kitchen_sink` only, when a revolve's turned vertex came
+/// to turn its offset from the axis: 8 of its points moved by at most 2
+/// ulps (`m10_p_fence`'s header has the dump), and no name table did.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
@@ -352,7 +356,7 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
         ("corner_table", 0x956a_8c9d_2a36_d96a),
         ("cut_cylinder", 0x3c8a_06a4_0790_b026),
         ("boss_union", 0x027c_2448_f729_e2ca),
-        ("kitchen_sink", 0x59cd_a9f6_f2c5_f886),
+        ("kitchen_sink", 0x20dd_5871_7172_fac6),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

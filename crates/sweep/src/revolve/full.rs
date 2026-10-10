@@ -501,7 +501,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             if pinned(i) {
                 qw[i]
             } else {
-                rot_pi.transform_point(qw[i])
+                geom_core::Affine3::rotate_point_about_axis(frame.o3, frame.a3, half, qw[i])
             }
         })
         .collect();

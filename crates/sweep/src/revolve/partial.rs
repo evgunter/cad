@@ -82,7 +82,12 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
                     if col.cls.verts[j].pinned {
                         frame.world(s.a)
                     } else {
-                        rot.transform_point(frame.world(s.a))
+                        Affine3::rotate_point_about_axis(
+                            frame.o3,
+                            frame.a3,
+                            theta,
+                            frame.world(s.a),
+                        )
                     }
                 })
                 .collect()
