@@ -3316,8 +3316,22 @@ fn spline_corner_root<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<Result<T, crate::offset_derive::CornerVerdict<T>>, ReplaceFaceError<T>> {
+    let root = lane.root(surface, spline, seed, extent, band);
+    corner_of_root(root, (vertex, edge, derived), d, band, tol)
+}
+
+/// [`spline_corner_root`]'s reading of the lane's verdict. The lane
+/// measures in `f64`, so its root and its gap enter as computed values.
+#[allow(clippy::type_complexity)]
+fn corner_of_root<T: Decide>(
+    root: Result<crate::offset_derive::SplineRoot, crate::offset_derive::CornerVerdict<T>>,
+    (vertex, edge, derived): (VertexKey, EdgeKey, bool),
+    d: T,
+    band: Band,
+    tol: Tol,
+) -> Result<Result<T, crate::offset_derive::CornerVerdict<T>>, ReplaceFaceError<T>> {
     use crate::offset_derive::SplineRoot;
-    match lane.root(surface, spline, seed, extent, band) {
+    match root {
         Ok(SplineRoot::At(t)) => Ok(Ok(T::from_computed(t))),
         Ok(SplineRoot::Short {
             end,
@@ -4583,92 +4597,37 @@ mod move_mapped_endpoint_rows {
 #[cfg(test)]
 mod from_computed_rows {
     #![allow(clippy::unwrap_used, clippy::panic)]
-    use geom::{NurbsCurve3, Surface};
+    use geom::NurbsCurve3;
     use geom_core::spline::KnotVector;
-    use geom_core::{Band, Point3, Real, Tol, Vec3};
+    use geom_core::{Band, Point3, Real, Tol};
 
-    use super::{ReplaceFaceError, carrier_foot, spline_corner_root};
+    use super::{ReplaceFaceError, carrier_foot, corner_of_root};
     use crate::entity::{EdgeKey, VertexKey};
-    use crate::offset_derive::{CornerVerdict, SectionLane, SplineRoot};
+    use crate::offset_derive::{CornerVerdict, SplineRoot};
     use crate::revalue_pin::{Revalued, S, revalued};
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
     }
 
-    /// What the lane measures, in `f64`, off the plane `x = at` it is
-    /// handed: a root at `t = at`, or a short root whose near gap is
-    /// `at` (each row reads the one it needs).
-    fn at(plane: &Surface<S>) -> f64 {
-        let Surface::Plane { origin, .. } = plane else {
-            panic!("the rows hand the lane a plane")
-        };
-        origin.x.value
-    }
-
-    fn root_at(
-        plane: &Surface<S>,
-        _: &NurbsCurve3<S>,
-        _: S,
-        _: S,
-        _: Band,
-    ) -> Result<SplineRoot, CornerVerdict<S>> {
-        Ok(SplineRoot::At(at(plane)))
-    }
-
-    fn short_of(
-        plane: &Surface<S>,
-        _: &NurbsCurve3<S>,
-        _: S,
-        _: S,
-        _: Band,
-    ) -> Result<SplineRoot, CornerVerdict<S>> {
-        Ok(SplineRoot::Short {
-            end: 1.0,
-            near_gap: at(plane),
-            near: true,
-        })
-    }
-
-    /// The corner's root on the segment `(-1, 0, 0) → 0`, through `lane`,
-    /// against the plane `x = x`.
-    fn root(
-        lane: SectionLane<S>,
-        x: S,
-    ) -> Result<Result<S, CornerVerdict<S>>, ReplaceFaceError<S>> {
-        let tol = Tol::witness();
-        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-        let segment = NurbsCurve3::new(
-            kv,
-            [Point3::new(-1.0, 0.0, 0.0), Point3::origin()]
-                .map(|p| p.map(S::from_f64))
-                .to_vec(),
-            vec![1.0; 2],
-        )
-        .unwrap();
-        let plane = Surface::Plane {
-            origin: Point3::new(x, S::zero(), S::zero()),
-            normal: Vec3::unit_x(),
-            u_ref: Vec3::unit_y(),
-        };
-        spline_corner_root(
-            lane,
-            &plane,
-            &segment,
-            (S::one(), S::one()),
+    /// The corner a lane verdict reads as.
+    fn corner(root: SplineRoot) -> Result<Result<S, CornerVerdict<S>>, ReplaceFaceError<S>> {
+        corner_of_root(
+            Ok(root),
             (VertexKey::default(), EdgeKey::default(), false),
             S::from_f64(0.1),
             band(),
-            tol,
+            Tol::witness(),
         )
     }
 
-    /// The lane's root enters as a computed value: it does not re-value
-    /// to the root `p0` measured.
+    /// The lane's root enters as a computed value: a root the lane
+    /// measures where the parameter moves it does not re-value to the
+    /// root `p0` measured.
     #[test]
     fn the_lanes_root_enters_as_computed() {
-        let found = revalued([0.5, 0.5 + 1.0e-3], |_, x| {
-            vec![root(SectionLane::rooting(root_at), x).unwrap().unwrap()]
+        let found = revalued([0.5, 0.5 + 1.0e-3], |p, _| {
+            vec![corner(SplineRoot::At(p)).unwrap().unwrap()]
         });
         assert_eq!(
             found,
@@ -4685,23 +4644,35 @@ mod from_computed_rows {
     /// refuses with the gap.
     #[test]
     fn a_short_roots_gap_enters_as_computed() {
+        let short = |near_gap| SplineRoot::Short {
+            end: 1.0,
+            near_gap,
+            near: true,
+        };
         let eps = band().zero();
-        let found = revalued([0.5 * eps, 0.5 * eps * (1.0 + 1.0e-3)], |_, x| {
-            let end = root(SectionLane::rooting(short_of), x).unwrap().unwrap();
+        let found = revalued([0.5 * eps, 0.5 * eps * (1.0 + 1.0e-3)], |p, _| {
+            let end = corner(short(p)).unwrap().unwrap();
             assert_eq!(end.value, 1.0, "a gap within ε takes the end");
             Vec::new()
         });
         assert_eq!(found.laundered, 0, "{found:?}");
         assert!(found.opaque > 0, "the gap was decided: {found:?}");
         let past = 2.0 * (band().zero() + band().escalate());
-        let found = revalued([past, past * (1.0 + 1.0e-3)], |_, x| {
-            match root(SectionLane::rooting(short_of), x) {
+        let found = revalued([past, past * (1.0 + 1.0e-3)], |p, _| {
+            match corner(short(p)) {
                 Err(ReplaceFaceError::ReanchorPastCarrierEnd { gap, .. }) => vec![gap],
                 other => panic!("a gap past the band refuses with it, got {other:?}"),
             }
         });
-        assert_eq!(found.laundered, 0, "{found:?}");
-        assert!(found.opaque > 0, "the gap was carried: {found:?}");
+        assert_eq!(
+            found,
+            Revalued {
+                kept: 0,
+                opaque: 2,
+                laundered: 0,
+            },
+            "the decision and the refusal both carry the gap as the lane measured it"
+        );
     }
 
     /// A carrier foot enters as a computed value: the lane's foot of a
