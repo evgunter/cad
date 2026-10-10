@@ -125,6 +125,8 @@ mod curves_param_near_interval;
 mod curves_projection;
 #[path = "curves/r2_lt_probes.rs"]
 mod curves_r2_lt_probes;
+#[path = "curves/review_4540_probes.rs"]
+mod curves_review_4540_probes;
 #[path = "curves/review_m5_pr2_e2e.rs"]
 mod curves_review_m5_pr2_e2e;
 #[path = "curves/review_m5_pr3_attack.rs"]
