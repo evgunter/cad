@@ -13,14 +13,12 @@ import unittest
 import pncad
 from pncad import (
     Doc,
-    DocEdit,
     EditError,
     EvaluationError,
     Formula,
     Node,
     PoseDef,
     SurfaceKind,
-    VarName,
     circle,
     evaluate,
     m,
@@ -138,25 +136,6 @@ class TestTheConstructors(unittest.TestCase):
         with self.assertRaises(EditError) as caught:
             doc.insert(Node.split(body, PoseDef.flip(PoseDef.flip(PoseDef.point(body, corner)))))
         self.assertEqual(caught.exception.variant, "slot_var_kind")
-
-    def test_a_pose_defined_at_one_seat_is_shared_by_name(self):
-        """The door mints the pose at the seat; `Doc.slot` reads it back,
-        and once named a second split reads the same variable."""
-        doc = Doc()
-        body = cube(doc)
-        cap = face_at(evaluate(doc), body, 1.0)
-        first = doc.insert(Node.split(
-            body, PoseDef.standoff(PoseDef.plane(body, cap), Formula.length_in(-0.25, m)),
-        ))
-        tool = doc.slot(first, "tool")
-        self.assertIsNotNone(tool)
-        doc.apply(DocEdit.rename_var(tool, VarName("inset")))
-        second = doc.insert(Node.split(body, tool))
-        self.assertEqual(doc.var_name(doc.slot(second, "tool")), VarName("inset"))
-        ev = evaluate(doc)
-        for cut in (first, second):
-            above, _ = ev.value(cut).split()
-            self.assertAlmostEqual(above.mass_properties().volume, 0.25, delta=1e-12)
 
     def test_a_kind_word_is_one_of_the_five(self):
         doc = Doc()

@@ -6,9 +6,8 @@
 //! vertex's point), writes coordinates in a frame the definition reads,
 //! or constructs from other poses. A `PoseDef` is passed where an
 //! operand is read; the edit door mints the pose variable there, as it
-//! mints a selection authored at a seat. To share one between two
-//! readers, read it back with `Doc.slot(node, "tool")`, name it with
-//! `DocEdit.rename_var`, and read it by name.
+//! mints a selection authored at a seat. A pose defined at two seats is
+//! two variables, each defined the same way.
 
 use pyo3::prelude::*;
 
