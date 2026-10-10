@@ -208,7 +208,7 @@ fn main() {
         }
         if zero_arm > 0 {
             say(format_args!(
-                "  rule 2 zero arm (tallied, never gates): {zero_arm} zero-classified \
+                "  rule 2 zero arm (tallied, not gating): {zero_arm} zero-classified \
                  margin(s) above band_zero/10^2"
             ));
         }

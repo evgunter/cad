@@ -3020,7 +3020,11 @@ tightest ε however the bound is metered. The tally reports that as a
 fact about the scene and ε ("the margin uses 31% of eps here") rather
 than as a distribution change.
 
-The calibration is unchanged: `PROXIMITY_FACTOR`'s measured ceiling is
-still M7's own zero side, now stated as "the baseline tallies itself"
-(`tests/threshold_provenance.rs`), and the re-cut trigger in
-`docs/k-report-data/README.md` that names the zero-side ceiling stands.
+`PROXIMITY_FACTOR`'s measured ceiling is still M7's own zero side,
+now stated as "the baseline tallies itself"
+(`tests/threshold_provenance.rs`), but it no longer gates anything:
+crossing it turns no row red, so only the structural edge constrains
+what gates. The ceiling stays as the re-cut trigger that
+`docs/k-report-data/README.md` names, and nothing mechanical fires
+it any more: a fresh sweep past it shows up only as a larger tally in
+the printed output.

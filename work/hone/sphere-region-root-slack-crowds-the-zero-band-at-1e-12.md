@@ -46,6 +46,7 @@ not change geometry to get under the lint.
 The circle × torus sibling's ruling covers this flag too: rule 2's
 zero arm is a tally that fails nothing, so the 1.5093e-14 sample on
 `demo/lily_walls` at 1e-12 now prints as a tallied note
-(`bool_sphere_region_roots_slack: 1`) and leaves `k-lint (dev-probe)`
-green. Built on `germ/klint-zero-arm-tally`. Whether anything else on
+(`bool_sphere_region_roots_slack: 1`) and no longer counts toward
+`k-lint (dev-probe)`'s failure. That row stays red for its other
+findings. Built on `germ/klint-zero-arm-tally`. Whether anything else on
 this row is still wanted is HONE's call.

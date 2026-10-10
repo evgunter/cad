@@ -341,7 +341,7 @@ fn the_zero_arm_is_tallied_and_does_not_gate() {
         "a zero-arm sample is not a flag: {so}"
     );
     for pin in [
-        "rule 2 zero arm (tallied, never gates): 3 zero-classified margin(s) above band_zero/10^2",
+        "rule 2 zero arm (tallied, not gating): 3 zero-classified margin(s) above band_zero/10^2",
         "bool_circle_torus_root_slack: 2, largest |m|/band_zero = 3.149e-1 — the margin uses 31% \
          of eps here (demo/lily_walls line 3, |m|=3.14912307142162e-13, band_zero=1e-12)",
         "bool_circle_torus_meridian: 1, largest |m|/band_zero = 1.042e-2",
@@ -379,7 +379,7 @@ fn the_definite_arm_still_fails_beside_a_zero_arm_tally() {
         "{so}"
     );
     assert!(
-        so.contains("rule 2 zero arm (tallied, never gates): 1 zero-classified"),
+        so.contains("rule 2 zero arm (tallied, not gating): 1 zero-classified"),
         "{so}"
     );
     assert!(

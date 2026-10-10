@@ -497,13 +497,16 @@ fn the_gap_holds_across(eras: &[&str]) {
 /// zero-classified margin above `band_zero / PROXIMITY_FACTOR`, and the
 /// M7 corpus's
 /// own largest zero-side ratio puts a ceiling on the factor at the
-/// tightest row. That ceiling is the BINDING one of the two edges —
+/// tightest row. That ceiling is the NEARER of the two edges,
 /// asserted as a comparison against the structural edge rather than as
-/// a number — and the room it leaves is bounded above by the doc's own
-/// "under 2x", so a corpus that moves toward it says so. It is not a
-/// ranking against this crate's other constants: their headrooms are
-/// fractions below a measured datum and this one is a multiple of a
-/// policy digit.
+/// a number. The room it leaves is bounded above by the doc's own
+/// "under 2x", so a corpus that moves toward it says so. Since the zero
+/// arm became a tally (Ev, PR 4567), crossing the ceiling fails no
+/// gate and only makes the baseline tally itself: it is kept as the
+/// re-cut trigger, and the structural edge alone constrains what gates.
+/// It is not a ranking against this crate's other constants: their
+/// headrooms are fractions below a measured datum and this one is a
+/// multiple of a policy digit.
 ///
 /// The definite arm is deliberately not part of this: post-cap,
 /// `proximity_above_threshold` never exceeds [`BASELINE_FLOOR_MARGIN`],
@@ -602,7 +605,7 @@ fn proximity_factor_is_a_policy_choice_and_this_is_what_moving_it_costs() {
          corpus's own zero-side ceiling {ceiling:e} ({at}) — the M7 \
          baseline tallies itself under rule (2)'s zero arm"
     );
-    // The ceiling is the BINDING edge, and by a wide margin: the
+    // The ceiling is the NEARER edge, and by a wide margin: the
     // structural interval reaches 4e3 and the corpus stops the factor
     // an order of magnitude earlier. Said as a comparison rather than
     // a number so a moved corpus moves the claim.

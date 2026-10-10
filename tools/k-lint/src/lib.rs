@@ -274,11 +274,14 @@ pub const AMBIENT_BAND_MIN: f64 = 1e-13;
 /// below the structural edge the rule-2 cap stops binding at the
 /// loosest supported row, and above the corpus's own largest zero-side
 /// ratio the baseline starts tallying itself under rule (2)'s zero arm.
-/// **That measured ceiling is the binding one of the two** — well
-/// under the structural edge, and under 2x above the shipped factor,
-/// at the 1e-12 row where a fixed rounding-scale coincidence is
-/// closest to `band_zero`. Both halves of that sentence are the
-/// assertions the test makes, in that order. It is NOT the crate's
+/// The measured ceiling is the nearer of the two — well under the
+/// structural edge, and under 2x above the shipped factor, at the
+/// 1e-12 row where a fixed rounding-scale coincidence is closest to
+/// `band_zero`. Both halves of that sentence are the assertions the
+/// test makes, in that order. Since the zero arm became a tally (Ev,
+/// PR 4567) crossing it fails no gate: it says the baseline would
+/// tally itself, which is what prompts a re-cut. Only the structural
+/// edge constrains what gates. It is NOT the crate's
 /// narrowest headroom: this one is 1.88x of a policy digit, while
 /// `EPS_COUPLED_FLOOR_RATIO` sits 8.9% below its P0 and this floor
 /// 16.6% below its datum — different quantities, not a ranking.
@@ -1143,6 +1146,28 @@ mod tests {
             "per predicate, largest usage first, the worst row kept"
         );
         assert_eq!(scan.zero_arm[0].worst.usage, 3e-13 / 1e-12);
+    }
+
+    #[test]
+    fn the_zero_arm_sorts_by_usage_and_keeps_the_first_row_on_a_tie() {
+        // The smaller-usage predicate comes first in the file, so an
+        // unsorted tally reads it first; `p`'s worst usage is tied
+        // between lines 3 and 4, so `>=` would keep line 4.
+        let csv = "shape,predicate,margin,band_zero,band_escalate,outcome\n\
+                   demo/a,q,5e-14,1e-12,1e-11,zero\n\
+                   demo/b,p,3e-13,1e-12,1e-11,zero\n\
+                   demo/c,p,-3e-13,1e-12,1e-11,zero\n";
+        let scan = lint_csv(csv).expect("valid csv");
+        let got: Vec<_> = scan
+            .zero_arm
+            .iter()
+            .map(|t| (t.predicate.as_str(), t.count, t.worst.line))
+            .collect();
+        assert_eq!(
+            got,
+            vec![("p", 2, 3), ("q", 1, 2)],
+            "largest usage first whatever the file order; the first row on a tie"
+        );
     }
 
     #[test]
