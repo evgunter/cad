@@ -19,8 +19,8 @@ trimmed by ellipse arcs: `RingOnCurvedFace`
 Witness (GERM, 2026-10-09, `germ/cone-join-lane-rows-after-cert`): T1,
 TANG's box turned −50° against the π/6 cone
 (`crates/sweep/tests/a_ring_on_a_cone_face.rs`' `cone` and
-`wedge(0.6, identity)`), run through the whole op past the cone's
-operand gate (`topo::boolean_admitting_cones`). Cone ∪ box (both member
+`wedge(0.6, identity)`), run through the whole op (`topo::union`,
+`subtract`, `intersect`). Cone ∪ box (both member
 orders) and cone ∖ box keep the lune between the two section ellipses
 as a ring on the cone face, and refuse at the result's tier 3 with
 `ResultInvalid { VolumeUncomputable { source: RingOnCurvedFace } }`, at

@@ -40,7 +40,7 @@ Every open PR that merges main inherits the red until this lands; JOIN's 4399 is
 Measured, not assumed: with the certificate's cone rows on main, the
 interior-loop guard certifies B4, C1 and T1 in every op and member order
 at ε = default, 1e-6 and 1e-12, and the whole op past the cone's gate
-(the new `sweep-testing` door `topo::boolean_admitting_cones`) builds
+(then a `sweep-testing` door; the front doors since U7) builds
 sound bodies: B4's six and C1's six read `OK SOUND` through
 `differential::outcome` against their closed forms; T1's ∩ (both
 orders) and box ∖ cone do too, and T1's ∪ and cone ∖ box refuse typed
