@@ -2,11 +2,13 @@
 id: ellipse-torus-graze-certifies-six-roots-where-the-true-distance-crosses-four
 kind: issue
 title: the ellipse x torus arm certifies 6 roots on a graze where the true distance crosses 4 times (fuzz seed 0xb471af1930331750, eps 1e-9, graze 91)
-status: dispatched
+status: closed
 opened: 2026-10-08
 priority: P1
 cost: M
 branch: cleave/ellipse-torus-graze
+closed: 2026-10-10
+pr: 4552
 ---
 
 
@@ -84,3 +86,11 @@ had the same blind spot and read 4 on this pose too.
   mpmath roots.
 
 Filed: `work/cleave/ray-torus-probe-oracles-cannot-see-a-graze-pair-inside-one-sample-cell.md`.
+
+## Closed (PR 4552, 2026-10-10)
+
+The certificate was sound: an independent 50-digit evaluation finds 6 true crossings. The test's
+sampled oracle never searched its first and last cells, and the graze pair sat in the last one. The
+torus and ellipse fuzz rows now read `conic_oracle::exact::truth`, the shared sampler and the mpmath
+script search the end cells, and the seam-graze pose is pinned across arcs. The ray × torus probe
+oracles' blind spot is filed (P3).
