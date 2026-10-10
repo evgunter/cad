@@ -2,11 +2,13 @@
 id: interval-steep-cut-through-cylinder-caps-refuses-order-escalated
 kind: issue
 title: plane_section at Interval refuses OrderEscalated (split_join_order_u, enclosure ~±7e-15) on a steep cut through a cylinder's caps that f64 answers
-status: dispatched
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: E
 branch: cleave/interval-join-order
+closed: 2026-10-10
+pr: 4224
 ---
 
 
@@ -82,3 +84,12 @@ line). Stored `SectionFace` indices move on tilted multi-region splits
 `section-face-and-hole-rim-are-ordinals-over-their-group`); the
 frame-building copies are filed on HONE
 (`join-order-frames-are-built-three-ways-from-one-schedule`).
+
+## Closed (PR 4224, 2026-10-10)
+
+The old frame's `u` was perpendicular to y, so every cap chord along y tied in `u` at `Interval`. A
+non-axis plane now orders along the first oblique `SCHEDULE` member, and an axis plane keeps the
+exact coordinate frame (`axis_plane`, which refuses only where its verdict turns on a straddle).
+The residual class, crossings on one great circle of normals per face direction, is filed as
+`interval-oblique-join-frame-ties-on-its-own-circles`. The renumbering of stored `SectionFace`
+indices on tilted multi-region splits is evidence on EMIT's ordinal row.
