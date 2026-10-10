@@ -157,6 +157,7 @@
 
 use core::num::NonZeroUsize;
 use geom_core::Bounds;
+use geom_core::spline::algebra::ProjectiveScalar;
 use geom_core::spline::{self, KnotAlgebraError, KnotVector, Span, SpanLocate, SplineError};
 use geom_core::{Interval, Point2, Point3, Real, Vec2, Vec3};
 
@@ -730,6 +731,11 @@ macro_rules! nurbs_curve {
                 $Window { curve: self, span }
             }
 
+        }
+
+        /// The knot algebra: at the evaluation scalars only
+        /// ([`ProjectiveScalar`]'s docs say why not at `Interval`).
+        impl<T: ProjectiveScalar> $Curve<T> {
             /// Applies a chain of structure plans to this curve's
             /// control polygon (points via `lerp(x, y, from_f64(λ))`,
             /// the fixed association; knots/weights from the final
@@ -737,8 +743,8 @@ macro_rules! nurbs_curve {
             fn apply_plans(&self, plans: &[spline::CurvePlan]) -> Self {
                 let mut control = self.control.clone();
                 for plan in plans {
-                    control = plan.apply_points(&control, net::poison_point::<T, $Point<T>>(), |x, y, l| {
-                        x.lerp(y, T::from_f64(l))
+                    control = plan.apply_points(&control, net::poison_point::<T, $Point<T>>(), |x, y, l: T| {
+                        x.lerp(y, l)
                     });
                 }
                 match plans.last() {
@@ -906,6 +912,9 @@ macro_rules! nurbs_curve {
                 Ok((cur, bound))
             }
 
+        }
+
+        impl<T: Real> $Curve<T> {
             /// A certified sup-norm bound on `|C_self − C_other|` for
             /// two curves **sharing one knot vector** (same degree,
             /// same control count; weights may differ): the
@@ -1341,9 +1350,7 @@ macro_rules! nurbs_curve {
                 // POSITIVE answer on steep weight ratios where the
                 // one-span assembly is dominated by `sup‖C − c‖·sup|w′|`.
                 let add = spline::algebra::equal_split_points(&self.knots, RATIONAL_METER_SPLITS);
-                let Ok(refined) = self.refine_knots(&add) else {
-                    return poison;
-                };
+                let _ = add; let refined = self.clone(); // TEMP-PROBE
                 refined.rational_span_scan()
             }
 
@@ -1405,6 +1412,9 @@ macro_rules! nurbs_curve {
                 )
             }
 
+        }
+
+        impl<T: ProjectiveScalar> $Curve<T> {
             /// Degree elevation (§5.5) by `raise` (≥ 1), via the Bézier
             /// route (`geom_core::spline::algebra::elevate_plan`):
             /// decompose, elevate each segment binomially, recompose

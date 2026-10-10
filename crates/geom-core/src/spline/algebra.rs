@@ -27,9 +27,9 @@
 //!
 //! # One schedule, two arithmetics
 //!
-//! An insertion plan is applied by [`CurvePlan::apply_points`] in the
-//! caller's scalar and by [`CurvePlan::apply_certified`] in the certification
-//! ring, off the SAME [`Step`] list — same targets, same sources, same
+//! An insertion plan is applied by [`CurvePlan::apply_points`] at an
+//! evaluation scalar ([`ProjectiveScalar`]) and by
+//! [`CurvePlan::apply_certified`] in the certification ring, off the SAME [`Step`] list — same targets, same sources, same
 //! order. The two differ in the coefficient the combination is taken
 //! with, and they must: the projective applier's `λ` is an `f64`
 //! quotient of weights, while interval arithmetic applier re-derives the Boehm
@@ -46,6 +46,7 @@ use super::knots::{InteriorKnot, KnotVector, SplineError, find_span_in};
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
 use crate::readable::Readable;
+use crate::real::Real;
 
 /// A typed knot-algebra refusal (fail-loud; the kernel never panics).
 #[derive(Clone, Debug, PartialEq)]
@@ -141,6 +142,60 @@ impl core::fmt::Display for KnotAlgebraError {
 
 impl core::error::Error for KnotAlgebraError {}
 
+/// The scalars the PROJECTIVE knot algebra means something at: `f64`,
+/// `Probe`, and `Dual` and `Sym` over them — not `Interval`, and not
+/// `Dual<Interval>`.
+///
+/// [`CurvePlan::apply_points`] combines de-homogenized points with
+/// [`CurvePlan::weights`]' stored `f64` quotient `λ`. At an evaluation
+/// scalar that is the fixed association the tree documents. In the
+/// certification ring it would enclose `x + (y − x)·fl(λ)` under the
+/// rounded `f64` weights the plan minted, which is a neighbour of the
+/// described carrier and not that carrier (C6: a refinement inside a
+/// certificate is held only as homogeneous enclosures `(w·P, w)`,
+/// [`CurvePlan::apply_certified`]). So the applier, and every knot
+/// operation built on it, is bounded by this trait, and a call at the
+/// certification scalar does not typecheck:
+///
+/// ```compile_fail,E0277
+/// use geom_core::Interval;
+/// use geom_core::spline::{KnotVector, algebra::refine_plan};
+/// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+/// let plan = refine_plan(&kv, &[1.0, 1.0, 1.0], &[0.5]).unwrap().remove(0);
+/// let old = [Interval::point(0.0), Interval::point(1.0), Interval::point(2.0)];
+/// let _ = plan.apply_points(&old, Interval::refused(), |x, y, l: Interval| x + (y - x) * l);
+/// ```
+///
+/// Its twin at an evaluation scalar compiles:
+///
+/// ```
+/// use geom_core::spline::{KnotVector, algebra::refine_plan};
+/// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+/// let plan = refine_plan(&kv, &[1.0, 1.0, 1.0], &[0.5]).unwrap().remove(0);
+/// let refined = plan.apply_points(&[0.0, 1.0, 2.0], f64::NAN, |x, y, l: f64| x + (y - x) * l);
+/// assert_eq!(refined.len(), 4);
+/// ```
+///
+/// Sealed: it is a statement about the kernel's own scalars, not an
+/// extension point.
+pub trait ProjectiveScalar: projective_sealed::Sealed + Real {}
+
+mod projective_sealed {
+    /// The sealing supertrait (pub-in-private: unnameable downstream).
+    pub trait Sealed {}
+}
+
+impl projective_sealed::Sealed for f64 {}
+impl ProjectiveScalar for f64 {}
+#[cfg(feature = "probe")]
+impl projective_sealed::Sealed for crate::k_stats::Probe {}
+#[cfg(feature = "probe")]
+impl ProjectiveScalar for crate::k_stats::Probe {}
+impl<T: ProjectiveScalar> projective_sealed::Sealed for crate::dual::Dual<T> {}
+impl<T: ProjectiveScalar> ProjectiveScalar for crate::dual::Dual<T> where crate::dual::Dual<T>: Real {}
+impl<T: ProjectiveScalar> projective_sealed::Sealed for crate::sym::Sym<T> {}
+impl<T: ProjectiveScalar> ProjectiveScalar for crate::sym::Sym<T> {}
+
 /// A source operand of a plan step: an index into the old polygon or
 /// into the already-built portion of the new polygon.
 #[derive(Clone, Copy, Debug)]
@@ -213,16 +268,18 @@ impl CurvePlan {
 
     /// Applies the point schedule: `old` is the previous control
     /// polygon, `lerp(x, y, λ)` the caller's affine combination
-    /// (`x + (y − x)·λ` with `λ` lifted via `from_f64` — the fixed
-    /// association every consumer documents), and `poison` the
-    /// caller's poison point — the total fallback for a malformed
-    /// plan, which the constructors rule out but the applier does not
-    /// trust (D4: fail loud, never panic).
-    pub fn apply_points<P: Copy>(
+    /// (`x + (y − x)·λ`, the fixed association every consumer
+    /// documents) with `λ` lifted to the caller's scalar `T` here, and
+    /// `poison` the caller's poison point — the total fallback for a
+    /// malformed plan, which the constructors rule out but the applier
+    /// does not trust (D4: fail loud, never panic). `T` is a
+    /// [`ProjectiveScalar`]; the certification ring's applier is
+    /// [`CurvePlan::apply_certified`].
+    pub fn apply_points<T: ProjectiveScalar, P: Copy>(
         &self,
         old: &[P],
         poison: P,
-        lerp: impl Fn(P, P, f64) -> P,
+        lerp: impl Fn(P, P, T) -> P,
     ) -> Vec<P> {
         let n_new = self.knots.control_count();
         let mut new: Vec<Option<P>> = vec![None; n_new];
@@ -248,7 +305,7 @@ impl CurvePlan {
                 } => {
                     if target < n_new {
                         let combined = match (fetch(&new, x), fetch(&new, y)) {
-                            (Some(px), Some(py)) => Some(lerp(px, py, lambda)),
+                            (Some(px), Some(py)) => Some(lerp(px, py, T::from_f64(lambda))),
                             _ => None,
                         };
                         new[target] = combined;

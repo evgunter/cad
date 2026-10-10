@@ -42,6 +42,7 @@ use core::num::NonZeroUsize;
 use geom_core::spline::{
     self, KnotAlgebraError, KnotMirrorError, KnotVector, Span, SpanLocate, SplineError,
 };
+use geom_core::spline::algebra::ProjectiveScalar;
 use geom_core::{Point3, Real, Vec3};
 
 use crate::net;
@@ -954,6 +955,11 @@ impl<T: Real> NurbsSurface<T> {
         }
     }
 
+}
+
+/// The knot algebra: at the evaluation scalars only
+/// ([`ProjectiveScalar`]'s docs say why not at `Interval`).
+impl<T: ProjectiveScalar> NurbsSurface<T> {
     /// Applies one shared-schedule plan chain builder per v-column
     /// (module docs: per-column weights ⇒ per-column λs, shared knot
     /// schedule) and reassembles the grid.
@@ -969,8 +975,8 @@ impl<T: Real> NurbsSurface<T> {
             let plans = build(&self.knots_u, &col_w)?;
             let mut w = col_w;
             for plan in &plans {
-                pts = plan.apply_points(&pts, net::poison_point::<T, Point3<T>>(), |x, y, l| {
-                    x.lerp(y, T::from_f64(l))
+                pts = plan.apply_points(&pts, net::poison_point::<T, Point3<T>>(), |x, y, l: T| {
+                    x.lerp(y, l)
                 });
                 w = plan.weights().to_vec();
             }
@@ -1078,7 +1084,7 @@ impl<T: Real> NurbsSurface<T> {
                     .into_iter()
                     .next()
                     .ok_or(KnotAlgebraError::KnotNotPresent { u })?;
-                let lerp = |x: Point3<T>, y: Point3<T>, l: f64| x.lerp(y, T::from_f64(l));
+                let lerp = |x: Point3<T>, y: Point3<T>, l: T| x.lerp(y, l);
                 let rem_pts =
                     step.plan
                         .apply_points(&pts, net::poison_point::<T, Point3<T>>(), lerp);
