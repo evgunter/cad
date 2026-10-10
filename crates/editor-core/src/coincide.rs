@@ -33,6 +33,29 @@ use geom_core::MarginDiag;
 use crate::names::{EntityKey, EntityRef, NameTable, NamingError, RoleSeg, StableName};
 use crate::node::{Node, RecipeNodeId};
 
+/// **What a contact record's positional input is**: the input a
+/// [`topo::Backing::Carried`] names by its position, as the value that
+/// holds the record publishes it ([`crate::eval::NodeValue::cited_inputs`]).
+/// A carried citation names that input's record, which cites its own
+/// backing, so a chain of them ends at a row a node decided.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CitedInput {
+    /// An operand the node reads, by its read.
+    Read(crate::VarId),
+    /// The part an instance places: its product's records.
+    Part(crate::ident::DocRef),
+    /// A body the product gathers: a root, and the output of it.
+    Root {
+        /// The root.
+        root: RecipeNodeId,
+        /// Its output body.
+        output: u32,
+    },
+    /// An n-ary union's accumulation, carried into its fold's last step:
+    /// the step before's records.
+    FoldAccumulation,
+}
+
 /// **One coincidence an operation decided from values**, its cells
 /// named in the tables of the inputs the decision read.
 #[derive(Clone, Debug, PartialEq)]
@@ -419,6 +442,82 @@ pub(crate) struct RowInputs<'a> {
     pub b: Option<(RecipeNodeId, &'a NameTable)>,
     /// The tool node, for an operation that cuts with one.
     pub tool: Option<RecipeNodeId>,
+}
+
+/// **The rows `records` cite, published**: each row of `rows` a record
+/// cites ([`topo::Backing::Decided`]), named in `inputs` and appended to
+/// `published` in decision order, and the records renumbered onto the
+/// published rows. For a node whose records come from a step whose rows
+/// it does not publish whole (an n-ary union's last fold step).
+///
+/// # Errors
+///
+/// As [`name_rows`].
+pub(crate) fn publish_cited(
+    records: &topo::ContactRecords,
+    rows: &[topo::Coincidence],
+    inputs: &RowInputs<'_>,
+    published: &mut Vec<NamedCoincidence>,
+) -> Result<topo::ContactRecords, NamingError> {
+    let mut used: Vec<u32> = records
+        .cites()
+        .flat_map(topo::Cites::iter)
+        .filter_map(|b| match b {
+            topo::Backing::Decided(k) => Some(k),
+            topo::Backing::Carried { .. } => None,
+        })
+        .collect();
+    used.sort_unstable();
+    used.dedup();
+    let cited: Vec<topo::Coincidence> = used
+        .iter()
+        .map(|&k| {
+            rows.get(k as usize).copied().ok_or(NamingError::Emission {
+                what: "a contact record cites a row its step did not decide",
+            })
+        })
+        .collect::<Result<_, _>>()?;
+    let base = published.len();
+    published.extend(name_rows(&cited, inputs)?);
+    let renumber = |cites: &topo::Cites| {
+        cites
+            .try_map(|b| {
+                Ok::<_, core::convert::Infallible>(Some(match b {
+                    topo::Backing::Decided(k) => {
+                        let rank = used.binary_search(&k).unwrap_or_else(|_| {
+                            unreachable!("every decided citation is in `used`")
+                        });
+                        topo::Backing::Decided(u32::try_from(base + rank).unwrap_or(u32::MAX))
+                    }
+                    carried @ topo::Backing::Carried { .. } => carried,
+                }))
+            })
+            .unwrap_or_else(|never| match never {})
+            .unwrap_or_else(|| unreachable!("a non-empty set renumbers to a non-empty set"))
+    };
+    let mut out = records.clone();
+    let topo::ContactRecords {
+        vv,
+        a_on_b,
+        b_on_a,
+        ve,
+        ee,
+        curves,
+        patches,
+    } = &mut out;
+    for cites in vv
+        .iter_mut()
+        .map(|c| &mut c.cites)
+        .chain(a_on_b.iter_mut().map(|c| &mut c.cites))
+        .chain(b_on_a.iter_mut().map(|c| &mut c.cites))
+        .chain(ve.iter_mut().map(|c| &mut c.cites))
+        .chain(ee.iter_mut().map(|c| &mut c.cites))
+        .chain(curves.iter_mut().map(|c| &mut c.cites))
+        .chain(patches.iter_mut().map(|c| &mut c.cites))
+    {
+        *cites = renumber(cites);
+    }
+    Ok(out)
 }
 
 /// **The kernel's rows, named**: each cell by its name in the input

@@ -304,10 +304,13 @@ fn a_vf_record_defers_the_faces_at_its_own_interface_and_no_others() {
     let rim = face_vertices(&body, cap);
     let v0 = rim[0];
     let mut records = ContactRecords::default();
-    records.b_on_a.push(topo::Cited::new(topo::VfContact {
-        vertex: v0,
-        face: brick_top,
-    }, topo::Cites::decided(0)));
+    records.b_on_a.push(topo::Cited::new(
+        topo::VfContact {
+            vertex: v0,
+            face: brick_top,
+        },
+        topo::Cites::decided(0),
+    ));
     // The fixture's own precondition, and it is what makes the
     // "stays deferred" assertion below a statement about the
     // DEFERRAL: if the record ever stops being built, this reddens

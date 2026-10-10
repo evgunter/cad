@@ -468,7 +468,8 @@ impl CheckEvidence {
 
     /// Where that coincidence was decided, on `unproven_coincidence`
     /// alone: `plane_ladder`, `carrier_ladder`, `tangent_witness`,
-    /// `coaxial_sphere`, `split_on` or `battery_turn`.
+    /// `coaxial_sphere`, `split_on`, `battery_turn`, `vertex_fusion`,
+    /// `census_at_rest` or `import_anchor`.
     #[getter]
     fn site(&self) -> Option<&'static str> {
         self.payload().site

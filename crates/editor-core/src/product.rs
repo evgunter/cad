@@ -868,8 +868,22 @@ pub struct Product<T: Decide> {
     /// Its stable names, re-keyed onto the aggregate ([`product_named`]).
     pub names: NameTable,
     /// Its declared contacts, re-keyed onto the aggregate through the
-    /// graft's own descendant map.
+    /// graft's own descendant map. A source's record cites that source's
+    /// record ([`Self::cited_inputs`]); a record a mate minted cites the
+    /// at-rest census's row of [`Self::coincidences`].
     pub contacts: ContactRecords,
+    /// **The at-rest census's decisions the mates' records cite**
+    /// ([`topo::DecisionSite::CensusAtRest`]), in mint order, each cell
+    /// named as the mate's reference reads it. The
+    /// `unproven-coincidence` check reads them ([`crate::checks`]).
+    pub coincidences: Vec<crate::assembly::AtRestRow>,
+    /// The product's inputs a carried record cites, by position: the
+    /// gathered sources, in gather order.
+    pub cited_inputs: Vec<crate::coincide::CitedInput>,
+    /// The census's findings for the mated pairs it refused to read as
+    /// one carrier: those mates minted no record, and the at-rest gate
+    /// raises these beside its own ([`crate::assemble_gathered`]).
+    pub refused_at_rest: Vec<ValidationError>,
     /// Which product ROOT contributed each of the aggregate's solids,
     /// in gather order (`crate::checks`'s separation resident is the
     /// consumer: it turns a kernel finding about two solid keys into a
@@ -1150,7 +1164,8 @@ pub(crate) fn product_in<P, T: Decide + AtRestPolicy>(
     // bridge its graft minted: the source's name rows, its contact
     // records, and the declarations below it.
     let mut names = NameTable::new();
-    let mut contacts = ContactRecords::default();
+    let mut at_rest = crate::assembly::AtRestRows::default();
+    let mut cited_inputs: Vec<crate::coincide::CitedInput> = Vec::new();
     let mut solid_roots: Vec<SolidOrigin> = Vec::new();
     let mut carried: Vec<crate::assembly::CarriedDeclaration> = Vec::new();
     let mut carried_unminted: Vec<crate::assembly::CarriedRefusal> = Vec::new();
@@ -1162,10 +1177,23 @@ pub(crate) fn product_in<P, T: Decide + AtRestPolicy>(
             solid,
         }));
         carry_names(&mut tie_rows, table, *node, *ix, keys)?;
-        carry_contacts(&mut contacts, records, keys)
+        // Each source's records cite the source's list, by the source's
+        // position among the product's inputs.
+        let input = u32::try_from(cited_inputs.len()).unwrap_or(u32::MAX);
+        cited_inputs.push(crate::coincide::CitedInput::Root {
+            root: *node,
+            output: *ix,
+        });
+        carry_contacts(&mut at_rest.contacts, &records.carried_from(input), keys)
             .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
         carry_declarations(&mut carried, &rows.minted, keys)
             .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
+        for finding in &rows.refused {
+            at_rest.refused.push(
+                carry_finding(finding, keys)
+                    .map_err(|what| ProductError::ContactLineage { node: *node, what })?,
+            );
+        }
         // A refusal names no entity — it is a mate that produced NO
         // record — so it carries with nothing to re-key.
         carried_unminted.extend(rows.unminted.iter().cloned());
@@ -1197,7 +1225,19 @@ pub(crate) fn product_in<P, T: Decide + AtRestPolicy>(
     // the FINISHED name table, and the aggregate's own at-rest verdict
     // is about geometry, so a product that is not a body at all
     // refuses before any mate is read.
-    let (minted, unminted) = crate::assembly::mint(doc, evaluation, &names, &mut contacts, space);
+    let (minted, unminted) = crate::assembly::mint(
+        doc,
+        evaluation,
+        (&names, &aggregate),
+        &mut at_rest,
+        space,
+        geom_core::Band::linear(tol),
+    );
+    let crate::assembly::AtRestRows {
+        contacts,
+        coincidences,
+        refused: refused_at_rest,
+    } = at_rest;
     let spaces = match space {
         crate::mate::Space::World => own_spaces(doc, evaluation, tol),
         crate::mate::Space::Own { .. } => Vec::new(),
@@ -1207,6 +1247,9 @@ pub(crate) fn product_in<P, T: Decide + AtRestPolicy>(
         body: aggregate,
         names,
         contacts,
+        coincidences,
+        cited_inputs,
+        refused_at_rest,
         solid_roots,
         minted,
         unminted,
@@ -1475,6 +1518,46 @@ fn carry_declarations(
         });
     }
     Ok(())
+}
+
+/// Re-keys one at-rest census finding a document below raised for a
+/// mated pair it refused ([`crate::Product::refused_at_rest`]) onto the
+/// aggregate, as [`carry_declarations`] re-keys the pair's declaration.
+/// Only the census's refusals of a pair reach here, and they name
+/// faces or nothing.
+fn carry_finding(
+    finding: &ValidationError,
+    keys: &topo::GraftKeys,
+) -> Result<ValidationError, &'static str> {
+    let face = |f| keys.face(f).ok_or("face");
+    Ok(match finding {
+        ValidationError::ContactContradicted {
+            declaration,
+            witness,
+            margin,
+            steer,
+        } => ValidationError::ContactContradicted {
+            declaration: topo::DeclaredContact {
+                a: face(declaration.a)?,
+                b: face(declaration.b)?,
+                ..*declaration
+            },
+            witness: witness.clone(),
+            margin: *margin,
+            steer: *steer,
+        },
+        ValidationError::CensusUnsupported {
+            subject: topo::CensusSubject::FacePair(a, b),
+            cause,
+        } => ValidationError::CensusUnsupported {
+            subject: topo::CensusSubject::FacePair(face(*a)?, face(*b)?),
+            cause: cause.clone(),
+        },
+        other @ (ValidationError::CensusEscalated { .. } | ValidationError::Band { .. }) => {
+            other.clone()
+        }
+        _ => return Err("an at-rest finding the census does not raise for a pair"),
+    })
 }
 
 /// Re-keys one grafted body's name rows onto the aggregate: the same

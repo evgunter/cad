@@ -97,6 +97,9 @@ pub(crate) struct OpOut<T: Decide> {
     /// The coincidences the op decided from values, named in its
     /// inputs' tables (`NodeValue::coincidences`).
     pub coincidences: Arc<[crate::coincide::NamedCoincidence]>,
+    /// What each input a carried record cites is
+    /// (`NodeValue::cited_inputs`).
+    pub cited_inputs: Arc<[crate::coincide::CitedInput]>,
 }
 
 impl<T: Decide> OpOut<T> {
@@ -110,6 +113,16 @@ impl<T: Decide> OpOut<T> {
             carried: Arc::new(crate::assembly::CarriedDeclarations::default()),
             parts: 1,
             coincidences: Arc::new([]),
+            cited_inputs: Arc::new([]),
+        }
+    }
+
+    /// This output, its records' carried citations naming `inputs` by
+    /// position.
+    fn citing(self, inputs: Vec<crate::coincide::CitedInput>) -> Self {
+        Self {
+            cited_inputs: inputs.into(),
+            ..self
         }
     }
 
@@ -357,6 +370,7 @@ where
                 *op,
                 (at(O::A, *a)?, ra),
                 (at(O::B, *b)?, rb),
+                [*a, *b],
                 declare,
                 doc,
                 env.boolean_sweep,
@@ -560,13 +574,16 @@ where
     let placed = place(&part.body, map.as_ref(), tol)?;
     let table = names::name_in_part(id, &part.names, &placed).map_err(NodeErrorKind::Naming)?;
     // ASM-R2b D-1: the part's OWN declared contacts survive
-    // instantiation UNCHANGED, because `transform_rigid` is key-stable
-    // and the identity fast path clones keys verbatim. Re-deriving them
-    // from the placed geometry is the scan-to-bless move F1 bans. The
-    // bookkeeping rows ride unchanged for the same reason; what is
+    // instantiation with their cells UNCHANGED, because
+    // `transform_rigid` is key-stable and the identity fast path clones
+    // keys verbatim. Re-deriving them from the placed geometry is the
+    // scan-to-bless move F1 bans. Each record cites the part's record
+    // it is, through this instance ([`crate::coincide::CitedInput::Part`]).
+    // The bookkeeping rows ride unchanged for the same reason; what is
     // added here is each row's first hop, this instance
     // ([`crate::assembly::PartRow::through`]).
     let carried = crate::assembly::CarriedDeclarations {
+        refused: part.refused.as_ref().clone(),
         minted: part
             .minted
             .iter()
@@ -610,11 +627,12 @@ where
         payload: ValuePayload::Body(Arc::new(placed)),
         names: table,
         groups: Arc::default(),
-        contacts: Arc::clone(&part.contacts),
+        contacts: Arc::new(part.contacts.carried_from(0)),
         carried: Arc::new(carried),
         parts: part.parts,
         // The part's own rows are its document's, read there.
         coincidences: Arc::new([]),
+        cited_inputs: Arc::new([crate::coincide::CitedInput::Part(*doc_ref)]),
     })
 }
 
@@ -662,6 +680,16 @@ fn value_of<T: Decide>(
         node: input,
     })
     .map_err(|_| NodeErrorKind::MissingInput { input })
+}
+
+/// The contact records `value` holds for its output body 0: a
+/// boolean's own, or those the value's channel carries
+/// ([`OpOut::contacts`]).
+fn records_of<T: Decide>(value: &super::NodeValue<T>) -> Arc<topo::ContactRecords> {
+    match &value.payload {
+        ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) => Arc::clone(contacts),
+        _ => Arc::clone(&value.contacts),
+    }
 }
 
 // OPERAND-DOOR BEGIN — the region the `wire_operand_door` suite's
@@ -2725,6 +2753,7 @@ fn split_ports_projected<T: Decide>(
             fragment_groups: Arc::default(),
             contacts: Arc::default(),
             carried: Arc::default(),
+            cited_inputs: Arc::default(),
             ..value.clone()
         };
         local.insert(split, NodeResult::Ok(projected));
@@ -2747,6 +2776,7 @@ fn wire_boolean<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     op: BooleanOp,
     (a, results_a): (RecipeNodeId, &Results<T>),
     (b, results_b): (RecipeNodeId, &Results<T>),
+    reads: [crate::VarId; 2],
     declare: &[DeclaredPair],
     doc: &crate::doc::Doc<ProfileProgram>,
     boolean_sweep: topo::SweepStrategy,
@@ -2764,7 +2794,11 @@ fn wire_boolean<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         BooleanDeclarations::none()
     } else {
         let sided = side_by_operand(declare, (a, &a_table), (b, &b_table), doc)?;
-        resolve_declarations(&sided, doc, &a_table, &b_table)?
+        let (a_records, b_records) = (
+            records_of(value_of(results_a, a)?),
+            records_of(value_of(results_b, b)?),
+        );
+        resolve_declarations(&sided, doc, (&a_table, &a_records), (&b_table, &b_records))?
     };
     let body_a = finished_operand(results_a, a, tol)?;
     let body_b = finished_operand(results_b, b, tol)?;
@@ -2811,6 +2845,7 @@ fn wire_boolean<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 emitted.table,
             )
             .grouped(Arc::new(names::FragmentGroups::minted(&emitted.groups)))
+            .citing(reads.map(crate::coincide::CitedInput::Read).to_vec())
             .recording(
                 &out.coincidences,
                 &crate::coincide::RowInputs {
@@ -2925,7 +2960,7 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         })
         .collect::<Result<Vec<_>, NodeErrorKind>>()?;
     let tables: Vec<&NameTable> = operands.iter().map(|(_, t)| t.as_ref()).collect();
-    let (links, coincidences, verdicts) = judge_pairwise_contact(
+    let (links, mut coincidences, verdicts) = judge_pairwise_contact(
         id,
         members,
         &tables,
@@ -2982,7 +3017,17 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         } else {
             let acc_view = names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
             let resolved = drop_consumed(look_through_fold(&buckets[step], &acc_view)?, &acc_view);
-            resolve_declarations(&resolved, doc, &acc_view, &member_table)?
+            let acc_records = match &last {
+                Some((_, contacts)) => Arc::clone(contacts),
+                None => records_of(value_of(results[0], members[0])?),
+            };
+            let member_records = records_of(value_of(results[step + 1], rest[step])?);
+            resolve_declarations(
+                &resolved,
+                doc,
+                (&acc_view, &acc_records),
+                (&member_table, &member_records),
+            )?
         };
         given_verdicts(&mut decls, &verdicts, step + 1, members, &fold, &acc_body)?;
         let step_refusal = |refusal| NodeErrorKind::UnionFoldStep {
@@ -3012,6 +3057,28 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     return Err(NodeErrorKind::Naming(names::NamingError::Emission {
                         what: verb.foreign_record,
                     }));
+                };
+                // The last step's records are the union's, and cite that
+                // step's rows: those are published after the pairwise
+                // judgement's, named in the union's own space (#4323: a
+                // fold row is published), and the records renumbered
+                // onto them.
+                let contacts = if step + 1 == rest.len() {
+                    let acc_view =
+                        names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
+                    crate::coincide::publish_cited(
+                        &contacts,
+                        &out.coincidences,
+                        &crate::coincide::RowInputs {
+                            a: (id, &acc_view),
+                            b: Some((id, &member_table)),
+                            tool: None,
+                        },
+                        &mut coincidences,
+                    )
+                    .map_err(NodeErrorKind::Naming)?
+                } else {
+                    contacts
                 };
                 last = Some((kind, Arc::new(contacts)));
                 // Minted under THIS node's id, which tells an
@@ -3184,7 +3251,8 @@ fn judge_pairwise_contact(
             let decls = if pairs.is_empty() {
                 BooleanDeclarations::none()
             } else {
-                resolve_declarations(&pairs, doc, tables[p], tables[q])?
+                let none = topo::ContactRecords::default();
+                resolve_declarations(&pairs, doc, (tables[p], &none), (tables[q], &none))?
             };
             let (naming, judged, glued) = judge(p, q, decls)?;
             links
@@ -3749,8 +3817,8 @@ const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-em
 fn resolve_declarations<'n>(
     pairs: &'n [SidedPair<'n>],
     doc: &crate::doc::Doc<ProfileProgram>,
-    a_table: &NameTable,
-    b_table: &NameTable,
+    (a_table, a_records): (&NameTable, &topo::ContactRecords),
+    (b_table, b_records): (&NameTable, &topo::ContactRecords),
 ) -> Result<BooleanDeclarations, NodeErrorKind> {
     let mut out = BooleanDeclarations::none();
     for ((o1, n1, r1), (o2, n2, r2), class) in pairs {
@@ -3795,6 +3863,29 @@ fn resolve_declarations<'n>(
         // declared as one is an unsupported pair (the one check, read by
         // both vertex arms).
         let vertex_class = class.contact();
+        let backing_record = |op: topo::Operand, pair, kind: &str| {
+            let records = match op {
+                topo::Operand::A => a_records,
+                topo::Operand::B => b_records,
+            };
+            let found = records.position(pair);
+            {
+                use std::io::Write as _;
+                if let Ok(mut f) = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open("/tmp/claude-0/-home-user-cad/b1661c5f-8e9c-5737-8717-d5e1a33dd9b2/scratchpad/b2/measure.log")
+                {
+                    let _ = writeln!(
+                        f,
+                        "carried-{kind} {} {:?}",
+                        if found.is_some() { "backed" } else { "unbacked" },
+                        std::thread::current().name()
+                    );
+                }
+            }
+            found.unwrap_or(u32::MAX)
+        };
         match step {
             DeclaredStep::CrossFaces(sides) => {
                 let (a, b) = sides.a_then_b(k1, k2);
@@ -3811,11 +3902,16 @@ fn resolve_declarations<'n>(
                 let (Some(va), Some(vb)) = (k1.vertex(), k2.vertex()) else {
                     return Err(broke("same-operand vertex-vertex"));
                 };
+                let record = backing_record(
+                    side.operand(),
+                    (topo::Cell::Vertex(va), topo::Cell::Vertex(vb)),
+                    "vv",
+                );
                 // The AUTHORED class, carried, not re-defaulted.
                 carried(&mut out, side.operand()).vv.push(CarriedVv {
                     pair: VvContact { a: va, b: vb },
                     class,
-                    record: 0,
+                    record,
                 });
             }
             DeclaredStep::SameVf(side, roles) => {
@@ -3826,10 +3922,15 @@ fn resolve_declarations<'n>(
                 let (Some(vertex), Some(face)) = (v.vertex(), f.face()) else {
                     return Err(broke("same-operand vertex-face"));
                 };
+                let record = backing_record(
+                    side.operand(),
+                    (topo::Cell::Vertex(vertex), topo::Cell::Face(face)),
+                    "vf",
+                );
                 carried(&mut out, side.operand()).vf.push(CarriedVf {
                     rest: VfContact { vertex, face },
                     class,
-                    record: 0,
+                    record,
                 });
             }
         }
@@ -5220,7 +5321,13 @@ mod route_tests {
             (Operand::B, f(ms[1], CapEnd::Start)),
             (Operand::B, f(ms[1], CapEnd::End)),
         );
-        let refused = resolve_declarations(std::slice::from_ref(&p), &doc, &acc, &member);
+        let none = topo::ContactRecords::default();
+        let refused = resolve_declarations(
+            std::slice::from_ref(&p),
+            &doc,
+            (&acc, &none),
+            (&member, &none),
+        );
         assert!(
             matches!(
                 refused,

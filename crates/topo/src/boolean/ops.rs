@@ -3543,6 +3543,7 @@ impl Chains {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod chain_rows {
     use super::{Chains, Node};
     use crate::{Backing, Cites};

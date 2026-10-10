@@ -542,6 +542,12 @@ pub struct NodeValue<T: Decide> {
     /// the verdicts are, so no content key reads it; it rides the value
     /// with the names it is spelled in.
     pub coincidences: Arc<[crate::coincide::NamedCoincidence]>,
+    /// **What each input its contact records cite is**: a record's
+    /// [`topo::Backing::Carried`] names an input by position, and this
+    /// is that position's input, by read ([`crate::coincide::CitedInput`]).
+    /// A [`topo::Backing::Decided`] names a row of
+    /// [`Self::coincidences`].
+    pub cited_inputs: Arc<[crate::coincide::CitedInput]>,
     /// How many parts each of this value's output bodies is
     /// (`crates/editor-core/ASSEMBLY.md`, A2 and A10): a document's
     /// product is its roots, so an instantiation's bodies are as many
@@ -4545,6 +4551,7 @@ where
                 contacts: out.contacts,
                 carried: out.carried,
                 coincidences: out.coincidences,
+                cited_inputs: out.cited_inputs,
                 parts: out.parts,
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,

@@ -555,7 +555,7 @@ pub use editor_core::{
 // decision site are the kernel's own words (`topo::coincidence`), and
 // the door is a module so its `Recourse` keeps its name.
 pub use editor_core::coincide;
-pub use editor_core::{NamedCell, NamedCoincidence, Proof, Residual, Rung};
+pub use editor_core::{CitedInput, NamedCell, NamedCoincidence, Proof, Residual, Rung};
 /// The shell door's typed refusal, which two `CheckEvidence` arms
 /// carry — by the payload rule this list states at `VerbKind`.
 ///

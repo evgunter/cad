@@ -5129,10 +5129,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "battery_turn",
             "carrier_ladder",
+            "census_at_rest",
             "coaxial_sphere",
+            "import_anchor",
             "plane_ladder",
             "split_on",
             "tangent_witness",
+            "vertex_fusion",
         ],
         delegates: &[],
     },

@@ -141,7 +141,7 @@ use geom_core::{
 
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
-use crate::coincidence::{Cited, Cites};
+use crate::coincidence::{Backing, Cited, Cites};
 use crate::contact::{BooleanCoincidence, ContactClass};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
@@ -188,6 +188,7 @@ pub use carrier_pair::{
     PairFace, PairUnread, carrier_pair_relation, carrier_pair_verdict, face_carrier,
     flush_pair_relation,
 };
+pub(crate) use contact_verify::rest_pair_reading;
 pub use contact_verify::{contact_pair_verdict, tangent_pair_relation};
 pub use solid_contain::{
     PointInSolidError, SolidContainment, SolidFaces, point_in_solid, point_in_solid_faces,
@@ -717,6 +718,40 @@ impl ContactRecords {
         self.cell_pairs()
             .position(|p| p == (x, y) || p == (y, x))
             .map(|k| u32::try_from(k).unwrap_or(u32::MAX))
+    }
+
+    /// These records as an op's that carries them from its input
+    /// `input` unchanged: each cell kept, each record citing this list's
+    /// record ([`Backing::Carried`]) in place of what it cited here.
+    #[must_use]
+    pub fn carried_from(&self, input: u32) -> Self {
+        fn recite<R: Copy>(list: &[Cited<R>], input: u32, k: &mut u32) -> Vec<Cited<R>> {
+            list.iter()
+                .map(|c| {
+                    let record = *k;
+                    *k += 1;
+                    Cited::new(c.record, Cites::one(Backing::Carried { input, record }))
+                })
+                .collect()
+        }
+        // List order is `rows` order, so `k` is each record's index.
+        let mut k = 0_u32;
+        let vv = recite(&self.vv, input, &mut k);
+        let a_on_b = recite(&self.a_on_b, input, &mut k);
+        let b_on_a = recite(&self.b_on_a, input, &mut k);
+        let ve = recite(&self.ve, input, &mut k);
+        let ee = recite(&self.ee, input, &mut k);
+        let curves = recite(&self.curves, input, &mut k);
+        let patches = recite(&self.patches, input, &mut k);
+        Self {
+            vv,
+            a_on_b,
+            b_on_a,
+            ve,
+            ee,
+            curves,
+            patches,
+        }
     }
 
     /// These records carried back into an op as one operand's own, each

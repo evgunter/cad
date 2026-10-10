@@ -3039,6 +3039,9 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::CoaxialSphere => "coaxial_sphere",
         S::SplitOn => "split_on",
         S::BatteryTurn => "battery_turn",
+        S::VertexFusion => "vertex_fusion",
+        S::CensusAtRest => "census_at_rest",
+        S::ImportAnchor => "import_anchor",
     }
 }
 

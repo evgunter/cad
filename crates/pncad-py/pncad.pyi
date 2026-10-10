@@ -6951,8 +6951,9 @@ class Coincidence:
     answer with); the plane a split cuts with is `(node, None)`.
     `relation` is `same_oriented`, `same_opposite`, `on_carrier`,
     `equal_angles`, `tangent` or `seam`; `site` is `plane_ladder`,
-    `carrier_ladder`, `tangent_witness`, `coaxial_sphere`, `split_on` or
-    `battery_turn`. `rung` is the door's rung that proved
+    `carrier_ladder`, `tangent_witness`, `coaxial_sphere`, `split_on`,
+    `battery_turn`, `vertex_fusion`, `census_at_rest` or `import_anchor`.
+    `rung` is the door's rung that proved
     it structural (`same_construction`), or `None`, and then `residual` says
     what separates the two constructions."""
 

@@ -53,10 +53,13 @@ fn a_carried_edge_edge_row_on_an_arc_refuses_at_the_door() {
         .collect();
     assert!(arcs.len() >= 2, "the caps are rings of arcs");
     let mut decls = declare_all(&find_flush_candidates(&cylinder, &block, tol).expect("decides"));
-    decls.carried_a.ee = vec![topo::CarriedRecord { contact: topo::EeContact {
-        a: arcs[0],
-        b: arcs[1],
-    }, record: 0 }];
+    decls.carried_a.ee = vec![topo::CarriedRecord {
+        contact: topo::EeContact {
+            a: arcs[0],
+            b: arcs[1],
+        },
+        record: 0,
+    }];
     let got = union_with(&cylinder, &block, &decls, tol).map(|_| ());
     assert!(
         matches!(

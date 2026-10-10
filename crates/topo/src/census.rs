@@ -6413,6 +6413,77 @@ fn escalation(answer: Option<bool>, errors: Vec<ValidationError>) -> Result<bool
     }
 }
 
+/// **Door 1 of a face pair at rest**: carrier identity and opposed
+/// senses through the `Rest` door, the pair standing as its own
+/// declaration (C3: rung 2/3, never value-equal; aligned coincidence
+/// contradicts), with the margin that decided the one carrier. A
+/// refusal is the census finding it raises: the declaration is carried
+/// in the pair's own order, and the witness names the LOCUS, not the
+/// pair (`declaration` carries that) — Door 1 compares the two faces'
+/// carriers whole and hands back no point, so the locus is the
+/// surfaces.
+fn rest_door_one<T: Decide>(
+    body: &Body<T>,
+    face_a: FaceKey,
+    face_b: FaceKey,
+    band: Band,
+) -> Result<(crate::contact::ContactVerdict, geom_core::MarginDiag), ValidationError> {
+    crate::boolean::rest_pair_reading(body, face_a, body, face_b, band).map_err(|refusal| {
+        match refusal {
+            crate::contact::ContactRefusal::Contradicted { diag, steer } => {
+                ValidationError::ContactContradicted {
+                    declaration: crate::contact::DeclaredContact {
+                        a: face_a,
+                        b: face_b,
+                        class: crate::contact::ContactClass::Rest,
+                    },
+                    witness: CARRIER_COMPARISON_WITNESS.to_owned(),
+                    margin: diag,
+                    steer,
+                }
+            }
+            crate::contact::ContactRefusal::Escalated { diag }
+            | crate::contact::ContactRefusal::Undeclared { diag } => {
+                ValidationError::CensusEscalated { cause: diag }
+            }
+            refusal @ crate::contact::ContactRefusal::NotCertifiable { .. } => {
+                ValidationError::CensusUnsupported {
+                    subject: CensusSubject::FacePair(face_a, face_b),
+                    cause: CensusUnsupportedCause::ContactLane(refusal),
+                }
+            }
+        }
+    })
+}
+
+/// **The at-rest census's decision that two faces of a body rest on one
+/// carrier, opposed**: the row a contact record between them cites
+/// ([`crate::DecisionSite::CensusAtRest`]), decided by the same Door 1
+/// the census confirms a patch record through, so the row and the
+/// census read one door.
+///
+/// # Errors
+///
+/// The finding the census raises for the pair where Door 1 refuses it.
+pub fn census_rest_decision<T: Decide>(
+    body: &Body<T>,
+    face_a: FaceKey,
+    face_b: FaceKey,
+    band: Band,
+) -> Result<crate::Coincidence, ValidationError> {
+    let (_, margin) = rest_door_one(body, face_a, face_b, band)?;
+    let cell = |face| crate::RowCell::Result {
+        cell: crate::Cell::Face(face),
+    };
+    Ok(crate::Coincidence {
+        cells: [cell(face_a), cell(face_b)],
+        relation: crate::Relation::SameOpposite,
+        site: crate::DecisionSite::CensusAtRest,
+        margin,
+        discharge: crate::Discharge::Numeric,
+    })
+}
+
 /// The at-rest confirmation of the two CURVED granularities (C3), the
 /// other half of `confirm_declarations`.
 ///
@@ -6526,45 +6597,10 @@ fn confirm_curve_and_patch_records<T: Decide>(
         // own evidence) or `Bridged` (an in-band residue the
         // declaration covered) — rather than re-deriving or assuming
         // it.
-        let door_one = match crate::boolean::contact_pair_verdict(
-            body,
-            c.face_a,
-            body,
-            c.face_b,
-            crate::contact::ContactClass::Rest,
-            None,
-            band,
-        ) {
-            Ok(verdict) => verdict,
-            Err(crate::contact::ContactRefusal::Contradicted { diag, steer }) => {
-                // The declaration is carried in the record's own
-                // order, the reader's index back into the records they
-                // supplied. The witness names the LOCUS, not the pair
-                // (`declaration` carries that): Door 1 compares the two
-                // faces' carriers whole — identity and senses — and
-                // hands back no point, so the locus is the surfaces.
-                errors.push(ValidationError::ContactContradicted {
-                    declaration: crate::contact::DeclaredContact {
-                        a: c.face_a,
-                        b: c.face_b,
-                        class: crate::contact::ContactClass::Rest,
-                    },
-                    witness: CARRIER_COMPARISON_WITNESS.to_owned(),
-                    margin: diag,
-                    steer,
-                });
-                continue;
-            }
-            Err(crate::contact::ContactRefusal::Escalated { diag })
-            | Err(crate::contact::ContactRefusal::Undeclared { diag }) => {
-                errors.push(ValidationError::CensusEscalated { cause: diag });
-                continue;
-            }
-            Err(refusal @ crate::contact::ContactRefusal::NotCertifiable { .. }) => {
-                errors.push(ValidationError::CensusUnsupported {
-                    subject: CensusSubject::FacePair(c.face_a, c.face_b),
-                    cause: CensusUnsupportedCause::ContactLane(refusal),
-                });
+        let door_one = match rest_door_one(body, c.face_a, c.face_b, band) {
+            Ok((verdict, _)) => verdict,
+            Err(error) => {
+                errors.push(error);
                 continue;
             }
         };

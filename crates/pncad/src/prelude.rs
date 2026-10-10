@@ -478,11 +478,11 @@ pub use geom::SurfaceKind;
 // Stated so the next curation pass re-measures rather than
 // re-deriving.
 pub use topo::{
-    AtRestBody, Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanOp, BooleanResult,
-    BooleanResultKind, ContactRecords, Curve3, EdgeDescription, EdgeKey, EntityId, FaceKey,
-    GeomRef, LoopKey, Operand, PairRefusalSite, PlaneRelation, ShellOrientation, Surface,
-    TransformError, VertexKey, intersect, intersect_with, subtract, subtract_with, transform_rigid,
-    union, union_with,
+    AtRestBody, Backing, Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanOp,
+    BooleanResult, BooleanResultKind, Cited, Cites, Coincidence, ContactRecords, Curve3,
+    EdgeDescription, EdgeKey, EntityId, FaceKey, GeomRef, LoopKey, Operand, PairRefusalSite,
+    PlaneRelation, ShellOrientation, Surface, TransformError, VertexKey, intersect, intersect_with,
+    subtract, subtract_with, transform_rigid, union, union_with,
 };
 
 // --- 5. The validation ladder ---------------------------------
