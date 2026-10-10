@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-09
 priority: P0
 cost: M
-needs_ev: true
 refs: [part-split-half-retires, operands-are-reads, a-name-is-scoped-by-the-variable-holding-its-body]
 ---
 

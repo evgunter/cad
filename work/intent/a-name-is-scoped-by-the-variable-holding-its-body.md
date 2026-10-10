@@ -6,7 +6,6 @@ status: parked
 opened: 2026-10-09
 priority: P0
 cost: H
-needs_ev: true
 blocked_on: [a-union-member-is-keyed-by-its-read]
 refs: [part-split-half-retires, operands-are-reads]
 ---
