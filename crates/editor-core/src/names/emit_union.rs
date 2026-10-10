@@ -2,13 +2,14 @@
 //!
 //! A union's names record WHICH MEMBER an entity came from and not
 //! which fold step reached it. The fold's own tables are the pair
-//! emitter's, so a member's entity accumulates a `FromA`/`FromB`
-//! descent chain as long as its position in the list; that chain is
-//! what this module takes out, in two halves.
+//! emitter's, whose two sides are keyed by the fold's own reads
+//! ([`crate::names::FOLD_A`], [`crate::names::FOLD_B`]), so a member's
+//! entity accumulates a descent chain as long as its position in the
+//! list; that chain is what this module takes out, in two halves.
 //!
 //! **Going in** ([`member_view`]): each member's table enters its fold
-//! step already wrapped in one [`RoleSeg::FromMember`] carrying that
-//! member's node id. Every operand of every step is therefore in the
+//! step already wrapped in one [`RoleSeg::From`] carrying that member's
+//! read. Every operand of every step is therefore in the
 //! union's own name space, and every name the pair emitter embeds — a
 //! seam's two sides, a merge's constituents, a fragment's walls —
 //! already says which member it came from. It has to be put there: a
@@ -21,7 +22,7 @@
 //! reads, and [`collapse_name`] for the refusal paths — three
 //! consumers of one collapse, which the published table follows with
 //! the two end passes below): a fold-table name is rewritten by descending its
-//! `FromA`/`FromB` chain to the [`RoleSeg::FromMember`] at its foot —
+//! fold-side chain to the member-keyed [`RoleSeg::From`] at its foot —
 //! one wrapper, whatever the depth. The names a segment embeds are
 //! collapsed by the same rule. The result is then put in canonical
 //! form by `names::canonical`, the one list of a path's name-ordered
@@ -90,13 +91,13 @@
 //! In a FOLD table, by the HEAD segment alone. Every row of every fold
 //! step is minted under the union's id, so the id separates nothing;
 //! what separates them is that a member-keyed row's head is
-//! `FromMember` and an intermediate row's is `FromA`/`FromB`, which is
+//! `From` a member's read and an intermediate row's is `From` a fold side, which is
 //! descended through.
 //!
 //! That is a statement about the fold's own tables and about nothing
-//! else. Once a name is COLLAPSED the `FromA`/`FromB` chain is gone,
+//! else. Once a name is COLLAPSED the fold-side chain is gone,
 //! so a published row is told apart by its whole path and not by its
-//! head — a member's row is a one-segment `FromMember` path, and
+//! head — a member's row is a one-segment `From` path, and
 //! anything longer is a row the fold minted. That is the shape
 //! `eval::wire`'s `sited_member` reads to say whether a refusal's row
 //! is a member's entity, a merge of member entities, or a row no
@@ -124,14 +125,15 @@ use crate::names::groups::{CrossingSenses, Rederived};
 use crate::names::least_root::LeastRoot;
 use crate::names::nest::{Descent, Kept, Stopped, descend};
 use crate::names::role::{
-    Carry, EntityKind, NameRef, Qualifier, RoleSeg, SegRewrite, Sense, StableName, edge_line,
+    is_fold_side, Carry, EntityKind, NameRef, Qualifier, RoleSeg, SegRewrite, Sense, StableName, edge_line,
     never_in_a_boolean_table,
 };
 use crate::names::table::{EntityKey, Entry, NameTable};
 use crate::node::RecipeNodeId;
+use crate::var::VarId;
 
 /// One member's table as the UNION sees it: every row's name wrapped
-/// in one [`RoleSeg::FromMember`] naming this member, minted under the
+/// in one [`RoleSeg::From`] naming this member's read, minted under the
 /// union's node.
 ///
 /// The entities are untouched — same body index, same keys — so the
@@ -139,7 +141,7 @@ use crate::node::RecipeNodeId;
 /// it exactly as they read the member's own table.
 pub(crate) fn member_view(
     union: RecipeNodeId,
-    member: RecipeNodeId,
+    member: VarId,
     table: &NameTable,
 ) -> Result<NameTable, NamingError> {
     // The member's table is an operand read whole, so it is sealed
@@ -171,24 +173,24 @@ pub(crate) fn member_view(
 /// a member's entity is called.
 pub(crate) fn member_name(
     union: RecipeNodeId,
-    member: RecipeNodeId,
+    member: VarId,
     name: &StableName,
 ) -> StableName {
     keyed(union, member, NameRef::new(name.clone()), name.kind)
 }
 
-/// The rule itself: one [`RoleSeg::FromMember`] segment, minted under
-/// the union's node, carrying the entity's own kind.
+/// The rule itself: one [`RoleSeg::From`] segment keyed by the member's
+/// read, minted under the union's node, carrying the entity's own kind.
 fn keyed(
     union: RecipeNodeId,
-    member: RecipeNodeId,
+    read: VarId,
     of: NameRef,
     kind: crate::names::role::EntityKind,
 ) -> StableName {
     StableName {
         kind,
         node: union,
-        path: vec![RoleSeg::FromMember { member, of }],
+        path: vec![RoleSeg::From { read, of }],
     }
 }
 
@@ -255,11 +257,11 @@ struct PieceGroup {
     lone: Lone,
 }
 
-/// One member of a union as [`name_union`] reads it: its node, its own
+/// One member of a union as [`name_union`] reads it: its read, its own
 /// body and its own table — the place a member's edge is defined.
 pub(crate) struct Member<'a, T: geom_core::Decide> {
-    /// The member's node.
-    pub node: RecipeNodeId,
+    /// The read the member came through.
+    pub read: VarId,
     /// The member's body, in the space the union was built in.
     pub body: &'a topo::Body<T>,
     /// The member's own table (not the union's view of it).
@@ -268,7 +270,7 @@ pub(crate) struct Member<'a, T: geom_core::Decide> {
 
 /// **The pieces of each member edge, grouped under it.**
 ///
-/// A row `FromMember(m, e)` followed only by the fold's
+/// A row `From(m, e)` followed only by the fold's
 /// `Fragment(Ends)`, `e` an edge, is a piece of `m`'s edge `e`; so is
 /// any edge row that lies within a member edge whatever the fold named
 /// it (a merged edge the fold met as a seam). Either is a piece of the
@@ -276,7 +278,7 @@ pub(crate) struct Member<'a, T: geom_core::Decide> {
 /// runs flush with a lesser member's edge there. An edge row that lies
 /// within none but runs along several member edges covering it, however
 /// the fold named it, is a piece of that SET. Each group is named
-/// `FromMember(m, e)` or `Merged` of the set: a member edge alone where
+/// `From(m, e)` or `Merged` of the set: a member edge alone where
 /// the finished body holds it whole ([`Flush::holds_whole`]), and
 /// otherwise each piece of it, a lone one included, by its ends over the
 /// union's published vertex names, read off the finished body: the
@@ -399,11 +401,11 @@ fn put_entry(t: &mut NameTable, name: StableName, entry: &Entry) -> Result<(), N
 /// ([`Flush::way_of`] reads only whether it lies on another edge's line).
 fn member_edge<'a, T: geom_core::Decide>(
     members: &'a [Member<'a, T>],
-    member: RecipeNodeId,
+    member: VarId,
     edge: &StableName,
 ) -> Result<(&'a topo::Body<T>, topo::EdgeKey), NamingError> {
     let bug = |what| NamingError::Emission { what };
-    let m = member_of(members, member)?;
+    let m = member_of(members, member, edge)?;
     let by_line = |edge: &StableName| {
         m.table.lookup(edge).or_else(|| {
             let rows = m.table.on_line(edge);
@@ -429,24 +431,34 @@ fn member_edge<'a, T: geom_core::Decide>(
     }
 }
 
-/// The member of a union whose node is `node`; every member-keyed row
-/// came from a member, so another node is an emission bug.
+/// The member of a union read through `read` whose table holds `name`,
+/// on its line or in a set listing it: every member-keyed row came from
+/// a member, so a read the union does not hold is an emission bug.
+/// Several members share a read where a family is read whole, each
+/// holding its own instances' names, and where a read is spelled twice,
+/// with one table between them.
 fn member_of<'a, T: geom_core::Decide>(
     members: &'a [Member<'a, T>],
-    node: RecipeNodeId,
+    read: VarId,
+    name: &StableName,
 ) -> Result<&'a Member<'a, T>, NamingError> {
-    members
-        .iter()
-        .find(|m| m.node == node)
-        .ok_or(NamingError::Emission {
-            what: "a union's row is keyed by a node that is not one of its members",
+    let mut held = members.iter().filter(|m| m.read == read);
+    let first = held.clone().next().ok_or(NamingError::Emission {
+        what: "a union's row is keyed by a read that is not one of its members",
+    })?;
+    Ok(held
+        .find(|m| {
+            m.table.lookup(name).is_some()
+                || !m.table.on_line(name).is_empty()
+                || !m.table.sets_listing(name).is_empty()
         })
+        .unwrap_or(first))
 }
 
-/// A member's entity: the member, and the entity's name in that
-/// member's own table. Ordered as the union's [`RoleSeg::FromMember`]
-/// names for them are, member first.
-type MemberEntity = (RecipeNodeId, NameRef);
+/// A member's entity: the member's read, and the entity's name in that
+/// member's own table. Ordered as the union's [`RoleSeg::From`] names
+/// for them are, read first.
+type MemberEntity = (VarId, NameRef);
 
 /// The union's name for member entity `(member, of)`, sharing the
 /// member's handle for `of` so its order cache comes along.
@@ -463,7 +475,7 @@ fn entity_name(union: RecipeNodeId, (member, of): &MemberEntity) -> StableName {
 /// The fold keeps whichever operand was A at the step that met them, so
 /// its name for the stretch says which member was folded first. The
 /// union has no A and B; it names the stretch for the least member
-/// entity that holds it, in the order of the [`RoleSeg::FromMember`]
+/// entity that holds it, in the order of the [`RoleSeg::From`]
 /// names it publishes, which compares the member first: the member
 /// minted first holds the stretch, so a member added or re-drawn later
 /// never takes it. A stretch the output stage joined across several
@@ -549,8 +561,8 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         Ok(flush)
     }
 
-    fn member(&self, node: RecipeNodeId) -> Result<&'a Member<'a, T>, NamingError> {
-        member_of(self.members, node)
+    fn member(&self, read: VarId, name: &StableName) -> Result<&'a Member<'a, T>, NamingError> {
+        member_of(self.members, read, name)
     }
 
     /// How finished edge `k`, between faces `fs`, lies along the member
@@ -576,7 +588,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         let mut candidates = BTreeMap::new();
         for (n, g0) in from0 {
             for (_, g1) in from1.iter().filter(|(n1, g1)| n1 == n && g1 != g0) {
-                let m = self.member(*n)?;
+                let m = self.member(*n, g0.name())?;
                 let (Some(a), Some(b)) =
                     (face_key(m.table, g0.name()), face_key(m.table, g1.name()))
                 else {
@@ -620,7 +632,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         let p = vertex_point(self.body, v)?;
         let mut out = Vec::new();
         for (n, name) in set {
-            let m = self.member(*n)?;
+            let m = self.member(*n, name.name())?;
             let Some(Entry::Unique(e)) = m.table.lookup(name.name()) else {
                 continue;
             };
@@ -711,7 +723,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         };
         let mut sides = BTreeSet::new();
         for (n, name) in &along {
-            let m = self.member(*n)?;
+            let m = self.member(*n, name.name())?;
             let Some(Entry::Unique(e)) = m.table.lookup(name.name()) else {
                 continue;
             };
@@ -1055,7 +1067,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         let mut seen = BTreeSet::new();
         let mut least: Option<MemberEntity> = None;
         for (n, face) in cited {
-            let m = self.member(*n)?;
+            let m = self.member(*n, face.name())?;
             let Some(f) = face_key(m.table, face.name()) else {
                 continue;
             };
@@ -1099,8 +1111,8 @@ fn member_faces(name: &StableName, out: &mut BTreeSet<MemberEntity>) {
     let mut names = vec![name];
     while let Some(name) = names.pop() {
         match name.path.first() {
-            Some(RoleSeg::FromMember { member, of }) if of.kind == EntityKind::Face => {
-                out.insert((*member, of.clone()));
+            Some(RoleSeg::From { read, of }) if of.kind == EntityKind::Face => {
+                out.insert((*read, of.clone()));
             }
             Some(RoleSeg::Merged(set)) => names.extend(set),
             _ => {}
@@ -1134,13 +1146,13 @@ fn unique_name(table: &NameTable, key: EntityKey) -> Option<NameRef> {
 }
 
 /// The (member, member edge) an EDGE name of this shape is about —
-/// `FromMember(m, e)`, `e` an edge, then nothing but `Fragment(Ends)`
+/// `From(m, e)`, `e` an edge, then nothing but `Fragment(Ends)`
 /// qualifiers — and whether any qualifier follows.
-fn member_edge_piece(name: &StableName) -> Option<(RecipeNodeId, NameRef, bool)> {
+fn member_edge_piece(name: &StableName) -> Option<(VarId, NameRef, bool)> {
     if name.kind != EntityKind::Edge {
         return None;
     }
-    let (RoleSeg::FromMember { member, of }, tail) = name.path.split_first()? else {
+    let (RoleSeg::From { read: member, of }, tail) = name.path.split_first()? else {
         return None;
     };
     if of.kind != EntityKind::Edge
@@ -1165,7 +1177,7 @@ fn member_edge_piece(name: &StableName) -> Option<(RecipeNodeId, NameRef, bool)>
 ///
 /// Any other seam vertex embeds the member edge it lies on as far as the fold
 /// had cut it when it met the vertex — a piece that no published name
-/// denotes. It is cited as `FromMember(m, e)`, which is how a vertex
+/// denotes. It is cited as `From(m, e)`, which is how a vertex
 /// already cites an edge the fold had not cut, and as the least member
 /// edge through the vertex along that line ([`Flush::least_at`]), each
 /// sense it carries re-read along the edge it now cites
@@ -1307,7 +1319,7 @@ fn cite_member_edges<T: geom_core::Decide>(
         }
         // Each crossing is read on the member edge of the line it lies
         // on, the line's least row where it lies on none.
-        let member_table = member_of(members, member)?.table;
+        let member_table = member_of(members, member, edge.name())?.table;
         let mut on_line = Vec::new();
         for row in member_table.on_line(edge.name()) {
             if let Some(Entry::Unique(e)) = member_table.lookup(row)
@@ -1437,7 +1449,7 @@ pub(crate) fn is_fold_qualified_member_edge(name: &StableName) -> bool {
 
 /// The [`SegRewrite`] of [`cite_member_edges`]: an embedded qualified piece
 /// of a member edge becomes the member edge. Only names the UNION
-/// minted are rewritten or entered: the name a `FromMember` carries is
+/// minted are rewritten or entered: the name a member-keyed `From` carries is
 /// the member's own, final in the member.
 struct WholeMemberEdges<'f, 'a, T: geom_core::Decide> {
     union: RecipeNodeId,
@@ -1480,9 +1492,10 @@ impl<T: geom_core::Decide> SegRewrite for WholeMemberEdges<'_, '_, T> {
     }
 }
 
-/// A member face, by entity: the member's node and the face's key in
-/// the member's own body.
-type MemberFace = (RecipeNodeId, topo::FaceKey);
+/// A member face, by entity: the member's position in the list and the
+/// face's key in the member's own body. The position is bookkeeping and
+/// reaches no name.
+type MemberFace = (usize, topo::FaceKey);
 
 /// **The member faces a union links** (N2): the pairs each pairwise
 /// judgement (DM4) consumed. A judgement is the two members' own union,
@@ -1500,8 +1513,8 @@ impl Links {
     /// (operand B), and the kernel's record of their union.
     pub(crate) fn judged(
         &mut self,
-        a: RecipeNodeId,
-        b: RecipeNodeId,
+        a: usize,
+        b: usize,
         naming: &topo::BooleanNaming,
     ) -> Result<(), NamingError> {
         let descent = FaceDescent::of(naming);
@@ -1550,7 +1563,7 @@ pub(crate) struct Fold {
 
 impl Fold {
     /// The fold before any step: the first member's body.
-    pub(crate) fn new<T: geom_core::Real>(first: RecipeNodeId, body: &topo::Body<T>) -> Self {
+    pub(crate) fn new<T: geom_core::Real>(first: usize, body: &topo::Body<T>) -> Self {
         Self {
             lineage: body
                 .faces()
@@ -1570,7 +1583,7 @@ impl Fold {
     /// added at its vertices.
     pub(crate) fn step<T: geom_core::Real>(
         &mut self,
-        member: RecipeNodeId,
+        member: usize,
         naming: &topo::BooleanNaming,
         result: &topo::Body<T>,
         senses: &CrossingSenses,
@@ -1732,14 +1745,14 @@ impl Parents {
             let mut from = BTreeSet::new();
             let mut tied = false;
             for &(m, f) in &entities {
-                let member = member_of(members, m)?;
+                let member = members.get(m).ok_or_else(|| bug("a union's member face names no member"))?;
                 let of = member
                     .table
                     .name_ref_of(&ent(0, EntityKey::Face(f)))
                     .ok_or_else(|| bug("a member face a union holds is unnamed in its member"))?
                     .clone();
                 tied |= member.table.is_tied(&of);
-                from.insert((m, of));
+                from.insert((member.read, of));
             }
             let name = parent_name(union, &from);
             // A nested union's merged member face is cited by the fold
@@ -2060,7 +2073,7 @@ fn name_by_parents<T: geom_core::Decide>(
 /// The [`SegRewrite`] of [`name_by_parents`]: a face a name embeds is
 /// cited as its parent, and a seam edge the union re-derived as it now
 /// publishes. Only names the UNION minted are rewritten: a
-/// `FromMember`'s own name is the member's, final in the member.
+/// member-keyed `From`'s own name is the member's, final in the member.
 struct CiteParents<'p> {
     union: RecipeNodeId,
     parents: &'p Parents,
@@ -2144,7 +2157,7 @@ pub(crate) fn collapse_table(
 /// passes over member edges, which need the finished body), exposed
 /// for the paths that carry a name out of a step that did NOT finish:
 /// a refusal raised at step `k` reads the ACCUMULATED table, whose
-/// rows are still `FromA`/`FromB`-headed, and a name in that shape is
+/// rows are still headed by a fold side, and a name in that shape is
 /// in the fold's internal space — no published table holds it and
 /// nothing can resolve it. Every name a union's refusal carries goes
 /// through here first, so what a caller is handed denotes in the space
@@ -2171,7 +2184,7 @@ use super::merged::NESTED_MERGED;
 /// One fold-table name, keyed by member.
 ///
 /// Returns a name in the UNION's own space (`node` is the union's, as
-/// every fold row's already is): either one [`RoleSeg::FromMember`],
+/// every fold row's already is): either one [`RoleSeg::From`],
 /// [`RoleSeg::Seam`], [`RoleSeg::Merged`] or [`RoleSeg::OutputBody`]
 /// head followed by the `Fragment` discriminators the fold
 /// accumulated, outermost step last — or, for a seam JUNCTION vertex,
@@ -2221,7 +2234,7 @@ impl<'s> Descent<'s> for Collapse {
 }
 
 /// The held names `name`'s collapse reads: the seam sides and merged
-/// constituents at the foot of its `FromA`/`FromB` descent, and every
+/// constituents at the foot of its fold-side descent, and every
 /// `Borders` wall and `Ends` vertex along it, in the order the collapse
 /// meets them.
 fn held_collapses(name: &StableName) -> Vec<&StableName> {
@@ -2229,7 +2242,7 @@ fn held_collapses(name: &StableName) -> Vec<&StableName> {
     let mut at = name;
     while let Some((head, tail)) = at.path.split_first() {
         match head {
-            RoleSeg::FromA(inner) | RoleSeg::FromB(inner) => at = inner,
+            RoleSeg::From { read, of } if is_fold_side(*read) => at = of,
             RoleSeg::Seam { .. } => {
                 for seg in &at.path {
                     if let RoleSeg::Seam { a, b } = seg {
@@ -2285,7 +2298,7 @@ fn collapse_one<'s>(
 /// [`collapse`]'s rewrite half: the fold-table name with every name it
 /// holds collapsed into this node's space, in the fold's order.
 ///
-/// A `FromA`/`FromB` head is descended through by this same half, so
+/// A fold-side `From` head is descended through by this same half, so
 /// the inner name's own positions stay in fold order, and its ranks
 /// along the fold's A-first line, until the one canonicalization at the
 /// top. Every rank the flattened path carries lies along the one line
@@ -2316,17 +2329,17 @@ fn orient<'s>(
         let path = match head {
             // Already member-keyed: the foot of a descent chain, put there
             // by `member_view` before the step ran.
-            RoleSeg::FromMember { .. } => vec![head.clone()],
+            RoleSeg::From { read, .. } if !is_fold_side(*read) => vec![head.clone()],
             // The accumulated body's own name at every step, and the
             // union's at the last one: one body out, one output-body row.
             RoleSeg::OutputBody => vec![RoleSeg::OutputBody],
             // The descent. Every operand of every step is in this node's
-            // space, so a `FromA`/`FromB` argument is always an earlier
-            // step's row: descended THROUGH, carrying its own
-            // discriminators out with it.
-            RoleSeg::FromA(inner) | RoleSeg::FromB(inner) => {
+            // space, so a fold side's argument is always an earlier step's
+            // row: descended THROUGH, carrying its own discriminators out
+            // with it.
+            RoleSeg::From { of, .. } => {
                 tails.push(tail);
-                at = inner;
+                at = of;
                 continue;
             }
             // A seam: one line, each side collapsed, with any `Fragment`
@@ -2395,7 +2408,7 @@ fn orient<'s>(
             // merge-group loop) holds that at the first door; this is the
             // same rule read at the union's second door — a constituent
             // that collapses to a merged face, bare or through any
-            // `FromA`/`FromB`/`FromMember` wrapping, is refused as the
+            // `From` wrapping, is refused as the
             // emission bug it is, never flattened. A fragment of a merged
             // face is a fragment, not a merge (`RoleSeg::Merged`'s doc).
             //
@@ -2457,15 +2470,13 @@ fn orient<'s>(
             // segments above included, which are heads and not
             // discriminators. A junction's run of `Seam`s never reaches
             // this loop — the head arm takes the whole path or refuses
-            // it — so a `Seam` here follows a `FromMember`, `Merged` or
+            // it — so a `Seam` here follows a `From`, `Merged` or
             // `OutputBody` head, or a `Fragment`, and the pair emitter
             // mints none of those shapes. The long half is
             // [`never_in_a_boolean_table`], for the reason the head
             // match names.
             RoleSeg::OutputBody
-            | RoleSeg::FromA(_)
-            | RoleSeg::FromB(_)
-            | RoleSeg::FromMember { .. }
+            | RoleSeg::From { .. }
             | RoleSeg::Seam { .. }
             | RoleSeg::Crossing { .. }
             | RoleSeg::EdgeCrossing { .. }

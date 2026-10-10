@@ -81,7 +81,7 @@ pub use interrogate::{
 };
 pub use nest::NameTextError;
 pub(crate) use nest::{read_door, write_door};
-pub(crate) use role::member_edge;
+pub(crate) use role::{FOLD_A, FOLD_B, is_fold_side, read_edge};
 pub use role::{
     CapEnd, EntityKind, FaceName, MeridianEnd, NameRef, NotAFaceName, PieceRole, PieceRun,
     ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SectionCircle,

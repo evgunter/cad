@@ -43,25 +43,21 @@ fn head(seg: &RoleSeg) -> Head<'_> {
             edge: a, face: b, ..
         }
         | RoleSeg::EdgeCrossing { a, b, .. } => Head::Seam(a, b),
-        // A boolean's survivor, a blend's or shell's survivor, a split's
-        // fragment, a pattern's or part's instance: the same entity (or
-        // a piece of it) under one more op.
-        RoleSeg::FromA(n)
-        | RoleSeg::FromB(n)
-        | RoleSeg::FromTarget(n)
+        // An entity carried in from an input, a split's fragment, a
+        // pattern's or part's instance: the same entity (or a piece of
+        // it) under one more op. A member's seam keeps the orientation
+        // its own table read, so a rewrite that reorders the member's
+        // pair re-reads a rank along it as it would below.
+        RoleSeg::From { of: n, .. }
         | RoleSeg::SplitFragment { parent: n, .. }
         | RoleSeg::Instance { of: n, .. }
         | RoleSeg::InPart { of: n } => Head::Through(n),
         RoleSeg::Merged(set) => Head::Merged(set),
-        // A union member's entity is NOT seen through: its seam belongs
-        // to the member, whose pair order no union reorders, and is read
-        // in the member's own table.
-        RoleSeg::FromMember { .. }
         // New entities an op minted FROM a source — a blend face, a
         // shell's cavity twin (an offset line, not the source's), a
         // trimline, a crossing vertex — lie on no seam line of their
         // source.
-        | RoleSeg::BlendFace(_)
+        RoleSeg::BlendFace(_)
         | RoleSeg::CornerFace(_)
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }

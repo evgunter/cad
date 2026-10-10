@@ -988,7 +988,9 @@ pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'sta
         }
         Node::Datum(_) => (family::DATUM, false),
         Node::Profile(_) => (family::PROFILE, false),
-        Node::Boolean { .. } => (family::BOOLEAN, true),
+        Node::Subtract { .. } | Node::Union { .. } | Node::Intersect { .. } => {
+            (family::BOOLEAN, true)
+        }
         Node::Split { .. } => (family::SPLIT, false),
         Node::Pattern { .. } => (family::INSTANCES, true),
         Node::Mate { .. } => (family::MATE, false),
@@ -1005,6 +1007,7 @@ pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'sta
         | Node::Chamfer { .. }
         | Node::Shell { .. }
         | Node::Union { .. }
+        | Node::Intersect { .. }
         | Node::PlacedUnion { .. }
         | Node::Part { .. }
         | Node::InstantiatePart { .. } => (family::BODY, true),
@@ -5419,11 +5422,12 @@ where
         Node::Extrude { .. } => document_verb_tag(verbs::VerbKind::Extrude),
         Node::Revolve { .. } => document_verb_tag(verbs::VerbKind::Revolve),
         Node::Split { .. } => document_verb_tag(verbs::VerbKind::Split),
-        // The numbers are not written here: a migrated verb's tag is a
-        // function of the KERNEL's name for it, and the boolean's name
-        // carries its op (`VerbKind::Boolean(op)` — the three
-        // regularized ops are three names in the vocabulary).
-        Node::Boolean { op, .. } => document_verb_tag(verbs::VerbKind::Boolean(*op)),
+        // The number is not written here: a migrated verb's tag is a
+        // function of the KERNEL's name for it, the regularized
+        // difference (`VerbKind::Boolean(Subtract)`).
+        Node::Subtract { .. } => {
+            document_verb_tag(verbs::VerbKind::Boolean(topo::BooleanOp::Subtract))
+        }
         Node::Transform { .. } => 11,
         Node::Pattern { kind, .. } => match kind {
             PatternKind::Linear { .. } => 12,
@@ -5478,15 +5482,13 @@ where
         // different payloads, so a shared key would serve one's geometry
         // for the other out of the memo.
         Node::Datum(Datum::AxisInPlane { .. }) => 30,
-        // The n-ary union's tag. It does NOT share the pair union's 8:
-        // both carry declared pairs, but their operands differ (a
-        // member list against two named operands) and they mint
-        // different names, so a shared key would serve one's geometry
-        // and table for the other out of the memo. The member list
-        // itself is not written here — members are input EDGES, and
-        // the inputs' own keys carry them in list order below, which
-        // is the rule `Loft`'s profiles already run on.
+        // The union's tag, and the intersect's fresh word. The member
+        // list itself is not written here — members are input EDGES,
+        // and the inputs' own keys carry them in list order below,
+        // which is the rule `Loft`'s profiles already run on; whether
+        // the argument is a family or spelled is payload, fed below.
         Node::Union { .. } => 31,
+        Node::Intersect { .. } => 37,
         // The derived sketch frame. It does NOT share the authored
         // frame's 27 even though it evaluates to the same value kind:
         // the two carry different payloads (a body edge, a face name
@@ -5765,18 +5767,19 @@ where
         }
         // The declared pairs are payload, not edges, so they feed the
         // key by hand ([`feed_declared`]).
-        // The op is in the tag (`VerbKind::Boolean(op)`); the operands
-        // and the members are input edges.
-        Node::Boolean {
-            op: _,
-            a: _,
-            b: _,
-            declare,
-        }
-        | Node::Union {
-            members: _,
+        // The operands and the members are input edges.
+        Node::Subtract {
+            from: _,
+            tool: _,
             declare,
         } => {
+            feed_declared(&mut h, declare);
+        }
+        Node::Union { members, declare } | Node::Intersect { members, declare } => {
+            h.write_tag(match members {
+                crate::Bodies::Family(_) => tag::bodies::FAMILY,
+                crate::Bodies::Spelled(_) => tag::bodies::SPELLED,
+            });
             feed_declared(&mut h, declare);
         }
         // LIB-PLACEDUNION: an `Explicit` rule's FRAMES are recipe
@@ -6763,9 +6766,7 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::RevolveCap => 13,
         S::Pole => 14,
         S::AxisEdge => 15,
-        S::FromA => 16,
-        S::FromB => 17,
-        S::FromMember => 41,
+        S::From => 51,
         S::Seam => 18,
         S::Crossing => 47,
         S::EdgeCrossing => 48,
@@ -6777,7 +6778,6 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::SplitFragment => 24,
         S::CrossingVertex => 25,
         S::OnToolVertex => 27,
-        S::FromTarget => 28,
         S::BlendFace => 29,
         S::CornerFace => 30,
         S::TrimEdge => 31,
@@ -6959,11 +6959,14 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::AxisEdge(r) => {
             run(h, r);
         }
-        RoleSeg::FromA(inner) => {
-            h.name(inner);
-        }
-        RoleSeg::FromB(inner) => {
-            h.name(inner);
+        // An entity carried in: BOTH halves feed. Two members of one
+        // union can be placements of ONE body and then carry the same
+        // inner name, so a key without the read would give their
+        // entities one key — the memo hazard the segment vocabulary
+        // exists to prevent.
+        RoleSeg::From { read, of } => {
+            h.write_id(read.0);
+            h.name(of);
         }
         RoleSeg::Seam { a, b } => {
             h.name(a);
@@ -7025,9 +7028,6 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             h.write_u64(u64::from(*i));
             h.name(of);
         }
-        RoleSeg::FromTarget(n) => {
-            h.name(n);
-        }
         RoleSeg::BlendFace(n) => {
             h.name(n);
         }
@@ -7071,16 +7071,6 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             for n in band {
                 h.name(n);
             }
-        }
-        // The n-ary union's member key. BOTH halves feed: two members
-        // of one union can be
-        // placements of ONE prototype and then carry the same inner
-        // name, so a key without the member edge would give their
-        // entities one key — the memo hazard the segment vocabulary
-        // exists to prevent.
-        RoleSeg::FromMember { member, of } => {
-            h.write_id(member.0);
-            h.name(of);
         }
         // The shell's three roles. Each wraps one source name; the hole
         // rim carries its pairing index beside it, the way `Instance`

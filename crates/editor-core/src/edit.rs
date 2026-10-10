@@ -120,26 +120,26 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The node to delete.
         id: RecipeNodeId,
     },
-    /// **Replace a node's whole LIST input** (DM4) — a union's members,
-    /// a loft's sections ([`Node::list_input`]): the slot door
-    /// ([`DocEdit::SetParam`] with a [`SlotValue::Read`]) on a list. The new list is stated in full, so nothing
-    /// is inferred about which of the old entries survived, moved or
-    /// was meant.
+    /// **Replace a node's whole LIST input** (DM4) — a union's or an
+    /// intersect's `Bodies` argument, a loft's sections: the slot door
+    /// ([`DocEdit::SetParam`] with a [`SlotValue::Read`]) on a list. The
+    /// new list is stated in full, so nothing is inferred about which of
+    /// the old entries survived, moved or was meant.
     ///
     /// Every check the insert door makes of a node's reads is made
     /// here, of the REWRITTEN node, through the same functions: each
     /// entry's lowering at its seat's kind ([`EditError::UnresolvedInput`],
-    /// [`EditError::SlotVarKind`]), acyclicity
-    /// ([`EditError::WouldCycle`]), pairwise distinctness
-    /// ([`EditError::DuplicateInput`]) and the list's own floor
-    /// ([`EditError::TooFewMembers`]). A node with no list input
+    /// [`EditError::SlotVarKind`], which a family read beside a member
+    /// meets) and acyclicity ([`EditError::WouldCycle`]). A loft's
+    /// sections are spelled, so a family there refuses
+    /// [`EditError::LoftSectionsSpelled`]; a node with no list input
     /// refuses [`EditError::SetMembersOnNonList`].
     SetMembers {
         /// The node whose list is replaced.
         node: RecipeNodeId,
-        /// The whole new list, in order (D9: the order is data), each
-        /// entry lowered as [`DocEdit::SetParam`]'s read is.
-        members: Vec<crate::Operand>,
+        /// The whole new argument, in order (D9: the order is data),
+        /// each read lowered as [`DocEdit::SetParam`]'s read is.
+        members: crate::Bodies<crate::Operand>,
     },
     /// **Replace a live Boolean's or Union's whole DECLARED PAIRS**
     /// ([`crate::DeclaredPair`]) — [`DocEdit::SetMembers`]'s shape: the
@@ -1740,22 +1740,6 @@ pub enum EditError {
         /// A node on the detected cycle.
         at: SpokenNode,
     },
-    /// **A node's inputs are not pairwise distinct** (DM5): one node
-    /// reached twice through one node's edges.
-    ///
-    /// It is one structural rule over a node's operand reads
-    /// ([`Node::operand_rows`]), not a rule per node kind, so it covers
-    /// a boolean whose two operands coincide and a list with a repeated
-    /// entry alike — and it is stated once, at [`Node::input_fault`],
-    /// with this door,
-    /// [`DocEdit::SetMembers`] and the load validator as its three
-    /// callers.
-    DuplicateInput {
-        /// The node whose input list repeats.
-        node: SpokenNode,
-        /// The input it reaches twice.
-        input: SpokenNode,
-    },
     /// The node this edit writes names one face twice in its ORDERED
     /// designation ([`crate::node::InputFault::RepeatedDesignation`]):
     /// a hand-built `Node::Shell` that bypassed the construction door,
@@ -1784,21 +1768,28 @@ pub enum EditError {
         /// before the one after it.
         at: usize,
     },
-    /// `SetMembers` aimed at a node that has no list input
-    /// ([`Node::list_input`]) — a boolean's operands are named slots,
+    /// `SetMembers` aimed at a node that has no list input — a
+    /// subtract's operands are named slots,
     /// and replacing "the list" of a node that has none is not a
     /// smaller version of this edit, it is a different sentence.
     SetMembersOnNonList {
         /// The node that carries no list.
         node: SpokenNode,
     },
+    /// `SetMembers` handed a loft a family read: a loft's sections are
+    /// spelled, one read each.
+    LoftSectionsSpelled {
+        /// The loft.
+        node: SpokenNode,
+    },
     /// `SetDeclare` aimed at a node that declares no contacts — only a
-    /// [`Node::Boolean`] and a [`Node::Union`] carry declared pairs.
+    /// [`Node::Subtract`], a [`Node::Union`] and a [`Node::Intersect`]
+    /// carry declared pairs.
     SetDeclareOnNonDeclaring {
         /// The node that carries no declaration.
         node: SpokenNode,
     },
-    /// A declared pair's side is READ AT a node that is not one of the
+    /// A declared pair's side stands in a read that is not one of the
     /// declaring node's operands ([`crate::DeclaredPair`], DM4): the
     /// site is the side, and a site the node does not have is a table
     /// it cannot read the name in. Asked by every door that writes a
@@ -1808,8 +1799,8 @@ pub enum EditError {
         node: SpokenNode,
         /// The side's name.
         name: SpokenName,
-        /// The node the side is read at.
-        site: SpokenNode,
+        /// The read the side stands in.
+        site: crate::spoken::SpokenVar,
     },
     /// A declared pair's name is minted by a node the declaring node
     /// does not read, directly or through what it reads — itself, a
@@ -1849,16 +1840,6 @@ pub enum EditError {
         node: SpokenNode,
         /// What is wrong with the ids.
         fault: crate::program::StepIdFault,
-    },
-    /// A list input left with fewer than two entries. A union of one
-    /// body is that body and a loft through one section is not a skin:
-    /// either is a node whose meaning is its own input, spelled as an
-    /// operator.
-    TooFewMembers {
-        /// The node whose list is short.
-        node: SpokenNode,
-        /// How many entries it would have had.
-        found: usize,
     },
     /// The node does not carry the named slot.
     UnknownSlot {
@@ -2918,11 +2899,11 @@ impl EditError {
             }
             | Self::SelectionNotCanonical { node, at: _ }
             | Self::SetMembersOnNonList { node }
+            | Self::LoftSectionsSpelled { node }
             | Self::SetDeclareOnNonDeclaring { node }
             | Self::SetProgramOnNonProfile { node }
             | Self::SetExtrudeSideOnNonExtrude { node }
             | Self::StepIdsRefused { node, fault: _ }
-            | Self::TooFewMembers { node, found: _ }
             | Self::SlotUnknownVarName {
                 node,
                 name: _,
@@ -3036,8 +3017,7 @@ impl EditError {
             Self::WouldCycle { at } => {
                 *at = at.respoken(doc);
             }
-            Self::DuplicateInput { node, input }
-            | Self::PromoteNonRoot { node, root: input }
+            Self::PromoteNonRoot { node, root: input }
             | Self::PromoteMemberOffset {
                 node,
                 member: input,
@@ -3188,32 +3168,9 @@ impl EditError {
                     ),
                 )
             }
-            // Forwarded, not restated: `InputFault` owns this
-            // vocabulary (`node::duplicate_input`, which takes the
-            // input as this door speaks it). The door adds its own
-            // frame — which edit the fault is about — and joins it with
-            // a colon, because the forwarded sentence carries an em-dash
-            // of its own and two in a row read as a dump.
-            //
-            // **The frame does not name `node`.** From `InsertNode` it
-            // is spoken by its kind and the tag the mint drew
-            // ([`SpokenNode::entering`]), and that tag names nothing
-            // once the edit is refused, so naming it would send a
-            // reader looking for a node that does not exist. The node
-            // the reader CAN act on is `input`, which the sentence
-            // names, and it is live on both paths (`InsertNode` and
-            // `SetMembers`).
-            //
-            // The action is the door's to add: `InputFault` states the
-            // rule ("pairwise distinct"), which says what is wrong and
-            // not what to do about it.
-            Self::DuplicateInput { input, .. } => {
-                f.write_str("the node this edit writes would be invalid: ")?;
-                crate::node::duplicate_input(f, input)?;
-                tail.recourse(
-                    f,
-                    format_args!("replace one of the two with a different node"),
-                )
+            Self::LoftSectionsSpelled { node } => {
+                write!(f, "{node} is a loft, whose sections are spelled one read each")?;
+                tail.recourse(f, format_args!("list the sections the loft passes through"))
             }
             Self::SetMembersOnNonList { node } => {
                 write!(
@@ -3241,7 +3198,8 @@ impl EditError {
             Self::DeclaredSiteNotAnOperand { node, name, site } => {
                 write!(
                     f,
-                    "the declaration names {name}, read at {site}, which is not an operand of {node}"
+                    "the declaration names {name}, read through {site}, which is not an operand of \
+                 {node}"
                 )?;
                 tail.recourse(
                     f,
@@ -3282,14 +3240,6 @@ impl EditError {
                     "{node}'s program cannot take the step ids given: {fault}"
                 )?;
                 step_ids_recourse(f, tail, fault)
-            }
-            Self::TooFewMembers { found, .. } => {
-                write!(
-                    f,
-                    "the node this edit writes would be invalid: {}",
-                    crate::node::InputFault::TooFew { found: *found }
-                )?;
-                tail.recourse(f, format_args!("list two or more entries"))
             }
             Self::RepeatedDesignation { first, again, .. } => {
                 write!(
@@ -5418,17 +5368,6 @@ fn check_node_inputs<P: crate::ProfilePayload>(
     };
     let subject = written(doc, id, node);
     Err(match fault {
-        crate::node::InputFault::Duplicate { input } => EditError::DuplicateInput {
-            node: subject,
-            input: doc.defined_by(input).map_or_else(
-                || unreachable!("an operand the door wrote reads a live output"),
-                |(at, _)| doc.spoken(at),
-            ),
-        },
-        crate::node::InputFault::TooFew { found } => EditError::TooFewMembers {
-            node: subject,
-            found,
-        },
         crate::node::InputFault::RepeatedDesignation { first, again } => {
             EditError::RepeatedDesignation {
                 node: subject,
@@ -5485,15 +5424,19 @@ fn check_declared_sides<'p, P: crate::ProfilePayload>(
     doc: &Doc<P>,
     new: &Doc<P>,
     node: &Node<P>,
-    sides: impl IntoIterator<Item = &'p crate::SitedRef>,
+    sides: impl IntoIterator<Item = &'p crate::SitedRef<crate::VarId>>,
     carrier: impl Fn() -> SpokenNode,
     at: Option<RecipeNodeId>,
 ) -> Result<(), EditError> {
-    // A declared site is a node whose output this node reads.
-    let operands: Vec<RecipeNodeId> = node
+    // A declared site is one of this node's reads.
+    let reads: Vec<crate::VarId> = node
         .operand_rows()
         .into_iter()
-        .filter_map(|(_, read)| new.defined_by(read).map(|(site, _)| site))
+        .map(|(_, read)| read)
+        .collect();
+    let operands: Vec<RecipeNodeId> = reads
+        .iter()
+        .filter_map(|&read| new.defined_by(read).map(|(site, _)| site))
         .collect();
     // A name its carrier's operands could hold is minted by a node the
     // carrier reads, directly or through what it reads (D10: reading is
@@ -5510,13 +5453,13 @@ fn check_declared_sides<'p, P: crate::ProfilePayload>(
             .collect(),
     };
     let upstream = |minter: RecipeNodeId| reach.contains(&minter);
-    match crate::node::declared_side_fault(sides, Some(&operands), upstream) {
+    match crate::node::declared_side_fault(sides, Some(&reads), upstream) {
         None => Ok(()),
         Some((side, crate::node::DeclaredSideFault::SiteNotAnOperand)) => {
             Err(EditError::DeclaredSiteNotAnOperand {
                 node: carrier(),
                 name: doc.spoken_name(&side.name),
-                site: doc.spoken(side.at),
+                site: new.spoken_var(side.at),
             })
         }
         Some((side, crate::node::DeclaredSideFault::NameNotUpstream)) => {
@@ -6267,31 +6210,33 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     id: SpokenNode::absent(*node),
                 });
             };
-            let at = match current {
-                Node::Union { .. } => crate::OperandSlot::Member,
-                Node::Loft { .. } => crate::OperandSlot::Section,
-                _ => {
-                    return Err(EditError::SetMembersOnNonList {
-                        node: doc.spoken(*node),
-                    });
-                }
-            };
             let spoken = || doc.spoken(*node);
-            let mut list = Vec::with_capacity(members.len());
-            for (i, member) in members.iter().enumerate() {
-                let slot = at(u32::try_from(i).unwrap_or(u32::MAX));
-                list.push(lower_operand(
-                    new,
-                    &spoken,
-                    SlotId::Operand(slot),
-                    member,
-                    None,
-                    slot.kind(),
-                )?);
-            }
+            let mut lower = |slot: crate::OperandSlot, member: &crate::Operand| {
+                lower_operand(new, &spoken, SlotId::Operand(slot), member, None, slot.kind())
+            };
             let mut rewritten = current.clone();
-            if !rewritten.set_list_input(list) {
-                unreachable!("a union and a loft hold a list")
+            match &mut rewritten {
+                Node::Union { members: list, .. } | Node::Intersect { members: list, .. } => {
+                    *list = members.try_map(&mut lower)?;
+                }
+                Node::Loft { profiles, .. } => {
+                    let crate::Bodies::Spelled(sections) = members else {
+                        return Err(EditError::LoftSectionsSpelled { node: spoken() });
+                    };
+                    *profiles = sections
+                        .iter()
+                        .enumerate()
+                        .map(|(i, section)| {
+                            lower(
+                                crate::OperandSlot::Section(u32::try_from(i).unwrap_or(u32::MAX)),
+                                section,
+                            )
+                        })
+                        .collect::<Result<_, _>>()?;
+                }
+                _ => {
+                    return Err(EditError::SetMembersOnNonList { node: spoken() });
+                }
             }
             write_reads(doc, new, reported, *node, rewritten, tol)?
         }
@@ -6304,7 +6249,9 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 }
                 Some(current) => current.clone(),
             };
-            let (Node::Boolean { declare, .. } | Node::Union { declare, .. }) = &mut rewritten
+            let (Node::Subtract { declare, .. }
+            | Node::Union { declare, .. }
+            | Node::Intersect { declare, .. }) = &mut rewritten
             else {
                 return Err(EditError::SetDeclareOnNonDeclaring {
                     node: doc.spoken(*node),

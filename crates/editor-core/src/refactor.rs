@@ -2686,8 +2686,9 @@ fn denotes_a_body(node: &Node<ProfileProgram>) -> bool {
         | Node::Chamfer { .. }
         | Node::Shell { .. }
         | Node::Split { .. }
-        | Node::Boolean { .. }
+        | Node::Subtract { .. }
         | Node::Union { .. }
+        | Node::Intersect { .. }
         | Node::Transform { .. }
         | Node::Pattern { .. }
         | Node::Part { .. }

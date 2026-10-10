@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 
 use crate::expr::{Dimension, Slot};
 use crate::names::SplitHalf;
+use crate::operand::Bodies;
 use crate::var::VarId;
 // The contact vocabulary is the KERNEL's (CONTACT-DESIGN C4, M9-1
 // PR-1). Imported, never redefined: the boolean's own refusals must
@@ -113,14 +114,7 @@ pub enum Axis3 {
     Z,
 }
 
-/// The regularized boolean operations, re-exported from the kernel
-/// (F4; ONE enum, defined lowest and re-exported upward, never a
-/// parallel enum). A recipe node's operation IS the kernel operation
-/// the evaluation service will run, so no conversion stands between
-/// authoring it and performing it. Its persisted bytes are this
-/// crate's, described by `persist::kernel_wire::boolean_op`.
 pub use sweep::ExtrudeSide;
-pub use topo::BooleanOp;
 
 /// A profile-program step's ARGUMENT ROLE — the closed per-verb enum
 /// that, with a loop and step index, addresses one expression inside a
@@ -1391,8 +1385,9 @@ macro_rules! expr_table {
             | Node::Chamfer { .. }
             | Node::Shell { .. }
             | Node::Split { .. }
-            | Node::Boolean { .. }
+            | Node::Subtract { .. }
             | Node::Union { .. }
+            | Node::Intersect { .. }
             | Node::Transform { .. }
             | Node::Pattern { .. }
             | Node::Part { .. }
@@ -1444,12 +1439,20 @@ use expr_table;
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(deny_unknown_fields)]
-pub struct SitedRef {
-    /// The node whose evaluated value the carrier is read at — the
-    /// PLACED geometry, when that node placed it.
-    pub at: RecipeNodeId,
+pub struct SitedRef<At = RecipeNodeId> {
+    /// Where the carrier is read: a measure's node, whose evaluated
+    /// value is the PLACED geometry when that node placed it, or a
+    /// declared pair's member read ([`DeclaredPair`]).
+    pub at: At,
     /// The entity's stable name, resolved against `at`'s table.
     pub name: StableName,
+}
+
+impl<At> SitedRef<At> {
+    /// A reference read at `at`.
+    pub fn new(at: At, name: StableName) -> Self {
+        Self { at, name }
+    }
 }
 
 impl SitedRef {
@@ -1460,11 +1463,6 @@ impl SitedRef {
             at: name.node,
             name,
         }
-    }
-
-    /// A reference read at `at`.
-    pub fn new(at: RecipeNodeId, name: StableName) -> Self {
-        Self { at, name }
     }
 }
 
@@ -1642,22 +1640,6 @@ impl SitedFace {
 /// accept.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputFault {
-    /// One variable is read at two of this node's operands. It covers
-    /// a boolean or a split whose two operands coincide and a list
-    /// with a repeated entry alike: what "the same body twice" means
-    /// does not change with the node kind.
-    Duplicate {
-        /// The read made twice.
-        input: VarId,
-    },
-    /// A LIST input ([`Node::list_input`]) left with fewer than two
-    /// entries. A union of one body is that body and a loft through
-    /// one section is not a skin: either is a node whose meaning is
-    /// its own input, spelled as an operator.
-    TooFew {
-        /// How many entries it has.
-        found: usize,
-    },
     /// An ORDERED designation names one entity twice. A shell's `open`
     /// list is the payload that has one: its order is meaning (the
     /// first designated face of a chart carries the rim), so its
@@ -1695,32 +1677,11 @@ pub enum InputFault {
     },
 }
 
-/// [`InputFault::Duplicate`]'s sentence, with `input` spoken as the
-/// sentence's maker can: the edit and load doors from the document they
-/// judge, [`InputFault`]'s own `Display` by its tag.
-pub(crate) fn duplicate_input(
-    f: &mut core::fmt::Formatter<'_>,
-    input: &crate::SpokenNode,
-) -> core::fmt::Result {
-    write!(
-        f,
-        "{input} is taken as an input twice — a node's inputs are pairwise distinct"
-    )
-}
-
 // The ONE prose vocabulary for this fault, forwarded by every door
 // that renders it rather than restated.
 impl core::fmt::Display for InputFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Duplicate { input } => write!(
-                f,
-                "{input} is read twice — a node's operands are pairwise distinct"
-            ),
-            Self::TooFew { found } => write!(
-                f,
-                "a list input takes two or more entries, and this has {found}"
-            ),
             Self::RepeatedDesignation { first, again } => write!(
                 f,
                 "the open-face designation names one face twice (entries {first} and {again}) — \
@@ -1738,19 +1699,10 @@ impl core::fmt::Display for InputFault {
     }
 }
 
-/// **An [`InputFault`] whose subject is the node's own list or
-/// designation** — every arm but `Duplicate`, whose subject is another
-/// node. A refusal that speaks that node from its document names a
-/// duplicate apart and holds the rest as this, so it cannot hold an
-/// input it would say only by its tag. Each arm is
+/// **An [`InputFault`] as the load door holds it**: each arm is
 /// [`InputFault`]'s namesake, and so is the sentence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ListFault {
-    /// [`InputFault::TooFew`].
-    TooFew {
-        /// How many entries it has.
-        found: usize,
-    },
     /// [`InputFault::RepeatedDesignation`].
     RepeatedDesignation {
         /// The position of the entry's first occurrence.
@@ -1766,20 +1718,14 @@ pub enum ListFault {
 }
 
 impl InputFault {
-    /// This fault as a [`ListFault`], or the input a `Duplicate`
-    /// reaches twice.
-    ///
-    /// # Errors
-    ///
-    /// The repeated read, for [`InputFault::Duplicate`].
-    pub fn list_fault(self) -> Result<ListFault, VarId> {
+    /// This fault as a [`ListFault`].
+    #[must_use]
+    pub fn list_fault(self) -> ListFault {
         match self {
-            Self::Duplicate { input } => Err(input),
-            Self::TooFew { found } => Ok(ListFault::TooFew { found }),
             Self::RepeatedDesignation { first, again } => {
-                Ok(ListFault::RepeatedDesignation { first, again })
+                ListFault::RepeatedDesignation { first, again }
             }
-            Self::SelectionNotCanonical { at } => Ok(ListFault::SelectionNotCanonical { at }),
+            Self::SelectionNotCanonical { at } => ListFault::SelectionNotCanonical { at },
         }
     }
 }
@@ -1787,7 +1733,6 @@ impl InputFault {
 impl From<ListFault> for InputFault {
     fn from(fault: ListFault) -> Self {
         match fault {
-            ListFault::TooFew { found } => Self::TooFew { found },
             ListFault::RepeatedDesignation { first, again } => {
                 Self::RepeatedDesignation { first, again }
             }
@@ -2396,127 +2341,81 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// The splitting tool.
         tool: S::Read,
     },
-    /// A regularized boolean of two upstream bodies, carrying its
-    /// declared contact pairs as its own payload (F5: declarations are
-    /// recipe data ON the consuming boolean node).
-    Boolean {
-        /// The operation.
-        #[serde(with = "crate::persist::kernel_wire::boolean_op")]
-        op: BooleanOp,
-        /// Left operand.
-        a: S::Read,
-        /// Right operand.
-        b: S::Read,
-        /// The declared contact pairs ([`DeclaredPair`]); empty is
-        /// undeclared. Set on a live node by
-        /// [`crate::DocEdit::SetDeclare`].
-        #[serde(with = "crate::persist::kernel_wire::contact_class::pairs")]
-        declare: Vec<DeclaredPair>,
-    },
-    /// **The n-ary union** (`crates/editor-core/REFERENCES.md` DM4):
-    /// two or more
-    /// member bodies, ONE body out — the same value shape a pair
-    /// union yields, so every consumer of a union is unchanged.
+    /// **The union** (`crates/editor-core/REFERENCES.md` DM4): one
+    /// argument of kind `Bodies` ([`Bodies`]), ONE body out, the fold of
+    /// the kernel's pair verb in member order.
     ///
-    /// It sits beside [`Node::Boolean`], which stays for a pair, and
-    /// beside [`Node::PlacedUnion`], which fuses instances of one
-    /// prototype and is a different sentence.
+    /// A member's entities are named by the read they came through
+    /// ([`crate::RoleSeg::From`]), one wrapper whatever the fold's
+    /// depth, so a member's names depend on neither its position in the
+    /// list nor how many members precede it, and
+    /// [`crate::DocEdit::SetMembers`] can drop one without disturbing
+    /// the rest. A union of one body builds that body with no boolean
+    /// run, and of none the typed empty body.
     ///
-    /// # Why the list, and what the list buys
-    ///
-    /// A pairwise chain records JOIN DEPTH in every name it mints:
-    /// boolean naming wraps each operand's names in `FromA`/`FromB`,
-    /// so the twentieth member of a chain is twenty segments deep and
-    /// removing one link renames every member that joined before it.
-    /// A member of this node is named by IDENTITY —
-    /// [`crate::RoleSeg::FromMember`] wrapping the member's own name,
-    /// one wrapper whatever the fold's depth — so a member's names
-    /// depend on neither its position in the list nor on how many
-    /// members precede it, and [`crate::DocEdit::SetMembers`] can drop
-    /// one without disturbing the rest.
-    ///
-    /// # The `declare` field, and why it records no position
+    /// # Contact, and the `declare` field
     ///
     /// Contact is judged pairwise, before the fold: every two members
     /// whose boxes meet, or between which a pair is declared, are
     /// evaluated as the two-member union of just those two, with the
-    /// pairs declared between them, and two members
-    /// that touch with the contact undeclared refuse `UndeclaredCoincidence`
-    /// exactly as a pair boolean's operands do. That holds in every
-    /// member order, and for a contact a third member covers too. The
-    /// fold then builds the body and judges no contact of its own. The
-    /// recourse is the pair boolean's: declared pairs on this node
+    /// pairs declared between them, and two members that touch with the
+    /// contact undeclared refuse `UndeclaredCoincidence` in every member
+    /// order, a contact a third member covers included. The fold then
+    /// builds the body and judges no contact of its own. Declared pairs
     /// ([`DeclaredPair`], set on a live node by
-    /// [`crate::DocEdit::SetDeclare`]). They name SITED entities
-    /// ([`SitedRef`]) — the entity's name in a MEMBER's own table,
-    /// with that member beside it. A declaration therefore says "this
-    /// face of member `m` meets that face of member `n`" while naming
-    /// nothing of this node's own, so it is written before the node
-    /// evaluates and survives every edit that leaves its members.
+    /// [`crate::DocEdit::SetDeclare`]) name SITED entities
+    /// ([`SitedRef`]): an entity's name in a member's own table, with
+    /// that member's read beside it, so a declaration names nothing of
+    /// this node's own and survives every edit that leaves its members.
     ///
-    /// It records no fold position either: the step each pair is fed
-    /// at is DERIVED from where its two sites sit in `members`, so
-    /// REORDERING the list re-derives the routing rather than
-    /// invalidating the declaration. Dropping a declared member is
-    /// the other case and is not silent: its site is no longer in the
-    /// list, and the next evaluation refuses that pair as a vanished
-    /// name (N5), since `SetMembers` leaves `declare` as it was. And
-    /// the SITE is the side —
-    /// the later member is the joining operand, the earlier is inside
-    /// the accumulation — so two members that are transforms of one
-    /// body, whose tables are identical (N1), are told apart by the
-    /// pair itself.
+    /// It records no fold position: the step each pair is fed at is
+    /// derived from where its two sites sit in the list, so reordering
+    /// re-derives the routing. A pair whose site left the list refuses
+    /// at the next evaluation as a vanished name (N5), since
+    /// `SetMembers` leaves `declare` as it was. Two sites in one member,
+    /// or at a read spelled twice, are that member's carried contact,
+    /// fed at the step it joins at.
     ///
-    /// Two sites in ONE member are that member's own CARRIED contact,
-    /// fed at the step that member joins at — member 0's at the first
-    /// step, where it is operand A — which is the pair chain's rule for
-    /// a carried contact, on a member instead of an operand.
-    ///
-    /// A row the FOLD mints (a `Seam`, a `Merged`, a `Fragment`, the
-    /// output body) is not a declaration subject at all: it exists
-    /// only in this node's own evaluation, so there is no node to site
-    /// it at.
-    ///
-    /// A declared pair resolves at its step through the MERGES the
-    /// fold has performed. A declared merge consumes the
-    /// two faces it joins and publishes a `Merged` row in their place,
-    /// and a member's face that is inside such a row by the time its
-    /// pair's step runs resolves TO that row — the one whose flat
-    /// constituent set holds it (N3: a merge of a merged face lists
-    /// the faces, never the merge, so the row is the same whatever
-    /// order the merges happened in). A chain of contacts (`a` to `c`,
-    /// `c` to `d`) fuses in every order of the three, with
-    /// `Merged({a, c, d})` as the fused cap's row in each.
-    ///
-    /// A declared pair authorizes its contact wherever the fold meets
-    /// it, and does not demand that the fold meet it: a pair one of
-    /// whose faces another member contained whole before the pair's
-    /// step, so that no row descends from it, is satisfied.
-    ///
-    /// Merges are the only consumption looked through, because a merge
-    /// is the only one with a unique successor. A member face that
-    /// survives only in pieces — split by another member, or inside a
-    /// merged row that was later fragmented — has none, and a pair
-    /// naming it at a step after that refuses: `Vanished`, with a
-    /// [`crate::Diagnosis::ConsumedByFold`] saying which of the two it
-    /// was, and no replacement offered, since which fragment the pair
-    /// meant is a geometric question the routing step does not ask.
-    /// Which composition it was is read off the accumulation's rows.
-    /// The pair still resolves in the orders that feed it while the
-    /// face is a row. A face split and then contained whole in every
-    /// piece before the pair's step has no piece left, and its pair is
-    /// satisfied, so the refusal is not monotone in what later members
-    /// cover: a pair on a cap `s` split refuses when a later member
-    /// contains one piece of it, and fuses when one contains both.
+    /// A declared pair resolves at its step through the MERGES the fold
+    /// has performed: a member's face inside a `Merged` row by then
+    /// resolves to that row (N3: the set is flat, so the row is the same
+    /// whatever order the merges happened in). A pair one of whose
+    /// faces another member contained whole before the pair's step is
+    /// satisfied. A face that survives only in pieces has no unique
+    /// successor, and a pair naming it at a later step refuses
+    /// `Vanished` with [`crate::Diagnosis::ConsumedByFold`]; once every
+    /// piece is contained whole the pair is satisfied, so the refusal
+    /// is not monotone in what later members cover.
     Union {
-        /// The member bodies, in fold order (D9: the order is the
-        /// list's, and the list is data). Two or more, pairwise
-        /// distinct — both held at the edit door
-        /// ([`crate::EditError::TooFewMembers`],
-        /// [`crate::EditError::DuplicateInput`]).
-        members: Vec<S::Read>,
-        /// The declared contact pairs, the payload [`Node::Boolean`]
-        /// carries. [`crate::DocEdit::SetMembers`] leaves it as it was.
+        /// The members, in fold order (D9: the order is the list's, and
+        /// the list is data).
+        members: Bodies<S::Read>,
+        /// The declared contact pairs. [`crate::DocEdit::SetMembers`]
+        /// leaves it as it was.
+        #[serde(with = "crate::persist::kernel_wire::contact_class::pairs")]
+        declare: Vec<DeclaredPair>,
+    },
+    /// **The intersect** (DM4): the material in every member, over the
+    /// kernel's intersection verb, judged and folded as [`Node::Union`]
+    /// is. An empty fold step is the typed empty result.
+    Intersect {
+        /// The members, in fold order.
+        members: Bodies<S::Read>,
+        /// The declared contact pairs, as [`Node::Union`]'s.
+        #[serde(with = "crate::persist::kernel_wire::contact_class::pairs")]
+        declare: Vec<DeclaredPair>,
+    },
+    /// **The subtract** (DM4): `from` cut by `tool`, the one pair node,
+    /// since difference neither commutes nor associates. Several tools
+    /// are `Subtract { from, tool: Union([tools…]) }`.
+    Subtract {
+        /// The body cut.
+        from: S::Read,
+        /// The body cut away.
+        tool: S::Read,
+        /// The declared contact pairs ([`DeclaredPair`]); empty is
+        /// undeclared. Set on a live node by
+        /// [`crate::DocEdit::SetDeclare`].
         #[serde(with = "crate::persist::kernel_wire::contact_class::pairs")]
         declare: Vec<DeclaredPair>,
     },
@@ -3099,13 +2998,16 @@ macro_rules! node_rows {
                 PartSelect::Instance(index) => $out.push((S::Instance, index)),
             },
             Node::Split { target: _, tool: _ }
-            | Node::Boolean {
-                op: _,
-                a: _,
-                b: _,
+            | Node::Subtract {
+                from: _,
+                tool: _,
                 declare: _,
             }
             | Node::Union {
+                members: _,
+                declare: _,
+            }
+            | Node::Intersect {
                 members: _,
                 declare: _,
             } => {}
@@ -3157,8 +3059,8 @@ macro_rules! node_rows {
 
 /// **One declared contact pair** (F5, CONTACT-DESIGN C4): two sited
 /// entities and the COINCIDENCE asserted between them — a contact of a
-/// class, or a continuation. A [`Node::Boolean`]'s and a
-/// [`Node::Union`]'s `declare` payload is a list of these, and
+/// class, or a continuation. A [`Node::Subtract`]'s, a
+/// [`Node::Union`]'s and a [`Node::Intersect`]'s `declare` payload is a list of these, and
 /// [`crate::DocEdit::SetDeclare`] replaces that list whole.
 ///
 /// The class rides every pair rather than a node-level default: a
@@ -3176,27 +3078,28 @@ macro_rules! node_rows {
 /// [`crate::DocEdit::Rebind`] is the repair.
 ///
 /// **A declared entity is SITED** (DM4): each side is a [`SitedRef`] —
-/// the entity's name, and the node it is READ AT, which is one of the
-/// node's own operands (a member, for a union). The site is also the
-/// SIDE — a name carried by both operands says which one it means — so
-/// nothing about a declaration depends on the node's own name space.
+/// the entity's name, and the read it stands in, which is one of the
+/// node's own operands (a member's read, for a union; a seat's, for a
+/// subtract). The site is also the SIDE — a name carried by both
+/// operands says which one it means — so nothing about a declaration
+/// depends on the node's own name space.
 ///
 /// **A declaration names only what exists before the node**: every
 /// door that writes a pair — the insert door,
 /// [`crate::DocEdit::SetDeclare`], [`crate::DocEdit::Rebind`] and the
 /// load door — refuses a name minted by the node itself or by a node
 /// after it in document order, and a site that is not one of the
-/// node's operands ([`declared_side_fault`]). Document order only
+/// node's reads ([`declared_side_fault`]). Document order only
 /// grows at its end, so a name minted before the node stays so. A
-/// union's site alone can stop being an operand afterwards, when a
+/// union's or an intersect's site alone can stop being an operand afterwards, when a
 /// [`crate::DocEdit::SetMembers`] drops the member it is read at: that
 /// is N5's stranded case, refused by the evaluation as a vanished name
 /// ([`crate::eval::NodeErrorKind::DeclareResolve`]).
 ///
 /// **A union's own fold rows are therefore UNREPRESENTABLE here, not
 /// refused** — a `Seam`, a `Merged`, a `Fragment` or the output body of
-/// the union is minted by the union's evaluation and has no node it is
-/// read at. A pair of bare [`StableName`]s, which is the only spelling
+/// the union is minted by the union's evaluation and has no read it
+/// stands in. A pair of bare [`StableName`]s, which is the only spelling
 /// that could have named one, does not typecheck:
 ///
 /// ```compile_fail,E0308
@@ -3224,8 +3127,8 @@ macro_rules! node_rows {
 /// let _: Vec<editor_core::DeclaredPair> =
 ///     editor_core::declare_rest(vec![(sited(), sited())]);
 ///
-/// fn sited() -> editor_core::SitedRef {
-///     editor_core::SitedRef::new(editor_core::RecipeNodeId::new(0, 0), named())
+/// fn sited() -> editor_core::SitedRef<editor_core::VarId> {
+///     editor_core::SitedRef::new(editor_core::VarId::new(1, 0), named())
 /// }
 ///
 /// fn named() -> editor_core::StableName {
@@ -3241,14 +3144,14 @@ macro_rules! node_rows {
 /// through, and it refuses there instead of loading: the `Unreadable`
 /// detail is serde's own missing-field message
 /// (`a_declared_pair_side_that_is_a_bare_name_does_not_load`).
-pub type DeclaredPair = ((SitedRef, SitedRef), BooleanCoincidence);
+pub type DeclaredPair = ((SitedRef<VarId>, SitedRef<VarId>), BooleanCoincidence);
 
 /// Why a node cannot carry a side of one of its declared pairs — the
 /// rule [`declared_side_fault`] states.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DeclaredSideFault {
-    /// The side is read at a node that is not one of the carrier's
-    /// operands, so the carrier has no table to read its name in.
+    /// The side stands in a read the carrier does not hold, so the
+    /// carrier has no table to read its name in.
     SiteNotAnOperand,
     /// The side's name is minted by a node the carrier does not read,
     /// directly or through what it reads — an entity the carrier's
@@ -3269,10 +3172,10 @@ pub(crate) enum DeclaredSideFault {
 /// rule's to judge: the doors that write a name refuse a dead minter
 /// before they ask this.
 pub(crate) fn declared_side_fault<'p>(
-    sides: impl IntoIterator<Item = &'p SitedRef>,
-    operands: Option<&[RecipeNodeId]>,
+    sides: impl IntoIterator<Item = &'p SitedRef<VarId>>,
+    operands: Option<&[VarId]>,
     upstream: impl Fn(RecipeNodeId) -> bool,
-) -> Option<(&'p SitedRef, DeclaredSideFault)> {
+) -> Option<(&'p SitedRef<VarId>, DeclaredSideFault)> {
     sides.into_iter().find_map(|side| {
         if operands.is_some_and(|operands| !operands.contains(&side.at)) {
             return Some((side, DeclaredSideFault::SiteNotAnOperand));
@@ -3285,7 +3188,7 @@ pub(crate) fn declared_side_fault<'p>(
 /// second.
 pub(crate) fn declared_sides<'p>(
     pairs: impl IntoIterator<Item = &'p DeclaredPair>,
-) -> impl Iterator<Item = &'p SitedRef> {
+) -> impl Iterator<Item = &'p SitedRef<VarId>> {
     pairs.into_iter().flat_map(|((one, two), _)| [one, two])
 }
 
@@ -3295,7 +3198,7 @@ pub(crate) fn declared_sides<'p>(
 /// of the call sees which of C4's classes is being claimed, and a pair
 /// that means something else cannot arrive here by omission. A
 /// mixed-class list is built directly.
-pub fn declare_rest(pairs: Vec<(SitedRef, SitedRef)>) -> Vec<DeclaredPair> {
+pub fn declare_rest(pairs: Vec<(SitedRef<VarId>, SitedRef<VarId>)>) -> Vec<DeclaredPair> {
     pairs
         .into_iter()
         .map(|p| (p, BooleanCoincidence::REST))
@@ -3305,7 +3208,9 @@ pub fn declare_rest(pairs: Vec<(SitedRef, SitedRef)>) -> Vec<DeclaredPair> {
 /// Declared pairs that each assert a CONTINUATION — one carrier,
 /// aligned senses: two stacked parts' outer walls. Named at the call
 /// site for the reason [`declare_rest`] gives.
-pub fn declare_continuation(pairs: Vec<(SitedRef, SitedRef)>) -> Vec<DeclaredPair> {
+pub fn declare_continuation(
+    pairs: Vec<(SitedRef<VarId>, SitedRef<VarId>)>,
+) -> Vec<DeclaredPair> {
     pairs
         .into_iter()
         .map(|p| (p, BooleanCoincidence::Continuation))
@@ -3522,17 +3427,20 @@ impl<P> Node<P> {
                 open: _,
             } => vec![(O::Target, *target)],
             Node::Split { target, tool } => vec![(O::Target, *target), (O::Tool, *tool)],
-            Node::Boolean {
-                op: _,
-                a,
-                b,
+            Node::Subtract {
+                from,
+                tool,
                 declare: _,
-            } => vec![(O::A, *a), (O::B, *b)],
+            } => vec![(O::From, *from), (O::Cut, *tool)],
             // In LIST ORDER: the order is the fold's (D9).
             Node::Union {
                 members,
                 declare: _,
-            } => listed(O::Member, members),
+            }
+            | Node::Intersect {
+                members,
+                declare: _,
+            } => members.rows().into_iter().map(|(o, r)| (o, *r)).collect(),
             Node::Transform {
                 input,
                 placement: _,
@@ -3676,16 +3584,19 @@ impl<P> Node<P> {
                 open: _,
             } => vec![(O::Target, target)],
             Node::Split { target, tool } => vec![(O::Target, target), (O::Tool, tool)],
-            Node::Boolean {
-                op: _,
-                a,
-                b,
+            Node::Subtract {
+                from,
+                tool,
                 declare: _,
-            } => vec![(O::A, a), (O::B, b)],
+            } => vec![(O::From, from), (O::Cut, tool)],
             Node::Union {
                 members,
                 declare: _,
-            } => listed(O::Member, members),
+            }
+            | Node::Intersect {
+                members,
+                declare: _,
+            } => members.rows_mut(),
             Node::Transform {
                 input,
                 placement: _,
@@ -3784,86 +3695,22 @@ impl<P> Node<P> {
         matches!(self, Node::Mate { alignment, .. } if !alignment.is_finite())
     }
 
-    /// **DM5, stated once**: what is wrong with this node's structural
-    /// content, if anything — one node reached twice, a list left under
-    /// two, or a name designation outside the canonical form its
+    /// **What is wrong with this node's name designations**, if
+    /// anything: a designation outside the canonical form its
     /// construction door establishes.
     ///
-    /// Structural rules over the node's own content rather than a rule
-    /// per node kind, and ONE definition with two callers: the edit
-    /// doors' per-node checks (`InsertNode`, and
-    /// [`crate::DocEdit::SetParam`] at an operand and
-    /// [`crate::DocEdit::SetMembers`] on the rewritten node), and the
-    /// load door's `validate_document`. The edit doors render it in
-    /// [`crate::EditError`]'s vocabulary and the load door in
-    /// `SnapshotError`'s, because a refusal names the door it came
-    /// from — but the question is asked in exactly one place, which is
-    /// what stops them from drifting.
-    ///
-    /// The order is deliberate. The list's floor answers first, so a
-    /// one-entry list is reported as short rather than as whatever its
-    /// single entry happens to collide with; liveness is NOT asked
-    /// here at all, because it needs the document and the callers
-    /// check it before they call.
-    ///
-    /// # What the rule covers, and why that is sound
-    ///
-    /// The two INPUT clauses read [`Node::operand_rows`], so they apply to
-    /// EVERY node kind — not only the union, the list-input kinds and
-    /// the boolean. That is wider than DM5's text, and deliberately:
-    ///
-    /// - The duplicate clause is over the same VARIABLE: one variable
-    ///   read at two seats of any kind (D10: a read is of a variable).
-    ///   It is not a claim about the bodies those seats evaluate to,
-    ///   nor about the operations that define them: two outputs of one
-    ///   operation are two variables (a split's two halves in one
-    ///   union, a revolve's body patterned about its own axis), and two
-    ///   reads that evaluate to one body (two `Part`s of one split
-    ///   half) are admitted, the boolean answering them (`A ∪ A = A`,
-    ///   `A − A` empty). A measure's sited references are not reads
-    ///   ([`Node::measure_sites`]), so a measurement over one body
-    ///   twice is untouched by this rule.
-    /// - The floor clause only ever fires where [`Node::list_input`]
-    ///   answers `Some`, which is [`Node::Union`] and [`Node::Loft`].
-    ///   For the loft this is NEW — a one-section loft was accepted
-    ///   before this unit and is refused now, at the insert door and at
-    ///   the load door alike. A single section has nothing to loft
-    ///   between and the sweep refused it downstream anyway; the change
-    ///   is that it is refused where it is authored, naming the list,
-    ///   instead of at evaluation naming the sweep.
-    ///   (`a_one_section_loft_is_refused_at_the_insert_door` and its
-    ///   load-door twin pin both.)
-    /// - The two DESIGNATION clauses read one payload each — a shell's
-    ///   `open`, a blend's `selection` — and are silent about every
-    ///   other node kind, because a canonical form is the payload's own
-    ///   and there is nothing to generalize. What is general is that
-    ///   each is asked HERE, so the form a construction door
-    ///   establishes is the form every door admits.
+    /// ONE definition with two callers: the edit doors' per-node checks
+    /// and the load door's `validate_document`, each rendering it in its
+    /// own vocabulary. A repeated read is not a fault (REFERENCES DM5:
+    /// the operation answers it), and a list's length is evaluation's.
     pub fn input_fault(&self) -> Option<InputFault>
     where
         P: crate::ProfilePayload,
     {
-        if let Some(list) = self.list_input()
-            && list.len() < 2
-        {
-            return Some(InputFault::TooFew { found: list.len() });
-        }
-        let mut seen = std::collections::BTreeSet::new();
-        if let Some((_, input)) = self
-            .operand_rows()
-            .into_iter()
-            .find(|(_, input)| !seen.insert(*input))
-        {
-            return Some(InputFault::Duplicate { input });
-        }
         // The name designations, each against the canonical form its
         // own construction door establishes. Asked here, once, so every
         // door that admits a node refuses the same shapes, and neither
-        // form is repaired at any of them. `SetMembers` is a caller but
-        // reaches neither clause: it refuses `SetMembersOnNonList`
-        // first, since no designation-carrying kind has a list input.
-        // The doors a designation fault is REACHABLE at are the insert
-        // door and the load door.
+        // form is repaired at any of them.
         //
         // The ORDERED payload — a shell's `open` — carries only the
         // rule the sorted payloads state by their order: no entry
@@ -3886,50 +3733,6 @@ impl<P> Node<P> {
             return Some(InputFault::SelectionNotCanonical { at });
         }
         None
-    }
-
-    /// Writes a whole new list into [`Node::list_input`]'s slot,
-    /// answering whether this node has one. The edit door validates
-    /// against the REWRITTEN node, so the write happens first and the
-    /// checks run on the result — which is what makes `SetMembers`
-    /// share `InsertNode`'s checks rather than mirror them.
-    pub(crate) fn set_list_input(&mut self, list: Vec<VarId>) -> bool {
-        match self {
-            Node::Union { members, .. } => {
-                *members = list;
-                true
-            }
-            Node::Loft { profiles, .. } => {
-                *profiles = list;
-                true
-            }
-            // Exhaustive, and it names the same variants
-            // [`Node::list_input`] answers `None` for: the read and
-            // the write are one answer read two ways, and a variant
-            // one of them treats as list-free while the other writes
-            // it is a list nothing can read back.
-            Node::Datum(_)
-            | Node::Profile(_)
-            | Node::Extrude { .. }
-            | Node::Revolve { .. }
-            | Node::Tube { .. }
-            | Node::HollowTube { .. }
-            | Node::Sweep { .. }
-            | Node::Fillet { .. }
-            | Node::Chamfer { .. }
-            | Node::Shell { .. }
-            | Node::Split { .. }
-            | Node::Boolean { .. }
-            | Node::Transform { .. }
-            | Node::Pattern { .. }
-            | Node::Part { .. }
-            | Node::PlacedUnion { .. }
-            | Node::InstantiatePart { .. }
-            | Node::Gauge { .. }
-            | Node::Mate { .. }
-            | Node::Measure { .. }
-            | Node::Assertion { .. } => false,
-        }
     }
 
     /// Rewrites every payload reference EXACTLY equal to `from` into
@@ -4011,7 +3814,7 @@ impl<P> Node<P> {
             // the consumer — and moving it would re-author which
             // member the declaration is about, which is not a repair
             // for a name whose minting node went away.
-            Node::Boolean { declare, .. } | Node::Union { declare, .. } => {
+            Node::Subtract { declare, .. } | Node::Union { declare, .. } | Node::Intersect { declare, .. } => {
                 for r in declare.iter_mut().flat_map(|((a, b), _)| [a, b]) {
                     hits += rewrite(&mut r.name, map);
                 }
@@ -4162,8 +3965,9 @@ impl<P> Node<P> {
             | Node::Chamfer { .. }
             | Node::Shell { .. }
             | Node::Split { .. }
-            | Node::Boolean { .. }
+            | Node::Subtract { .. }
             | Node::Union { .. }
+            | Node::Intersect { .. }
             | Node::Pattern { .. }
             | Node::Part { .. }
             | Node::PlacedUnion { .. }
@@ -4436,8 +4240,9 @@ impl<P, S: Slot> Node<P, S> {
             | Self::Fillet { .. }
             | Self::Chamfer { .. }
             | Self::Shell { .. }
-            | Self::Boolean { .. }
+            | Self::Subtract { .. }
             | Self::Union { .. }
+            | Self::Intersect { .. }
             | Self::Part { .. }
             | Self::PlacedUnion { .. }
             | Self::InstantiatePart { .. } => vec![BODY],
@@ -4570,14 +4375,21 @@ impl<P, S: Slot> Node<P, S> {
                 target: read(O::Target, target)?,
                 tool: read(O::Tool, tool)?,
             },
-            Node::Boolean { op, a, b, declare } => Node::Boolean {
-                op: *op,
-                a: read(O::A, a)?,
-                b: read(O::B, b)?,
+            Node::Subtract {
+                from,
+                tool,
+                declare,
+            } => Node::Subtract {
+                from: read(O::From, from)?,
+                tool: read(O::Cut, tool)?,
                 declare: declare.clone(),
             },
             Node::Union { members, declare } => Node::Union {
-                members: list(O::Member, members, read)?,
+                members: members.try_map(|o, r| read(o, r))?,
+                declare: declare.clone(),
+            },
+            Node::Intersect { members, declare } => Node::Intersect {
+                members: members.try_map(|o, r| read(o, r))?,
                 declare: declare.clone(),
             },
             Node::Transform { input, placement } => Node::Transform {
@@ -4860,8 +4672,9 @@ impl<P, S: Slot> Node<P, S> {
             | Node::Chamfer { .. }
             | Node::Shell { .. }
             | Node::Split { .. }
-            | Node::Boolean { .. }
+            | Node::Subtract { .. }
             | Node::Union { .. }
+            | Node::Intersect { .. }
             | Node::Transform { .. }
             | Node::Part { .. }
             | Node::InstantiatePart { .. }
@@ -4908,7 +4721,7 @@ impl<P, S: Slot> Node<P, S> {
             // A declared pair's two NAMES. The sites beside them
             // are node ids, not names, and are listed by
             // [`Node::payload_read_sites`].
-            Node::Boolean { declare, .. } | Node::Union { declare, .. } => declare
+            Node::Subtract { declare, .. } | Node::Union { declare, .. } | Node::Intersect { declare, .. } => declare
                 .iter()
                 .flat_map(|((a, b), _)| [&a.name, &b.name])
                 .collect(),
@@ -4988,10 +4801,9 @@ impl<P, S: Slot> Node<P, S> {
             // operands, but a site that is not one is the EVALUATION's
             // refusal, not the insert door's, so each is checked live
             // here as a mate's operand is.
-            Node::Boolean { declare, .. } | Node::Union { declare, .. } => declare
-                .iter()
-                .flat_map(|((a, b), _)| [a.at, b.at])
-                .collect(),
+            Node::Subtract { declare, .. }
+            | Node::Union { declare, .. }
+            | Node::Intersect { declare, .. } => Vec::new(),
             // EXHAUSTIVE, with no wildcard, so a new [`Node`] variant
             // is classified here or does not compile — the promise
             // the twins above already keep. Three groups: the
@@ -5032,7 +4844,7 @@ impl<P, S: Slot> Node<P, S> {
     #[must_use]
     pub fn declared_pairs(&self) -> &[DeclaredPair] {
         match self {
-            Node::Boolean { declare, .. } | Node::Union { declare, .. } => declare,
+            Node::Subtract { declare, .. } | Node::Union { declare, .. } | Node::Intersect { declare, .. } => declare,
             _ => &[],
         }
     }
@@ -5067,7 +4879,7 @@ impl<P, S: Slot> Node<P, S> {
                 let held = refs.get(reference)?;
                 (held.name == *name).then(|| ("measure", format!("reference {reference}")))
             }
-            Node::Boolean { declare, .. } | Node::Union { declare, .. } => {
+            Node::Subtract { declare, .. } | Node::Union { declare, .. } | Node::Intersect { declare, .. } => {
                 let ((a, b), _) = declare.get(reference / 2)?;
                 let (held, side) = if reference.is_multiple_of(2) {
                     (a, "first")
@@ -5075,12 +4887,11 @@ impl<P, S: Slot> Node<P, S> {
                     (b, "second")
                 };
                 let holds = held.name == *name
-                    || (matches!(self, Node::Union { .. })
-                        && crate::names::member_name(id, held.at, &held.name) == *name);
-                let noun = if matches!(self, Node::Boolean { .. }) {
-                    "boolean"
-                } else {
-                    "union"
+                    || crate::names::member_name(id, held.at, &held.name) == *name;
+                let noun = match self {
+                    Node::Subtract { .. } => "subtract",
+                    Node::Intersect { .. } => "intersect",
+                    _ => "union",
                 };
                 holds.then(|| {
                     (
@@ -5097,49 +4908,6 @@ impl<P, S: Slot> Node<P, S> {
         }
     }
 
-    /// **The node's LIST input**, where it has one — the whole of it,
-    /// in order.
-    ///
-    /// A list input is an input the recipe spells as a sequence rather
-    /// than as named slots, so the only edit that can change it is one
-    /// that names the WHOLE new sequence
-    /// ([`crate::DocEdit::SetMembers`]) — there is no position to
-    /// address and no per-entry edit. Two nodes have one: a union's
-    /// members and a loft's sections. Everything else answers `None`,
-    /// which is what makes `SetMembers` at a boolean or a split a
-    /// typed refusal rather than a silent no-op.
-    ///
-    /// The match is EXHAUSTIVE on purpose: a future node whose inputs
-    /// are a list must be classified here or the compile breaks,
-    /// rather than defaulting to "has no list" and being unreachable
-    /// from the edit that exists for exactly it.
-    pub fn list_input(&self) -> Option<&[S::Read]> {
-        match self {
-            Node::Union { members, .. } => Some(members),
-            Node::Loft { profiles, .. } => Some(profiles),
-            Node::Datum(_)
-            | Node::Profile(_)
-            | Node::Extrude { .. }
-            | Node::Revolve { .. }
-            | Node::Tube { .. }
-            | Node::HollowTube { .. }
-            | Node::Sweep { .. }
-            | Node::Fillet { .. }
-            | Node::Chamfer { .. }
-            | Node::Shell { .. }
-            | Node::Split { .. }
-            | Node::Boolean { .. }
-            | Node::Transform { .. }
-            | Node::Pattern { .. }
-            | Node::Part { .. }
-            | Node::PlacedUnion { .. }
-            | Node::InstantiatePart { .. }
-            | Node::Gauge { .. }
-            | Node::Mate { .. }
-            | Node::Measure { .. }
-            | Node::Assertion { .. } => None,
-        }
-    }
 
     /// What is wrong with this node's measured expression, if anything
     /// — the one answer the construction door and the persistence

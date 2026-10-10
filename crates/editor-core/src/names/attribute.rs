@@ -4,8 +4,9 @@
 //! A name's own [`StableName::node`] is the node whose op EMITTED it,
 //! which is not the same question. A fillet emits a name for every
 //! entity of its output, its target's untouched faces included:
-//! `FromTarget(inner)` says "this is the target's entity `inner`,
-//! carried through", and `inner` carries the target's own node. So the
+//! `From { read, of: inner }` says "this is the entity `inner` of the
+//! target `read`, carried through", and `inner` carries the target's own
+//! node. So the
 //! node a drawn face should be attributed to is found by descending
 //! the carry-through segments until a CREATING role is reached, and
 //! the entity was minted where that descent stops.
@@ -14,12 +15,13 @@
 //!
 //! Only the OUTERMOST segment decides ([`RolePath`](super::RolePath)'s
 //! composition puts the op's own role first and its qualifiers after,
-//! so `[FromA(f), Fragment(q)]` is "A's face `f`, the `q` piece of it"
+//! so `[From { read, of: f }, Fragment(q)]` is "face `f` of `read`, the
+//! `q` piece of it"
 //! — carried, not minted). Three answers exist and each is a
 //! statement about the entity, not about the op:
 //!
 //! - **carried** — the entity existed in an operand and this op passed
-//!   it through, whole (`FromA`/`FromB`/`FromTarget`), copied
+//!   it through, whole (`From`), copied
 //!   (`Instance`, `OnToolVertex`) or shortened (`SplitFragment`,
 //!   `BandCut`). The argument IS the operand's name, so the walk
 //!   continues there;
@@ -93,12 +95,9 @@ pub(crate) enum SegOrigin<'a> {
 /// three ways, with what tells two carried copies of one entity apart.
 #[derive(Clone, Copy)]
 pub(crate) enum CarriedAs {
-    /// Passed through whole from a primary operand (a boolean's `A`, a
-    /// fillet's target): the body's own continuation.
-    Primary,
-    /// Passed through whole from a secondary operand (a boolean's `B`,
-    /// a union's member): joined into the body there.
-    Secondary,
+    /// Passed through whole from the input the op read through `read`:
+    /// a member, a seat or a target.
+    From(crate::VarId),
     /// Shortened to the part on one side of a split.
     Split(SplitHalf),
     /// Copied onto one side of a split, where the tool plane passed
@@ -121,10 +120,7 @@ pub(crate) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
 
         // Carried through: the argument is the entity's own name one
         // level down.
-        RoleSeg::FromA(of) | RoleSeg::FromTarget(of) => SegOrigin::Carried(of, CarriedAs::Primary),
-        RoleSeg::FromB(of) | RoleSeg::FromMember { of, .. } => {
-            SegOrigin::Carried(of, CarriedAs::Secondary)
-        }
+        RoleSeg::From { read, of } => SegOrigin::Carried(of, CarriedAs::From(*read)),
         RoleSeg::SplitFragment { parent, side } => SegOrigin::Carried(parent, CarriedAs::Split(*side)),
         RoleSeg::OnToolVertex { of, side } => SegOrigin::Carried(of, CarriedAs::ToolCopy(*side)),
         RoleSeg::Instance { of, i } => SegOrigin::Carried(of, CarriedAs::Instance(*i)),

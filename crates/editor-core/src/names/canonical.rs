@@ -388,7 +388,26 @@ fn order(mut name: StableName, seams: Seams) -> StableName {
     if is_junction(&name) {
         name.path.sort();
     }
-    name
+    one_constituent(name)
+}
+
+/// **A `Merged` whose set has one element is that element** (N3): a face
+/// glued to its twin, the same read spelled twice (REFERENCES DM5), is
+/// named as the face, with whatever follows the set kept after it.
+fn one_constituent(name: StableName) -> StableName {
+    match name.path.split_first() {
+        Some((RoleSeg::Merged(set), rest)) if set.len() == 1 => {
+            let one = &set[0];
+            let mut path = one.path.clone();
+            path.extend(rest.iter().cloned());
+            StableName {
+                kind: name.kind,
+                node: one.node,
+                path,
+            }
+        }
+        _ => name,
+    }
 }
 
 /// Whether `name` is a seam JUNCTION: a vertex named by a run of two
@@ -449,14 +468,11 @@ fn segment(seg: RoleSeg, seams: Seams) -> RoleSeg {
         | RoleSeg::EdgeCrossing { .. }
         | RoleSeg::Crossing { .. }
         | RoleSeg::Fragment(Qualifier::OrderAlong { .. })
-        | RoleSeg::FromA(_)
-        | RoleSeg::FromB(_)
-        | RoleSeg::FromMember { .. }
+        | RoleSeg::From { .. }
         | RoleSeg::SectionEdge { .. }
         | RoleSeg::SplitFragment { .. }
         | RoleSeg::CrossingVertex { .. }
         | RoleSeg::OnToolVertex { .. }
-        | RoleSeg::FromTarget(_)
         | RoleSeg::BlendFace(_)
         | RoleSeg::CornerFace(_)
         | RoleSeg::TrimEdge { .. }

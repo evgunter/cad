@@ -316,7 +316,7 @@ pub enum NamingError {
     /// wrong, so this is a missing rule and not an [`Self::Emission`].
     MemberEdgeTied {
         /// The member whose edge it is.
-        member: RecipeNodeId,
+        member: crate::VarId,
         /// The edge, as the member's own table names it.
         edge: Box<StableName>,
     },
@@ -522,7 +522,7 @@ impl crate::spoken::Say for NamingError {
                 "{UNRULED_FRAMING}: the crossings of member {}'s edge ({}) cannot \
                  be ranked along it, because a tie stands where one edge is needed (the member \
                  ties that name to several edges, or two of its crossings were tied)",
-                by.node(*member),
+                by.read(*member),
                 by.name(edge)
             ),
             Self::Band(error) => write!(

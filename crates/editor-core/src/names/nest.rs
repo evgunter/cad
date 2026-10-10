@@ -345,14 +345,11 @@ impl RoleSeg {
     pub(crate) fn each_name<'a>(&'a self, f: &mut impl FnMut(Hold<'a>)) {
         use Hold::{Owned, Shared};
         match self {
-            RoleSeg::FromA(n)
-            | RoleSeg::FromB(n)
-            | RoleSeg::FromMember { of: n, .. }
+            RoleSeg::From { of: n, .. }
             | RoleSeg::SectionEdge { face: n, .. }
             | RoleSeg::SplitFragment { parent: n, .. }
             | RoleSeg::CrossingVertex { edge: n, .. }
             | RoleSeg::OnToolVertex { of: n, .. }
-            | RoleSeg::FromTarget(n)
             | RoleSeg::BlendFace(n)
             | RoleSeg::CornerFace(n)
             | RoleSeg::Mitre { vertex: n }
@@ -399,14 +396,11 @@ impl RoleSeg {
     pub(crate) fn each_name_mut(&mut self, f: &mut impl FnMut(HoldMut<'_>)) {
         use HoldMut::{Owned, Shared};
         match self {
-            RoleSeg::FromA(n)
-            | RoleSeg::FromB(n)
-            | RoleSeg::FromMember { of: n, .. }
+            RoleSeg::From { of: n, .. }
             | RoleSeg::SectionEdge { face: n, .. }
             | RoleSeg::SplitFragment { parent: n, .. }
             | RoleSeg::CrossingVertex { edge: n, .. }
             | RoleSeg::OnToolVertex { of: n, .. }
-            | RoleSeg::FromTarget(n)
             | RoleSeg::BlendFace(n)
             | RoleSeg::CornerFace(n)
             | RoleSeg::Mitre { vertex: n }

@@ -15,17 +15,17 @@
 //!   the leaf's own words, so a name a role cites keeps its feature:
 //!   "the blend face over the end rim edge over loop 0 step 2 of
 //!   Extrude e548 of Fillet 92b0".
-//! - **A join** is a carry through a secondary operand — a Boolean's B,
-//!   a union's member — said with its node, outermost first. A Boolean
-//!   is said by its operation: "…, cut in at Subtract 1669", "…, joined
-//!   at Union 2b40", "…, intersected at Intersect 77c1"; a union by its
-//!   member: "…, joined at Union d1aa from Transform 3218". By tag, or
-//!   where the document does not hold the Boolean, a B join says what
-//!   the name holds: "…, through operand B of node 1669". A carry
-//!   through a primary operand (a Boolean's A, a fillet's target) is the
-//!   body's own continuation and is silent. Two names of one table first
-//!   differ at a node where one went through a secondary operand, which
-//!   a join says.
+//! - **A join** is a carry through a read the body joins ([`RoleSeg::From`]),
+//!   said with its node, outermost first: a subtract's tool as "…, cut
+//!   in at Subtract 1669", a union's or an intersect's member as "…,
+//!   joined at Union d1aa from Transform 3218", "…, intersected at
+//!   Intersect 77c1 from Extrude e548". By tag, or where the document
+//!   does not hold the node, a join says what the name holds: "…,
+//!   through Extrude e548 at node 1669". A carry through a subtract's
+//!   `from` or a blend's or shell's target is the body's own
+//!   continuation and is silent. Two names of one table first differ at
+//!   a node where one went through a read another did not, which a join
+//!   says.
 //! - **Wraps and joins are said in the order the path takes them.** A
 //!   join beneath a wrap is said inside it, in brackets: "instance 1's
 //!   copy of (the start cap of Extrude e548, cut in at Subtract 1669)"
@@ -82,7 +82,8 @@ use crate::names::role::{
     CapEnd, EntityKind, MeridianEnd, NameRef, PieceRun, ProfileEdgeRef, ProfileVertexRef,
     Qualifier, RimSupport, RoleSeg, SectionCircle, SplitHalf, StableName, fragment_tail_start,
 };
-use crate::node::{BooleanOp, RecipeNodeId};
+use crate::node::RecipeNodeId;
+use crate::spoken::Carry;
 use crate::spoken::{Said, Say, Speaker};
 use profile::PieceRole;
 
@@ -476,12 +477,12 @@ enum Wrap<'n> {
 }
 
 /// A carry through a secondary operand, at the node that carried it.
-enum Join {
-    B(RecipeNodeId),
-    Member {
-        union: RecipeNodeId,
-        member: RecipeNodeId,
-    },
+#[derive(Clone, Copy)]
+struct Join {
+    /// The node that carried the entity in.
+    at: RecipeNodeId,
+    /// The read it came through.
+    read: crate::VarId,
 }
 
 /// A carry the walk looked through and says: around the leaf, or as a
@@ -517,14 +518,7 @@ fn walk(name: &StableName) -> Walk<'_> {
             return Walk { steps, leaf: at };
         };
         steps.extend(match carry {
-            CarriedAs::Primary => None,
-            CarriedAs::Secondary => Some(Step::Join(match seg {
-                RoleSeg::FromMember { member, .. } => Join::Member {
-                    union: at.node,
-                    member: *member,
-                },
-                _ => Join::B(at.node),
-            })),
+            CarriedAs::From(read) => Some(Step::Join(Join { at: at.node, read })),
             CarriedAs::Split(side) => Some(Step::Wrap(Wrap::Split(side))),
             CarriedAs::ToolCopy(side) => Some(Step::Wrap(Wrap::ToolCopy(side))),
             CarriedAs::Instance(i) => Some(Step::Wrap(Wrap::Instance(i))),
@@ -615,7 +609,7 @@ fn expand<'n, 's>(
         }
         for step in *joins {
             if let Step::Join(join) = step {
-                items.push(text(join_words(join, by)));
+                items.push(text(join_words(*join, by)));
             }
         }
     }
@@ -623,7 +617,10 @@ fn expand<'n, 's>(
     // list, a join — is bracketed, so nothing the citing sentence says
     // after it reads as more of it.
     let (joins, outer) = levels[0];
-    let runs_on = !joins.is_empty()
+    let runs_on = joins.iter().any(|step| match step {
+        Step::Join(join) => !join_words(*join, by).is_empty(),
+        Step::Wrap(_) => false,
+    })
         || wraps(outer).any(|wrap| {
             matches!(
                 wrap,
@@ -637,28 +634,27 @@ fn expand<'n, 's>(
     items
 }
 
-/// The words a join says after the name it carried.
-fn join_words(join: &Join, by: Speaker<'_>) -> String {
-    match *join {
-        Join::B(at) => match by.boolean_op(at) {
-            Some(op) => {
-                let verb = match op {
-                    BooleanOp::Subtract => "cut in",
-                    BooleanOp::Union => "joined",
-                    BooleanOp::Intersect => "intersected",
-                };
-                format!(
-                    ", {verb} at {}",
-                    by.node_as_kind(at, verbs::VerbKind::Boolean(op).noun())
-                )
-            }
-            // Which operation is the document's to say: the name holds
-            // only that it came in as operand B.
-            None => format!(", through operand B of {}", by.node(at)),
-        },
-        Join::Member { union, member } => {
-            format!(", joined at {} from {}", by.node(union), by.node(member))
-        }
+/// The words a join says after the name it carried: what the carrying
+/// node made of the read, and nothing where the entity is the body's
+/// own continuation (a target's survivor, a subtract's `from`).
+fn join_words(Join { at, read }: Join, by: Speaker<'_>) -> String {
+    match by.carry(at) {
+        Some(Carry::Continued) => String::new(),
+        Some(Carry::Subtract { from }) if from == read => String::new(),
+        Some(Carry::Subtract { .. }) => format!(", cut in at {}", by.node_as_kind(at, "Subtract")),
+        Some(Carry::Union) => format!(
+            ", joined at {} from {}",
+            by.node_as_kind(at, "Union"),
+            by.read(read)
+        ),
+        Some(Carry::Intersect) => format!(
+            ", intersected at {} from {}",
+            by.node_as_kind(at, "Intersect"),
+            by.read(read)
+        ),
+        // Which seat it was is the document's to say: the name holds
+        // only the read it came through.
+        None => format!(", through {} at {}", by.read(read), by.node(at)),
     }
 }
 
@@ -973,13 +969,10 @@ fn role<'n, 's>(
         // operation mints: the walk looks through a lone carry, and a
         // qualifier never ends the head. Each still has words of its
         // own, so such a path reads apart from every other.
-        RoleSeg::FromA(of) => vec![cites.one(of), text(" from operand A")],
-        RoleSeg::FromB(of) => vec![cites.one(of), text(" from operand B")],
-        RoleSeg::FromMember { member, of } => vec![
+        RoleSeg::From { read, of } => vec![
             cites.one(of),
-            text(format!(" from member {}", by.node(*member))),
+            text(format!(" through {}", by.read(*read))),
         ],
-        RoleSeg::FromTarget(of) => vec![cites.one(of), text(" from the target")],
         RoleSeg::SplitFragment { parent, side } => vec![
             text(format!("the part {} of ", half(*side))),
             cites.one(parent),

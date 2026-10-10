@@ -731,6 +731,9 @@ const UNORIENTED: &str = "a crossed seam edge has no first side to orient its cr
 pub(crate) struct OperandCtx<'a, T: Decide> {
     /// The operand's node (error context).
     pub node: RecipeNodeId,
+    /// The read its entities are carried in through ([`RoleSeg::From`]):
+    /// a subtract's seat, or a union fold step's side.
+    pub read: crate::VarId,
     /// Its name table (total over its body).
     pub table: &'a NameTable,
     /// Its body (the carriers its crossed edges are ranked along).
@@ -793,11 +796,13 @@ impl<K: Copy> OpSide<K> {
         }
     }
 
-    /// The `FromA` / `FromB` segment wrapping a name read on this side.
-    fn wrap(self, inner: NameRef) -> RoleSeg {
-        match self {
-            OpSide::A(_) => RoleSeg::FromA(inner),
-            OpSide::B(_) => RoleSeg::FromB(inner),
+    /// The [`RoleSeg::From`] segment wrapping a name read on this side,
+    /// keyed by that side's read.
+    fn wrap<T: Decide>(self, a: &OperandCtx<'_, T>, b: &OperandCtx<'_, T>, inner: NameRef) -> RoleSeg {
+        let (op, _) = self.of(a, b);
+        RoleSeg::From {
+            read: op.read,
+            of: inner,
         }
     }
 }
@@ -1007,9 +1012,9 @@ pub(crate) fn name_boolean<T: Decide>(
             match merged::constituents_through_wrappers(&up.name) {
                 Some(cs) => constituents.extend(
                     cs.into_iter()
-                        .map(|inner| name1(EntityKind::Face, node, d.wrap(NameRef::new(inner)))),
+                        .map(|inner| name1(EntityKind::Face, node, d.wrap(a, b, NameRef::new(inner)))),
                 ),
-                None => constituents.push(name1(EntityKind::Face, node, d.wrap(up.name))),
+                None => constituents.push(name1(EntityKind::Face, node, d.wrap(a, b, up.name))),
             }
         }
         // The kernel's guarantee that the set is flat, held here for
@@ -1130,7 +1135,7 @@ pub(crate) fn name_boolean<T: Decide>(
     for (d, members) in &groups {
         let root_name = operand_face_name(*d)?;
         let from_tie = root_name.tied;
-        let base = name1(EntityKind::Face, node, d.wrap(root_name.name));
+        let base = name1(EntityKind::Face, node, d.wrap(a, b, root_name.name));
         let in_merged = merged_into.get(d).map_or(&[][..], Vec::as_slice);
         rec.record(
             &base,
@@ -1601,7 +1606,7 @@ fn name_boolean_edges<T: Decide>(
     for (root, edges) in groups {
         let (op, root_key) = root.of(a, b);
         let inner = upstream_name(op.table, op.node, ent(0, EntityKey::Edge(root_key)))?;
-        let base = name1(EntityKind::Edge, node, root.wrap(inner.name));
+        let base = name1(EntityKind::Edge, node, root.wrap(a, b, inner.name));
         // Undivided: the one edge runs between the operand edge's own two
         // ends, as the operand's keys read the result's vertices there.
         let whole = match edges.as_slice() {
@@ -1775,7 +1780,7 @@ fn set_name<T: Decide>(
     for &r in set {
         let (op, k) = r.of(a, b);
         let up = upstream_name(op.table, op.node, ent(0, EntityKey::Edge(k)))?;
-        names.push((name1(EntityKind::Edge, node, r.wrap(up.name)), up.tied));
+        names.push((name1(EntityKind::Edge, node, r.wrap(a, b, up.name)), up.tied));
     }
     Ok(super::join_names::joined_name(node, names))
 }
@@ -1871,7 +1876,7 @@ fn name_boolean_vertices<T: Decide>(
             Ok(named_in(side)?.map(|u| {
                 let parent = side.map(EntityKey::Vertex).parent();
                 (
-                    name1(EntityKind::Vertex, node, side.wrap(u.name)),
+                    name1(EntityKind::Vertex, node, side.wrap(a, b, u.name)),
                     u.tied,
                     parent,
                 )
@@ -1957,8 +1962,8 @@ fn name_boolean_vertices<T: Decide>(
                         }
                     }
                 }
-                Some(RoleSeg::FromA(x)) => a_edges.push(x.clone()),
-                Some(RoleSeg::FromB(x)) => b_edges.push(x.clone()),
+                Some(RoleSeg::From { read, of: x }) if *read == a.read => a_edges.push(x.clone()),
+                Some(RoleSeg::From { read, of: x }) if *read == b.read => b_edges.push(x.clone()),
                 // Zip-listed AND derived seams both qualify (M4 PR 5:
                 // declared merges reroute channel-cut chords into the
                 // derived-seam lane, so a seam vertex may lean on a

@@ -19,7 +19,7 @@ use crate::node::RecipeNodeId;
 
 /// What one edge a join covered reads as, in the door's own rows.
 pub(crate) enum Member {
-    /// The image of one input edge — a survivor's `FromTarget`, a cavity
+    /// The image of one input edge — a survivor's `From`, a cavity
     /// twin's `Inner`, a blend's trimline `TrimEdge` or rim trim
     /// `BandTrim` — under this segment, and whether its row is tied.
     Image { seg: RoleSeg, tied: bool },

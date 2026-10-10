@@ -252,6 +252,12 @@ pub enum SelectRefusal {
         /// That node's standing.
         NodeStanding,
     ),
+    /// One of the flush detector's two nodes defines no output for a
+    /// finding to be sited at.
+    NodeHasNoOutput {
+        /// That node.
+        node: RecipeNodeId,
+    },
     /// The stated value is not a length (`Dimension::Length`) — the
     /// comparand of a distance must be a distance.
     NotALength {
@@ -385,6 +391,11 @@ impl crate::spoken::Say for SelectRefusal {
                     crate::spoken::Said(standing, by)
                 )
             }
+            Self::NodeHasNoOutput { node } => write!(
+                f,
+                "select: the flush query's {} defines no output to site a finding at",
+                by.node(*node)
+            ),
             Self::NotALength { dim } => write!(
                 f,
                 "select: the comparand of a distance is a distance, and this expression has \

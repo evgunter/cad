@@ -26,7 +26,7 @@
 //!
 //! An output entity is either a recorded mint or a survivor keeping
 //! its source arena key ([`BlendNaming`]'s module docs), less the cells
-//! the closing join killed. Survivors take [`RoleSeg::FromTarget`] of
+//! the closing join killed. Survivors take [`RoleSeg::From`] of
 //! their upstream name; mints take their role; a join's kept edge, a
 //! survivor or a mint by its key, takes the name of the input edges its
 //! cover lies along (`join_names`), which replaces its row's. Anything
@@ -47,7 +47,7 @@
 //! invariant against the arenas' numbering changing. It is kept here
 //! because the property it rests on lives in another crate's choice of
 //! container: were a retired key ever reissued, an unrecorded mint
-//! would be named `FromTarget` of an unrelated entity, caught only if
+//! would be named `From` of an unrelated entity, caught only if
 //! the name's real owner happened to collide at insertion. Same
 //! posture as `wire_blend`'s refusal of `naming: None`.
 //!
@@ -92,6 +92,7 @@ use crate::node::RecipeNodeId;
 pub(super) fn name_blend<T: geom_core::Real>(
     node: RecipeNodeId,
     target_node: RecipeNodeId,
+    target_read: crate::VarId,
     target: &NameTable,
     body: &Body<T>,
     rec: &BlendNaming,
@@ -269,7 +270,7 @@ pub(super) fn name_blend<T: geom_core::Real>(
     // input edges its cover lies along (`join_names`), each read by the
     // rows above: a trimline of an input edge on one support (`TrimEdge`),
     // a rim trim on one support (`BandTrim`), or a surviving input edge
-    // (`FromTarget`). An edge the blend minted outright (an end arc, a
+    // (`From`). An edge the blend minted outright (an end arc, a
     // mitre, a band's slit, a remnant) reads no input edge, and a cover
     // holding one refuses.
     let joined = super::join_names::name_joins(node, body, &rec.edge_joins, |m| {
@@ -284,7 +285,10 @@ pub(super) fn name_blend<T: geom_core::Real>(
             None => {
                 let u = up_e(m)?;
                 super::join_names::Member::Image {
-                    seg: RoleSeg::FromTarget(u.name),
+                    seg: RoleSeg::From {
+                    read: target_read,
+                    of: u.name,
+                },
                     tied: u.tied,
                 }
             }
@@ -342,7 +346,10 @@ pub(super) fn name_blend<T: geom_core::Real>(
                     });
                 }
                 let u = up(key)?;
-                (RoleSeg::FromTarget(u.name), u.tied)
+                (RoleSeg::From {
+                    read: target_read,
+                    of: u.name,
+                }, u.tied)
             }
         };
         put_row(

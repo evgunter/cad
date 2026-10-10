@@ -99,12 +99,14 @@ pub enum OperandSlot {
     Target,
     /// A split's plane.
     Tool,
-    /// A boolean's first operand.
-    A,
-    /// A boolean's second operand.
-    B,
-    /// Member `i` of a union.
+    /// The body a subtract cuts.
+    From,
+    /// The body a subtract cuts away.
+    Cut,
+    /// Member `i` of a union's or an intersect's spelled list.
     Member(u32),
+    /// The family a union or an intersect reads whole.
+    Members,
     /// What a transform, a pattern or a placed union places.
     Input,
     /// What a part projection picks from.
@@ -127,9 +129,10 @@ impl OperandSlot {
             Self::Frame => "frame".to_owned(),
             Self::Target => "target".to_owned(),
             Self::Tool => "tool".to_owned(),
-            Self::A => "first operand".to_owned(),
-            Self::B => "second operand".to_owned(),
+            Self::From => "from".to_owned(),
+            Self::Cut => "tool".to_owned(),
             Self::Member(i) => format!("member {}", u64::from(i) + 1),
+            Self::Members => "members".to_owned(),
             Self::Input => "input".to_owned(),
             Self::Of => "source".to_owned(),
             Self::Measure => "measure".to_owned(),
@@ -145,9 +148,10 @@ impl OperandSlot {
             Self::Axis => SlotKind::Is(VarKind::Axis),
             Self::Frame => SlotKind::Is(VarKind::Frame),
             Self::Tool => SlotKind::Is(VarKind::Plane),
-            Self::Target | Self::A | Self::B | Self::Member(_) | Self::At => {
+            Self::Target | Self::From | Self::Cut | Self::Member(_) | Self::At => {
                 SlotKind::Is(VarKind::Body)
             }
+            Self::Members => SlotKind::Is(VarKind::Bodies),
             Self::Input | Self::Of => SlotKind::Placeable,
             Self::Measure => SlotKind::Measured,
         }
@@ -203,5 +207,77 @@ impl core::fmt::Display for SlotKind {
             Self::Placeable => f.write_str("a body or a list of bodies"),
             Self::Measured => f.write_str("a measured value"),
         }
+    }
+}
+
+/// **A `Bodies` argument** (REFERENCES DM4; D10): the one argument a
+/// union and an intersect take, defined by index or by enumeration.
+/// Every reader of a `Bodies` takes either form, and a mix cannot be
+/// written: a `Bodies` read in a member's place is ill-typed at the door
+/// (`SlotVarKind`).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum Bodies<R> {
+    /// A family, read whole: its members in index order, each named by
+    /// its index under the one read.
+    Family(R),
+    /// Independent reads spelled at the slot, in the order written, each
+    /// member named by its own read.
+    Spelled(Vec<R>),
+}
+
+impl<R> Bodies<R> {
+    /// The reads, with the operand slot each sits in, in list order.
+    pub fn rows(&self) -> Vec<(OperandSlot, &R)> {
+        match self {
+            Self::Family(read) => vec![(OperandSlot::Members, read)],
+            Self::Spelled(reads) => reads
+                .iter()
+                .enumerate()
+                .map(|(i, read)| (OperandSlot::Member(u32::try_from(i).unwrap_or(u32::MAX)), read))
+                .collect(),
+        }
+    }
+
+    /// [`Self::rows`], writable.
+    pub fn rows_mut(&mut self) -> Vec<(OperandSlot, &mut R)> {
+        match self {
+            Self::Family(read) => vec![(OperandSlot::Members, read)],
+            Self::Spelled(reads) => reads
+                .iter_mut()
+                .enumerate()
+                .map(|(i, read)| (OperandSlot::Member(u32::try_from(i).unwrap_or(u32::MAX)), read))
+                .collect(),
+        }
+    }
+
+    /// The reads, in list order.
+    pub fn reads(&self) -> impl Iterator<Item = &R> {
+        let (family, spelled) = match self {
+            Self::Family(read) => (Some(read), &[][..]),
+            Self::Spelled(reads) => (None, reads.as_slice()),
+        };
+        family.into_iter().chain(spelled)
+    }
+
+    /// The same argument, each read mapped through `f`, in list order;
+    /// the first error stops it.
+    ///
+    /// # Errors
+    ///
+    /// Whatever `f` refuses first.
+    pub fn try_map<Q, E>(
+        &self,
+        mut f: impl FnMut(OperandSlot, &R) -> Result<Q, E>,
+    ) -> Result<Bodies<Q>, E> {
+        Ok(match self {
+            Self::Family(read) => Bodies::Family(f(OperandSlot::Members, read)?),
+            Self::Spelled(reads) => Bodies::Spelled(
+                reads
+                    .iter()
+                    .enumerate()
+                    .map(|(i, read)| f(OperandSlot::Member(u32::try_from(i).unwrap_or(u32::MAX)), read))
+                    .collect::<Result<_, _>>()?,
+            ),
+        })
     }
 }
