@@ -491,8 +491,11 @@ pub(super) fn pose(rng: &mut Rng, fam: usize) -> Pose {
             // circles at once: their near points at `rc = R − r`, their
             // far points at `rc = R + r`.
             let (e, z0) = (0.0, 0.0);
-            let rc_both = if rng.unit() < 0.5 {
-                big_r - r + dlen
+            // The near points only where that radius is one (`R − r`
+            // can be shorter than the offset).
+            let near = big_r - r + dlen;
+            let rc_both = if rng.unit() < 0.5 && near > 0.0 {
+                near
             } else {
                 big_r + r - dlen
             };
