@@ -33,7 +33,7 @@ use super::shell7_common::*;
 use crate::common::charts::hollow_moves;
 use crate::common::latitude_seam::{ring_on_cap, ring_on_wall};
 use crate::common::stations::construction_state;
-use crate::common::torus_walls::props_door;
+use crate::common::torus_walls::{assert_hollow_volume, disc_cut_volume};
 use sweep::test_support::finished;
 
 const R: f64 = 2.0;
@@ -710,26 +710,27 @@ fn a_line_profile_beside_one_meridian_cap_refuses_at_the_direct_door() {
     );
 }
 
-/// **A partial two-arc torus hollows to the props door** (R1's row,
-/// flipped again): the quarter-turn elbow of the two-arc profile has a
-/// [torus, meridian cap] corner whose azimuth the MOVED cap fixes — off
-/// the sketch plane — and the rim edge between the torus and the cap
-/// is minted as the spiric it is, its window read forward of its start
-/// (`offset_axial_edge_window`). Its two equator seams are
+/// **A partial two-arc torus hollows to its measured volume** (R1's
+/// row, flipped again): the quarter-turn elbow of the two-arc profile
+/// has a [torus, meridian cap] corner whose azimuth the MOVED cap fixes
+/// — off the sketch plane — and the rim edge between the torus and the
+/// cap is minted as the spiric it is, its window read forward of its
+/// start (`offset_axial_edge_window`). Its two equator seams are
 /// `RevolvedPoint` declarations whose ends the moved caps turn about
 /// the axis, and they re-author onto the moved corners. The hollow
-/// reaches tier 3's check 7, `VolumeUncomputable` — the klein elbow's
-/// door (`torax_axial`).
+/// passes tier 3, check 7 measuring its spiric-bounded faces, and its
+/// volume is the disc's quarter turn less the inset disc's cut revolve.
 ///
-/// The old door, verbatim: `Face { error: Op { edge: None, error:
-/// RechartFalsifies { edge: EdgeKey(1v1), error: IntervalNotForward {
-/// margin: −1.413716694115407 } } } }` — the rim window read backwards
-/// by `π·r′` on `atan2`'s branch cut; before it the seams' re-author
-/// (`offset_axial_reauthor_plane`), and before that the latitude
-/// mint's `offset_axial_centre`.
+/// The old doors, verbatim: check 7's `VolumeUncomputable` at a
+/// spiric-bounded cap (`Unimplemented`); before it `Face { error: Op {
+/// edge: None, error: RechartFalsifies { edge: EdgeKey(1v1), error:
+/// IntervalNotForward { margin: −1.413716694115407 } } } }` — the rim
+/// window read backwards by `π·r′` on `atan2`'s branch cut; before it
+/// the seams' re-author (`offset_axial_reauthor_plane`), and before
+/// that the latitude mint's `offset_axial_centre`.
 #[test]
-fn a_partial_two_arc_torus_hollows_to_the_props_door() {
-    let (big_r, r) = (2.0, 0.5);
+fn a_partial_two_arc_torus_hollows_to_its_measured_volume() {
+    let (big_r, r, t) = (2.0, 0.5, 0.05);
     let body = revolved(
         bulge_loop(vec![
             (Point2::new(big_r + r, 0.0), 1.0),
@@ -738,13 +739,14 @@ fn a_partial_two_arc_torus_hollows_to_the_props_door() {
         Revolution::Partial(FRAC_PI_2),
     );
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
-    let e = topo::shell(&finished("the operand", body.clone(), tol()), 0.05, tol())
-        .expect_err("check 7's volume");
-    let (face, source) = props_door(&e).unwrap_or_else(|| panic!("not the props door: {e:?}"));
-    assert_eq!(
-        source,
-        geom_brep::PropsError::Unimplemented,
-        "a spiric-bounded cap's area, at {face:?}"
+    let hollow = topo::shell(&finished("the operand", body.clone(), tol()), t, tol())
+        .unwrap_or_else(|e| panic!("the two-arc torus hollows, got {e:?}"))
+        .body;
+    assert_hollow_volume(
+        "the partial two-arc torus",
+        &hollow,
+        disc_cut_volume(FRAC_PI_2, t, 0.0, big_r, r)
+            - disc_cut_volume(FRAC_PI_2, t, 2.0, big_r, r - t),
     );
 }
 

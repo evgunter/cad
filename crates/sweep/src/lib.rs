@@ -74,7 +74,7 @@
 //!   the sketch placement; **top rims** minted as `PlacedSegment` at
 //!   the placement translated by `w` (PR 3's binding handoff).
 //! - **Profile-corner joins**: once both side faces of a join exist,
-//!   the join (strut) edge upgrades to `Intersection { s1, s2,
+//!   the join (strut) edge upgrades to `Intersection { pair,
 //!   witness }` via `topo`'s certified `set_edge_curve`
 //!   (mint-time `Intersection` is impossible — the surfaces don't exist
 //!   yet). The choice is `geom_brep::classify_dihedral` at the strut

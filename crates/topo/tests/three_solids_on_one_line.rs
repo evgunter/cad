@@ -234,7 +234,7 @@ fn none(_: &[usize]) -> Option<&'static str> {
 fn fold(
     members: &[AtRestBody<f64>],
     order: &[usize],
-) -> Result<BooleanBody<f64>, (usize, BooleanError)> {
+) -> Result<BooleanBody<f64>, (usize, Box<BooleanError>)> {
     let mut body = members[order[0]].clone();
     let mut last = None;
     for (k, &i) in order.iter().enumerate().skip(1) {
@@ -244,7 +244,7 @@ fn fold(
                 last = Some(r);
             }
             Ok(BooleanResult::Empty) => panic!("step {k} of {order:?} is empty"),
-            Err(e) => return Err((k, e)),
+            Err(e) => return Err((k, Box::new(e))),
         }
     }
     Ok(last.expect("a fold of two or more members"))
@@ -692,12 +692,12 @@ fn fold_from(
     order: &[usize],
     from: usize,
     mut body: AtRestBody<f64>,
-) -> Result<AtRestBody<f64>, (usize, BooleanError)> {
+) -> Result<AtRestBody<f64>, (usize, Box<BooleanError>)> {
     for (k, &i) in order.iter().enumerate().skip(from) {
         match union(&body, &members[i], t()) {
             Ok(BooleanResult::Body(r)) => body = r.body,
             Ok(BooleanResult::Empty) => panic!("step {k} of {order:?} is empty"),
-            Err(e) => return Err((k, e)),
+            Err(e) => return Err((k, Box::new(e))),
         }
     }
     Ok(body)

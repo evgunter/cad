@@ -1609,7 +1609,29 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             R::SliverSector {
                 vertex,
                 face,
-                diag: diag(),
+                reading: topo::SectorReading::Escalated(diag()),
+            },
+        ),
+        (
+            "SliverSector/GrazeAgainstNeighbours",
+            R::SliverSector {
+                vertex,
+                face,
+                reading: topo::SectorReading::GrazeAgainstNeighbours {
+                    margin: geom_core::MarginDiag::value(-3.0e-8),
+                },
+            },
+        ),
+        (
+            "SliverSector/SmoothEdgeDisagrees",
+            R::SliverSector {
+                vertex,
+                face,
+                reading: topo::SectorReading::SmoothEdgeDisagrees(topo::TangencyReadings {
+                    tangent: geom_core::MarginDiag::value(3.0e-10),
+                    clear: geom_core::MarginDiag::value(3.0e-8),
+                    band: band(),
+                }),
             },
         ),
         (
@@ -1688,7 +1710,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             R::CrossingInsertion {
                 edge,
                 endpoints: (vertex, vertex),
-                source: euler(),
+                source: Box::new(euler()),
             },
         ),
         ("Euler", R::Euler(euler())),
@@ -2057,7 +2079,12 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         ),
         (
             "surface-residual",
-            escalated(CertCheck::Surface1Residual, in_band),
+            escalated(
+                CertCheck::SurfaceResidual {
+                    surface: topo::SurfaceKey::default(),
+                },
+                in_band,
+            ),
             geom_core::KERNEL_LIMIT_RECOURSE,
         ),
     ]
@@ -2738,7 +2765,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             "Op",
             E::Op {
                 site: "strut mev",
-                source: euler(),
+                source: Box::new(euler()),
             },
         ),
     ]
