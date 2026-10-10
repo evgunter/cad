@@ -7642,3 +7642,20 @@ Ev asked about PR 3970. The thread's last word was my 2026-10-04 06:42 promise t
 - 2026-10-09 — Seam note from ENCL (PR 4457, merged at `dcff36e784`): the import-door twins `ending_in_file`, `render_in_file` and `recourse_in_file` are removed. The one body now takes `at: impl Into<ReadAt>`, so the import door is the same call without the suffix: `err.render(file)`, `err.ending(file)`, `decision.recourse(arm, file)`. An in-flight branch that calls a `*_in_file` will fail to compile at merge; drop the suffix. `Unsized::residual_in_file` and geom-core's `sized_recourse_in_file` / `miss_recourse_in_file` keep their names. (ENCL orchestrator)
 - 2026-10-10 — Seam note from PIPE S350 (PR 4482): `census-face-walks-skip-torn-hops-silently`'s reviewer-probe bullet is discharged — `n2r2_class7_face_reach_partial_box_and_census_decision` is replaced by the gating row `a_net_poisoned_in_one_channel_has_no_reach_and_clears_no_pair`, and the `CERT-N2 R2 reviewer probes (not for merge)` banner now reads `A described net carrying poison: the reach and box lanes`. The torn-hop half of that row is untouched. Also on your ground: `crates/topo/src/fixtures.rs` gains `poisoned_net(poisoned)`, a described bilinear net with `x` NaN at the chosen points — the one in-crate mint of that net, used by `census` and `n2r1_probes`. (PIPE S350 lane)
 - 2026-10-10 — Seam note from ENCL (PR 4504, merged): `geom_brep::recourse::Unsized::LastResort` is renamed `Unsized::Fit`, with the same behaviour, and a new `Unsized::Bound` ends a refusal on a certified upper bound in the kernel-limit last resort at every reading. At the import door, `MissReading::Bound` names the bound. `CertCheck::bounds_a_miss()` answers whether a check is a bound. A table on your ground that refuses on a bound, not a measured miss, should take `Bound`. (ENCL orchestrator)
+
+## 15:50 (2026-10-10)
+
+- Usage back after three days. Merged `origin/main` into the orchestration branch; no conflicts.
+- **What moved on main:**
+  - D10 (PR 3990) merged. INTENT re-pointed the held rows at the stage that releases each (`72f8c906`).
+  - Stage 4 E (`intent/s4-e-glue-on-zero`) released `restatement-derives-each-moved-edges-kind`: "the outline stands for a designer pass". It also released `torn-hops-read-as-absent-across-the-boolean`; the coincidence sites can be converted now.
+  - Stage 4 A deleted `boolean/rest.rs` `zip_folded`, so its two `_minting` kills are gone.
+  - New row filed on topo by PR 4433's review: `mfkrh-leaves-an-orphan-surface-under-the-per-op-scalpel`.
+- `offset-held-neighbour-image-…` was orchestration-branch-only, so INTENT's re-homing missed it. It is now `blocked_on: [restatement-derives-each-moved-edges-kind]`, where D2's authority question lives.
+- **Ev: "you could do step 2!"** Impl lane `session_01NgLQscEH8hE65YznxiEYwd`, branch `topo/kef-kfmrh-minting-callers`. It moves:
+  - `merge_group` onto `kef_describing` with the carried restatement (the reviewer measured 9,910/9,910 certifying; to re-measure at the eps rows; stop if any refuse);
+  - the zip's fuse and `slit_zip`'s kill onto chartless transients;
+  - the chord join's null face to the placeholder;
+  - the blend's carve strips chartless.
+- `zip_seam`'s retiring kills stay on `_minting` until choice 3. Privacy and tier 1 (step 4) are not in this unit.
+- The old impl lane `session_01KvmfitreFfbxkDUEQMZ5Aw` is archived.
