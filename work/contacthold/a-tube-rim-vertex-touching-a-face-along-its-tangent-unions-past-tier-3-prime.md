@@ -2,7 +2,7 @@
 id: a-tube-rim-vertex-touching-a-face-along-its-tangent-unions-past-tier-3-prime
 kind: issue
 title: A tube's rim vertex touching a face whose plane holds the rim tangent unions with the exact volume but fails tier 3′
-status: parked
+status: open
 opened: 2026-10-04
 priority: P2
 cost: M

@@ -46,9 +46,8 @@ pyo3::create_exception!(
      `None` where it carries none. `EvaluationError` states why the \
      second word is a second attribute.\n\n\
      The rest is the refusing arm's PAYLOAD, present on every arm and \
-     `None` where that arm does not carry it: `node`, `input` and \
-     `referenced_by` (the node the refusal is about, a node it names, \
-     a node downstream that references it), `slot`, `param`, `name`, \
+     `None` where that arm does not carry it: `node` and `input` (the \
+     node the refusal is about, a node it names), `slot`, `param`, `name`, \
      `key`, `expected` and `found` (the dimension the door required \
      and the one it was offered), `kind`, `from_kind`, `to_kind`, \
      `count`, `first`, `again`, `value`, `offered`, `determinant`, \
@@ -113,11 +112,10 @@ pyo3::create_exception!(
      operator check is not the library's only dimension check, and \
      the document layer's own refusal type reaches Python under \
      DOOR names rather than one type name: `LiteralError` from \
-     literal construction, from the measurement constructors and from \
-     the recorded-program lift; `ParseError` with `variant == \
+     literal construction and from the recorded-program lift; `ParseError` with `variant == \
      \"dimension\"` from `Doc.parse_formula`; `EditError` from \
      `Doc.apply`; and `PersistError` with `variant == \"dimension\"` \
-     from `load`. Six doors, four classes — the roster with each \
+     from `load`. Five doors, four classes — the roster with each \
      one's attribute is on `ErrorClass::DIMENSION_DOORS` in \
      `crate::errors`. Each carries the failing check's own tag, so \
      which check refused is branchable at every one."
@@ -148,12 +146,11 @@ pyo3::create_exception!(
      Not `QuantityOpMismatch`: that one is the quantity boundary's \
      operator check, a different type. The expression layer's refusal \
      type has dimension-mismatch arms too, and it reaches Python at \
-     six doors under four class names — the roster is on \
+     five doors under four class names — the roster is on \
      `ErrorClass::DIMENSION_DOORS` in `crate::errors`. THIS class is \
-     three of those six: literal construction, the measurement \
-     arithmetic constructors, and the recorded-program lift (which \
-     spells its tag `variant` rather than `kind` — filed, not \
-     decided)."
+     two of those five: literal construction, and the recorded-program \
+     lift (which spells its tag `variant` rather than `kind` — filed, \
+     not decided)."
 );
 pyo3::create_exception!(
     pncad,
@@ -341,7 +338,7 @@ pyo3::create_exception!(
      caller who catches this class must say which of the two they \
      mean.\n\n\
      A gather refusal arrives here under the gather's OWN tag \
-     (`no_body_roots`, `root_failed`, ...), not a wrapper tag: which \
+     (`empty_product`, `root_poisoned`, ...), not a wrapper tag: which \
      invariant broke is what a caller branches on."
 );
 pyo3::create_exception!(
@@ -349,13 +346,13 @@ pyo3::create_exception!(
     ProductError,
     PncadError,
     "The whole-document gather refused. Carries `variant`, the stable \
-     tag of the refusing arm, plus `node`, `through` and `name` \
-     (`None` where the arm does not carry them).\n\n\
+     tag of the refusing arm, plus `node`, `through` and \
+     `unplaced_bodies` (`None` where the arm does not carry them).\n\n\
      Its message names each node as the evaluation's own document \
      holds it (kind, label and tag): the document the gather was taken \
      of. `node` and `through` carry the full ids.\n\n\
-     A product is all of the roots or none of them — there are no \
-     partial products."
+     A product is every copy the world's placements define or none of \
+     them — there are no partial products."
 );
 pyo3::create_exception!(
     pncad,
@@ -548,21 +545,6 @@ pyo3::create_exception!(
      the door refuses anything whose answer would depend on the \
      shape, and answers only the two cases every measure on the band \
      agrees about."
-);
-pyo3::create_exception!(
-    pncad,
-    MeasureNodeFault,
-    PncadError,
-    "`Node.measure` was handed an expression that reads a reference \
-     the node does not carry. Carries `variant` (the stable tag), \
-     `verb` (which primitive reads it), `index` (the out-of-range \
-     one) and `refs` (how many the node carries).\n\n\
-     The kernel's own `Node::measure` decides this — the one \
-     construction door, running the check the edit door and the load \
-     door's re-check both run — so a measure Python accepts is one a \
-     document accepts. Raised EARLY, at the node rather than at the \
-     edit: the same fault reaches `EditError` as `measure_malformed` \
-     when a document is loaded or edited another way."
 );
 pyo3::create_exception!(
     pncad,
@@ -767,7 +749,6 @@ fn raise_typed(
         ErrorClass::Enforce => CheckRefusal::new_err(message),
         ErrorClass::Distribution => DistributionFault::new_err(message),
         ErrorClass::Measure => MeasureUnavailable::new_err(message),
-        ErrorClass::MeasureNode => MeasureNodeFault::new_err(message),
         ErrorClass::MeasureUnavailableAt => MeasureUnavailableAt::new_err(message),
         ErrorClass::AnalysisPolicy => AnalysisPolicyError::new_err(message),
         ErrorClass::Mc => McRefusal::new_err(message),
@@ -875,7 +856,6 @@ fn class_discriminant(class: ErrorClass) -> Option<ClassDiscriminant> {
         | ErrorClass::Enforce
         | ErrorClass::Distribution
         | ErrorClass::Measure
-        | ErrorClass::MeasureNode
         | ErrorClass::MeasureUnavailableAt
         | ErrorClass::AnalysisPolicy
         | ErrorClass::Mc
@@ -942,7 +922,6 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("CheckRefusal", py.get_type::<CheckRefusal>())?;
     m.add("DistributionFault", py.get_type::<DistributionFault>())?;
     m.add("MeasureUnavailable", py.get_type::<MeasureUnavailable>())?;
-    m.add("MeasureNodeFault", py.get_type::<MeasureNodeFault>())?;
     m.add(
         "MeasureUnavailableAt",
         py.get_type::<MeasureUnavailableAt>(),

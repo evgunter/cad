@@ -103,7 +103,7 @@
 use core::f64::consts::PI;
 
 use pncad::authoring::{p2, validated};
-use pncad::document::RefusingReach;
+use pncad::document::{Operand, RefusingReach};
 use pncad::geom_core::{Tol, Vec2};
 use pncad::prelude::{
     CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Formula, LoopProgram, MM, Node,
@@ -174,12 +174,21 @@ fn through_the_document(tol: Tol) -> Body<f64> {
     }
 }
 
-/// This scene's recipe, as a document the GUI can open.
+/// This scene's recipe, as a document the GUI can open: the revolve,
+/// placed in the world.
 ///
 /// The same document `through_the_document` evaluates — the gallery
 /// hands a reader exactly the recipe this scene's claim rests on.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
-    document(tol).0
+    let (doc, revolved) = document(tol);
+    apply(
+        &doc,
+        &DocEdit::place(Operand::output(revolved, 0), None),
+        tol,
+        &RefusingReach,
+    )
+    .expect("the revolve places")
+    .doc
 }
 
 /// The ring's recipe and its revolve node.

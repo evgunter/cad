@@ -2,7 +2,7 @@
 id: a-measure-merges-free-instances-into-one-relative-freedom-component
 kind: issue
 title: A measure reading faces of two unmated instances merges them into one A9 relative-freedom component
-status: parked
+status: open
 opened: 2026-10-03
 priority: P2
 cost: E

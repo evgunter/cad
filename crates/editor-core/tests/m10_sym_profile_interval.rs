@@ -522,8 +522,13 @@ const PLATE_MAX_TERMS: usize = 28;
 ///   `Plain/Decision`'s and `Early/Decision`'s forms rise 24 each
 ///   (15710 → 15734, 8633 → 8657, every one an `Add`), their digests
 ///   move, and the calls, the freezes and every other line hold.
+/// - **A measure is an operation (INTENT stage 2 unit D).** The web is
+///   the assertion's definition over the distance measure's output, so
+///   the measured value enters the arithmetic as a variable the
+///   definition reads: one more `Plain/Decision` form (15734 → 15735),
+///   and that line's digest. Calls, freezes and every other line hold.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1048 forms 15734 frozen 252 digest cfb4de41dbc5a92ac241864143c51061\n\
+     Plain/Decision calls 1048 forms 15735 frozen 252 digest 333f42221fb2f369a5e7c06d1c9d751e\n\
      Plain/Assertion calls 654 forms 4173 frozen 360 digest 91787fb61a160072b143278440ea302f\n\
      Early/Decision calls 352 forms 8657 frozen 0 digest f610d4dbb8133211901db22b14760ad2\n\
      Early/Assertion calls 654 forms 5136 frozen 0 digest da78941ae02f7d0e7e82b8880eda52ac\n\

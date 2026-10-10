@@ -121,8 +121,8 @@ impl<'a> IndexInputs<'a> {
 /// one landing's and arrive together as [`IndexInputs`]. And
 /// correctness: the application's own
 /// rebuild loop retried on **every repainted frame** whenever a build
-/// refused — a failed or poisoned root is an ordinary editing state,
-/// and each frame then re-tessellated every healthy root before
+/// refused — a failed or poisoned placement is an ordinary editing
+/// state, and each frame then re-tessellated every healthy copy before
 /// reaching the failing one, behind a picture that was already stale.
 ///
 /// So the retry policy is stated once, here: **at most one attempt per

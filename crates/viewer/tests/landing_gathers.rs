@@ -29,7 +29,7 @@ use pncad::document::ExtrudeSide;
 use std::sync::Arc;
 
 use pncad::document::{
-    Doc, DocumentId, Formula, MeasureExpr, Node, NodeStanding, ProductError, ProfileDoc,
+    Doc, DocumentId, Formula, MeasurePrimitive, Node, NodeStanding, ProductError, ProfileDoc,
     ProfileProgram, SitedRef, gathers_on_this_thread,
 };
 use pncad::geom_core::Tol;
@@ -237,7 +237,7 @@ fn a_gather_refusal_lands_with_a_fault_and_no_report() {
     assert_eq!(gathers_of_one_landing(&mut session), 1);
     assert!(
         session.product_fault().is_some(),
-        "a root that did not evaluate is a gather refusal"
+        "a placement that did not evaluate is a gather refusal"
     );
     assert!(
         session.checks().is_none(),
@@ -246,20 +246,21 @@ fn a_gather_refusal_lands_with_a_fault_and_no_report() {
     assert!(session.at_rest().is_none(), "a part has no A5 badge");
 }
 
-/// **A4 — a gather refusal that is NOT a per-node failure lands with
-/// no report.**
+/// **A4 — a gather refusal the empty-world reading does not claim
+/// lands with no report.**
 ///
-/// The row above uses a document whose ROOT failed, and the registry
-/// refuses that on its own precondition — so it cannot see whether the
-/// landing's `NoBodyRoots` filter is doing anything at all. This one
-/// can: two `Transform`s of one extrude are two roots placing one
-/// body, every root evaluates, and the ONLY thing that refuses is the
-/// gather. Widen the filter to `true` and
-/// this row goes red where the other stays green.
+/// The row above uses a document whose placed body FAILED, and the
+/// registry refuses that on its own precondition — so it cannot see
+/// whether the landing's `EmptyProduct` filter is doing anything at
+/// all. This one can: the placed extrude is deleted, the delete is
+/// accepted and strands its placement (D10), and the gather refuses
+/// `StrandedPlacement` before it reads any value (spec §9 row 10).
+/// Widen the filter to `true` and this row goes red where the other
+/// stays green.
 #[test]
-fn a_body_under_two_roots_lands_with_a_fault_and_no_report() {
+fn a_stranded_placement_lands_with_a_fault_and_no_report() {
     let tol = Tol::witness();
-    let doc: Doc<ProfileProgram> = Doc::empty_derived("docm5-collision-landing", tol);
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("docm5-stranded-landing", tol);
     let (doc, plane) = common::inserted(&doc, common::xy_frame(), tol);
     let (doc, profile) = common::inserted(&doc, common::square(plane, 0.02), tol);
     let (doc, extrude) = common::inserted(
@@ -271,22 +272,12 @@ fn a_body_under_two_roots_lands_with_a_fault_and_no_report() {
         },
         tol,
     );
-    let moved = |doc: &Doc<ProfileProgram>, dx: f64| {
-        common::inserted(
-            doc,
-            Node::transform(
-                extrude,
-                pncad::document::Step::Rigid {
-                    translation: [common::len(dx), common::len(0.0), common::len(0.0)],
-                    axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                    angle: common::ang(0.0),
-                },
-            ),
-            tol,
-        )
-    };
-    let (doc, _) = moved(&doc, 0.1);
-    let (doc, _) = moved(&doc, 0.2);
+    let (doc, placement) = common::placed(&doc, extrude, tol);
+    let (doc, _) = common::edited(
+        &doc,
+        pncad::document::DocEdit::DeleteNode { id: extrude },
+        tol,
+    );
 
     let mut session = DocSession::inline(doc, tol);
     assert_eq!(session.pump(), vec![Landing::Landed]);
@@ -295,32 +286,32 @@ fn a_body_under_two_roots_lands_with_a_fault_and_no_report() {
     assert!(
         matches!(
             session.product_fault(),
-            Some(ProductError::PlacedUnderTwoRoots { .. })
+            Some(ProductError::StrandedPlacement { placement: stranded }) if *stranded == placement
         ),
-        "the premise: only the gather refuses here, and it is one body under two roots: {:?}",
+        "the premise: the gather refuses naming the stranded placement: {:?}",
         session.product_fault()
-    );
-    assert!(
-        session
-            .tree_rows()
-            .iter()
-            .all(|row| !matches!(row.status, RowStatus::Failed { .. })),
-        "and no node failed, so no other channel carries this"
     );
     assert!(
         session.checks().is_none(),
         "the registry has no subject and says so by reporting nothing"
     );
     assert!(
-        viewer::frame::product_badge(session.product_fault(), session.committed_doc()).is_some(),
-        "this IS the fault channel's own case"
+        viewer::frame::product_badge(session.product_fault(), session.committed_doc()).is_none(),
+        "the placement's own row is the channel, not the frame"
+    );
+    assert!(
+        matches!(
+            common::status_of(&session.tree_rows(), placement),
+            RowStatus::Failed { .. }
+        ),
+        "and the tree draws that row failed, on its unresolved read"
     );
     assert!(session.at_rest().is_none(), "a part has no A5 badge");
 }
 
 /// **A4 — a document that denotes no body is not a refusal**
 /// (`ProductErrorKind::means_no_body` is that reading). The
-/// gather says `NoBodyRoots`, which the landing reads as a SUBJECT: the
+/// gather says `EmptyProduct`, which the landing reads as a SUBJECT: the
 /// registry runs over it and reports clean. The fault field still
 /// carries the gather's answer, and the badge channel is the one that
 /// keeps quiet about it (`frame::product_badge`).
@@ -333,7 +324,10 @@ fn a_document_with_no_body_lands_a_clean_report() {
 
     assert_eq!(gathers_of_one_landing(&mut session), 1);
     assert!(
-        matches!(session.product_fault(), Some(ProductError::NoBodyRoots)),
+        matches!(
+            session.product_fault(),
+            Some(ProductError::EmptyProduct { unplaced }) if unplaced.is_empty()
+        ),
         "the gather's own answer: {:?}",
         session.product_fault()
     );
@@ -346,10 +340,11 @@ fn a_document_with_no_body_lands_a_clean_report() {
     assert!(session.at_rest().is_none(), "and there is no badge");
 }
 
-/// **A body-less ASSEMBLY takes no at-rest badge either.** An
-/// instance whose only reader is a measure read AT it is no root — the
-/// measure is, and it denotes no body — so the gather says
-/// `NoBodyRoots` while the document still holds an `InstantiatePart`.
+/// **An unplaced ASSEMBLY takes no at-rest badge either.** An
+/// instance no placement reads is not in the world — the measure read
+/// at it places nothing — so the gather says `EmptyProduct`, naming the
+/// instance's body, while the document still holds an
+/// `InstantiatePart`.
 /// The landing reads that refusal as an absence for the registry, and
 /// the A5 badge agrees with it: there is no product for the gate to
 /// judge, and an at-rest badge reading "at rest: product: …" would
@@ -370,11 +365,12 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
     let top = common::asm::in_part(post, &bench.post_top);
     common::insert_into(
         &mut asm,
-        Node::measure(
-            MeasureExpr::value(common::len(1.0)),
-            vec![SitedRef::new(post, top)],
-        )
-        .expect("the measure indexes no reference it lacks"),
+        Node::Measure {
+            primitive: MeasurePrimitive::Distance {
+                a: SitedRef::new(post, top.clone()),
+                b: SitedRef::new(post, top),
+            },
+        },
         tol,
     );
     let path = Workspace::open(&bench.dir)
@@ -387,8 +383,11 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
     session.pump();
 
     assert!(
-        matches!(session.product_fault(), Some(ProductError::NoBodyRoots)),
-        "the premise: the measure de-sinks the instance and denotes no body: {:?}",
+        matches!(
+            session.product_fault(),
+            Some(ProductError::EmptyProduct { unplaced }) if unplaced.len() == 1
+        ),
+        "the premise: nothing places the instance, and the gather names its body: {:?}",
         session.product_fault()
     );
     assert!(
@@ -398,7 +397,7 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
     assert_eq!(
         session.at_rest(),
         None,
-        "and the A5 badge agrees: a body-less assembly is not a refusal"
+        "and the A5 badge agrees: an unplaced assembly is not a refusal"
     );
 }
 
@@ -408,19 +407,20 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
 /// `ProductErrorKind::means_no_body` does not claim, in a document that
 /// is assembly-shaped. The A5 gate never ran, so it gave no verdict:
 /// the refusal is `DocSession::product_fault`'s, and
-/// `frame::badge_site` routes it (a failed root to the feature tree).
+/// `frame::badge_site` routes it (a placement whose body failed to the
+/// feature tree).
 ///
 /// The badge's absence is the type's doing, so the row witnesses the
 /// whole path rather than guarding one arm: the gather refuses, the
 /// session says nothing at rest, and the refusal is still loud where
-/// it belongs — the root's tree row reads `Failed`.
+/// it belongs — the extrude's tree row reads `Failed`.
 #[test]
 fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
     let tol = Tol::witness();
     let bench = common::asm::bench("refused-gather-assembly", tol);
     let asm = ProfileDoc::empty(DocumentId::derive("refused-gather-assembly"), tol);
     let (mut asm, profile) = common::framed_square(&asm, 0.04, tol);
-    common::insert_into(&mut asm, Node::instantiate_part(bench.post), tol);
+    let post = common::insert_into(&mut asm, Node::instantiate_part(bench.post), tol);
     let extrude = common::insert_into(
         &mut asm,
         Node::Extrude {
@@ -431,6 +431,7 @@ fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
         },
         tol,
     );
+    let asm = common::placed(&common::placed(&asm, post, tol).0, extrude, tol).0;
     let path = Workspace::open(&bench.dir)
         .expect("the bench's workspace opens")
         .create(&asm, tol)
@@ -443,9 +444,10 @@ fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
     assert!(
         matches!(
             session.product_fault(),
-            Some(ProductError::Root(NodeStanding::Failed { .. }))
+            Some(ProductError::Root(NodeStanding::Poisoned { through, .. })) if *through == extrude
         ),
-        "the premise: a failed root, which is a refusal and not an absence: {:?}",
+        "the premise: a placement poisoned by its failed body, which is a refusal and not \
+         an absence: {:?}",
         session.product_fault()
     );
     assert_eq!(
@@ -456,7 +458,7 @@ fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
     let rows = session.tree_rows();
     assert!(
         matches!(common::status_of(&rows, extrude), RowStatus::Failed { .. }),
-        "not silent everywhere: the failed root reads Failed at its tree row, got {:?}",
+        "not silent everywhere: the failed extrude reads Failed at its tree row, got {:?}",
         common::status_of(&rows, extrude)
     );
 }

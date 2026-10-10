@@ -354,17 +354,19 @@ fn a_shared_variable_survives_its_text() {
     assert_eq!(doc.slot(point, x()), Some(v), "the share holds");
 }
 
-/// **A measure's value leaves are slots** (VR4), so two leaves of one
-/// measure are two readers (VR2): a measure reading one unnamed variable
-/// at two leaves refuses, where a definition reading it twice is one
-/// reader. Breaks if the count folds a measure's leaves into one.
+/// **An assertion's value and its bound are two slots** (VR4), so
+/// they are two readers (VR2): an assertion reading one unnamed variable
+/// on both sides refuses, where a definition reading it twice is one
+/// reader. Breaks if the count folds one node's slots into one reader.
 #[test]
-fn two_value_leaves_of_one_measure_are_two_readers() {
-    let doc = ProfileDoc::empty(DocumentId::derive("fork7-measure"), Tol::witness());
-    let entry = || editor_core::MeasureExpr::value(Formula::fresh(0, Dimension::Length));
-    let twice = editor_core::MeasureExpr::add(entry(), entry()).expect("lengths add");
+fn the_value_and_the_bound_of_one_assertion_are_two_readers() {
+    let doc = ProfileDoc::empty(DocumentId::derive("fork7-assertion"), Tol::witness());
     let edit = |fresh: FreshEntry| DocEdit::InsertNode {
-        node: Box::new(Node::measure(twice.clone(), Vec::new()).expect("a measure")),
+        node: Box::new(Node::Assertion {
+            value: Formula::fresh(0, Dimension::Length),
+            bound: Formula::fresh(0, Dimension::Length),
+            dir: editor_core::AssertionDir::AtMost,
+        }),
         fresh: vec![fresh],
     };
     match try_step(
@@ -372,13 +374,13 @@ fn two_value_leaves_of_one_measure_are_two_readers() {
         edit(FreeVar::continuous(Dimension::Length, 0.5).into()),
     ) {
         Err(EditError::SharedVarNeedsName { var }) => assert_eq!(var.name(), None),
-        other => panic!("two leaves reading one unnamed variable refuse, got {other:?}"),
+        other => panic!("two sides reading one unnamed variable refuse, got {other:?}"),
     }
     let named = edit(FreshEntry::named(
         n("m"),
         FreeVar::continuous(Dimension::Length, 0.5),
     ));
-    try_step(&doc, named).expect("a named variable two leaves read lands");
+    try_step(&doc, named).expect("a named variable both sides read lands");
 }
 
 /// **A log's replay passes the same door**: a saved log whose rename is

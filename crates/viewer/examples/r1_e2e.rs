@@ -29,14 +29,14 @@ fn banner(text: &str) {
 fn show_tree(session: &DocSession) {
     for row in session.tree_rows() {
         let indent = "  ".repeat(row.depth);
-        let root = if row.root { " ▸root" } else { "" };
+        let world = if row.placed { " ▸world" } else { "" };
         let message = row
             .status
             .message()
             .map(|m| format!("  [{m}]"))
             .unwrap_or_default();
         println!(
-            "   {indent}{} {}{root}{message}",
+            "   {indent}{} {}{world}{message}",
             row.status.badge(),
             row.spoken
         );
@@ -76,7 +76,7 @@ fn main() {
     let rows = session.tree_rows();
     assert!(!tree::has_faults(&rows), "the ring evaluates clean");
 
-    // Select the revolve (the root) and inspect its slots.
+    // Select the revolve (the placed body) and inspect its slots.
     let revolve = rows
         .iter()
         .find(|row| row.spoken.kind() == Some("Revolve"))
