@@ -1609,7 +1609,29 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             R::SliverSector {
                 vertex,
                 face,
-                diag: diag(),
+                reading: topo::SectorReading::Escalated(diag()),
+            },
+        ),
+        (
+            "SliverSector/GrazeAgainstNeighbours",
+            R::SliverSector {
+                vertex,
+                face,
+                reading: topo::SectorReading::GrazeAgainstNeighbours {
+                    margin: geom_core::MarginDiag::value(-3.0e-8),
+                },
+            },
+        ),
+        (
+            "SliverSector/SmoothEdgeDisagrees",
+            R::SliverSector {
+                vertex,
+                face,
+                reading: topo::SectorReading::SmoothEdgeDisagrees(topo::TangencyReadings {
+                    tangent: geom_core::MarginDiag::value(3.0e-10),
+                    clear: geom_core::MarginDiag::value(3.0e-8),
+                    band: band(),
+                }),
             },
         ),
         (
