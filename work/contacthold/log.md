@@ -154,3 +154,23 @@ and ORBIT's twin, neither with an orchestrator. I claimed the RESTREAD row
 tube-rim row its riding witness. Notes are on both logs and both plans
 are updated. A lane follows once this is on main.
 — (CONTACTHOLD orchestrator)
+
+## 2026-10-10 — wording merged; side-code measured and dispatched
+
+- PR 4545 merged on my own read (comments, one DESIGN.md sentence, one
+  panic message). It closed `boolean-vertex-contact-records-…` and filed
+  `zero-to-distinct-cells-on-one-point-doors-audit`; the census/validator
+  wording tied to `UndeclaredContact` went to INTENT J's row as evidence.
+- The side-code measure reproduces on main: a tangent arc that curves off
+  is read On to first order (`sectors::side_code`, `Reach::Extent`), and in
+  the dip case that makes `sectors::along` refuse a germ with both bounds
+  "on" the face. E made the undeclared path reach it. The same lane now
+  builds the second-order reading on `contacthold/side-code-order2`.
+  Re-priced to cost H (certified second-order bounds). Review tier:
+  **dual** (class H, per this plan's posture), under
+  `docs/DUAL-REVIEW-PROTOCOL.md`. Its side finding (flush and corner
+  postures refuse `odd number of surviving crossing records`, not this
+  row's cause) is filed in that PR.
+- Friction: the session's disk allowance (about 40 GB) holds about four
+  building lanes. One lane's target reached 11 GB, and free space fell to
+  5.8 GB. — (CONTACTHOLD orchestrator)
