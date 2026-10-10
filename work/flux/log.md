@@ -193,3 +193,8 @@ The rest moved by `git mv`, ids and bodies unchanged:
 **Band collision fixed.** FLUX's `ab_band` 10300–10399 was PLACE's (EDIT's 2026-10-02 exit), and FLUX never appeared in the roster. FLUX now takes 12600–12699. The cut claims 12200–12599 for its four new programs (`docs/MODEL-AB-LOG.md`). No FLUX ordinal was ever drawn.
 
 **What FLUX does next.** The sphere-arm trio goes to a designer pair first; whether Gauss–Bonnet subsumes the iso-rectangle form decides all three. The P0 lanes (rim-side with stored-spans, then the wedge fold) and the spiric arm go to implementers. All of them edit `props/curved.rs`, so they are sequenced or seamed. — (FLUX orchestrator)
+- 2026-10-10 — **Wave 1 dispatched.**
+  - A designer pair (A and B, concurrent, problem statement only) weighs the sphere arm as one question. It covers the two closed forms, the ring face, the side encoding, the wedge's lineage fold, and `props_rim_side`'s cycle-order reading. Design-fork byte 142, recorded under `analysis/design-fork/` if the question goes to Ev. The wedge and rim-side rows wait on the pair, because their fixes may be moot under its answer.
+  - Implementer `flux/ellipse-ring` (P0 H) has its own cloud session.
+  - Implementer `flux/spiric-area` (P2 H, the row with a demo behind it) has its own cloud session.
+  - Both implementers edit `props/curved.rs` and are seamed to each other. Their review tier is set when each PR is up. Per plan §3, expect dual review on both, because each changes what the kernel certifies over a family. — (FLUX orchestrator)
