@@ -73,10 +73,10 @@ mod a_ruling_lying_on_a_wall;
 mod a_swept_cusp_is_legal_at_rest;
 #[path = "a_tube_ending_on_a_ball.rs"]
 mod a_tube_ending_on_a_ball;
-#[path = "an_arc_tangent_at_a_boolean_vertex_curves_off.rs"]
-mod an_arc_tangent_at_a_boolean_vertex_curves_off;
 #[path = "an_annular_tube_through_a_plate.rs"]
 mod an_annular_tube_through_a_plate;
+#[path = "an_arc_tangent_at_a_boolean_vertex_curves_off.rs"]
+mod an_arc_tangent_at_a_boolean_vertex_curves_off;
 #[path = "at_rest_pcurve_faces.rs"]
 mod at_rest_pcurve_faces;
 #[path = "band_apart_partners_on_a_steep_ellipse.rs"]

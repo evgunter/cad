@@ -175,7 +175,8 @@ fn an_arc_tangent_at_a_boolean_vertex_curves_off() {
             let mut d = BooleanDeclarations::none();
             let mut push = |fs: topo::FaceKey, fr: topo::FaceKey, class: ContactClass| {
                 let (a, b) = if slab_first { (fs, fr) } else { (fr, fs) };
-                d.coincident_faces.push(FacePairDeclaration::new(a, b, class));
+                d.coincident_faces
+                    .push(FacePairDeclaration::new(a, b, class));
             };
             if level >= 1 {
                 push(
