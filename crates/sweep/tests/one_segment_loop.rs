@@ -1052,3 +1052,63 @@ fn segment_curve_converts_a_closed_arc_only_as_one_full_turn() {
         );
     }
 }
+
+/// **A one-segment strut runs its column back without rounding a knot.**
+/// The wall's `u = 0` column carries the sections' chord-length
+/// parameters, and on many of these stacks some have no reflection
+/// about `[0, 1]` that is an `f64` (`1 − fl(1/3)` is not one; refusing
+/// those would stop 4 equal sections at degree 1, `[0, 1, 3]` at
+/// degree 1, and 6, 7 and 8 sections at several degrees), so the strut
+/// is the column reflected through 0: on `[−1, 0]`, the column's knots
+/// negated. Every stack builds at every degree up to 3 it supports,
+/// and each strut's carrier is exactly that.
+#[test]
+fn a_one_segment_strut_runs_its_column_back_on_the_negated_knots() {
+    let stacks: Vec<Vec<f64>> = [&[0.0, 1.0, 3.0][..], &[0.0, 0.7, 2.0]]
+        .into_iter()
+        .map(<[f64]>::to_vec)
+        .chain((2..=9).map(|k| (0..k).map(f64::from).collect()))
+        .collect();
+    let cases: Vec<(&[f64], usize)> = stacks
+        .iter()
+        .flat_map(|z| (1..z.len().min(4)).map(move |degree| (&z[..], degree)))
+        .collect();
+    assert_eq!(
+        cases.len(),
+        25,
+        "every stack at every degree up to 3 it supports"
+    );
+    for (z, degree) in cases {
+        let places = sweep::test_support::stacked_at(z);
+        let sections: Vec<_> = z
+            .iter()
+            .map(|_| vec![circle::<f64>(0.0, 0.0, 1.0, TAU)])
+            .collect();
+        let lofted = sweep::loft_body::<f64>(&sections, &places, degree, tol())
+            .unwrap_or_else(|e| panic!("{z:?} at degree {degree}: the loft builds: {e}"));
+        let [(wall, strut)] = wrap_edges(&lofted.body)[..] else {
+            panic!("{z:?}: one wrap edge")
+        };
+        let Some(topo::CurveGeom::Certified(c)) = lofted
+            .body
+            .get_curve_geom(lofted.body.get_edge(strut).unwrap().curve)
+        else {
+            panic!("{z:?}: the strut is certified")
+        };
+        let geom::Curve3::Nurbs(carrier) = c.carrier() else {
+            panic!("{z:?}: the strut is a spline")
+        };
+        let Some(geom::Surface::Nurbs(chart)) = lofted
+            .body
+            .get_surface(lofted.body.get_face(wall).unwrap().surface)
+        else {
+            panic!("{z:?}: the wall is a spline chart")
+        };
+        assert_eq!(c.params(), (-1.0, 0.0), "{z:?}: the strut's interval");
+        assert_eq!(
+            carrier.knots().knots(),
+            chart.knots_v().negated().knots(),
+            "{z:?}: the strut's knots are the column's, negated"
+        );
+    }
+}
