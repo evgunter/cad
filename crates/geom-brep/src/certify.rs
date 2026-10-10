@@ -5093,7 +5093,7 @@ mod tests {
             (
                 undecided(CertCheck::Transversality, MarginDiag::INVALID),
                 "Recourse: move the geometry so the surfaces cross at a clearer angle; an unreadable \
-                 or collapsed margin may indicate a kernel bug worth reporting",
+                 margin may indicate a kernel bug worth reporting",
             ),
             (
                 undecided(CertCheck::EndpointStart, MarginDiag::value(5e-9)),

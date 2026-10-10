@@ -819,15 +819,15 @@ pub use boolean::{
     Coincide, CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, ContactRecords,
     ContainDecision, ContainError, Contradiction, CurveContact, DeclarationRead, DiscardRow,
     EdgeJoin, EdgePieceClass, EeContact, FaceContainment, FacePairDeclaration, Fusions, HeldEdge,
-    JoinReading, JoinRefusal, JoinUndecided, LeverArm, NeighbourOffset, NullEdgePairRecord,
-    Operand, OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread, PatchContact,
-    PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
-    PointInSolidError, SectorRead, SectorRung, SelfCheck, Settling, ShellOrientation, SideCode,
-    SolidContainment, SolidFaces, SphereQuestion, SweepStrategy, SweepTrace, TorusConvention,
-    VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact,
-    WallRung, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq, contfp,
-    curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
-    insert_voids, intersect, intersect_with, is_conventional_vertex, join_covers,
+    JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided, LeverArm, NeighbourOffset,
+    NullEdgePairRecord, Operand, OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread,
+    PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation,
+    PlaneRung, PointInSolidError, SectorRead, SectorRung, SelfCheck, Settling, ShellOrientation,
+    SideCode, SolidContainment, SolidFaces, SphereQuestion, SweepStrategy, SweepTrace,
+    TorusConvention, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
+    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, boolean_reduce_declared,
+    carrier_eq, contfp, curved_face_containment, decision_words, face_carrier, flush_pair_relation,
+    insert_void, insert_voids, intersect, intersect_with, is_conventional_vertex, join_covers,
     joinable_vertices, joined_edge, lineage_root, oriented_plane_eq, point_in_solid,
     point_in_solid_faces, point_in_solid_of, subtract, subtract_with, tangent_pair_relation, union,
     union_with,
@@ -871,7 +871,7 @@ pub use chart::{Chart, ChartKind};
 pub use chart_bound::{ChartBound, ChartEdge, ChartLoop, MetredBound, MetredRect};
 pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth, unwrap_near};
 pub use chart_region::{
-    ChartOverlap, ChartRegionError, RegionLane, WITNESS_BUDGET, WitnessBudget,
+    ChartOverlap, ChartRegionError, RegionLane, WITNESS_CELL_CAP, WITNESS_SEGMENT_CAP,
     chart_region_overlap, declared_pair_overlap,
 };
 pub use coherence::{

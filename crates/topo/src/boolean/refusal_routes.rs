@@ -331,7 +331,7 @@ pub enum BooleanDecision {
         /// The binding shell's solid, in the refused result. The result is
         /// never returned, so this and `shell` are diagnostic only: they
         /// tell refusals apart, and locate nothing a caller holds
-        /// (`work/join/the-shell-role-refusal-locates-no-piece.md`).
+        /// (`work/tally/the-shell-role-refusal-locates-no-piece.md`).
         solid: crate::entity::SolidKey,
         /// The binding shell, diagnostic only as `solid` is.
         shell: crate::entity::ShellKey,
@@ -1266,7 +1266,7 @@ impl Ending {
         let arm = RefusedArm::Undecided(diag);
         match self {
             Self::Sized(decision) => decision.recourse(arm, Reading::Build),
-            Self::Lever(lever) => LeverOnly { lever }.recourse(arm),
+            Self::Lever(lever) => LeverOnly { lever }.recourse(arm, Reading::Build),
             Self::Frontier(what) => format!("{what}. {}", geom_core::NOT_YET_ENDING),
             Self::Unsized(decision) => decision.recourse(arm, Reading::Build),
             Self::Placement(decision, escalation) => decision.lever_ending(escalation, diag),

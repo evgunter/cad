@@ -7,7 +7,7 @@ opened: 2026-10-05
 priority: P1
 cost: M
 closed: 2026-10-08
-refs: [4044, interior-loop-cut-in, a-sphere-crossing-a-sphere-face-off-every-edge-refuses-spheres-meet]
+refs: [4044, interior-loop-cut-in, 4344]
 ---
 
 
