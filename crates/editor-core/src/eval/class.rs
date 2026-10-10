@@ -156,18 +156,14 @@ pub enum NodeErrorClass {
     UnschedulableCycle,
     /// [`NodeErrorKind::Naming`].
     Naming,
-    /// [`NodeErrorKind::ParamSourceAttach`].
-    ParamSourceAttach,
     /// [`NodeErrorKind::DeclareResolve`].
     DeclareResolve,
     /// [`NodeErrorKind::DeclareSiteNotAnOperand`].
     DeclareSiteNotAnOperand,
     /// [`NodeErrorKind::DeclareUnsupportedPair`].
     DeclareUnsupportedPair,
-    /// [`NodeErrorKind::UndeclaredCoincidence`].
-    UndeclaredCoincidence,
-    /// [`NodeErrorKind::UndeclarableContact`].
-    UndeclarableContact,
+    /// [`NodeErrorKind::UnionFoldStep`].
+    UnionFoldStep,
     /// [`NodeErrorKind::BlendSelectionEmpty`] refused by a fillet.
     FilletSelectionEmpty,
     /// [`NodeErrorKind::BlendSelectionEmpty`] refused by a chamfer.
@@ -340,12 +336,10 @@ impl NodeErrorKind {
             Self::PlacementRule(fault) => C::of_placement_rule(fault),
             Self::UnschedulableCycle => C::UnschedulableCycle,
             Self::Naming(_) => C::Naming,
-            Self::ParamSourceAttach(_) => C::ParamSourceAttach,
             Self::DeclareResolve { .. } => C::DeclareResolve,
             Self::DeclareSiteNotAnOperand { .. } => C::DeclareSiteNotAnOperand,
             Self::DeclareUnsupportedPair { .. } => C::DeclareUnsupportedPair,
-            Self::UndeclaredCoincidence { .. } => C::UndeclaredCoincidence,
-            Self::UndeclarableContact { .. } => C::UndeclarableContact,
+            Self::UnionFoldStep { .. } => C::UnionFoldStep,
             Self::BlendSelectionEmpty { verb } => {
                 by_verb(*verb, C::FilletSelectionEmpty, C::ChamferSelectionEmpty)
             }
@@ -559,12 +553,10 @@ mod tests {
         PlacementRuleNonRigidFrame,
         UnschedulableCycle,
         Naming,
-        ParamSourceAttach,
         DeclareResolve,
         DeclareSiteNotAnOperand,
         DeclareUnsupportedPair,
-        UndeclaredCoincidence,
-        UndeclarableContact,
+        UnionFoldStep,
         FilletSelectionEmpty,
         ChamferSelectionEmpty,
         Shell,
@@ -885,7 +877,6 @@ mod tests {
             C::Naming => K::Naming(crate::NamingError::Emission {
                 what: "a cap face with no profile loop behind it",
             }),
-            C::ParamSourceAttach => K::ParamSourceAttach(topo::ParamAttachError::StaleKey),
             C::DeclareResolve => K::DeclareResolve {
                 error: resolve_error(),
                 reference: 0,
@@ -895,30 +886,9 @@ mod tests {
                 kinds: (EntityKind::Edge, EntityKind::Vertex),
                 cross_operand: true,
             },
-            C::UndeclaredCoincidence => K::UndeclaredCoincidence {
-                finding: Box::new(crate::FlushFinding {
-                    pair: (
-                        crate::SitedRef {
-                            at: n(2),
-                            name: name(),
-                        },
-                        crate::SitedRef {
-                            at: n(3),
-                            name: name(),
-                        },
-                    ),
-                    class: topo::BooleanCoincidence::REST,
-                    evidence: crate::FlushEvidence {
-                        relation: topo::PlaneRelation::SameOpposite,
-                        rung: crate::FlushRung::DecidedCoincident,
-                    },
-                }),
-                merged: Box::new((Vec::new(), Vec::new())),
-                diag: diag(),
-            },
-            C::UndeclarableContact => K::UndeclarableContact {
-                row: Box::new(name()),
-                diag: diag(),
+            C::UnionFoldStep => K::UnionFoldStep {
+                member: n(2),
+                refusal: Box::new(K::UnschedulableCycle),
             },
             C::FilletSelectionEmpty => K::BlendSelectionEmpty {
                 verb: BlendKind::Fillet,

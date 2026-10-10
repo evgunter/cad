@@ -2237,12 +2237,12 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// Contact is judged pairwise, before the fold: every two members
     /// whose boxes meet, or between which a pair is declared, are
     /// evaluated as the two-member union of just those two, with the
-    /// pairs declared between them, and two members
-    /// that touch with the contact undeclared refuse `UndeclaredCoincidence`
-    /// exactly as a pair boolean's operands do. That holds in every
-    /// member order, and for a contact a third member covers too. The
-    /// fold then builds the body and judges no contact of its own. The
-    /// recourse is the pair boolean's: declared pairs on this node
+    /// pairs declared between them, so two members that touch with the
+    /// contact undeclared glue or refuse exactly as a pair boolean's
+    /// operands do. That holds in every member order, and for a contact
+    /// a third member covers too. The fold then builds the body and
+    /// judges no contact of its own. Declarations are the pair
+    /// boolean's: declared pairs on this node
     /// ([`DeclaredPair`], set on a live node by
     /// [`crate::DocEdit::SetDeclare`]). They name SITED entities
     /// ([`SitedRef`]) — the entity's name in a MEMBER's own table,

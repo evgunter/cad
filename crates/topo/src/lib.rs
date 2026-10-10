@@ -190,7 +190,6 @@ pub mod offset_derive;
 pub mod offset_nappe;
 pub(crate) mod offset_restate;
 pub mod offset_together;
-pub mod param_source;
 pub mod pcurves;
 pub mod pieces;
 pub(crate) mod policy_lane;
@@ -235,7 +234,6 @@ pub mod separation;
 #[cfg(test)]
 pub(crate) mod seqgen;
 pub mod shell;
-pub mod source;
 pub mod split;
 pub mod splitting;
 pub(crate) mod stands;
@@ -819,18 +817,18 @@ pub use boolean::{
     Coincide, CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, ContactRecords,
     ContainDecision, ContainError, Contradiction, CurveContact, DeclarationRead, DiscardRow,
     EdgeJoin, EdgePieceClass, EeContact, FaceContainment, FacePairDeclaration, Fusions, HeldEdge,
-    JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided, LeverArm, NeighbourOffset,
+    JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided, LeverArm,
     NullEdgePairRecord, Operand, OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread,
     PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation,
     PlaneRung, PointInSolidError, SectorRead, SectorRung, SelfCheck, Settling, ShellOrientation,
     SideCode, SolidContainment, SolidFaces, SphereQuestion, SweepStrategy, SweepTrace,
-    TorusConvention, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
-    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, boolean_reduce_declared,
-    carrier_eq, contfp, curved_face_containment, decision_words, face_carrier, flush_pair_relation,
-    insert_void, insert_voids, intersect, intersect_with, is_conventional_vertex, join_covers,
-    joinable_vertices, joined_edge, lineage_root, oriented_plane_eq, point_in_solid,
-    point_in_solid_faces, point_in_solid_of, subtract, subtract_with, tangent_pair_relation, union,
-    union_with,
+    TorusConvention, VeContact, Verdicts, VfContact, VoidContainment, VoidEvidence,
+    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce,
+    boolean_reduce_declared, carrier_eq, contfp, curved_face_containment, decision_words,
+    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect, intersect_with,
+    is_conventional_vertex, join_covers, joinable_vertices, joined_edge, lineage_root,
+    oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, subtract,
+    subtract_with, tangent_pair_relation, union, union_with,
 };
 pub use joint::{Deck, JointElement};
 pub use surgery::Surgery;
@@ -912,7 +910,6 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
 pub use face_boxes::{FaceBox, FaceBoxes};
-pub use param_source::{ParamAttachError, ParamSource, SurfaceField, field_source_evidence};
 pub use pieces::PieceSortError;
 pub use query::{
     CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimBreak, RimError, SEL_DATUM_DISTANCE,
@@ -928,10 +925,6 @@ pub use replace_face::{offset_corner_arms_for_tests, offset_edge_plans_for_tests
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
 pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
-};
-pub use source::{
-    AxisAttachError, AxisPlacement, AxisRecord, AxisSource, GeomOrigin, GeomSource, Or,
-    SourceAttachError, SourceExpr,
 };
 pub use split::SplitEdgeCreated;
 pub use splitting::{

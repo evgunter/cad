@@ -156,7 +156,6 @@ use pncad::select::{
 use pncad::step_import::{NormalizationKind, PromotedCurveKind, PromotedKind, StepImportError};
 use pncad::sweep::blend::BlendError;
 use pncad::sweep::{ExtrudeError, LoftError, RevolveError, SkinError, TubeError};
-use pncad::topo::param_source::ParamAttachError;
 use pncad::topo::splitting::SplitError as SplitOpError;
 use pncad::topo::{
     BooleanErrorKind, CensusContact, CensusSubject, EntityId, JoinRefusal, RingContact,
@@ -1008,19 +1007,10 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::PlacementRuleNonRigidFrame => "non_rigid_placement",
         C::UnschedulableCycle => "unschedulable_cycle",
         C::Naming => "naming",
-        C::ParamSourceAttach => "param_source_attach",
         C::DeclareResolve => "declare_resolve",
         C::DeclareUnsupportedPair => "declare_unsupported_pair",
         C::DeclareSiteNotAnOperand => "declare_site_not_an_operand",
-        // The refusal MENU: the boolean's
-        // undeclared-contact refusal carrying the candidate
-        // declaration; the `finding` payload crosses as a typed
-        // attribute beside this tag.
-        C::UndeclaredCoincidence => "undeclared_coincidence",
-        // The same refusal with no declare arm: the contact is
-        // against a row the union's own fold minted, which no sited
-        // declaration names.
-        C::UndeclarableContact => "undeclarable_contact",
+        C::UnionFoldStep => "union_fold_step",
         C::FilletSelectionEmpty => "fillet_selection_empty",
         C::ChamferSelectionEmpty => "chamfer_selection_empty",
         // The shell: ONE tag for the op's refusal family (the
@@ -1196,16 +1186,11 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::PlacementRule(fault) => placement_rule_inner_tag(fault),
         NodeErrorKind::UnschedulableCycle => None,
         NodeErrorKind::Naming(inner) => Some(naming_error_tag(inner)),
-        NodeErrorKind::ParamSourceAttach(inner) => Some(param_attach_error_tag(inner)),
         NodeErrorKind::DeclareResolve { error, .. } => Some(resolve_error_tag(error)),
         NodeErrorKind::DeclareSiteNotAnOperand { .. } => None,
         NodeErrorKind::DeclareUnsupportedPair { .. } => None,
-        // The candidate declaration crosses whole, as the `finding`
-        // attribute; the refusing predicate's diagnostic is a margin.
-        NodeErrorKind::UndeclaredCoincidence { .. } => None,
-        // The row it names crosses in the message; there is no inner
-        // refusal to delegate to.
-        NodeErrorKind::UndeclarableContact { .. } => None,
+        // The step's own refusal crosses in the message.
+        NodeErrorKind::UnionFoldStep { .. } => None,
         NodeErrorKind::BlendSelectionEmpty { .. } => None,
         NodeErrorKind::Shell(inner) => Some(shell_error_tag(inner)),
         NodeErrorKind::ShellLaneUnsupported { .. } => None,
@@ -1610,13 +1595,6 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
 /// with no arm behind it is a phantom, and the fix is to delete it
 /// kernel-side; minting a tag for one would publish an FFI name no
 /// refusal can ever carry.
-///
-/// `undeclared_coincidence` is here and is ALSO the node kind the
-/// detect/declare protocol raises: the document layer lifts the kernel
-/// refusal to its own `undeclared_coincidence` node kind with the
-/// candidate declaration attached, and this arm (an `inner_kind`) is
-/// what survives when a key fails to resolve to a name. One
-/// coincidence, one word, two attributes.
 pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
     match kind {
         BooleanErrorKind::Band => "band",
@@ -1640,7 +1618,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::NonFiniteSectorChord => "non_finite_sector_chord",
         BooleanErrorKind::UnderflowedSectorChord => "underflowed_sector_chord",
         BooleanErrorKind::Escalated => "escalated",
-        BooleanErrorKind::UndeclaredCoincidence => "undeclared_coincidence",
         BooleanErrorKind::PoisonedCarrierDatum => "poisoned_carrier_datum",
         BooleanErrorKind::DeclarationContradicted => "declaration_contradicted",
         BooleanErrorKind::ContactContradicted => "contact_contradicted",
@@ -1793,15 +1770,6 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::SharedRim { found, .. } => rim_share_tag(found),
         NamingError::Band(e) => band_error_tag(e),
         NamingError::Escalated { .. } => "escalated",
-    }
-}
-
-/// The stable tag for a lowered parameter-identity attach refusal —
-/// the inner arm of [`NodeErrorKind::ParamSourceAttach`].
-pub fn param_attach_error_tag(err: &ParamAttachError) -> &'static str {
-    match err {
-        ParamAttachError::StaleKey => "stale_key",
-        ParamAttachError::FieldNotOnKind { .. } => "field_not_on_kind",
     }
 }
 
@@ -3004,6 +2972,8 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::EqualAngles => "equal_angles",
         R::Tangent { aligned: true } => "tangent",
         R::Tangent { aligned: false } => "cusp",
+        R::TangentContact { seam: false } => "tangent_contact",
+        R::TangentContact { seam: true } => "seam",
         R::Coaxial => "coaxial",
         R::CoRuled => "co_ruled",
     }
@@ -3016,6 +2986,8 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
     match site {
         S::PlaneLadder => "plane_ladder",
         S::CarrierLadder => "carrier_ladder",
+        S::TangentWitness => "tangent_witness",
+        S::CoaxialSphere => "coaxial_sphere",
         S::SplitOn => "split_on",
         S::BatteryTurn => "battery_turn",
         S::BatteryJoint => "battery_joint",

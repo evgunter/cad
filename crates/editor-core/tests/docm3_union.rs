@@ -946,10 +946,8 @@ fn a_union_is_one_body_at_an_operand_seat() {
 }
 
 // ---------------------------------------------------------------------
-// The refusal's name space. Adopted from `docm/3-review-r1`'s
-// `r1_refusal_from_a_later_fold_step_names_union_space_names`; R2's
-// `r2_a_refusal_at_a_later_fold_step_names_a_fold_row` measured the
-// same defect from the other side.
+// A later fold step against a flush member: what it glues and what
+// the union publishes.
 // ---------------------------------------------------------------------
 
 /// A box on a frame at height `z0`, footprint `[x0,x1]×[y0,y1]`.
@@ -984,43 +982,33 @@ fn failure(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<String> {
     }
 }
 
-/// **A refusal raised at a LATER fold step names entities in the
-/// union's published space**, not in the fold's internal one.
-///
-/// `refusal_menu` resolves the raise site's face keys through the two
-/// operand tables. From step 2 on the `a` side is the ACCUMULATED
-/// table — the pair emitter's, `FromA`/`FromB`-headed — so an
-/// unfiltered refusal carries a name minted under the union's id that
-/// NO published table holds: `resolve` cannot look it up and a selector
-/// written against it matches nothing. Every name a union's refusal
-/// carries goes through the same collapse `name_union` applies, so what
-/// comes out is member-keyed.
+/// **A union whose LATER fold step meets a flush member builds, as the
+/// pair boolean of the two members that touch does, and publishes only
+/// member-space names.**
 ///
 /// The third member shares member 0's `x = 1` plane over a patch member
-/// 1 does not cover, so step 2 raises `UndeclaredCoincidence` — and the
-/// PAIR spelling of that same contact refuses identically, which is
-/// what says the fold added no refusal, only a name space.
-///
-/// The recourse a caller whose members touch has is this node's own
-/// `declare` list, whose pairs are exactly what this refusal hands
-/// back: each side a `SitedRef` naming the MEMBER it was read at and
-/// the entity's name in that member's own table, which is a
-/// declaration the caller can write verbatim (`docm7_union_declare`).
+/// 1 does not cover, so step 2 folds a coincident pair against the
+/// ACCUMULATED operand, whose table is the pair emitter's,
+/// `FromA`/`FromB`-headed. The margins decide that pair one carrier, so
+/// the step glues it undeclared exactly as the pair spelling `a ∪ d`
+/// does; the union's published table carries no fold row; and declaring
+/// every finding the detector reports between the members builds the
+/// same body bit for bit.
 #[test]
-fn a_refusal_at_a_later_fold_step_names_member_space_entities() {
+fn a_later_fold_step_glues_a_flush_member_as_the_pair_does() {
     let doc = ProfileDoc::empty_derived("docm3_union_menu", Tol::witness());
     let (doc, a) = boxed(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = boxed(doc, (0.5, 1.5), (0.2, 0.8), 0.2, 0.5);
     let (doc, d) = boxed(doc, (1.0, 2.0), (0.0, 0.15), 0.0, 1.0);
-    let (doc, u) = insert(
-        doc,
+    let (bare, u) = insert(
+        doc.clone(),
         Node::Union {
             members: vec![a.into(), b.into(), d.into()],
             declare: Vec::new(),
         },
     );
-    let (doc, pair) = insert(
-        doc,
+    let (bare, pair) = insert(
+        bare,
         Node::Boolean {
             op: BooleanOp::Union,
             a: a.into(),
@@ -1028,44 +1016,24 @@ fn a_refusal_at_a_later_fold_step_names_member_space_entities() {
             declare: Vec::new(),
         },
     );
-    let ev = run(&doc);
-    let pf = failure(&ev, pair).expect("the pair spelling refuses the undeclared contact");
-    let class = |id| ev.node_error(id).map(|e| e.kind.class());
-    assert_eq!(
-        class(pair),
-        Some(editor_core::NodeErrorClass::UndeclaredCoincidence),
-        "{pf}"
-    );
-    let uf = failure(&ev, u).expect("the fold refuses the undeclared contact at step 2");
-    assert_eq!(
-        class(u),
-        class(pair),
-        "the fold's refusal is the pair's, not a new class: {uf}"
-    );
-    // The whole point: no fold row survives into the refusal.
+    let ev = run(&bare);
+    assert_eq!(failure(&ev, pair), None, "the pair spelling builds");
+    assert_eq!(failure(&ev, u), None, "the fold builds through step 2");
+    let table = format!("{:?}", ev.value(u).expect("the union built").name_table);
     assert!(
-        !uf.contains("FromA(") && !uf.contains("FromB("),
-        "the fold's refusal names an uncollapsed fold row: {uf}"
+        !table.contains("FromA(") && !table.contains("FromB("),
+        "the union publishes an uncollapsed fold row: {table}"
     );
-    // And what it hands back is a declarable pair: each side sited at
-    // the member it was read at, named in that member's own table.
-    let Some(editor_core::NodeResult::Failed(e)) = ev.nodes.get(&u) else {
-        panic!("the fold refuses")
-    };
-    let editor_core::NodeErrorKind::UndeclaredCoincidence { finding, .. } = &e.kind else {
-        panic!("the fold's refusal is the undeclared contact: {uf}")
-    };
-    let sites = [finding.pair.0.at, finding.pair.1.at];
-    assert!(
-        sites.contains(&a) && sites.contains(&d),
-        "the refusal sites its two faces at the members that touch: {sites:?}"
+    let pairs = crate::fixture::findings_declared(&ev, &[a, b, d]);
+    assert!(!pairs.is_empty(), "the flush members have findings");
+    let (declared, du) = crate::fixture::union_over(doc, &[a, b, d], pairs);
+    let dev = run(&declared);
+    assert_eq!(failure(&dev, du), None, "the declared union builds");
+    assert_eq!(
+        crate::fixture::built_bits(&dev, du),
+        crate::fixture::built_bits(&ev, u),
+        "the declared union is the undeclared one's body"
     );
-    for r in [&finding.pair.0, &finding.pair.1] {
-        assert_eq!(
-            r.name.node, r.at,
-            "and names each in that member's own table, not in the union's"
-        );
-    }
 }
 
 // ---------------------------------------------------------------------

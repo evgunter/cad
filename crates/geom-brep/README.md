@@ -136,12 +136,14 @@ picks.** `CertCheck` carries a `Display` on its declaring row, written
 as an exhaustive match so a check the taxonomy gains has no word until
 someone writes one, and `CertifyError`'s three check-naming arms render
 through it. Each word is the phrase a person would write ("the
-out-of-halfplane component"), not the variant identifier: these rows are
+between-samples sag bound"), not the variant identifier: these rows are
 not doors anyone calls, so the identifier buys a reader nothing that the
 typed field does not already give a program, and every neighbouring arm
 of the same `Display` is English prose. The word also carries the KIND
-of quantity the check meters, because the sentence cannot — five of the
-fifteen checks that reach the definite arm meter no residual. The
+of quantity the check meters, because the sentence cannot: not every
+check that reaches the definite arm meters a residual (a sup bound,
+`CertCheck::bounds_a_miss`; a parallelism defect), and the exhaustive
+match is where each one's kind is written. The
 censuses beside the taxonomy hold the words apart and hold each away
 from its identifier: two checks saying one phrase makes a refusal
 ambiguous about what it refused, and a phrase that IS the identifier is
@@ -486,8 +488,8 @@ Within-pair degeneracies are trileans run before any rung (axis
 parallelism at derived angular thresholds, centre/axis distances against
 radii): definitely generic goes to the arm's rung, exactly degenerate to
 the closed form, in-band to `SectionError::Escalated`. Equal cylinder
-radii are structural or declared (`RadiusEvidence`), never inferred from
-values. Tangential outcomes (`TangentLine`, `TangentPoint`) are
+radii, and a sphere's centre on a cylinder's axis, are decided by their
+margins like every other coincidence (D10). Tangential outcomes (`TangentLine`, `TangentPoint`) are
 classification data, refused as carriers. `SurfaceKind::Approx` is its
 own kind, and as an intersection operand it is its fit: `(Plane,
 Approx)` and `(Approx, Plane)` route to the plane×NURBS arm over

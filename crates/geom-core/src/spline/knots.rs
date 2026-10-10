@@ -799,29 +799,71 @@ impl KnotVector {
     ///
     /// [`two_sum`]: crate::exact::two_sum
     pub fn mirror_symmetric(&self) -> Result<(), KnotMirrorError> {
+        let Some(index) = self.first_unreflected(self)? else {
+            return Ok(());
+        };
         let (lo, hi) = self.domain();
+        let mirror_index = self.knots.len() - 1 - index;
+        Err(KnotMirrorError::AsymmetricPair {
+            index,
+            mirror_index,
+            knot: self.knots[index],
+            mirror_knot: self.knots[mirror_index],
+            lo,
+            hi,
+        })
+    }
+
+    /// Whether `other` is this vector reflected through a point: the
+    /// same degree and length, and `k_i + k'_{m−i} = S` in ℝ for every
+    /// `i`, with `S = lo + hi'` the sum of this vector's first knot and
+    /// `other`'s last. A net over `other` read backwards is then a net
+    /// over `self` reparameterized by `t ↦ S − t`. Reflected about its
+    /// own domain a vector has `S = lo + hi`, and
+    /// [`Self::mirror_symmetric`] is this test with `other = self`; its
+    /// docs say why the sums are compared exact — rebuilding the
+    /// mirror as `fl(lo + hi − k)` and comparing knots both admits a
+    /// vector an ulp off the mirror and refuses an exact one.
+    ///
+    /// An `S` that overflows decides nothing, and reads as `false`.
+    pub fn is_reflection_of(&self, other: &Self) -> bool {
+        self.degree == other.degree
+            && self.knots.len() == other.knots.len()
+            && matches!(self.first_unreflected(other), Ok(None))
+    }
+
+    /// This vector reflected through 0, `k'_i = −k_{m−i}` on
+    /// `[−hi, −lo]`: the one reflection every vector has exactly, since
+    /// negation does not round. A net over it is this vector's net
+    /// read backwards, reparameterized by `t ↦ −t`
+    /// ([`Self::is_reflection_of`] with `S = 0`).
+    #[must_use]
+    pub fn negated(&self) -> Self {
+        // `0.0 − k` rather than `−k`, so a zero knot stays `+0.0`.
+        let knots = self.knots.iter().rev().map(|k| 0.0 - k).collect();
+        Self::clamped(knots, self.degree)
+            .unwrap_or_else(|e| unreachable!("a clamped vector reflected through 0: {e}"))
+    }
+
+    /// The first index `i` whose knot and `other`'s `m − i` do not sum
+    /// exactly to `S`, this vector's first knot plus `other`'s last —
+    /// the one reflection rule, read by [`Self::mirror_symmetric`] and
+    /// [`Self::is_reflection_of`]. `other` has this vector's length.
+    /// The refusal's `lo` and `hi` are those two knots, so for
+    /// `other = self`, the only caller that surfaces it, they are the
+    /// domain's ends.
+    fn first_unreflected(&self, other: &Self) -> Result<Option<usize>, KnotMirrorError> {
+        // Indexing justified: a clamped vector is never empty.
+        let (lo, hi) = (self.knots[0], other.knots[other.knots.len() - 1]);
         let reflection = two_sum(lo, hi);
         if !reflection.0.is_finite() {
             return Err(KnotMirrorError::ReflectionNotFinite { lo, hi });
         }
-        let k = &self.knots;
-        let m = k.len() - 1;
-        for index in 0..=m / 2 {
-            let mirror_index = m - index;
-            // Indexing justified: index ≤ m/2 ≤ m and mirror_index ≤ m.
-            let (knot, mirror_knot) = (k[index], k[mirror_index]);
-            if two_sum(knot, mirror_knot) != reflection {
-                return Err(KnotMirrorError::AsymmetricPair {
-                    index,
-                    mirror_index,
-                    knot,
-                    mirror_knot,
-                    lo,
-                    hi,
-                });
-            }
-        }
-        Ok(())
+        Ok(self
+            .knots
+            .iter()
+            .zip(other.knots.iter().rev())
+            .position(|(&k, &mirror)| two_sum(k, mirror) != reflection))
     }
 
     /// The index of the first (nonempty) span: `degree`.
@@ -1667,6 +1709,52 @@ mod tests {
         assert!(
             e.to_string().contains("do not sum to 1 exactly."),
             "the message states the reflection it wanted, evaluated: {e}"
+        );
+    }
+
+    /// Two vectors are reflections of each other when their pairwise
+    /// sums are `lo + hi` in ℝ, which the rounded mirror `lo + hi − k`
+    /// misreads both ways: on `[0.1, 0.3]` the knots `0.25` and `0.15`
+    /// sum to `0.4` exactly while `fl(0.1 + 0.3 − 0.25)` is not `0.15`,
+    /// and on `[0, 1]` `fl(1 − 0.1)` is `0.9` while `0.1 + 0.9` is not 1.
+    #[test]
+    fn a_reflection_is_decided_on_exact_sums_not_on_a_rounded_mirror() {
+        let row = kv(&[0.1, 0.1, 0.25, 0.3, 0.3], 1);
+        let exact_mirror = kv(&[0.1, 0.1, 0.15, 0.3, 0.3], 1);
+        assert_ne!(
+            0.1 + 0.3 - 0.25,
+            0.15,
+            "the rounded mirror misses the exact one"
+        );
+        assert!(
+            row.is_reflection_of(&exact_mirror) && exact_mirror.is_reflection_of(&row),
+            "0.25 + 0.15 = 0.1 + 0.3 in ℝ, so each is the other's reflection"
+        );
+        let through_zero = row.negated();
+        assert_eq!(through_zero.knots(), &[-0.3, -0.3, -0.25, -0.1, -0.1]);
+        assert!(
+            row.is_reflection_of(&through_zero) && !row.is_reflection_of(&row),
+            "a vector is its own reflection through 0, and not about its domain"
+        );
+        let row = kv(&[0.0, 0.0, 0.1, 1.0, 1.0], 1);
+        let rounded_mirror = kv(&[0.0, 0.0, 0.9, 1.0, 1.0], 1);
+        assert_eq!(1.0 - 0.1, 0.9, "the rounded mirror reads as this vector");
+        assert!(
+            !row.is_reflection_of(&rounded_mirror),
+            "0.1 + 0.9 misses 1 by a 2Sum residual, so this is not a reflection"
+        );
+        assert!(
+            row.is_reflection_of(&row.negated()),
+            "the reflection through 0 is exact where the one about [0, 1] is not"
+        );
+        assert!(
+            !row.is_reflection_of(&kv(&[0.0, 0.0, 0.0, 0.9, 1.0, 1.0, 1.0], 2)),
+            "a different degree is not a reflection"
+        );
+        let symmetric = kv(&[0.0, 0.0, 0.0, 0.25, 0.75, 1.0, 1.0, 1.0], 2);
+        assert!(
+            symmetric.is_reflection_of(&symmetric),
+            "a mirror-symmetric vector is its own reflection"
         );
     }
 

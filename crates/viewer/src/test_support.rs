@@ -265,8 +265,7 @@ pub const BOSS_HEIGHT: f64 = 0.004;
 
 /// **A block and a boss drawn on its top cap**, answering the document,
 /// the block and the boss — FLUSH with each other at that cap by
-/// construction, which is the whole point of the scene: their union
-/// refuses until the contact is declared.
+/// construction, which is the whole point of the scene.
 ///
 /// The boss's frame is read off the block's top cap
 /// (`Datum::FaceFrame`, zero spin), the node the add-datum form mints
@@ -328,13 +327,6 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
     let (doc, _) = placed(&doc, block, tol);
     let (doc, _) = placed(&doc, boss, tol);
     (doc, block, boss)
-}
-
-/// The closed-form volume of [`boss_on_block`]'s union: the block's
-/// box and the boss's cylinder, which meet only at the cap.
-pub fn boss_on_block_union_volume() -> f64 {
-    let [width, height, depth] = BOSS_BLOCK;
-    width * height * depth + core::f64::consts::PI * BOSS_RADIUS * BOSS_RADIUS * BOSS_HEIGHT
 }
 
 /// **`doc` with `node` inserted, evaluated from scratch** — what the

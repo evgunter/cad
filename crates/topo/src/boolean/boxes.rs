@@ -57,16 +57,10 @@
 //!   operation whose faces never meet, unless the narrow phase behind
 //!   the overlap (`boolean::separating`, reaches along directions that
 //!   turn with the operands) parts the pair.
-//! - `boolean::reduce`'s undeclared-continuation scan
-//!   (`refuse_undeclared_continuations`, its boxes built by the
-//!   driver in `boolean/mod.rs` and passed in) mostly PRUNES: a face pair
-//!   or an edge pair whose boxes clear is never asked, and whether two
-//!   faces meet is decided point-on-edge through `Decide`, so a bigger
-//!   box costs exact work there. Its one box-decided answer is the
-//!   fallback for an edge whose carrier has no point parameter
-//!   (ellipse, spline), which reads a long enough overlap as a shared
-//!   curve. There a bigger box can refuse, as an undeclared
-//!   continuation, a pair that only touches.
+//! - the glue door (`boolean::glue`) only PRUNES: a face pair whose
+//!   boxes clear is never asked, and whether two faces lie on one
+//!   carrier is decided by the carrier ladder through `Decide`, so a
+//!   bigger box costs exact work there and decides nothing.
 //! - `separation` GRANTS on non-overlap — `Ok(())` IS the
 //!   disjointness certificate — so a bigger box refuses a placement
 //!   pair that is genuinely separated.
@@ -3480,7 +3474,13 @@ pub(crate) mod tests {
     ///
     /// - `boolean/reduce.rs` — the C10 candidate tree, face and edge.
     ///   **Prunes**: loose is slower work, never a different answer.
-    ///   The only door for which that is true.
+    /// - `boolean/glue.rs` — the glue door's box sweep
+    ///   (`overlapping_pairs`), face boxes of both operands, which its
+    ///   pair scan and its coaxial scan both read. **Prunes**: a loose box
+    ///   only adds pairs the carrier ladder reads and leaves apart,
+    ///   which is slower work and the same answer. A box TIGHTER than
+    ///   its face would miss a pair, which then reaches its site
+    ///   unglued and refuses there — loud, never a different body.
     /// - `boolean/ops.rs` — the curved-extent fallback, face and
     ///   edge: the cylinder-face arm clears a [`face_box`] against
     ///   the ball's extent, the scan's near-boundary test walks the
@@ -3569,12 +3569,9 @@ pub(crate) mod tests {
         // still gives — while the module docs' DOOR list above stays a
         // list of doors and gains nothing from the two.
         //
-        // `boolean/mod.rs`'s two and three of `boolean/reduce.rs`'s
-        // eight are ONE door, the undeclared-continuation scan: the
-        // driver builds its padded boxes (`boxes::face_box`/`edge_box`
-        // at `pad`) and hands them in as closures, and the scan's own
-        // calls through those closure parameters match the same text.
-        // So are one of `boolean/ops.rs`'s four and `pieces.rs`'s one:
+        // `boolean/glue.rs`'s two are one door, the sweep its pair scan
+        // and its coaxial scan share, boxing both operands' faces. One of
+        // `boolean/ops.rs`'s four and `pieces.rs`'s one are one door:
         // the boolean's exit builds the face-box closure the piece
         // sort's screen calls. Another of `ops.rs`'s four is not a door:
         // `the_approx_arm_asks_whether_the_ball_reaches_the_face` boxes
@@ -3584,9 +3581,9 @@ pub(crate) mod tests {
         // `edge_box` to show a torn link panics.
         const PINNED: [(&str, usize); 10] = [
             ("boolean/carrier_touch.rs", 1),
-            ("boolean/mod.rs", 2),
+            ("boolean/glue.rs", 2),
             ("boolean/ops.rs", 4),
-            ("boolean/reduce.rs", 8),
+            ("boolean/reduce.rs", 5),
             ("boolean/torn_hop_rows.rs", 4),
             ("census.rs", 7),
             ("face_boxes.rs", 1),
