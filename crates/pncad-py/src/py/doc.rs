@@ -2739,11 +2739,7 @@ impl Node {
     ) -> PyResult<Self> {
         let spin = slot_expr(py, d::SlotId::Spin, &spin)?;
         Ok(Self {
-            inner: d::Node::Datum(d::Datum::face_frame(
-                at.read(),
-                name_from_text(face)?,
-                spin,
-            )),
+            inner: d::Node::Datum(d::Datum::face_frame(at.read(), name_from_text(face)?, spin)),
         })
     }
 

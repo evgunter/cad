@@ -1383,6 +1383,8 @@ pub fn lower_slot_into<P>(doc: &mut Doc<P>, formula: &Formula) -> Result<VarId, 
 ///
 /// If `slot` reads no selection of the names' entity kind.
 #[doc(hidden)]
+#[track_caller]
+#[allow(clippy::expect_used)]
 pub fn selection_into<P>(
     doc: &mut Doc<P>,
     slot: crate::OperandSlot,

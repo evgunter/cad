@@ -193,10 +193,7 @@ fn slot_kind_tags_are_stable() {
         crate::errors::slot_kind_tag(SlotKind::Placeable),
         "placeable"
     );
-    assert_eq!(
-        crate::errors::slot_kind_tag(SlotKind::Measured),
-        "measured"
-    );
+    assert_eq!(crate::errors::slot_kind_tag(SlotKind::Measured), "measured");
 }
 
 /// The FFI tag and the kernel's prose word are two spellings of one
@@ -5723,8 +5720,23 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "operand_slot_tag",
         values: &[
-            "a", "axis", "b", "body", "face", "frame", "input", "measured", "member", "of", "open",
-            "path", "profile", "section", "selection", "target", "tool",
+            "a",
+            "axis",
+            "b",
+            "body",
+            "face",
+            "frame",
+            "input",
+            "measured",
+            "member",
+            "of",
+            "open",
+            "path",
+            "profile",
+            "section",
+            "selection",
+            "target",
+            "tool",
         ],
         delegates: &[],
     },
