@@ -2987,7 +2987,27 @@ pub fn split(
     // A remainder reader re-pointed to the instance's body reads the
     // part's whole world: by inline's rule ([`world_heir`]), the cut's
     // placements must be one at the identity, or it refuses. A
-    // selection names the copy it reads, so it asks no such thing.
+    // selection names the copy it reads, and that copy must stand where
+    // the body did — its placement at the identity — or the read would
+    // move (inline's `selection_heir` refuses the same).
+    for &(reader, _, var) in &crossing_reads {
+        let Some(select) = doc.selection(var) else {
+            continue;
+        };
+        let body = doc.operation_of(select.body);
+        for name in &select.names {
+            if let Some(placement) = placing_of(name, body)
+                && !places_at_identity(doc, placement)
+            {
+                return Err(SplitError::RemainderReadUncarried {
+                    reader: doc.spoken(reader),
+                    why: Uncarried::Posed {
+                        placement: doc.spoken(placement),
+                    },
+                });
+            }
+        }
+    }
     if let Some(&(reader, _, _)) = crossing_reads
         .iter()
         .find(|(_, _, var)| doc.selection(*var).is_none())

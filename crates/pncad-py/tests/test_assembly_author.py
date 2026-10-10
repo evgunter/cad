@@ -40,27 +40,17 @@ TWO THINGS THIS FILE CANNOT SAY, AND THEY ARE NOT DEFECTS OF IT
    against the placement arithmetic rather than against a
    transcribed coordinate.
 
-WHICH `RefusedRef` ARMS THIS FILE REACHES, AND WHY NOT THE OTHERS
-----------------------------------------------------------------
-`ref_moved_above` is reached below: `Node.mate` takes an operand,
-so a mate read at a transform that a `placed_union` consumes is
-authorable — the operand spells the name, and the placed union
-places that body again before the product holds it, so the gate
-names the operand and the placed union. (The kernel's own row spells
-the same document with `Node::Pattern`, which moves it the same way.)
-The other two are not reached here:
-
-* `ref_vanished` — the operand the mate reads at does not spell the
-  name, or a consumer above it merges, cuts or drops the face. The
-  first wants the referenced part to change shape under a name the
-  assembly still holds, which the pin gate refuses
-  (`part_pin_mismatch`) one door earlier; the second is the kernel's
-  own row (`msolve5_operand_refusals`, an empty boolean over the
-  operand).
-* `ref_ambiguous` — a tie. Nothing the instantiate seam's naming
-  produces is tied, and Python cannot hand-build a name.
-
-Each is bound and tagged; a reach appears when some other door does.
+WHAT THE GATE SAYS OF A MATE READ BELOW A PLACER, AND WHY
+---------------------------------------------------------
+A mate's side is a read of a face of the body it names, and the gate
+mints its declaration on the world copy of that body. `Node.mate` takes
+the node a side is read at, so a mate read at a transform that a
+`placed_union` consumes is authorable: no placement reads that
+transform, so the mate is no statement about the product, and the seat
+it would have declared is an undeclared contact (asserted below).
+`RefusedRef`'s one arm, `ref_ambiguous`, is a side whose body two
+placements copy; it is bound and tagged, and the kernel's own row
+(`intent_s2_f_mates`) reaches it.
 
 There is no arm for a head that is NOT A FACE, and that is the type's
 doing: a head is a `SitedFace` over a `FaceName`, `Node.mate` calls

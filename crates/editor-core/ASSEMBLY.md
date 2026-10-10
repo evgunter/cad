@@ -605,9 +605,9 @@ states the cause on its own row, and the mate points there.
 - **AQ8 — the crossing record's reachability.** A placing mate welds
   its ends into one group and never crosses a cut; a declaring mate
   (its ends on different gauges) may, and populates `InterfaceRecord`,
-  so no conversion door is needed. **Only a mate whose two face reads
-  resolve can cross** (ruled: option (b), SKIP): a mate a side of which
-  resolves to no member — a head outside A11's member vocabulary, or a
+  so no conversion door is needed. **Only a mate both of whose sides
+  resolve to members can cross** (ruled: option (b), SKIP): a mate a
+  side of which resolves to no member — a head outside A11's member vocabulary, or a
   read of nothing live — contributes no interface crossing however its
   names fall across a cut. Such a mate never solved, and a record minted from it would
   assert a relationship evaluation never established: trusted-at-rest

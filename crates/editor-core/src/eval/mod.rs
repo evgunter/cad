@@ -4212,10 +4212,14 @@ where
     // mate, and the instances' is the same fault seen from the group,
     // so poisoning the mate through them would lose the one sentence
     // that names it.
-    if matches!(node, crate::node::Node::Mate { .. })
+    // A side whose selection resolves nothing is the selection's
+    // refusal first, as the wire arm asks it first.
+    if let crate::node::Node::Mate { a, b, .. } = node
         && let Some(fault) = op_env.poses.fault(id)
     {
-        return fail(bracket, NodeErrorKind::Mate(Box::new(fault.clone())));
+        let kind = wire::side_refusal(doc, results, (*a, *b))
+            .unwrap_or_else(|| NodeErrorKind::Mate(Box::new(fault.clone())));
+        return fail(bracket, kind);
     }
     let mut keys: BTreeMap<RecipeNodeId, (ContentKey, NamingKey)> = BTreeMap::new();
     for input in doc.upstream_of(node) {

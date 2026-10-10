@@ -519,3 +519,57 @@ fn a_side_selection_of_a_patterns_copies_is_read_by_sides_alone() {
         measured.map(|out| editor_core::persist::save(&out.doc, &[], Tol::witness()).map(|_| ()))
     );
 }
+
+/// **A selection crosses only to a copy that stands where its body did**
+/// (review R2, M1). A measure reads a face of a local cube placed ten
+/// up: the cube's world copy is posed, so the remainder re-anchored on
+/// it would measure the world, not the body it read. The split refuses
+/// `RemainderReadUncarried { Posed }`, as inline would refuse to put it
+/// back.
+#[test]
+fn a_selection_crossing_a_posed_placement_refuses() {
+    let (doc, [x, t, _]) = lifted_cube_measured("f-posed", |x, _| x, |_, t| t);
+    // Re-place `x` itself, posed, and drop the transform's placement.
+    let placed_t = doc
+        .ids()
+        .into_iter()
+        .find(|&p| matches!(doc.node(p), Some(Node::PlaceInWorld { .. })) && doc.upstream(p).len() == 1
+            && doc.node(doc.upstream(p)[0]).is_some_and(|n| matches!(n, Node::Transform { .. })))
+        .expect("the transform is placed");
+    let (doc, _) = step(doc, DocEdit::DeleteNode { id: placed_t });
+    let (doc, posed) = step(
+        doc,
+        DocEdit::place(
+            editor_core::Operand::Node(x),
+            Some(editor_core::Placement::literal(&editor_core::Frame::translation([
+                0.0, 0.0, 10.0,
+            ]))),
+        ),
+    );
+    let posed = posed.expect("the placement mints");
+    let mut cut = std::collections::BTreeSet::from([posed]);
+    let mut stack = vec![t];
+    while let Some(n) = stack.pop() {
+        if cut.insert(n) {
+            stack.extend(doc.upstream(n));
+        }
+    }
+    let err = editor_core::split(
+        &doc,
+        &cut,
+        DocumentId::derive("f-posed-part"),
+        Tol::witness(),
+        None,
+    )
+    .expect_err("the measure's copy is posed");
+    assert!(
+        matches!(
+            &err,
+            SplitError::RemainderReadUncarried {
+                why: editor_core::Uncarried::Posed { placement },
+                ..
+            } if *placement == doc.spoken(posed)
+        ),
+        "{err:?}"
+    );
+}
