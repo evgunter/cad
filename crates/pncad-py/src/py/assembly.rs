@@ -746,9 +746,9 @@ impl InterferenceFinding {
         self.faces.clone()
     }
 
-    /// Why the overlap has no site — `refused`, `invalid`, `empty` or
-    /// `unnamed` — or `None` when `faces` names it. An unlocalized
-    /// overlap is loud and nothing quiets it.
+    /// Why the overlap has no site — `refused`, `invalid`, `empty`,
+    /// `unnamed` or `containment` — or `None` when `faces` names it. An
+    /// unlocalized overlap is loud and nothing quiets it.
     #[getter]
     fn unlocalized(&self) -> Option<&'static str> {
         self.unlocalized

@@ -256,3 +256,335 @@ fn a_holding_gap_over_the_unplaced_bodies_quiets_nothing() {
     };
     assert!(finding.is_loud(), "the bodies are not the copies");
 }
+
+/// A `Gap` over faces of two world copies, read where each copy holds
+/// it (`face.in_copy(placement)`), bounded by `relation` and `bound`.
+fn gap_at_copies(
+    doc: ProfileDoc,
+    (p, outer): (RecipeNodeId, StableName),
+    (q, inner): (RecipeNodeId, StableName),
+    relation: AssertionRelation,
+    bound: f64,
+) -> (ProfileDoc, RecipeNodeId) {
+    asserted_gap(
+        doc,
+        [
+            SitedRef::new(p, outer.in_copy(p)),
+            SitedRef::new(q, inner.in_copy(q)),
+        ],
+        relation,
+        bound,
+    )
+}
+
+/// The one finding of `doc`'s assembly.
+fn only_finding(doc: &ProfileDoc) -> InterferenceFinding {
+    let assembly = assembled(doc);
+    let [finding] = assembly.interference.as_slice() else {
+        panic!("one finding: {:?}", assembly.interference)
+    };
+    finding.clone()
+}
+
+/// **(B, test 6) Quiet by a one-sided negative bound, and only by
+/// one.** The slab overlap's `Gap(a's +x wall, b's −x wall)` over the
+/// two copies is −0.05. Under `≤ −0.01` and `= −0.05` the finding is
+/// listed and quiet, naming the assertion; under `≤ 0` (the bound is
+/// not negative), `≥ −0.1` (the relation admits clearance) and
+/// `≤ −0.1` (`Violated`) it stays loud.
+///
+/// Red if the rule reads the measure's value instead of the verdict
+/// (the violated row quiets), admits a straddling bound (`≤ 0` quiets),
+/// or ignores the relation (`≥` quiets).
+#[test]
+fn a_holding_negative_gap_over_the_copies_quiets_its_overlap_and_nothing_else_does() {
+    let (doc, a, b, p, q) = slab_overlap();
+    let (outer, inner) = (plus_x(&doc, a), minus_x(&doc, b));
+    for (relation, bound, quiet) in [
+        (AssertionRelation::AtMost, -0.01, true),
+        (AssertionRelation::Equal, -0.05, true),
+        (AssertionRelation::AtMost, 0.0, false),
+        (AssertionRelation::AtLeast, -0.1, false),
+        (AssertionRelation::AtMost, -0.1, false),
+    ] {
+        let (doc, assertion) = gap_at_copies(
+            doc.clone(),
+            (p, outer.clone()),
+            (q, inner.clone()),
+            relation,
+            bound,
+        );
+        let finding = only_finding(&doc);
+        assert_eq!(
+            finding.quiet,
+            quiet.then_some(assertion),
+            "gap −0.05 under {} {bound}",
+            relation.symbol()
+        );
+        assert!(
+            matches!(finding.overlap, Overlap::Bounded { .. }),
+            "a quiet finding is still listed with its site"
+        );
+    }
+}
+
+/// **(B, test 7) A second overlap of the same pair stays loud.** A
+/// U-shaped copy whose two lugs both overlap one block, their +x walls
+/// two faces on one carrier: two findings, and the assertion over the
+/// first lug's wall quiets the first alone (the clevis's second lug).
+///
+/// Red if the site is the copy pair or the carrier pair (both quiet).
+#[test]
+fn an_assertion_on_one_lug_leaves_the_second_lug_loud() {
+    let doc = ProfileDoc::empty_derived("intent-s5-b-clevis", Tol::witness());
+    let (doc, profile) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (-0.5, -0.5),
+            (0.5, -0.5),
+            (0.5, -0.2),
+            (0.0, -0.2),
+            (0.0, 0.2),
+            (0.5, 0.2),
+            (0.5, 0.5),
+            (-0.5, 0.5),
+        ]],
+    );
+    let (doc, clevis) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (doc, pin) = block(doc, (0.75, 0.0, 0.25), 0.3, 0.5);
+    let (doc, p) = place(doc, clevis);
+    let (doc, q) = place(doc, pin);
+    let (first, second) = (
+        fname(clevis, wall(&doc, clevis, 1)),
+        fname(clevis, wall(&doc, clevis, 5)),
+    );
+    let (doc, assertion) = gap_at_copies(
+        doc.clone(),
+        (p, first.clone()),
+        (q, minus_x(&doc, pin)),
+        AssertionRelation::AtMost,
+        -0.01,
+    );
+    let assembly = assembled(&doc);
+    assert_eq!(assembly.interference.len(), 2, "one finding per lug");
+    for finding in &assembly.interference {
+        let sites = sites(finding, &doc);
+        let expected = if sites.contains(&(p, first.clone())) {
+            Some(assertion)
+        } else {
+            assert!(
+                sites.contains(&(p, second.clone())),
+                "the other is the second lug's: {sites:?}"
+            );
+            None
+        };
+        assert_eq!(
+            finding.quiet, expected,
+            "the assertion speaks for its own lug only"
+        );
+    }
+}
+
+/// **(B) An overlap reaching past the asserted carriers stays loud.**
+/// `b` is an L whose foot sinks 0.2 into `a` beside the 0.05 slab, one
+/// connected overlap bounded by the asserted pair: the assertion's
+/// faces bound it, but the foot lies beyond `b`'s −x wall's carrier.
+///
+/// Red if the rule only asks that the assertion's faces bound the
+/// overlap (the sunk flange quiets).
+#[test]
+fn an_overlap_with_a_sunk_flange_stays_loud() {
+    let doc = ProfileDoc::empty_derived("intent-s5-b-flange", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 0.0, 0.0), 0.5, 1.0);
+    let (doc, profile) = on_frame(
+        doc,
+        [0.0, 0.0, 0.25],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (0.45, -0.3),
+            (1.05, -0.3),
+            (1.05, 0.3),
+            (0.3, 0.3),
+            (0.3, 0.1),
+            (0.45, 0.1),
+        ]],
+    );
+    let (doc, b) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(0.5),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (doc, p) = place(doc, a);
+    let (doc, q) = place(doc, b);
+    let (doc, _) = gap_at_copies(
+        doc.clone(),
+        (p, plus_x(&doc, a)),
+        (q, fname(b, wall(&doc, b, 5))),
+        AssertionRelation::AtMost,
+        -0.01,
+    );
+    let finding = only_finding(&doc);
+    assert!(
+        finding.is_loud(),
+        "the foot is beyond the asserted carriers: {finding:?}"
+    );
+}
+
+/// **(B, test 10) A failed requirement gates nothing.** The quieting
+/// assertion's measure names a face its copy does not hold, so the
+/// measure refuses and the assertion has no verdict: the gate still
+/// answers `Ok`, the finding is loud, and the assertion reports its
+/// own failure.
+#[test]
+fn a_gap_whose_face_vanished_quiets_nothing_and_gates_nothing() {
+    let (doc, a, b, p, q) = slab_overlap();
+    let vanished = fname(a, RoleSeg::Cap(editor_core::CapEnd::End)).in_copy(q);
+    let (doc, assertion) = asserted_gap(
+        doc.clone(),
+        [
+            SitedRef::new(p, plus_x(&doc, a).in_copy(p)),
+            SitedRef::new(q, vanished),
+        ],
+        AssertionRelation::AtMost,
+        -0.01,
+    );
+    let _ = b;
+    let run = corpus::eval::<f64>(&doc);
+    assert!(
+        !matches!(
+            run.value(assertion).map(|v| &v.payload),
+            Some(editor_core::ValuePayload::Assertion(_))
+        ),
+        "the assertion has no verdict"
+    );
+    let assembly = assemble(&doc, &run, Tol::witness()).expect("a failed assertion gates nothing");
+    let [finding] = assembly.interference.as_slice() else {
+        panic!("one finding: {:?}", assembly.interference)
+    };
+    assert!(finding.is_loud(), "and quiets nothing");
+}
+
+/// A plate with a 0.5 bore and a pin of radius `pin_r` through it,
+/// each placed once: `(doc, plate, pin, copy of plate, copy of pin,
+/// the bore's wall, the pin's wall)`.
+fn bore_and_pin(
+    pin_r: f64,
+) -> (
+    ProfileDoc,
+    RecipeNodeId,
+    RecipeNodeId,
+    RecipeNodeId,
+    StableName,
+    StableName,
+) {
+    use crate::fixture::{frame, piece};
+    use editor_core::{LoopProgram, ProfileProgram};
+    let circle = |r| LoopProgram::<Formula>::circle(0.0, 0.0, r).expect("a literal circle");
+    let prism = |doc: ProfileDoc, z, loops, h| {
+        let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+        let (doc, profile) = insert(
+            doc,
+            Node::Profile(ProfileProgram {
+                frame: plane.into(),
+                loops,
+                ids: Vec::new(),
+            }),
+        );
+        insert(
+            doc,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: len(h),
+                side: ExtrudeSide::Along,
+            },
+        )
+    };
+    let doc = ProfileDoc::empty_derived("intent-s5-b-press", Tol::witness());
+    let outline = crate::fixture::desc(RecipeNodeId::new(0, 0), vec![square(0.0, 0.0, 1.0)])
+        .loops
+        .remove(0);
+    let (doc, plate) = prism(doc, 0.0, vec![outline, circle(0.5)], 1.0);
+    let (doc, pin) = prism(doc, -0.5, vec![circle(pin_r)], 2.0);
+    let (doc, p) = place(doc, plate);
+    let (doc, q) = place(doc, pin);
+    let lateral =
+        |doc: &ProfileDoc, node, l| fname(node, RoleSeg::Lateral(piece(doc, node, l, 0).into()));
+    let (bore, wall) = (lateral(&doc, plate, 1), lateral(&doc, pin, 0));
+    (doc, p, q, plate, bore, wall)
+}
+
+/// **(B, test 6, curved) A press fit quiets under its bore's gap.** A
+/// pin of radius 0.505 through a plate's 0.5 bore. The census decides
+/// the pair interferes (the bore's rim vertices inside the pin, the
+/// pin's seams piercing the plate) and leaves its curved face pairs
+/// undecided, which are the same overlap: one finding, the annulus
+/// between the two cylinders, loud unasserted and quiet under
+/// `Gap(bore, pin) ≤ −0.001` over the two copies. The overlap's faces
+/// lie on the asserted carriers themselves, which is where the
+/// containment check's coincident faces glue.
+#[test]
+fn a_pin_pressed_into_a_bore_is_quiet_under_its_gap() {
+    let (doc, p, q, _, bore, wall) = bore_and_pin(0.505);
+    let loud = only_finding(&doc);
+    assert!(loud.is_loud(), "unasserted, the press fit is loud");
+    assert!(
+        loud.evidence
+            .iter()
+            .any(|e| matches!(e, ValidationError::InstanceInterference { .. }))
+            && loud
+                .evidence
+                .iter()
+                .any(|e| matches!(e, ValidationError::CensusUndecidable { .. })),
+        "the decided overlap carries the undecided curved pairs: {:?}",
+        loud.evidence
+    );
+    let (doc, assertion) = gap_at_copies(
+        doc.clone(),
+        (p, bore),
+        (q, wall),
+        AssertionRelation::AtMost,
+        -0.001,
+    );
+    let finding = only_finding(&doc);
+    assert_eq!(
+        finding.quiet,
+        Some(assertion),
+        "quiet under its gap: {finding:?}"
+    );
+}
+
+/// **(B) A clearance fit the census cannot decide still refuses.** A
+/// pin of radius 0.49 in the same bore: the census decides no overlap
+/// and leaves the curved pairs undecided, and the gate refuses them as
+/// it always did.
+///
+/// Red if undecided pairs between copies are reported as interference
+/// without a decided overlap.
+#[test]
+fn a_clearance_fit_the_census_cannot_decide_stays_refused() {
+    let (doc, ..) = bore_and_pin(0.49);
+    let run = corpus::eval::<f64>(&doc);
+    match assemble(&doc, &run, Tol::witness()) {
+        Err(editor_core::AssemblyError::AtRest { findings }) => assert!(
+            findings
+                .iter()
+                .all(|f| matches!(f.error, ValidationError::CensusUndecidable { .. })),
+            "the census's undecided pairs: {findings:?}"
+        ),
+        other => panic!("the undecided pair refuses: {other:?}"),
+    }
+}

@@ -6580,7 +6580,7 @@ class InterferenceFinding:
     @property
     def unlocalized(self) -> Optional[str]:
         """Why the overlap has no site — `refused`, `invalid`,
-        `empty` or `unnamed` — or `None`. An unlocalized overlap is
+        `empty`, `unnamed` or `containment` — or `None`. An unlocalized overlap is
         loud and nothing quiets it."""
 
     @property

@@ -2554,6 +2554,7 @@ pub fn unlocalized_tag(why: &Unlocalized) -> &'static str {
         Unlocalized::Invalid { .. } => "invalid",
         Unlocalized::Empty => "empty",
         Unlocalized::Unnamed => "unnamed",
+        Unlocalized::Containment { .. } => "containment",
     }
 }
 
