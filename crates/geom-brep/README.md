@@ -657,7 +657,11 @@ harmonic pcurve boundaries, polynomial and rational patch flux; a cone
 face needs none, its flux `apex·VA` and area `|axis·VA|/sin α` closed in
 the boundary's vector area; rational
 pcurve channels refuse `QuadratureUnsupported`; exhaustion is
-`QuadratureBudget`, never a silent Gaussian. A sphere face whose
+`QuadratureBudget`, never a silent Gaussian. A plane cap or torus wall
+bounded by a `Curve3::Spiric` takes `props/spiric.rs`: the cap's vector
+area and the wall's chart Green form along the spiric are elliptic
+integrals in the torus minor angle, enclosed by a fifth-order Taylor
+rule whose only non-ring operation is `√`, on the same schedule. A sphere face whose
 boundary circles are tilted against its chart has no conic or spline
 trim and is on the closed-form lane, measured by Gauss–Bonnet over its
 circle arcs (`props/curved.rs`, `sphere_circle_loop`). A chart

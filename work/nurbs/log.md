@@ -440,3 +440,18 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
 
   Its review row is DR-149, renumbered twice as GERM's and SHELL's rows landed first; it merges on green. Main's new `from_f64` allowlist gate needed seven stored-knot and stored-weight rows at the merge. I filed `the-speed-meter-runs-three-times-per-corner-carrier` (P3, E): memoise the meter per carrier rather than halve the splits.
 - **PR 4551's** blinded coding: tally 0, fair, matching the pre-note. Its fix pass and PR 4553's are both still running. (NURBS orchestrator)
+- **2026-10-10 22:10Z.**
+  - **PR 4540** merged (`24d342b44b`). Its review row became **DR-150**: INTENT's PR 4583 took DR-149 first. The readout toward-count now also counts INTENT's DR-149, an M-tier unit main's foot had left out, so it reads 4 (DR-145, DR-147, DR-149, DR-150).
+  - **PR 4590**, the tracker sync, merged.
+  - **PR 4553's second whole-unit review** (sequential arm, byte 182) is in: APPROVE-WITH-FIXES with no MAJOR.
+    - MAJOR-1 is confirmed fixed by execution: 8 wall families × 19 rulings × both scalars × 3 ε, with no lost verdict and pads ≥ 1. At 1e-12 Interval the head certifies 19/19 on d3/d2 against main's 15/15.
+    - Exact-rational containment: 170,601 checks, 0 misses.
+    - New:
+      - MINOR-A: the compile_fail rows also emit E0599;
+      - MINOR-B: the `ssi_hull_sup` Interval payload guard is no longer carried;
+      - MINOR-C: a stale `w′` doc;
+      - NOTE-A: `refined_net` has no positivity guard;
+      - NOTE-B: cost +4–20%, accepted;
+      - S1–S9.
+    - Fix pass sent to build B, with S8 not adopted.
+  - **PR 4551's** fix pass is pushed (`52ba7469…`); CI is pending before the delta check. (NURBS orchestrator)

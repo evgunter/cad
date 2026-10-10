@@ -2544,9 +2544,22 @@ fn face_flux<T: Decide>(
     let mut open_at = None;
     let mut converged_at = None;
     let mut refusal = None;
-    let contribution: FaceContribution<T> = match *surface {
-        Surface::Plane { .. } => {
-            closed_form_of(surface, &face_loops(body, face)?, face.sense, band).map_err(wrap)?
+    // A plane bounded by a spiric anywhere on its boundary has no closed
+    // form (its vector area is an elliptic integral) and takes the
+    // quadrature lane, whatever loop the spiric is on.
+    let plane_loops = match surface {
+        Surface::Plane { .. } => Some(face_loops(body, face)?),
+        _ => None,
+    };
+    let spiric_plane = plane_loops.as_ref().is_some_and(|loops| {
+        loops
+            .iter()
+            .flatten()
+            .any(|e| matches!(e.carrier, geom::Curve3::Spiric { .. }))
+    });
+    let contribution: FaceContribution<T> = match plane_loops {
+        Some(loops) if !spiric_plane => {
+            closed_form_of(surface, &loops, face.sense, band).map_err(wrap)?
         }
         _ => {
             let loops = flat_loops(body, face)?;
@@ -2563,9 +2576,12 @@ fn face_flux<T: Decide>(
             // loop's vector area, whatever trims it), the cylinder's
             // closed form and quadrature alike (each a Green form summed
             // over every loop), and the torus's closed form over rims
-            // and rulings. No other curved kind reads one.
+            // and rulings, and the spiric lane every loop of a
+            // spiric-bounded plane. No other kind reads one.
             let reads_rings = match surface {
-                Surface::Cone { .. } | Surface::Cylinder { .. } => true,
+                // A plane reaches this arm only bounded by a spiric, and
+                // the spiric lane reads every loop of its face.
+                Surface::Cone { .. } | Surface::Cylinder { .. } | Surface::Plane { .. } => true,
                 Surface::Torus { .. } => !trimmed,
                 _ => false,
             };
@@ -2588,7 +2604,7 @@ fn face_flux<T: Decide>(
             // bounds it. An approximating face is one — the flux of
             // its fit, which is the geometry the face actually carries.
             let is_trimmed = trimmed && !matches!(surface, Surface::Cone { .. });
-            let quad_out = if is_trimmed || surface.spline_chart().is_some() {
+            let quad_out = if is_trimmed || spiric_plane || surface.spline_chart().is_some() {
                 quad(body, surface, &loops, band, tol, window).map_err(wrap)?
             } else {
                 None
