@@ -1398,7 +1398,7 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     named::<Option<CoherenceReport>>(coherence.clone());
     // The anchors' decisions: none, since the default import declares
     // no anchor.
-    named::<Vec<Coincidence>>(coincidences.clone());
+    named::<Vec<pncad::document::coincidence::Coincidence>>(coincidences.clone());
     assert!(
         coincidences.is_empty(),
         "the default import declares no anchor"

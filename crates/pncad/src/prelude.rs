@@ -479,10 +479,10 @@ pub use geom::SurfaceKind;
 // re-deriving.
 pub use topo::{
     AtRestBody, Backing, Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanOp,
-    BooleanResult, BooleanResultKind, Cited, Cites, Coincidence, ContactRecords, Curve3,
-    EdgeDescription, EdgeKey, EntityId, FaceKey, GeomRef, LoopKey, Operand, PairRefusalSite,
-    PlaneRelation, ShellOrientation, Surface, TransformError, VertexKey, intersect, intersect_with,
-    subtract, subtract_with, transform_rigid, union, union_with,
+    BooleanResult, BooleanResultKind, Cited, Cites, ContactRecords, Curve3, EdgeDescription,
+    EdgeKey, EntityId, FaceKey, GeomRef, LoopKey, Operand, PairRefusalSite, PlaneRelation,
+    ShellOrientation, Surface, TransformError, VertexKey, intersect, intersect_with, subtract,
+    subtract_with, transform_rigid, union, union_with,
 };
 
 // --- 5. The validation ladder ---------------------------------
