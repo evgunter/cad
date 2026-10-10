@@ -1140,11 +1140,16 @@ fn composite_sup(
 /// the other. The wall is one Bézier patch, so every window lies in its
 /// one cell and the comparison is about the curves' decomposition alone:
 /// an image whose one span the extra breaks are cut into must not pay
-/// for each break it is cut at, so its bound holds roughly flat as the
-/// grid refines and stays within a small factor of the interpolant's,
-/// whose knots already are the breaks.
+/// for each break it is cut at. Each piece's row is the blossom of the
+/// span's, as the interpolant's rows are its own coefficients, so the
+/// two certify alike at the SSI's 32 spans (measured bit-identical, at
+/// 4.677e-15 m) and the exact image's bound holds flat as the grid
+/// refines.
 #[test]
 fn an_exact_image_certifies_no_worse_than_its_interpolant() {
+    // 1.5 times the measured 4.677e-15 m, so a uniform widening of the
+    // composite that keeps the two images level still fails here.
+    const CEILING: f64 = 7.0e-15;
     let body = prism(1.0);
     let (edge, _, bowed, _) = flat_bowed_seam(&body, 1.0);
     let wall = chart_of(&body, bowed);
@@ -1200,12 +1205,19 @@ fn an_exact_image_certifies_no_worse_than_its_interpolant() {
     };
     let spans = geom_brep::ssi::SSI_CERT_SPANS;
     let (e, i) = (exact(spans), interpolated(spans));
-    println!("exact image {e:e} m, interpolated {i:e} m at {spans} spans");
+    let (coarse, fine) = (exact(8), exact(64));
+    println!(
+        "exact image {e:e} m, interpolated {i:e} m at {spans} spans; exact {coarse:e} m at 8, \
+         {fine:e} m at 64"
+    );
     assert!(
-        e <= 2.0 * i,
+        e <= i,
         "the exact image certifies {e:e} m against the interpolant's {i:e} m at {spans} spans"
     );
-    let (coarse, fine) = (exact(8), exact(64));
+    assert!(
+        e <= CEILING,
+        "the exact image's bound {e:e} m is past {CEILING:e} m, 1.5 times its measured 4.677e-15"
+    );
     assert!(
         fine <= 1.5 * coarse,
         "refining the grid from 8 to 64 spans loosens the exact image's bound from \

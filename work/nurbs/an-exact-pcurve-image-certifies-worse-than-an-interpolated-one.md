@@ -1,11 +1,14 @@
 ---
 id: an-exact-pcurve-image-certifies-worse-than-an-interpolated-one
 kind: issue
-title: surface_curve_residual certifies an EXACT pcurve image worse than an interpolated one (9.96e-12 vs 1.69e-12 m on the m8_4 seam); suspected cells_touched's closed overlap pulling in a neighbour cell when a window ends bit-exactly on a wall knot
-status: open
+title: surface_curve_residual certified an EXACT pcurve image worse than an interpolated one on the m8_4 seam, because to_bezier_spans_extra cut the extra breaks into a one-span image one after another (the suspected cells_touched overlap is refuted)
+status: closed
 opened: 2026-10-01
 priority: P3
 cost: M
+branch: nurbs/exact-pcurve-image-remeasure
+closed: 2026-10-10
+pr: 4489
 ---
 
 
@@ -58,15 +61,21 @@ interpolant's knots already are the breaks, so it paid nothing. The
 carrier pays the same sequential cost, which is why both columns grow
 with N.
 
-After the decomposition cuts each break out of its own Bézier segment
-(at most 2p insertions per sub-segment):
+## Closed
 
-| N  | exact image | interpolated |
-|----|-------------|--------------|
-| 8  | 6.95e-15 m  | 4.22e-15 m   |
-| 32 | 8.58e-15 m  | 5.57e-15 m   |
-| 64 | 9.19e-15 m  | 5.57e-15 m   |
+`to_bezier_spans_extra` decomposes onto the curve's own knots and then
+cuts each extra break out of the Bézier segment it falls in, each
+piece's coefficient `i` the segment's blossom at `(a^(p−i), b^i)` by
+de Casteljau from the segment's own row (`sub_segment`, `p` convex
+steps deep wherever the cut falls). On the m8_4 seam at 32 spans the
+exact image and the interpolant now certify bit-identically, at
+4.677e-15 m, and the exact image holds flat in N (4.22e-15 m at 8,
+4.68e-15 m at 64). A segment of degree 1–5 cut at the 254 interior
+255ths stays within 2.5, 2.75, 6.5, 5.5 and 10.5 ulps.
 
-The exact image still certifies about 1.5× the interpolant. That is the
-floor of the 2p interval insertions a one-span image pays at each
-sub-segment, which an image already on the breaks does not pay.
+Pinned by `m8_4_intersection_iso::an_exact_image_certifies_no_worse_than_its_interpolant`
+(exact ≤ interpolated, an absolute ceiling at 1.5× the measured
+bound, and flatness from 8 to 64 spans), by
+`compose::tests::a_segment_cut_many_times_keeps_its_rows_ulp_wide`,
+and for soundness by
+`compose::tests::cutting_extras_from_their_segment_encloses_the_exact_rows`.
