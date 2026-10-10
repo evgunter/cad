@@ -40,3 +40,11 @@ The name flags on a second scene. A full `scripts/k_probe_sweep.sh` at
 3.626e-8 and 2.828e-8 on the same scene, so the headroom moved by
 ~1e-10 between those heads and the flags stayed. Which faces they are
 is as unmeasured as the cutaway's.
+
+## Rule 2's zero arm is a tally (Ev, PR 4567, 2026-10-10)
+
+The zero-classified sample this row counts (3.86e-10 at 1e-9, twice on
+main `f43f16b26`) no longer gates: rule 2's zero arm is tallied and
+printed (`props_quad_converged: 2 … the margin uses 39% of eps here`),
+built on `germ/klint-zero-arm-tally`. The eps-coupled headroom flags
+(rule 4) still gate and are this row's subject.
