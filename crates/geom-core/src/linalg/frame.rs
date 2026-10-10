@@ -355,12 +355,12 @@ impl core::fmt::Display for FrameError {
             FrameError::Degenerate {
                 input,
                 indeterminate: Some(i),
-            } => write!(
-                f,
-                "{} is undecided: {}. Recourse: {NO_DECLARATION_RECOURSE}",
-                input.subject(),
-                i.payload()
-            ),
+            } => i
+                .undecided(
+                    input.subject(),
+                    crate::predicate::lever_recourse(NO_DECLARATION_RECOURSE, None),
+                )
+                .fmt(f),
             FrameError::NonFiniteLength { input } => write!(
                 f,
                 "the frame's {} has no finite length (a component overflows the norm or \

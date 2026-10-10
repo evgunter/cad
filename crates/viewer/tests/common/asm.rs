@@ -58,6 +58,12 @@ pub struct Bench {
     pub shelf_i: RecipeNodeId,
     /// The completely-unconstrained post instance.
     pub post_b: RecipeNodeId,
+    /// `post_a`'s world placement: the node its drawn copy is picked on.
+    pub post_a_copy: RecipeNodeId,
+    /// `shelf_i`'s world placement.
+    pub shelf_copy: RecipeNodeId,
+    /// `post_b`'s world placement.
+    pub post_b_copy: RecipeNodeId,
     /// The post document's reference.
     pub post: DocRef,
     /// The shelf document's reference.
@@ -68,7 +74,7 @@ pub struct Bench {
     pub shelf_bottom: StableName,
 }
 
-/// One extruded box, authored through the ordinary doors.
+/// One extruded box, placed, authored through the ordinary doors.
 fn box_part(label: &str, width: f64, depth: f64, height: f64, tol: Tol) -> ProfileDoc {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), tol);
     let plane = insert_into(&mut doc, super::xy_frame(), tol);
@@ -77,29 +83,41 @@ fn box_part(label: &str, width: f64, depth: f64, height: f64, tol: Tol) -> Profi
         super::rectangle(plane, [0.0, 0.0], width, depth),
         tol,
     );
-    insert_into(
+    let extrude = insert_into(
         &mut doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(height),
             side: ExtrudeSide::Along,
         },
+        tol,
+    );
+    // The part's world: its one body, placed (A10).
+    insert_into(
+        &mut doc,
+        Node::place_in_world(extrude, Placement::IDENTITY),
         tol,
     );
     doc
 }
 
 /// A part's own cap-face name at `end`, selected structurally from
-/// its evaluated product (the demo's `cap_of` shape).
+/// its evaluated body (the demo's `cap_of` shape), as its placement's
+/// copy carries it — the part's product name.
 fn cap_of(doc: &ProfileDoc, end: CapEnd, tol: Tol) -> StableName {
     let ev: Evaluation<f64> =
         evaluate(doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
-    let tip = *doc.roots().first().expect("the part has a product root");
+    let placement = *doc.placements().first().expect("the part places its body");
+    let body = viewer::world::seat_of(doc, placement);
     let sel =
         Selector::of(NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end)));
-    let found = pncad::select::select(&ev, tip, &sel);
+    let found = pncad::select::select(&ev, body, &sel);
     assert_eq!(found.len(), 1, "one {end:?} cap: {found:?}");
-    found.into_iter().next().expect("checked non-empty")
+    found
+        .into_iter()
+        .next()
+        .expect("checked non-empty")
+        .in_copy(placement)
 }
 
 /// Author the workspace into a fresh per-test directory and return
@@ -138,6 +156,7 @@ pub fn bench(tag: &str, tol: Tol) -> Bench {
         DocEdit::SetOffset {
             instance: shelf_i,
             offset: Some(Placement::literal(&Frame::translation(SHELF_AT))),
+            fresh: Vec::new(),
         },
         tol,
     );
@@ -147,9 +166,18 @@ pub fn bench(tag: &str, tol: Tol) -> Bench {
         DocEdit::SetOffset {
             instance: post_b,
             offset: Some(Placement::literal(&Frame::translation(POST_B_AT))),
+            fresh: Vec::new(),
         },
         tol,
     );
+    // The world: one identity placement per instance, in instance order.
+    let [post_a_copy, shelf_copy, post_b_copy] = [post_a, shelf_i, post_b].map(|instance| {
+        insert_into(
+            &mut asm,
+            Node::place_in_world(instance, Placement::IDENTITY),
+            tol,
+        )
+    });
     let asm_path = ws.create(&asm, tol).expect("the assembly stores");
 
     Bench {
@@ -158,6 +186,9 @@ pub fn bench(tag: &str, tol: Tol) -> Bench {
         post_a,
         shelf_i,
         post_b,
+        post_a_copy,
+        shelf_copy,
+        post_b_copy,
         post: post_ref,
         shelf: shelf_ref,
         post_top: cap_of(&post, CapEnd::End, tol),
@@ -444,11 +475,25 @@ pub fn shelf_underside(session: &DocSession) -> FaceSelection {
 /// middle and each checked to land on the instance it aims at.
 pub fn seat_picks(session: &DocSession, bench: &Bench) -> (FaceSelection, FaceSelection) {
     let post_top = pick_face(session, &over_post_b());
-    assert_eq!(post_top.node, bench.post_b, "the first pick is post_b's");
+    assert_eq!(
+        post_top.node, bench.post_b_copy,
+        "the first pick is post_b's"
+    );
     let shelf_bottom = shelf_underside(session);
     assert_eq!(
-        shelf_bottom.node, bench.shelf_i,
+        shelf_bottom.node, bench.shelf_copy,
         "the second pick is the shelf's"
     );
     (post_top, shelf_bottom)
+}
+
+/// **The feature tree's instance rows**: the rows of `InstantiatePart`
+/// nodes, without the world placements beside them (A10) — what a row
+/// about resolving instances reads.
+pub fn instance_rows(session: &DocSession) -> Vec<viewer::tree::TreeRow> {
+    session
+        .tree_rows()
+        .into_iter()
+        .filter(|row| row.spoken.kind() == Some("InstantiatePart"))
+        .collect()
 }

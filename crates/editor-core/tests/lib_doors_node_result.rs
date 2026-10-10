@@ -21,31 +21,35 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-/// A square profile `[0,s]²` on `plane`, as a loop program.
-fn square(plane: RecipeNodeId, s: f64) -> AuthoredNode {
+/// A square profile `[o,s]²` on `plane`, as a loop program.
+fn square(plane: RecipeNodeId, o: f64, s: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
-            ProgramStep::At([len(0.0), len(0.0)]),
-            ProgramStep::LineTo(ProgramTarget::Point([len(s), len(0.0)])),
+            ProgramStep::At([len(o), len(o)]),
+            ProgramStep::LineTo(ProgramTarget::Point([len(s), len(o)])),
             ProgramStep::LineTo(ProgramTarget::Point([len(s), len(s)])),
-            ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(s)])),
+            ProgramStep::LineTo(ProgramTarget::Point([len(o), len(s)])),
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
     })
 }
 
-/// Two boxes SHARING the z=0 plane (and the x=0 / y=0 side planes),
-/// subtracted: the kernel never infers coincidence, so the Boolean
-/// node FAILS — and a node downstream of it is POISONED. Returns the
-/// document plus the failing and poisoned ids.
+/// Two boxes sharing the z=0 plane, the inner one's x and y side
+/// planes off the outer's by a gap strictly inside the ambiguity band,
+/// subtracted: the margins decide neither plane pair one carrier nor
+/// two, so the Boolean node FAILS — and a node downstream of it is
+/// POISONED. Returns the document plus the failing and poisoned ids.
 fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut doc = ProfileDoc::empty_derived("lib_doors_node_result", Tol::witness());
     let insert = |doc: &mut ProfileDoc, node| {
         let applied = doc
             .apply(
-                &DocEdit::InsertNode { node },
+                &DocEdit::InsertNode {
+                    node,
+                    fresh: Vec::new(),
+                },
                 Tol::witness(),
                 &editor_core::RefusingReach,
             )
@@ -56,20 +60,23 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     // Both boxes are sketched on the same plane — that is the whole
     // point of the row — so they name ONE frame between them.
     let plane = insert(&mut doc, Box::new(fixture::xy_frame()));
-    let outer_profile = insert(&mut doc, Box::new(square(plane, 2.0)));
+    let tol = Tol::witness().get();
+    // The band's midpoint: strictly inside (eps, k·eps) for any k > 1.
+    let gap = 0.5 * (tol.eps + tol.k * tol.eps);
+    let outer_profile = insert(&mut doc, Box::new(square(plane, 0.0, 2.0)));
     let outer = insert(
         &mut doc,
         Box::new(Node::Extrude {
-            profile: outer_profile,
+            profile: outer_profile.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         }),
     );
-    let inner_profile = insert(&mut doc, Box::new(square(plane, 1.0)));
+    let inner_profile = insert(&mut doc, Box::new(square(plane, gap, 1.0)));
     let inner = insert(
         &mut doc,
         Box::new(Node::Extrude {
-            profile: inner_profile,
+            profile: inner_profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         }),
@@ -78,8 +85,8 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &mut doc,
         Box::new(Node::Boolean {
             op: BooleanOp::Subtract,
-            a: outer,
-            b: inner,
+            a: outer.into(),
+            b: inner.into(),
             declare: Vec::new(),
         }),
     );
@@ -87,8 +94,8 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &mut doc,
         Box::new(Node::Boolean {
             op: BooleanOp::Union,
-            a: cut,
-            b: outer,
+            a: cut.into(),
+            b: outer.into(),
             declare: Vec::new(),
         }),
     );
@@ -146,7 +153,7 @@ fn ok_and_absent_nodes_answer_none() {
     assert!(ev.value(ok_node).is_some());
     assert!(matches!(ev.result(ok_node), Some(NodeResult::Ok(_))));
     assert!(ev.node_error(ok_node).is_none());
-    let absent = RecipeNodeId(u64::MAX);
+    let absent = RecipeNodeId::new(0, u64::MAX);
     assert!(ev.result(absent).is_none());
     assert!(ev.node_error(absent).is_none());
 }
@@ -164,7 +171,7 @@ fn refusals_render_as_prose_not_debug_guts() {
     use editor_core::{DimensionError, EditError};
 
     let edit = EditError::UnknownNode {
-        id: editor_core::SpokenNode::absent(RecipeNodeId(tagged(7))),
+        id: editor_core::SpokenNode::absent(RecipeNodeId::new(0, tagged(7))),
     };
     // No `edit: ` opening: the frame belongs to whoever received the
     // refusal (the viewer composes "the edit was refused: …", the
@@ -191,9 +198,8 @@ fn refusals_render_as_prose_not_debug_guts() {
         )
     );
 
-    // The live failure: the coincident Boolean's message states the
-    // problem and the two-armed recourse (since R3 the refusal is the
-    // typed menu variant); the enum's structure (variant names,
+    // The live failure: the in-band Boolean's message states the
+    // problem and its recourse; the enum's structure (variant names,
     // braces) stays OUT of the prose.
     let (doc, cut, _) = doc_with_failure();
     let ev = run(&doc);
@@ -201,22 +207,21 @@ fn refusals_render_as_prose_not_debug_guts() {
     let message = error.to_string();
     assert!(
         message.starts_with(&format!(
-            "node {} failed: ",
-            test_utils::refusal::tag(cut.0)
+            "node {} failed: the Boolean op refused: ",
+            test_utils::refusal::tag(cut.0.digest())
         )),
         "{message}"
     );
     assert!(
-        message.contains("Boolean refused an undeclared coincidence"),
+        message.contains("inside the ambiguity band") && message.contains("Recourse: "),
         "{message}"
     );
-    assert!(message.contains("add the candidate pair"), "{message}");
     for guts in [
-        "UndeclaredCoincidence",
-        "UndeclaredContact",
-        "FlushFinding",
+        "Escalated",
+        "BooleanDecision",
         "{",
         "Indeterminate",
+        "MarginDiag",
     ] {
         assert!(!message.contains(guts), "Debug guts leaked: {message}");
     }
@@ -255,7 +260,7 @@ fn refusals_render_as_prose_not_debug_guts() {
         let message = EditError::MetaUnversioned {
             name: editor_core::SpokenName::absent(editor_core::StableName {
                 kind: editor_core::EntityKind::Body,
-                node: RecipeNodeId(tagged(1)),
+                node: RecipeNodeId::new(0, tagged(1)),
                 path: vec![editor_core::RoleSeg::OutputBody],
             }),
             key: "provenance".to_string(),
@@ -280,7 +285,7 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
     use editor_core::NodeErrorKind as K;
     let name = |kind| editor_core::StableName {
         kind,
-        node: RecipeNodeId(tagged(3)),
+        node: RecipeNodeId::new(0, tagged(3)),
         path: vec![editor_core::RoleSeg::OutputBody],
     };
     vec![
@@ -293,18 +298,19 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
             error: Box::new(editor_core::ResolveError::NodeGone {
                 name: name(editor_core::EntityKind::Face),
                 edit: editor_core::RecipeEditRef::NodeDeleted {
-                    node: RecipeNodeId(tagged(3)),
+                    node: RecipeNodeId::new(0, tagged(3)),
                 },
             }),
             reference: 0,
         },
-        K::BlendSelectionResolve {
-            verb: sweep::blend::BlendKind::Fillet,
+        K::SelectResolve {
+            slot: editor_core::OperandSlot::Selection,
+            var: editor_core::VarId::new(0, 7),
             error: Box::new(editor_core::ResolveError::Ambiguous {
                 name: name(editor_core::EntityKind::Edge),
                 candidates: vec![],
                 tie: editor_core::TieWitness {
-                    node: RecipeNodeId(tagged(3)),
+                    node: RecipeNodeId::new(0, tagged(3)),
                     at: name(editor_core::EntityKind::Edge),
                     width: 2,
                 },
@@ -378,7 +384,7 @@ fn a_kernel_payload_arm_forwards_the_payloads_own_message() {
             K::Profile(e) => e.to_string(),
             K::Expr { source, .. } => source.to_string(),
             K::DeclareResolve { error, .. } => error.to_string(),
-            K::BlendSelectionResolve { error, .. } => error.to_string(),
+            K::SelectResolve { error, .. } => error.to_string(),
             K::WitnessBifurcation(e) => e.to_string(),
             K::PlacementRule(e) => e.to_string(),
             K::Extrude(e) => e.to_string(),
@@ -514,17 +520,17 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
 
     let name = |kind| StableName {
         kind,
-        node: RecipeNodeId(tagged(5)),
+        node: RecipeNodeId::new(0, tagged(5)),
         path: vec![RoleSeg::OutputBody],
     };
     let cases: Vec<(String, &[&str])> = vec![
         (
             EvalError::UnresolvedVar {
-                var: editor_core::VarId(tagged(7)),
+                var: editor_core::VarId::new(0, tagged(7)),
             }
             .to_string(),
             &[
-                "variable #0000000000070000",
+                "variable #0:0000000000070000",
                 "has no binding",
                 "point the reader at a live variable",
             ],
@@ -555,7 +561,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             ResolveError::NodeGone {
                 name: name(EntityKind::Vertex),
                 edit: RecipeEditRef::NodeDeleted {
-                    node: RecipeNodeId(tagged(5)),
+                    node: RecipeNodeId::new(0, tagged(5)),
                 },
             }
             .to_string(),

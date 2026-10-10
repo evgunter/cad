@@ -27,8 +27,8 @@
 //!   the op's front-door contact check): "the recipe says these are
 //!   one carrier — is that true?";
 //! - `declared: false` is this module: "no one has declared these —
-//!   would a declaration verify?", whose `Undeclared` refusal with a
-//!   definite-zero coincidence margin IS the affirmative answer.
+//!   would a declaration verify?", whose verdict of one carrier, its
+//!   coincidence decided Zero, IS the affirmative answer.
 //!
 //! So a pair this detector calls flush cannot be a pair the declared
 //! rung then contradicts — one verdict ladder, reached by one call:
@@ -59,10 +59,8 @@
 //! Definite is a claim about the GEOMETRY, and only that. A finding
 //! says "declared, this pair verifies"; it does not say the op will
 //! build. A true declaration still meets whatever capability frontier
-//! lies downstream of verification — a `SameOriented` wall pair
-//! declared on a stepped mate verifies and then refuses at
-//! `RestZipUnsupported`, typed, at the zip. Detection cannot see those
-//! frontiers and does not claim to.
+//! lies downstream of verification, typed, in the boolean. Detection
+//! cannot see those frontiers and does not claim to.
 //!
 //! The refusal names ONE pair — the FIRST indeterminate pair in the
 //! enumeration order below — and abandons the walk there. It is not a
@@ -146,11 +144,8 @@ pub const EXTENT_UNREAD: &str = "carrier_pair_extent";
 /// Which rung of the verify ladder decided a finding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FlushRung {
-    /// Rung 1: both descriptions carry the same recipe source (N6) —
-    /// syntactic identity, zero numerics.
-    SharedSource,
-    /// Rung 3's decided margins: definitely parallel, definitely
-    /// zero offset (the geometric trilean's coincident arm).
+    /// The decided margins: definitely parallel, a zero offset (the
+    /// ladder's coincident arm).
     DecidedCoincident,
 }
 
@@ -288,15 +283,13 @@ impl core::error::Error for FlushRefusal {}
 /// combination while keeping its own name-flavored half (name
 /// resolution, the tie trilean, refusal payloads) upstairs.
 ///
-/// Everything — descriptions, oriented sources, AND the verification
-/// arm — comes from [`carrier_pair_relation`] (module docs). ONE
-/// call, in `declared: false` mode: its `Undeclared` refusal on a
-/// coincidence decided zero ([`CoincidenceMeasure::Zero`]) is
-/// precisely "would verify if declared", and the refusal itself
-/// carries the orientation the ladder decided — the same orientation
-/// verdict the declared rung re-decides deterministically at use, so
-/// the carried relation and the verify-at-use verdict cannot
-/// disagree.
+/// Everything — descriptions AND the verification arm — comes from
+/// [`carrier_pair_relation`] (module docs). ONE call, in
+/// `declared: false` mode: its verdict of one carrier on a coincidence
+/// decided Zero is precisely "would verify if declared", with the
+/// orientation the ladder decided — the same orientation verdict the
+/// declared rung re-decides deterministically at use, so the carried
+/// relation and the verify-at-use verdict cannot disagree.
 ///
 /// # Errors
 ///
@@ -329,24 +322,17 @@ pub fn pair_finding<T: Decide>(
     };
     match relation {
         Ok(CarrierRelation::Distinct) => Ok(None),
-        // Rung 1 fired: same recipe source, exact verdict.
+        // The verifier decided the coincidence Zero, with its
+        // orientation: the pair glues, declared or not, and would verify
+        // if declared.
         Ok(relation) => Ok(Some(FlushEvidence {
-            relation,
-            rung: FlushRung::SharedSource,
-        })),
-        // The verifier decided the coincidence: the pair would verify if
-        // declared, with the orientation the refusal itself carries.
-        Err(CarrierEqError::Undeclared {
-            coincidence: CoincidenceMeasure::Zero { .. },
-            relation: relation @ (CarrierRelation::SameOriented | CarrierRelation::SameOpposite),
-        }) => Ok(Some(FlushEvidence {
             relation,
             rung: FlushRung::DecidedCoincident,
         })),
         // Poisoned: a datum that is not finite, or a norm the ladder
         // cannot read.
         Err(
-            CarrierEqError::Undeclared {
+            CarrierEqError::Undecided {
                 coincidence: CoincidenceMeasure::Unreadable(diag),
                 ..
             }
@@ -355,9 +341,8 @@ pub fn pair_finding<T: Decide>(
                 diag,
             },
         ) => Err(PairUndecided::Unreadable(diag)),
-        // In band: not definite, not droppable. A `Distinct` relation
-        // breaks the variant's contract; typed, never silent.
-        Err(CarrierEqError::Undeclared { coincidence, .. }) => {
+        // In band: not definite, not droppable.
+        Err(CarrierEqError::Undecided { coincidence, .. }) => {
             Err(PairUndecided::InBand(coincidence.reported()))
         }
         Err(CarrierEqError::Escalated { diag, .. }) => Err(PairUndecided::InBand(diag)),

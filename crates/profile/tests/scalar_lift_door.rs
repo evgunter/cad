@@ -40,10 +40,6 @@ fn arc_fields<T: Real>(lifted: &Segment<T>, k: usize) -> Option<([T; 4], [f64; 4
     }
 }
 
-/// The declared-tangent joints of the fixture loop — indices, which a
-/// scalar lift must carry rather than map.
-const JOINTS: [usize; 2] = [1, 2];
-
 /// The fixture plane's translation, authored here.
 const ORIGIN: (f64, f64, f64) = (-1.5, 0.25, 3.0);
 
@@ -59,7 +55,6 @@ fn source_loop() -> ProfileLoop<f64> {
         };
         (Point2::new(x, y), segment)
     }))
-    .with_tangent_joints(JOINTS.to_vec())
 }
 
 fn source_profile() -> Profile<f64> {
@@ -88,7 +83,7 @@ fn is_lift_of(got: Dual64, want: f64, what: &str) {
 }
 
 #[test]
-fn the_loop_rung_carries_the_vertex_order_and_the_joint_set() {
+fn the_loop_rung_carries_the_vertex_order() {
     let lifted: ProfileLoop<Dual64> = source_loop().map_scalar(Dual64::from_f64);
     assert_eq!(lifted.vertices().len(), VERTS.len());
     for (k, (v, &(x, y, _))) in lifted.vertices().iter().zip(VERTS.iter()).enumerate() {
@@ -100,11 +95,6 @@ fn the_loop_rung_carries_the_vertex_order_and_the_joint_set() {
             }
         }
     }
-    assert_eq!(
-        lifted.tangent_joints(),
-        JOINTS.as_slice(),
-        "the declared joints are indices and travel unchanged"
-    );
 }
 
 #[test]
@@ -120,7 +110,6 @@ fn the_profile_rung_carries_the_plane_and_the_loop_order() {
     is_lift_of(m.linear.c2.z, 1.0, "n z");
     for lp in &lifted.loops {
         assert_eq!(lp.vertices().len(), VERTS.len());
-        assert_eq!(lp.tangent_joints(), JOINTS.as_slice());
         for (k, (v, &(x, y, _))) in lp.vertices().iter().zip(VERTS.iter()).enumerate() {
             is_lift_of(v.x, x, "x");
             is_lift_of(v.y, y, "y");

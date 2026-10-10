@@ -1790,10 +1790,18 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "a positional `{:?}` over an expression this census does not type",
     ),
     (
+        "crates/topo/src/offset_derive.rs",
+        "CornerVerdict",
+        "sine",
+        1,
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
+         this renders a brace at `Interval` and prose at `f64`",
+    ),
+    (
         "crates/topo/src/replace_face.rs",
         "ReplaceFaceError",
         "gap",
-        4,
+        3,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),

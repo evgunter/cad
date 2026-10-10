@@ -142,13 +142,16 @@ fn chained_pair_unions_fold_a_flush_partner_onto_the_edge_contact() {
                     })
                     .collect::<Vec<_>>()
             };
-            let pair = |doc: ProfileDoc, x, y, pairs: Option<Vec<(SitedRef, SitedRef)>>| {
+            let pair = |doc: ProfileDoc,
+                        x: RecipeNodeId,
+                        y: RecipeNodeId,
+                        pairs: Option<Vec<(SitedRef, SitedRef)>>| {
                 insert(
                     doc,
                     Node::Boolean {
                         op: BooleanOp::Union,
-                        a: x,
-                        b: y,
+                        a: x.into(),
+                        b: y.into(),
                         declare: pairs
                             .map(editor_core::declare_continuation)
                             .unwrap_or_default(),

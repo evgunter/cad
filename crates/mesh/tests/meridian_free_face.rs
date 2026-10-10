@@ -94,21 +94,36 @@ fn assert_refuses_meridian_free(name: &str, body: &Body<f64>, kind: SurfaceKind,
     );
 }
 
+/// Tier 3's verdict on a hand-built rim-only body: check 11 at each of
+/// its rim's vertices, and nothing else.
+fn rim_vertices(body: &Body<f64>) -> Vec<topo::ValidationError> {
+    body.vertices()
+        .map(|(vertex, _)| topo::ValidationError::JoinableVertexAtRest { vertex })
+        .collect()
+}
+
 /// **The sphere cap closed by its disc, at both poles and four
 /// latitudes.** The cap ABOVE `z` holds the north pole in its interior,
 /// the ball BELOW `z` the south pole; the equator, a shallow cap and a
 /// cap past the equator all refuse alike, because nothing about the
 /// refusal reads the latitude.
 ///
-/// Each body passes tier 3 and measures its closed-form volume as the
-/// kernel stands, and both are asserted: that is why the mesh lane has
-/// to refuse the face itself — no door in front of it does yet.
+/// Each body passes tier 3 but for its rim's two vertices — the rim is
+/// two half arcs, which the join would take into one closed edge, so
+/// the hand-built body is construction state (check 11) — and measures
+/// its closed-form volume as the kernel stands, and both are asserted:
+/// that is why the mesh lane has to refuse the face itself — no door in
+/// front of it does yet.
 #[test]
 fn a_rim_only_sphere_cap_refuses_at_either_pole_and_any_latitude() {
     let tol = Tol::witness();
     for z in [0.0_f64, 0.5, 0.9, -0.9] {
         let above = one_circle_cut(&unit_rim(z), sphere(1.0), Some(plane(z, false)));
-        assert_eq!(topo::validate_geometric(&above, tol), Ok(()), "z = {z}");
+        assert_eq!(
+            topo::validate_geometric(&above, tol),
+            Err(rim_vertices(&above)),
+            "z = {z}"
+        );
         let exact = PI * (1.0 - z).powi(2) * (2.0 + z) / 3.0;
         let volume = topo::mass_properties(&above, tol).unwrap().volume;
         assert!(
@@ -124,7 +139,11 @@ fn a_rim_only_sphere_cap_refuses_at_either_pole_and_any_latitude() {
     }
     for z in [0.0_f64, 0.5, -0.9] {
         let below = one_circle_cut(&unit_rim(z), plane(z, true), Some(sphere(1.0)));
-        assert_eq!(topo::validate_geometric(&below, tol), Ok(()), "z = {z}");
+        assert_eq!(
+            topo::validate_geometric(&below, tol),
+            Err(rim_vertices(&below)),
+            "z = {z}"
+        );
         let exact = PI * (1.0 + z).powi(2) * (2.0 - z) / 3.0;
         let volume = topo::mass_properties(&below, tol).unwrap().volume;
         assert!(

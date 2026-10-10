@@ -165,7 +165,7 @@ use crate::real::CertifiedBounds;
 /// let theirs = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.75, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
 /// let coeffs = vec![0.0f64; mine.control_count()];
 /// let pair = mine.with_coeffs(&coeffs).unwrap();
-/// let _ = pair.span(theirs.span_at(0.3)).unwrap().hull();
+/// let _ = pair.span(theirs.span_at(0.3).unwrap()).unwrap().hull();
 /// ```
 ///
 /// Its twin, differing in one respect — the span is asked of the pair,
@@ -176,7 +176,7 @@ use crate::real::CertifiedBounds;
 /// let mine = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
 /// let coeffs = vec![0.0f64; mine.control_count()];
 /// let pair = mine.with_coeffs(&coeffs).unwrap();
-/// let _ = pair.span_at(0.3).hull();
+/// let _ = pair.span_at(0.3).unwrap().hull();
 /// ```
 ///
 /// **(b) A span whose index is EMPTY in the coefficients' vector.**
@@ -215,7 +215,7 @@ use crate::real::CertifiedBounds;
 /// let quad = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.3, 0.6, 0.8, 1.0, 1.0, 1.0], 2).unwrap();
 /// let coeffs = vec![0.0f64; mine.control_count()];
 /// let pair = mine.with_coeffs(&coeffs).unwrap();
-/// let _ = pair.span_at(0.7).sup_norm_bound(quad.span_at(0.7));
+/// let _ = pair.span_at(0.7).unwrap().sup_norm_bound(quad.span_at(0.7).unwrap());
 /// ```
 ///
 /// The twin differs in one respect — the door is called with nothing:
@@ -225,7 +225,7 @@ use crate::real::CertifiedBounds;
 /// let mine = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
 /// let coeffs = vec![0.0f64; mine.control_count()];
 /// let pair = mine.with_coeffs(&coeffs).unwrap();
-/// assert!(pair.span_at(0.7).sup_norm_bound().is_finite());
+/// assert!(pair.span_at(0.7).unwrap().sup_norm_bound().is_finite());
 /// ```
 ///
 /// **(d) A rational claim on a pair minted without weights.** There
@@ -237,7 +237,7 @@ use crate::real::CertifiedBounds;
 /// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
 /// let coeffs = vec![0.0f64; kv.control_count()];
 /// let pair = kv.with_coeffs(&coeffs).unwrap();
-/// let _ = pair.span_at(0.3).hull_rational();
+/// let _ = pair.span_at(0.3).unwrap().hull_rational();
 /// ```
 ///
 /// The twin differs in one respect — the pair is minted with the
@@ -249,7 +249,7 @@ use crate::real::CertifiedBounds;
 /// let coeffs = vec![0.0f64; kv.control_count()];
 /// let weights = vec![1.0f64; kv.control_count()];
 /// let pair = kv.with_rational_coeffs(&coeffs, &weights).unwrap();
-/// assert!(pair.span_at(0.3).hull_rational().is_certified());
+/// assert!(pair.span_at(0.3).unwrap().hull_rational().is_certified());
 /// ```
 ///
 /// **What these rows do and do not check.** Stable rustdoc checks only
@@ -510,10 +510,13 @@ impl KnotVector {
     /// error it is, never as an empty line.
     ///
     /// This is the one door beside the mints that takes a coefficient
-    /// array, and it takes it only to mint: every consumer of it holds
-    /// its coefficients as an owned `Vec` beside a vector (a tensor
-    /// net's lines, a derivative ladder's levels), and a door on the
-    /// pair would make each of them spell the same mint-then-map.
+    /// array, and it takes it only to mint — which is why it is the line
+    /// step [`super::net::TensorCoeffs`] hands [`super::net::TensorNet::diff_u`]:
+    /// a line of the wrong count comes back as the one-entry refusal
+    /// that refuses the whole line there. A consumer whose array is
+    /// its own construction builds it with
+    /// [`KnotVector::with_coeffs_from_fn`] instead, and one that
+    /// differences a level again holds it as a [`SplineCoeffsBuf`].
     pub fn difference_coeffs<E: CertifiedBounds>(&self, coeffs: &[E]) -> Vec<Interval> {
         self.with_coeffs(coeffs).map_or_else(
             || vec![Interval::refused()],
@@ -522,11 +525,91 @@ impl KnotVector {
     }
 }
 
+impl KnotVector {
+    /// The coefficient array of exactly [`KnotVector::control_count`]
+    /// entries that `entry` builds, index by index in ascending order,
+    /// handed to `f` minted as **this** vector's — the mint by
+    /// construction rather than by count, for a caller whose array is
+    /// its own intermediate (a line of a tensor net, a collapse's
+    /// per-row results) and so has no length to check.
+    pub fn with_coeffs_from_fn<E: CertifiedBounds, T>(
+        &self,
+        entry: impl FnMut(usize) -> E,
+        f: impl FnOnce(SplineCoeffs<'_, E>) -> T,
+    ) -> T {
+        let coeffs: Vec<E> = (0..self.control_count()).map(entry).collect();
+        f(SplineCoeffs {
+            knots: self,
+            coeffs: &coeffs,
+        })
+    }
+
+    /// The vector of this one's derivative — the outer knot pair
+    /// dropped, degree one less ([`KnotVector::derivative_knot_slice`])
+    /// — or `None` when that is not a clamped vector: degree 1 (a
+    /// degree-0 vector is refused), or an interior knot of multiplicity
+    /// equal to the degree, where the derivative is discontinuous.
+    pub fn derivative(&self) -> Option<KnotVector> {
+        KnotVector::clamped(self.derivative_knot_slice().to_vec(), self.degree() - 1).ok()
+    }
+}
+
+/// A [`SplineCoeffs`] that owns both halves: the coefficient array and
+/// the knot vector it is a proof about, held together so a derivative
+/// level travels as one value. Minted only by
+/// [`SplineCoeffs::derivative`], whose coefficients have the derivative
+/// vector's control count by the knot-difference formula — so
+/// [`SplineCoeffsBuf::pair`] needs no check.
+#[derive(Clone)]
+pub struct SplineCoeffsBuf<E: CertifiedBounds> {
+    knots: KnotVector,
+    coeffs: Vec<E>,
+}
+
+/// The knot vector's degree and the array's length, never the arrays
+/// (see [`SplineCoeffs`]).
+impl<E: CertifiedBounds> core::fmt::Debug for SplineCoeffsBuf<E> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self { knots, coeffs } = self;
+        f.debug_struct("SplineCoeffsBuf")
+            .field("degree", &knots.degree())
+            .field("len", &coeffs.len())
+            .finish()
+    }
+}
+
+impl<E: CertifiedBounds> SplineCoeffsBuf<E> {
+    /// The borrowed pair every door reads.
+    pub fn pair(&self) -> SplineCoeffs<'_, E> {
+        SplineCoeffs {
+            knots: &self.knots,
+            coeffs: &self.coeffs,
+        }
+    }
+}
+
 impl<'a, E: CertifiedBounds> SplineCoeffs<'a, E> {
     /// The [`KnotVector`] these coefficients are a proof about — the
     /// one every door here reads its knots from.
     pub fn knots(self) -> &'a KnotVector {
         self.knots
+    }
+
+    /// The coefficient array, [`KnotVector::control_count`] long.
+    pub fn coeffs(self) -> &'a [E] {
+        self.coeffs
+    }
+
+    /// The derivative as a pair: [`SplineCoeffs::derivative_coeffs`]
+    /// against [`KnotVector::derivative`], or `None` exactly when that
+    /// vector is not a clamped one (degree 1, or a discontinuous
+    /// derivative). A caller that wants the coefficients regardless
+    /// reads [`SplineCoeffs::derivative_coeffs`].
+    pub fn derivative(self) -> Option<SplineCoeffsBuf<Interval>> {
+        Some(SplineCoeffsBuf {
+            knots: self.knots.derivative()?,
+            coeffs: self.derivative_coeffs(),
+        })
     }
 
     /// The window of this pair at span `index` — `None` when the index
@@ -540,14 +623,14 @@ impl<'a, E: CertifiedBounds> SplineCoeffs<'a, E> {
         })
     }
 
-    /// The window containing `t` — total on all of `f64` for exactly
-    /// the reasons [`KnotVector::span_at`] is (out-of-domain clamps to
-    /// an end span, NaN lands on the first).
-    pub fn span_at(self, t: f64) -> CoeffWindow<'a, E> {
-        CoeffWindow {
+    /// The window containing `t`, or `None` at NaN, exactly as
+    /// [`KnotVector::span_at`] locates it (out-of-domain clamps to an
+    /// end span).
+    pub fn span_at(self, t: f64) -> Option<CoeffWindow<'a, E>> {
+        Some(CoeffWindow {
             pair: self,
-            span: self.knots.span_at(t),
-        }
+            span: self.knots.span_at(t)?,
+        })
     }
 
     /// Enclosure of the scalar B-spline's values over its whole domain:
@@ -661,13 +744,13 @@ impl<'a, E: CertifiedBounds> RationalCoeffs<'a, E> {
         })
     }
 
-    /// The window containing `t` — total on all of `f64` for exactly
-    /// the reasons [`KnotVector::span_at`] is.
-    pub fn span_at(self, t: f64) -> RationalWindow<'a, E> {
-        RationalWindow {
+    /// The window containing `t`, or `None` at NaN, exactly as
+    /// [`KnotVector::span_at`] locates it.
+    pub fn span_at(self, t: f64) -> Option<RationalWindow<'a, E>> {
+        Some(RationalWindow {
             pair: self,
-            span: self.knots.span_at(t),
-        }
+            span: self.knots.span_at(t)?,
+        })
     }
 
     /// The same coefficients as a proof about the same vector, with
@@ -719,6 +802,14 @@ impl<'a, E: CertifiedBounds> CoeffWindow<'a, E> {
     /// vector.
     pub fn span(self) -> Span<'a> {
         self.span
+    }
+
+    /// The `p + 1` coefficients active on this span, in
+    /// [`CoeffWindow::window`] order — the slice an evaluator restricted
+    /// to the span reads.
+    pub fn coeffs(self) -> &'a [E] {
+        // In range: index ≤ control_count() − 1 = coeffs.len() − 1 by the mint.
+        &self.pair.coeffs[self.span.first_control()..=self.span.index()]
     }
 
     /// The inclusive coefficient window this span's doors read,

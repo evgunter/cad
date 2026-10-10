@@ -187,24 +187,35 @@ pub fn selector() -> Selector {
 /// The two cavity meridians — the names the selection deliberately
 /// LEAVES OUT (the co-surface seams). Named here so the pin that
 /// checks the exclusion reads the same list the docs above describe.
+/// The cube's face cuts each, so the target publishes each as its one
+/// piece, named by its ends (N2): read off `ev`'s table at `pipped`.
 pub fn excluded_meridians(
     doc: &editor_core::ProfileDoc,
+    ev: &editor_core::Evaluation<f64>,
     ball: RecipeNodeId,
     pipped: RecipeNodeId,
 ) -> Vec<StableName> {
     [MeridianEnd::Seam, MeridianEnd::Pi]
         .into_iter()
-        .map(|end| StableName {
-            kind: EntityKind::Edge,
-            node: pipped,
-            path: vec![RoleSeg::FromB(NameRef::new(StableName {
+        .map(|end| {
+            let head = RoleSeg::FromB(NameRef::new(StableName {
                 kind: EntityKind::Edge,
                 node: ball,
                 path: vec![RoleSeg::Meridian(
                     end,
                     crate::fixture::piece(doc, ball, 0, 0).into(),
                 )],
-            }))],
+            }));
+            let pieces: Vec<StableName> = crate::fixture::table(ev, pipped)
+                .iter()
+                .map(|(n, _)| n)
+                .filter(|n| n.kind == EntityKind::Edge && n.path.first() == Some(&head))
+                .cloned()
+                .collect();
+            let [piece] = pieces.as_slice() else {
+                panic!("one piece of the {end:?} meridian: {pieces:?}");
+            };
+            piece.clone()
         })
         .collect()
 }
@@ -219,12 +230,12 @@ pub fn document() -> CorpusDoc {
         LoopProgram::polygon([(0.0, 0.0), (DIE_L, 0.0), (DIE_L, DIE_L), (0.0, DIE_L)]).unwrap();
     let cube_plane = r.insert(xy_frame());
     let cube_p = r.insert(Node::Profile(ProfileProgram {
-        plane: cube_plane,
+        frame: cube_plane.into(),
         loops: vec![square],
         ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
-        profile: cube_p,
+        profile: cube_p.into(),
         distance: len(DIE_L),
         side: ExtrudeSide::Along,
     });
@@ -238,19 +249,19 @@ pub fn document() -> CorpusDoc {
     // It is minted AFTER the frame because it names it.
     let axis = r.insert(axis_in_plane(ball_plane, (0.0, 0.0), (0.0, 1.0)));
     let ball_p = r.insert(Node::Profile(ProfileProgram {
-        plane: ball_plane,
+        frame: ball_plane.into(),
         loops: vec![half_disc],
         ids: Vec::new(),
     }));
     let ball = r.insert(Node::Revolve {
-        profile: ball_p,
-        axis,
+        profile: ball_p.into(),
+        axis: axis.into(),
         angle: ang(std::f64::consts::TAU),
     });
 
     // ---- the pip, then the SURGERY on the pipped cube ----
     let pip = r.insert(Node::transform(
-        ball,
+        editor_core::Operand::output(ball, 0),
         editor_core::Step::Rigid {
             translation: [len(h), len(h), len(PIP_C)],
             axis: [scl(0.0), scl(0.0), scl(1.0)],
@@ -259,8 +270,8 @@ pub fn document() -> CorpusDoc {
     ));
     let pipped = r.insert(Node::Boolean {
         op: BooleanOp::Subtract,
-        a: cube,
-        b: pip,
+        a: cube.into(),
+        b: pip.into(),
         declare: Vec::new(),
     });
     // The fourteen selected edges — twelve box edges and the pip
@@ -282,6 +293,8 @@ pub fn document() -> CorpusDoc {
         editor_core::select(&ev, pipped, &selector()),
     ));
 
+    r.place(composed);
+
     CorpusDoc {
         name: "die_composed",
         about: "M6 unit 1: the pipped cube filleted in place — box blends, octants, and the \
@@ -302,7 +315,8 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: pip,
             slot: SlotId::Translation(Axis3::Y),
-            expr: len(0.53125),
+            value: len(0.53125).into(),
+            fresh: Vec::new(),
         },
         bump_root: pip,
     }

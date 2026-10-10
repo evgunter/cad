@@ -7,7 +7,7 @@ priority: P3
 cost: M
 parent: MSOLVE-13
 opened: 2026-10-03
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [a-mate-reads-face-variables]
 ---
 
 
@@ -43,3 +43,6 @@ its verdict stated. Where the cut separates the union from its member,
 either the refusal is typed or the head re-anchors as the AQ8 clause
 says.
 
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `a-mate-reads-face-variables`, not on the whole program: refactor.rs reads member_of through the head walk that descends unions; unit F retires that walk (A12's reading edges), and names this row as its own. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

@@ -26,8 +26,9 @@ use pncad::workspace::Workspace;
 use viewer::session::{AtRestBadge, DocSession, SessionOp};
 
 /// The issue's document over the bench's parts: a post, the shelf
-/// lifted by a transform, a two-copy pattern of the lifted shelf, and
-/// the seat mate read AT the transform. Stored beside the bench's
+/// lifted by a transform, a two-copy pattern of the lifted shelf, the
+/// post and both copies placed, and the seat mate read AT the
+/// transform. Stored beside the bench's
 /// parts so the session's resolver finds them.
 fn moved_above(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, AssemblyError) {
     let mut asm = ProfileDoc::empty(DocumentId::derive("msolve5-viewer"), tol);
@@ -49,7 +50,7 @@ fn moved_above(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, AssemblyErr
     let pattern = insert_into(
         &mut asm,
         Node::Pattern {
-            input: lifted,
+            input: lifted.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -58,6 +59,28 @@ fn moved_above(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, AssemblyErr
         },
         tol,
     );
+    // The world (A10): the post placed, then each of the pattern's two
+    // copies through a `Part` per copy.
+    insert_into(
+        &mut asm,
+        Node::place_in_world(post, pncad::document::Placement::IDENTITY),
+        tol,
+    );
+    for index in 0..2 {
+        let copy = insert_into(
+            &mut asm,
+            Node::Part {
+                of: pattern.into(),
+                select: pncad::document::PartSelect::Instance(Formula::count(index)),
+            },
+            tol,
+        );
+        insert_into(
+            &mut asm,
+            Node::place_in_world(copy, pncad::document::Placement::IDENTITY),
+            tol,
+        );
+    }
     let b = asm::in_part(shelf, &bench.shelf_bottom);
     let mate = insert_into(
         &mut asm,

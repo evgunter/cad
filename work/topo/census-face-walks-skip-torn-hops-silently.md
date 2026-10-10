@@ -37,6 +37,9 @@ Its row `n2r2_class7_face_reach_partial_box_and_census_decision` only
 `eprintln!`s its readings (`near == far ? …`) and asserts nothing past
 a fixture count, so it is not a gate (implementer discipline §8: drop
 it, or `#[ignore]` it with its run command).
+*Discharged by PIPE's S350 (PR 4482):* the row is replaced by
+`a_net_poisoned_in_one_channel_has_no_reach_and_clears_no_pair`, which
+gates, and the block's banner now names what it holds.
 
 ## Fix shape
 

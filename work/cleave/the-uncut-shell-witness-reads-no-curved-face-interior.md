@@ -42,9 +42,9 @@ Section-loop role resolution (`boolean/join.rs`
 over each loop's region faces. A curved region face is passed over
 there too. A loop whose regions are all curved, with every vertex and
 edge midpoint on the other boundary, reads undecided, and the other
-loop decides. If neither loop decides, the join refuses with
-`JoinDesync` ("neither section loop's regions hold a decisive
-witness"). No row reaches that refusal.
+loop decides. If neither loop decides, the join refuses
+`Join(SectionLoopUndecided)` (`join.rs` `loop_roles`). The rows above
+under "Evidence" reach that refusal.
 
 ## Under the `On` verdict (FUSE, branch `fuse/on-verdict`)
 
@@ -76,3 +76,31 @@ on_boundary: 4, in_band: 0 }` for each loop).
 - the cylinder of `review_ring_clearance_r1_probes.rs`
   `r1_diag_cylinder_pierces` against a `y`-poled ball(0.16) on its top
   cap (recorded, not asserted, there).
+
+## Evidence (2026-10-07, TANG `tang/sphere-ring-island-winding`): a well under a ball
+
+The slab `[0, 4]² × [0, 1]` with a well `[0.1, 0.4] × [1.8, 2.2] ×
+[0.5, 1]` cut into it, against the `y`-poled ball(0.5) at
+`(0.3, 2, 1.2)`: the slab's top edge pierces the ball's face, and the
+well's walls cut it in a ring inside that island, which the sphere
+ring re-homing moves in. Every op in both member orders then stops at
+the role read, `Join(SectionLoopUndecided)`: the section loop about the
+well flanks only patches of the sphere, every vertex and edge of which
+lies on the slab (`crates/sweep/tests/a_ring_on_a_sphere_face.rs`,
+`a_ring_inside_a_sphere_island_moves_and_stops_at_the_role_read`). A
+through hole stops the same way.
+
+## The planar cousin is closed (JOIN, `join/annular-tube-roles`)
+
+A planar region face whose vertex chords all leave it, or that has one
+vertex, now offers a witness: rung 3 also runs a line inward from each
+edge's midpoint and proposes its midpoint to the first carrier it
+meets (`stands.rs` `across_edges`). The same move, taken in a curved
+face's chart and evaluated on its surface, is one shape the curved fix
+above could take.
+
+The declared plug flush in a bore reached this row's shell refusal
+for planar faces: on main it refused `CoincidentShell` (`Unpaired` on
+a one-vertex cap, or `Mixed`), and it now decides
+(`crates/sweep/tests/an_annular_tube_through_a_plate.rs`
+`a_plug_flush_in_a_bore_is_sided_by_its_caps`).

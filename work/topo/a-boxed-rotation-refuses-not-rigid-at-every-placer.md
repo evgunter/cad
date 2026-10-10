@@ -7,7 +7,7 @@ opened: 2026-10-01
 priority: P3
 cost: M
 design: true
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage3-is-built]
 ---
 
 Found by a designer weighing MSOLVE's plan item 19 (the mate solve on
@@ -60,3 +60,7 @@ its translation boxed at `gap ± 0.25`, refuses
 
 The priority deserves reconsidering: this row now gates every boxed
 translated instance, not only a boxed rotation.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage3-is-built`, not on the whole program: the fix site is boxed placement (transform_rigid on a Transform/instance/mate frame); stage 3 makes frames variables, placement a bundle of mates, and retires Transform-as-placement. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

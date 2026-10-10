@@ -99,12 +99,12 @@ pub fn document() -> CorpusDoc {
     let square = LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap();
     let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![square],
         ids: Vec::new(),
     }));
     let blank = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(H),
         side: ExtrudeSide::Along,
     });
@@ -112,6 +112,8 @@ pub fn document() -> CorpusDoc {
     // out of. Authored, not queried — a designation FREEZES, so the
     // document states the face it means.
     let cup = r.insert(Node::shell(blank, len(T), vec![top(blank)]));
+
+    r.place(cup);
 
     CorpusDoc {
         name: "cup",
@@ -123,7 +125,8 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: blank,
             slot: SlotId::Distance,
-            expr: len(H_BUMPED),
+            value: len(H_BUMPED).into(),
+            fresh: Vec::new(),
         },
         bump_root: blank,
     }

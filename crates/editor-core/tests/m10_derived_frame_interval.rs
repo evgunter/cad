@@ -153,13 +153,15 @@ pub(crate) fn boss_on_widened_box(half: f64) -> (ProfileDoc, RecipeNodeId, Recip
         vec![fixture::square(0.0, 0.0, 1.0)],
     );
     let cube = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: Formula::named(VarName::from_static("h"), Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        at: cube,
-        face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+        face: editor_core::Operand::select(
+            cube,
+            vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
+        ),
         spin: ang(0.0),
     }));
     let boss_p = r.insert(Node::Profile(fixture::desc(
@@ -167,7 +169,7 @@ pub(crate) fn boss_on_widened_box(half: f64) -> (ProfileDoc, RecipeNodeId, Recip
         vec![fixture::square(0.0, 0.0, 0.5)],
     )));
     let boss = r.insert(Node::Extrude {
-        profile: boss_p,
+        profile: boss_p.into(),
         distance: len(0.25),
         side: ExtrudeSide::Along,
     });
@@ -195,7 +197,7 @@ pub(crate) fn boss_on_widened_authored_frame(half: f64) -> (ProfileDoc, RecipeNo
         vec![fixture::square(0.0, 0.0, 0.5)],
     )));
     let boss = r.insert(Node::Extrude {
-        profile: boss_p,
+        profile: boss_p.into(),
         distance: len(0.25),
         side: ExtrudeSide::Along,
     });
@@ -215,7 +217,7 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
         vec![fixture::square(0.0, 0.0, 1.0)],
     );
     let cube = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -232,8 +234,10 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
         },
     ));
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        at: lifted,
-        face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+        face: editor_core::Operand::select(
+            lifted,
+            vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
+        ),
         spin: ang(0.0),
     }));
     let boss_p = r.insert(Node::Profile(fixture::desc(
@@ -241,7 +245,7 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
         vec![fixture::square(0.0, 0.0, 0.5)],
     )));
     r.insert(Node::Extrude {
-        profile: boss_p,
+        profile: boss_p.into(),
         distance: len(0.25),
         side: ExtrudeSide::Along,
     });
@@ -373,7 +377,7 @@ fn measured_replay(
 
     for name in box_.axes().keys() {
         name_param(
-            geom_core::ParamSymbol::new(name.0),
+            geom_core::ParamSymbol::new(name.0.digest()),
             &doc.spoken_var(*name).to_string(),
         );
     }
@@ -747,7 +751,7 @@ fn sym10_phase1_the_derived_frame_rows_refusal_rendered() {
     let box_ = ParamBox::of(&analyzed);
     for name in box_.axes().keys() {
         name_param(
-            geom_core::ParamSymbol::new(name.0),
+            geom_core::ParamSymbol::new(name.0.digest()),
             &derived.spoken_var(*name).to_string(),
         );
     }

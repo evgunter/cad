@@ -239,7 +239,7 @@ fn recorded_block(rec: &mut Recorder, (x0, x1): (f64, f64)) -> RecipeNodeId {
         vec![vec![(x0, 0.0), (x1, 0.0), (x1, 1.0), (x0, 1.0)]],
     );
     rec.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     })
@@ -292,8 +292,8 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
     );
     let inner = rec.insert(Node::Boolean {
         op: BooleanOp::Union,
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         declare: decl_ab,
     });
     let c = recorded_block(&mut rec, (1.2, 2.2));
@@ -320,8 +320,8 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
     );
     let outer = rec.insert(Node::Boolean {
         op: BooleanOp::Union,
-        a: inner,
-        b: c,
+        a: inner.into(),
+        b: c.into(),
         declare: decl_ic,
     });
     let ev = run(&rec.doc);
@@ -470,8 +470,8 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
     );
     let inner = rec.insert(Node::Boolean {
         op: BooleanOp::Union,
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         declare: decl_ab,
     });
     let c = recorded_block(&mut rec, (1.2, 2.2));
@@ -497,8 +497,8 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
     );
     let outer = rec.insert(Node::Boolean {
         op: BooleanOp::Union,
-        a: inner,
-        b: c,
+        a: inner.into(),
+        b: c.into(),
         declare: decl_ic,
     });
     let ev = run(&rec.doc);
@@ -560,8 +560,8 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: decl_ab,
         },
     );
@@ -572,8 +572,8 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: far,
-            b: inner,
+            a: far.into(),
+            b: inner.into(),
             declare: Vec::new(),
         },
     );
@@ -604,8 +604,8 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: mid,
-            b: c,
+            a: mid.into(),
+            b: c.into(),
             declare: decl_mc,
         },
     );
@@ -916,23 +916,22 @@ fn the_three_neighbour_star_refuses_as_a_split_or_a_fragmented_merge() {
     );
 }
 
-/// **A union's undeclared contact against a face the fold FRAGMENTS is
-/// refused between the two members, and is declarable.**
+/// **A union's contact against a face the fold FRAGMENTS glues
+/// undeclared, and declaring it refuses naming the split.**
 ///
 /// `s` pokes through `a`'s end cap, so folding it in FRAGMENTS that
 /// cap: the accumulation's rows for it are `[FromMember(a), Fragment]`
 /// pairs, which the member-keying rule does not collapse to a member's
-/// entity and no merge retired. `d` rests flush on `a`'s cap,
-/// undeclared. Contact is judged pairwise before the fold (DM4), so the
-/// refusal names `a`'s cap and `d`'s bottom, both member faces, rather
-/// than the fragment the fold would have met: no refusal names a row
-/// the fold minted, and `UndeclarableContact` is not reached.
+/// entity and no merge retired. `d` rests flush on `a`'s cap. The
+/// margins decide that rest one carrier, so the fold glues it
+/// undeclared and the union is one body; the detector reports the rest
+/// between `a`'s cap and `d`'s bottom, both member faces.
 ///
 /// Declared, the pair is fed to `d`'s step, where `a`'s cap survives
 /// only in pieces; which of them carry the contact is not decidable
 /// from the names, and the declaration refuses there naming the split.
 #[test]
-fn a_contact_against_a_fold_minted_fragment_is_refused_between_members() {
+fn a_contact_against_a_fold_minted_fragment_glues_undeclared() {
     let doc = ProfileDoc::empty_derived("docm8_fragment_refusal", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
@@ -951,23 +950,24 @@ fn a_contact_against_a_fold_minted_fragment_is_refused_between_members() {
     }
     let (docx, union) = declared_union_classed(doc.clone(), &[a, s, d], pairs.clone());
     let ev = run(&docx);
-    let what = failure(&ev, union);
-    let Some(NodeErrorKind::UndeclaredCoincidence {
-        finding, merged, ..
-    }) = what
-    else {
-        panic!("expected the pairwise refusal, got {what:?}")
-    };
+    assert_eq!(
+        outcome(&ev, union),
+        Outcome::Fused,
+        "the rest on the fragmented cap glues undeclared"
+    );
     // The pair is spelled lower id first.
     let (cap, bottom) = (
         SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
         SitedRef::new(d, fname(d, RoleSeg::Cap(CapEnd::Start))),
     );
+    let found = editor_core::find_flush_candidates(&ev, a, d, Tol::witness())
+        .expect("the detector answers");
+    assert_eq!(found.len(), 1, "one contact between a and d: {found:?}");
+    let finding = &found[0];
     assert_eq!(
         finding.pair,
         if a < d { (cap, bottom) } else { (bottom, cap) }
     );
-    assert!(merged.0.is_empty() && merged.1.is_empty(), "{merged:?}");
     assert_eq!(
         finding.class,
         BooleanCoincidence::REST,

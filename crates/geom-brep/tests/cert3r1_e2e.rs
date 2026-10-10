@@ -1,7 +1,7 @@
 //! CERT-3 review lane R1 — e2e exercise through the public doors.
 //!
 //! My own revolve/restrict fixtures (not the unit's): oblique wide
-//! axis, rotational placement, a stored-placement round trip through
+//! axis, rotational placement, a restriction round trip through
 //! nested `restrict`, and an angle near but not at zero — both lanes.
 //! Local-only; never pushed.
 
@@ -9,10 +9,10 @@
 
 use core::f64::consts::{FRAC_PI_3, TAU};
 
-use geom_brep::MappedCurve;
+use geom_brep::{MappedCurve, MappedSource};
 use geom_core::{Affine3, Mat3, Point2, Point3, Vec3};
 
-/// f64 lane: nested restrict composes placements twice; the sample must
+/// f64 lane: two nested restrictions; the sample must
 /// agree with the direct evaluation to rounding, near zero angle too.
 #[test]
 fn r1_f64_nested_restrict_round_trip() {
@@ -20,13 +20,13 @@ fn r1_f64_nested_restrict_round_trip() {
         Mat3::rotation_about(Vec3::new(1.0f64, 1.0, 0.0), FRAC_PI_3),
         Vec3::new(0.5, -1.5, 3.0),
     );
-    let curve = MappedCurve::RevolvedPoint {
+    let curve = MappedCurve::whole(MappedSource::RevolvedPoint {
         point: Point2::new(2.0f64, -1.0),
         place,
         axis_origin: Point3::new(1.0, 2.0, 3.0),
         axis_dir: Vec3::new(2.0, 1.0, -2.0),
         angle: TAU,
-    };
+    });
     // restrict twice: [0.3, 0.7] then [0.5, 1.0] of that = [0.5, 0.7].
     let r1 = curve.restrict(0.3, 0.7);
     let r2 = r1.restrict(0.5, 1.0);
@@ -38,13 +38,13 @@ fn r1_f64_nested_restrict_round_trip() {
         assert!(d <= 1e-12, "nested restrict drifted {d:e} from direct eval");
     }
     // Near-zero angle at f64: eval(s)·small-angle stays near the start.
-    let tiny = MappedCurve::RevolvedPoint {
+    let tiny = MappedCurve::whole(MappedSource::RevolvedPoint {
         point: Point2::new(2.0f64, -1.0),
         place,
         axis_origin: Point3::new(1.0, 2.0, 3.0),
         axis_dir: Vec3::new(2.0, 1.0, -2.0),
         angle: 1.0e-8,
-    };
+    });
     let p0 = tiny.eval(0.0);
     let p1 = tiny.eval(1.0);
     let d = (p1 - p0).norm_inf();
@@ -68,7 +68,7 @@ mod interval_lane {
     /// fixture used a translation placement and a +z axis).
     fn rig(half: f64, angle: f64) -> MappedCurve<Interval> {
         let wd = |c: f64| Interval::from_bounds(c - half, c + half);
-        MappedCurve::RevolvedPoint {
+        MappedCurve::whole(MappedSource::RevolvedPoint {
             point: Point2::new(iv(2.0), iv(-1.0)),
             place: Affine3::from_parts(
                 Mat3::rotation_about(
@@ -80,7 +80,7 @@ mod interval_lane {
             axis_origin: Point3::new(wd(1.0), wd(2.0), wd(3.0)),
             axis_dir: Vec3::new(wd(2.0), wd(1.0), wd(-2.0)),
             angle: iv(angle),
-        }
+        })
     }
 
     /// Near-but-not-zero angle: the start sample must not feel the
@@ -101,12 +101,12 @@ mod interval_lane {
         }
     }
 
-    /// The stored-placement round trip: nested restricts, then compare
+    /// The restriction round trip: nested restricts, then compare
     /// the sub-curve's samples against the direct evaluation — the two
     /// enclosures must overlap (they describe one point), and the
-    /// stored path must not balloon.
+    /// restricted one may be no more than twice as wide.
     #[test]
-    fn r1_interval_stored_round_trip() {
+    fn r1_interval_restriction_round_trip() {
         let c = rig(1.0e-9, TAU);
         let r1 = c.restrict(iv(0.3), iv(0.7));
         let r2 = r1.restrict(iv(0.5), iv(1.0));
@@ -133,13 +133,17 @@ mod interval_lane {
                 "s={s}: via width {wv:e}, direct width {wd:e}, ratio {}",
                 wv / wd
             );
+            assert!(
+                wv <= 2.0 * wd,
+                "s={s}: the twice-restricted sample is {wv:e} wide against the direct \
+                 evaluation's {wd:e}"
+            );
         }
     }
 
-    /// The caller/callee-split round trip the PR names as its sweep's
-    /// blind spot, measured: restrict(s0 != 0) stores (I-R1)q, eval
-    /// re-subtracts through (I-R2)q, and an R2·q pair cancels over the
-    /// reals. Compare the split cost against the fused rotation.
+    /// A split at s0 != 0 against the fused evaluation at the same
+    /// point: the restriction narrows the angle range, so its start
+    /// sample is one rotation, like the fused one.
     #[test]
     fn r1_split_anchor_cost_measured() {
         let c = rig(1.0e-9, TAU);

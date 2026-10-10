@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-03
 priority: P3
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage3-is-built]
 ---
 
 
@@ -56,3 +56,7 @@ and `Expr` slots (`[ev]` PR #3990, "every slot holds a typed
 variable"), which may re-spell every slot anyway. Park it on
 `one-way-to-say-dependency-and-intent` once that row is on main; the
 blocker is not set here because the row does not exist yet.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage3-is-built`, not on the whole program: two of the three spellings (step 0 of transform/gauge/offset, PlacementStep) belong to gauges, offsets and Transform-as-placement, which stage 3 retires; MateFrameStep is re-cut with frame variables. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

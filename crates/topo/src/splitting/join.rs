@@ -1154,6 +1154,7 @@ mod torn_hop_rows {
                     sides: SecondaryMap::new(),
                     on_vertices: Vec::new(),
                     null_edges: null_edges.clone(),
+                    coincidences: Vec::new(),
                 };
                 fixed_partners(&red, &above, band()).map(|p| p.len())
             },

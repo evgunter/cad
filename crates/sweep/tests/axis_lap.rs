@@ -29,7 +29,7 @@
 //! - a flat cutter with a thin half-rod on the axis leaves role
 //!   resolution only the rim's CHORD midpoint to probe, which is on
 //!   neither flanking region, and the join refuses `SectionLoopMixed`
-//!   (`work/join/role-resolution-interior-tiers-certify-only-planar-region-faces`);
+//!   (`role-resolution-interior-tiers-certify-only-planar-region-faces`, JOIN, closed at JOIN's opening on what main carried);
 //! - a blind D pocket in a block builds from either face: from the
 //!   bottom its floor's chord has the D's arc between its ends; from the
 //!   top the D's arc side closes the ring-lane run the flat side's
@@ -223,7 +223,7 @@ fn full_length_flats_build_at_the_analytic_volume() {
 /// are 3 apart along `z`. The containment door's orientation probe
 /// measures the body in closed form, which an obliquely trimmed wall
 /// has none of, so a probe ray meeting nothing cannot side its point
-/// (`work/contact/at-infinity-probe-measures-in-closed-form-only`); that
+/// (`work/restread/at-infinity-probe-measures-in-closed-form-only`); that
 /// ray is set aside, and one meeting the boundary answers.
 #[test]
 fn an_oblique_cap_flats_through_its_ellipse_arc() {

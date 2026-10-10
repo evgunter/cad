@@ -99,6 +99,7 @@ fn records(pairs: &[(FaceKey, FaceKey)]) -> ContactRecords {
                 face_a: a,
                 face_b: b,
             })
+            .map(|c| topo::Cited::new(c, topo::Cites::decided(0)))
             .collect(),
         ..ContactRecords::default()
     }
@@ -141,14 +142,9 @@ fn count_ef(cs: &[CensusContact]) -> usize {
 ///
 /// Under the UNIFIED strength (CONTACT-DESIGN C3/C4's annotation;
 /// MATE-9) this reach is exactly what `ef_bound_backed`'s
-/// grandfathering carries: the rung's region-confined variant was
-/// implemented and MEASURED, and it refuses the overlap lane's cell
-/// bounds wherever the cut schedule's reach gap puts a bound outside
-/// the interface — the declared straddle seat's own dive cell
-/// regresses — so the rung stays grandfathered, this row stays green
-/// as the anomaly's pin, and the migration waits on
-/// boundary-crossing cuts (the grandfather note names it). The
-/// measurement is in MATE-9's PR and in this branch's history.
+/// grandfathering carries, so this row stays green as the anomaly's
+/// pin while the rung is grandfathered; its migration is parked as
+/// `ef-bound-backed-migrates-to-region-confinement`.
 #[test]
 fn r2_an_unrelated_declared_pair_backs_the_ef_bound() {
     let (body, post_top, _shelf_bottom, side_ha, side_ab, shelf_side) = overhang_seat_full();

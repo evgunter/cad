@@ -40,7 +40,7 @@ fn disagreements(
 ) -> Vec<String> {
     let poses = common::solve(session, doc, tol);
     let mut out = Vec::new();
-    for &id in doc.order() {
+    for id in doc.ids() {
         let is_mate = matches!(doc.node(id), Some(Node::Mate { .. }));
         match (poses.fault(id), ev.result(id)) {
             (Some(fault), Some(NodeResult::Failed(err))) => match &err.kind {

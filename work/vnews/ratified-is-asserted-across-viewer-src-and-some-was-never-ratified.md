@@ -248,7 +248,7 @@ found none).
 | `props.rs` module docs (:77) | setting a number into a driven slot is refused, *"the ratified micro-decision"* | **PARTIAL** | as `refuse.rs:189`: the drag half holds, the typed-write half does not |
 | `pane/properties.rs` `slot_notes` (:1017) | *"Its wording is the ratified one"* | **PARTIAL** | as `refuse.rs:591`, and a note shown BEFORE any refusal is not a refusal of a drag either |
 | `pane/properties.rs` `tests::a_driven_slots_range_button_reads_the_refusal_the_probe_would_give` (:1318) | an assertion message: the button *"renders as the ratified affordance"* | **PARTIAL** | G4 ratifies refusing a drag, and this is a range probe. The words are not decided anywhere. Added by `b62e678bc` (#2961) |
-| `session/op.rs` `SessionOp::BeginParamGesture` (:220) | the ratified preview-vs-commit decision | TRUE | G1 |
+| `session/op.rs` `SessionOp::BeginVariableGesture` (:220) | the ratified preview-vs-commit decision | TRUE | G1 |
 | `session/op.rs` `SessionOp::AddFillet` (:670) | ratified #217 semantics | TRUE | as `blend.rs:36` |
 | `session/op.rs` `SessionOp::permitted_during_value_gesture` (:1070) | DI5 (ratified) rules that release emits `SetPlacement` and `moves` empties | TRUE | DI5, `087779036`, which says both, word for word |
 

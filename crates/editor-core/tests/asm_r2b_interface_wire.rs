@@ -46,7 +46,10 @@ fn doc_with_a_crossing() -> ProfileDoc {
     let push = |doc: &ProfileDoc, node| {
         apply(
             doc,
-            &DocEdit::InsertNode { node },
+            &DocEdit::InsertNode {
+                node,
+                fresh: Vec::new(),
+            },
             Tol::witness(),
             &RefusingReach,
         )
@@ -55,7 +58,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
     };
     host = push(&host, Box::new(Node::instantiate_part(doc_ref)));
     host = push(&host, Box::new(Node::instantiate_part(doc_ref)));
-    let (first, second) = (host.order()[0], host.order()[1]);
+    let (first, second) = (host.ids()[0], host.ids()[1]);
     let sited = |node, cap| SitedFace {
         at: node,
         name: face(node, cap),
@@ -92,7 +95,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
             // that round-trips it round-trips a reference NO door
             // here resolves — which is the distinction the record
             // exists to carry across the seam.
-            inner: face(RecipeNodeId(7), CapEnd::Start),
+            inner: face(RecipeNodeId::new(0, 7), CapEnd::Start),
         }],
     };
     push(
@@ -138,6 +141,7 @@ fn an_empty_record_stays_absent_from_the_wire() {
         &ProfileDoc::empty(DocumentId::derive("asm-r2b-schema-empty"), Tol::witness()),
         &DocEdit::InsertNode {
             node: Box::new(Node::instantiate_part(doc_ref)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -166,7 +170,7 @@ fn crossing_of(wire: &mut serde_json::Value, instance: RecipeNodeId) -> &mut ser
 /// record.
 fn saved_crossing() -> (String, RecipeNodeId) {
     let doc = doc_with_a_crossing();
-    let instance = *doc.order().last().expect("the fixture has nodes");
+    let instance = *doc.ids().last().expect("the fixture has nodes");
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     (text, instance)
 }

@@ -7,10 +7,12 @@ the guide's own executed blocks.
 """
 
 from pncad import (
+    Var,
     MeasurePrimitive,
     Placement,
-    MeasureExpr,
-    AssertionDir,
+    Measured,
+    Measurement,
+    AssertionRelation,
     Advisory,
     AnalysisPolicy,
     AnalyzedBox,
@@ -343,22 +345,28 @@ sealed: NodeId = doc.insert(Node.shell(upright, Formula.length_in(0.01, m), []))
 # The tube pair. The window is a VALUE with two spellings, and the
 # hollow kind's wall is a required Length — there is no `wall=None`
 # that quietly makes it the solid door.
-spine: NodeId = doc.insert(Node.datum_axis((
+tube_frame: NodeId = doc.insert(Node.datum_frame((
     Formula.length_in(0, m),
     Formula.length_in(0, m),
     Formula.length_in(0, m),
 ), (
+    Formula.literal(1.0),
     Formula.literal(0.0),
+    Formula.literal(0.0),
+), (
     Formula.literal(0.0),
     Formula.literal(1.0),
+    Formula.literal(0.0),
 )))
 donut: NodeId = doc.insert(
-    Node.tube(spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(0.2, m), TubeWindow.full(), Formula.length_in(0.05, m))
+    Node.tube(tube_frame, Formula.length_in(0.2, m), TubeWindow.full(), Formula.length_in(0.05, m))
 )
+# An operand reads a variable as well as a node: the frame's output.
+frame_out: Var | None = doc.output(tube_frame, 0)
+assert frame_out is not None
 elbow: NodeId = doc.insert(
     Node.hollow_tube(
-        spine,
-        (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+        frame_out,
         Formula.length_in(0.2, m),
         TubeWindow.arc(Formula.angle_in(0, rad), Formula.angle_in(1.5, rad)),
         Formula.length_in(0.05, m),
@@ -590,9 +598,10 @@ on_gauge: DocEdit = DocEdit.set_gauge(instance, stand_on)
 to_world: DocEdit = DocEdit.set_gauge(instance, None)
 promoted: DocEdit = DocEdit.promote(instance)
 folded: DocEdit = DocEdit.fold(stand_on)
-designated: DocEdit = DocEdit.set_roots([instance])
 repinned: DocEdit = DocEdit.update_reference(instance, pin)
-product_roots: list[NodeId] = doc.roots
+placed: NodeId = doc.place(instance, Placement.identity(), label="the post")
+world: list[NodeId] = doc.placements()
+placer: Node = Node.place_in_world(instance)
 offset_read: Placement | None = doc.offset(instance)
 gauge_read: NodeId | None = doc.gauge(instance)
 carried_reference: DocRef | None = doc.reference(instance)
@@ -853,27 +862,30 @@ spun: FreeVar = FreeVar.written_angle(turned)
 symbol: str | None = declared.unit
 table: dict[VarName, FreeVar] = doc.params
 
-# Authoring a measurement. The verb vocabulary is a value class, the
-# expression is checked as it is built, and the node takes the
-# reference list its primitives index — each entry a node and a name,
-# the pair `Node.mate` already takes each of its two sides as.
-reach: MeasurePrimitive = MeasurePrimitive.distance(0, 1)
+# Authoring a measurement. The verb vocabulary is a value class over
+# its two references — each a node and a name, the pair `Node.mate`
+# already takes each of its two sides as — and its arithmetic is an
+# ordinary formula over the measures' outputs.
+reach: MeasurePrimitive = MeasurePrimitive.distance((upright, cap_name), (upright, cap_name))
 which_verb: str = reach.verb
-which_pair: tuple[int, int] = reach.refs
-span: MeasureExpr = MeasureExpr.primitive(reach)
-pad: MeasureExpr = MeasureExpr.value(doc.parse_formula("bore_r"))
-web: MeasureExpr = MeasureExpr.sub(span, MeasureExpr.add(pad, pad))
-measured_kind: str = web.dimension
-leaves: list[MeasurePrimitive] = web.primitives
-sink: NodeId = doc.insert(
-    Node.measure(web, [(upright, cap_name), (upright, cap_name)])
-)
-# The bound is an EXPRESSION, because its dimension is the measure's
-# and a slot address cannot fix it.
+which_pair: tuple[tuple[NodeId, str], tuple[NodeId, str]] = reach.refs
+measured_kind: str = reach.dimension
+recorded: Measured = doc.measure([reach])
+spans: list[NodeId] = recorded.measures
+spanned: list[Var] = recorded.outputs
+lone: NodeId = doc.insert(Node.measure(reach))
+# The bound is an EXPRESSION, because its dimension is the value's and
+# a slot address cannot fix it.
 requirement: NodeId = doc.insert(
-    Node.assertion(sink, AssertionDir.AtLeast, doc.parse_formula("0.5 mm"))
+    Node.assertion(recorded.outputs[0], AssertionRelation.AtLeast, doc.parse_formula("0.5 mm"))
 )
-which_way: str = AssertionDir.AtMost.symbol
+read_back: Measurement = evaluate(doc).reading(recorded.outputs[0])
+which_way: str = AssertionRelation.AtMost.symbol
+equality: NodeId = doc.insert(
+    Node.assertion(
+        recorded.outputs[0], relation=AssertionRelation.Equal, bound=doc.parse_formula("0.5 mm")
+    )
+)
 
 # The two words a refusal carries, typed. Both are OPTIONAL strings and
 # the stub says so: `kind` is which door refused, `inner_kind` the arm
@@ -892,11 +904,9 @@ except EditError as edit_refusal:
     which_edit: str = edit_refusal.variant
     which_edit_arm: str | None = edit_refusal.inner_variant
     # ...and the arm's PAYLOAD beside them, every attribute present and
-    # each typed. A delete that would dangle carries the two node
-    # roles; the rest are `None` here, which is a value the stub types
-    # and not a missing attribute.
+    # each typed. An attribute the arm does not carry is `None`, which
+    # is a value the stub types and not a missing attribute.
     dangling: NodeId | None = edit_refusal.node
-    consumer: NodeId | None = edit_refusal.referenced_by
     operand: NodeId | None = edit_refusal.input
     which_slot: str | None = edit_refusal.slot
     which_param: str | None = edit_refusal.param
@@ -1080,3 +1090,15 @@ _blended: NodeId = _names_doc.insert(
 _hollowed: NodeId = _names_doc.insert(
     Node.shell(_revolved, Formula.length_in(0.1, m), [minted_band, minted_half])
 )
+
+# INTENT-LITERALS Q9: a slot takes a variable, a formula, or a value of
+# the slot's own dimension — written, or bare in its canonical unit.
+q9_solid: NodeId = plate
+Node.extrude(q9_solid, 1 * m)
+Node.revolve(q9_solid, q9_solid, 90 * deg)
+Node.fillet(q9_solid, 1 * mm, [])
+Node.loft([], 2)
+DocEdit.set_param(q9_solid, "distance", 1 * m)
+held: Var | None = doc.slot(q9_solid, "distance")
+if held is not None:
+    Node.extrude(q9_solid, held)

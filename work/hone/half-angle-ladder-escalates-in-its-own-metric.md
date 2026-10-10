@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-02
 priority: P2
 cost: M
-refs: [the-half-angle-ladder-certifies-in-band-configurations, non-circle-conic-edge-refuses-against-every-curved-face]
+refs: [the-half-angle-ladder-certifies-in-band-configurations, 3805]
 ---
 
 

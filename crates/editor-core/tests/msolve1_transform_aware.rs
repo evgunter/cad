@@ -26,7 +26,7 @@ use editor_core::{
     StableName, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::seat::{assert_seated, map_gap, product_face_frame, seat_map};
+use fixture::seat::map_gap;
 use fixture::{gate, in_copy, insert, len, on_frame, run, scl, solve, step, step_with, xform};
 use geom_core::Tol;
 use geom_core::linalg::Affine3;
@@ -47,7 +47,7 @@ fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -67,7 +67,7 @@ fn block(label: &str, h: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -161,6 +161,76 @@ struct Scene {
     mate: RecipeNodeId,
 }
 
+/// **The world the product is** (A10): each of `bodies` placed, then
+/// each `(pattern, count)`'s copies placed through a `Part` per copy —
+/// what the old product roots were, the sinks of each row's chains.
+fn world(doc: ProfileDoc, bodies: &[RecipeNodeId], patterns: &[(RecipeNodeId, i64)]) -> ProfileDoc {
+    let doc = fixture::place_all(doc, bodies);
+    patterns.iter().fold(doc, |doc, &(pattern, count)| {
+        (0..count).fold(doc, |doc, i| {
+            let (doc, copy) = insert(
+                doc,
+                Node::Part {
+                    of: pattern.into(),
+                    select: editor_core::PartSelect::Instance(Formula::count(i)),
+                },
+            );
+            fixture::place(doc, copy).0
+        })
+    })
+}
+
+/// **`name`'s world copy**: the one name in the gathered product's
+/// table that is a copy of `name` ([`StableName::copy_of`]) — what the
+/// product names a member's face by, under the placement that put it
+/// in the world.
+fn copy_name(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>, name: &StableName) -> StableName {
+    let (_, names) =
+        editor_core::product_named(doc, ev, Tol::witness()).expect("the product gathers");
+    let copies: Vec<StableName> = names
+        .iter()
+        .map(|(n, _)| n.clone())
+        .filter(|n| n.copy_of().is_some_and(|(_, of)| of == name))
+        .collect();
+    let [copy] = copies.as_slice() else {
+        panic!("{name:?} has one world copy, not {copies:?}");
+    };
+    copy.clone()
+}
+
+/// [`fixture::seat::assert_seated`] over the world copies of `a` and
+/// `b` ([`copy_name`]).
+fn assert_seated(
+    doc: &ProfileDoc,
+    ev: &editor_core::Evaluation<f64>,
+    a: &StableName,
+    b: &StableName,
+    control: &Affine3<f64>,
+    what: &str,
+) {
+    let (a, b) = (copy_name(doc, ev, a), copy_name(doc, ev, b));
+    fixture::seat::assert_seated(doc, ev, &a, &b, control, what);
+}
+
+/// [`fixture::seat::seat_map`] over the world copies of `a` and `b`.
+fn seat_map(
+    doc: &ProfileDoc,
+    ev: &editor_core::Evaluation<f64>,
+    a: &StableName,
+    b: &StableName,
+) -> Affine3<f64> {
+    fixture::seat::seat_map(doc, ev, &copy_name(doc, ev, a), &copy_name(doc, ev, b))
+}
+
+/// [`fixture::seat::product_face_frame`] of `name`'s world copy.
+fn product_face_frame(
+    doc: &ProfileDoc,
+    ev: &editor_core::Evaluation<f64>,
+    name: &StableName,
+) -> Affine3<f64> {
+    fixture::seat::product_face_frame(doc, ev, &copy_name(doc, ev, name))
+}
+
 /// One link of a transform chain: `(translation, rotation axis,
 /// angle)`.
 type Step = ([f64; 3], [f64; 3], f64);
@@ -181,6 +251,7 @@ fn scene(label: &str, on_base: &[Step], on_top: &[Step]) -> Scene {
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, a_at) = chain(doc, base, on_base);
     let (doc, b_at) = chain(doc, top, on_top);
+    let doc = world(doc, &[a_at, b_at], &[]);
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
@@ -188,6 +259,7 @@ fn scene(label: &str, on_base: &[Step], on_top: &[Step]) -> Scene {
                 crate::fixture::head_at(a_at, in_part(base, base_body, CapEnd::End)),
                 crate::fixture::head_at(b_at, in_part(top, top_body, CapEnd::Start)),
             )),
+            fresh: Vec::new(),
         },
     );
     Scene {
@@ -405,7 +477,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
         let (doc, pattern) = insert(
             doc,
             Node::Pattern {
-                input: xf,
+                input: xf.into(),
                 count: Formula::count(3),
                 // Spaced wide enough that copies 0 and 2 clear the
                 // slab entirely: the row is about the copy the mate
@@ -417,6 +489,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
                 },
             },
         );
+        let doc = world(doc, &[base], &[(pattern, 3)]);
         let a = in_part(base, base_body, CapEnd::End);
         let b = in_copy(pattern, COPY, in_part(top, top_body, CapEnd::Start));
         let (doc, mate) = step(
@@ -426,6 +499,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
                     crate::fixture::head(a.clone()),
                     crate::fixture::head_at(pattern, b.clone()),
                 )),
+                fresh: Vec::new(),
             },
         );
         let mate = mate.unwrap();
@@ -467,7 +541,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
         let (doc, pattern) = insert(
             doc,
             Node::Pattern {
-                input: top,
+                input: top.into(),
                 count: Formula::count(3),
                 kind: PatternKind::Linear {
                     direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -484,6 +558,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
                 std::f64::consts::FRAC_PI_2,
             ),
         );
+        let doc = world(doc, &[base], &[(xf, 3)]);
         let a = in_part(base, base_body, CapEnd::End);
         let b = in_copy(pattern, COPY, in_part(top, top_body, CapEnd::Start));
         let (doc, mate) = step(
@@ -493,6 +568,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
                     crate::fixture::head(a.clone()),
                     crate::fixture::head_at(xf, b.clone()),
                 )),
+                fresh: Vec::new(),
             },
         );
         let mate = mate.unwrap();
@@ -651,6 +727,7 @@ fn a4_a_placed_root_group_seats_through_both_chains() {
                 )
                 .expect("a literal axis has a definite direction"),
             )),
+            fresh: Vec::new(),
         },
     );
     let placed = Scene { doc, ..s };
@@ -686,13 +763,14 @@ fn two_operands(label: &str, extra_lift: f64) -> (ProfileDoc, EvalOptions, [Reci
         doc,
         xform(top, [2.0, 2.0, 10.0 + extra_lift], [0.0, 0.0, 1.0], 0.0),
     );
-    let (doc, _) = insert(
+    let (doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![x1, x2],
+            members: vec![x1.into(), x2.into()],
             declare: Vec::new(),
         },
     );
+    let doc = world(doc, &[base, union], &[]);
     let a = in_part(base, base_body, CapEnd::End);
     let b = in_part(top, top_body, CapEnd::Start);
     let (doc, m1) = step(
@@ -702,6 +780,7 @@ fn two_operands(label: &str, extra_lift: f64) -> (ProfileDoc, EvalOptions, [Reci
                 crate::fixture::head(a.clone()),
                 crate::fixture::head_at(x1, b.clone()),
             )),
+            fresh: Vec::new(),
         },
     );
     let far_corner = Node::Mate {
@@ -726,6 +805,7 @@ fn two_operands(label: &str, extra_lift: f64) -> (ProfileDoc, EvalOptions, [Reci
         doc,
         DocEdit::InsertNode {
             node: Box::new(far_corner),
+            fresh: Vec::new(),
         },
     );
     (doc, opts, [m1.unwrap(), m2.unwrap()])
@@ -826,6 +906,7 @@ fn a6_a_residual_tree_edge_refuses_under_with_or_without_the_transform() {
                     MatePrimitive::Coaxial,
                     Some(0.0),
                 )),
+                fresh: Vec::new(),
             },
         );
         let o = EvalOptions {
@@ -919,7 +1000,7 @@ fn a7_a_document_with_no_placer_solves_bit_for_bit() {
 #[test]
 fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
     let s = scene("msolve1-a8a", &[], &[]);
-    let ghost = RecipeNodeId(9_999);
+    let ghost = RecipeNodeId::new(0, 9_999);
     let err = s
         .doc
         .apply(
@@ -928,6 +1009,7 @@ fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
                     crate::fixture::head_at(ghost, in_part(s.base, s.base_body, CapEnd::End)),
                     crate::fixture::head(in_part(s.top, s.top_body, CapEnd::Start)),
                 )),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -1002,6 +1084,7 @@ fn a8c_the_content_key_separates_two_operands() {
                         in_part(top, top_body, CapEnd::Start),
                     ),
                 )),
+                fresh: Vec::new(),
             },
         );
         let ev = run(&doc, &opts);
@@ -1086,7 +1169,7 @@ fn a10_a_nested_pattern_head_is_a_member() {
     let (doc, inner) = insert(
         doc,
         Node::Pattern {
-            input: top,
+            input: top.into(),
             count: Formula::count(3),
             kind: rule([1.0, 0.0, 0.0]),
         },
@@ -1094,11 +1177,12 @@ fn a10_a_nested_pattern_head_is_a_member() {
     let (doc, outer) = insert(
         doc,
         Node::Pattern {
-            input: inner,
+            input: inner.into(),
             count: Formula::count(2),
             kind: rule([0.0, 1.0, 0.0]),
         },
     );
+    let doc = world(doc, &[base], &[(outer, 6)]);
     let a = in_part(base, base_body, CapEnd::End);
     let nested = in_copy(
         outer,
@@ -1112,6 +1196,7 @@ fn a10_a_nested_pattern_head_is_a_member() {
                 crate::fixture::head(a.clone()),
                 crate::fixture::head_at(outer, nested.clone()),
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.unwrap();
@@ -1162,6 +1247,7 @@ fn a10_a_nested_pattern_head_is_a_member() {
         .affine::<f64>();
     let alone = ProfileDoc::empty(DocumentId::derive("msolve1-a10-alone"), Tol::witness());
     let (alone, top_alone) = insert(alone, Node::instantiate_part(top_ref));
+    let alone = fixture::place(alone, top_alone).0;
     let local = product_face_frame(
         &alone,
         &run(&alone, &opts),
@@ -1195,9 +1281,12 @@ fn a8e_a_cut_that_would_sever_the_operand_refuses_at_the_precondition() {
     let s = scene("msolve1-a8e", &[], &[LIFT]);
     // The cut takes `top` and the transform over it, and would leave
     // the mate — whose `b` operand is that transform — behind.
-    let cut = [s.top, s.b_at]
-        .into_iter()
-        .collect::<std::collections::BTreeSet<_>>();
+    let cut = fixture::with_placements(
+        &s.doc,
+        &[s.top, s.b_at]
+            .into_iter()
+            .collect::<std::collections::BTreeSet<_>>(),
+    );
     let err = editor_core::split(
         &s.doc,
         &cut,
@@ -1236,7 +1325,7 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
     let (doc, local) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -1251,14 +1340,20 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
                 crate::fixture::head(in_part(base, base_body, CapEnd::End)),
                 crate::fixture::head_at(xf, in_part(top, top_body, CapEnd::Start)),
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.unwrap();
-    // Cut the LOCAL block out into its own part: it touches no
-    // group, so the precondition accepts.
-    let cut = [profile, local, doc.order()[0]]
-        .into_iter()
-        .collect::<std::collections::BTreeSet<_>>();
+    let doc = world(doc, &[local, base, xf], &[]);
+    // Cut the LOCAL block out into its own part, with the world
+    // placement of what it moves: it touches no group, so the
+    // precondition accepts.
+    let cut = fixture::with_placements(
+        &doc,
+        &[profile, local, doc.ids()[0]]
+            .into_iter()
+            .collect::<std::collections::BTreeSet<_>>(),
+    );
     let out = editor_core::split(
         &doc,
         &cut,
@@ -1271,7 +1366,7 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
     // with it and still names the transform over its instance.
     let (moved_mate, a, b) = out
         .remainder
-        .order()
+        .ids()
         .iter()
         .find_map(|&id| match out.remainder.node(id) {
             Some(Node::Mate { a, b, .. }) => Some((id, a.clone(), b.clone())),
@@ -1287,7 +1382,8 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
         panic!("the `b` operand still names a transform");
     };
     assert_eq!(
-        *input, b.name.node,
+        out.remainder.operation_of(*input),
+        Some(b.name.node),
         "over the very instance the name is headed at"
     );
     assert_eq!(
@@ -1422,7 +1518,7 @@ fn severed_operand_scene(
     let (doc, local) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -1481,7 +1577,7 @@ fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
     let (doc, inner) = insert(
         doc,
         Node::Pattern {
-            input: top,
+            input: top.into(),
             count: Formula::count(3),
             kind: rule([1.0, 0.0, 0.0], 5.0),
         },
@@ -1491,11 +1587,12 @@ fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
     let (doc, outer) = insert(
         doc,
         Node::Pattern {
-            input: t,
+            input: t.into(),
             count: Formula::count(2),
             kind: rule([0.0, 1.0, 0.0], 20.0),
         },
     );
+    let doc = world(doc, &[base], &[(outer, 6)]);
     let a = in_part(base, base_body, CapEnd::End);
     let nested = in_copy(
         outer,
@@ -1509,6 +1606,7 @@ fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
                 crate::fixture::head(a.clone()),
                 crate::fixture::head_at(outer, nested.clone()),
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.unwrap();
@@ -1526,6 +1624,7 @@ fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
     let placement = poses.placement(&doc, top).unwrap().affine::<f64>();
     let alone = ProfileDoc::empty(DocumentId::derive("msolve1-a11-alone"), Tol::witness());
     let (alone, top_alone) = insert(alone, Node::instantiate_part(top_ref));
+    let alone = fixture::place(alone, top_alone).0;
     let local = product_face_frame(
         &alone,
         &run(&alone, &opts),
@@ -1583,7 +1682,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
     let (doc, inner) = insert(
         doc,
         Node::Pattern {
-            input: top,
+            input: top.into(),
             count: Formula::count(3),
             kind: rule([1.0, 0.0, 0.0]),
         },
@@ -1591,7 +1690,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
     let (doc, outer) = insert(
         doc,
         Node::Pattern {
-            input: inner,
+            input: inner.into(),
             count: Formula::count(2),
             kind: rule([0.0, 1.0, 0.0]),
         },
@@ -1604,7 +1703,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
     let (doc, part) = insert(
         doc,
         Node::Part {
-            of,
+            of: of.into(),
             select: editor_core::PartSelect::Instance(Formula::count(k)),
         },
     );
@@ -1625,6 +1724,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
     let inserted = doc.apply(
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -1633,7 +1733,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
         PartCase::Seats => {
             let applied = inserted.unwrap_or_else(|err| panic!("{what}: {err:?}"));
             let mate = applied.record.minted.expect("an insert mints an id");
-            let doc = applied.doc;
+            let doc = world(applied.doc, &[base, part], &[]);
             let poses = solve(&doc, &opts, Tol::witness());
             let ev = run(&doc, &opts);
             assert!(

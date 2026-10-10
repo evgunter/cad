@@ -59,7 +59,7 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
                 Some(
                     format!(
                         "upstream failure at Extrude {} — that row carries the cause",
-                        test_utils::refusal::tag(extrude.0)
+                        test_utils::refusal::tag(extrude.0.digest())
                     )
                     .as_str()
                 ),
@@ -123,7 +123,7 @@ fn an_independent_subgraph_completes_beside_a_failure() {
     let (doc, other_extrude) = common::inserted(
         &doc,
         pncad::document::Node::Extrude {
-            profile: other_profile,
+            profile: other_profile.into(),
             distance: common::len(0.005),
             side: ExtrudeSide::Along,
         },
@@ -175,19 +175,25 @@ fn a_canceled_runs_missing_tail_reads_as_unevaluated() {
 }
 
 #[test]
-fn the_tree_marks_the_documents_product_roots() {
+fn the_tree_marks_the_bodies_the_world_places() {
     let tol = Tol::witness();
     let (doc, profile, extrude) = common::parametric_plate(tol);
     let rows = tree::rows(&doc, None, &viewer::parts::PartFiles::default());
-    let root_ids: Vec<_> = rows
+    let placed: Vec<_> = rows
         .iter()
-        .filter(|row| row.root)
+        .filter(|row| row.placed)
         .map(|row| row.id)
         .collect();
     assert_eq!(
-        root_ids,
+        placed,
         vec![extrude],
-        "the extrude is the product; the profile it consumes is not"
+        "the extrude is placed; the profile it reads is not, and the placement's own row is \
+         an ordinary one"
+    );
+    let placement = doc.placements()[0];
+    assert!(
+        rows.iter().any(|row| row.id == placement && !row.placed),
+        "the placement is a row of its own, unbadged"
     );
     assert_eq!(
         common::row_of(&rows, profile).spoken.kind(),
@@ -501,7 +507,7 @@ fn a_boolean_over_a_refused_groups_instances_points_at_the_mate() {
 /// mate tool's dropped pick, the sketch-on-face seat, the duplicate
 /// door and the blend loader each carry a standing, and each must
 /// carry the TREE's. The product's gather refusal is drawn by none of
-/// them: the tree badges the refused root at its row, and the at-rest
+/// them: the tree badges the refused copy at its row, and the at-rest
 /// badge takes no verdict on a product that did not gather.
 #[test]
 fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
@@ -686,10 +692,10 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
         other => panic!("the mate tool refuses the frame read, got {other:?}"),
     }
 
-    // The pick index refuses on a root with no value; its tooltip
-    // carries that root's standing as the tree draws it.
+    // The pick index refuses on a placement with no value; its tooltip
+    // carries that placement's standing as the tree draws it.
     let Err(refusal) = common::index_at(&session, common::asm::delta()) else {
-        panic!("the index does not build over a root with no value");
+        panic!("the index does not build over a placement with no value");
     };
     let badge = viewer::frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
         .expect("a refusal badges");
@@ -705,17 +711,17 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
     );
 
     // The product gather: its value is the kernel's, the tree draws the
-    // refused root downstream of the mate, and the at-rest badge says
+    // refused copy downstream of the mate, and the at-rest badge says
     // nothing about it.
-    let root = match session.product_fault() {
+    let refused = match session.product_fault() {
         Some(ProductError::Root(
             NodeStanding::Failed { node } | NodeStanding::Poisoned { node, .. },
         )) => *node,
-        other => panic!("the gather refuses on a root, got {other:?}"),
+        other => panic!("the gather refuses on a placement, got {other:?}"),
     };
     assert!(
-        matches!(common::status_of(&rows, root), RowStatus::Poisoned { through, .. } if through == offender),
-        "the refused root is drawn downstream of the offending mate"
+        matches!(common::status_of(&rows, refused), RowStatus::Poisoned { through, .. } if through == offender),
+        "the refused copy is drawn downstream of the offending mate"
     );
     assert_eq!(
         session.at_rest(),
@@ -777,12 +783,6 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
              to show, never whether the row stands",
         ),
         (
-            "tree.rs",
-            ".usable(",
-            "`asserted` reads the dimension of a measure its assertion's verdict already \
-             compared, so the measure stands `Ok` by construction",
-        ),
-        (
             "features.rs",
             ".usable(",
             "a unit test's premise: reads the measure's payload to name the reason it expects, \
@@ -828,13 +828,14 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
             "scene.rs",
             "product(",
             "runs only over a pair whose gather already succeeded (the A5 gate ate the \
-             body), so no root refusal reaches it",
+             body), so no placement refusal reaches it",
         ),
         (
             "session.rs",
             "product_recorded(",
             "the landing keeps the typed refusal (`product_fault`), and `frame::badge_site` \
-             sends a root's refusal to the feature tree, so no surface draws its standing",
+             sends a placement's refusal to the feature tree, so no surface draws its \
+             standing",
         ),
         (
             "session.rs",
@@ -1051,6 +1052,7 @@ fn child_band_refusal_rows() {
                     clocking: None,
                 },
             }),
+            fresh: Vec::new(),
         },
         tol,
         &pncad::document::RefusingReach,
@@ -1202,11 +1204,11 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
     use viewer::test_support::spoken;
 
     let row = |id: u64, status: RowStatus| tree::TreeRow {
-        id: RecipeNodeId(id),
-        spoken: spoken(RecipeNodeId(id), Some("Transform")),
+        id: RecipeNodeId::new(0, id),
+        spoken: spoken(RecipeNodeId::new(0, id), Some("Transform")),
         pose: None,
         depth: 0,
-        root: false,
+        placed: false,
         status,
         note: None,
         repair_at: None,
@@ -1218,7 +1220,7 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
         row(
             2,
             RowStatus::Poisoned {
-                through: RecipeNodeId(1),
+                through: RecipeNodeId::new(0, 1),
                 message: None,
             },
         ),
@@ -1323,7 +1325,7 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
 /// the cause.
 ///
 /// One document, built up: an intersect of two blocks that do not
-/// meet, first as the document's root and then under a transform; a
+/// meet, first alone and then under a transform; a
 /// split whose tool plane clears the block, with a `Part` reading its
 /// empty side; a `Part` indexed past a pattern's count; and a revolve
 /// whose axis lives on another frame than its profile.
@@ -1351,7 +1353,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         common::inserted(
             &doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: common::len(0.02),
                 side: ExtrudeSide::Along,
             },
@@ -1364,15 +1366,15 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         &doc,
         Node::Boolean {
             op: BooleanOp::Intersect,
-            a: near,
-            b: far,
+            a: near.into(),
+            b: far.into(),
             declare: Vec::new(),
         },
         tol,
     );
 
-    // The empty intersect alone is the product: its row is the only
-    // place a reader learns the document makes nothing.
+    // The empty intersect: its row is the only place a reader learns
+    // it makes nothing.
     let (ev, rows) = run(&doc);
     assert!(
         matches!(
@@ -1382,13 +1384,12 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         "the fixture's blocks do not meet: {:?}",
         ev.result(apart)
     );
-    let root = common::row_of(&rows, apart);
-    assert!(root.root, "the premise: the intersect is the product");
-    assert!(matches!(root.status, RowStatus::Ok), "{root:?}");
+    let row = common::row_of(&rows, apart);
+    assert!(matches!(row.status, RowStatus::Ok), "{row:?}");
     assert_eq!(
-        root.readout,
+        row.readout,
         Some(Readout::Empty(Emptiness::Whole)),
-        "an empty root says so on its own row"
+        "an empty boolean says so on its own row"
     );
     assert_eq!(
         Emptiness::Whole.to_string(),
@@ -1425,11 +1426,18 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         }),
         tol,
     );
-    let (doc, split) = common::inserted(&doc, Node::Split { target: near, tool }, tol);
+    let (doc, split) = common::inserted(
+        &doc,
+        Node::Split {
+            target: near.into(),
+            tool: tool.into(),
+        },
+        tol,
+    );
     let (doc, above) = common::inserted(
         &doc,
         Node::Part {
-            of: split,
+            of: pncad::document::Operand::output(split, SplitHalf::Above.port()),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
         tol,
@@ -1441,8 +1449,8 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         &doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: near,
-            b: far,
+            a: near.into(),
+            b: far.into(),
             declare: Vec::new(),
         },
         tol,
@@ -1458,8 +1466,8 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     let (doc, halved) = common::inserted(
         &doc,
         Node::Split {
-            target: near,
-            tool: through,
+            target: near.into(),
+            tool: through.into(),
         },
         tol,
     );
@@ -1468,7 +1476,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     let (doc, pattern) = common::inserted(
         &doc,
         Node::Pattern {
-            input: far,
+            input: far.into(),
             count: pncad::document::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
@@ -1480,7 +1488,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     let (doc, past) = common::inserted(
         &doc,
         Node::Part {
-            of: pattern,
+            of: pattern.into(),
             select: PartSelect::Instance(pncad::document::Formula::count(3)),
         },
         tol,
@@ -1496,7 +1504,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     let (doc, stranger) = common::inserted(
         &doc,
         Node::Datum(Datum::AxisInPlane {
-            plane: other_plane,
+            frame: other_plane.into(),
             origin: [common::len(-0.01), common::len(0.0)],
             direction: [common::scl(0.0), common::scl(1.0)],
         }),
@@ -1507,8 +1515,8 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     let (doc, revolved) = common::inserted(
         &doc,
         Node::Revolve {
-            profile: section,
-            axis: stranger,
+            profile: section.into(),
+            axis: stranger.into(),
             angle: common::ang(std::f64::consts::PI),
         },
         tol,
@@ -1546,7 +1554,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
             .strip_suffix(" half empty")
             .expect("the readout ends in its suffix");
         let kernel = NodeErrorKind::EmptyHalf {
-            input: RecipeNodeId(0),
+            input: RecipeNodeId::new(0, 0),
             half,
         }
         .to_string();
@@ -1558,7 +1566,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     assert_eq!(
         common::row_of(&rows, apart).readout,
         Some(Readout::Empty(Emptiness::Whole)),
-        "the intersect still says so once it is no longer the root"
+        "the intersect still says so under a transform"
     );
     assert_eq!(
         common::row_of(&rows, pattern).readout,
@@ -1704,7 +1712,7 @@ fn a_mate_row_reads_whether_it_placed_its_child() {
 fn downstream_at_mate(mate: pncad::document::RecipeNodeId) -> String {
     format!(
         "upstream failure at Mate {} — that row carries the cause",
-        test_utils::refusal::tag(mate.0)
+        test_utils::refusal::tag(mate.0.digest())
     )
 }
 
@@ -1819,7 +1827,7 @@ fn child_band_snapshot_load() {
     let loaded = load(&text, tol).expect("a state loads where an edit could not land");
     let doc = loaded.doc;
     let mates: Vec<RecipeNodeId> = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|&id| matches!(doc.node(id), Some(Node::Mate { .. })))

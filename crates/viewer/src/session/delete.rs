@@ -44,7 +44,7 @@ impl DeleteAffordance {
     /// that changes the label stays honest rather than panicking.
     ///
     /// Neither sentence mentions the features that merely FED the
-    /// target and survive as roots of their own, because this delete
+    /// target and survive, because this delete
     /// does not touch them. A delete that reconnected a target's
     /// consumers to its input instead — splice — is open as issue
     /// #1324.

@@ -337,10 +337,15 @@ impl core::fmt::Display for CarriedRefusal {
 ///
 /// Bundled because the two travel together and are filled at ONE site
 /// — the instantiate op — and are empty on every other op.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct CarriedDeclarations {
     /// The declarations, in the inner documents' own order.
     pub minted: Vec<CarriedDeclaration>,
+    /// The at-rest census's findings for the mated pairs the documents
+    /// below refused to read as one carrier, which minted no record:
+    /// keyed in the same arena as the records, so the gate that raises
+    /// them names faces of this body ([`crate::Product::refused_at_rest`]).
+    pub refused: Vec<ValidationError>,
     /// The refusals, in the inner documents' own order.
     pub unminted: Vec<CarriedRefusal>,
     /// The unplaced groups below, in the inner documents' own order.
@@ -955,10 +960,10 @@ pub enum AssemblyError {
     ///
     /// Today that is the whole declared direction. The census's patch
     /// certifier gates on STRUCTURAL chart identity — a shared
-    /// `SurfaceKey` within one body, or the same `GeomSource` across
-    /// bodies — which two instances of a part satisfy by neither half,
-    /// so a declared cross-instance pair ends here whatever its
-    /// geometry. Closing that is a cross-instance chart rung in the
+    /// `SurfaceKey` within one body, or two descriptions that read
+    /// bit-identical — which two placed instances of a part satisfy by
+    /// neither half, so a declared cross-instance pair ends here
+    /// whatever its geometry. Closing that is a cross-instance chart rung in the
     /// census, not work this layer can do; the day it lands,
     /// [`assemble`] returns `Ok` for these documents and every arm
     /// matching here goes dead.
@@ -1168,7 +1173,7 @@ impl core::error::Error for AssemblyError {}
 /// so: a document whose mates declare a cross-instance contact
 /// refuses [`AssemblyError::Uncertified`], which a caller must match
 /// separately from the verdicts against their own document.
-pub fn assemble<P, T: Decide + AtRestPolicy>(
+pub fn assemble<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     tol: Tol,
@@ -1183,7 +1188,7 @@ pub fn assemble<P, T: Decide + AtRestPolicy>(
         Err(refusal) => {
             if matches!(
                 refusal.kind(),
-                crate::ProductErrorKind::Unplaced | crate::ProductErrorKind::NoBodyRoots
+                crate::ProductErrorKind::Unplaced | crate::ProductErrorKind::EmptyProduct
             ) {
                 gate_spaces(crate::product::own_spaces(doc, evaluation, tol), tol)?;
             }
@@ -1294,9 +1299,16 @@ fn verdict<T: Decide + AtRestPolicy>(product: &Product<T>, tol: Tol) -> Result<(
             refusals: product.unminted.clone(),
         });
     }
-    let Err(errors) = T::gate_at_rest_declared(&product.body, &product.contacts, tol) else {
+    // The gate's findings over the records, then the census's findings
+    // for the mated pairs it refused at the mint, which minted no
+    // record: the gate's own order, as when it read those pairs itself.
+    let mut errors = T::gate_at_rest_declared(&product.body, &product.contacts, tol)
+        .err()
+        .unwrap_or_default();
+    errors.extend(product.refused_at_rest.iter().cloned());
+    if errors.is_empty() {
         return Ok(());
-    };
+    }
     let findings: Vec<AtRestFinding> = errors
         .into_iter()
         .map(|error| AtRestFinding {
@@ -1347,12 +1359,13 @@ fn verdict<T: Decide + AtRestPolicy>(product: &Product<T>, tol: Tol) -> Result<(
 /// prefix before its first bad one. The refusals ride back in document
 /// order for [`assemble`] to raise — one implementation of what a mate
 /// declares, and one of what it costs when it cannot.
-pub(crate) fn mint<P, T: Decide>(
+pub(crate) fn mint<P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
-    names: &NameTable,
-    contacts: &mut ContactRecords,
+    (names, body): (&NameTable, &topo::Body<T>),
+    at_rest: &mut AtRestRows,
     space: crate::mate::Space,
+    band: Result<geom_core::Band, geom_core::BandError>,
 ) -> (Vec<MintedDeclaration>, Vec<MintRefusal>) {
     let mut minted = Vec::new();
     let mut unminted = Vec::new();
@@ -1360,7 +1373,7 @@ pub(crate) fn mint<P, T: Decide>(
     let space_of = |r: &crate::node::SitedFace| {
         crate::mate::member_of(doc, r).map(|m| evaluation.space(m.instance))
     };
-    for &id in doc.order() {
+    for id in doc.ids() {
         let Some(Node::Mate { a, b, class, .. }) = doc.node(id) else {
             continue;
         };
@@ -1386,7 +1399,10 @@ pub(crate) fn mint<P, T: Decide>(
             resolve_face(doc, evaluation, names, id, MateSide::A, a),
             resolve_face(doc, evaluation, names, id, MateSide::B, b),
         ) {
-            (Ok(face_a), Ok(face_b)) => (face_a, face_b),
+            (Ok(Some(face_a)), Ok(Some(face_b))) => (face_a, face_b),
+            // A member no placement is built from is not in the
+            // product: the mate states nothing about it there.
+            (Ok(None), Ok(_)) | (Ok(_), Ok(None)) => continue,
             // The `a` side answers first when both sides refuse: one
             // mate contributes one row, and which side it names is the
             // order the references are written in.
@@ -1409,13 +1425,18 @@ pub(crate) fn mint<P, T: Decide>(
             // `CurveContact`. A same-instance mate is refused
             // `SelfMate` at the solve door, so a live mate reaching
             // here names two faces of two different instances.
+            //
+            // The mate places and never checks (D10): the record cites
+            // the at-rest census's decision that the two faces rest on
+            // one carrier, and where the census refuses that, the mate
+            // mints no record and the refusal is the census's finding.
             ClassAdmission::Mints => {
                 debug_assert!(
                     face_a != face_b,
                     "a live mate's two references resolved to one face: \
                      the solve door's `SelfMate` refusal was bypassed"
                 );
-                contacts.patches.push(PatchContact { face_a, face_b });
+                at_rest.decide(id, body, (a, face_a), (b, face_b), band);
             }
             other => {
                 unminted.push(MintRefusal::NoAtRestRecord {
@@ -1437,15 +1458,82 @@ pub(crate) fn mint<P, T: Decide>(
     (minted, unminted)
 }
 
-/// One mate reference → the product face it names, or the typed
-/// refusal. A tie is never broken by picking a side.
+/// **One at-rest census decision a mate's record cites**, with the mate
+/// whose pair it decided ([`crate::Product::coincidences`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct AtRestRow {
+    /// The mate whose two faces the census read as one carrier.
+    pub mate: RecipeNodeId,
+    /// The decision, each cell named as the mate's reference reads it.
+    pub row: crate::coincide::NamedCoincidence,
+}
+
+/// **What the mint door writes at rest**: the records, the at-rest
+/// census's rows they cite, and the census's findings for the pairs it
+/// refused, which mint no record ([`mint`]).
+#[derive(Debug, Default)]
+pub(crate) struct AtRestRows {
+    /// The records, the gathered ones and the minted ones.
+    pub(crate) contacts: ContactRecords,
+    /// The census's rows, in mint order; a minted record cites its own.
+    pub(crate) coincidences: Vec<AtRestRow>,
+    /// The census's findings for the pairs it refused.
+    pub(crate) refused: Vec<ValidationError>,
+}
+
+impl AtRestRows {
+    /// The census's decision of one mated pair: a row and a record
+    /// citing it, or the census's finding.
+    fn decide<T: Decide>(
+        &mut self,
+        mate: RecipeNodeId,
+        body: &topo::Body<T>,
+        (a, face_a): (&SitedFace, FaceKey),
+        (b, face_b): (&SitedFace, FaceKey),
+        band: Result<geom_core::Band, geom_core::BandError>,
+    ) {
+        let decided = match band {
+            Ok(band) => topo::census_rest_decision(body, face_a, face_b, band),
+            Err(error) => Err(ValidationError::Band { error }),
+        };
+        match decided {
+            Ok(row) => {
+                let cell = |r: &SitedFace| crate::coincide::NamedCell::Entity {
+                    input: r.at,
+                    name: (*r.name).clone(),
+                };
+                let k = u32::try_from(self.coincidences.len()).unwrap_or(u32::MAX);
+                self.coincidences.push(AtRestRow {
+                    mate,
+                    row: crate::coincide::NamedCoincidence {
+                        cells: [cell(a), cell(b)],
+                        relation: row.relation,
+                        site: row.site,
+                        margin: row.margin,
+                        discharge: row.discharge,
+                    },
+                });
+                self.contacts.patches.push(topo::Cited::new(
+                    PatchContact { face_a, face_b },
+                    topo::Cites::decided(k),
+                ));
+            }
+            Err(finding) => self.refused.push(finding),
+        }
+    }
+}
+
+/// One mate reference → the product face it names, `None` where no
+/// world placement reads its operand (the member is not in the
+/// product, so the mate mints nothing there), or the typed refusal. A
+/// tie is never broken by picking a side.
 ///
 /// **The name is read where the mate reads it.** The operand's own
 /// table must spell it, or it refuses [`RefusedRef::Vanished`]. From
 /// there the face is carried up the operand's consumers, each spelling
-/// it as it carries it ([`crate::names::lift`]), to the product's
-/// roots, where the product's table — every root's rows, carried by
-/// the gather — answers with the face. The lift reads the recipe and
+/// it as it carries it ([`crate::names::lift`]), to the world
+/// placements, where the product's table — every copy's rows, carried
+/// by the gather — answers with the face. The lift reads the recipe and
 /// each consumer's evaluated table; it evaluates nothing.
 ///
 /// - **Exactly one product face** reached: that face.
@@ -1460,29 +1548,28 @@ pub(crate) fn mint<P, T: Decide>(
 ///   lost it that way, one that reads it in a seat holding no face of
 ///   it (a datum, a measure, an axis, a split's tool).
 ///
-/// Where the operand is a root, or reaches one through `Part`
-/// selections and split targets alone, the lift is the identity and
-/// the product answers to the name as the mate spells it.
+/// A placement spells its body's face under itself, so the product
+/// answers to the name the placement's copy carries.
 ///
 /// **There is no kind question here.** A head is a [`SitedFace`], so
 /// the name this resolves denotes a face before the lookup runs, and
 /// the only multiplicity left to decide is a tie among faces.
 ///
 /// An operand that is not a live value has no table to answer with,
-/// and the gate never asks it: every live node sits under some root
-/// (A10 coverage), so an operand that failed or was poisoned has a
-/// failed or poisoned root above it, and the gather's first pass
-/// refuses the document (`ProductError::Root`, with the root's
+/// and the gate never asks it: an operand a placement reads that
+/// failed or was poisoned has a failed or poisoned placement above it,
+/// and the gather's first pass refuses the document
+/// (`ProductError::Root`, with the placement's
 /// standing) before any mate is read. Such an operand, and a consumer
 /// with no value, answer as silence here rather than unwrapped.
-fn resolve_face<P, T: Decide>(
+fn resolve_face<P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     names: &NameTable,
     mate: RecipeNodeId,
     side: MateSide,
     reference: &SitedFace,
-) -> Result<FaceKey, MintRefusal> {
+) -> Result<Option<FaceKey>, MintRefusal> {
     let refuse = |why| MintRefusal::Reference {
         mate,
         side,
@@ -1495,6 +1582,16 @@ fn resolve_face<P, T: Decide>(
             .is_some_and(|value| value.name_table.lookup(name).is_some())
     };
     let at = reference.at;
+    // Placed: some world placement is built from the site — reads it,
+    // or reads a body made from it (a placed boolean over it) — so the
+    // lift below finds its face in the product.
+    let placed = doc
+        .placements()
+        .into_iter()
+        .any(|p| crate::doc::strict_ancestors(doc, p).contains(&at));
+    if !placed {
+        return Ok(None);
+    }
     if !spells(at, &reference.name) {
         return Err(refuse(RefusedRef::Vanished { by: None }));
     }
@@ -1509,12 +1606,12 @@ fn resolve_face<P, T: Decide>(
             continue;
         }
         seen.push((node, name.clone()));
-        if doc.roots().contains(&node) {
+        if matches!(doc.node(node), Some(Node::PlaceInWorld { .. })) {
             let row = names.lookup(&name);
             debug_assert!(
                 row.is_some(),
-                "a root's face row is absent from the product's table: \
-                 `product::carry_names` carries every face row of every root"
+                "a placement's face row is absent from the product's table: \
+                 `product::carry_names` carries every face row of every copy"
             );
             match row {
                 Some(Entry::Unique(ent)) => {
@@ -1534,11 +1631,12 @@ fn resolve_face<P, T: Decide>(
             }
             continue;
         }
-        for &consumer in doc.order() {
+        for consumer in doc.ids() {
             let Some(consumer_node) = doc.node(consumer) else {
                 continue;
             };
-            for step in crate::names::lift(consumer, consumer_node, node, &name) {
+            let defined_by = |var| doc.read_operation(var);
+            for step in crate::names::lift(consumer, consumer_node, node, &name, &defined_by) {
                 match step {
                     crate::names::Lift::Spelled(carried) if spells(consumer, &carried) => {
                         frontier.push_back((consumer, carried));
@@ -1554,7 +1652,7 @@ fn resolve_face<P, T: Decide>(
     faces.dedup();
     let consumed = lost.first().or(dropped.first());
     match (faces.as_slice(), moved.first(), consumed) {
-        ([face], _, _) => Ok(*face),
+        ([face], _, _) => Ok(Some(*face)),
         ([], Some(&by), _) => Err(refuse(RefusedRef::MovedAbove {
             at,
             by,
@@ -1815,6 +1913,7 @@ fn attribute(
         | ValidationError::PlanarBoundaryResidual { .. }
         | ValidationError::PlanarBoundaryEscalated { .. }
         | ValidationError::SliverDihedral { .. }
+        | ValidationError::NoDihedralArm { .. }
         | ValidationError::TransverseNotIntrinsic { .. }
         | ValidationError::TangentNotIntrinsic { .. }
         // The material-wedge arm's refusal is a finding about an EDGE
@@ -1822,6 +1921,8 @@ fn attribute(
         // that two of its own faces osculate, which no mate names.
         | ValidationError::LaminaWedge { .. }
         | ValidationError::ScaffoldAtRest { .. }
+        | ValidationError::JoinableVertexAtRest { .. }
+        | ValidationError::JoinUndecidedAtRest { .. }
         | ValidationError::LoopRoleInverted { .. }
         | ValidationError::CurvedSenseInverted { .. }
         | ValidationError::NegativeVolume { .. }
@@ -1832,6 +1933,10 @@ fn attribute(
         | ValidationError::RingContactEscalated { .. }
         | ValidationError::RingOutsideOuter { .. }
         | ValidationError::RingNestingUndecided { .. }
+        | ValidationError::RingMeetsRing { .. }
+        | ValidationError::RingPairContactEscalated { .. }
+        | ValidationError::PinchCornerCrossed { .. }
+        | ValidationError::PinchCornerEscalated { .. }
         | ValidationError::ShellWinding { .. }
         | ValidationError::SolidOuterShells { .. }
         | ValidationError::ShellRoleUndecided { .. }
@@ -1950,11 +2055,11 @@ mod attribution {
         // naming one entity twice is a state `mint` cannot produce.
         let name = |node| StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![RoleSeg::OutputBody],
         };
         let minted = vec![MintedDeclaration {
-            mate: RecipeNodeId(7),
+            mate: RecipeNodeId::new(0, 7),
             a: name(1),
             b: name(2),
             class: ContactClass::Rest,
@@ -2007,7 +2112,7 @@ mod attribution {
     /// [`super::attribute`] discriminates.
     ///
     /// The row exists because the causes are not alike: a
-    /// `WitnessBudgetExhausted` decline is the search giving up on a
+    /// witness-cap decline (either cap) is the search giving up on a
     /// pair that may be fat and perfectly decidable, and it is
     /// tempting to read that as weaker evidence than a
     /// `TouchingBoundary` decline. It is not weaker about the
@@ -2028,13 +2133,17 @@ mod attribution {
         let causes = || {
             [
                 topo::CensusUnsupportedCause::ChartRegion(topo::ChartRegionError::TouchingBoundary),
+                // Each cap's state as its guard answers it, derived
+                // so it moves when the cap does.
                 topo::CensusUnsupportedCause::ChartRegion(
-                    topo::ChartRegionError::WitnessBudgetExhausted {
-                        // One past the cap, derived: the state the
-                        // guard answers, and it moves when the cap
-                        // does.
-                        segments: topo::WITNESS_BUDGET.segments + 1,
-                        cells: 0,
+                    topo::ChartRegionError::WitnessSegmentCapExceeded {
+                        segments: topo::WITNESS_SEGMENT_CAP + 1,
+                    },
+                ),
+                topo::CensusUnsupportedCause::ChartRegion(
+                    topo::ChartRegionError::WitnessCellCapExceeded {
+                        segments: topo::WITNESS_SEGMENT_CAP,
+                        cells: topo::WITNESS_CELL_CAP,
                     },
                 ),
                 topo::CensusUnsupportedCause::ChartRegion(topo::ChartRegionError::MissingCache {
@@ -2123,11 +2232,11 @@ mod attribution {
         let (a, b, odd, other) = (mint_face(), mint_face(), mint_face(), mint_face());
         let name = |node| StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![RoleSeg::OutputBody],
         };
         let minted = vec![MintedDeclaration {
-            mate: RecipeNodeId(7),
+            mate: RecipeNodeId::new(0, 7),
             a: name(1),
             b: name(2),
             class: ContactClass::Rest,
@@ -2167,7 +2276,7 @@ mod attribution {
         for (x, y) in [(a, b), (b, a)] {
             assert!(matches!(
                 attribute(&contradicted(x, y), &minted),
-                Attribution::Refuted(m) if m.mate == RecipeNodeId(7)
+                Attribution::Refuted(m) if m.mate == RecipeNodeId::new(0, 7)
             ));
         }
         assert_eq!(
@@ -2274,11 +2383,11 @@ mod attribution {
         let (f, g, h) = (mint_face(), mint_face(), mint_face());
         let name = |node| StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![RoleSeg::OutputBody],
         };
         let declaration = |mate, faces| MintedDeclaration {
-            mate: RecipeNodeId(mate),
+            mate: RecipeNodeId::new(0, mate),
             a: name(1),
             b: name(2),
             class: ContactClass::Rest,
@@ -2289,7 +2398,7 @@ mod attribution {
             assert!(
                 matches!(
                     attribute(&unsupported_pair(pair.0, pair.1), &minted),
-                    Attribution::Declined(m) if m.mate == RecipeNodeId(mate)
+                    Attribution::Declined(m) if m.mate == RecipeNodeId::new(0, mate)
                 ),
                 "the pair {pair:?} is mate {mate}'s declaration, in either order"
             );
@@ -2376,7 +2485,7 @@ mod attribution {
                     },
                     &minted
                 ),
-                Attribution::Refuted(m) if m.mate == RecipeNodeId(7)
+                Attribution::Refuted(m) if m.mate == RecipeNodeId::new(0, 7)
             ));
         }
     }

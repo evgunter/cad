@@ -33,11 +33,10 @@
 //!   every wall is the **angle-0 meridian half-plane**, which is where
 //!   the profile sits. A full revolve's surviving meridian edges are
 //!   therefore exactly the `u = 0` iso-curves: they re-describe as
-//!   the seam image `{ surface }` — except meridians
+//!   their walls' wrap edges (D1) — except meridians
 //!   of **plane** walls (a segment ⊥ axis sweeps a plane annulus; a
-//!   plane chart is not periodic, so `Seam` is malformed on it and the
-//!   edge is described where it rests, as an ordinary image in that
-//!   wall's chart). What exempts it from an intrinsic description is
+//!   plane chart closes in no direction, so the edge is described
+//!   where it rests, as an ordinary image in that wall's chart). What exempts it from an intrinsic description is
 //!   UNDER-DETERMINATION, not prefer-intrinsic: one surface on both
 //!   sides determines no locus, which is D2's conventional split, and
 //!   prefer-intrinsic has nothing to demand where there is no
@@ -83,9 +82,9 @@
 //!
 //! # What a revolve stores (the D2 story, applied)
 //!
-//! Meridian chain edges are `MappedCurve::PlacedSegment` (start chain at
+//! Meridian chain edges are `MappedSource::PlacedSegment` (start chain at
 //! the sketch placement, end chain at the rotated placement); latitude
-//! edges are `MappedCurve::RevolvedPoint`. After all surfaces exist:
+//! edges are `MappedSource::RevolvedPoint`. After all surfaces exist:
 //! wedge-cap meridians upgrade to `Intersection { cap, wall, witness }`,
 //! definitely-transverse latitude rims upgrade to
 //! `Intersection { wall₁, wall₂, witness }` (witness = carrier
@@ -93,7 +92,7 @@
 //! that is the start point's antipode), a partial revolve's on-axis
 //! edges upgrade to `Intersection { start cap, end cap }` when the caps
 //! are definitely transverse (θ ≠ π), and a full revolve's meridians
-//! become `Seam` on periodic walls and images at rest in the wall's
+//! become wrap edges on periodic walls and images at rest in the wall's
 //! chart on a lamina's plane annulus (a wire's plane walls carry no
 //! meridian at all). No edge KEEPS its `MappedCurve` past this
 //! pass: the mint's scaffolding is for edges whose surfaces do not
@@ -106,6 +105,13 @@
 //! run to one segment before they build (`runs::Collapsed`), so a
 //! station inside a run has no entity — a wedge cap carries the run as
 //! one meridian edge, and a run of on-axis segments is one axis edge.
+//!
+//! **A one-segment loop** (D1's full turn) is swept whole, far end
+//! first (`turn::sweep_turn`): one torus wall whose strut, the latitude
+//! circle through the loop's one vertex, is its wrap edge in `v`. A full
+//! revolve then closes the wall on itself in `u` as well — one face,
+//! its meridian and its latitude circle each a wrap edge at one vertex
+//! (`full::build_turn_lamina`).
 //!
 //! # K-telemetry
 //!
@@ -120,6 +126,7 @@ mod partial;
 mod runs;
 mod surfaces;
 pub mod tube;
+mod turn;
 mod upgrade;
 
 use core::fmt;
@@ -128,7 +135,7 @@ use crate::swept::CapPlaneError;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2};
 use profile::ValidatedProfile;
 use topo::readback::{Pose, ReadbackError, face_pose};
-use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, VertexKey};
+use topo::{Body, DihedralReading, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, VertexKey};
 
 use crate::swept::decide;
 
@@ -503,17 +510,6 @@ pub enum RevolveError {
         /// Canonical index of the segment.
         segment_index: usize,
     },
-    /// A one-segment loop (D1's full turn: a circle as one arc at one
-    /// vertex), clear of the axis. Its wall is one torus face wrapping
-    /// the tube's own angle, cut only by the latitude strut at the
-    /// vertex — and a seam here is a `u_ref` meridian, so no chart
-    /// describes that cut: the description, pcurve and flux layers read
-    /// the strut's two halves as one image. Refused rather than built
-    /// inside out.
-    OneSegmentLoop {
-        /// Canonical index of the loop.
-        loop_index: usize,
-    },
     /// Full revolve of a profile whose axis contact is not a single
     /// contiguous run of on-axis segments: an isolated on-axis vertex
     /// (or a run-detached one) revolves to a non-manifold solid (D1).
@@ -575,23 +571,30 @@ pub enum RevolveError {
     },
     /// The dihedral classification at a latitude (wall–wall) join
     /// escalated: a sliver dihedral, certifiable as neither a corner
-    /// nor a smooth join (D2's ratified text).
+    /// nor a smooth join (D2's ratified text); or, on a join whose
+    /// witness read smooth, a must-carry station's first-order arm or
+    /// wedge, or its second-order bend, did.
     SliverJoin {
         /// Canonical index of the loop.
         loop_index: usize,
         /// Canonical index of the join vertex.
         vertex_index: usize,
+        /// The reading that escalated.
+        reading: DihedralReading,
         /// The classifier's diagnostic.
         source: Indeterminate,
     },
     /// The dihedral classification at a cap–wall meridian rim (or a
     /// partial revolve's cap–cap axis edge) escalated during the
-    /// upgrade pass.
+    /// upgrade pass, or, on one whose witness read smooth, a must-carry
+    /// station's first-order arm or wedge, or its second-order bend, did.
     SliverRim {
         /// Canonical index of the loop.
         loop_index: usize,
         /// Canonical index of the rim's segment.
         segment_index: usize,
+        /// The reading that escalated.
+        reading: DihedralReading,
         /// The classifier's diagnostic.
         source: Indeterminate,
     },
@@ -730,12 +733,6 @@ impl fmt::Display for RevolveError {
                  spindle torus (its circle reaches the axis), which is not supported. \
                  Recourse: keep the arc's circle clear of the axis"
             ),
-            Self::OneSegmentLoop { loop_index } => write!(
-                f,
-                "loop {loop_index} is one full-turn arc: its torus wall would wrap the tube's \
-                 own angle, cut only by the strut at its vertex, and no face here represents \
-                 that cut. Recourse: author the circle as two or more arcs"
-            ),
             Self::NonManifoldAxisContact {
                 loop_index,
                 vertex_index,
@@ -774,21 +771,21 @@ impl fmt::Display for RevolveError {
             Self::SliverJoin {
                 loop_index,
                 vertex_index,
+                reading,
                 source,
-            } => write!(
-                f,
-                "the join at loop {loop_index} vertex {vertex_index} is neither a definite \
-                 corner nor definitely smooth: {source}"
-            ),
+            } => {
+                let join = format!("the join at loop {loop_index} vertex {vertex_index}");
+                crate::swept::sliver_text(f, &join, *reading, source)
+            }
             Self::SliverRim {
                 loop_index,
                 segment_index,
+                reading,
                 source,
-            } => write!(
-                f,
-                "the cap rim at loop {loop_index} segment {segment_index} is neither a \
-                 definite corner nor definitely smooth: {source}"
-            ),
+            } => {
+                let rim = format!("the cap rim at loop {loop_index} segment {segment_index}");
+                crate::swept::sliver_text(f, &rim, *reading, source)
+            }
             Self::SmoothJoinRefuted { edge } => write!(
                 f,
                 "the join along {edge:?} classified definitely smooth at its witness but \
@@ -898,12 +895,6 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
     for (li, segs) in loops.iter().enumerate() {
         classes.push(axis::classify_loop(segs, &frame, li, reverse, band)?);
     }
-    // After the axis classes, which refuse a full turn that reaches the
-    // axis by what is wrong with it.
-    if let Some(loop_index) = loops.iter().position(|segs| profile::is_full_turn(segs)) {
-        return Err(RevolveError::OneSegmentLoop { loop_index });
-    }
-
     let mut out = if full {
         full::build_full(&frame, &loops, &classes, theta, band, tol)
     } else {
@@ -921,6 +912,47 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    /// **A smooth latitude join or cap rim's must-carry escalation says which question
+    /// escalated**: a first-order station is the sliver, neither corner
+    /// nor smooth; a second-order one is a smooth join whose faces'
+    /// bend is too close to call. No fixture reaches a first-order
+    /// station past a witness that read smooth, so the escalations are
+    /// built directly.
+    #[test]
+    fn a_must_carry_escalation_ends_by_the_reading_that_raised_it() {
+        use crate::swept::must_carry_fixtures::{arm, second_order, wedge};
+        for (escalation, bend) in [(arm(), false), (wedge(), false), (second_order(), true)] {
+            let (reading, source) = DihedralReading::of_must_carry(escalation);
+            for text in [
+                RevolveError::SliverJoin {
+                    loop_index: 0,
+                    vertex_index: 1,
+                    reading,
+                    source,
+                }
+                .to_string(),
+                RevolveError::SliverRim {
+                    loop_index: 0,
+                    segment_index: 1,
+                    reading,
+                    source,
+                }
+                .to_string(),
+            ] {
+                assert_eq!(
+                    text.contains("curve apart there or share their curvature is undecided: "),
+                    bend,
+                    "{escalation:?}: {text}"
+                );
+                assert_eq!(
+                    text.contains("is neither a definite corner nor definitely smooth"),
+                    !bend,
+                    "{escalation:?}: {text}"
+                );
+            }
+        }
+    }
 
     /// S6 (two-tolerance, D4 ¶1 addendum): the three revolve pairs —
     /// axis length, angle, and vertex radius — each describe one user

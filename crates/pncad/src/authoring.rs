@@ -139,7 +139,7 @@ pub fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
 ///   straight legs bounds nothing with fewer corners.
 ///
 /// The emitted loop is the authored table verbatim — every point in
-/// order, every segment a line, no declared joints — and a
+/// order, every segment a line, no constructed joints — and a
 /// [`ConstructedLoop`], since the lattice built it. The lattice changes
 /// what is CHECKED, not what is minted.
 ///
@@ -154,7 +154,7 @@ pub fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
 /// let square: ConstructedLoop<f64> =
 ///     polygon(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], tol)?;
 /// assert_eq!(square.vertices().len(), 4);
-/// assert!(square.tangent_joints().is_empty());
+/// assert!(square.constructed_joints().is_empty());
 ///
 /// // Three corners is the minimum a closed chain of straight legs
 /// // can bound anything with.

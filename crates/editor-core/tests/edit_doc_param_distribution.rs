@@ -85,13 +85,12 @@ fn notation(doc: &editor_core::ProfileDoc, name: &'static str) -> UnitSym {
 
 /// Whether the error analysis reads the parameter as FIXED — the
 /// consequence an annotation has, as opposed to a field going `Some`.
+/// An untoleranced parameter is no axis at all (VR8), a constant of
+/// the analysis.
 fn is_fixed(doc: &editor_core::ProfileDoc, name: &'static str) -> bool {
     analyzed_box(doc, &AnalysisPolicy::default())
         .get(doc.var_named(name).expect("declared"))
-        .copied()
-        .expect("the parameter has an axis")
-        .offsets
-        .is_fixed()
+        .is_none_or(|axis| axis.offsets.is_fixed())
 }
 
 /// The declaring log the fixture is replayable from: `wall`, a Length
@@ -605,12 +604,12 @@ fn the_refusals_are_symmetric_across_apply_replay_save_and_load() {
         match load(&bent, Tol::witness()).expect_err("load refuses") {
             PersistError::EditReplay { index, error } => {
                 assert_eq!(index, 0, "the refusing edit is named by index");
-                assert_eq!(error, want, "load's refusal is the same typed error");
+                assert_eq!(*error, want, "load's refusal is the same typed error");
             }
             other => panic!("load refused with {other:?}, not EditReplay"),
         }
         match save(&doc, &[direct], Tol::witness()).expect_err("save refuses") {
-            PersistError::EditReplay { error, .. } => assert_eq!(error, want, "save's refusal"),
+            PersistError::EditReplay { error, .. } => assert_eq!(*error, want, "save's refusal"),
             other => panic!("save refused with {other:?}"),
         }
     }

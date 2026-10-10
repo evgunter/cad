@@ -1,10 +1,10 @@
 //! **The whole-document gather and the at-rest gate** (A5).
 //!
-//! `product` is the gather the document's explicit roots name: every
-//! body-denoting root's solids, in root-list order, as one body. It
-//! answers "what IS this document", which for an assembly is the only
-//! useful question — an assembly's nodes are instances and mates, and
-//! no single node's value is the assembly.
+//! `product` is the gather of the document's world: every copy a
+//! placement defines, in the placements' document order, as one body.
+//! It answers "what IS this document", which for an assembly is the
+//! only useful question — an assembly's nodes are instances and mates,
+//! and no single node's value is the assembly.
 //!
 //! `assemble` is the gather PLUS the check: it mints every solved
 //! mate's declaration into the product's contact-record set and runs
@@ -44,7 +44,7 @@ use crate::tags::{
 use pncad::document as d;
 use pncad::tolerance::Tol;
 
-use super::doc::{Doc, NodeId, name_text};
+use super::doc::{Doc, NodeId, Var, name_text};
 use super::mate::MateSide;
 use super::value::{Body, Evaluation};
 
@@ -78,7 +78,7 @@ impl SpokenFrom {
 /// carry it — the `WorkspaceError` posture: handling reads
 /// `err.node` without first branching on `err.variant`.
 pub(crate) fn product_err(py: Python<'_>, err: &d::ProductError, doc: &d::ProfileDoc) -> PyErr {
-    let (node, through, name) = product_fields(py, err);
+    let (node, through, unplaced) = product_fields(py, err);
     typed_err(
         py,
         ErrorClass::Product,
@@ -92,22 +92,18 @@ pub(crate) fn product_err(py: Python<'_>, err: &d::ProductError, doc: &d::Profil
             ),
             ("node", node),
             ("through", through),
-            ("name", name),
+            ("unplaced_bodies", unplaced),
         ],
     )
 }
 
-/// The gather refusal's payload, flattened.
+/// The gather refusal's payload, flattened: the node it is about, the
+/// node it was reached through, and an empty world's unplaced bodies.
 fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny>, Py<PyAny>) {
     use d::ProductError as E;
     let id = |n: &d::RecipeNodeId| -> Py<PyAny> {
         Py::new(py, NodeId(*n))
             .map(|v| v.into_any())
-            .unwrap_or_else(|_| py.None())
-    };
-    let text = |n: &pncad::prelude::StableName| -> Py<PyAny> {
-        name_text(py, n)
-            .map(|s| PyString::new(py, &s).unbind().into_any())
             .unwrap_or_else(|_| py.None())
     };
     let none = || py.None();
@@ -118,19 +114,26 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
             none(),
         ),
         E::Graft { node, .. } => (id(node), none(), none()),
-        // The first failing root, in gather order; every failing root
-        // and output is in the message.
+        // The first failing placement, in gather order; every failing
+        // placement and output is in the message.
         E::RootInvalid { findings } => (
             findings.first().map_or_else(none, |first| id(&first.node)),
             none(),
             none(),
         ),
-        E::Naming { node, name } => (id(node), none(), text(name)),
-        // The placed node is the one the author acts on; the two roots
-        // it sits under are in the message.
-        E::PlacedUnderTwoRoots { placed, .. } => (id(placed), none(), none()),
-        // The document-mismatch arm names two DOCUMENTS, which this
-        // node/node/name triple cannot carry; the message states both.
+        E::StrandedPlacement { placement } => (id(placement), none(), none()),
+        // The bodies to place, in document order, each its output
+        // variable — the handle `Doc.place` takes.
+        E::EmptyProduct { unplaced } => (
+            none(),
+            none(),
+            unplaced
+                .iter()
+                .map(|&var| Var(var, Some(d::VarKind::Body)))
+                .collect::<Vec<_>>()
+                .into_pyobject(py)
+                .map_or_else(|_| py.None(), |list| list.unbind()),
+        ),
         // The unplaced groups are every one in the message, each
         // with its cause.
         E::Unplaced { groups } => (
@@ -138,30 +141,31 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
             none(),
             none(),
         ),
-        E::NoBodyRoots
-        | E::ProductInvalid { .. }
+        // The document-mismatch arm names two DOCUMENTS, which these
+        // attributes cannot carry; the message states both.
+        E::ProductInvalid { .. }
         | E::ContactLineage { .. }
         | E::EvaluationOfAnotherDocument { .. } => (none(), none(), none()),
     }
 }
 
-/// The document's **product**: every body-denoting root's solids,
-/// gathered in root-list order into one body.
+/// The document's **product**: the world — every copy a placement
+/// defines, in the placements' document order, gathered into one body.
 ///
 /// This is what a document IS, and for an assembly it is the only
 /// useful reading: an assembly's nodes are instances and mates, and no
-/// single node's value is the assembly. Which roots are gathered is
-/// the document's own ordered root list — read through `Doc.roots`,
-/// set through `DocEdit.set_roots`.
+/// single node's value is the assembly. What is gathered is what the
+/// document places — read through `Doc.placements`, written through
+/// `Doc.place` — and nothing places as a side effect of another edit.
 ///
-/// A pure function of the root list and the evaluation: no ambient
-/// state, so two evaluations of a root-neutral edit yield the same
-/// solid order.
+/// A pure function of the placements and the evaluation: no ambient
+/// state, so two evaluations of an edit that moves no placement yield
+/// the same solid order.
 ///
 /// `evaluation` must be an evaluation OF `doc`, and the door CHECKS
 /// it: an evaluation carries the id of the document it was run on,
 /// and a foreign one raises `ProductError` with tag
-/// `evaluation_of_another_document` before the first root is read.
+/// `evaluation_of_another_document` before the first placement is read.
 /// Node ids alone could not decide this — they are minted by a
 /// per-document counter, so two documents built from one recipe carry
 /// the same ids for the same nodes, and a gather over the wrong one
@@ -174,17 +178,19 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
 /// ([`crate::product_memo`]). Reusing an `Evaluation` is therefore
 /// how a caller asks several questions for the price of one gather.
 ///
-/// Raises `ProductError`, typed: a root that failed, was poisoned or
-/// is absent from this evaluation; a document whose roots denote no
-/// body (`no_body_roots`); the kernel's graft and validity refusals.
-/// All of the roots or none of them — there are no partial products.
+/// Raises `ProductError`, typed: a placement that failed, was poisoned
+/// or is absent from this evaluation; an empty world
+/// (`empty_product`, carrying the unplaced bodies); a placement whose
+/// body is gone (`stranded_placement`); the kernel's graft and
+/// validity refusals. All of the placements or none of them — there
+/// are no partial products.
 #[pyfunction]
 pub(crate) fn product(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> PyResult<Body> {
     let tol = Tol::witness();
-    // The gather DECLARES NOTHING: it is the root list's solids side
+    // The gather DECLARES NOTHING: it is the copies' solids side
     // by side, with no gate and no minted records, so the product
     // body is plain and `Body.validate_pseudomanifold` will report
-    // any seam between two roots as undeclared. `assemble` is the
+    // any seam between two copies as undeclared. `assemble` is the
     // door that mints declarations over the same geometry.
     evaluation
         .paired_with(doc)
@@ -204,9 +210,10 @@ fn mispaired_product(py: Python<'_>, m: d::Mispaired, evaluation: &Evaluation) -
 /// The product, with the stable names its entities answer to —
 /// `product`'s sibling, same gather, one more field.
 ///
-/// The names are the product's OWN alphabet: an instance's entity is
-/// named through the instantiate node that placed it, which is what
-/// makes "the third post's top cap" one name rather than a coordinate.
+/// The names are the product's OWN alphabet: a copy's entity is named
+/// through the placement that defines the copy, and an instance's
+/// through the instantiate node besides, which is what makes "the
+/// third post's top cap" one name rather than a coordinate.
 /// They cross as opaque text, like every other name in this library.
 ///
 /// **One gather per evaluation.** The document's product is a pure
@@ -216,8 +223,7 @@ fn mispaired_product(py: Python<'_>, m: d::Mispaired, evaluation: &Evaluation) -
 /// ([`crate::product_memo`]). Reusing an `Evaluation` is therefore
 /// how a caller asks several questions for the price of one gather.
 ///
-/// Raises `ProductError`, typed — including `product_naming` when two
-/// roots' rows would name one aggregate entity.
+/// Raises `ProductError`, typed, as `product` does.
 #[pyfunction]
 pub(crate) fn product_named(
     py: Python<'_>,

@@ -23,17 +23,24 @@ use geom_core::Tol;
 /// The opaque profile payload: this suite never looks inside `P`.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 struct FakeProfile(&'static str);
-impl editor_core::SlotPayload<editor_core::Expr> for FakeProfile {}
+impl editor_core::SlotPayload<editor_core::VarId> for FakeProfile {}
 impl editor_core::SlotPayload<editor_core::Formula> for FakeProfile {}
 impl editor_core::ProfilePayload for FakeProfile {
     type Authored = Self;
     fn lower<E>(
         authored: &Self,
-        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::Expr, E>,
+        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
+        _: &mut dyn FnMut(
+            editor_core::OperandSlot,
+            &editor_core::Operand,
+        ) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(authored.clone())
     }
-    fn authored(&self) -> Self {
+    fn authored_with(
+        &self,
+        _: &mut dyn FnMut(editor_core::VarId, editor_core::Dimension) -> editor_core::Formula,
+    ) -> Self {
         self.clone()
     }
     fn drawn_pieces(
@@ -54,6 +61,7 @@ fn insert(doc: &TDoc, node: Node<FakeProfile, Formula>) -> (TDoc, RecipeNodeId) 
         doc,
         &TEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -67,7 +75,7 @@ fn extrude(doc: &TDoc, profile: RecipeNodeId) -> (TDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.01),
             side: ExtrudeSide::Along,
         },
@@ -81,9 +89,8 @@ fn fork() -> (TDoc, [RecipeNodeId; 4]) {
     let (doc, profile) = insert(&doc, Node::Profile(FakeProfile("square")));
     let (doc, body) = extrude(&doc, profile);
     let fillet = |target| Node::Fillet {
-        target,
         radius: len(0.001),
-        selection: Vec::new(),
+        selection: editor_core::Operand::select(target, Vec::new()),
     };
     let (doc, left) = insert(&doc, fillet(body));
     let (doc, right) = insert(&doc, fillet(body));
@@ -117,7 +124,7 @@ fn every_step_of_the_order_is_accepted_by_the_delete_door() {
         .expect("the cone's order never dangles a reference")
         .doc;
     }
-    assert!(doc.order().is_empty(), "the whole cone is gone");
+    assert!(doc.ids().is_empty(), "the whole cone is gone");
 }
 
 /// Deleting the fork's tip takes the tip and nothing else — the
@@ -144,7 +151,7 @@ fn inputs_of_the_target_survive_it() {
 #[test]
 fn an_absent_node_has_an_empty_cascade() {
     let (doc, _) = fork();
-    let absent = RecipeNodeId(9_999);
+    let absent = RecipeNodeId::new(0, 9_999);
     assert!(cascade_delete_order(&doc, absent).is_empty());
     assert_eq!(
         apply(
@@ -160,41 +167,40 @@ fn an_absent_node_has_an_empty_cascade() {
     );
 }
 
-/// The refusal a user can still meet says which way the reference
-/// runs and what to do about it — bare ids and the word "dangle" told
-/// them neither.
+/// **Deleting a read node is accepted, and says what it stranded**
+/// (D10): the extrude still reads the deleted profile's output, typed
+/// and unresolved, and the delete reports that read by its node and
+/// operand; nothing is re-pointed. The cascade above is the
+/// convenience that takes the readers too.
 #[test]
-fn the_dangle_refusal_states_the_remedy() {
+fn deleting_a_read_node_strands_its_reader_and_reports_it() {
     let (doc, [profile, body, ..]) = fork();
-    let refusal = apply(
+    let read = doc.output(profile, 0).expect("the profile's output");
+    let applied = apply(
         &doc,
         &TEdit::DeleteNode { id: profile },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
-    .unwrap_err();
+    .expect("a read node deletes");
     assert_eq!(
-        refusal,
-        EditError::DeleteWouldDangle {
-            id: doc.spoken(profile),
-            referenced_by: doc.spoken(body),
-        }
+        applied.maintenance,
+        vec![editor_core::Maintenance::StrandedRead {
+            node: doc.spoken(body),
+            slot: editor_core::OperandSlot::Profile,
+            var: doc.spoken_var(read),
+        }],
+        "the one reader of the profile's output is reported, by its operand"
     );
-    let sentence = refusal.to_string();
-    assert!(
-        sentence.contains(&format!(
-            "{} is still an input to {}",
-            doc.spoken(profile),
-            doc.spoken(body)
-        )),
-        "the direction of the reference is stated: {sentence}"
+    assert_eq!(
+        applied.doc.node(body).map(|n| n.operand_rows()),
+        Some(vec![(editor_core::OperandSlot::Profile, read)]),
+        "the extrude keeps the read it had, unresolved"
     );
+    assert_eq!(applied.doc.operation_of(read), None);
+    let sentence = applied.maintenance[0].to_string();
     assert!(
-        sentence.contains(&format!("delete {} first", doc.spoken(body))),
-        "and the immediate remedy: {sentence}"
-    );
-    assert!(
-        sentence.contains("everything downstream of it"),
-        "and the cascade: {sentence}"
+        sentence.contains(&format!("{}'s profile reads", doc.spoken(body))),
+        "the reader and its operand are stated: {sentence}"
     );
 }

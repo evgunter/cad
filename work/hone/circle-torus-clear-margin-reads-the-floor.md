@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-03
 priority: P2
 cost: M
-refs: [degree-2-subdivision-doors-carry-no-root-slack-meter, ellipse-edge-crossing-a-torus-has-no-root-lane]
+refs: [degree-2-subdivision-doors-carry-no-root-slack-meter, 3973]
 ---
 
 

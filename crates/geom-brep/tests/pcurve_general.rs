@@ -138,154 +138,98 @@ fn the_closed_form_door_refuses_a_general_image() {
     );
 }
 
-// ---- The certifying fixture: a GENERAL circle on a sphere chart —
-// the tilted plane's section, whose chart image is transcendental in
-// both channels and therefore has no closed-form lane anywhere. It is
-// the class the fitted grade exists for, and #498's interior/diagonal
-// loci are its named siblings. ----
-
-/// The chart sphere: unit radius, polar axis +z.
-fn sphere() -> Surface<f64> {
-    surf::sphere(1.0)
-}
-
-const TILT: f64 = 0.6;
-
-/// The mate: the tilted cutting plane whose section the circle is.
-fn tilted_plane() -> Surface<f64> {
-    Surface::Plane {
-        origin: Point3::origin(),
-        normal: geom_core::Vec3::new(TILT.sin(), 0.0, TILT.cos()),
-        u_ref: geom_core::Vec3::new(TILT.cos(), 0.0, -TILT.sin()),
-    }
-}
-
-/// The general circle: neither a parallel nor a meridian of the chart.
-fn general_circle() -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::origin(),
-        axis: geom_core::Vec3::new(TILT.sin(), 0.0, TILT.cos()),
-        radius: 1.0,
-        u_ref: geom_core::Vec3::new(TILT.cos(), 0.0, -TILT.sin()),
-    }
-}
-
-/// The traversed arc: a quarter turn away from the azimuth seam.
-const ARC: (f64, f64) = (0.3, 0.3 + core::f64::consts::FRAC_PI_2);
-
-/// The chart image the fitted lane derives
-/// (`FittedLane::sphere_circle_image`): a piecewise quintic Hermite
-/// interpolant on the carrier's own angle parameter, the form whose
-/// distance from the circle the certificate bounds.
-fn lane_image() -> Arc<NurbsCurve2<f64>> {
-    let (t0, t1) = ARC;
-    Arc::new(
-        FittedLane::<f64>::certified()
-            .sphere_circle_image(&general_circle(), t0, t1, &sphere(), band())
-            .expect("the lane images the general circle"),
-    )
-}
-
-/// A spline image of the same circle that is NOT in the lane's Hermite
-/// form: a global cubic interpolant on the carrier's own angle
-/// parameter, the parameter contract restored by an exact affine knot
-/// rescale (a B-spline is invariant under one).
-fn global_fit_image() -> Arc<NurbsCurve2<f64>> {
-    let carrier = general_circle();
-    let (t0, t1) = ARC;
-    let n = 33usize;
-    let mut params = Vec::with_capacity(n);
-    let mut pts = Vec::with_capacity(n);
-    for i in 0..n {
-        #[allow(clippy::cast_precision_loss)]
-        let t = t0 + (t1 - t0) * (i as f64 / (n - 1) as f64);
-        let p = carrier.eval(t);
-        params.push((t - t0) / (t1 - t0));
-        pts.push(Point2::new(p.y.atan2(p.x), p.z.asin()));
-    }
-    let fit = NurbsCurve2::interpolate_with_params(&pts, 3, &params).expect("the image fits");
-    let knots: Vec<f64> = fit
-        .knots()
-        .knots()
-        .iter()
-        .map(|k| t0 + (t1 - t0) * k)
-        .collect();
-    let kv = KnotVector::clamped(knots, fit.knots().degree()).expect("affine knot rescale");
-    Arc::new(
-        NurbsCurve2::new(kv, fit.control().to_vec(), fit.weights().to_vec())
-            .expect("rescaled image"),
-    )
-}
-
-/// **ε-row, outcome REFUSE**: an image of the circle in any other spline
-/// form has no bound on its distance from the circle between samples,
-/// so the general door refuses it typed rather than certify the
-/// sampled residual alone — a corruption between the samples would
-/// otherwise go unseen.
+/// **An analytic chart holds no fitted-grade image.** Its image of a
+/// carrier with no closed form is the projected one, so the general
+/// door refuses a spline carrier's spline image on a cylinder chart by
+/// kind, and a circle carrier on a sphere has no fitted class at all.
 #[test]
-fn a_general_circle_image_outside_the_hermite_form_refuses() {
-    let (t0, t1) = ARC;
-    let img = global_fit_image();
-    let err = PcurveCache::certify_general(
-        img,
-        t0,
-        t1,
-        &general_circle(),
-        &sphere(),
-        Some(&tilted_plane()),
+fn an_analytic_chart_refuses_a_fitted_grade_image() {
+    let cylinder = surf::cylinder::<f64>(1.0);
+    let got = PcurveCache::certify_general(
+        image(0.0),
+        0.0,
+        1.0,
+        &ruling(),
+        &cylinder,
+        Some(&mate()),
         band(),
         Some(FittedLane::certified()),
-    )
-    .expect_err("an image outside the Hermite form has no between-samples bound");
+    );
     assert!(
-        matches!(err, PcurveCertifyError::FittedCertificate { what, .. } if what.contains("Hermite form")),
-        "the refusal names the form: {err:?}"
+        matches!(
+            got,
+            Err(PcurveCertifyError::ImageMismatch {
+                image: geom_brep::PcurveKind::Fitted,
+                ..
+            })
+        ),
+        "an analytic chart refuses the fitted grade by kind: {got:?}"
+    );
+    let circle = Curve3::Circle {
+        center: Point3::origin(),
+        axis: geom_core::Vec3::new(0.6_f64.sin(), 0.0, 0.6_f64.cos()),
+        radius: 1.0,
+        u_ref: geom_core::Vec3::new(0.6_f64.cos(), 0.0, -0.6_f64.sin()),
+    };
+    let got = PcurveCache::certify_general(
+        image(0.0),
+        0.0,
+        1.0,
+        &circle,
+        &surf::sphere::<f64>(1.0),
+        None,
+        band(),
+        Some(FittedLane::certified()),
+    );
+    assert!(
+        matches!(
+            got,
+            Err(PcurveCertifyError::UnsupportedCarrier {
+                class: geom_brep::UncoveredClass::NoFittedClass,
+                ..
+            })
+        ),
+        "a circle has no fitted class: {got:?}"
     );
 }
 
-/// **ε-row, outcome CERTIFY**: the general circle's chart image on the
-/// sphere, against the tilted plane it is the section of. Nothing
-/// about the curve's provenance is asserted — the grade is what was
-/// measured, which is the whole content of the arm.
+/// **The two fitted-grade doors run one check sequence**: the same
+/// inputs through the general and the fitted door produce the same
+/// certificate. `General` is the fitted GRADE, and the two doors differ
+/// only in what their callers may assume, never in what the kernel
+/// measured.
 #[test]
-fn a_general_circle_image_certifies_at_the_fitted_grade() {
-    let (t0, t1) = ARC;
-    let img = lane_image();
-    let carrier = general_circle();
-    let plane = tilted_plane();
-    let cache = PcurveCache::certify_general(
-        Arc::clone(&img),
-        t0,
-        t1,
-        &carrier,
-        &sphere(),
-        Some(&plane),
+fn the_general_and_fitted_doors_certify_alike() {
+    let m = mate();
+    let general = PcurveCache::certify_general(
+        image(0.0),
+        0.0,
+        1.0,
+        &ruling(),
+        &quarter_cylinder_wall(),
+        Some(&m),
         band(),
         Some(FittedLane::certified()),
     )
-    .expect("the general circle certifies through the general door");
+    .expect("the ruling certifies through the general door");
     assert!(
-        matches!(cache.pcurve(), Pcurve::General(_)),
+        matches!(general.pcurve(), Pcurve::General(_)),
         "the door stores the arm it was entered through"
     );
-    // The SAME inputs through the fitted door produce the SAME
-    // certificate: `General` is the fitted GRADE, and the two doors
-    // differ only in what their callers may assume, never in what the
-    // kernel measured.
-    let twin = PcurveCache::certify_fitted(
-        img,
-        t0,
-        t1,
-        &carrier,
-        &sphere(),
-        Some(&plane),
+    let fitted = PcurveCache::certify_fitted(
+        image(0.0),
+        0.0,
+        1.0,
+        &ruling(),
+        &quarter_cylinder_wall(),
+        Some(&m),
         band(),
         FittedLane::certified(),
     )
     .expect("the same inputs certify through the fitted door");
     assert_eq!(
-        format!("{:?}", cache.certificate()),
-        format!("{:?}", twin.certificate()),
+        format!("{:?}", general.certificate()),
+        format!("{:?}", fitted.certificate()),
         "the two doors run one check sequence"
     );
 }

@@ -50,7 +50,7 @@ use test_utils::tightness::{Anchor, Sup, control_net_box_diagonal};
 // ---------------------------------------------------------------------
 
 fn curve_eval(kv: &KnotVector, w: &[f64], coords: &[Vec<f64>], t: f64) -> Vec<f64> {
-    let span = kv.span_at(t);
+    let span = kv.span_at(t).expect("a numeric parameter");
     let n = basis::basis_funs(span, t);
     let mut den = 0.0;
     let mut num = vec![0.0; coords.len()];
@@ -75,7 +75,9 @@ fn surf_eval(
     v: f64,
 ) -> [f64; 3] {
     let nv = kv.control_count();
-    let (su, sv) = (ku.span_at(u), kv.span_at(v));
+    let (Some(su), Some(sv)) = (ku.span_at(u), kv.span_at(v)) else {
+        panic!("a numeric parameter pair");
+    };
     let nu_b = basis::basis_funs(su, u);
     let nv_b = basis::basis_funs(sv, v);
     let mut den = 0.0;

@@ -58,10 +58,10 @@ fn inner_kind(py: Python<'_>, kind: &d::NodeErrorKind) -> Py<PyAny> {
 /// any future one, because no raise of this class can be written
 /// without naming a variant of the enum.
 ///
-/// `kind`, `inner_kind`, `through`, `finding` and `document` are ALWAYS
-/// present on the exception — `None` where the reason has no failing
-/// kind, no arm under that kind, no poisoning ancestor, no refusal-menu
-/// payload, or the node is the evaluated document's own — so
+/// `kind`, `inner_kind`, `through` and `document` are ALWAYS present on
+/// the exception — `None` where the reason has no failing kind, no arm
+/// under that kind, no poisoning ancestor, or the node is the evaluated
+/// document's own — so
 /// stub-guided code can read them without an `AttributeError` trap — a
 /// stub that over-promises is worse than one that says `None`.
 fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node: NodeId) -> PyErr {
@@ -80,7 +80,6 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node
             ("kind", py.None().into_any()),
             ("inner_kind", py.None().into_any()),
             ("through", py.None().into_any()),
-            ("finding", py.None().into_any()),
             ("document", py.None().into_any()),
         ],
     )
@@ -137,21 +136,6 @@ pub(crate) fn refused(
         },
         None => py.None().into_any(),
     };
-    // The refusal MENU: an undeclared-contact
-    // refusal carries its candidate declaration as a typed
-    // `FlushFinding` on the exception — the same value shape
-    // `Evaluation.find_flush_candidates` answers with, ready for
-    // `Node.boolean`'s `declare=` or `Doc.declare`. `None` on every
-    // other kind.
-    let finding = match kind {
-        d::NodeErrorKind::UndeclaredCoincidence { finding, .. } => {
-            match super::flush::FlushFinding((**finding).clone()).into_pyobject(py) {
-                Ok(bound) => bound.unbind().into_any(),
-                Err(failed) => return failed,
-            }
-        }
-        _ => py.None().into_any(),
-    };
     typed_err(
         py,
         ErrorClass::Evaluation(EvalReason::Standing(d::NodeStanding::Failed {
@@ -168,7 +152,6 @@ pub(crate) fn refused(
             ),
             ("inner_kind", inner_kind(py, kind)),
             ("through", py.None().into_any()),
-            ("finding", finding),
             ("document", document),
         ],
     )
@@ -267,7 +250,6 @@ fn poisoning(
     let mut fields: Vec<(&str, Py<PyAny>)> = vec![
         ("node", node_obj),
         ("through", through_obj),
-        ("finding", py.None().into_any()),
         ("document", py.None().into_any()),
     ];
     // The node never ran, so the standing's sentence is followed by
@@ -709,8 +691,8 @@ impl Body {
 ///   another one leaves the refusal standing. `"vertex_on_edge"` and
 ///   `"edge_edge"` are records an op wrote, never a declaration: a stale
 ///   one is the op's defect, with nothing to withdraw.
-/// * `ring_contact_kind` — how a ring meets its face's own outer loop
-///   (`"vertex_vertex"`, `"vertex_on_edge"`, `"vertex_on_ring_edge"`,
+/// * `ring_contact_kind` — how a ring meets its face's own outer loop,
+///   or another ring of that face (`"vertex_vertex"`, `"vertex_on_edge"`, `"vertex_on_ring_edge"`,
 ///   `"edge_along_edge"`, `"edge_edge_point"`, `"circle_circle"`).
 ///   The word says where the ring has to move: a shared position one
 ///   vertex clears, a shared arc no single move separates, or a
@@ -756,7 +738,8 @@ impl ValidationFinding {
         self.0.stale_kind
     }
 
-    /// How a ring meets its face's own outer loop.
+    /// How a ring meets its face's own outer loop, or another ring of
+    /// that face.
     #[getter]
     fn ring_contact_kind(&self) -> Option<&'static str> {
         self.0.ring_contact_kind
@@ -896,7 +879,7 @@ impl Measurement {
 ///
 /// `measured` and `bound` are present for a decided verdict and `None`
 /// for an undecided one. Reading a verdict changes nothing: a failing
-/// assertion gates no build and moves no product (E10 v1).
+/// assertion gates no build and moves no product (D10).
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Verdict {
     /// `"Holds"`, `"Violated"` or `"Unevaluated"`.
@@ -1268,6 +1251,61 @@ impl Evaluation {
 
 #[pymethods]
 impl Evaluation {
+    /// **A scalar's value in this evaluation, measured values bound**
+    /// (D10): a variable — a measure's output, or a definition over
+    /// outputs — or a formula, such as `Doc.measure`'s `value`. The
+    /// one reader of an observed value outside an assertion.
+    ///
+    /// A measure under it that did not land raises as `value` of that
+    /// measure does (`EvaluationError`, `MeasureUnavailableAt` for a
+    /// `min_clearance` at this point scalar); an evaluation over the
+    /// bound values that refuses raises `ExprError`.
+    fn reading(&self, py: Python<'_>, value: super::doc::Evaluand) -> PyResult<Measurement> {
+        let formula = match value {
+            super::doc::Evaluand::Formula(formula) => self
+                .doc
+                .resolve(&formula.0)
+                .map_err(|fault| super::expr::lower_fault_err(py, &fault))?,
+            super::doc::Evaluand::Var(var) => {
+                let Some(dim) = self.doc.var(var.0).and_then(|held| held.kind().dimension()) else {
+                    return Err(super::expr::eval_err(
+                        py,
+                        &d::EvalError::UnresolvedVar { var: var.0 },
+                        Some(&self.doc),
+                    ));
+                };
+                d::Formula::var(var.0, dim)
+            }
+        };
+        let dim = formula.dim();
+        match self.inner.reading_formula(&self.doc, &formula) {
+            Ok(d::Observed::Value(value)) => Ok(Measurement {
+                dimension: measurement_dimension_tag(dim),
+                value,
+                length: (dim == d::Dimension::Length)
+                    .then(|| Length(pncad::quantity::Length::from_meters(value))),
+            }),
+            Ok(d::Observed::Unavailable(reason)) => {
+                Err(super::measure::measure_unavailable_at_err(py, &reason))
+            }
+            Err(d::ObservedRefusal::Measure(standing)) => {
+                let node = NodeId(standing.node());
+                match self.value(py, &node) {
+                    Err(raised) => Err(raised),
+                    Ok(_) => Err(eval_err(
+                        py,
+                        standing.to_string(),
+                        EvalReason::Standing(standing),
+                        node,
+                    )),
+                }
+            }
+            Err(d::ObservedRefusal::Expr(err)) => {
+                Err(super::expr::eval_err(py, &err, Some(&self.doc)))
+            }
+        }
+    }
+
     /// The node's successful value.
     ///
     /// A node that produced NO value raises under its standing, with
@@ -1335,6 +1373,21 @@ impl Evaluation {
     #[getter]
     fn canceled(&self) -> bool {
         self.inner.outcome == d::EvalOutcome::Canceled
+    }
+
+    /// **The coincidences `node` decided from values** (D10), in
+    /// decision order, each with what the coincidence door decided
+    /// about it. A node with no value raises as [`Self::value`] does.
+    fn coincidences(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<Coincidence>> {
+        self.value(py, node)?;
+        let Some(value) = self.inner.value(node.0) else {
+            return Ok(Vec::new());
+        };
+        value
+            .coincidences
+            .iter()
+            .map(|row| Coincidence::new(py, row, &d::coincide::prove(&self.doc, row)))
+            .collect()
     }
 
     /// Whether the node produced a value.
@@ -1854,7 +1907,7 @@ fn export_err(
             fields[3] = ("kind", PyString::new(py, kind).unbind().into_any());
         }
         // `Product` is the WHOLE-DOCUMENT door's refusal: it names
-        // product roots, not this call's node, so it adds no field
+        // the world's placements, not this call's node, so it adds no field
         // here. The arm is spelled out because the match
         // is exhaustive on purpose — the tripwire, not a wildcard.
         E::EmptyBoolean { .. } | E::Step(_) | E::Product(_) => {}
@@ -2297,6 +2350,8 @@ pub(crate) fn import_step(
             // examination, and `None` means NOT ASKED — which is the
             // one thing an empty report would not say.
             coherence: _,
+            // Empty by construction: the options declare no anchor.
+            coincidences: _,
         }) => Ok(ImportReport {
             body: Body::plain(Arc::new(body)),
             enclosure: enclosure.map(MassProperties::from),
@@ -2557,10 +2612,122 @@ pub(crate) fn evaluate(
     }
 }
 
+/// **One coincidence a node decided from values** (D10), with what the
+/// coincidence door decided about it.
+///
+/// Its two cells cross as `(node, name)` pairs: the input node whose
+/// table names the cell and the name there, the same opaque text the
+/// materializers answer with; a tool cell (the plane a split cuts with)
+/// has no name and crosses as `(node, None)`, and a profile's own piece
+/// crosses as `(profile, piece)`, the piece's text as a step's pieces
+/// spell it. `rung` names the door's
+/// rung that proved the row structural, `None` where none did, and then
+/// `residual` says what separates the two constructions, or why a
+/// cell's could not be read (`coincide::Unwalked`, said by its sentence
+/// rather than crossed as a type: nothing a Python caller does branches
+/// on which node the walk stopped at).
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct Coincidence {
+    cells: Vec<(NodeId, Option<String>)>,
+    relation: &'static str,
+    site: &'static str,
+    rung: Option<&'static str>,
+    residual: Option<String>,
+}
+
+impl Coincidence {
+    /// The row and its proof, crossed.
+    pub(crate) fn new(
+        py: Python<'_>,
+        row: &d::NamedCoincidence,
+        proof: &d::Proof,
+    ) -> PyResult<Self> {
+        let cells = row
+            .cells
+            .iter()
+            .map(|cell| match cell {
+                d::NamedCell::Entity { input, name } => {
+                    Ok((NodeId(*input), Some(super::doc::name_text(py, name)?)))
+                }
+                d::NamedCell::Tool { input } => Ok((NodeId(*input), None)),
+                d::NamedCell::Piece { profile, piece } => {
+                    Ok((NodeId(*profile), Some(super::doc::piece_text(piece)?)))
+                }
+            })
+            .collect::<PyResult<_>>()?;
+        let (rung, residual) = match proof {
+            d::Proof::Structural(rung) => (Some(crate::tags::coincidence_rung_tag(*rung)), None),
+            d::Proof::Unproven { residual, .. } => (None, Some(residual.to_string())),
+        };
+        Ok(Self {
+            cells,
+            relation: crate::tags::coincidence_relation_tag(row.relation),
+            site: crate::tags::decision_site_tag(row.site),
+            rung,
+            residual,
+        })
+    }
+}
+
+#[pymethods]
+impl Coincidence {
+    /// The two cells decided one, as `(input node, name)` pairs; a
+    /// tool cell's name is `None`.
+    #[getter]
+    fn cells(&self) -> Vec<(NodeId, Option<String>)> {
+        self.cells.clone()
+    }
+
+    /// What was decided between them: `same_oriented`,
+    /// `same_opposite`, `on_carrier`, `equal_angles`, `tangent`, `cusp`,
+    /// `tangent_contact`, `seam`, `coaxial` or `co_ruled`. A
+    /// `profile_junction` row is `tangent` or `cusp` between two carriers
+    /// and `same_oriented` where its pieces continue one; a
+    /// `tangent_witness` row is `tangent_contact` (outward sides opposed)
+    /// or `seam` (one face carried on into the other).
+    #[getter]
+    fn relation(&self) -> &'static str {
+        self.relation
+    }
+
+    /// Where it was decided: `plane_ladder`, `carrier_ladder`,
+    /// `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn`,
+    /// `battery_joint`, `battery_support_axis`, `profile_junction`,
+    /// `vertex_fusion`, `census_at_rest` or `import_anchor`.
+    #[getter]
+    fn site(&self) -> &'static str {
+        self.site
+    }
+
+    /// The door's rung that proved it structural (`same_construction`), or
+    /// `None`: the door does not prove it structural.
+    #[getter]
+    fn rung(&self) -> Option<&'static str> {
+        self.rung
+    }
+
+    /// What separates the two constructions, where no rung proved it.
+    #[getter]
+    fn residual(&self) -> Option<String> {
+        self.residual.clone()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "Coincidence({}, {}, {})",
+            self.relation,
+            self.site,
+            self.rung.unwrap_or("unproven")
+        )
+    }
+}
+
 /// Register the value surface on the module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<CancelToken>()?;
     m.add_class::<Evaluation>()?;
+    m.add_class::<Coincidence>()?;
     m.add_class::<Value>()?;
     m.add_class::<Body>()?;
     m.add_class::<MassProperties>()?;

@@ -314,9 +314,8 @@ impl Disagreement {
 ///
 /// # Why names and not ids
 ///
-/// One stable name can be drawn under several ids — two `Transform`
-/// roots over one extrude carry the same names on both copies — so
-/// comparing raw ids reports a disagreement whenever the two paths
+/// One stable name can be drawn under several ids, so comparing raw
+/// ids reports a disagreement whenever the two paths
 /// name the same face on different drawn copies. The property the two
 /// lanes are supposed to share is "the same face is under the cursor",
 /// and a face is a name.
@@ -421,12 +420,12 @@ mod tests {
         let shown = test_utils::own_thread::on_the_smallest_stack(|| {
             let leaf = StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(test_utils::refusal::tagged(1)),
+                node: RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             };
             let deep = (0..DEEP).fold(leaf, |n, _| StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(test_utils::refusal::tagged(2)),
+                node: RecipeNodeId::new(0, test_utils::refusal::tagged(2)),
                 path: vec![RoleSeg::FromA(NameRef::new(n))],
             });
             Disagreement {

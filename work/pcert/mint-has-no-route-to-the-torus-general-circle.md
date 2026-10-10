@@ -2,9 +2,11 @@
 id: mint-has-no-route-to-the-torus-general-circle
 kind: issue
 title: the mint has no route to a torus general circle, so a torus face bounded by one stays uncached under C4's exemption
-status: open
+status: closed
 opened: 2026-10-02
 priority: P1
+closed: 2026-10-07
+pr: 4227
 ---
 
 Filed by PCERT's `pcert/at-rest-rows-mandatory` (PR 3759), which makes
@@ -20,3 +22,5 @@ This row is the schedule for `UncoveredClass::TorusGeneralCircle`: a circle on a
 When the route lands, the class leaves `not_owed`'s first arm in the
 same change, so a face of that class is minted or refused at the
 producer.
+
+Closed by `pcert/torus-villarceau-route` (PR 4227): the class is deleted. A circle on the chart that the incidence test reads on it is imaged (`Pcurve::FocalSection`: a Villarceau circle on a torus, a tilted section ellipse on a cone) or refuses `CarrierGrazesChart`, and one read off it refuses `CarrierOffChart`; neither is excused.

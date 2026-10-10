@@ -130,7 +130,7 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
     let w = Formula::named(VarName::from_static("w"), Dimension::Length);
     let neg_w = Formula::neg(w.clone()).expect("a shallow negation");
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::polygon_expr([
             [neg_w.clone(), len(-0.5)],
             [w.clone(), len(-0.5)],
@@ -140,13 +140,15 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
         ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        at: cube,
-        face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+        face: editor_core::Operand::select(
+            cube,
+            vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
+        ),
         spin: ang(0.0),
     }));
     let boss_p = r.insert(Node::Profile(fixture::desc(
@@ -154,7 +156,7 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
         vec![fixture::square(0.0, 0.0, 0.25)],
     )));
     r.insert(Node::Extrude {
-        profile: boss_p,
+        profile: boss_p.into(),
         distance: len(0.25),
         side: ExtrudeSide::Along,
     });
@@ -235,13 +237,15 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
             vec![fixture::square(0.0, 0.0, 1.0)],
         )));
         let cube = r.insert(Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         });
         r.insert(Node::Datum(Datum::FaceFrame {
-            at: cube,
-            face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+            face: editor_core::Operand::select(
+                cube,
+                vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
+            ),
             spin: ang(0.0),
         }))
     } else {
@@ -252,7 +256,7 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
         vec![fixture::square(0.0, 0.0, 0.5)],
     )));
     r.insert(Node::Extrude {
-        profile: boss_p,
+        profile: boss_p.into(),
         distance: len(0.25),
         side: ExtrudeSide::Along,
     });
@@ -304,7 +308,7 @@ fn sym5_tilted_derived_guided_profiled() {
     let box_ = ParamBox::of(&analyzed);
     for name in box_.axes().keys() {
         name_param(
-            geom_core::ParamSymbol::new(name.0),
+            geom_core::ParamSymbol::new(name.0.digest()),
             &doc.spoken_var(*name).to_string(),
         );
     }
@@ -649,13 +653,15 @@ fn stacked(r: &mut Recorder, base: RecipeNodeId, n: usize) -> RecipeNodeId {
             vec![fixture::square(0.0, 0.0, 1.0)],
         )));
         let cube = r.insert(Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         });
         on = r.insert(Node::Datum(Datum::FaceFrame {
-            at: cube,
-            face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+            face: editor_core::Operand::select(
+                cube,
+                vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
+            ),
             spin: ang(0.0),
         }));
     }
@@ -671,13 +677,15 @@ fn start_cap_frame(r: &mut Recorder, base: RecipeNodeId) -> RecipeNodeId {
         vec![fixture::square(0.0, 0.0, 1.0)],
     )));
     let cube = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
     r.insert(Node::Datum(Datum::FaceFrame {
-        at: cube,
-        face: fixture::fname(cube, RoleSeg::Cap(CapEnd::Start)),
+        face: editor_core::Operand::select(
+            cube,
+            vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::Start))],
+        ),
         spin: ang(0.0),
     }))
 }
@@ -691,13 +699,15 @@ fn revolved(r: &mut Recorder, base: RecipeNodeId) -> RecipeNodeId {
     )));
     let axis = r.insert(fixture::axis_in_plane(base, (0.0, 0.0), (0.0, 1.0)));
     let rev = r.insert(Node::Revolve {
-        profile: p,
-        axis,
+        profile: p.into(),
+        axis: axis.into(),
         angle: ang(std::f64::consts::PI),
     });
     r.insert(Node::Datum(Datum::FaceFrame {
-        at: rev,
-        face: fixture::fname(rev, RoleSeg::RevolveCap(MeridianEnd::End)),
+        face: editor_core::Operand::select(
+            editor_core::Operand::output(rev, 0),
+            vec![fixture::fname(rev, RoleSeg::RevolveCap(MeridianEnd::End))],
+        ),
         spin: ang(0.0),
     }))
 }
@@ -708,7 +718,7 @@ fn boss_on(r: &mut Recorder, on: RecipeNodeId) {
         vec![fixture::square(0.0, 0.0, 0.5)],
     )));
     r.insert(Node::Extrude {
-        profile: boss_p,
+        profile: boss_p.into(),
         distance: len(0.25),
         side: ExtrudeSide::Along,
     });
@@ -890,7 +900,7 @@ fn render_wall(name: &str, base: Base, place: Place, halves: &[f64]) {
         let box_ = ParamBox::of(&analyzed);
         for name_ in box_.axes().keys() {
             name_param(
-                geom_core::ParamSymbol::new(name_.0),
+                geom_core::ParamSymbol::new(name_.0.digest()),
                 &doc.spoken_var(*name_).to_string(),
             );
         }
@@ -1461,7 +1471,7 @@ fn sym12_the_copysign_census_on_the_revolved_cap() {
     use geom_core::sym::report::{name_param, start_shape_report, take_shape_report};
     let doc = r2_document(1.0e-3, Base::TiltV, Place::Revolved);
     name_param(
-        geom_core::ParamSymbol::new(doc.var_named("t").expect("declared").0),
+        geom_core::ParamSymbol::new(doc.var_named("t").expect("declared").0.digest()),
         "t",
     );
     for (label, rules) in [
@@ -1679,7 +1689,7 @@ fn sym10_phase1_the_tilted_rows_residual_rendered() {
         let box_ = ParamBox::of(&analyzed);
         for name in box_.axes().keys() {
             name_param(
-                geom_core::ParamSymbol::new(name.0),
+                geom_core::ParamSymbol::new(name.0.digest()),
                 &doc.spoken_var(*name).to_string(),
             );
         }

@@ -45,7 +45,7 @@ fn unit_cube(doc: ProfileDoc, x0: f64, y0: f64) -> (ProfileDoc, editor_core::Rec
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -79,8 +79,8 @@ fn revolve_wires_the_datum_axis_through_the_sketch_plane() {
     let (doc, rev) = insert(
         doc,
         Node::Revolve {
-            profile: prof,
-            axis,
+            profile: prof.into(),
+            axis: axis.into(),
             angle: ang(TAU), // decided coincident with τ ⇒ Full
         },
     );
@@ -127,8 +127,8 @@ fn a_revolve_refuses_an_axis_it_cannot_turn_in() {
     let (doc, bad_kind) = insert(
         doc,
         Node::Revolve {
-            profile: prof,
-            axis: world_axis,
+            profile: prof.into(),
+            axis: world_axis.into(),
             angle: ang(PI),
         },
     );
@@ -149,8 +149,8 @@ fn a_revolve_refuses_an_axis_it_cannot_turn_in() {
     let (doc, wrong_frame) = insert(
         doc,
         Node::Revolve {
-            profile: prof,
-            axis: stranger,
+            profile: prof.into(),
+            axis: stranger.into(),
             angle: ang(PI),
         },
     );
@@ -212,7 +212,7 @@ fn linear_pattern_evaluates_instances_as_data() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: cube,
+            input: cube.into(),
             count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(2.0), scl(0.0), scl(0.0)], // normalized by eval
@@ -235,30 +235,30 @@ fn linear_pattern_evaluates_instances_as_data() {
             .fold(f64::INFINITY, f64::min);
         assert_eq!(min_x, 2.0 * i as f64);
     }
-    // Patterns do NOT implicitly union: consuming one as a boolean
-    // operand is a typed refusal (part selection is PR 3 naming).
+    // Patterns do NOT implicitly union: a boolean operand reads one
+    // body, so reading a pattern's instances is refused by kind at the
+    // door (part selection is PR 3 naming).
     let (doc2, other) = unit_cube(doc.clone(), 10.0, 10.0);
-    let (doc2, boolean) = insert(
-        doc2,
+    let refusal = crate::fixture::insert_refused(
+        &doc2,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: pat,
-            b: other,
+            a: pat.into(),
+            b: other.into(),
             declare: Vec::new(),
         },
     );
-    let ev2 = run(&doc2);
-    match ev2.nodes.get(&boolean) {
-        Some(NodeResult::Failed(e)) => assert!(matches!(
-            e.kind,
-            NodeErrorKind::WrongOperand {
-                expected: "body",
-                found: "instances",
+    assert!(
+        matches!(
+            refusal,
+            editor_core::EditError::SlotVarKind {
+                found: editor_core::VarKind::Bodies,
+                expected: editor_core::SlotKind::Is(editor_core::VarKind::Body),
                 ..
             }
-        )),
-        other => panic!("expected Failed, got {other:?}"),
-    }
+        ),
+        "{refusal:?}"
+    );
 }
 
 #[test]
@@ -276,10 +276,10 @@ fn circular_pattern_rotates_about_the_datum_axis() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: cube,
+            input: cube.into(),
             count: editor_core::Formula::count(4),
             kind: PatternKind::Circular {
-                axis,
+                axis: axis.into(),
                 step: ang(FRAC_PI_2),
             },
         },
@@ -407,7 +407,7 @@ fn typed_refusal_doors() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: cube,
+            input: cube.into(),
             count: editor_core::Formula::count(0),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -424,7 +424,8 @@ fn typed_refusal_doors() {
         other => panic!("expected Failed, got {other:?}"),
     }
 
-    // A Split value as a boolean operand (needs PR 3 naming).
+    // A split named alone as a boolean operand is either of its two
+    // halves: the door refuses it, and the read names a port.
     let (doc, tool) = insert(
         doc,
         Node::Datum(Datum::Plane {
@@ -432,29 +433,30 @@ fn typed_refusal_doors() {
             normal: [scl(0.0), scl(0.0), scl(1.0)],
         }),
     );
-    let (doc, split_node) = insert(doc, Node::Split { target: cube, tool });
-    let (doc, second) = unit_cube(doc, 5.0, 5.0);
-    let (doc, boolean) = insert(
+    let (doc, split_node) = insert(
         doc,
+        Node::Split {
+            target: cube.into(),
+            tool: tool.into(),
+        },
+    );
+    let (doc, second) = unit_cube(doc, 5.0, 5.0);
+    let refusal = crate::fixture::insert_refused(
+        &doc,
         Node::Boolean {
             op: BooleanOp::Intersect,
-            a: split_node,
-            b: second,
+            a: split_node.into(),
+            b: second.into(),
             declare: Vec::new(),
         },
     );
-    let ev = run(&doc);
-    match ev.nodes.get(&boolean) {
-        Some(NodeResult::Failed(e)) => assert!(matches!(
-            e.kind,
-            NodeErrorKind::WrongOperand {
-                expected: "body",
-                found: "split",
-                ..
-            }
-        )),
-        other => panic!("expected Failed, got {other:?}"),
-    }
+    assert!(
+        matches!(
+            &refusal,
+            editor_core::EditError::AmbiguousOutput { input, .. } if input.id() == split_node
+        ),
+        "{refusal:?}"
+    );
 }
 
 /// **A linear pattern's direction, with a length that is not a finite
@@ -477,7 +479,7 @@ fn non_finite_pattern_direction_refuses_at_the_direction_door() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: cube,
+            input: cube.into(),
             count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1e200), scl(0.0), scl(0.0)],
@@ -533,7 +535,7 @@ fn an_underflowed_pattern_direction_refuses_as_underflow_not_as_zero_length() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: cube,
+            input: cube.into(),
             count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1e-180), scl(0.0), scl(0.0)],
@@ -618,7 +620,7 @@ fn a_zero_and_a_merely_small_pattern_direction_keep_the_zero_refusal() {
         let (doc, pat) = insert(
             doc,
             Node::Pattern {
-                input: cube,
+                input: cube.into(),
                 count: editor_core::Formula::count(3),
                 kind: PatternKind::Linear {
                     direction: [scl(component), scl(0.0), scl(0.0)],
@@ -664,7 +666,7 @@ fn an_underflowed_pattern_direction_still_decides_zero_at_the_interval_scalar() 
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: cube,
+            input: cube.into(),
             count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1e-180), scl(0.0), scl(0.0)],
@@ -783,7 +785,7 @@ fn the_kernel_refusal_maps_onto_every_arm_of_this_layers_door() {
         let (doc, pat) = insert(
             doc,
             Node::Pattern {
-                input: cube,
+                input: cube.into(),
                 count: editor_core::Formula::count(3),
                 kind: PatternKind::Linear {
                     direction: [scl(component), scl(0.0), scl(0.0)],
@@ -914,7 +916,7 @@ fn a_non_finite_pattern_direction_mints_nothing_at_the_interval_scalar() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: cube,
+            input: cube.into(),
             count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1e200), scl(0.0), scl(0.0)],
@@ -940,11 +942,11 @@ fn a_non_finite_pattern_direction_mints_nothing_at_the_interval_scalar() {
 }
 
 /// **A boolean's declared pairs are its own payload, and `SetDeclare`
-/// replaces them on the live node.** Undeclared, the flush contacts are
-/// refused; the same boolean with the pairs set fuses. A node that
-/// declares no contacts refuses the edit at the door.
+/// replaces them on the live node.** Undeclared, the flush contacts
+/// glue; the same boolean with the pairs set builds the same body. A
+/// node that declares no contacts refuses the edit at the door.
 #[test]
-fn set_declare_on_a_live_boolean_fuses_its_flush_contacts() {
+fn set_declare_on_a_live_boolean_builds_its_undeclared_body() {
     let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
     let (doc, a) = unit_cube(doc, 0.0, 0.0);
     let (doc, b) = unit_cube(doc, 0.5, 0.0); // overlapping, flush y/z planes
@@ -953,21 +955,24 @@ fn set_declare_on_a_live_boolean_fuses_its_flush_contacts() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
     let undeclared = run(&doc);
-    assert!(
-        matches!(
-            undeclared.nodes.get(&boolean),
-            Some(NodeResult::Failed(e))
-                if matches!(e.kind, NodeErrorKind::UndeclaredCoincidence { .. })
-        ),
-        "the flush contacts are refused while undeclared, got {:?}",
-        undeclared.nodes.get(&boolean)
-    );
+    let ValuePayload::Boolean(editor_core::BooleanValue::Body { body: bare, .. }) = &undeclared
+        .value(boolean)
+        .unwrap_or_else(|| {
+            panic!(
+                "the flush contacts glue undeclared, got {:?}",
+                undeclared.nodes.get(&boolean)
+            )
+        })
+        .payload
+    else {
+        panic!("expected boolean body");
+    };
 
     let declared = doc
         .apply(
@@ -991,6 +996,11 @@ fn set_declare_on_a_live_boolean_fuses_its_flush_contacts() {
         panic!("expected boolean body");
     };
     assert_eq!(mass_properties(body, Tol::witness()).unwrap().volume, 1.5); // dyadic union
+    assert_eq!(
+        format!("{body:?}"),
+        format!("{bare:?}"),
+        "the declared boolean is the undeclared one's body"
+    );
 
     let refused = doc.apply(
         &editor_core::DocEdit::SetDeclare { node: a, pairs },

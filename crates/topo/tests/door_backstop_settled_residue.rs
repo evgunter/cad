@@ -1,7 +1,7 @@
 //! **A declared coincidence the door settles inside the band moves a
 //! correct result's volume, and at a tight bound the volume backstop
 //! may refuse it** — a correct body refused, the safe direction, filed as
-//! `work/reach/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`.
+//! `work/reachhold/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`.
 //!
 //! The fixture is a block and a parallelepiped cornered on its top face
 //! by a 5° wedge angle, the wedge's face there tilted about its one edge
@@ -28,7 +28,7 @@
 //! area and with the loop point its fan is read from (of order 1e-10 m³
 //! at ε 1e-9),
 //! so the verdict there is read under the representation's own ambiguity
-//! (`work/reach/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`).
+//! (`work/reachhold/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`).
 //!
 //! Oracle: box arithmetic — the block `3 × 4.5 × 1`, the parallelepiped
 //! `sin φ · h` (its base parallelogram's area, whatever the tilt, times

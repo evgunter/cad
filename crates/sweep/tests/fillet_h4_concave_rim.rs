@@ -71,12 +71,24 @@ fn volume(body: &Body<f64>) -> f64 {
 /// rim-side seam pieces and the carry-through crossing's mate piece
 /// retired (the closure crossing's mate piece survives as the band's
 /// slit). Faces `+1`: four strips minted, three merged away — the band.
+/// This is the annulus band's whole delta.
 const TWO_CROSSING_DELTA: (usize, usize, usize) = (2, 3, 1);
 
-fn assert_delta(before: (usize, usize, usize), after: (usize, usize, usize), what: &str) {
+/// [`TWO_CROSSING_DELTA`] for a LADDER band, less its closing join
+/// (`docs/DESIGN.md`, maximal edges): its two host trimlines lie on one
+/// circle and meet at the host foot the band's slit does not reach,
+/// which the join takes, one vertex and one edge.
+const LADDER_DELTA: (usize, usize, usize) = (1, 2, 1);
+
+fn assert_delta(
+    before: (usize, usize, usize),
+    after: (usize, usize, usize),
+    want: (usize, usize, usize),
+    what: &str,
+) {
     assert_eq!(
         (after.0 - before.0, after.1 - before.1, after.2 - before.2),
-        TWO_CROSSING_DELTA,
+        want,
         "{what}: census {before:?} → {after:?} is the two-crossing band's delta"
     );
 }
@@ -104,11 +116,21 @@ fn the_waist_carves_one_annulus_band_and_adds_the_pappus_fill() {
         "the source is two frusta, 7π/12: {v0}"
     );
 
-    let out = fillet_edges(&source, &arcs, WAIST_R, tol())
-        .unwrap_or_else(|e| panic!("the concave waist carves, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &arcs,
+        WAIST_R,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the concave waist carves, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one annulus band");
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
-    assert_delta(census(&source), census(&out.body), "the waist");
+    assert_delta(
+        census(&source),
+        census(&out.body),
+        TWO_CROSSING_DELTA,
+        "the waist",
+    );
 
     let v1 = volume(&out.body);
     assert!(
@@ -129,7 +151,7 @@ fn the_waist_carves_one_annulus_band_and_adds_the_pappus_fill() {
 /// concave row's red a statement about the fold and not about the body.
 #[test]
 fn the_convex_twin_of_the_same_body_cuts() {
-    let source = waisted(tol());
+    let source = sweep::test_support::finished("source", waisted(tol()), tol());
     let v0 = volume(&source);
     for (name, rim_y) in [("the base", 0.0), ("the top", 1.0)] {
         let arcs = rim_arcs_at(&source, 1.0, rim_y);
@@ -139,7 +161,7 @@ fn the_convex_twin_of_the_same_body_cuts() {
         assert_eq!(out.band_faces.len(), 1, "{name}: one annulus band");
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name}: tier-3 valid, got {e:?}"));
-        assert_delta(census(&source), census(&out.body), name);
+        assert_delta(census(&source), census(&out.body), LADDER_DELTA, name);
         let v1 = volume(&out.body);
         assert!(
             v1 < v0,
@@ -301,12 +323,17 @@ fn the_boss_carves_a_concave_ladder_band_and_adds_the_cap_fill() {
             "{name}: the rim is the top face's one ring"
         );
         let v0 = volume(body);
-        let out = fillet_edges(body, &arcs, BOSS_R, tol())
-            .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(body, tol()),
+            &arcs,
+            BOSS_R,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
         assert_eq!(out.band_faces.len(), 1, "{name}: one ladder band");
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name}: tier-3 valid, got {e:?}"));
-        assert_delta(census(body), census(&out.body), name);
+        assert_delta(census(body), census(&out.body), LADDER_DELTA, name);
         // The ladder's signature, PROVED off the body rather than inferred
         // from the widening: the band's neighbours are exactly one plane
         // face — the top, its key kept, its one ring now the (wider) trim
@@ -383,8 +410,13 @@ fn the_boss_carves_a_concave_ladder_band_and_adds_the_cap_fill() {
 fn a_concave_band_records_every_birth_and_every_death() {
     let source = waisted(tol());
     let arcs = rim_arcs_at(&source, 0.5, 0.5);
-    let out = fillet_edges(&source, &arcs, WAIST_R, tol())
-        .unwrap_or_else(|e| panic!("the waist carves, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &arcs,
+        WAIST_R,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the waist carves, got {e:?}"));
     assert_naming_totality(&source, &out, &arcs, "the concave waist");
     let rec = out.naming.as_ref().expect("recorded");
     assert_eq!(

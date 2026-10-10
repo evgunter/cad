@@ -92,10 +92,11 @@ fn every_coincidence_round_trips_under_its_own_spelling() {
                     editor_core::Formula,
                 >::Boolean {
                     op: BooleanOp::Union,
-                    a,
-                    b,
+                    a: a.into(),
+                    b: b.into(),
                     declare: pairs.clone(),
                 }),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -126,8 +127,8 @@ fn declaring_doc() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let cap = |node, end| SitedRef::new(node, fixture::fname(node, RoleSeg::Cap(end)));
     let node: AuthoredNode = Node::Boolean {
         op: BooleanOp::Union,
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         declare: vec![
             (
                 (cap(a, CapEnd::End), cap(b, CapEnd::Start)),
@@ -143,6 +144,7 @@ fn declaring_doc() -> (ProfileDoc, editor_core::RecipeNodeId) {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(node),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -169,7 +171,7 @@ fn block(
     fixture::insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: fixture::len(dz),
             side: ExtrudeSide::Along,
         },

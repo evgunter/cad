@@ -120,10 +120,8 @@ fn carried_records_certify_every_order_of_the_fold() {
 /// `(vertex, edge)` and edge-edge rows a join leaves.
 fn carried_rows(records: &topo::ContactRecords) -> topo::CarriedContacts {
     topo::CarriedContacts {
-        vv: rest_rows(records),
-        ve: records.ve.clone(),
-        ee: records.ee.clone(),
-        ..topo::CarriedContacts::default()
+        vf: Vec::new(),
+        ..records.carried(ContactClass::Rest)
     }
 }
 
@@ -158,7 +156,12 @@ fn joined_folds_certify_and_build_one_body_in_every_order() {
                     other => panic!("c over {span:?}, order {order:?}: {other:?}"),
                 };
                 assert!(
-                    topo::joinable_vertices(&out.body).is_empty(),
+                    topo::joinable_vertices(
+                        &out.body,
+                        geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+                    )
+                    .unwrap()
+                    .is_empty(),
                     "c over {span:?}, order {order:?}, at {next}: a joinable vertex is left"
                 );
                 let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
@@ -171,7 +174,12 @@ fn joined_folds_certify_and_build_one_body_in_every_order() {
             }
             let body = &acc.expect("two steps").body;
             assert!(
-                topo::joinable_vertices(body).is_empty(),
+                topo::joinable_vertices(
+                    body,
+                    geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+                )
+                .unwrap()
+                .is_empty(),
                 "c over {span:?}, order {order:?}: a joinable vertex is left"
             );
             counts.push((
@@ -225,14 +233,7 @@ fn quarter_pinch(
 }
 
 fn rest_rows(records: &topo::ContactRecords) -> Vec<CarriedVv> {
-    records
-        .vv
-        .iter()
-        .map(|&pair| CarriedVv {
-            pair,
-            class: ContactClass::Rest,
-        })
-        .collect()
+    records.carried(ContactClass::Rest).vv
 }
 
 /// The unit-radius wedge from `d0` to `d1` degrees (counterclockwise,

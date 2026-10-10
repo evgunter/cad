@@ -218,7 +218,7 @@ mod tests {
     fn partition_of_unity_and_derivative_sums() {
         let k = kv(&[0.0, 0.0, 0.0, 1.0, 2.5, 4.0, 4.0, 4.0], 2);
         for t in [0.0, 0.4, 1.0, 1.7, 2.5, 3.9, 4.0] {
-            let span = k.span_at(t);
+            let span = k.span_at(t).expect("a numeric parameter");
             let ders = ders_basis_funs(span, t, 3);
             let sum0: f64 = ders[0].iter().sum();
             assert!((sum0 - 1.0).abs() < 1e-14, "Σ N = {sum0} at t = {t}");
@@ -235,7 +235,7 @@ mod tests {
     fn first_derivative_matches_dual_and_finite_difference() {
         let k = kv(&[0.0, 0.0, 0.0, 0.0, 1.0, 3.0, 3.0, 3.0, 3.0], 3);
         for t in [0.2, 0.99, 1.0, 2.4] {
-            let span = k.span_at(t);
+            let span = k.span_at(t).expect("a numeric parameter");
             let ders = ders_basis_funs(span, t, 2);
             let dual = basis_funs(span, Dual64::variable(t));
             let h = 1e-7;

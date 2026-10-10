@@ -556,3 +556,70 @@ pub(crate) fn common_vertex(
         _ => None,
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use core::f64::consts::TAU;
+
+    use geom_core::{Arc2, Point2, Tol};
+    use profile::{Profile, ProfileLoop, RawLoop, Segment, SketchPlane};
+
+    use super::*;
+    use crate::eval::ProfilePieces;
+
+    /// A one-segment circle about `(cx, 0)` of radius `r` (D1's full
+    /// turn), its vertex at carrier angle 0.
+    fn circle(cx: f64, r: f64) -> ProfileLoop<f64> {
+        RawLoop::new([(
+            Point2::new(cx + r, 0.0),
+            Segment::Arc(Arc2 {
+                centre: Point2::new(cx, 0.0),
+                radius: r,
+                sweep: TAU,
+            }),
+        )])
+    }
+
+    fn node() -> RecipeNodeId {
+        RecipeNodeId::new(0, test_utils::refusal::tagged(1))
+    }
+
+    /// **A one-segment loop's revolve and loft are named whole**: the
+    /// one meridian chain of a part turn is one self-loop at the loop's
+    /// one vertex (`name_revolve` reads the rim end that self-loop
+    /// shares, through `common_vertex`), so each wedge cap's copy of
+    /// that vertex is named; the full turn and the loft
+    /// name their one wall, its wrap edge and its vertices. Every table
+    /// is total over its body (`check_total`).
+    #[test]
+    fn a_one_segment_loop_revolves_and_lofts_to_named_bodies() {
+        let profile = Profile::new(SketchPlane::<f64>::xy(), vec![circle(3.0, 0.5)])
+            .validate(Tol::witness())
+            .unwrap();
+        let axis = sweep::RevolveAxis {
+            origin: Point2::new(0.0, 0.0),
+            dir: geom_core::Vec2::new(0.0, 1.0),
+        };
+        let pieces = ProfilePieces::numbered(&[1]);
+        for turn in [
+            sweep::Revolution::Partial(1.25),
+            sweep::Revolution::Partial(-1.25),
+            sweep::Revolution::Full,
+        ] {
+            let built = sweep::revolve(&profile, axis, turn, Tol::witness()).unwrap();
+            name_revolve(node(), &built, &pieces)
+                .unwrap_or_else(|e| panic!("{turn:?}: the revolve is named: {e:?}"));
+        }
+        let section = vec![circle(0.0, 1.0)];
+        let lofted = sweep::loft_body::<f64>(
+            &[section.clone(), section],
+            &sweep::test_support::stacked_at(&[0.0, 2.0]),
+            1,
+            Tol::witness(),
+        )
+        .unwrap();
+        name_loft(node(), &lofted, &[pieces.clone(), pieces])
+            .unwrap_or_else(|e| panic!("the loft is named: {e:?}"));
+    }
+}

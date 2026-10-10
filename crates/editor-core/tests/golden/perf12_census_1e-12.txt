@@ -246,11 +246,11 @@ solids=1 faces=6 edges=12 vertices=8
 assemble: Ok
 census: Ok
 ## die_composed
-solids=1 faces=29 edges=55 vertices=29
+solids=1 faces=29 edges=54 vertices=28
 assemble: Ok
 census: Ok
 ## die_composed_tour
-solids=1 faces=89 edges=195 vertices=129
+solids=1 faces=89 edges=174 vertices=108
 assemble: Ok
 census: Ok
 ## plate_param

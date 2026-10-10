@@ -22,8 +22,8 @@ use editor_core::program::ProgramRefusal;
 use editor_core::{
     AttrKind, ContentPin, CountMismatch, Dimension, DimensionError, DistributionFault,
     DistributionField, DocumentId, EditError, EntityKind, EvalError, FrameSite, Label, MateFault,
-    MeasureNodeFault, MetaVersionError, NodeErrorKind, RecipeNodeId, RootFault, SlotId, SpokenName,
-    SpokenNode, StableName, StepIdFault, VarName,
+    MetaVersionError, NodeErrorKind, RecipeNodeId, SlotId, SpokenName, SpokenNode, StableName,
+    StepIdFault, VarName,
 };
 use test_utils::refusal::Admission;
 use test_utils::refusal::tagged;
@@ -36,7 +36,7 @@ fn shown(e: EditError) -> String {
 fn stable_name() -> StableName {
     StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(tagged(3)),
+        node: RecipeNodeId::new(0, tagged(3)),
         path: Vec::new(),
     }
 }
@@ -57,11 +57,11 @@ fn param() -> VarName {
 
 /// `param()` as a refusal speaks it.
 fn spoken_var() -> pncad::document::SpokenVar {
-    pncad::document::SpokenVar::new(pncad::document::VarId(tagged(7)), Some(param()))
+    pncad::document::SpokenVar::new(pncad::document::VarId::new(0, tagged(7)), Some(param()))
 }
 
 fn n(id: u64) -> RecipeNodeId {
-    RecipeNodeId(tagged(id))
+    RecipeNodeId::new(0, tagged(id))
 }
 
 /// Node `id` as a refusal raised over a document holding it as a
@@ -107,7 +107,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                 refusal: Box::new(ProgramRefusal::Resolve {
                     slot: SlotId::Distance,
                     source: EvalError::UnresolvedVar {
-                        var: pncad::document::VarId(tagged(7)),
+                        var: pncad::document::VarId::new(0, tagged(7)),
                     },
                 }),
             },
@@ -163,18 +163,19 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "RepeatedDesignation",
-            EditError::RepeatedDesignation {
+            "SelectionShape(Repeated)",
+            EditError::SelectionShape {
                 node: s(5, "Shell"),
-                first: 0,
-                again: 2,
+                slot: SlotId::Operand(editor_core::OperandSlot::Open),
+                fault: editor_core::SelectionFault::Repeated { first: 0, again: 2 },
             },
         ),
         (
-            "SelectionNotCanonical",
-            EditError::SelectionNotCanonical {
+            "SelectionShape(NotCanonical)",
+            EditError::SelectionShape {
                 node: s(5, "Fillet"),
-                at: 1,
+                slot: SlotId::Operand(editor_core::OperandSlot::Selection),
+                fault: editor_core::SelectionFault::NotCanonical { at: 1 },
             },
         ),
         (
@@ -203,10 +204,37 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "DeleteWouldDangle",
-            EditError::DeleteWouldDangle {
-                id: s(3, "Profile"),
-                referenced_by: s(5, "Extrude"),
+            "OperandUnresolved",
+            EditError::OperandUnresolved {
+                node: s(5, "Extrude"),
+                slot: SlotId::Operand(pncad::document::OperandSlot::Profile),
+                read: pncad::document::Operand::Node(s(3, "Profile").id()),
+            },
+        ),
+        (
+            "AmbiguousOutput",
+            EditError::AmbiguousOutput {
+                input: s(3, "Split"),
+                slot: SlotId::Operand(pncad::document::OperandSlot::A),
+                ports: vec!["above", "below"],
+            },
+        ),
+        (
+            "DefinesNothing",
+            EditError::DefinesNothing {
+                input: s(3, "Assertion"),
+                slot: SlotId::Operand(pncad::document::OperandSlot::Target),
+            },
+        ),
+        (
+            "PartHalfPort",
+            EditError::PartHalfPort {
+                node: s(5, "Part"),
+                half: pncad::select::SplitHalf::Above,
+                var: Box::new(pncad::document::SpokenVar::new(
+                    pncad::document::VarId::new(0, tagged(8)),
+                    None,
+                )),
             },
         ),
         (
@@ -220,7 +248,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             "SlotDimensionMismatch",
             EditError::SlotDimensionMismatch {
                 slot: SlotId::Distance,
-                expected: Dimension::Length,
+                expected: pncad::document::SlotKind::Is(pncad::document::VarKind::Length),
                 found: Dimension::Angle,
             },
         ),
@@ -247,17 +275,20 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "SlotVarKind",
             EditError::SlotVarKind {
-                var: spoken_var(),
+                var: Box::new(spoken_var()),
                 node: s(5, "Extrude"),
                 slot: SlotId::Distance,
-                declared: Dimension::Angle,
-                referenced: Dimension::Length,
+                found: pncad::document::VarKind::Angle,
+                expected: pncad::document::SlotKind::Is(pncad::document::VarKind::Length),
             },
         ),
         (
             "SlotUnresolvedVar",
             EditError::SlotUnresolvedVar {
-                var: pncad::document::SpokenVar::new(pncad::document::VarId(tagged(7)), None),
+                var: pncad::document::SpokenVar::new(
+                    pncad::document::VarId::new(0, tagged(7)),
+                    None,
+                ),
                 node: s(5, "Extrude"),
                 slot: SlotId::Distance,
             },
@@ -274,42 +305,34 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             EditError::PayloadVarKind {
                 var: spoken_var(),
                 node: s(5, "Measure"),
-                declared: Dimension::Angle,
+                declared: pncad::document::VarKind::Angle,
                 referenced: Dimension::Length,
             },
         ),
         (
             "PayloadUnresolvedVar",
             EditError::PayloadUnresolvedVar {
-                var: pncad::document::SpokenVar::new(pncad::document::VarId(tagged(7)), None),
+                var: pncad::document::SpokenVar::new(
+                    pncad::document::VarId::new(0, tagged(7)),
+                    None,
+                ),
                 node: s(5, "Measure"),
-            },
-        ),
-        (
-            "MeasureMalformed",
-            EditError::MeasureMalformed {
-                node: s(5, "Measure"),
-                fault: MeasureNodeFault::RefIndexOutOfRange {
-                    verb: "min_clearance",
-                    index: 2,
-                    refs: 2,
-                },
-            },
-        ),
-        (
-            "AssertionTarget",
-            EditError::AssertionTarget {
-                node: s(6, "Assertion"),
-                measure: s(5, "Extrude"),
             },
         ),
         (
             "AssertionDimension",
             EditError::AssertionDimension {
                 node: s(6, "Assertion"),
-                measure: s(5, "Measure"),
                 measured: Dimension::Length,
                 bound: Dimension::Angle,
+            },
+        ),
+        (
+            "ConstructionReadsObserved",
+            EditError::ConstructionReadsObserved {
+                node: s(5, "Extrude"),
+                slot: SlotId::Distance,
+                var: Box::new(spoken_var()),
             },
         ),
         (
@@ -337,19 +360,19 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "AnonymousVarUnread",
             EditError::AnonymousVarUnread {
-                var: pncad::document::SpokenVar::new(pncad::document::VarId(tagged(7)), None),
+                var: pncad::document::SpokenVar::new(
+                    pncad::document::VarId::new(0, tagged(7)),
+                    None,
+                ),
             },
         ),
         (
             "DeleteAnonymousVar",
             EditError::DeleteAnonymousVar {
-                var: pncad::document::SpokenVar::new(pncad::document::VarId(tagged(7)), None),
-            },
-        ),
-        (
-            "VarIdCollides",
-            EditError::VarIdCollides {
-                id: pncad::document::VarId(tagged(7)),
+                var: pncad::document::SpokenVar::new(
+                    pncad::document::VarId::new(0, tagged(7)),
+                    None,
+                ),
             },
         ),
         (
@@ -374,7 +397,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                 through: vec![
                     spoken_var(),
                     pncad::document::SpokenVar::new(
-                        pncad::document::VarId(tagged(8)),
+                        pncad::document::VarId::new(0, tagged(8)),
                         Some(VarName::from_static("height")),
                     ),
                 ],
@@ -398,7 +421,10 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             "DefinitionUnresolvedVar",
             EditError::DefinitionUnresolvedVar {
                 var: spoken_var(),
-                read: pncad::document::SpokenVar::new(pncad::document::VarId(tagged(8)), None),
+                read: pncad::document::SpokenVar::new(
+                    pncad::document::VarId::new(0, tagged(8)),
+                    None,
+                ),
             },
         ),
         (
@@ -406,10 +432,10 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             EditError::DefinitionVarKind {
                 var: spoken_var(),
                 read: pncad::document::SpokenVar::new(
-                    pncad::document::VarId(tagged(8)),
+                    pncad::document::VarId::new(0, tagged(8)),
                     Some(VarName::from_static("height")),
                 ),
-                declared: Dimension::Angle,
+                declared: pncad::document::VarKind::Angle,
                 referenced: Dimension::Length,
             },
         ),
@@ -467,7 +493,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                         path: vec![editor_core::RoleSeg::RimEdge(
                             editor_core::CapEnd::End,
                             editor_core::ProfileEdgeRef::Piece {
-                                step: editor_core::StepId(tagged(9)),
+                                step: editor_core::StepId::new(0, tagged(9)),
                                 role: editor_core::PieceRole::Leg,
                             }
                             .into(),
@@ -475,7 +501,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                     },
                     s(3, "Extrude"),
                 ),
-                step: editor_core::StepId(tagged(9)),
+                step: editor_core::StepId::new(0, tagged(9)),
             },
         ),
         (
@@ -599,13 +625,6 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "Roots",
-            EditError::Roots(RootFault::Ancestor {
-                ancestor: s(3, "Extrude"),
-                descendant: s(5, "Fillet"),
-            }),
-        ),
-        (
             "OffsetOnNonInstance",
             EditError::OffsetOnNonInstance {
                 node: s(5, "Extrude"),
@@ -677,13 +696,6 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             EditError::FoldWouldStartPlacing {
                 node: s(3, "Gauge"),
                 mate: s(9, "Mate"),
-            },
-        ),
-        (
-            "FoldWouldDangle",
-            EditError::FoldWouldDangle {
-                node: s(3, "Gauge"),
-                referenced_by: s(5, "Datum"),
             },
         ),
         // `PlacementRuleMismatch`: every shape, each spoken with the
@@ -778,22 +790,6 @@ fn variant(witness: &impl core::fmt::Debug) -> String {
         .to_owned()
 }
 
-fn next_root_fault(fault: &RootFault) -> Option<RootFault> {
-    match fault {
-        RootFault::NotLive { .. } => Some(RootFault::Duplicate {
-            root: s(3, "Extrude"),
-        }),
-        RootFault::Duplicate { .. } => Some(RootFault::Ancestor {
-            ancestor: s(3, "Extrude"),
-            descendant: s(5, "Fillet"),
-        }),
-        RootFault::Ancestor { .. } => Some(RootFault::Uncovered {
-            node: s(4, "Extrude"),
-        }),
-        RootFault::Uncovered { .. } => None,
-    }
-}
-
 fn next_distribution_fault(fault: &DistributionFault) -> Option<DistributionFault> {
     match fault {
         DistributionFault::SigmaNotPositive { .. } => {
@@ -826,15 +822,12 @@ fn next_step_id_fault(fault: &StepIdFault) -> Option<StepIdFault> {
             given: 3,
         }),
         StepIdFault::Shape { .. } => Some(StepIdFault::NotThisProfiles {
-            step: StepId(tagged(7)),
+            step: StepId::new(0, tagged(7)),
         }),
         StepIdFault::NotThisProfiles { .. } => Some(StepIdFault::Repeated {
-            step: StepId(tagged(7)),
+            step: StepId::new(0, tagged(7)),
         }),
-        StepIdFault::Repeated { .. } => Some(StepIdFault::Collides {
-            step: StepId(tagged(7)),
-        }),
-        StepIdFault::Collides { .. } => None,
+        StepIdFault::Repeated { .. } => None,
         // No row: no edit door raises it. It is the load door's word,
         // and an edit that writes a name spelling a step the document
         // never minted refuses `NameStepNeverMinted`, which has its own.
@@ -1065,17 +1058,6 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
     }
     // Each states its own recourse, so each is rendered, not only the
     // representative row's — every arm, from the witness chains below.
-    for fault in witnesses(
-        RootFault::NotLive {
-            root: SpokenNode::absent(n(9)),
-        },
-        next_root_fault,
-    ) {
-        rows.push((
-            format!("Roots({})", variant(&fault)),
-            EditError::Roots(fault),
-        ));
-    }
     for shape in witnesses(CountMismatch::ListedOnPattern, next_count_mismatch) {
         let kind = match shape {
             CountMismatch::ListedOnPattern => "Pattern",
@@ -1140,7 +1122,6 @@ const LABELS: &[(&str, &str)] = &[
         "PlacedUnion \"base plate\"",
     ),
     ("Edit/EmptyPlacementList", "PlacedUnion \"base plate\""),
-    ("Edit/MeasureMalformed", "Measure \"base plate\""),
     ("Edit/ProfileProgramRefused(Geometry", "loop 0 step 2"),
     (
         "Edit/ProfileProgramRefused(Geometry/NoCornerOfPair(",

@@ -53,7 +53,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -79,7 +79,7 @@ fn vanished(instance: RecipeNodeId) -> StableName {
         path: vec![RoleSeg::InPart {
             of: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(99),
+                node: RecipeNodeId::new(0, 99),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             }
             .into(),
@@ -121,6 +121,7 @@ fn stand(
         doc = next;
         ids.push(id);
     }
+    doc = crate::fixture::place_all(doc, &ids);
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
@@ -130,6 +131,7 @@ fn stand(
                 ContactClass::Rest,
                 seat,
             )),
+            fresh: Vec::new(),
         },
     );
     (doc, ids, mate.expect("the mate inserts"))
@@ -156,12 +158,14 @@ fn row_of(
                     offset: Some(editor_core::Placement::literal(&Frame::translation([
                         dx, 0.0, 0.0,
                     ]))),
+                    fresh: Vec::new(),
                 },
             );
             doc = next;
         }
         ids.push(id);
     }
+    doc = crate::fixture::place_all(doc, &ids);
     (doc, ids)
 }
 
@@ -207,6 +211,7 @@ fn p1_both_bad_mates_refuse_badref_heading_the_list() {
                 ContactClass::Rest,
                 1.5,
             )),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(
@@ -218,6 +223,7 @@ fn p1_both_bad_mates_refuse_badref_heading_the_list() {
                 ContactClass::Tangent,
                 1.5,
             )),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -253,6 +259,7 @@ fn p2_both_bad_mates_refuse_tangent_heading_the_list() {
                 ContactClass::Tangent,
                 1.5,
             )),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(
@@ -264,6 +271,7 @@ fn p2_both_bad_mates_refuse_tangent_heading_the_list() {
                 ContactClass::Rest,
                 1.5,
             )),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -331,6 +339,7 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
         doc = next;
         ids.push(id);
     }
+    doc = crate::fixture::place_all(doc, &ids);
     // Park the third cube far away, then declare a Tangent against it
     // (unmintable, and not touching, so it contributes no pair).
     let (next, _) = step(
@@ -340,6 +349,7 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 10.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     doc = next;
@@ -352,6 +362,7 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
                 ContactClass::Tangent,
                 5.0,
             )),
+            fresh: Vec::new(),
         },
     );
     doc = next;
@@ -365,6 +376,7 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
                 ContactClass::Rest,
                 1.0,
             )),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -440,6 +452,7 @@ fn p8_inner_mint_refusals_reach_the_outer_gate() {
         inner = next;
         ids.push(id);
     }
+    inner = crate::fixture::place_all(inner, &ids);
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
@@ -449,6 +462,7 @@ fn p8_inner_mint_refusals_reach_the_outer_gate() {
                 ContactClass::Tangent,
                 5.0,
             )),
+            fresh: Vec::new(),
         },
     );
     let inner_ev = run(&inner, &with_resolver(store.clone()));

@@ -162,7 +162,8 @@ fn an_inadmissible_radius_fails_the_node_typed() {
         &DocEdit::SetParam {
             node: head,
             slot: SlotId::Radius,
-            expr: fixture::len(0.625),
+            value: fixture::len(0.625).into(),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

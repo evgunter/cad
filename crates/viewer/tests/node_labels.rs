@@ -27,7 +27,7 @@ fn extruded(seed: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.01),
             side: ExtrudeSide::Along,
         },
@@ -144,7 +144,7 @@ fn only_a_creation_can_be_labelled() {
 fn a_labelled_rows_headline_is_its_label_with_kind_and_tag_muted() {
     let tol = Tol::witness();
     let (doc, extrude) = extruded("viewer-node-labels-headline", tol);
-    let t = tag(extrude.0);
+    let t = tag(extrude.0.digest());
     assert_eq!(
         headline(&doc.spoken(extrude), None),
         Headline {
@@ -178,7 +178,7 @@ fn a_create_form_proposes_kind_n_counted_among_that_kinds_nodes() {
         let (doc, extrude) = common::inserted(
             &doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: common::len(0.02),
                 side: ExtrudeSide::Along,
             },
@@ -220,7 +220,8 @@ fn a_create_form_proposes_kind_n_counted_among_that_kinds_nodes() {
 
 /// **`op`, labelled `text`, as one undo**: the creation commits through
 /// whatever door it takes, the action ends with a `SetLabel` on the
-/// last node it minted, the label is on that node, and ONE undo returns
+/// node it made (`viewer::world::made`: the last it minted that is not
+/// a world placement), the label is on that node, and ONE undo returns
 /// the document to what it was before the action. Answers that node.
 fn labelled_as_one_undo(session: &mut DocSession, op: SessionOp, text: &str) -> RecipeNodeId {
     let before = session.committed_doc().clone();
@@ -231,10 +232,8 @@ fn labelled_as_one_undo(session: &mut DocSession, op: SessionOp, text: &str) -> 
         label: label(text),
     });
     assert!(outcome.refusal.is_none(), "{what}: {:?}", outcome.refusal);
-    let node = *outcome
-        .minted
-        .last()
-        .unwrap_or_else(|| panic!("{what} minted"));
+    let node = viewer::world::made(session.committed_doc(), &outcome.minted)
+        .unwrap_or_else(|| panic!("{what} made a node"));
     assert!(
         matches!(
             outcome.committed.last(),
@@ -469,7 +468,10 @@ fn a_failed_row_speaks_its_node_with_the_label_it_has_now() {
     };
     let before = failed(&session.tree_rows());
     assert!(
-        before.starts_with(&format!("Extrude \"pocket\" ({}) failed: ", tag(extrude.0))),
+        before.starts_with(&format!(
+            "Extrude \"pocket\" ({}) failed: ",
+            tag(extrude.0.digest())
+        )),
         "{before}"
     );
 
@@ -550,8 +552,12 @@ fn a_kept_refusal_speaks_its_node_and_a_rename_retires_it() {
             .map(|m| m.text().to_owned())
             .unwrap_or_default()
     };
-    let is_not_a_profile =
-        |text: &str| format!("Extrude \"{text}\" ({}) is not a profile", tag(extrude.0));
+    let is_not_a_profile = |text: &str| {
+        format!(
+            "Extrude \"{text}\" ({}) is not a profile",
+            tag(extrude.0.digest())
+        )
+    };
 
     let line = batch_line(&mut session, core::slice::from_ref(&refused));
     assert!(
@@ -609,7 +615,7 @@ fn an_edit_door_refusal_says_a_rename_later_in_its_batch() {
     assert!(
         said.contains(&format!(
             "Extrude \"slab\" ({}) is taken as an input twice",
-            tag(extrude.0)
+            tag(extrude.0.digest())
         )),
         "{said}"
     );
@@ -643,7 +649,7 @@ fn a_node_deleted_later_in_the_batch_keeps_its_label_on_the_line() {
     assert!(
         said.starts_with(&format!(
             "Extrude \"plate\" ({}) is not a profile",
-            tag(extrude.0)
+            tag(extrude.0.digest())
         )),
         "{said}"
     );
@@ -675,7 +681,7 @@ fn a_refusal_before_a_new_document_in_its_batch_keeps_the_label_it_was_raised_wi
     assert!(
         said.starts_with(&format!(
             "Extrude \"plate\" ({}) is not a profile",
-            tag(extrude.0)
+            tag(extrude.0.digest())
         )),
         "{said}"
     );
@@ -698,7 +704,7 @@ fn an_undo_then_a_different_insert_mints_a_different_id() {
     let (taller, tall) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.03),
             side: ExtrudeSide::Along,
         },
@@ -707,7 +713,7 @@ fn an_undo_then_a_different_insert_mints_a_different_id() {
     let (shorter, short) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.02),
             side: ExtrudeSide::Along,
         },
@@ -731,7 +737,10 @@ fn the_path_editors_refusal_speaks_its_node() {
     let refused = viewer::sketch::held_loops(&doc, extrude).expect_err("an extrude is no profile");
     assert_eq!(
         refused.to_string(),
-        format!("Extrude \"plate\" ({}) is not a profile", tag(extrude.0))
+        format!(
+            "Extrude \"plate\" ({}) is not a profile",
+            tag(extrude.0.digest())
+        )
     );
 }
 
@@ -743,36 +752,32 @@ fn the_gathers_refusal_speaks_its_nodes() {
     let tol = Tol::witness();
     let (doc, extrude) = extruded("viewer-node-labels-product", tol);
     let doc = relabelled(&doc, extrude, "plate", tol);
-    let spoken = format!("Extrude \"plate\" ({})", tag(extrude.0));
-    let collision = pncad::document::ProductError::Naming {
+    let spoken = format!("Extrude \"plate\" ({})", tag(extrude.0.digest()));
+    let lineage = pncad::document::ProductError::ContactLineage {
         node: extrude,
-        name: Box::new(pncad::prelude::StableName {
-            kind: pncad::prelude::EntityKind::Face,
-            node: extrude,
-            path: Vec::new(),
-        }),
+        what: "face",
     };
-    let badge = viewer::frame::product_badge(Some(&collision), &doc).expect("a collision badges");
+    let badge = viewer::frame::product_badge(Some(&lineage), &doc).expect("a lineage fault badges");
     assert!(badge.label().contains(&spoken), "{}", badge.label());
 
     let (broken, failed, _) = common::broken_document(tol);
     let broken = relabelled(&broken, failed, "pocket", tol);
     let refused =
-        viewer::scene::product_body(&broken, tol).expect_err("a failed root gathers nothing");
+        viewer::scene::product_body(&broken, tol).expect_err("a failed placement gathers nothing");
     assert!(
         refused
             .to_string()
-            .contains(&format!("Extrude \"pocket\" ({})", tag(failed.0))),
+            .contains(&format!("Extrude \"pocket\" ({})", tag(failed.0.digest()))),
         "{refused}"
     );
 }
 
-/// **The Checks window speaks its roots from the landed document.** The
-/// report is the landed run's, so while a rename has not landed the
-/// window's root button and the finding's sentence both say the label
-/// the run was over, never the committed one's.
+/// **The Checks window speaks from the landed document.** The report
+/// is the landed run's, so while a rename has not landed the window's
+/// body button says the label the run was over, never the committed
+/// one's.
 #[test]
-fn the_checks_window_speaks_its_roots_from_the_landed_document() {
+fn the_checks_window_speaks_from_the_landed_document() {
     let tol = Tol::witness();
     let mut session = DocSession::inline(Doc::empty_derived("checks-window-speaks", tol), tol);
     let big = common::xy_box_in(&mut session, [0.04, 0.02, 0.01]);
@@ -802,16 +807,20 @@ fn the_checks_window_speaks_its_roots_from_the_landed_document() {
     let rows = viewer::frame::check_rows(report, landed);
     let row = rows
         .iter()
-        .find(|row| row.root == big)
+        .find(|row| row.node == big)
         .expect("the two overlapping boxes are a separation finding about the big one");
-    let (b, s) = (tag(big.0), tag(small.0));
+    let b = tag(big.0.digest());
     assert_eq!(row.button, format!("Extrude \"big block\" ({b})"));
+    // The finding is about the two copies, and names them by their
+    // placements (A10).
+    let copy = |body| tag(common::copy_of(landed, body).0.digest());
     assert!(
         row.sentence.contains(&format!(
-            "Extrude \"big block\" ({b}) output 0: not certifiably disjoint from Extrude {s} \
-             output 0"
+            "PlaceInWorld {} output 0: not certifiably disjoint from PlaceInWorld {} output 0",
+            copy(big),
+            copy(small)
         )),
-        "the finding speaks both roots from the landed document: {}",
+        "the finding speaks both copies from the landed document: {}",
         row.sentence
     );
     assert!(

@@ -177,6 +177,7 @@ pub struct NameTable {
     reverse: BTreeMap<EntityRef, NameRef>,
     sealed: Sealed,
     said: Said,
+    lines: Lines,
 }
 
 // The rows, and nothing else. Whether a table has been sealed is a
@@ -197,6 +198,7 @@ impl core::fmt::Debug for NameTable {
             reverse,
             sealed: _,
             said: _,
+            lines: _,
         } = self;
         f.debug_struct("NameTable")
             .field("forward", forward)
@@ -258,6 +260,34 @@ impl PartialEq for Said {
 }
 
 impl Eq for Said {}
+
+/// **Each line this table's edge rows lie on → those rows**, in key
+/// order ([`NameTable::on_line`]), and each edge an edge set's line lists
+/// → those lines ([`NameTable::sets_listing`]). A cache like [`Said`]: a
+/// clone starts empty, a write empties it, and it is no part of the
+/// value.
+#[derive(Default)]
+struct Lines(std::sync::OnceLock<LineIndex>);
+
+/// What [`Lines`] caches.
+struct LineIndex {
+    by_line: BTreeMap<NameRef, Vec<NameRef>>,
+    in_set: BTreeMap<StableName, Vec<NameRef>>,
+}
+
+impl Clone for Lines {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl PartialEq for Lines {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for Lines {}
 
 /// A duplicate-name insertion outside the tie path (the
 /// no-silent-aliasing bug, typed).
@@ -356,6 +386,50 @@ impl NameTable {
             .get(name)
     }
 
+    /// **The rows that lie on `line`** (N5, "A cited line"): this
+    /// table's edge rows whose line ([`super::role::edge_line`]) is
+    /// `line`, in key order — a row that is the line itself included.
+    /// Empty where `line` is no edge's or no row lies on it.
+    pub(crate) fn on_line(&self, line: &StableName) -> &[NameRef] {
+        self.line_index()
+            .by_line
+            .get(line)
+            .map_or(&[], Vec::as_slice)
+    }
+
+    /// **The edge sets that list `edge`**: the lines of this table's
+    /// edge rows that are `Merged` sets with `edge` among their
+    /// constituents, in key order. Empty where none does.
+    pub(crate) fn sets_listing(&self, edge: &StableName) -> &[NameRef] {
+        self.line_index()
+            .in_set
+            .get(edge)
+            .map_or(&[], Vec::as_slice)
+    }
+
+    fn line_index(&self) -> &LineIndex {
+        self.lines.0.get_or_init(|| {
+            let mut by_line: BTreeMap<NameRef, Vec<NameRef>> = BTreeMap::new();
+            for row in self.forward.keys() {
+                if row.kind == super::role::EntityKind::Edge {
+                    by_line
+                        .entry(super::role::edge_line(row))
+                        .or_default()
+                        .push(row.clone());
+                }
+            }
+            let mut in_set: BTreeMap<StableName, Vec<NameRef>> = BTreeMap::new();
+            for line in by_line.keys() {
+                if let [super::role::RoleSeg::Merged(set)] = line.path.as_slice() {
+                    for c in set {
+                        in_set.entry(c.clone()).or_default().push(line.clone());
+                    }
+                }
+            }
+            LineIndex { by_line, in_set }
+        })
+    }
+
     /// Rows in key order, as the shared handles — [`NameTable::iter`]'s
     /// twin for an emitter that is about to EMBED each name in a
     /// downstream one.
@@ -407,6 +481,7 @@ impl NameTable {
     ) -> Result<(), DuplicateName> {
         use std::collections::btree_map::Entry as Slot;
         self.said = Said::default();
+        self.lines = Lines::default();
         // Each direction is searched ONCE: the vacant slot the
         // collision check lands on is the slot the row is written into.
         if name.kind != ent.key.kind() {
@@ -523,6 +598,7 @@ impl NameTable {
     ) -> Result<(), DuplicateName> {
         use std::collections::btree_map::Entry as Slot;
         self.said = Said::default();
+        self.lines = Lines::default();
         debug_assert_eq!(ents.len(), ks.len(), "one candidate per entity");
         for e in &ents {
             if name.kind != e.key.kind() || self.reverse.contains_key(e) {
@@ -692,13 +768,13 @@ mod tests {
     fn chain(depth: usize, leaf: u64) -> StableName {
         let mut n = StableName {
             kind: EntityKind::Body,
-            node: RecipeNodeId(leaf),
+            node: RecipeNodeId::new(0, leaf),
             path: vec![RoleSeg::OutputBody],
         };
         for _ in 0..depth {
             n = StableName {
                 kind: EntityKind::Body,
-                node: RecipeNodeId(99),
+                node: RecipeNodeId::new(0, 99),
                 path: vec![RoleSeg::FromA(NameRef::new(n))],
             };
         }
@@ -891,7 +967,7 @@ mod carrying_door {
     fn name() -> NameRef {
         NameRef::new(StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(3),
+            node: RecipeNodeId::new(0, 3),
             path: vec![RoleSeg::OutputBody],
         })
     }

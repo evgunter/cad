@@ -41,7 +41,7 @@ at the e-e door (`recl.rs`'s flanking pairs, `tangent_lump`).
 1. Switch `vtxfac`'s declared-`Tangent` branch to per bound and run the
    fixture above: the three ops should hold their answers.
 2. Reconcile with
-   `work/contact/boolean-conic-side-code-zero-is-first-order.md`'s
+   `work/contacthold/boolean-conic-side-code-zero-is-first-order.md`'s
    prescription (descend to second order at a first-order Zero for
    every curved bound, keep `On` only for a second-order tie): the
    per-bound reading here is that prescription for declared pairs, so

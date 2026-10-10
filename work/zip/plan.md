@@ -6,7 +6,7 @@ once the join has matched them.
 ## State
 
 **Every live row is parked on Ev's D10 hold**
-(`d10-one-way-to-say-intent-is-unbuilt`; the hold is in `work/join/log.md`,
+(`d10-one-way-to-say-intent-is-unbuilt`; the hold is in `work/flush/plan.md`, "The intent-refactor hold", first recorded in JOIN's log on
 2026-10-03): each one stands on declared-contact ground, which the hold
 says no new unit may start on. D10 stage 4 retires declared pairs, which
 are the declared-REST zip's only trigger. The zip retires with them, and

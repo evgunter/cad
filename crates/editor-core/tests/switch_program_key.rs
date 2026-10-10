@@ -33,7 +33,7 @@ fn plane() -> RecipeNodeId {
 
 /// The profile drawn on that frame: the document's second node.
 fn profile(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()[1]
+    doc.ids()[1]
 }
 
 fn key_of(doc: &ProfileDoc) -> ContentKey {
@@ -55,10 +55,11 @@ fn doc_with(loops: Vec<LoopProgram<Formula>>) -> ProfileDoc {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    plane: plane(),
+                    frame: plane().into(),
                     loops,
                     ids: Vec::new(),
                 })),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -74,6 +75,7 @@ fn with_frame(doc: ProfileDoc) -> ProfileDoc {
     doc.apply(
         &DocEdit::InsertNode {
             node: Box::new(xy_frame()),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -104,7 +106,8 @@ fn respelled(doc: &ProfileDoc, arg: StepArg, expr: Formula) -> ProfileDoc {
         &DocEdit::SetParam {
             node: profile(doc),
             slot: *slot,
-            expr,
+            value: expr.into(),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -182,13 +185,14 @@ fn resolved_values_feed_the_key() {
         doc.apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    plane: plane(),
+                    frame: plane().into(),
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
                         radius: Formula::named(VarName::from_static("r"), Dimension::Length),
                     }],
                     ids: Vec::new(),
                 })),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -237,7 +241,7 @@ fn a_carrier_centre_respelled_keys_identically() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    plane: plane(),
+                    frame: plane().into(),
                     loops: vec![LoopProgram::Circle {
                         centre: [
                             Formula::named(VarName::from_static("cx"), Dimension::Length),
@@ -247,6 +251,7 @@ fn a_carrier_centre_respelled_keys_identically() {
                     }],
                     ids: Vec::new(),
                 })),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -302,10 +307,11 @@ fn doc_with_r(value: f64, loops: Vec<LoopProgram<Formula>>) -> ProfileDoc {
     doc.apply(
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane: plane(),
+                frame: plane().into(),
                 loops,
                 ids: Vec::new(),
             })),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

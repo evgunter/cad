@@ -122,7 +122,11 @@ fn every_op(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, rows: &[Row])
         ];
         assert_eq!(got, counts, "{what}: faces, edges, vertices");
         assert_eq!(
-            topo::joinable_vertices(&r.body),
+            topo::joinable_vertices(
+                &r.body,
+                geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+            )
+            .unwrap(),
             vec![],
             "{what}: maximal edges"
         );
@@ -419,7 +423,11 @@ fn a_pinch_standing_on_a_face_builds_in_every_op() {
                 ];
                 assert_eq!(got, counts, "{name}: faces, edges, vertices");
                 assert_eq!(
-                    topo::joinable_vertices(&r.body),
+                    topo::joinable_vertices(
+                        &r.body,
+                        geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+                    )
+                    .unwrap(),
                     vec![],
                     "{name}: maximal edges"
                 );

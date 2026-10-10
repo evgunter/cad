@@ -16,11 +16,12 @@
 //! them is the one that would notice a blend name decided outside the
 //! blend's funnel.
 //!
-//! Two blend decisions are taken by another crate's door and relayed
-//! under the closed type: `ContactSecondOrder` (`geom_brep`'s must-carry
-//! rule) and `CapEllipse` (`geom`'s `Curve3::ellipse`). Their names are
-//! decided nowhere in this crate's src, so the census does not see
-//! them, and nothing here lists them as another door's.
+//! Four blend decisions are taken by another crate's door and relayed
+//! under the closed type: `ContactArm`, `ContactWedge` and
+//! `ContactSecondOrder` (`geom_brep`'s must-carry rule, by the reading
+//! that escalated) and `CapEllipse` (`geom`'s `Curve3::ellipse`). Their
+//! names are decided nowhere in this crate's src, so the census does
+//! not see them, and nothing here lists them as another door's.
 //!
 //! The reader is `test_utils::source::predicate_census`, the tree's one
 //! home for this walk. **What it cannot read it reports** — an
@@ -151,6 +152,14 @@ const PAIRING: &[(BlendDecision, &str)] = &[
         sweep::blend::FILLET3_SPINE_KIND_RECOURSE,
     ),
     (
+        BlendDecision::ContactArm,
+        sweep::blend::FILLET3_CONTACT_ARM_RECOURSE,
+    ),
+    (
+        BlendDecision::ContactWedge,
+        sweep::blend::FILLET3_CONTACT_WEDGE_RECOURSE,
+    ),
+    (
         BlendDecision::ContactSecondOrder,
         sweep::blend::FILLET3_CONTACT_RECOURSE,
     ),
@@ -169,6 +178,14 @@ const PAIRING: &[(BlendDecision, &str)] = &[
     (
         BlendDecision::CutOffFeet,
         sweep::blend::FILLET3_CORNER_RECOURSE,
+    ),
+    (
+        BlendDecision::TurnIsosceles,
+        sweep::blend::FILLET3_TURN_RECOURSE,
+    ),
+    (
+        BlendDecision::MitreSection,
+        sweep::blend::FILLET3_TURN_RECOURSE,
     ),
 ];
 
@@ -318,22 +335,31 @@ fn in_band_readings() -> Vec<(MarginDiag, bool)> {
 }
 
 /// The decisions no smaller tolerance can truthfully be offered for:
-/// the three that pass only at zero (a refused margin is a miss, D4 ¶1
-/// (i)), and the must-carry relay, whose in-band verdict may be a
-/// first-order wedge reading that a smaller tolerance refuses.
+/// those that pass only at zero (a refused margin is a miss, D4 ¶1
+/// (i)), the contact edge's first-order wedge among them; the contact
+/// edge's arm, whose deciding tolerance decides the wedge it meters
+/// transverse unless that wedge reads zero; and the mitre's section,
+/// which relays three readings, two passing only at zero.
 const NO_TOLERANCE: &[BlendDecision] = &[
     BlendDecision::ChainG1,
     BlendDecision::SupportCoaxiality,
+    BlendDecision::ContactArm,
+    BlendDecision::ContactWedge,
     BlendDecision::CapTransverse,
+    BlendDecision::TurnIsosceles,
+    BlendDecision::MitreSection,
+];
+
+/// The decisions that pass on a negative sign as well as a positive one:
+/// the convexity sign on either side, and the contact edge's
+/// second-order separation on any definite sign.
+const TWO_SIDED: &[BlendDecision] = &[
+    BlendDecision::ConvexitySign,
     BlendDecision::ContactSecondOrder,
 ];
 
-/// The decisions that pass on a negative sign as well as a positive one.
-const TWO_SIDED: &[BlendDecision] = &[BlendDecision::ConvexitySign];
-
 /// **No tolerance is offered where none decides the margin passing**,
-/// on any in-band reading — including the relay's wedge reading, which
-/// its payload names and its decision cannot see.
+/// on any in-band reading, whatever name its payload carries.
 #[test]
 fn a_decision_no_tolerance_decides_passing_is_offered_none() {
     for decision in NO_TOLERANCE {

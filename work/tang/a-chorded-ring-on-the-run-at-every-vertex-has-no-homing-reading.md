@@ -52,3 +52,11 @@ Read a chord edge's midpoint after the vertices, in `ring_side` and
 `chart_ring_side`. The first job is a body that reaches the shape. On
 the chart, split a degenerate ray's verdict by the endpoint's height
 (above).
+
+## Evidence (2026-10-07, TANG `tang/sphere-ring-island-winding`)
+
+A sphere face's ring re-homing, `chord_join::path_ring_side`, reads
+the same way: a path from a ring vertex on the run lands
+in the zero band and says nothing, so a ring every vertex of which is
+on the run (a pierce strut at a pinch included) reads `Undecided` and
+refuses. No row reaches it on a sphere either.

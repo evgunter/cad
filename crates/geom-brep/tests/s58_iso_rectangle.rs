@@ -20,11 +20,12 @@
 //! the tree on ONE arm, inside `torus()`, for a periodicity reason;
 //! this suite is the record that it now governs all four.
 //!
-//! **The cylinder has since left the premise.** Its flux lane is the
-//! chart Green form `A = −∮ v du`, which integrates the region the
-//! boundary actually bounds, so the cylinder rows below MEASURE the
-//! plus, the staircase and the L at their exact areas; the cone, sphere
-//! and torus still refuse on the one predicate.
+//! **The cylinder and the torus have since left the premise.** Their
+//! flux lanes are chart Green forms — `A = −∮ v du` on the cylinder,
+//! `−∮ G(v) du` over the loop's lift on the torus — which integrate the
+//! region the boundary actually bounds, so their rows below MEASURE the
+//! plus and the L at their exact areas; the cone and sphere still
+//! refuse on the one predicate.
 //!
 //! Every row is built as key-free `LoopEdge`s and run through the
 //! public `curved_face`, the same entry `topo::mass_properties` uses
@@ -303,7 +304,7 @@ fn sphere_plus_domain_refuses_and_the_rectangle_still_measures() {
 }
 
 #[test]
-fn torus_plus_domain_still_refuses_by_the_shared_predicate() {
+fn torus_plus_domain_and_the_rectangle_both_measure() {
     let (rr, r0) = (0.020f64, 0.005f64);
     let s = Surface::Torus {
         center: p3(0.0, 0.0, 0.0),
@@ -348,10 +349,14 @@ fn torus_plus_domain_still_refuses_by_the_shared_predicate() {
         &rect_loop(&rim, &mer, a0, a3, -UO, UO),
         band_area(2.0 * UO, a0, a3),
     );
-    // The torus refused this before S58 too — by its own private rule.
-    // The claim of this row is that it still refuses, and now by the
-    // SHARED predicate: same name, same metering, one home.
-    refuses_on_rim_level("torus", &s, &plus_loop(&rim, &mer, a0, a1, a2, a3, UC, UO));
+    // The plus is the column and the two arms: the Green form reads it
+    // whole, at the sum of the three bands' areas.
+    measures_exactly(
+        "torus",
+        &s,
+        &plus_loop(&rim, &mer, a0, a1, a2, a3, UC, UO),
+        band_area(2.0 * UC, a0, a3) + band_area(2.0 * (UO - UC), a1, a2),
+    );
 }
 
 // ---------------------------------------------------------------------
@@ -722,24 +727,17 @@ fn a_lune_on_two_great_circles_is_not_a_rimless_band() {
     }
 }
 
-/// **The torus arm of the gate needs the premise too, and the reason
-/// it looked exempt is a reflex corner.**
-///
-/// The torus does not read *which extreme* off `lo + hi − 2v`; it
-/// takes `s_f = d_u(rim at the anchor meridian's `t0` vertex) ×
-/// dv/dt(that meridian)`. That looks corner-local and therefore
-/// shape-free, and it is not: the anchor-end choice cancels against
-/// `dv/dt` only when the two rims FLANKING the meridian carry opposite
-/// `d_u`. Every corner of a rectangle does. A reflex corner does not —
-/// in the L below the meridian at the notch (`u = 0.5`) is flanked by
-/// two rims both traversed the same way, the cancellation fails, and
-/// the answer becomes a property of where the cycle started.
-///
-/// **Measured on this branch's parent: `+ + − − + +` across the six
-/// rotations of one edge cycle**, while `curved_face` refused all six.
-/// Goes red if the premise stops running on the torus gate arm.
+/// **The torus gate reads an L-domain's side at every rotation.** The
+/// old torus arm read its side off one corner — the anchor meridian's
+/// `dv/dt` against the rim at its `t0` vertex — which a reflex corner
+/// broke (`+ + − − + +` across the six rotations of one cycle) and the
+/// rectangle premise had to fence off. The side is now the sign of the
+/// chart Green form's area, which the whole boundary decides, so the L
+/// encodes ONE side from every rotation and measures at the sum of its
+/// two bands. Goes red if the side comes to depend on where the cycle
+/// starts again.
 #[test]
-fn the_material_side_gate_refuses_a_torus_l_domain_at_every_rotation() {
+fn the_material_side_gate_reads_a_torus_l_domain_at_every_rotation() {
     let (rr, r0) = (0.020f64, 0.005f64);
     let s = Surface::Torus {
         center: p3(0.0, 0.0, 0.0),
@@ -786,16 +784,17 @@ fn the_material_side_gate_refuses_a_torus_l_domain_at_every_rotation() {
         rim(0.7, 0.5, 0.0, 4, 5),
         mer(0.0, 0.7, 0.2, 5, 0),
     ];
-    refuses_on_rim_level("torus L", &s, &l);
+    let band_area = |du: f64, x: f64, y: f64| r0 * du * (rr * (y - x) + r0 * (y.sin() - x.sin()));
+    measures_exactly(
+        "torus L",
+        &s,
+        &l,
+        band_area(1.1, 0.2, 0.45) + band_area(0.5, 0.45, 0.7),
+    );
     for (k, rot) in rotations(&l).into_iter().enumerate() {
         match boundary_material_sign(&s, &rot, band) {
-            Err(PropsError::NotIsoRectangle {
-                what: "props_rim_level",
-            }) => {}
-            other => panic!(
-                "rotation {k}: the torus gate answered on a domain the flux lane \
-                 refuses: {other:?}"
-            ),
+            Ok(MaterialSign::Encoded(Sign::Positive)) => {}
+            other => panic!("rotation {k}: the torus L's side: {other:?}"),
         }
     }
     // The control: a torus rectangle still encodes ONE side.

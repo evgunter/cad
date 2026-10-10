@@ -10,10 +10,13 @@
 //! closed form: the wall's volume `2π²R[r² − (r − t)²]`, the cavity's
 //! minor radius `r − t`, and the seam vertex's own image.
 //!
-//! The two refusal-side rows are HAND-MADE operands, said to be: no
-//! door builds a vertex with no profile constraint, or one whose only
-//! surface is a cylinder, so a wedge's axis edge and a drum's seam are
-//! split by `Body::split_edge` to make them.
+//! The hand-made rows split a wedge's axis edge and a drum's seam by
+//! `Body::split_edge`, since no door builds a vertex with no profile
+//! constraint, or one whose only surface is a cylinder; a hand-split
+//! edge is construction state (tier 3's check 11), which `shell`'s
+//! at-rest gate refuses before the axial door reads it, so those rows
+//! read the door's arms at the door itself, `offset_charts_together`,
+//! which takes construction state.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -29,6 +32,7 @@ use super::common::shell_operands::vessel;
 use super::shell7_common::*;
 use crate::common::charts::hollow_moves;
 use crate::common::latitude_seam::{ring_on_cap, ring_on_wall};
+use crate::common::stations::construction_state;
 use crate::common::torus_walls::props_door;
 use sweep::test_support::finished;
 
@@ -206,29 +210,29 @@ fn the_seam_vertex_at_each_minor_angle_shells_to_the_closed_form() {
     }
 }
 
-/// **Row 5: the refusal that remains is reachable, and true.** A vertex
-/// with NO profile constraint — hand-made, since no door builds one:
-/// the wedge's axis edge, between its two meridian caps, split at its
-/// midpoint. The moved caps meet in a line parallel to the axis and
-/// the vertex's station along it is nobody's, so the door refuses at
-/// exactly that vertex with the corrected words.
+/// **Row 5: the refusal that remains is reachable, and true — at the
+/// direct door.** A vertex with NO profile constraint — hand-made,
+/// since no door builds one: the wedge's axis edge, between its two
+/// meridian caps, split at its midpoint. A hand-split edge is
+/// construction state (tier 3's check 11), so `shell`'s at-rest gate
+/// refuses it before the axial door reads it; the door itself takes
+/// construction state, and there the moved caps meet in a line parallel
+/// to the axis and the vertex's station along it is nobody's, so it
+/// refuses at exactly that vertex with the corrected words.
 #[test]
-fn a_corner_with_no_profile_constraint_refuses_typed_on_a_hand_split_wedge() {
+fn a_corner_with_no_profile_constraint_refuses_typed_at_the_direct_door() {
     let mut body = wedge(1.0, 2.0, FRAC_PI_2);
     let axis_edge = line_edge(&body, |o, d, _| {
         (o.x * o.x + o.z * o.z).sqrt() <= 1e-15 && d.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-15
     });
     let split = split_mid(&mut body, axis_edge);
-    let e = topo::shell(&finished("the operand", body.clone(), tol()), T, tol())
-        .expect_err("the split wedge refuses");
-    let ShellError::Face { error, .. } = &e else {
-        panic!("expected the axial door's refusal, got {e}");
-    };
+    assert_eq!(construction_state(&body, tol()), vec![split]);
+    let error = direct_door(&body, T).expect_err("the split wedge refuses");
     let ReplaceFaceError::TogetherAxialCorner {
         vertex,
         surfaces,
         what,
-    } = **error
+    } = error
     else {
         panic!("expected TogetherAxialCorner, got {error}");
     };
@@ -240,23 +244,43 @@ fn a_corner_with_no_profile_constraint_refuses_typed_on_a_hand_split_wedge() {
     );
 }
 
-/// **Row 6: the LINE arm, on the operand that reaches it.** No door
-/// builds a vertex whose only surface is a cylinder, cone or cap
-/// plane, so the drum's cylinder seam is split by hand at mid-height:
-/// the new vertex's faces are the one cylinder, its profile is the
-/// wall's line `ρ = r`, no plane contains the axis at it, and its
-/// image is the perpendicular foot on the moved line — `(r − t, h/2)`
-/// exactly, the azimuth carried — with the two half-seams translated
-/// radially onto the moved wall. The split changes no geometry, so the
-/// wall's volume is the unsplit drum's closed form.
+/// The axial door on its own, over a clone of `body` moved inward by
+/// `t` on every chart: the moved body and the door's outcome. The door
+/// takes construction state, which is what lets a hand-split operand
+/// reach its arms.
+fn direct_door(
+    body: &Body<f64>,
+    t: f64,
+) -> Result<(Body<f64>, topo::OffsetOutcome), ReplaceFaceError<f64>> {
+    let mut moved = body.clone();
+    let band = geom_core::Band::linear(tol()).expect("band");
+    topo::offset_charts_together(&mut moved, &hollow_moves(body, t), band, tol())
+        .map(|outcome| (moved, outcome))
+}
+
+/// **Row 6: the LINE arm, on the operand that reaches it — the direct
+/// door.** No door builds a vertex whose only surface is a cylinder,
+/// cone or cap plane, so the drum's cylinder seam is split by hand at
+/// mid-height: the new vertex's faces are the one cylinder, its profile
+/// is the wall's line `ρ = r`, no plane contains the axis at it, and its
+/// image is the perpendicular foot on the moved line, the azimuth
+/// carried, with the two half-seams translated radially onto the moved
+/// wall. A hand-split edge is construction state (tier 3's check 11), so
+/// `shell`'s at-rest gate refuses it before the axial door reads it; the
+/// door itself takes construction state, so the row reads the arm there.
+/// The door ends with the join (`docs/DESIGN.md`, maximal edges), which
+/// takes the image only because the two half-seams lie on one generator
+/// of the moved wall; so the row reads the arm through that join and
+/// the seam it leaves whole, at the split vertex's azimuth. The image's
+/// height is not read: it does not survive the join.
 ///
-/// A hand-made operand owes what every door's operand has: its pcurve
-/// rows. `Body::split_edge` mints none for its two children, and
-/// `shell`'s closing tier 3 says so (`Pcurve MissingCache` on both,
-/// measured) — so the operand is finished with `topo::mint_pcurves`,
-/// the pass every builder runs last, before it is shelled.
+/// A hand-made body owes its pcurve rows: `Body::split_edge` mints none
+/// for its two children, so it is finished with `topo::mint_pcurves`
+/// first, and check 11 is all that is left. The split changes no
+/// geometry, so the moved body's volume is the unsplit drum's closed
+/// form, `π(r − T)²(h − 2T)`.
 #[test]
-fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot() {
+fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot_at_the_direct_door() {
     let (r, h) = (1.0, 2.0);
     let mut body = vessel(r, h);
     let seam = line_edge(&body, |o, d, same_surface| {
@@ -264,59 +288,53 @@ fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot() {
     });
     let split = split_mid(&mut body, seam);
     topo::mint_pcurves(&mut body, tol()).expect("the split operand's pcurves mint");
-    assert_eq!(
-        topo::validate_geometric(&body, tol()),
-        Ok(()),
-        "the operand"
-    );
-    let (rho0, h0) = axial(point(&body, split));
+    assert_eq!(construction_state(&body, tol()), vec![split], "the operand");
+    let at = point(&body, split);
+    let (rho0, h0) = axial(at);
     assert!((rho0 - r).abs() <= 1e-15 && (h0 - h / 2.0).abs() <= 1e-15);
-    let out = topo::shell(&finished("the operand", body.clone(), tol()), T, tol())
-        .unwrap_or_else(|e| panic!("the split drum shells, got {e}"));
-    let cavity = &out.body;
-    assert_eq!(topo::validate_geometric(cavity, tol()), Ok(()), "tier 3");
-    let (new, _) = out
-        .naming
-        .inner_vertices
-        .iter()
-        .copied()
-        .find(|(_, old)| *old == split)
-        .expect("the split vertex has an image");
-    let (rho, hh) = axial(point(cavity, new));
+    let (moved, outcome) =
+        direct_door(&body, T).unwrap_or_else(|e| panic!("the split drum moves, got {e}"));
+    assert_eq!(topo::validate_geometric(&moved, tol()), Ok(()), "tier 3");
+    // The door ends with the join: the image stands between the two
+    // half-seams on one generator of the moved wall, so the join takes
+    // it, and the seam is whole again on the moved wall.
+    let [join] = outcome.joins[..] else {
+        panic!("one join, the split vertex's image: {:?}", outcome.joins);
+    };
+    assert!(moved.get_vertex(join.vertex).is_none(), "the image is dead");
+    let (c, (t0, t1)) = carrier(&moved, join.kept);
+    let Curve3::Line { origin, dir } = c else {
+        panic!("a cylinder seam is a line, got {c:?}");
+    };
     assert!(
-        (rho - (r - T)).abs() <= 1e-15 && hh == h / 2.0,
-        "the foot on the moved wall: got ({rho}, {hh}), want ({}, {})",
-        r - T,
-        h / 2.0
+        (axial(origin).0 - (r - T)).abs() <= 1e-15 && dir.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-15,
+        "the joined seam is a generator on the moved wall, got {c:?}"
     );
-    // The two half-seams: generator lines on the moved wall, ending at
-    // the split vertex's image.
-    let mut halves = 0;
-    for (e, data) in cavity.edges() {
-        let start = cavity.get_half_edge(data.he_plus).expect("he").start;
-        let end = cavity.half_edge_end(data.he_plus).expect("end");
-        if start != new && end != new {
-            continue;
-        }
-        halves += 1;
-        let (c, (t0, t1)) = carrier(cavity, e);
-        let Curve3::Line { origin, dir } = c else {
-            panic!("{e:?}: a cylinder seam is a line, got {c:?}");
-        };
-        assert!(
-            (axial(origin).0 - (r - T)).abs() <= 1e-15
-                && dir.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-15,
-            "{e:?}: a generator on the moved wall, got {c:?}"
-        );
-        let ends = (point(cavity, start), point(cavity, end));
-        assert!(c.eval(t0).distance(ends.0) <= 1e-13 && c.eval(t1).distance(ends.1) <= 1e-13);
-    }
-    assert_eq!(halves, 2, "two half-seams end at the split vertex");
-    let props = topo::mass_properties(cavity, tol()).expect("props");
-    let want = PI * (r * r * h - (r - T) * (r - T) * (h - 2.0 * T));
+    // The azimuth is carried: the moved generator stands in the split
+    // vertex's own meridian half-plane.
+    let azimuth = |p: geom_core::Point3<f64>| p.z.atan2(p.x);
+    assert!(
+        (azimuth(origin) - azimuth(at)).abs() <= 1e-15,
+        "the seam keeps the split vertex's azimuth: {} against {}",
+        azimuth(origin),
+        azimuth(at)
+    );
+    let he = moved.get_edge(join.kept).expect("the kept seam").he_plus;
+    let ends = (
+        point(&moved, moved.get_half_edge(he).expect("he").start),
+        point(&moved, moved.half_edge_end(he).expect("end")),
+    );
+    assert!(c.eval(t0).distance(ends.0) <= 1e-13 && c.eval(t1).distance(ends.1) <= 1e-13);
+    let span = (axial(ends.0).1 - axial(ends.1).1).abs();
+    assert!(
+        (span - (h - 2.0 * T)).abs() <= 1e-13,
+        "the whole moved seam, cap to cap: got {span}"
+    );
+    let props = topo::mass_properties(&moved, tol()).expect("props");
+    let want = PI * (r - T) * (r - T) * (h - 2.0 * T);
     assert!(
         (props.volume - want).abs() <= 1e-9 + props.volume_pad,
-        "the drum's wall: got {} (pad {}), want {want}",
+        "the moved drum: got {} (pad {}), want {want}",
         props.volume,
         props.volume_pad
     );
@@ -655,10 +673,13 @@ fn a_two_arc_sphere_shells_to_its_closed_form() {
 /// twin is carried** (R1's row, R2's `p1` — the same operand from both
 /// review lanes): the quarter-turn wedge's wall/cap generator, split
 /// by hand at mid-height, is a vertex whose surfaces are exactly the
-/// cylinder and one meridian cap. Carrying its station along the line
-/// is a convention the door declines, and it says so.
+/// cylinder and one meridian cap. A hand-split edge is construction
+/// state (tier 3's check 11), so `shell`'s at-rest gate refuses it
+/// before the axial door reads it; at the door itself, which takes
+/// construction state, carrying its station along the line is a
+/// convention the door declines, and it says so.
 #[test]
-fn a_line_profile_beside_one_meridian_cap_refuses_on_a_hand_split_wedge() {
+fn a_line_profile_beside_one_meridian_cap_refuses_at_the_direct_door() {
     let (r, h) = (1.0, 2.0);
     let mut body = wedge(r, h, FRAC_PI_2);
     let generator = line_edge(&body, |o, d, same| {
@@ -671,10 +692,16 @@ fn a_line_profile_beside_one_meridian_cap_refuses_on_a_hand_split_wedge() {
     let split = split_mid(&mut body, generator);
     topo::mint_pcurves(&mut body, tol()).expect("pcurves");
     assert_eq!(distinct_surfaces_at(&body, split), 2, "wall + cap");
-    let e = topo::shell(&finished("the operand", body.clone(), tol()), 0.05, tol())
-        .expect_err("refuses");
-    let (vertex, surfaces, what) =
-        corner_refusal(&e).unwrap_or_else(|| panic!("not a corner refusal: {e}"));
+    assert_eq!(construction_state(&body, tol()), vec![split]);
+    let error = direct_door(&body, 0.05).expect_err("refuses");
+    let ReplaceFaceError::TogetherAxialCorner {
+        vertex,
+        surfaces,
+        what,
+    } = error
+    else {
+        panic!("not a corner refusal: {error}");
+    };
     assert_eq!(vertex, split);
     assert_eq!(surfaces, 2);
     assert!(

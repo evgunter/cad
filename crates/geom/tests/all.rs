@@ -163,6 +163,8 @@ mod surfaces_m5_pr7_surface_projection;
 mod surfaces_nurbs_surface;
 #[path = "surfaces/nurbs_surface_interval.rs"]
 mod surfaces_nurbs_surface_interval;
+#[path = "surfaces/poison_parameter.rs"]
+mod surfaces_poison_parameter;
 #[path = "surfaces/review_m2_pr1.rs"]
 mod surfaces_review_m2_pr1;
 #[path = "surfaces/review_m2_pr1_interval.rs"]

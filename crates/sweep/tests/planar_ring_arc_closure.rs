@@ -10,8 +10,8 @@
 //! shallow cap past the half-disc, the crescent and the lens (two arcs
 //! on one chord, bowing the same way and opposite ways), and the D and
 //! the crescent drawn with an arc split at a vertex on its circle, which
-//! the extrude sweeps as one wall, so the vertex drawn on the arc stays
-//! on the prism's caps and must leave none in the section. Every profile is driven through
+//! the extrude sweeps as one wall, so the vertex drawn on the arc has no
+//! entity and leaves none in the section. Every profile is driven through
 //! the slab upright, off the origin, spun about its axis and tilted
 //! about one axis and two, and every op is asked in both member orders.
 
@@ -24,7 +24,7 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{brick, finished};
 use sweep::{ExtrudeSide, Extrusion, extrude};
 
-use crate::common::stations::cut_stations;
+use crate::common::stations::{construction_state, cut_stations, joined};
 use topo::{AtRestBody, BooleanError};
 
 /// The slab `[−4, 4]² × [−0.5, 0.5]`.
@@ -47,13 +47,12 @@ fn census(body: &topo::Body<f64>) -> Census {
     )
 }
 
-/// **The census of a slab pierced by an `n`-sided prism whose caps
-/// each carry `k` stations on an arc rim**, for ∪, ∩, slab ∖ prism and
-/// prism ∖ slab. A vertex drawn between two arcs of one circle is a
-/// station inside a run: it splits neither wall nor rim, so it has no
-/// entity and `k` is 0. A station cut back into a rim by hand splits
-/// the rim but no wall, so the slab's sections never meet it: it shows
-/// only on the prism's own caps, which ∪ and prism ∖ slab keep.
+/// **The census of a slab pierced by an `n`-sided prism**, for ∪, ∩,
+/// slab ∖ prism and prism ∖ slab. A vertex drawn between two arcs of one
+/// circle is a station inside a run: it splits neither wall nor rim, so
+/// it has no entity. A station cut back into a rim by hand splits the
+/// rim but no wall, so the slab's sections never meet it, and the
+/// output's join takes it off the caps ∪ and prism ∖ slab keep.
 ///
 /// - ∪: the slab's two faces each keep a ring of `n` edges and `n`
 ///   vertices, and the prism's `n` walls are cut into the stub above and
@@ -61,18 +60,12 @@ fn census(body: &topo::Body<f64>) -> Census {
 /// - ∩: the prism one unit long between the slab's planes;
 /// - slab ∖ prism: the slab with a hole through it, genus 1;
 /// - prism ∖ slab: the two stubs.
-fn pierced(n: usize, k: usize) -> [Census; 4] {
+fn pierced(n: usize) -> [Census; 4] {
     [
-        (
-            1,
-            8 + 4 * n + 2 * k,
-            12 + 6 * n + 2 * k,
-            8 + 2 * n,
-            10 + 2 * n,
-        ),
+        (1, 8 + 4 * n, 12 + 6 * n, 8 + 2 * n, 10 + 2 * n),
         (1, 2 * n, 3 * n, 2 + n, 2 + n),
         (1, 8 + 2 * n, 12 + 3 * n, 6 + n, 8 + n),
-        (2, 4 * n + 2 * k, 6 * n + 2 * k, 4 + 2 * n, 4 + 2 * n),
+        (2, 4 * n, 6 * n, 4 + 2 * n, 4 + 2 * n),
     ]
 }
 
@@ -194,7 +187,8 @@ fn poses() -> Vec<(&'static str, Affine3<f64>, f64)> {
 
 /// The prism of `shape` at `pose`, with `stations` (sketch points on
 /// the arc run's circle) cut back into both of the run's rims by hand
-/// (`common::stations::cut_stations`).
+/// (`common::stations::cut_stations`), then joined back: a body holding
+/// a station is construction state, which no door takes.
 fn prism(shape: &Shape, pose: &Affine3<f64>, stations: &[Point2<f64>]) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -LENGTH / 2.0)));
@@ -227,6 +221,15 @@ fn prism(shape: &Shape, pose: &Affine3<f64>, stations: &[Point2<f64>]) -> AtRest
         };
         upright = cut_stations(upright, run.bottom_rim, &at(-LENGTH / 2.0), tol);
         upright = cut_stations(upright, run.top_rim, &at(LENGTH / 2.0), tol);
+        // A station is construction state (tier 3's check 11): no door
+        // takes the prism until the join has taken them back.
+        assert_eq!(
+            construction_state(&upright, tol).len(),
+            2 * stations.len(),
+            "{}: the gate refuses the stations and nothing else",
+            shape.name
+        );
+        upright = joined(upright, tol).0;
     }
     finished(
         "the prism",
@@ -280,7 +283,7 @@ fn check(
             );
             println!(
                 "{label}: tier 3′ cannot yet decide the two parts' curved faces apart \
-                 ({} pairs; work/contact/census-cross-solid-curved-pairs-undecidable-on-shell-results.md)",
+                 ({} pairs; work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md)",
                 errs.len()
             );
         }
@@ -320,8 +323,10 @@ fn a_prism_with_arc_walls_through_a_slab_builds_every_op() {
 
 /// **A prism whose arc rims hold a station cut back by hand, through
 /// the slab**: what a boolean's cut leaves on an operand. The station
-/// splits each cap's arc rim but neither wall, so the slab's sections
-/// never meet it and [`pierced`] counts it on the prism's own caps.
+/// splits each cap's arc rim but neither wall, and a body holding it is
+/// construction state (tier 3's check 11), so the prism is joined before
+/// any door takes it ([`prism`]): every op builds the body [`pierced`]
+/// counts, as on the unstationed prism.
 #[test]
 fn a_prism_with_a_station_on_its_arc_rims_through_a_slab_builds_every_op() {
     let tol = Tol::witness();
@@ -353,7 +358,7 @@ fn every_op(slab: &AtRestBody<f64>, shape: &Shape, stations: &[Point2<f64>]) {
         let prism = prism(shape, &map, stations);
         let v = shape.area * LENGTH;
         let shared = shape.area / dz;
-        let want = pierced(shape.sides, stations.len());
+        let want = pierced(shape.sides);
         // Tilted, the two stubs' walls overhang each other across the
         // slab.
         let stubs = if dz < 1.0 {

@@ -9,6 +9,8 @@
 use geom_core::{Point3, Vec3};
 use test_utils::fuzz;
 
+pub(super) mod exact;
+
 /// A uniformly drawn unit vector, away from the degenerate short ones.
 pub(super) fn unit(rng: &mut fuzz::Rng) -> Vec3<f64> {
     loop {

@@ -46,13 +46,8 @@ fn probe_misaligned_azimuth_split_unions() {
         Tol::witness(),
     );
     assert!(
-        matches!(
-            join,
-            Ok(Some(topo::BooleanError::Join(
-                topo::SplitJoinError::RingHomingAmbiguous { .. }
-            )))
-        ),
-        "the declared-REST zip builds the mate: the join refuses it, got {join:?}"
+        join.as_ref().is_ok_and(Option::is_none),
+        "the join homes the pierce rings at the peg's ruling azimuth and connects, got {join:?}"
     );
     let bb = boolean_body(
         topo::union_with(&c, &p, &decls, Tol::witness()).expect("the misaligned mate unions"),

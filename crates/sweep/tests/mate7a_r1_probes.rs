@@ -200,31 +200,22 @@ fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
     // **Wall 1 is no longer the crossing layer's.** The circle × torus
     // root lane (`topo::boolean::circle_torus`) certifies that each
     // seam crosses the other tube's carrier only outside that face's
-    // window, so neither pair is an event; the op reaches the join, whose
-    // germ pair of the stem's weld cap against the arch's wall has no
-    // section frame arm. The far-cap claims below are geometry and
-    // stand on their own.
-    let BooleanError::GermFrameUnsupported {
-        a_face,
-        a_kind: SurfaceKind::Plane,
-        b_face,
-        b_kind: SurfaceKind::Torus,
+    // window, so neither pair is an event; the op reaches the join,
+    // whose germ pair of the stem's weld cap against the arch's wall
+    // reads its frame off the arch's rim lying in the cap and has no
+    // join arm: it refuses on the arch's wall. The far-cap claims below
+    // are geometry and stand on their own.
+    let BooleanError::CurvedBooleanUnsupported {
+        operand: topo::Operand::B,
+        face,
+        kind: SurfaceKind::Torus,
     } = err
     else {
-        panic!("wall 1 stops at the join's plane × torus germ frame: {err:?}");
+        panic!("wall 1 stops at the join's plane × torus arm: {err:?}");
     };
-    // The stem's face in the pair is its weld cap (the plane at the
-    // fork); the arch's is one of its tube walls.
-    let fork = arch_frame().fork;
     assert!(
-        plane_faces(&s)
-            .iter()
-            .any(|&(k, o, _)| k == a_face && (o - fork).norm() < 1e-9),
-        "the stem's face is its weld cap at the fork: {a_face:?}"
-    );
-    assert!(
-        torus_faces(&a).contains(&b_face),
-        "the arch's face is its tube wall: {b_face:?}"
+        torus_faces(&a).contains(&face),
+        "the arch's face is its tube wall: {face:?}"
     );
     let frame = arch_frame();
     let far_cap = plane_faces(&a)
@@ -363,17 +354,24 @@ fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
 /// that tells a seam from a nested touch costs the rim comparison of
 /// each face's boundary arcs and one traversal reading per face.
 ///
+/// The boolean's glue door runs first: before the declared path it
+/// reads every cross pair (four here) for a tangency its witness
+/// verifies, and that read takes the first-order screen at every
+/// station of each pair (`contact_tangent_on_1` counts the four reads).
+///
 /// The whole current price:
 ///
-/// - **18 first-order screen** — 9 × (`dihedral_arm`, `dihedral_wedge`);
+/// - **90 first-order screen** — 5 × 9 × (`dihedral_arm`,
+///   `dihedral_wedge`): the glue door's four pair reads and the declared
+///   claim's one;
 /// - **27 material arm** — 9 × (`material_wedge_side`,
 ///   `tangent_second_order`, `material_cusp_side`);
-/// - **6 rim identification** — `rim_circle_radius` ×3,
-///   `rim_circle_center` ×2, `rim_circle_axis_parallel` ×1 (the two
-///   LENGTH data lead, so radius short-circuits most pairs);
-/// - **16 departure read** — the rim comparison of each face's boundary
-///   arcs (`rim_circle_radius` ×8, `rim_circle_center` ×4,
-///   `rim_circle_axis_parallel` ×2) and `seam_rim_traversal` ×2;
+/// - **74 rim identification and departure read** — `rim_circle_radius`
+///   ×35, `rim_circle_center` ×24, `rim_circle_axis_parallel` ×15 (the
+///   two LENGTH data lead, so radius short-circuits most pairs), across
+///   the glue door's reads and the declared claim's rim scan and
+///   departure read;
+/// - **2 traversal readings** — `seam_rim_traversal`, one per face;
 /// - **2 conformal screen** — `carrier_torus_axis_parallel`,
 ///   `carrier_torus_center`.
 ///
@@ -387,7 +385,7 @@ fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
 /// meets them, so the same claim on the kissing fixture counts
 /// differently. That is why the PR body reports the price per fixture.
 #[test]
-fn p2_the_g1_chain_price_is_the_measured_69_rows() {
+fn p2_the_g1_chain_price_is_the_measured_195_rows() {
     // The PR's fixtures, verbatim from `mate7a_torus_rest.rs`.
     let seg_a = stem();
     let seg_b = {
@@ -449,28 +447,29 @@ fn p2_the_g1_chain_price_is_the_measured_69_rows() {
     let n = usize::try_from(geom_brep::CERT_SAMPLES).expect("the sample schedule fits usize");
     for (name, want) in [
         // Structural: the per-station predicate set, once per station.
-        ("dihedral_arm", n),
-        ("dihedral_wedge", n),
+        // The glue door's four pair reads and the declared claim's one.
+        ("dihedral_arm", 5 * n),
+        ("dihedral_wedge", 5 * n),
         ("material_wedge_side", n),
         ("tangent_second_order", n),
         ("material_cusp_side", n),
-        // Fixture-specific: how many boundary circles this face pair
-        // carries, and the order the scan meets them — the rim scan
-        // (3, 2, 1), then the departure read, which compares each
-        // face's boundary arcs with the rim (8, 4, 2).
-        ("rim_circle_radius", 11),
-        ("rim_circle_center", 6),
-        ("rim_circle_axis_parallel", 3),
+        // Fixture-specific: how many boundary circles these faces
+        // carry, and the order the glue door's reads and the declared
+        // claim's rim scan and departure read meet them.
+        ("rim_circle_radius", 35),
+        ("rim_circle_center", 24),
+        ("rim_circle_axis_parallel", 15),
         // One traversal reading per face: the wedge-π rim's two faces
         // leave it on opposite sides, so the steer names the seam.
         ("seam_rim_traversal", 2),
         ("carrier_torus_axis_parallel", 1),
         ("carrier_torus_center", 1),
+        ("contact_tangent_on_1", 4),
     ] {
         assert_eq!(
             count(name),
             want,
-            "PR #1477's price table says {want} definite {name} rows; the log says \
+            "the price table says {want} definite {name} rows; the log says \
              {} — full histogram above",
             count(name)
         );

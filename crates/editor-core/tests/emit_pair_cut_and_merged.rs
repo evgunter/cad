@@ -28,8 +28,8 @@ fn a_face_cut_and_merged_in_one_pair_step_publishes_no_constituent() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: b,
-            b: g,
+            a: b.into(),
+            b: g.into(),
             declare: Vec::new(),
         },
     );
@@ -51,8 +51,8 @@ fn a_face_cut_and_merged_in_one_pair_step_publishes_no_constituent() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: bg,
-            b: a,
+            a: bg.into(),
+            b: a.into(),
             declare: decl,
         },
     );

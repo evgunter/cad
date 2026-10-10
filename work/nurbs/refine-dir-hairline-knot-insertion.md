@@ -2,12 +2,14 @@
 id: refine-dir-hairline-knot-insertion
 kind: issue
 title: refine_dir's exact-equality insertion guard leaves knot pairs one ulp apart - de Boor divides by the hairline
-status: open
+status: closed
 opened: 2026-08-31
 github: 1358
 refs: [1314, C3, D30]
 priority: P0
 cost: H
+closed: 2026-10-09
+pr: 4438
 ---
 
 ## From GitHub issue 1358
@@ -54,3 +56,9 @@ and expects the grid point beside it):
 `geom_core`'s `spline::algebra::tests::domain_grid_points_skip_rules_and_no_cut_off`
 pins both rules of the helper itself and does not move with a site's
 choice.
+
+## Closed (2026-10-09, PR 4438)
+
+A grid point is now skipped when it lies within `GRID_CLEARANCE = 2⁻⁸` of the grid's own spacing (`grid_clearance(lo, hi, pieces)`, `geom-core/src/spline/algebra.rs`) from a mandatory point. This applies at all seven production grid sites: `refine_dir`, `knot_aligned_cuts` ×2, `bezier_blocks`, `refined`, `chart_breaks` and `localized`. Grid points only subdivide, so skipping one costs at most a span `(1 + 2⁻⁸)` spacings wide. Inserting it beside a knot costs a `1/gap` excess.
+
+Quad flux width at round 0 is flat at the on-grid 2.0127e-2 for every knot offset from 1 ulp to 1e-9. Under the old rule it reached 9.57e-1 at +129 ulps. The no-cliff rows (quad, certify, edge) are red under the old rule. In the tour, lily walls 15 and 17 retired at every ε, and wall 16 still refuses. Review: a single FULL review (one MAJOR: the ulp clearance only moved the cliff), then a delta review (APPROVE-WITH-FIXES, no MAJOR) whose fixes are in. Rows filed: `work/carve/skin-union-mints-a-hairline-span-from-knots-an-ulp-apart`, `work/ssiarith/tensor-composite-break-merge-mints-a-hairline-from-carrier-and-pcurve-knots`, `work/ssiarith/ssi-cert-grid-spelled-twice-refined-and-chart-breaks`. Not done: wall 16's variant census was not re-measured under the new rule. The census is dated in place.

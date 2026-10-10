@@ -12,11 +12,10 @@
 //! face holding part of its region through a coincident copy runs into
 //! it ([`HeldEdge`]).
 //!
-//! Every path that splits an operand face records its discards: the
-//! section path (`finish`) and the declared-REST union (`rest`). The
-//! paths that keep or drop whole operands split no face, so no face of
-//! theirs has pieces for a discard to lie between, and they record
-//! none.
+//! The one path that splits an operand face, the section path
+//! (`finish`), records its discards. The paths that keep or drop whole
+//! operands split no face, so no face of theirs has pieces for a discard
+//! to lie between, and they record none.
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, VertexKey};

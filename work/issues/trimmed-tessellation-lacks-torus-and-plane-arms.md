@@ -36,7 +36,7 @@ orchestrator.
 
 ## The cone chart too (REACH, plane × cone split fix pass, 2026-10-01)
 
-The plane × cone split (`work/reach/plane-cone-elliptic-section-split-refusal.md`)
+The plane × cone split (`plane-cone-elliptic-section-split-refusal` (REACH, closed by PR 3688))
 mints cone faces trimmed by a tilted section `Ellipse`, with the exact
 `Pcurve::ConeSection` image stored on each. Measured: the half above a
 frustum (radius 1 → 1/2, revolved about `y`) cut through `(0, 0.5, 0)`

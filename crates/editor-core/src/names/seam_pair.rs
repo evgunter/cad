@@ -51,7 +51,8 @@ fn head(seg: &RoleSeg) -> Head<'_> {
         | RoleSeg::FromTarget(n)
         | RoleSeg::SplitFragment { parent: n, .. }
         | RoleSeg::Instance { of: n, .. }
-        | RoleSeg::InPart { of: n } => Head::Through(n),
+        | RoleSeg::InPart { of: n }
+        | RoleSeg::Placed { of: n } => Head::Through(n),
         RoleSeg::Merged(set) => Head::Merged(set),
         // A union member's entity is NOT seen through: its seam belongs
         // to the member, whose pair order no union reorders, and is read
@@ -66,6 +67,8 @@ fn head(seg: &RoleSeg) -> Head<'_> {
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
         | RoleSeg::EndArc { .. }
+        | RoleSeg::Mitre { .. }
+        | RoleSeg::TurnFoot { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
@@ -131,11 +134,18 @@ fn seam_through(name: &StableName, kind: EntityKind) -> Option<(&StableName, &St
 /// Whether face name `n` denotes face `x`, or a face descended from it:
 /// `x` itself or `x` followed by discriminators, through any number of
 /// the wrappers [`head`] passes through, or a merged face with such a
-/// constituent.
+/// constituent. Where `x` is itself a merged face, read through its
+/// wrappers, a face descended from one of its constituents descends from
+/// it too: a merge over `x` lists those, never `x` (N3).
 pub(crate) fn face_descends_from(n: &StableName, x: &StableName) -> bool {
+    let parts = super::merged::constituents_through_wrappers(x);
+    let xs: Vec<&StableName> = core::iter::once(x).chain(parts.iter().flatten()).collect();
     let mut names = vec![n];
     while let Some(n) = names.pop() {
-        if n.kind == x.kind && n.node == x.node && n.path.starts_with(&x.path) {
+        if xs
+            .iter()
+            .any(|x| n.kind == x.kind && n.node == x.node && n.path.starts_with(&x.path))
+        {
             return true;
         }
         match n.path.first().map(head) {
@@ -180,7 +190,7 @@ mod tests {
     fn cap(node: u64, end: CapEnd) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![RoleSeg::Cap(end)],
         }
     }
@@ -188,7 +198,7 @@ mod tests {
     fn wrap(seg: fn(crate::names::role::NameRef) -> RoleSeg, inner: StableName) -> StableName {
         StableName {
             kind: inner.kind,
-            node: RecipeNodeId(9),
+            node: RecipeNodeId::new(0, 9),
             path: vec![seg(inner.into())],
         }
     }
@@ -196,7 +206,7 @@ mod tests {
     fn merged(cs: Vec<StableName>) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(9),
+            node: RecipeNodeId::new(0, 9),
             path: vec![RoleSeg::Merged(cs)],
         }
     }
@@ -247,7 +257,7 @@ mod tests {
         let (a, b) = (cap(1, CapEnd::End), cap(2, CapEnd::Start));
         let frag = StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(11),
+            node: RecipeNodeId::new(0, 11),
             path: vec![RoleSeg::SplitFragment {
                 side: crate::names::role::SplitHalf::Below,
                 parent: wrap(RoleSeg::FromA, a.clone()).into(),
@@ -262,7 +272,7 @@ mod tests {
         let x = cap(1, CapEnd::End);
         let edge = |a: &StableName, b: &StableName| StableName {
             kind: EntityKind::Edge,
-            node: RecipeNodeId(9),
+            node: RecipeNodeId::new(0, 9),
             path: vec![RoleSeg::Seam {
                 a: a.clone().into(),
                 b: b.clone().into(),
@@ -276,9 +286,9 @@ mod tests {
         assert!(seam_line_pair(&wrap(RoleSeg::FromA, seam.clone())).is_some());
         let member = StableName {
             kind: EntityKind::Edge,
-            node: RecipeNodeId(9),
+            node: RecipeNodeId::new(0, 9),
             path: vec![RoleSeg::FromMember {
-                member: RecipeNodeId(4),
+                member: RecipeNodeId::new(0, 4),
                 of: seam.into(),
             }],
         };

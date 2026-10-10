@@ -59,7 +59,7 @@
 //! every coefficient is a [`Interval`]. Nothing here evaluates or
 //! samples anything.
 
-use super::super::knots::KnotVector;
+use super::super::net::TensorCoeffs;
 use super::{
     BernWeights, bern_mul_row_into, bern_mul_row_with, bern_weights, to_bezier_spans_extra,
 };
@@ -112,35 +112,59 @@ impl PatchSpans {
         acc
     }
 
+    /// A certified upper bound on `‖(c₀, c₁, c₂)‖` over cell `(su, sv)`
+    /// for the VECTOR form whose three coordinates are `channels`: the
+    /// largest norm of one vector coefficient, which bounds the norm
+    /// because the norm is convex and the form lies in the hull of its
+    /// coefficients. It is a function of the coefficient vectors, so a
+    /// rotation of the coordinates moves it only by rounding, where
+    /// three [`Self::cell_hull`]s folded into one norm read a box that
+    /// can be `√3`× the vector's own reach.
+    ///
+    /// [`super::tensor::coefficient_norm_sup`] on the cell's
+    /// coefficients. `NaN` when the channels do not share one cell
+    /// structure and bidegree, or the cell is out of range.
+    pub fn cell_norm_sup(channels: [&Self; 3], su: usize, sv: usize) -> f64 {
+        let [a, b, c] = channels;
+        if !a.aligned(b) || !a.aligned(c) || a.degree() != b.degree() || a.degree() != c.degree() {
+            return f64::NAN;
+        }
+        let (Some(na), Some(nb), Some(nc)) = (a.block(su, sv), b.block(su, sv), c.block(su, sv))
+        else {
+            return f64::NAN;
+        };
+        super::tensor::coefficient_norm_sup([na, nb, nc])
+    }
+
+    /// Cell `(su, sv)`'s coefficients, `None` out of range.
+    fn block(&self, su: usize, sv: usize) -> Option<&[Interval]> {
+        self.cells
+            .get(su)
+            .and_then(|r| r.get(sv))
+            .map(Vec::as_slice)
+    }
+
     /// Tensor-product Bézier decomposition of one scalar channel of a
-    /// spline whose control grid is **row-major `iu·nv + iv`**, with
+    /// spline, its control grid paired with both knot vectors, with
     /// `extra_u`/`extra_v` break parameters injected in each direction
     /// so several channels land on one shared break list (module docs:
     /// alignment).
     ///
     /// Structure-filtered, never an error: an extra outside the open
     /// domain or duplicating a knot is dropped.
-    pub fn decompose(
-        ku: &KnotVector,
-        kv: &KnotVector,
-        grid: &[Interval],
-        extra_u: &[f64],
-        extra_v: &[f64],
-    ) -> Self {
-        let nu = ku.control_count();
-        let nv = kv.control_count();
-        if grid.len() != nu * nv {
-            return Self::refused(ku.degree(), kv.degree());
-        }
+    pub fn decompose(grid: &TensorCoeffs<'_>, extra_u: &[f64], extra_v: &[f64]) -> Self {
+        let (ku, kv, net) = (grid.knots_u(), grid.knots_v(), grid.net());
         // Stage 1 (u): one univariate decomposition per v-column;
         // identical structure across columns by construction.
         let mut breaks_u = Vec::new();
         let mut deg_u = ku.degree();
         // stage1[su][a][jv]
         let mut stage1: Vec<Vec<Vec<Interval>>> = Vec::new();
-        for jv in 0..nv {
-            let col: Vec<Interval> = (0..nu).map(|iu| grid[iu * nv + jv]).collect();
-            let bs = to_bezier_spans_extra(ku, &col, extra_u);
+        for jv in 0..kv.control_count() {
+            let bs = ku.with_coeffs_from_fn(
+                |iu| net.get(iu, jv),
+                |pair| to_bezier_spans_extra(pair, extra_u),
+            );
             if jv == 0 {
                 breaks_u = bs.breaks().to_vec();
                 deg_u = bs.degree();
@@ -164,7 +188,11 @@ impl PatchSpans {
         for span_rows in &stage1 {
             let mut row_cells: Vec<Vec<Interval>> = Vec::new();
             for (a, vrow) in span_rows.iter().enumerate() {
-                let bs = to_bezier_spans_extra(kv, vrow, extra_v);
+                // `vrow` holds one entry per v-column: `kv`'s control count.
+                let bs = kv.with_coeffs_from_fn(
+                    |jv| vrow[jv],
+                    |pair| to_bezier_spans_extra(pair, extra_v),
+                );
                 if a == 0 {
                     breaks_v = bs.breaks().to_vec();
                     deg_v = bs.degree();
@@ -465,6 +493,7 @@ mod tests {
     use super::super::tests::{bern_mul_row_base, same_bits};
     use super::*;
     use crate::real::Bounds;
+    use crate::spline::KnotVector;
 
     /// A patch of bidegree `(du, dv)` with one interior break in each
     /// direction, decomposed. Every operand here shares the same two
@@ -478,14 +507,12 @@ mod tests {
         };
         let ku = clamped(du, 0.4);
         let kv = clamped(dv, 0.6);
-        let (nu, nv) = (ku.control_count(), kv.control_count());
-        let grid: Vec<Interval> = (0..nu * nv)
-            .map(|n| {
-                let c = (n as f64 - 5.0) * seed / 3.0;
-                Interval::from_bounds(c - 2e-14, c + 5e-14)
-            })
-            .collect();
-        PatchSpans::decompose(&ku, &kv, &grid, &[], &[])
+        let nv = kv.control_count();
+        let grid = TensorCoeffs::from_fn(&ku, &kv, |i, j| {
+            let c = ((i * nv + j) as f64 - 5.0) * seed / 3.0;
+            Interval::from_bounds(c - 2e-14, c + 5e-14)
+        });
+        PatchSpans::decompose(&grid, &[], &[])
     }
 
     /// [`mul_block`] as it was before the weight tables existed: the
@@ -655,14 +682,12 @@ mod tests {
     fn decomposed(du: usize, dv: usize, seed: f64) -> PatchSpans {
         let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.4, 1.0, 1.0, 1.0], du).unwrap();
         let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.6, 1.0, 1.0, 1.0], dv).unwrap();
-        let (nu, nv) = (ku.control_count(), kv.control_count());
-        let grid: Vec<Interval> = (0..nu * nv)
-            .map(|n| {
-                let c = (n as f64 - 5.0) * seed / 3.0;
-                Interval::from_bounds(c - 2e-14, c + 5e-14)
-            })
-            .collect();
-        PatchSpans::decompose(&ku, &kv, &grid, &[], &[])
+        let nv = kv.control_count();
+        let grid = TensorCoeffs::from_fn(&ku, &kv, |i, j| {
+            let c = ((i * nv + j) as f64 - 5.0) * seed / 3.0;
+            Interval::from_bounds(c - 2e-14, c + 5e-14)
+        });
+        PatchSpans::decompose(&grid, &[], &[])
     }
 
     /// The tensor product is separable over cells: a cell's
@@ -697,5 +722,55 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// `cell_norm_sup` reads the largest norm of one coefficient
+    /// VECTOR, bit for bit, where a box of the three cell hulls would
+    /// pair one channel's extreme with another's; a channel triple that
+    /// does not share a bidegree, or a cell out of range, refuses.
+    #[test]
+    fn the_cell_norm_is_the_largest_coefficient_vectors_not_the_boxes() {
+        // `y = 1 − x` peaks where `x` is least, so the two channels'
+        // extremes sit on different coefficients.
+        let x = decomposed(2, 2, 1.0);
+        let y = x.constant(Interval::point(1.0)).sub(&x);
+        let z = x.mul(&y);
+        let (x, y) = (x.elevated(4, 4), y.elevated(4, 4));
+        let (nu, nv) = z.cell_counts();
+        let mut below_box = 0usize;
+        for su in 0..nu {
+            for sv in 0..nv {
+                let got = PatchSpans::cell_norm_sup([&x, &y, &z], su, sv);
+                let want = (0..x.cells[su][sv].len())
+                    .map(|k| {
+                        crate::interval::norm_sup(&[
+                            x.cells[su][sv][k],
+                            y.cells[su][sv][k],
+                            z.cells[su][sv][k],
+                        ])
+                    })
+                    .fold(0.0f64, f64::max);
+                assert_eq!(got.to_bits(), want.to_bits(), "cell ({su}, {sv})");
+                let boxed = crate::interval::norm_sup(&[
+                    x.cell_hull(su, sv),
+                    y.cell_hull(su, sv),
+                    z.cell_hull(su, sv),
+                ]);
+                assert!(
+                    got <= boxed,
+                    "cell ({su}, {sv}): {got:e} above the box {boxed:e}"
+                );
+                if got < boxed {
+                    below_box += 1;
+                }
+            }
+        }
+        assert!(
+            below_box > 0,
+            "no cell separates the coefficient norm from the box"
+        );
+        let low = decomposed(2, 2, 0.3);
+        assert!(PatchSpans::cell_norm_sup([&x, &y, &low], 0, 0).is_nan());
+        assert!(PatchSpans::cell_norm_sup([&x, &y, &z], nu, 0).is_nan());
     }
 }

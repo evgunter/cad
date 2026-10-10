@@ -611,3 +611,109 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     bounds-roster line was main's red since #4173 and was ported in.
   - **Rows:** `sweeps-build-one-rim-edge-per-segment-not-per-run`
     closes. Step 3 waits only on the curved join (`fuse/curved-join`).
+- 2026-10-07 — Step 3 stops at a fork: where "no joinable vertex remains" is checked. It goes to Ev as an `[ev]` PR; the row is `a-finished-body-holds-no-joinable-vertex`.
+  - **Why it stopped.** The ratified clause says "checked at tier 2", but tier 2 (`validate_closed`) takes no band, is generic over `Real`, and gates construction state. The predicate's curved arms read margins and can come back undecided.
+  - **Measured by the lane** (main 8115891c9, a timer inside the at-rest gate over the full `ci` suite, 52067 bodies):
+    - `joinable_vertices` costs 1.29% of gate time: 39 µs at p50 and 315 µs at p99 per body.
+    - 344 at-rest bodies, in 149 tests over 80 files, hold joinable vertices; 2 read in band (`halfcap_pole`), and 11 already fail the gate.
+    - The heaviest files are `split_through_a_ruling` (26), `review_3701_probes` (17), `fillet_h5_hostless_rim` (15), `closed_chain_junctions` (13) and `props_sphere_cap_door` (11). Most are outputs of split, fillet/blend, shell and surgery, or hand-built fixtures. Boolean outputs are not among them.
+  - **Measured by the designers** (STEP fixtures):
+    - 13 of 61 imported solids hold joinable vertices: the band and washer fixtures, the split twins, two wild files, and `composed_die` with 21. Two more (`halfcap_eps6/7`) read in band.
+    - The band and washer cases are probably import-made: import's seam re-mint leaves the file's rim vertex at valence 2.
+  - **Designer pair (fork-log row 88).** Three rounds; the blinding byte was drawn late, at PR time.
+    - Round 1 split: at rest (tier 3) against op-door postconditions.
+    - Round 2 crossed.
+    - Round 3 converged on at rest, with every finisher, import included, joining and an in-band reading exempt. The question both named beneath: a joinable vertex is representation (a mark), not a cell, by the station and conventional-vertex rulings.
+  - **Defects named, to file when the unit runs:**
+    - `fillet_edges` (and split, shell and surgery) ship joinable vertices;
+    - `join_stage` is `pub(super)`;
+    - the public merge door doesn't join;
+    - import's band re-mint leaves a valence-2 rim vertex;
+    - `run_walls_built.rs`'s hand assertion becomes redundant.
+  - **The 344 classified by the lane** (attributed by test, signature and stack; kept locally):
+    - **(a) Door outputs with no join: 298.**
+      - Fillet/blend surgery: 204, mostly two `TangentIntersection` circles, i.e. blend rims left as arcs.
+      - Split: 56.
+      - Shell: 22, chart-seam rulings split at a vertex.
+      - Import: 15.
+      - The public merge door: 1.
+    - **(b) Hand-built construction-state fixtures: 46.** These include 11 that already fail tier 3.
+    - **(c) The predicate misreading: 0.** `composed_die`'s 21 vertices are real split blend rims, not a slit-seam end. The only in-band case is `halfcap_pole`'s 2 bodies.
+- 2026-10-07 — Curved-join lane: the naming half is split out.
+  - **Finding:** no editor-core document produces a closed join
+    today. The one construction that would (a sphere cut-in:
+    lens ∩ tilted brick) already fails emit on main with
+    `Naming(MissingUpstream)` at the cap node, with curved joins
+    disabled too, so the failure predates this lane.
+  - **Ruled (orchestrator):** the PR lands without the edge-derived
+    name. "No identity" holds by refusal instead: name minting at a
+    conventional vertex refuses typed and never mints a member- or
+    position-citing name. The ranking skips and the order-row helper
+    come along only if they need no new vocabulary.
+  - **Filed rows:** one FUSE row for the name, the new RoleSeg and the
+    six-order document witness, blocked on an EMIT issue row for the
+    `MissingUpstream` failure.
+- 2026-10-07 — PR 4233 lands: the curved join.
+  - **What it builds:** one joinable predicate; closed joins with a
+    conventional vertex; records and census at that vertex. Naming it
+    refuses typed, and the edge-derived name is filed behind EMIT's
+    `MissingUpstream` row.
+  - **Review:** dual. Lane A (ruling) found the curved name was a
+    second spelling of the flush rule and could read the vertex's
+    position. Lane B (correctness) found nothing blocking; two mutants
+    of the conventional predicate survived. Both were fixed, and a
+    delta re-review checked them.
+  - **Rulings:**
+    - later cuts reuse the vertex; lane B showed a literal
+      edge-interior split would refuse;
+    - the names README's closed-edge sentence lands as Ev's 4198 ruling
+      applied, quoted in the PR body for Ev.
+  - **Rows:** `curved-joinable-vertices-are-left-unjoined` closes, and
+    seven residue rows were filed. Step 3 (the tier-2 check) is next.
+- 2026-10-08 — Ev rules on PR 4251.
+  - **Decision 1, as recommended:** "no joinable vertex" is a tier-3 arm at rest, and every finisher, import included, joins.
+  - **Decision 2, overruled:** a sliver-band regularity reading refuses at rest, with the tighten-the-tolerance recourse, rather than being exempt.
+  - **Ev's two questions on the way:**
+    - Which band? The sliver band.
+    - Is the case a STEP import or broken geometry? A STEP import whose ε_in (1e-10 m) is finer than the run's ε, so ε_in snapping, once built, cannot resolve it.
+  - **Rows:** fork-log row 88 is filled in. The step-3 unit is dispatched.
+- 2026-10-08 — Step 3 is split into four PRs, approved by the orchestrator. Each gets a dual review.
+  - **A:** the public join door, one boolean finishing function, the merge door and offset joining, and the dual gate taking a band.
+  - **B:** split and shell join.
+  - **C:** blend surgery joins (the 204 bodies).
+  - **D:** import joins, the tier-3 `JoinableVertexAtRest` arm and the sliver refusal. It lands last.
+  - **Naming, ruled as the 3881 step-4 rule applied.** A door's joined edge is named over the door's **input** cells, never over transient pieces:
+    - covering one input edge whole, it takes that edge's name;
+    - lying within one input edge, it is a piece of it;
+    - spanning several input edges, it is their flat set.
+  - **When the lane stops instead.** A joined edge with no reading in input cells stops as a naming fork.
+- 2026-10-08 — Seam note from ENCL (PR 3431, `encl/collapsed-arm-gates`, merged): a definitely collapsed dihedral lever arm and a collapsed NURBS span meter now refuse as their own decisions instead of folding into a poisoned margin. `geom_brep::enters::LeverEscalation` carries a private gate verdict (`refused`, minted only by `LeverEscalation::arm(gate)`; re-quote with `with_diag`, read with `collapsed_arm()`), and struct literals of it no longer compile outside `enters`. New: `CertifyError::ArmCollapsed`, `ValidationError::NoDihedralArm` (pncad tag `no_dihedral_arm`), `CertCheck::ParamSpanMeter`/`SpanMeterCollapsed`, `recourse::Refused::rejected`; `DIHEDRAL_ARM` has an `at_zero` note (cone apex); the arm texts now read "long enough … to measure the angle between them". `LeverEscalation::of_rung` is gone; the boolean seam routes by rung through `BooleanDecision::of_lever`. (ENCL orchestrator)
+- 2026-10-09 — PR 4373 (D) lands, so step 3 is built and `a-finished-body-holds-no-joinable-vertex` closes.
+  - **What D builds:**
+    - import ends with the join and reports it as a `StructureNormalization`;
+    - tier-3 check 11, `JoinableVertexAtRest`, with the undecided arm `JoinUndecidedAtRest` refusing as ruled;
+    - the dual gate takes a band;
+    - `gate_unverdicted` reads check 11, so a hand-split dual operand refuses typed `UnjoinedOperand` at fillet, chamfer, split and union.
+  - **Review:** dual.
+    - Lane A (Opus) found four blockers. The dual operand gate lacked check 11, and a probe showed a hand-split `Body<Dual64>` passed it into a union. The other three: stale tier-3 docs, a dead-arms row without priority and cost, and dropped `shell7_seam_corner` assertions.
+    - Lane B (Fable) found nothing blocking. Its probe found 0 door outputs holding a joinable vertex and 0 at-rest findings passed by a gate; check 11 costs 3.15% of the tier-3 battery. Two mutants survived, and both now have witnesses: the undecided arm turned to pass (the cleave row now pins it), and the dual result gate's check 11 (an in-gate row; the dead-arms issue records that no output reaches it).
+  - **Main breaks on the way:**
+    - census.rs: #4363 and #4372 crossed. #4381 fixed it on main. FUSE's #4379 was closed in favour of #4378, which carries the same fix.
+    - the offset_fit endpoint census, since #4367. D ported #4378's row.
+  - **Step 3 of the 3881 build order is done.** Steps 1, 2 and 4 landed earlier.
+- 2026-10-09 — `demo-tour-red-on-main-after-blend-surgery-closing-join` closes. PR 4374 re-baselined the tour's die and teapot pins for C's closing join, #4374's demos (tour + wild) job ran green, and the teapot row passes on main.
+- 2026-10-09 — `a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made` closes now that the 3881 build order (steps 1–4) is built. Its residue is named on the row: EMIT's refusing orders, conventional-vertex naming, and the curved-join arms.
+- 2026-10-09 — The twelve unpriced residue rows from step 3's lanes are priced.
+  - **P1, verb breadth:** curved edge resting on a face (H, design); sliver arc beside a joinable vertex (M, design); census curved lanes beyond circles (H); chart arm on spline iso images (H); spline-carrier join (H).
+  - **P3, guards and latent soundness:** corner on a circle's interior unseen; join re-mint refusing as a kernel defect (design); mirrored split that joins; split join killing a child; wrap-edge arm; chart singularity read by distance alone (design).
+  - **P4:** the joined finisher minting twice.
+- 2026-10-09 — `fused-into-names-vertices-not-live-in-the-result` is dispatched to the step-3 lane on `fuse/fused-into-is-live`. It re-measures on main first, since the join is a new vertex remover, then fixes at the remover.
+- 2026-10-09 — Seam note from ENCL (PR 4366, merged): `geom_brep::enters::LeverEscalation`'s `rung` and `diag` are private; read them with `rung()`/`diag()`, re-quote only through `with_diag`, which keeps the gate's verdict. `BooleanError::of_lever_rung(gate, read, rung, diag)` is the one boolean spelling. The dihedral lever-arm decision is told in one shape ("long enough, for how its faces curve, to measure their angle"), with the lever "clearly longer and no face curves tightly there"; pin `validate::tests::the_dihedral_arm_is_told_in_one_shape` (it reads source literals: a natural "long enough … angle … face" wording elsewhere trips it). (ENCL orchestrator)
+- 2026-10-09 — (ENCL, PR 4366) Your ground: `merge_faces.rs` `KeptBoundaryUndecided` now ends through `DIHEDRAL_ARM`'s recourse. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4401, merged): `LeverEscalation::with_diag` is gone. The one re-quote door is `quoting_reading`; ask `re_quotes()` first. A decided arm keeps its verdict only onto a reading of the same rejected sign, and otherwise is returned unchanged. The dihedral arm clause is `geom_brep::DIHEDRAL_ARM_CLAUSE` / `dihedral_arm_clause!()`; compose it, never re-spell it. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4411, merged): `geom_brep::must_carry_over_edge` now reads the second-order sagitta on every pair (tier 3's walk), so an in-band sagitta escalates `InBand(SecondOrder)` out of lane too; `UnderDetermined` out of lane means every station read Positive (or a station read Zero/Negative). An out-of-lane all-Positive pair now costs `CERT_SAMPLES−2` `tangent_second_order` samples. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4416, merged): `geom_core::lever_recourse(lever, note)` is the one spelling of a lever-alone ending, and `Indeterminate::undecided(subject, ending)` the one "{subject} is undecided: {payload}. {ending}"; compose them, do not re-spell. In `topo::boolean::refusal_routes`, `Ending::Lever` is now `Lever(&str)` (`LeverPass` is gone). Rendered texts are unchanged. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4422, merged): `geom_brep::recourse::RefusedArm::SignCertain` now takes `Option<MarginDiag>`; construct with `SignCertain(None)` unless the decision is a residual miss, and match with `SignCertain(_)`. `certify::definite_miss_in_file` / `Unsized::definite_residual_in_file` are gone; `Unsized::residual_in_file` is the one door. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL: dispatching `encl/sweep-must-carry-escalation`. `sweep::blend::surgery`'s contact-edge, `sweep::extrude` (strut, cap rim) and `sweep::revolve::upgrade` will map `MustCarryEscalation` exhaustively instead of `.diag()`. The blend's second-order reading gets its `AnySign` tolerance ending back, and a first-order station stops reading as `ContactSecondOrder`. Texts may move on in-band must-carry refusals. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4450, merged at `59cdb05871`). `topo::DihedralReading::of_lever` / `of_must_carry` are the one map from a dihedral escalation to a reading; use them, not `(Lever(e.rung()), e.diag())` by hand. `sweep::blend` has two new closed decisions, `ContactArm` and `ContactWedge`, and `ContactSecondOrder` now offers the tolerance (`AnySign`). `ExtrudeError`/`RevolveError` `SliverJoin`/`SliverRim` now carry `reading: DihedralReading`, and their second-order text reads through `Indeterminate::undecided`. The editor-core fault line for `Escalated(contact)` is exactly at the 75-word budget. (ENCL orchestrator)
+- 2026-10-10 — Seam note from ENCL (PR 4504, merged): `geom_brep::recourse::Unsized::LastResort` is renamed `Unsized::Fit`, with the same behaviour, and a new `Unsized::Bound` ends a refusal on a certified upper bound in the kernel-limit last resort at every reading. At the import door, `MissReading::Bound` names the bound. `CertCheck::bounds_a_miss()` answers whether a check is a bound. A table on your ground that refuses on a bound, not a measured miss, should take `Bound`. (ENCL orchestrator)

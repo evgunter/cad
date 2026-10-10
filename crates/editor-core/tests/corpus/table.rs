@@ -90,7 +90,7 @@ pub fn document() -> CorpusDoc {
         vec![vec![(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (0.0, 3.0)]],
     );
     let top = r.insert(Node::Extrude {
-        profile: top_profile,
+        profile: top_profile.into(),
         distance: len(0.25),
         side: ExtrudeSide::Along,
     });
@@ -106,7 +106,7 @@ pub fn document() -> CorpusDoc {
             vec![poly.to_vec()],
         );
         let ext = r.insert(Node::Extrude {
-            profile: prof,
+            profile: prof.into(),
             distance: len(1.125),
             side: ExtrudeSide::Along,
         });
@@ -154,13 +154,15 @@ pub fn document() -> CorpusDoc {
         }
         let uni = r.insert(Node::Boolean {
             op: BooleanOp::Union,
-            a: acc,
-            b: ext,
+            a: acc.into(),
+            b: ext.into(),
             declare: declared_pairs(&findings),
         });
         acc = uni;
         prior = Some(ev);
     }
+    r.place(acc);
+
     CorpusDoc {
         name: "corner_table",
         about: "corner-aligned four-leg table (declared flush contacts)",
@@ -174,7 +176,8 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: first_leg,
             slot: SlotId::Distance,
-            expr: len(1.0625),
+            value: len(1.0625).into(),
+            fresh: Vec::new(),
         },
         bump_root: first_leg,
     }

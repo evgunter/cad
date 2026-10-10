@@ -74,6 +74,7 @@ pub fn node_kind<P>(node: &Node<P>) -> &'static str {
         },
         Node::Union { .. } => "union",
         Node::Transform { .. } => "transform",
+        Node::PlaceInWorld { .. } => "place_in_world",
         Node::Pattern { .. } => "pattern",
         Node::Part { .. } => "part",
         Node::PlacedUnion { .. } => "placed_union",

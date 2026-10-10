@@ -104,8 +104,8 @@
 
 use pncad::document::ExtrudeSide;
 use pncad::document::{
-    AssertionDir, CancelToken, Datum, Dimension, Distribution, DocEdit, DocumentId, EvalOptions,
-    Evaluation, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ProfileDoc,
+    AssertionRelation, CancelToken, Datum, Dimension, Distribution, DocEdit, DocumentId,
+    EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc,
     ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
 };
 use pncad::geom::Surface;
@@ -305,6 +305,7 @@ fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
         doc,
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         tol,
         &RefusingReach,
@@ -404,7 +405,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     let bar_profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![
                 LoopProgram::polygon([(0.0, -h), (LINK_LENGTH, -h), (LINK_LENGTH, h), (0.0, h)])
                     .expect("finite bar corners"),
@@ -416,7 +417,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     let bar = insert(
         &mut doc,
         Node::Extrude {
-            profile: bar_profile,
+            profile: bar_profile.into(),
             distance: len(LINK_THICKNESS),
             side: ExtrudeSide::Along,
         },
@@ -426,7 +427,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         let profile = insert(
             doc,
             Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![LoopProgram::Circle {
                     centre: [len(x), len(0.0)],
                     radius: len(PIN_RADIUS),
@@ -438,7 +439,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         insert(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(LINK_THICKNESS),
                 side: ExtrudeSide::Along,
             },
@@ -481,6 +482,13 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         .map(|k| place(&mut doc, k, base_pin, tol))
         .collect();
     pins.push(place(&mut doc, links, tip_pin, tol));
+    // The mechanism is the world: every placed bar and pin, one copy
+    // each, base first.
+    for &body in bars.iter().chain(&pins) {
+        doc = apply(&doc, &DocEdit::place(body, None), tol, &RefusingReach)
+            .expect("a placed link places")
+            .doc;
+    }
 
     // The target: the mating pin at the chain's nominal tip, fixed.
     let target = pin_at(&mut doc, links as f64 * LINK_LENGTH, tol);
@@ -521,26 +529,22 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     // their AXIS distance (its own contract), and both axes are `+z`,
     // so this is the tip pin's in-plane deviation from where the
     // drawing says it goes — no author's arithmetic on top of it.
-    let position = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
     // The two references are read BEFORE the insert borrows the
     // document mutably — the borrow checker's way of saying that a
     // measure's references are resolved against a document that
     // already exists.
-    let refs = vec![
-        wall(*pins.last().expect("a chain has a tip pin")),
-        wall(target),
-    ];
-    let measure = insert(
-        &mut doc,
-        Node::measure(position, refs).expect("both indices in range"),
-        tol,
-    );
+    let position = MeasurePrimitive::Distance {
+        a: wall(*pins.last().expect("a chain has a tip pin")),
+        b: wall(target),
+    };
+    let measure = insert(&mut doc, Node::measure(&position), tol);
+    let position = doc.output(measure, 0).expect("a measure defines its value");
     let assertion = insert(
         &mut doc,
         Node::Assertion {
-            measure,
+            value: Formula::var(position, Dimension::Length),
             bound: len(bound),
-            dir: AssertionDir::AtMost,
+            relation: AssertionRelation::AtMost,
         },
         tol,
     );

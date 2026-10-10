@@ -164,9 +164,10 @@ fn a_slab_across_a_minted_boss_leaves_its_walls_minted_whole_at_the_join() {
         .body
         .clone();
     let slab = brick((0.0, 3.0), (0.0, 3.0), (1.0, 1.15), tol());
-    let (a, _) = boolean_through_the_join(BooleanOp::Union, &first, &slab, tol())
-        .expect("the pipeline reaches its join")
-        .expect("the slab joins");
+    let topo::test_support::JoinedOperands { a, .. } =
+        boolean_through_the_join(BooleanOp::Union, &first, &slab, tol())
+            .expect("the pipeline reaches its join")
+            .expect("the slab joins");
     let minted = every_minted_face_is_the_passs(&a, "the bossed plate");
     assert!(minted >= 6, "every cut boss wall is minted: {minted}");
 }

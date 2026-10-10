@@ -281,7 +281,7 @@ fn verb_words_appear_only_where_a_disposition_covers_them() {
 #[test]
 fn a_nonpositive_radius_fillet_refuses_as_invalid_input() {
     let t = Tol::witness();
-    let body = cube(1.0, t);
+    let body = sweep::test_support::finished("body", cube(1.0, t), t);
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     for radius in [0.0, -0.1, f64::NAN] {
         let err = fillet_edges(&body, &edges, radius, t)

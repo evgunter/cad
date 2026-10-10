@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-02
 priority: P1
 cost: E
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -68,3 +68,7 @@ Make the candidate generation require the pair's regions to meet
 `Continuation` or a contact. When it lands, `projectbox`'s census in
 `demos/tour/src/booleans.rs` (`consumer_census`) drops from
 4 Rest + 6 Continuation to 4 Rest; re-pin it there.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: find_flush_candidates and rest.rs carrier_pair_verdict generate declaration offers; at stage 4 found coincidences go to the one door and the lint. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

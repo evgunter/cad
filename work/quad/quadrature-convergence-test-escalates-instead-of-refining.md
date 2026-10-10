@@ -216,3 +216,16 @@ The same sweep over an extruded rod (r 1, z ∈ [0, 1]), cut by planes
 touching either rim, splits at every pose. At each row, 6 to 15 of its
 192 poses per rim fail `mass_properties` the same two ways. Most are
 `QuadratureBudget`, with the width 1.1 to 7.6× the target.
+
+## 2026-10-09 — the lily's instance is gone (NURBS, PR 4438)
+
+`lily_leaf_b` now measures at the default ε: `V = 0.003134 m³` with
+certified half-width `5.6e-8` at degree 2, and `8.0e-8` at the cubic
+degree the leaves now take. PR 4438 changed the domain grid's
+clearance to `2⁻⁸` of the grid spacing, so the props lanes no longer
+mint a narrow cell beside a knot that lies within a hair of a
+refinement point. That retired wall 17 (`LEAF_B_VOLUME_WALL`, which no
+longer exists) and the `VolumeWall` machinery in `demos/tour`. The
+mechanism this row names, an in-band convergence test escalating
+instead of refining, is untouched. The CLEAVE instances above are not
+re-measured, so the row stays open.

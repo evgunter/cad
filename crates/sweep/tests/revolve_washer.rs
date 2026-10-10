@@ -92,7 +92,7 @@ fn washer_full_revolve_is_genus_one_and_tier_valid() {
             (Some(e), false) => {
                 let c = chart_image(&t.body, *e);
                 assert!(
-                    c.seam && !authority(&t.body, *e).is_declared(),
+                    c.wrap && !authority(&t.body, *e).is_declared(),
                     "a cylinder's meridian is its chart's derived seam"
                 );
                 seams += 1;

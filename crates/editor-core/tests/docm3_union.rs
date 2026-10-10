@@ -7,7 +7,6 @@
 use crate::fixture;
 use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
-use editor_core::Formula;
 
 use crate::corpus::body_of;
 use editor_core::{
@@ -46,7 +45,7 @@ fn cube(doc: ProfileDoc, x0: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -154,8 +153,8 @@ fn the_fold_and_the_pairwise_chain_are_the_same_body() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: boxes[0],
-            b: boxes[1],
+            a: boxes[0].into(),
+            b: boxes[1].into(),
             declare: Vec::new(),
         },
     );
@@ -163,8 +162,8 @@ fn the_fold_and_the_pairwise_chain_are_the_same_body() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: ab,
-            b: boxes[2],
+            a: ab.into(),
+            b: boxes[2].into(),
             declare: Vec::new(),
         },
     );
@@ -222,8 +221,9 @@ fn the_fold_and_the_pairwise_chain_are_the_same_body() {
 // ---------------------------------------------------------------------
 
 /// **A node's inputs are pairwise distinct**, refused at the INSERT
-/// door for every shape that can repeat one: the pair boolean, the
-/// n-ary union's list, and the split.
+/// door for every shape that can repeat one: the pair boolean and the
+/// n-ary union's list. (A split's target and tool read different
+/// kinds, so one read in both is refused by kind first.)
 #[test]
 fn insert_refuses_a_node_that_takes_one_input_twice() {
     let (doc, boxes, _) = three_boxes([0, 1, 2]);
@@ -231,21 +231,21 @@ fn insert_refuses_a_node_that_takes_one_input_twice() {
     let shapes: Vec<AuthoredNode> = vec![
         Node::Boolean {
             op: BooleanOp::Union,
-            a: x,
-            b: x,
+            a: x.into(),
+            b: x.into(),
             declare: Vec::new(),
         },
         Node::Union {
-            members: vec![x, x],
+            members: vec![x.into(), x.into()],
             declare: Vec::new(),
         },
-        Node::Split { target: x, tool: x },
     ];
     for node in shapes {
         let err = doc
             .apply(
                 &DocEdit::InsertNode {
                     node: Box::new(node.clone()),
+                    fresh: Vec::new(),
                 },
                 Tol::witness(),
                 &editor_core::RefusingReach,
@@ -267,7 +267,7 @@ fn set_members_refuses_a_duplicate_member() {
         .apply(
             &DocEdit::SetMembers {
                 node: u,
-                members: vec![boxes[0], boxes[1], boxes[0]],
+                members: vec![boxes[0].into(), boxes[1].into(), boxes[0].into()],
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -305,8 +305,14 @@ fn a_snapshot_carrying_a_refused_node_does_not_load() {
         editor_core::persist::load(&tampered, tol)
     };
     // A repeated member in the union's list.
-    let err = corrupt(format!("{},{},{}", boxes[0].0, boxes[1].0, boxes[0].0))
-        .expect_err("a duplicate member must refuse");
+    let read = |node| doc.output(node, 0).expect("a box defines its body").0;
+    let err = corrupt(format!(
+        "\"{}\",\"{}\",\"{}\"",
+        read(boxes[0]),
+        read(boxes[1]),
+        read(boxes[0])
+    ))
+    .expect_err("a duplicate member must refuse");
     let said = format!("{err}");
     let editor_core::PersistError::Snapshot(editor_core::SnapshotError::DuplicateInput {
         node,
@@ -318,12 +324,16 @@ fn a_snapshot_carrying_a_refused_node_does_not_load() {
     assert_eq!((node, input), (&doc.spoken(u), &doc.spoken(boxes[0])));
     assert!(
         said.contains("pairwise distinct")
-            && said.contains(&format!("Union {}: ", test_utils::refusal::tag(u.0)))
+            && said.contains(&format!(
+                "Union {}: ",
+                test_utils::refusal::tag(u.0.digest())
+            ))
             && said.contains(&format!("{input} is taken as an input twice")),
         "{said}"
     );
     // And a list left under two.
-    let err = corrupt(format!("{}", boxes[0].0)).expect_err("a one-member union must refuse");
+    let err =
+        corrupt(format!("\"{}\"", read(boxes[0]))).expect_err("a one-member union must refuse");
     let said = format!("{err}");
     assert!(said.contains("two or more"), "{said}");
 }
@@ -340,8 +350,8 @@ fn set_members_refuses_a_node_with_no_list_input() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: boxes[0],
-            b: boxes[1],
+            a: boxes[0].into(),
+            b: boxes[1].into(),
             declare: Vec::new(),
         },
     );
@@ -349,7 +359,7 @@ fn set_members_refuses_a_node_with_no_list_input() {
         .apply(
             &DocEdit::SetMembers {
                 node: pair,
-                members: vec![boxes[0], boxes[2]],
+                members: vec![boxes[0].into(), boxes[2].into()],
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -365,12 +375,12 @@ fn set_members_refuses_a_node_with_no_list_input() {
 #[test]
 fn set_members_refuses_a_member_that_is_not_live() {
     let (doc, boxes, u) = three_boxes([0, 1, 2]);
-    let ghost = RecipeNodeId(9999);
+    let ghost = RecipeNodeId::new(0, 9999);
     let err = doc
         .apply(
             &DocEdit::SetMembers {
                 node: u,
-                members: vec![boxes[0], ghost],
+                members: vec![boxes[0].into(), ghost.into()],
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -391,8 +401,8 @@ fn set_members_refuses_a_cycle() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: u,
-            b: boxes[0],
+            a: u.into(),
+            b: boxes[0].into(),
             declare: Vec::new(),
         },
     );
@@ -400,7 +410,7 @@ fn set_members_refuses_a_cycle() {
         .apply(
             &DocEdit::SetMembers {
                 node: u,
-                members: vec![boxes[1], downstream],
+                members: vec![boxes[1].into(), downstream.into()],
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -417,7 +427,7 @@ fn set_members_refuses_fewer_than_two() {
         .apply(
             &DocEdit::SetMembers {
                 node: u,
-                members: vec![boxes[0]],
+                members: vec![boxes[0].into()],
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -438,17 +448,19 @@ fn a_union_and_a_set_members_replay_bit_identically() {
     let (doc, boxes, u) = three_boxes([0, 1, 2]);
     let empty = ProfileDoc::empty_derived("docm3_union", tol);
     let mut edits: Vec<DocEdit<editor_core::ProfileProgram>> = doc
-        .order()
+        .ids()
         .iter()
         .map(|id| DocEdit::InsertNode {
             node: Box::new(crate::fixture::as_authored(
+                &doc,
                 doc.node(*id).expect("an ordered node"),
             )),
+            fresh: Vec::new(),
         })
         .collect();
     edits.push(DocEdit::SetMembers {
         node: u,
-        members: vec![boxes[2], boxes[0]],
+        members: vec![boxes[2].into(), boxes[0].into()],
     });
     edits.push(DocEdit::DeleteNode { id: boxes[1] });
     let mut replayed = empty.clone();
@@ -470,7 +482,16 @@ fn a_union_and_a_set_members_replay_bit_identically() {
     let Some(Node::Union { members, .. }) = loaded.doc.node(u) else {
         panic!("the union survived as something else")
     };
-    assert_eq!(members, &vec![boxes[2], boxes[0]]);
+    let members: Vec<RecipeNodeId> = members
+        .iter()
+        .map(|&m| {
+            loaded
+                .doc
+                .operation_of(m)
+                .expect("a member reads a live output")
+        })
+        .collect();
+    assert_eq!(members, vec![boxes[2], boxes[0]]);
 }
 
 /// Dropping a member leaves every OTHER member's names untouched —
@@ -488,7 +509,7 @@ fn dropping_a_member_leaves_the_others_names_alone() {
         .apply(
             &DocEdit::SetMembers {
                 node: u,
-                members: vec![boxes[1], boxes[2]],
+                members: vec![boxes[1].into(), boxes[2].into()],
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -553,7 +574,7 @@ fn two_placements_of_one_prototype_are_two_members() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: vec![left, right],
+            members: vec![left.into(), right.into()],
             declare: Vec::new(),
         },
     );
@@ -609,7 +630,7 @@ fn two_placements_of_one_prototype_are_two_members() {
 /// `SetMembers`, delete the orphaned transform, and re-evaluate with
 /// the previous evaluation as `prior`. Both fillets must still
 /// evaluate `Ok`, with two fewer rim arcs selected (a pip contributes
-/// two rim edges) and no `BlendSelectionResolve` anywhere.
+/// two rim edges) and no `SelectResolve` anywhere.
 ///
 /// Under the pairwise chain this replaces the row goes red for every
 /// pip but the last: a chain records join DEPTH in each name, so
@@ -621,7 +642,7 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
     let die = crate::corpus::die_composed_tour::document();
     let doc = die.doc;
     let union = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|id| matches!(doc.node(*id), Some(Node::Union { .. })))
@@ -629,22 +650,42 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
     let Some(Node::Union { members, .. }) = doc.node(union) else {
         panic!("the union is a union")
     };
-    let members = members.clone();
-    assert_eq!(members.len(), 21, "the die has 21 pips");
-    let blends: Vec<RecipeNodeId> = doc
-        .order()
+    let members: Vec<RecipeNodeId> = members
         .iter()
-        .copied()
-        .filter(|id| matches!(doc.node(*id), Some(Node::Fillet { .. })))
+        .map(|&m| doc.operation_of(m).expect("a member reads a live output"))
         .collect();
-    assert_eq!(blends.len(), 2, "the box-edge blend and the rim blend");
+    assert_eq!(members.len(), 21, "the die has 21 pips");
+    // The die is what the world places: the rim blend, over the
+    // box-edge blend.
+    let rim_blend = match doc.placements().as_slice() {
+        [placement] => match doc.node(*placement) {
+            Some(Node::PlaceInWorld { body, .. }) => doc
+                .operation_of(*body)
+                .expect("the placement reads the die"),
+            other => panic!("a placement, got {other:?}"),
+        },
+        other => panic!("the tour places the die alone, got {other:?}"),
+    };
+    let box_blend = match doc.node(rim_blend) {
+        Some(Node::Fillet { selection, .. }) => {
+            doc.read_operation(*selection).expect("a live target")
+        }
+        other => panic!("the die is its rim blend, got {other:?}"),
+    };
+    assert!(
+        matches!(doc.node(box_blend), Some(Node::Fillet { .. })),
+        "the rim blend's target is the box-edge blend"
+    );
+    let blends = [box_blend, rim_blend];
     let before = run(&doc);
-    let (rim_target, rim_radius, rims) = match doc.node(blends[1]) {
+    // The radius as written: deleting the blend retires the anonymous
+    // variable its radius reads, so the re-authored blend writes it
+    // again.
+    let (rim_target, rim_radius, rims) = match doc.node(blends[1]).map(|n| n.written(&doc)) {
         Some(Node::Fillet {
-            target,
             radius,
-            selection,
-        }) => (*target, radius.clone(), selection.clone()),
+            selection: editor_core::Operand::Select { body, names },
+        }) => (*body, radius, names),
         other => panic!("the die's last node is the rim blend, got {other:?}"),
     };
     assert_eq!(rims.len(), 42, "the die selects two rim arcs per pip");
@@ -659,7 +700,7 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
             .apply(
                 &DocEdit::SetMembers {
                     node: union,
-                    members: kept,
+                    members: kept.into_iter().map(Into::into).collect(),
                 },
                 tol,
                 &editor_core::RefusingReach,
@@ -717,7 +758,7 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
             .doc;
         let (edited, rim) = insert(
             edited,
-            Node::fillet(rim_target, Formula::from(&rim_radius), kept_rims.clone()),
+            Node::fillet(rim_target.clone(), rim_radius.clone(), kept_rims.clone()),
         );
         let after = evaluate::<f64>(
             &edited,
@@ -748,7 +789,7 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
         // The selections are FROZEN, so they still name every edge they
         // named — including the two rim arcs of the pip that is gone,
         // which the blend now resolves against a body that no longer
-        // has them. That is what `BlendSelectionResolve` would say, and
+        // has them. That is what `SelectResolve` would say, and
         // the assertions above are that it does not.
     }
 }
@@ -771,7 +812,7 @@ fn the_dies_union_is_the_chain_it_replaced() {
     let die = crate::corpus::die_composed_tour::document();
     let doc = die.doc;
     let union = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|id| matches!(doc.node(*id), Some(Node::Union { .. })))
@@ -779,7 +820,10 @@ fn the_dies_union_is_the_chain_it_replaced() {
     let Some(Node::Union { members, .. }) = doc.node(union) else {
         panic!("the union is a union")
     };
-    let members = members.clone();
+    let members: Vec<RecipeNodeId> = members
+        .iter()
+        .map(|&m| doc.operation_of(m).expect("a member reads a live output"))
+        .collect();
     // The chain this replaced, re-authored over the same members.
     let (doc, chain) = members.iter().skip(1).fold(
         (doc, members[0]),
@@ -788,8 +832,8 @@ fn the_dies_union_is_the_chain_it_replaced() {
                 doc,
                 Node::Boolean {
                     op: BooleanOp::Union,
-                    a: acc,
-                    b: *pip,
+                    a: acc.into(),
+                    b: (*pip).into(),
                     declare: Vec::new(),
                 },
             )
@@ -859,7 +903,7 @@ fn the_dies_union_is_the_chain_it_replaced() {
 /// How many names a blend node's selection carries.
 fn selection_len(doc: &editor_core::ProfileDoc, blend: RecipeNodeId) -> usize {
     match doc.node(blend) {
-        Some(Node::Fillet { selection, .. }) => selection.len(),
+        Some(Node::Fillet { selection, .. }) => crate::fixture::selected(doc, *selection).len(),
         other => panic!("expected a fillet, got {other:?}"),
     }
 }
@@ -902,10 +946,8 @@ fn a_union_is_one_body_at_an_operand_seat() {
 }
 
 // ---------------------------------------------------------------------
-// The refusal's name space. Adopted from `docm/3-review-r1`'s
-// `r1_refusal_from_a_later_fold_step_names_union_space_names`; R2's
-// `r2_a_refusal_at_a_later_fold_step_names_a_fold_row` measured the
-// same defect from the other side.
+// A later fold step against a flush member: what it glues and what
+// the union publishes.
 // ---------------------------------------------------------------------
 
 /// A box on a frame at height `z0`, footprint `[x0,x1]×[y0,y1]`.
@@ -926,7 +968,7 @@ fn boxed(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -940,88 +982,58 @@ fn failure(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<String> {
     }
 }
 
-/// **A refusal raised at a LATER fold step names entities in the
-/// union's published space**, not in the fold's internal one.
-///
-/// `refusal_menu` resolves the raise site's face keys through the two
-/// operand tables. From step 2 on the `a` side is the ACCUMULATED
-/// table — the pair emitter's, `FromA`/`FromB`-headed — so an
-/// unfiltered refusal carries a name minted under the union's id that
-/// NO published table holds: `resolve` cannot look it up and a selector
-/// written against it matches nothing. Every name a union's refusal
-/// carries goes through the same collapse `name_union` applies, so what
-/// comes out is member-keyed.
+/// **A union whose LATER fold step meets a flush member builds, as the
+/// pair boolean of the two members that touch does, and publishes only
+/// member-space names.**
 ///
 /// The third member shares member 0's `x = 1` plane over a patch member
-/// 1 does not cover, so step 2 raises `UndeclaredCoincidence` — and the
-/// PAIR spelling of that same contact refuses identically, which is
-/// what says the fold added no refusal, only a name space.
-///
-/// The recourse a caller whose members touch has is this node's own
-/// `declare` list, whose pairs are exactly what this refusal hands
-/// back: each side a `SitedRef` naming the MEMBER it was read at and
-/// the entity's name in that member's own table, which is a
-/// declaration the caller can write verbatim (`docm7_union_declare`).
+/// 1 does not cover, so step 2 folds a coincident pair against the
+/// ACCUMULATED operand, whose table is the pair emitter's,
+/// `FromA`/`FromB`-headed. The margins decide that pair one carrier, so
+/// the step glues it undeclared exactly as the pair spelling `a ∪ d`
+/// does; the union's published table carries no fold row; and declaring
+/// every finding the detector reports between the members builds the
+/// same body bit for bit.
 #[test]
-fn a_refusal_at_a_later_fold_step_names_member_space_entities() {
+fn a_later_fold_step_glues_a_flush_member_as_the_pair_does() {
     let doc = ProfileDoc::empty_derived("docm3_union_menu", Tol::witness());
     let (doc, a) = boxed(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = boxed(doc, (0.5, 1.5), (0.2, 0.8), 0.2, 0.5);
     let (doc, d) = boxed(doc, (1.0, 2.0), (0.0, 0.15), 0.0, 1.0);
-    let (doc, u) = insert(
-        doc,
+    let (bare, u) = insert(
+        doc.clone(),
         Node::Union {
-            members: vec![a, b, d],
+            members: vec![a.into(), b.into(), d.into()],
             declare: Vec::new(),
         },
     );
-    let (doc, pair) = insert(
-        doc,
+    let (bare, pair) = insert(
+        bare,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b: d,
+            a: a.into(),
+            b: d.into(),
             declare: Vec::new(),
         },
     );
-    let ev = run(&doc);
-    let pf = failure(&ev, pair).expect("the pair spelling refuses the undeclared contact");
-    let class = |id| ev.node_error(id).map(|e| e.kind.class());
-    assert_eq!(
-        class(pair),
-        Some(editor_core::NodeErrorClass::UndeclaredCoincidence),
-        "{pf}"
-    );
-    let uf = failure(&ev, u).expect("the fold refuses the undeclared contact at step 2");
-    assert_eq!(
-        class(u),
-        class(pair),
-        "the fold's refusal is the pair's, not a new class: {uf}"
-    );
-    // The whole point: no fold row survives into the refusal.
+    let ev = run(&bare);
+    assert_eq!(failure(&ev, pair), None, "the pair spelling builds");
+    assert_eq!(failure(&ev, u), None, "the fold builds through step 2");
+    let table = format!("{:?}", ev.value(u).expect("the union built").name_table);
     assert!(
-        !uf.contains("FromA(") && !uf.contains("FromB("),
-        "the fold's refusal names an uncollapsed fold row: {uf}"
+        !table.contains("FromA(") && !table.contains("FromB("),
+        "the union publishes an uncollapsed fold row: {table}"
     );
-    // And what it hands back is a declarable pair: each side sited at
-    // the member it was read at, named in that member's own table.
-    let Some(editor_core::NodeResult::Failed(e)) = ev.nodes.get(&u) else {
-        panic!("the fold refuses")
-    };
-    let editor_core::NodeErrorKind::UndeclaredCoincidence { finding, .. } = &e.kind else {
-        panic!("the fold's refusal is the undeclared contact: {uf}")
-    };
-    let sites = [finding.pair.0.at, finding.pair.1.at];
-    assert!(
-        sites.contains(&a) && sites.contains(&d),
-        "the refusal sites its two faces at the members that touch: {sites:?}"
+    let pairs = crate::fixture::findings_declared(&ev, &[a, b, d]);
+    assert!(!pairs.is_empty(), "the flush members have findings");
+    let (declared, du) = crate::fixture::union_over(doc, &[a, b, d], pairs);
+    let dev = run(&declared);
+    assert_eq!(failure(&dev, du), None, "the declared union builds");
+    assert_eq!(
+        crate::fixture::built_bits(&dev, du),
+        crate::fixture::built_bits(&ev, u),
+        "the declared union is the undeclared one's body"
     );
-    for r in [&finding.pair.0, &finding.pair.1] {
-        assert_eq!(
-            r.name.node, r.at,
-            "and names each in that member's own table, not in the union's"
-        );
-    }
 }
 
 // ---------------------------------------------------------------------
@@ -1053,7 +1065,7 @@ fn loft_doc() -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
     let (doc, loft) = insert(
         doc,
         Node::Loft {
-            profiles: profiles[..3].to_vec(),
+            profiles: profiles[..3].iter().copied().map(Into::into).collect(),
             v_degree: editor_core::Formula::count(2),
         },
     );
@@ -1076,9 +1088,10 @@ fn a_one_section_loft_is_refused_at_the_insert_door() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Loft {
-                    profiles: vec![profiles[0]],
+                    profiles: vec![profiles[0].into()],
                     v_degree: editor_core::Formula::count(1),
                 }),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -1141,15 +1154,15 @@ fn set_members_refuses_an_unknown_node() {
     let err = doc
         .apply(
             &DocEdit::SetMembers {
-                node: RecipeNodeId(9999),
-                members: vec![boxes[0], boxes[1]],
+                node: RecipeNodeId::new(0, 9999),
+                members: vec![boxes[0].into(), boxes[1].into()],
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .expect_err("a node the document does not hold cannot be re-membered");
     assert!(
-        matches!(&err, EditError::UnknownNode { id } if id.id() == RecipeNodeId(9999)),
+        matches!(&err, EditError::UnknownNode { id } if id.id() == RecipeNodeId::new(0, 9999)),
         "{err:?}"
     );
 }
@@ -1175,15 +1188,23 @@ fn list_input_and_set_list_input_agree_on_every_node_kind() {
     let mut seen: std::collections::BTreeSet<&'static str> = std::collections::BTreeSet::new();
     for corpus in crate::corpus::documents() {
         let doc = &corpus.doc;
-        for id in doc.order() {
-            let Some(node) = doc.node(*id) else { continue };
+        for id in doc.ids() {
+            let Some(node) = doc.node(id) else { continue };
             seen.insert(crate::corpus::node_kind(node));
             let has_list = node.list_input().is_some();
-            let members = node.list_input().map(<[RecipeNodeId]>::to_vec);
+            let members = node.list_input().map(|list| {
+                list.iter()
+                    .map(|&m| doc.operation_of(m).expect("a member reads a live output"))
+                    .collect::<Vec<RecipeNodeId>>()
+            });
             let outcome = doc.apply(
                 &DocEdit::SetMembers {
-                    node: *id,
-                    members: members.unwrap_or_else(|| doc.order()[..2].to_vec()),
+                    node: id,
+                    members: members
+                        .unwrap_or_else(|| doc.ids()[..2].to_vec())
+                        .into_iter()
+                        .map(Into::into)
+                        .collect(),
                 },
                 tol,
                 &editor_core::RefusingReach,
@@ -1204,62 +1225,5 @@ fn list_input_and_set_list_input_agree_on_every_node_kind() {
         seen.len() >= 15,
         "the corpus offered only {} node kinds to hold the two matches to",
         seen.len()
-    );
-}
-
-/// **`on_set_members`' ordering contract**, which the doc comment
-/// states and nothing measured: existing roots keep their ORDER, and
-/// nodes the rewrite orphaned join at the END in document order.
-///
-/// The edit moves the sink set in both directions at once — a member
-/// the new list dropped may have become a root, a member it added may
-/// have stopped being one — so the set is recomputed rather than
-/// spliced, and the recomputation has to be order-stable or a
-/// document's root list would shuffle under an unrelated edit.
-#[test]
-fn set_members_keeps_root_order_and_appends_orphans_last() {
-    let tol = Tol::witness();
-    // Two unions over four boxes, so the document has two roots; the
-    // second union is edited to drop a member, which orphans it.
-    let doc = ProfileDoc::empty_derived("docm3_union_roots", tol);
-    let (doc, a) = cube(doc, 0.0);
-    let (doc, b) = cube(doc, 2.0);
-    let (doc, c) = cube(doc, 4.0);
-    let (doc, d) = cube(doc, 6.0);
-    let (doc, first) = insert(
-        doc,
-        Node::Union {
-            members: vec![a, b],
-            declare: Vec::new(),
-        },
-    );
-    let (doc, second) = insert(
-        doc,
-        Node::Union {
-            members: vec![c, d],
-            declare: Vec::new(),
-        },
-    );
-    assert_eq!(
-        doc.roots(),
-        &[first, second],
-        "the two unions are the document's roots"
-    );
-    // Drop `d` from the second union and add nothing: `d` is orphaned.
-    let after = doc
-        .apply(
-            &DocEdit::SetMembers {
-                node: second,
-                members: vec![c, a],
-            },
-            tol,
-            &editor_core::RefusingReach,
-        )
-        .expect("re-membering the second union is a legal edit")
-        .doc;
-    assert_eq!(
-        after.roots(),
-        &[first, second, d],
-        "the existing roots keep their order and the orphan joins at the end"
     );
 }

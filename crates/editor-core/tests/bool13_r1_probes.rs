@@ -34,7 +34,7 @@ fn small() -> String {
     let (doc, _) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -220,7 +220,7 @@ fn a_positional_array_body_loads() {
     let arr = serde_json::json!([v["snapshot"], v["edits"]]);
     let text = join(&header, &arr);
     match load(&text, Tol::witness()) {
-        Ok(loaded) => assert_eq!(loaded.doc.order().len(), 3),
+        Ok(loaded) => assert_eq!(loaded.doc.ids().len(), 3),
         Err(e) => panic!("recorded expectation: a positional body loads; got {e:?}"),
     }
 }
@@ -390,39 +390,68 @@ fn the_unknown_variant_detail_lists_the_vocabulary_in_full() {
 /// than the break is the additive half, so this exemplar is written by
 /// today's writer and kept minimal: its node vocabulary is
 /// {Datum, Profile, Extrude} and nothing newer, so the row still says
-/// that a document lacking every later arm loads. Re-frozen again when
-/// a profile's steps gained minted ids (the program's `ids` and the
-/// document's step counter), the same kind of break, and again when the
-/// counter became the step mint's chain and log, again when node
-/// ids moved onto that mint, and again when an extrude's side became
-/// a required field.
+/// that a document lacking every later arm loads. It is re-frozen, by
+/// today's writer, at each such break: last when an operand became a read
+/// of a variable, so its table holds the three nodes' outputs and the
+/// profile and the extrude read the outputs before them, and the
+/// profile's operand field took its one name, `frame`.
 const OLDER_SHAPED: &str = concat!(
-    "id: 5705d8de0c4b9f14e73725e6a1030c11\n",
-    "{\"snapshot\":{\"id\":\"5705d8de0c4b9f14e73725e6a1030c11\",\"mint\":{\"chain\":\"cc6dde98e4",
-    "3cf05e54e95e58154e9db51456fc7826937bf8e98225949f7f68c4\",\"log\":[{\"step\":543127547",
-    "1832655693},{\"step\":6158057670549142566},{\"node\":11240919837605776152},{\"step\":1",
-    "2112871840740167342},{\"node\":14730674704444354654},{\"node\":16481222604345390933}",
-    ",{\"step\":17213631338936430399},{\"step\":17841264794356394216}]},\"nodes\":{\"1124091",
-    "9837605776152\":{\"Profile\":{\"plane\":16481222604345390933,\"loops\":[{\"Chain\":[{\"At\"",
-    ":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"d",
-    "im\":\"Length\",\"unit\":\"m\"}}]},{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\":\"L",
-    "ength\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"Lin",
-    "eTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"",
-    "value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":{\"Point\":[{\"Literal\":{\"value",
-    "\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":",
-    "\"m\"}}]}},{\"LineTo\":\"Start\"}]}],\"ids\":[[17841264794356394216,12112871840740167342",
-    ",5431275471832655693,17213631338936430399,6158057670549142566]]}},\"1473067470444",
-    "4354654\":{\"Extrude\":{\"profile\":11240919837605776152,\"distance\":{\"Literal\":{\"valu",
-    "e\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}},\"side\":\"along\"}},\"16481222604345390933\":{\"Dat",
-    "um\":{\"Frame\":{\"origin\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Li",
-    "teral\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"L",
-    "ength\",\"unit\":\"m\"}}],\"u\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"L",
-    "iteral\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"S",
-    "calar\",\"unit\":\"\"}}],\"v\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Li",
-    "teral\":{\"value\":1.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Sc",
-    "alar\",\"unit\":\"\"}}]}}}},\"order\":[16481222604345390933,11240919837605776152,147306",
-    "74704444354654],\"roots\":[14730674704444354654],\"vars\":{},\"epsilon\":1e-09,\"witne",
-    "sses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
+    "id: da925a30e31f7fdaa7044e3e5ba4ae17\n",
+    "{\"snapshot\":{\"id\":\"da925a30e31f7fdaa7044e3e5ba4ae17\",\"mint\":{\"chain\":\"5d28910d3b",
+    "2f6ef6b5465cd99f255ab6de869b2eaff65bc0cfc6200b45ffd778\",\"log\":[{\"var\":\"1:b639d84",
+    "4bab8e826\"},{\"var\":\"2:74af9d633a64b77a\"},{\"var\":\"3:fb5fef638c30912c\"},{\"var\":\"4:",
+    "ee1d73a8dc8f8ad6\"},{\"var\":\"5:f9047724cc168290\"},{\"var\":\"6:2fdd1f61b8b90439\"},{\"v",
+    "ar\":\"7:5cdde09d996c5c61\"},{\"var\":\"8:af949e9d2cd2d001\"},{\"var\":\"9:135249424cb8e0e",
+    "7\"},{\"node\":\"10:54a0180a83275575\"},{\"var\":\"11:7b9b7a031545bc84\"},{\"var\":\"12:aa1a",
+    "1f25549ff844\"},{\"var\":\"13:ce0b2c4bfce400e2\"},{\"var\":\"14:826a2b7c495117a7\"},{\"var",
+    "\":\"15:74ce4ff170398ca6\"},{\"var\":\"16:4b36daafb7685c2b\"},{\"var\":\"17:c9a0e5f82154ce",
+    "3e\"},{\"var\":\"18:73bc05541afded5a\"},{\"var\":\"19:e51d8c264d945b32\"},{\"node\":\"20:fe7",
+    "be5bb524c1ab3\"},{\"step\":\"21:9fe386cec8abaedb\"},{\"step\":\"22:3e2fb0ac72647b8e\"},{\"",
+    "step\":\"23:465379dd775c12be\"},{\"step\":\"24:0495217d37468ca6\"},{\"step\":\"25:f252c518",
+    "f0a50982\"},{\"var\":\"26:430f4189a776294e\"},{\"var\":\"27:ba3d8dce8cc42ae6\"},{\"node\":\"",
+    "28:431c72536b7ab1f8\"},{\"var\":\"29:5d28910d3b2f6ef6\"}]},\"nodes\":{\"10:54a0180a83275",
+    "575\":{\"Datum\":{\"Frame\":{\"origin\":[\"1:b639d844bab8e826\",\"2:74af9d633a64b77a\",\"3:f",
+    "b5fef638c30912c\"],\"u\":[\"4:ee1d73a8dc8f8ad6\",\"5:f9047724cc168290\",\"6:2fdd1f61b8b9",
+    "0439\"],\"v\":[\"7:5cdde09d996c5c61\",\"8:af949e9d2cd2d001\",\"9:135249424cb8e0e7\"]}}},\"",
+    "20:fe7be5bb524c1ab3\":{\"Profile\":{\"frame\":\"11:7b9b7a031545bc84\",\"loops\":[{\"Chain\"",
+    ":[{\"At\":[\"12:aa1a1f25549ff844\",\"13:ce0b2c4bfce400e2\"]},{\"LineTo\":{\"Point\":[\"14:8",
+    "26a2b7c495117a7\",\"15:74ce4ff170398ca6\"]}},{\"LineTo\":{\"Point\":[\"16:4b36daafb7685c",
+    "2b\",\"17:c9a0e5f82154ce3e\"]}},{\"LineTo\":{\"Point\":[\"18:73bc05541afded5a\",\"19:e51d8",
+    "c264d945b32\"]}},{\"LineTo\":\"Start\"}]}],\"ids\":[[\"21:9fe386cec8abaedb\",\"22:3e2fb0ac",
+    "72647b8e\",\"23:465379dd775c12be\",\"24:0495217d37468ca6\",\"25:f252c518f0a50982\"]]}},",
+    "\"28:431c72536b7ab1f8\":{\"Extrude\":{\"profile\":\"26:430f4189a776294e\",\"distance\":\"27",
+    ":ba3d8dce8cc42ae6\",\"side\":\"along\"}}},\"vars\":{\"1:",
+    "b639d844bab8e826\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"",
+    "value\":0.0,\"display_unit\":\"m\"}}}},\"2:74af9d633a64b77a\":{\"kind\":\"Length\",\"def\":{\"",
+    "Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"3:fb5fef",
+    "638c30912c\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\"",
+    ":0.0,\"display_unit\":\"m\"}}}},\"4:ee1d73a8dc8f8ad6\":{\"kind\":\"Scalar\",\"def\":{\"Free\":",
+    "{\"Continuous\":{\"dim\":\"Scalar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"5:f9047724cc168",
+    "290\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"d",
+    "isplay_unit\":\"\"}}}},\"6:2fdd1f61b8b90439\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Contin",
+    "uous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}},\"7:5cdde09d996c5c61\":{\"k",
+    "ind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_u",
+    "nit\":\"\"}}}},\"8:af949e9d2cd2d001\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"",
+    "dim\":\"Scalar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"9:135249424cb8e0e7\":{\"kind\":\"Sc",
+    "alar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}",
+    "}}},\"11:7b9b7a031545bc84\":{\"kind\":\"Frame\",\"def\":{\"Output\":{\"node\":\"10:54a0180a83",
+    "275575\",\"port\":0}}},\"12:aa1a1f25549ff844\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Conti",
+    "nuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"13:ce0b2c4bfce400e2\":",
+    "{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"displa",
+    "y_unit\":\"m\"}}}},\"14:826a2b7c495117a7\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuou",
+    "s\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"15:74ce4ff170398ca6\":{\"ki",
+    "nd\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_un",
+    "it\":\"m\"}}}},\"16:4b36daafb7685c2b\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{",
+    "\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"17:c9a0e5f82154ce3e\":{\"kind\":",
+    "\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":",
+    "\"m\"}}}},\"18:73bc05541afded5a\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim",
+    "\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"19:e51d8c264d945b32\":{\"kind\":\"Len",
+    "gth\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}",
+    "}}},\"26:430f4189a776294e\":{\"kind\":\"Profile\",\"def\":{\"Output\":{\"node\":\"20:fe7be5bb",
+    "524c1ab3\",\"port\":0}}},\"27:ba3d8dce8cc42ae6\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Con",
+    "tinuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"29:5d28910d3b2f6ef6",
+    "\":{\"kind\":\"Body\",\"def\":{\"Output\":{\"node\":\"28:431c72536b7ab1f8\",\"port\":0}}}},\"eps",
+    "ilon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
     "\n"
 );
 
@@ -438,19 +467,119 @@ fn the_older_shaped_document_loads_at_the_ambient_eps() {
     let text = OLDER_SHAPED.replacen("\"epsilon\":1e-09", &format!("\"epsilon\":{eps:?}"), 1);
     assert_ne!(text, OLDER_SHAPED);
     let v: serde_json::Value = serde_json::from_str(text.split_once('\n').unwrap().1).unwrap();
-    // In document order: the node map is keyed by minted id.
+    // In document order: the node map is keyed by minted id, which
+    // orders as the nodes were inserted.
     let nodes = v["snapshot"]["nodes"].as_object().unwrap();
-    let tags: Vec<&String> = v["snapshot"]["order"]
-        .as_array()
-        .unwrap()
+    let mut keyed: Vec<(editor_core::MintId, &serde_json::Value)> = nodes
         .iter()
-        .map(|id| {
-            let node = &nodes[&id.as_u64().unwrap().to_string()];
-            node.as_object().unwrap().keys().next().unwrap()
-        })
+        .map(|(id, node)| (editor_core::MintId::parse(id).unwrap(), node))
+        .collect();
+    keyed.sort_by_key(|&(id, _)| id);
+    let tags: Vec<&String> = keyed
+        .iter()
+        .map(|(_, node)| node.as_object().unwrap().keys().next().unwrap())
         .collect();
     assert_eq!(tags, ["Datum", "Profile", "Extrude"]);
     let loaded = load(&text, Tol::witness()).expect("a minimal-vocabulary document loads");
-    assert_eq!(loaded.doc.order().len(), 3);
+    assert_eq!(loaded.doc.ids().len(), 3);
     assert_eq!(loaded.doc.epsilon().to_bits(), eps.to_bits());
+}
+
+// ---- A break: the same bytes from before outputs refuse ----
+
+/// The minimal-vocabulary bytes as today's writer wrote them before
+/// an operation defined variables (INTENT stage 2): the same three
+/// nodes, and no output in the table. A break, so they refuse typed
+/// with the regenerate recourse rather than load. The profile's operand
+/// field is spelled `frame`, its later name, so the bytes reach the
+/// outputs walk this row is about rather than the reader's field check.
+const PRE_OUTPUTS: &str = concat!(
+    "id: 8ad37e1a750ae77132c0bf059acb322f\n",
+    "{\"snapshot\":{\"id\":\"8ad37e1a750ae77132c0bf059acb322f\",\"mint\":{\"chain\":\"b4df12e4a4",
+    "1c240fd51afc2c5f7c8122801137c78e464bee6240fe63ab5afab4\",\"log\":[{\"var\":\"1:b639d84",
+    "4bab8e826\"},{\"var\":\"2:74af9d633a64b77a\"},{\"var\":\"3:fb5fef638c30912c\"},{\"var\":\"4:",
+    "ee1d73a8dc8f8ad6\"},{\"var\":\"5:f9047724cc168290\"},{\"var\":\"6:2fdd1f61b8b90439\"},{\"v",
+    "ar\":\"7:5cdde09d996c5c61\"},{\"var\":\"8:af949e9d2cd2d001\"},{\"var\":\"9:135249424cb8e0e",
+    "7\"},{\"node\":\"10:54a0180a83275575\"},{\"var\":\"11:d05826096083a72f\"},{\"var\":\"12:3312",
+    "b2f8504eeee2\"},{\"var\":\"13:67cd6e8f80d24d4e\"},{\"var\":\"14:fd8954268d1e7222\"},{\"var",
+    "\":\"15:4e4dce13c4a56d92\"},{\"var\":\"16:e8e5f1ea6e7306c2\"},{\"var\":\"17:0ad5807e1b5f70",
+    "0c\"},{\"var\":\"18:6d679bcadae726fe\"},{\"node\":\"19:f5ee2ea3890bdbd0\"},{\"step\":\"20:05",
+    "3eb2ee5f95c60a\"},{\"step\":\"21:dd0913f0e561776c\"},{\"step\":\"22:5ca04880b5f26723\"},{",
+    "\"step\":\"23:1c5d6d0a2e5f2352\"},{\"step\":\"24:e1a86d05a90489eb\"},{\"var\":\"25:bdc04106",
+    "e3ffa2bc\"},{\"node\":\"26:b4df12e4a41c240f\"}]},\"nodes\":{\"10:54a0180a83275575\":{\"Dat",
+    "um\":{\"Frame\":{\"origin\":[\"1:b639d844bab8e826\",\"2:74af9d633a64b77a\",\"3:fb5fef638c3",
+    "0912c\"],\"u\":[\"4:ee1d73a8dc8f8ad6\",\"5:f9047724cc168290\",\"6:2fdd1f61b8b90439\"],\"v\"",
+    ":[\"7:5cdde09d996c5c61\",\"8:af949e9d2cd2d001\",\"9:135249424cb8e0e7\"]}}},\"19:f5ee2ea",
+    "3890bdbd0\":{\"Profile\":{\"frame\":\"10:54a0180a83275575\",\"loops\":[{\"Chain\":[{\"At\":[\"",
+    "11:d05826096083a72f\",\"12:3312b2f8504eeee2\"]},{\"LineTo\":{\"Point\":[\"13:67cd6e8f80d",
+    "24d4e\",\"14:fd8954268d1e7222\"]}},{\"LineTo\":{\"Point\":[\"15:4e4dce13c4a56d92\",\"16:e8",
+    "e5f1ea6e7306c2\"]}},{\"LineTo\":{\"Point\":[\"17:0ad5807e1b5f700c\",\"18:6d679bcadae726f",
+    "e\"]}},{\"LineTo\":\"Start\"}]}],\"ids\":[[\"20:053eb2ee5f95c60a\",\"21:dd0913f0e561776c\",",
+    "\"22:5ca04880b5f26723\",\"23:1c5d6d0a2e5f2352\",\"24:e1a86d05a90489eb\"]]}},\"26:b4df12",
+    "e4a41c240f\":{\"Extrude\":{\"profile\":\"19:f5ee2ea3890bdbd0\",\"distance\":\"25:bdc04106e",
+    "3ffa2bc\",\"side\":\"along\"}}},\"vars\":{\"1:b639d844ba",
+    "b8e826\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0",
+    ",\"display_unit\":\"m\"}}}},\"2:74af9d633a64b77a\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Co",
+    "ntinuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"3:fb5fef638c30912c",
+    "\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"disp",
+    "lay_unit\":\"m\"}}}},\"4:ee1d73a8dc8f8ad6\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuo",
+    "us\":{\"dim\":\"Scalar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"5:f9047724cc168290\":{\"kin",
+    "d\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_uni",
+    "t\":\"\"}}}},\"6:2fdd1f61b8b90439\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"di",
+    "m\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}},\"7:5cdde09d996c5c61\":{\"kind\":\"Scal",
+    "ar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}",
+    "},\"8:af949e9d2cd2d001\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scal",
+    "ar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"9:135249424cb8e0e7\":{\"kind\":\"Scalar\",\"def",
+    "\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}},\"11:d0",
+    "5826096083a72f\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"va",
+    "lue\":0.0,\"display_unit\":\"m\"}}}},\"12:3312b2f8504eeee2\":{\"kind\":\"Length\",\"def\":{\"F",
+    "ree\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"13:67cd6e",
+    "8f80d24d4e\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\"",
+    ":1.0,\"display_unit\":\"m\"}}}},\"14:fd8954268d1e7222\":{\"kind\":\"Length\",\"def\":{\"Free\"",
+    ":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"15:4e4dce13c4",
+    "a56d92\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0",
+    ",\"display_unit\":\"m\"}}}},\"16:e8e5f1ea6e7306c2\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"C",
+    "ontinuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"17:0ad5807e1b5f70",
+    "0c\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"di",
+    "splay_unit\":\"m\"}}}},\"18:6d679bcadae726fe\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Conti",
+    "nuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"25:bdc04106e3ffa2bc\":",
+    "{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"displa",
+    "y_unit\":\"m\"}}}}},\"epsilon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearance\":[]},\"",
+    "edits\":[]}",
+    "\n"
+);
+
+#[test]
+fn a_document_from_before_outputs_refuses_at_the_ambient_eps() {
+    let eps = Tol::witness().eps();
+    let text = PRE_OUTPUTS.replacen("\"epsilon\":1e-09", &format!("\"epsilon\":{eps:?}"), 1);
+    assert_ne!(text, PRE_OUTPUTS);
+    let v: serde_json::Value = serde_json::from_str(text.split_once('\n').unwrap().1).unwrap();
+    // In document order: the node map is keyed by minted id, which
+    // orders as the nodes were inserted.
+    let nodes = v["snapshot"]["nodes"].as_object().unwrap();
+    let mut keyed: Vec<(editor_core::MintId, &serde_json::Value)> = nodes
+        .iter()
+        .map(|(id, node)| (editor_core::MintId::parse(id).unwrap(), node))
+        .collect();
+    keyed.sort_by_key(|&(id, _)| id);
+    let tags: Vec<&String> = keyed
+        .iter()
+        .map(|(_, node)| node.as_object().unwrap().keys().next().unwrap())
+        .collect();
+    assert_eq!(tags, ["Datum", "Profile", "Extrude"]);
+    // Written before an operation defined variables, so its table holds
+    // none of the three nodes' outputs: the first node's port refuses,
+    // with the regenerate recourse, at the ambient ε rather than through
+    // the tolerance door.
+    let err = load(&text, Tol::witness()).unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            PersistError::Snapshot(editor_core::SnapshotError::OutputSignature { fault, .. })
+                if matches!(**fault, editor_core::OutputFault::Missing { port: "frame" })
+        ),
+        "{err:?}"
+    );
+    assert!(err.to_string().contains(REGENERATE_RECOURSE), "{err}");
 }

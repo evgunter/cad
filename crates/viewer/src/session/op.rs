@@ -88,7 +88,7 @@ pub enum SessionOp {
     /// A slot driven by an expression is refused, exactly as
     /// [`SessionOp::SetSlot`] and [`SessionOp::BeginGesture`] refuse
     /// it: the range would be a range of numbers for a field that
-    /// takes no number. The affordance names the driving parameters,
+    /// takes no number. The affordance names the driving variables,
     /// which are the fields to probe instead.
     ProbeBounds {
         /// The field to probe.
@@ -129,19 +129,49 @@ pub enum SessionOp {
         /// The expression source.
         text: String,
     },
-    /// Write a value into a document parameter.
-    SetParam {
-        /// The parameter.
+    /// **Accept a typed value's offer** (`DocSession::offered`): the
+    /// slot reads the offered variable, by one `SetParam` (or
+    /// `SetStructuralParam`) whose formula is the variable alone, so
+    /// two slots share one variable from then on. An unnamed variable
+    /// has one reader (VR2), so accepting one names it: `name` is
+    /// written first, by a `RenameVar`, and the two edits are one
+    /// action and one undo step. A variable not on offer at that slot
+    /// is refused (`Refusal::NotOffered`), and a name for one that
+    /// already has a name (`Refusal::OfferIsNamed`): accepting renames
+    /// nothing.
+    SetSlotVariable {
+        /// The node.
+        node: RecipeNodeId,
+        /// The slot.
+        slot: SlotId,
+        /// The variable it reads from now on.
+        var: VarId,
+        /// The name the variable is shared under, for one that has none.
+        name: Option<VarName>,
+    },
+    /// **Decline a typed value's offer**: the slot keeps the variable
+    /// its typed value minted, distinct from every variable offered
+    /// (D10: "declining the offer is what makes the two distinct").
+    /// Changes no document and enters no history.
+    DeclineOffer {
+        /// The node.
+        node: RecipeNodeId,
+        /// The slot whose offer is declined.
+        slot: SlotId,
+    },
+    /// Write a value into a document variable.
+    SetVariable {
+        /// The variable.
         var: VarId,
         /// The new value.
         value: SlotValue,
     },
-    /// Change how a document parameter's value is WRITTEN — its
+    /// Change how a document variable's value is WRITTEN — its
     /// display unit — leaving the exact value alone.
     ///
     /// [`SessionOp::SetSlotUnit`]'s counterpart at the other kind of
-    /// row, and a separate door from [`SessionOp::SetParam`] for that
-    /// one's reason: a parameter's value and its notation are
+    /// row, and a separate door from [`SessionOp::SetVariable`] for that
+    /// one's reason: a variable's value and its notation are
     /// independent facts about the declaration, and an operation that
     /// moved both could not move either alone.
     ///
@@ -149,19 +179,19 @@ pub enum SessionOp {
     /// continuous declaration always names its notation, and the
     /// canonical one is named by naming it. A `Count` names none and
     /// refuses.
-    SetParamUnit {
-        /// The parameter.
+    SetVariableUnit {
+        /// The variable.
         var: VarId,
         /// The unit to write it in.
         unit: UnitDef,
     },
-    /// Write a document parameter from the text a person typed into
+    /// Write a document variable from the text a person typed into
     /// its value field — a number and, optionally, the notation to
     /// write it in.
     ///
     /// **The unit-bearing half of the panel's value field**, and the
     /// door that reads `50 mm`. A bare number needs no parse and takes
-    /// [`SessionOp::SetParam`] instead, the way a slot's bare number
+    /// [`SessionOp::SetVariable`] instead, the way a slot's bare number
     /// takes [`SessionOp::SetSlot`].
     ///
     /// The text is read by `editor_core::parse::parse_formula`, the one
@@ -171,19 +201,19 @@ pub enum SessionOp {
     /// the notation would be a half-applied edit nobody asked for.
     ///
     /// **Text that parses to anything but a number defines the
-    /// parameter** (`DocEdit::DefineVar`): `base_r * 2` makes it a
+    /// variable** (`DocEdit::DefineVar`): `base_r * 2` makes it a
     /// defined variable, keeping its identity, and a number typed over
     /// a defined one makes it free again. Text that does not parse
     /// carries `parse_formula`'s own refusal, which names the token and
     /// its offset; a definition the door refuses (a cycle, a read the
     /// document does not answer) carries the door's.
-    SetParamText {
-        /// The parameter.
+    SetVariableText {
+        /// The variable.
         var: VarId,
         /// What was typed.
         text: String,
     },
-    /// Declare a NEW document parameter — the panel's create
+    /// Declare a NEW document variable — the panel's create
     /// affordance, committing exactly one `DocEdit::DeclareVar`.
     ///
     /// A taken name is the edit's to refuse
@@ -191,14 +221,14 @@ pub enum SessionOp {
     /// through [`Refusal::Edit`]: the declare never replaces, so a
     /// plus-shaped button cannot change a standing variable's kind
     /// under the expressions that read it. Writing a standing
-    /// variable is [`SessionOp::SetParam`]'s door.
+    /// variable is [`SessionOp::SetVariable`]'s door.
     DeclareVar {
-        /// The new parameter's name.
+        /// The new variable's name.
         name: VarName,
         /// Its declared dimension and exact value.
         value: FreeVar,
     },
-    /// Rename a document parameter, or clear its name — exactly one
+    /// Rename a document variable, or clear its name — exactly one
     /// `DocEdit::RenameVar`.
     ///
     /// Only the name moves: the variable's id, and so every reader of
@@ -207,19 +237,19 @@ pub enum SessionOp {
     /// clearing the name of a variable nothing reads) are the edit's,
     /// forwarded through [`Refusal::Edit`].
     RenameVar {
-        /// The parameter.
+        /// The variable.
         var: VarId,
         /// Its new name, or `None` to clear it.
         name: Option<VarName>,
     },
-    /// Delete a document parameter — exactly one `DocEdit::DeleteVar`.
+    /// Delete a document variable — exactly one `DocEdit::DeleteVar`.
     ///
     /// Its readers are left reading an id the document no longer
     /// holds, and fail typed at evaluation. The refusals (an id the
     /// document does not hold, an anonymous variable) are the edit's,
     /// forwarded through [`Refusal::Edit`].
     DeleteVar {
-        /// The parameter.
+        /// The variable.
         var: VarId,
     },
     /// Start a continuous gesture over a slot.
@@ -229,17 +259,17 @@ pub enum SessionOp {
         /// The slot.
         slot: SlotId,
     },
-    /// Start a continuous gesture over a DOCUMENT PARAMETER.
+    /// Start a continuous gesture over a DOCUMENT VARIABLE.
     ///
     /// The same preview/commit machinery as [`SessionOp::BeginGesture`]
     /// and deliberately a separate door rather than a widened one: the
     /// two targets are addressed differently (a node and a slot; a
     /// name) and collapsing them would put an `Option` in every arm.
-    /// A parameter is where the expression-driven affordance sends a
+    /// A variable is where the expression-driven affordance sends a
     /// user, so it is a dragged widget on a primary path and gets the
     /// gesture rule the ratified preview-vs-commit decision demands.
-    BeginParamGesture {
-        /// The parameter.
+    BeginVariableGesture {
+        /// The variable.
         var: VarId,
     },
     /// Move the in-flight SLOT gesture. Emits a preview edit against
@@ -272,25 +302,25 @@ pub enum SessionOp {
         /// The slot.
         slot: SlotId,
     },
-    /// [`SessionOp::PreviewGesture`] for a DOCUMENT PARAMETER drag —
-    /// the gesture [`SessionOp::BeginParamGesture`] opens.
+    /// [`SessionOp::PreviewGesture`] for a DOCUMENT VARIABLE drag —
+    /// the gesture [`SessionOp::BeginVariableGesture`] opens.
     ///
     /// A second door rather than one preview naming either target, for
-    /// [`SessionOp::BeginParamGesture`]'s own reason: the two targets
+    /// [`SessionOp::BeginVariableGesture`]'s own reason: the two targets
     /// are addressed differently, and an operation that names its
     /// gesture names it the way its begin did — one spelling per
     /// target, so a caller repeats the words it already wrote rather
     /// than translating them into a second vocabulary.
-    PreviewParamGesture {
-        /// The parameter the gesture is dragging.
+    PreviewVariableGesture {
+        /// The variable the gesture is dragging.
         var: VarId,
         /// The value under the pointer.
         value: f64,
     },
-    /// Release: commit exactly one edit carrying the parameter
+    /// Release: commit exactly one edit carrying the variable
     /// gesture's last previewed value.
-    CommitParamGesture {
-        /// The parameter the gesture is dragging.
+    CommitVariableGesture {
+        /// The variable the gesture is dragging.
         var: VarId,
     },
     /// Abandon whichever value gesture is open, leaving the document
@@ -542,16 +572,17 @@ pub enum SessionOp {
         /// The profile node.
         node: RecipeNodeId,
         /// The committed program the editor's program was loaded
-        /// from.
-        base: ProfileProgram,
+        /// from, as written ([`crate::sketch::written_program`]).
+        base: ProfileProgram<Formula>,
         /// The loop programs the editor holds, in description order.
         loops: Vec<LoopProgram<Formula>>,
         /// Per loop, per step: the committed step it keeps, or `None`
         /// for a new one (`DocEdit::SetProgram`'s `ids`).
         ids: Vec<Vec<Option<StepId>>>,
     },
-    /// Insert one extrude of an existing profile node — the extrude
-    /// tool's one committed edit. A `profile` that is not a
+    /// Insert one extrude of an existing profile node, and its identity
+    /// world placement (A10) — the extrude tool's one committed action,
+    /// so what was made is drawn. A `profile` that is not a
     /// `Node::Profile` in this document refuses
     /// [`Refusal::WrongNodeKind`] at the door.
     ///
@@ -565,7 +596,8 @@ pub enum SessionOp {
         distance: Formula,
     },
     /// Insert one revolve of an existing profile node about an
-    /// existing axis datum — the revolve tool's one committed edit.
+    /// existing axis datum, and its identity world placement (A10) —
+    /// the revolve tool's one committed action.
     /// Either seat's wrong-kind pick refuses
     /// [`Refusal::WrongNodeKind`] at the door.
     AddRevolve {
@@ -581,6 +613,14 @@ pub enum SessionOp {
     /// Insert one regularized boolean of two existing bodies — the
     /// boolean tool's one committed action (GAUTH-4).
     ///
+    /// **The result takes the operands' place in the world** (A10, Ev's
+    /// residue 1): the placements of the first operand the world
+    /// places, in seat order, are re-pointed to the boolean through the
+    /// slot door, and the other operand's placements are deleted, in
+    /// the same action — so `a ∘ b` with both placed leaves the world
+    /// `[result]`, and one undo restores `[a, b]`. Operands nothing
+    /// places place nothing.
+    ///
     /// **The operand order is data**: `Subtract` keeps `a` and removes
     /// `b`, so the two seats are not interchangeable and the form says
     /// which pick is which. Either seat's non-body pick refuses
@@ -593,15 +633,8 @@ pub enum SessionOp {
     /// **The findings become the boolean's own declared pairs**: an
     /// empty `declare` authors an undeclared boolean, and a non-empty
     /// one a boolean carrying exactly those findings' pairs — one
-    /// insert, one undo. The door evaluates
-    /// the boolean before recording it, and one that refuses an
-    /// undeclared contact of its own is not committed:
-    /// [`Refusal::Contact`] carries the kernel's finding back, and its
-    /// offer is this op again with that finding added. The door
-    /// declares what it is handed and guesses nothing; that the boolean
-    /// tool hands it only pairs a refusal reported and the author
-    /// accepted is the tool's gesture, not a property of the findings'
-    /// type.
+    /// insert, one undo. The door declares what it is handed and
+    /// guesses nothing.
     AddBoolean {
         /// The operation — the KERNEL's enum, which the recipe node
         /// carries unconverted.
@@ -614,7 +647,10 @@ pub enum SessionOp {
         declare: Vec<FlushFinding>,
     },
     /// Insert one split of an existing body by an existing datum
-    /// plane — the split tool's one committed edit.
+    /// plane — the split tool's one committed edit. A split defines two
+    /// bodies, and it changes nothing in the world: the target's
+    /// placements keep reading the target, and a half reaches the world
+    /// through its projection (`SessionOp::AddPart`).
     ///
     /// The tool seat is a PLANE and not a body: `Node::Split`'s tool
     /// operand is the plane the cut is taken on. Both seats refuse
@@ -625,9 +661,10 @@ pub enum SessionOp {
         /// The `Datum::Plane` node it is cut by.
         tool: RecipeNodeId,
     },
-    /// Insert one rigid placement of an existing body — the transform
-    /// tool's one committed edit. The property panel is the editor for
-    /// every slot afterwards.
+    /// Insert one rigid transform of an existing body — the transform
+    /// tool's one committed action, re-pointing the body's world
+    /// placements to it (A10, Ev's residue 1). The property panel is
+    /// the editor for every slot afterwards.
     AddTransform {
         /// The body placed.
         input: RecipeNodeId,
@@ -639,7 +676,9 @@ pub enum SessionOp {
         rotation_angle: Formula,
     },
     /// Insert one pattern of an existing body — the pattern tool's one
-    /// committed edit.
+    /// committed edit. A pattern defines several bodies, which no world
+    /// placement reads, so it changes nothing in the world: each copy
+    /// reaches it through its projection (`SessionOp::AddPart`).
     ///
     /// The count is an `i64` and lands as an exact Count literal: it
     /// is the node's STRUCTURAL slot (spec D3), edited afterwards
@@ -678,6 +717,10 @@ pub enum SessionOp {
     /// other, and inventing one here would be a second spelling of a
     /// rule the document already has.
     ///
+    /// **The fused body takes the prototype's place in the world** (A10,
+    /// Ev's residue 1): the prototype's placements are re-pointed to it
+    /// in the same action.
+    ///
     /// **Disjointness is the node's question, not this door's.**
     /// Placements that overlap refuse typed at evaluation on the
     /// node's own badge, the same division of labour a non-positive
@@ -693,8 +736,14 @@ pub enum SessionOp {
         rule: PatternRuleSpec,
     },
     /// Insert one constant-radius fillet on a SET of an existing
-    /// body's edges — the blend tool's one committed edit, as a
-    /// fillet.
+    /// body's edges — the blend tool's one committed action, as a
+    /// fillet, re-pointing the body's world placements to it (A10, Ev's
+    /// residue 1).
+    ///
+    /// **A target that is a world placement is a pick on its copy**,
+    /// read on the body it places: the fillet reads that body, and each
+    /// selected name the placement's wrap is unwrapped to the body's own
+    /// (`StableName::copy_of`).
     ///
     /// **The selection is a frozen commitment** (`Node::Fillet`'s
     /// ratified #217 semantics): what is authored here is what the
@@ -706,7 +755,7 @@ pub enum SessionOp {
     /// that is the freeze rule rather than an omission. Whether a name
     /// still resolves through the target's table is evaluation's
     /// question, answered typed on the node's own badge
-    /// (`NodeErrorKind::BlendSelectionResolve`, and
+    /// (`NodeErrorKind::SelectResolve`, and
     /// `BlendSelectionEmpty` for an empty set) — a door that
     /// pre-screened it would be a second authority on the same fact,
     /// and would refuse to author the node whose refusal is the honest
@@ -742,7 +791,8 @@ pub enum SessionOp {
     },
     /// Insert one PROJECTION of a multi-body value — the named half
     /// of a split, or one instance of a pattern — as the `Body` value
-    /// every body seat takes (`Node::Part`).
+    /// every body seat takes (`Node::Part`), and its identity world
+    /// placement (A10): a creation, so the projected body is drawn.
     ///
     /// **`select` is an authoring spec, not the node's own enum**, and
     /// the difference is one field: `PartSelect::Instance` carries an
@@ -771,22 +821,18 @@ pub enum SessionOp {
         /// Which body of it.
         select: PartSelectSpec,
     },
-    /// **Duplicate one body**: the picked body placed whole, plus one
-    /// copy stepped clear of it, each an independently drawn and
-    /// independently placeable root.
+    /// **Duplicate one body**: a copy stepped clear of the picked body,
+    /// drawn and editable on its own.
     ///
-    /// **A duplicate is a pattern of two, projected twice** — a
-    /// `Node::Pattern` of count [`crate::combine::DUPLICATE_COUNT`] over
-    /// the body, and one `Node::Part` per instance. Three inserts, one
-    /// action, one undo (the session's several-edit door, the shape
-    /// `AddProfile`'s new-frame arm takes), and the projections are not
-    /// decoration: `roots` maintenance puts a new node in the earliest
-    /// consumed root's slot and drops its inputs, and the viewport
-    /// draws roots. A pattern alone is ONE root drawing two bodies, so
-    /// neither copy can be hidden, moved or blended apart from the
-    /// other, and the first `Part` a user authored by hand would take
-    /// the pattern out of `roots` and leave the other copy undrawn. A
-    /// projection per instance puts every copy back in `roots`.
+    /// **A duplicate is a pattern of two, its copy projected and
+    /// placed** — a `Node::Pattern` of count
+    /// [`crate::combine::DUPLICATE_COUNT`] over the body, a `Node::Part`
+    /// picking its second instance, and that projection's identity
+    /// world placement (A10). Three inserts, one action, one undo. The
+    /// original's placements are untouched. The copy is a body of its
+    /// own rather than a second placement of the original, because a
+    /// feature gesture re-points every placement of its target body
+    /// (`work/chrome/a-feature-gesture-re-points-every-copy-of-its-target.md`).
     ///
     /// **The step is measured, not fixed**
     /// ([`crate::combine::duplicate_step`]): along
@@ -822,10 +868,12 @@ pub enum SessionOp {
     /// ([`Refusal::NoDocumentDirectory`]) rather than authoring a
     /// reference into a store it has not got.
     ///
-    /// No placement is authored: A11 puts placement on the group and
-    /// an instance carries no frame of its own, so the inserted node
-    /// is complete with its reference and an empty interface record
-    /// (an authored instance crosses no split seam). Hiding, the
+    /// **A creation, so its bodies are placed** (A10): the instance
+    /// and one identity world placement of each body it defines — one
+    /// per world placement of its part — as one action. No gauge pose
+    /// is authored: A11 puts placement on the group, so the inserted
+    /// node is complete with its reference and an empty interface
+    /// record (an authored instance crosses no split seam). Hiding, the
     /// free-move probe and the mate tool take it from there.
     AddInstance {
         /// Which document in the open document's own directory.
@@ -871,8 +919,8 @@ pub enum SessionOp {
 }
 
 /// **Which VALUE drag an operation names**: the slot or the document
-/// parameter a [`SessionOp::BeginGesture`] or
-/// [`SessionOp::BeginParamGesture`] opened a gesture on.
+/// variable a [`SessionOp::BeginGesture`] or
+/// [`SessionOp::BeginVariableGesture`] opened a gesture on.
 ///
 /// Two arms and no third, because a value gesture's target has two
 /// kinds: the session's gesture target mints one of these and nothing
@@ -894,8 +942,8 @@ pub enum ValueGestureName {
         /// The slot.
         slot: SlotId,
     },
-    /// A document parameter.
-    Param(VarId),
+    /// A document variable.
+    Variable(VarId),
 }
 
 impl ValueGestureName {
@@ -907,7 +955,7 @@ impl ValueGestureName {
                 node: *node,
                 slot: *slot,
             },
-            Self::Param(var) => SessionOp::BeginParamGesture { var: *var },
+            Self::Variable(var) => SessionOp::BeginVariableGesture { var: *var },
         }
     }
 
@@ -921,7 +969,7 @@ impl ValueGestureName {
                 slot: *slot,
                 value,
             },
-            Self::Param(var) => SessionOp::PreviewParamGesture { var: *var, value },
+            Self::Variable(var) => SessionOp::PreviewVariableGesture { var: *var, value },
         }
     }
 
@@ -933,7 +981,7 @@ impl ValueGestureName {
                 node: *node,
                 slot: *slot,
             },
-            Self::Param(var) => SessionOp::CommitParamGesture { var: *var },
+            Self::Variable(var) => SessionOp::CommitVariableGesture { var: *var },
         }
     }
 }
@@ -997,7 +1045,7 @@ impl FreeMoveName {
 /// three are the same kind of fact.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum GestureName {
-    /// A slot or document-parameter drag.
+    /// A slot or document-variable drag.
     Value(ValueGestureName),
     /// An instance's free-move probe.
     FreeMove(FreeMoveName),
@@ -1064,21 +1112,23 @@ impl SessionOp {
             | Self::Hover(_)
             | Self::DeleteNode { .. }
             | Self::SetSlot { .. }
+            | Self::SetSlotVariable { .. }
+            | Self::DeclineOffer { .. }
             | Self::ProbeBounds { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
-            | Self::SetParam { .. }
-            | Self::SetParamUnit { .. }
-            | Self::SetParamText { .. }
+            | Self::SetVariable { .. }
+            | Self::SetVariableUnit { .. }
+            | Self::SetVariableText { .. }
             | Self::DeclareVar { .. }
             | Self::RenameVar { .. }
             | Self::DeleteVar { .. }
             | Self::BeginGesture { .. }
-            | Self::BeginParamGesture { .. }
+            | Self::BeginVariableGesture { .. }
             | Self::PreviewGesture { .. }
             | Self::CommitGesture { .. }
-            | Self::PreviewParamGesture { .. }
-            | Self::CommitParamGesture { .. }
+            | Self::PreviewVariableGesture { .. }
+            | Self::CommitVariableGesture { .. }
             | Self::CancelGesture
             | Self::Undo
             | Self::Redo
@@ -1122,9 +1172,9 @@ impl SessionOp {
                 node: *node,
                 slot: *slot,
             }),
-            Self::BeginParamGesture { var }
-            | Self::PreviewParamGesture { var, .. }
-            | Self::CommitParamGesture { var } => value(ValueGestureName::Param(*var)),
+            Self::BeginVariableGesture { var }
+            | Self::PreviewVariableGesture { var, .. }
+            | Self::CommitVariableGesture { var } => value(ValueGestureName::Variable(*var)),
             Self::BeginFreeMove { instance }
             | Self::PreviewFreeMove { instance, .. }
             | Self::CommitFreeMove { instance } => probe(*instance),
@@ -1134,12 +1184,14 @@ impl SessionOp {
             | Self::Hover(_)
             | Self::DeleteNode { .. }
             | Self::SetSlot { .. }
+            | Self::SetSlotVariable { .. }
+            | Self::DeclineOffer { .. }
             | Self::ProbeBounds { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
-            | Self::SetParam { .. }
-            | Self::SetParamUnit { .. }
-            | Self::SetParamText { .. }
+            | Self::SetVariable { .. }
+            | Self::SetVariableUnit { .. }
+            | Self::SetVariableText { .. }
             | Self::DeclareVar { .. }
             | Self::RenameVar { .. }
             | Self::DeleteVar { .. }
@@ -1174,8 +1226,8 @@ impl SessionOp {
     }
 
     /// Whether this operation is permitted while a **value gesture**
-    /// is in flight — a slot or document-parameter drag opened by
-    /// [`SessionOp::BeginGesture`] or [`SessionOp::BeginParamGesture`],
+    /// is in flight — a slot or document-variable drag opened by
+    /// [`SessionOp::BeginGesture`] or [`SessionOp::BeginVariableGesture`],
     /// the only thing [`Refusal::GestureInFlight`] ever speaks about.
     ///
     /// **It is not a statement about the free-move gesture.** That is
@@ -1240,7 +1292,7 @@ impl SessionOp {
     /// one. Every display predicate is a function of the node graph —
     /// which nodes exist, of what kind, with which inputs and which
     /// mate references — and never of a slot's expression or a
-    /// parameter's value. So the previewed document and the committed
+    /// variable's value. So the previewed document and the committed
     /// one agree on every display question, at every point of a drag.
     /// Break that — let a gesture's edit change the graph — and
     /// committing a slider would take an in-flight probe away under
@@ -1274,8 +1326,8 @@ impl SessionOp {
     ///
     /// - the ops that DRIVE the gesture ([`SessionOp::PreviewGesture`],
     ///   [`SessionOp::CommitGesture`],
-    ///   [`SessionOp::PreviewParamGesture`],
-    ///   [`SessionOp::CommitParamGesture`],
+    ///   [`SessionOp::PreviewVariableGesture`],
+    ///   [`SessionOp::CommitVariableGesture`],
     ///   [`SessionOp::CancelGesture`]), which a guard would deadlock.
     ///   **Permitted here is not unconditional**: the four that name a
     ///   target are refused [`Refusal::WrongGesture`] from inside their
@@ -1306,7 +1358,7 @@ impl SessionOp {
     ///
     /// - the two doors that OPEN a value gesture
     ///   ([`SessionOp::BeginGesture`],
-    ///   [`SessionOp::BeginParamGesture`]). They are permitted here
+    ///   [`SessionOp::BeginVariableGesture`]). They are permitted here
     ///   and refused anyway, one layer down: `DocSession::start`
     ///   hands them to [`crate::g1::Slot::begin`], whose first rule refuses
     ///   [`Refusal::GestureInFlight`] off the very state this check
@@ -1333,27 +1385,29 @@ impl SessionOp {
             | Self::Hover(_)
             | Self::PreviewGesture { .. }
             | Self::CommitGesture { .. }
-            | Self::PreviewParamGesture { .. }
-            | Self::CommitParamGesture { .. }
+            | Self::PreviewVariableGesture { .. }
+            | Self::CommitVariableGesture { .. }
             | Self::CancelGesture
             | Self::CancelEvaluation
             | Self::Reevaluate
             | Self::Save(_)
             | Self::SetInstanceHidden { .. }
             | Self::BeginGesture { .. }
-            | Self::BeginParamGesture { .. }
+            | Self::BeginVariableGesture { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }
             | Self::CommitFreeMove { .. }
-            | Self::CancelFreeMove => true,
+            | Self::CancelFreeMove
+            | Self::DeclineOffer { .. } => true,
             Self::DeleteNode { .. }
             | Self::SetSlot { .. }
+            | Self::SetSlotVariable { .. }
             | Self::ProbeBounds { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
-            | Self::SetParam { .. }
-            | Self::SetParamUnit { .. }
-            | Self::SetParamText { .. }
+            | Self::SetVariable { .. }
+            | Self::SetVariableUnit { .. }
+            | Self::SetVariableText { .. }
             | Self::DeclareVar { .. }
             | Self::RenameVar { .. }
             | Self::DeleteVar { .. }
@@ -1457,8 +1511,8 @@ impl SessionOp {
             | Self::Hover(_)
             | Self::PreviewGesture { .. }
             | Self::CommitGesture { .. }
-            | Self::PreviewParamGesture { .. }
-            | Self::CommitParamGesture { .. }
+            | Self::PreviewVariableGesture { .. }
+            | Self::CommitVariableGesture { .. }
             | Self::CancelGesture
             | Self::CancelEvaluation
             | Self::Reevaluate
@@ -1470,17 +1524,19 @@ impl SessionOp {
             | Self::CancelFreeMove
             | Self::DeleteNode { .. }
             | Self::SetSlot { .. }
+            | Self::SetSlotVariable { .. }
+            | Self::DeclineOffer { .. }
             | Self::ProbeBounds { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
-            | Self::SetParam { .. }
-            | Self::SetParamUnit { .. }
-            | Self::SetParamText { .. }
+            | Self::SetVariable { .. }
+            | Self::SetVariableUnit { .. }
+            | Self::SetVariableText { .. }
             | Self::DeclareVar { .. }
             | Self::RenameVar { .. }
             | Self::DeleteVar { .. }
             | Self::BeginGesture { .. }
-            | Self::BeginParamGesture { .. }
+            | Self::BeginVariableGesture { .. }
             | Self::Undo
             | Self::Redo
             | Self::AddMate { .. }

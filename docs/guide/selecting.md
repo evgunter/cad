@@ -58,7 +58,7 @@ let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0
     .expect("finite corners");
 let mut doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node) }, tol, &pncad::document::RefusingReach).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("the edit applies");
     let id = applied.record.minted.expect("a minted id");
     (applied.doc, id)
 };
@@ -78,10 +78,10 @@ let (next, frame) = insert(
 doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() }),
+    Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![square], ids: Vec::new() }),
 );
 doc = next;
-let (next, cube) = insert(&doc, Node::Extrude { profile, distance: len(1.0), side: ExtrudeSide::Along });
+let (next, cube) = insert(&doc, Node::Extrude { profile: profile.into(), distance: len(1.0), side: ExtrudeSide::Along });
 doc = next;
 // The datum the position rule is written against — one argument,
 // and the rule now moves WITH the part.
@@ -126,12 +126,12 @@ assert!(select_where(
 // POSITION — and it is the same face the role path names.
 let top = select_where(
     &ev, cube, &faces,
-    // The comparand is a query's, not a slot's: stored, so a written
-    // formula lowers to it with no document in scope.
+    // The comparand is a query's, not a slot's: a formula, evaluated
+    // with no document in scope, so it reads no name.
     &[GeomPred::DatumDistance {
         datum: ground,
         cmp: Cmp::Approx,
-        value: Expr::try_from(len(1.0)).expect("a literal reads no name"),
+        value: len(1.0),
     }],
     &params,
     tol,
@@ -151,8 +151,7 @@ assert!(matches!(
         &[GeomPred::DatumDistance {
             datum: ground,
             cmp: Cmp::Approx,
-            value: Expr::try_from(Formula::literal(1.0, Dimension::Angle).expect("an angle"))
-                .expect("a literal reads no name"),
+            value: Formula::literal(1.0, Dimension::Angle).expect("an angle"),
         }],
         &params,
         tol,
@@ -176,7 +175,7 @@ let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0
     .expect("finite corners");
 let mut doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node) }, tol, &pncad::document::RefusingReach).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("the edit applies");
     let id = applied.record.minted.expect("a minted id");
     (applied.doc, id)
 };
@@ -195,13 +194,13 @@ let (next, frame) = insert(
 doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() }),
+    Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![square], ids: Vec::new() }),
 );
 doc = next;
 let (next, cube) = insert(
     &doc,
     Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: Formula::literal(1.0, Dimension::Length).expect("a length"),
         side: ExtrudeSide::Along,
     },
@@ -235,11 +234,11 @@ forms can be shown against a name built by hand.
 ```
 use pncad::prelude::*;
 
-let node = RecipeNodeId(7);
+let node = RecipeNodeId::new(0, 7);
 let rim = |end| StableName {
     kind: EntityKind::Edge,
     node,
-    path: vec![RoleSeg::RimEdge(end, ProfileEdgeRef::Piece { step: StepId(3), role: PieceRole::Leg }.into())],
+    path: vec![RoleSeg::RimEdge(end, ProfileEdgeRef::Piece { step: StepId::new(0, 3), role: PieceRole::Leg }.into())],
 };
 
 // `SegPat::tag` — the variant, arguments free.
@@ -260,7 +259,7 @@ assert!(Selector::of(swept).matches(&rim(CapEnd::End)));
 // `NamePat::node` — restrict to one recipe node; `SegPat::any` and
 // `NamePat::any` are the wildcards.
 assert!(Selector::of(NamePat::any().node(node).seg(SegPat::any())).matches(&rim(CapEnd::End)));
-assert!(!Selector::of(NamePat::any().node(RecipeNodeId(8))).matches(&rim(CapEnd::End)));
+assert!(!Selector::of(NamePat::any().node(RecipeNodeId::new(0, 8))).matches(&rim(CapEnd::End)));
 
 // A constrained path matches length for length.
 assert!(!Selector::of(NamePat::any().path([SegPat::any(), SegPat::any()]))
@@ -276,7 +275,7 @@ arguments are patterns too, positionally, as a prefix.
 ```
 use pncad::prelude::*;
 
-let node = RecipeNodeId(3);
+let node = RecipeNodeId::new(0, 3);
 let face = |path| StableName { kind: EntityKind::Face, node, path };
 // A boolean seam edge: the end cap of one operand crossing a
 // revolve band of the other.
@@ -285,7 +284,7 @@ let seam = StableName {
     node,
     path: vec![RoleSeg::Seam {
         a: face(vec![RoleSeg::Cap(CapEnd::End)]).into(),
-        b: face(vec![RoleSeg::Band(ProfileEdgeRef::Piece { step: StepId(1), role: PieceRole::Leg }.into())]).into(),
+        b: face(vec![RoleSeg::Band(ProfileEdgeRef::Piece { step: StepId::new(0, 1), role: PieceRole::Leg }.into())]).into(),
     }],
 };
 
@@ -346,7 +345,7 @@ let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0
     .expect("finite corners");
 let mut doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node) }, tol, &pncad::document::RefusingReach).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("the edit applies");
     let id = applied.record.minted.expect("a minted id");
     (applied.doc, id)
 };
@@ -365,13 +364,13 @@ let (next, frame) = insert(
 doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() }),
+    Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![square], ids: Vec::new() }),
 );
 doc = next;
 let (next, cube) = insert(
     &doc,
     Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: Formula::literal(1.0, Dimension::Length).expect("a length"),
         side: ExtrudeSide::Along,
     },
@@ -419,11 +418,11 @@ assert!(matches!(
 
 ## Detect and declare: flush contact as a conversation
 
-Two bodies that touch face-to-face do not silently glue — the
-boolean REFUSES an undeclared coincidence, and the recourse
-menu has exactly two arms: declare the contact, or move the
-geometry. This is the declare arm's protocol:
-`find_flush_candidates` REPORTS the flush pairs as
+Two bodies that touch face-to-face glue where their margins decide
+the faces one surface, declared or not, and the boolean records each
+such coincidence. A declaration still bridges a pair whose margin
+lies in the tolerance's ambiguity band, so the detect/declare
+protocol stays: `find_flush_candidates` REPORTS the flush pairs as
 `FlushFinding` values — the contact verifier itself run in
 candidate-generation mode, so a finding can never disagree with
 the boolean's own verify-at-use — and `declare` /
@@ -435,11 +434,11 @@ pass through your hands as values, never straight into a recipe.
 
 ```
 use pncad::prelude::*;
-use pncad::document::{BooleanOp, BooleanValue, NodeErrorKind, NodeResult};
+use pncad::document::{BooleanOp, BooleanValue, NodeResult};
 
 let tol = Tol::witness();
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node) }, tol, &pncad::document::RefusingReach).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
@@ -453,8 +452,8 @@ let frame_at = |z: f64| {
     })
 };
 // v4: the profile payload is its PROGRAM, drawn on a frame NODE.
-let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, plane| ProfileProgram {
-    plane,
+let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, plane: RecipeNodeId| ProfileProgram {
+    frame: plane.into(),
     loops: vec![
         LoopProgram::polygon([(x0, y0), (x1, y0), (x1, y1), (x0, y1)])
             .expect("finite corners"),
@@ -468,33 +467,22 @@ let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, plane| ProfileProgram {
 let doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
 let (doc, ground) = insert(&doc, frame_at(0.0));
 let (doc, pf1) = insert(&doc, Node::Profile(footprint(0.0, 0.0, 1.0, 1.0, ground)));
-let (doc, base) = insert(&doc, Node::Extrude { profile: pf1, distance: len(1.0), side: ExtrudeSide::Along });
+let (doc, base) = insert(&doc, Node::Extrude { profile: pf1.into(), distance: len(1.0), side: ExtrudeSide::Along });
 let (doc, cap) = insert(&doc, frame_at(1.0));
 let (doc, pf2) = insert(&doc, Node::Profile(footprint(0.25, 0.25, 0.75, 0.75, cap)));
-let (doc, block) = insert(&doc, Node::Extrude { profile: pf2, distance: len(0.5), side: ExtrudeSide::Along });
+let (doc, block) = insert(&doc, Node::Extrude { profile: pf2.into(), distance: len(0.5), side: ExtrudeSide::Along });
 
-// Undeclared, the union refuses — coincidence is never inferred
-// from values (the coincidence ladder).
+// Undeclared, the union glues the rest its margin decides.
 let (doc, uni) = insert(
     &doc,
-    Node::Boolean { op: BooleanOp::Union, a: base, b: block, declare: Vec::new() },
+    Node::Boolean { op: BooleanOp::Union, a: base.into(), b: block.into(), declare: Vec::new() },
 );
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
-let Some(NodeResult::Failed(e)) = ev.nodes.get(&uni) else {
-    panic!("the undeclared union must refuse");
-};
-// The refusal IS the menu: it carries the candidate
-// declaration — the pair by stable name, with its relation — in
-// the detector's own value shape.
-let NodeErrorKind::UndeclaredCoincidence { finding, .. } = &e.kind else {
-    panic!("expected the refusal menu, got {:?}", e.kind);
-};
-assert_eq!(finding.class, BooleanCoincidence::REST);
+assert!(matches!(ev.nodes.get(&uni), Some(NodeResult::Ok(_))));
 
-// The declare arm: detect, INSPECT, declare on the live union,
-// and the SAME node that refused now verifies the declared contact.
-// (Declaring the menu's own finding — `declare(&doc, uni, finding)`
-// — is the same door; the detector shows the full inventory.)
+// The declare arm: detect, INSPECT, declare on the live union.
+// The declared union is the same body: the declaration names what
+// the margins decided, and is verified at use.
 let findings = find_flush_candidates(&ev, base, block, tol).expect("definite findings");
 assert_eq!(findings.len(), 1);
 assert_eq!(findings[0].class, BooleanCoincidence::REST);

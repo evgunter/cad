@@ -377,7 +377,8 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
                 control,
                 Err(CertifyError::ResidualExceeded {
                     check: CertCheck::ChartResidual,
-                    sample: 1
+                    sample: 1,
+                    ..
                 })
             ),
             "{label}: the source's image on the reverted plane: {control:?}"

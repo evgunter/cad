@@ -15,14 +15,14 @@ use editor_core::ExtrudeSide;
 use editor_core::{BooleanOp, LoopProgram, Node, NodeResult, ProfileProgram};
 
 /// A cone frustum (a full revolve about `y`) unioned with a block that
-/// straddles its slanted wall: a cone face against the block's plane
-/// faces. The cone is the curved kind the operand gate still has no
-/// arm for, so this is the pair refusal the sentence below is about.
+/// straddles its slanted wall: the block's faces along the axis cut the
+/// cone face in hyperbolas, which the Boolean refuses by decision, so
+/// this is the refusal the sentence below is about.
 fn cone_block_union_refusal() -> String {
     let mut r = Recorder::new();
     let plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let cone_p = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (0.4, 1.0), (0.0, 1.0)]).unwrap(),
         ],
@@ -30,27 +30,27 @@ fn cone_block_union_refusal() -> String {
     }));
     let axis = r.insert(axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let cone = r.insert(Node::Revolve {
-        profile: cone_p,
-        axis,
+        profile: cone_p.into(),
+        axis: axis.into(),
         angle: ang(std::f64::consts::TAU),
     });
     let block_plane = r.insert(frame([0.0, 0.0, -0.25], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let block_p = r.insert(Node::Profile(ProfileProgram {
-        plane: block_plane,
+        frame: block_plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.5, 0.4), (1.5, 0.4), (1.5, 0.6), (0.5, 0.6)]).unwrap(),
         ],
         ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
-        profile: block_p,
+        profile: block_p.into(),
         distance: len(0.5),
         side: ExtrudeSide::Along,
     });
     let union = r.insert(Node::Boolean {
         op: BooleanOp::Union,
-        a: cone,
-        b: block,
+        a: editor_core::Operand::output(cone, 0),
+        b: block.into(),
         declare: Vec::new(),
     });
     let ev = eval::<f64>(&r.doc);
@@ -62,31 +62,30 @@ fn cone_block_union_refusal() -> String {
 
 /// **The worked example**: two solids joined where a cone face meets a
 /// plane face, built through the public document doors. The sentence
-/// names the pair in the user's terms, keeps the box test's MAY ("may
-/// meet"), and ends on the recourse. The length claim is not pinned
-/// here but by [`every_rewritten_boolean_refusal_renders_within_the_budget`],
-/// over every arm.
+/// names the faces and the conic in the user's terms and ends on the
+/// recourse. The length claim is not pinned here but by
+/// [`every_rewritten_boolean_refusal_renders_within_the_budget`], over
+/// every arm.
 #[test]
-fn the_cone_plane_union_refusal_names_the_pair_and_ends_on_its_recourse() {
+fn the_cone_plane_union_refusal_names_the_conic_and_ends_on_its_recourse() {
     let msg = cone_block_union_refusal();
     assert!(
         msg.contains(
-            "the Boolean op refused: the first operand's cone face may meet the second \
-             operand's plane face"
+            "the Boolean op refused: a flat face of one part cuts a cone face of the other \
+             along a curve that never closes (a hyperbola)"
         ),
-        "the refusal names the pair by operand, as a may: {msg}"
+        "the refusal names the faces and the conic: {msg}"
     );
     assert!(
         msg.ends_with(
-            "Recourse: reshape the parts so they meet only where a plane face meets a \
-             plane, cylinder or sphere face, or move them so the cone face stays clear \
-             of the other solid"
+            "Recourse: tilt the parts so the flat face cuts the cone all the way round, or \
+             keep it clear of the cone face"
         ),
         "the refusal ends on its recourse: {msg}"
     );
     assert!(
         !msg.contains("coincidence"),
-        "a cone × plane pair is not a coincidence refusal, and the wrapper must not \
+        "a cone × plane section is not a coincidence refusal, and the wrapper must not \
          point the reader at that recourse: {msg}"
     );
     assert!(!msg.contains("FaceKey("), "no arena key dump: {msg}");
@@ -97,7 +96,7 @@ fn the_cone_plane_union_refusal_names_the_pair_and_ends_on_its_recourse() {
 /// the status line draw it (`NodeError`'s `Display`, the "node N failed:
 /// the Boolean op refused:" wrapper included), with a representative
 /// payload in every placeholder. 75 is what a person reads in one pass
-/// at the status line's wrapped width; the worked example is 65.
+/// at the status line's wrapped width; the worked example is 57.
 ///
 /// Every `topo::BooleanError` arm whose prose the concision pass wrote,
 /// and every `topo::PointInSolidError` arm as it arrives through
@@ -151,11 +150,11 @@ const A_TOLERANCE_PASSES: &[&str] = &["SpheresMeet (touching, nested within the 
 /// Every rewritten arm, rendered the way the viewer renders a failed node.
 fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
     use geom::SurfaceKind;
-    use geom_brep::{MaterialWedge, RadiusEvidence};
+    use geom_brep::MaterialWedge;
     use geom_core::{Band, Indeterminate, MarginDiag, Tol};
     use topo::{
         BooleanError, BooleanOp, ContactClass, DeclaredContact, EdgeKey, FaceKey, LoopKey, Operand,
-        PlaneRelation, PointInSolidError, SolidKey, VertexKey,
+        PointInSolidError, SectorRead, SolidKey, VertexKey,
     };
 
     let band = Band::linear(Tol::witness()).expect("the witness band");
@@ -348,7 +347,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::CoplanarNeighbours {
                 operand: Operand::B,
                 faces: [face, face],
-                offset: topo::NeighbourOffset::Undecided(diag),
+                offset: diag,
             },
         ),
         (
@@ -378,11 +377,33 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "GermSectionOutsideInventory",
+            BooleanError::GermSectionOutsideInventory {
+                a_face: face,
+                a_kind: SurfaceKind::Plane,
+                b_face: face,
+                b_kind: SurfaceKind::Cone,
+                conic: geom_brep::OutsideConic::Hyperbola,
+                section: geom_brep::SectionError::RoutesToGeneralRung {
+                    pair: "plane×cone",
+                    why: "the plane meets both nappes, so the section is a HYPERBOLA",
+                },
+            },
+        ),
+        (
             "GermFrameCylinderPinch",
             BooleanError::GermFrameCylinderPinch {
                 a_face: face,
                 b_face: face,
-                evidence: RadiusEvidence::None,
+                equal_radii: false,
+            },
+        ),
+        (
+            "GermFrameCylinderPinch (equal radii)",
+            BooleanError::GermFrameCylinderPinch {
+                a_face: face,
+                b_face: face,
+                equal_radii: true,
             },
         ),
         (
@@ -516,14 +537,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "UndeclaredCoincidence",
-            BooleanError::UndeclaredCoincidence {
-                diag,
-                pair: [(Operand::A, face), (Operand::B, face)],
-                relation: PlaneRelation::SameOpposite,
-            },
-        ),
-        (
             "ShellWitnessExhausted",
             BooleanError::ShellWitnessExhausted {
                 operand: Operand::B,
@@ -644,11 +657,21 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "PierceRunsNested",
-            BooleanError::PierceRunsNested {
+            "PinchConesOnSeparateKeys",
+            BooleanError::PinchConesOnSeparateKeys {
                 operand: Operand::A,
                 vertex: VertexKey::default(),
-                runs: 3,
+            },
+        ),
+        (
+            "VertexReadTwice",
+            BooleanError::VertexReadTwice {
+                operand: Operand::A,
+                vertex: VertexKey::default(),
+                reads: [
+                    SectorRead::Pierce(FaceKey::default()),
+                    SectorRead::Pair(VertexKey::default()),
+                ],
             },
         ),
         (
@@ -733,7 +756,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
 /// failed node's `NodeError` `Display`, wrapper included.
 fn as_the_viewer_shows_it(e: topo::BooleanError) -> String {
     editor_core::NodeError {
-        node: editor_core::RecipeNodeId(5),
+        node: editor_core::RecipeNodeId::new(0, 5),
         kind: editor_core::NodeErrorKind::Boolean(e),
         escalations: std::sync::Arc::new(Vec::new()),
     }

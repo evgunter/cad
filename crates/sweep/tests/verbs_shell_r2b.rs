@@ -1,7 +1,7 @@
 //! **R2 review probes, round 2 (VERBS-SHELLFIX PR-1, ordinal 101).**
 //!
 //! Round 1's four reds were all MY fixtures landing in PR-2's territory
-//! (`ReanchorOffCarrier`, #1081) or on the offset door's arc-carrier
+//! (the per-chart door's transported corner, #1081) or on the offset door's arc-carrier
 //! lane, never reaching the rim surgery at all. These are re-cut to
 //! reach it: an all-right-angle stepped meridian, and polygonal holes.
 //!
@@ -211,7 +211,7 @@ fn r2b_one_holed_extrusion() {
 
 /// **A PARTIAL revolve, through the rim surgery it used to be stopped
 /// short of.** Round 1 measured that the sealed offset refused first
-/// (`ReanchorOffCarrier`, #1081), so this row could only instrument
+/// (at the per-chart door's transported corner, #1081), so this row could only instrument
 /// that the refusal was typed and no body came back. #1081's PR-2b
 /// solves those corners — a wedge's meridian caps are planes CONTAINING
 /// the axis, which is the door's azimuth arm — so the sealed offset

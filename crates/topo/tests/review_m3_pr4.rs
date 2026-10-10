@@ -423,12 +423,8 @@ fn reflex_edge_crossing_builds_sound() {
         (BooleanOp::Intersect, 0.2),
         (BooleanOp::Subtract, 2.8),
     ] {
-        let err = boolean_reduce(op, &a, &b, Tol::witness()).unwrap_err();
-        assert!(
-            matches!(err, BooleanError::UndeclaredCoincidence { .. }),
-            "op {op:?}: undeclared caps, got {err:?}"
-        );
         assert_sound(op, &a, &b, &decls, volume);
+        assert_sound(op, &a, &b, &topo::BooleanDeclarations::none(), volume);
     }
 }
 
@@ -478,9 +474,7 @@ fn notch_fill_dense_ties() {
                 assert_eq!(red.contacts.vv.len(), 6, "op {op:?}");
             }
             Err(
-                e @ (BooleanError::ClassificationInvariant { .. }
-                | BooleanError::Escalated { .. }
-                | BooleanError::UndeclaredCoincidence { .. }),
+                e @ (BooleanError::ClassificationInvariant { .. } | BooleanError::Escalated { .. }),
             ) => {
                 eprintln!("op {op:?}: refused: {e}");
             }
@@ -491,14 +485,13 @@ fn notch_fill_dense_ties() {
 
 /// plane_eq door: bit-DIFFERENT NaN normals must never compare Same
 /// (the PR 1 NaN lesson at the new seam) — and must not silently pass
-/// as Distinct either. Post-retirement (M4 PR 5): an axis-plane
-/// revert pair decides SameOpposite through the SAME-SOURCE rung
-/// (reverted orient), and WITHOUT sources the same values refuse
-/// Undeclared — value equality never glues (rung (b)).
+/// as Distinct either. An axis-plane revert pair (one normal the other's
+/// negation, a signed zero apart) decides SameOpposite on its margins,
+/// declared or not.
 #[test]
 fn plane_eq_nan_and_negzero() {
     use geom_core::{Band, Point3, Vec3};
-    use topo::{GeomSource, PlaneIdentity, PlaneRelation, oriented_plane_eq};
+    use topo::{PlaneIdentity, PlaneRelation, oriented_plane_eq};
     let band = Band::linear(Tol::witness()).unwrap();
     let mk = |n: Vec3<f64>, o: Point3<f64>| topo::boolean::plane_eq::PlaneDesc {
         origin: o,
@@ -510,34 +503,14 @@ fn plane_eq_nan_and_negzero() {
     let p2 = mk(Vec3::new(0.0, 0.0, nan2), Point3::new(0.0, 0.0, 0.0));
     let r = oriented_plane_eq(&p1, &p2, PlaneIdentity::NONE, &metre_ball(1.0), band);
     assert!(r.is_err(), "bit-different NaN planes decided {r:?}");
-    // Same-source revert pair (the post-retirement declared rung):
-    // orient split decides SameOpposite with zero numerics.
     let q1 = mk(Vec3::new(0.0, 0.0, 1.0), Point3::new(0.0, 0.0, 5.0));
     let q2 = mk(Vec3::new(-0.0, -0.0, -1.0), Point3::new(0.0, 0.0, 5.0));
-    let src = GeomSource::minted(1, 0);
-    let src_rev = src.reverted();
-    assert_eq!(
-        oriented_plane_eq(
-            &q1,
-            &q2,
-            PlaneIdentity {
-                s1: Some(&src),
-                s2: Some(&src_rev),
-                declared: false
-            },
-            &metre_ball(1.0),
-            band
-        )
-        .unwrap(),
-        PlaneRelation::SameOpposite
-    );
-    // The SAME values without sources: Undeclared, typed — the M4
-    // PR 5 narrowing (equal bits without shared source stay unglued).
-    let r = oriented_plane_eq(&q1, &q2, PlaneIdentity::NONE, &metre_ball(1.0), band);
-    assert!(
-        matches!(r, Err(topo::PlaneEqError::Undeclared { .. })),
-        "unsourced value-equal planes must refuse Undeclared, got {r:?}"
-    );
+    for id in [PlaneIdentity::NONE, PlaneIdentity::DECLARED] {
+        assert_eq!(
+            oriented_plane_eq(&q1, &q2, id, &metre_ball(1.0), band).unwrap(),
+            PlaneRelation::SameOpposite
+        );
+    }
 }
 
 // ---- Interval lane spot checks on the review fixtures. ----
@@ -680,9 +653,8 @@ fn generic_edge_edge_mixed_order_pair() {
 
 /// A brick over `x` with one face relabelled a cone whose apex sits
 /// one unit before the brick on the `x` axis, the face's boundary left
-/// on the brick's lines. The cone is a kind with no wired boolean arm,
-/// and its box is read off the face's own boundary, so where the BRICK
-/// sits decides whether the box reaches `[0, 1]^3`.
+/// on the brick's lines. Its box is read off the face's own boundary,
+/// so where the BRICK sits decides whether the box reaches `[0, 1]^3`.
 #[cfg(test)]
 fn brick_with_cone_face_at(x: (f64, f64)) -> (topo::Body<f64>, topo::FaceKey) {
     use geom_core::Vec3;
@@ -783,10 +755,10 @@ fn assert_cone_face_refuses_at_rest(b: Body<f64>, face: topo::FaceKey) {
     );
 }
 
-/// A face whose kind has no wired boolean arm, posed so its box reaches
-/// the other operand: the cone-relabelled brick is refused at rest on
-/// the relabelled face (`assert_cone_face_refuses_at_rest`), so it
-/// never reaches the boolean's pair-scoped curved gate.
+/// A relabelled cone face posed so its box reaches the other operand:
+/// the brick is refused at rest on the relabelled face
+/// (`assert_cone_face_refuses_at_rest`), so it never reaches the
+/// boolean.
 #[test]
 fn curved_face_gate_witness() {
     // The brick overlaps `[0, 1]^3`, so the cone face's box would reach it.

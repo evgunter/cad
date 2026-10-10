@@ -245,9 +245,12 @@ pub struct FitOutcome<C> {
 /// The rational basis row at `t`: `(first, values)` with
 /// `values[j] = N_j(t)·w_{first+j} / Σ_j N_j(t)·w_{first+j}` — the
 /// `p + 1` nonzero rational basis functions, denominator accumulated
-/// ascending `j` (D9).
+/// ascending `j` (D9). A NaN `t` has no span, and its row is the
+/// evaluator's poison: `p + 1` NaN values, which no solve certifies.
 fn rational_row(kv: &KnotVector, weights: &[f64], t: f64) -> (usize, Vec<f64>) {
-    let span = kv.span_at(t);
+    let Some(span) = kv.span_at(t) else {
+        return (0, vec![f64::NAN; kv.degree() + 1]);
+    };
     let n = basis::basis_funs(span, t);
     let first = span.first_control();
     let mut den = 0.0f64;

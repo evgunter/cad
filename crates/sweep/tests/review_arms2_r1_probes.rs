@@ -88,8 +88,13 @@ fn high_bud() -> Body<f64> {
 fn a_sphere_cone_seam_at_a_second_latitude_fillets_to_its_hand_torus() {
     let source = high_bud();
     let mouth = one_edge_rim_at(&source, 0.6, 0.8);
-    let out = fillet_edges(&source, &[mouth], R1, tol())
-        .unwrap_or_else(|e| panic!("the 2:1 pucker's sphere-cone seam fillets, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &[mouth],
+        R1,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the 2:1 pucker's sphere-cone seam fillets, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
     // Cone direction (−2, 1)/√5, outward normal (1, 2)/√5.
     let s5 = 5.0f64.sqrt();
@@ -149,8 +154,13 @@ fn the_cylinder_plane_arm_carves_both_material_configurations() {
     for (rim_r, want_major, which) in [(1.0, 1.0 - r, "drum"), (0.2, 0.2 + r, "bore")] {
         let source = washer();
         let rim = one_edge_rim_at(&source, rim_r, 0.5);
-        let out = fillet_edges(&source, &[rim], r, tol())
-            .unwrap_or_else(|e| panic!("{which} rim fillets, got {e:?}"));
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&source, tol()),
+            &[rim],
+            r,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{which} rim fillets, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{which}: tier-3 valid, got {e:?}"));
         let (major, minor, band_y) = band_torus(&out.body, out.band_faces[0]);
@@ -182,8 +192,13 @@ fn a_cone_cone_rim_fillets_to_the_hand_crossing() {
     let r = 0.03;
     let source = double_cone();
     let rim = one_edge_rim_at(&source, 0.7, 0.3);
-    let out = fillet_edges(&source, &[rim], r, tol())
-        .unwrap_or_else(|e| panic!("the cone-cone rim fillets, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &[rim],
+        r,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the cone-cone rim fillets, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
     // Outward normals in the meridian: cone A runs (−1,1)/√2 so
     // n_a = (1,1)/√2; cone B runs (−5,1)/√26 so n_b = (1,5)/√26.
@@ -228,8 +243,13 @@ fn a_cylinder_sphere_rim_fillets_to_r_minus_r_exactly() {
     let r = 0.05;
     let source = capped_drum();
     let rim = one_edge_rim_at(&source, 0.8, 0.6);
-    let out = fillet_edges(&source, &[rim], r, tol())
-        .unwrap_or_else(|e| panic!("the cylinder-sphere rim fillets, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &[rim],
+        r,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the cylinder-sphere rim fillets, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
     let (major, minor, band_y) = band_torus(&out.body, out.band_faces[0]);
     assert!((minor - r).abs() < 1e-15);
@@ -305,8 +325,13 @@ fn a_sphere_sphere_waist_reaches_its_arm_and_carves_as_a_concave_chain() {
     let v0 = topo::mass_properties(&source, tol())
         .expect("mass properties")
         .volume;
-    let out = fillet_edges(&source, &[waist], 0.05, tol())
-        .unwrap_or_else(|e| panic!("a sphere-sphere waist carves as a concave chain, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &[waist],
+        0.05,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("a sphere-sphere waist carves as a concave chain, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one annulus band");
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("the waist carves tier-3 valid, got {e:?}"));
@@ -384,7 +409,13 @@ fn bitdump_dome_annulus() {
         tol(),
     );
     let rim = sweep::test_support::one_edge_rim_at(&source, 1.0, 0.0);
-    let out = fillet_edges(&source, &[rim], 0.05, tol()).unwrap();
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &[rim],
+        0.05,
+        tol(),
+    )
+    .unwrap();
     let mut text = dump(&out.body);
     let _ = writeln!(text, "band={:?}", out.band_faces);
     save(&dir, "dome_annulus", &text);

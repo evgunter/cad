@@ -36,12 +36,12 @@ pub fn document() -> CorpusDoc {
     let disc = LoopProgram::circle(0.0, 0.0, 0.5).unwrap();
     let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![disc],
         ids: Vec::new(),
     }));
     let cylinder = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -53,10 +53,10 @@ pub fn document() -> CorpusDoc {
         normal: [scl(TILT.sin()), scl(0.0), scl(TILT.cos())],
     }));
     let split = r.insert(Node::Split {
-        target: cylinder,
-        tool,
+        target: cylinder.into(),
+        tool: tool.into(),
     });
-    let _ = split;
+    super::place_halves(&mut r, split);
 
     CorpusDoc {
         name: "cut_cylinder",
@@ -68,7 +68,8 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: tool,
             slot: SlotId::Origin(editor_core::Axis3::Z),
-            expr: len(0.4375),
+            value: len(0.4375).into(),
+            fresh: Vec::new(),
         },
         bump_root: tool,
     }

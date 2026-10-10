@@ -40,13 +40,6 @@ impl Lineage {
     pub(super) fn contains(&self, face: FaceKey) -> bool {
         self.0.contains(&face)
     }
-
-    /// The face of the lineage holding both ends of a segment, `at_u`
-    /// and `at_v` the faces at each end ([`sole_common_face`]).
-    pub(super) fn holding_both(&self, at_u: &[FaceKey], at_v: &[FaceKey]) -> Option<FaceKey> {
-        let at_u: Vec<FaceKey> = at_u.iter().copied().filter(|&f| self.contains(f)).collect();
-        sole_common_face(&at_u, at_v)
-    }
 }
 
 /// The one face in both `xs` and `ys`; `None` when not exactly one is.
@@ -77,26 +70,5 @@ mod tests {
         for (i, want) in [true, true, true, false, false].into_iter().enumerate() {
             assert_eq!(lineage.contains(f[i]), want, "face {i} of f0's lineage");
         }
-    }
-
-    #[test]
-    fn holding_both_names_only_a_sole_shared_face_of_the_lineage() {
-        let f = faces(4);
-        let lineage = Lineage::of(f[0], &[(f[1], f[0]), (f[2], f[0])]);
-        assert_eq!(
-            lineage.holding_both(&[f[3], f[2]], &[f[2], f[3]]),
-            Some(f[2]),
-            "f3 is shared but outside the lineage, so f2 is the one face"
-        );
-        assert_eq!(
-            lineage.holding_both(&[f[1], f[2]], &[f[2], f[1]]),
-            None,
-            "two shared faces of the lineage name neither"
-        );
-        assert_eq!(
-            lineage.holding_both(&[f[0]], &[f[1]]),
-            None,
-            "no shared face names none"
-        );
     }
 }

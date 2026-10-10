@@ -35,7 +35,7 @@ use viewer::tree::RowStatus;
 /// function against itself.
 fn mate_nodes(session: &DocSession) -> Vec<RecipeNodeId> {
     let doc = session.doc();
-    doc.order()
+    doc.ids()
         .iter()
         .copied()
         .filter(|&id| matches!(doc.node(id), Some(pncad::document::Node::Mate { .. })))
@@ -58,11 +58,11 @@ fn the_open_path_wires_a_resolver_and_the_assembly_evaluates() {
     // The assembly actually evaluates: every row ok, and the product
     // gathers the three placed solids.
     let rows = session.tree_rows();
-    assert_eq!(rows.len(), 3);
+    assert_eq!(rows.len(), 6, "three instances and their three placements");
     for row in &rows {
-        assert_eq!(row.spoken.kind(), Some("InstantiatePart"));
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
+    assert_eq!(asm::instance_rows(&session).len(), 3);
     let (doc, eval) = session.landed_pair().expect("landed");
     let body = product(doc, eval, tol).expect("the product gathers");
     assert_eq!(body.shells().count(), 3, "two posts and a shelf");
@@ -77,7 +77,7 @@ fn a_session_with_no_backing_file_resolves_nothing_and_refuses_typed() {
     let history = viewer::docio::open(&bench.asm_path, tol).expect("the file opens");
     let mut session = DocSession::inline(history.doc().clone(), tol);
     session.pump();
-    for row in session.tree_rows() {
+    for row in asm::instance_rows(&session) {
         match &row.status {
             RowStatus::Failed { message, .. } => assert!(
                 message.contains("this document has no file"),
@@ -128,7 +128,7 @@ fn the_directory_rule_a_document_never_resolves_against_another_directory() {
     let outcome = session.perform(SessionOp::Open(moved));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
-    for row in session.tree_rows() {
+    for row in asm::instance_rows(&session) {
         match &row.status {
             RowStatus::Failed { message, .. } => assert!(
                 message.contains("no document with id"),
@@ -150,7 +150,7 @@ fn a_directory_that_will_not_scan_refuses_each_resolution_typed() {
     let session = asm::open_bench(&bench, tol);
     // …and every resolution then refuses typed, carrying the store's
     // own refusal about the offending file.
-    for row in session.tree_rows() {
+    for row in asm::instance_rows(&session) {
         match &row.status {
             RowStatus::Failed { message, .. } => assert!(
                 message.contains("junk.pncad"),
@@ -181,7 +181,7 @@ fn hiding_drops_scene_and_picks_but_keeps_tree_and_document() {
         .pick_for(eval, &at_post_b, &session.display_view())
         .expect("the pick answers")
         .expect("post_b is under the ray");
-    assert_eq!(hit.node, bench.post_b);
+    assert_eq!(hit.node, bench.post_b_copy);
 
     // Hide it.
     let outcome = session.perform(SessionOp::SetInstanceHidden {
@@ -205,8 +205,8 @@ fn hiding_drops_scene_and_picks_but_keeps_tree_and_document() {
     // The ids of the still-drawn instances are unchanged: hide edits
     // what is emitted, never what an id means.
     assert_eq!(
-        index.ids_in(bench.post_a, 0),
-        asm::index_of(&session).ids_in(bench.post_a, 0)
+        index.ids_in(bench.post_a_copy, 0),
+        asm::index_of(&session).ids_in(bench.post_a_copy, 0)
     );
     // The tree KEEPS the row, and the document is untouched.
     assert!(
@@ -240,7 +240,7 @@ fn a_held_face_on_a_hidden_instance_is_not_marked_or_committed_against() {
     let mut session = asm::open_bench(&bench, tol);
     let index = asm::index_of(&session);
     let face = asm::pick_face(&session, &asm::over_post_b());
-    assert_eq!(face.node, bench.post_b, "the pick is on post_b");
+    assert_eq!(face.node, bench.post_b_copy, "the pick is on post_b");
     let held = marks::Held {
         faces: [Some(&face), None, None],
         edges: None,
@@ -273,10 +273,10 @@ fn a_held_face_on_a_hidden_instance_is_not_marked_or_committed_against() {
     );
 }
 
-/// Two instances of one part consumed by a single boolean: the drawn
-/// root fuses their material, so no display operation can address
-/// either separately. The session, the two instances and the fusing
-/// root — one fixture, because two hand-built copies of it is how two
+/// Two instances of one part consumed by a single boolean, which is
+/// placed: the drawn copy fuses their material, so no display operation
+/// can address either separately. The session, the two instances and
+/// the fusing boolean — one fixture, because two hand-built copies of it is how two
 /// rows come to disagree about what "fused" is.
 fn fused_pair(tag: &str, tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let bench = asm::bench(tag, tol);
@@ -299,10 +299,15 @@ fn fused_pair(tag: &str, tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, R
         &mut doc,
         pncad::document::Node::Boolean {
             op: pncad::document::BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
+        tol,
+    );
+    common::insert_into(
+        &mut doc,
+        pncad::document::Node::place_in_world(weld, pncad::document::Placement::IDENTITY),
         tol,
     );
     let path = ws.create(&doc, tol).expect("the fused assembly stores");
@@ -343,11 +348,11 @@ fn fused_geometry_refuses_both_display_ops_typed() {
         match session.perform(op).refusal {
             Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::FusedGeometry {
                 instance,
-                root,
+                body,
                 others,
             }))) => {
                 assert!(instance.id() == a || instance.id() == b);
-                assert_eq!(root.id(), weld, "the refusal names the fusing root");
+                assert_eq!(body.id(), weld, "the refusal names the fusing body");
                 assert_eq!(others.len(), 1, "…and the other instance");
             }
             other => panic!("{label}: expected FusedGeometry, got {other:?}"),
@@ -356,9 +361,7 @@ fn fused_geometry_refuses_both_display_ops_typed() {
 }
 
 /// **A fused instance's refusal lists the others in document order**,
-/// whatever their ids: the union takes instances until the ones after
-/// the first do not run in id order, so a list read off an id-ordered
-/// set would differ.
+/// which is id order.
 #[test]
 fn a_fused_instances_refusal_lists_the_others_in_document_order() {
     let tol = Tol::witness();
@@ -380,25 +383,31 @@ fn a_fused_instances_refusal_lists_the_others_in_document_order() {
         let union = common::insert_into(
             &mut doc,
             pncad::document::Node::Union {
-                members: members.clone(),
+                members: members.clone().into_iter().map(Into::into).collect(),
                 declare: Vec::new(),
             },
             tol,
         );
+        common::insert_into(
+            &mut doc,
+            pncad::document::Node::place_in_world(union, pncad::document::Placement::IDENTITY),
+            tol,
+        );
         (doc, members, union)
     };
-    let (doc, members, union) = (3..12)
-        .map(fused)
-        .find(|(_, m, _)| m[1..].windows(2).any(|w| w[0] > w[1]))
-        .expect("some member count puts the later instances out of id order");
+    let (doc, members, union) = fused(4);
+    assert!(
+        members.windows(2).all(|w| w[0] < w[1]),
+        "ids run in document order"
+    );
     match display::display_check(&doc, members[0]) {
         Err(AdmissionFault::FusedGeometry {
             instance,
-            root,
+            body,
             others,
         }) => {
             assert_eq!(instance.id(), members[0]);
-            assert_eq!(root.id(), union);
+            assert_eq!(body.id(), union);
             assert_eq!(
                 others.iter().map(|o| o.id()).collect::<Vec<_>>(),
                 members[1..],
@@ -432,8 +441,8 @@ fn a_fused_instances_section_is_drawn_and_its_display_controls_are_refused() {
     let fault = display::display_check(session.doc(), a)
         .expect_err("…and no display operation can address it separately");
     assert!(
-        matches!(&fault, AdmissionFault::FusedGeometry { instance, root, .. }
-            if instance.id() == a && root.id() == weld),
+        matches!(&fault, AdmissionFault::FusedGeometry { instance, body, .. }
+            if instance.id() == a && body.id() == weld),
         "{fault:?}"
     );
 
@@ -459,9 +468,9 @@ fn a_fused_instances_section_is_drawn_and_its_display_controls_are_refused() {
         format!(
             "InstantiatePart {}'s geometry is fused into Boolean {} together with InstantiatePart \
              {} — a display operation cannot address it separately",
-            test_utils::refusal::tag(a.0),
-            test_utils::refusal::tag(weld.0),
-            test_utils::refusal::tag(b.0)
+            test_utils::refusal::tag(a.0.digest()),
+            test_utils::refusal::tag(weld.0.digest()),
+            test_utils::refusal::tag(b.0.digest())
         )
     );
 
@@ -526,7 +535,7 @@ fn hide_refuses_an_id_the_document_does_not_hold() {
     let bench = asm::bench("hidewrong", tol);
     let mut session = asm::open_bench(&bench, tol);
     let outcome = session.perform(SessionOp::SetInstanceHidden {
-        instance: RecipeNodeId(9_999),
+        instance: RecipeNodeId::new(0, 9_999),
         hidden: true,
     });
     assert!(
@@ -580,7 +589,7 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
         "a node that IS in the document and is not an instance is the \
          wrong-kind refusal, naming itself"
     );
-    let absent = RecipeNodeId(test_utils::refusal::tagged(9_999));
+    let absent = RecipeNodeId::new(0, test_utils::refusal::tagged(9_999));
     assert_eq!(
         display::instance_check(doc, absent),
         Err(AdmissionFault::NoSuchNode {
@@ -609,7 +618,7 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
         wrong_kind_says,
         format!(
             "Mate {} is not a part instance",
-            test_utils::refusal::tag(mate.0)
+            test_utils::refusal::tag(mate.0.digest())
         ),
         "the wrong-kind sentence says something IS there and is the \
          wrong thing"
@@ -693,7 +702,7 @@ fn free_move_accepts_only_completely_unconstrained_instances() {
     );
     // And an id the document does not hold refuses for being ABSENT.
     let outcome = session.perform(SessionOp::BeginFreeMove {
-        instance: RecipeNodeId(9_999),
+        instance: RecipeNodeId::new(0, 9_999),
     });
     assert!(
         matches!(
@@ -760,7 +769,7 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
     let probe_corners: usize = index
         .parts()
         .iter()
-        .filter(|part| part.node() == bench.post_b)
+        .filter(|part| part.node() == bench.post_b_copy)
         .flat_map(|part| part.mesh().patches.iter())
         .map(|patch| patch.triangles.len() * 3)
         .sum();
@@ -791,7 +800,7 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
         .pick_for(eval, &asm::down_at(centre[0] + 0.05, centre[1]), &view)
         .expect("the pick answers")
         .expect("the probed instance is under the moved ray");
-    assert_eq!(hit.node, bench.post_b);
+    assert_eq!(hit.node, bench.post_b_copy);
     assert!(
         index
             .pick_for(eval, &asm::over_post_b(), &view)

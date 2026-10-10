@@ -247,7 +247,7 @@ const KNOWN_REFUSING: &[(&str, &str, usize, &str)] = &[
     ("abgg2", "U", 16, "DeclareResolve:16"),
     ("abgids", "U", 2, "DeclareResolve:2"),
     ("abglow", "U", 2, "DeclareResolve:2"),
-    ("cross", "U", 24, "UndeclaredCoincidence:24"),
+    ("cross", "U", 12, "DeclareResolve:8/Naming:4"),
     ("fam000", "U", 2, "DeclareResolve:2"),
     ("fam001", "U", 2, "DeclareResolve:2"),
     ("fam002", "U", 2, "DeclareResolve:2"),
@@ -265,11 +265,10 @@ const KNOWN_REFUSING: &[(&str, &str, usize, &str)] = &[
     ("fam222", "U", 2, "DeclareResolve:2"),
     ("near", "U", 2, "DeclareResolve:2"),
     ("r1flush", "U", 18, "DeclareResolve:18"),
-    ("r1three", "U", 24, "UndeclaredCoincidence:24"),
     ("r2endsg", "U", 12, "DeclareResolve:12"),
     ("r4trig", "U", 12, "DeclareResolve:12"),
-    ("row", "U", 24, "UndeclaredCoincidence:24"),
-    ("rowids", "U", 24, "UndeclaredCoincidence:24"),
+    ("row", "U", 18, "DeclareResolve:16/Naming:2"),
+    ("rowids", "U", 18, "DeclareResolve:16/Naming:2"),
 ];
 
 /// Every refusal `case`'s runs meet, pinned against [`KNOWN_REFUSING`]
@@ -620,7 +619,7 @@ fn a_member_of_two_touching_shells_names_each_shell_for_itself() {
         let (doc, u1) = insert(
             doc,
             Node::Union {
-                members: vec![ids[0], ids[1]],
+                members: vec![ids[0].into(), ids[1].into()],
                 declare: Vec::new(),
             },
         );

@@ -42,6 +42,7 @@ fn boxed(
                 [1.0, 0.0, 0.0],
                 [0.0, 1.0, 0.0],
             )),
+            fresh: Vec::new(),
         },
     );
     let plane = crate::fixture::newest(&doc);
@@ -52,6 +53,7 @@ fn boxed(
                 plane,
                 vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
             ))),
+            fresh: Vec::new(),
         },
     );
     let p = crate::fixture::newest(&doc);
@@ -59,10 +61,11 @@ fn boxed(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: p,
+                profile: p.into(),
                 distance: len(h),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     let e = crate::fixture::newest(&doc);
@@ -97,6 +100,7 @@ fn r2_measure_free_content_keys() {
                 [1.0, 0.0, 0.0],
                 [0.0, 1.0, 0.0],
             )),
+            fresh: Vec::new(),
         },
     );
     let bplane = crate::fixture::newest(&d2);
@@ -107,6 +111,7 @@ fn r2_measure_free_content_keys() {
                 bplane,
                 vec![vec![(0.5, 0.5), (1.5, 0.5), (1.5, 2.5), (0.5, 2.5)]],
             ))),
+            fresh: Vec::new(),
         },
     );
     let bp = crate::fixture::newest(&d3);
@@ -114,10 +119,11 @@ fn r2_measure_free_content_keys() {
         &d3,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: bp,
+                profile: bp.into(),
                 distance: Formula::named(VarName::from_static("t"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     let b = crate::fixture::newest(&d4);
@@ -126,10 +132,11 @@ fn r2_measure_free_content_keys() {
         &DocEdit::InsertNode {
             node: Box::new(Node::Boolean {
                 op: BooleanOp::Subtract,
-                a,
-                b,
+                a: a.into(),
+                b: b.into(),
                 declare: Vec::new(),
             }),
+            fresh: Vec::new(),
         },
     );
     let cut = crate::fixture::newest(&d5);
@@ -144,6 +151,7 @@ fn r2_measure_free_content_keys() {
                     angle: ang(0.0),
                 },
             )),
+            fresh: Vec::new(),
         },
     );
     let ev: Evaluation<f64> = evaluate::<f64>(

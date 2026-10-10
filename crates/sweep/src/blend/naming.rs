@@ -26,10 +26,18 @@
 //! A shrunk support is therefore a survivor and needs no row of its
 //! own: the fact that it is the same face is carried by key identity.
 //!
+//! The surgery ends with the join (`Body::join_edges_within`, recorded
+//! in [`BlendNaming::edge_joins`]), which kills cells of either kind: a
+//! join's `vertex` and `gone` edge may be survivors or mints, and leave
+//! the output. Its `kept` edge keeps its key and its channel — a
+//! survivor or a mint as before — and now also covers the edges it
+//! took (`topo::join_covers`).
+//!
 //! [`BlendNaming::dead`] closes the loop: it lists the source keys
 //! the blend RETIRED, so a consumer can check
-//! `output = (source − dead) ⊎ minted` rather than assume it — in BOTH
-//! directions, executed by
+//! `output = (source − dead − joined) ⊎ (minted − joined)`, where
+//! `joined` is the cells the joins killed, rather than assume it — in
+//! BOTH directions, executed by
 //! `m6_5_fillet_naming::every_output_entity_is_a_recorded_mint_or_a_survivor`
 //! and
 //! `verbs_arms1_annulus::every_annulus_output_entity_is_a_recorded_mint_or_a_survivor`.
@@ -153,7 +161,8 @@ pub struct Retired {
 /// deterministic order the constructor visited them (D9).
 ///
 /// A request whose chains are all open fills `blends` (or
-/// `joined_blends`), `corners`, `trims`, `feet`, `arcs` and `dead`,
+/// `joined_blends`), `corners`, `trims`, `feet`, `arcs`, `mitres`,
+/// `turn_feet` and `dead`,
 /// leaving every rim field empty;
 /// a closed (rim) chain fills the rim phase as well.
 #[derive(Clone, Debug, Default)]
@@ -188,6 +197,15 @@ pub struct BlendNaming {
     /// face (a chord, or an arc of a circle or an ellipse) — the row
     /// names the role, not the carrier shape.
     pub arcs: Vec<(EdgeKey, VertexKey, EdgeKey)>,
+    /// Mitre edge ← the source vertex two bands turn at: where the two
+    /// bands meet, from the trimlines' crossing on the face they share
+    /// (a [`BlendNaming::feet`] row on that face) down to the turn foot.
+    pub mitres: Vec<(EdgeKey, VertexKey)>,
+    /// Turn foot vertex ← the source vertex two bands turn at: where the
+    /// vertex's unrequested edge now ends, the mitre's lower end. The
+    /// edge's surviving piece is a [`BlendNaming::meridian_remnants`]
+    /// row.
+    pub turn_feet: Vec<(VertexKey, VertexKey)>,
 
     // ---- The rim phase (closed chains). ----
     /// Torus band face ← the band's identity: its closed chain's
@@ -208,8 +226,8 @@ pub struct BlendNaming {
     pub meridian_splits: Vec<(VertexKey, EdgeKey, Vec<EdgeKey>)>,
     /// The SURVIVING piece of a source edge the band's carve split ←
     /// that source edge: a seam meridian at a ladder rim's or an
-    /// annulus rim's crossing, or a cap rim at a ruled band's transverse
-    /// cap. (Present even when the surviving piece kept the source key —
+    /// annulus rim's crossing, a rim at either open band's cut-off, or
+    /// the third edge at a turn. (Present even when the surviving piece kept the source key —
     /// the piece is a fragment, so it is named as one.)
     pub meridian_remnants: Vec<(EdgeKey, EdgeKey)>,
     /// A band's SLIT ← (the source meridian whose upper piece became
@@ -226,4 +244,11 @@ pub struct BlendNaming {
 
     /// What the blend retired from the source.
     pub dead: Retired,
+
+    /// The joins the blend ended with (`Body::join_edges_within`, scoped
+    /// to the shells it carved), in the order made. Every row above stays
+    /// as the surgery wrote it: a join's `vertex` and `gone` are then
+    /// dead, and its `kept` covers what `gone` did besides its own
+    /// (`topo::join_covers`).
+    pub edge_joins: Vec<topo::EdgeJoin>,
 }

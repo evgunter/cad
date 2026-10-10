@@ -2,11 +2,10 @@
 id: a-subtract-through-a-pinch-line-drops-the-pinch-row-at-its-cut
 kind: issue
 title: A subtract that cuts one side of a pinch line records no contact where the cut leaves the pinch: neither end of either v-v row there resolves live
-status: parked
+status: open
 opened: 2026-10-02
 priority: P1
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -55,3 +54,7 @@ group's null-edge copies in with its ends, and the subtract passes 3′.
 The witness is pinned as `pinch ∖ upper wall` in
 `a_face_through_a_pinch_line_builds_in_every_op`, and is red with the
 copies left out (measured). Close with that PR's merge.
+
+## Released from the D10 hold (2026-10-08)
+
+Nothing D10 changes gates this row, so it is open: already fixed on main: PR 3927's group remap landed and union_flush_onto_edge_contact.rs pins "pinch ∖ upper wall" with a passing 3′ assert; it can close now. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

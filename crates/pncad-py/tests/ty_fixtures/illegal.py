@@ -7,8 +7,7 @@ declares unrepresentable, plus the typed-quantity boundary.
 
 from pncad import (
     MeasurePrimitive,
-    MeasureExpr,
-    AssertionDir,
+    AssertionRelation,
     AnalysisPolicy,
     analyzed_box,
     McConfig,
@@ -126,10 +125,9 @@ Node.profile(Open.at((0 * m, 0 * m)).line_to(Start), plane="yz")  # ty: error
 # origin — not the other way round.
 SketchPlane.from_frame((0 * m, 0 * m, 0 * m), (0 * m, 1 * m, 0 * m), (0.0, 0.0, 1.0))  # ty: error
 
-# `v_degree` is a Count EXPRESSION (`Formula.count`): a float is not one,
-# and neither is a bare integer.
+# `v_degree` is a Count: a count slot takes an `int` (Q9), and a float
+# is not one.
 Node.loft([], 2.5)  # ty: error
-Node.loft([], 2)  # ty: error
 
 # LIB-PYBUNDLE. A real id to hang the node doors off — the refusals
 # below are about the ARGUMENT types, not about a missing name.
@@ -141,24 +139,20 @@ solid: NodeId = doc.insert(
     )
 )
 
-# THE SEAT IS AN `Formula`, AND NOTHING ELSE REACHES IT. A dimensioned
-# slot takes the expression its kernel slot holds, so the quantity a
-# caller computed is not a slot value until a constructor makes one of
-# it — `Formula.literal(1 * m)` for the canonical row, or
-# `Formula.written_length` for the notation the author wrote.
-Node.extrude(solid, 1 * m)  # ty: error
+# A DIMENSIONED SLOT TAKES ITS OWN DIMENSION'S ROW (Q9): a variable, a
+# `Formula`, or a value that measures what the slot measures — a
+# `Length` or a `WrittenLength` at a length slot. A bare float is
+# dimensionless, so it is not a length.
 Node.extrude(solid, 1.0)  # ty: error
-Node.revolve(solid, solid, 90 * deg)  # ty: error
-Node.fillet(solid, 1 * mm, [])  # ty: error
 
 # A fillet selection is NAMES — the text a materializer answered with,
 # never node ids.
 Node.fillet(solid, Formula.length_in(1, m), [solid])  # ty: error
 
-# A blend radius is a `Formula`, not a bare number.
+# A blend radius is a length, not a bare number.
 Node.fillet(solid, 1.0, [])  # ty: error
 
-# The chamfer's setback is a `Formula` as well, and its selection is
+# The chamfer's setback is a length as well, and its selection is
 # names — the twin holds the same two lines.
 Node.chamfer(solid, 1.0, [])  # ty: error
 Node.chamfer(solid, Formula.length_in(1, m), [solid])  # ty: error
@@ -171,9 +165,9 @@ Node.shell(solid, Formula.length_in(0.01, m), [solid])  # ty: error
 # pair of raw angles, and the hollow kind's WALL IS REQUIRED — the
 # three ways a caller reaches for the shape this vocabulary refuses to
 # have.
-Node.tube(solid, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), 0.2, TubeWindow.full(), Formula.length_in(0.05, m))  # ty: error
-Node.tube(solid, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(0.2, m), (0 * rad, 1 * rad), Formula.length_in(0.05, m))  # ty: error
-Node.hollow_tube(solid, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(0.2, m), TubeWindow.full(), Formula.length_in(0.05, m))  # ty: error
+Node.tube(solid, 0.2, TubeWindow.full(), Formula.length_in(0.05, m))  # ty: error
+Node.tube(solid, Formula.length_in(0.2, m), (0 * rad, 1 * rad), Formula.length_in(0.05, m))  # ty: error
+Node.hollow_tube(solid, Formula.length_in(0.2, m), TubeWindow.full(), Formula.length_in(0.05, m))  # ty: error
 
 # Every one of a transform's slots is a `Formula` — the translation, the
 # axis and the angle alike — so a quantity handed over raw is refused
@@ -295,14 +289,11 @@ Node.pattern(solid, 5 * m, PatternKind.linear((Formula.literal(1.0), Formula.lit
 name: VarName = VarName("which")
 DocEdit.bind_count_param(solid, name, slot="instance")  # ty: error
 
-# LIB-EDITS. The CONTINUOUS slot edit takes the slot's word and an
-# EXPRESSION, which is a dimension-checked tree `Doc.parse_formula`
-# builds — never a bare number and never a dimensioned quantity, both
-# of which would smuggle a second way of saying what a slot holds.
-DocEdit.set_param(solid, "distance", 1 * m)  # ty: error
-DocEdit.set_param(solid, "distance", 1.0)  # ty: error
-# And the word is TEXT: a slot is a name, so there is no slot type to
-# pass and an index is not one either.
+# LIB-EDITS. The CONTINUOUS slot edit takes the slot's word and what a
+# slot takes (Q9): its dimension is the word's, which the type cannot
+# read, so a value of another dimension refuses at the edit door. And
+# the word is TEXT: a slot is a name, so there is no slot type to pass
+# and an index is not one either.
 DocEdit.set_param(solid, 0, doc.parse_formula("1 m"))  # ty: error
 
 # The name repair takes two NAMES — opaque text, as every other
@@ -345,9 +336,8 @@ Node.instantiate_part(doc.id)  # ty: error
 # translation-only shortcut that would hide it.
 DocEdit.set_offset(solid, (0 * m, 0 * m, 1 * m))  # ty: error
 
-# The designate door is TOTAL and takes the whole list; one node is
-# not a root list.
-DocEdit.set_roots(solid)  # ty: error
+# A placement's pose is a `Placement`, not a translation tuple.
+doc.place(solid, (0 * m, 0 * m, 1 * m))  # ty: error
 
 # A mate's reference is a node AND a name: the node it is read at, then
 # the stable NAME TEXT `Evaluation.select` answers in. A node id where
@@ -627,30 +617,27 @@ WrittenLength.canonical_in(0.025, mm)  # ty: error
 # A DIRECTION IS NOT A BOUND, and a bound is not a direction. The two
 # sit side by side on `Node.assertion` and the types are what keep the
 # order from being a thing to remember.
-Node.assertion(solid, doc.parse_formula("1 m"), AssertionDir.AtLeast)  # ty: error
-Node.assertion(solid, AssertionDir.AtLeast, AssertionDir.AtMost)  # ty: error
+_value = doc.output(solid)
+assert _value is not None
+Node.assertion(_value, doc.parse_formula("1 m"), AssertionRelation.AtLeast)  # ty: error
+Node.assertion(_value, AssertionRelation.AtLeast, AssertionRelation.AtMost)  # ty: error
 
-# A MEASURE IS NOT A NODE. The expression is a value the node is built
-# FROM; handing it where an id belongs confuses the two halves the
-# measurement vocabulary keeps apart.
-_span = MeasureExpr.primitive(MeasurePrimitive.distance(0, 1))
-Node.assertion(_span, AssertionDir.AtLeast, doc.parse_formula("1 m"))  # ty: error
-doc.insert(MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)))  # ty: error
-
-# A PRIMITIVE IS NOT AN EXPRESSION either: the leaf has to be lifted
-# through `MeasureExpr.primitive`, which is where the dimension is
-# read off the verb.
-MeasureExpr.add(MeasurePrimitive.distance(0, 1), _span)  # ty: error
+# A PRIMITIVE IS NOT A VALUE. It is what a measure is built FROM;
+# handing it where the value it measures belongs confuses the two
+# halves the measurement vocabulary keeps apart.
+_span = MeasurePrimitive.distance((solid, "a face"), (solid, "another"))
+Node.assertion(_span, AssertionRelation.AtLeast, doc.parse_formula("1 m"))  # ty: error
+doc.insert(_span)  # ty: error
 
 # A reference is a PAIR — the name alone does not say where its
 # carrier is read, which is the half that makes a measure report
 # placed geometry.
-Node.measure(_span, ["a face", "another"])  # ty: error
+MeasurePrimitive.distance("a face", "another")  # ty: error
 
 # The bound takes the expression door and not the quantity one: a
 # typed length cannot be an angle bound, and the whole point of the
-# `Formula` seat is that the dimension is the measure's.
-Node.assertion(solid, AssertionDir.AtLeast, 1 * mm)  # ty: error
+# `Formula` seat is that the dimension is the value's.
+Node.assertion(_value, AssertionRelation.AtLeast, 1 * mm)  # ty: error
 
 # The verb vocabulary is a frozen value: a primitive is restated by
 # building a new one, never by editing one in place.

@@ -138,43 +138,31 @@ constructive coset fold with no witness.
 constraint graph: it may key caches but never consults coordinates;
 generic-configuration rigidity probes live there. Not implemented.
 
-## The group boolean: `PlacedUnion`
+## The group boolean: a union over copies
 
-`Node::PlacedUnion { input, count, kind }` is a Pattern that fuses: one
-prototype (a body-denoting node) and a placement rule in, one body out — the
-union of the prototype placed at each placement. It is its own node kind, not a
-`PatternKind` of `Node::Pattern`: Pattern's N-bodies-unfused contract stays,
-and a result type forked on a variant is the dispatch trap D3 forbids. The two
-nodes share the rule vocabulary and slot map.
+There is no group-boolean node: a union of copies is `union` reading a
+family of placements of one body (`docs/DESIGN.md` D10, Repetition;
+REFERENCES.md DM4), and what the group boolean adds is that union's fast
+path, taken when its bodies are rigid images of one body, visible in the
+reads.
 
-- **Placement rule.** `PatternKind::Linear`, `Circular`, or
-  `Explicit(Vec<Frame>)`: absolute frames in listed order, the index
-  D8-structural, so appending changes no existing index. "How many placements"
-  has one spelling: a stepped rule carries the `Count` slot, `Explicit` carries
-  none. `placement_rule_fault`, read by `apply`, the snapshot check and
-  evaluation, refuses a count spelled twice, an empty list, and a non-finite or
-  improper frame. Face-tied placements and a placement-list edit arm are not
-  implemented. Heterogeneous groups belong to `Node::Union`: an n-ary fuse over
-  an arbitrary member list, named by member and not by position, edited with
-  `DocEdit::SetMembers` (REFERENCES.md DM4).
-- **Naming does not grow.** Per-instance discrimination is `RoleSeg::Instance
-  { i, of }`, the pattern node's wrapper; each instance's rows are re-keyed onto
-  the one output body through that instance's graft bridge, and the body is
-  minted as this node's output body (`name_placed_union`).
+- **Naming does not grow.** Each copy's names carry its `Member { (i, …),
+  of }` segment, keyed by the index variables' ids; each copy's rows are
+  re-keyed onto the one output body through that copy's graft bridge.
 - **Disjointness is certified, never declared.** `topo::Separation::of` builds
-  one BVH of padded conservative face boxes over the prototype; `certify(maps)`
-  tests each pair `(i, j)` in the prototype's frame through `M_i⁻¹ ∘ M_j`. Box
-  separation is real separation, and the test is sufficient-not-necessary: a
-  touching-box but genuinely disjoint arrangement refuses typed
-  (`NodeErrorKind::PlacementsUncertified`, the first pair in index order). The
+  one BVH of padded conservative face boxes over the one body; `certify(maps)`
+  tests each pair `(i, j)` in that body's frame through `M_i⁻¹ ∘ M_j`. Box
+  separation is real separation, and the test is sufficient-not-necessary:
+  copies it cannot certify disjoint go through the union's ordinary pairwise
+  pass and fold (DM4), which decides their contact as for any members. The
   certificate runs before any body is placed.
-- **Lowering.** In placement order (D9), each placement goes through
+- **Lowering.** In index order (D9), each certified copy goes through
   `graft_disjoint_all_keyed`, minting its own solids, so the result is a body
-  of one solid per copy. That is the body the pairwise `Boolean(Union)` chain
-  produces, since a solid is one piece of material (`docs/DESIGN.md`), and it
-  is a boolean operand like any other, since booleans take bodies. A product
-  prototype refuses (`NodeErrorKind::ProductOperand`). No new kernel op or
-  naming record; `BooleanNaming` stays two-operand.
+  of one solid per copy. That is the body the pairwise fold produces, since a
+  solid is one piece of material (`docs/DESIGN.md`), and it is a boolean
+  operand like any other, since booleans take bodies. A product operand
+  refuses (`NodeErrorKind::ProductOperand`). No new kernel op or naming
+  record; `BooleanNaming` stays two-operand.
 
 ## The profile-parameter lift (PP1–PP6)
 

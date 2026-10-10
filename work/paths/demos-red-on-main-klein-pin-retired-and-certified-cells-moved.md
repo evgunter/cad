@@ -2,7 +2,8 @@
 id: demos-red-on-main-klein-pin-retired-and-certified-cells-moved
 kind: issue
 title: demo-tour eps_regression is red on main: klein findings entry 10 retired and the certified-cells header moved
-status: open
+status: closed
+closed: 2026-10-06
 opened: 2026-10-06
 priority: P0
 cost: E
@@ -41,3 +42,7 @@ Suspects, between `78bee3ac` and `364b8aefa`:
 The CI `test` job on main is fast and path-scoped, so main's own runs
 do not run the demos job and stayed green. Every PR that does run
 it inherits this red until it is fixed.
+
+## Outcome
+
+Both rows were fixed on main by CLEAVE PR 4083 (`65b1b0a838`, "demos/tour: port the klein tripwire's retirement; re-baseline the tolerance study PR 3774 moved"). Findings entry 10 and its pin are retired in `demos/tour/src/klein.rs`. The certified-cells header in `demos/tour/src/tolerance.rs` now reads (211, 301) at 512 leaves. The paths log records the port.

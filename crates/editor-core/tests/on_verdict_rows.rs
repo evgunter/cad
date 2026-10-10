@@ -1,8 +1,8 @@
 //! **One body lying on another, through the public API**: the shapes
 //! whose operands carry a closed surface lying wholly on the other
 //! operand's, answered by the kernel's whole-shell `On` verdict
-//! (`topo::boolean::shell_witness`), and the twin no recipe or
-//! declaration makes one, which still refuses.
+//! (`topo::boolean::shell_witness`), and a twin, which answers alike
+//! declared or not.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -44,7 +44,7 @@ fn block(
         vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
     );
     r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(h),
         side: ExtrudeSide::Along,
     })
@@ -53,8 +53,8 @@ fn block(
 fn boolean(r: &mut Recorder, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> RecipeNodeId {
     r.insert(Node::Boolean {
         op,
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         declare: Vec::new(),
     })
 }
@@ -116,14 +116,17 @@ fn two_parts_of_one_half(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
         origin: [len(0.0), len(0.0), len(0.25)],
         normal: [scl(0.0), scl(0.0), scl(1.0)],
     }));
-    let split = r.insert(Node::Split { target: cube, tool });
+    let split = r.insert(Node::Split {
+        target: cube.into(),
+        tool: tool.into(),
+    });
     let above = PartSelect::SplitHalf(SplitHalf::Above);
     let p = r.insert(Node::Part {
-        of: split,
+        of: editor_core::Operand::output(split, SplitHalf::Above.port()),
         select: above.clone(),
     });
     let q = r.insert(Node::Part {
-        of: split,
+        of: editor_core::Operand::output(split, SplitHalf::Above.port()),
         select: above,
     });
     (p, q)
@@ -138,7 +141,7 @@ fn two_parts_of_one_half_answer_under_every_op() {
     let (p, q) = two_parts_of_one_half(&mut r);
     let nodes: Vec<RecipeNodeId> = OPS.iter().map(|&op| boolean(&mut r, op, p, q)).collect();
     let union = r.insert(Node::Union {
-        members: vec![p, q],
+        members: vec![p.into(), q.into()],
         declare: Vec::new(),
     });
     let ev = eval(&r.doc);
@@ -207,7 +210,7 @@ fn a_master_and_its_instance_zero_answer() {
     let mut r = Recorder::new();
     let cube = block(&mut r, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let pat = r.insert(Node::Pattern {
-        input: cube,
+        input: cube.into(),
         count: Formula::count(3),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -215,7 +218,7 @@ fn a_master_and_its_instance_zero_answer() {
         },
     });
     let p0 = r.insert(Node::Part {
-        of: pat,
+        of: pat.into(),
         select: PartSelect::Instance(Formula::count(0)),
     });
     let mut rows = Vec::new();
@@ -311,12 +314,13 @@ fn a_union_with_an_inner_member_against_the_outer() {
     assert_answers(&eval(&r.doc), &rows);
 }
 
-/// **Two placements of one block, all six face pairs declared**: the
-/// declarations settle each face with its twin, so the shells are one.
-/// Undeclared, the same pair refuses `UndeclaredCoincidence`, as do two
-/// independent identical extrudes: value equality never makes one face.
+/// **A twin answers alike declared or not**: two placements of one
+/// block, and two independent identical extrudes, lie face on face; the
+/// margins decide each face pair one carrier, so every op answers
+/// undeclared, and the placements with all six face pairs declared
+/// build the undeclared bodies bit for bit.
 #[test]
-fn a_declared_twin_answers_and_an_undeclared_one_refuses() {
+fn a_twin_answers_alike_declared_or_not() {
     let mut r = Recorder::new();
     let x = block(&mut r, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let place = |r: &mut Recorder| {
@@ -341,38 +345,49 @@ fn a_declared_twin_answers_and_an_undeclared_one_refuses() {
             ]
         })
         .collect();
+    let want = |op: BooleanOp| (op != BooleanOp::Subtract).then_some((1.0, 1));
     let ev = eval(&r.doc);
-    for (label, id) in &undeclared {
-        assert!(
-            matches!(
-                error_of(&ev, *id),
-                NodeErrorKind::UndeclaredCoincidence { .. }
-            ),
-            "{label}: {:?}",
-            error_of(&ev, *id)
-        );
-    }
+    let undeclared_rows: Vec<Row> = OPS
+        .iter()
+        .zip(undeclared.chunks(3))
+        .flat_map(|(&op, ids)| {
+            ids.iter()
+                .map(move |(label, id)| (label.clone(), *id, want(op)))
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    assert_answers(&ev, &undeclared_rows);
 
     let findings = find_flush_candidates(&ev, s, t, Tol::witness()).unwrap();
     assert_eq!(findings.len(), 6, "one finding per face pair: {findings:?}");
     let pairs = declared_pairs(&findings);
-    let rows: Vec<Row> = OPS
+    let declared: Vec<(BooleanOp, RecipeNodeId)> = OPS
         .iter()
         .map(|&op| {
             let id = r.insert(Node::Boolean {
                 op,
-                a: s,
-                b: t,
+                a: s.into(),
+                b: t.into(),
                 declare: pairs.clone(),
             });
-            (
-                format!("S {op:?} T, declared"),
-                id,
-                (op != BooleanOp::Subtract).then_some((1.0, 1)),
-            )
+            (op, id)
         })
         .collect();
-    assert_answers(&eval(&r.doc), &rows);
+    let ev = eval(&r.doc);
+    for ((op, id), (label, bare)) in declared.iter().zip(undeclared.iter().step_by(3)) {
+        assert_eq!(
+            answer(&ev, *id).map(|(v, n, _)| (v, n)),
+            answer(&ev, *bare).map(|(v, n, _)| (v, n)),
+            "S {op:?} T declared answers as {label}"
+        );
+        if *op != BooleanOp::Subtract {
+            assert_eq!(
+                format!("{:?}", crate::corpus::body_of(&ev, *id)),
+                format!("{:?}", crate::corpus::body_of(&ev, *bare)),
+                "S {op:?} T declared is {label}'s body"
+            );
+        }
+    }
 }
 
 /// **A surface the coincidences cover one way only refuses**: X against

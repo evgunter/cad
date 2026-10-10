@@ -727,12 +727,13 @@ fn spout_loft(
             insert(
                 doc,
                 Node::Profile(ProfileProgram {
-                    plane,
+                    frame: plane.into(),
                     loops,
                     ids: Vec::new(),
                 }),
                 tol,
             )
+            .into()
         })
         .collect();
     insert(
@@ -791,6 +792,7 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
         doc,
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         tol,
         &RefusingReach,
@@ -812,7 +814,7 @@ fn revolved(
     let profile = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![loop_],
             ids: Vec::new(),
         }),
@@ -821,8 +823,8 @@ fn revolved(
     insert(
         doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: ang(TAU),
         },
         tol,
@@ -836,7 +838,7 @@ fn pieces_of(doc: &Doc<ProfileProgram>, sweep: RecipeNodeId, tol: Tol) -> Profil
     let Some(Node::Revolve { profile, .. }) = doc.node(sweep) else {
         panic!("node {} is a revolve", sweep.0);
     };
-    let Some(Node::Profile(program)) = doc.node(*profile) else {
+    let Some(Node::Profile(program)) = doc.operation_of(*profile).and_then(|p| doc.node(p)) else {
         panic!("a revolve's operand is a profile");
     };
     program
@@ -888,7 +890,7 @@ fn frame_and_axis(doc: &mut Doc<ProfileProgram>, tol: Tol) -> (RecipeNodeId, Rec
     let axis = insert(
         doc,
         Node::Datum(Datum::AxisInPlane {
-            plane,
+            frame: plane.into(),
             origin: [len(0.0), len(0.0)],
             direction: [scl(0.0), scl(1.0)],
         }),
@@ -908,8 +910,24 @@ fn build_doc(tol: Tol) -> Recipe {
     // so the mouth disc is ONE face, its `Band`.
     let lip = edge_at(&doc, bellied, SEG_MOUTH, tol);
     let mouth = vec![band(bellied, lip)];
-    let pot = insert(&mut doc, Node::shell(bellied, len(WALL), Vec::new()), tol);
-    let cup = insert(&mut doc, Node::shell(bellied, len(WALL), mouth), tol);
+    let pot = insert(
+        &mut doc,
+        Node::shell(
+            pncad::document::Operand::output(bellied, 0),
+            len(WALL),
+            Vec::new(),
+        ),
+        tol,
+    );
+    let cup = insert(
+        &mut doc,
+        Node::shell(
+            pncad::document::Operand::output(bellied, 0),
+            len(WALL),
+            mouth,
+        ),
+        tol,
+    );
 
     // ---- the lid ----
     let plain_lid = revolved(&mut doc, plane, axis, lid_meridian(), tol);
@@ -928,7 +946,15 @@ fn build_doc(tol: Tol) -> Recipe {
         .iter()
         .flat_map(|&(v, ..)| rim_arcs(plain_lid, vertex_at(&doc, plain_lid, v, tol)))
         .collect();
-    let lid = insert(&mut doc, Node::fillet(plain_lid, len(ROLL), rims), tol);
+    let lid = insert(
+        &mut doc,
+        Node::fillet(
+            pncad::document::Operand::output(plain_lid, 0),
+            len(ROLL),
+            rims,
+        ),
+        tol,
+    );
 
     // ---- the spout: a CANAL lofted about its own bent spine, then
     // placed. The placement is unchanged from when this was a revolved
@@ -950,19 +976,21 @@ fn build_doc(tol: Tol) -> Recipe {
     );
 
     // ---- the handle ----
+    // The frame the handle is bent in: its centre the bend's, its
+    // normal the bend's axis, its x the radial its window starts from.
     let spine = insert(
         &mut doc,
-        Node::Datum(Datum::Axis {
+        Node::Datum(Datum::Frame {
             origin: [len(HANDLE_C.x), len(HANDLE_C.y), len(HANDLE_C.z)],
-            direction: [scl(0.0), scl(0.0), scl(1.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
         }),
         tol,
     );
     let handle = insert(
         &mut doc,
         Node::Tube {
-            spine,
-            u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+            frame: spine.into(),
             major_radius: len(HANDLE_R),
             window: TubeWindow::Arc {
                 t0: ang(-(FRAC_PI_2 + HANDLE_OVER)),
@@ -979,15 +1007,15 @@ fn build_doc(tol: Tol) -> Recipe {
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
-                a: cup,
+                a: cup.into(),
                 b,
                 declare: Vec::new(),
             },
             tol,
         )
     };
-    let handle_union = union_node(&mut doc, handle);
-    let spout_union = union_node(&mut doc, spout);
+    let handle_union = union_node(&mut doc, handle.into());
+    let spout_union = union_node(&mut doc, spout.into());
 
     Recipe {
         doc,
@@ -1018,7 +1046,15 @@ fn wall_one_pot(tol: Tol) -> Body<f64> {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot-wall-1", tol);
     let (plane, axis) = frame_and_axis(&mut doc, tol);
     let belly = revolved(&mut doc, plane, axis, torus_belly_meridian(), tol);
-    let hollow = insert(&mut doc, Node::shell(belly, len(WALL), Vec::new()), tol);
+    let hollow = insert(
+        &mut doc,
+        Node::shell(
+            pncad::document::Operand::output(belly, 0),
+            len(WALL),
+            Vec::new(),
+        ),
+        tol,
+    );
     let ev = evaluate::<f64>(
         &doc,
         None,
@@ -1033,25 +1069,12 @@ fn wall_one_pot(tol: Tol) -> Body<f64> {
 /// [`build_doc`] the stops walk, so the gallery cannot be a second
 /// authoring of the scene.
 ///
-/// Three sinks are deleted, and the deletion is what makes the file
-/// draw the teapot rather than a pile: the SEALED hollow, which is the
-/// same operand and wall as the cup and would render inside it, and
-/// the two refusing unions, which produce no body at all and hold the
-/// cup, the spout and the handle down out of the root set while they
-/// stand. What is left is the four bodies the montage shows, as four
-/// roots.
-///
-/// **GAP.** That deletion, and the two probe documents beside it
-/// ([`wall_one_pot`] and [`per_rim_answers`]), are one cost paid three
-/// ways: a recipe cannot hold a NARRATION or PROBE body without that
-/// body becoming a product root, because the root set IS the sink set
-/// and nothing in the vocabulary says "measured, not modelled". A
-/// scene that wants to measure a body beside the one it ships must
-/// either delete it from the copy the gallery opens — which is what
-/// this door does, and which means the file and the scene are two
-/// documents — or build it in a document of its own, which is what
-/// the two probes do and which costs them the scene's own frame and
-/// axis. Filed on LIB's slate.
+/// The product is the four bodies the montage shows — the handle, the
+/// lid, the cup and the spout — each placed in the world once. Nothing
+/// places the SEALED hollow, the same operand and wall as the cup, so
+/// it is not in the product. It and the two refusing unions, which
+/// produce no body, are deleted as well, so the file holds what the
+/// montage shows and no refusal.
 ///
 /// They interpenetrate, and the file says so: the handle's roots are
 /// driven through the belly wall and the spout's root disc sits inside
@@ -1060,11 +1083,18 @@ fn wall_one_pot(tol: Tol) -> Body<f64> {
 /// through the checks registry.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let r = build_doc(tol);
-    [r.handle_union, r.spout_union, r.pot]
+    let tidied = [r.handle_union, r.spout_union, r.pot]
         .into_iter()
         .fold(r.doc, |doc, id| {
             apply(&doc, &DocEdit::DeleteNode { id }, tol, &RefusingReach)
-                .expect("each is a sink: deleting it drops a root and uncovers no body")
+                .expect("nothing reads it, so it deletes")
+                .doc
+        });
+    [r.handle, r.lid, r.cup, r.spout]
+        .into_iter()
+        .fold(tidied, |doc, body| {
+            apply(&doc, &DocEdit::place(body, None), tol, &RefusingReach)
+                .expect("each of the four places")
                 .doc
         })
 }
@@ -1343,7 +1373,15 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String, Option<Census>)> {
         .map(|(&(_, _, _, what), rim)| {
             (
                 what,
-                insert(&mut doc, Node::fillet(lid, len(ROLL), rim.to_vec()), tol),
+                insert(
+                    &mut doc,
+                    Node::fillet(
+                        pncad::document::Operand::output(lid, 0),
+                        len(ROLL),
+                        rim.to_vec(),
+                    ),
+                    tol,
+                ),
             )
         })
         .collect();
@@ -1712,15 +1750,22 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // one rim.
     //
     // Each band's own census delta is asserted here, one rim at a
-    // time, so the one-request total below is three of THIS delta and
-    // not a mix that happens to sum to it.
-    for (what, answer, census) in per_rim_answers(tol) {
+    // time, so the one-request total below is the sum of THESE deltas
+    // and not a mix that happens to reach it. A band adds a face, two
+    // trimline feet and their edges; on a whole planar disc the foot the
+    // slit does not reach has valence two, so the blend's closing join
+    // takes it (+1, +2, +1). On a half-wall every foot sits on a seam
+    // meridian and stays (+2, +3, +1).
+    for ((what, answer, census), want) in
+        per_rim_answers(tol)
+            .into_iter()
+            .zip([(9, 16, 9), (10, 17, 9), (9, 16, 9)])
+    {
         println!("   {what}: {answer}");
         assert_eq!(
             census,
-            Some((10, 17, 9)),
-            "{what}, rolled alone, is one band over its two half-arcs: the sharp 8/14/8 \
-             plus (+2, +3, +1)"
+            Some(want),
+            "{what}, rolled alone, is one band over its two half-arcs on the sharp 8/14/8"
         );
     }
     // THREE rims, THREE DIFFERENT coaxial arms. The lid is
@@ -1740,9 +1785,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             rolled.edges().count(),
             rolled.faces().count(),
         ),
-        (14, 23, 11),
-        "three bands, each over a rim's two half-arcs and each the same census delta: \
-         +2 vertices, +3 edges, +1 face"
+        (12, 21, 11),
+        "three bands, each over a rim's two half-arcs, each the delta it adds alone"
     );
     let bands = band_faces(&ev, r.lid);
     assert_eq!(bands.len(), 3, "three rims, three bands");
@@ -2223,8 +2267,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 
     // WALL 1 — RETIRED at #1081's PR-2b, and the retirement is the
     // pot above: the belly IS the arc now. What this wall pinned was
-    // the sealed hollow of a sphere-zone meridian refusing
-    // `ReanchorOffCarrier`, and it refused because `shell` moved one
+    // the sealed hollow of a sphere-zone meridian refusing at the
+    // per-chart door's moved corner (a refusal since retired: the door
+    // derives corners by root now), and it refused because `shell` moved one
     // chart at a time. The simultaneous door solves each corner
     // against every surface meeting it, so the arc ships and the
     // squared shoulders are gone from the scene entirely.
@@ -2398,8 +2443,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              by Archimedes' zone and the stack, both met to 1e-12. THREE rims roll \
              in ONE request, each asked for WHOLE — both its half-arcs, BandRim and \
              BandRimPi, minted by `band_rim` and `band_rim_pi` — and each band \
-             carves over both arcs: 14/23/11 rolled, every band the same \
-             (+2, +3, +1). The flange's rim and the \
+             carves over both arcs: 12/21/11 rolled, the sum of the lone bands' \
+             deltas — (+2, +3, +1) each, less one vertex and one edge where the \
+             blend's closing join makes a trimline on a WHOLE disc (the base under \
+             the flange, the top under the knob) one closed circle; the dome's foot \
+             runs between two half-walled supports and keeps both. The flange's rim and the \
              dome's foot are the two ends of ONE meridian segment, so both bands slit \
              and cross THAT segment's meridians, and their names tell the two apart \
              by the band that made each. Their supports are three \

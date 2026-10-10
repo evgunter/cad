@@ -32,8 +32,16 @@
 # THE SENTENCE IS A THIRD ROUTE, and it is counted too.
 # `MarginDiag::sized_recourse` chooses its words from the number, so a
 # caller that asked it and searched the sentence for "tighten" would
-# read the margin's side through it. Its production call sites are a
-# third list here: the sized-decision table that owns the endings.
+# read the margin's side through it. So do the import door's two
+# (D4 ¶1, as Ev ruled on `[ev]` PR 3380):
+# `MarginDiag::sized_recourse_in_file` withholds the offer to tighten
+# alone for a size whose nearer end lies at or below the file's ε_in,
+# and `FileCoincidence::miss_recourse_in_file` names the set-ε-to-ε_in
+# stopgap for a miss within it — a comparison against the margin that
+# picks the words and nothing else, so a caller searching either
+# sentence would read whether the margin lies within ε_in. Their
+# production call sites are a third list here: the sized-decision table
+# that owns the endings.
 #
 # WHAT A LISTED SITE OWES, and the gate checks none of it — it checks
 # only the file and the count, so the list is where the argument lives:
@@ -60,6 +68,12 @@
 #   * rendering the reading as text — `Display`, `LowerExp`, or the
 #     derived `Debug` every payload carries — and parsing the text back
 #     is a door it cannot see, as obviously wrong as it is long;
+#   * a sentence asked through a public wrapper is invisible: a caller
+#     searching the import door's text (`geom_brep::certify::recourse`,
+#     `SizedDecision::recourse` or `topo::EulerOpError::render` read at
+#     `ReadAt::File`) with `.contains(..)` reads the margin's side as
+#     surely as one asking the sentence here, under a name the list does
+#     not count;
 #   * EQUALITY AGAINST A COMPARAND IT DID NOT MINT is invisible: a site
 #     holding two readings the classifier minted — `sign_within(..)?`'s
 #     or `decide_reported(..)`'s `.margin`, an escalation's — can ask
@@ -86,6 +100,7 @@ DOOR_RE='diagnostic_f64_for_error_text'
 # definition home that mints a valued reading.
 MINT_ALLOWLIST=(
   'crates/geom-core/src/interval.rs 1 the interval classifier reports the enclosure it classified'
+  'crates/step-import/src/lib.rs 1 an import anchor row reports the distance its own comparison against the file eps_in read'
   'crates/sweep/src/blend/battery.rs 2 the blend payload reports its companion quantities as its own scalar reads them (the M5 PR 12 seam)'
   'crates/topo/src/boolean/sectors.rs 1 a bisector read On between definite bounds reports what is known of it, the zero band'
   'crates/topo/src/chart_region.rs 1 a definite deduction that cannot certify its outcome echoes the value it classified'
@@ -95,11 +110,12 @@ MINT_ALLOWLIST=(
 MINT_RE='MarginDiag>?::(value|enclosure)([^A-Za-z0-9_]|$)'
 
 # `path count why` — one entry per production file outside the
-# definition home that asks the margin for a sized recourse sentence.
+# definition home that asks the margin for a sized recourse sentence, or
+# for either of the import door's.
 SIZED_ALLOWLIST=(
-  'crates/geom-brep/src/recourse.rs 2 the sized-decision table: the Zero and the Undecided arm end in the sentence, returned whole'
+  'crates/geom-brep/src/recourse.rs 5 the sized-decision table: a sized decision ends its Zero and Undecided arms in the sentence at a build or at rest and in the import door one, and a residual ends every arm in the one door miss sentence, each returned whole'
 )
-SIZED_RE='sized_recourse([^A-Za-z0-9_]|$)'
+SIZED_RE='(sized_recourse|sized_recourse_in_file|miss_recourse_in_file)([^A-Za-z0-9_]|$)'
 
 # `path count why` — production files that may write the classifier's
 # verdict `terminal_sliver: true` on an escalation of their own. None:
@@ -137,16 +153,20 @@ test_support_mounts() {
 
 # check_list WHAT RE ENTRY... — the hits of RE over production code,
 # outside the definition home, against the `path count why` entries.
-# Prints the offending records and returns 1 (outside) or 2 (a moved
-# count); 0 when every hit is on the list at its count.
+# Prints the offending records, cut to 200 columns, and returns 1
+# (outside) or 2 (a moved count); 0 when every hit is on the list at
+# its count. On 1, CHECK_LIST_FIRED holds the names RE matched in the
+# offending records, read before the cut, so a call past column 200
+# is still named.
 check_list() {
   local what=$1 re=$2
   shift 2
-  local hits
-  hits=$(gate_rust_code --skip-cfg-test "${GATE_SCAN[@]}" \
+  local full hits
+  full=$(gate_rust_code --skip-cfg-test "${GATE_SCAN[@]}" \
     | gate_grep -E "$re" \
-    | gate_grep -vE "$(gate_record_anchor_any "${DEFINITION_HOMES[@]}")" \
-    | cut -c1-200)
+    | gate_grep -vE "$(gate_record_anchor_any "${DEFINITION_HOMES[@]}")")
+  hits=$(printf '%s\n' "$full" | cut -c1-200)
+  CHECK_LIST_FIRED=
   local entry path want why have bad=
   local -a listed=()
   for entry in ${@+"$@"}; do
@@ -158,14 +178,18 @@ check_list() {
       bad+="  [$path]: $have $what(s), the entry pins $want ($why)"$'\n'
     fi
   done
-  local outside
+  local outside full_outside
   if [ "${#listed[@]}" -gt 0 ]; then
     outside=$(printf '%s\n' "$hits" | gate_grep -vE "$(gate_record_anchor_any "${listed[@]}")" || true)
+    full_outside=$(printf '%s\n' "$full" | gate_grep -vE "$(gate_record_anchor_any "${listed[@]}")" || true)
   else
     outside=$hits
+    full_outside=$full
   fi
   if [ -n "$outside" ]; then
     printf '%s\n' "$outside"
+    CHECK_LIST_FIRED=$(printf '%s\n' "$full_outside" | gate_grep -oE "$re" \
+      | sed -E 's/[^A-Za-z0-9_]$//' | sort -u | paste -sd, - | sed 's/,/, /g')
     return 1
   fi
   if [ -n "$bad" ]; then
@@ -211,7 +235,7 @@ gate() {
   esac
   check_list sentence "$SIZED_RE" "${SIZED_ALLOWLIST[@]}" || rc=$?
   case $rc in
-    1) gate_error "$(gate_name): MarginDiag::sized_recourse asked outside the allowlisted sites (this file's header says what a site owes). Its sentence is chosen from the number, so reading it is reading the margin; end a sized decision through geom_brep::recourse::SizedDecision instead, or add the site here with its reason"
+    1) gate_error "$(gate_name): $CHECK_LIST_FIRED asked outside the allowlisted sites (this file's header says what a site owes). Its sentence is chosen from the number, so reading it is reading the margin; end a sized decision through geom_brep::recourse::SizedDecision instead, or add the site here with its reason"
        exit 1 ;;
     2) gate_error "$(gate_name): an allowlisted sentence site's count moved. Move the pin in the change that carries the argument"
        exit 1 ;;
@@ -327,6 +351,28 @@ plant_mint_in_a_plain_mount() {
   printf 'fn m() -> MarginDiag { MarginDiag::value(5e-9) }\n' > "$1/crates/topo/src/extra.rs"
 }
 
+# The import door's sentence used as an ε_in oracle, from the door.
+plant_in_file_oracle_outside() {
+  mkdir -p "$1/crates/step-import/src"
+  printf 'fn f(d: MarginDiag, e: FileCoincidence) -> bool { e.miss_recourse_in_file(MissReading::Definite(d), MissSource::File, "").contains("stopgap") }\n' \
+    > "$1/crates/step-import/src/error.rs"
+}
+
+# The door's sized sentence used as an ε_in oracle.
+plant_sized_in_file_oracle_outside() {
+  mkdir -p "$1/crates/step-import/src"
+  printf 'fn f(d: MarginDiag, b: Band, w: SizedWords, e: FileCoincidence) -> bool { d.sized_recourse_in_file(b, w, e).contains("re-export") }\n' \
+    > "$1/crates/step-import/src/error.rs"
+}
+
+# The door's sized sentence asked past column 200, where the printed
+# record is cut: the gate still names it.
+plant_long_in_file_oracle_outside() {
+  mkdir -p "$1/crates/step-import/src"
+  printf 'fn f(d: MarginDiag, b: Band, w: SizedWords, e: FileCoincidence) -> bool { let padding_that_pushes_the_call_past_the_two_hundredth_column_of_the_record_the_gate_prints_and_then_some_more_padding = 0; d.sized_recourse_in_file(b, w, e).contains("re-export") }\n' \
+    > "$1/crates/step-import/src/error.rs"
+}
+
 # The sentence used as a sign oracle.
 plant_sentence_oracle_outside() {
   mkdir -p "$1/crates/topo/src"
@@ -354,11 +400,14 @@ gate_selftest() {
   gate_selftest_case "$minted" plant_path_mint_outside
   gate_selftest_case "$minted" plant_qualified_mint_outside
   gate_selftest_case "$minted" plant_mint_in_a_plain_mount
-  gate_selftest_case "MarginDiag::sized_recourse asked outside the allowlisted sites" plant_sentence_oracle_outside
+  gate_selftest_case "sized_recourse asked outside the allowlisted sites" plant_sentence_oracle_outside
+  gate_selftest_case "miss_recourse_in_file asked outside the allowlisted sites" plant_in_file_oracle_outside
+  gate_selftest_case "sized_recourse_in_file asked outside the allowlisted sites" plant_sized_in_file_oracle_outside
+  gate_selftest_case ": sized_recourse_in_file asked outside the allowlisted sites" plant_long_in_file_oracle_outside
   gate_selftest_case "terminal_sliver: true written outside the classifier" plant_forged_sliver
   gate_selftest_passes "the definition, the allowlisted calls and mints, a test module's, the poison constant and prose" gate_plant_clean
   gate_selftest_homes --narrowed --subject "$DEFINITION_SUBJECT" "${DEFINITION_HOMES[@]}"
-  printf '%s selftest OK: passes a clean fixture carrying the definition, every allowlisted call and mint, a test module that reads and mints, the poison constant and prose naming both; fires on a method call and a path call from another crate, on a moved count, on an equality against a minted reading, a path mint, a qualified-path mint and a mint in a plain mount, on the sized sentence asked outside its table, and on a forged terminal-sliver verdict; skips a test-support mount; and stays RED, with a diagnosis, when grep itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying the definition, every allowlisted call and mint, a test module that reads and mints, the poison constant and prose naming both; fires on a method call and a path call from another crate, on a moved count, on an equality against a minted reading, a path mint, a qualified-path mint and a mint in a plain mount, on the sized sentence or an import-door sentence asked outside its table, and on a forged terminal-sliver verdict; skips a test-support mount; and stays RED, with a diagnosis, when grep itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

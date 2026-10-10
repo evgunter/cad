@@ -18,11 +18,11 @@ use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionDir, AssertionVerdict, BooleanOp, CancelToken, Dimension, DocEdit, DocumentId,
-    EvalOptions, Evaluation, Formula, FreeValue, FreeVar, LoopProgram, MeasureExpr,
-    MeasurePrimitive, Node, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc,
-    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, SlotId, SplitHalf,
-    StableName, ValuePayload, VarName, apply, evaluate,
+    AssertionRelation, AssertionVerdict, BooleanOp, CancelToken, Dimension, DocEdit, DocumentId,
+    EvalOptions, Evaluation, Formula, FreeValue, FreeVar, LoopProgram, MeasurePrimitive, Node,
+    NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram, ProgramStep,
+    ProgramTarget, RecipeNodeId, SitedRef, SlotId, SplitHalf, StableName, ValuePayload, VarName,
+    apply, evaluate,
 };
 use fixture::{ang, frame, len, scl, xy_frame};
 use geom_core::{Point3, Tol};
@@ -59,6 +59,7 @@ fn mint(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, Recip
         doc,
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -112,10 +113,11 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane: xy,
+                frame: xy.into(),
                 loops: vec![outer],
                 ids: Vec::new(),
             })),
+            fresh: Vec::new(),
         },
     );
     let outer_p = crate::fixture::newest(&doc);
@@ -123,10 +125,11 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: outer_p,
+                profile: outer_p.into(),
                 distance: len(0.1),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     let plate = crate::fixture::newest(&doc);
@@ -136,13 +139,14 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    plane: xy,
+                    frame: xy.into(),
                     loops: vec![LoopProgram::Circle {
                         centre: [len(cx), len(0.0)],
                         radius: Formula::named(VarName::from_static(HOLE_R), Dimension::Length),
                     }],
                     ids: Vec::new(),
                 })),
+                fresh: Vec::new(),
             },
         );
         let hole_p = crate::fixture::newest(&doc);
@@ -150,10 +154,11 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(Node::Extrude {
-                    profile: hole_p,
+                    profile: hole_p.into(),
                     distance: len(0.1),
                     side: ExtrudeSide::Along,
                 }),
+                fresh: Vec::new(),
             },
         );
         holes[i] = crate::fixture::newest(&doc);
@@ -236,10 +241,11 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    plane,
+                    frame: plane.into(),
                     loops: vec![square()],
                     ids: Vec::new(),
                 })),
+                fresh: Vec::new(),
             },
         );
         let profile = crate::fixture::newest(&doc);
@@ -247,10 +253,11 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(Node::Extrude {
-                    profile,
+                    profile: profile.into(),
                     distance: len(1.0),
                     side: ExtrudeSide::Along,
                 }),
+                fresh: Vec::new(),
             },
         );
         slabs.push(crate::fixture::newest(&doc));
@@ -288,13 +295,14 @@ fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNod
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    plane: xy,
+                    frame: xy.into(),
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
                         radius: len(r),
                     }],
                     ids: Vec::new(),
                 })),
+                fresh: Vec::new(),
             },
         );
         let profile = crate::fixture::newest(&doc);
@@ -302,10 +310,11 @@ fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNod
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(Node::Extrude {
-                    profile,
+                    profile: profile.into(),
                     distance: len(0.5),
                     side: ExtrudeSide::Along,
                 }),
+                fresh: Vec::new(),
             },
         );
         prisms.push(crate::fixture::newest(&doc));
@@ -348,40 +357,32 @@ fn failed_kind(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NodeErrorKind {
     }
 }
 
-/// The plate with a web measure and an assertion on it. The web is
-/// `distance(wall, wall) - 2 * hole_r`: the axis separation less both
-/// radii, spelled as the author's own arithmetic rather than hidden
-/// inside a primitive.
+/// The plate with a measure of the wall distance and an assertion on
+/// the web, `distance(wall, wall) - 2 * hole_r`: the axis separation
+/// less both radii, the author's own arithmetic, which the assertion's
+/// value defines.
 fn plate_with_web() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, _, holes) = plate();
     let walls = hole_walls(&eval(&doc), holes);
     assert_eq!(walls.len(), 2, "two holes, one wall reference each");
-    let r = || {
-        MeasureExpr::value(Formula::named(
-            VarName::from_static(HOLE_R),
-            Dimension::Length,
-        ))
-    };
-    let web = MeasureExpr::sub(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::add(r(), r()).expect("Length + Length"),
+    let (doc, web) =
+        crate::fixture::measure(doc, &[MeasurePrimitive::Distance { a: 0, b: 1 }], &walls);
+    let r = || Formula::named(VarName::from_static(HOLE_R), Dimension::Length);
+    let value = Formula::sub(
+        crate::fixture::read_var(&doc, web.outputs[0]),
+        Formula::add(r(), r()).expect("Length + Length"),
     )
     .expect("Length - Length");
-    let doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::measure(web, walls).expect("both indices address a reference")),
-        },
-    );
-    let measure = crate::fixture::newest(&doc);
+    let measure = web.measures[0];
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure,
+                value,
                 bound: len(MIN_WEB),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     );
     let assertion = crate::fixture::newest(&doc);
@@ -395,11 +396,16 @@ fn plate_with_web() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// carrying both numbers.
 #[test]
 fn the_two_hole_plate_web_measures_and_its_assertion_flips() {
-    let (doc, measure, assertion) = plate_with_web();
+    let (doc, _, assertion) = plate_with_web();
 
     let ev = eval(&doc);
-    let (web, dim) = measured(&ev, measure);
-    assert_eq!(dim, Dimension::Length, "a distance is a Length");
+    let value = crate::fixture::assertion_value(&doc, assertion);
+    let web = crate::fixture::reading(&doc, &ev, value).expect("the web reads");
+    assert_eq!(
+        doc.var(value).and_then(|v| v.kind().dimension()),
+        Some(Dimension::Length),
+        "a distance less two radii is a Length"
+    );
     // The independent oracle: the holes were authored at x = ±0.30 with
     // radius 0.2, so the axis separation is 0.60 and the web is
     // 0.60 - 0.4 = 0.20 exactly. Nothing here reads a previous run.
@@ -426,7 +432,7 @@ fn the_two_hole_plate_web_measures_and_its_assertion_flips() {
         },
     );
     let ev = eval(&doc);
-    let (web, _) = measured(&ev, measure);
+    let web = crate::fixture::reading(&doc, &ev, value).expect("the web reads");
     match verdict(&ev, assertion) {
         AssertionVerdict::Violated { measured, bound } => {
             assert!(
@@ -471,11 +477,7 @@ fn a_violated_assertion_changes_no_downstream_outcome() {
     );
     // Every node the two documents share evaluates identically, keys
     // included — the memo currency is what a gate would have to move.
-    for id in [
-        with_assertion.order()[0],
-        with_assertion.order()[1],
-        measure,
-    ] {
+    for id in [with_assertion.ids()[0], with_assertion.ids()[1], measure] {
         let (x, y) = (
             a.nodes.get(&id).expect("live"),
             b.nodes.get(&id).expect("live"),
@@ -511,7 +513,7 @@ fn a_document_without_measures_is_untouched() {
     let (plain, body, holes) = plate();
     let (measured_doc, _, _) = plate_with_web();
     let (a, b) = (eval(&plain), eval(&measured_doc));
-    for id in [plain.order()[0], body, holes[0], holes[1]] {
+    for id in [plain.ids()[0], body, holes[0], holes[1]] {
         match (a.nodes.get(&id), b.nodes.get(&id)) {
             (Some(NodeResult::Ok(x)), Some(NodeResult::Ok(y))) => {
                 assert_eq!(x.content_key, y.content_key);
@@ -530,18 +532,8 @@ fn a_document_without_measures_is_untouched() {
 fn cylinder_distance_is_the_axis_separation() {
     let (doc, _, holes) = plate();
     let walls = hole_walls(&eval(&doc), holes);
-    let doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(
-                Node::measure(
-                    MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-                    walls,
-                )
-                .expect("indices in range"),
-            ),
-        },
-    );
+    let doc =
+        crate::fixture::measure_node(&doc, MeasurePrimitive::Distance { a: 0, b: 1 }, walls).0;
     let (d, dim) = measured(&eval(&doc), last(&doc));
     assert_eq!(dim, Dimension::Length);
     assert!(
@@ -578,18 +570,7 @@ fn plane_angle_between_opposed_caps_is_pi() {
         };
         vec![pick(CapEnd::End), pick(CapEnd::Start)]
     };
-    let doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(
-                Node::measure(
-                    MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
-                    caps,
-                )
-                .expect("indices in range"),
-            ),
-        },
-    );
+    let doc = crate::fixture::measure_node(&doc, MeasurePrimitive::Angle { a: 0, b: 1 }, caps).0;
     let (a, dim) = measured(&eval(&doc), last(&doc));
     assert_eq!(dim, Dimension::Angle, "an angle is an Angle");
     assert!(
@@ -618,18 +599,12 @@ fn a_plane_gap_over_disjoint_slabs_is_positive_both_ways() {
         (top_of_lower.clone(), bottom_of_upper.clone()),
         (bottom_of_upper, top_of_lower),
     ] {
-        let doc = push(
+        let doc = crate::fixture::measure_node(
             &doc,
-            &DocEdit::InsertNode {
-                node: Box::new(
-                    Node::measure(
-                        MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-                        vec![o, i],
-                    )
-                    .expect("indices in range"),
-                ),
-            },
-        );
+            MeasurePrimitive::Gap { outer: 0, inner: 1 },
+            vec![o, i],
+        )
+        .0;
         let (g, dim) = measured(&eval(&doc), last(&doc));
         assert_eq!(dim, Dimension::Length);
         assert!(
@@ -651,18 +626,12 @@ fn a_plane_gap_over_an_aligned_pair_negates_under_a_role_swap() {
     let top_of_upper = cap(&ev, upper, editor_core::CapEnd::End);
 
     let read = |o: SitedRef, i: SitedRef| {
-        let doc = push(
+        let doc = crate::fixture::measure_node(
             &doc,
-            &DocEdit::InsertNode {
-                node: Box::new(
-                    Node::measure(
-                        MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-                        vec![o, i],
-                    )
-                    .expect("indices in range"),
-                ),
-            },
-        );
+            MeasurePrimitive::Gap { outer: 0, inner: 1 },
+            vec![o, i],
+        )
+        .0;
         measured(&eval(&doc), last(&doc)).0
     };
     let forward = read(top_of_lower.clone(), top_of_upper.clone());
@@ -696,18 +665,9 @@ fn the_gap_sign_convention_walks_all_three_regimes() {
         let (doc, bore, pin) = coaxial_pair(bore_r, pin_r);
         let ev = eval(&doc);
         let refs = vec![hole_wall_of(&ev, bore), hole_wall_of(&ev, pin)];
-        let doc = push(
-            &doc,
-            &DocEdit::InsertNode {
-                node: Box::new(
-                    Node::measure(
-                        MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-                        refs,
-                    )
-                    .expect("indices in range"),
-                ),
-            },
-        );
+        let doc =
+            crate::fixture::measure_node(&doc, MeasurePrimitive::Gap { outer: 0, inner: 1 }, refs)
+                .0;
         let (g, dim) = measured(&eval(&doc), last(&doc));
         assert_eq!(dim, Dimension::Length, "a gap is a signed Length");
         let want = bore_r - pin_r;
@@ -753,42 +713,38 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
         },
     );
     // 13 m / s, with s bound to zero.
-    let over_zero = MeasureExpr::div(
-        MeasureExpr::value(len(13.0)),
-        MeasureExpr::value(Formula::named(VarName::from_static("s"), Dimension::Scalar)),
+    let over_zero = Formula::div(
+        len(13.0),
+        Formula::named(VarName::from_static("s"), Dimension::Scalar),
     )
     .expect("Length / Scalar");
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::measure(over_zero, Vec::new()).expect("no references to bound")),
-        },
-    );
-    let measure = last(&doc);
-    doc = push(
-        &doc,
-        &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure,
+                value: over_zero,
                 bound: len(1.0),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     );
     let assertion = last(&doc);
     let ev = eval(&doc);
 
-    let err = failed_kind(&ev, measure);
+    // The assertion produces NO verdict at all: its value refuses,
+    // never `Holds` over infinity.
+    let err = failed_kind(&ev, assertion);
     assert!(
-        matches!(err, NodeErrorKind::MeasureNonFinite { .. }),
+        matches!(
+            err,
+            NodeErrorKind::PayloadExpr {
+                index: 0,
+                source: editor_core::EvalError::NonFiniteResult,
+                ..
+            }
+        ),
         "a division by zero must refuse, got {err:?}"
-    );
-    // And the assertion produces NO verdict at all: it is poisoned
-    // through the DAG edge, never `Holds` over infinity.
-    assert!(
-        matches!(ev.nodes.get(&assertion), Some(NodeResult::Poisoned { .. })),
-        "no verdict may be reported over a non-finite measure, got {:?}",
-        ev.nodes.get(&assertion)
     );
 }
 
@@ -816,13 +772,14 @@ fn the_same_division_in_a_slot_has_always_refused() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane: xy,
+                frame: xy.into(),
                 loops: vec![LoopProgram::Circle {
                     centre: [len(0.0), len(0.0)],
                     radius: len(0.2),
                 }],
                 ids: Vec::new(),
             })),
+            fresh: Vec::new(),
         },
     );
     let disc = last(&doc);
@@ -830,7 +787,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: disc,
+                profile: disc.into(),
                 distance: Formula::div(
                     len(13.0),
                     Formula::named(VarName::from_static("s"), Dimension::Scalar),
@@ -838,6 +795,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
                 .expect("Length / Scalar"),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     let extrude = last(&doc);
@@ -851,7 +809,8 @@ fn the_same_division_in_a_slot_has_always_refused() {
                 ..
             }
         ),
-        "the slot lane refuses non-finite, got {err:?}"
+        "the slot lane refuses non-finite — the slot reads the variable its \
+         formula defines, whose refusal is the slot's own — got {err:?}"
     );
 }
 
@@ -874,7 +833,7 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane: xy,
+                frame: xy.into(),
                 loops: vec![LoopProgram::Chain(vec![
                     ProgramStep::At([len(0.0), len(0.0)]),
                     ProgramStep::LineTo(ProgramTarget::Point([len(1.0), len(0.0)])),
@@ -884,6 +843,7 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
                 ])],
                 ids: Vec::new(),
             })),
+            fresh: Vec::new(),
         },
     );
     let square_p = last(&doc);
@@ -891,10 +851,11 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: square_p,
+                profile: square_p.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     let solid = crate::fixture::newest(&doc);
@@ -909,6 +870,7 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
                     angle: ang(0.0),
                 },
             )),
+            fresh: Vec::new(),
         },
     );
     let placed = crate::fixture::newest(&doc);
@@ -929,21 +891,15 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
     // The SAME vertex name, read at the two sites: the distance between
     // the authored carrier and the placed one is exactly the
     // translation. Nothing else in the document differs.
-    let doc = push(
+    let doc = crate::fixture::measure_node(
         &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(
-                Node::measure(
-                    MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-                    vec![
-                        SitedRef::new(solid, vname.clone()),
-                        SitedRef::new(placed, vname),
-                    ],
-                )
-                .expect("indices in range"),
-            ),
-        },
-    );
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            SitedRef::new(solid, vname.clone()),
+            SitedRef::new(placed, vname),
+        ],
+    )
+    .0;
     let (d, _) = measured(&eval(&doc), last(&doc));
     assert!(
         (d - SHIFT).abs() < 1e-9,
@@ -954,13 +910,14 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
 
 // ---- Review claim 5: scalar genericity ----
 
-/// A measure evaluates at `Interval` and its bracket CONTAINS the f64
-/// value — the containment claim, on the measurement channel.
+/// A measured value evaluates at `Interval` and its bracket CONTAINS
+/// the f64 value — the containment claim, on the measurement channel.
 #[test]
 fn a_measure_at_interval_contains_the_f64_value() {
     use geom_core::{Bounds, Interval};
-    let (doc, measure, _) = plate_with_web();
-    let at_f64 = measured(&eval(&doc), measure).0;
+    let (doc, _, assertion) = plate_with_web();
+    let web = crate::fixture::assertion_value(&doc, assertion);
+    let at_f64 = crate::fixture::reading(&doc, &eval(&doc), web).expect("the web reads");
     let ev = evaluate::<Interval>(
         &doc,
         None,
@@ -968,20 +925,13 @@ fn a_measure_at_interval_contains_the_f64_value() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    match ev.nodes.get(&measure) {
-        Some(NodeResult::Ok(v)) => match &v.payload {
-            ValuePayload::Measure { value, .. } => {
-                assert!(
-                    value.lo() <= at_f64 && at_f64 <= value.hi(),
-                    "[{}, {}] must contain {at_f64}",
-                    value.lo(),
-                    value.hi()
-                );
-            }
-            other => panic!("expected a measure, got {}", other.kind_name()),
-        },
-        other => panic!("the measure did not evaluate at Interval: {other:?}"),
-    }
+    let value = crate::fixture::reading(&doc, &ev, web).expect("the web reads at Interval");
+    assert!(
+        value.lo() <= at_f64 && at_f64 <= value.hi(),
+        "[{}, {}] must contain {at_f64}",
+        value.lo(),
+        value.hi()
+    );
 }
 
 // ---- Review claim 3: refusal completeness ----
@@ -990,12 +940,10 @@ fn a_measure_at_interval_contains_the_f64_value() {
 /// vocabulary — never silence, never a measurement of what is left.
 ///
 /// Note which dangling case this is. A measure's references ARE DAG
-/// edges, so deleting a referenced node is refused at the delete door
-/// like any other consumer's input (`DeleteWouldDangle`) — that
-/// departs from the declared-pair/`Mate` carve-out, deliberately, because
-/// a measure consumes the value it names. What remains reachable is
-/// the case the N5 ladder is really for: a well-formed name that the
-/// still-live minting node's table does not carry.
+/// edges, so deleting a referenced node strands its names like any
+/// reader's, reported at the delete. The case the N5 ladder is really
+/// for is this one: a well-formed name that the still-live minting
+/// node's table does not carry.
 #[test]
 fn a_reference_that_stops_resolving_refuses_typed() {
     use editor_core::{EntityKind, RoleSeg};
@@ -1011,65 +959,52 @@ fn a_reference_that_stops_resolving_refuses_typed() {
             path: vec![RoleSeg::OutputBody],
         },
     );
-    let doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(
-                Node::measure(
-                    MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-                    walls,
-                )
-                .expect("indices in range"),
-            ),
-        },
-    );
+    let doc =
+        crate::fixture::measure_node(&doc, MeasurePrimitive::Distance { a: 0, b: 1 }, walls).0;
     let ev = eval(&doc);
     let err = failed_kind(&ev, last(&doc));
     assert!(
-        matches!(err, NodeErrorKind::MeasureRefResolve { .. }),
+        matches!(err, NodeErrorKind::SelectResolve { .. }),
         "got {err:?}"
     );
 }
 
-/// Deleting a node a measure references is refused at the DELETE door,
-/// because the reference is a consuming edge. Pinned because it is the
-/// one place this node kind departs from the declared-pair/`Mate`
-/// name-reference carve-out, and a silent reversal would take the
-/// ordering guarantee with it.
+/// A measure's references are read at their nodes, so those nodes are
+/// its upstream ([`editor_core::Doc::upstream`]): the measure is
+/// scheduled after them. Deleting one is accepted, as every delete is
+/// (D10), and the measure then refuses at evaluation naming the node
+/// it can no longer read at.
 #[test]
-fn deleting_a_referenced_node_is_refused() {
-    use editor_core::EditError;
+fn deleting_a_referenced_node_leaves_the_measure_refusing() {
     let (doc, _, holes) = plate();
     let walls = hole_walls(&eval(&doc), holes);
-    let doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(
-                Node::measure(
-                    MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-                    walls,
-                )
-                .expect("indices in range"),
-            ),
-        },
-    );
-    let err = apply(
-        &doc,
-        &DocEdit::DeleteNode { id: holes[0] },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect_err("the measure consumes that node");
+    let doc =
+        crate::fixture::measure_node(&doc, MeasurePrimitive::Distance { a: 0, b: 1 }, walls).0;
+    let measure = last(&doc);
     assert!(
-        matches!(err, EditError::DeleteWouldDangle { .. }),
+        doc.upstream(measure).contains(&holes[0]),
+        "the measure waits for the node it reads at"
+    );
+    let deleted = push(&doc, &DocEdit::DeleteNode { id: holes[0] });
+    let ev = eval(&deleted);
+    let err = failed_kind(&ev, measure);
+    assert!(
+        matches!(
+            err,
+            NodeErrorKind::UnresolvedRead {
+                slot: editor_core::OperandSlot::Measured(_, 0),
+                ..
+            }
+        ),
         "got {err:?}"
     );
 }
 
-/// A reference to a WHOLE BODY has no carrier, and the refusal names
-/// the pair class rather than guessing an arm.
+/// A reference to a WHOLE BODY is no `distance` reference: the
+/// primitive reads a face, an edge or a vertex, and the insert refuses
+/// by the seat's kind (FORK-VTX) rather than evaluation guessing an arm.
 #[test]
-fn an_unsupported_carrier_pair_refuses_naming_the_pair() {
+fn a_whole_body_is_no_distance_reference() {
     use editor_core::{EntityKind, NamePat, Selector, select};
     let (doc, body, _) = plate();
     let ev = eval(&doc);
@@ -1078,27 +1013,26 @@ fn an_unsupported_carrier_pair_refuses_naming_the_pair() {
         .map(|name| SitedRef::new(body, name))
         .collect();
     assert_eq!(whole.len(), 1, "one output body");
-    let doc = push(
+    let refused = editor_core::measure(
         &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(
-                Node::measure(
-                    MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 0 }),
-                    whole,
-                )
-                .expect("indices in range"),
-            ),
-        },
+        &[MeasurePrimitive::Distance {
+            a: whole[0].clone(),
+            b: whole[0].clone(),
+        }],
+        Tol::witness(),
+        &editor_core::RefusingReach,
     );
-    let ev = eval(&doc);
-    match failed_kind(&ev, last(&doc)) {
-        NodeErrorKind::MeasureUnsupported(refusal) => {
-            assert_eq!(refusal.verb, "distance");
-            let msg = refusal.to_string();
-            assert!(msg.contains("whole body"), "{msg}");
-        }
-        other => panic!("got {other:?}"),
-    }
+    assert!(
+        matches!(
+            refused,
+            Err(editor_core::EditError::SlotVarKind {
+                found: editor_core::VarKind::Body,
+                ..
+            })
+        ),
+        "{:?}",
+        refused.map(|_| ())
+    );
 }
 
 /// A measure with an unsupported MIXED pair: a plane face against a
@@ -1113,18 +1047,7 @@ fn a_mixed_carrier_pair_refuses() {
         faces_of_kind(&ev, body, geom::SurfaceKind::Plane).remove(0),
         faces_of_kind(&ev, holes[0], geom::SurfaceKind::Cylinder).remove(0),
     ];
-    let doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(
-                Node::measure(
-                    MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-                    refs,
-                )
-                .expect("indices in range"),
-            ),
-        },
-    );
+    let doc = crate::fixture::measure_node(&doc, MeasurePrimitive::Distance { a: 0, b: 1 }, refs).0;
     let ev = eval(&doc);
     let err = failed_kind(&ev, last(&doc));
     assert!(
@@ -1138,36 +1061,25 @@ fn a_mixed_carrier_pair_refuses() {
 /// measurement that did not happen would be a verdict about nothing.
 #[test]
 fn an_assertion_over_a_failed_measure_is_poisoned() {
-    use editor_core::{EntityKind, NamePat, Selector, select};
-    let (doc, body, _) = plate();
+    let (doc, body, holes) = plate();
     let ev = eval(&doc);
-    let whole: Vec<SitedRef> = select(&ev, body, &Selector::of(NamePat::of_kind(EntityKind::Body)))
-        .into_iter()
-        .map(|name| SitedRef::new(body, name))
-        .collect();
-    let doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            // A whole-body pair has no closed form, so the measure
-            // fails and the assertion must produce no verdict.
-            node: Box::new(
-                Node::measure(
-                    MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 0 }),
-                    whole,
-                )
-                .expect("indices in range"),
-            ),
-        },
-    );
-    let measure = last(&doc);
+    // A plane against a cylinder has no closed form, so the measure
+    // fails and the assertion must produce no verdict.
+    let refs = vec![
+        faces_of_kind(&ev, body, geom::SurfaceKind::Plane).remove(0),
+        faces_of_kind(&ev, holes[0], geom::SurfaceKind::Cylinder).remove(0),
+    ];
+    let (doc, measure) =
+        crate::fixture::measure_node(&doc, MeasurePrimitive::Distance { a: 0, b: 1 }, refs);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure,
+                value: crate::fixture::value_of(&doc, measure),
                 bound: len(0.1),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     );
     let assertion = last(&doc);
@@ -1185,9 +1097,9 @@ fn an_assertion_over_a_failed_measure_is_poisoned() {
 
 // ---- The slot vocabulary is untouched ----
 
-/// A measure carries no SLOT: its expression is not an `Expr` and its
-/// bound is not addressable by a slot id, which is exactly why both
-/// are payload. Pinned so a later unit does not quietly grow one.
+/// A measure carries no SLOT, and an assertion's value and bound are
+/// not addressable by a slot id, which is exactly why they are payload.
+/// Pinned so a later unit does not quietly grow one.
 #[test]
 fn the_measurement_nodes_carry_no_slots() {
     let (doc, measure, assertion) = plate_with_web();
@@ -1227,7 +1139,7 @@ fn cusp_extrude_doc(id: &str) -> (ProfileDoc, RecipeNodeId) {
     let (doc, profile) = mint(
         &doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![cusp_lune()],
             ids: Vec::new(),
         }),
@@ -1235,16 +1147,27 @@ fn cusp_extrude_doc(id: &str) -> (ProfileDoc, RecipeNodeId) {
     mint(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
     )
 }
 
-/// The document's product, which must gather: `node` evaluated, and
-/// the aggregate passed the at-rest gate. Returns the gathered body.
+/// The product of `doc` with `node` placed in the world, which must
+/// gather: `node` evaluated, and the aggregate passed the at-rest gate.
+/// Returns the gathered body.
 fn gathers(doc: &ProfileDoc, node: RecipeNodeId) -> topo::Body<f64> {
+    gathers_placing(doc, node, &[node])
+}
+
+/// [`gathers`] with `bodies` placed in the world in place of `node`.
+fn gathers_placing(
+    doc: &ProfileDoc,
+    node: RecipeNodeId,
+    bodies: &[RecipeNodeId],
+) -> topo::Body<f64> {
+    let doc = &fixture::place_all(doc.clone(), bodies);
     let ev = eval(doc);
     assert!(
         matches!(ev.result(node), Some(NodeResult::Ok(_))),
@@ -1293,7 +1216,7 @@ fn on_the_kiss(p: &Point3<f64>) -> bool {
     p.x.abs() < 1e-9 && p.y.abs() < 1e-9
 }
 
-/// A document whose one root is an extrude of a `.cusp()` lune
+/// A document whose one placement is of an extrude of a `.cusp()` lune
 /// evaluates and GATHERS: the strut the cusp joint swept is a
 /// jet-determinate tangency, legal at rest with nothing carried beside
 /// the body (D1's second-order arm, ratified on PR 3317). The red-first
@@ -1333,7 +1256,7 @@ fn a_cusp_revolve_document_gathers_at_the_product_gate() {
     let (doc, profile) = mint(
         &doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![crescent],
             ids: Vec::new(),
         }),
@@ -1341,8 +1264,8 @@ fn a_cusp_revolve_document_gathers_at_the_product_gate() {
     let (doc, rev) = mint(
         &doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: ang(1.0),
         },
     );
@@ -1371,7 +1294,7 @@ fn a_cusp_loft_document_gathers_with_its_nurbs_seam_unjudged_by_kind() {
         let (d, p) = mint(
             &d,
             Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![cusp_lune()],
                 ids: Vec::new(),
             }),
@@ -1382,7 +1305,7 @@ fn a_cusp_loft_document_gathers_with_its_nurbs_seam_unjudged_by_kind() {
     let (doc, loft) = mint(
         &doc,
         Node::Loft {
-            profiles,
+            profiles: profiles.into_iter().map(Into::into).collect(),
             v_degree: Formula::count(1),
         },
     );
@@ -1414,7 +1337,7 @@ fn a_cusp_extrude_notched_clear_of_its_strut_gathers() {
     let (doc, tool) = mint(
         &doc,
         Node::Extrude {
-            profile: tool_profile,
+            profile: tool_profile.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -1423,8 +1346,8 @@ fn a_cusp_extrude_notched_clear_of_its_strut_gathers() {
         &doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: ex,
-            b: tool,
+            a: ex.into(),
+            b: tool.into(),
             declare: Vec::new(),
         },
     );
@@ -1436,15 +1359,15 @@ fn a_cusp_extrude_notched_clear_of_its_strut_gathers() {
     );
 }
 
-/// A PATTERN of the cusp extrude gathers: three copies, each carrying
-/// its own legal strut.
+/// A PATTERN of the cusp extrude gathers: three copies, each placed and
+/// each carrying its own legal strut.
 #[test]
 fn a_pattern_of_a_cusp_extrude_gathers() {
     let (doc, ex) = cusp_extrude_doc("cusp-extrude-pattern");
     let (doc, pattern) = mint(
         &doc,
         Node::Pattern {
-            input: ex,
+            input: ex.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -1452,7 +1375,20 @@ fn a_pattern_of_a_cusp_extrude_gathers() {
             },
         },
     );
-    let body = gathers(&doc, pattern);
+    let mut doc = doc;
+    let mut copies = Vec::new();
+    for k in 0..3 {
+        let (d, copy) = mint(
+            &doc,
+            Node::Part {
+                of: pattern.into(),
+                select: PartSelect::Instance(Formula::count(k)),
+            },
+        );
+        doc = d;
+        copies.push(copy);
+    }
+    let body = gathers_placing(&doc, pattern, &copies);
     assert_eq!(body.solids().count(), 3);
     // Copy k's kiss line is x = 5k, y = 0.
     let on_a_copys_kiss = |p: &Point3<f64>| {
@@ -1477,11 +1413,17 @@ fn a_split_half_of_a_cusp_extrude_gathers() {
             normal: [scl(0.0), scl(0.0), scl(1.0)],
         }),
     );
-    let (doc, split) = mint(&doc, Node::Split { target: ex, tool });
+    let (doc, split) = mint(
+        &doc,
+        Node::Split {
+            target: ex.into(),
+            tool: tool.into(),
+        },
+    );
     let (doc, above) = mint(
         &doc,
         Node::Part {
-            of: split,
+            of: editor_core::Operand::output(split, SplitHalf::Above.port()),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
     );

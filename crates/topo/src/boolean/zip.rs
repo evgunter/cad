@@ -32,10 +32,16 @@
 //!
 //! **A pinch is one vertex per cone** ([`split_cones`]): before any
 //! zip, each operand vertex whose section corners lead into several
-//! cones of the result is split per cone, on its own point key. The
-//! transient edge each split leaves lies on the section faces the zips
-//! consume, so no kept face's topology changes. The split and the zip
-//! read one alignment ([`align`]).
+//! cones of the result is split per cone, each new vertex on the split
+//! vertex's point key. The transient edge each split leaves lies on the
+//! section faces the zips consume, so no kept face's topology changes.
+//! The split and the zip read one alignment ([`align`]). After the zips,
+//! [`share_points`] puts the cones of a pinch that still sit on several
+//! keys onto one: the keys the correspondence ties ([`point_classes`]),
+//! read before the split.
+//! Where the insertion hung runs at a turned run's copy, a point whose
+//! cones still sit on several keys after that refuses
+//! ([`refuse_split_hung_points`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -46,6 +52,7 @@ use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{FaceSurface, MefSite, MevSite};
 use crate::euler_ring::MekrSite;
+use crate::geometry::PointKey;
 use crate::live::{linked, proven};
 use geom_brep::EdgeCurveSpec;
 use geom_core::Tol;
@@ -213,12 +220,6 @@ pub(super) struct ZipReport {
     /// The seam edges surviving the zip (the outer cycle's edges), in
     /// cycle order.
     pub seam_edges: Vec<crate::entity::EdgeKey>,
-    /// Seam edges KILLED by this zip as R-interior structure (the
-    /// already-fused runs a slit zip consumes — e.g. the meridian
-    /// seams of a closed cosurface band, which are segments AND
-    /// interior to the contact region). Empty for a plain
-    /// [`zip_seam`].
-    pub interior_edges: Vec<crate::entity::EdgeKey>,
     /// Edge fusions, `(dead, kept)`: each ring edge the zip kills and
     /// the seam edge it lay on, which keeps its key.
     pub edge_merges: Vec<(crate::entity::EdgeKey, crate::entity::EdgeKey)>,
@@ -229,6 +230,187 @@ pub(super) struct ZipReport {
 /// 1 (each a `mef` and the `kef` of the strip behind it).
 pub(crate) fn fusion_order(n: usize) -> impl Iterator<Item = usize> {
     core::iter::once(0).chain((1..n).rev())
+}
+
+/// A union-find over keys, as a parent map: a key with no entry is its
+/// own root, and a class is rooted at its smallest key.
+pub(super) struct Roots<K>(BTreeMap<K, K>);
+
+impl<K: Ord + Copy> Roots<K> {
+    pub(super) fn new() -> Self {
+        Self(BTreeMap::new())
+    }
+
+    pub(super) fn find(&self, mut k: K) -> K {
+        while let Some(&up) = self.0.get(&k) {
+            k = up;
+        }
+        k
+    }
+
+    /// Joins the classes of `a` and `b`; `false` where they were one.
+    pub(super) fn union(&mut self, a: K, b: K) -> bool {
+        let (ra, rb) = (self.find(a), self.find(b));
+        if ra != rb {
+            self.0.insert(ra.max(rb), ra.min(rb));
+        }
+        ra != rb
+    }
+}
+
+/// **The point keys the seams tie are one point**: a pinch is several
+/// vertices on one point key (Ev, PR 4057).
+///
+/// Each seam pair's two vertices are one point, which the zips need
+/// (their scaffolding certifies only coincident pairs), and an op's
+/// copies of one vertex share its key (`Body::mev_null`). So every key
+/// the correspondence `vmap` reaches, through its pairs and through the
+/// keys its vertices share, names one point. Returns those classes of
+/// two or more keys, read before any zip; [`share_points`] reads them
+/// after. Decided by the records alone: no position is read.
+///
+/// # Errors
+///
+/// [`BooleanError::ZipCorrespondence`] where a correspondent no longer
+/// resolves.
+pub(super) fn point_classes<T: geom_core::Real>(
+    body: &Body<T>,
+    vmap: &SeamCorrespondence,
+) -> Result<Vec<BTreeSet<PointKey>>, BooleanError> {
+    let corr = || BooleanError::ZipCorrespondence {
+        what: "a seam correspondent no longer resolves",
+    };
+    let key = |v: VertexKey| body.get_vertex(v).map(|d| d.point).ok_or_else(corr);
+    let mut roots = Roots::new();
+    for (&a, bs) in vmap {
+        let ka = key(a)?;
+        for &b in bs {
+            roots.union(ka, key(b)?);
+        }
+    }
+    let mut classes: BTreeMap<PointKey, BTreeSet<PointKey>> = BTreeMap::new();
+    for &k in roots.0.keys() {
+        let r = roots.find(k);
+        classes
+            .entry(r)
+            .or_insert_with(|| BTreeSet::from([r]))
+            .insert(k);
+    }
+    Ok(classes.into_values().collect())
+}
+
+/// **A pinch's cones sit on one point key** ([`point_classes`]). After
+/// the zips, the vertices of one point fused where they lie in one cone,
+/// and a fused vertex keeps one key; the vertices of a pinch's other
+/// cones keep theirs. So where a class's live vertices still sit on
+/// several keys (an operand's own pinch, which an earlier op left on
+/// several keys, tied through the other operand's copy of the point),
+/// they move onto the class's smallest live key
+/// ([`Body::share_point`]). Elsewhere the zips left one vertex, and
+/// nothing moves. The census's same-point rung and the output stage's
+/// join then read the pinch from its keys.
+///
+/// # Errors
+///
+/// [`BooleanError::ZipCorrespondence`] where a vertex no longer
+/// resolves, which the index built just before rules out.
+pub(super) fn share_points<T: geom_core::Real>(
+    body: &mut Body<T>,
+    classes: &[BTreeSet<PointKey>],
+) -> Result<(), BooleanError> {
+    // The classes are disjoint (`point_classes` builds them as a
+    // partition), so one index serves them all.
+    let mut on_key: BTreeMap<PointKey, Vec<VertexKey>> = BTreeMap::new();
+    for (v, d) in body.vertices() {
+        on_key.entry(d.point).or_default().push(v);
+    }
+    for class in classes {
+        let keys: Vec<PointKey> = class
+            .iter()
+            .copied()
+            .filter(|k| on_key.contains_key(k))
+            .collect();
+        let [onto, _, ..] = keys[..] else {
+            continue;
+        };
+        let vertices: Vec<VertexKey> = keys.iter().flat_map(|k| on_key[k].clone()).collect();
+        #[cfg(feature = "sweep-testing")]
+        {
+            let at: Vec<[String; 3]> = keys
+                .iter()
+                .filter_map(|&k| body.points.get(k))
+                .map(|p| [p.x, p.y, p.z].map(|c| format!("{c:?}")))
+                .collect();
+            SHARED.with(|s| s.borrow_mut().push(at));
+        }
+        // Unreachable: `on_key` holds live vertices and live keys only.
+        body.share_point(&vertices, onto)
+            .ok_or(BooleanError::ZipCorrespondence {
+                what: "a pinch vertex no longer resolves",
+            })?;
+    }
+    Ok(())
+}
+
+/// **A hung point left on several keys refuses.** Where the insertion
+/// hung runs at a copy of their own pair's (`insert::hang_at_shared`), `hung`
+/// holds the point's keys: those of every vertex the vertex-vertex
+/// contacts tie to the hung one, in result keys. Those are all of the
+/// point's keys. Every vertex there either has a contact, or is a copy
+/// that keeps its original's key (a null edge's, a cone split's), and
+/// the seams' classes ([`point_classes`]) tie only keys of vertices the
+/// seams pair there, which the contacts already tie. So after
+/// [`share_points`], live vertices on more than one of them are a pinch
+/// whose cones the seams do not link: an operand's own pinch, left on
+/// several keys by an earlier op. The census cannot read it, and the op
+/// refuses [`BooleanError::PinchConesOnSeparateKeys`] rather than ship
+/// it. Only keys are read, no position.
+///
+/// # Errors
+///
+/// [`BooleanError::PinchConesOnSeparateKeys`] at such a point.
+pub(super) fn refuse_split_hung_points<T: geom_core::Real>(
+    body: &Body<T>,
+    hung: &[(super::insert::Hang, BTreeSet<PointKey>)],
+) -> Result<(), BooleanError> {
+    for (hang, keys) in hung {
+        let live: BTreeSet<PointKey> = body
+            .vertices()
+            .map(|(_, d)| d.point)
+            .filter(|k| keys.contains(k))
+            .collect();
+        if live.len() > 1 {
+            return Err(BooleanError::PinchConesOnSeparateKeys {
+                operand: hang.operand,
+                vertex: hang.vertex,
+            });
+        }
+    }
+    Ok(())
+}
+
+#[cfg(feature = "sweep-testing")]
+thread_local! {
+    /// The stored points of the keys each [`share_points`] class rebinds,
+    /// in call order ([`take_shared_points`]).
+    static SHARED: core::cell::RefCell<Vec<Vec<[String; 3]>>> =
+        const { core::cell::RefCell::new(Vec::new()) };
+}
+
+/// Drains the stored points of every class [`share_points`] rebound on
+/// this thread since the last drain: one list per class, each key's
+/// point before the rebind, each coordinate as its `{:?}` rendering.
+/// `share_points` reads no position, so its premise (the seams tie only
+/// keys that hold one point) is pinned here, in test builds: a row
+/// parses the coordinates back and asserts each list is one point, bit
+/// for bit. At `f64` the rendering is the shortest string that parses
+/// back to the same value, so the parse is exact. Rendered, not typed,
+/// because `T` reaches its bits only through the fenced bit-identity
+/// seam (`geom_core::bit_identity`), which a test witness has no claim
+/// on. `sweep-testing` only.
+#[cfg(feature = "sweep-testing")]
+pub fn take_shared_points() -> Vec<Vec<[String; 3]>> {
+    SHARED.with(|s| core::mem::take(&mut *s.borrow_mut()))
 }
 
 /// Each vertex's section corners, as pair indices in orbit order.
@@ -285,6 +467,7 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
         )?;
         let base = pairs.len();
         for (j, (&o, &r)) in ob.iter().zip(&rs).enumerate() {
+            one_vertex_sense(body, (a_face, b_face), (o, r), tol)?;
             pairs.push((o, r));
             next.push(base + (j + 1) % ob.len());
         }
@@ -315,19 +498,11 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
     let fused: Vec<(VertexKey, VertexKey)> = (0..pairs.len())
         .map(|k| Ok((start_of(body, pairs[k].0)?, end_of(body, pairs[next[k]].1)?)))
         .collect::<Result<_, BooleanError>>()?;
-    let mut root: BTreeMap<VertexKey, VertexKey> = BTreeMap::new();
-    let find = |root: &BTreeMap<VertexKey, VertexKey>, mut v: VertexKey| {
-        while let Some(&up) = root.get(&v) {
-            v = up;
-        }
-        v
-    };
+    let mut roots = Roots::new();
     for &(a, b) in &fused {
-        let (ra, rb) = (find(&root, a), find(&root, b));
-        if ra == rb {
+        if !roots.union(a, b) {
             return Err(corr("a cone the seams meet twice fuses a vertex to itself"));
         }
-        root.insert(rb, ra);
     }
     if !moved {
         return Ok(paired);
@@ -404,7 +579,8 @@ fn cones(sigma_a: &[usize], sigma_b: &[usize]) -> (Vec<usize>, Vec<usize>) {
 }
 
 /// Splits each of one side's vertices per cone, its first cone's runs
-/// staying; whether any vertex was split.
+/// staying, one cone at a time: a cone whose runs lie together round the
+/// vertex, first in orbit order; whether any vertex was split.
 ///
 /// The null edge each `mev_null` leaves lies between two section
 /// corners, on the section faces the zips consume, and is killed there:
@@ -415,8 +591,11 @@ fn cones(sigma_a: &[usize], sigma_b: &[usize]) -> (Vec<usize>, Vec<usize>) {
 /// # Errors
 ///
 /// [`BooleanError::ZipCorrespondence`] where a vertex's cones interleave
-/// round it. No battery line reaches it: two cones' runs alternating
-/// round one vertex would need their boundary cycles to cross there.
+/// round it. Cones nest round a vertex, one's runs between two of
+/// another's, where a pierce ring is a tree deeper than a path; each
+/// split takes a cone whose runs lie together, which nesting always
+/// leaves, so only two cones' runs alternating, their boundary cycles
+/// crossing there, refuse. No battery line reaches that.
 /// The Euler operators' refusals, typed.
 fn split_side<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
@@ -428,29 +607,14 @@ fn split_side<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<bool, BooleanError> {
     let mut moved = false;
     for at in runs.values() {
-        let r = at.len();
-        let cones_here: BTreeSet<usize> = at.iter().map(|&k| cone_of[k]).collect();
-        if cones_here.len() < 2 {
-            continue;
-        }
-        let edges = (0..r)
-            .filter(|&i| cone_of[at[i]] != cone_of[at[(i + 1) % r]])
-            .count();
-        if edges != cones_here.len() {
-            return Err(BooleanError::ZipCorrespondence {
-                what: "a vertex's cones interleave round it",
-            });
-        }
-        // Group starts: the runs whose cone differs from the run before.
-        let starts: Vec<usize> = (0..r)
-            .filter(|&i| cone_of[at[i]] != cone_of[at[(i + r - 1) % r]])
-            .collect();
-        for (g, &s) in starts.iter().enumerate().skip(1) {
-            let end = starts[(g + 1) % starts.len()];
+        let plan = peel(at, cone_of).ok_or(BooleanError::ZipCorrespondence {
+            what: "a vertex's cones interleave round it",
+        })?;
+        for (from, to) in plan {
             let made = body.mev_null(
                 MevSite::Fan {
-                    he1: he_of(at[s]),
-                    he2: he_of(at[end]),
+                    he1: he_of(from),
+                    he2: he_of(to),
                 },
                 crate::NewVertexSide::Above,
             )?;
@@ -468,6 +632,41 @@ fn split_side<T: Decide + crate::props::AtRestPolicy>(
         }
     }
     Ok(moved)
+}
+
+/// One vertex's splits, read before any is written: each the first and
+/// the next pair index of a group of runs one cone holds alone, the
+/// group moved off the vertex (the `mev_null` fan between them), until
+/// one cone is left. Groups are maximal runs of one cone round the
+/// vertex; the first stays, and the split takes the first later group
+/// whose cone has no other. `None` where no such group is left while
+/// two cones are: their runs alternate round the vertex.
+fn peel(at: &[usize], cone_of: &[usize]) -> Option<Vec<(usize, usize)>> {
+    let mut at = at.to_vec();
+    let mut plan = Vec::new();
+    loop {
+        let r = at.len();
+        let cones_here: BTreeSet<usize> = at.iter().map(|&k| cone_of[k]).collect();
+        if cones_here.len() < 2 {
+            return Some(plan);
+        }
+        let starts: Vec<usize> = (0..r)
+            .filter(|&i| cone_of[at[i]] != cone_of[at[(i + r - 1) % r]])
+            .collect();
+        let whole = |g: usize| {
+            let c = cone_of[at[starts[g]]];
+            (0..starts.len()).all(|h| h == g || cone_of[at[starts[h]]] != c)
+        };
+        let g = (1..starts.len()).find(|&g| whole(g))?;
+        let (s, end) = (starts[g], starts[(g + 1) % starts.len()]);
+        plan.push((at[s], at[end]));
+        if end > s {
+            at.drain(s..end);
+        } else {
+            at.drain(s..);
+            at.drain(..end);
+        }
+    }
 }
 
 /// The seams after a split: an A section edge is the B ring edge it zips
@@ -664,6 +863,60 @@ fn align<T: Decide>(
     Ok(rs)
 }
 
+/// **A one-vertex seam edge's sense**, which [`align`]'s vertex test
+/// cannot read: a whole section conic through one site starts and ends
+/// at that site, so a co-wound ring half there leaves the right vertex
+/// and arrives at the right one too. The paired halves must run against
+/// each other along their carriers there, read off their tangents at the
+/// site (`bool_zip_one_vertex_sense`); a half that runs with the outer
+/// one is [`BooleanError::SeamOrientation`]. A half between two vertices
+/// is [`align`]'s and passes.
+fn one_vertex_sense<T: Decide>(
+    body: &Body<T>,
+    (a_face, b_face): (FaceKey, FaceKey),
+    (outer, ring): (HalfEdgeKey, HalfEdgeKey),
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    let corr = |what| BooleanError::ZipCorrespondence { what };
+    let end = body
+        .half_edge_end(outer)
+        .ok_or_else(|| corr("seam half-edge has no end"))?;
+    if start_of(body, outer)? != end {
+        return Ok(());
+    }
+    // The tangent a half leaves its start along: its carrier's at the
+    // start parameter, reversed on the minus half.
+    let leaving = |he: HalfEdgeKey| -> Result<geom_core::Vec3<T>, BooleanError> {
+        let edge = body
+            .get_half_edge(he)
+            .ok_or_else(|| corr("seam half-edge no longer resolves"))?
+            .edge;
+        let data = body
+            .get_edge(edge)
+            .ok_or_else(|| corr("seam edge no longer resolves"))?;
+        let curve = body
+            .edge_curve_linked(edge, data)
+            .certified()
+            .ok_or_else(|| corr("a one-vertex seam edge has no certified curve"))?;
+        let (t0, t1) = curve.params();
+        Ok(if data.he_plus == he {
+            curve.carrier().deriv(t0)
+        } else {
+            -curve.carrier().deriv(t1)
+        })
+    };
+    let band = geom_core::Band::linear(tol).map_err(|_| corr("the zip's band does not read"))?;
+    let margin = geom_core::Margin::of(leaving(outer)?.dot(leaving(ring)?));
+    match crate::validate::decide("bool_zip_one_vertex_sense", margin, band) {
+        Ok(geom_core::Sign::Negative) => Ok(()),
+        Ok(_) => Err(BooleanError::SeamOrientation { a_face, b_face }),
+        Err(diag) => Err(BooleanError::Escalated {
+            decision: super::BooleanDecision::SelfCheck(super::SelfCheck::SeamSense),
+            diag,
+        }),
+    }
+}
+
 /// The vertex a half-edge starts at.
 fn start_of<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<VertexKey, BooleanError> {
     Ok(body
@@ -747,9 +1000,36 @@ mod cone_rows {
 mod tests {
     #![allow(clippy::unwrap_used, clippy::panic)]
 
-    use super::{BooleanError, Fusions};
+    use super::{BooleanError, Fusions, peel};
     use crate::entity::VertexKey;
     use slotmap::SlotMap;
+
+    /// **A vertex's cones peel one group at a time, read before any is
+    /// written** ([`peel`]), runs as pair indices round the vertex, each
+    /// run's cone given:
+    /// - cones apart, each together: each later group in turn, the first
+    ///   staying (the one-pass split's order);
+    /// - a cone nested between two runs of another, itself between two
+    ///   runs of a third: the innermost first, which leaves the next one
+    ///   together, and then the group after the first;
+    /// - two cones alternating: none.
+    #[test]
+    fn a_vertexs_cones_peel_innermost_first_and_refuse_alternating() {
+        type Row = (&'static str, Vec<usize>, Option<Vec<(usize, usize)>>);
+        let rows: [Row; 3] = [
+            ("apart", vec![0, 0, 1, 2, 2], Some(vec![(2, 3), (3, 0)])),
+            (
+                "nested twice",
+                vec![0, 1, 2, 1, 0],
+                Some(vec![(2, 3), (4, 1)]),
+            ),
+            ("alternating", vec![0, 1, 0, 1], None),
+        ];
+        for (what, cone_of, want) in rows {
+            let at: Vec<usize> = (0..cone_of.len()).collect();
+            assert_eq!(peel(&at, &cone_of), want, "{what}");
+        }
+    }
 
     /// **A fusion list refuses every row that would fold a key onto a
     /// dead one, and folds a well-ordered chain through every hop.** A

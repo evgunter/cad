@@ -4,7 +4,7 @@ kind: issue
 title: topo: the Boolean's escalations at doors whose pair is already declared still offer 'declare the coincidence'
 status: parked
 opened: 2026-09-30
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -112,3 +112,7 @@ matching end on levers shared with their undeclared twins
 (`Coincide::TangentLocus`, `Coincide::Contact`, `Coincide::Join`), and
 the first two on the lever alone because their escalation carries no
 rung (`coincidence-tangent-locus-contact-section-escalate-without-their-rung`).
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the remaining levers sit at declared-Tangent and declared-Rest doors (insert, sectors, verify_tangent_declaration, rest.rs), all retired at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

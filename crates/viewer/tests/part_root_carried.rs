@@ -20,9 +20,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crate::common;
-use crate::fixture;
 
-use fixture::resolver::in_part;
 use pncad::document::{
     Alignment, AxisSense, CancelToken, Doc, DocEdit, DocRef, EvalOptions, Formula, Label,
     MateFrame, MatePrimitive, Node, NodeResult, PatternKind, ProfileDoc, RecipeNodeId, content_pin,
@@ -122,14 +120,14 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
     let dir = common::tempdir("partroot-carried");
     let mut store = Workspace::open(&dir).expect("the empty workspace opens");
 
-    // The boss: its one root is an extrude whose distance does not
-    // evaluate, so the boss has no product.
+    // The boss: its one placed body is an extrude whose distance does
+    // not evaluate, so the boss has no product.
     let (boss, profile) =
         common::framed_square(&Doc::empty_derived("partroot-boss", tol), 0.04, tol);
     let (boss, boss_root) = common::inserted(
         &boss,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: Formula::div(common::len(0.008), common::scl(0.0))
                 .expect("length / scalar is a length"),
             side: ExtrudeSide::Along,
@@ -137,11 +135,12 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
         tol,
     );
     let boss = labelled(&boss, boss_root, "boss plate", tol);
+    let (boss, _) = common::placed(&boss, boss_root, tol);
     store
         .save_at(&boss, "boss.pncad", tol)
         .expect("the boss stores");
 
-    // The bracket: its one root instantiates the boss.
+    // The bracket: its one placed body instantiates the boss.
     let mut bracket = Doc::empty_derived("partroot-bracket", tol);
     let bracket_root = common::insert_into(
         &mut bracket,
@@ -149,6 +148,7 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
         tol,
     );
     let bracket = labelled(&bracket, bracket_root, "bracket seat", tol);
+    let (bracket, _) = common::placed(&bracket, bracket_root, tol);
     store
         .save_at(&bracket, "bracket.pncad", tol)
         .expect("the bracket stores");
@@ -242,8 +242,8 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
 ///
 /// `broken.pncad` is [`common::broken_document`]: its extrude refuses
 /// and its one root, a transform over the extrude, never runs.
-/// `bracket.pncad`'s one root is a transform over an instance of it, so
-/// that root never runs either. An assembly instantiating the bracket
+/// `bracket.pncad`'s one placed body is a transform over an instance of
+/// it, so that transform never runs either. An assembly instantiating the bracket
 /// draws two levels under its row, each at the node that FAILED rather
 /// than the root it cost: the bracket's instance, labelled
 /// `bracket.pncad`, and the broken part's extrude, labelled
@@ -278,6 +278,7 @@ fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
         ),
         tol,
     );
+    let (bracket, _) = common::placed(&bracket, bracket_root, tol);
     store
         .save_at(&bracket, "bracket.pncad", tol)
         .expect("the bracket stores");
@@ -317,11 +318,17 @@ fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
         "one level per document, each at the node that failed, labelled with its file and \
          drawn as its part's own tree draws it"
     );
+    // The cost is the body's world placement: what the part's product
+    // reads (A10).
     for (line, root, failed) in [
-        (message, bracket.spoken(bracket_root), bracket.spoken(inner)),
+        (
+            message,
+            bracket.spoken(common::copy_of(&bracket, bracket_root)),
+            bracket.spoken(inner),
+        ),
         (
             &carried[0].line,
-            broken.spoken(broken_root),
+            broken.spoken(common::copy_of(&broken, broken_root)),
             broken.spoken(extrude),
         ),
     ] {
@@ -351,17 +358,41 @@ fn labelled(doc: &ProfileDoc, node: RecipeNodeId, text: &str, tol: Tol) -> Profi
 }
 
 /// A small block, as a whole part document, and its body.
-fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId) {
+/// A placed block: its document, its extrude and the extrude's world
+/// placement (A10).
+fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, profile) = common::framed_square(&Doc::empty_derived(label, tol), 0.02, tol);
-    common::inserted(
+    let (doc, body) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.02),
             side: ExtrudeSide::Along,
         },
         tol,
+    );
+    let (doc, placement) = common::placed(&doc, body, tol);
+    (doc, body, placement)
+}
+
+/// **A cap of `block`'s product under `instance`**: the extrude's cap,
+/// as its placement's copy names it, inside the instance's `InPart`.
+fn in_part(
+    instance: RecipeNodeId,
+    (body, placement): (RecipeNodeId, RecipeNodeId),
+    cap: CapEnd,
+) -> StableName {
+    pncad::document::FaceName::new(
+        StableName {
+            kind: EntityKind::Face,
+            node: body,
+            path: vec![RoleSeg::Cap(cap)],
+        }
+        .in_copy(placement),
     )
+    .expect("a cap is a face")
+    .in_part(instance)
+    .into_name()
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
@@ -383,19 +414,18 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
     let tol = Tol::witness();
     let dir = common::tempdir("partroot-carried-mate");
     let mut store = Workspace::open(&dir).expect("the empty workspace opens");
-    let (leg, leg_body) = block("partroot-carried-leg", tol);
-    let (top, top_body) = block("partroot-carried-top", tol);
+    let (leg, leg_body, leg_copy) = block("partroot-carried-leg", tol);
+    let (top, top_body, top_copy) = block("partroot-carried-top", tol);
     store.save_at(&leg, "leg.pncad", tol).expect("stores");
     store.save_at(&top, "top.pncad", tol).expect("stores");
 
     let sub = Doc::empty_derived("partroot-carried-sub", tol);
-    // The cap first, so it is the first root the product door reads.
     let (sub, cap) = common::inserted(&sub, Node::instantiate_part(reference(&top, tol)), tol);
     let (sub, legs) = common::inserted(&sub, Node::instantiate_part(reference(&leg, tol)), tol);
     let (sub, pattern) = common::inserted(
         &sub,
         Node::Pattern {
-            input: legs,
+            input: legs.into(),
             count: Formula::count(4),
             kind: PatternKind::Linear {
                 direction: [common::scl(1e200), common::scl(0.0), common::scl(0.0)],
@@ -412,10 +442,10 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
                 node: pattern,
                 path: vec![RoleSeg::Instance {
                     i: 1,
-                    of: in_part(legs, leg_body, CapEnd::End).into(),
+                    of: in_part(legs, (leg_body, leg_copy), CapEnd::End).into(),
                 }],
             }),
-            b: common::head(in_part(cap, top_body, CapEnd::Start)),
+            b: common::head(in_part(cap, (top_body, top_copy), CapEnd::Start)),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
@@ -427,6 +457,18 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
         },
         tol,
     );
+    // The world: the cap first, so it is the first placement the
+    // product door reads, then the pattern's copy 1.
+    let (sub, _) = common::placed(&sub, cap, tol);
+    let (sub, copy) = common::inserted(
+        &sub,
+        Node::Part {
+            of: pattern.into(),
+            select: pncad::document::PartSelect::Instance(Formula::count(1)),
+        },
+        tol,
+    );
+    let (sub, _) = common::placed(&sub, copy, tol);
     store.save_at(&sub, "sub.pncad", tol).expect("stores");
     let mut assembly = Doc::empty_derived("partroot-carried-mate-asm", tol);
     let instance = common::insert_into(

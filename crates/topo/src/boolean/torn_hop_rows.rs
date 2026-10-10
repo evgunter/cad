@@ -27,7 +27,6 @@ fn cyl_sheet() -> (Body<f64>, FaceKey) {
     let face = cyl_wall_sheet(
         &mut body,
         CylFrame::canonical(1.0),
-        None,
         (0.2, 1.4),
         (0.0, 1.0),
         Tol::witness(),
@@ -145,7 +144,7 @@ fn the_pinch_site_panics_on_a_broken_walk_round_its_vertex() {
     let start = |he| body.get_half_edge(he).unwrap().start;
     let (u, w) = (start(members[0]), start(members[2]));
     assert!(
-        matches!(super::finish::pinch_site(&body, u, w, |_| true), Ok(Some((f, _))) if f == face),
+        matches!(super::finish::pinch_site(&body, u, w, |_| true, |_, _, _| Ok(true)), Ok(Some((f, _))) if f == face),
         "two diagonal corners pinch across their one face"
     );
     // `members[1]` runs between the two corners after `u`: no step of
@@ -155,7 +154,10 @@ fn the_pinch_site_panics_on_a_broken_walk_round_its_vertex() {
         "pinch_site",
         &mut body,
         &["the loop walk from", ROW_FOUR, OPERATORS_KEEP_LINKS],
-        |b| super::finish::pinch_site(b, u, w, |_| true).map(|s| s.map(|(f, _)| f)),
+        |b| {
+            super::finish::pinch_site(b, u, w, |_| true, |_, _, _| Ok(true))
+                .map(|s| s.map(|(f, _)| f))
+        },
     );
 }
 
@@ -171,7 +173,7 @@ fn the_pinch_site_panics_on_a_torn_ring_link() {
     let start = |he| body.get_half_edge(he).unwrap().start;
     let (u, w) = (start(members[0]), start(members[2]));
     assert!(
-        matches!(super::finish::pinch_site(&body, u, w, |_| true), Ok(Some((f, _))) if f == face),
+        matches!(super::finish::pinch_site(&body, u, w, |_| true, |_, _, _| Ok(true)), Ok(Some((f, _))) if f == face),
         "two diagonal corners pinch across their one face"
     );
     let named = tear_ring(&mut body, face);
@@ -179,7 +181,10 @@ fn the_pinch_site_panics_on_a_torn_ring_link() {
         "pinch_site",
         &mut body,
         &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-        |b| super::finish::pinch_site(b, u, w, |_| true).map(|s| s.map(|(f, _)| f)),
+        |b| {
+            super::finish::pinch_site(b, u, w, |_| true, |_, _, _| Ok(true))
+                .map(|s| s.map(|(f, _)| f))
+        },
     );
 }
 
@@ -491,6 +496,7 @@ fn the_vertex_on_face_classification_panics_on_a_torn_pierced_surface() {
             BooleanOp::Union,
             &DeclaredPairs::default(),
             &ContactRecords::default(),
+            None,
             band(),
             Tol::witness(),
         )

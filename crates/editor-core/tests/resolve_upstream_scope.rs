@@ -50,7 +50,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -77,7 +77,8 @@ fn slide(doc: ProfileDoc, node: RecipeNodeId, axis: Axis3, to: f64) -> ProfileDo
         DocEdit::SetParam {
             node,
             slot: SlotId::Translation(axis),
-            expr: len(to),
+            value: len(to).into(),
+            fresh: Vec::new(),
         },
     )
     .0
@@ -94,8 +95,8 @@ fn slot(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b: tr,
+            a: a.into(),
+            b: tr.into(),
             declare: Vec::new(),
         },
     );
@@ -167,6 +168,9 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
     let Some(Node::Transform { input: bar1, .. }) = doc.node(tr1) else {
         panic!("slot() places the bar behind a transform");
     };
+    let bar1 = &doc
+        .operation_of(*bar1)
+        .expect("the transform reads a live bar");
     let wall = |segment| StableName {
         kind: EntityKind::Face,
         node: *bar1,
@@ -176,7 +180,11 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
     };
     let mut vanished = 0;
     for name in &names {
-        if ev2.value(cut1).unwrap().name_table.lookup(name).is_some() {
+        // The plate's fragments; the bar's edges are lone pieces whose
+        // ends the slide moves.
+        if ev2.value(cut1).unwrap().name_table.lookup(name).is_some()
+            || matches!(name.path.first(), Some(RoleSeg::FromB(_)))
+        {
             continue;
         }
         vanished += 1;
@@ -227,8 +235,8 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: b1,
-            b: tr,
+            a: b1.into(),
+            b: tr.into(),
             declare: Vec::new(),
         },
     );
@@ -236,8 +244,8 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b: cutter,
+            a: a.into(),
+            b: cutter.into(),
             declare: Vec::new(),
         },
     );
@@ -247,7 +255,8 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
     let pieces: Vec<StableName> = fragments(&ev1, cut)
         .into_iter()
         .filter(|n| {
-            matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))))
+            matches!(n.path.first(), Some(RoleSeg::FromA(_)))
+                && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))))
                 && ev2.value(cut).unwrap().name_table.lookup(n).is_none()
         })
         .collect();
@@ -297,7 +306,14 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
 }
 
 fn set_members(doc: ProfileDoc, node: RecipeNodeId, members: Vec<RecipeNodeId>) -> ProfileDoc {
-    step(doc, DocEdit::SetMembers { node, members }).0
+    step(
+        doc,
+        DocEdit::SetMembers {
+            node,
+            members: members.into_iter().map(Into::into).collect(),
+        },
+    )
+    .0
 }
 
 /// The strict ancestors of `node` in ONE document — the test's own
@@ -305,10 +321,10 @@ fn set_members(doc: ProfileDoc, node: RecipeNodeId, members: Vec<RecipeNodeId>) 
 /// walk under test.
 fn ancestors_in(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
     let mut seen = BTreeSet::new();
-    let mut stack = doc.node(node).map(|n| n.inputs()).unwrap_or_default();
+    let mut stack = doc.upstream(node);
     while let Some(n) = stack.pop() {
         if seen.insert(n) {
-            stack.extend(doc.node(n).map(|x| x.inputs()).unwrap_or_default());
+            stack.extend(doc.upstream(n));
         }
     }
     seen
@@ -350,14 +366,14 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
     let (doc, p) = insert(
         doc,
         Node::Union {
-            members: vec![c1, c2],
+            members: vec![c1.into(), c2.into()],
             declare: Vec::new(),
         },
     );
     let (doc, x) = insert(
         doc,
         Node::Union {
-            members: vec![tr, p],
+            members: vec![tr.into(), p.into()],
             declare: Vec::new(),
         },
     );
@@ -365,8 +381,8 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b: x,
+            a: a.into(),
+            b: x.into(),
             declare: Vec::new(),
         },
     );
@@ -375,7 +391,7 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
     // The premises, each read per document.
     assert!(!ancestors_in(&doc, cut).contains(&r) && !ancestors_in(&doc2, cut).contains(&r));
     assert!(ancestors_in(&doc, cut).contains(&p) && !ancestors_in(&doc2, cut).contains(&p));
-    let at = |n| doc2.order().iter().position(|&m| m == n);
+    let at = |n| doc2.ids().iter().position(|&m| m == n);
     assert!(
         at(r) < at(p),
         "R is first in document order: a walk reaching it reports it"
@@ -431,7 +447,7 @@ fn a_node_that_feeds_the_name_only_now_is_upstream_too() {
     let (doc, x) = insert(
         doc,
         Node::Union {
-            members: vec![b1, b2],
+            members: vec![b1.into(), b2.into()],
             declare: Vec::new(),
         },
     );
@@ -474,7 +490,7 @@ fn a_recipe_edit_upstream_is_reported_as_upstream() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: vec![bar, f1],
+            members: vec![bar.into(), f1.into()],
             declare: Vec::new(),
         },
     );
@@ -483,8 +499,8 @@ fn a_recipe_edit_upstream_is_reported_as_upstream() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b: tr,
+            a: a.into(),
+            b: tr.into(),
             declare: Vec::new(),
         },
     );
@@ -527,7 +543,7 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: bar,
+            input: bar.into(),
             count: editor_core::Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
@@ -538,7 +554,7 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
     let (doc, part) = insert(
         doc,
         Node::Part {
-            of: pat,
+            of: pat.into(),
             select: editor_core::PartSelect::Instance(editor_core::Formula::count(0)),
         },
     );
@@ -546,8 +562,8 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b: part,
+            a: a.into(),
+            b: part.into(),
             declare: Vec::new(),
         },
     );
@@ -558,6 +574,7 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
             node: part,
             slot: SlotId::Instance,
             expr: editor_core::Formula::count(1),
+            fresh: Vec::new(),
         },
     )
     .0;
@@ -662,6 +679,8 @@ fn hand_eval(
             fragment_groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
+            coincidences: Arc::new([]),
+            cited_inputs: Arc::new([]),
             parts: 1,
             verdicts: Arc::new(log),
             escalations: Arc::new(vec![]),
@@ -693,6 +712,7 @@ fn hand_eval(
         reused: 0,
         part_evaluations: 0,
         appearance: editor_core::AppearanceResolution::default(),
+        env: Default::default(),
     }
 }
 

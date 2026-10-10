@@ -4,7 +4,7 @@ kind: issue
 title: The circle x torus half-angle door's noise and root-slack meters accept an Err reading (NaN or in-gap), where its parallel-axes sibling refuses
 status: open
 opened: 2026-10-01
-refs: [circle-torus-root-slack-crowds-the-zero-band-at-1e-12, sphere-union-sphere-refuses-though-the-section-is-closed-form]
+refs: [circle-torus-root-slack-crowds-the-zero-band-at-1e-12, 3659]
 ---
 
 Found by the PR 3659 review (`reach-snowman` fix pass) while sweeping

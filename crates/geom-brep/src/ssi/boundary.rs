@@ -298,7 +298,8 @@ pub(crate) struct Pass<'a> {
     pub tol: MarchTol,
     /// The section floor, in metres.
     pub floor: f64,
-    /// The lever arm and the tube ladder's scale, in metres.
+    /// The feature extent, in metres: the lever arm of the pass's
+    /// decisions and the tube ladder's scale.
     pub extent: f64,
     /// The run band.
     pub band: Band,
@@ -348,9 +349,7 @@ impl Pass<'_> {
 
     /// The side's curve ([`side_row`]).
     fn curve(&self, side: ChartSide) -> Result<geom::NurbsCurve3<f64>, SsiError> {
-        side_row(self.wall, side).map_err(|_| SsiError::UnsupportedCertificate {
-            what: "a NURBS wall's boundary row is not valid spline structure",
-        })
+        side_row(self.wall, side).map_err(|source| SsiError::ChartRow { source })
     }
 
     /// The certified speed along a side: the chart speed of the
@@ -372,9 +371,12 @@ impl Pass<'_> {
         ]
         .map(Interval::point);
         let dot = |b: super::enclose::Box3| n[0] * b.x + n[1] * b.y + n[2] * b.z;
+        let Some(w) = r.window() else {
+            return (Interval::refused(), Interval::refused());
+        };
         (
-            dot(boxes.deriv_box(r.u.0, r.u.1, r.v.0, r.v.1, true)),
-            dot(boxes.deriv_box(r.u.0, r.u.1, r.v.0, r.v.1, false)),
+            dot(boxes.deriv_box(w, true)),
+            dot(boxes.deriv_box(w, false)),
         )
     }
 
@@ -496,9 +498,9 @@ impl Pass<'_> {
                 if clears(side, side_of_plane, across) {
                     return Ok(Some(SideClass::Clear { strip }));
                 }
-                // The sine of the angle between the wall and the plane
-                // across the side, levered as the march's transversality
-                // is.
+                // The least sine of the angle between the wall and the
+                // plane across the side over the strip, levered by the
+                // extent alone, as every region decision is.
                 let sine = div_down(inf, speed.get());
                 let margin = Margin::levered(sine, self.extent);
                 if let Some(verdict) = band_verdict("ssi_boundary_strip", margin, self.band) {
@@ -604,8 +606,10 @@ impl Pass<'_> {
             }
             // The wall's speeds over the cell, which bound the path from
             // the corner to a zero in it.
-            let speed =
-                |along_u: bool| boxes.speed_sup(cell.u.0, cell.u.1, cell.v.0, cell.v.1, along_u);
+            let speed = |along_u: bool| {
+                cell.window()
+                    .map_or(f64::NAN, |w| boxes.speed_sup(w, along_u))
+            };
             let (s_u, s_v) = (speed(true), speed(false));
             let inf_u = super::enclose::zero_free_lower_bound(pu);
             let inf_v = super::enclose::zero_free_lower_bound(pv);
@@ -1011,7 +1015,9 @@ pub(super) fn stretch_within<T: CertifiedBounds>(
         };
         if side_of_plane.is_some() {
             let q = cut_along(side, r, piece);
-            let d = boxes.deriv_box(q.u.0, q.u.1, q.v.0, q.v.1, across_u);
+            let d = q.window().map_or_else(super::enclose::refused_box, |w| {
+                boxes.deriv_box(w, across_u)
+            });
             let across = normal[0] * d.x + normal[1] * d.y + normal[2] * d.z;
             if clears(side, side_of_plane, across) {
                 return Reading::Clear;
@@ -1036,7 +1042,10 @@ fn beyond_reach<T: CertifiedBounds>(
     (side, r): (ChartSide, UvRect),
     eps: f64,
 ) -> bool {
-    let d = boxes.deriv_box(r.u.0, r.u.1, r.v.0, r.v.1, side.fixed == ChartAxis::U);
+    let Some(w) = r.window() else {
+        return false;
+    };
+    let d = boxes.deriv_box(w, side.fixed == ChartAxis::U);
     if ![d.x, d.y, d.z].iter().all(|i| i.is_certified()) {
         return false;
     }
@@ -1173,14 +1182,18 @@ fn strip_reach<T: CertifiedBounds>(
                     v: strip.v,
                 }
             };
-            let d = boxes.deriv_box(piece.u.0, piece.u.1, piece.v.0, piece.v.1, along_u);
+            let Some(w) = piece.window() else {
+                bound = (f64::INFINITY, f64::INFINITY);
+                break;
+            };
+            let d = boxes.deriv_box(w, along_u);
             let across = n[0] * d.x + n[1] * d.y + n[2] * d.z;
             let inf = if one_signed(across) {
                 super::enclose::zero_free_lower_bound(across)
             } else {
                 0.0
             };
-            let speed = boxes.speed_sup(piece.u.0, piece.u.1, piece.v.0, piece.v.1, along_u);
+            let speed = boxes.speed_sup(w, along_u);
             if !(inf > 0.0 && speed.is_finite()) {
                 bound = (f64::INFINITY, f64::INFINITY);
                 break;

@@ -1,0 +1,379 @@
+//! The confirm lanes for records on **curved edges**: a `(vertex,
+//! edge)` record whose edge is not a line, and an edge-edge record with
+//! a curved side. The join writes both (`boolean::edge_join`): a
+//! vertex a record named that the join took, or a conventional vertex,
+//! reads as the joined edge's interior, curved or not.
+//!
+//! A point is on a curved edge's interior when it is on the carrier
+//! (its distance from the carrier's point at its recovered parameter
+//! decided zero) and strictly inside the span at both ends, metered in
+//! metres through the carrier's least speed, or anywhere on a closed
+//! edge whose vertex is conventional — the questions
+//! [`super::on_edge_interior`] asks of a line. Two edges' interiors
+//! meet when one candidate point is on both: where a line or circle
+//! meets a circle (through the circle's plane), each edge's midpoint,
+//! and the points halfway between one edge's end and the other's ends,
+//! one of which an overlap holds. Other carriers refuse typed.
+
+use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
+
+use super::{CensusSubject, CensusUnsupportedCause, ValidationError, gap_is_zero};
+use crate::body::Body;
+use crate::entity::{EdgeKey, EntityId};
+
+/// The carriers these lanes read: a line, or a circle.
+#[derive(Clone, Copy)]
+enum Carrier<T: Real> {
+    Line {
+        origin: Point3<T>,
+        dir: Vec3<T>,
+    },
+    Circle {
+        center: Point3<T>,
+        normal: Vec3<T>,
+        radius: T,
+    },
+}
+
+/// An edge's certified curve as these lanes read it.
+struct Read<T: Real> {
+    curve: geom::Curve3<T>,
+    carrier: Carrier<T>,
+    span: (T, T),
+    /// The carrier's least speed, metres per unit parameter.
+    speed: T,
+}
+
+/// `e`'s certified curve's carrier, span and least speed, or the typed
+/// refusal pushed for a carrier outside these lanes.
+fn read<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Read<T>> {
+    let curve = body
+        .edges
+        .get(e)
+        .and_then(|d| body.curves.get(d.curve))
+        .and_then(crate::null::CurveGeom::certified)?;
+    let carrier = curve.carrier().clone();
+    let (read, speed) = match carrier {
+        geom::Curve3::Line { origin, dir } => (Carrier::Line { origin, dir }, T::one()),
+        geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            ..
+        } => (
+            Carrier::Circle {
+                center,
+                normal: axis,
+                radius,
+            },
+            radius,
+        ),
+        _ => {
+            errors.push(ValidationError::CensusUnsupported {
+                subject: CensusSubject::Entity(EntityId::Edge(e)),
+                cause: CensusUnsupportedCause::ContactLane(
+                    crate::contact::ContactRefusal::NotCertifiable {
+                        what: "a record on a curved edge is certified on a circle edge only",
+                    },
+                ),
+            });
+            return None;
+        }
+    };
+    Some(Read {
+        curve: carrier,
+        carrier: read,
+        span: curve.params(),
+        speed,
+    })
+}
+
+fn decided<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Sign> {
+    geom_core::k_stats::decide(name, margin, band)
+        .map_err(|cause| errors.push(ValidationError::CensusEscalated { cause }))
+        .ok()
+}
+
+/// Whether `q` lies on `e`'s interior (module docs). `None` where a
+/// decision escalated or the carrier is outside these lanes (pushed).
+pub(super) fn on_curved_interior<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+    q: Point3<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<bool> {
+    let Read {
+        curve: carrier,
+        span: (t0, t1),
+        speed,
+        ..
+    } = read(body, e, errors)?;
+    // The midpoint anchor keeps the recovered parameter in span for a
+    // span of at most one period (`Curve3::param_near`).
+    let t = carrier.param_near(q, geom::mid_param(t0, t1))?;
+    let gap = Margin::norm3(q - carrier.eval(t));
+    if !gap_is_zero("pm_census_ve_curved_gap", gap, band, errors)? {
+        return Some(false);
+    }
+    // A closed edge's conventional vertex has no identity of its own:
+    // its point is the edge's interior too.
+    let start = body
+        .edges
+        .get(e)
+        .and_then(|d| body.half_edges.get(d.he_plus))
+        .map(|h| h.start);
+    if start.is_some_and(|v| crate::boolean::is_conventional_vertex(body, v)) {
+        return Some(true);
+    }
+    let mut interior = Some(true);
+    for m in [t - t0, t1 - t] {
+        match decided(
+            "pm_census_ve_curved_span",
+            Margin::levered(m, speed),
+            band,
+            errors,
+        ) {
+            Some(Sign::Positive) => {}
+            Some(_) => interior = interior.map(|_| false),
+            None => interior = None,
+        }
+    }
+    interior
+}
+
+/// The points where the line `(o, d)` meets the circle `(c, n, r)`:
+/// through the circle's plane where the line crosses it, in the plane
+/// where it lies in it. `None` where a decision escalated (pushed).
+fn line_circle<T: Decide>(
+    (o, d): (Point3<T>, Vec3<T>),
+    (c, n, r): (Point3<T>, Vec3<T>, T),
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Vec<Point3<T>>> {
+    let nd = n.dot(d);
+    match decided(
+        "pm_census_ee_curved_plane",
+        Margin::levered(nd.abs(), r),
+        band,
+        errors,
+    )? {
+        Sign::Zero => {
+            let w = o - c;
+            let b = w.dot(d);
+            let disc = b.powi(2) - (w.dot(w) - r.powi(2));
+            match decided(
+                "pm_census_ee_curved_chord",
+                Margin::of(disc / r),
+                band,
+                errors,
+            )? {
+                Sign::Negative => Some(Vec::new()),
+                _ => {
+                    let h = disc.max(T::zero()).sqrt();
+                    Some(vec![o + d * (h - b), o + d * (T::zero() - h - b)])
+                }
+            }
+        }
+        _ => Some(vec![o + d * (n.dot(c - o) / nd)]),
+    }
+}
+
+/// The points where two circles' carriers can meet: on the line their
+/// planes share, or for coplanar circles on their radical line.
+fn circle_circle<T: Decide>(
+    (c1, n1, r1): (Point3<T>, Vec3<T>, T),
+    (c2, n2, r2): (Point3<T>, Vec3<T>, T),
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Vec<Point3<T>>> {
+    let m = n1.cross(n2);
+    let arm = r1.min(r2);
+    if decided(
+        "pm_census_ee_curved_planes",
+        Margin::levered(m.norm(), arm),
+        band,
+        errors,
+    )? == Sign::Positive
+    {
+        let (h1, h2) = (n1.dot(c1 - Point3::origin()), n2.dot(c2 - Point3::origin()));
+        let p0 = Point3::origin() + (n2.cross(m) * h1 + m.cross(n1) * h2) / m.dot(m);
+        return line_circle((p0, m.normalize()), (c1, n1, r1), band, errors);
+    }
+    let gap = Margin::of(n1.dot(c2 - c1).abs());
+    if !gap_is_zero("pm_census_ee_curved_coplanar", gap, band, errors)? {
+        return Some(Vec::new());
+    }
+    let v = c2 - c1;
+    let dist = v.norm();
+    if gap_is_zero(
+        "pm_census_ee_curved_concentric",
+        Margin::of(dist),
+        band,
+        errors,
+    )? {
+        return Some(Vec::new()); // concentric: an overlap's midpoints are the candidates
+    }
+    let u = v / dist;
+    let a = (dist.powi(2) + r1.powi(2) - r2.powi(2)) / (dist + dist);
+    line_circle((c1 + u * a, n1.cross(u)), (c1, n1, r1), band, errors)
+}
+
+/// Whether `a`'s and `b`'s interiors meet, one of them curved (module
+/// docs). `None` where a decision escalated or a carrier is outside
+/// these lanes (pushed).
+pub(super) fn curved_interiors_meet<T: Decide>(
+    body: &Body<T>,
+    a: EdgeKey,
+    b: EdgeKey,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<bool> {
+    let Read {
+        curve: ca,
+        carrier: ra,
+        span: (a0, a1),
+        ..
+    } = read(body, a, errors)?;
+    let Read {
+        curve: cb,
+        carrier: rb,
+        span: (b0, b1),
+        ..
+    } = read(body, b, errors)?;
+    let mut points = vec![
+        ca.eval(geom::mid_param(a0, a1)),
+        cb.eval(geom::mid_param(b0, b1)),
+    ];
+    // An overlap that holds neither midpoint holds the point halfway
+    // between one edge's end and the other's end on its carrier.
+    for ((c, t0, t1), (other, s0, s1)) in [
+        ((&ca, a0, a1), (&cb, b0, b1)),
+        ((&cb, b0, b1), (&ca, a0, a1)),
+    ] {
+        for q in [other.eval(s0), other.eval(s1)] {
+            if let Some(t) = c.param_near(q, geom::mid_param(t0, t1)) {
+                points.extend([
+                    c.eval(geom::mid_param(t0, t)),
+                    c.eval(geom::mid_param(t, t1)),
+                ]);
+            }
+        }
+    }
+    let crossings = match (ra, rb) {
+        (
+            Carrier::Line { origin, dir },
+            Carrier::Circle {
+                center,
+                normal,
+                radius,
+            },
+        )
+        | (
+            Carrier::Circle {
+                center,
+                normal,
+                radius,
+            },
+            Carrier::Line { origin, dir },
+        ) => line_circle((origin, dir), (center, normal, radius), band, errors),
+        (
+            Carrier::Circle {
+                center: c1,
+                normal: n1,
+                radius: r1,
+            },
+            Carrier::Circle {
+                center: c2,
+                normal: n2,
+                radius: r2,
+            },
+        ) => circle_circle((c1, n1, r1), (c2, n2, r2), band, errors),
+        (Carrier::Line { .. }, Carrier::Line { .. }) => Some(Vec::new()),
+    };
+    points.extend(crossings?);
+    // A candidate off either edge may escalate where another is on
+    // both: its escalations stand only if no candidate decides.
+    let mut held = Vec::new();
+    for p in points {
+        let on_a = on_curved_interior(body, a, p, band, &mut held);
+        let on_b = on_curved_interior(body, b, p, band, &mut held);
+        if (on_a, on_b) == (Some(true), Some(true)) {
+            return Some(true);
+        }
+    }
+    if held.is_empty() {
+        return Some(false);
+    }
+    errors.extend(held);
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use super::curved_interiors_meet;
+    use crate::body::Body;
+    use crate::entity::EdgeKey;
+    use crate::{EdgeCurveSpec, MevSite};
+
+    /// Arcs of one unit circle, from `t0` to `t1` degrees, each its own
+    /// solid in one arena.
+    fn arcs(spans: [(f64, f64); 2]) -> (Body<f64>, [EdgeKey; 2]) {
+        let tol = Tol::witness();
+        let c = geom::Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let mut body = Body::<f64>::new();
+        let edges = spans.map(|(t0, t1)| {
+            let (t0, t1) = (t0.to_radians(), t1.to_radians());
+            let born = body.mvfs(c.eval(t0), true).unwrap();
+            body.mev(
+                MevSite::Lone {
+                    r#loop: born.r#loop,
+                },
+                c.eval(t1),
+                EdgeCurveSpec::arc_of_circle(c.clone(), t0, t1).unwrap(),
+                tol,
+            )
+            .unwrap()
+            .edge
+        });
+        (body, edges)
+    }
+
+    /// **Two arcs of one circle meet where they overlap**, though the
+    /// overlap holds neither arc's midpoint; arcs a gap apart do not.
+    #[test]
+    fn overlapping_arcs_meet_off_both_midpoints() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        for (spans, meet) in [
+            ([(0.0, 100.0), (90.0, 190.0)], true),
+            ([(90.0, 190.0), (0.0, 100.0)], true),
+            ([(0.0, 80.0), (90.0, 190.0)], false),
+        ] {
+            let (body, [a, b]) = arcs(spans);
+            let mut errors = Vec::new();
+            assert_eq!(
+                curved_interiors_meet(&body, a, b, band, &mut errors),
+                Some(meet),
+                "{spans:?}: {errors:?}"
+            );
+        }
+    }
+}

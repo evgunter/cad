@@ -214,19 +214,15 @@ fn az_plain_intersects_exact() {
 
 /// The COUPLED variant — Z's bars shifted flush onto A's y-extent
 /// (bar ends at y = 0 and y = 2.5, coinciding with A's feet and apex
-/// planes; diagonal slope re-derived, 18/29). Pin history (issue
-/// #93, 2026-07-25): pre-#93 main refused through the gap arm itself
-/// ("…no classifiable vertex"); with the #93 anchors alone it
-/// succeeded EXACTLY (same-side tangential contact, the
-/// contact-records class); after M4 PR 5 (Declare + GeomSource, N6)
-/// undeclared value-equal flush planes refuse typed at the
-/// coincidence door — a designed narrowing, ruled 2026-07-25. Pinned
-/// LIVE: undeclared → `UndeclaredCoincidence`; DECLARED (the three
-/// value-equal y-plane pairs, PR 5 vocabulary) → exact success
-/// through the #93 anchor tiers, independent oracle
-///   ∫ w_plain·h_Zflush dy = 2562165/950272 (same Fraction method).
+/// planes; diagonal slope re-derived, 18/29). The value-equal flush
+/// planes are one carrier by margin, so the intersect glues them
+/// whether or not they are declared: the DECLARED run (the three
+/// value-equal y-plane pairs as continuations) is exact through the
+/// #93 anchor tiers against the independent oracle
+///   ∫ w_plain·h_Zflush dy = 2562165/950272 (same Fraction method),
+/// and the undeclared run is the same body bit for bit (D10).
 #[test]
-fn az_coupled_flush_refuses_undeclared_succeeds_declared() {
+fn az_coupled_flush_declared_and_undeclared_are_one_exact_body() {
     let z_poly_flush = [
         (0.0, 0.0),
         (2.5, 0.0),
@@ -252,15 +248,6 @@ fn az_coupled_flush_refuses_undeclared_succeeds_declared() {
     .body;
     let z_flush = finished("the flush Z prism", z_flush, Tol::witness());
     let a = a_prism(vec![lp(&A_OUTLINE)]);
-    // Undeclared: the N6 coincidence door refuses typed.
-    match topo::intersect(&a, &z_flush, Tol::witness()) {
-        Err(topo::BooleanError::UndeclaredCoincidence { .. }) => {}
-        Err(e) => panic!("undeclared coupled flush refused OFF the coincidence door: {e:?}"),
-        Ok(_) => panic!(
-            "undeclared coupled flush succeeded — the N6 door (M4 PR 5) \
-             stopped guarding value-equal flush planes"
-        ),
-    }
     // Declared: pair the value-equal flush planes (both bodies' pure
     // ±y carriers at equal signed offsets — dyadic sketch data, so
     // offsets are exact bit-for-bit), then the intersect runs on the
@@ -293,12 +280,22 @@ fn az_coupled_flush_refuses_undeclared_succeeds_declared() {
         6,
         "A's two feet × Z's two y=0 bar ends + A's apex × Z's two y=2.5 bar ends"
     );
-    match topo::intersect_with(&a, &z_flush, &decls, Tol::witness()) {
+    let declared = match topo::intersect_with(&a, &z_flush, &decls, Tol::witness()) {
         Ok(BooleanResult::Body(bb)) => {
             check_success(&bb, 2_562_165.0 / 950_272.0, "declared coupled-flush A×Z");
+            bb
         }
         Ok(BooleanResult::Empty) => panic!("declared coupled flush returned Empty"),
         Err(e) => panic!("declared coupled flush refused: {e:?}"),
+    };
+    match topo::intersect(&a, &z_flush, Tol::witness()) {
+        Ok(BooleanResult::Body(bb)) => assert_eq!(
+            format!("{:?}", bb.body),
+            format!("{:?}", declared.body),
+            "undeclared coupled flush is the declared body (D10)"
+        ),
+        Ok(BooleanResult::Empty) => panic!("undeclared coupled flush returned Empty"),
+        Err(e) => panic!("undeclared coupled flush refused: {e:?}"),
     }
 }
 

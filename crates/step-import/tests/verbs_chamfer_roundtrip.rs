@@ -50,6 +50,7 @@ fn chamfered_cube() -> topo::Body<f64> {
     )
     .expect("the cube extrudes")
     .body;
+    let cube = topo::AtRestBody::validate(cube, Tol::witness()).expect("the cube is finished");
     let edges: Vec<topo::EdgeKey> = cube.edges().map(|(k, _)| k).collect();
     chamfer_edges(&cube, &edges, D, Tol::witness())
         .expect("a cube's twelve edges chamfer")

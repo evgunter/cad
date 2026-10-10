@@ -1,14 +1,15 @@
-//! **A boss drawn to the edge of a block's top unions once its two
-//! coincidences are declared.**
+//! **A boss drawn to the edge of a block's top unions, its two
+//! coincidences declared or not.**
 //!
 //! The block is `40 × 20 × 10` centred on the world xy frame; the boss
 //! is `x ∈ [10, 20]`, `y ∈ [−5, 5]`, standing 4 tall on the block's
 //! top, so its `+x` wall lies in the block's `+x` wall plane, facing the
 //! same way. The two solids touch at two faces: the resting cap pair
-//! (`Rest`) and the flush walls (a continuation). Undeclared, the union
-//! reports the walls first; each refusal names one pair, and declaring
-//! the pairs the refusals name, one at a time, ends in the union at the
-//! closed-form volume `40·20·10 + 10·10·4 = 8400`.
+//! (`Rest`) and the flush walls (a continuation). Each pair is one
+//! carrier by margin, so the union glues it whether or not it is
+//! declared: undeclared, with only the cap pair declared, and with
+//! every flush finding declared, the union is one body bit for bit
+//! (D10), at the closed-form volume `40·20·10 + 10·10·4 = 8400`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -16,7 +17,7 @@ use geom_core::Tol;
 use sweep::test_support::{brick, finished};
 use topo::{
     AtRestBody, Body, BooleanCoincidence, BooleanDeclarations, BooleanError, BooleanResult,
-    FaceKey, FacePairDeclaration, Operand, PlaneRelation,
+    FaceKey, FacePairDeclaration,
 };
 
 /// The block and the boss, finished as operands.
@@ -53,45 +54,30 @@ fn plus_x_wall(body: &Body<f64>) -> FaceKey {
     f
 }
 
-/// The class a declaration of a refused pair asserts: opposed faces
-/// rest, aligned ones carry on.
-fn class_of(relation: PlaneRelation) -> BooleanCoincidence {
-    match relation {
-        PlaneRelation::SameOpposite => BooleanCoincidence::REST,
-        PlaneRelation::SameOriented => BooleanCoincidence::Continuation,
-        PlaneRelation::Distinct => panic!("a coincidence refusal never names a distinct pair"),
-    }
+/// Every flush finding between `a` and `b`, declared.
+fn every_finding(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> BooleanDeclarations {
+    let found = topo::flush::find_flush_candidates(a, b, Tol::witness()).expect("the pair decides");
+    topo::flush::declare_all(&found)
 }
 
-/// `a ∪ b`, declaring each pair an `UndeclaredCoincidence` names until
-/// the union answers; returns the answer and the relations declared, in
-/// the order the refusals named them.
-fn offer_loop(
+/// `a ∪ b` under each of `postures` is the union with every flush
+/// finding declared, bit for bit, and that union builds at `want`.
+fn one_union(
+    tag: &str,
     a: &AtRestBody<f64>,
     b: &AtRestBody<f64>,
-) -> (Result<BooleanResult<f64>, BooleanError>, Vec<PlaneRelation>) {
-    let mut decls = BooleanDeclarations::none();
-    let mut named = Vec::new();
-    loop {
-        match topo::union_with(a, b, &decls, Tol::witness()) {
-            Err(BooleanError::UndeclaredCoincidence { pair, relation, .. }) if named.len() < 4 => {
-                let (fa, fb) = by_operand(pair);
-                named.push(relation);
-                decls
-                    .coincident_faces
-                    .push(FacePairDeclaration::new(fa, fb, class_of(relation)));
-            }
-            other => return (other, named),
-        }
-    }
-}
-
-/// A refused pair as `(face of A, face of B)`, whichever order the
-/// refusal names them in.
-fn by_operand(pair: [(Operand, FaceKey); 2]) -> (FaceKey, FaceKey) {
-    match pair {
-        [(Operand::A, fa), (Operand::B, fb)] | [(Operand::B, fb), (Operand::A, fa)] => (fa, fb),
-        other => panic!("a refused pair names a face of each operand: {other:?}"),
+    postures: &[(&str, BooleanDeclarations)],
+    want: f64,
+) {
+    let declared = topo::union_with(a, b, &every_finding(a, b), Tol::witness());
+    let body = format!("{declared:?}");
+    assert_built(&format!("{tag}, declared"), declared, want);
+    for (what, d) in postures {
+        assert_eq!(
+            format!("{:?}", topo::union_with(a, b, d, Tol::witness())),
+            body,
+            "{tag}, {what}: the declared union"
+        );
     }
 }
 
@@ -121,10 +107,12 @@ fn assert_built(tag: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f6
     );
 }
 
-/// **The flush walls are the first contact reported**, in both operand
-/// orders: undeclared, and with only the resting cap pair declared.
+/// **The boss unions at its closed form, declared or not**, in both
+/// operand orders: with every flush finding declared (the `+x` walls a
+/// continuation, the caps a `Rest`), with only the resting cap pair
+/// declared, and undeclared, the union is one body.
 #[test]
-fn the_flush_walls_are_reported_before_and_after_the_cap_pair_is_declared() {
+fn the_boss_unions_at_its_closed_form_declared_or_not() {
     let (block, boss) = scene();
     let caps = |a: &AtRestBody<f64>, b: &AtRestBody<f64>, a_is_block: bool| {
         let cap = |body: &Body<f64>, up: bool| {
@@ -152,50 +140,31 @@ fn the_flush_walls_are_reported_before_and_after_the_cap_pair_is_declared() {
         ("block ∪ boss", &block, &boss, true),
         ("boss ∪ block", &boss, &block, false),
     ] {
-        for (what, decls) in [
-            ("undeclared", BooleanDeclarations::none()),
-            ("the cap pair declared", caps(a, b, a_is_block)),
-        ] {
-            match topo::union_with(a, b, &decls, Tol::witness()) {
-                Err(BooleanError::UndeclaredCoincidence { pair, relation, .. }) => {
-                    let (fa, fb) = by_operand(pair);
-                    assert_eq!(relation, PlaneRelation::SameOriented, "{order}, {what}");
-                    assert_eq!(
-                        (fa, fb),
-                        (plus_x_wall(a), plus_x_wall(b)),
-                        "{order}, {what}: the +x walls are named"
-                    );
-                }
-                other => panic!("{order}, {what}: the flush walls refuse, got {other:?}"),
-            }
-        }
-    }
-}
-
-/// **Following the refusals builds the union**: the walls are named
-/// first, then the resting caps, and the union of the two declarations
-/// is the closed form, in both operand orders.
-#[test]
-fn declaring_what_the_refusals_name_builds_the_union_at_its_closed_form() {
-    let (block, boss) = scene();
-    for (order, a, b) in [
-        ("block ∪ boss", &block, &boss),
-        ("boss ∪ block", &boss, &block),
-    ] {
-        let (r, named) = offer_loop(a, b);
-        assert_eq!(
-            named,
-            [PlaneRelation::SameOriented, PlaneRelation::SameOpposite],
-            "{order}: the walls, then the caps"
+        assert!(
+            every_finding(a, b)
+                .coincident_faces
+                .iter()
+                .any(|d| (d.a, d.b) == (plus_x_wall(a), plus_x_wall(b))
+                    && d.class == BooleanCoincidence::Continuation),
+            "{order}: the +x walls are a continuation finding"
         );
-        assert_built(order, r, 8400.0);
+        one_union(
+            order,
+            a,
+            b,
+            &[
+                ("undeclared", BooleanDeclarations::none()),
+                ("the cap pair declared", caps(a, b, a_is_block)),
+            ],
+            8400.0,
+        );
     }
 }
 
 /// **A cylinder through the block, its caps flush with the block's top
-/// and bottom, unions** once both cap pairs are declared as the
-/// refusals name them (each a continuation): the cylinder lies inside
-/// the block, so the union is the block, `40 · 20 · 10 = 8000`. Its rim
+/// and bottom, unions to the block**, declared or not: the cylinder
+/// lies inside the block, so the union is the block, `40 · 20 · 10 =
+/// 8000`, and the undeclared union is the declared one. Its rim
 /// authored as two arcs and as three, in both operand orders.
 #[test]
 fn a_cylinder_through_the_block_with_flush_caps_unions_to_the_block() {
@@ -216,13 +185,13 @@ fn a_cylinder_through_the_block_with_flush_caps_unions_to_the_block() {
             ("cylinder ∪ block", &cylinder, &block),
         ] {
             let tag = format!("{n} arcs, {order}");
-            let (r, named) = offer_loop(a, b);
-            assert_eq!(
-                named,
-                [PlaneRelation::SameOriented, PlaneRelation::SameOriented],
-                "{tag}: the two cap pairs"
+            one_union(
+                &tag,
+                a,
+                b,
+                &[("undeclared", BooleanDeclarations::none())],
+                8000.0,
             );
-            assert_built(&tag, r, 8000.0);
         }
     }
 }

@@ -91,11 +91,12 @@ use geom_brep::CERT_SAMPLES;
 use geom_brep::ssi::BranchEnd;
 use geom_brep::ssi::{
     self, ChartAxis, ChartCorner, ChartEnd, ChartSide, ChartSpeedRefusal, RefineStop, RefusedRound,
-    RoundMargin, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_STEPS, SSI_SEED_FLOOR, SSI_SETTLE_MAX,
-    SSI_TUBE_RADIUS, SettlingRefusal, SsiBoundaryContact, SsiDomain, SsiError, SsiLimb, SsiOperand,
-    SsiTube, TubeScale,
+    ResidualTrend, RoundMargin, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_STEPS, SSI_SEED_FLOOR,
+    SSI_SETTLE_MAX, SSI_TUBE_RADIUS, SettlingRefusal, SsiBoundaryContact, SsiDomain, SsiError,
+    SsiLimb, SsiOperand, SsiTube,
 };
 use geom_core::spline::KnotVector;
+use geom_core::test_support::upper;
 use geom_core::{Margin, Point3, Vec3};
 use test_utils::vacuity;
 
@@ -278,6 +279,16 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             "SHAPE-IV: {:?}",
             b.certificate
         );
+        // TUBE-LEVER: limb 3's clearance is a least sine over the tube,
+        // levered by the feature extent alone. A sine levered by the
+        // cylinder's radius, the pair's shorter curvature radius, could
+        // not exceed that radius.
+        assert!(
+            b.certificate.tube_transversality > 0.08,
+            "TUBE-LEVER: the tube's clearance {:e} m is no more than the cylinder's \
+             radius, so a curvature radius levered it, not the extent",
+            b.certificate.tube_transversality
+        );
         // MARCH-TOL: the tolerance the carrier was actually GENERATED
         // at, read off the branch the door returned.
         //
@@ -412,8 +423,8 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
     let n = carrier.control().len() / 2;
     let bad = displaced(&carrier, n, definitely_positive());
     match certify_against(&bad) {
-        Err(SsiError::CertificateLimb { limb, value }) => {
-            assert_eq!(limb, SsiLimb::OnLocus, "LIMB-1: value = {value}");
+        Err(SsiError::CertificateLimb { limb, margin }) => {
+            assert_eq!(limb, SsiLimb::OnLocus, "LIMB-1: margin = {margin}");
         }
         other => panic!("LIMB-1: expected limb 1 to refuse, got {other:?}"),
     }
@@ -437,9 +448,9 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
         match certify_against(&bad) {
             Err(SsiError::CertificateLimb {
                 limb: SsiLimb::HullSup,
-                value,
+                margin,
             }) => {
-                found = Some((d, value));
+                found = Some((d, upper(margin)));
                 break;
             }
             // A hull bound that lands just ABOVE ε is inside the
@@ -842,7 +853,7 @@ fn the_uniqueness_tube_margin_dies_on_a_tangent_pair() {
         None,
         &SsiOperand::Analytic(&c),
         &SsiOperand::Analytic(&s),
-        TubeScale::split(1.0, 2.0),
+        2.0,
         band(),
     )
     .expect_err("a tangency cannot certify a uniqueness tube");
@@ -886,7 +897,7 @@ fn certify_against(carrier: &NurbsCurve3<f64>) -> Result<geom_brep::SsiCertifica
         None,
         &SsiOperand::Analytic(&c),
         &SsiOperand::Analytic(&s),
-        TubeScale::split(0.08, 2.0),
+        2.0,
         band(),
     )
 }
@@ -1088,7 +1099,7 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
     //
     // A pcurve corruption leaves limb 1 clean — the foot-point check
     // re-projects from the corrupted warm start and converges to the
-    // true foot, so on-locus distance and orthogonality stay in band —
+    // true foot, so the on-locus distance stays in band —
     // while limb 2, which consumes the pcurve AS the parameter map,
     // must see |S(P(t)) − C(t)| at the corruption's full size. The
     // displacement scales from the resolved band (definitely positive
@@ -1112,15 +1123,15 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
         Some(&bad),
         &SsiOperand::Analytic(&p),
         &SsiOperand::nurbs(&w).expect("the wall's chart speeds mint"),
-        TubeScale::uniform(wall_domain().extent),
+        wall_domain().extent,
         band(),
     )
     .expect_err("CORRUPT-PCURVE: a corrupted parameter map cannot certify");
     match err {
         SsiError::CertificateLimb {
             limb: SsiLimb::HullSup,
-            value,
-        } => assert!(value > eps(), "CORRUPT-PCURVE: {value:e}"),
+            margin,
+        } => assert!(upper(margin) > eps(), "CORRUPT-PCURVE: {margin:e}"),
         other => panic!("CORRUPT-PCURVE: expected limb 2 alone, got {other}"),
     }
 }
@@ -4514,7 +4525,7 @@ fn a_seed_settled_outside_the_slab_is_no_branch_and_the_arc_is_still_found() {
             vacuity::stood_down(
                 "ε 1e-6",
                 "a march state lands within the band of the face, and the open end escalates \
-                 (work/ssi/ssi-r3-a-state-landing-in-band-outside-the-slab-escalates-the-open-end.md)",
+                 (work/ssiedge/ssi-r3-a-state-landing-in-band-outside-the-slab-escalates-the-open-end.md)",
             );
             assert!(
                 !cause.margin.is_invalid(),
@@ -4795,10 +4806,10 @@ fn a_curved_domes_open_arc_is_refined_where_the_hull_limb_refused() {
 fn rounds_at_the_wall(
     at: &str,
     r: &Result<geom_brep::SsiOutcome, SsiError>,
-) -> (usize, Vec<RefusedRound>, String) {
+) -> (usize, Vec<RefusedRound>, String, ResidualTrend) {
     let Err(
         e @ SsiError::RefinementExhausted {
-            stop: RefineStop::StepBudget { budget },
+            stop: RefineStop::StepBudget { budget, trend },
             samples,
             refusal,
             earlier,
@@ -4815,7 +4826,7 @@ fn rounds_at_the_wall(
         "{at}: refused at the round that would overrun it: {samples} samples"
     );
     let last = match **refusal {
-        SsiError::CertificateLimb { limb, value } => (limb, RoundMargin::Over(value)),
+        SsiError::CertificateLimb { limb, margin } => (limb, RoundMargin::Over(margin)),
         SsiError::CertificateEscalated { limb, cause } => (limb, RoundMargin::InBand(cause.margin)),
         ref other => panic!("{at}: a limb's refusal stands: {other:?}"),
     };
@@ -4829,6 +4840,7 @@ fn rounds_at_the_wall(
         *samples,
         rounds,
         e.render(geom_brep::recourse::Reading::Build),
+        *trend,
     )
 }
 
@@ -4838,8 +4850,9 @@ fn rounds_at_the_wall(
 /// refinement's first round asks about 23 400 steps, so the wall refuses
 /// before it, naming the one refused round. A branch never grows past the
 /// wall, and the refusal is the resource limit, not a verdict on the
-/// carrier. One round shows no margin falling or stopping, so the ending
-/// is the curvature-held march's: the domain, then the tolerance.
+/// carrier. One round shows no refused residual falling or stopping, so
+/// the ending is the curvature-held march's: the domain, then the
+/// tolerance.
 #[test]
 fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
     let d = 1.0;
@@ -4853,7 +4866,8 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
         return;
     }
     let r = ssi::plane_nurbs_ssi(&level, &dome_wall(d), dom, band_at(1e-14));
-    let (samples, rounds, shown) = rounds_at_the_wall("the level loop at 1e-14", &r);
+    let (samples, rounds, shown, trend) = rounds_at_the_wall("the level loop at 1e-14", &r);
+    assert_eq!(trend, ResidualTrend::Falling, "one round shows no stall");
     assert!(
         (18_000..18_600).contains(&samples),
         "the march's samples: {samples}"
@@ -4869,12 +4883,18 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
 
 /// **Refinement past the arithmetic's floor meets the wall typed, with
 /// the floor in its history.** At ε 1e-14 limb 2 reads the dome's `z =
-/// 0.2` arc in band at 1.6–1.8e-14 m whatever its samples: the enclosure's
+/// 0.2` arc in band at 1.3–1.6e-14 m whatever its samples: the enclosure's
 /// width, not a between-sample error, so halving every refused gap
 /// doubles the samples and leaves the margin where it was. The rounds
 /// run from about 4 250 samples until the next would overrun the
 /// branch's step budget, every one in band on limb 2 at the same width,
 /// and the refusal is the wall's, its ending naming the floor.
+///
+/// "The same width" is read against what the alternative would show: a
+/// between-sample error falls at least as fast as the gaps, so over a
+/// sample growth `G ≥ 3` its spread `hi/lo` is at least `G`. The row
+/// puts the line at `√G`, the geometric midpoint between flat (`1`) and
+/// that (`G`); measured `hi/lo` is about 1.18 against `√G ≥ 1.73`.
 #[test]
 fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
     let d = 1.0;
@@ -4888,10 +4908,16 @@ fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
         return;
     }
     let r = ssi::plane_nurbs_ssi(&zcut, &dome_wall(d), dom, band_at(1e-14));
-    let (_, rounds, shown) = rounds_at_the_wall("the zcut at 1e-14", &r);
+    let (_, rounds, shown, trend) = rounds_at_the_wall("the zcut at 1e-14", &r);
+    assert_eq!(
+        trend,
+        ResidualTrend::Stalled,
+        "the floor stalled the residual"
+    );
     assert!(
         shown.contains(
-            "the margin stopped falling, so at this ε and scale it is the arithmetic's floor"
+            "the refused residual stopped falling, so at this ε and scale it is the \
+             arithmetic's floor"
         ),
         "the ending names the floor: {shown}"
     );
@@ -4912,11 +4938,13 @@ fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
             _ => panic!("limb 2 in band every round: {rounds:?}"),
         })
         .collect();
+    #[allow(clippy::cast_precision_loss)]
+    let growth = last as f64 / first as f64;
     let (lo, hi) = margins.iter().fold((f64::INFINITY, 0.0f64), |(lo, hi), m| {
         (lo.min(*m), hi.max(*m))
     });
     assert!(
-        (1.4e-14..2.0e-14).contains(&lo) && hi < 1.2 * lo,
+        (1.2e-14..1.5e-14).contains(&lo) && hi / lo < growth.sqrt(),
         "the margin flat at the enclosure's width while the samples grew: {rounds:?}"
     );
 }
@@ -5251,14 +5279,12 @@ fn warped_flat_wall(alpha: f64, width: f64, kappa: f64) -> NurbsSurface<f64> {
 /// **A flat wall whose chart bends answers as the plane it is.** The
 /// plane `z = 0` cuts [`warped_flat_wall`] in the line `x = z = 0`, from
 /// the `v = 0` side to the `v = 1` side, at the shallow angle `α`. The
-/// march levers `sin θ` by the wall's chart lever arm (chart speed² over
-/// its second derivative), which the uneven `u` lines shrink mid-branch
-/// to where the transversality is too close to call; the line is
-/// straight, so the Hermite candidate is the segment itself, its two
-/// ends' decisions clear, and the certificate takes it, its tube levered
-/// by the extent. Five warps, each one branch on the line, one cubic
-/// span, at ε 1e-9 and 1e-12. At 1e-6 the angle `α` is itself inside the
-/// band.
+/// wall is flat, so the transversality decision at either end of the
+/// Hermite candidate levers `sin θ` by the extent, however the `u` lines
+/// bunch; the line is straight, so the candidate is the segment itself,
+/// and the certificate takes it, its tube levered by the extent. Five
+/// warps, each one branch on the line, one cubic span, at ε 1e-9 and
+/// 1e-12. At 1e-6 the angle `α` is itself inside the band.
 #[test]
 fn a_flat_wall_whose_chart_bends_answers_as_the_plane_it_is() {
     let eps = band().zero();
@@ -5848,6 +5874,113 @@ fn a_branch_straight_then_bending_certifies() {
     pairs_as_the_truth(&at, &wall, &tr, &out);
 }
 
+/// The flat wall `z = α·x` over `y ∈ [0, ½]`, its chart bunched in `s`
+/// about the locus and its chart path bent:
+/// `x = X·[(s − ½) − κh(s − ½)² − μh]`, `h = 4t(1 − t)`, biquadratic.
+/// The plane `z = 0` cuts it in the straight line `x = z = 0`, whose
+/// chart path is the parabola `s − ½ − κh(s − ½)² = μh`.
+fn bent_path_flat_wall(alpha: f64, width: f64, kappa: f64, mu: f64) -> NurbsSurface<f64> {
+    // Bernstein coefficients: `s − ½` and `(s − ½)²` in `s`, `4t(1 − t)`
+    // in `t`.
+    let lin = [-0.5, 0.0, 0.5];
+    let square = [0.25, -0.25, 0.25];
+    let hump = [0.0, 2.0, 0.0];
+    let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let mut control = Vec::with_capacity(9);
+    for i in 0..3 {
+        for (j, h) in hump.iter().enumerate() {
+            let x = width * (lin[i] - kappa * square[i] * h - mu * h);
+            control.push(Point3::new(x, 0.25 * j as f64, alpha * x));
+        }
+    }
+    NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).unwrap()
+}
+
+/// **A flat wall whose chart path bends answers as the plane it is,
+/// marched.** [`bent_path_flat_wall`] at `α` 1e-6, `X` 1 cm, `κ` 0.8 and
+/// `μ` 0.2, cut by `z = 0`. The chart path bends, so the Hermite cubic
+/// misses the locus in the chart and the branch is marched, its
+/// transversality decided at every state. The wall is flat, so each
+/// state's arm is the extent, and the march answers the line; a
+/// parameter line's own radius, about 9 mm here, would put `sin θ` times
+/// it inside the band at ε 1e-9, where the chart's reading refuses. One
+/// branch on the line at ε 1e-9 and 1e-12; at 1e-6 the angle is itself
+/// inside the band. (`μ` 0.1 refuses on limb 3 at ε 1e-12:
+/// `work/ssimarch/ssi-limb-three-refuses-a-bent-chart-path-line-at-eps-1e-12.md`.)
+#[test]
+fn a_flat_wall_whose_chart_path_bends_answers_as_the_plane_it_is() {
+    let eps = band().zero();
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let dom = SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.0),
+        half_extent: 1.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    let alpha = 1e-6;
+    let mu = 0.2;
+    {
+        let at = format!("μ {mu} at ε {eps:e}");
+        let wall = bent_path_flat_wall(alpha, 0.01, 0.8, mu);
+        let out = match ssi::plane_nurbs_ssi(&plane, &wall, dom, band()) {
+            Ok(out) => out,
+            Err(e) if eps >= 1e-6 => {
+                vacuity::stood_down(&at, &format!("α is inside the band: {e}"));
+                return;
+            }
+            Err(e) => panic!("{at}: expected the line, got {e}"),
+        };
+        let [b] = out.branches.as_slice() else {
+            panic!("{at}: expected one branch, got {}", out.branches.len());
+        };
+        let BranchEnd::Crossings { from, to } = b.end else {
+            panic!("{at}: the branch ends at its crossings, got {:?}", b.end);
+        };
+        assert!(
+            from.side.fixed == ChartAxis::V
+                && to.side.fixed == ChartAxis::V
+                && from.side != to.side,
+            "{at}: from the v = 0 side to the v = 1: {from:?} → {to:?}"
+        );
+        let sup = b.certificate.hull_sup;
+        for k in 0..=200 {
+            let x = b
+                .carrier
+                .eval(b.params.0 + (b.params.1 - b.params.0) * f64::from(k) / 200.0);
+            assert!(
+                x.z.abs() <= sup && x.x.abs() <= 2.0 * sup / alpha,
+                "{at}: the carrier at {x:?} is off the line x = z = 0 (sup {sup:e})"
+            );
+        }
+    }
+}
+
+/// **The near-degenerate hyperbola answers at ε 1e-6, its tube levered
+/// by the extent.** [`hyperbola_wall`] at `c = 1e-4` on the
+/// near-degenerate chart, whose wall curves with a radius of about
+/// 2.2 mm. Limb 3's clearance there is enclosure slack over the widest
+/// rung (about 1e-4, where the sine on the locus is about 0.4); levered
+/// by the extent it clears the band, and both branches certify paired as
+/// the truth pairs them. The tube has always been levered by the extent
+/// on this lane, so the row guards the region rule against a tube
+/// levered by the wall's curvature radius, which puts that slack inside
+/// the band; it witnesses no change. Run at its own band.
+#[test]
+fn the_near_degenerate_hyperbola_answers_at_a_coarse_eps() {
+    let b = band_at(1e-6);
+    let (plane, dom) = graph_cut();
+    let at = "c = 1e-4 on the near-degenerate chart at ε 1e-6";
+    let wall = hyperbola_wall(1e-4, 0.5, near_degenerate);
+    let tr = chart_truth(&wall);
+    assert_eq!(tr.crossings.len(), 4, "{at}: two branches' crossings");
+    let out = ssi::plane_nurbs_ssi(&plane, &wall, dom, b).unwrap_or_else(|e| panic!("{at}: {e:?}"));
+    pairs_as_the_truth(at, &wall, &tr, &out);
+}
+
 /// **A hyperbola along its asymptote pairs its branches right.** The
 /// locus `(v + u/10 − 0.55)² − (u − ½)²/4 = c` on a biquadratic wall, at
 /// `c = ±1e-4`: two branches within 0.02 of each other at the waist,
@@ -5957,7 +6090,7 @@ fn a_sliver_the_march_could_step_through_refuses_as_near_tangent() {
 /// after, `β = −3, 1`, at ε 1e-6: the march on the straight part can keep
 /// a step landing on the other branch, and its carrier, across the two,
 /// fails limbs 1 and 2 at a margin halving does not lower. Refinement
-/// asks limb 3 once where the refused margin stops falling, and the tube
+/// asks limb 3 once where the refused residual stops falling, and the tube
 /// refuses with the clearer angle's lever, as main refused both pairs,
 /// where refining on would add three samples a round to the step wall.
 /// Run at its own band.

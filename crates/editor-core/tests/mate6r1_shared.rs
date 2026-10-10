@@ -44,7 +44,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -70,7 +70,7 @@ fn dangling(instance: RecipeNodeId) -> StableName {
         path: vec![RoleSeg::InPart {
             of: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(99),
+                node: RecipeNodeId::new(0, 99),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             }
             .into(),
@@ -120,12 +120,14 @@ fn row_of(
                     offset: Some(editor_core::Placement::literal(&Frame::translation([
                         dx, 0.0, 0.0,
                     ]))),
+                    fresh: Vec::new(),
                 },
             );
             doc = next;
         }
         ids.push(id);
     }
+    doc = crate::fixture::place_all(doc, &ids);
     (doc, ids)
 }
 
@@ -186,6 +188,7 @@ fn r1_two_bad_mates_noatrest_then_reference() {
                 1.0,
                 ContactClass::Tangent,
             )),
+            fresh: Vec::new(),
         },
     );
     // mate #2 (later): a dangling reference -> Reference.
@@ -198,6 +201,7 @@ fn r1_two_bad_mates_noatrest_then_reference() {
                 1.0,
                 ContactClass::Rest,
             )),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -224,6 +228,7 @@ fn r1_two_bad_mates_reference_then_noatrest() {
                 1.0,
                 ContactClass::Rest,
             )),
+            fresh: Vec::new(),
         },
     );
     let (doc, m2) = step(
@@ -235,6 +240,7 @@ fn r1_two_bad_mates_reference_then_noatrest() {
                 1.0,
                 ContactClass::Tangent,
             )),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -266,6 +272,7 @@ fn r1_a_good_mate_after_a_bad_one() {
                 1.0,
                 ContactClass::Rest,
             )),
+            fresh: Vec::new(),
         },
     );
     let (doc, good) = step(
@@ -277,6 +284,7 @@ fn r1_a_good_mate_after_a_bad_one() {
                 1.0,
                 ContactClass::Rest,
             )),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -315,6 +323,7 @@ fn r1_mint_refusal_precedes_the_census() {
                 1.0,
                 ContactClass::Tangent,
             )),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -357,6 +366,7 @@ fn r1_false_carried_declaration_at_both_doors() {
         inner = next;
         sub.push(id);
     }
+    inner = crate::fixture::place_all(inner, &sub);
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
@@ -366,6 +376,7 @@ fn r1_false_carried_declaration_at_both_doors() {
                 1.5,
                 ContactClass::Rest,
             )),
+            fresh: Vec::new(),
         },
     );
     let inner_ref = store.insert(inner, Tol::witness());
@@ -398,6 +409,7 @@ fn r1_true_carried_declaration_at_both_doors() {
         inner = next;
         sub.push(id);
     }
+    inner = crate::fixture::place_all(inner, &sub);
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
@@ -407,6 +419,7 @@ fn r1_true_carried_declaration_at_both_doors() {
                 1.0,
                 ContactClass::Rest,
             )),
+            fresh: Vec::new(),
         },
     );
     let inner_ref = store.insert(inner, Tol::witness());
@@ -447,6 +460,7 @@ fn r1_declared_pairs_with_a_bad_mate_before_a_good_one() {
                 1.0,
                 ContactClass::Rest,
             )),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(
@@ -458,6 +472,7 @@ fn r1_declared_pairs_with_a_bad_mate_before_a_good_one() {
                 1.0,
                 ContactClass::Rest,
             )),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -487,7 +502,7 @@ fn r1_no_mates_document_digest() {
         "R1-PROBE no_mates solids={} contacts={:?} roots={} names_empty={}",
         g.body.solids().count(),
         g.contacts,
-        g.solid_roots.len(),
+        g.solid_copies.len(),
         format!("{:?}", g.names).len()
     );
 }
@@ -509,6 +524,7 @@ fn r1_three_stands_exact_counts() {
         inner = next;
         sub.push(id);
     }
+    inner = crate::fixture::place_all(inner, &sub);
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
@@ -518,6 +534,7 @@ fn r1_three_stands_exact_counts() {
                 1.0,
                 ContactClass::Rest,
             )),
+            fresh: Vec::new(),
         },
     );
     let inner_ref = store.insert(inner, Tol::witness());
@@ -554,6 +571,7 @@ fn r1_overlapping_false_carried_declaration() {
         inner = next;
         sub.push(id);
     }
+    inner = crate::fixture::place_all(inner, &sub);
     // seat 0.5 on a unit cube: the two cubes INTERPENETRATE, and the
     // Rest declaration over their caps is a lie about that geometry.
     let (inner, _) = step(
@@ -565,6 +583,7 @@ fn r1_overlapping_false_carried_declaration() {
                 0.5,
                 ContactClass::Rest,
             )),
+            fresh: Vec::new(),
         },
     );
     let inner_ref = store.insert(inner, Tol::witness());
@@ -587,7 +606,7 @@ fn r1_overlapping_false_carried_declaration() {
 }
 
 /// PROBE (claim 5, closing the `checks` lane): TWO instances of the
-/// overlapping-and-falsely-declared stand, so `solid_roots` certainly
+/// overlapping-and-falsely-declared stand, so `solid_copies` certainly
 /// holds more than one row and `separation` certainly has pairs to
 /// judge. Prints the root count beside the finding count, so a zero can
 /// be read as "nothing to suppress" rather than "suppressed".
@@ -602,6 +621,7 @@ fn r1_two_overlapping_false_stands() {
         inner = next;
         sub.push(id);
     }
+    inner = crate::fixture::place_all(inner, &sub);
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
@@ -611,6 +631,7 @@ fn r1_two_overlapping_false_stands() {
                 0.5,
                 ContactClass::Rest,
             )),
+            fresh: Vec::new(),
         },
     );
     let inner_ref = store.insert(inner, Tol::witness());
@@ -629,7 +650,7 @@ fn r1_two_overlapping_false_stands() {
     };
     println!(
         "R1-PROBE two_overlapping_false_stands roots={} solids={} patches={} separation_findings => {sep}",
-        g.solid_roots.len(),
+        g.solid_copies.len(),
         g.body.solids().count(),
         g.contacts.patches.len()
     );

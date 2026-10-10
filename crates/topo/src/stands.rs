@@ -9,7 +9,7 @@
 //! it and does not read it yet: the census's cross-solid material probe
 //! (`census::sweep_cross_solid_backstop`), which reads vertices only and
 //! refuses where all of them touch
-//! (`work/contact/the-census-material-probe-reads-only-vertices-so-a-flush-nested-solid-is-undecided.md`).
+//! (`work/inside/the-census-material-probe-reads-only-vertices-so-a-flush-nested-solid-is-undecided.md`).
 //! Each asks it
 //! under the premise that the complex crosses no surface it is probed
 //! against, so it meets one only where it lies ON it, every point of it
@@ -26,9 +26,11 @@
 //!    ([`geom_brep::EdgeCurve::mid_point`]), a point ON the edge
 //!    whatever its kind;
 //! 3. one point of each planar face's relative interior: the first
-//!    candidate — a consecutive vertex triple's centroid, then the
-//!    midpoint of two of the face's vertices — that
-//!    [`point_in_face`] certifies strictly inside the face.
+//!    candidate — a consecutive vertex triple's centroid, the
+//!    midpoint of two of the face's vertices, then the midpoint of a
+//!    line run inward from an edge's midpoint to a carrier it meets
+//!    ([`across_edges`]) — that [`point_in_face`] certifies strictly
+//!    inside the face.
 //!
 //! The probe is the caller's ([`ladder`]): it reads one witness against
 //! whatever the question is about, and answers a side, [`Witness::On`]
@@ -58,7 +60,7 @@ use crate::boolean::PointInSolidError;
 use crate::boolean::SolidContainment;
 use crate::boolean::solid_contain::{SolidFaces, face_plane, point_in_face, point_in_solid_faces};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, VertexKey};
-use crate::props::{QuadLane, ShellClassifyError, ShellRole};
+use crate::props::{QuadLane, ShellRole};
 use crate::ray_walk::Ranked;
 
 /// What one witness read against the probed surfaces.
@@ -222,14 +224,7 @@ pub(crate) fn ladder<T: Decide, S, E: From<LadderRefusal>>(
         if seen_edge.insert(e, ()).is_some() {
             continue;
         }
-        let curve = body
-            .get_edge(e)
-            .and_then(|ed| body.get_curve_geom(ed.curve))
-            .ok_or(LadderRefusal::Desync {
-                face: fh.0,
-                what: "witnessed edge has no curve",
-            })?;
-        let Some(curve) = curve.certified() else {
+        let Some(curve) = witnessed_curve(body, fh.0, e)? else {
             continue;
         };
         if let Some(s) = side(curve.mid_point())? {
@@ -256,7 +251,8 @@ pub(crate) fn ladder<T: Decide, S, E: From<LadderRefusal>>(
 /// The first candidate strictly inside planar `face` (module docs,
 /// rung 3): each consecutive vertex triple's centroid, then the
 /// midpoint of each pair of the face's vertices, over its outer loop
-/// and every ring. `None` when no candidate certifies.
+/// and every ring, then the points across its edges ([`across_edges`]).
+/// `None` when no candidate certifies.
 fn face_interior_point<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -278,7 +274,137 @@ fn face_interior_point<T: Decide>(
             return Ok(Some(q));
         }
     }
+    for q in across_edges(body, face, normal, band)? {
+        if certified_in_face(body, face, normal, q, band)? {
+            return Ok(Some(q));
+        }
+    }
     Ok(None)
+}
+
+/// The certified curve of edge `e`, met on `face`'s walk; `None` for
+/// null scaffolding, which has no carrier to read.
+fn witnessed_curve<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    e: EdgeKey,
+) -> Result<Option<&geom_brep::EdgeCurve<T>>, LadderRefusal> {
+    Ok(body
+        .get_edge(e)
+        .and_then(|ed| body.get_curve_geom(ed.curve))
+        .ok_or(LadderRefusal::Desync {
+            face,
+            what: "witnessed edge has no curve",
+        })?
+        .certified())
+}
+
+/// Face-interior candidates that need no vertex (module docs, rung 3).
+/// From each edge's midpoint `m` ([`geom_brep::EdgeCurve::mid_point`])
+/// runs the line along the inward in-plane normal `w = normal × t`,
+/// `t` the edge's direction as its half-edge in `face` walks it: a
+/// face's interior lies to the left of each of its half-edges about its
+/// outward normal. For each meeting `m + s·w` of that line with a line
+/// or conic carrier of the face's loops, `s` decided positive, the
+/// candidate is `m + (s/2)·w`. The nearest meeting is no farther than
+/// the line's first exit from the face, so its candidate is inside the
+/// face however thin the face is; the others are hints the certifier
+/// may refuse. A meeting not finite (a parallel line) or not decided
+/// beyond the band proposes nothing. Spiric and spline carriers yield
+/// no meetings, so a face whose nearest boundary along every such line
+/// is one of them offers none; so does an edge with no certified
+/// carrier, or with no direction at its midpoint.
+fn across_edges<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    normal: Vec3<T>,
+    band: Band,
+) -> Result<Vec<Point3<T>>, LadderRefusal> {
+    let desync = |what| LadderRefusal::Desync { face, what };
+    let mut carriers: Vec<&geom::Curve3<T>> = Vec::new();
+    let mut feet: Vec<(Point3<T>, Vec3<T>)> = Vec::new();
+    for he in face_loops(body, face)?.into_iter().flatten() {
+        let e = body
+            .get_half_edge(he)
+            .ok_or(desync("witnessed half-edge no longer resolves"))?
+            .edge;
+        let Some(curve) = witnessed_curve(body, face, e)? else {
+            continue;
+        };
+        let plus = body
+            .get_edge(e)
+            .ok_or(desync("witnessed edge no longer resolves"))?
+            .he_plus
+            == he;
+        carriers.push(curve.carrier());
+        let (t0, t1) = curve.params();
+        let t = curve.carrier().deriv(geom::mid_param(t0, t1));
+        let w = normal.cross(if plus { t } else { -t }).normalize();
+        if [w.x, w.y, w.z].iter().all(|c| !c.is_poison()) {
+            feet.push((curve.mid_point(), w));
+        }
+    }
+    let half = T::from_f64(0.5);
+    let mut out = Vec::new();
+    for &(m, w) in &feet {
+        for c in &carriers {
+            for s in line_meetings(c, normal, m, w) {
+                if geom_core::is_finite_length(s)
+                    && crate::validate::definitely_positive("stands_across_meeting", s, band)
+                {
+                    out.push(m + w * (s * half));
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// The parameters `s` at which the line `m + s·w` (unit `w`, in the
+/// plane normal to `normal`) meets carrier `c`, where `c` is a line or
+/// a conic in that plane: the line's one meeting (not finite where the
+/// two lines are parallel), both roots of a conic's quadratic (one
+/// double root where the line misses it, read at its nearest
+/// approach). Empty for a spiric or a spline.
+fn line_meetings<T: Decide>(
+    c: &geom::Curve3<T>,
+    normal: Vec3<T>,
+    m: Point3<T>,
+    w: Vec3<T>,
+) -> Vec<T> {
+    let conic = |center: Point3<T>, axis: Vec3<T>, u: Vec3<T>, a: T, b: T| {
+        let v = axis.cross(u);
+        let r = m - center;
+        let (x0, y0) = (r.dot(u) / a, r.dot(v) / b);
+        let (xw, yw) = (w.dot(u) / a, w.dot(v) / b);
+        let qa = xw.powi(2) + yw.powi(2);
+        let qb = (x0 * xw + y0 * yw) * T::from_f64(2.0);
+        let qc = x0.powi(2) + y0.powi(2) - T::one();
+        let root = (qb.powi(2) - qa * qc * T::from_f64(4.0))
+            .max(T::zero())
+            .sqrt();
+        let twice = qa * T::from_f64(2.0);
+        vec![(-qb - root) / twice, (-qb + root) / twice]
+    };
+    match *c {
+        geom::Curve3::Line { origin, dir } => {
+            vec![(origin - m).cross(dir).dot(normal) / w.cross(dir).dot(normal)]
+        }
+        geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } => conic(center, axis, u_ref, radius, radius),
+        geom::Curve3::Ellipse {
+            center,
+            axis,
+            major,
+            minor,
+            u_ref,
+        } => conic(center, axis, u_ref, major, minor),
+        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => Vec::new(),
+    }
 }
 
 /// Each walkable loop of `face` — its outer loop, then every ring — as
@@ -375,24 +501,21 @@ pub(crate) struct ShellRead {
 }
 
 impl ShellRead {
-    /// `shell` read: `None` where its selection cannot be read, and the
-    /// shell's typed refusal where its role cannot
-    /// ([`crate::props::shell_role`]).
+    /// `shell` read, or the shell's typed refusal where its role cannot
+    /// be, with the certified reading's sliver verdict
+    /// ([`crate::props::shell_role_read`]).
     pub(crate) fn of<T: Decide>(
         body: &Body<T>,
         shell: ShellKey,
         band: Band,
         tol: Tol,
         quad: Option<QuadLane<T>>,
-    ) -> Option<Result<Self, ShellClassifyError>> {
-        let sel = SolidFaces::of_shell(body, shell).ok()?;
-        Some(
-            crate::props::shell_role(body, shell, band, tol, quad).map(|(role, _)| Self {
-                shell,
-                role,
-                sel: sel.with_role(role),
-            }),
-        )
+    ) -> Result<Self, crate::props::RoleRefusal> {
+        crate::props::shell_role_read(body, shell, band, tol, quad).map(|(role, _)| Self {
+            shell,
+            role,
+            sel: SolidFaces::of_shell(body, shell).with_role(role),
+        })
     }
 }
 
@@ -456,5 +579,93 @@ pub(crate) fn witness_insides<T: Decide + crate::props::AtRestPolicy>(
             Ranked::Neither => Insides::Touching,
         },
         Err(e) => Insides::Refused(e),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod rung_three_rows {
+    use super::*;
+    use crate::test_support_fixtures::{plant_disc_face, prism_z};
+
+    /// The box `[0, 2]² × [0, 1]` with a disc of radius 0.2 about
+    /// `(1, 1, 1)` planted in its top face: the top face (four corners
+    /// and a one-vertex ring), the disc (one vertex, one closed edge),
+    /// and the disc's centre.
+    fn planted() -> (Body<f64>, FaceKey, FaceKey, Point3<f64>) {
+        let tol = Tol::witness();
+        let square = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)];
+        let prism = prism_z::<f64>(&square, 0.0, 1.0, tol);
+        let mut body = prism.body;
+        let outer = body.get_face(prism.top_face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("the top face's outer loop is a cycle");
+        };
+        let center = Point3::new(1.0, 1.0, 1.0);
+        let planted = plant_disc_face(&mut body, first, center, 0.2, tol);
+        let disc = planted.face;
+        // The planted circle is a whole-turn scaffold, which the in-face
+        // walk refuses to read (a null self-loop is certified so); at
+        // rest it is described in the top face's chart.
+        let chart = body.get_face(prism.top_face).unwrap().surface;
+        let circle = geom::Curve3::Circle {
+            center,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 0.2,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle, 0.0, core::f64::consts::TAU)
+            .unwrap()
+            .at_rest_in_chart(chart, false);
+        body.set_edge_curve(planted.edge, spec, tol).unwrap();
+        // The planted disc's loop winds clockwise about the host's
+        // normal; its sense turned, it winds counter-clockwise about its
+        // own outward normal, as every face's outer loop does at rest.
+        let fd = body.get_face(disc).unwrap().clone();
+        let surface = body.get_surface(fd.surface).unwrap().clone();
+        body.set_face_surface_unvouched_for_tests(
+            disc,
+            crate::euler::FaceSurface::New {
+                surface,
+                sense: !fd.sense,
+            },
+        )
+        .unwrap();
+        (body, prism.top_face, disc, center)
+    }
+
+    fn interior(body: &Body<f64>, face: FaceKey) -> Option<Point3<f64>> {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (_, normal) = face_plane(body, face).unwrap();
+        face_interior_point(body, face, normal, band).unwrap()
+    }
+
+    /// **A disc of one vertex is witnessed at its centre**: no vertex
+    /// candidate exists, and the inward line from its edge's midpoint
+    /// meets its own circle again across the diameter. Run outward, the
+    /// line meets nothing ahead, so a reversed sense offers no witness.
+    #[test]
+    fn a_one_vertex_disc_is_witnessed_at_its_centre() {
+        let (body, _, disc, center) = planted();
+        let q = interior(&body, disc).expect("the disc offers a witness");
+        assert!(
+            (q - center).norm() < 1e-12,
+            "the disc's witness {q:?}, not its centre"
+        );
+    }
+
+    /// **A face whose vertex candidate certifies keeps it**: the top
+    /// face's witness is its first corner triple's centroid, ahead of
+    /// every candidate across its edges.
+    #[test]
+    fn a_vertex_candidate_comes_before_the_edges() {
+        let (body, top, _, _) = planted();
+        let corners = &face_loop_points(&body, top).unwrap()[0];
+        let first = triple_centroid(corners[0], corners[1], corners[2]);
+        let q = interior(&body, top).expect("the top face offers a witness");
+        assert!(
+            (q - first).norm() == 0.0,
+            "the top face's witness {q:?}, not {first:?}"
+        );
     }
 }

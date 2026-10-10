@@ -44,13 +44,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::operands::framed_bar;
+use crate::common::operands::{bar, framed_bar};
+use crate::common::outcomes::outcome;
 use crate::common::revert_ops::subtract_both_orders_and_intersect;
 use crate::revolve_common;
 use sweep::ExtrudeSide;
 
 use geom_core::{Band, Point2, Point3, Tol};
-use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
+use profile::{ProfileLoop, test_support::bulge_loop};
 use revolve_common::{axis_y, validated};
 use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
@@ -84,49 +85,37 @@ enum Handle {
 fn half(sign: f64, handle: Handle) -> AtRestBody<f64> {
     let s = sign;
     // CCW in the (ρ, y) half-plane.
-    let (mut chain, tangent_joint) = match handle {
-        Handle::Torus if s > 0.0 => (
-            vec![
-                (Point2::new(0.0, 0.0), 0.0),
-                (Point2::new(0.3, 0.0), QUARTER_CW),
-                (Point2::new(0.8, 0.5), 0.0),
-                (Point2::new(1.5, 0.5), 0.0),
-                (Point2::new(1.5, 1.5), 0.0),
-                (Point2::new(0.0, 1.5), 0.0),
-            ],
-            Some(2),
-        ),
-        Handle::Torus => (
-            vec![
-                (Point2::new(0.0, 0.0), 0.0),
-                (Point2::new(0.0, -1.5), 0.0),
-                (Point2::new(1.5, -1.5), 0.0),
-                (Point2::new(1.5, -0.5), 0.0),
-                (Point2::new(0.8, -0.5), QUARTER_CW),
-                (Point2::new(0.3, 0.0), 0.0),
-            ],
-            Some(4),
-        ),
-        Handle::Cylinder => (
-            vec![
-                (Point2::new(0.0, 0.0), 0.0),
-                (Point2::new(0.3, 0.0), 0.0),
-                (Point2::new(0.3, 0.5 * s), 0.0),
-                (Point2::new(1.5, 0.5 * s), 0.0),
-                (Point2::new(1.5, 1.5 * s), 0.0),
-                (Point2::new(0.0, 1.5 * s), 0.0),
-            ],
-            None,
-        ),
+    let mut chain = match handle {
+        Handle::Torus if s > 0.0 => vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(0.3, 0.0), QUARTER_CW),
+            (Point2::new(0.8, 0.5), 0.0),
+            (Point2::new(1.5, 0.5), 0.0),
+            (Point2::new(1.5, 1.5), 0.0),
+            (Point2::new(0.0, 1.5), 0.0),
+        ],
+        Handle::Torus => vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(0.0, -1.5), 0.0),
+            (Point2::new(1.5, -1.5), 0.0),
+            (Point2::new(1.5, -0.5), 0.0),
+            (Point2::new(0.8, -0.5), QUARTER_CW),
+            (Point2::new(0.3, 0.0), 0.0),
+        ],
+        Handle::Cylinder => vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(0.3, 0.0), 0.0),
+            (Point2::new(0.3, 0.5 * s), 0.0),
+            (Point2::new(1.5, 0.5 * s), 0.0),
+            (Point2::new(1.5, 1.5 * s), 0.0),
+            (Point2::new(0.0, 1.5 * s), 0.0),
+        ],
     };
     if matches!(handle, Handle::Cylinder) && s < 0.0 {
         // Mirrored, so reversed to stay CCW (every bulge is zero).
         chain.reverse();
     }
-    let lp: ProfileLoop<f64> = match tangent_joint {
-        Some(j) => bulge_loop(chain).with_tangent_joints(vec![j]),
-        None => bulge_loop(chain),
-    };
+    let lp: ProfileLoop<f64> = bulge_loop(chain);
     let half = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -238,11 +227,10 @@ fn the_half_dumbbell_is_a_valid_torus_waisted_solid_as_built() {
         let out = m.merge_coplanar_faces(Tol::witness()).unwrap();
         assert!(out.groups.is_empty(), "no planar wall is split: {out:?}");
     }
-    let err = topo::union_with(&a, &b, &declarations(&a, &b, None), Tol::witness())
-        .expect_err("an undeclared coincident torus pair refuses");
+    let r = topo::union_with(&a, &b, &declarations(&a, &b, None), Tol::witness());
     assert!(
-        !matches!(err, BooleanError::NonMaximalFaces { .. }),
-        "F7 does not answer on the halves as built: {err:?}"
+        !matches!(r, Err(BooleanError::NonMaximalFaces { .. })),
+        "F7 does not answer on the halves as built: {r:?}"
     );
 }
 
@@ -250,19 +238,17 @@ fn the_half_dumbbell_is_a_valid_torus_waisted_solid_as_built() {
 // Door 1: the operand gate admits the torus.
 // -------------------------------------------------------------------
 
-/// **The KIND roster has a torus now, and the refusal it used to raise
-/// is gone from every variant of the union.** Before, a waist face
-/// against the other half's joint disc — boxes overlapping, the pair
-/// not declared — was `CurvedPairUnsupported { kind: Torus, other_kind:
-/// Plane }` at the gate, declared handle or not.
+/// **The KIND roster has a torus, and the gate admits it in every
+/// variant of the union**: a waist face against the other half's
+/// joint disc, boxes overlapping, is no `CurvedPairUnsupported` at the
+/// gate, declared or not.
 ///
-/// What admission must NOT do is turn a torus pair nobody vouched for
-/// into a body: undeclared, the coincident waists still refuse typed —
-/// as the undeclared continuation they are, at the reduction, naming
-/// the waist pair and its aligned relation. Declared a continuation,
-/// the union builds (`the_torus_waisted_union_builds_like_the_cylinder_control`).
+/// The waists are one carrier by margin, so the boolean glues them as
+/// the continuation they are whether or not they are declared: the
+/// undeclared union is the declared one (D10), which builds
+/// (`the_torus_waisted_union_builds_like_the_cylinder_control`).
 #[test]
-fn the_operand_gate_admits_the_torus_and_the_undeclared_pair_still_refuses() {
+fn the_operand_gate_admits_the_torus_and_the_undeclared_pair_glues() {
     let (a, b) = (half(1.0, Handle::Torus), half(-1.0, Handle::Torus));
     let built = topo::union_with(
         &a,
@@ -274,19 +260,11 @@ fn the_operand_gate_admits_the_torus_and_the_undeclared_pair_still_refuses() {
         !matches!(built, Err(BooleanError::CurvedPairUnsupported { .. })),
         "the gate must admit the torus: {built:?}"
     );
-    let err = topo::union_with(&a, &b, &declarations(&a, &b, None), Tol::witness())
-        .expect_err("an undeclared coincident torus pair must refuse");
-    let BooleanError::UndeclaredCoincidence {
-        pair: [(topo::Operand::A, fa), (topo::Operand::B, fb)],
-        relation: topo::PlaneRelation::SameOriented,
-        ..
-    } = err
-    else {
-        panic!("undeclared, the waists refuse as a continuation: {err:?}");
-    };
-    assert!(
-        is_handle(surface(&a, fa)) && is_handle(surface(&b, fb)),
-        "the refusal names a handle pair: {err:?}"
+    let undeclared = topo::union_with(&a, &b, &declarations(&a, &b, None), Tol::witness());
+    assert_eq!(
+        outcome(&undeclared),
+        outcome(&built),
+        "undeclared, the waists glue as the declared continuation"
     );
 }
 
@@ -445,34 +423,6 @@ fn the_waist_faces_partition_their_band_under_face_containment() {
 // -------------------------------------------------------------------
 // The line × torus crossing, on a donut.
 // -------------------------------------------------------------------
-
-fn bar(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
-    use geom_core::{Affine3, Mat3, Vec3};
-    let lp = ProfileLoop::polygon([
-        Point2::new(x.0, y.0),
-        Point2::new(x.1, y.0),
-        Point2::new(x.1, y.1),
-        Point2::new(x.0, y.1),
-    ]);
-    let plane = profile::SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Point3::new(0.0, 0.0, z.0) - Point3::origin(),
-    ));
-    let vp = profile::Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .expect("the bar profile validates");
-    let bar = sweep::extrude(
-        &vp,
-        sweep::Extrusion::Distance {
-            depth: z.1 - z.0,
-            side: ExtrudeSide::Along,
-        },
-        Tol::witness(),
-    )
-    .expect("the bar extrudes")
-    .body;
-    finished("the bar", bar, Tol::witness())
-}
 
 fn donut() -> AtRestBody<f64> {
     let vp = validated(vec![revolve_common::donut_profile()]);
@@ -797,7 +747,7 @@ fn three_face_cylinder() -> AtRestBody<f64> {
 /// a copy of its own semicircle, so neither the torus×plane section
 /// frame nor the face pair the germ was recorded against is read. The
 /// union is the two halves, which only touch: `vol(a) + vol(b)`, sound
-/// at every tier (`work/join/dumbbell-joint-union-leaves-four-loose-ends`).
+/// at every tier (`dumbbell-joint-union-leaves-four-loose-ends`, JOIN, closed by PR 3790).
 #[test]
 fn the_torus_waisted_union_builds_like_the_cylinder_control() {
     for handle in [Handle::Torus, Handle::Cylinder] {
@@ -1258,9 +1208,9 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
 /// - the slab's face-interior oval is a certified interior loop
 ///   (R-loop), and two tori meeting in an oval, or a cylinder grazing
 ///   the outer equator, have no section classification (R-reach);
-/// - the dumbbell's declared waists stop at the section pass on their
-///   tangency (R-tan), and undeclared at the reduction, as the
-///   undeclared continuation they are.
+/// - the dumbbell's waists stop at the section pass on their tangency
+///   (R-tan), declared a continuation or not: undeclared, each op is
+///   the declared refusal (D10).
 ///
 /// None of them is a body.
 #[test]
@@ -1369,19 +1319,18 @@ fn subtract_and_intersect_refuse_where_union_does() {
             assert!(what.contains(says), "{name}, {op}: {what}");
         }
     }
-    // Undeclared, the dumbbell's handle halves are an undeclared
-    // continuation, refused at the reduction.
-    for (op, r) in subtract_both_orders_and_intersect(&halves.0, &halves.1, &none) {
-        let err = r.expect_err(op);
-        assert!(
-            matches!(
-                err,
-                BooleanError::UndeclaredCoincidence {
-                    relation: topo::PlaneRelation::SameOriented,
-                    ..
-                }
-            ),
-            "undeclared dumbbell, {op}: {err:?}"
+    // Undeclared, the dumbbell's waists glue as the continuation they
+    // are, and each op is the declared refusal.
+    for ((op, r), (_, declared)) in subtract_both_orders_and_intersect(&halves.0, &halves.1, &none)
+        .into_iter()
+        .zip(subtract_both_orders_and_intersect(
+            &halves.0, &halves.1, &waists,
+        ))
+    {
+        assert_eq!(
+            outcome(&r),
+            outcome(&declared),
+            "undeclared dumbbell, {op}: the declared refusal"
         );
     }
 }

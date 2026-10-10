@@ -64,8 +64,9 @@
 //! revolution is itself one, so it belongs in the meridian rather
 //! than in a rolling ball afterwards (Ev, 2026-08-16 — the
 //! substitution is an improvement on the sketch, not a workaround for
-//! it). Asking `fillet_edges` for that same torus is walls 1 and 2 —
-//! which now refuse on the ball's SIZE, not on a missing arm.
+//! it). Asking `fillet_edges` for that same torus on the sharp band's
+//! full revolve rolls it, and the rolled bulb has the authored one's
+//! volume (findings entry 3); on a partial revolve it is wall 2.
 //!
 //! # The findings (each one a wall probe below, except where noted)
 //!
@@ -80,8 +81,8 @@
 //!    `docs/KERNEL-VERBS.md` being paid for by hand, once per wall.
 //!    NOT a probe: there is no verb to call, so there is no refusal
 //!    to pin.
-//! 2. **A closed rim now meters an honest lever arm** (walls 1 and 2 —
-//!    the pair is the evidence). A full revolve's latitude
+//! 2. **A closed rim now meters an honest lever arm** (the full
+//!    revolve's roll and wall 2 — the pair is the evidence). A full revolve's latitude
 //!    rims are CLOSED circles: start vertex == end vertex, so an
 //!    endpoint chord collapses to ~0 there. The battery's lever arm
 //!    is the maximum pairwise chord over the samples
@@ -93,24 +94,28 @@
 //!    dihedral classifier decided Zero — a false `TangentialEdge` on
 //!    a 30° corner, #554. Both forms are still probed back to back
 //!    because agreement between them is exactly what #554 restored.)
-//! 3. **The cone×cylinder fillet arm EXISTS now; what both walls meet
-//!    is the RADIUS** (walls 1, 2). The `constant-radius fillet on
-//!    CURVED support pairs` row shipped its coaxial half, so this
-//!    corner's spine is no longer the obstacle — predicate 1 is. The
-//!    blend the meridian draws has spine radius `RF`, and a ball that
-//!    big does not fit the neck wall's own curvature, on either rim.
-//!    That is not a defect: it is the reason the substitution is an
-//!    improvement rather than a workaround (Ev, 2026-08-16). An arc
-//!    in the profile is a CONSTRUCTED part of the wall and answers to
-//!    no rolling ball; a post-hoc roll of the same size cannot exist.
+//! 3. **`fillet_edges` rolls the blend the meridian draws** (not a
+//!    wall; wall 2 is its open-rim twin). The cone×cylinder arm is
+//!    coaxial, and the ball rolls outside both neck walls' cylinders
+//!    and outside the flare's cone — the turn's centre lies away from
+//!    the axis — so no support bends toward it and the curvature
+//!    headroom sets no limit at `RF ± WALL/2`. The rolled full revolve
+//!    is tier-3 valid with the authored bulb's volume. What bounds the
+//!    inner corner's radius is the wall it stands in: past r ≈ 1.47 the
+//!    band crosses the outer wall and the reach meter refuses it
+//!    (`FaceClearance`). The meridian arc stays the authoring: it is
+//!    exact and free, and the roll is the check that the two agree. On
+//!    the partial revolve the open rim's ends meet the cut faces, and
+//!    that corner does not classify (`UnsupportedCorner {
+//!    Indeterminate }`, wall 2).
 //! 4. **Neither join can start** (walls 3, 4). `union` refuses at the
 //!    operand gate before any pair is looked at:
 //!    `CurvedEdgeUnsupported { operand: B }` — the loop is a sweep, its
 //!    longitudinal edges are NURBS carriers, and rung-3 edges are what
 //!    the curved zip MINTS, not what it consumes. `subtract` answers
 //!    first at the revert roster with `{ op: Some(Subtract), kind:
-//!    Cone, other_kind: Plane }` — the flare against a planar cap of
-//!    the loop, a pair whose boxes MAY meet (box overlap
+//!    Nurbs, other_kind: Plane }` — a NURBS wall of the loop against a
+//!    planar face of the bulb, a pair whose boxes MAY meet (box overlap
 //!    over-approximates; the kernel cannot rule the meeting out, a
 //!    weaker claim than that they do). So the bottle cannot be one
 //!    body, and the self-intersection — the neck piercing the bulb,
@@ -243,9 +248,9 @@ use pncad::geom::NurbsCurve3;
 use pncad::geom_brep::PropsError;
 use pncad::geom_core::linalg::frame::path_start_frame;
 use pncad::geom_core::{KnotVector, Point3, Tol};
-use pncad::prelude::SurfaceKind;
 use pncad::prelude::{ConstructedLoop, Open, Start, SurfaceKindSet, circle, circle_split, query};
-use pncad::sweep::blend::{BlendError, fillet_edges};
+use pncad::prelude::{Convexity, SurfaceKind};
+use pncad::sweep::blend::{BlendError, CornerConfig, fillet_edges};
 use pncad::sweep::{LoftError, Revolution, RevolveAxis, SkinError, revolve, sweep_body};
 use pncad::topo::readback::euler_counts;
 use pncad::topo::{
@@ -276,9 +281,8 @@ const ALPHA: f64 = 30.0 * PI / 180.0;
 const ZTOP: f64 = 3.0;
 /// Height of the spine corner where the neck turns into the flare.
 const ZNECK: f64 = 2.5;
-/// Spine radius of the neck→flare blend (finding: authored in the
-/// meridian, and a rolling ball this big does not fit the neck wall's
-/// curvature — walls 1, 2).
+/// Spine radius of the neck→flare blend (authored in the meridian;
+/// `fillet_edges` rolls the same blend — findings entry 3).
 const RF: f64 = 0.30;
 /// Spine radius of the wide bottom rim — the "wide torus" the surface
 /// turns back on. Its hole comes out at exactly `R` by construction.
@@ -434,7 +438,7 @@ fn band<S: Scalar>(m: &Meridian, tol: Tol) -> ConstructedLoop<S> {
 
 /// The same band with the two blends taken OUT: a hard corner where
 /// the neck meets the flare. Built only to ask `fillet_edges` for the
-/// blend the band authors for free — walls 1 and 2.
+/// blend the band authors for free — findings entry 3 and wall 2.
 fn sharp_band<S: Scalar>(m: &Meridian, tol: Tol) -> ConstructedLoop<S> {
     // Where the flare's two offsets cross the neck's two walls.
     let corner = |g: (f64, f64), x: f64| {
@@ -658,17 +662,19 @@ fn wall3_pinned(e: &BooleanError) -> bool {
     )
 }
 
-/// Wall 4's pinned refusal: the flare's cone against a planar cap of
-/// the loop, at the ∖/∩ revert roster. Both kinds and the op are
-/// pinned, so a pair that changed kind reds. The cone has no arm under
-/// any op, and the roster has no covered rung whatever the pair; it
-/// answers before the edge gate that stops wall 3.
+/// Wall 4's pinned refusal: one of the loop's rational NURBS walls
+/// against a planar face of the bulb, at the ∖/∩ revert roster. Both
+/// kinds and the op are pinned, so a pair that changed kind reds. A
+/// NURBS face has no seam lane under ∖ and ∩, and the roster has no
+/// covered rung whatever the pair; it answers before the edge gate
+/// that stops wall 3.
 fn wall4_pinned(e: &BooleanError) -> bool {
     matches!(
         e,
         BooleanError::CurvedPairUnsupported {
             op: Some(BooleanOp::Subtract),
-            kind: SurfaceKind::Cone,
+            operand: Operand::B,
+            kind: SurfaceKind::Nurbs,
             other_kind: SurfaceKind::Plane,
             ..
         }
@@ -714,6 +720,58 @@ fn corner_edges<S: Scalar>(body: &Body<S>, a: SurfaceKind, b: SurfaceKind) -> Ve
             query::edge_adjacent_matches(body, e, SurfaceKindSet::just(a), SurfaceKindSet::just(b))
         })
         .collect()
+}
+
+/// The sharp band's two neck→flare corners rolled by `fillet_edges`
+/// at the blend radii the meridian authors: `RF + WALL/2` on the inner
+/// wall's corner, `RF − WALL/2` on the outer's (findings entry 1's
+/// bookkeeping — the centre of curvature lies away from the axis).
+fn roll_the_meridian_blends<S: Scalar>(
+    sharp: &AtRestBody<S>,
+    corners: &[EdgeKey],
+    m: &Meridian,
+    tol: Tol,
+) -> Body<S> {
+    let (inner, outer) = corners_by_wall(sharp, corners);
+    let half = WALL / 2.0;
+    let once = fillet_edges(sharp, &[inner], S::from_f64(m.rf + half), tol)
+        .unwrap_or_else(|e| panic!("the inner corner rolls at RF + WALL/2: {e:?}"))
+        .body;
+    // The outer corner's key survives the first roll: that blend's
+    // surgery touches the inner wall's faces only.
+    fillet_edges(
+        &finished("once", once, tol),
+        &[outer],
+        S::from_f64(m.rf - half),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("the outer corner rolls at RF − WALL/2: {e:?}"))
+    .body
+}
+
+/// A sharp band's two neck→flare corners as `(inner wall's, outer
+/// wall's)`, told apart by their rims' size: the inner wall's is the
+/// smaller circle.
+fn corners_by_wall<S: Scalar>(sharp: &Body<S>, corners: &[EdgeKey]) -> (EdgeKey, EdgeKey) {
+    let [a, b] = corners else {
+        panic!(
+            "a sharp band has two neck→flare corners, found {}",
+            corners.len()
+        )
+    };
+    if lever_arm(sharp, *a) < lever_arm(sharp, *b) {
+        (*a, *b)
+    } else {
+        (*b, *a)
+    }
+}
+
+/// A body's exact volume, read out at `f64`.
+fn volume<S: Scalar>(b: &Body<S>, tol: Tol) -> f64 {
+    pncad::topo::mass_properties(b, tol)
+        .expect("the volume integrates")
+        .volume
+        .f()
 }
 
 /// The lever arm every angular fillet predicate is metered against —
@@ -913,8 +971,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  of the annulus along its whole U-turn spine. The two MEET on annular \
                  faces, each cap tilted off the bulb's rim by its spine's end tangent, \
                  and they cannot be joined: union refuses the loop's NURBS edges at the \
-                 operand gate, and subtract refuses the bulb's cone flare against a \
-                 planar cap at the revert roster. The neck passes through the flare \
+                 operand gate, and subtract refuses the loop's NURBS walls against a \
+                 planar face at the revert roster. The neck passes through the flare \
                  uncut for that second reason";
     vec![Stop {
         name: "klein",
@@ -923,13 +981,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         story,
         ops: "revolve(Full) of a filleted meridian band + sweep_body of an annulus \
               (circle_split x 4) along an interpolated U-turn spine from path_start_frame; \
-              NO boolean, NO fillet_edges, NO shell — see klein::wall_probes",
+              NO boolean, NO shell — see klein::wall_probes",
         delta: DELTA,
         note: Some(format!(
             "tube diameter {:.2} m, wall {:.2} m; the wide rim's hole comes out at the \
              tube diameter by construction (centre radius R + RRIM = {:.3}, minor radii \
              {:.3}/{:.3}). Every blend in the bulb is an ARC IN THE MERIDIAN, exact and \
-             free — and no rolling ball of that size fits the wall (walls 1-2). The loop's \
+             free, and `fillet_edges` rolls the same blend on the sharp band. The loop's \
              certified volume [{v_lo:.6}, {v_hi:.6}] m^3 and mesh volume {v_mesh:.6} meet \
              Pappus's ring area {ring:.6} m^2 times spine length = {pappus:.6} within its \
              {:.2}% discretization allowance. Its caps meet the neck's and \
@@ -988,15 +1046,22 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         top,
         ..
     } = bottle::<S>(tol);
-    let band_radius = S::from_f64(RF);
 
-    // Walls 1 and 2 are ONE question asked of two bodies, and the
-    // pair is the finding: the same corner, on a full and a partial
-    // revolve of the SAME band.
-    let sharp_full = bulb::<S>(sharp_band::<S>(&m, tol), Revolution::Full, tol);
-    let sharp_part = bulb::<S>(
-        sharp_band::<S>(&m, tol),
-        Revolution::Partial(S::from_f64(5.0)),
+    // ONE question asked of two bodies, and the pair is the finding:
+    // the same corner, on a full and a partial revolve of the SAME
+    // band (the full revolve rolls; the partial is wall 2).
+    let sharp_full = finished(
+        "sharp_full",
+        bulb::<S>(sharp_band::<S>(&m, tol), Revolution::Full, tol),
+        tol,
+    );
+    let sharp_part = finished(
+        "sharp_part",
+        bulb::<S>(
+            sharp_band::<S>(&m, tol),
+            Revolution::Partial(S::from_f64(5.0)),
+            tol,
+        ),
         tol,
     );
     let full_edges = corner_edges(&sharp_full, SurfaceKind::Cone, SurfaceKind::Cylinder);
@@ -1015,34 +1080,76 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
          rim is CLOSED (full revolve), {lever_part:.3e} m when it is open (partial). \
          Same corner, same 30° dihedral, honest levers both."
     );
-    // The REASON moved, and the move is the news. The cone×cylinder arm
-    // exists now, so "the analytic arm is missing" is no longer what
-    // stops this: what stops it is the bulb's own blend radius, which is
-    // larger than the neck wall's curvature allows a rolling ball to be.
-    // That is predicate 1, and it is the same fact the meridian
-    // authoring exploits — an arc in the profile is a CONSTRUCTED part
-    // of the wall and answers to no rolling ball.
-    crate::walls::wall(
-        "bottle",
-        1,
-        "fillet the neck→flare corner on the FULL revolve at the radius the band \
-         authors by hand",
-        fillet_edges(&sharp_full, &[full_edges[0]], band_radius, tol),
-        |e| matches!(e.error, BlendError::RadiusHeadroom { .. }),
-        "roll a ball as big as the blend the meridian draws for free",
+    // `fillet_edges` rolls the very blends the meridian authors. The ball rolls OUTSIDE both neck
+    // walls' cylinders and outside the flare's cone — the turn's centre
+    // lies away from the axis — so none of the three supports bends
+    // toward it and the curvature headroom sets no limit. Each corner
+    // takes its own wall's offset of the blend (`RF ± WALL/2`), and the
+    // rolled body IS the authored bulb: the same volume.
+    let rolled = roll_the_meridian_blends(&sharp_full, &full_edges, &m, tol);
+    pncad::topo::validate_geometric(&rolled, tol)
+        .unwrap_or_else(|e| panic!("the rolled bulb is tier-3 valid: {e:?}"));
+    let (got, want) = (volume(&rolled, tol), volume(&bulb_body, tol));
+    assert!(
+        (got - want).abs() <= 1e-9 * want,
+        "the full revolve rolled at RF ± WALL/2 is the authored bulb: volume {got} vs {want}"
     );
+    println!(
+        "   the full revolve's neck→flare corners, rolled by `fillet_edges` at RF ± WALL/2: \
+         volume {got:.9} m^3, the authored bulb's {want:.9}"
+    );
+    // Nothing bends toward the ball, so what bounds the inner corner's
+    // radius is the wall it stands in: past r ≈ 1.47 the band's
+    // deepest point, on the corner's bisector, crosses the outer wall,
+    // and the reach meter refuses it against that face.
+    let (inner, _) = corners_by_wall(&sharp_full, &full_edges);
+    let near = fillet_edges(&sharp_full, &[inner], S::from_f64(1.4), tol)
+        .unwrap_or_else(|e| panic!("the inner corner rolls at r = 1.4, inside the wall: {e:?}"));
+    pncad::topo::validate_geometric(&near.body, tol)
+        .unwrap_or_else(|e| panic!("r = 1.4: tier 3, got {e:?}"));
+    for r in [1.5, 1.6] {
+        match fillet_edges(&sharp_full, &[inner], S::from_f64(r), tol) {
+            Err(e)
+                if matches!(
+                    e.error,
+                    BlendError::FaceClearance {
+                        chain: Convexity::Convex,
+                        ..
+                    }
+                ) => {}
+            other => panic!(
+                "r = {r}: the band leaves through the outer wall, so the reach meter \
+                 refuses it (FaceClearance, Convex); got {:?}",
+                other.map(|_| ()).map_err(|e| e.error)
+            ),
+        }
+    }
+    let far = fillet_edges(&sharp_full, &[inner], S::from_f64(2.0), tol);
+    assert!(
+        matches!(&far, Err(e) if matches!(e.error, BlendError::FaceClearanceUncertified { .. })),
+        "r = 2.0 refuses on clearance, got {:?}",
+        far.map(|_| ()).map_err(|e| e.error)
+    );
+    // Wall 2: the SAME corner on a partial revolve. Its rim is open, so
+    // the chain ends where the rim meets the revolve's cut faces, and
+    // the corner there does not classify.
+    let (inner, _) = corners_by_wall(&sharp_part, &part_edges);
     crate::walls::wall(
         "bottle",
         2,
-        "fillet the SAME corner on a partial revolve (open rim, honest lever)",
-        fillet_edges(&sharp_part, &[part_edges[0]], band_radius, tol),
-        // The SAME refusal as wall 1, and that is the pair's point: the
-        // lever is honest on both rims, the dihedral decides on both,
-        // and what stops both is the ball's own size against the neck
-        // wall's curvature — not the closedness of the rim, and no
-        // longer a missing arm.
-        |e| matches!(e.error, BlendError::RadiusHeadroom { .. }),
-        "roll a ball as big as the blend the meridian draws for free",
+        "fillet the neck→flare corner on a partial revolve (open rim) at the radius the \
+         band authors for that wall",
+        fillet_edges(&sharp_part, &[inner], S::from_f64(m.rf + WALL / 2.0), tol),
+        |e| {
+            matches!(
+                e.error,
+                BlendError::UnsupportedCorner {
+                    corner: CornerConfig::Indeterminate,
+                    ..
+                }
+            )
+        },
+        "roll the partial revolve's corners as the full revolve's are rolled",
     );
 
     // Wall 3: the bottle is ONE surface. Its two bodies meet on
@@ -1332,12 +1439,10 @@ mod verbs_gate_r1_probes {
     //!
     //! Wall 4 is doubly out of reach and the second reason is the more
     //! durable one: it is a SUBTRACT, and the revert roster it refuses
-    //! at, on the flare's cone, has no covered rung at all. A
+    //! at, on the loop's NURBS wall, has no covered rung at all. A
     //! declaration supplies the verdict a germ arm would have; it
     //! cannot supply a seam lane to revert through, so declaring the
-    //! cone's pairs would not move wall 4. (The torus is on that roster:
-    //! a declared torus pair passes it, and `mate7a_torus_rest` pins
-    //! where it stops.)
+    //! wall's pairs would not move wall 4.
 
     use super::*;
 
@@ -1363,7 +1468,8 @@ mod verbs_gate_r1_probes {
         println!("klein wall 4: {trimmed:?}");
         assert!(
             wall4_pinned(&trimmed),
-            "wall 4 must name the flare against a planar cap of the loop: {trimmed:?}"
+            "wall 4 must name a NURBS wall of the loop against a planar face of the bulb: \
+             {trimmed:?}"
         );
     }
 }

@@ -105,12 +105,12 @@ fn insert_xy_frame(r: &mut Recorder) -> RecipeNodeId {
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
     let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(depth),
         side: ExtrudeSide::Along,
     })
@@ -394,12 +394,12 @@ fn bumped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     ]);
     let plane = insert_xy_frame(&mut r);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -506,8 +506,8 @@ fn a_partial_revolve_band_reports_its_phantom_turn() {
         direction: [scl(0.0), scl(1.0), scl(0.0)],
     }));
     let quarter = r.insert(Node::Revolve {
-        profile,
-        axis,
+        profile: profile.into(),
+        axis: axis.into(),
         angle: ang(core::f64::consts::FRAC_PI_2),
     });
     // The block: x ∈ [-2.5, -2.1], y ∈ [0, 1], z ∈ [-0.2, 0.2], placed
@@ -596,8 +596,8 @@ fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
         direction: [scl(0.0), scl(0.0), scl(1.0)],
     }));
     let quarter = r.insert(Node::Revolve {
-        profile,
-        axis,
+        profile: profile.into(),
+        axis: axis.into(),
         angle: ang(core::f64::consts::FRAC_PI_2),
     });
     // The block: x ∈ [-2.5, -2.1], y ∈ [-0.2, 0.2] (placed), z ∈ [0, 1].

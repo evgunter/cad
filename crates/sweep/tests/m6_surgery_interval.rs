@@ -152,9 +152,14 @@ mod certified {
             .map(|(k, _)| k)
             .collect();
         assert_eq!(box_edges.len(), 12);
-        let blanked = fillet_edges(&pipped, &box_edges, iv(DIE_R), Tol::witness())
-            .expect("the in-place box blends decide definitely at Interval")
-            .body;
+        let blanked = fillet_edges(
+            &sweep::test_support::at_rest(&pipped, Tol::witness()),
+            &box_edges,
+            iv(DIE_R),
+            Tol::witness(),
+        )
+        .expect("the in-place box blends decide definitely at Interval")
+        .body;
         let rims: Vec<_> = blanked
             .edges()
             .filter(|(_, e)| {
@@ -177,8 +182,13 @@ mod certified {
             .map(|(k, _)| k)
             .collect();
         assert_eq!(rims.len(), 2, "one rim of two arcs");
-        let out = fillet_edges(&blanked, &rims, iv(RIM_R), Tol::witness())
-            .expect("the rim torus band decides definitely at Interval");
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&blanked, Tol::witness()),
+            &rims,
+            iv(RIM_R),
+            Tol::witness(),
+        )
+        .expect("the rim torus band decides definitely at Interval");
         assert_eq!(out.band_faces.len(), 1);
         let die = out.body;
         assert_eq!(

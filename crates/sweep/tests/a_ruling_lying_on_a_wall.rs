@@ -19,6 +19,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::outcomes::outcome;
 use core::f64::consts::PI;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
@@ -107,12 +108,40 @@ fn six(
     ]
 }
 
+/// The wall (cylinder) faces of `b`.
+fn walls(b: &AtRestBody<f64>) -> Vec<topo::FaceKey> {
+    b.faces()
+        .filter(|(_, f)| {
+            matches!(
+                b.get_surface(f.surface),
+                Some(geom::Surface::Cylinder { .. })
+            )
+        })
+        .map(|(k, _)| k)
+        .collect()
+}
+
+/// Every pair of `x`'s and `y`'s wall faces declared a continuation.
+fn continued(x: &AtRestBody<f64>, y: &AtRestBody<f64>) -> BooleanDeclarations {
+    let mut d = BooleanDeclarations::none();
+    for fa in walls(x) {
+        for fb in walls(y) {
+            d.coincident_faces.push(topo::FacePairDeclaration::new(
+                fa,
+                fb,
+                topo::BooleanCoincidence::Continuation,
+            ));
+        }
+    }
+    d
+}
+
 /// `(faces, edges, vertices, shells)`.
 type Census = (usize, usize, usize, usize);
 
 /// What one op yields: nothing, or a body's census and its
 /// `[v-v, v-f, curve, patch]` contact record counts.
-type Want = Option<(Census, [usize; 4])>;
+type Want = Option<(Census, [usize; 6])>;
 
 /// **The prism's edge on the wall builds every op undeclared.** Two
 /// poses off the seam rulings (`0.3` and `0.5` rad) and the two seam
@@ -122,44 +151,49 @@ type Want = Option<(Census, [usize; 4])>;
 /// Inside, the union is the tube, the intersection the prism, `b ∖ t`
 /// empty, and `t ∖ b` the tube with a prism-shaped void that touches
 /// the wall along the edge: its two shells are recorded touching at
-/// the edge's ends, v-f against the wall face off a seam ruling and v-v
-/// with the ruling's split vertices on one. Across the rim, the prism's
+/// the edge's ends, v-f against the wall face off a seam ruling and,
+/// on one, v-e against the ruling the join made whole again. Across the rim, the prism's
 /// part above `z = H` is `b ∖ t`, and `t ∖ b` is a notch whose edge
 /// runs down the wall from the rim, its lower end recorded the same
-/// way. On a seam ruling the union keeps the ruling's split vertices
-/// (`work/tang/a-union-keeps-valence-two-vertices-on-the-tubes-seam-rulings.md`).
+/// way.
 #[test]
 fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
     let tol = Tol::witness();
     let t = rod_z(0.0, H);
     let tube = PI * R * R * H;
-    let nothing = [0; 4];
+    let nothing = [0; 6];
     let prism: Want = Some(((6, 12, 8, 1), nothing));
     for turn in [0.3, 0.5, 0.0, PI] {
         let on_seam = turn == 0.0 || turn == PI;
         // `[∪, t ∖ b, b ∖ t, ∩]` inside one face, then across the rim.
         let inside: [Want; 4] = if on_seam {
             [
-                Some(((4, 8, 6, 1), nothing)),
-                Some(((10, 20, 14, 2), [2, 0, 0, 0])),
+                Some(((4, 6, 4, 1), nothing)),
+                Some(((10, 18, 12, 2), [0, 0, 2, 0, 0, 0])),
                 None,
                 prism,
             ]
         } else {
             [
                 Some(((4, 6, 4, 1), nothing)),
-                Some(((10, 18, 12, 2), [0, 2, 0, 0])),
+                Some(((10, 18, 12, 2), [0, 2, 0, 0, 0, 0])),
                 None,
                 prism,
             ]
         };
-        let notch = if on_seam { [1, 0, 0, 0] } else { [0, 1, 0, 0] };
-        let across: [Want; 4] = [
-            Some(((9, 19, 12, 1), nothing)),
-            Some(((9, 19, 12, 1), notch)),
-            prism,
-            prism,
-        ];
+        let notch = if on_seam {
+            [0, 0, 1, 0, 0, 0]
+        } else {
+            [0, 1, 0, 0, 0, 0]
+        };
+        // On a seam ruling the prism's edge meets the rim at the tube's
+        // own rim vertex, one vertex fewer.
+        let rim = if on_seam {
+            (9, 18, 11, 1)
+        } else {
+            (9, 19, 12, 1)
+        };
+        let across: [Want; 4] = [Some((rim, nothing)), Some((rim, notch)), prism, prism];
         for (extent, z0, h, census, [union, t_less_b, b_less_t, common]) in [
             ("inside", 0.5, 1.0, inside, [tube, tube - AREA, 0.0, AREA]),
             (
@@ -212,11 +246,18 @@ fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
                     [
                         c.vv.len(),
                         c.a_on_b.len() + c.b_on_a.len(),
+                        c.ve.len(),
+                        c.ee.len(),
                         c.curves.len(),
                         c.patches.len()
                     ],
                     contacts,
-                    "{label}: [v-v, v-f, curve, patch] records"
+                    "{label}: [v-v, v-f, v-e, e-e, curve, patch] records"
+                );
+                assert_eq!(
+                    topo::joinable_vertices(body, geom_core::Band::linear(tol).unwrap()).unwrap(),
+                    vec![],
+                    "{label}: maximal edges"
                 );
             }
         }
@@ -361,18 +402,17 @@ fn a_ruling_across_an_ellipse_builds_every_op_undeclared() {
     }
 }
 
-/// **A ruling whose own face shares the wall's carrier keeps the door.**
-/// A long tube `t` (`z ∈ [0, 4]`) and a coaxial tube `b` of the same
-/// radius (`z ∈ [1, 3]`, turned `0.4` rad so no seam ruling of one lies
-/// on the other's), their caps apart. `t`'s seam rulings lie on `b`'s
-/// wall, and so does each of its wall faces: the ruling is not a curve
-/// where two carriers meet, and the lying-on lane does not take it.
-/// Swept first, `t`'s edges reach `b`'s wall only through the rulings
-/// (its rims lie beyond `b`), so every op with `t` first refuses on a
-/// fragment of a ruling of `t`. With `b` first, `b`'s rim, which lies
-/// on `t`'s wall the same way, refuses first.
+/// **A ruling whose own face shares the wall's carrier glues as the
+/// continuation it is.** A long tube `t` (`z ∈ [0, 4]`) and a coaxial
+/// tube `b` of the same radius (`z ∈ [1, 3]`, turned `0.4` rad so no
+/// seam ruling of one lies on the other's), their caps apart. `t`'s
+/// seam rulings lie on `b`'s wall, and so does each of its wall faces:
+/// the ruling is not a curve where two carriers meet, and the lying-on
+/// lane does not take it. The walls are one carrier by margin, so every
+/// op, undeclared, is the op with every wall pair declared a
+/// continuation (D10).
 #[test]
-fn a_ruling_whose_face_shares_the_walls_carrier_keeps_the_door() {
+fn a_ruling_whose_face_shares_the_walls_carrier_is_the_declared_continuation() {
     let tol = Tol::witness();
     let t = rod_z(0.0, 4.0);
     let spin = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), 0.4);
@@ -381,14 +421,20 @@ fn a_ruling_whose_face_shares_the_walls_carrier_keeps_the_door() {
         topo::transform_rigid(&rod_z(1.0, H), &spin, tol).unwrap(),
         tol,
     );
-    for (op, r) in six(&t, &b) {
-        let Err(BooleanError::CurvedPierceUnsupported { operand, .. }) = r else {
-            panic!("{op}: the crossing layer's door: {r:?}");
-        };
+    let (tb, bt) = (continued(&t, &b), continued(&b, &t));
+    let declared = [
+        topo::union_with(&t, &b, &tb, tol),
+        topo::union_with(&b, &t, &bt, tol),
+        topo::subtract_with(&t, &b, &tb, tol),
+        topo::subtract_with(&b, &t, &bt, tol),
+        topo::intersect_with(&t, &b, &tb, tol),
+        topo::intersect_with(&b, &t, &bt, tol),
+    ];
+    for ((op, r), want) in six(&t, &b).into_iter().zip(declared) {
         assert_eq!(
-            operand,
-            topo::Operand::A,
-            "{op}: on the first member's edge (t's ruling, or b's rim)"
+            outcome(&r),
+            outcome(&want),
+            "{op}: the declared continuation"
         );
     }
 }
@@ -410,30 +456,6 @@ fn a_declared_continuation_on_a_wall_bounded_by_an_ellipse_keeps_the_door() {
         topo::transform_rigid(&rod_z(1.0, H), &spin, tol).unwrap(),
         tol,
     );
-    let walls = |b: &AtRestBody<f64>| -> Vec<topo::FaceKey> {
-        b.faces()
-            .filter(|(_, f)| {
-                matches!(
-                    b.get_surface(f.surface),
-                    Some(geom::Surface::Cylinder { .. })
-                )
-            })
-            .map(|(k, _)| k)
-            .collect()
-    };
-    let continued = |x: &AtRestBody<f64>, y: &AtRestBody<f64>| {
-        let mut d = BooleanDeclarations::none();
-        for fa in walls(x) {
-            for fb in walls(y) {
-                d.coincident_faces.push(topo::FacePairDeclaration::new(
-                    fa,
-                    fb,
-                    topo::BooleanCoincidence::Continuation,
-                ));
-            }
-        }
-        d
-    };
     let (tr, rt) = (continued(&t, &r), continued(&r, &t));
     let (a, b) = (topo::Operand::A, topo::Operand::B);
     for (op, res, rod_is) in [

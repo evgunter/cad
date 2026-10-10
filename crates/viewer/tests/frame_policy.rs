@@ -144,14 +144,14 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
     // carries the answer its event arm gives rather than a second
     // spelling of it.
     let target = BlendTarget {
-        node: RecipeNodeId(tagged(3)),
+        node: RecipeNodeId::new(0, tagged(3)),
         body: 0,
     };
     let notice = frame::tool_notice(
         &ToolNotice::Blend(BlendEvent::OtherTarget {
             held: target,
             picked: BlendTarget {
-                node: RecipeNodeId(tagged(5)),
+                node: RecipeNodeId::new(0, tagged(5)),
                 body: 0,
             },
         }),
@@ -244,9 +244,9 @@ fn a_joined_line_splits_back_into_the_notices_it_was_made_from() {
     );
     let dashes = frame::tool_news(
         AdmissionFault::FusedGeometry {
-            instance: SpokenNode::absent(RecipeNodeId(tagged(3))),
-            root: SpokenNode::absent(RecipeNodeId(tagged(9))),
-            others: vec![SpokenNode::absent(RecipeNodeId(tagged(5)))],
+            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(3))),
+            body: SpokenNode::absent(RecipeNodeId::new(0, tagged(9))),
+            others: vec![SpokenNode::absent(RecipeNodeId::new(0, tagged(5)))],
         }
         .to_string(),
         frame::Retold::Again,
@@ -365,24 +365,24 @@ fn cause_ordinal(cause: &AdmissionFault) -> usize {
 fn every_cause() -> Vec<AdmissionFault> {
     vec![
         AdmissionFault::NoSuchNode {
-            node: SpokenNode::absent(RecipeNodeId(tagged(4))),
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(4))),
         },
         AdmissionFault::NotAnInstance {
-            node: SpokenNode::absent(RecipeNodeId(tagged(5))),
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(5))),
         },
         AdmissionFault::MateConstrained {
-            instance: SpokenNode::absent(RecipeNodeId(tagged(6))),
+            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(6))),
             mates: vec![
-                SpokenNode::absent(RecipeNodeId(tagged(7))),
-                SpokenNode::absent(RecipeNodeId(tagged(8))),
+                SpokenNode::absent(RecipeNodeId::new(0, tagged(7))),
+                SpokenNode::absent(RecipeNodeId::new(0, tagged(8))),
             ],
         },
         AdmissionFault::FusedGeometry {
-            instance: SpokenNode::absent(RecipeNodeId(tagged(9))),
-            root: SpokenNode::absent(RecipeNodeId(tagged(10))),
+            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(9))),
+            body: SpokenNode::absent(RecipeNodeId::new(0, tagged(10))),
             others: vec![
-                SpokenNode::absent(RecipeNodeId(tagged(11))),
-                SpokenNode::absent(RecipeNodeId(tagged(12))),
+                SpokenNode::absent(RecipeNodeId::new(0, tagged(11))),
+                SpokenNode::absent(RecipeNodeId::new(0, tagged(12))),
             ],
         },
     ]
@@ -421,8 +421,8 @@ fn a_withdrawn_cause_never_carries_the_list_mark() {
     assert_eq!(
         covered.len(),
         cause_ordinal(&AdmissionFault::FusedGeometry {
-            instance: SpokenNode::absent(RecipeNodeId(tagged(1))),
-            root: SpokenNode::absent(RecipeNodeId(tagged(2))),
+            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(1))),
+            body: SpokenNode::absent(RecipeNodeId::new(0, tagged(2))),
             others: vec![],
         }) + 1,
         "the vocabulary is bigger than this row covers — see `cause_ordinal`'s obligation",
@@ -461,7 +461,7 @@ fn a_withdrawals_cause_list_splits_back_into_its_causes() {
             .iter()
             .enumerate()
             .map(|(seat, cause)| Withdrawn {
-                instance: RecipeNodeId(tagged(seat as u64 + 20)),
+                instance: RecipeNodeId::new(0, tagged(seat as u64 + 20)),
                 cause: cause.clone(),
             })
             .collect(),
@@ -688,16 +688,12 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
         .expect_err("a zero aspect has no projection");
     let delta = DisplayTolerance::new(0.0).expect_err("zero is not a δ");
     let build = pickindex::PickIndexError::DrawnTwice {
-        node: RecipeNodeId(tagged(3)),
+        node: RecipeNodeId::new(0, tagged(3)),
         body: 0,
     };
-    let collision = ProductError::Naming {
-        node: RecipeNodeId(tagged(2)),
-        name: Box::new(StableName {
-            kind: EntityKind::Face,
-            node: RecipeNodeId(tagged(2)),
-            path: Vec::new(),
-        }),
+    let lineage = ProductError::ContactLineage {
+        node: RecipeNodeId::new(0, tagged(2)),
+        what: "face",
     };
     let budget = FittedDelta {
         delta: DisplayTolerance::new(1.0e-3).expect("a positive δ"),
@@ -739,8 +735,10 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
                 document: DocumentId(1),
                 findings: vec![CheckFinding {
                     check: CheckId::Connectedness,
-                    root: RecipeNodeId(tagged(3)),
-                    output_ix: 0,
+                    subject: editor_core::FindingSubject::Output {
+                        root: RecipeNodeId::new(0, tagged(3)),
+                        output_ix: 0,
+                    },
                     evidence: CheckEvidence::Connectedness {
                         actual: 2,
                         expected: 1,
@@ -752,10 +750,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
             "so do the advisory checks",
         ),
         (
-            frame::product_badge(
-                Some(&collision),
-                &Doc::empty_derived("badge", Tol::witness()),
-            ),
+            frame::product_badge(Some(&lineage), &Doc::empty_derived("badge", Tol::witness())),
             frame::Subject::Document,
             "and the gather's verdict on the landed pair",
         ),
@@ -839,11 +834,11 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
 /// **A pick-index refusal that follows from a failed node is drawn
 /// under that node's row, and names it.**
 ///
-/// The index is built over every root, so a root with no value
-/// refuses it. The node whose failure caused that is already on screen
+/// The index is built over every world placement, so a placement with
+/// no value refuses it. The node whose failure caused that is already on screen
 /// as the tree's one loud row; the badge used to outrank it
-/// (`Actionable`, at the top of the window) and to name the root it
-/// refused on instead of the row carrying the cause. Every expected
+/// (`Actionable`, at the top of the window) and to name the placement
+/// it refused on instead of the row carrying the cause. Every expected
 /// value here is a literal: a row comparing the badge against another
 /// rendering of the same refusal would not notice the badge naming the
 /// wrong node.
@@ -852,23 +847,24 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     let tol = Tol::witness();
     let consequence = "until the index builds, no pick is answered and the picture is not redrawn";
 
-    // A POISONED root: the extrude fails and the transform over it is
-    // the root the index refuses on. The badge names the extrude.
+    // A POISONED copy: the extrude fails, and the placement of the
+    // transform over it is what the index refuses on. The badge names
+    // the extrude.
     let (doc, extrude, moved) = common::broken_document(tol);
-    assert_ne!(extrude, moved, "the root over the failure is another node");
+    assert_ne!(extrude, moved, "the body over the failure is another node");
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let refusal = common::index_at(&session, common::plate_delta())
-        .expect_err("a poisoned root refuses the index");
+        .expect_err("a poisoned copy refuses the index");
     let badge = frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
         .expect("a refusal the cache holds is still badged");
     assert_eq!(
         badge.label(),
         format!(
             "pick index: waits on Extrude {}, which failed — {consequence}",
-            test_utils::refusal::tag(extrude.0)
+            test_utils::refusal::tag(extrude.0.digest())
         ),
-        "the row the tree blames, not the root the build refused on"
+        "the row the tree blames, not the placement the build refused on"
     );
     assert_eq!(badge.tone(), frame::Tone::Advisory);
     assert_eq!(
@@ -892,15 +888,15 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         "the cause is the loud one"
     );
 
-    // A FAILED root beside a healthy one — the shape of the report,
-    // where the Boolean the kernel refused is itself a root. The
-    // healthy root's picks go with it, which is what the label says.
+    // A FAILED placed body beside a healthy one — the shape of the
+    // report, where the Boolean the kernel refused is itself placed.
+    // The healthy copy's picks go with it, which is what the label says.
     let empty: Doc<ProfileProgram> = Doc::empty_derived("vnews-derived-fault", tol);
     let (doc, healthy_profile) = common::framed_square(&empty, 0.04, tol);
     let (doc, healthy) = common::inserted(
         &doc,
         Node::Extrude {
-            profile: healthy_profile,
+            profile: healthy_profile.into(),
             distance: common::len(0.008),
             side: ExtrudeSide::Along,
         },
@@ -910,25 +906,27 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     let (doc, broken) = common::inserted(
         &doc,
         Node::Extrude {
-            profile: broken_profile,
+            profile: broken_profile.into(),
             distance: Formula::div(common::len(0.008), common::scl(0.0))
                 .expect("length / scalar is a length"),
             side: ExtrudeSide::Along,
         },
         tol,
     );
-    assert_ne!(healthy, broken, "two roots");
+    assert_ne!(healthy, broken, "two bodies");
+    let (doc, _) = common::placed(&doc, healthy, tol);
+    let (doc, broken_copy) = common::placed(&doc, broken, tol);
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let refusal = common::index_at(&session, common::plate_delta())
-        .expect_err("one failed root refuses the whole index");
+        .expect_err("one failed copy refuses the whole index");
     let badge = frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
         .expect("a refusal the cache holds is still badged");
     assert_eq!(
         badge.label(),
         format!(
             "pick index: waits on Extrude {}, which failed — {consequence}",
-            test_utils::refusal::tag(broken.0)
+            test_utils::refusal::tag(broken.0.digest())
         )
     );
     assert_eq!(badge.tone(), frame::Tone::Advisory);
@@ -936,20 +934,22 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         badge.detail(),
         Some(
             format!(
-                "pick index: Extrude {} could not be indexed: pick: this node failed, so \
-                 it has no value — fix the node's own failure",
-                test_utils::refusal::tag(broken.0)
+                "pick index: PlaceInWorld {copy} could not be indexed: pick: this node is \
+                 poisoned by the failure at Extrude {failed}, so it has no value — the repair \
+                 is upstream, at Extrude {failed}",
+                copy = test_utils::refusal::tag(broken_copy.0.digest()),
+                failed = test_utils::refusal::tag(broken.0.digest())
             )
             .as_str()
         ),
-        "the tooltip says the root was not indexed and the standing says why"
+        "the tooltip says the copy was not indexed and the standing says why"
     );
 
     // The refusals that are the index's own keep their tone and their
     // words — and so does a standing refusal with no evaluation to
     // find its cause in, since there is then no row it can defer to.
     let own = pickindex::PickIndexError::DrawnTwice {
-        node: RecipeNodeId(tagged(3)),
+        node: RecipeNodeId::new(0, tagged(3)),
         body: 0,
     };
     let badge =
@@ -960,10 +960,10 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     assert_eq!(unread.tone(), frame::Tone::Actionable);
     assert_eq!(unread.label(), format!("pick index: {refusal}"));
 
-    // A root that NEVER RAN, with an evaluation in hand: the tree draws
+    // A placement that NEVER RAN, with an evaluation in hand: the tree draws
     // it `Unevaluated` and `Advisory`, so there is no loud row above it
     // to defer to, and quieting it would hide the only news there is.
-    let absent = RecipeNodeId(tagged(99));
+    let absent = RecipeNodeId::new(0, tagged(99));
     assert!(
         session
             .evaluation()
@@ -981,18 +981,19 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     assert_eq!(badge.tone(), frame::Tone::Actionable);
     assert_eq!(
         badge.label(),
-        "pick index: root 000000000063 could not be indexed: pick: this node has no result in \
+        "pick index: placement 000000000063 could not be indexed: pick: this node has no result in \
          this evaluation: the run was canceled before it reached the node — \
          re-evaluate the document to completion"
     );
 }
 
 /// **The one path where the tree's blame and the index's words part**:
-/// a root the placement solve left without a pose because another mate
-/// in its group refused. The evaluation reports the root `Failed` in
-/// its own right, so the index's words say the ROOT failed; the tree
-/// draws the root downstream of the mate the fault blames, and the
-/// badge names that mate, because that is the row a reader can act on.
+/// an instance the placement solve left without a pose because another
+/// mate in its group refused. The evaluation reports the instance
+/// `Failed` in its own right, so the index's words say its copy is
+/// poisoned through the instance; the tree draws the instance
+/// downstream of the mate the fault blames, and the badge names that
+/// mate, because that is the row a reader can act on.
 #[test]
 fn a_refusal_reached_through_a_mate_names_the_mate_the_tree_blames() {
     let tol = Tol::witness();
@@ -1008,30 +1009,33 @@ fn a_refusal_reached_through_a_mate_names_the_mate_the_tree_blames() {
         ),
     );
     let refusal = common::index_at(&session, common::asm::delta())
-        .expect_err("a root the solve refused refuses the index");
+        .expect_err("a copy of an instance the solve refused refuses the index");
     let pickindex::PickIndexError::Node {
-        node: root,
-        error: NodePickError::Standing(NodeStanding::Failed { node: failed }),
+        node: copy,
+        error:
+            NodePickError::Standing(NodeStanding::Poisoned {
+                through: failed, ..
+            }),
     } = &refusal
     else {
-        panic!("the root is Failed in the evaluation, not poisoned: {refusal:?}");
+        panic!("the copy is poisoned through the instance that failed: {refusal:?}");
     };
     let badge = frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
         .expect("a refusal the cache holds is still badged");
     assert_eq!(
-        (*root, *failed),
-        (bench.shelf_i, bench.shelf_i),
-        "the index's words name the root, which failed"
+        (*copy, *failed),
+        (bench.shelf_copy, bench.shelf_i),
+        "the index's words name the shelf's copy, through the instance that failed"
     );
-    assert_ne!(offender, *root, "and the root is not the mate");
+    assert_ne!(offender, *failed, "and the instance is not the mate");
     assert_eq!(
         badge.label(),
         format!(
             "pick index: waits on Mate {}, which failed — until the index builds, no pick \
              is answered and the picture is not redrawn",
-            test_utils::refusal::tag(offender.0)
+            test_utils::refusal::tag(offender.0.digest())
         ),
-        "the mate the tree blames, not the root the index's words name"
+        "the mate the tree blames, not the copy the index's words name"
     );
     assert_eq!(badge.tone(), frame::Tone::Advisory);
 }
@@ -1344,7 +1348,7 @@ fn an_unnamed_drawn_edge_wears_one_subject_on_both_channels() {
     use viewer::tools::ToolNotice;
 
     let target = BlendTarget {
-        node: RecipeNodeId(tagged(3)),
+        node: RecipeNodeId::new(0, tagged(3)),
         body: 0,
     };
     let refused = unnamed_on(target);
@@ -1540,8 +1544,10 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
         document: DocumentId(1),
         findings: vec![CheckFinding {
             check: CheckId::Connectedness,
-            root: RecipeNodeId(tagged(3)),
-            output_ix: 0,
+            subject: editor_core::FindingSubject::Output {
+                root: RecipeNodeId::new(0, tagged(3)),
+                output_ix: 0,
+            },
             evidence: CheckEvidence::Connectedness {
                 actual: 2,
                 expected: 1,
@@ -1567,19 +1573,12 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
 
     // The other three, each NAMED and each required to be present. The
     // previous spelling ran `.flatten()` over a list whose
-    // `product_badge(NoBodyRoots)` entry is `None` by design and whose
+    // `product_badge(EmptyProduct)` entry is `None` by design and whose
     // δ member was missing altogether: it promised three labels and
     // asserted about one, and stayed green with either affordance
     // flipped.
-    let node = RecipeNodeId(tagged(2));
-    let collision = ProductError::Naming {
-        node,
-        name: Box::new(StableName {
-            kind: EntityKind::Face,
-            node,
-            path: Vec::new(),
-        }),
-    };
+    let node = RecipeNodeId::new(0, tagged(2));
+    let lineage = ProductError::ContactLineage { node, what: "face" };
     let budget = FittedDelta {
         delta: DisplayTolerance::new(1.0e-3).expect("a positive δ"),
         requested: DisplayTolerance::new(1.0e-6).expect("a positive δ"),
@@ -1596,10 +1595,7 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
         ),
         (
             "product",
-            frame::product_badge(
-                Some(&collision),
-                &Doc::empty_derived("badge", Tol::witness()),
-            ),
+            frame::product_badge(Some(&lineage), &Doc::empty_derived("badge", Tol::witness())),
         ),
         ("δ", frame::delta_badge(Some(&budget), M)),
         (
@@ -2073,7 +2069,7 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
 #[test]
 fn an_unnamed_patch_is_said_as_its_id_and_its_own_refusal() {
     let error = UnnamedEntity {
-        node: RecipeNodeId(tagged(2)),
+        node: RecipeNodeId::new(0, tagged(2)),
         entity: editor_core::names::EntityRef {
             body: 0,
             key: editor_core::names::EntityKey::Body,
@@ -2119,7 +2115,7 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
     // A cursor ON a drawn edge of the plate: the priority rule answers
     // with the edge, and the GPU would answer with the patch behind it.
     let (cursor, edge) = index
-        .edges_in(extrude, 0)
+        .edges_in(common::copy_of(session.committed_doc(), extrude), 0)
         .iter()
         .find_map(|&id| {
             let points = index.edge_polyline_for(id, &DisplayView::none());
@@ -2177,13 +2173,14 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
     );
 }
 
+/// **A twin copy's face is a different face** (A10): two copies of one
+/// body wear its names under two placements' wraps, so an id answer on
+/// the other copy names another face of the world, and the cross-check
+/// says so — where it used to compare one name drawn twice.
 #[test]
-fn one_name_drawn_twice_is_not_a_disagreement() {
-    // The false positive the id comparison used to produce: the same
-    // face drawn under two roots has two ids, and comparing ids called
-    // that a fault. Names are the currency the property is about.
+fn a_twin_copys_face_is_a_disagreement() {
     let tol = Tol::witness();
-    let (doc, _left, right) = two_placements(tol);
+    let (doc, left, right) = two_placements(tol);
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let index = plate_index(&session);
@@ -2195,26 +2192,26 @@ fn one_name_drawn_twice_is_not_a_disagreement() {
         .expect("no refusal")
         .expect("the right placement is hit");
     assert_eq!(hit.node, right);
-    let ids = index.ids_of(&hit.name);
-    assert!(
-        ids.len() > 1,
-        "the fixture must draw one name twice, got {ids:?}"
-    );
-    // The GPU answers the OTHER copy's id; both name the same face.
-    let other = ids
-        .iter()
-        .copied()
-        .find(|id| !index.ids_of_target(&face_of(&hit)).contains(id))
-        .expect("a second occurrence");
     assert_eq!(
+        index.ids_of(&hit.name).len(),
+        1,
+        "each copy wears its own name"
+    );
+    // The same face of the body, on the left copy.
+    let (_, own) = hit.name.copy_of().expect("a copy's name is wrapped");
+    let twin = own.in_copy(left);
+    let [other] = index.ids_of(&twin) else {
+        panic!("the left copy draws the twin face once");
+    };
+    assert!(
         idpass::disagreement(
             &index,
-            answer(3, other),
+            answer(3, *other),
             Some(3),
             Ok(std::slice::from_ref(&hit.name))
-        ),
-        None,
-        "two ids of one name are the same answer"
+        )
+        .is_some(),
+        "an id on the other copy names another face"
     );
 }
 
@@ -2226,15 +2223,17 @@ fn face_of(hit: &pncad::select::PickHit) -> FaceSelection {
     }
 }
 
-/// Two `Transform` roots over one extrude: both drawn copies carry the
-/// extrude's names, because a transform contributes no role segment.
+/// Two `Transform`s over one extrude, each placed: both copies carry
+/// the extrude's names (a transform contributes no role segment), each
+/// under its own placement's wrap. Answers the document and the two
+/// placements, left then right.
 fn two_placements(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("frame-two-placements", tol);
     let (doc, profile) = common::framed_square(&doc, 0.02, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.01),
             side: ExtrudeSide::Along,
         },
@@ -2256,13 +2255,15 @@ fn two_placements(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId)
     };
     let (doc, left) = place(&doc, 0.0);
     let (doc, right) = place(&doc, 0.1);
+    let (doc, left) = common::placed(&doc, left, tol);
+    let (doc, right) = common::placed(&doc, right, tol);
     (doc, left, right)
 }
 
 // --- the highlight, scoped ------------------------------------------
 
 #[test]
-fn the_highlight_narrows_a_twice_drawn_name_to_exactly_one_id() {
+fn the_highlight_narrows_a_copys_name_to_exactly_one_id() {
     let tol = Tol::witness();
     let (doc, left, right) = two_placements(tol);
     let mut session = DocSession::inline(doc, tol);
@@ -2285,9 +2286,10 @@ fn the_highlight_narrows_a_twice_drawn_name_to_exactly_one_id() {
         1,
         "the name table's bijection makes the scoped answer unique"
     );
-    assert!(
-        index.ids_of(&face.name).len() > 1,
-        "the name is drawn twice"
+    assert_eq!(
+        index.ids_of(&face.name).len(),
+        1,
+        "each copy wears its own name"
     );
     let marked = viewer::marks::highlight(&index, &Selection::Face(face.clone()), None);
     let key = index
@@ -2303,7 +2305,11 @@ fn the_highlight_narrows_a_twice_drawn_name_to_exactly_one_id() {
         assert_eq!(key.node, right);
     }
     assert!(!index.ids_in(right, hit.body).is_empty());
-    assert!(index.ids_in(RecipeNodeId(tagged(9999)), 0).is_empty());
+    assert!(
+        index
+            .ids_in(RecipeNodeId::new(0, tagged(9999)), 0)
+            .is_empty()
+    );
 }
 
 // --- the rebuild loop, across the index seam -------------------------
@@ -2405,9 +2411,9 @@ fn an_unsettled_delta_submits_nothing_and_drops_the_index_it_held() {
 
 #[test]
 fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
-    // The defect: a failed or poisoned root is an ordinary editing
+    // The defect: a failed or poisoned placement is an ordinary editing
     // state, and the app's guard stayed false forever afterwards — so
-    // every repainted frame re-tessellated every healthy root before
+    // every repainted frame re-tessellated every healthy copy before
     // reaching the failing one, behind a picture already stale.
     //
     // The policy now has a seam under it, so the row counts SUBMITS:
@@ -2432,7 +2438,7 @@ fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
     assert!(cache.error().is_none());
     assert_eq!(submits.load(Ordering::Relaxed), 1);
 
-    // Break the document so the root refuses to evaluate.
+    // Break the document so the placed body refuses to evaluate.
     let outcome = session.perform(SessionOp::SetSlot {
         node: extrude,
         slot: SlotId::Distance,
@@ -2448,7 +2454,7 @@ fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
     assert_eq!(
         cache.pump(),
         vec![IndexLanding::Refused],
-        "a failed root refuses the index"
+        "a failed placed body refuses the index"
     );
     assert!(cache.error().is_some(), "the refusal is readable");
     assert!(
@@ -2489,7 +2495,7 @@ fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
     // the node — two channels, both saying something true.
     assert!(
         session.product_fault().is_some(),
-        "a failed root is a gather refusal too"
+        "a failed placed body is a gather refusal too"
     );
     assert!(
         session
@@ -2947,14 +2953,14 @@ fn the_feature_tree_reads_the_landed_pair_not_the_shown_document() {
     let (landed_doc, _) = session.landed_pair().expect("a landed pair");
     assert_eq!(
         rows.len(),
-        landed_doc.order().len(),
+        landed_doc.ids().len(),
         "the tree describes the landed document, which is what is drawn"
     );
     session.pump();
     assert_eq!(
         session.tree_rows().len(),
-        before - 1,
-        "and then it catches up"
+        before - 2,
+        "and then it catches up: the extrude and its placement are gone"
     );
 }
 
@@ -3050,13 +3056,13 @@ fn the_pixel_to_ndc_conversion_round_trips_and_flips_y_once() {
     assert!((ray.dir.z - forward.z).abs() < 1e-12);
 }
 
-// --- the refuse-then-offer pair for an unknown parameter ------------
+// --- the refuse-then-offer pair for an unknown variable ------------
 
-/// **The unknown-parameter refusal carries its offer, and the frame
+/// **The unknown-variable refusal carries its offer, and the frame
 /// policies hand both to the chrome.** An expression naming an
-/// undeclared parameter refuses at the parse door (typo-safety — text
-/// never creates a parameter); `creation_offer` extracts the name to
-/// prefill the add-parameter affordance, and `retype_draft` hands the
+/// undeclared variable refuses at the parse door (typo-safety — text
+/// never creates a variable); `creation_offer` extracts the name to
+/// prefill the add-variable affordance, and `retype_draft` hands the
 /// refused text back so acting on the offer does not cost the very
 /// expression that raised it.
 #[test]
@@ -3067,7 +3073,7 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.008),
             side: ExtrudeSide::Along,
         },
@@ -3099,7 +3105,7 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
         "and the refused draft comes back"
     );
 
-    // A parse refusal that names NO parameter restores the draft but
+    // A parse refusal that names NO variable restores the draft but
     // offers nothing to create.
     let batch = vec![SessionOp::SetSlotExpression {
         node: extrude,
@@ -3248,7 +3254,7 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     // The mate the op landed, read off the document rather than off the
     // fault under test.
-    let landed = *session.doc().order().last().expect("the mate landed");
+    let landed = *session.doc().ids().last().expect("the mate landed");
     assert!(
         matches!(session.doc().node(landed), Some(Node::Mate { .. })),
         "the newest node is the mate"
@@ -3310,7 +3316,7 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     assert!(
         message.text().contains(&format!(
             "InstantiatePart {}",
-            test_utils::refusal::tag(bench.post_b.0)
+            test_utils::refusal::tag(bench.post_b.0.digest())
         )),
         "the line names which of the user's placements went: {message}"
     );
@@ -3357,8 +3363,8 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // as why the placement went: two typed values, each rendering
     // itself, which is the join's rule.
     let (post, mate_node) = (
-        test_utils::refusal::tag(bench.post_b.0),
-        test_utils::refusal::tag(landed.0),
+        test_utils::refusal::tag(bench.post_b.0.digest()),
+        test_utils::refusal::tag(landed.0.digest()),
     );
     assert_eq!(
         line.text(),
@@ -3394,11 +3400,11 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
     let declined = frame::tool_notice(
         &ToolNotice::Blend(BlendEvent::OtherTarget {
             held: BlendTarget {
-                node: RecipeNodeId(tagged(3)),
+                node: RecipeNodeId::new(0, tagged(3)),
                 body: 0,
             },
             picked: BlendTarget {
-                node: RecipeNodeId(tagged(5)),
+                node: RecipeNodeId::new(0, tagged(5)),
                 body: 0,
             },
         }),
@@ -3409,7 +3415,7 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
             tool: ToolKind::Revolve,
             event: SeatEvent::PickLost {
                 seat: Seat::RevolveProfile,
-                node: viewer::test_support::spoken(RecipeNodeId(tagged(4)), None),
+                node: viewer::test_support::spoken(RecipeNodeId::new(0, tagged(4)), None),
             },
         },
         None,
@@ -3473,10 +3479,10 @@ fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
     let tied = |t: f64| pncad::select::PickHit {
         name: StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(tagged(3)),
+            node: RecipeNodeId::new(0, tagged(3)),
             path: vec![],
         },
-        node: RecipeNodeId(tagged(3)),
+        node: RecipeNodeId::new(0, tagged(3)),
         body: 0,
         t,
         t_lo: t,
@@ -3606,12 +3612,12 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
     use viewer::tools::{ToolKind, ToolNotice};
 
     let target = BlendTarget {
-        node: RecipeNodeId(tagged(3)),
+        node: RecipeNodeId::new(0, tagged(3)),
         body: 0,
     };
     let face = StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(tagged(3)),
+        node: RecipeNodeId::new(0, tagged(3)),
         path: vec![],
     };
     let cases = [
@@ -3619,15 +3625,15 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             "mate: a held pick lost",
             ToolNotice::Mate(MateToolEvent::PickLost {
                 side: MateSide::B,
-                node: viewer::test_support::spoken(RecipeNodeId(tagged(3)), None),
+                node: viewer::test_support::spoken(RecipeNodeId::new(0, tagged(3)), None),
                 pick: FaceSelection {
                     name: face.clone(),
-                    node: RecipeNodeId(tagged(3)),
+                    node: RecipeNodeId::new(0, tagged(3)),
                     body: 0,
                 },
                 resolution: Box::new(Resolution::Indeterminate(ResolveIndeterminate {
                     standing: NodeStanding::NotEvaluated {
-                        node: RecipeNodeId(tagged(3)),
+                        node: RecipeNodeId::new(0, tagged(3)),
                     },
                 })),
             }),
@@ -3639,7 +3645,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
                 tool: ToolKind::Boolean,
                 event: SeatEvent::PickLost {
                     seat: Seat::OperandA,
-                    node: viewer::test_support::spoken(RecipeNodeId(tagged(3)), None),
+                    node: viewer::test_support::spoken(RecipeNodeId::new(0, tagged(3)), None),
                 },
             },
             frame::Retold::Never,
@@ -3667,7 +3673,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             ToolNotice::Blend(BlendEvent::OtherTarget {
                 held: target,
                 picked: BlendTarget {
-                    node: RecipeNodeId(tagged(5)),
+                    node: RecipeNodeId::new(0, tagged(5)),
                     body: 0,
                 },
             }),
@@ -3708,9 +3714,9 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
 #[test]
 fn every_withdrawal_kind_rides_beside_a_refusal() {
     let gone = |node: u64| Withdrawn {
-        instance: RecipeNodeId(tagged(node)),
+        instance: RecipeNodeId::new(0, tagged(node)),
         cause: AdmissionFault::NoSuchNode {
-            node: SpokenNode::absent(RecipeNodeId(tagged(node))),
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(node))),
         },
     };
     let report = PruneReport {

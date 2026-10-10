@@ -30,7 +30,7 @@ fn the_selection_reaches_the_wire_canonical() {
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(editor_core::ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![square],
             ids: Vec::new(),
         }),
@@ -38,12 +38,12 @@ fn the_selection_reaches_the_wire_canonical() {
     let (mut doc, body) = fixture::insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
     );
-    let steps: Vec<u64> = (0..4)
+    let steps: Vec<editor_core::MintId> = (0..4)
         .map(|seg| match crate::fixture::piece(&doc, body, 0, seg) {
             editor_core::ProfileEdgeRef::Piece { step, .. } => step.0,
             other => panic!("a square's side is a step's piece, got {other:?}"),
@@ -75,6 +75,7 @@ fn the_selection_reaches_the_wire_canonical() {
                 len(0.0625),
                 vec![rim(high as u32), rim(low as u32)],
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -83,9 +84,12 @@ fn the_selection_reaches_the_wire_canonical() {
     .doc;
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
-    assert!(text.contains("\"selection\""), "the field reaches the wire");
-    let sel = text.find("\"selection\"").expect("the selection block");
-    let spelled = |seg: usize| format!("\"step\": {}", step_of(seg));
+    assert!(
+        text.contains("\"Select\""),
+        "the selection reaches the wire"
+    );
+    let sel = text.find("\"Select\"").expect("the selection block");
+    let spelled = |seg: usize| format!("\"step\": \"{}\"", step_of(seg));
     let at_low = text[sel..].find(&spelled(low)).expect("the lower id");
     let at_high = text[sel..].find(&spelled(high)).expect("the higher id");
     assert!(
@@ -96,8 +100,7 @@ fn the_selection_reaches_the_wire_canonical() {
     // A non-canonical selection on the wire is a CORRUPT file: refused
     // at the shared validator, never quietly re-sorted (a repair would
     // move the node's content key behind the caller's back). The form
-    // is one predicate on `Node::input_fault`, so the load door names it
-    // in the arm it names every other structural fault in;
+    // is one predicate, `Select::fault`, asked at both doors;
     // `edit_blend_canonical` is where the two doors are pinned together.
     // The two pieces' steps swapped, so the list runs high to low.
     let corrupt = format!(
@@ -109,8 +112,8 @@ fn the_selection_reaches_the_wire_canonical() {
             .replacen("@swap@", &spelled(high), 1)
     );
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(editor_core::SnapshotError::InputList {
-            fault: editor_core::ListFault::SelectionNotCanonical { at: 0 },
+        Err(PersistError::Snapshot(editor_core::SnapshotError::SelectionShape {
+            fault: editor_core::SelectionFault::NotCanonical { at: 0 },
             ..
         })) => {}
         other => panic!("a non-canonical selection must refuse typed, got {other:?}"),

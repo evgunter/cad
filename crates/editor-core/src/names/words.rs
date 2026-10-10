@@ -22,8 +22,8 @@
 //!   member: "…, joined at Union d1aa from Transform 3218". By tag, or
 //!   where the document does not hold the Boolean, a B join says what
 //!   the name holds: "…, through operand B of node 1669". A carry
-//!   through a primary operand (a Boolean's A, a fillet's target) is the
-//!   body's own continuation and is silent. Two names of one table first
+//!   through a primary operand (a Boolean's A, the body a fillet's
+//!   selection reads) is the body's own continuation and is silent. Two names of one table first
 //!   differ at a node where one went through a secondary operand, which
 //!   a join says.
 //! - **Wraps and joins are said in the order the path takes them.** A
@@ -727,15 +727,20 @@ fn role_np(role: PieceRole) -> String {
 
 /// A profile piece of `feature`'s profile: its role, and the step that
 /// drew it as the profile pane numbers it — with the profile, unless
-/// `feature` reads that profile alone — or, on a kernel-built section,
-/// which circle. A leg is its step's only piece, so the step alone says
+/// `feature` is that profile or reads it alone — or, on a kernel-built
+/// section, which circle. A leg is its step's only piece, so the step alone says
 /// it (`loop 0 step 2`); a fillet's pieces say which (`the arc of loop
 /// 0 step 2`).
-fn piece(e: &ProfileEdgeRef, feature: RecipeNodeId, by: Speaker<'_>) -> String {
+pub(crate) fn piece(e: &ProfileEdgeRef, feature: RecipeNodeId, by: Speaker<'_>) -> String {
     match e {
         ProfileEdgeRef::Piece { step, role } => {
             let step = match by.step(*step) {
-                Some(at) if by.sole_profile(feature) == Some(at.profile()) => at.to_string(),
+                Some(at)
+                    if feature == at.profile()
+                        || by.sole_profile(feature) == Some(at.profile()) =>
+                {
+                    at.to_string()
+                }
                 Some(at) => format!("{at} in {}", by.node(at.profile())),
                 None => format!("the profile step {step}"),
             };
@@ -924,6 +929,8 @@ fn role<'n, 's>(
             text(" of the blend over "),
             cites.one(edge),
         ],
+        RoleSeg::Mitre { vertex } => vec![text("the mitre at "), cites.one(vertex)],
+        RoleSeg::TurnFoot { vertex } => vec![text("the turn foot at "), cites.one(vertex)],
         RoleSeg::BandFace(edges) => {
             let mut items = vec![text("the blend band over ")];
             items.extend(cites.list(edges));
@@ -962,6 +969,7 @@ fn role<'n, 's>(
         // The part's own steps and nodes are another document's ids,
         // so the part-local name is said by tag.
         RoleSeg::InPart { of } => vec![cites.by_tag(of), text(" in the part")],
+        RoleSeg::Placed { of } => vec![text("the world copy of "), cites.one(of)],
         // A carry or a qualifier is a role only inside a path no
         // operation mints: the walk looks through a lone carry, and a
         // qualifier never ends the head. Each still has words of its
@@ -1010,10 +1018,10 @@ mod tests {
     use crate::names::role::NameRef;
     use crate::node::StepId;
 
-    const EXTRUDE: RecipeNodeId = RecipeNodeId(1 << 16);
-    const OTHER: RecipeNodeId = RecipeNodeId(2 << 16);
-    const OP: RecipeNodeId = RecipeNodeId(3 << 16);
-    const MOVED: RecipeNodeId = RecipeNodeId(4 << 16);
+    const EXTRUDE: RecipeNodeId = RecipeNodeId::new(0, 1 << 16);
+    const OTHER: RecipeNodeId = RecipeNodeId::new(0, 2 << 16);
+    const OP: RecipeNodeId = RecipeNodeId::new(0, 3 << 16);
+    const MOVED: RecipeNodeId = RecipeNodeId::new(0, 4 << 16);
 
     fn name(kind: EntityKind, node: RecipeNodeId, path: Vec<RoleSeg>) -> StableName {
         StableName { kind, node, path }
@@ -1021,7 +1029,7 @@ mod tests {
 
     fn leg(step: u64) -> ProfileEdgeRef {
         ProfileEdgeRef::Piece {
-            step: StepId(step << 16),
+            step: StepId::new(0, step << 16),
             role: PieceRole::Leg,
         }
     }

@@ -55,7 +55,7 @@ fn random_kv(rng: &mut fuzz::Rng, degree: usize, interior: usize) -> KnotVector 
 /// Value of the scalar B-spline with the given `f64` coefficients —
 /// the sampling oracle, independent of the hull machinery.
 fn eval_poly(kv: &KnotVector, coeffs: &[f64], t: f64) -> f64 {
-    let span = kv.span_at(t);
+    let span = kv.span_at(t).expect("a numeric parameter");
     let n = basis::basis_funs(span, t);
     let first = span.first_control();
     let mut acc = 0.0;
@@ -67,7 +67,7 @@ fn eval_poly(kv: &KnotVector, coeffs: &[f64], t: f64) -> f64 {
 
 /// Value of the rational scalar spline (positive weights).
 fn eval_rational(kv: &KnotVector, coeffs: &[f64], weights: &[f64], t: f64) -> f64 {
-    let span = kv.span_at(t);
+    let span = kv.span_at(t).expect("a numeric parameter");
     let n = basis::basis_funs(span, t);
     let first = span.first_control();
     let (mut num, mut den) = (0.0, 0.0);

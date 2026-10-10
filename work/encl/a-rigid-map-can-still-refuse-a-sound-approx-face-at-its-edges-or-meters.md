@@ -2,12 +2,12 @@
 id: a-rigid-map-can-still-refuse-a-sound-approx-face-at-its-edges-or-meters
 kind: issue
 title: a rigid map can still refuse a sound Approx face: a meter that goes in-band in the new frame, or an edge that rode the fit net a re-fit replaced
-status: parked
+status: open
 opened: 2026-09-28
 priority: P3
 cost: M
 design: true
-blocked_on: [shell-of-a-lofted-body-meets-the-oblique-corner-on-a-slanted-spline-seam]
+refs: [a-moved-fitted-faces-corners-have-no-root-on-a-derived-spline-section]
 ---
 
 
@@ -72,3 +72,29 @@ re-anchor. It still reaches no curved `Approx` face with edges,
 because the twisted loft and the vase stop next at the oblique cap
 corner, which is the new gate. Re-parked on that item; the reason
 above ("no body the tree can move today …") still holds.
+
+## Re-parked (SHELL fitted-wall-section lane, 2026-10-09, PR 4404)
+
+Its trigger, `a-fitted-wall-has-no-section-with-a-moved-cap`, closed
+with PR 4404: a fitted face's edge with a plane now routes and derives
+as their section over the fit. It still reaches no curved `Approx`
+face with edges. The twisted loft's wall fit refuses at the default ε,
+and above it its wall refuses at a seam; the vase refuses at a cap
+first. A fitted face bounded by planes refuses at its first corner.
+Re-parked on that corner gap. The one `Approx`-capped body that now
+carries an `Intersection` with its fit, `box_with_approx_cap` with a
+side moved, still has a planar, exact fit.
+
+## Reached (SHELL fitted-corners lane, 2026-10-09, PR 4472)
+
+Its trigger closed with PR 4472, and the premise "no body the tree can
+move today carries a curved `Approx` face with edges" no longer holds.
+`crates/sweep/tests/encl_curved_loft_shell.rs`'s
+`a_moved_curved_fitted_cap_builds_where_its_fit_certifies`: the unit
+box with a biquadratic NURBS bump cap, moved by ±0.05, builds at
+ε = 1e-6 (the fit refuses `BudgetExhausted` at 1e-9 and 1e-12, best
+bound ≈ 2.4e-9). The moved cap is a curved `Approx` face whose four
+edges are plane × fit sections. One rigid map of it, a 0.7 rad rotation
+about a vertical axis, succeeds, so neither refusal above is
+reproduced yet; the row is open for the probe this body now allows.
+

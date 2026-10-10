@@ -2,11 +2,10 @@
 id: boolean-unreadable-norm-ends-as-a-kernel-defect
 kind: issue
 title: topo: an unreadable plane norm at the Boolean ends as a kernel defect, not as the operand's at-rest poison
-status: parked
+status: open
 opened: 2026-10-03
 priority: P3
 cost: E
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -40,3 +39,7 @@ datum), reached from the plane rung's door rather than through
 `flush::rows::an_undeclared_coincidence_on_a_poisoned_offset_says_it_is_poisoned`
 does for the offset. The flush detector already sends `PlaneRung::Norm` to
 `FlushRefusal::PairUnreadable` (`flush.rs` `pair_finding`).
+
+## Released from the D10 hold (2026-10-08)
+
+Nothing D10 changes gates this row, so it is open: a NaN plane normal is operand poison routed PlaneRung::Norm → SelfCheck::Normals (refusal_routes.rs); the plane ladder and poison endings survive D10, no declaration involved. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

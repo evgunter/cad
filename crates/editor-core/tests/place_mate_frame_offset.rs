@@ -31,6 +31,14 @@ use geom_core::Tol;
 
 // ---- substrate ----
 
+/// **An instance of `part`, placed in `doc`'s world at the identity**
+/// (A10): each instance here is in the product, as the product roots
+/// were.
+fn instance(doc: ProfileDoc, part: editor_core::DocRef) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, id) = insert(doc, Node::instantiate_part(part));
+    (crate::fixture::place(doc, id).0, id)
+}
+
 fn slide() -> VarName {
     VarName::from_static("slide")
 }
@@ -84,14 +92,15 @@ fn seated(
 ) -> (Parts, ProfileDoc, [RecipeNodeId; 3]) {
     let p = parts(label);
     let doc = prelude(ProfileDoc::empty(DocumentId::derive(label), Tol::witness()));
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
-    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, base) = instance(doc, p.base);
+    let (doc, top) = instance(doc, p.top);
     let opts = p.opts();
     let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
     let (doc, m) = step_with(
         doc,
         DocEdit::InsertNode {
             node: Box::new(seat(head(p.top_cap(top)), head(p.base_cap(base)), offset)),
+            fresh: Vec::new(),
         },
         &reach,
     );
@@ -142,12 +151,15 @@ fn a_face_side_with_an_in_plane_offset_follows_the_face_through_a_part_edit() {
     // The base part grows on disk; its names hold, its pin moves.
     let (base_doc, base_body) = block(&format!("{label}-base"), 3.0, 1.0);
     assert_eq!(base_body, p.base_body, "the same base document");
+    // As stored: its body placed in its world.
+    let base_doc = crate::fixture::place(base_doc, base_body).0;
     let (grown, _) = step(
         base_doc,
         DocEdit::SetParam {
             node: base_body,
             slot: SlotId::Distance,
-            expr: len(2.0),
+            value: len(2.0).into(),
+            fresh: Vec::new(),
         },
     );
     let new_ref = p.store.insert(grown, Tol::witness());
@@ -252,6 +264,7 @@ fn a_parameter_drives_an_offset_and_the_solved_pose_moves() {
             &unmated,
             &DocEdit::InsertNode {
                 node: Box::new(seat(head(p.top_cap(top)), head(p.base_cap(base)), offset)),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &reach,
@@ -309,7 +322,7 @@ fn an_authored_side_is_the_part_base_with_one_literal_step_bit_for_bit() {
     let p = parts(label);
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive(label), tol);
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, base) = instance(doc, p.base);
     // No offset of its own, so the base stays the group's root.
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     let (doc, _) = step(
@@ -327,6 +340,7 @@ fn an_authored_side_is_the_part_base_with_one_literal_step_bit_for_bit() {
                     clocking: None,
                 },
             }),
+            fresh: Vec::new(),
         },
     );
     let placed = solve(&doc, &o, tol).placement(&doc, top).expect("placed");
@@ -364,6 +378,7 @@ fn an_improper_literal_step_refuses_at_the_door_and_at_load() {
                         translation: [0.0; 3],
                     }),
                 )),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &reach,
@@ -454,7 +469,7 @@ fn the_offset_and_its_parameter_cross_split_and_inline() {
     let before = top_corner(&doc, &o, top);
     let out = editor_core::split(
         &doc,
-        &cut(&[base, top, m]),
+        &cut(&doc, &[base, top, m]),
         DocumentId::derive(&format!("{label}-part")),
         Tol::witness(),
         o.resolver.as_ref(),
@@ -485,7 +500,7 @@ fn the_offset_and_its_parameter_cross_split_and_inline() {
     // A kept declaring mate reading `slide`: a third block on its own
     // gauge, its lower cap on the top's upper cap slid by `slide`.
     let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 0.0, 8.0])));
-    let (doc, k) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, k) = instance(doc, p.top);
     let doc = set_gauge(doc, k, Some(g));
     let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
     let (doc, _) = step_with(
@@ -496,12 +511,13 @@ fn the_offset_and_its_parameter_cross_split_and_inline() {
                 head(p.top_upper_cap(top)),
                 slid_by_the_parameter(),
             )),
+            fresh: Vec::new(),
         },
         &reach,
     );
     let err = editor_core::split(
         &doc,
-        &cut(&[base, top, m]),
+        &cut(&doc, &[base, top, m]),
         DocumentId::derive(&format!("{label}-part2")),
         Tol::witness(),
         o.resolver.as_ref(),
@@ -521,12 +537,13 @@ fn the_offset_and_its_parameter_cross_split_and_inline() {
                 head(p.base_cap(base)),
                 literal([0.0, 0.5, 0.0]),
             )),
+            fresh: Vec::new(),
         },
         &reach,
     );
     let out = editor_core::split(
         &doc,
-        &cut(&[base, top, plain.expect("minted")]),
+        &cut(&doc, &[base, top, plain.expect("minted")]),
         DocumentId::derive(&format!("{label}-part3")),
         Tol::witness(),
         o.resolver.as_ref(),
@@ -575,7 +592,8 @@ fn a_slot_edit_at_a_frame_step_is_admitted_as_the_insert_is() {
         &DocEdit::SetParam {
             node: m,
             slot: axis(editor_core::Axis3::X),
-            expr: scl(0.0),
+            value: scl(0.0).into(),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &reach,
@@ -597,7 +615,8 @@ fn a_slot_edit_at_a_frame_step_is_admitted_as_the_insert_is() {
         DocEdit::SetParam {
             node: m,
             slot: axis(editor_core::Axis3::Z),
-            expr: scl(0.0),
+            value: scl(0.0).into(),
+            fresh: Vec::new(),
         },
     );
     assert!(refused(&err), "{err:?}");
@@ -626,7 +645,7 @@ fn a_mates_alignment_compares_by_bits() {
     let cap = |node, end| {
         head(editor_core::StableName {
             kind: editor_core::EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![editor_core::RoleSeg::Cap(end)],
         })
     };

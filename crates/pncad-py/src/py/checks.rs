@@ -74,6 +74,7 @@ pub(crate) enum CheckId {
     Connectedness,
     Separation,
     ChartCoherence,
+    UnprovenCoincidence,
 }
 
 /// The certified/heuristic label (DS6): honesty of language and a
@@ -123,6 +124,7 @@ fn check_id(check: d::CheckId) -> CheckId {
         d::CheckId::Connectedness => CheckId::Connectedness,
         d::CheckId::Separation => CheckId::Separation,
         d::CheckId::ChartCoherence => CheckId::ChartCoherence,
+        d::CheckId::UnprovenCoincidence => CheckId::UnprovenCoincidence,
     }
 }
 
@@ -161,6 +163,7 @@ impl CheckId {
             Self::Connectedness => d::CheckId::Connectedness,
             Self::Separation => d::CheckId::Separation,
             Self::ChartCoherence => d::CheckId::ChartCoherence,
+            Self::UnprovenCoincidence => d::CheckId::UnprovenCoincidence,
         }
     }
 }
@@ -211,7 +214,7 @@ pub(crate) struct ChecksConfig(pub(crate) d::ChecksConfig);
 
 #[pymethods]
 impl ChecksConfig {
-    /// The DS6 defaults are the no-argument form: the two residents
+    /// The DS6 defaults are the no-argument form: the three residents
     /// of the default pass at `Warn`, the chart-coherence examination
     /// `Off`, nothing expected, nothing refused.
     ///
@@ -227,12 +230,13 @@ impl ChecksConfig {
     /// would report "checked and fine" about a number the caller did
     /// not state.
     #[new]
-    #[pyo3(signature = (connectedness = Severity::Warn, expected_components = None, separation = Advisory::Warn, chart_coherence = Advisory::Off))]
+    #[pyo3(signature = (connectedness = Severity::Warn, expected_components = None, separation = Advisory::Warn, chart_coherence = Advisory::Off, unproven_coincidence = Advisory::Warn))]
     fn new(
         connectedness: Severity,
         expected_components: Option<Vec<(NodeId, u32, u32)>>,
         separation: Advisory,
         chart_coherence: Advisory,
+        unproven_coincidence: Advisory,
     ) -> PyResult<Self> {
         let mut expected: BTreeMap<(d::RecipeNodeId, u32), u32> = BTreeMap::new();
         for (NodeId(root), output_ix, count) in expected_components.unwrap_or_default() {
@@ -247,6 +251,7 @@ impl ChecksConfig {
             expected_components: expected,
             separation: separation.to_kernel(),
             chart_coherence: chart_coherence.to_kernel(),
+            unproven_coincidence: unproven_coincidence.to_kernel(),
         }))
     }
 
@@ -273,6 +278,14 @@ impl ChecksConfig {
         Advisory::from_kernel(self.0.chart_coherence)
     }
 
+    /// The `unproven-coincidence` lint's knob — an `Advisory`: an
+    /// unproven coincidence is quieted by an assertion at its site,
+    /// not by this report, so `Error` is not spellable here.
+    #[getter]
+    fn unproven_coincidence(&self) -> Advisory {
+        Advisory::from_kernel(self.0.unproven_coincidence)
+    }
+
     /// The stated expectations, ascending by subject.
     #[getter]
     fn expected_components(&self) -> Vec<(NodeId, u32, u32)> {
@@ -296,11 +309,12 @@ impl ChecksConfig {
     fn __repr__(&self) -> String {
         format!(
             "ChecksConfig(connectedness={:?}, expected_components={}, separation={:?}, \
-             chart_coherence={:?})",
+             chart_coherence={:?}, unproven_coincidence={:?})",
             self.0.connectedness,
             self.0.expected_components.len(),
             self.0.separation,
-            self.0.chart_coherence
+            self.0.chart_coherence,
+            self.0.unproven_coincidence
         )
     }
 }
@@ -444,6 +458,51 @@ impl CheckEvidence {
         self.payload().eps
     }
 
+    /// What an unproven coincidence decided between its two cells, on
+    /// `unproven_coincidence` alone: `same_oriented`, `same_opposite`,
+    /// `on_carrier`, `equal_angles`, `tangent`, `cusp`,
+    /// `tangent_contact`, `seam`, `coaxial` or `co_ruled`. A
+    /// `profile_junction` row is `tangent` or `cusp` between two carriers
+    /// and `same_oriented` where its pieces continue one; a
+    /// `tangent_witness` row is `tangent_contact` (outward sides opposed)
+    /// or `seam` (one face carried on into the other).
+    #[getter]
+    fn relation(&self) -> Option<&'static str> {
+        self.payload().relation
+    }
+
+    /// Where that coincidence was decided, on `unproven_coincidence`
+    /// alone: `plane_ladder`, `carrier_ladder`, `tangent_witness`,
+    /// `coaxial_sphere`, `split_on`, `battery_turn`, `battery_joint`,
+    /// `battery_support_axis`, `profile_junction`, `vertex_fusion`,
+    /// `census_at_rest` or `import_anchor`.
+    #[getter]
+    fn site(&self) -> Option<&'static str> {
+        self.payload().site
+    }
+
+    /// The row itself, its two cells named, on `unproven_coincidence`
+    /// alone.
+    #[getter]
+    fn coincidence(&self, py: Python<'_>) -> PyResult<Option<super::value::Coincidence>> {
+        match &self.0 {
+            d::CheckEvidence::UnprovenCoincidence {
+                row,
+                residual,
+                recourse,
+            } => super::value::Coincidence::new(
+                py,
+                row,
+                &d::Proof::Unproven {
+                    residual: (**residual).clone(),
+                    recourse: *recourse,
+                },
+            )
+            .map(Some),
+            _ => Ok(None),
+        }
+    }
+
     fn __eq__(&self, other: &Self) -> bool {
         self.0 == other.0
     }
@@ -466,8 +525,10 @@ impl CheckEvidence {
     }
 }
 
-/// One finding of one check on one subject — a body-denoting root
-/// output, attributed as `(root, output_ix)`.
+/// One finding of one check on one subject: a copy a placement defines,
+/// attributed as `(root, output_ix)` with `root` the placement, or a
+/// node of the document (`node`) — the node that decided an unproven
+/// coincidence. Whichever it is not answers `None`.
 ///
 /// A finding is a REPORT about geometry, not a verdict on the program:
 /// reaching one changes nothing, and whether it stops anything is the
@@ -482,8 +543,8 @@ impl CheckEvidence {
 #[derive(Clone)]
 pub(crate) struct CheckFinding {
     finding: d::CheckFinding,
-    /// The document the checks ran over, the one its roots are spoken
-    /// from.
+    /// The document the checks ran over, the one its placements are
+    /// spoken from.
     doc: Arc<d::ProfileDoc>,
 }
 
@@ -495,16 +556,34 @@ impl CheckFinding {
         check_id(self.finding.check)
     }
 
-    /// The root whose value carries the subject body.
+    /// The root whose value carries the subject body; `None` for a
+    /// finding about a node.
     #[getter]
-    fn root(&self) -> NodeId {
-        NodeId(self.finding.root)
+    fn root(&self) -> Option<NodeId> {
+        match self.finding.subject {
+            d::FindingSubject::Output { root, .. } => Some(NodeId(root)),
+            d::FindingSubject::Node(_) => None,
+        }
     }
 
-    /// Which output body of that root — 0 for a single-body root.
+    /// Which output body of that root — 0 for a single-body root;
+    /// `None` for a finding about a node.
     #[getter]
-    fn output_ix(&self) -> u32 {
-        self.finding.output_ix
+    fn output_ix(&self) -> Option<u32> {
+        match self.finding.subject {
+            d::FindingSubject::Output { output_ix, .. } => Some(output_ix),
+            d::FindingSubject::Node(_) => None,
+        }
+    }
+
+    /// The node the finding is about, root or not; `None` for a finding
+    /// about a root output.
+    #[getter]
+    fn node(&self) -> Option<NodeId> {
+        match self.finding.subject {
+            d::FindingSubject::Node(node) => Some(NodeId(node)),
+            d::FindingSubject::Output { .. } => None,
+        }
     }
 
     /// What was found.
@@ -528,11 +607,15 @@ impl CheckFinding {
     }
 
     fn __repr__(&self) -> String {
+        let subject = match self.finding.subject {
+            d::FindingSubject::Output { root, output_ix } => {
+                format!("root {}, output {output_ix}", root.full())
+            }
+            d::FindingSubject::Node(node) => format!("node {}", node.full()),
+        };
         format!(
-            "CheckFinding({}, node {}, output {}, {:?})",
+            "CheckFinding({}, {subject}, {:?})",
             self.finding.check,
-            self.finding.root.full(),
-            self.finding.output_ix,
             check_evidence_tag(&self.finding.evidence)
         )
     }
@@ -575,7 +658,7 @@ impl ChecksReport {
 #[pymethods]
 impl ChecksReport {
     /// The findings, in the registry's deterministic order: each
-    /// resident's own pass by root-list position then output index,
+    /// resident's own pass by placement order then output index,
     /// residents in registry order. NOT one global sort.
     #[getter]
     fn findings(&self) -> Vec<CheckFinding> {
@@ -666,10 +749,10 @@ fn checks_err_saying(py: Python<'_>, err: &d::ChecksError, message: String) -> P
 /// action on it is the caller's move (`enforce_checks`).
 ///
 /// `evaluation` must be an evaluation OF `doc`, and one that ran to
-/// completion: subjects are the body-denoting outputs of the
-/// document's roots, so a root that failed, was poisoned, or was cut
-/// short refuses `root_without_value` rather than reporting over a
-/// partial evaluation.
+/// completion: subjects are the copies the document's placements
+/// define, so a placement that failed, was poisoned, or was cut short
+/// refuses `root_without_value` rather than reporting over a partial
+/// evaluation.
 ///
 /// The residents:
 ///
@@ -680,12 +763,12 @@ fn checks_err_saying(py: Python<'_>, err: &d::ChecksError, message: String) -> P
 ///   orientation read cannot decide surfaces as its own `escalated` /
 ///   `unsupported` finding, never as a silent skip.
 /// * `Separation` — every pair of gathered solids the product took
-///   from DIFFERENT roots, held to the kernel's box-level disjointness
+///   from DIFFERENT placements, held to the kernel's box-level disjointness
 ///   certificate. What a finding denies is the CERTIFICATE, never
 ///   "these two overlap": a pair that merely touches lands here too.
 ///
 /// Expectations are TWO-DIRECTIONAL: an `expected_components` entry no
-/// subject consumed — a vanished body, a dead root, a mistyped key —
+/// subject consumed — a vanished body, a dead placement, a mistyped key —
 /// comes back as its own `stale_expectation` finding. A stale
 /// acknowledgment must not read as "checked and fine".
 ///

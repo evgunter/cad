@@ -31,7 +31,7 @@ fn small() -> (ProfileDoc, String) {
     let (doc, _) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -103,7 +103,7 @@ fn attack_all_ones_nan_slips_save_door() {
 fn tokens_separate_structure_from_data() {
     // These two programs never enter a document — the comparison is
     // about loop STRUCTURE — so the frame they name is scaffolding.
-    let quad = |loops: Vec<Vec<(f64, f64)>>| desc(RecipeNodeId(0), loops);
+    let quad = |loops: Vec<Vec<(f64, f64)>>| desc(RecipeNodeId::new(0, 0), loops);
     // Loop shape stays structure-distinct: (2 loops of 1 point) vs
     // (1 loop of 2 points) — different programs, never a value alias.
     let two_loops = quad(vec![vec![(0.0, 0.0)], vec![(1.0, 1.0)]]);
@@ -148,7 +148,7 @@ fn attack_duplicate_json_keys() {
 /// The node map's first two keys as the save spells them, `"<id>":`:
 /// the map is keyed by id, so they are the two smallest ids.
 fn first_two_node_keys(doc: &ProfileDoc) -> (String, String) {
-    let mut ids = doc.order().to_vec();
+    let mut ids = doc.ids().to_vec();
     ids.sort();
     let key = |i: usize| format!("\"{}\":", ids[i].0);
     (key(0), key(1))
@@ -284,6 +284,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(frame_at(0.0)),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -291,6 +292,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Profile(quad(f0))),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -298,10 +300,11 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: p0,
+                profile: p0.into(),
                 distance: Formula::named(VarName::from_static("d"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -309,6 +312,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(frame_at(1.0)),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -316,6 +320,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Profile(quad(f1))),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -323,10 +328,11 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: p1,
+                profile: p1.into(),
                 distance: len(1.5),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -335,10 +341,11 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         DocEdit::InsertNode {
             node: Box::new(Node::Boolean {
                 op: BooleanOp::Union,
-                a: e0,
-                b: e1,
+                a: e0.into(),
+                b: e1.into(),
                 declare: Vec::new(),
             }),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -347,6 +354,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(frame_at(5.0)),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -354,6 +362,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Profile(quad(f_doomed))),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -365,7 +374,8 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         DocEdit::SetParam {
             node: e1,
             slot: SlotId::Distance,
-            expr: len(2.0),
+            value: len(2.0).into(),
+            fresh: Vec::new(),
         },
     );
     // 5 SetExpression (whole-slot path)
@@ -385,13 +395,14 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Pattern {
-                input: boole,
+                input: boole.into(),
                 count: Formula::count(2),
                 kind: editor_core::PatternKind::Linear {
                     direction: [scl(1.0), scl(0.0), scl(0.0)],
                     spacing: len(4.0),
                 },
             }),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -401,6 +412,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
             node: pat,
             slot: SlotId::Count,
             expr: Formula::count(3),
+            fresh: Vec::new(),
         },
     );
     // 7 ReWitness
@@ -489,6 +501,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     push(
         &mut doc,
         DocEdit::Rebind {
+            body: None,
             from: body,
             to: to.clone(),
         },
@@ -622,7 +635,7 @@ fn attack_meta_order_canonical() {
     let (doc, _) = small();
     let name = StableName {
         kind: EntityKind::Body,
-        node: doc.order()[2],
+        node: doc.ids()[2],
         path: vec![RoleSeg::OutputBody],
     };
     let tree = |order: bool| {
@@ -668,7 +681,7 @@ fn duplicate_keys_refuse_in_every_map() {
     let doc = apply(
         &doc,
         &DocEdit::ReWitness {
-            node: doc.order()[1],
+            node: doc.ids()[1],
             witness: WitnessDatum {
                 schema: 1,
                 bytes: vec![0x11],
@@ -681,7 +694,7 @@ fn duplicate_keys_refuse_in_every_map() {
     .doc;
     let body = StableName {
         kind: EntityKind::Body,
-        node: doc.order()[2],
+        node: doc.ids()[2],
         path: vec![RoleSeg::OutputBody],
     };
     let doc = apply(
@@ -716,7 +729,7 @@ fn duplicate_keys_refuse_in_every_map() {
     // different door (`WitnessSite`).
     let witness_again = format!(
         "\"witnesses\": {{\"{}\": {{\"schema\": 9, \"bytes\": \"22\"}}, ",
-        doc.order()[1].0
+        doc.ids()[1].0
     );
 
     // (surgery pattern, expected section words)
@@ -764,13 +777,13 @@ fn duplicate_keys_refuse_in_every_map() {
 /// duplicate keys too (same strict-map door).
 #[test]
 fn duplicate_keys_refuse_in_verdict_summaries() {
-    let json = r#"{"nodes":{"0":{"status":"Ok","populations":{"p":[1,0,0],"p":[0,1,0]}}}}"#;
+    let json = r#"{"nodes":{"0:0000000000000000":{"status":"Ok","populations":{"p":[1,0,0],"p":[0,1,0]}}}}"#;
     let r: Result<editor_core::VerdictSummary, _> = serde_json::from_str(json);
     let e = r
         .expect_err("duplicate population key must refuse")
         .to_string();
     assert!(e.contains("duplicate verdict population key"), "{e}");
-    let json = r#"{"nodes":{"0":{"status":"Ok","populations":{}},"0":{"status":"Failed","populations":{}}}}"#;
+    let json = r#"{"nodes":{"0:0000000000000000":{"status":"Ok","populations":{}},"0:0000000000000000":{"status":"Failed","populations":{}}}}"#;
     let r: Result<editor_core::VerdictSummary, _> = serde_json::from_str(json);
     let e = r
         .expect_err("duplicate summary node key must refuse")

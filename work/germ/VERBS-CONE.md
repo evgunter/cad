@@ -2,8 +2,11 @@
 id: VERBS-CONE
 kind: issue
 title: cone and torus operand lanes
-status: dispatched
+status: closed
+branch: germ/cone-roster-flip
+pr: 4418
 opened: 2026-08-21
+closed: 2026-10-10
 refs: [1604, VERBS-C5ARMS]
 priority: P0
 cost: H
@@ -43,7 +46,9 @@ measured consequences bank here rather than in that PR's body:
   simultaneous axial door, not about a section arm.
 - What the flag actually buys today is one door of honesty at the
   PER-CHART door: `replace_face_offset` on a coned tube's cone stops at
-  `ReanchorOffCarrier` (`d·cos α`) instead of `NeighborPairUnroutable`.
+  a corner gap (`d·cos α`, the since-retired `ReanchorOffCarrier`)
+  instead of `NeighborPairUnroutable`; the door now derives that rim
+  as the cone × coaxial cylinder section, and the offset builds.
 
 **The consumer that would make the arm load-bearing** is a caller that
 asks for the cone×cylinder RIM CURVE rather than for the pair's
@@ -94,3 +99,34 @@ and sphere pairs certified on the no-crossings path".
 
 - **`reduce.rs` `curved_face_arm`, the "both endpoints inside" arm (about `:1519` on `2ba90bced`).** It rests on the carrier's convexity, which holds for a cylinder or a sphere. A cone's is not the same: a nappe pair is not convex, and the apex breaks it. Unreachable today only through the roster.
 - **The section certificate's cone arms (its spec's Q3):** the crossings-path half, AND the no-crossings arm that replaces the extent gates. These land with this item.
+
+**2026-09-29, U4 (the certificate's cone rows).** `section_cert::classify`
+answers cone × {plane, sphere, coaxial cylinder, coaxial cone, coaxial
+torus, parallel-axis cylinder}; oblique cylinders, tilted and
+parallel-axis cones, non-coaxial tori and splines stay R-reach. Cone ×
+plane is decided on the aperture margin alone, never on the apex's
+offset (a Zero offset does not bound the ellipse). The roster stays
+closed until U7.
+
+**2026-10-09, U4 lands (PR 4352).** The cone rows ship with the near-axis
+offset taken through `square_to` at every arm (the dual pair's bilateral
+MAJOR, DR-117). The witness is checked against the plane's carrier, and
+the search samples down into the band. Still owed before U7: the cone
+sector units U-S1..U-S4 (`docs/GERM-CONE-SECTOR-SPEC.md`).
+
+**2026-10-09, U7 (the roster flip).** `Cone` is on `boolean_arm_exists`
+and `revert_arm_exists`. Measured on the flip, every op of the spec's
+fixtures builds its closed form (P9, P6, P4, P2a, P10, P5, P7, the
+3π/2 cone's gap brick, P8, and the cone sector spec's C1) or refuses
+typed: P3 naming the hyperbola, P1 and P2 at the cone × cylinder frame,
+and the held configurations (a tangent plane, a cone sector on the cone
+face) at the crossing layer. No body is wrong. P3 against the mutant
+"U1's guard reverted" returns valid wrong bodies, and its row is red
+there.
+
+**2026-10-10, closed: U7 lands (PR 4418, DR-128, sequential arm).** `Cone` is on `boolean_arm_exists` and `revert_arm_exists`, so a cone operand reaches every op in production. The single review fuzzed 26,376 bodies against an independent analytic oracle and found none wrong. Still open, as their own items:
+- cone × cylinder and cone × cone in general pose (the spec's optional U5): `cone-pairs-in-general-pose-have-no-section-arm`;
+- rings on a cone face in `face_flux`: `docs/GERM-CONE-SECTOR-SPEC.md` U-S5, closed since by PR 4484 (`an-ellipse-trimmed-ring-on-a-cone-wall-has-no-volume-lane`);
+- the held configurations under D10 (U-H1, U-H2).
+
+`docs/GERM-VERBS-CONE-SPEC.md` is kept rather than deleted at this merge: its U5 is still unbuilt and is cited by the open item above. It goes when U5 lands or at GERM's close.

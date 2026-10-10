@@ -136,12 +136,12 @@ fn c3a_rotated_circle_axis_refuses_adoption() {
         );
     let err = import_text(&text).expect_err("a tilted rim circle must not adopt");
     match err {
-        StepImportError::Adoption { id, attempts } => {
+        StepImportError::Adoption { id, attempts, file } => {
             assert_eq!(id, 15, "the refusal names the EDGE_CURVE");
             assert!(!attempts.is_empty(), "attempts carried as data");
             println!(
                 "c3a refusals: {}",
-                StepImportError::Adoption { id, attempts }
+                StepImportError::Adoption { id, attempts, file }
             );
         }
         other => panic!("expected Adoption, got: {other}"),
@@ -158,10 +158,10 @@ fn c3b_cylinder_radius_mismatch_refuses_adoption() {
     );
     let err = import_text(&text).expect_err("radius mismatch must not adopt");
     match err {
-        StepImportError::Adoption { id, attempts } => {
+        StepImportError::Adoption { id, attempts, file } => {
             println!(
                 "c3b refusals: {}",
-                StepImportError::Adoption { id, attempts }
+                StepImportError::Adoption { id, attempts, file }
             );
         }
         other => panic!("expected Adoption, got: {other}"),
@@ -178,10 +178,10 @@ fn c3c_wrong_surface_pair_refuses_adoption() {
     );
     let err = import_text(&text).expect_err("wrong surface pair must not adopt");
     match err {
-        StepImportError::Adoption { id, attempts } => {
+        StepImportError::Adoption { id, attempts, file } => {
             println!(
                 "c3c refusals: {}",
-                StepImportError::Adoption { id, attempts }
+                StepImportError::Adoption { id, attempts, file }
             );
         }
         other => panic!("expected Adoption, got: {other}"),
@@ -198,10 +198,10 @@ fn c3d_curve_off_intersection_refuses_adoption() {
     );
     let err = import_text(&text).expect_err("off-locus carrier must not adopt");
     match err {
-        StepImportError::Adoption { id, attempts } => {
+        StepImportError::Adoption { id, attempts, file } => {
             println!(
                 "c3d refusals: {}",
-                StepImportError::Adoption { id, attempts }
+                StepImportError::Adoption { id, attempts, file }
             );
         }
         other => panic!("expected Adoption, got: {other}"),

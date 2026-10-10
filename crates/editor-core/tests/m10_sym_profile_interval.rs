@@ -287,19 +287,23 @@ fn eps_row(eps: f64) -> usize {
 /// middle station are one [`geom::mid_param`] evaluation, and a second
 /// spelling of that point builds a second chain of forms, which reads
 /// here as `Plain/Decision` forms alone.
+///
+/// INTENT-LITERALS PR C moves the `Plain/Decision` line as it moves
+/// [`PLATE_LEDGER`]'s: one more call, the non-finite door's theorem on
+/// the anonymous definition a slot's formula lowers to.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest f453938c3049c0c4f2216c8726d2d139\n\
+     Plain/Decision calls 981 forms 9426 frozen 0 digest 509f76009e2fdeda65fed3469e5b4c9a\n\
      Plain/Assertion calls 514 forms 1186 frozen 0 digest 6cc3925553d39ab11afdd6f49e2e95fc\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 514 forms 2229 frozen 0 digest c1a337dfb3fddea52f0b602dee5ce284",
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest 2019bf563b9e25ce5e73c2683c3d06cb\n\
+     Plain/Decision calls 981 forms 9426 frozen 0 digest d5fda03dcfd46c23e618d14b01521812\n\
      Plain/Assertion calls 514 forms 1186 frozen 0 digest e01dd6ba526d880e783c1591e8ec918d\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 514 forms 2229 frozen 0 digest 07d7408b59196363c53b96cbc8093e55",
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest e14807ef580704d932f297bb166d80ae\n\
+     Plain/Decision calls 981 forms 9426 frozen 0 digest 12eb2d77e98670e393dd86ec271d5c3b\n\
      Plain/Assertion calls 514 forms 1186 frozen 0 digest ed52a22cbba70cd084174fda0dd6d15c\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 514 forms 2229 frozen 0 digest 567124dbedb7c16baa8e3ed1ec024203",
@@ -517,20 +521,38 @@ const PLATE_MAX_TERMS: usize = 28;
 ///   15720 → 15710 and `Early/Decision`'s 8689 → 8633 with the cap's own
 ///   10 and 56, the `Assertion` forms are the cap's, and
 ///   `Door/Decision` builds 7099 forms. No `Report` line.
+/// - **A slot holds a variable (INTENT-LITERALS PR C).** A formula
+///   written at a slot lowers to an anonymous defined variable, which
+///   the environment binds through the non-finite door: one more
+///   `Plain/Decision` call, a theorem, and that line's digest. Every
+///   other line holds; the untoleranced variables bind as constants
+///   (VR8), as the literals did.
+/// - **The pcurve envelope sums two more terms (`pcert/projected-image`).**
+///   `EnvelopeTerm` gained `Incidence` and `Fidelity`, the projected
+///   image's, and the closed-form lanes' envelope still folds every slot,
+///   so each `pcurve_envelope` decision adds two zero-valued summands:
+///   `Plain/Decision`'s and `Early/Decision`'s forms rise 24 each
+///   (15710 → 15734, 8633 → 8657, every one an `Add`), their digests
+///   move, and the calls, the freezes and every other line hold.
+/// - **A measure is an operation (INTENT stage 2 unit D).** The web is
+///   the assertion's definition over the distance measure's output, so
+///   the measured value enters the arithmetic as a variable the
+///   definition reads: one more `Plain/Decision` form (15734 → 15735),
+///   and that line's digest. Calls, freezes and every other line hold.
 ///
-/// Re-captured when an intrinsic edge description's surfaces became a
-/// set (`geom_brep::SurfacePair`) and the certificate began reading the
-/// transversality wedge's `n1.cross(n2)` in key order, a form distinct
-/// from the extrude's builder-order one. Measured composed with the
-/// chart-angle unit and the cap orientation above: `Plain/Assertion`
-/// 4173/360 → 4349/389 (+176 forms, +29 frozen), `Early/Assertion`
-/// 5136 → 5312 (+176), `Door/Decision` 7099 → 7181 (+82); calls,
-/// `*/Decision` forms and every decision tally hold
-/// (`m10_10_pins_interval` reads the pair's sum unchanged).
+/// An intrinsic edge description's surfaces becoming a set
+/// (`geom_brep::SurfacePair`), measured on the tree holding every change
+/// above: the certificate reads the transversality wedge's
+/// `n1.cross(n2)` in key order, a form distinct from the extrude's
+/// builder-order one, so `Plain/Assertion` 4173/360 → 4349/389 (+176
+/// forms, +29 frozen), `Early/Assertion` 5136 → 5312 (+176) and
+/// `Door/Decision` 7099 → 7181 (+82); calls, `*/Decision` forms and
+/// every decision tally hold (`m10_10_pins_interval` reads the pair's
+/// sum unchanged).
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1047 forms 15710 frozen 252 digest 2932c8769b031e875492a3b0ba38ba53\n\
+     Plain/Decision calls 1048 forms 15735 frozen 252 digest bb9b65c26e1986776057380748e8f28c\n\
      Plain/Assertion calls 654 forms 4349 frozen 389 digest b82ea8fd0878e9410927c81ec1a03b95\n\
-     Early/Decision calls 352 forms 8633 frozen 0 digest c363617edb77ee7438e1f300e4598323\n\
+     Early/Decision calls 352 forms 8657 frozen 0 digest 11d22e34e12b763fd880057381499ac5\n\
      Early/Assertion calls 654 forms 5312 frozen 0 digest ba87a0aca9ba1283a9177f2602626bdd\n\
      Door/Decision calls 396 forms 7181 frozen 0 digest 188fd982307faf268e6444b8ea1c82bb\n\
      Door/Assertion calls 396 forms 0 frozen 0 digest 00000000000000000000000000000000";

@@ -49,7 +49,7 @@ use super::{CorpusDoc, Recorder};
 fn section(r: &mut Recorder, z: f64, pts: [(f64, f64); 4]) -> RecipeNodeId {
     let plane = r.insert(frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::polygon(pts).unwrap()],
         ids: Vec::new(),
     }))
@@ -62,9 +62,11 @@ pub fn document() -> CorpusDoc {
     let middle = section(&mut r, 1.0, PRISM_TRAPEZOID);
     let top = section(&mut r, 2.0, PRISM_SQUARE);
     let loft = r.insert(Node::Loft {
-        profiles: vec![bottom, middle, top],
+        profiles: vec![bottom.into(), middle.into(), top.into()],
         v_degree: Formula::count(2),
     });
+
+    r.place(loft);
 
     CorpusDoc {
         name: "loft_prism",
@@ -82,6 +84,7 @@ pub fn document() -> CorpusDoc {
             node: loft,
             slot: SlotId::VDegree,
             expr: Formula::count(1),
+            fresh: Vec::new(),
         },
         bump_root: loft,
     }

@@ -12,31 +12,40 @@ symbol beside them; the symbol is the stable half.
 
 The recipe admits three reference shapes, and every node is built from them:
 
-- **A DAG edge**: a `RecipeNodeId` in a node's inputs, structural, liveness-
-  and cycle-checked at the edit door (`edit.rs`, `InsertNode`:
-  `UnresolvedInput`, `WouldCycle`), enumerated by `Node::inputs`. Ids are
+- **A DAG edge**: an operand's read of an output variable (D10), typed
+  by the kind its slot admits, liveness- and cycle-checked at the edit
+  door (`edit.rs`, `lower_operand`: `OperandUnresolved`,
+  `SlotVarKind`, `WouldCycle`), enumerated by `Doc::upstream`. Ids are
   minted from the document's mint chain and never reused (D3, N1; `mint.rs`).
 - **A frozen `StableName`**: `{ kind, node, path }` (N1, `names/role.rs`),
   stored at authoring and resolved at evaluation through a name table under
   the N5 ladder — `NodeGone`, then `Ambiguous`, then `Vanished` — never
-  silently shrunk (`eval/wire.rs`, `ladder` and `resolve_selection`).
-  Carriers: `Fillet`/`Chamfer` selections, `Shell` open lists, a
-  `Datum::FaceFrame`'s face, a `Boolean`'s or `Union`'s declared pairs,
-  `Mate` heads, `Measure` refs, an `InstantiatePart`'s interface crossings'
-  `outer`s (a crossing's `inner` is not a name of this document; the list's
-  arm says why). The list has two homes, this clause and
+  silently shrunk (`eval/wire.rs`, `ladder` and `select`). Two kinds of
+  carrier hold them. A **selection** is a definition, `Select { body,
+  names }` (`var.rs`, `Select`): its body read is a DAG edge, its names
+  are frozen, and it defines a set (`Faces`, `Edges`) or a singleton
+  (`Face`, `Edge`, `Vertex`) that a node reads like any variable — a
+  `Fillet`'s or `Chamfer`'s edges, a `Shell`'s open faces, a
+  `Datum::FaceFrame`'s face, a `Measure`'s refs. The N5 ladder runs in the
+  selection's evaluation and nowhere else for these. A **payload** is a
+  name a node holds itself: a `Union`'s, `Intersect`'s or `Subtract`'s
+  declared pairs, `Mate` heads, an `InstantiatePart`'s interface crossings'
+  `outer`s (a crossing's `inner` is not a name of this document; the
+  list's arm says why). The payload list has two homes, this clause and
   `Node::payload_names`' own doc; every other site points at the latter
   rather than restating it. A name is not a DAG edge, and two doors refuse
-  on one: `InsertNode`'s liveness check, and `split`'s
+  on one: `InsertNode`'s liveness check (the selection's door,
+  `mint_selection`, runs the same check on its names), and `split`'s
   `PartNameReachesRemainder` precondition, which refuses a cut whose taken
-  node carries a name reaching the kept remainder (a declared pair's, a
-  `Mate` head's, an instance's crossing `outer`). A later delete strands a
-  name (N5) and says so (DM7).
+  node carries a name reaching the kept remainder (a selection's, a
+  declared pair's, a `Mate` head's, an instance's crossing `outer`). A
+  later delete strands a name (N5) and says so (DM7).
 - **An `Expr` literal** in a slot, bit-pinned (D7).
 
 Two precedents these clauses extend. `SitedRef { at, name }` (`node.rs`)
 pairs a DAG edge with a frozen name: `at` says which evaluated value to read,
-`name` says which entity. `Datum::AxisInPlane { plane, .. }` (`node.rs`) is
+`name` says which entity. A selection is the same pairing as a definition,
+its `body` the `at`. `Datum::AxisInPlane { frame, .. }` (`node.rs`) is
 the one datum with a DAG input: its meaning comes from another node, which
 does not make the check cheaper but makes the error unrepresentable.
 
@@ -48,12 +57,13 @@ nine `Expr`s and no reference, orthonormalized at evaluation (`node.rs`).
 
 ## DM1 — A derived frame is a datum carrying a face name
 
-`Datum::FaceFrame { at: RecipeNodeId, face: StableName, spin: Expr }` is a
-`Datum::Frame` whose pose is computed at evaluation from a named face. `at`
-is a DAG edge to the body node whose value the face is read out of; `face` is
-a frozen face name resolved through that value's name table under the N5
-ladder; `spin` is the authored rotation of sketch +x about the normal. It is
-the `SitedRef` shape applied to a datum. The frame it yields has its origin
+`Datum::FaceFrame { face: S::Read, spin: S }` is a `Datum::Frame` whose
+pose is computed at evaluation from a named face. `face` reads a `Face`
+selection: its body read is the DAG edge to the body whose value the face is
+read out of, and its one name is a frozen face name resolved through that
+value's name table under the N5 ladder; `spin` is the authored rotation of
+sketch +x about the normal. It is the `SitedRef` shape applied to a datum,
+held as a definition the frame reads. The frame it yields has its origin
 at the carrier's origin projected to the face's plane (the carrier's own
 distinguished point, `readback.rs` rule 2), its normal along the face's
 outward normal (DM1a), and sketch +x along the carrier's u-reference rotated
@@ -65,9 +75,11 @@ by `spin`.
   where it sits. A derived frame is a DAG input: the face's body is upstream,
   the frame moves when the face moves, and it participates in the memo and
   content key like every node.
-- **The failure mode is the fillet's.** A face name that stops resolving
-  fails the frame typed and poisons the sketch above it, exactly as a
-  fillet's selection does (`BlendSelectionResolve`); the repair is `Rebind`.
+- **The failure mode is the fillet's.** The frame reads its face through a
+  `Face` selection, as a fillet reads its edges through an `Edges` one, so a
+  face name that stops resolving fails the frame typed and poisons the
+  sketch above it with the same refusal (`SelectResolve`); the repair is
+  `Rebind` on the selection's body.
   It is the first datum with an N5 failure mode, and that is the honest
   behaviour.
 - **DM1a — the read-back grows a sense, it does not fold one in.**
@@ -117,41 +129,63 @@ is stored. `select_where` filters on `SurfaceKind` exactly
 
 *Built: DOCM-1 (PR 1829).*
 
-## DM3 — A part of a multi-body value is selected by a projection node
+## DM3 — One member of a family is read by index; a split's halves are ports
 
-`Node::Part { of: RecipeNodeId, select: PartSelect }`, with
-`PartSelect::{ SplitHalf(SplitHalf), Instance(Expr) }`, evaluates to one
-body: the named half of a `Split` value or the `i`-th body of an `Instances`
-value. `Instance`'s index is a structural slot (a count, like
-`Pattern::count`), and an index at or beyond the pattern's count refuses
-typed at evaluation. Names pass through unchanged, as `Transform`'s do
-(`role.rs`): the body keeps the split's `SplitBody(half)` name or the
-pattern's `Instance { i, of }` names, so every downstream selector spells
-what it already spells.
+A `Split` defines two `Body` outputs, `above` and `below` (the port index is
+`SplitHalf::output_body`'s), read like any other output; DM3's split-half
+projection retires. One member of a family (D10, Repetition) is read as
+`xs[i]`, or `xs[i, j]` for a family keyed by two indices: a read of the
+family at one `Count` expression per index (VR4); an index outside the
+range leaves the reader unresolved and typed at evaluation, never
+re-pointed. `xs[i]` is not a variable: it is the read a per-`k` reader
+makes implicitly, with the index written in the slot rather than supplied
+by the evaluation. Names pass through unchanged, as `Transform`'s do
+(`role.rs`): the member keeps its `Member { (i, …), of }` names, keyed by
+the index variables' ids and the integers, and an operation reading it
+keys them by `xs` (DM4), the index said once, in `Member`. So
+`Union(xs)` and `Union([xs[0], …, xs[N−1]])` name alike, because they read
+the same things, and inside a per-`k` reader `union(xs)` and
+`union(xs[k])` are one read with one name. A member is not a named alias:
+two readers wanting one member share the family and a named `Count`. A
+name is scoped by the variable that holds its body (N1), so a split half's names do not spell the half: its variable says it,
+and a selection of `split.above` states its body once. A body seat
+reading a whole family, a profile or a split as a whole refuses by kind at
+the door (`SlotVarKind`).
 
-- **Why a node and not an operand struct.** An operand struct would put a
-  projection inside every body-consuming payload (`Boolean`, `Split`,
-  `Transform`, `Fillet`, `Chamfer`, `Pattern`, …) and fork each consumer's
-  admission on it. The node is the `PlacedUnion` ruling's shape: one
-  meaning, one node. Every consumer stays as it is, `eval::wire::body_operand`
-  is unchanged, and the viewer's `denotes_body` (`combine.rs`) carries one
-  more `true` arm, which `the_body_seat_tracks_the_evaluators_operand_door`
-  pins. The selection is a visible, editable tree row.
-- The cost is that row. A bare split or pattern is still refused at a body
-  seat (`several_bodies_are_not_one_body_at_a_seat`); the `Part` node is how
-  a user says which body they meant.
+## DM4 — Flat operators before splice: union and intersect are lists, subtract a pair
 
-*Built: DOCM-2 (PR 1860).*
+`Node::Union { members, declare }` fuses its members into one body, and
+names each entity by the read it came through. `Node::Intersect { members,
+declare }` keeps the material in every member, the same shape over the
+kernel's intersection verb. `Node::Subtract { from, tool, declare }` cuts
+one body by another and is the one pair: difference neither commutes nor
+associates, and nothing is a unary "not", so its two seats are named, and
+several tools are `Subtract { from: a, tool: Union([tools…]) }`, the one
+way to say it. There is no `Boolean { op, a, b }` and no `BooleanOp`.
 
-## DM4 — Flat operators before splice: an n-ary union
+A union or an intersect takes one argument of kind `Bodies` (D10). A
+`Bodies` is defined by index or by enumeration. By index it is a family:
+one program per value of `k`, its length a `Count`, its members named by
+`Member { (k), of }`; `Union(xs)` joins them in index order. By
+enumeration it is a spelled list of independent reads, `Union([a, b, c])`
+for the three unrelated bodies just made, each member named by its own
+read and joined in the spelled order; D10's "an irregular family is its
+members written out" already says this. Every reader of a `Bodies` (union,
+intersect, a placement's shapes) takes either. Today an enumeration is
+spelled at the slot; naming one, a definition several readers share, is
+not built, for lack of immediate need, and nothing in the design forbids
+it. It is the argument a placement's
+shape list takes (S3M). A mix (`[xs, a]`) puts a `Bodies` where a `Body`
+goes and is ill-typed at the door (`SlotVarKind`), so a list beside an
+individual cannot be written. A union or intersect of one body builds that
+body (no boolean runs; names are `From { read, of }` as in any union), and
+of none builds the typed empty body, so a family whose `N` is 1 or 0
+builds instead of refusing.
 
-`Node::Union { members: Vec<RecipeNodeId>, declare }` fuses two or more
-members into one body, and names each entity by the member it came from.
-
-**Why.** A multi-shell tool assembled as a chain of pairwise
-`Boolean(Union)`s is an artifact of the vocabulary rather than of the model.
-Boolean naming wraps every operand's names in `FromA` / `FromB` (`role.rs`,
-the boolean group), so an entity's name records the depth at which it joined.
+**Why.** A multi-shell tool assembled as a chain of pairwise unions is an
+artifact of the vocabulary rather than of the model. A pair node wraps every
+operand's names once per link, so an entity's name records the depth at
+which it joined.
 In the die (`demos/tour/src/diefillet.rs`: 21 transforms of one ball fused
 into one cutting tool and subtracted, then the twelve box edges and the 21
 pip rims filleted), removing one link from such a chain would change the
@@ -161,44 +195,76 @@ twenty for the last), repairable only by a `Rebind` per name through N5's
 offers. A splice edit that assumed intent about which input survives would
 carry that cost on top of its own. So the chain goes, not the link:
 
-- **The node.** An n-ary union, two or more members, one body out. It
-  evaluates as a fold of the kernel's pair verb in member order (D9: the
-  order is the list's, and the list is data). The fold builds the body;
-  contact is judged pairwise before it (below), not by it. The fold's body is
-  the same in every member order: each step's output has maximal faces and
-  maximal edges (`docs/DESIGN.md`, the merge stage), a form unique to the
-  region and its face partition. It sits beside `Boolean(Union)`, which
-  stays for a pair, and beside `PlacedUnion`, which fuses instances of one
-  prototype and is a different sentence (`node.rs`).
-- **Naming keys by member, not by depth.** The emitter wraps a member's names
-  in `FromMember { member: RecipeNodeId, of: Box<StableName> }`: `member` is
-  the member's own node id (the edge in the list), `of` the entity's name in
-  that member's table. The key is the edge, never the inner name's minting
-  node: a pass-through op contributes no segment (N1; `Transform` keeps the
-  input's rows verbatim), so two members that are transforms of one body
-  carry identical tables — the die's 21 pips are exactly that — and the inner
-  name alone cannot tell them apart. The member id can; it is data the node
-  already carries, and DM5 makes it unique within one union. No position is
-  recorded, so removing a member leaves every other member's names as they
-  were. The `Instance { i, of }` segment is the precedent shape, with an
-  identity where it has an index.
-- **`DocEdit::SetMembers { node, members: Vec<RecipeNodeId> }`** is the one
+- **The node.** A union or an intersect reads its `Bodies` and defines one
+  body. A union of two is `Union([a, b])`; there is no second spelling of
+  it. It evaluates as a fold of the kernel's pair verb in member order: the
+  order is the list's, the author's statement. What the node decides is
+  defined over its members, not over the fold: every coincidence between two members is judged once, pairwise,
+  before the fold (below); the fold reads those verdicts through each
+  face's member parents and decides no carrier pair again; and a name is
+  defined over the finished body (N2). What follows the list says so: a
+  glue keeps the earlier listed member's description (a subtract's keeps
+  `from`'s), and a refusal raised at a fold step names the member whose
+  step refused. Union and intersect differ in one respect beyond the verb:
+  an empty fold step is the typed empty result for an intersect and a
+  kernel bug for a union. A union reads shapes already in one space and
+  places nothing: a placement defines copies, and the union reads them, so the
+  union of a pattern's copies is this node over the pattern's members.
+  `PlacedUnion` (`node.rs`) both places copies of one prototype and
+  fuses them, so it retires into those two: a placement of the copies,
+  and this union reading them. When its bodies are rigid images of one
+  body, visible in the reads, the union has a fast path: bodies it
+  certifies disjoint are grafted without a boolean (the group boolean,
+  `README.md`).
+- **Naming keys by the read, not by depth.** An operation that carries an
+  entity in from an input wraps its name in `From { read: VarId, of:
+  Box<StableName> }`: `read` is the element read the body came through (D10:
+  a read is of a variable) — a seat's variable, a spelled member's read, or
+  the family read for each of its members — and `of` the entity's name in
+  that variable's table.
+  The one segment serves a union's and an intersect's members, a
+  subtract's two seats and a one-input operation's input (a shell's, a
+  blend's) alike; which seat a read sits in is the node's to say, never the
+  name's. The key is the read, never the inner name's minting node: a
+  placement adds no name segment (N1), so two members that are placements
+  of one body carry identical tables, and the inner name alone cannot tell
+  them apart. Nor is it the operation the read reaches: two
+  outputs of one operation are two variables, and `Union([split.above,
+  split.below])` names its halves apart. The read is minted identity, as a
+  node id is, and data the node already carries. A read spelled twice is
+  one key, and its two members glue to each other (DM5). No position is
+  recorded, so removing a member leaves
+  every other member's names as they were, and re-pointing one by
+  `SetMembers` changes its key, a recipe edit (N5). A family's members keep
+  their `Member { (i, …), of }` segments (DM3), keyed by the index
+  variables' ids, so they too are told apart by identity, never by position
+  in the list.
+- **`DocEdit::SetMembers { node, members: Vec<Operand> }`** is the one
   edit that changes a list input, by naming the whole new list; nothing is
   inferred. It refuses typed an unknown or non-live member, a cycle
-  (`WouldCycle` through the existing check), a duplicate (DM5), or fewer than
-  two members. Deleting a pip is `SetMembers` without it plus a plain
-  `DeleteNode` of the orphaned transform, one committed action
-  (`commit_action`), and the other twenty rims survive. `Loft`'s `profiles`
-  list is the same shape and takes the same edit; nothing else in the
-  vocabulary is a list.
-- The viewer's combining doors take a union seat of N body picks (not yet
-  built).
+  (`WouldCycle` through the existing check), or a mix of a family and a
+  member (`SlotVarKind`).
+  Deleting a pip is `SetMembers` without it, and the other
+  twenty rims survive. The pip the union no longer reads is still
+  defined, and out of the product because no placement names it;
+  deleting it too is tidiness, not a requirement. An intersect's
+  argument, a placement's shape list and `Loft`'s `profiles` are the same
+  shape and take the same edit; nothing else in the vocabulary is a list.
+- The viewer's combining doors take a union or intersect seat of N body
+  picks, and a subtract's two (not yet built).
 
 ### Contact is judged pairwise, in member space, before the fold
 
-Every two members that touch are a contact, whatever the other members are
-and whatever the member order, so the union's contacts are the contacts of
-its member pairs.
+Every coincidence between two members is a coincidence of the union,
+whatever the other members are, so the union's coincidence rows are its
+member pairs' rows: a contact a third member covers is still its pair's,
+recorded, and a pair the sliver band leaves undecided refuses the union even
+where a third member covers it. A coincidence among three members that no
+pair holds (a seam of two members lying in a third's face) is the union's
+row too, spelled by its member cells, so it is one row in every order. The
+faces each judgement merged or covered stay the union's face links (N2).
+An intersect's members are judged the same way, over the pair verb's
+intersection.
 
 - Before the fold, each pair of members `m`, `n` is judged by the pair verb,
   as the two-member union `m ∪ n` with the declared pairs whose sites are `m`
@@ -211,7 +277,7 @@ its member pairs.
   problem, it is raised to Ev, not optimized around the rule.
 - A pair that touches with the contact undeclared refuses `UndeclaredContact`
   exactly as the two-member union's operands do, in every member order.
-- A declared pair that the geometry contradicts refuses as the pair boolean
+- A declared pair that the geometry contradicts refuses as a subtract's
   does.
 - Any other refusal the pair verb raises on a judged pair is the union's
   refusal too, and so is order-free: a pair whose contact the pair verb
@@ -230,29 +296,30 @@ fold mints no contact verdict of its own.
 
 ### The declaration channel, sited at the members
 
-The union carries the pair boolean's recourse. `Node::Union { members,
-declare: Vec<DeclaredPair> }` and `Node::Boolean { op, a, b, declare:
-Vec<DeclaredPair> }` hold the declared pairs as the node's own payload (empty
-is undeclared). Each pair names sited entities — `SitedRef { at, name }`, the
-entity `name` as it stands at node `at`, where `at` is the member (for a pair
-boolean, the operand) — so a declaration says "this face of member `m` meets
-that face of member `n`" by naming the face in the member with the member
-beside it, and never names the union.
+Union, intersect and subtract carry one recourse. Each holds its declared
+pairs, `declare: Vec<DeclaredPair>`, as the node's own payload (empty is
+undeclared). Each pair names sited entities — `SitedRef { at, name }`, the
+entity `name` as it stands in the variable `at`, where `at` is the
+member's read (for a subtract, a seat's) — so a declaration says "this face
+of member `m` meets that face of member `n`" by naming the face in the
+member with the member beside it, and never names the union.
 
 - **Writing pairs.** Every door that writes a pair (the insert door,
   `SetDeclare`, `Rebind`, the load door) refuses, typed, a name not minted
   before the node in document order and a site that is not one of the node's
   operands, so a declaration names only what exists before the node does. The
-  load door asks the site of a pair boolean only, since a union's site can be
+  load door asks the site of a subtract only, since a union's site can be
   stranded afterwards (below). A declaration is a parameter, not an operand:
   it carries no material and mints no names, so `SetDeclare { node, pairs }`
-  replaces a live boolean's or union's whole list, `SetMembers`' shape with
-  nothing inferred, and moves no DAG edge.
+  replaces a live subtract's, union's or intersect's whole list,
+  `SetMembers`' shape with nothing inferred, and moves no DAG edge.
 - **Feeding pairs to the fold.** Each certified pair is fed to the fold step
   at which both its sites are in the accumulation: the later member's step in
   list order, with the earlier side as the accumulator's operand and the
   later side as the joining member's. A pair whose two sites are one member
-  is that member's carried contact at its own step. No fold position is
+  is that member's carried contact at its own step; a pair sited at a read
+  spelled twice sites both of its members, by the same rule. No fold
+  position is
   recorded anywhere.
 - **Consumed faces.** A pair a face of which the fold consumed whole before
   that step is satisfied, not `Vanished`: no row of the accumulation descends
@@ -262,12 +329,12 @@ beside it, and never names the union.
   is not consumed whole: rows do descend from it, and which of them carry the
   contact is not decidable from the names, so the pair refuses (Merges and
   order, below).
-- **Resolution.** A name not in its site's table refuses typed through the
-  pair boolean's own resolver, which the union reuses (one definition of
+- **Resolution.** A name not in its site's table refuses typed through one
+  resolver, which union, intersect and subtract share (one definition of
   "resolve a declared name at its site"); the site is the side, so a name
-  carried by both operands is not ambiguous. What the union publishes is
-  unchanged — `FromMember { member, of }` is what it mints; a sited pair is
-  what it consumes.
+  carried by both operands is not ambiguous. What the node publishes is
+  unchanged — `From { read, of }` is what it mints; a sited pair is what it
+  consumes.
 - **Members leaving.** `SetMembers` leaves `declare` as it was; a pair whose
   site left the list refuses at the next evaluation as a vanished name does
   (N5), never silently.
@@ -315,37 +382,51 @@ member-space declaration channel, DOCM-7 (PR 2028), sited at the members
 the look-through, DOCM-8 (PR 2073); the typed refusal past the merges,
 ruled on PR 2677; the pairwise contact rule (#3200, built in PR 3213).*
 
-## DM5 — A node's inputs are pairwise distinct
+## DM5 — A read repeated is answered by the operation
 
-`Boolean { a: X, b: X }`, a union or loft list with a repeated member, and a
-split whose target and tool coincide are all refused. The rule is stated
-once, as a structural validity check on a node's inputs, and called by
-`InsertNode`, by `SetMembers` on the rewritten node, and by the load
-validator (`persist/check.rs`, `validate_document`) on every node of a
-snapshot, so the three doors share the logic rather than mirror it. Replayed
-edits meet it through `InsertNode`; the load validator is needed because a
-hand-written snapshot never passes an edit door. Refusal:
-`EditError::DuplicateInput { node, input }` at the edit doors, the
-validator's own `SnapshotError` arm at load.
+No door refuses a repeated read. A read that appears twice among one node's
+inputs — `Union([A, A])`, `Subtract { from: X, tool: X }`, a loft section
+listed twice — is the same case as two distinct variables that evaluate to
+one body (two `Part`s selecting one half of a split, `Part(Instance(0))`
+beside its master), and the operation answers both alike:
 
-Distinctness is over node ids, and only node ids. Two distinct nodes that
-evaluate to one body — two `Part`s selecting one half of a split, or
-`Part(Instance(0))` beside its master — meet DM5, and the boolean answers
-them as it answers any operands whose shells coincide by structure or by
-declaration: `A ∪ A` and `A ∩ A` are `A`, and `A − A` is the typed empty
-result.
+- **Union and intersect keep both and glue.** `[A, A]` is judged like any
+  pair (DM4): every cell meets its twin, one construction read twice, so
+  the coincidence is structural and the glue keeps `A`'s description. `A ∪
+  A` and `A ∩ A` are `A`; each glued row is `Merged` of a set whose
+  elements are one name, which is that name (N3).
+- **Subtract.** `A − A` is the typed empty result.
+- **Loft.** A section listed twice is degenerate geometry, refused by the
+  loft at evaluation.
 
-*Built: DOCM-3 (PR 1803), with DM4.*
+Two outputs of one operation are two variables, so a union of a split's two
+halves, or a revolve's body patterned about its own axis port, reads two
+things and names them apart (DM4). Two indexed reads `xs[i]` and
+`xs[j]` landing on one member at the current values are the repeated read
+of that member, answered the same way. The alternatives are not taken:
+refusing the repeat keeps a syntactic refusal beside a semantic admission
+of the identical geometry, and collapsing the list as a set rewrites what
+the author wrote and is a second rule beside the glue two variables get.
 
-## DM6 — Splice is not added
+*The refusal this clause replaces (`EditError::DuplicateInput`, the load
+validator's arm) was built in DOCM-3 (PR 1803).*
 
-No edit rewires a live node's inputs, and none is planned. Every graph change
-is `InsertNode`, `DeleteNode`, or `SetMembers` on a list; cascade delete
-(`cascade_delete_order`, `edit.rs`) is the delete for a node with consumers.
-DM4's flat operators are what make the die's chain unnecessary.
-`no-docedit-splices-a-deleted-node` records the one trigger that would reopen
-the question: a chain that a flat operator cannot flatten and that a user
-needs to edit from the middle.
+## DM6 — No edit infers a re-point
+
+A read changes only by an edit that names its new variable in full. An
+operand slot is written by the one slot door every slot has: the formula
+lowers to a read of the slot's kind (`SlotVarKind` otherwise), the read is
+live, and the rewritten node passes every check the insert door makes of
+a node — one function both doors call (`edit.rs`, `check_written_node`:
+an assertion's bound against its measure's
+dimension, the slots' reads, the alignment and frame rules) — and
+acyclicity over reads. A list operand is the same door with a list. The
+write reports, and never refuses, the downstream names it strands, as DM7
+has a removal do; the N5 ladder diagnoses them and `Rebind` repairs them.
+No door picks a survivor: a delete leaves its readers unresolved and typed
+(D10), and "delete and reconnect" is a client's offer of explicit slot
+writes, the person choosing each. DM4's flat operators remain the way not
+to pay a pairwise chain's naming cost.
 
 ## DM7 — A stranded name is reported at the edit that removes its referent, never refused
 

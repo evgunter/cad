@@ -70,7 +70,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -101,7 +101,7 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
     let (doc, b) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -110,8 +110,8 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -131,8 +131,8 @@ fn gap_fixture() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, StableName) {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -195,11 +195,10 @@ fn ambiguous_loss_enriches_by_table_lookup_at_the_recorded_site() {
 }
 
 /// **A tie a pass-through table carries is reported at the table that
-/// defined it**, whatever the ids: `at` is the first carrying table in
-/// evaluation order. The fixture moves the defining node's copy of the
-/// name downstream through transforms until one of them draws an id
-/// that sorts before the defining node's, so a walk in id order would
-/// report the transform.
+/// defined it**: `at` is the first carrying table in evaluation order.
+/// The fixture moves the defining node's copy of the name downstream
+/// through a transform, which carries the tie too, so a walk that took
+/// the last carrying table would report the transform.
 #[test]
 fn a_carried_tie_is_reported_at_its_defining_table() {
     let (doc, sub) = tie_fixture();
@@ -213,22 +212,8 @@ fn a_carried_tie_is_reported_at_its_defining_table() {
             matches!(e, editor_core::Entry::Tied(c) if c.len() == 2).then(|| n.clone())
         })
         .expect("the U-cutter fixture ties");
-    let mut doc = doc;
-    let mut sorts_first = None;
-    for dx in 1..=64u32 {
-        let lift = editor_core::Step::Literal(editor_core::Frame::translation([
-            f64::from(dx) * 4.0,
-            0.0,
-            0.0,
-        ]));
-        let (next, moved) = insert(doc, Node::transform(sub, lift));
-        doc = next;
-        if moved < sub {
-            sorts_first = Some(moved);
-            break;
-        }
-    }
-    let moved = sorts_first.expect("a transform whose id sorts before the tie's defining node");
+    let lift = editor_core::Step::Literal(editor_core::Frame::translation([4.0, 0.0, 0.0]));
+    let (doc, moved) = insert(doc, Node::transform(sub, lift));
     let doc = set(doc, tied.clone(), red());
     let ev = run(&doc);
     assert!(
@@ -298,7 +283,7 @@ fn vanished_loss_with_prior_enriches_diagnosis_and_tombstone() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: ext,
+            input: ext.into(),
             count: editor_core::Formula::count(3),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -329,6 +314,7 @@ fn vanished_loss_with_prior_enriches_diagnosis_and_tombstone() {
             node: pat,
             slot: SlotId::Count,
             expr: editor_core::Formula::count(2),
+            fresh: Vec::new(),
         },
     );
     let ev = rerun(&doc, &prior_ev);
@@ -394,8 +380,8 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -418,7 +404,8 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
         DocEdit::SetParam {
             node: a,
             slot: SlotId::Distance,
-            expr: len(0.0),
+            value: len(0.0).into(),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -520,6 +507,7 @@ fn suggestions_offer_the_final_wrapping_derivation_and_rebind_repairs_the_gap() 
     let applied = doc
         .apply(
             &DocEdit::Rebind {
+                body: None,
                 from: cap.clone(),
                 to: target.clone(),
             },
@@ -555,6 +543,7 @@ fn appearance_only_rebind_counts_as_a_site_not_no_references() {
     assert!(
         doc.apply(
             &DocEdit::Rebind {
+                body: None,
                 from: cap,
                 to: target
             },
@@ -577,6 +566,7 @@ fn rebind_appearance_collision_is_refused_typed() {
     assert_eq!(
         doc.apply(
             &DocEdit::Rebind {
+                body: None,
                 from: cap.clone(),
                 to: target.clone(),
             },
@@ -606,6 +596,7 @@ fn rebind_appearance_collision_is_refused_typed() {
     let applied = doc
         .apply(
             &DocEdit::Rebind {
+                body: None,
                 from: cap,
                 to: target.clone(),
             },

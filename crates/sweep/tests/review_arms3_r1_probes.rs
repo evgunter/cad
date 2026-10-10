@@ -21,6 +21,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
+use geom_brep::SurfaceSide::{self, Inner};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
@@ -129,8 +130,13 @@ fn an_unequal_lentil_fillets_to_the_radical_closed_form() {
 
     let arcs = rim_arcs_at(&source, 0.8, 0.6);
     assert_eq!(arcs.len(), 1, "one closed sphere-sphere rim");
-    let out = fillet_edges(&source, &arcs, r, tol())
-        .unwrap_or_else(|e| panic!("the unequal equator fillets, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &arcs,
+        r,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the unequal equator fillets, got {e:?}"));
     let (center, _, major, minor) = band_torus(&out.body, out.band_faces[0]);
     // The radical form: offsets o₁ = 1 − r, o₂ = 1.7 − r, centres 2.1
     // apart; station y* from A's centre, radius x* by Pythagoras.
@@ -184,8 +190,13 @@ fn a_reposed_lentil_fillets_in_its_own_frame() {
     // frame's own.
     let arcs = rim_arcs_at(&posed, 0.8, -0.2);
     assert_eq!(arcs.len(), 1, "the equator rim survives the re-pose");
-    let out = fillet_edges(&posed, &arcs, r, tol())
-        .unwrap_or_else(|e| panic!("the re-posed equator fillets, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&posed, tol()),
+        &arcs,
+        r,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the re-posed equator fillets, got {e:?}"));
     let (center, axis, major, minor) = band_torus(&out.body, out.band_faces[0]);
     let want = ((1.0 - r).powi(2) - 0.36).sqrt();
     assert!(
@@ -245,8 +256,13 @@ fn a_bitten_ball_crater_rim_folds_opposite_senses() {
     let rim_r = (1.0 - ry * ry).sqrt();
     let arcs = rim_arcs_at(&source, rim_r, ry);
     assert_eq!(arcs.len(), 1, "one closed crater rim");
-    let out = fillet_edges(&source, &arcs, r, tol())
-        .unwrap_or_else(|e| panic!("the crater rim fillets, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &arcs,
+        r,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the crater rim fillets, got {e:?}"));
     let (center, _, major, minor) = band_torus(&out.body, out.band_faces[0]);
     let y_star = 0.15 / 2.0;
     let x_star = (0.95f64 * 0.95 - y_star * y_star).sqrt();
@@ -272,7 +288,14 @@ fn a_contained_offset_pose_refuses_typed() {
     let source = bitten_ball();
     let ry: f64 = 0.2125 / 0.3;
     let arcs = rim_arcs_at(&source, (1.0 - ry * ry).sqrt(), ry);
-    match fillet_edges(&source, &arcs, 0.13, tol()).map_err(|r| r.error) {
+    match fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &arcs,
+        0.13,
+        tol(),
+    )
+    .map_err(|r| r.error)
+    {
         Ok(_) => panic!("no ball rests on both supports at r = 0.13"),
         Err(BlendError::UnsupportedCorner { corner, .. }) => {
             panic!("a closed rim registers no corner, got {corner}")
@@ -288,7 +311,14 @@ fn a_contained_offset_pose_refuses_typed() {
 fn an_oversized_ball_on_the_lentil_refuses_typed() {
     let source = symmetric_lentil();
     let arcs = rim_arcs_at(&source, 0.8, 0.0);
-    match fillet_edges(&source, &arcs, 0.45, tol()).map_err(|r| r.error) {
+    match fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &arcs,
+        0.45,
+        tol(),
+    )
+    .map_err(|r| r.error)
+    {
         Ok(_) => panic!("no ball of r = 0.45 rests on both lentil walls"),
         Err(BlendError::UnsupportedCorner { corner, .. }) => {
             panic!("a closed rim registers no corner, got {corner}")
@@ -309,7 +339,7 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
         axis: Vec3::new(0.0, 1.0, 0.0),
         rim: Point3::new(0.8, 0.0, 0.0),
     };
-    let trace = |y: f64, side: bool| SupportTrace::Round {
+    let trace = |y: f64, side: SurfaceSide| SupportTrace::Round {
         center: Point3::new(0.0, y, 0.0),
         radius: 1.0,
         side,
@@ -319,8 +349,8 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
     let at_tangency = sheet_center(
         sheet.rim,
         sheet.sheet_normal(),
-        trace(-0.6, true),
-        trace(0.6, true),
+        trace(-0.6, Inner),
+        trace(0.6, Inner),
         0.4,
     );
     // The half-chord square is an EXACT zero only in real arithmetic;
@@ -335,8 +365,8 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
     let past = sheet_center(
         sheet.rim,
         sheet.sheet_normal(),
-        trace(-0.6, true),
-        trace(0.6, true),
+        trace(-0.6, Inner),
+        trace(0.6, Inner),
         0.45,
     );
     assert!(
@@ -352,12 +382,12 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
         SupportTrace::Round {
             center: Point3::new(0.0, 0.0, 0.0),
             radius: 1.0,
-            side: true,
+            side: SurfaceSide::Inner,
         },
         SupportTrace::Round {
             center: Point3::new(0.0, 0.15, 0.0),
             radius: 0.9,
-            side: false,
+            side: SurfaceSide::Outer,
         },
         0.125,
     );
@@ -381,9 +411,14 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
 fn chamfered_cube() -> Body<f64> {
     let body = sweep::test_support::cube(1.0, tol());
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    sweep::chamfer::chamfer_edges(&body, &edges, 0.1, tol())
-        .expect("a cube's twelve edges chamfer")
-        .body
+    sweep::chamfer::chamfer_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &edges,
+        0.1,
+        tol(),
+    )
+    .expect("a cube's twelve edges chamfer")
+    .body
 }
 
 /// **The seam recognition must not swallow a real N-edge vertex.** A
@@ -414,7 +449,14 @@ fn a_chamfer_patch_vertex_keeps_its_n_edge_vertex_refusal() {
     }
     // A chain of one incident edge terminates there; the refusal is
     // the N-edge one, not the seam one.
-    match fillet_edges(&body, &edges[..1], 0.02, tol()).map_err(|r| r.error) {
+    match fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &edges[..1],
+        0.02,
+        tol(),
+    )
+    .map_err(|r| r.error)
+    {
         Err(BlendError::UnsupportedCorner {
             corner: CornerConfig::NEdgeVertex { valence: 4 },
             policy,
@@ -472,7 +514,14 @@ fn a_torus_walled_rim_refuses_spine_unsupported_naming_the_grown_roster() {
         );
     }
     let arcs = rim_arcs_at(&source, 0.9, 0.6);
-    match fillet_edges(&source, &arcs, 0.03, tol()).map_err(|r| r.error) {
+    match fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &arcs,
+        0.03,
+        tol(),
+    )
+    .map_err(|r| r.error)
+    {
         Err(BlendError::SpineUnsupported { supports, .. }) => {
             assert!(
                 supports.contains("sphere–sphere"),
@@ -512,7 +561,7 @@ fn spinning_top() -> Body<f64> {
 /// pole-touching body.
 #[test]
 fn a_spinning_top_seam_vertex_refuses_and_the_whole_rim_carves() {
-    let body = spinning_top();
+    let body = sweep::test_support::finished("body", spinning_top(), tol());
     let arcs = rim_arcs_at(&body, 0.6, 0.45);
     assert_eq!(arcs.len(), 2, "the seam splits the rim into two arcs");
     match fillet_edges(&body, &arcs[..1], 0.03, tol()).map_err(|r| r.error) {

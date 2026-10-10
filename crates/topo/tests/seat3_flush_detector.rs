@@ -25,7 +25,7 @@ use topo::{
 };
 
 /// A flush stack: two bricks meeting on z = 1, independently authored
-/// (so no shared source — the geometric rung decides).
+/// (so no shared surface key — the geometric rung decides).
 fn stacked() -> (topo::AtRestBody<f64>, topo::AtRestBody<f64>) {
     let tol = Tol::witness();
     (
@@ -162,13 +162,10 @@ fn an_in_band_gap_refuses_naming_the_pair() {
 
 /// What the ~55-line hand declarers existed to do, done by the two
 /// library doors: detect, INSPECT (the findings are values in the
-/// caller's hands — GS-Q3's no-fusion boundary), declare, union. The
-/// undeclared call refuses, so the declaration is what unlocks the
-/// lane rather than a measurement standing in for it.
+/// caller's hands — GS-Q3's no-fusion boundary), declare, union.
 #[test]
 fn declare_all_round_trips_into_a_union_that_builds() {
     let (a, b) = stacked();
-    topo::union(&a, &b, Tol::witness()).expect_err("undeclared, the kiss refuses");
 
     let found = find_flush_candidates(&a, &b, Tol::witness()).expect("the stack decides");
     let decls = declare_all(&found);
@@ -213,7 +210,7 @@ fn declare_declares_exactly_one_finding() {
 /// The stepped fixture carries a `SameOriented` flush wall pair (a
 /// continuation) beside its resting cap pair. Declaring the wall pair
 /// alone leaves the cap pair to refuse. Declaring BOTH builds the union
-/// through the chord join, without the declared-REST zip: the bar's
+/// through the chord join: the bar's
 /// bottom edges along `x = 1` lie on the cube's top edge, each such
 /// segment is an edge of both solids, and the one fold rule folds it
 /// the same way at both of its ends.
@@ -227,14 +224,17 @@ fn a_declared_report_is_a_set_and_the_whole_set_builds() {
         .expect("the flush wall pair is a finding");
 
     let partial = union_with(&a, &b, &declare(wall), Tol::witness())
-        .expect_err("the cap pair is still undeclared");
-    assert!(
-        matches!(partial, topo::BooleanError::UndeclaredCoincidence { .. }),
-        "declaring one finding of a report declares one finding: {partial:?}"
-    );
-
+        .expect("the undeclared cap pair glues on its decided zero");
     let whole = union_with(&a, &b, &declare_all(&found), Tol::witness())
         .expect("the fully declared union builds");
+    let (BooleanResult::Body(p), BooleanResult::Body(w)) = (&partial, &whole) else {
+        panic!("a union of two solids is not empty");
+    };
+    assert_eq!(
+        format!("{:?}", p.body),
+        format!("{:?}", w.body),
+        "a declaration names what the margins decide: one body either way"
+    );
     let BooleanResult::Body(bb) = whole else {
         panic!("a union of two solids is not empty");
     };

@@ -697,7 +697,7 @@ impl DatumDraws {
 /// does a node this evaluation never reached.
 pub fn draws(doc: &Doc<ProfileProgram>, eval: &Evaluation<f64>, view: View) -> DatumDraws {
     let mut out = Vec::new();
-    for &node in doc.order() {
+    for node in doc.ids() {
         // The NODE says it is a datum and the EVALUATION says what it
         // came to. Reading only the value would draw a datum for
         // anything that happens to evaluate to one; reading only the

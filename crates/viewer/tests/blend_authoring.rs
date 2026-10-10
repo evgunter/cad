@@ -27,8 +27,8 @@ use crate::common;
 
 use common::{ang, len, len3, plate_index, scl3, session_insert};
 use pncad::document::{
-    Dimension, Doc, Node, NodeErrorKind, NodeResult, NodeStanding, ProfileProgram, RecipeNodeId,
-    Said, SlotId, Speaker,
+    Dimension, Doc, Formula, Node, NodeErrorKind, NodeResult, NodeStanding, ProfileProgram,
+    RecipeNodeId, Said, SlotId, Speaker,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, ValuePayload};
@@ -57,8 +57,9 @@ fn session(tol: Tol) -> DocSession {
 }
 
 /// Every drawn edge of a node's body 0, as the pick selections a
-/// viewport click would produce.
+/// viewport click would produce: on the node's drawn copy.
 fn drawn_edges(session: &DocSession, node: RecipeNodeId) -> Vec<EdgeSelection> {
+    let node = common::drawn_node(session.committed_doc(), node);
     let index = plate_index(session);
     index
         .edges_in(node, 0)
@@ -92,9 +93,13 @@ fn load_all(tools: &mut Tools, session: &DocSession, target: BlendTarget) -> Opt
         .load_all_edges(target, doc, eval, &index)
 }
 
-/// The whole body of a node, as the blend tool's target.
-fn whole(node: RecipeNodeId) -> BlendTarget {
-    BlendTarget { node, body: 0 }
+/// The whole body of a node, as the blend tool's target: its drawn
+/// copy.
+fn whole(session: &DocSession, node: RecipeNodeId) -> BlendTarget {
+    BlendTarget {
+        node: common::drawn_node(session.committed_doc(), node),
+        body: 0,
+    }
 }
 
 /// Feed one edge pick to the open tool the way the application does —
@@ -181,29 +186,35 @@ fn a_box_fillet_authors_from_picks_with_a_canonical_selection() {
     session.pump();
     let mut tools = picked_all(&session, target);
     assert_eq!(blend(&tools).count(), BOX_EDGES, "twelve edges held");
-    assert_eq!(
-        blend(&tools).target(),
-        Some(BlendTarget {
-            node: target,
-            body: 0
-        })
-    );
+    assert_eq!(blend(&tools).target(), Some(whole(&session, target)));
 
     let op = blend(&tools)
         .fillet_op(len(BLEND))
         .expect("a tool holding edges commits");
     let fillet = commit(&mut session, &mut tools, op);
 
-    let Some(Node::Fillet {
-        target: stored_target,
-        radius,
-        selection,
-    }) = session.committed_doc().node(fillet)
-    else {
+    let Some(Node::Fillet { radius, selection }) = session.committed_doc().node(fillet) else {
         panic!("the door minted a fillet");
     };
-    assert_eq!(*stored_target, target);
-    assert_eq!(*radius, len(BLEND), "the radius is a literal Length slot");
+    let stored = session
+        .committed_doc()
+        .selection(*selection)
+        .expect("the fillet reads a selection");
+    assert_eq!(Some(stored.body), session.committed_doc().output(target, 0));
+    let selection = &stored.names;
+    assert!(
+        session.committed_doc().free(*radius).is_some(),
+        "the radius is a written Length: the slot's own free variable"
+    );
+    assert_eq!(
+        Formula::from(
+            session
+                .committed_doc()
+                .slot_expansion(fillet, SlotId::Radius)
+                .expect("the radius slot")
+        ),
+        len(BLEND)
+    );
     // CANONICAL: sorted, deduplicated, and equal as a set to what the
     // all-edges door answers — the same twelve names either way.
     let mut canonical = selection.clone();
@@ -240,15 +251,33 @@ fn the_chamfer_twin_authors_the_other_node_from_the_same_picks() {
     let chamfer = commit(&mut session, &mut tools, op);
 
     let Some(Node::Chamfer {
-        target: stored_target,
         distance,
         selection,
     }) = session.committed_doc().node(chamfer)
     else {
         panic!("the door minted a chamfer");
     };
-    assert_eq!(*stored_target, target);
-    assert_eq!(*distance, len(BLEND));
+    let stored = session
+        .committed_doc()
+        .selection(*selection)
+        .expect("the chamfer reads a selection");
+    assert_eq!(Some(stored.body), session.committed_doc().output(target, 0));
+    let selection = &stored.names;
+    assert_eq!(
+        session
+            .committed_doc()
+            .slot(chamfer, SlotId::ChamferDistance),
+        Some(*distance)
+    );
+    assert_eq!(
+        Formula::from(
+            session
+                .committed_doc()
+                .slot_expansion(chamfer, SlotId::ChamferDistance)
+                .expect("the distance slot")
+        ),
+        len(BLEND)
+    );
     assert_eq!(*selection, all_edge_names(&session, target));
     // The size lands in the chamfer's OWN slot, which is what makes a
     // reader able to tell what the number means off the node kind.
@@ -299,7 +328,7 @@ fn the_all_edges_door_loads_the_set_twelve_clicks_would_have() {
 
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
-    let loaded = load_all(&mut tools, &session, whole(target));
+    let loaded = load_all(&mut tools, &session, whole(&session, target));
     assert!(loaded.is_none(), "the box has edges to load: {loaded:?}");
     assert_eq!(blend(&tools).count(), BOX_EDGES);
 
@@ -336,7 +365,7 @@ fn the_all_edges_door_refuses_a_target_with_no_edges() {
     session.pump();
 
     let mut tools = picked_all(&session, target);
-    let refused = load_all(&mut tools, &session, whole(datum));
+    let refused = load_all(&mut tools, &session, whole(&session, datum));
     assert_eq!(
         refused,
         Some(BlendEvent::NoEdgesOnTarget {
@@ -373,8 +402,14 @@ fn a_pick_on_another_body_is_refused_and_keeps_the_held_edges() {
     let ToolNotice::Blend(BlendEvent::OtherTarget { held, picked }) = &notices[0] else {
         panic!("expected a cross-target refusal, got {notices:?}");
     };
-    assert_eq!(held.node, first);
-    assert_eq!(picked.node, second);
+    assert_eq!(
+        held.node,
+        common::drawn_node(session.committed_doc(), first)
+    );
+    assert_eq!(
+        picked.node,
+        common::drawn_node(session.committed_doc(), second)
+    );
     assert!(
         notices[0].to_string().starts_with("blend tool: "),
         "the sentence names its tool: {}",
@@ -389,7 +424,9 @@ fn a_pick_on_another_body_is_refused_and_keeps_the_held_edges() {
     let fillet = commit(&mut session, &mut tools, op);
     assert!(matches!(
         session.committed_doc().node(fillet),
-        Some(Node::Fillet { target, .. }) if *target == first
+        Some(Node::Fillet { selection, .. })
+            if session.committed_doc().output(first, 0)
+                == session.committed_doc().selection(*selection).map(|s| s.body)
     ));
 }
 
@@ -435,6 +472,7 @@ fn losing_the_target_voids_the_whole_set_and_says_so() {
         "a live target drops nothing"
     );
 
+    let copy = common::drawn_node(session.committed_doc(), target);
     assert!(
         session
             .perform(SessionOp::DeleteNode { node: target })
@@ -452,11 +490,11 @@ fn losing_the_target_voids_the_whole_set_and_says_so() {
     else {
         panic!("expected a lost target, got {notices:?}");
     };
-    assert_eq!(lost.node, target);
+    assert_eq!(lost.node, copy, "the picks were on the box's copy");
     assert_eq!(
         node.kind(),
-        Some("Extrude"),
-        "the lost node is said as the document held it when it was picked: {node}"
+        Some("PlaceInWorld"),
+        "the lost copy is said as the document held it when it was picked: {node}"
     );
     assert_eq!(*edges, BOX_EDGES);
     assert_eq!(blend(&tools).count(), 0);
@@ -508,6 +546,11 @@ fn a_stranded_selection_refuses_typed_rather_than_shrinking() {
     let Some(Node::Fillet { selection, .. }) = session.committed_doc().node(fillet) else {
         panic!("a fillet was authored");
     };
+    let selection = &session
+        .committed_doc()
+        .selection(*selection)
+        .expect("the fillet reads a selection")
+        .names;
     assert_eq!(selection.len(), wanted, "the stranded name is still stored");
     assert!(selection.contains(&stray));
 
@@ -518,7 +561,7 @@ fn a_stranded_selection_refuses_typed_rather_than_shrinking() {
         .and_then(NodeResult::error)
         .expect("the fillet refuses");
     assert!(
-        matches!(error.kind, NodeErrorKind::BlendSelectionResolve { .. }),
+        matches!(error.kind, NodeErrorKind::SelectResolve { .. }),
         "expected a selection-resolve refusal, got {:?}",
         error.kind
     );
@@ -821,6 +864,29 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
             tool: plane,
         },
     );
+    // Each half placed by its port (A10), in place of the whole box.
+    let mut doc = session.committed_doc().clone();
+    let whole_box = common::copy_of(&doc, target);
+    common::edit_into(
+        &mut doc,
+        pncad::document::DocEdit::DeleteNode { id: whole_box },
+        tol,
+    );
+    let doc_with_both = {
+        let (with_first, first) = common::edited(
+            &doc,
+            pncad::document::DocEdit::place(pncad::document::Operand::output(split, 0), None),
+            tol,
+        );
+        let (with_both, second) = common::edited(
+            &with_first,
+            pncad::document::DocEdit::place(pncad::document::Operand::output(split, 1), None),
+            tol,
+        );
+        (with_both, [first, second])
+    };
+    let (doc, copies) = doc_with_both;
+    let mut session = DocSession::inline(doc, tol);
     session.pump();
 
     // The node-wide door sees both halves at once; each drawn half has
@@ -828,15 +894,16 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
     let node_wide = all_edge_names(&session, split).len();
     let index = plate_index(&session);
     let mut tools = Tools::new();
-    for body in [0u32, 1] {
-        let drawn = index.edges_in(split, body).len();
-        assert!(drawn > 0, "the split draws body {body}");
+    for (half, copy) in copies.into_iter().enumerate() {
+        let node = copy.expect("a placement mints its node");
+        let drawn = index.edges_in(node, 0).len();
+        assert!(drawn > 0, "the split's half {half} is drawn");
         assert!(
             drawn < node_wide,
-            "body {body} draws {drawn} of the node's {node_wide} edge names"
+            "half {half} draws {drawn} of the split's {node_wide} edge names"
         );
         tools.open(ToolKind::Blend);
-        let loaded = load_all(&mut tools, &session, BlendTarget { node: split, body });
+        let loaded = load_all(&mut tools, &session, BlendTarget { node, body: 0 });
         assert!(loaded.is_none(), "{loaded:?}");
         assert_eq!(
             blend(&tools).count(),
@@ -881,7 +948,7 @@ fn a_held_set_marks_exactly_the_edges_it_names() {
     // The per-name door and the one-pass door produce the same
     // segments, in the index's own edge order either way.
     let mut per_name: Vec<[f32; 3]> = Vec::new();
-    for id in index.edges_in(target, 0) {
+    for id in index.edges_in(common::drawn_node(session.committed_doc(), target), 0) {
         if let Ok(name) = index.edge_name_of(*id)
             && named.iter().any(|mark| mark.name == *name)
         {
@@ -933,7 +1000,7 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
 
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
-    assert!(load_all(&mut tools, &session, whole(union)).is_none());
+    assert!(load_all(&mut tools, &session, whole(&session, union)).is_none());
     let held = blend(&tools).count();
     assert!(
         held > BOX_EDGES,
@@ -966,7 +1033,7 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
         session.committed_doc().node(union).is_some(),
         "the target survived the edit"
     );
-    let live = all_edge_names(&session, union);
+    let live = all_edge_names(&session, common::drawn_node(session.committed_doc(), union));
     assert_eq!(
         live.len(),
         BOX_EDGES * 2,
@@ -987,7 +1054,10 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
     else {
         panic!("expected a strand drop, got {notices:?}");
     };
-    assert_eq!(target.node, union);
+    assert_eq!(
+        target.node,
+        common::drawn_node(session.committed_doc(), union)
+    );
     assert!(!names.is_empty());
     assert_eq!(*kept, blend(&tools).count());
     assert_eq!(
@@ -1021,7 +1091,7 @@ fn the_strand_check_is_not_asked_without_an_answer() {
     session.pump();
     let mut tools = picked_all(&session, target);
     // The picture's index from the run in which the target built: a
-    // run with a failed root indexes nothing.
+    // run with a failed placed body indexes nothing.
     let index = plate_index(&session);
 
     // No landed pair at all.
@@ -1057,12 +1127,18 @@ fn the_strand_check_is_not_asked_without_an_answer() {
     );
     assert_eq!(blend(&tools).count(), BOX_EDGES, "the set is intact");
 
-    let standing = NodeStanding::Failed { node: target };
+    // The copy the picks were on has no value: the placement is
+    // poisoned by the extrude that failed under it.
+    let copy = common::drawn_node(session.committed_doc(), target);
+    let standing = NodeStanding::Poisoned {
+        node: copy,
+        through: target,
+    };
     let refused = tools
         .blend_mut()
         .expect("the blend tool is open")
         .load_all_edges(
-            whole(target),
+            whole(&session, target),
             session.doc(),
             session.evaluation().expect("the inline seam landed"),
             &index,
@@ -1070,7 +1146,7 @@ fn the_strand_check_is_not_asked_without_an_answer() {
     assert_eq!(
         refused,
         Some(BlendEvent::TargetHasNoValue {
-            target: whole(target),
+            target: whole(&session, target),
             standing
         }),
         "the load says the target's standing"
@@ -1079,8 +1155,8 @@ fn the_strand_check_is_not_asked_without_an_answer() {
         refused.map(|event| event.to_string()),
         Some(format!(
             "{} has no edges to select: {}",
-            whole(target),
-            Said(&standing, Speaker::TAG.about(target))
+            whole(&session, target),
+            Said(&standing, Speaker::TAG.about(copy))
         )),
     );
     assert_eq!(
@@ -1112,7 +1188,7 @@ fn an_emptied_set_releases_its_target() {
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
     assert!(pick(&mut tools, session.committed_doc(), &one).is_empty());
-    assert_eq!(blend(&tools).target(), Some(whole(first)));
+    assert_eq!(blend(&tools).target(), Some(whole(&session, first)));
     // Un-pick it: the tool is holding nothing, so it is latched to
     // nothing.
     assert!(pick(&mut tools, session.committed_doc(), &one).is_empty());
@@ -1126,7 +1202,7 @@ fn an_emptied_set_releases_its_target() {
     );
     // And the next click starts wherever the user aims it.
     assert!(pick(&mut tools, session.committed_doc(), &other).is_empty());
-    assert_eq!(blend(&tools).target(), Some(whole(second)));
+    assert_eq!(blend(&tools).target(), Some(whole(&session, second)));
     assert_eq!(blend(&tools).count(), 1);
 
     // `clear` is the same state by the panel's own door.
@@ -1150,25 +1226,26 @@ fn only_a_drawn_selection_names_a_body_for_the_all_edges_door() {
         .into_iter()
         .next()
         .expect("edges");
+    let drawn = common::drawn_node(session.committed_doc(), target);
     let face = index
-        .ids_in(target, 0)
+        .ids_in(drawn, 0)
         .first()
         .and_then(|&id| index.name_of(id))
         .and_then(|named| named.as_ref().ok())
         .map(|name| FaceSelection {
             name: name.clone(),
-            node: target,
+            node: drawn,
             body: 0,
         })
         .expect("the box draws named patches");
 
     assert_eq!(
         BlendTarget::of_selection(&Selection::Edge(edge.clone())),
-        Some(whole(target))
+        Some(whole(&session, target))
     );
     assert_eq!(
         BlendTarget::of_selection(&Selection::Face(face)),
-        Some(whole(target))
+        Some(whole(&session, target))
     );
     assert_eq!(
         BlendTarget::of_selection(&Selection::Node(target)),

@@ -428,6 +428,15 @@ fn digest() -> String {
 /// 708 → 644, `sz` 56 → 48, `num` 652 → 596; `sym_thin_strip`
 /// 716 → 652, `sz` 64 → 48, `num` 652 → 604). Every verdict, pad,
 /// `frozen` count and f64 row is unchanged.
+///
+/// **Re-cut at all three ε when the pcurve iso lane's seam class began
+/// reading which way an image runs its column** (`pcurve_iso_seam_sense`,
+/// the wrap-edge unit: a one-segment loft's strut runs its column
+/// backward). One more numeric decision per seam-class row, so the two
+/// `validate_geometric` rows gain 8 each (`sym_arc_loft` 644 → 652,
+/// `num` 596 → 604; `sym_thin_strip` 652 → 660, `num` 604 → 612).
+/// Every verdict hash, pad, volume, refusal and `frozen` column is
+/// unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

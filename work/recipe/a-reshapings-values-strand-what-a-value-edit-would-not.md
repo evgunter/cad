@@ -2,12 +2,11 @@
 id: a-reshapings-values-strand-what-a-value-edit-would-not
 kind: issue
 title: A SetProgram reports a piece its new VALUES leave undrawn (a Zero-fit run), where the same values through SetParam report nothing
-status: parked
+status: open
 opened: 2026-10-02
 priority: P3
 cost: E
 design: true
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -63,3 +62,7 @@ rather than a value.
 - Treat a `SetProgram` whose structure (values erased) equals the old
   program's as a value edit and report nothing for it; a structural
   reshape that also moves values still reports a value-suppressed run.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `select-defines-face-and-edge-variables`, not on the whole program: it is the strand report on names that kept readers hold (edit.rs undrawn_kept_pieces); unit E moves names into Select-defined Face/Edge variables that own N5, so where strands are reported moves there. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

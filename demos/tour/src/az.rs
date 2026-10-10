@@ -14,7 +14,7 @@
 //!
 //! Built `A ∩ Z`: `Z ∩ A` refuses `JoinDesync` on the same
 //! declarations — a live wall probe in [`stops`], filed as
-//! `work/join/declared-flush-intersect-refuses-in-one-operand-order.md`.
+//! `work/flush/declared-flush-intersect-refuses-in-one-operand-order.md`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -123,7 +123,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let az = build::<f64>(tol);
     // The other order, Z x A, builds the same body's volume: intersection
     // is commutative, and the join no longer refuses it
-    // (`work/join/declared-flush-intersect-refuses-in-one-operand-order.md`).
+    // (`work/flush/declared-flush-intersect-refuses-in-one-operand-order.md`).
     expect_seamed(
         "declared Z x A intersect",
         check(

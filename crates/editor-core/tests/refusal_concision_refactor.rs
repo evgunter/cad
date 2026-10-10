@@ -17,7 +17,7 @@ use editor_core::{
 use test_utils::refusal::Admission;
 
 fn n(id: u64) -> RecipeNodeId {
-    RecipeNodeId(test_utils::refusal::tagged(id))
+    RecipeNodeId::new(0, test_utils::refusal::tagged(id))
 }
 
 /// Node `id` as a refusal raised over a document holding it as a
@@ -43,27 +43,30 @@ fn param() -> VarName {
 
 fn var() -> editor_core::SpokenVar {
     editor_core::SpokenVar::new(
-        editor_core::VarId(test_utils::refusal::tagged(8)),
+        editor_core::VarId::new(0, test_utils::refusal::tagged(8)),
         Some(param()),
     )
 }
 
 test_utils::f6_variants! {
     const SPLIT: SplitError = [
-        EmptyCut, UnknownCutNode, PartIdCollides, SeveredEdge, OperandSeveredFromMate,
+        EmptyCut, UnknownCutNode, PartIdCollides, SeveredEdge, RemainderReadUncarried,
+        OperandSeveredFromMate,
         TornGroup, SeveredGauge, TwoAnchors, PlacingMateLeft, DeadGaugeReference,
         NoMaterial, UnplaceableRoot, UnplacedAlone, WouldStartPlacing, MateFrameCrosses,
-        UncutVarReference, AnonymousVarCrossesCut, UnresolvedVarCrossesCut,
+        UncutVarReference, DefinitionStraddlesCut, UnresolvedVarCrossesCut,
         PartNameReachesRemainder,
-        NameStraddlesCut, NameOnDroppedStep, BodyNameCrossesCut, Pin, PartEdit,
+        NameStraddlesCut, NameOnDroppedStep, BodyNameCrossesCut, NameOutsidePartWorld, Pin,
+        PartEdit,
         RemainderEdit,
     ];
 }
 
 test_utils::f6_variants! {
     const INLINE: InlineError = [
-        UnknownNode, NotAnInstance, InstanceConsumed, Unresolved, EpsilonSeam,
-        PartCarriesMetadata, VarNameConflict, AnonymousVarCrossesCut, UnresolvedVarCrossesCut,
+        UnknownNode, NotAnInstance, PlacementPoseCrosses, InstanceReadUncarried, Unresolved,
+        EpsilonSeam,
+        PartCarriesMetadata, VarNameConflict, InstanceOutputUncarried, UnresolvedVarCrossesCut,
         UnplaceableFrame, MatePlaced, Unplaced,
         MovedMemberOffset, PartDeadGauge, MateFrameCrosses, MatePairSplits,
         InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep,
@@ -86,6 +89,16 @@ fn split_refusals() -> Vec<SplitError> {
             input: s(3, "Profile"),
             consumer_is_cut: true,
         },
+        SplitError::RemainderReadUncarried {
+            reader: s(6, "Transform"),
+            why: editor_core::Uncarried::Bodies { count: 2 },
+        },
+        SplitError::RemainderReadUncarried {
+            reader: s(6, "Transform"),
+            why: editor_core::Uncarried::Posed {
+                placement: s(4, "PlaceInWorld"),
+            },
+        },
         SplitError::OperandSeveredFromMate {
             mate: s(7, "Mate"),
             side: MateSide::A,
@@ -103,7 +116,7 @@ fn split_refusals() -> Vec<SplitError> {
         },
         SplitError::TwoAnchors {
             node: s(4, "Extrude"),
-            first: Some(s(1, "Gauge")),
+            first: Some(Box::new(s(1, "Gauge"))),
             second: None,
         },
         SplitError::PlacingMateLeft { mate: s(7, "Mate") },
@@ -133,27 +146,44 @@ fn split_refusals() -> Vec<SplitError> {
             promote: Some(Box::new(s(2, "InstantiatePart"))),
         },
         SplitError::UncutVarReference {
-            var: var(),
+            var: Box::new(var()),
             cut_node: s(4, "Extrude"),
             kept_node: s(6, "Extrude"),
             promote: false,
         },
         SplitError::UncutVarReference {
-            var: var(),
+            var: Box::new(var()),
             cut_node: s(4, "InstantiatePart"),
             kept_node: s(6, "Gauge"),
             promote: true,
         },
-        SplitError::AnonymousVarCrossesCut {
-            var: editor_core::SpokenVar::new(
-                editor_core::VarId(test_utils::refusal::tagged(9)),
+        SplitError::DefinitionStraddlesCut {
+            var: Box::new(var()),
+            moving: editor_core::SpokenVar::new(
+                editor_core::VarId::new(0, test_utils::refusal::tagged(7)),
+                Some(VarName::from_static("depth")),
+            ),
+            staying: editor_core::SpokenVar::new(
+                editor_core::VarId::new(0, test_utils::refusal::tagged(6)),
                 None,
             ),
-            node: s(4, "Extrude"),
+            staying_held: true,
+        },
+        SplitError::DefinitionStraddlesCut {
+            var: Box::new(var()),
+            moving: editor_core::SpokenVar::new(
+                editor_core::VarId::new(0, test_utils::refusal::tagged(7)),
+                Some(VarName::from_static("depth")),
+            ),
+            staying: editor_core::SpokenVar::new(
+                editor_core::VarId::new(0, test_utils::refusal::tagged(6)),
+                None,
+            ),
+            staying_held: false,
         },
         SplitError::UnresolvedVarCrossesCut {
             var: editor_core::SpokenVar::new(
-                editor_core::VarId(test_utils::refusal::tagged(9)),
+                editor_core::VarId::new(0, test_utils::refusal::tagged(9)),
                 None,
             ),
             node: s(4, "Extrude"),
@@ -169,9 +199,10 @@ fn split_refusals() -> Vec<SplitError> {
         },
         SplitError::NameOnDroppedStep {
             name: name(),
-            step: StepId(4),
+            step: StepId::new(0, 4),
         },
         SplitError::BodyNameCrossesCut { name: name() },
+        SplitError::NameOutsidePartWorld { name: name() },
         SplitError::Pin {
             error: Box::new(PersistError::Serialize {
                 message: "the writer refused".to_owned(),
@@ -199,9 +230,12 @@ fn inline_refusals() -> Vec<InlineError> {
         InlineError::NotAnInstance {
             node: s(5, "Extrude"),
         },
-        InlineError::InstanceConsumed {
-            node: s(4, "InstantiatePart"),
-            by: s(5, "Union"),
+        InlineError::PlacementPoseCrosses {
+            placement: s(4, "PlaceInWorld"),
+        },
+        InlineError::InstanceReadUncarried {
+            reader: s(5, "Union"),
+            why: editor_core::Uncarried::Bodies { count: 2 },
         },
         InlineError::Unresolved {
             failure: ResolveFailure::new(
@@ -217,15 +251,13 @@ fn inline_refusals() -> Vec<InlineError> {
             key: "author".to_owned(),
         },
         InlineError::VarNameConflict { name: param() },
-        InlineError::AnonymousVarCrossesCut {
-            var: editor_core::SpokenVar::new(
-                editor_core::VarId(test_utils::refusal::tagged(9)),
-                None,
-            ),
+        InlineError::InstanceOutputUncarried {
+            name: param(),
+            why: editor_core::Uncarried::Bodies { count: 2 },
         },
         InlineError::UnresolvedVarCrossesCut {
             var: editor_core::SpokenVar::new(
-                editor_core::VarId(test_utils::refusal::tagged(9)),
+                editor_core::VarId::new(0, test_utils::refusal::tagged(9)),
                 None,
             ),
             node: s(4, "Extrude"),
@@ -235,21 +267,21 @@ fn inline_refusals() -> Vec<InlineError> {
         },
         InlineError::MatePlaced {
             instance: s(4, "InstantiatePart"),
-            host_root: s(2, "InstantiatePart"),
+            host_root: Box::new(s(2, "InstantiatePart")),
             mates: vec![s(7, "Mate")],
             part_root: None,
             part_gauges: Vec::new(),
         },
         InlineError::MatePlaced {
             instance: s(4, "InstantiatePart"),
-            host_root: s(2, "InstantiatePart"),
+            host_root: Box::new(s(2, "InstantiatePart")),
             mates: vec![s(7, "Mate")],
             part_root: Some(Box::new(s(1, "InstantiatePart"))),
             part_gauges: Vec::new(),
         },
         InlineError::MatePlaced {
             instance: s(4, "InstantiatePart"),
-            host_root: s(2, "InstantiatePart"),
+            host_root: Box::new(s(2, "InstantiatePart")),
             mates: vec![s(7, "Mate")],
             part_root: Some(Box::new(s(1, "InstantiatePart"))),
             part_gauges: vec![s(6, "Gauge")],
@@ -276,7 +308,7 @@ fn inline_refusals() -> Vec<InlineError> {
         InlineError::ForeignInstanceName { name: name() },
         InlineError::NameOnDroppedStep {
             name: name(),
-            step: StepId(4),
+            step: StepId::new(0, 4),
         },
         InlineError::StrandedPartName {
             name: name(),

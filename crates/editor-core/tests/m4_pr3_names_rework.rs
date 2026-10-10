@@ -42,7 +42,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -63,8 +63,8 @@ fn union_cross_bar_names_totally() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -87,8 +87,8 @@ fn union_cross_bar_swapped_names_totally() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -109,8 +109,8 @@ fn subtract_cross_bar_names_totally() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -131,8 +131,8 @@ fn subtract_block_from_bar_never_fails_in_naming() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -169,8 +169,8 @@ fn split_through_operand_edges_names_totally() {
     let (doc, sp) = insert(
         doc,
         Node::Split {
-            target: d,
-            tool: plane,
+            target: d.into(),
+            tool: plane.into(),
         },
     );
     let ev = run(&doc);
@@ -198,10 +198,15 @@ fn split_through_operand_edges_names_totally() {
 /// A plane through the 315° prism's reflex top corner `(0, 0, 1)`,
 /// tilted back over the prism so the corner's three edges read Above
 /// and its reflex bisector Below: the splitter's whole-orbit strut,
-/// whose copy is the BELOW end. The corner still takes one
-/// `OnToolVertex` per half, both naming the operand corner.
+/// whose copy is the BELOW end. Above, the corner keeps its three edges
+/// and takes an `OnToolVertex` naming the operand corner. Below, the
+/// copy holds only the two section chords the plane cuts across the top
+/// cap on either side of the corner, one line between the section face
+/// and the cap: the split ends with the join (`docs/DESIGN.md`, maximal
+/// edges), so the copy is gone and the chord is one edge, named for the
+/// cap it crosses with no ends to tell pieces apart.
 #[test]
-fn split_through_a_reflex_corner_names_its_copy_on_each_half() {
+fn split_through_a_reflex_corner_names_its_copy_where_the_corner_stands() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_rework", Tol::witness());
     let (doc, p) = on_frame(
         doc,
@@ -220,7 +225,7 @@ fn split_through_a_reflex_corner_names_its_copy_on_each_half() {
     let (doc, prism) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -235,8 +240,8 @@ fn split_through_a_reflex_corner_names_its_copy_on_each_half() {
     let (doc, sp) = insert(
         doc,
         Node::Split {
-            target: prism,
-            tool: plane,
+            target: prism.into(),
+            tool: plane.into(),
         },
     );
     let ev = run(&doc);
@@ -252,32 +257,44 @@ fn split_through_a_reflex_corner_names_its_copy_on_each_half() {
         })
         .collect();
     let sides: Vec<_> = copies.iter().map(|c| c.0).collect();
-    assert!(
-        sides.len() == 2
-            && sides.contains(&editor_core::SplitHalf::Above)
-            && sides.contains(&editor_core::SplitHalf::Below),
-        "one corner copy per half: {copies:?}"
-    );
     assert_eq!(
-        copies[0].1, copies[1].1,
-        "both copies name the one operand corner"
+        sides,
+        vec![editor_core::SplitHalf::Above],
+        "the corner's copy Above, and none Below: {copies:?}"
+    );
+    let below_chords: Vec<_> = v
+        .name_table
+        .iter()
+        .filter(|(n, _)| {
+            matches!(
+                n.path.as_slice(),
+                [RoleSeg::SectionEdge {
+                    side: editor_core::SplitHalf::Below,
+                    ..
+                }]
+            )
+        })
+        .collect();
+    assert!(
+        !below_chords.is_empty(),
+        "Below's section chords are named for the faces they cross, each one edge"
     );
 }
 
-// ---- R7: pattern of a multi-body master must refuse TYPED (never
-// silently conflate the split halves under instance body indices). ----
+// ---- R7: a pattern never conflates a split's halves under instance
+// body indices. ----
 //
-// **R7 register, narrowed (ASM-2K, PR #381).** This row is the whole
-// of what R7 still defers. The refusal is scoped to a master with
-// several output BODIES — body index is the instance index there, so
-// admitting one needs a ratified instance×body layout. A master whose
-// single body holds several SOLIDS is NOT this case and is admitted:
-// `Instance(i)` wraps every name uniformly, pinned by
-// `names::emit::pattern_tests` (the rule is stated at `name_pattern`'s
-// docs). The multi-solid reading of R7 retires there; this row stands.
+// **R7 register, closed by reads (INTENT stage 2 unit B).** The
+// deferral was a master with several output BODIES — body index is
+// the instance index there. A split named alone is either of its two
+// bodies, so the door refuses it as a pattern's operand
+// (`AmbiguousOutput`), and a read of one port IS that half: the
+// pattern is a pattern of one body, named as the pattern of
+// `Part { SplitHalf }` is. A master whose single body holds several
+// SOLIDS was always admitted (`names::emit::pattern_tests`).
 
 #[test]
-fn pattern_of_split_output_refuses_typed_never_misnames() {
+fn a_pattern_of_a_split_port_is_the_pattern_of_its_half() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_rework", Tol::witness());
     let (doc, d) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 2.0);
     let (doc, plane) = insert(
@@ -290,32 +307,132 @@ fn pattern_of_split_output_refuses_typed_never_misnames() {
     let (doc, sp) = insert(
         doc,
         Node::Split {
-            target: d,
-            tool: plane,
+            target: d.into(),
+            tool: plane.into(),
         },
     );
-    let (doc, pat) = insert(
+    let pattern = |input: editor_core::Operand| Node::Pattern {
+        input,
+        count: editor_core::Formula::count(2),
+        kind: editor_core::PatternKind::Linear {
+            direction: [scl(1.0), scl(0.0), scl(0.0)],
+            spacing: len(5.0),
+        },
+    };
+    let refusal = crate::fixture::insert_refused(&doc, pattern(sp.into()));
+    assert!(
+        matches!(&refusal, editor_core::EditError::AmbiguousOutput { input, .. } if input.id() == sp),
+        "a split named alone is either half: {refusal:?}"
+    );
+    let (doc, half) = insert(
         doc,
-        Node::Pattern {
-            input: sp,
-            count: editor_core::Formula::count(2),
-            kind: editor_core::PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(5.0),
-            },
+        Node::Part {
+            of: editor_core::Operand::output(sp, editor_core::SplitHalf::Above.port()),
+            select: editor_core::PartSelect::SplitHalf(editor_core::SplitHalf::Above),
+        },
+    );
+    let (doc, by_port) = insert(
+        doc,
+        pattern(editor_core::Operand::Output { node: sp, port: 0 }),
+    );
+    let (doc, by_part) = insert(doc, pattern(half.into()));
+    let ev = run(&doc);
+    let (port, part) = (
+        ev.value(by_port)
+            .unwrap_or_else(|| panic!("{:?}", ev.nodes.get(&by_port))),
+        ev.value(by_part).expect("the part spelling patterns"),
+    );
+    // Each pattern mints its own copies' names; read the port
+    // spelling's as the part spelling's, and the two are one.
+    let as_part = format!("{:?}", port.name_table)
+        .replace(&format!("{:?}", by_port.0), &format!("{:?}", by_part.0));
+    assert_eq!(
+        as_part,
+        format!("{:?}", part.name_table),
+        "the port's copies are named as the half's"
+    );
+}
+
+/// **An edge the split cut and joined back whole keeps its own name.**
+/// A plane that touches a unit cylinder (seam at `+x`) without
+/// separating it cuts each rim it touches at one point; the cut
+/// separates nothing, so the split ends by joining each such rim back
+/// (`docs/DESIGN.md`, maximal edges). The landed cylinder's every edge
+/// is named as the operand's own, never as a fragment of itself.
+#[test]
+fn a_graze_split_lands_the_cylinder_under_its_own_edge_names() {
+    // Tangent along the wall ruling at `-x`, which runs through a vertex
+    // of each rim: the cut inserts nothing, so nothing is joined. The
+    // row below is the one that cuts a rim inside an arc.
+    let (landed, operand) = graze_split_edge_names([-1.0, 0.0, 0.0], [-1.0, 0.0, 0.0]);
+    assert_eq!(
+        landed, operand,
+        "the landed cylinder's edges keep the operand's names"
+    );
+}
+
+/// [`a_graze_split_lands_the_cylinder_under_its_own_edge_names`] at a
+/// plane tilted to touch the TOP rim alone, at its point at angle 3π/4,
+/// inside one rim arc: that arc cut and joined back, the other rim
+/// never touched.
+#[test]
+fn a_split_touching_one_rim_at_a_point_keeps_that_rims_name() {
+    let h = std::f64::consts::FRAC_1_SQRT_2;
+    let (landed, operand) = graze_split_edge_names([-h, h, 1.0], [-0.5, 0.5, h]);
+    assert_eq!(landed, operand, "the touched rim keeps the operand's name");
+}
+
+/// The edge names of a unit cylinder (height 1, axis `+z`) split by the
+/// plane through `origin` with normal `normal`, and of the operand.
+fn graze_split_edge_names(
+    origin: [f64; 3],
+    normal: [f64; 3],
+) -> (Vec<Vec<RoleSeg>>, Vec<Vec<RoleSeg>>) {
+    use editor_core::{LoopProgram, ProfileProgram};
+    let doc = ProfileDoc::empty_derived("m4_pr3_names_rework", Tol::witness());
+    let (doc, frame) = insert(doc, fixture::xy_frame());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            frame: frame.into(),
+            loops: vec![LoopProgram::circle(0.0, 0.0, 1.0).expect("a finite circle")],
+            ids: Vec::new(),
+        }),
+    );
+    let (doc, cylinder) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: origin.map(len),
+            normal: normal.map(scl),
+        }),
+    );
+    let (doc, sp) = insert(
+        doc,
+        Node::Split {
+            target: cylinder.into(),
+            tool: plane.into(),
         },
     );
     let ev = run(&doc);
-    assert!(
-        ev.value(pat).is_none(),
-        "pattern of a split output must refuse (typed), got a value"
-    );
-    let err = format!("{:?}", ev.nodes.get(&pat));
-    assert!(
-        matches!(
-            ev.node_error(pat).map(|e| e.kind.class()),
-            Some(NodeErrorClass::WrongOperand | NodeErrorClass::Naming)
-        ),
-        "expected a typed refusal, got: {err}"
-    );
+    let edges = |node| -> Vec<Vec<RoleSeg>> {
+        let mut out: Vec<Vec<RoleSeg>> = ev
+            .value(node)
+            .unwrap_or_else(|| panic!("evaluates: {:?}", ev.nodes.get(&node)))
+            .name_table
+            .iter()
+            .filter(|(n, _)| n.kind == editor_core::EntityKind::Edge)
+            .map(|(n, _)| n.path.clone())
+            .collect();
+        out.sort();
+        out
+    };
+    (edges(sp), edges(cylinder))
 }

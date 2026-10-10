@@ -75,11 +75,10 @@ PR 3513 adds, re-exported beside `BooleanDecision`: `Coincide`,
 `DeclarationRead` (what a coincidence's door read of the pair's
 declaration, carried with its `Coincide` by
 `BooleanDecision::Coincidence`), `LeverArm`, `WallRung` and
-`SectionRadius` one rung under `BooleanDecision`; `NeighbourOffset`, carried by
-`BooleanError::CoplanarNeighbours { offset, .. }`; and
-`RestZipFrontier`, carried by `BooleanError::RestZipUnsupported { what }`.
-The last two are payload rungs of `BooleanError` itself, so the sweep
-counts them, and their disposition is this row.
+`SectionRadius` one rung under `BooleanDecision`; and `NeighbourOffset`, carried by
+`BooleanError::CoplanarNeighbours { offset, .. }`. The last is a payload
+rung of `BooleanError` itself, so the sweep counts it, and its
+disposition is this row.
 
 Its third fix pass adds `SphereQuestion` (under
 `BooleanDecision::Sphere`), `SelfCheck` (under
@@ -99,3 +98,11 @@ schedule and curved chart refusal, which the boolean answered as
 `ClassificationInvariant` before). `ContainError` is itself an error
 type, so the sweep's narrowing does not count it a payload rung, and
 this row gains no name.
+
+## One more rung (TANG, PR 4234)
+
+PR 4234 adds `SectorRead` (a vertex-on-face pierce or a vertex-vertex
+pair), carried twice by `BooleanError::VertexReadTwice { reads, .. }`
+(`crates/topo/src/boolean/mod.rs`). The sweep went red on main when it
+merged; its disposition is this row.
+

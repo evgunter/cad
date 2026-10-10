@@ -76,8 +76,8 @@ fn two_crossing_edges_carry_each_ones_sense_against_the_other_block() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: decl,
         },
     );

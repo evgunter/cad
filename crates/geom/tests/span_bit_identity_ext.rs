@@ -362,7 +362,7 @@ fn rows() -> Rows {
                 vi(&mut o, &format!("{tag}.iv.ders.dvv"), ji.dvv);
                 let j3i = si.ders3(iu, iv);
                 vi(&mut o, &format!("{tag}.iv.ders3.duvv"), j3i.duvv);
-                let win = s.window_at(u, v);
+                let win = s.window_at(u, v).expect("numeric parameters");
                 pf(&mut o, &format!("{tag}.win.eval"), win.eval_in_span(u, v));
                 let jw = win.ders_in_span(u, v);
                 pf(&mut o, &format!("{tag}.win.ders.p"), jw.point);
@@ -370,13 +370,13 @@ fn rows() -> Rows {
                 let j3w = win.ders3_in_span(u, v);
                 vf(&mut o, &format!("{tag}.win.ders3.duuv"), j3w.duuv);
                 vf(&mut o, &format!("{tag}.win.ders3.dvvv"), j3w.dvvv);
-                let wind = sd.window_at(u, v);
+                let wind = sd.window_at(u, v).expect("numeric parameters");
                 pd(
                     &mut o,
                     &format!("{tag}.win.dual.eval"),
                     wind.eval_in_span(Dual64::variable(u), Dual64::new(v, 0.5)),
                 );
-                let wini = si.window_at(u, v);
+                let wini = si.window_at(u, v).expect("numeric parameters");
                 pi(
                     &mut o,
                     &format!("{tag}.win.iv.eval"),

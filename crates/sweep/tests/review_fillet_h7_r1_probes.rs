@@ -156,8 +156,13 @@ fn carve_ruled(source: &Body<f64>, what: &str) -> f64 {
     );
     let (v0, e0, f0) = census(source);
     let vol0 = volume(source);
-    let out = fillet_edges(source, &creases, R, tol())
-        .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(source, tol()),
+        &creases,
+        R,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
     assert_eq!(out.blend_faces.len(), 2, "{what}: one band per crease");
     assert!(out.corner_faces.is_empty() && out.band_faces.is_empty());
     assert_eq!(
@@ -484,7 +489,13 @@ fn a_cap_carrying_a_ring_keeps_it_through_the_cut_off() {
         "bored: ΔV = −2·A·L, measured {dv}"
     );
     let creases = rod_creases(&source);
-    let out = fillet_edges(&source, &creases, R, tol()).unwrap();
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &creases,
+        R,
+        tol(),
+    )
+    .unwrap();
     let ringed = out
         .body
         .faces()
@@ -526,8 +537,13 @@ fn requesting_a_cap_rim_beside_the_crease_refuses_typed() {
             ) && !creases.contains(&k)
         })
         .expect("a cap's chord");
-    let err = fillet_edges(&source, &[creases[0], chord], R, tol())
-        .expect_err("a cap rim requested beside its crease is not carved");
+    let err = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &[creases[0], chord],
+        R,
+        tol(),
+    )
+    .expect_err("a cap rim requested beside its crease is not carved");
     // The battery gets there first: the chord and the crease meet at an
     // angle, so the two-link chain is not G1 — a typed refusal, and the
     // surgery's own "cap rim is itself requested" clause is never
@@ -573,7 +589,7 @@ fn a_tall_cylinder_wall_rim_carves_past_a_two_pi_meridian() {
         })
         .collect();
     assert!(!rim.is_empty(), "the cylinder–cone rim's arcs");
-    let out = fillet_edges(&body, &rim, R, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &rim, R, tol())
         .unwrap_or_else(|e| panic!("the tall wall's rim carves, got {e}"));
     validate_geometric(&out.body, tol()).expect("tier 3");
 }

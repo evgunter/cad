@@ -1,0 +1,449 @@
+//! **A pair whose carriers nearly touch reads no contact only where its
+//! segments are apart**: a counterexample search against an independent
+//! oracle, the closed-form distance between the two segments from their
+//! endpoints, their common normals and their crossings. No pair the
+//! oracle puts within ε may read "no contact". Half the draws are line
+//! × arc and arc × arc pairs whose carriers lie within ε of tangency or
+//! cross at a shallow angle just past the band, each segment reaching a
+//! few times the stretch along which the carriers stay within ε or
+//! sweeping up to 10⁻³ short of a full turn. The other half end a line
+//! or an arc at an edge of the band off another segment's carrier,
+//! leaving it at an angle as small as 10⁻⁶, which is where an in-band
+//! end reading has to escalate rather than read clear.
+//!
+//! In a file of its own so the per-file test gate can skip it without
+//! skipping `seg`'s deterministic pair rows.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+test_utils::gated_to![
+    "crates/profile/src/seg.rs",
+    "crates/geom-core/src/k_stats.rs",
+    "crates/geom-core/src/tolerance.rs",
+];
+
+use core::f64::consts::{PI, TAU};
+
+use geom_core::{Arc2, Band, Decide, Interval, Point2, Tol};
+use test_utils::fuzz;
+
+use crate::Segment;
+use crate::seg::{Consistency, PairOutcome, SegKind, build_seg, pair_contacts};
+
+type P = (f64, f64);
+
+fn sub(p: P, q: P) -> P {
+    (p.0 - q.0, p.1 - q.1)
+}
+
+fn len(v: P) -> f64 {
+    v.0.hypot(v.1)
+}
+
+fn dist(p: P, q: P) -> f64 {
+    len(sub(p, q))
+}
+
+/// A segment as the oracle reads it: a chord, or an arc on a circle
+/// from a start angle through a signed sweep.
+#[derive(Clone, Copy, Debug)]
+enum Shape {
+    Line {
+        a: P,
+        b: P,
+    },
+    Arc {
+        c: P,
+        r: f64,
+        start: f64,
+        sweep: f64,
+    },
+}
+
+impl Shape {
+    fn ends(self) -> [P; 2] {
+        match self {
+            Self::Line { a, b } => [a, b],
+            Self::Arc { c, r, start, sweep } => [at(c, r, start), at(c, r, start + sweep)],
+        }
+    }
+}
+
+fn at(c: P, r: f64, t: f64) -> P {
+    (c.0 + r * t.cos(), c.1 + r * t.sin())
+}
+
+/// Whether the circle point at polar angle `t` lies on the arc.
+fn on_arc(start: f64, sweep: f64, t: f64) -> bool {
+    let along = (t - start) * sweep.signum();
+    along.rem_euclid(TAU) <= sweep.abs()
+}
+
+/// The distance from `q` to the shape.
+fn to_shape(q: P, s: Shape) -> f64 {
+    match s {
+        Shape::Line { a, b } => {
+            let d = sub(b, a);
+            let t = ((q.0 - a.0) * d.0 + (q.1 - a.1) * d.1) / (d.0 * d.0 + d.1 * d.1);
+            let t = t.clamp(0.0, 1.0);
+            dist(q, (a.0 + t * d.0, a.1 + t * d.1))
+        }
+        Shape::Arc { c, r, start, sweep } => {
+            let v = sub(q, c);
+            let [e0, e1] = s.ends();
+            let ends = dist(q, e0).min(dist(q, e1));
+            if len(v) > 0.0 && on_arc(start, sweep, v.1.atan2(v.0)) {
+                (len(v) - r).abs().min(ends)
+            } else {
+                ends
+            }
+        }
+    }
+}
+
+/// The closed-form distance between two shapes, one of them an arc: the
+/// least of each endpoint's distance to the other shape, the common
+/// normals both shapes hold, and zero where they cross.
+fn oracle(s1: Shape, s2: Shape) -> f64 {
+    let mut best = f64::INFINITY;
+    for (p, q) in [(s1, s2), (s2, s1)] {
+        for e in p.ends() {
+            best = best.min(to_shape(e, q));
+        }
+    }
+    match (s1, s2) {
+        (Shape::Line { a, b }, Shape::Arc { c, r, start, sweep })
+        | (Shape::Arc { c, r, start, sweep }, Shape::Line { a, b }) => {
+            let l = dist(a, b);
+            let u = (sub(b, a).0 / l, sub(b, a).1 / l);
+            let n = (-u.1, u.0);
+            let tc = (c.0 - a.0) * u.0 + (c.1 - a.1) * u.1;
+            let h = (c.0 - a.0) * n.0 + (c.1 - a.1) * n.1;
+            let on_line = |t: f64| (0.0..=l).contains(&t);
+            // Common normals: the circle points facing along the line's
+            // normal, with their foot on the line.
+            for side in [-1.0, 1.0] {
+                let t = (side * n.1).atan2(side * n.0);
+                if on_arc(start, sweep, t) && on_line(tc) {
+                    best = best.min((h + side * r).abs());
+                }
+            }
+            if h.abs() < r {
+                let half = (r * r - h * h).sqrt();
+                for t in [tc - half, tc + half] {
+                    let x = (a.0 + t * u.0, a.1 + t * u.1);
+                    if on_line(t) && on_arc(start, sweep, (x.1 - c.1).atan2(x.0 - c.0)) {
+                        best = 0.0;
+                    }
+                }
+            }
+        }
+        (
+            Shape::Arc {
+                c: c1,
+                r: r1,
+                start: a1,
+                sweep: w1,
+            },
+            Shape::Arc {
+                c: c2,
+                r: r2,
+                start: a2,
+                sweep: w2,
+            },
+        ) => {
+            let d = dist(c1, c2);
+            let u = (sub(c2, c1).0 / d, sub(c2, c1).1 / d);
+            let t = u.1.atan2(u.0);
+            // Common normals: both circles' points on the centre line.
+            for t1 in [t, t + PI] {
+                for t2 in [t, t + PI] {
+                    if on_arc(a1, w1, t1) && on_arc(a2, w2, t2) {
+                        best = best.min(dist(at(c1, r1, t1), at(c2, r2, t2)));
+                    }
+                }
+            }
+            let x = (d * d + r1 * r1 - r2 * r2) / (2.0 * d);
+            if r1 * r1 > x * x {
+                let y = (r1 * r1 - x * x).sqrt();
+                for s in [-1.0, 1.0] {
+                    let p = (c1.0 + x * u.0 - s * y * u.1, c1.1 + x * u.1 + s * y * u.0);
+                    if on_arc(a1, w1, (p.1 - c1.1).atan2(p.0 - c1.0))
+                        && on_arc(a2, w2, (p.1 - c2.1).atan2(p.0 - c2.0))
+                    {
+                        best = 0.0;
+                    }
+                }
+            }
+        }
+        // Two chords: the four endpoint distances, and a crossing.
+        (Shape::Line { a, b }, Shape::Line { a: c, b: d }) => {
+            let side = |p: P, q: P, x: P| (q.0 - p.0) * (x.1 - p.1) - (q.1 - p.1) * (x.0 - p.0);
+            if side(a, b, c) * side(a, b, d) < 0.0 && side(c, d, a) * side(c, d, b) < 0.0 {
+                best = 0.0;
+            }
+        }
+    }
+    best
+}
+
+/// What the pair pass read.
+enum Read {
+    /// This many contacts (an overlap counts as one), between the two
+    /// shapes as the build classified them: an arc whose sagitta is
+    /// within ε is its chord.
+    Contacts(usize, Shape, Shape),
+    /// An escalation.
+    Escalated,
+    /// A segment the build refused, which no draw counts.
+    Unbuilt,
+}
+
+fn kernel<T: Decide>(s1: Shape, s2: Shape, band: Band) -> Read {
+    let build = |s: Shape| {
+        let pt = |p: P| Point2::new(T::from_f64(p.0), T::from_f64(p.1));
+        let [a, b] = s.ends();
+        let segment = match s {
+            Shape::Line { .. } => Segment::Line,
+            Shape::Arc { c, r, sweep, .. } => Segment::Arc(Arc2 {
+                centre: pt(c),
+                radius: T::from_f64(r),
+                sweep: T::from_f64(sweep),
+            }),
+        };
+        let seg = build_seg(pt(a), pt(b), segment, Consistency::Decide, band).ok()?;
+        let read = match seg.kind {
+            SegKind::Line => Shape::Line { a, b },
+            SegKind::Arc(_) => s,
+        };
+        Some((seg, read))
+    };
+    let (Some((seg1, read1)), Some((seg2, read2))) = (build(s1), build(s2)) else {
+        return Read::Unbuilt;
+    };
+    match pair_contacts(&seg1, &seg2, band) {
+        Ok(PairOutcome::Contacts(contacts)) => Read::Contacts(contacts.len(), read1, read2),
+        Ok(PairOutcome::Overlap) => Read::Contacts(1, read1, read2),
+        Err(_) => Read::Escalated,
+    }
+}
+
+/// One draw: a near-tangent or shallow-secant pair ([`near`]), or a
+/// segment ending at the edge of the band off another ([`band_edge`]).
+fn draw(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
+    if rng.unit() < 0.5 {
+        near(rng, eps, k)
+    } else {
+        band_edge(rng, eps, k)
+    }
+}
+
+/// A signed sweep: a few times `small` (an arc local to one point), up
+/// to three radians, or past a half turn up to 10⁻³ short of a full one.
+fn sweep_of(rng: &mut fuzz::Rng, small: f64) -> f64 {
+    let sign = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+    sign * match rng.below(3) {
+        0 => rng.range(0.0, 4.0) * small,
+        1 => rng.range(0.0, 3.0),
+        _ => TAU - 10f64.powf(rng.range(-3.0, 0.5)),
+    }
+}
+
+/// A circle, and a line or a second circle tangent to it to within ε,
+/// or cutting it by 1.5 to 6 Kε (externally, internally, or nearly
+/// concentric inside it), each segment reaching up to four times the
+/// near stretch either side of the closest point, or sweeping up to
+/// 10⁻³ short of a full turn.
+fn near(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
+    let c = (rng.range(-2.0, 2.0), rng.range(-2.0, 2.0));
+    let r = 10f64.powf(rng.range(-1.0, 0.5));
+    let toward = rng.range(0.0, TAU);
+    // Tangent within ε, or secant past the band at a shallow angle.
+    let gap = if rng.unit() < 0.5 {
+        eps * rng.range(-0.95, 0.95)
+    } else {
+        -k * eps * rng.range(1.5, 6.0)
+    };
+    let tangency = at(c, r, toward);
+    let reach = (2.0 * r * (eps - gap)).sqrt().max(k * eps);
+    // An arc on the first circle around the tangency point.
+    let arc_near = |rng: &mut fuzz::Rng, c: P, r: f64, toward: f64| Shape::Arc {
+        c,
+        r,
+        start: toward + rng.range(-4.0, 4.0) * reach / r,
+        sweep: sweep_of(rng, reach / r),
+    };
+    let s1 = arc_near(rng, c, r, toward);
+    let s2 = match rng.below(4) {
+        0 => {
+            // A line tangent to the circle at `tangency`, `gap` outside.
+            let n = (toward.cos(), toward.sin());
+            let u = (-n.1, n.0);
+            let foot = (tangency.0 + gap * n.0, tangency.1 + gap * n.1);
+            let t0 = rng.range(-4.0, 4.0) * reach;
+            let t1 = if rng.unit() < 0.5 {
+                rng.range(-4.0, 4.0) * reach
+            } else {
+                t0 + rng.range(-3.0, 3.0)
+            };
+            Shape::Line {
+                a: (foot.0 + t0 * u.0, foot.1 + t0 * u.1),
+                b: (foot.0 + t1 * u.0, foot.1 + t1 * u.1),
+            }
+        }
+        family => {
+            let r2 = 10f64.powf(rng.range(-1.0, 0.5));
+            let (r2, d) = match family {
+                1 => (r2, r + r2 + gap),
+                // The smaller circle inside the larger.
+                2 => {
+                    let r2 = r2.min(0.9 * r);
+                    (r2, r - r2 + gap)
+                }
+                // Inside it, its centre as little as 10⁻⁷·r off.
+                _ => {
+                    let off = r * 10f64.powf(rng.range(-7.0, -2.0));
+                    (r - off, off + gap)
+                }
+            };
+            let c2 = (c.0 + d * toward.cos(), c.1 + d * toward.sin());
+            let back = if family == 1 { toward + PI } else { toward };
+            arc_near(rng, c2, r2, back)
+        }
+    };
+    (s1, s2)
+}
+
+/// An offset at the edge of the band: ±{0.5, 0.999, 1, 1.001, 2}·ε or
+/// ±{0.999, 1, 1.001, 2}·Kε.
+fn edge(rng: &mut fuzz::Rng, eps: f64, k: f64) -> f64 {
+    let at = [
+        0.5,
+        0.999,
+        1.0,
+        1.001,
+        2.0,
+        k * 0.999,
+        k,
+        k * 1.001,
+        k * 2.0,
+    ];
+    let sign = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+    sign * eps * at[rng.below(at.len())]
+}
+
+/// A line or an arc (up to 10⁻³ short of a full turn), and a line or an
+/// arc that ends at an edge of the band off its carrier ([`edge`]),
+/// over a foot that lies at an edge of the band off its end or inside
+/// its span, and leaves that end at an angle as small as 10⁻⁶ to the
+/// carrier, toward it or away.
+fn band_edge(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
+    let o = (rng.range(-2.0, 2.0), rng.range(-2.0, 2.0));
+    let length = 10f64.powf(rng.range(-1.0, 0.5));
+    let psi = rng.range(0.0, TAU);
+    // How far along the host from its start end the foot lies, in
+    // meters: an edge of the band either side of that end, or inside.
+    let at_edge = rng.unit() < 0.5;
+    let (edge_along, inside) = (edge(rng, eps, k), rng.unit());
+    // The host, the foot on its carrier, the carrier's unit normal and
+    // unit tangent there.
+    let (host, foot, normal, tangent) = if rng.unit() < 0.5 {
+        let u = (psi.cos(), psi.sin());
+        let t = if at_edge { edge_along } else { inside * length };
+        let b = (o.0 + length * u.0, o.1 + length * u.1);
+        let foot = (o.0 + t * u.0, o.1 + t * u.1);
+        (Shape::Line { a: o, b }, foot, (-u.1, u.0), u)
+    } else {
+        let sweep = sweep_of(rng, 1.0);
+        let turn = sweep.signum();
+        let t = if at_edge {
+            edge_along
+        } else {
+            inside * sweep.abs() * length
+        };
+        let angle = psi + turn * t / length;
+        let radial = (angle.cos(), angle.sin());
+        let host = Shape::Arc {
+            c: o,
+            r: length,
+            start: psi,
+            sweep,
+        };
+        let tangent = (-turn * radial.1, turn * radial.0);
+        (host, at(o, length, angle), radial, tangent)
+    };
+    let off = edge(rng, eps, k);
+    let end = (foot.0 + off * normal.0, foot.1 + off * normal.1);
+    // The other segment leaves `end` at `phi` to the tangent, either way
+    // along it, toward the carrier or away.
+    let phi = 10f64.powf(rng.range(-6.0, 0.0)) * if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+    let back = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+    let (sin, cos) = phi.sin_cos();
+    let dir = (
+        back * (tangent.0 * cos - tangent.1 * sin),
+        back * (tangent.0 * sin + tangent.1 * cos),
+    );
+    let reach = 10f64.powf(rng.range(-2.0, 0.5));
+    let other = if rng.unit() < 0.5 {
+        Shape::Line {
+            a: end,
+            b: (end.0 + reach * dir.0, end.1 + reach * dir.1),
+        }
+    } else {
+        // Turning left (centre on the left, counter-clockwise) or right.
+        let turn = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+        let c = (end.0 - turn * reach * dir.1, end.1 + turn * reach * dir.0);
+        Shape::Arc {
+            c,
+            r: reach,
+            start: (end.1 - c.1).atan2(end.0 - c.0),
+            sweep: turn * sweep_of(rng, 1e-3).abs(),
+        }
+    };
+    if rng.unit() < 0.5 {
+        (host, other)
+    } else {
+        (other, host)
+    }
+}
+
+/// Sweeps `n` draws at scalar `T`; returns the counterexamples, and the
+/// draws that escalated.
+fn sweep<T: Decide>(scalar: &str, rng: &mut fuzz::Rng, n: usize) -> (Vec<String>, usize) {
+    let t = Tol::witness().get();
+    let band = Band::linear(Tol::witness()).expect("the run's band");
+    let (mut wrong, mut escalated) = (Vec::new(), 0);
+    for _ in 0..n {
+        let (s1, s2) = draw(rng, t.eps, t.k);
+        match kernel::<T>(s1, s2, band) {
+            Read::Contacts(0, s1, s2) => {
+                let d = oracle(s1, s2);
+                if d <= t.eps {
+                    wrong.push(format!(
+                        "{scalar}: {s1:?} × {s2:?}: no contact at distance {d:e}"
+                    ));
+                }
+            }
+            Read::Contacts(..) | Read::Unbuilt => {}
+            Read::Escalated => escalated += 1,
+        }
+    }
+    (wrong, escalated)
+}
+
+#[test]
+fn a_near_tangent_pair_reads_no_contact_only_past_eps() {
+    let mut rng = fuzz::start("seg_reach_fuzz::a_near_tangent_pair_reads_no_contact_only_past_eps");
+    let (mut wrong, f64_escalated) = sweep::<f64>("f64", &mut rng, fuzz::scaled(40_000));
+    let (wrong_i, interval_escalated) =
+        sweep::<Interval>("Interval", &mut rng, fuzz::scaled(10_000));
+    println!("escalated: {f64_escalated} at f64, {interval_escalated} at Interval");
+    wrong.extend(wrong_i);
+    assert!(
+        wrong.is_empty(),
+        "{} pairs within eps read no contact, e.g.\n{}\n{}",
+        wrong.len(),
+        wrong[..wrong.len().min(5)].join("\n"),
+        fuzz::replay()
+    );
+}

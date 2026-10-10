@@ -86,7 +86,7 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// runs the loop backwards, and its walls, rims, struts and cap vertices are
 /// now named by the pieces at their CANONICAL positions (they were
 /// named by the swept positions, each wall by another piece); and node
-/// ids are digests of the document's mint chain, and the die's pip
+/// ids are drawn from the document's mint chain, and the die's pip
 /// subtracts carry their declared pairs as their own payload, so every
 /// subtract's id, and every id minted after one, is the chain's
 /// without a declaration node in it; and every extrude carries its side
@@ -94,11 +94,22 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// and declaring the die's variables mints their ids on the chain,
 /// which moves every id minted after a declare (ids only: no name's
 /// wording moved).
-const DIE_TABLE_DIGEST: u64 = 0xaeb2_2275_f9fa_495e;
+const DIE_TABLE_DIGEST: u64 = 0x2675dbf49f136408;
 
 /// The pinned names-only die digest (R11 companion; see
 /// [`digest_names`]). Re-pinned with `DIE_TABLE_DIGEST` (above).
-const DIE_NAMES_DIGEST: u64 = 0x6e0b_9403_fad5_a406;
+///
+/// **Re-pinned for INTENT-LITERALS PR C** (a slot holds a variable):
+/// every node is minted from slots that hold variable ids, a typed
+/// value's variable drawn from what it holds, so every node id moved
+/// and with it every row this hashes. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched across the change.
+///
+/// **Re-pinned when an id became its mint ordinal and its digest**: the
+/// rows hash each name's `Debug`, which spells the id, so every row
+/// moved; the same fence held.
+const DIE_NAMES_DIGEST: u64 = 0x60e9_36b4_f7ba_175a;
 
 #[test]
 fn die_name_tables_are_golden() {

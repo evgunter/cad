@@ -143,10 +143,11 @@ pub enum DocIoError {
         message: String,
     },
     /// The document layer refused the bytes (or refused to produce
-    /// them).
-    Persist(PersistError),
-    /// The saved log did not replay through `apply`.
-    Replay(ReplayError),
+    /// them). Boxed so the refusal stays a small `Err`.
+    Persist(Box<PersistError>),
+    /// The saved log did not replay through `apply`; boxed as `Persist`
+    /// is.
+    Replay(Box<ReplayError>),
 }
 
 impl core::fmt::Display for DocIoError {
@@ -176,8 +177,9 @@ pub fn open(path: &Path, tol: Tol) -> Result<History, DocIoError> {
     let text = std::fs::read_to_string(path).map_err(|e| DocIoError::Read {
         message: e.to_string(),
     })?;
-    let loaded = load(&text, tol).map_err(DocIoError::Persist)?;
-    History::replayed(loaded.snapshot, &loaded.edits, tol).map_err(DocIoError::Replay)
+    let loaded = load(&text, tol).map_err(|e| DocIoError::Persist(Box::new(e)))?;
+    History::replayed(loaded.snapshot, &loaded.edits, tol)
+        .map_err(|e| DocIoError::Replay(Box::new(e)))
 }
 
 /// Write the history's current path: its root snapshot and the edits
@@ -195,7 +197,8 @@ pub fn open(path: &Path, tol: Tol) -> Result<History, DocIoError> {
 /// the filesystem.
 pub fn save_path(path: &Path, history: &History, tol: Tol) -> Result<(), DocIoError> {
     let root: &Doc<ProfileProgram> = history.entry(history.root()).doc();
-    let text = save(root, &history.path_edits(), tol).map_err(DocIoError::Persist)?;
+    let text =
+        save(root, &history.path_edits(), tol).map_err(|e| DocIoError::Persist(Box::new(e)))?;
     std::fs::write(path, text).map_err(|e| DocIoError::Write {
         message: e.to_string(),
     })

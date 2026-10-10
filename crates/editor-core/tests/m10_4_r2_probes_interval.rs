@@ -49,9 +49,9 @@ use editor_core::stackup::{
 };
 use editor_core::{
     CancelToken, CapEnd, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
-    FreeValue, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult, ParamValue,
+    FreeValue, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, Observed, ParamValue,
     ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
-    SitedRef, ValuePayload, VarName, evaluate, seed_env,
+    SitedRef, VarId, VarName, evaluate, seed_env,
 };
 use geom_core::interval::Interval;
 use geom_core::{CertifiedEnclosure, Dual64, Tol};
@@ -92,7 +92,7 @@ fn config(max_leaves: usize) -> DriveConfig {
 
 fn opts(doc: &ProfileDoc, seed: Option<&str>, lift: ProfileLift) -> EvalOptions {
     EvalOptions {
-        seed: seed.map(|n| doc.var_named(n).unwrap_or(editor_core::VarId(0))),
+        seed: seed.map(|n| doc.var_named(n).unwrap_or(editor_core::VarId::new(0, 0))),
         profile_lift: lift,
         ..EvalOptions::default()
     }
@@ -116,23 +116,17 @@ fn push(doc: &editor_core::ProfileDoc, edit: DocEdit<ProfileProgram>) -> Profile
         .doc
 }
 
-fn measured(ev: &Evaluation<Dual64>, id: RecipeNodeId) -> Dual64 {
-    match ev.result(id) {
-        Some(NodeResult::Ok(v)) => match &v.payload {
-            ValuePayload::Measure { value, .. } => *value,
-            other => panic!("node {id:?} is a {}", other.kind_name()),
-        },
-        other => panic!("node {id:?} did not evaluate: {other:?}"),
+fn measured(doc: &ProfileDoc, ev: &Evaluation<Dual64>, var: VarId) -> Dual64 {
+    match ev.reading(doc, var) {
+        Ok(Observed::Value(value)) => value,
+        other => panic!("{var:?} did not read: {other:?}"),
     }
 }
 
-fn measured_f64(ev: &Evaluation<f64>, id: RecipeNodeId) -> f64 {
-    match ev.result(id) {
-        Some(NodeResult::Ok(v)) => match &v.payload {
-            ValuePayload::Measure { value, .. } => *value,
-            other => panic!("node {id:?} is a {}", other.kind_name()),
-        },
-        other => panic!("node {id:?} did not evaluate: {other:?}"),
+fn measured_f64(doc: &ProfileDoc, ev: &Evaluation<f64>, var: VarId) -> f64 {
+    match ev.reading(doc, var) {
+        Ok(Observed::Value(value)) => value,
+        other => panic!("{var:?} did not read: {other:?}"),
     }
 }
 
@@ -143,6 +137,25 @@ fn key(ev: &Evaluation<impl geom_core::Decide>, id: RecipeNodeId) -> u128 {
 /// The variable `doc` declares as `n`.
 fn var(doc: &ProfileDoc, n: &str) -> editor_core::VarId {
     doc.var_named(n).expect("the fixture declares it")
+}
+
+/// `doc` with each of `names` given a tolerance, so the stackup's
+/// driver varies it (VR8: an untoleranced variable is a constant of the
+/// analysis and has no entry). A derivative does not read the law.
+fn toleranced(doc: &ProfileDoc, names: &[&str]) -> ProfileDoc {
+    names.iter().fold(doc.clone(), |doc, n| {
+        editor_core::apply(
+            &doc,
+            &DocEdit::SetVarDistribution {
+                var: var(&doc, n).into(),
+                distribution: Some(Distribution::Normal { sigma: 1e-3 }),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("a declared variable takes a law")
+        .doc
+    })
 }
 
 fn entry<'a>(
@@ -209,7 +222,9 @@ struct Slab {
     profile: RecipeNodeId,
     block: RecipeNodeId,
     cube: RecipeNodeId,
-    measure: RecipeNodeId,
+    measure: VarId,
+    /// The two measures the measured value sums.
+    measures: [RecipeNodeId; 2],
 }
 
 fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
@@ -243,17 +258,17 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
     // share a plane bind the same id.
     let frame = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        frame: frame.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: param("d", Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let cube_profile = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(5.0, 5.0), (6.0, 5.0), (6.0, 6.0), (5.0, 6.0)])
                 .expect("finite corners"),
@@ -261,7 +276,7 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
         ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
-        profile: cube_profile,
+        profile: cube_profile.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -271,18 +286,27 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
         SitedRef::new(block, fname(block, RoleSeg::Cap(CapEnd::Start))),
         SitedRef::new(block, fname(block, RoleSeg::Cap(CapEnd::End))),
     ];
-    let expr = MeasureExpr::add(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 2, b: 3 }),
-    )
-    .expect("Length + Length");
-    let measure = r.insert(Node::measure(expr, refs).expect("indices in range"));
+    let measured = r.measure(
+        &[
+            MeasurePrimitive::Distance { a: 0, b: 1 },
+            MeasurePrimitive::Distance { a: 2, b: 3 },
+        ],
+        &refs,
+    );
+    let sum = Formula::add(r.len_of(measured.outputs[0]), r.len_of(measured.outputs[1]))
+        .expect("Length + Length");
+    r.push(DocEdit::DeclareVar {
+        name: name("m"),
+        def: editor_core::VarDecl::Defined(sum),
+    });
+    let measure = var(&r.doc, "m");
     Slab {
         doc: r.doc,
         profile,
         block,
         cube,
         measure,
+        measures: [measured.measures[0], measured.measures[1]],
     }
 }
 
@@ -293,7 +317,7 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
 /// `gap(bore wall, pin wall) = 0.5 − r − 0.1`, so ∂gap/∂r = −1 exactly
 /// — and exactly 0 under the pinned lift, since nothing but the
 /// carrier's radius carries `r`.
-pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId) {
+pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, VarId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("r"),
@@ -303,7 +327,7 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId) {
     // share a plane bind the same id.
     let frame = r.insert(fixture::xy_frame());
     let bore_p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        frame: frame.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             radius: len(0.5),
@@ -311,12 +335,12 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId) {
         ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
-        profile: bore_p,
+        profile: bore_p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
     let pin_p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        frame: frame.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.1), len(0.0)],
             radius: param("r", Dimension::Length),
@@ -324,19 +348,15 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId) {
         ids: Vec::new(),
     }));
     let pin = r.insert(Node::Extrude {
-        profile: pin_p,
+        profile: pin_p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
     let ev = eval(&r.doc);
     let refs = vec![cyl_wall(&ev, &r.doc, bore), cyl_wall(&ev, &r.doc, pin)];
-    let m = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-            refs,
-        )
-        .expect("indices in range"),
-    );
+    let m = r
+        .measure(&[MeasurePrimitive::Gap { outer: 0, inner: 1 }], &refs)
+        .outputs[0];
     (r.doc, m)
 }
 
@@ -346,21 +366,23 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId) {
 /// through `‖n̂_a × n̂_b‖ = sqrt(0)` — for `h` AND for a parameter `u`
 /// that feeds nothing. A second measure, `max(h − 1, 1 − h) = |h − 1|`,
 /// is the spec's `abs` kink spelled in the measure vocabulary.
-fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, VarId, VarId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("h"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, h_dist)),
     });
+    // `u` carries `h`'s law, so it is an axis too (VR8) and the row
+    // can ask what a parameter that feeds nothing forfeits.
     r.push(DocEdit::DeclareVar {
         name: name("u"),
-        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, None)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, h_dist)),
     });
     // One frame, named by every profile below: two sketches meant to
     // share a plane bind the same id.
     let frame = r.insert(fixture::xy_frame());
     let pa = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -368,12 +390,12 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId
         ids: Vec::new(),
     }));
     let a = r.insert(Node::Extrude {
-        profile: pa,
+        profile: pa.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
     let pb = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(3.0, 0.0), (4.0, 0.0), (4.0, 1.0), (3.0, 1.0)])
                 .expect("finite corners"),
@@ -381,7 +403,7 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId
         ids: Vec::new(),
     }));
     let b = r.insert(Node::Extrude {
-        profile: pb,
+        profile: pb.into(),
         distance: param("h", Dimension::Length),
         side: ExtrudeSide::Along,
     });
@@ -389,28 +411,24 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId
         SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
         SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
     ];
-    let angle = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
-            refs,
-        )
-        .expect("indices in range"),
-    );
-    let h = || MeasureExpr::value(param("h", Dimension::Length));
-    let one = || MeasureExpr::value(len(1.0));
-    let kink = MeasureExpr::max(
-        MeasureExpr::sub(h(), one()).expect("Length"),
-        MeasureExpr::sub(one(), h()).expect("Length"),
+    let angle = r
+        .measure(&[MeasurePrimitive::Angle { a: 0, b: 1 }], &refs)
+        .outputs[0];
+    let h = || param("h", Dimension::Length);
+    let one = || len(1.0);
+    let kink = Formula::max(
+        Formula::sub(h(), one()).expect("Length"),
+        Formula::sub(one(), h()).expect("Length"),
     )
     .expect("Length");
-    let abs = r.insert(Node::measure(kink, Vec::new()).expect("no refs"));
+    let abs = r.define("abs", kink);
     (r.doc, angle, abs)
 }
 
 /// **The loft.** Two square sections of width `w` at z = 0 and z = 1,
 /// lofted at degree 1; the measure is the distance between the loft's
 /// vertices at (0, 0, 0) and (w, 0, 0), which is `w` exactly.
-fn loft() -> (ProfileDoc, RecipeNodeId) {
+fn loft() -> (ProfileDoc, VarId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("w"),
@@ -444,19 +462,19 @@ fn loft() -> (ProfileDoc, RecipeNodeId) {
     let (c0, z0) = section(0.0);
     let f0 = frame_at(&mut r, z0);
     let p0 = r.insert(Node::Profile(ProfileProgram {
-        plane: f0,
+        frame: f0.into(),
         loops: vec![c0],
         ids: Vec::new(),
     }));
     let (c1, z1) = section(1.0);
     let f1 = frame_at(&mut r, z1);
     let p1 = r.insert(Node::Profile(ProfileProgram {
-        plane: f1,
+        frame: f1.into(),
         loops: vec![c1],
         ids: Vec::new(),
     }));
     let loft = r.insert(Node::Loft {
-        profiles: vec![p0, p1],
+        profiles: vec![p0.into(), p1.into()],
         v_degree: Formula::count(1),
     });
     let ev = eval(&r.doc);
@@ -467,20 +485,16 @@ fn loft() -> (ProfileDoc, RecipeNodeId) {
         vertex_at(&ev, loft, [0.0, 0.0, 0.0]),
         vertex_at(&ev, loft, [2.0, 0.0, 0.0]),
     ];
-    let m = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            refs,
-        )
-        .expect("indices in range"),
-    );
+    let m = r
+        .measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs)
+        .outputs[0];
     (r.doc, m)
 }
 
 /// **The pure-expression sum**: no geometry, four parameters of every
 /// distribution shape summed into one measure so every ∂m/∂pᵢ is
 /// exactly 1 and the RSS is `√Σσᵢ²`.
-fn sum(u: Distribution, n: Distribution, tn: Distribution) -> (ProfileDoc, RecipeNodeId) {
+fn sum(u: Distribution, n: Distribution, tn: Distribution) -> (ProfileDoc, VarId) {
     let mut r = Recorder::new();
     for (p, dist) in [
         ("u", Some(u)),
@@ -493,13 +507,13 @@ fn sum(u: Distribution, n: Distribution, tn: Distribution) -> (ProfileDoc, Recip
             def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, dist)),
         });
     }
-    let v = |p: &'static str| MeasureExpr::value(param(p, Dimension::Length));
-    let expr = MeasureExpr::add(
-        MeasureExpr::add(v("u"), v("n")).expect("Length"),
-        MeasureExpr::add(v("tn"), v("f")).expect("Length"),
+    let v = |p: &'static str| param(p, Dimension::Length);
+    let expr = Formula::add(
+        Formula::add(v("u"), v("n")).expect("Length"),
+        Formula::add(v("tn"), v("f")).expect("Length"),
     )
     .expect("Length");
-    let m = r.insert(Node::measure(expr, Vec::new()).expect("no refs"));
+    let m = r.define("m", expr);
     (r.doc, m)
 }
 
@@ -524,10 +538,11 @@ fn the_seed_rides_exactly_one_binding_on_an_aliasing_shaped_fixture() {
     assert_eq!(binding("d").deriv.to_bits(), 0.0f64.to_bits());
     assert_eq!(binding("w").value.to_bits(), binding("k").value.to_bits());
 
-    let f = measured_f64(&eval(&s.doc), s.measure);
+    let f = measured_f64(&s.doc, &eval(&s.doc), s.measure);
     assert_eq!(f.to_bits(), 3.0f64.to_bits());
     for (seed, expect) in [("w", 1.0), ("d", 1.0), ("k", 0.0)] {
         let m = measured(
+            &s.doc,
             &run::<Dual64>(&s.doc, None, &opts(&s.doc, Some(seed), ProfileLift::Guided)),
             s.measure,
         );
@@ -543,6 +558,7 @@ fn the_seed_rides_exactly_one_binding_on_an_aliasing_shaped_fixture() {
     // sees "not exactly zero". The PR's own profile pin records the
     // same arrival on the pinned lift.
     let k = measured(
+        &s.doc,
         &run::<Dual64>(&s.doc, None, &opts(&s.doc, Some("k"), ProfileLift::Guided)),
         s.measure,
     );
@@ -554,6 +570,7 @@ fn the_seed_rides_exactly_one_binding_on_an_aliasing_shaped_fixture() {
     // The pinned lift: the profile dimension's tangent is the silent
     // zero the lift ends; the magnitude slot's is untouched.
     let pinned = measured(
+        &s.doc,
         &run::<Dual64>(&s.doc, None, &opts(&s.doc, Some("w"), ProfileLift::Pinned)),
         s.measure,
     );
@@ -603,9 +620,10 @@ fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order()
             "the literal cube is seed-free"
         );
     }
-    assert_ne!(key(&on_w, s.measure), key(&base, s.measure));
-    assert_ne!(key(&on_d, s.measure), key(&base, s.measure));
-    assert_ne!(key(&on_w, s.measure), key(&on_d, s.measure));
+    let measures = |ev| (key(ev, s.measures[0]), key(ev, s.measures[1]));
+    assert_ne!(measures(&on_w), measures(&base));
+    assert_ne!(measures(&on_d), measures(&base));
+    assert_ne!(measures(&on_w), measures(&on_d));
 
     // (b) an unused seed is the base, node for node.
     for id in &base.order {
@@ -623,7 +641,7 @@ fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order()
     // (c) every threading order reads its own tangent.
     let fresh: BTreeMap<&str, Dual64> = [("w", &on_w), ("d", &on_d), ("k", &on_k)]
         .into_iter()
-        .map(|(n, ev)| (n, measured(ev, s.measure)))
+        .map(|(n, ev)| (n, measured(&s.doc, ev, s.measure)))
         .collect();
     for (seed, prior) in [
         ("d", &on_w),
@@ -634,7 +652,7 @@ fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order()
         ("k", &on_w),
     ] {
         let threaded = run::<Dual64>(&s.doc, Some(prior), &guided(Some(seed)));
-        let m = measured(&threaded, s.measure);
+        let m = measured(&s.doc, &threaded, s.measure);
         assert_eq!(
             m.deriv.to_bits(),
             fresh[seed].deriv.to_bits(),
@@ -648,10 +666,11 @@ fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order()
         assert!(threaded.reused >= 2, "the cube is always served: {seed}");
     }
     // The w pass threaded from the d pass recomputes exactly w's cone
-    // (profile, block, measure) and serves the rest.
+    // (profile, block, and the two measures reading the block) and
+    // serves the rest.
     let w_from_d = run::<Dual64>(&s.doc, Some(&on_d), &guided(Some("w")));
-    assert_eq!(w_from_d.recomputed, 3);
-    assert_eq!(w_from_d.reused, s.doc.len() - 3);
+    assert_eq!(w_from_d.recomputed, 4);
+    assert_eq!(w_from_d.reused, s.doc.len() - 4);
 
     // (d) schedule independence, through the driver and the raw door.
     let par = run::<Dual64>(
@@ -662,20 +681,21 @@ fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order()
             ..guided(Some("w"))
         },
     );
-    let m = measured(&par, s.measure);
+    let m = measured(&s.doc, &par, s.measure);
     assert_eq!(m.deriv.to_bits(), fresh["w"].deriv.to_bits());
     assert_eq!(m.value.to_bits(), fresh["w"].value.to_bits());
-    let seq = sensitivities(&s.doc, s.measure, None, None, false, None, Tol::witness());
-    let par = sensitivities(&s.doc, s.measure, None, None, true, None, Tol::witness());
+    let lawed = toleranced(&s.doc, &["w", "d", "k"]);
+    let seq = sensitivities(&lawed, s.measure, None, None, false, None, Tol::witness());
+    let par = sensitivities(&lawed, s.measure, None, None, true, None, Tol::witness());
     assert_eq!(seq, par);
     let seq = seq.expect("ok");
     assert_eq!(
         seq.len(),
         3,
-        "one entry per continuous parameter, k included"
+        "one entry per toleranced variable, k included, no written dimension's"
     );
     for (n, expect) in [("w", 1.0), ("d", 1.0), ("k", 0.0)] {
-        match entry(&s.doc, &seq, n) {
+        match entry(&lawed, &seq, n) {
             SensitivityOutcome::Derivative { value, chamber } => {
                 assert_eq!(*value, expect, "{n}");
                 assert_eq!(*chamber, Chamber::LocalOnly);
@@ -757,6 +777,7 @@ fn the_pairing_hook_pairs_only_the_build_of_record() {
                 2.0,
                 Some(uniform(-0.1, 0.1)),
             )),
+            fresh: Vec::new(),
         },
     );
     let r = sensitivities(
@@ -917,7 +938,7 @@ fn a_sqrt_zero_tangent_forfeits_every_parameter_and_a_max_kink_forfeits_none() {
     };
     // In declaration order, the order every lane lists variables in.
     let mut want = vec![var(&doc, "h"), var(&doc, "u")];
-    want.sort_by_key(|id| doc.var_order().iter().position(|v| v == id));
+    want.sort_by_key(|id| doc.var_ids().iter().position(|v| v == id));
     assert_eq!(blockers, want);
     for p in &report.per_param {
         assert!(p.contribution.is_err(), "{:?}", p.param);
@@ -971,13 +992,13 @@ fn where_the_linearization_says_zero_the_hull_still_encloses_the_range() {
             Some(uniform(-0.5, 0.5)),
         )),
     });
-    let a = || MeasureExpr::value(param("a", Dimension::Scalar));
-    let expr = MeasureExpr::sub(
-        MeasureExpr::mul(a(), a()).expect("Scalar"),
-        MeasureExpr::add(a(), a()).expect("Scalar"),
+    let a = || param("a", Dimension::Scalar);
+    let expr = Formula::sub(
+        Formula::mul(a(), a()).expect("Scalar"),
+        Formula::add(a(), a()).expect("Scalar"),
     )
     .expect("Scalar");
-    let m = r.insert(Node::measure(expr, Vec::new()).expect("no refs"));
+    let m = r.define("m", expr);
     let doc = r.doc;
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(64), Tol::witness()).expect("builds");
@@ -1069,13 +1090,10 @@ fn the_shared_prior_does_not_move_the_hull() {
                     },
                     Tol::witness(),
                 );
-                let Some(NodeResult::Ok(v)) = ev.result(s.measure) else {
+                let Ok(Observed::Value(value)) = ev.reading(&s.doc, s.measure) else {
                     panic!("a certified leaf measures")
                 };
-                let ValuePayload::Measure { value, .. } = &v.payload else {
-                    panic!("a measure")
-                };
-                CertifiedEnclosure::certified_bracket(*value).expect("certified")
+                CertifiedEnclosure::certified_bracket(value).expect("certified")
             },
         );
         let (l, h) = bracket;
@@ -1140,8 +1158,9 @@ fn truncated_sigma(sigma: f64, lo: f64, hi: f64) -> f64 {
 
 /// **σ for every form, derived independently.** Uniform `(hi − lo)/√12`
 /// on an ASYMMETRIC support, Normal `σ`, TruncatedNormal by quadrature
-/// on an asymmetric window, fixed `0`; with every ∂m/∂pᵢ = 1 the RSS is
-/// `√Σσᵢ²`. Contributions are `half-width` per axis — the analyzed
+/// on an asymmetric window; with every ∂m/∂pᵢ = 1 the RSS is `√Σσᵢ²`.
+/// The fourth summand `f` carries no tolerance, so it is a constant of
+/// the analysis and has no entry (VR8). Contributions are `half-width` per axis — the analyzed
 /// box's, which for the asymmetric supports is NOT the larger
 /// excursion from the nominal (noted, per spec).
 #[test]
@@ -1185,7 +1204,7 @@ fn the_rss_sigma_of_every_distribution_form_derived_independently() {
         ),
         other => panic!("{other:?}"),
     }
-    assert_eq!(report.per_param.len(), 4);
+    assert_eq!(report.per_param.len(), 3, "u, n and tn; f is a constant");
     for p in &report.per_param {
         let half = 0.5 * analyzed.get(p.param).expect("axis").offsets.width();
         assert_eq!(p.contribution, Ok(half), "{:?}", p.param);
@@ -1234,7 +1253,7 @@ fn the_rss_sigma_of_every_distribution_form_derived_independently() {
                     var: doc.spoken_var(var(&doc, "u")),
                 },
             ];
-            want.sort_by_key(|b| doc.var_order().iter().position(|v| *v == b.var().id()));
+            want.sort_by_key(|b| doc.var_ids().iter().position(|v| *v == b.var().id()));
             assert_eq!(blockers, &want);
         }
         other => panic!("{other:?}"),
@@ -1258,9 +1277,10 @@ fn the_rss_sigma_of_every_distribution_form_derived_independently() {
 #[test]
 fn a_circle_radius_seed_reaches_the_gap_through_the_lifted_carrier() {
     let (doc, m) = fit(None);
-    let f = measured_f64(&eval(&doc), m);
+    let f = measured_f64(&doc, &eval(&doc), m);
     assert!((f - 0.2).abs() < 1e-12, "gap {f}");
     let guided = measured(
+        &doc,
         &run::<Dual64>(&doc, None, &opts(&doc, Some("r"), ProfileLift::Guided)),
         m,
     );
@@ -1272,12 +1292,14 @@ fn a_circle_radius_seed_reaches_the_gap_through_the_lifted_carrier() {
         guided.deriv
     );
     let pinned = measured(
+        &doc,
         &run::<Dual64>(&doc, None, &opts(&doc, Some("r"), ProfileLift::Pinned)),
         m,
     );
     assert_eq!(pinned.deriv, 0.0, "the pinned lift's silent zero");
-    let entries = sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("ok");
-    match entry(&doc, &entries, "r") {
+    let lawed = toleranced(&doc, &["r"]);
+    let entries = sensitivities(&lawed, m, None, None, false, None, Tol::witness()).expect("ok");
+    match entry(&lawed, &entries, "r") {
         SensitivityOutcome::Derivative { value, .. } => assert_eq!(*value, -1.0),
         other => panic!("{other:?}"),
     }
@@ -1295,10 +1317,11 @@ fn a_circle_radius_seed_reaches_the_gap_through_the_lifted_carrier() {
 #[test]
 fn a_loft_section_dimension_seed_is_not_a_silent_zero() {
     let (doc, m) = loft();
-    let f = measured_f64(&eval(&doc), m);
+    let f = measured_f64(&doc, &eval(&doc), m);
     assert_eq!(f.to_bits(), 2.0f64.to_bits(), "distance {f}");
-    let entries = sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("ok");
-    match entry(&doc, &entries, "w") {
+    let lawed = toleranced(&doc, &["w"]);
+    let entries = sensitivities(&lawed, m, None, None, false, None, Tol::witness()).expect("ok");
+    match entry(&lawed, &entries, "w") {
         SensitivityOutcome::Derivative { value, .. } => {
             assert_eq!(
                 *value, 1.0,

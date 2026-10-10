@@ -173,7 +173,7 @@ fn refusals(a: &Body<f64>, b: &Body<f64>) -> Vec<(&'static str, BooleanError)> {
 /// pairs are examined and none accepted, and the crossing layer passes.
 /// Every op then stops at the extent scan, whose oblique torus × plane
 /// and torus × wall pairs have no section classification
-/// (`work/reach/a-torus-near-a-tilted-cut-stops-at-the-extent-scan.md`).
+/// (`work/orbit/a-torus-near-a-tilted-cut-stops-at-the-extent-scan.md`).
 #[test]
 fn a_torus_just_clear_of_the_rim_is_decided_by_its_roots() {
     let a = drum_lower();

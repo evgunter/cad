@@ -159,8 +159,8 @@ fn every_frame_slot_is_declared_and_reachable() {
     // The three families, spelled: a frame is an origin plus two
     // directions, and the dimensions say which is which.
     for axis in Axis3::ALL {
-        assert_eq!(SlotId::Origin(axis).dimension(), Dimension::Length);
-        assert_eq!(SlotId::U(axis).dimension(), Dimension::Scalar);
-        assert_eq!(SlotId::V(axis).dimension(), Dimension::Scalar);
+        assert_eq!(SlotId::Origin(axis).dimension(), Some(Dimension::Length));
+        assert_eq!(SlotId::U(axis).dimension(), Some(Dimension::Scalar));
+        assert_eq!(SlotId::V(axis).dimension(), Some(Dimension::Scalar));
     }
 }

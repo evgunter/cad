@@ -6,7 +6,7 @@ status: parked
 priority: P3
 cost: M
 opened: 2026-10-03
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage3-is-built]
 refs: [MSOLVE-14, an-identically-zero-margin-escalates-at-a-fine-eps]
 ---
 
@@ -59,3 +59,7 @@ A rigid inverse at `Interval` is a `geom-core` linalg door (an
 literal frame, so the enclosure stays sound for inputs orthonormal only
 to rounding), outside that unit's fence; and it buys a factor of five,
 not convergence. The rest is the §5 (b) design question.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage3-is-built`, not on the whole program: the widening comes from member_of re-measuring a residual met by construction; stage 3's "a mate places and never checks", overconstraint by subgroup algebra without measuring, retires that re-measure. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

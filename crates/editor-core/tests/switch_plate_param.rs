@@ -56,6 +56,7 @@ fn scene() -> Scene {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(fixture::xy_frame()),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -66,6 +67,7 @@ fn scene() -> Scene {
         &applied.doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(plate_profile(plane))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -76,10 +78,11 @@ fn scene() -> Scene {
         &applied.doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(PLATE_DEPTH),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -101,6 +104,7 @@ fn set_hole_r(doc: &editor_core::ProfileDoc, value: f64) -> ProfileDoc {
         &DocEdit::DefineVar {
             var: VarName::from_static(HOLE_R).into(),
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -309,7 +313,8 @@ fn the_authoring_door_refuses_but_define_var_does_not() {
         &DocEdit::SetParam {
             node: s.profile,
             slot: radius_slot,
-            expr: len(0.0),
+            value: len(0.0).into(),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -334,7 +339,8 @@ fn the_authoring_door_refuses_but_define_var_does_not() {
         &DocEdit::SetParam {
             node: s.profile,
             slot: radius_slot,
-            expr: len(0.3),
+            value: len(0.3).into(),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -369,18 +375,20 @@ fn the_hole_radii_are_addressable_slots() {
     // its radius authored by name, and stored as a reader of the
     // variable that name holds.
     let circle = |lp: &editor_core::LoopProgram| match lp {
-        editor_core::LoopProgram::Circle { centre, radius } => {
-            (centre.clone(), s.doc.unparse(radius))
-        }
+        editor_core::LoopProgram::Circle { centre, radius } => (
+            centre.map(|c| s.doc.written(&editor_core::Expr::var(c, Dimension::Length))),
+            s.doc.unparse(
+                &s.doc
+                    .written(&editor_core::Expr::var(*radius, Dimension::Length)),
+            ),
+        ),
         other => panic!("a hole is a circle, got {other:?}"),
     };
     assert_eq!(
         program.loops.get(1).map(circle),
         Some(match hole_loop(HOLE_CENTRES[0]) {
-            editor_core::LoopProgram::Circle { centre, radius } => (
-                centre.map(|c| editor_core::test_support::stored_expr(&c)),
-                s.doc.unparse(&radius),
-            ),
+            editor_core::LoopProgram::Circle { centre, radius } =>
+                (centre, s.doc.unparse(&radius),),
             other => panic!("a hole is a circle, got {other:?}"),
         }),
         "the hole loop is the shared-parameter circle"

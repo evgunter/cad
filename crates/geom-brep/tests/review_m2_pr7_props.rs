@@ -763,19 +763,18 @@ fn off_surface_boundaries_must_refuse_typed() {
     );
 }
 
-/// The torus `s_f` inference trusts the loop-local vertex tags: a
-/// caller that LIES (tags the meridian anchor onto the far rim) gets a
-/// silently flipped sign. This is a documented caller contract (tags
-/// come from `topo`'s flattening, first-seen order), not a public
-/// surface — pinned here so the trust boundary is explicit.
+/// The torus reader trusts no vertex tags: its chart Green form reads
+/// the loop's geometry and its cyclic order, so a caller that lies
+/// about the tags (the two rims' tag pairs swapped — a lie no topo
+/// flattening produces) gets the same flux, and both match the oracle.
+/// The old reader took its side from the rim tagged onto the anchor
+/// meridian's `t0` vertex, which made the tags load-bearing.
 #[test]
-fn torus_tag_contract_is_load_bearing() {
+fn torus_flux_reads_no_tags() {
     let s = tor();
     let rect = [0.1, 1.8, -0.7, 0.9];
     let mut lp = patch_loop(&s, rect, 1.0, false);
     let honest = curved_face(&s, &lp.edges, true, band()).unwrap();
-    // Swap the two rims' tag pairs (a lie no topo flattening produces:
-    // the loop is otherwise untouched).
     let (r0, r1) = (lp.edges[0].clone(), lp.edges[2].clone());
     lp.edges[0].start = r1.start;
     lp.edges[0].end = r1.end;
@@ -784,8 +783,9 @@ fn torus_tag_contract_is_load_bearing() {
     let lied = curved_face(&s, &lp.edges, true, band()).unwrap();
     let (_, flux) = oracle(&s, rect, 1.0);
     assert_rel("honest torus flux", honest.flux, flux, 1e-9);
-    assert!(
-        (lied.flux - honest.flux).abs() > 1e-6,
-        "tag lie must actually change the anchored term (proves the tags are load-bearing)"
+    assert_eq!(
+        lied.flux.to_bits(),
+        honest.flux.to_bits(),
+        "a tag lie moves nothing the Green form reads"
     );
 }

@@ -4,7 +4,7 @@ kind: issue
 title: topo: join matching, strut order, germ-line self-checks and the ray lane still end in the coincidence menu, which no face-pair declaration settles
 status: parked
 opened: 2026-09-30
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -131,3 +131,7 @@ What remains of this row is its last bullet: `BooleanError::Join`
 ray-exhausted and loop arms (`solid_contain.rs`, its `Display`) still
 end in `COINCIDENCE_RECOURSE`, which offers the declaration and an
 unvalued tolerance.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: what is left is COINCIDENCE_RECOURSE / chord_join::UnderBoolean offering "declare the coincidence", which stage 4 retires with declared pairs. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

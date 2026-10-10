@@ -152,9 +152,9 @@ fn leg<S: Scalar>(cx: f64, cy: f64, z_top: f64, tol: Tol) -> AtRestBody<S> {
 /// PR #71 — the first `demo_tripwires.rs` wire FIRED): each leg's
 /// outer faces lie exactly in the top's side planes, DECLARED per
 /// union, and the declared rung glues them — every later union sees
-/// maximal operands. Attempt 1 (coplanar touch, undeclared) now
-/// refuses at the coincidence door — rung (b), value equality never
-/// classifies — and the narration says so.
+/// maximal operands. Attempt 1 (coplanar touch, undeclared) glues the
+/// touching planes on their decided zero (D10), and the narration says
+/// so.
 pub(crate) fn table<S: Scalar>(tol: Tol) -> (pncad::topo::BooleanBody<S>, String) {
     let top: AtRestBody<S> = slab(TOP_X, TOP_Y, TOP_Z, tol);
     let leg_vol = |z_top: f64| (2.0 * LEG_HALF) * (2.0 * LEG_HALF) * z_top;
@@ -334,8 +334,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             // is simpler: what this cell shows is a table, and a table
             // is not a fact the sheet is short of. What is NOT
             // duplicated is this scene's four
-            // narrated union variants (coplanar-undeclared refusing at
-            // the coincidence door; inset overlap; the straddle
+            // narrated union variants (coplanar-undeclared gluing on
+            // its decided zero; inset overlap; the straddle
             // workaround; the shipped declared-flush rung) — narration,
             // which the standalone render keeps.
             montage: false,

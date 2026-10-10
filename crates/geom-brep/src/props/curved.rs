@@ -1,8 +1,9 @@
-//! Closed-form flux/area for the curved M2 surfaces: a cylinder face
-//! bounded by rims and rulings in any shape, holes included (its chart
-//! Green form, [`curved_face_loops`]), and cone, sphere and torus faces
-//! over structurally verified iso-parameter rectangles (see [`super`]
-//! module docs for the formulation and the stored-data discipline).
+//! Closed-form flux/area for the curved M2 surfaces: cylinder and torus
+//! faces bounded by rims and meridians in any shape, holes included
+//! (their chart Green forms, [`curved_face_loops`]), and cone and
+//! sphere faces over structurally verified iso-parameter rectangles
+//! (see [`super`] module docs for the formulation and the stored-data
+//! discipline).
 //!
 //! **Not everything public here serves that lane, and one item must
 //! NOT be cited by it.** This module hosts two structural predicates
@@ -84,7 +85,7 @@ pub fn curved_face<T: Decide>(
             axis,
             half_angle,
             ..
-        } => cone_face_closed_form(apex, axis, half_angle, outer, band),
+        } => cone_face_closed_form(apex, axis, half_angle, &[outer], band),
         Surface::Sphere {
             center,
             radius,
@@ -97,7 +98,7 @@ pub fn curved_face<T: Decide>(
             major_radius,
             minor_radius,
             ..
-        } => torus(center, axis, major_radius, minor_radius, outer, band),
+        } => torus_face(center, axis, major_radius, minor_radius, &[outer], band),
         // The volume/area inventory is closed-form per analytic kind;
         // a spline has no entry and neither does an offset description
         // over one. `Approx` refuses here rather than answer as its
@@ -156,14 +157,13 @@ pub enum MaterialSign {
 ///   the caller hands in — [`boundary_material_sign_loops`] takes a
 ///   face's rings too. No iso-rectangle premise: a notched or ringed
 ///   wall encodes its side like a rectangle does;
-/// - **cone and rim-bearing sphere**: [`linear_rim_side`];
-/// - **torus**: anchor-rim traversal × chart orientation.
+/// - **torus**: the sign of its chart Green form's area
+///   ([`torus_chart`]), over the loop's lift, rings included; no
+///   iso-rectangle premise, as on the cylinder;
+/// - **cone and rim-bearing sphere**: [`linear_rim_side`].
 ///
-/// The last two carry **the iso-rectangle premise they rest on**. The
-/// torus is not exempt: its side cancels the anchor-end choice against
-/// `dv/dt` only when the two rims FLANKING the anchor meridian carry
-/// opposite `d_u`, which every corner of a rectangle gives and a reflex
-/// corner does not. All go through already-length-metered named decides
+/// The last carries **the iso-rectangle premise it rests on**. All go
+/// through already-length-metered named decides
 /// (`props_chart_area_side`, `props_rim_side`, `props_rim_level`,
 /// `props_circle_axis_class`, `props_meridian_orient`, …).
 ///
@@ -271,25 +271,7 @@ pub fn boundary_material_sign<T: Decide>(
             major_radius,
             minor_radius,
             ..
-        } => {
-            let p = torus_parse(center, axis, major_radius, minor_radius, outer, band)?;
-            // The premise, on this arm too. The torus reads its side
-            // from ONE corner — the anchor meridian's chart orientation
-            // and the rim sharing that meridian's `t0` vertex — and a
-            // corner is not enough: the anchor-end choice cancels
-            // against `dv/dt` only when the two rims flanking the
-            // meridian carry OPPOSITE `d_u`, which every corner of a
-            // rectangle does and a REFLEX corner does not. On an
-            // L-shaped domain the meridian at the notch is flanked by
-            // two rims of the same `d_u`, the cancellation fails, and
-            // the six rotations of one edge cycle answer +,+,−,−,+,+.
-            torus_rims_at_extremes(&p, center, axis, major_radius, minor_radius, band)?;
-            let rim_a = torus_anchor_rim(&p.rims, &p.anchor)?;
-            Ok(MaterialSign::Encoded(sign_mul(
-                rim_a.d_u_sign,
-                p.orient.flip(),
-            )))
-        }
+        } => torus_material_sign(center, axis, major_radius, minor_radius, &[outer], band),
         // As `curved_face`: no closed-form rim inventory for a spline
         // or for an offset description over one.
         Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
@@ -297,10 +279,10 @@ pub fn boundary_material_sign<T: Decide>(
 }
 
 /// [`boundary_material_sign`] over a face's outer loop AND its rings: a
-/// cylinder face reads its side off every loop's chart Green form, as
-/// its flux does ([`curved_face_loops`]); every other kind reads one
-/// loop, and a ringed face of another kind refuses, exempt at a gating
-/// caller.
+/// cylinder or torus face reads its side off every loop's chart Green
+/// form, as its flux does ([`curved_face_loops`]); a cone face off its
+/// outer loop; a sphere reads one loop, and a ringed sphere refuses,
+/// exempt at a gating caller.
 ///
 /// # Errors
 ///
@@ -320,9 +302,24 @@ pub fn boundary_material_sign_loops<T: Decide>(
             },
             _,
         ) => cylinder_material_sign(origin, axis, radius, loops, band),
-        (_, [outer]) => boundary_material_sign(surface, outer, band),
+        (
+            &Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                ..
+            },
+            _,
+        ) => torus_material_sign(center, axis, major_radius, minor_radius, loops, band),
+        // A cone face's flux reads its rings as holes
+        // ([`cone_face_closed_form`]), and its outer loop's traversal
+        // encodes the face's side whatever holes it carries.
+        (Surface::Cone { .. }, [outer, ..]) | (_, [outer]) => {
+            boundary_material_sign(surface, outer, band)
+        }
         _ => Err(PropsError::NotIsoRectangle {
-            what: "a ringed curved face other than a cylinder encodes no side here",
+            what: "a ringed sphere or spline face encodes no side here",
         }),
     }
 }
@@ -515,7 +512,7 @@ pub fn require_iso_rectangle<T: Decide>(
             ..
         } => {
             let p = torus_parse(center, axis, major_radius, minor_radius, outer, band)?;
-            torus_rims_at_extremes(&p, center, axis, major_radius, minor_radius, band).map(|_| ())
+            torus_rims_at_extremes(&p, center, axis, major_radius, minor_radius, band)
         }
         // As `curved_face`: no rim inventory for a spline or for an
         // offset description over one.
@@ -792,11 +789,10 @@ fn linear_rims_at_extremes<T: Decide>(b: &LinearBoundary<T>, band: Band) -> Resu
     }
 }
 
-/// A torus face's parse with the anchor meridian's chart orientation:
-/// the prologue every torus consumer runs before deciding anything —
-/// the flux lane, [`boundary_material_sign`] and
-/// [`require_iso_rectangle`] — in one place, so the refusal names and
-/// their order are one. The anchor is the FIRST meridian in loop
+/// A torus face's parse with the anchor meridian's chart orientation,
+/// the prologue of [`require_iso_rectangle`]'s torus arm (the flux and
+/// side readers take the Green form instead, [`torus_chart`]). The
+/// anchor is the FIRST meridian in loop
 /// order after [`torus_boundary`] has folded the pieces of a split
 /// edge into the meridian they carry, so its span is the meridian's
 /// whole span however many edges carry it.
@@ -821,7 +817,7 @@ fn torus_parse<T: Decide>(
         });
     }
     let anchor = meridians.swap_remove(0);
-    let orient = torus_meridian_orient(&anchor, center, axis, minor, band)?;
+    let orient = torus_meridian_orient((anchor.n_c, anchor.c_c), center, axis, minor, band)?;
     Ok(TorusParse {
         rims,
         anchor,
@@ -831,8 +827,7 @@ fn torus_parse<T: Decide>(
 
 /// The torus's two extreme minor angles from the anchor meridian's
 /// stored span ([`torus_ends`]) with the iso-rectangle premise decided
-/// against them — one call for the three torus consumers. Returns the
-/// ends as `(s0, c0, s1, c1)` for the flux arm's closed form.
+/// against them.
 fn torus_rims_at_extremes<T: Decide>(
     p: &TorusParse<T>,
     center: Point3<T>,
@@ -840,7 +835,7 @@ fn torus_rims_at_extremes<T: Decide>(
     major: T,
     minor: T,
     band: Band,
-) -> Result<(T, T, T, T), PropsError> {
+) -> Result<(), PropsError> {
     let (s0, c0, s1, c1) = torus_ends(&p.anchor, center, axis, major, minor, p.orient);
     require_rims_at_extremes(
         &p.rims,
@@ -848,7 +843,7 @@ fn torus_rims_at_extremes<T: Decide>(
         torus_arms(major, minor),
         band,
     )?;
-    Ok((s0, c0, s1, c1))
+    Ok(())
 }
 
 // ---------------------------------------------------------------------
@@ -1080,8 +1075,6 @@ struct Rim<T: Real> {
     /// The rim's iso-level, dimension carried by the variant (see
     /// [`RimLevel`] and the per-surface call sites).
     level: RimLevel<T>,
-    /// Traversal-order endpoint tags.
-    tags: (u32, u32),
 }
 
 /// The two lever arms a rim decision meters at, kept apart because on
@@ -1727,35 +1720,31 @@ fn cylinder_chart<T: Decide>(
     };
     let (area, length) = loop_chart(&rims, length);
     if spans.len() > 1 {
-        require_holes_wound_against(&rims, &spans, (area, length), loop_chart, radius, band)?;
+        let holes = cylinder_holes(&rims, &spans, loop_chart, radius, band)?;
+        require_holes_wound_against(
+            "props_chart_area_side",
+            (radius * area, length),
+            &holes,
+            band,
+        )?;
     }
     Ok(CylinderChart { area, length })
 }
 
-/// **A contractible ring winds against its face.** A hole's boundary is
-/// traversed opposite to the region it is cut from, so a ring that does
-/// not wind the cylinder (`props_ring_contractible` Zero) must carry a
-/// chart area of the opposite sign to the face's whole
-/// (`props_ring_winding`), each metered as a mean width `2·R·A/P`. A ring
-/// wound the same way would be ADDED to the face's area, silently. A
-/// ring that winds the cylinder is a band's second rim, whose sign alone
-/// depends on the anchor: the face's zero-winding check
-/// (`props_chart_loops_closed`) is what guards it.
-fn require_holes_wound_against<T: Decide>(
+/// A cylinder face's holes: each ring that does not wind the cylinder
+/// (`props_ring_contractible` Zero), as its chart area in m² (`R·A`)
+/// and boundary length. A ring that winds it is a band's second rim,
+/// whose chart area alone depends on the anchor, so it is no hole and
+/// is passed over: the face's zero-winding check
+/// (`props_chart_loops_closed`) makes the face's whole anchor-free.
+fn cylinder_holes<T: Decide>(
     rims: &[(T, T)],
     spans: &[(usize, T)],
-    (area, length): (T, T),
     loop_chart: impl Fn(&[(T, T)], T) -> (T, T),
     radius: T,
     band: Band,
-) -> Result<(), PropsError> {
-    let two = T::from_f64(2.0);
-    let whole = classify(
-        "props_chart_area_side",
-        Margin::over_lever(radius * area * two, length),
-        band,
-        PropsCheck::Inventory,
-    )?;
+) -> Result<Vec<(T, T)>, PropsError> {
+    let mut holes = Vec::with_capacity(spans.len() - 1);
     for (i, &(start, lines)) in spans.iter().enumerate().skip(1) {
         let end = spans.get(i + 1).map_or(rims.len(), |&(next, _)| next);
         let ring = &rims[start..end];
@@ -1765,17 +1754,39 @@ fn require_holes_wound_against<T: Decide>(
             Margin::levered(winding, radius),
             band,
             PropsCheck::Inventory,
-        )? != Sign::Zero
+        )? == Sign::Zero
         {
-            continue;
+            let (a, l) = loop_chart(ring, lines);
+            holes.push((radius * a, l));
         }
-        let (a, l) = loop_chart(ring, lines);
-        let side = classify(
-            "props_ring_winding",
-            Margin::over_lever(radius * a * two, l),
-            band,
-            PropsCheck::Inventory,
-        )?;
+    }
+    Ok(holes)
+}
+
+/// **Every hole winds against its face**, the meter the cylinder's,
+/// the torus's and the cone's ringed faces share. A hole's boundary is
+/// traversed opposite to the region it is cut from, so each hole's
+/// signed area must have the sign opposite to the face's `whole`
+/// (`props_ring_winding`), each read as its mean width `2·A/P`: an
+/// `(area, length)` pair in m² and m, the length an upper bound on the
+/// boundary's. A hole wound the same way would be ADDED to the face's
+/// area, silently.
+///
+/// Which rings are holes is the caller's to say, and the kinds differ
+/// on purpose: the cylinder passes over a ring that winds it
+/// ([`cylinder_holes`]), whose face is guarded by its zero-winding
+/// check; the cone refuses one ([`require_cone_ring_contractible`]);
+/// the torus's every loop already closes in its lift. The whole is
+/// read under `whole_name`, the predicate its kind meters a side with.
+fn require_holes_wound_against<T: Decide>(
+    whole_name: &'static str,
+    whole: (T, T),
+    holes: &[(T, T)],
+    band: Band,
+) -> Result<(), PropsError> {
+    let whole = mean_width_side(whole_name, whole, band)?;
+    for &hole in holes {
+        let side = mean_width_side("props_ring_winding", hole, band)?;
         if side == Sign::Zero || whole == Sign::Zero || side == whole {
             return Err(PropsError::NotIsoRectangle {
                 what: "props_ring_winding",
@@ -1783,6 +1794,21 @@ fn require_holes_wound_against<T: Decide>(
         }
     }
     Ok(())
+}
+
+/// The sign of a region's mean width `2·A/P` under `name`: its signed
+/// `area` (m²) over its boundary `length`.
+fn mean_width_side<T: Decide>(
+    name: &'static str,
+    (area, length): (T, T),
+    band: Band,
+) -> Result<Sign, PropsError> {
+    classify(
+        name,
+        Margin::over_lever(area * T::from_f64(2.0), length),
+        band,
+        PropsCheck::Inventory,
+    )
 }
 
 /// The material side a cylinder face's loops encode: the sign of its
@@ -1795,21 +1821,25 @@ fn cylinder_material_sign<T: Decide>(
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
     let chart = cylinder_chart(origin, axis, radius, loops, band)?;
-    match classify(
-        "props_chart_area_side",
-        Margin::over_lever(radius * chart.area * T::from_f64(2.0), chart.length),
-        band,
-        PropsCheck::Inventory,
-    )? {
+    chart_area_side(radius * chart.area, chart.length, band)
+}
+
+/// The material side a chart Green form's area encodes: its sign,
+/// metered as the mean width `2·A/P` of the face's `area` (in m²)
+/// over its boundary `length`. A face of no width encodes no side.
+fn chart_area_side<T: Decide>(area: T, length: T, band: Band) -> Result<MaterialSign, PropsError> {
+    match mean_width_side("props_chart_area_side", (area, length), band)? {
         Sign::Zero => Err(PropsError::DegenerateFace),
         side => Ok(MaterialSign::Encoded(side)),
     }
 }
 
 /// [`curved_face`] over a face's outer loop AND its rings. A cylinder
-/// face takes every loop into its chart Green form
-/// ([`cylinder_face`]); every other kind reads one loop, so a ring
-/// there is refused by the owning body before this is called.
+/// or torus face takes every loop into its chart Green form
+/// ([`cylinder_face`], [`torus_face`]) and a cone face into its
+/// boundary's vector area ([`cone_face_closed_form`]); a sphere reads
+/// one loop, so a ring there is refused by the owning body before this
+/// is called.
 ///
 /// # Errors
 ///
@@ -1830,9 +1860,28 @@ pub fn curved_face_loops<T: Decide>(
             },
             _,
         ) => cylinder_face(origin, axis, radius, loops, band),
+        (
+            &Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                ..
+            },
+            _,
+        ) => torus_face(center, axis, major_radius, minor_radius, loops, band),
+        (
+            &Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                ..
+            },
+            _,
+        ) => cone_face_closed_form(apex, axis, half_angle, loops, band),
         (_, [outer]) => curved_face(surface, outer, sense, band),
         _ => Err(PropsError::NotIsoRectangle {
-            what: "a ringed curved face other than a cylinder has no closed form",
+            what: "a ringed sphere or spline face has no closed form",
         }),
     }
 }
@@ -1902,7 +1951,6 @@ fn cylinder_boundary<T: Decide>(
                     dt: e.t1 - e.t0,
                     // The axial arc length itself — meters.
                     level: RimLevel::Length(v),
-                    tags: (e.start, e.end),
                 });
                 levels.push(v);
             }
@@ -1958,17 +2006,18 @@ fn min_max<T: Real>(levels: &[T]) -> Result<(T, T), PropsError> {
 
 /// **A cone face's flux and area, in closed form** — no quadrature, and
 /// the one home of both for every cone face, iso-bounded or trimmed by a
-/// plane section.
+/// plane section, with or without rings.
 ///
 /// Every point of a cone lies on a generator through the apex, and the
 /// generator lies in the tangent plane, so `(p − apex)·n = 0` on the
 /// whole face. The flux is therefore `∮ p·n dA = apex·∮ n dA = apex·A⃗`,
-/// with `A⃗` the boundary's vector area (Stokes; [`loop_vector_area`]).
-/// The normal makes the constant angle `n·axis = ∓sin α` with the axis
-/// on each nappe, so the area is `|axis·A⃗| / sin α` — for a face on ONE
-/// nappe. The traversal's winding orients `A⃗`, so no sense bit is read.
+/// with `A⃗` the boundary's vector area (Stokes; [`loop_vector_area`]),
+/// summed over every loop. The normal makes the constant angle
+/// `n·axis = ∓sin α` with the axis on each nappe, so the area is
+/// `|axis·A⃗| / sin α` — for a face on ONE nappe. The traversal's winding
+/// orients `A⃗`, so no sense bit is read.
 ///
-/// What admits the boundary, and decides its nappe, is per class:
+/// What admits the outer loop, and decides its nappe, is per class:
 ///
 /// - **Rims and generators** take the shared iso parse
 ///   ([`cone_boundary`], the apex folded in): a positive extent, the
@@ -1981,25 +2030,32 @@ fn min_max<T: Real>(levels: &[T]) -> Result<(T, T), PropsError> {
 ///   ellipse lies on one nappe whole. A spline or spiric edge could
 ///   cross the apex between its ends, so it refuses.
 ///
+/// A ring's nappe is read off its endpoints the second way, and the
+/// face's loops must close and its rings be holes in it
+/// ([`require_cone_rings_are_holes`]).
+///
 /// # Errors
 ///
 /// The iso parse's refusals; [`PropsError::Unimplemented`] for a spline
 /// or spiric edge; [`PropsError::NappeSpanning`] for a face on both
-/// nappes; [`PropsError::Escalated`] for an in-band decision.
+/// nappes; [`PropsError::NotIsoRectangle`] for a ring that is not a
+/// hole; [`PropsError::Escalated`] for an in-band decision.
 pub fn cone_face_closed_form<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
     half_angle: T,
-    edges: &[LoopEdge<T>],
+    loops: &[&[LoopEdge<T>]],
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
+    let Some((&edges, rings)) = loops.split_first() else {
+        return Err(PropsError::NotIsoRectangle {
+            what: "curved face with an empty boundary",
+        });
+    };
     let (sin_a, cos_a) = half_angle.sin_cos();
     let slant = |p: Point3<T>| (p - apex).dot(axis) / cos_a;
-    let (lo, hi) = if edges
-        .iter()
-        .any(|e| matches!(e.carrier, Curve3::Ellipse { .. }))
-    {
-        let mut ends = Vec::with_capacity(2 * edges.len());
+    let mut ends = Vec::new();
+    let endpoint_read = |edges: &[LoopEdge<T>], ends: &mut Vec<T>| {
         for e in edges {
             match e.carrier {
                 Curve3::Line { .. } | Curve3::Circle { .. } | Curve3::Ellipse { .. } => {}
@@ -2008,7 +2064,13 @@ pub fn cone_face_closed_form<T: Decide>(
             ends.push(slant(e.carrier.eval(e.t0)));
             ends.push(slant(e.carrier.eval(e.t1)));
         }
-        min_max(&ends)?
+        Ok(())
+    };
+    if edges
+        .iter()
+        .any(|e| matches!(e.carrier, Curve3::Ellipse { .. }))
+    {
+        endpoint_read(edges, &mut ends)?;
     } else {
         // A generator-free cone boundary of rims alone carries no extent
         // of its own: every level it touches is a rim's slant, and where
@@ -2021,8 +2083,12 @@ pub fn cone_face_closed_form<T: Decide>(
         // The iso-rectangle premise (S58/#649), and one azimuth span.
         require_rims_at_extremes(&b.rims, ((b.as_level)(lo), (b.as_level)(hi)), b.arms, band)?;
         du_of_rims(&b.rims, b.arms, band)?;
-        (lo, hi)
-    };
+        ends.extend([lo, hi]);
+    }
+    for ring in rings {
+        endpoint_read(ring, &mut ends)?;
+    }
+    let (lo, hi) = min_max(&ends)?;
     // Single-nappe check: a definitely-negative low AND a
     // definitely-positive high straddle the apex through both nappes.
     let s_lo = classify("props_cone_nappe", Margin::of(lo), band, PropsCheck::Exact)?;
@@ -2030,11 +2096,186 @@ pub fn cone_face_closed_form<T: Decide>(
     if s_lo == Sign::Negative && s_hi == Sign::Positive {
         return Err(PropsError::NappeSpanning);
     }
-    let va = loop_vector_area(edges, apex)?;
+    let mut per_loop = Vec::with_capacity(loops.len());
+    let mut va = Vec3::zero();
+    for &edges in loops {
+        let loop_va = loop_vector_area(edges, apex)?;
+        per_loop.push(axis.dot(loop_va));
+        va = va + loop_va;
+    }
+    if !rings.is_empty() {
+        require_cone_rings_are_holes(apex, axis, sin_a, loops, &per_loop, band)?;
+    }
     Ok(FaceContribution {
         flux: (apex - Point3::origin()).dot(va),
         area: (axis.dot(va) / sin_a).abs(),
     })
+}
+
+/// **A ringed cone face's rings are holes in it.** The vector area sums
+/// to the face's only when its boundary bounds it, so:
+///
+/// - every loop closes (`props_loop_closed`);
+/// - every ring is contractible on the nappe
+///   ([`require_cone_ring_contractible`]);
+/// - every ring is wound against the face
+///   ([`require_holes_wound_against`]), its area `|axis·A⃗|/sin α`
+///   signed by its axial vector area and metered over an upper bound
+///   on its perimeter, the whole's under `props_cone_area_side`. Tier
+///   3 reads a cone face's side off its outer loop alone
+///   ([`boundary_material_sign_loops`]), so this is the one check of a
+///   cone ring's orientation a body at rest gets.
+fn require_cone_rings_are_holes<T: Decide>(
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    sin_a: T,
+    loops: &[&[LoopEdge<T>]],
+    per_loop: &[T],
+    band: Band,
+) -> Result<(), PropsError> {
+    let mut sides = Vec::with_capacity(loops.len());
+    for (&edges, &s) in loops.iter().zip(per_loop) {
+        let mut length = T::zero();
+        for (e, next) in edges.iter().zip(edges.iter().cycle().skip(1)) {
+            require_zero(
+                "props_loop_closed",
+                Margin::of((e.traversal_ends().1 - next.traversal_ends().0).norm()),
+                band,
+                Premise::Inventory,
+            )?;
+            // An upper bound on the edge's length: a conic's speed is at
+            // most its major semi-axis.
+            length = length
+                + match e.carrier {
+                    Curve3::Line { .. } => (e.p1() - e.p0()).norm(),
+                    Curve3::Circle { radius, .. } => radius * (e.t1 - e.t0).abs(),
+                    Curve3::Ellipse { major, minor, .. } => major.max(minor) * (e.t1 - e.t0).abs(),
+                    Curve3::Nurbs(_) | Curve3::Spiric { .. } => {
+                        return Err(PropsError::Unimplemented);
+                    }
+                };
+        }
+        sides.push((s / sin_a, length));
+    }
+    for &ring in &loops[1..] {
+        require_cone_ring_contractible(apex, axis, ring, band)?;
+    }
+    let total = sides
+        .iter()
+        .fold((T::zero(), T::zero()), |(a, l), &(s, p)| (a + s, l + p));
+    require_holes_wound_against("props_cone_area_side", total, &sides[1..], band)
+}
+
+/// **A cone ring winds the axis zero times**
+/// (`props_cone_ring_contractible`). A ring that winds it is a band's
+/// second rim: which of the band's two rims is the outer loop is not a
+/// fact about the band, so the hole test cannot read its sign, and it
+/// refuses.
+///
+/// This is a second spelling of what tier 3 already holds at rest: the
+/// pcurve mint refuses a loop whose chart walk closes only by a whole
+/// period (`topo::PcurveMintError::LoopWraps`), so a valid body carries
+/// no winding ring. It stays because this lane is entered by any
+/// caller of [`curved_face_loops`], validated or not.
+///
+/// The winding is the ring's azimuth about the axis summed piece by
+/// piece over the cycle of its edges' ends in traversal order, each
+/// edge and each joint between two edges a step. A step turns through
+/// the principal angle between its ends' radial directions, or, on an
+/// arc running against that angle, that angle plus a whole turn:
+///
+/// - a segment on the cone is a generator, turning through nothing;
+/// - a joint closes within the band (`props_loop_closed`) between ends
+///   decided off the axis (`props_cone_ring_off_apex`), so it turns
+///   through less than a quarter turn;
+/// - a circle or ellipse on a cone is a plane section that meets every
+///   generator of its nappe once, so its azimuth is monotone along it,
+///   in the sense its plane normal makes with the axis
+///   (`props_cone_ring_arc_sense`), and an arc turns through the
+///   principal angle between its ends taken the long way round when
+///   that angle runs against its sense (`props_cone_ring_arc_turn`).
+///
+/// **Why a half-turn threshold is sound.** Every step is congruent,
+/// mod a whole turn, to the azimuth change between its ends, and the
+/// ends close up, so in exact arithmetic the sum is a whole number of
+/// turns: the ring's winding. What is computed differs from it only by
+/// the rounding of a few angles (a sum, or its enclosure at
+/// `Interval`), far below half a turn, so the ring is contractible
+/// exactly when `|winding| < π`. That is decided with the margin
+/// `(π − |winding|)·arm`, the half turn the sum is clear of levered by
+/// the ring's widest radius, and not as a zero test, whose enclosure is
+/// the rounding itself.
+fn require_cone_ring_contractible<T: Decide>(
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    ring: &[LoopEdge<T>],
+    band: Band,
+) -> Result<(), PropsError> {
+    let refuse = |what| Err(PropsError::NotIsoRectangle { what });
+    let radial = |p: Point3<T>| {
+        let w = p - apex;
+        w - axis * w.dot(axis)
+    };
+    // The principal angle about `axis` from `a`'s radial direction to
+    // `b`'s.
+    let turn = |a: Vec3<T>, b: Vec3<T>| axis.dot(a.cross(b)).atan2(a.dot(b));
+    let mut winding = T::zero();
+    let mut arm = T::zero();
+    for (e, next) in ring.iter().zip(ring.iter().cycle().skip(1)) {
+        let (a, b) = (radial(e.p0()), radial(e.p1()));
+        let rho = a.norm().min(b.norm());
+        if classify(
+            "props_cone_ring_off_apex",
+            Margin::of(rho),
+            band,
+            PropsCheck::Inventory,
+        )? != Sign::Positive
+        {
+            return refuse("props_cone_ring_off_apex");
+        }
+        arm = arm.max(a.norm()).max(b.norm());
+        let principal = turn(a, b);
+        let step = match e.carrier {
+            Curve3::Circle { axis: n, .. } | Curve3::Ellipse { axis: n, .. } => {
+                let sense = match classify(
+                    "props_cone_ring_arc_sense",
+                    Margin::levered(n.dot(axis), rho),
+                    band,
+                    PropsCheck::Inventory,
+                )? {
+                    Sign::Positive => T::one(),
+                    Sign::Negative => -T::one(),
+                    Sign::Zero => return refuse("props_cone_ring_arc_sense"),
+                };
+                match classify(
+                    "props_cone_ring_arc_turn",
+                    Margin::levered(principal * sense, rho),
+                    band,
+                    PropsCheck::Inventory,
+                )? {
+                    Sign::Positive => principal,
+                    Sign::Negative => principal + sense * T::tau(),
+                    Sign::Zero => return refuse("props_cone_ring_arc_turn"),
+                }
+            }
+            _ => principal,
+        };
+        let step = if e.forward { step } else { -step };
+        let joint = turn(
+            radial(e.traversal_ends().1),
+            radial(next.traversal_ends().0),
+        );
+        winding = winding + step + joint;
+    }
+    match classify(
+        "props_cone_ring_contractible",
+        Margin::levered(T::pi() - winding.abs(), arm),
+        band,
+        PropsCheck::Inventory,
+    )? {
+        Sign::Positive => Ok(()),
+        Sign::Zero | Sign::Negative => refuse("props_cone_ring_contractible"),
+    }
 }
 
 /// Classify a cone face's boundary into (rims, signed slant levels) —
@@ -2119,7 +2360,6 @@ fn cone_boundary<T: Decide>(
                     dt: e.t1 - e.t0,
                     // The signed slant arc length itself — meters.
                     level: RimLevel::Length(v),
-                    tags: (e.start, e.end),
                 });
                 levels.push(v);
             }
@@ -3764,7 +4004,6 @@ fn sphere_boundary<T: Decide>(
                     // axial component alone shrinks by `cos v̄` toward
                     // the poles and merges distinct near-polar rims.
                     level: RimLevel::Unit(sin_v, cos_v),
-                    tags: (e.start, e.end),
                 });
                 levels.push(sin_v);
             }
@@ -3825,9 +4064,7 @@ fn torus_arms<T: Real>(major: T, minor: T) -> RimArms<T> {
 /// The torus's `v` is periodic, so its extremes cannot come from
 /// `min_max` over endpoint levels the way the linearly-leveled kinds'
 /// do; the sphere's fold carries the same stored-span derivation per
-/// meridian arc ([`sphere_meridian_span_levels`]). One home, because
-/// the flux lane and [`boundary_material_sign`] both need it and a
-/// face's extremes are not a thing two callers may each decide.
+/// meridian arc ([`sphere_meridian_span_levels`]).
 fn torus_ends<T: Real>(
     m0: &TorusMeridian<T>,
     center: Point3<T>,
@@ -3860,59 +4097,373 @@ fn torus_ends<T: Real>(
     }
 }
 
-/// Torus face: rims are circles with axis ∥ the torus axis at minor
-/// angle `v` (`sin v = ((C − c)·axis)/r`, `cos v = (r_c − R)/r`);
-/// meridians are minor circles (radius `r`, center on the tube center
-/// circle, carrier axis ⊥ the torus axis). The minor angle is
-/// periodic, so the face's `v`-interval comes from a meridian's
-/// **stored parameter span** plus its orientation relative to the
-/// chart (`dv/dt = −sign(n_c·τ̂)` with `τ̂ = axis × ρ̂` at the minor
-/// center) — never from endpoint `atan2`. With `[v0, v1]` the
-/// increasing interval (`Δv = v1 − v0`, `s_i = sin v_i`,
-/// `c_i = cos v_i`):
+/// A torus face's chart Green form ([`torus_chart`]): its signed
+/// flux and area integrals and its boundary length.
+struct TorusChart<T> {
+    /// `−Σ∮ F(v) du` with `F′ = r(R + r cos v)(R cos v + r)`: the flux
+    /// of `(p − c)` through the face along the chart normal, in m³.
+    flux: T,
+    /// `−Σ∮ G(v) du` with `G′ = r(R + r cos v)`: the chart area, in
+    /// m², positive exactly when the stored traversal winds the region
+    /// about the chart normal.
+    area: T,
+    /// The boundary's length in metres.
+    length: T,
+}
+
+/// One torus boundary edge on the loop's lift: a rim at lifted level
+/// `v` turning `Δu`, or a meridian turning `Δv`.
+#[derive(Clone, Copy)]
+enum TorusStep<T> {
+    Rim { sin_v: T, cos_v: T, du: T, rho: T },
+    Meridian { dv: T },
+}
+
+/// One boundary edge as [`torus_chart`] walks it: its step, and what
+/// [`fold_torus_pieces`] needs to rejoin the pieces of one split edge —
+/// the edge, and the ±1 its stored span turns into its step.
+struct TorusPiece<'a, T: Real> {
+    edge: &'a LoopEdge<T>,
+    step: TorusStep<T>,
+    sign: T,
+}
+
+/// The loop's steps with the pieces of one split edge rejoined: loop-
+/// adjacent pieces with one [`CarrierId`](super::CarrierId), one
+/// traversal direction, and intervals that ABUT exactly (the split's
+/// own `t`, decided at the exact-order band) are one step over the span
+/// they assemble ([`loop_runs`]), so a split edge reads as the edge it
+/// was, bit for bit. The rejoin is for that stability alone: the Green
+/// form is linear in each step's `Δu` and `Δv` and takes no `sin`/`cos`
+/// of a span, so pieces left apart sum to the same integral, and
+/// nothing here is refused or re-decided.
+fn fold_torus_pieces<T: Decide>(pieces: Vec<TorusPiece<'_, T>>, minor: T) -> Vec<TorusStep<T>> {
+    let joins = |a: &TorusPiece<'_, T>, b: &TorusPiece<'_, T>| {
+        let (ea, eb) = (a.edge, b.edge);
+        let same = ea.forward == eb.forward
+            && matches!((ea.carrier_id, eb.carrier_id), (Some(x), Some(y)) if x == y)
+            && matches!(
+                (&a.step, &b.step),
+                (TorusStep::Rim { .. }, TorusStep::Rim { .. })
+                    | (TorusStep::Meridian { .. }, TorusStep::Meridian { .. })
+            );
+        let gap = if ea.forward {
+            eb.t0 - ea.t1
+        } else {
+            ea.t0 - eb.t1
+        };
+        same && matches!(
+            decide(
+                "props_torus_pieces_meet",
+                Margin::levered(gap, minor),
+                exact_band()
+            ),
+            Ok(Sign::Zero)
+        )
+    };
+    let runs = match loop_runs(pieces, joins) {
+        Ok(runs) => runs,
+        Err(pieces) => return pieces.into_iter().map(|p| p.step).collect(),
+    };
+    runs.into_iter()
+        .map(|run| {
+            let (first, last) = (&run[0], &run[run.len() - 1]);
+            if run.len() == 1 {
+                return first.step;
+            }
+            let span = if first.edge.forward {
+                last.edge.t1 - first.edge.t0
+            } else {
+                first.edge.t1 - last.edge.t0
+            };
+            match first.step {
+                TorusStep::Rim {
+                    sin_v, cos_v, rho, ..
+                } => TorusStep::Rim {
+                    sin_v,
+                    cos_v,
+                    du: first.sign * span,
+                    rho,
+                },
+                TorusStep::Meridian { .. } => TorusStep::Meridian {
+                    dv: first.sign * span,
+                },
+            }
+        })
+        .collect()
+}
+
+/// **The one home of a loop's run grouping.** `items` is a boundary
+/// loop in traversal order; `joins(a, b)` says `b` continues `a` (the
+/// next piece of one split edge). The loop is walked from an item no
+/// run continues into, so no run is cut at the seam of the `Vec`, and
+/// handed back as its maximal runs in loop order, each non-empty.
+/// A loop every item of which continues the one before has no such
+/// start: it comes back whole as the `Err`, for the caller to decide
+/// what a loop of one run is.
+fn loop_runs<I>(mut items: Vec<I>, joins: impl Fn(&I, &I) -> bool) -> Result<Vec<Vec<I>>, Vec<I>> {
+    let n = items.len();
+    let Some(start) = (0..n).find(|&i| !joins(&items[(i + n - 1) % n], &items[i])) else {
+        return if n == 0 { Ok(Vec::new()) } else { Err(items) };
+    };
+    items.rotate_left(start);
+    let mut runs: Vec<Vec<I>> = Vec::new();
+    for item in items {
+        match runs.last_mut() {
+            Some(run) if run.last().is_some_and(|last| joins(last, &item)) => run.push(item),
+            _ => runs.push(vec![item]),
+        }
+    }
+    Ok(runs)
+}
+
+/// `atan2(y, x)` with its branch cut kept away from the arguments:
+/// the principal branch for `x ≥ 0`, the `[0, 2π)` branch for `x < 0`,
+/// so an interval enclosure never straddles the cut. Any branch serves
+/// [`torus_chart`]: a lift moved by whole periods shifts `F` and `G`
+/// by constants, which a loop with `Σ Δu = 0` sums to nothing.
+fn torus_angle<T: Decide>(sin_v: T, cos_v: T, band: Band) -> T {
+    match decide("props_torus_lift_branch", Margin::of(cos_v), band) {
+        Ok(Sign::Negative) => (T::zero() - sin_v).atan2(T::zero() - cos_v) + T::pi(),
+        Ok(Sign::Positive | Sign::Zero) | Err(_) => sin_v.atan2(cos_v),
+    }
+}
+
+/// **The one home of a torus face's chart Green form.**
 ///
-/// ```text
-/// Area = r·Δu·[R·Δv + r·(s1 − s0)]
-/// ∮(p−c)·n_chart dA
-///   = r·Δu·[(R²+r²)(s1−s0) + R·r·Δv + (R·r/2)(Δv + s1·c1 − s0·c0)]
-/// ```
+/// The torus's integrands depend on the tube angle `v` alone, by
+/// symmetry about the axis: with `(p − c)·n_chart = R cos v + r` and
+/// the area element `r(R + r cos v) du dv`, the flux is
+/// `∬ F′(v) du dv` and the area `∬ G′(v) du dv`, so Green's theorem on
+/// the chart gives `−∮ F(v) du` and `−∮ G(v) du` over the boundary.
+/// Neither `F` nor `G` is periodic, so each loop is read on its
+/// **lift**: walked from its first rim, a meridian moves the running
+/// `v` by its own signed span (`dv/dt = −orient`,
+/// [`torus_meridian_orient`]), and each rim is placed on the branch of
+/// its level that the running `v` reaches (`props_torus_lift_joint`).
+/// A wrap edge's two halves land a period apart that way, as the loop
+/// walk places them.
 ///
-/// (from `(p−c)·n_chart = R·cos v + r` and the Jacobian
-/// `r·(R + r·cos v)`). `s_f` uses the rim topologically adjacent to
-/// the anchor meridian's `t0` endpoint: the interior lies from that
-/// rim in the direction `dv/dt` sweeps.
-fn torus<T: Decide>(
+/// **Each loop's lift must close** in both directions
+/// (`props_torus_lift_closed_u`, `props_torus_lift_closed_v`): then it
+/// bounds a region of the lifted chart and the sums are exact. A loop
+/// that winds the torus (a seamless band's rim) has no such region, and
+/// which way round the torus the face runs between two winding loops
+/// is not a fact about either loop, so it refuses. A ring wound the
+/// same way as its face refuses (`props_ring_winding`).
+///
+/// Each loop's sums are formed against the anchor `v_m` at the middle
+/// of its rims' lifted levels, `−Σ (F(v) − F(v_m))·Δu`, equal to the
+/// plain sum because `Σ Δu = 0`.
+fn torus_chart<T: Decide>(
     center: Point3<T>,
     axis: Vec3<T>,
     major: T,
     minor: T,
-    edges: &[LoopEdge<T>],
+    loops: &[&[LoopEdge<T>]],
+    band: Band,
+) -> Result<TorusChart<T>, PropsError> {
+    let (big, r) = (major, minor);
+    let half = T::from_f64(0.5);
+    let f = |v: T| {
+        let (sv, cv) = v.sin_cos();
+        r * ((big.powi(2) + r.powi(2)) * sv + big * r * v + big * r * half * (v + sv * cv))
+    };
+    let g = |v: T| r * (big * v + r * v.sin_cos().0);
+    let mut total = TorusChart {
+        flux: T::zero(),
+        area: T::zero(),
+        length: T::zero(),
+    };
+    let mut per_loop: Vec<(T, T)> = Vec::with_capacity(loops.len());
+    for edges in loops {
+        // Every edge is certified rim or meridian first, so a face this
+        // inventory has no arm for refuses as itself.
+        let mut pieces: Vec<TorusPiece<T>> = Vec::with_capacity(edges.len());
+        let classified = torus_classify(center, axis, major, minor, edges, band)?;
+        for (edge, e) in classified.into_iter().zip(edges.iter()) {
+            let (step, sign) = match edge {
+                TorusEdge::Rim(rim) => {
+                    let RimLevel::Unit(sin_v, cos_v) = rim.level else {
+                        return Err(PropsError::NotIsoRectangle {
+                            what: "a torus rim carried a non-angle level",
+                        });
+                    };
+                    let sign = t_sign::<T>(rim.d_u_sign);
+                    let step = TorusStep::Rim {
+                        sin_v,
+                        cos_v,
+                        du: sign * rim.dt,
+                        rho: big + r * cos_v,
+                    };
+                    (step, sign)
+                }
+                TorusEdge::Arc(arc) => {
+                    let orient =
+                        torus_meridian_orient((arc.n_c, arc.c_c), center, axis, minor, band)?;
+                    let sign = t_sign::<T>(orient.flip())
+                        * if arc.edge.forward {
+                            T::one()
+                        } else {
+                            -T::one()
+                        };
+                    let step = TorusStep::Meridian {
+                        dv: sign * (arc.edge.t1 - arc.edge.t0),
+                    };
+                    (step, sign)
+                }
+            };
+            pieces.push(TorusPiece {
+                edge: e,
+                step,
+                sign,
+            });
+        }
+        for (e, next) in edges.iter().zip(edges.iter().cycle().skip(1)) {
+            require_zero(
+                "props_loop_closed",
+                Margin::of((e.traversal_ends().1 - next.traversal_ends().0).norm()),
+                band,
+                Premise::Inventory,
+            )?;
+        }
+        let mut steps = fold_torus_pieces(pieces, minor);
+        let Some(first) = steps
+            .iter()
+            .position(|s| matches!(s, TorusStep::Rim { .. }))
+        else {
+            return Err(PropsError::NotIsoRectangle {
+                what: "curved face without a rim (non-sphere)",
+            });
+        };
+        steps.rotate_left(first);
+        // The lift. Each rim's level is its own branch-canonical angle
+        // (`torus_angle`, read off its carrier alone) plus the whole
+        // number of turns the walk reached it on, so a rim's lifted
+        // level depends on the loop's geometry and not on where the
+        // walk began: the turns are counted from the loop's lowest.
+        let mut rims: Vec<(T, T, T)> = Vec::new();
+        let mut running = None;
+        let (mut wind_u, mut wind_v) = (T::zero(), T::zero());
+        let mut length = T::zero();
+        for step in &steps {
+            match *step {
+                TorusStep::Rim {
+                    sin_v,
+                    cos_v,
+                    du,
+                    rho,
+                } => {
+                    let angle = torus_angle(sin_v, cos_v, band);
+                    let at = match running {
+                        None => angle,
+                        Some(at) => {
+                            // The turn from the running `v` to the
+                            // rim's level must be no turn at all.
+                            let (s, c) = T::sin_cos(at);
+                            let delta = (sin_v * c - cos_v * s).atan2(cos_v * c + sin_v * s);
+                            require_zero(
+                                "props_torus_lift_joint",
+                                Margin::levered(delta, minor),
+                                band,
+                                Premise::Inventory,
+                            )?;
+                            at
+                        }
+                    };
+                    let turns = (at - angle).periodic_branch(T::tau());
+                    let v = angle + T::tau() * turns;
+                    running = Some(v);
+                    wind_u = wind_u + du;
+                    length = length + rho * du.abs();
+                    rims.push((angle, turns, du));
+                }
+                TorusStep::Meridian { dv } => {
+                    running = running.map(|at| at + dv);
+                    wind_v = wind_v + dv;
+                    length = length + r * dv.abs();
+                }
+            }
+        }
+        require_zero(
+            "props_torus_lift_closed_u",
+            Margin::levered(wind_u, major),
+            band,
+            Premise::Inventory,
+        )?;
+        require_zero(
+            "props_torus_lift_closed_v",
+            Margin::levered(wind_v, minor),
+            band,
+            Premise::Inventory,
+        )?;
+        let base = rims
+            .iter()
+            .map(|&(_, turns, _)| turns)
+            .fold(None, |lo: Option<T>, k| Some(lo.map_or(k, |lo| lo.min(k))))
+            .unwrap_or_else(T::zero);
+        let lifted: Vec<(T, T)> = rims
+            .iter()
+            .map(|&(angle, turns, du)| (angle + T::tau() * (turns - base), du))
+            .collect();
+        let (lo, hi) = min_max(&lifted.iter().map(|&(v, _)| v).collect::<Vec<_>>())?;
+        let anchor = lo + (hi - lo) * half;
+        let (f_m, g_m) = (f(anchor), g(anchor));
+        let (flux, area) = lifted
+            .iter()
+            .fold((T::zero(), T::zero()), |(fl, ar), &(v, du)| {
+                (fl - (f(v) - f_m) * du, ar - (g(v) - g_m) * du)
+            });
+        per_loop.push((area, length));
+        total.flux = total.flux + flux;
+        total.area = total.area + area;
+        total.length = total.length + length;
+    }
+    if per_loop.len() > 1 {
+        require_holes_wound_against(
+            "props_chart_area_side",
+            (total.area, total.length),
+            &per_loop[1..],
+            band,
+        )?;
+    }
+    Ok(total)
+}
+
+/// A torus face's flux and area over all its loops, from its chart
+/// Green form ([`torus_chart`]): no sense bit read, the traversal
+/// carries the side.
+fn torus_face<T: Decide>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    major: T,
+    minor: T,
+    loops: &[&[LoopEdge<T>]],
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
-    let p = torus_parse(center, axis, major, minor, edges, band)?;
-    require_extent(Margin::levered(p.anchor.dt, minor), band)?;
-    let dv = p.anchor.dt;
-    // The iso-rectangle premise (S58/#649) — the SAME predicate the
-    // other three kinds run, which is where it came from: this arm was
-    // the only one #649's adversarial probe could not break, and
-    // generalising it is the fix.
-    let arms = torus_arms(major, minor);
-    let (s0, c0, s1, c1) = torus_rims_at_extremes(&p, center, axis, major, minor, band)?;
-    let du = du_of_rims(&p.rims, arms, band)?;
-    // s_f: the rim topologically adjacent to the anchor endpoint; the
-    // interior sweeps from it in the `dv/dt = −orient` direction.
-    let rim_a = torus_anchor_rim(&p.rims, &p.anchor)?;
-    let s_f = t_sign::<T>(sign_mul(rim_a.d_u_sign, p.orient.flip()));
-    let half = T::from_f64(0.5);
-    let area = minor * du * (major * dv + minor * (s1 - s0));
-    let k = minor
-        * du
-        * ((major.powi(2) + minor.powi(2)) * (s1 - s0)
-            + major * minor * dv
-            + (major * minor * half) * (dv + s1 * c1 - s0 * c0));
-    let va = loop_vector_area(edges, center)?;
-    let flux = s_f * k + (center - Point3::origin()).dot(va);
-    Ok(FaceContribution { flux, area })
+    let chart = torus_chart(center, axis, major, minor, loops, band)?;
+    let mut va = Vec3::new(T::zero(), T::zero(), T::zero());
+    for edges in loops {
+        va = va + loop_vector_area(edges, center)?;
+    }
+    Ok(FaceContribution {
+        flux: chart.flux + (center - Point3::origin()).dot(va),
+        area: chart.area.abs(),
+    })
+}
+
+/// The material side a torus face's loops encode: the sign of its
+/// chart area ([`torus_chart`]), metered as the mean width `2·A/P`.
+fn torus_material_sign<T: Decide>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    major: T,
+    minor: T,
+    loops: &[&[LoopEdge<T>]],
+    band: Band,
+) -> Result<MaterialSign, PropsError> {
+    let chart = torus_chart(center, axis, major, minor, loops, band)?;
+    chart_area_side(chart.area, chart.length, band)
 }
 
 /// A torus minor-circle boundary meridian (iso-`u`) as the parse
@@ -3925,7 +4476,6 @@ struct TorusMeridian<T: Real> {
     c_c: Point3<T>,
     dt: T,
     anchor: Point3<T>,
-    anchor_tag: u32,
 }
 
 /// One meridian ARC as one boundary edge carries it — the fold's
@@ -3960,6 +4510,23 @@ fn torus_boundary<T: Decide>(
     edges: &[LoopEdge<T>],
     band: Band,
 ) -> Result<TorusParts<T>, PropsError> {
+    fold_torus_meridians(
+        torus_classify(center, axis, major, minor, edges, band)?,
+        minor,
+        band,
+    )
+}
+
+/// Certify every edge of a torus face's boundary as a rim or a meridian
+/// arc, in loop order.
+fn torus_classify<'a, T: Decide>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    major: T,
+    minor: T,
+    edges: &'a [LoopEdge<T>],
+    band: Band,
+) -> Result<Vec<TorusEdge<'a, T>>, PropsError> {
     let mut classified: Vec<TorusEdge<T>> = Vec::with_capacity(edges.len());
     for e in edges {
         let Curve3::Circle {
@@ -4016,7 +4583,6 @@ fn torus_boundary<T: Decide>(
                     dt: e.t1 - e.t0,
                     // Dimensionless minor-angle direction pair.
                     level: RimLevel::Unit(sin_v, cos_v),
-                    tags: (e.start, e.end),
                 }));
             }
             Sign::Zero => {
@@ -4045,7 +4611,7 @@ fn torus_boundary<T: Decide>(
             }
         }
     }
-    fold_torus_meridians(classified, minor, band)
+    Ok(classified)
 }
 
 /// Fold the arcs that carry ONE meridian into it; rims pass through
@@ -4068,10 +4634,10 @@ fn torus_boundary<T: Decide>(
 /// structural fact of the split (one `t` is both children's boundary)
 /// decided at the exact-order band rather than inferred at ε — and the
 /// interval they assemble must be one certification could have
-/// admitted. A loop of arcs that all continue one another (one closed
-/// minor circle in pieces, no rim) has no chain boundary and refuses
-/// by one name whatever rotation it arrives in; every other loop is
-/// walked from an edge no chain continues into, so no chain is cut.
+/// admitted, since this parse reads the span through `sin`/`cos`. A
+/// loop of arcs that all continue one another (one closed minor circle
+/// in pieces, no rim) has no run boundary ([`loop_runs`]) and refuses
+/// by one name whatever rotation it arrives in.
 ///
 /// The folded interval is `[lowest t0, highest t1]` over the chain —
 /// on one parametrisation, the original edge's own stored interval,
@@ -4079,7 +4645,7 @@ fn torus_boundary<T: Decide>(
 /// at its `t0` end, so a meridian carried by one edge folds to exactly
 /// the record that edge produces alone.
 fn fold_torus_meridians<T: Decide>(
-    mut edges: Vec<TorusEdge<'_, T>>,
+    edges: Vec<TorusEdge<'_, T>>,
     minor: T,
     band: Band,
 ) -> Result<TorusParts<T>, PropsError> {
@@ -4087,40 +4653,28 @@ fn fold_torus_meridians<T: Decide>(
         a.edge.forward == b.edge.forward
             && matches!((a.edge.carrier_id, b.edge.carrier_id), (Some(x), Some(y)) if x == y)
     }
-    let n = edges.len();
-    if n == 0 {
-        return Ok((Vec::new(), Vec::new()));
-    }
-    let Some(start) = (0..n).find(|&i| match (&edges[(i + n - 1) % n], &edges[i]) {
-        (TorusEdge::Arc(a), TorusEdge::Arc(b)) => !same_edge(a, b),
-        _ => true,
-    }) else {
+    let joins = |a: &TorusEdge<'_, T>, b: &TorusEdge<'_, T>| match (a, b) {
+        (TorusEdge::Arc(a), TorusEdge::Arc(b)) => same_edge(a, b),
+        _ => false,
+    };
+    let Ok(runs) = loop_runs(edges, joins) else {
         return Err(PropsError::NotIsoRectangle {
             what: "torus meridian pieces close a loop with no rim",
         });
     };
-    edges.rotate_left(start);
     let mut rims = Vec::new();
     let mut meridians = Vec::new();
-    let mut chain: Vec<TorusArc<'_, T>> = Vec::new();
-    for e in edges {
-        match e {
-            TorusEdge::Rim(r) => {
-                if !chain.is_empty() {
-                    meridians.push(fold_chain(core::mem::take(&mut chain), minor, band)?);
-                }
-                rims.push(r);
-            }
-            TorusEdge::Arc(a) => {
-                if chain.last().is_some_and(|last| !same_edge(last, &a)) {
-                    meridians.push(fold_chain(core::mem::take(&mut chain), minor, band)?);
-                }
-                chain.push(a);
+    for run in runs {
+        let mut arcs = Vec::with_capacity(run.len());
+        for e in run {
+            match e {
+                TorusEdge::Rim(r) => rims.push(r),
+                TorusEdge::Arc(a) => arcs.push(a),
             }
         }
-    }
-    if !chain.is_empty() {
-        meridians.push(fold_chain(chain, minor, band)?);
+        if !arcs.is_empty() {
+            meridians.push(fold_chain(arcs, minor, band)?);
+        }
     }
     Ok((rims, meridians))
 }
@@ -4235,7 +4789,6 @@ fn fold_chain<T: Decide>(
         c_c: lo.c_c,
         dt,
         anchor: lo.edge.p0(),
-        anchor_tag: lo.edge.tag_at_t0(),
     })
 }
 
@@ -4250,7 +4803,7 @@ fn fold_chain<T: Decide>(
 /// `props_meridian_radial`. A meridian centred on the axis has no
 /// radial, and refuses as that.
 fn torus_meridian_orient<T: Decide>(
-    m0: &TorusMeridian<T>,
+    (n_c, c_c): (Vec3<T>, Point3<T>),
     center: Point3<T>,
     axis: Vec3<T>,
     minor: T,
@@ -4258,7 +4811,7 @@ fn torus_meridian_orient<T: Decide>(
 ) -> Result<Sign, PropsError> {
     // The axis is a pure number, levered by the anchor meridian's reach
     // from the torus centre, where the frame it aims is consumed.
-    let reach = (m0.c_c - center).norm() + minor;
+    let reach = (c_c - center).norm() + minor;
     let aim = UnitVec3::levered(axis, "props_torus_axis", band, reach).map_err(|e| match e {
         LeveredUnitError::Direction(e) => {
             torus_frame_refused(e, "props_torus_axis", "torus axis length not measurable")
@@ -4274,7 +4827,7 @@ fn torus_meridian_orient<T: Decide>(
     let frame = OrthoFrame::from_aim_and_reference(
         center,
         aim,
-        m0.c_c - center,
+        c_c - center,
         "props_meridian_radial",
         band,
     )
@@ -4288,7 +4841,7 @@ fn torus_meridian_orient<T: Decide>(
     let tau = frame.v().get();
     let orient = classify(
         "props_meridian_orient",
-        Margin::levered(m0.n_c.dot(tau), minor),
+        Margin::levered(n_c.dot(tau), minor),
         band,
         PropsCheck::Inventory,
     )?;
@@ -4320,20 +4873,6 @@ fn torus_frame_refused(
             PropsError::NotIsoRectangle { what: unmeasured }
         }
     }
-}
-
-/// The rim topologically adjacent to the anchor meridian's `t0`
-/// endpoint — the rim the torus `s_f` derivation reads (the interior
-/// sweeps from it in the `dv/dt` direction).
-fn torus_anchor_rim<'a, T: Real>(
-    rims: &'a [Rim<T>],
-    m0: &TorusMeridian<T>,
-) -> Result<&'a Rim<T>, PropsError> {
-    rims.iter()
-        .find(|r| r.tags.0 == m0.anchor_tag || r.tags.1 == m0.anchor_tag)
-        .ok_or(PropsError::NotIsoRectangle {
-            what: "torus meridian anchor not on a rim",
-        })
 }
 
 /// Documented-unreachable arm (the caller matched a definite sign);
@@ -4380,7 +4919,6 @@ mod rim_level_review_probe {
             d_u_sign: Sign::Positive,
             dt: 1.0,
             level: RimLevel::Unit(0.5, 0.5),
-            tags: (0, 1),
         };
         // Rim is `Unit`, the ends are `Length`.
         let got = require_rims_at_extremes(
@@ -4446,7 +4984,6 @@ mod rim_level_review_probe {
             d_u_sign: Sign::Positive,
             dt: 1.0,
             level: RimLevel::Unit(d, d),
-            tags: (0, 1),
         };
         assert!(
             require_rims_at_extremes(

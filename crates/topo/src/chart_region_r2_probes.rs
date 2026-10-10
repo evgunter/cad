@@ -4,7 +4,6 @@
 use super::tests::{band, face_of, rect, sheet, uv, xy_plane, xy_plane_rotated};
 use super::*;
 use crate::euler::FaceSurface;
-use crate::source::GeomSource;
 use geom_brep::Pcurve;
 use geom_core::{Point3, Vec3};
 
@@ -76,7 +75,7 @@ fn probe_line_like_but_not_structurally_zero_refuses() {
 #[test]
 fn probe_same_locus_different_chart_frame_never_certifies() {
     // Two bodies, the SAME plane locus, different chart frames
-    // (u_ref x vs y). No sources: must diverge.
+    // (u_ref x vs y): must diverge.
     let mut ba = Body::<f64>::new();
     let fa = sheet(
         &mut ba,
@@ -105,8 +104,8 @@ fn probe_same_locus_different_chart_frame_never_certifies() {
         Err(ChartRegionError::ChartDivergence { .. }) => {}
         other => panic!("different chart frames must diverge, got {other:?}"),
     }
-    // Even the BIT-IDENTICAL surface across two sourceless bodies
-    // diverges — the structural rung is the whole test.
+    // The BIT-IDENTICAL surface across two bodies is one chart: the
+    // descriptions' bits, not where they came from, are the test.
     let mut bc = Body::<f64>::new();
     let fc = sheet(
         &mut bc,
@@ -119,96 +118,11 @@ fn probe_same_locus_different_chart_frame_never_certifies() {
             sense: true,
         },
     );
-    match chart_region_overlap(&ba, fa, &bc, fc, band()) {
-        Err(ChartRegionError::ChartDivergence { .. }) => {}
-        other => panic!("sourceless cross-body must diverge, got {other:?}"),
-    }
-}
-
-/// The ADVERSARIAL rung-2 attack: the same `GeomSource` attached to
-/// two DIFFERENT chart frames of one locus. N6 says this cannot
-/// happen; the module trusts N6 rather than re-checking the bits.
-#[test]
-fn probe_forged_source_on_divergent_charts() {
-    let mut ba = Body::<f64>::new();
-    let fa = sheet(
-        &mut ba,
-        0.0,
-        0.0,
-        2.0,
-        2.0,
-        FaceSurface::New {
-            surface: xy_plane(),
-            sense: true,
-        },
+    let got = chart_region_overlap(&ba, fa, &bc, fc, band());
+    assert!(
+        !matches!(got, Err(ChartRegionError::ChartDivergence { .. })),
+        "bit-identical cross-body charts are one chart, got {got:?}"
     );
-    let ka = ba.get_face(fa).unwrap().surface;
-    ba.set_surface_source(ka, GeomSource::minted(7, 0)).unwrap();
-    let mut bb = Body::<f64>::new();
-    let fb = sheet(
-        &mut bb,
-        0.0,
-        0.0,
-        2.0,
-        2.0,
-        FaceSurface::New {
-            surface: xy_plane_rotated(),
-            sense: true,
-        },
-    );
-    let kb = bb.get_face(fb).unwrap().surface;
-    bb.set_surface_source(kb, GeomSource::minted(7, 0)).unwrap();
-    let got = chart_region_overlap(&ba, fa, &bb, fb, band());
-    // The union fix (U1): the rung-2 lane VERIFIES N6's bit-identity
-    // claim instead of assuming it — a forged same-source pair on two
-    // different chart frames refuses typed. (Pre-fix this probe
-    // recorded the hole: the pair answered Ok(PositiveArea).)
-    println!("forged-source divergent charts => {got:?}");
-    assert!(matches!(got, Err(ChartRegionError::ChartDivergence { .. })));
-}
-
-#[test]
-fn probe_reverted_and_placed_sources_diverge() {
-    let mut ba = Body::<f64>::new();
-    let fa = sheet(
-        &mut ba,
-        0.0,
-        0.0,
-        2.0,
-        2.0,
-        FaceSurface::New {
-            surface: xy_plane(),
-            sense: true,
-        },
-    );
-    let ka = ba.get_face(fa).unwrap().surface;
-    let src = GeomSource::minted(3, 1);
-    ba.set_surface_source(ka, src.clone()).unwrap();
-    for (name, other) in [
-        ("reverted", src.reverted()),
-        ("placed", src.placed(9, 0)),
-        ("other-node", GeomSource::minted(4, 1)),
-        ("other-index", GeomSource::minted(3, 2)),
-    ] {
-        let mut bb = Body::<f64>::new();
-        let fb = sheet(
-            &mut bb,
-            0.0,
-            0.0,
-            2.0,
-            2.0,
-            FaceSurface::New {
-                surface: xy_plane(),
-                sense: true,
-            },
-        );
-        let kb = bb.get_face(fb).unwrap().surface;
-        bb.set_surface_source(kb, other).unwrap();
-        match chart_region_overlap(&ba, fa, &bb, fb, band()) {
-            Err(ChartRegionError::ChartDivergence { .. }) => {}
-            got => panic!("{name} source must diverge, got {got:?}"),
-        }
-    }
 }
 
 // ---------------------------------------------------------------

@@ -1,22 +1,10 @@
-//! The mated cross-lap union — the REST-contact frontier, CLOSED
-//! (#91 C1 → #102 R7 → M5 S1).
+//! The mated cross-lap union — the REST-contact frontier.
 //!
-//! History: the original `demo_tripwires.rs` crosslap wire expected
-//! M4 PR 5's Declare to glue the mate. PR 5 opened the CLASSIFICATION
-//! half exactly as predicted — but the mate is a pure REST contact
-//! (the half-depth notches interlock exactly; the two interiors are
-//! DISJOINT), so the union then refused typed at the JOIN — the M3
-//! envelope's boundary-on-boundary class (iii). The mechanism (S1's
-//! diagnosis, `boolean::rest` module docs): at a REST site a seam
+//! The mate is a pure REST contact (the half-depth notches interlock
+//! exactly; the two interiors are DISJOINT): at a REST site a seam
 //! direction lies in FOUR coincident planes (two per solid, coplanar
-//! via the declared rung), the two end records of one segment can
-//! resolve that ambiguity onto DIFFERENT face pairs, and the join's
-//! germ-identity match (face pairs agree) then never fires — the
-//! chords existed; their identity keys disagreed. The re-armed wire
-//! (this file's previous life) sat on that join-stage frontier until
-//! M5 S1 landed the declared-REST union zip; the wire FIRED with the
-//! exact expected volume and was retired per its own instructions.
-//! What remains are the certified pins at BOTH doors:
+//! via the declared rung), and the join matches the segment's two end
+//! records by the loci their germs lie in. The pins at BOTH doors:
 //!
 //! - UNDECLARED, the mate still refuses at the coincidence door
 //!   (rung (b) — value equality never classifies; the ladder is law).
@@ -32,7 +20,7 @@ use crate::common;
 use common::{brick, finished, flush_declarations};
 use geom_core::Tol;
 use topo::{
-    BooleanError, BooleanResult, mass_properties, subtract, union, union_with, validate_geometric,
+    BooleanResult, mass_properties, subtract, union, union_with, validate_geometric,
     validate_pseudomanifold,
 };
 
@@ -80,16 +68,19 @@ fn glued() -> topo::BooleanBody<f64> {
     }
 }
 
-/// The narrowing pin, unchanged: UNDECLARED, the mate refuses at the
-/// coincidence door (rung (b) — post-PR 5, value equality never
-/// classifies). The M5 S1 lane is reached exclusively through the
-/// declared rung; this door must never widen.
+/// Declared and undeclared are one body (D10): UNDECLARED, the mate's
+/// flush pairs decide Zero on their margins and glue, and the union is
+/// the declared one, bit for bit.
 #[test]
-fn undeclared_crosslap_refuses_at_the_coincidence_door() {
+fn undeclared_crosslap_is_the_declared_crosslap() {
     let (a, b) = notched_beams();
-    match union(&a, &b, Tol::witness()) {
-        Err(BooleanError::UndeclaredCoincidence { .. }) => {}
-        other => panic!("expected UndeclaredCoincidence, got {other:?}"),
+    match union(&a, &b, Tol::witness()).expect("the undeclared mate glues on Zero") {
+        BooleanResult::Body(undeclared) => assert_eq!(
+            format!("{:?}", undeclared.body),
+            format!("{:?}", glued().body),
+            "declared and undeclared are one body"
+        ),
+        BooleanResult::Empty => panic!("mated union cannot be empty"),
     }
 }
 
@@ -125,7 +116,7 @@ fn declared_crosslap_rest_union_builds() {
     );
     assert!(
         !glued.naming.seam_edges.is_empty(),
-        "the zip mints real seam edges"
+        "the join mints real seam edges"
     );
 }
 

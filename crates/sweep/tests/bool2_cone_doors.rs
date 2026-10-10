@@ -449,11 +449,8 @@ fn the_azimuth_window_selects_the_swept_quadrant() {
 
 /// **The consumer unlock.** A disjoint union has no crossings at all,
 /// so the pipeline falls through to the containment door and walks
-/// every face of the cone-bearing operand. On main that door refuses
-/// `KindUnsupported { kind: Cone }` — the pair-scoped operand gate
-/// admits the operation (the boxes are four units apart) and the
-/// containment question then cannot be asked. With the arm the union
-/// assembles.
+/// every face of the cone-bearing operand; the containment's cone arm
+/// answers there, and the union assembles.
 ///
 /// The operand is the full cone as built: its base disc is one face
 /// (`crates/sweep/README.md`, "Walls: one per run"), so the

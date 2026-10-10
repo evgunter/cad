@@ -57,7 +57,6 @@ import pncad
 from pncad import (
     BooleanOp,
     Doc,
-    DocEdit,
     Formula,
     Node,
     Open,
@@ -134,13 +133,14 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         redundant: ONE body, tier 3 clean, tier 3′ refusing.
 
         Two solids that touch, gathered as the document's product.
-        `product` declares nothing — it is the root list side by side,
-        with no gate — so the seat between them is a coincidence no
+        `product` declares nothing — it is the placed copies side by
+        side, with no gate — so the seat between them is a coincidence no
         record backs. Tier 3's battery is per-entity and never looks
         across the pair, which is exactly the deferral 3′ closes.
         """
         doc, lower, upper = two_slabs_resting()
-        doc.apply(DocEdit.set_roots([lower, upper]))
+        doc.place(lower)
+        doc.place(upper)
         gathered = product(doc, evaluate(doc))
 
         gathered.validate()
@@ -158,7 +158,8 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         doc = Doc()
         a = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
         b = slab(doc, (3 * m, 4 * m), (0 * m, 1 * m), (0 * m, 1 * m))
-        doc.apply(DocEdit.set_roots([a, b]))
+        doc.place(a)
+        doc.place(b)
         product(doc, evaluate(doc)).validate_pseudomanifold()
 
     def test_an_interpenetrating_union_has_no_coincidence_to_declare(self):
@@ -267,7 +268,8 @@ class TestTheRefusalsShape(unittest.TestCase):
 
     def refusal(self):
         doc, lower, upper = two_slabs_resting()
-        doc.apply(DocEdit.set_roots([lower, upper]))
+        doc.place(lower)
+        doc.place(upper)
         gathered = product(doc, evaluate(doc))
         with self.assertRaises(ValidationError) as caught:
             gathered.validate_pseudomanifold()
@@ -432,7 +434,8 @@ class TestTheRefusalsShape(unittest.TestCase):
         doc = Doc()
         seat = slab(doc, (0 * m, 2 * m), (0 * m, 2 * m), (0 * m, 1 * m))
         post = cylinder(doc, (1 * m, 1 * m), 0.4 * m, 1 * m, 0.5 * m)
-        doc.apply(DocEdit.set_roots([seat, post]))
+        doc.place(seat)
+        doc.place(post)
         gathered = product(doc, evaluate(doc))
         with self.assertRaises(ValidationError) as caught:
             gathered.validate_pseudomanifold()
@@ -503,7 +506,8 @@ class TestTheRefusalsShape(unittest.TestCase):
         doc = Doc()
         seat = slab(doc, (0 * m, 2 * m), (0 * m, 2 * m), (0 * m, 1 * m))
         post = cylinder(doc, (1 * m, 1 * m), 0.4 * m, 1 * m, 0.5 * m)
-        doc.apply(DocEdit.set_roots([seat, post]))
+        doc.place(seat)
+        doc.place(post)
         with self.assertRaises(ValidationError) as caught:
             product(doc, evaluate(doc)).validate_pseudomanifold()
         reached = {f.variant for f in caught.exception.findings}
@@ -667,7 +671,8 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         could separate.
         """
         doc, lower, upper = two_slabs_resting()
-        doc.apply(DocEdit.set_roots([lower, upper]))
+        doc.place(lower)
+        doc.place(upper)
         gathered = product(doc, evaluate(doc))
         with self.assertRaises(ValidationError):
             gathered.validate_pseudomanifold()

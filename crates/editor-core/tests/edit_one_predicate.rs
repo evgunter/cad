@@ -48,8 +48,8 @@ use editor_core::CapEnd;
 use editor_core::{
     Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocRef, DocumentId, EditError,
     EntityKind, FaceName, Formula, Frame, FreeVar, InterfaceCrossing, InterfaceRecord, MateFrame,
-    MatePrimitive, MeasureExpr, Node, PersistError, ProfileDoc, RecipeNodeId, RoleSeg,
-    SnapshotError, StableName, VarName, apply, load, save,
+    MatePrimitive, Node, PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SnapshotError,
+    StableName, VarName, apply, load, save,
 };
 use editor_core::{VarNameReason, parse_formula};
 use fixture::resolver::{PartStore, in_part};
@@ -61,10 +61,9 @@ use test_utils::fuzz;
 // ---- The assertion's bound ----
 
 /// A document carrying an XY frame (0), a profile (1), an extrude (2)
-/// and a LENGTH measure (3) that reads no references — the measurement
-/// vocabulary's smallest well-formed sink, which is all an assertion's
-/// bound is checked against.
-fn with_measure() -> (ProfileDoc, RecipeNodeId) {
+/// and a LENGTH variable `gap` — the smallest value an assertion
+/// bounds, which is all its bound is checked against.
+fn with_value() -> (ProfileDoc, editor_core::VarId) {
     let mut r = fixture::Recorder::new();
     let profile = r.profile(
         [0.0, 0.0, 0.0],
@@ -73,74 +72,81 @@ fn with_measure() -> (ProfileDoc, RecipeNodeId) {
         vec![fixture::square(0.0, 0.0, 0.5)],
     );
     let _ = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
-    let measure = r.insert(Node::Measure {
-        expr: MeasureExpr::value(len(1.0)),
-        refs: Vec::new(),
+    let gap = editor_core::VarName::from_static("gap");
+    r.push(DocEdit::DeclareVar {
+        name: gap.clone(),
+        def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(Dimension::Length, 1.0)),
     });
-    (r.doc, measure)
+    let value = r.doc.var_named(gap.as_str()).expect("declared");
+    (r.doc, value)
 }
 
-fn assertion(measure: RecipeNodeId, bound: Formula) -> AuthoredNode {
+fn assertion(value: editor_core::VarId, bound: Formula) -> AuthoredNode {
     Node::Assertion {
-        measure,
+        value: Formula::var(value, Dimension::Length),
         bound,
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     }
 }
 
-/// **The reference is not a measure — both doors.** The edit door
-/// names it `AssertionTarget`; the load door names it
-/// `SnapshotError::AssertionTarget`, its own arm since this unit,
-/// because a reader should not have to decode an absent dimension to
-/// learn which of the two assertion faults happened.
+/// **The value is no scalar — both doors.** An assertion reads its
+/// value at a dimension, so the edit door refuses the frame's output by
+/// kind (`PayloadVarKind`), and the load door the same, read by the
+/// payload walk.
 #[test]
-fn an_assertion_over_a_non_measure_is_refused_at_both_doors() {
-    let (doc, measure) = with_measure();
+fn an_assertion_over_a_non_scalar_is_refused_at_both_doors() {
+    let (doc, value) = with_value();
     // The sketch frame (the first node) is live and precedes any
-    // assertion, so the only thing wrong with the document is that it
-    // is not a measure.
-    let frame_node = doc.order()[0];
+    // assertion, so the only thing wrong with the document is that its
+    // output is no scalar.
+    let frame = doc
+        .output(doc.ids()[0], 0)
+        .expect("a frame defines its pose");
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(assertion(frame_node, len(1.0))),
+            node: Box::new(assertion(frame, len(1.0))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::AssertionTarget { measure: m, .. }) => assert_eq!(m.id(), frame_node),
-        other => panic!("an assertion over a non-measure must refuse typed, got {other:?}"),
+        Err(EditError::PayloadVarKind {
+            declared: editor_core::VarKind::Frame,
+            ..
+        }) => {}
+        other => panic!("an assertion over a non-scalar must refuse typed, got {other:?}"),
     }
 
     // The same fact at the load door: a file whose assertion is
     // re-pointed at the frame.
-    let (text, id) = saved_assertion(&doc, measure, len(1.0));
-    let corrupt = repoint_measure(&text, id, measure, frame_node);
+    let (text, id) = saved_assertion(&doc, value, len(1.0));
+    let corrupt = repoint_value(&text, id, value, frame);
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::AssertionTarget {
-            measure: m,
-            bound: Dimension::Length,
+        Err(PersistError::Snapshot(SnapshotError::PayloadVarKind {
+            declared: editor_core::VarKind::Frame,
             ..
-        })) => assert_eq!(m.id(), frame_node),
-        other => panic!("a non-measure target must refuse typed at load, got {other:?}"),
+        })) => {}
+        other => panic!("a non-scalar value must refuse typed at load, got {other:?}"),
     }
 }
 
-/// **The bound measures something else — both doors.** The measure
-/// yields a length; the bound is an angle. Both doors carry BOTH
+/// **The bound measures something else — both doors.** The value is a
+/// length; the bound is an angle. Both doors carry BOTH
 /// dimensions, so the message says what disagrees rather than that
 /// something does.
 #[test]
 fn an_assertion_bound_of_the_wrong_dimension_is_refused_at_both_doors() {
-    let (doc, measure) = with_measure();
+    let (doc, measure) = with_value();
     match apply(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(assertion(measure, fixture::ang(0.5))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -172,13 +178,14 @@ fn an_assertion_bound_of_the_wrong_dimension_is_refused_at_both_doors() {
 /// need the id to aim with.
 fn saved_assertion(
     doc: &editor_core::ProfileDoc,
-    measure: RecipeNodeId,
+    measure: editor_core::VarId,
     bound: Formula,
 ) -> (String, RecipeNodeId) {
     let applied = apply(
         doc,
         &DocEdit::InsertNode {
             node: Box::new(assertion(measure, bound)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -190,19 +197,19 @@ fn saved_assertion(
     (text, id)
 }
 
-/// Re-points the assertion's `measure` field.
-fn repoint_measure(
+/// Re-points the assertion's `value` read.
+fn repoint_value(
     text: &str,
     assertion: RecipeNodeId,
-    from: RecipeNodeId,
-    to: RecipeNodeId,
+    from: editor_core::VarId,
+    to: editor_core::VarId,
 ) -> String {
     doctored(text, |wire| {
-        let field = &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["measure"];
+        let field = &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["value"];
         assert_eq!(
             *field,
             serde_json::json!(from.0),
-            "the surgery is aimed at the assertion's target"
+            "the surgery is aimed at the assertion's value"
         );
         *field = serde_json::json!(to.0);
     })
@@ -214,14 +221,12 @@ fn repoint_measure(
 /// read is the DIMENSION rule's.
 fn retype_bound(text: &str, assertion: RecipeNodeId) -> String {
     doctored(text, |wire| {
-        let lit = &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["bound"]["Literal"];
-        assert_eq!(
-            lit["dim"],
-            serde_json::json!("Length"),
-            "the surgery is aimed at a length bound"
+        crate::wire::retype_slot_var(
+            wire,
+            |wire| &wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["bound"],
+            "Angle",
+            "rad",
         );
-        lit["dim"] = serde_json::json!("Angle");
-        lit["unit"] = serde_json::json!("rad");
     })
 }
 
@@ -278,7 +283,7 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -347,6 +352,7 @@ fn a_non_finite_alignment_is_refused_at_the_edit_door() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(non_finite),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -586,7 +592,7 @@ fn a_face_referenced_crossing_round_trips() {
 fn a_crossings_references_are_bare_names_on_the_wire() {
     let reference = |node: u64| StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(node),
+        node: RecipeNodeId::new(0, node),
         path: vec![RoleSeg::Cap(editor_core::CapEnd::Start)],
     };
     let crossing = InterfaceCrossing::Mate {
@@ -599,8 +605,8 @@ fn a_crossings_references_are_bare_names_on_the_wire() {
         serde_json::json!({
             "Mate": {
                 "class": "rest",
-                "outer": { "kind": "Face", "node": 3, "path": [{ "Cap": "Start" }] },
-                "inner": { "kind": "Face", "node": 5, "path": [{ "Cap": "Start" }] },
+                "outer": { "kind": "Face", "node": "0:0000000000000003", "path": [{ "Cap": "Start" }] },
+                "inner": { "kind": "Face", "node": "0:0000000000000005", "path": [{ "Cap": "Start" }] },
             }
         })
     );
@@ -631,6 +637,7 @@ fn an_offset_or_gauge_on_the_wrong_kind_is_refused_at_both_doors() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 1.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -699,6 +706,7 @@ fn an_improper_placement_is_refused_at_both_doors() {
         &DocEdit::SetOffset {
             instance: ids[0],
             offset: Some(editor_core::Placement::literal(&mirror)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -744,6 +752,7 @@ fn a_non_rigid_placement_is_refused_at_both_doors() {
         &DocEdit::SetOffset {
             instance: ids[0],
             offset: Some(editor_core::Placement::literal(&stretched)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -822,6 +831,7 @@ fn saved_offset(doc: &editor_core::ProfileDoc, node: RecipeNodeId, frame: Frame)
         DocEdit::SetOffset {
             instance: node,
             offset: Some(editor_core::Placement::literal(&frame)),
+            fresh: Vec::new(),
         },
     );
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
@@ -881,11 +891,11 @@ fn rekey_witness(text: &str, from: RecipeNodeId, to: RecipeNodeId) -> String {
 /// `WitnessOnNonSketch` and the load door `SnapshotError::WitnessSite`.
 #[test]
 fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
-    // `with_measure` lays down a frame, a profile, an extrude and a
-    // measure, in that order: the profile is the only sketch-bearing
+    // `with_value` lays down a frame, a profile, an extrude and a
+    // variable, in that order: the profile is the only sketch-bearing
     // node in it, and the extrude is a live node that is not one.
-    let (doc, _) = with_measure();
-    let (sketch, non_sketch) = (doc.order()[1], doc.order()[2]);
+    let (doc, _) = with_value();
+    let (sketch, non_sketch) = (doc.ids()[1], doc.ids()[2]);
     match apply(
         &doc,
         &DocEdit::ReWitness {
@@ -916,8 +926,8 @@ fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
 /// `SnapshotError::WitnessOnMissingNode`.
 #[test]
 fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
-    let (doc, _) = with_measure();
-    let (sketch, gone) = (doc.order()[1], doc.order()[2]);
+    let (doc, _) = with_value();
+    let (sketch, gone) = (doc.ids()[1], doc.ids()[2]);
     // Deleted rather than invented, so the id stays one the document
     // has minted and the load door's id walk passes it — the refusal read
     // is then the site rule's and not `NodeNotMinted`.
@@ -965,7 +975,7 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
 /// earlier, as `PersistError::NonFinite` at `NonFiniteSite::Epsilon`.
 #[test]
 fn a_non_positive_epsilon_is_refused_at_both_doors() {
-    let (doc, _) = with_measure();
+    let (doc, _) = with_value();
     match apply(
         &doc,
         &DocEdit::SetTolerance { eps: 0.0 },
@@ -1014,7 +1024,7 @@ fn a_non_positive_epsilon_is_refused_at_both_doors() {
 fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
     use editor_core::{Distribution, DistributionField, DocParamField, persist::NonFiniteSite};
 
-    let (doc, _) = with_measure();
+    let (doc, _) = with_value();
     let name = VarName::from_static("wall");
     let annotated = |sigma: f64| {
         let mut value = FreeVar::continuous(Dimension::Length, 1.0);
@@ -1089,7 +1099,7 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
 /// the property a caller comparing them relies on.
 #[test]
 fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_words() {
-    let (doc, _) = with_measure();
+    let (doc, _) = with_value();
     let name = VarName::from_static("n");
     match apply(
         &doc,

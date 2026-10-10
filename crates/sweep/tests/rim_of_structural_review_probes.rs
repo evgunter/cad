@@ -316,7 +316,7 @@ fn corpus() -> Vec<(String, Body<f64>)> {
             ("pocket", pocket_of_arcs(n, 2.0, 0.5, 1.5, tol()), 1.5, 0.1),
         ] {
             let rim = circle_arcs_at_z(&body, z);
-            let out = fillet_edges(&body, &rim, r, tol())
+            let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &rim, r, tol())
                 .unwrap_or_else(|e| panic!("filleted {name}({n}): carves, got {}", e.error));
             v.push((format!("filleted {name}_of_arcs({n})"), out.body));
         }
@@ -342,12 +342,13 @@ fn every_circle_edge_of_the_public_door_corpus_answers_against_the_oracle() {
             t.rims, t.max_arcs, t.refused
         );
         if name == "3-arc disc cut by a brick" {
-            // The cut interrupts both rims: every arc dangles.
+            // The cut interrupts both rims, and the join makes what is
+            // left of each one arc, which dangles.
             assert_eq!(t.rims, 0, "{name}: no closed rim survives the cut");
             assert_eq!(
                 t.refused.get("NotOneRim/Dangles"),
-                Some(&6),
-                "{name}: each of the six arcs dangles"
+                Some(&2),
+                "{name}: each rim's one arc dangles"
             );
         }
         total += t.rims;

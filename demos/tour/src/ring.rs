@@ -103,7 +103,7 @@
 use core::f64::consts::PI;
 
 use pncad::authoring::{p2, validated};
-use pncad::document::RefusingReach;
+use pncad::document::{Operand, RefusingReach};
 use pncad::geom_core::{Tol, Vec2};
 use pncad::prelude::{
     CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Formula, LoopProgram, MM, Node,
@@ -174,12 +174,21 @@ fn through_the_document(tol: Tol) -> Body<f64> {
     }
 }
 
-/// This scene's recipe, as a document the GUI can open.
+/// This scene's recipe, as a document the GUI can open: the revolve,
+/// placed in the world.
 ///
 /// The same document `through_the_document` evaluates — the gallery
 /// hands a reader exactly the recipe this scene's claim rests on.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
-    document(tol).0
+    let (doc, revolved) = document(tol);
+    apply(
+        &doc,
+        &DocEdit::place(Operand::output(revolved, 0), None),
+        tol,
+        &RefusingReach,
+    )
+    .expect("the revolve places")
+    .doc
 }
 
 /// The ring's recipe and its revolve node.
@@ -189,8 +198,16 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let mm = |v: f64| Formula::length_in(v, MM).expect("a length in millimetres");
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("hollow-ring", tol);
     let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
-        let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach)
-            .expect("the edit applies");
+        let applied = apply(
+            doc,
+            &DocEdit::InsertNode {
+                node,
+                fresh: Vec::new(),
+            },
+            tol,
+            &RefusingReach,
+        )
+        .expect("the edit applies");
         *doc = applied.doc;
         applied.record.minted.expect("insert mints an id")
     };
@@ -210,7 +227,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let profile = insert(
         &mut doc,
         Box::new(Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             // Outer first, then the holes: the list IS the hole
             // vocabulary, and nothing else here mentions one.
             loops: vec![circle(RO_MM), circle(RI_MM)],
@@ -224,7 +241,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let axis = insert(
         &mut doc,
         Box::new(Node::Datum(Datum::AxisInPlane {
-            plane,
+            frame: plane.into(),
             origin: [mm(0.0), mm(0.0)],
             direction: [
                 Formula::literal(0.0, Dimension::Scalar).expect("a scalar"),
@@ -235,8 +252,8 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let revolved = insert(
         &mut doc,
         Box::new(Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             // A full turn, written as one: the half-turn row is a
             // NOTATION carried as a unit, so the recipe says `2 pi rad`
             // where it would otherwise say `6.283185307179586 rad`.

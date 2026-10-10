@@ -73,8 +73,13 @@ fn the_rod_carves_at_the_certified_scalar_and_brackets_the_prism_closed_form() {
     );
 
     let bracket = Bracket::open();
-    let out = fillet_edges(&source, &creases, iv(r), tol)
-        .unwrap_or_else(|e| panic!("the ruled band carves at Interval, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol),
+        &creases,
+        iv(r),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("the ruled band carves at Interval, got {e:?}"));
     let log = bracket.finish().verdicts;
     let caps: Vec<_> = log
         .iter()

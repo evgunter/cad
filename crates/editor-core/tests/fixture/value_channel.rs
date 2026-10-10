@@ -184,7 +184,8 @@ impl Digest {
 /// through the scalar's value channel. The single feed both entry
 /// points below share.
 fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, id: RecipeNodeId) {
-    d.u64(id.0);
+    d.u64(u64::from(id.0.ordinal()));
+    d.u64(id.0.digest());
     match ev.result(id) {
         None => d.u64(0),
         Some(NodeResult::Failed(_)) => d.u64(1),

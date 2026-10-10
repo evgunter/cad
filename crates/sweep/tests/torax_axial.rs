@@ -1176,12 +1176,16 @@ fn torax_re_authored_arcs_put_both_corners_on_the_moved_circle() {
                 (_, geom_brep::EdgeAuthority::Declared(m)) => m,
                 _ => continue,
             };
-            let geom_brep::MappedCurve::PlacedSegment {
-                segment:
-                    geom_brep::SketchSegment::Arc {
-                        a,
-                        b,
-                        arc: Arc2 { centre, radius, .. },
+            let geom_brep::MappedCurve {
+                source:
+                    geom_brep::MappedSource::PlacedSegment {
+                        segment:
+                            geom_brep::SketchSegment::Arc {
+                                a,
+                                b,
+                                arc: Arc2 { centre, radius, .. },
+                                ..
+                            },
                         ..
                     },
                 ..

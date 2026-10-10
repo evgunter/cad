@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-03
 priority: P3
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -31,9 +31,20 @@ that point unrecorded is unmeasured.
 
 Measured on that branch by making the two loops panic when non-empty,
 over `--profile ci` for topo, editor-core, sweep, viewer and pncad
-(7488 tests). Two tests reach them:
+(7488 tests). Two tests reached them:
 - `editor-core` `docm7_union_declare::a_same_member_declared_pair_is_a_carried_record_at_its_step`;
 - `topo` `boolean::ops::tests::a_cycling_absorption_row_refuses_where_a_dead_end_drops`.
+
+Since stage 4 B2 (`intent/contact-records-cite-their-decision`) the
+first no longer reaches them: its declared pair names a contact the
+operand records nothing for, so the node refuses
+`DeclaredContactUnbacked`, and the test is
+`a_same_member_declared_pair_with_no_record_refuses_at_every_door`.
+The carried v-on-f loops are reached instead by `topo`
+`records_cite_their_decision::a_carried_vertex_on_face_record_cites_its_operands_record`
+(a cube on its corner, carried into a union with a far box). No
+document-level fixture declares a backed v-on-f pair: `kiss_carry`
+carries a v-v pair only.
 
 Neither puts the row's vertex at a pinch. The pinch fixtures in
 `crates/topo/tests/union_flush_onto_edge_contact.rs` carry v-v rows
@@ -46,3 +57,7 @@ one of a pinch's two vertices, and the next boolean fuses that vertex,
 e.g. the pinch of that suite resting on a face, with a flush partner
 folded onto it. Then read 3′ on the result. A fix, if one is owed,
 lands where the v-v group rule did.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: asks whether carried declared Rest v-on-f rows survive remap_carried; those declared-contact rows retire at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

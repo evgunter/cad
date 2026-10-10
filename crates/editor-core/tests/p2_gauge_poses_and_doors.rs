@@ -45,7 +45,7 @@ fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -131,7 +131,15 @@ fn set_offset(
     instance: RecipeNodeId,
     offset: Option<Placement<Formula>>,
 ) -> ProfileDoc {
-    step(doc, DocEdit::SetOffset { instance, offset }).0
+    step(
+        doc,
+        DocEdit::SetOffset {
+            instance,
+            offset,
+            fresh: Vec::new(),
+        },
+    )
+    .0
 }
 
 fn literal<S: Clone>(m: &M) -> Placement<S> {
@@ -315,7 +323,7 @@ struct Chain {
 }
 
 fn turn() -> VarName {
-    VarName::from_static("turn")
+    VarName::from_static("spin")
 }
 
 fn chain(label: &str) -> Chain {
@@ -469,7 +477,7 @@ fn a_pattern_placer_poses_as_composed() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: top,
+            input: top.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [0.0, 1.0, 0.0].map(scl),
@@ -655,7 +663,7 @@ fn an_unreachable_member_with_an_offset_faults_and_does_not_evaluate() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: top,
+            input: top.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [0.0, 1.0, 0.0].map(scl),
@@ -686,6 +694,7 @@ fn an_unreachable_member_with_an_offset_faults_and_does_not_evaluate() {
             node: pat,
             slot: SlotId::Count,
             expr: Formula::count(1),
+            fresh: Vec::new(),
         },
     )
     .0;
@@ -765,26 +774,25 @@ fn the_gate_checks_own_spaces_whatever_the_world_holds() {
     let (doc, base) = insert(doc, Node::instantiate_part(p.base));
     let (doc, top) = insert(doc, Node::instantiate_part(p.top));
     let doc = set_gauge(doc, top, Some(g));
+    let doc = fixture::place_all(doc, &[base, top]);
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: g });
-    let (doc_m, meas) = insert(
-        doc.clone(),
-        Node::measure(
-            editor_core::MeasureExpr::primitive(editor_core::MeasurePrimitive::Distance {
-                a: 0,
-                b: 1,
-            }),
-            vec![
-                editor_core::SitedRef::at_mint(p.top_cap(top)),
-                editor_core::SitedRef::at_mint(p.top_upper_cap(top)),
-            ],
-        )
-        .unwrap(),
+    let (doc_m, meas) = crate::fixture::measure_node(
+        &doc,
+        editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            editor_core::SitedRef::at_mint(p.top_cap(top)),
+            editor_core::SitedRef::at_mint(p.top_upper_cap(top)),
+        ],
     );
     let ev = run(&doc_m, &o);
     assert!(ev.value(meas).is_some(), "{:?}", ev.node_error(meas));
     editor_core::assemble(&doc_m, &ev, Tol::witness())
         .expect("an own space with no body root holds nothing to check");
-    let (alone, _) = step(doc, DocEdit::DeleteNode { id: base });
+    // The base and its world placement go: the top's copy is all the
+    // document places.
+    let base_copy = doc.placements()[0];
+    let (alone, _) = step(doc, DocEdit::DeleteNode { id: base_copy });
+    let (alone, _) = step(alone, DocEdit::DeleteNode { id: base });
     let ev = run(&alone, &o);
     match editor_core::assemble(&alone, &ev, Tol::witness()) {
         Err(editor_core::AssemblyError::Product(e)) => match *e {
@@ -823,6 +831,7 @@ fn an_unplaced_group_below_crosses_the_seam_as_a_named_fact() {
     let (sub, base) = insert(sub, Node::instantiate_part(p.base));
     let (sub, top) = insert(sub, Node::instantiate_part(p.top));
     let sub = set_gauge(sub, top, Some(g));
+    let sub = fixture::place_all(sub, &[base, top]);
     let (sub, _) = step(sub, DocEdit::DeleteNode { id: g });
     let o = p.opts();
     let ev_sub = run(&sub, &o);
@@ -850,6 +859,7 @@ fn an_unplaced_group_below_crosses_the_seam_as_a_named_fact() {
         outer,
         fixture::xform(inst, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0),
     );
+    let outer = fixture::place(outer, moved).0;
     let ev = run(&outer, &with_resolver(store));
     let below = ev.all_unplaced_below();
     let [row] = below.as_slice() else {
@@ -862,7 +872,7 @@ fn an_unplaced_group_below_crosses_the_seam_as_a_named_fact() {
     );
     let cause = format!(
         "its gauge chain names node {}, which was deleted",
-        test_utils::refusal::tag(g.0)
+        test_utils::refusal::tag(g.0.digest())
     );
     for said in [editor_core::spoken_by(row, &outer), row.to_string()] {
         assert!(
@@ -905,7 +915,7 @@ fn split_of(
 ) -> Result<editor_core::SplitOutcome, editor_core::SplitError> {
     editor_core::split(
         doc,
-        &ids.iter().copied().collect(),
+        &fixture::with_placements(doc, &ids.iter().copied().collect()),
         DocumentId::derive(label),
         Tol::witness(),
         p.opts().resolver.as_ref(),
@@ -927,6 +937,7 @@ fn a_cut_that_leaves_its_groups_placing_mate_behind_refuses() {
         Some(Placement::literal(&Frame::translation([4.0, 0.0, 0.0]))),
     );
     let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+    let doc = fixture::place_all(doc, &[base, top]);
     let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
     match split_of(&p, &doc, &[base, top], "r2-split-mate-part") {
         Err(e @ editor_core::SplitError::PlacingMateLeft { .. }) => {
@@ -965,6 +976,7 @@ fn inline_of_a_verbatim_split_returns_every_world_pose() {
                 .unwrap(),
         )),
     );
+    let doc = fixture::place_all(doc, &[b1, t1, b2]);
     let before: Vec<M> = [b1, t1, b2]
         .iter()
         .map(|&i| M::of(&solve(&doc, &o, Tol::witness()).placement(&doc, i).unwrap()))
@@ -1065,6 +1077,7 @@ fn a_declaring_mate_across_gauges_never_certifies_a_real_gap_or_overlap() {
             translation: [1.0, 1.0, BASE_HEIGHT],
         };
         let doc = set_offset(doc, top, Some(Placement::literal(&seated)));
+        let doc = fixture::place_all(doc, &[base, top]);
         let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
         assert_eq!(
             solve(&doc, &o, Tol::witness()).role(mate),
