@@ -51,3 +51,7 @@ geom-core = { path = "../geom-core", features = ["test-support"] }
 [[test]]
 name = "all"
 path = "tests/all.rs"
+
+[[test]]
+name = "review_4573_probe"
+path = "tests/review_4573_probe.rs"

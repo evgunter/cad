@@ -73,3 +73,7 @@ mesh = { path = "../mesh" }
 [[test]]
 name = "all"
 path = "tests/all.rs"
+
+[[test]]
+name = "review_4573_cert"
+path = "tests/review_4573_cert.rs"
