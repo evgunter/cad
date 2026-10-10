@@ -53,10 +53,11 @@ a name which output holds the entity, so a split's roles carry no half
 entity on (`From { read: split.above, of }`) or the body a selection
 states. The per-node table compensates today by restating the output:
 the split's half and the pattern's `Instance { i }` segment exist only to
-keep one node's table distinct. D10 makes the compensation fail: `X'` is a
-copy of `X` placed against `X`, so it takes `X`'s root, and `Place [X, X']`
-defines two copies whose tables are identical (a copy keeps its rows),
-which one table per operation refuses as `DuplicateName`.
+keep one node's table distinct. D10 makes the compensation fail: `P1` and
+`P2` are two placements of `X`, each equally a copy of it; pinned into one
+space, a later `Place [P1, P2]` defines two outputs carrying `X`'s rows
+verbatim (a placement adds no name segment, above), which one table per
+operation refuses as `DuplicateName`.
 
 **N1, the revolve poles.** `Pole(v)` names the ONE body vertex an on-axis
 profile vertex revolves to, looked up in the sweep's `poles` export.
@@ -395,7 +396,9 @@ and a constituent is never itself a bare merged face: whatever mints a `Merged`
 mints it flat — a merge of a merged face lists the faces, never the merge — and
 a nested `Merged` is an emission bug, refused at the mint and again at the
 union's collapse rather than flattened (the fragment carve-out is stated once,
-at `RoleSeg::Merged`). A merged row COVERS a name when the name is a constituent
+at `RoleSeg::Merged`). A `Merged` whose set has one element is that
+element: a face glued to its twin, the same read spelled twice (REFERENCES
+DM5), is named as the face. A merged row COVERS a name when the name is a constituent
 or is a merged face all of whose faces are (`names/merged.rs`), which is how the
 offers and the union's look-through read a flat set. The
 constituents retire. In a union no face publishes under a constituent's

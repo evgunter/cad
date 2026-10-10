@@ -132,12 +132,11 @@ by the evaluation. Names pass through unchanged, as `Transform`'s do
 (`role.rs`): the member keeps its `Member { (i, …), of }` names, keyed by
 the index variables' ids and the integers, and an operation reading it
 keys them by `xs` (DM4), the index said once, in `Member`. So
-`Union[xs]` and `Union[xs[0], …, xs[N−1]]` name alike, because they read
+`Union(xs)` and `Union([xs[0], …, xs[N−1]])` name alike, because they read
 the same things, and inside a per-`k` reader `union(xs)` and
 `union(xs[k])` are one read with one name. A member is not a named alias:
 two readers wanting one member share the family and a named `Count`. A
-name is scoped by the variable that holds its body
-(N1), so a split half's names do not spell the half: its variable says it,
+name is scoped by the variable that holds its body (N1), so a split half's names do not spell the half: its variable says it,
 and a selection of `split.above` states its body once. A body seat
 reading a whole family, a profile or a split as a whole refuses by kind at
 the door (`SlotVarKind`).
@@ -150,11 +149,20 @@ declare }` keeps the material in every member, the same shape over the
 kernel's intersection verb. `Node::Subtract { from, tool, declare }` cuts
 one body by another and is the one pair: difference neither commutes nor
 associates, and nothing is a unary "not", so its two seats are named, and
-several tools are `Subtract { from: a, tool: Union[tools] }`, the one way
-to say it. There is no `Boolean { op, a, b }` and no `BooleanOp`. A member
-of a union or an intersect is a body or a family (D10, Repetition), whose members join in index order
-at that member's place in the list; a family's length is a `Count`, so the
-floor of two bodies in all is evaluation's, refused typed there.
+several tools are `Subtract { from: a, tool: Union([tools…]) }`, the one
+way to say it. There is no `Boolean { op, a, b }` and no `BooleanOp`.
+
+A union or an intersect takes one argument of kind `Bodies`, the family of
+`Body` (D10), filled in one of two forms: one read of a family
+(`Union(xs)`), whose members join in index order, or the member reads
+spelled at the slot (`Union([a, b, c])`), which join in the spelled order.
+The spelled form is the slot's spelling, not a value: there is no list
+literal (D10, Repetition), so nothing later reads "that list", and a
+reusable list is a family and an index. It is the argument a placement's
+shape list takes (S3M). A mix (`[xs, a]`) puts a `Bodies` where a `Body`
+goes and is ill-typed at the door (`SlotVarKind`), so a list beside an
+individual cannot be written. A list of one is its member, and an empty
+list is the typed empty body.
 
 **Why.** A multi-shell tool assembled as a chain of pairwise unions is an
 artifact of the vocabulary rather than of the model. A pair node wraps every
@@ -169,8 +177,8 @@ twenty for the last), repairable only by a `Rebind` per name through N5's
 offers. A splice edit that assumed intent about which input survives would
 carry that cost on top of its own. So the chain goes, not the link:
 
-- **The node.** A union or an intersect reads two or more bodies and
-  defines one. A union of two is this node; there is no second spelling of
+- **The node.** A union or an intersect reads its `Bodies` and defines one
+  body. A union of two is `Union([a, b])`; there is no second spelling of
   it. It evaluates as a fold of the kernel's pair verb in member order: the
   order is the list's, the author's statement. What the node decides is
   defined over its members, not over the fold: every coincidence between two members is judged once, pairwise,
@@ -192,34 +200,38 @@ carry that cost on top of its own. So the chain goes, not the link:
   `README.md`).
 - **Naming keys by the read, not by depth.** An operation that carries an
   entity in from an input wraps its name in `From { read: VarId, of:
-  Box<StableName> }`: `read` is the variable the input slot holds (D10: a
-  read is of a variable), `of` the entity's name in that variable's table.
+  Box<StableName> }`: `read` is the element read the body came through (D10:
+  a read is of a variable) — a seat's variable, a spelled member's read, or
+  the family read for each of its members — and `of` the entity's name in
+  that variable's table.
   The one segment serves a union's and an intersect's members, a
   subtract's two seats and a one-input operation's input (a shell's, a
   blend's) alike; which seat a read sits in is the node's to say, never the
-  name's. The key is the read, never the inner name's minting node: a copy
-  keeps the rows of the body it copies (N1), so two members that are
-  copies of one body carry identical tables, and the inner name alone
-  cannot tell them apart. Nor is it the operation the read reaches: two
-  outputs of one operation are two variables, and `Union[split.above,
-  split.below]` names its halves apart. The read is minted identity, as a
-  node id is; it is data the node already carries, and DM5 makes it unique
-  within one node. No position is recorded, so removing a member leaves
+  name's. The key is the read, never the inner name's minting node: a
+  placement adds no name segment (N1), so two members that are placements
+  of one body carry identical tables, and the inner name alone cannot tell
+  them apart. Nor is it the operation the read reaches: two
+  outputs of one operation are two variables, and `Union([split.above,
+  split.below])` names its halves apart. The read is minted identity, as a
+  node id is, and data the node already carries. A read spelled twice is
+  one key, and its two members glue to each other (DM5). No position is
+  recorded, so removing a member leaves
   every other member's names as they were, and re-pointing one by
   `SetMembers` changes its key, a recipe edit (N5). A family's members keep
-  their `Member { (i, …), of }` segments (DM3), keyed by the index variables' ids, so they too are told apart by
-  identity, never by position in the list.
+  their `Member { (i, …), of }` segments (DM3), keyed by the index
+  variables' ids, so they too are told apart by identity, never by position
+  in the list.
 - **`DocEdit::SetMembers { node, members: Vec<Operand> }`** is the one
   edit that changes a list input, by naming the whole new list; nothing is
   inferred. It refuses typed an unknown or non-live member, a cycle
-  (`WouldCycle` through the existing check), a duplicate (DM5), or an empty
-  list; fewer than two bodies in all refuses at evaluation (above).
+  (`WouldCycle` through the existing check), or a mix of a family and a
+  member (`SlotVarKind`).
   Deleting a pip is `SetMembers` without it, and the other
   twenty rims survive. The pip the union no longer reads is still
   defined, and out of the product because no placement names it;
   deleting it too is tidiness, not a requirement. An intersect's
-  `members` and `Loft`'s `profiles` are the same shape and take the same
-  edit; nothing else in the vocabulary is a list.
+  argument, a placement's shape list and `Loft`'s `profiles` are the same
+  shape and take the same edit; nothing else in the vocabulary is a list.
 - The viewer's combining doors take a union or intersect seat of N body
   picks, and a subtract's two (not yet built).
 
@@ -287,7 +299,9 @@ member with the member beside it, and never names the union.
   at which both its sites are in the accumulation: the later member's step in
   list order, with the earlier side as the accumulator's operand and the
   later side as the joining member's. A pair whose two sites are one member
-  is that member's carried contact at its own step. No fold position is
+  is that member's carried contact at its own step; a pair sited at a read
+  spelled twice sites both of its members, by the same rule. No fold
+  position is
   recorded anywhere.
 - **Consumed faces.** A pair a face of which the fold consumed whole before
   that step is satisfied, not `Vanished`: no row of the accumulation descends
@@ -350,37 +364,34 @@ member-space declaration channel, DOCM-7 (PR 2028), sited at the members
 the look-through, DOCM-8 (PR 2073); the typed refusal past the merges,
 ruled on PR 2677; the pairwise contact rule (#3200, built in PR 3213).*
 
-## DM5 — A node's inputs are pairwise distinct
+## DM5 — A read repeated is answered by the operation
 
-`Subtract { from: X, tool: X }` and a union, intersect or loft list with a
-repeated member are refused. The rule is stated
-once, as a structural validity check on a node's inputs, and called by
-the edit doors' per-node checks — `InsertNode`, and `SetParam` at an
-operand and `SetMembers` on the rewritten node — and by the load
-validator (`persist/check.rs`, `validate_document`) on every node of a
-snapshot, so the doors share the logic rather than mirror it. Replayed
-edits meet it through `InsertNode`; the load validator is needed because a
-hand-written snapshot never passes an edit door. Refusal:
-`EditError::DuplicateInput { node, input }` at the edit doors, the
-validator's own `SnapshotError` arm at load.
+No door refuses a repeated read. A read that appears twice among one node's
+inputs — `Union([A, A])`, `Subtract { from: X, tool: X }`, a loft section
+listed twice — is the same case as two distinct variables that evaluate to
+one body (two `Part`s selecting one half of a split, `Part(Instance(0))`
+beside its master), and the operation answers both alike:
 
-Distinctness is over the variables read, and only those (D10: a read is
-of a variable): two outputs of one operation are two variables, so a
-union of a split's two halves, or a revolve's body patterned about its own
-axis port, is admitted, and builds: DM4 keys a member's names by its read.
-A read of a family is a read of each member, so `Union[xs, xs[0]]` reads
-one member twice and is refused at the door. Two indexed reads `xs[i]`
-and `xs[j]` whose indices land on one member at the current values would
-give two rows one name, so they refuse typed at evaluation: DM5's
-evaluation-time arm, in the class of DM3's out-of-range index. Two
-distinct variables that evaluate to one body — two `Part`s selecting one
-half of a split, or `Part(Instance(0))` beside its master — meet DM5, and
-the operation answers
-them as it answers any operands whose shells coincide by structure or by
-declaration: `A ∪ A` and `A ∩ A` are `A`, and `A − A` is the typed empty
-result.
+- **Union and intersect keep both and glue.** `[A, A]` is judged like any
+  pair (DM4): every cell meets its twin, one construction read twice, so
+  the coincidence is structural and the glue keeps `A`'s description. `A ∪
+  A` and `A ∩ A` are `A`; each glued row is `Merged` of a set whose
+  elements are one name, which is that name (N3).
+- **Subtract.** `A − A` is the typed empty result.
+- **Loft.** A section listed twice is degenerate geometry, refused by the
+  loft at evaluation.
 
-*Built: DOCM-3 (PR 1803), with DM4.*
+Two outputs of one operation are two variables, so a union of a split's two
+halves, or a revolve's body patterned about its own axis port, reads two
+things and names them apart (DM4). Two indexed reads `xs[i]` and
+`xs[j]` landing on one member at the current values are the repeated read
+of that member, answered the same way. The alternatives are not taken:
+refusing the repeat keeps a syntactic refusal beside a semantic admission
+of the identical geometry, and collapsing the list as a set rewrites what
+the author wrote and is a second rule beside the glue two variables get.
+
+*The refusal this clause replaces (`EditError::DuplicateInput`, the load
+validator's arm) was built in DOCM-3 (PR 1803).*
 
 ## DM6 — No edit infers a re-point
 
@@ -389,7 +400,7 @@ operand slot is written by the one slot door every slot has: the formula
 lowers to a read of the slot's kind (`SlotVarKind` otherwise), the read is
 live, and the rewritten node passes every check the insert door makes of
 a node — one function both doors call (`edit.rs`, `check_written_node`:
-DM5's distinctness, an assertion's bound against its measure's
+an assertion's bound against its measure's
 dimension, the slots' reads, the alignment and frame rules) — and
 acyclicity over reads. A list operand is the same door with a list. The
 write reports, and never refuses, the downstream names it strands, as DM7

@@ -17,10 +17,11 @@ after the read key lands. NAMES N1 ("the scope"): a name is scoped by the
 variable that holds its body, one name table per output variable. Built
 evidence: the split's half segments and the pattern's `Instance { i }`
 segment exist only to keep one node's table distinct by restating the
-output. D10 text not yet built: `X'`, a copy of `X` placed against `X`,
-takes `X`'s root, and `Place [X, X']` defines two copies with identical
-tables (a copy keeps its rows, N1), which a per-node `NameTable` refuses
-as `DuplicateName`; so this lands before that placement is built.
+output. D10 text not yet built: `P1` and `P2` are two placements of `X`;
+pinned into one space, a later `Place [P1, P2]` defines two outputs
+carrying `X`'s rows verbatim (a placement adds no name segment, N1), which
+a per-node `NameTable` refuses as `DuplicateName`; so this lands before
+that placement is built.
 
 The work:
 
