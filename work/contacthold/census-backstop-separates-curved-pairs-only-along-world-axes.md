@@ -37,12 +37,14 @@ own normal where it is planar) makes the clear a fact about the pair.
 The world axes can stay as the first candidates; what the row asks is
 that they not be the only ones.
 
-`crates/topo/README.md`'s census paragraph (the exclusion step) also
-says the touch analysis reads every curved face of a touch's star
-"through that box (its corners' signed distances from the candidate
-plane)". The touch analysis as built answers `Unreadable` for any curved
-face (`census::Said::CurvedTouch`), so that sentence describes no code
-today; correct it with this row.
+`crates/topo/README.md`'s census paragraph (the exclusion step) says
+the touch analysis reads every curved face of a touch's star "through
+that box". That sentence is decision C1 of Ev's ruling on PR #3422
+(fork log row 13): ratified, and not yet built. The code answers
+`Unreadable` for a curved star face today. The gap between page and
+code is carried by `the-touch-analysis-reads-curved-cones-tighter-than-the-reach-box`
+and `declared-only-meetings-clear-at-the-census-gate-unread`, not by
+this row.
 
 ## Claimed by CONTACTHOLD (2026-10-10)
 

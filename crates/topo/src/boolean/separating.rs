@@ -104,9 +104,12 @@ fn operand_axes<T: Decide>(
     let mut kept: Vec<[(f64, f64); 3]> = Vec::new();
     for body in [a, b] {
         for (face, _) in body.faces() {
-            let Some(unit) = crate::census::face_reach(body, face, band)
-                .and_then(|reach| planar_axis(body, face, reach, band))
-            else {
+            let Some(unit) = planar_axis(
+                body,
+                face,
+                || crate::census::face_reach(body, face, band),
+                band,
+            ) else {
                 continue;
             };
             let (plus, minus) = (key(unit.get()), key(-unit.get()));
@@ -122,15 +125,17 @@ fn operand_axes<T: Decide>(
 
 /// A planar face's outward normal as a unit direction, levered by the
 /// diagonal of its reach `(lo, hi)`, the length it is consumed over.
-/// `None` for a face that is not planar, or a normal the band cannot
-/// read.
+/// `None` for a face that is not planar, one with no reach, or a normal
+/// the band cannot read. The reach is read only once the face is known
+/// planar, so a curved face costs no reach here.
 pub(crate) fn planar_axis<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    (lo, hi): (Point3<T>, Point3<T>),
+    reach: impl FnOnce() -> Option<(Point3<T>, Point3<T>)>,
     band: Band,
 ) -> Option<UnitVec3<T>> {
     let n = crate::face_normal::face_outward_normal(body, face)?;
+    let (lo, hi) = reach()?;
     UnitVec3::levered(n.vec(), PAIR_NORMAL, band, (hi - lo).norm()).ok()
 }
 

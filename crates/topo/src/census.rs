@@ -5161,6 +5161,43 @@ pub(crate) fn gate_role<T: Decide + crate::props::AtRestPolicy>(
         .map(|(role, _)| role)
 }
 
+/// A face's world reach ([`face_reach`]): its low and high corners.
+type WorldReach<T> = (Point3<T>, Point3<T>);
+
+/// Whether arm 1 of [`sweep_cross_solid_backstop`] may clear the face
+/// pair `a`, `b` along a direction that turns with the pair: the axis
+/// between the two faces' anchors, or either face's own normal where it
+/// is planar. Each face comes with its world reach, the lever its
+/// normal is read over.
+///
+/// The test is the boolean's narrow phase ([`crate::boolean::separating::apart`]):
+/// both reaches are read in the frame the direction aims
+/// ([`face_reach_in`]), and the pair clears only on a gap, less both
+/// reaches' [`sweep_pad`], decided definitely positive at this lane's
+/// scalar. Each reach encloses its face's locus along that direction,
+/// so the gap proves the loci disjoint, as a world-axis gap does. The
+/// pad covers the aimed frame's rounding ([`crate::boolean::boxes::BoxFrame`]),
+/// so the clear does not rest on the user-set escalate threshold.
+fn backstop_apart<T: Decide>(
+    body: &Body<T>,
+    (fa, ra): (FaceKey, WorldReach<T>),
+    (fb, rb): (FaceKey, WorldReach<T>),
+    band: Band,
+) -> bool {
+    use crate::boolean::separating::{Item, apart, planar_axis};
+    let axes: Vec<_> = [(fa, ra), (fb, rb)]
+        .into_iter()
+        .filter_map(|(f, r)| planar_axis(body, f, || Some(r), band))
+        .collect();
+    apart(
+        (body, Item::Face(fa)),
+        (body, Item::Face(fb)),
+        &axes,
+        sweep_pad(band),
+        band,
+    )
+}
+
 /// **The conservative loudness backstop** (M9-2 union fix F1): the
 /// census must DECIDE or REFUSE — it must never silently not-examine
 /// (A5's letter). Two cross-solid candidate classes have no examining
@@ -5300,42 +5337,6 @@ pub(crate) fn gate_role<T: Decide + crate::props::AtRestPolicy>(
 /// a recorded interference fit is, and what it may skip, is C6's
 /// ratified text (`crates/editor-core/ASSEMBLY.md`); recorded
 /// gate-skips are not implemented.
-/// A face's world reach ([`face_reach`]), `None` where it has no sound
-/// one.
-type WorldReach<T> = Option<(Point3<T>, Point3<T>)>;
-
-/// Whether arm 1 of [`sweep_cross_solid_backstop`] may clear the face
-/// pair `a`, `b` along a direction that turns with the pair: the axis
-/// between the two faces' anchors, or either face's own normal where it
-/// is planar. Each face comes with its world reach, the lever its
-/// normal is read over.
-///
-/// The test is the boolean's narrow phase ([`crate::boolean::separating::apart`])
-/// with no pad: both reaches are read in the frame the direction aims
-/// ([`face_reach_in`]), and the pair clears only on a gap decided
-/// definitely positive at this lane's scalar. Each reach encloses its
-/// face's locus along that direction, so the gap proves the loci
-/// disjoint, as a world-axis gap does.
-fn backstop_apart<T: Decide>(
-    body: &Body<T>,
-    (fa, ra): (FaceKey, WorldReach<T>),
-    (fb, rb): (FaceKey, WorldReach<T>),
-    band: Band,
-) -> bool {
-    use crate::boolean::separating::{Item, apart, planar_axis};
-    let axes: Vec<_> = [(fa, ra), (fb, rb)]
-        .into_iter()
-        .filter_map(|(f, r)| planar_axis(body, f, r?, band))
-        .collect();
-    apart(
-        (body, Item::Face(fa)),
-        (body, Item::Face(fb)),
-        &axes,
-        0.0,
-        band,
-    )
-}
-
 #[allow(clippy::too_many_arguments)] // the census's fixed sweep signature plus `tol` for one consumer
 fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,
@@ -5652,7 +5653,9 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                         break;
                     }
                 }
-                if !cleared && !backstop_apart(body, (a.face, a.boxed), (b.face, b.boxed), band) {
+                if !cleared
+                    && !backstop_apart(body, (a.face, (alo, ahi)), (b.face, (blo, bhi)), band)
+                {
                     errors.push(ValidationError::CensusUndecidable {
                         a: EntityId::Face(a.face),
                         b: EntityId::Face(b.face),

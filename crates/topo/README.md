@@ -116,10 +116,10 @@ side clears only
   directions that turn with the pair: the axis between the two faces'
   anchors, and either face's normal where it is planar
   (`boolean::separating::apart`), or
-- where the pair meets, by the touch analysis, which reads planar faces
-  only: a curved face in a touch's star answers `Unreadable` and the
-  pair refuses `TouchUnreadable`, so a touch at a curved face never
-  certifies a Rest — and the analysis never decides a crossing;
+- where the pair meets, by the touch analysis, which reads every curved
+  face of a touch's star through that box (its corners' signed distances
+  from the candidate plane): a box on its side certifies the Rest, and
+  anything else refuses — it never decides a crossing;
 
 and refuses `CensusUndecidable` otherwise. Same-solid distinct-key curved
 pairs are not detected; they are their constructor's obligation.
