@@ -108,8 +108,8 @@ crates/sweep/src/blend/reach.rs	1	launders(sweep-keeps-computed-values-in-t)	v[0
 crates/sweep/src/blend/reach.rs	1	launders(sweep-keeps-computed-values-in-t)	v[1]	a reach cell's corner, f64 box arithmetic over the faces
 crates/sweep/src/blend/reach.rs	1	launders(sweep-keeps-computed-values-in-t)	v[2]	a reach cell's corner, f64 box arithmetic over the faces
 crates/sweep/src/blend/reach.rs	3	constant	band.escalate()	the band's escalation width, a tolerance
-crates/sweep/src/blend/surgery.rs	1	launders(sweep-keeps-computed-values-in-t)	hi[k]	a box corner, f64 box arithmetic
 crates/sweep/src/blend/surgery.rs	1	launders(sweep-keeps-computed-values-in-t)	<block> if i >> k & 1 == 0	a box corner, f64 box arithmetic (the reader cuts the argument at its brace)
+crates/sweep/src/blend/surgery.rs	1	launders(sweep-keeps-computed-values-in-t)	hi[k]	a box corner, f64 box arithmetic
 crates/sweep/src/blend/surgery.rs	1	launders(sweep-keeps-computed-values-in-t)	lo[k]	a box corner, f64 box arithmetic
 crates/sweep/src/loft.rs	1	constant	next.len() as f64	a count
 crates/sweep/src/loft.rs	1	launders(sweep-keeps-computed-values-in-t)	<fn>	a section wire built in f64, lifted
@@ -157,6 +157,8 @@ crates/topo/src/joint.rs	1	constant	f64::from(self.u)	the element's integer peri
 crates/topo/src/joint.rs	1	constant	f64::from(self.v)	the element's integer polar-branch count
 crates/topo/src/joint.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	u0	a spline chart's knot domain (the element's period)
 crates/topo/src/joint.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	u1	a spline chart's knot domain (the element's period)
+crates/topo/src/offset_derive.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	a0	a held offset net's knot domain
+crates/topo/src/offset_derive.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	a1	a held offset net's knot domain
 crates/topo/src/pcurves.rs	1	constant	2.0 * band.zero()	the band's zero width, a tolerance
 crates/topo/src/pcurves.rs	1	constant	f64::from(k)	a whole-period count
 crates/topo/src/pcurves.rs	1	constant	f64::from(m)	a decided step count
