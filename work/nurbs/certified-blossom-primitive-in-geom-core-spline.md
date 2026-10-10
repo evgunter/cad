@@ -8,6 +8,7 @@ priority: P3
 cost: M
 closed: 2026-10-10
 branch: nurbs/monotone-step-and-blossom
+pr: 4551
 ---
 
 
@@ -56,6 +57,6 @@ are retired. Routed through it: `ssi/enclose::bezier_on`,
 `ssi/section::sub_piece`, `props/quad`'s `de_boor` (inside the span's
 closure) and `bezier_bisect`, and `pcurve_cache/projected::piece_controls`
 through `SpanLocate::restrict_window`. The per-site table, including
-the sites not routed and why, is in the closing PR's body.
+the sites not routed and why, is in PR 4551's body.
 `apply_certified` and `TensorNet::refine_*` keep their Boehm schedules
 and step through the door.
