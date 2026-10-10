@@ -3788,6 +3788,63 @@ mod tests {
         );
     }
 
+    /// REVIEW PROBE: `revalue`'s `Powi` arm is `f64::powi` (the std
+    /// intrinsic), while `Sym<f64>` mints `Real::powi`
+    /// (`powi_by_squaring`). Any x, n where the two differ re-values a
+    /// correct DAG to different bits.
+    #[test]
+    fn review_probe_revalue_powi_matches_the_build() {
+        use geom_core::sym::revalue::revalue;
+        use geom_core::sym::with_session;
+        use geom_core::{ParamSymbol, Real, Sym, SymBudget};
+        type S = Sym<f64>;
+        let mut misses = Vec::new();
+        let mut x: u64 = 0x9e37_79b9_7f4a_7c15;
+        for _ in 0..20000 {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            let v = 0.5 + (x >> 11) as f64 / (1u64 << 53) as f64 * 3.0;
+            for n in [-7, -5, -3, -2, 3, 5, 6, 7, 9, 11, 13] {
+                if Real::powi(v, n).to_bits() != v.powi(n).to_bits() {
+                    misses.push((v, n));
+                }
+            }
+        }
+        eprintln!("REVIEW powi misses: {} e.g. {:?}", misses.len(), misses.first());
+        if let Some(&(v, n)) = misses.first() {
+            let p = ParamSymbol::new(1);
+            let budget = SymBudget { max_terms: 64, max_degree: 8 };
+            let ((built, re), _) = with_session(budget, || {
+                let b = S::param(p, v).powi(n);
+                (b.value, revalue(b.node(), &|_| Some(v)))
+            });
+            eprintln!("REVIEW powi built {built:?} revalued {re:?}");
+            assert_eq!(Some(built.to_bits()), re.map(f64::to_bits), "a correct Powi DAG re-values to other bits");
+        }
+    }
+
+    /// REVIEW PROBE: a full-period rectangle at `Interval` whose seam
+    /// corner is an exact point carrying a sub-`Def` decoration. The old
+    /// code re-entered the corners' bits (fresh `Com`) and decided the
+    /// span; the new code reads the corners themselves.
+    #[test]
+    fn review_probe_wrap_band_trv_corner_at_interval() {
+        use geom_core::{Interval, Real};
+        type I = Interval;
+        // [0, 0] at Trv: sqrt over a box reaching below its domain.
+        let trv_zero = I::from_bounds(-1.0, 0.0).sqrt();
+        assert_eq!((trv_zero.lo(), trv_zero.hi()), (0.0, 0.0));
+        assert!(!trv_zero.is_certified(), "the planted corner carries Trv");
+        let u0 = I::from_f64(0.3) + trv_zero;
+        let u1 = I::from_f64(0.3 + core::f64::consts::TAU);
+        let (v0, v1) = (I::from_f64(0.0), I::from_f64(1.0));
+        let corners = [(u0, v0), (u1, v0), (u1, v1), (u0, v1)].map(|(u, v)| Point2::new(u, v));
+        let got = wrap_band(&corners, I::from_f64(2.0), band());
+        eprintln!("REVIEW wrap_band at Interval with a Trv corner: {:?}", got.as_ref().map(|o| o.map(|(a, b)| (a.lo(), b.hi()))));
+        assert!(matches!(got, Ok(Some(_))), "the old code returned the band here: {got:?}");
+    }
+
     #[test]
     fn mate5_wrap_band_reads_structure_and_meters_the_span() {
         let r = 2.0;
