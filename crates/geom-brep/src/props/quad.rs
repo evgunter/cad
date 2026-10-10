@@ -890,22 +890,22 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
 /// Interval de Boor on one span: the span's polynomial evaluated at an
 /// enclosed parameter from its `p + 1` active ring-bracketed
 /// coefficients — the thin `f(m)` the composite rule needs on spline
-/// channels. Sound for any `t`; outside the span's closure it is the
-/// polynomial extension, which the composite rule reads where a vertex
-/// pad puts a node past the domain.
+/// channels. Pure certification arithmetic (knots are `f64` structure;
+/// every knot difference is formed in the ring so its rounding is
+/// outward, matching `deriv_coeff`). Sound for any `t`; outside the
+/// span's closure it is the polynomial extension.
 ///
-/// A `t` inside the span's closure is the window's blossom on the
-/// diagonal ([`CoeffWindow::blossom`]); any other `t` is
-/// [`de_boor_on`]'s extension.
+/// **Not routed through the blossom primitive, on purpose.** Each step
+/// is the affine `(1 − α)·x + α·y`, not [`Certification::between`]:
+/// routed through [`CoeffWindow::blossom`] inside the span (the
+/// extension past it has no blossom), step-import's
+/// `arc_loft_natively_computes_its_rational_volume` reads the imported
+/// arc loft's volume one ulp off the native one, where the affine form
+/// reproduces it bit for bit. The cause is not isolated
+/// (`work/nurbs/quad-de-boor-through-the-blossom-breaks-the-import-bit-identity.md`).
 fn de_boor(win: CoeffWindow<'_, Interval>, t: Interval) -> Interval {
     let span = win.span();
     let kv = span.knots();
-    let (lo, hi) = (kv.knots()[span.index()], kv.knots()[span.index() + 1]);
-    if within(t, lo, hi) {
-        return win
-            .blossom(&vec![t; span.degree()])
-            .unwrap_or_else(|_| Interval::refused());
-    }
     de_boor_on(
         kv.knots(),
         kv.degree(),
@@ -915,37 +915,20 @@ fn de_boor(win: CoeffWindow<'_, Interval>, t: Interval) -> Interval {
     )
 }
 
-/// Whether a certified `t` lies in `[lo, hi]` whole.
-fn within(t: Interval, lo: f64, hi: f64) -> bool {
-    t.is_certified() && t.lo() >= lo && t.hi() <= hi
-}
-
 /// The recurrence [`de_boor`] and the [`Loose::Raw`] evaluators share:
 /// `active` the `p + 1` coefficients of the span whose first control is
 /// `first`, over the knot list `u` they are a span of — a
 /// [`CoeffWindow`]'s, or a raw direction's line windowed by
 /// [`raw_span`]. Both callers form `active` from the span that `first`
 /// names, so every index here is in range.
-///
-/// A `t` inside the span's closure keeps every ratio in `[0, 1]`, and
-/// each step is [`Certification::between`]. Past the closure a ratio
-/// leaves `[0, 1]` — the extension is no combination between its
-/// sources — and the step is the affine `(1 − α)·x + α·y`, sound for
-/// any `α`. A raw list spells no clamped vector, so it has no
-/// [`CoeffWindow`] whose blossom this could call instead.
 fn de_boor_on(u: &[f64], p: usize, first: usize, active: &[Interval], t: Interval) -> Interval {
-    let inside = within(t, u[first + p], u[first + p + 1]);
     let mut d = active.to_vec();
     for r in 1..=p {
         for j in (r..=p).rev() {
             let i = first + j;
             let denom = pt(u[i + p + 1 - r]) - pt(u[i]);
             let alpha = (t - pt(u[i])) / denom;
-            d[j] = if inside {
-                Interval::between(d[j - 1], d[j], alpha)
-            } else {
-                (pt(1.0) - alpha) * d[j - 1] + alpha * d[j]
-            };
+            d[j] = (pt(1.0) - alpha) * d[j - 1] + alpha * d[j];
         }
     }
     d[p]
@@ -1338,8 +1321,7 @@ impl Loose {
     ///
     /// `knots` is a clamped vector's knot list with an outer pair dropped
     /// per derivative (`derivative_knot_slice`), so it is nondecreasing:
-    /// that is what [`raw_span`] searches by and what puts
-    /// [`de_boor_on`]'s ratios in `[0, 1]` at a parameter inside the span.
+    /// that is what [`raw_span`] searches by.
     fn of(knots: Vec<f64>, degree: usize) -> Self {
         if degree >= 1 {
             Self::Raw { knots, degree }
