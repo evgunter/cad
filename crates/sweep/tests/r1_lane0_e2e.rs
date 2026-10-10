@@ -119,16 +119,17 @@ fn the_f64_seam_answers_every_public_door() {
             e,
             Some(topo::ReplaceFaceError::Op {
                 error: topo::EulerOpError::RechartFalsifies {
+                    door: topo::RechartDoor::SetFaceSurfacesDescribing,
                     error: geom_brep::CertifyError::PlaneNurbs(
                         geom_brep::PlaneNurbsRefusal::TubeNotOneArc {
-                            cause: geom_brep::ssi::OneArcRefusal::Undecided(_),
-                            ..
+                            rungs: 20,
+                            cause: geom_brep::ssi::OneArcRefusal::Undecided(why),
                         }
                     ),
                     ..
                 },
                 ..
-            })
+            }) if why.predicate == Some("ssi_tube_one_arc")
         )
     };
     let (mut fresh, cap) = box_with_approx_cap(d, 1e-9);

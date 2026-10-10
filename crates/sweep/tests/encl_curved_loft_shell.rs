@@ -707,6 +707,10 @@ fn a_moved_planes_section_with_a_held_fit_names_the_plane_first() {
 /// lines). The closed form is the moved box: every corner at
 /// `(x, y, 1 + d)` with `x, y ∈ {0, 2}`.
 ///
+/// Each section's corners are rooted at the lever of the section's own
+/// domain, the curve the root is isolated over — not the old edge's
+/// parameters read on it, which extrapolate past the section's ends.
+///
 /// Tier 3 passes every phase it reaches and refuses the cap's volume
 /// alone, where the edges' spans are a sub-range of their sections'
 /// domains (`work/quad/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image.md`);
@@ -742,6 +746,20 @@ fn a_moved_fitted_cap_stands_its_corners_on_the_held_sides() {
             },
         )
         .expect("the cap takes a NURBS surface");
+        let arms = topo::offset_corner_arms_for_tests(&body, cap, d, Tol::witness());
+        assert_eq!(arms.len(), 4, "d = {d}: the move derives each cap edge");
+        for (edge, carrier, arm) in &arms {
+            let geom::Curve3::Nurbs(section) = carrier else {
+                panic!("d = {d}: {edge:?} derives a spline section, got {carrier:?}");
+            };
+            let (lo, hi) = section.domain();
+            let own = section.eval(lo).distance(section.eval(hi));
+            assert!(
+                *arm == own,
+                "d = {d}: {edge:?}'s corners are rooted at an arm of {arm}, not its section's own \
+                 {own}"
+            );
+        }
         topo::replace_face_offset(&mut body, cap, d, Tol::witness())
             .unwrap_or_else(|e| panic!("d = {d}: the fitted cap moves: {e}"));
         let cap_key = body.get_face(cap).expect("the cap survives").surface;
@@ -768,7 +786,7 @@ fn a_moved_fitted_cap_stands_its_corners_on_the_held_sides() {
             sections, 4,
             "d = {d}: each cap edge is a side's section of the fit, plane first"
         );
-        let mut corners = 0;
+        let mut corners = Vec::new();
         for (_, v) in body.vertices() {
             let p = *body.get_point(v.point).expect("a live vertex's point");
             let off = |c: f64, want: &[f64]| {
@@ -783,9 +801,23 @@ fn a_moved_fitted_cap_stands_its_corners_on_the_held_sides() {
                 gap <= eps,
                 "d = {d}: a corner at {p:?} is {gap:e} off the moved box"
             );
-            corners += usize::from((p.z - (1.0 + d)).abs() <= eps);
+            if (p.z - (1.0 + d)).abs() <= eps {
+                corners.push(p);
+            }
         }
-        assert_eq!(corners, 4, "d = {d}: the cap's four corners moved by d");
+        assert_eq!(
+            corners.len(),
+            4,
+            "d = {d}: the cap's four corners moved by d"
+        );
+        for (i, a) in corners.iter().enumerate() {
+            for b in &corners[i + 1..] {
+                assert!(
+                    a.distance(*b) > 1.0,
+                    "d = {d}: two cap corners stand together, at {a:?} and {b:?}"
+                );
+            }
+        }
         let refusals = topo::validate_geometric(&body, Tol::witness())
             .expect_err("the fitted cap's quadrature is not built");
         assert!(
@@ -858,6 +890,17 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies() {
             continue;
         }
         moved.unwrap_or_else(|e| panic!("eps {eps:e}, d = {d}: the curved fitted cap moves: {e}"));
+        // The side planes stand the corners at x, y ∈ {0, 2}; the bump
+        // sets their height.
+        for (_, v) in body.vertices() {
+            let p = *body.get_point(v.point).expect("a live vertex's point");
+            let off = |c: f64| c.abs().min((c - 2.0).abs());
+            let gap = off(p.x).max(off(p.y));
+            assert!(
+                gap <= eps,
+                "eps {eps:e}, d = {d}: a corner at {p:?} is {gap:e} off the box's sides"
+            );
+        }
         let refusals = topo::validate_geometric(&body, Tol::witness())
             .expect_err("the fitted cap's quadrature is not built");
         assert!(

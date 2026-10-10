@@ -86,11 +86,12 @@ const CHAIN: [Stretch; 6] = [
         file: "crates/topo/src/replace_face.rs",
         source: include_str!("../src/replace_face.rs"),
         sentinels: None,
-        eps_reads: 3,
-        eps_reads_are: "three DECIDE margins, each `offset_vertex_agreement` (the corners' \
-                        pairwise agreement, an edge read at its corners, an untouched edge \
-                        read at a moved corner) — a coincidence threshold in metres, which is \
-                        ε by its own right and not the fit target",
+        eps_reads: 1,
+        eps_reads_are: "one DECIDE margin, `offset_vertex_agreement` in `gap_within_eps`, which \
+                        every coincidence the door decides calls (the corners' pairwise \
+                        agreement, a carrier end standing in for a root, an edge read at its \
+                        corners, an untouched edge read at a moved corner) — a coincidence \
+                        threshold in metres, which is ε by its own right and not the fit target",
     },
     Stretch {
         file: "crates/topo/src/offset_axial.rs",
@@ -236,8 +237,8 @@ fn no_signature_on_the_shell_chain_takes_an_f64_tolerance() {
 /// which a local binding or a trailing comma passes by luck.
 ///
 /// Not every read on the chain is the fit target, and the roster says
-/// so rather than pretending: `replace_face.rs` decides two coincidence
-/// margins at ε, which is ε used as a threshold in metres and has
+/// so rather than pretending: `replace_face.rs` decides a coincidence
+/// margin at ε, which is ε used as a threshold in metres and has
 /// nothing to do with what an offset fit must reach. What the row holds
 /// is that the roster is exact — a new read anywhere reds and has to be
 /// declared with what it is — and that the fit target's read is where
