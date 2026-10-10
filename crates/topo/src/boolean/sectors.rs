@@ -1496,19 +1496,23 @@ pub(super) struct WedgeRead {
 /// read off one face's subdivision bisector, a direction inside it,
 /// against the other face's plane. A wedge with no bisector to read is
 /// not classified.
-/// A corner of three or more faces is convex when every bound of every
-/// sector lies decidedly behind the plane of every face it does not
-/// bound, and is then the faces' inner half-spaces met; it is hollow
-/// when every such bound lies decidedly in front, its complement then
-/// convex, and is the faces' inner half-spaces joined. A bound bounds
-/// its own sector's face and the face across it, the next sector's
-/// along the shared-bound chain (module docs).
+/// A corner of three or more faces is convex when no bound of any
+/// sector lies in front of the plane of a face it does not bound, and
+/// is then the faces' inner half-spaces met; it is hollow when none
+/// lies behind one, its complement then convex, and is the faces' inner
+/// half-spaces joined. A bound bounds its own sector's face and the
+/// face across it, the next sector's along the shared-bound chain
+/// (module docs).
 ///
 /// A bisector or bound on, or in band of, a plane it is read against
-/// leaves the wedge or corner unread at that bound's reach: the faces
-/// may part either way by up to the band there, which an edge reaching
-/// farther reads as metres. Such a wedge or corner is read as a polygon
-/// cone, each edge at its own reach.
+/// says nothing of the wedge or corner where that plane is its own
+/// face's, or the face's across it, as far as the reading reaches (the
+/// edges it classes and the corner's sectors, `bool_faces_parallel`):
+/// two faces on one plane, or tangent there, read alike met or joined,
+/// and a wedge so read is met. Anywhere else the faces part by up to the
+/// band at the bound's reach, which an edge reaching farther reads as
+/// metres, so the wedge or corner is read as a polygon cone, each edge
+/// at its own reach.
 ///
 /// A direction's class is its side codes against the faces combined:
 /// met, `Out` past any face, else `On` on any, else `In`; joined, `In`
@@ -1525,8 +1529,29 @@ pub(super) fn wedge_classes<T: Decide>(
         }
     }
     let code = |dir, reach, normal| plane_side_code(dir, reach, normal, band);
+    // The farthest the reading reaches: the edges it classes, and the
+    // corner's own sectors.
+    let reach = own
+        .iter()
+        .filter(|s| s.end_edge())
+        .map(|s| s.end_reach.length())
+        .chain(other.iter().map(BoolSector::span))
+        .reduce(|a, b| a.max(b))
+        .unwrap_or_else(T::zero);
+    // Two faces' planes at the vertex are one plane as far as the
+    // reading reaches.
+    let one_plane = |a: OutwardNormal<T>, b: OutwardNormal<T>| {
+        matches!(
+            geom_core::k_stats::decide_magnitude(
+                "bool_faces_parallel",
+                Margin::levered(a.vec().cross(b.vec()).norm(), reach),
+                band,
+            ),
+            Ok(Magnitude::Zero)
+        )
+    };
     let (met, hollow) = match faces.as_slice() {
-        [(f0, _), (_, n1)] => {
+        [(f0, n0), (_, n1)] => {
             let inside =
                 other
                     .iter()
@@ -1542,6 +1567,7 @@ pub(super) fn wedge_classes<T: Decide>(
             match code(dir, reach, *n1) {
                 Ok(SideCode::In) => (true, false),
                 Ok(SideCode::Out) => (false, true),
+                Ok(SideCode::On) | Err(_) if one_plane(*n0, *n1) => (true, false),
                 Ok(SideCode::On) | Err(_) => return cone_read(own, other, band),
             }
         }
@@ -1550,26 +1576,30 @@ pub(super) fn wedge_classes<T: Decide>(
             let (mut convex, mut reflex) = (true, true);
             for (k, s) in other.iter().enumerate() {
                 let (next, prev) = (&other[(k + 1) % n], &other[(k + n - 1) % n]);
-                for (dir, reach, across) in [
-                    (s.start, s.start_reach, next.face),
-                    (s.end, s.end_reach, prev.face),
-                ] {
+                for (dir, reach, across) in
+                    [(s.start, s.start_reach, next), (s.end, s.end_reach, prev)]
+                {
                     for &(f, normal) in &faces {
-                        if f == s.face || f == across {
+                        if f == s.face || f == across.face {
                             continue;
                         }
                         match code(dir, reach, normal) {
                             Ok(SideCode::Out) => convex = false,
                             Ok(SideCode::In) => reflex = false,
+                            Ok(SideCode::On) | Err(_)
+                                if one_plane(s.normal, normal)
+                                    || one_plane(across.normal, normal) => {}
                             Ok(SideCode::On) | Err(_) => return cone_read(own, other, band),
                         }
                     }
                 }
             }
+            // A corner both ways at once lies on one plane as far as the
+            // reading reaches, where met and joined read alike.
             match (convex, reflex) {
-                (true, false) => (true, false),
+                (true, _) => (true, false),
                 (false, true) => (false, true),
-                _ => return cone_read(own, other, band),
+                (false, false) => return cone_read(own, other, band),
             }
         }
         _ => return Ok(None),
@@ -2031,10 +2061,10 @@ mod tests {
         Band::linear(Tol::witness()).unwrap()
     }
 
-    /// **A flat corner reads as its polygon cone**: three faces on one
-    /// plane, every bound on every other face's plane, so neither convex
-    /// nor hollow is decided; its cone is its material, an edge below
-    /// the plane In and one above it Out.
+    /// **A flat corner reads met**: three faces on one plane, every bound
+    /// on every other face's plane, which is its own face's as far as the
+    /// reading reaches, so an edge below the plane is In and one above
+    /// it Out.
     #[test]
     fn a_flat_three_face_corner_reads_met() {
         let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
