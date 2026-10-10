@@ -275,10 +275,11 @@ pub enum Surface<T: Real> {
     /// placeholder state in this variant: an `Approx` surface is always
     /// described.
     ///
-    /// **Its own kind, not `Nurbs`** ([`SurfaceKind::Approx`]): a table
-    /// indexed by kind decides what a claim about a surface means, and a
-    /// claim about an approximating surface is a claim about the fit,
-    /// not about the surface asked for.
+    /// **Its own kind, not `Nurbs`** ([`SurfaceKind::Approx`]), and its
+    /// fit as geometry: evaluation, boxes, pcurves and sections read the
+    /// fit, re-derivation at rest reads the description, and the other
+    /// kind-indexed questions (dihedral classification, tangent bounds,
+    /// census) treat it as its own kind.
     Approx(Arc<ApproxSurface<T>>),
 }
 
@@ -304,9 +305,9 @@ pub enum SurfaceKind {
     Torus,
     /// A [`Surface::Nurbs`], described or the placeholder.
     Nurbs,
-    /// A [`Surface::Approx`]: its own kind, not [`Self::Nurbs`] — a
-    /// claim about an approximating surface is a claim about the fit,
-    /// not about the surface asked for.
+    /// A [`Surface::Approx`]: its own kind, not [`Self::Nurbs`]. A
+    /// kind-indexed table says what it does with one; the intersection
+    /// table routes it as its fit's kind.
     Approx,
 }
 

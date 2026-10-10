@@ -1394,3 +1394,5 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-09 — PR 4457 (one ending per door) merged at `dcff36e784`; row closed. Seam notes are posted on exch, topo, restfront, ssiedge and iso: the `*_in_file` names are gone.
 - 2026-10-09 — Dispatched P3 `sized-poisoned-ending-ignores-the-reading-and-the-file` (`encl/poisoned-sized-ending`). It folds in `too-close-to-call-remainder`'s (c): the poison→note rule gets one home.
 - 2026-10-09 — PR 4461 (piece-sort poisoned role) merged at `a71723601f`; row closed. Seam notes are posted on restfront, cleave, hone and inside.
+- 2026-10-09 — Scoped `hand-minted-invalid-gates-in-topo`: 35 sites / 38 arms. Filed units `material-pairing-gate-definite-zero-ends-as-unreadable` (M) and `topo-poisoned-escalations-offer-unfollowable-endings` (M). The `solid_contain` period/nappe sites ride PRED's rows, and the splitting sites ride CLEAVE's parked row; seam notes are posted. The rim_wedge and declared-pair sites are held under D10.
+- 2026-10-09 — Dispatched P3 `material-pairing-gate-definite-zero-ends-as-unreadable` (`encl/material-pairing-zero`).
