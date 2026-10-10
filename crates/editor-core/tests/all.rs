@@ -769,6 +769,8 @@ mod intent_s2_d_measure;
 mod intent_s2_e_select;
 #[path = "intent_s2_f_mates.rs"]
 mod intent_s2_f_mates;
+#[path = "r1_s2f_probes.rs"]
+mod r1_s2f_probes;
 #[path = "intent_s5_a_relation.rs"]
 mod intent_s5_a_relation;
 #[path = "intent_vars_2_table.rs"]
