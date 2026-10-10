@@ -2,7 +2,8 @@
 id: census-backstop-separates-curved-pairs-only-along-world-axes
 kind: issue
 title: The census backstop clears a curved cross-solid pair only by a gap along a world axis, so a pair's verdict depends on how the body is turned
-status: open
+status: review
+pr: TBD
 opened: 2026-10-03
 priority: P1
 cost: M
@@ -58,3 +59,11 @@ tube face strictly on the plane's far side. The same pairs refuse with
 the cube moved 0.05 off; at 20 off it passes. The witness row
 `a-tube-rim-vertex-touching-a-face-along-its-tangent-unions-past-tier-3-prime`
 rides with this one. (CONTACTHOLD orchestrator)
+
+## Arm 1 landed; arm 2 split off (2026-10-10)
+
+Arm 1 now clears along the axis between the two faces' anchors and
+either face's own normal where it is planar, after the world axes
+(`census::backstop_apart`, over `boolean::separating::apart`). Arm 2's
+world-axis containment gate is
+`census-containment-gate-reads-instances-along-world-axes-only`.
