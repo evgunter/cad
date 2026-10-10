@@ -1,5 +1,5 @@
 //! **What the near-tangent census cannot decide**: a measurement probe
-//! for `work/join/near-tangent-boolean-results-ship-with-an-escalated-tier-3-census.md`.
+//! for `near-tangent-boolean-results-ship-with-an-escalated-tier-3-census` (JOIN, closed by PR 4335).
 //!
 //! The poses are PR 4026 review r1's near-tangent set (`r1_pierce_probes
 //! cube` under `R1_NT_D`): a prism's corner `v` on the near face of a

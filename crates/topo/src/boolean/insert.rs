@@ -3005,7 +3005,7 @@ mod tests {
     /// two germs in one sector entry: the walk order ([`walk_order`])
     /// refuses them, before any mint. Four
     /// survivors at one vertex pair in real geometry are
-    /// `work/join/four-germ-vertex-pairs-run-b-in-a-order`'s.
+    /// `four-germ-vertex-pairs-run-b-in-a-order`'s (JOIN, closed by PR 4036).
     #[test]
     fn f12_four_unordered_struts_refuse_before_any_mint() {
         use SideCode::{In, Out};

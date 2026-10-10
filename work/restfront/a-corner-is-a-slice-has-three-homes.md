@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-07
 priority: P3
 cost: M
-refs: [a-corner-is-a-slice-of-its-face-tier-3-check]
+refs: [4240]
 ---
 
 

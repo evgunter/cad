@@ -599,7 +599,7 @@ type Pose = (&'static str, fn() -> Corner, [f64; 3], f64, [f64; 3]);
 /// between its own either way round B's vertex, so B's run for it holds
 /// that pair's run, which mints at its copy. Each pose here nests, and
 /// on a tree that demanded adjacency in B all refused `PairingMismatch`
-/// (`work/join/a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch.md`).
+/// (`a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch`, JOIN, closed by PR 4050).
 /// The held runs here are struts inside the holder's fan, in its first
 /// corner, its last or between, and fans ending in its first corner or
 /// its last. Every op in both orders is `SOUND` at the corner's pieces
@@ -1771,7 +1771,7 @@ fn four_pairs_battery() {
 /// toward it). In each union a run turns at the shared corner and its
 /// siblings hang at its copy (`insert::hang_at_shared`), and the pinched
 /// operand's own cones sit on keys no seam links
-/// (`work/join/a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys.md`):
+/// (`work/flush/a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys.md`):
 /// the notch-first union refuses `PinchConesOnSeparateKeys`, and at
 /// `three` the cubes-first union and difference too; with the notch
 /// first the intersection and difference build `SOUND`, one vertex per
