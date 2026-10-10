@@ -59,6 +59,8 @@ mod revolve_common;
 mod a_move_through_a_neighbour_inverts_the_body;
 #[path = "a_plane_across_a_one_face_wall.rs"]
 mod a_plane_across_a_one_face_wall;
+#[path = "a_plane_moved_to_a_cone_apex.rs"]
+mod a_plane_moved_to_a_cone_apex;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
 #[path = "a_ring_on_a_cone_face.rs"]
