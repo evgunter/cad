@@ -562,7 +562,7 @@ fn a_definition_past_the_expansion_bound_refuses() {
 // ---------------------------------------------------- the lifecycle
 
 /// An anonymous variable read only by an anonymous definition goes with
-/// it: the edit that detaches the definition's last reader removes the
+/// it: the edit that detaches the definition's reader removes the
 /// defined variable, then its input — and the mint log keeps both ids.
 #[test]
 fn the_anonymous_lifecycle_cascades_through_definitions() {
