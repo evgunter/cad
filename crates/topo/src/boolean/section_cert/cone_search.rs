@@ -41,6 +41,8 @@
 // geometry types a decision reads.
 test_utils::gated_to![
     "crates/topo/src/boolean/section_cert.rs",
+    "crates/topo/src/boolean/section_cert/ruling.rs",
+    "crates/topo/src/boolean/circle_roots.rs",
     "crates/geom-brep/src/implicit.rs",
     "crates/geom-core/src/predicate.rs",
     "crates/geom-core/src/tolerance.rs",
@@ -54,26 +56,26 @@ use geom::Surface;
 use geom_core::{Band, Point3, Tol, Vec3};
 use test_utils::fuzz::{self, Rng};
 
-fn band() -> Band {
+pub(super) fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum Class {
+pub(super) enum Class {
     Unbounded,
     Essential,
     Null,
 }
 
 /// The zero set of a residual on a periodic chart, cut into cells.
-struct Traced {
+pub(super) struct Traced {
     nu: usize,
     nv: usize,
     v0: f64,
     v1: f64,
     /// Each cell's component, if the zero set crosses it.
     comp: Vec<Option<usize>>,
-    classes: Vec<Class>,
+    pub(super) classes: Vec<Class>,
 }
 
 fn find(parent: &mut [usize], mut x: usize) -> usize {
@@ -85,7 +87,7 @@ fn find(parent: &mut [usize], mut x: usize) -> usize {
 }
 
 /// Traces `f ∘ chart` over `u ∈ [0, 2π)` (periodic) and `v ∈ [v0, v1]`.
-fn trace(
+pub(super) fn trace(
     chart: &dyn Fn(f64, f64) -> Point3<f64>,
     f: &dyn Fn(Point3<f64>) -> f64,
     (v0, v1): (f64, f64),
@@ -169,7 +171,7 @@ fn trace(
 
 impl Traced {
     /// The components crossing the cells about chart point `(u, v)`.
-    fn near(&self, u: f64, v: f64) -> Vec<usize> {
+    pub(super) fn near(&self, u: f64, v: f64) -> Vec<usize> {
         let i = (u.rem_euclid(TAU) / TAU * self.nu as f64) as isize;
         let j = ((v - self.v0) / (self.v1 - self.v0) * self.nv as f64) as isize;
         let mut out = Vec::new();
@@ -193,33 +195,33 @@ impl Traced {
 
 /// A cone's frame, and its chart on the double carrier: `(u, t)` is
 /// the point `t` along the generator at azimuth `u`.
-struct Frame {
+pub(super) struct Frame {
     /// The pose's length scale.
-    scale: f64,
-    apex: Point3<f64>,
-    a: Vec3<f64>,
-    e1: Vec3<f64>,
-    e2: Vec3<f64>,
-    alpha: f64,
+    pub(super) scale: f64,
+    pub(super) apex: Point3<f64>,
+    pub(super) a: Vec3<f64>,
+    pub(super) e1: Vec3<f64>,
+    pub(super) e2: Vec3<f64>,
+    pub(super) alpha: f64,
 }
 
 impl Frame {
-    fn radial(&self, u: f64) -> Vec3<f64> {
+    pub(super) fn radial(&self, u: f64) -> Vec3<f64> {
         self.e1 * u.cos() + self.e2 * u.sin()
     }
-    fn at(&self, u: f64, t: f64) -> Point3<f64> {
+    pub(super) fn at(&self, u: f64, t: f64) -> Point3<f64> {
         let (s, c) = self.alpha.sin_cos();
         self.apex + (self.a * c + self.radial(u) * s) * t
     }
     /// The chart point of a point on the carrier.
-    fn chart(&self, q: Point3<f64>) -> (f64, f64) {
+    pub(super) fn chart(&self, q: Point3<f64>) -> (f64, f64) {
         let (s, c) = self.alpha.sin_cos();
         let d = q - self.apex;
         let t = d.dot(self.a) / c;
         let r = across(d, self.a) / (t * s);
         (r.dot(self.e2).atan2(r.dot(self.e1)), t)
     }
-    fn surface(&self) -> Surface<f64> {
+    pub(super) fn surface(&self) -> Surface<f64> {
         Surface::Cone {
             apex: self.apex,
             axis: self.a,
@@ -229,7 +231,7 @@ impl Frame {
     }
 }
 
-fn unit_vec(rng: &mut Rng) -> Vec3<f64> {
+pub(super) fn unit_vec(rng: &mut Rng) -> Vec3<f64> {
     loop {
         let v = Vec3::new(
             rng.range(-1.0, 1.0),
@@ -243,7 +245,7 @@ fn unit_vec(rng: &mut Rng) -> Vec3<f64> {
     }
 }
 
-fn random_cone(rng: &mut Rng) -> Frame {
+pub(super) fn random_cone(rng: &mut Rng) -> Frame {
     let a = unit_vec(rng);
     let (e1, e2) = a.orthonormal_basis();
     let scale = rng.range(0.0, 1e3f64.ln()).exp();
@@ -264,7 +266,7 @@ fn random_cone(rng: &mut Rng) -> Frame {
 /// An offset from a margin's zero, relative, either sign: half the
 /// draws log-uniform in `[0.03, 0.5]`, which the trace resolves, half
 /// in `[1e-12, 0.5]`, into the band and through it.
-fn offset(rng: &mut Rng) -> f64 {
+pub(super) fn offset(rng: &mut Rng) -> f64 {
     let floor = if rng.unit() < 0.5 { 0.03f64 } else { 1e-12 };
     let m = (rng.range(floor.ln(), 0.5f64.ln())).exp();
     if rng.unit() < 0.5 { m } else { -m }
