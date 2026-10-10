@@ -59,5 +59,5 @@ pub use knots::{
 };
 pub use locate::{SpanLocate, SpanSet, poison_from};
 pub use net::{TensorChannels, TensorCoeffs, TensorNet};
-pub use projective::ProjectiveScalar;
+pub use projective::{ProjectivePoint, ProjectiveScalar};
 pub use range::{Param, ParamRange, last_at_or_below};

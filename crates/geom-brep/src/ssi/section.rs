@@ -40,6 +40,7 @@ use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::max_bound;
 use geom_core::k_stats::decide;
+use geom_core::spline::CurvePlan;
 use geom_core::spline::algebra::refine_plan_homogeneous;
 use geom_core::{Band, Decide, Indeterminate, Interval, Margin, Point3, Sign, SupSpeed, Vec3};
 
@@ -206,12 +207,13 @@ impl Pieces {
             .flat_map(|(k, mult)| core::iter::repeat_n(k, p.saturating_sub(mult)))
             .collect();
         let plans = refine_plan_homogeneous(kv, &add).ok()?;
-        let (mut h, mut w, mut knots) = (h, w, kv.clone());
-        for plan in &plans {
-            h = plan.apply_certified(&h);
-            w = plan.apply_certified(&w);
-            knots = plan.knots().clone();
-        }
+        let (h, w) = (
+            CurvePlan::refine_certified(&plans, &h),
+            CurvePlan::refine_certified(&plans, &w),
+        );
+        let knots = plans
+            .last()
+            .map_or_else(|| kv.clone(), |plan| plan.knots().clone());
         let breaks: Vec<f64> = knots.knot_runs().map(|(k, _)| k).collect();
         let mut pieces = Vec::new();
         for (i, pair) in breaks.windows(2).enumerate() {

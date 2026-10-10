@@ -158,10 +158,18 @@ fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
 /// with the sphere, whose true value is exactly zero since the circle
 /// lies on the sphere. Read off the described carrier, every arc from a
 /// half turn (`div = 0.5`) down to 1/64 of a quarter certifies at the
-/// 1e-12 band at the interval scalar, the quarter turn included. A
-/// certificate that refines the carrier through an `f64` ratio reads a
-/// neighbour of it instead, and the quarter turn then escalates at
-/// about 1.02e-12.
+/// 1e-12 band at the interval scalar, the quarter turn included.
+///
+/// What it guards is the WIDTH of a refinement made in the ring. A
+/// certificate that refined the carrier in the ring in the projective
+/// form `x + (y − x)·λ` put the quarter turn's bound at about 1.02e-12
+/// and escalated it. That number was the form's interval width, not
+/// the refined carrier's geometry: the `f64` lane reads the same rounded
+/// refinement at about 1.5e-15. So the row is red for a ring refinement
+/// that widens per step like that form. It cannot see a refinement made
+/// at `f64` and lifted thin, which reads like the `f64` lane; the
+/// exact-net rows in `geom_brep`'s `ssi::certify` and `edge_nurbs`
+/// tests hold that shape.
 ///
 /// The full turn is not in the list: over a rung-3 chain carrier its
 /// map residual at the interval scalar reaches the 1e-12 band (sample

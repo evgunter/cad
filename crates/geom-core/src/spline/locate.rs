@@ -50,6 +50,7 @@
 //! same style rule as [`crate::Bounds`] — it is a `Real` subtrait, so
 //! the ring operations come with it).
 
+use super::algebra::CurvePlan;
 use super::knots::{KnotVector, Span};
 use crate::real::Real;
 
@@ -131,6 +132,20 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// selection would follow one branch's tangent and drop the
     /// other's — unsound for a straddling enclosure).
     fn enclosure_hull(self, other: Self) -> Self;
+
+    /// One homogeneous channel (`w`, or one coordinate of `w·P`) through
+    /// a plan chain at this scalar, per scalar as the locator is. At
+    /// `Interval` it is the certification ring's refinement
+    /// ([`CurvePlan::refine_certified`]), so the result encloses the
+    /// described curve's refined channel through the ring's one step.
+    /// At every other scalar it is [`CurvePlan::apply_homogeneous`] per
+    /// plan, both Boehm ratios formed in the scalar. An empty chain is
+    /// the identity.
+    fn refine_homogeneous(chain: &[CurvePlan], channel: &[Self]) -> Vec<Self> {
+        chain
+            .iter()
+            .fold(channel.to_vec(), |c, plan| plan.apply_homogeneous(&c))
+    }
 }
 
 impl SpanLocate for f64 {

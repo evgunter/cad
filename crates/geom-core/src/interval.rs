@@ -825,6 +825,10 @@ impl crate::spline::SpanLocate for Interval {
         // poison).
         Self(enclosure_hull_of(self.0, other.0))
     }
+
+    fn refine_homogeneous(chain: &[crate::spline::CurvePlan], channel: &[Self]) -> Vec<Self> {
+        crate::spline::CurvePlan::refine_certified(chain, channel)
+    }
 }
 
 /// Certified sign classification of an enclosure `[lo, hi]` against a

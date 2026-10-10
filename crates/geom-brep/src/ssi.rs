@@ -220,6 +220,20 @@ impl<'a, T: geom_core::CertifiedBounds> SsiOperand<'a, T> {
     pub fn nurbs(surface: &'a NurbsSurface<T>) -> Result<Self, SsiError> {
         ChartedNurbs::mint(surface).map(Self::Nurbs)
     }
+
+    /// A NURBS operand whose chart enclosures read `grid`, a refinement
+    /// of `surface`'s net in certification arithmetic
+    /// ([`ChartedNurbs::mint_on`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`SsiOperand::nurbs`].
+    pub(crate) fn nurbs_on(
+        surface: &'a NurbsSurface<T>,
+        grid: &'a enclose::CellGrid,
+    ) -> Result<Self, SsiError> {
+        ChartedNurbs::mint_on(surface, grid).map(Self::Nurbs)
+    }
 }
 
 /// Which length levers the transversality decision at a point
@@ -1564,6 +1578,7 @@ impl TubeDegeneracy {
 #[derive(Clone, Copy, Debug)]
 pub struct ChartedNurbs<'a, T: geom_core::Real> {
     surface: &'a NurbsSurface<T>,
+    grid: Option<&'a enclose::CellGrid>,
     speeds: enclose::ChartSpeeds,
 }
 
@@ -1576,7 +1591,38 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
     /// not finite.
     pub fn mint(surface: &'a NurbsSurface<T>) -> Result<Self, SsiError> {
         let speeds = NurbsBoxes::new(surface).chart_speeds()?;
-        Ok(Self { surface, speeds })
+        Ok(Self {
+            surface,
+            grid: None,
+            speeds,
+        })
+    }
+
+    /// [`ChartedNurbs::mint`] with every chart enclosure, the speeds
+    /// among them, read off `grid`'s finer cells
+    /// ([`enclose::CellGrid`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`ChartedNurbs::mint`].
+    pub(crate) fn mint_on(
+        surface: &'a NurbsSurface<T>,
+        grid: &'a enclose::CellGrid,
+    ) -> Result<Self, SsiError> {
+        let speeds = NurbsBoxes::on_grid(surface, grid).chart_speeds()?;
+        Ok(Self {
+            surface,
+            grid: Some(grid),
+            speeds,
+        })
+    }
+
+    /// The chart enclosures, over the cells it was minted on.
+    pub(crate) fn boxes(&self) -> NurbsBoxes<'a, T> {
+        match self.grid {
+            Some(g) => NurbsBoxes::on_grid(self.surface, g),
+            None => NurbsBoxes::new(self.surface),
+        }
     }
 }
 

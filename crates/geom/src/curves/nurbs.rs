@@ -175,6 +175,15 @@ use crate::net;
 /// bound, and neither follows the other.
 const RATIONAL_METER_SPLITS: usize = 16;
 
+/// `hi − lo` for two `f64` knots, the difference taken in `T`: at
+/// `Interval` an outward enclosure of the exact difference, which
+/// `T::from_f64(hi - lo)` is not when the subtraction rounds (two knots
+/// more than a factor of two apart, Sterbenz's lemma failing). At `f64`
+/// the two spellings are the same number.
+fn knot_difference<T: Real>(lo: f64, hi: f64) -> T {
+    T::from_f64(hi) - T::from_f64(lo)
+}
+
 macro_rules! nurbs_curve {
     ($Curve:ident, $Window:ident, $Point:ident, $Vector:ident, $dim:literal, $($c:ident),+) => {
         #[doc = concat!("The control window one knot span selects on **one** [`", stringify!($Curve), "`]")]
@@ -772,16 +781,7 @@ macro_rules! nurbs_curve {
 
         }
 
-        impl<T: Real> $Curve<T> {
-            /// A certified sup-norm bound on `|C_self − C_other|` for
-            /// two curves **sharing one knot vector** (same degree,
-            /// same control count; weights may differ): the
-            /// `net::removal_pass_bound` formula, which only uses
-            /// that sharing — `(Cmax·Bw + Bwp)/w̃min` through partition
-            /// of unity and the positive-weight convex hull. Poison
-            /// (NaN) when the structures do not match — total, never
-            /// a fabricated bound. Crate-internal: the fitting stack's
-            /// deviation measurements (M5 PR 4) ride it.
+        impl<T: SpanLocate> $Curve<T> {
             /// A **certified lower bound** on `‖C′(t)‖` over the whole
             /// domain, in meters per parameter unit — the "meter" a
             /// parameter-space margin must be multiplied by to become a
@@ -978,7 +978,7 @@ macro_rules! nurbs_curve {
                         return geom_core::InfSpeed::new(poison);
                     }
                     #[allow(clippy::cast_precision_loss)]
-                    let scale = T::from_f64(p as f64) / T::from_f64(du);
+                    let scale = T::from_f64(p as f64) / knot_difference::<T>(lo, hi);
                     coeffs.push((*b - *a) * scale);
                 }
                 // ---- Assembly 1: the global chord (the retired
@@ -1215,17 +1215,34 @@ macro_rules! nurbs_curve {
                 let Ok(plans) = spline::algebra::refine_plan_homogeneous(&self.knots, &add) else {
                     return poison;
                 };
-                let mut w: Vec<T> = self.weights.iter().map(|w| T::from_f64(*w)).collect();
-                $(let mut $c: Vec<T> = self
+                // Re-checked on the REFINED weights: knot insertion keeps
+                // positivity in ℝ, and the scan's divisions may not
+                // assume floating point did. Checked on `f64` structure,
+                // the same chain over the `f64` weights: at `f64` those
+                // are the weights the scan divides by, bit for bit; at
+                // `Interval` a refined hull reaching zero refuses at
+                // the scan's own divisions.
+                let mut wf = self.weights.clone();
+                for plan in &plans {
+                    wf = plan.apply_homogeneous(&wf);
+                }
+                #[allow(clippy::neg_cmp_op_on_partial_ord)]
+                if wf.iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
+                    return poison;
+                }
+                // Each channel refined per scalar: at `Interval` through
+                // the certification ring's step, elsewhere with both
+                // Boehm ratios formed in `T`
+                // (`SpanLocate::refine_homogeneous`).
+                let w: Vec<T> = self.weights.iter().map(|w| T::from_f64(*w)).collect();
+                let w = T::refine_homogeneous(&plans, &w);
+                $(let $c: Vec<T> = self
                     .control
                     .iter()
                     .zip(&self.weights)
                     .map(|(pt, w)| pt.$c * T::from_f64(*w))
-                    .collect();)+
-                for plan in &plans {
-                    w = plan.apply_homogeneous(&w);
-                    $($c = plan.apply_homogeneous(&$c);)+
-                }
+                    .collect();
+                let $c = T::refine_homogeneous(&plans, &$c);)+
                 let knots = plans.last().map_or_else(|| self.knots.clone(), |p| p.knots().clone());
                 let hom: Vec<$Point<T>> = (0..w.len()).map(|j| $Point::new($($c[j]),+)).collect();
                 Self::rational_span_scan(&knots, &hom, &w)
@@ -1331,7 +1348,7 @@ macro_rules! nurbs_curve {
                         return poison;
                     };
                     #[allow(clippy::cast_precision_loss)]
-                    let scale = T::from_f64(p as f64) / T::from_f64(du);
+                    let scale = T::from_f64(p as f64) / knot_difference::<T>(lo, hi);
                     // Homogeneous, centroid-translated: w_j·(P_j − c).
                     let ci = (*ai - origin) - (c - origin) * wi;
                     let cj = (*aj - origin) - (c - origin) * wj;
@@ -1358,7 +1375,18 @@ macro_rules! nurbs_curve {
                 // both numerator signs, without asking the sign.
                 (l / w_max).min(l / w_min)
             }
+        }
 
+        impl<T: Real> $Curve<T> {
+            /// A certified sup-norm bound on `|C_self − C_other|` for
+            /// two curves **sharing one knot vector** (same degree,
+            /// same control count; weights may differ): the
+            /// `net::removal_pass_bound` formula, which only uses
+            /// that sharing — `(Cmax·Bw + Bwp)/w̃min` through partition
+            /// of unity and the positive-weight convex hull. Poison
+            /// (NaN) when the structures do not match — total, never
+            /// a fabricated bound. Crate-internal: the fitting stack's
+            /// deviation measurements (M5 PR 4) ride it.
             pub(crate) fn same_structure_deviation_bound(&self, other: &Self) -> T {
                 if self.knots != other.knots || self.control.len() != other.control.len() {
                     return T::from_f64(f64::NAN);
@@ -1654,5 +1682,49 @@ impl<T: Real> NurbsCurve3<T> {
     /// the surface and curve halves answer it identically.
     pub fn is_placeholder(&self) -> bool {
         net::is_placeholder(&self.control)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use geom_core::Bounds;
+
+    use super::*;
+
+    /// TwoSum: `s = fl(a + b)` and the exact rounding error `e`, so
+    /// `a + b = s + e` in ℝ.
+    fn two_sum(a: f64, b: f64) -> (f64, f64) {
+        let s = a + b;
+        let bb = s - a;
+        (s, (a - (s - bb)) + (b - bb))
+    }
+
+    /// **A knot difference at `Interval` encloses the exact difference**
+    /// of its two `f64` knots, decided exactly: `hi − lo = s + e` with
+    /// `s` the rounded difference and `e` its TwoSum error, and the
+    /// enclosure's ends are floats, so each end is compared with `s` and
+    /// `e`'s sign. On these non-dyadic knots the subtraction rounds, and
+    /// the thin `T::from_f64(hi - lo)` the speed meter once took held
+    /// `s` alone, missing `s + e`. At `f64` the difference is `s`.
+    #[test]
+    fn a_knot_difference_encloses_the_exact_difference_of_non_dyadic_knots() {
+        let mut inexact = 0;
+        for (lo, hi) in [(0.1, 0.7), (0.1, 0.3), (1e-3, 0.9), (0.3, 0.9), (0.05, 0.7)] {
+            let (s, e) = two_sum(hi, -lo);
+            if e != 0.0 {
+                inexact += 1;
+            }
+            let d: Interval = knot_difference(lo, hi);
+            let below = d.lo() < s || (d.lo() == s && e >= 0.0);
+            let above = d.hi() > s || (d.hi() == s && e <= 0.0);
+            assert!(
+                below && above,
+                "[{lo}, {hi}]: [{:e}, {:e}] misses {s:e} + {e:e}",
+                d.lo(),
+                d.hi()
+            );
+            assert_eq!(knot_difference::<f64>(lo, hi).to_bits(), s.to_bits());
+        }
+        assert!(inexact >= 4, "the row's knots must round: {inexact} did");
     }
 }

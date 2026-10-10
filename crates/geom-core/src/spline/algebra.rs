@@ -43,7 +43,7 @@
 //! `λ` is needed.
 
 use super::knots::{InteriorKnot, KnotVector, SplineError, find_span_in};
-use super::projective::ProjectiveScalar;
+use super::projective::{ProjectivePoint, ProjectiveScalar};
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
 use crate::readable::Readable;
@@ -219,9 +219,9 @@ impl CurvePlan {
     /// `poison` the caller's poison point — the total fallback for a
     /// malformed plan, which the constructors rule out but the applier
     /// does not trust (D4: fail loud, never panic). `T` is a
-    /// [`ProjectiveScalar`]; the certification ring's applier is
-    /// [`CurvePlan::apply_certified`].
-    pub fn apply_points<T: ProjectiveScalar, P: Copy>(
+    /// [`ProjectiveScalar`] and `P` a [`ProjectivePoint`] over it; the
+    /// certification ring's applier is [`CurvePlan::apply_certified`].
+    pub fn apply_points<T: ProjectiveScalar, P: ProjectivePoint<T>>(
         &self,
         old: &[P],
         poison: P,
@@ -337,6 +337,20 @@ impl CurvePlan {
         self.apply_ratios(old, Interval::refused(), |x, y, r| {
             convex_step(x, y, r.lo, r.hi, r.inserted)
         })
+    }
+
+    /// **One channel through a plan chain, in the certification ring**:
+    /// `channel` through every plan of `chain` in order, each by
+    /// [`CurvePlan::apply_certified`], so the result encloses the refined
+    /// channel of the described net. The one spelling of a ring
+    /// refinement: a homogeneous channel (`w·P` per coordinate, or `w`)
+    /// or a unit-weight one, which a plain convex combination refines.
+    /// An empty chain is the identity.
+    #[must_use]
+    pub fn refine_certified(chain: &[CurvePlan], channel: &[Interval]) -> Vec<Interval> {
+        chain
+            .iter()
+            .fold(channel.to_vec(), |c, plan| plan.apply_certified(&c))
     }
 
     /// The fold both homogeneous appliers are: `Carry` copies, a ratio

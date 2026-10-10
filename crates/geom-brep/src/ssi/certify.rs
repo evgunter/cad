@@ -112,9 +112,9 @@
 
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
-use geom_core::spline::KnotVector;
 use geom_core::spline::algebra::{domain_grid_points, range_grid_points, refine_plan_homogeneous};
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
+use geom_core::spline::{CurvePlan, KnotVector};
 use geom_core::{
     Band, Bounds, CertifiedEnclosure, Decide, Decided, Indeterminate, Interval, Margin, Point3,
     Real, Sign, Vec3,
@@ -175,8 +175,11 @@ pub(crate) fn tube_ladder(extent: f64, band: Band) -> impl Iterator<Item = f64> 
 }
 
 /// How many spans limbs 2 and 3 cut the carrier into ([`cert_grid`]).
-/// More spans ⇒ tighter hulls and a tighter tube, at linear cost; this
-/// is a **structure** choice (C6's f64 lane), not a decision.
+/// More spans ⇒ tighter hulls and a tighter tube, at linear cost. The
+/// grid's points are a **structure** choice, not a decision; the
+/// refinement they schedule is made inside the certificate, so it is
+/// held as homogeneous enclosures in the ring (C6: [`refined_net`],
+/// `CurveCertData::with_breaks`).
 pub const SSI_CERT_SPANS: usize = 32;
 
 /// The region limb 3 proved one-arc-ness over, by the kind of tube
@@ -318,29 +321,31 @@ fn cert_grid(kv: &KnotVector) -> Vec<f64> {
 /// [`geom_core::spline::CurvePlan::apply_certified`], then
 /// de-homogenized, so every point encloses the refined net of the
 /// described carrier. Paired with the refined vector; `None` when the
-/// insertion chain refuses.
+/// insertion chain refuses, or `coords` is not three channels of one
+/// entry per weight.
 fn refined_net(
     kv: &KnotVector,
     weights: &[f64],
     coords: &[Vec<Interval>],
 ) -> Option<(KnotVector, [Vec<Interval>; 3])> {
     let plans = refine_plan_homogeneous(kv, &cert_grid(kv)).ok()?;
-    let refine = |channel: Vec<Interval>| -> Vec<Interval> {
-        plans
-            .iter()
-            .fold(channel, |c, plan| plan.apply_certified(&c))
+    // Three coordinate channels, each one weight per control point: any
+    // other shape is a malformed carrier and refuses, rather than
+    // refining an empty channel into an all-refused one.
+    let [cx, cy, cz] = coords else {
+        return None;
     };
+    if [cx, cy, cz].iter().any(|c| c.len() != weights.len()) {
+        return None;
+    }
     let w: Vec<Interval> = weights
         .iter()
         .map(|w| Interval::from_bounds(*w, *w))
         .collect();
-    let rw = refine(w.clone());
-    let net = core::array::from_fn(|d| {
-        let homogeneous = coords
-            .get(d)
-            .map(|c| c.iter().zip(&w).map(|(x, w)| *x * *w).collect())
-            .unwrap_or_default();
-        refine(homogeneous)
+    let rw = CurvePlan::refine_certified(&plans, &w);
+    let net = [cx, cy, cz].map(|c| {
+        let homogeneous: Vec<Interval> = c.iter().zip(&w).map(|(x, w)| *x * *w).collect();
+        CurvePlan::refine_certified(&plans, &homogeneous)
             .iter()
             .zip(&rw)
             .map(|(a, w)| *a / *w)
@@ -541,7 +546,8 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         // structurally rather than approximated by a whole-domain radius.
         // The `SSI_CERT_SPANS` uniform breaks are injected for hull
         // tightness — the same structure choice `cert_grid` makes for the
-        // analytic limb and the box chain (C6's f64 lane).
+        // analytic limb and the box chain, the cut itself made in the
+        // ring (C6).
         let coords = carrier.certified_coords();
         let cdata =
             CurveCertData::new(carrier.knots(), carrier.weights(), &coords).map_err(|_| {
@@ -947,12 +953,12 @@ pub(crate) fn chart_tube_windows<T: geom_core::CertifiedBounds>(
 /// finite: neither depends on the pad, so no smaller rung cures it.
 fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
     pcurve: &NurbsCurve2<T>,
-    surface: &NurbsSurface<T>,
+    boxes: &NurbsBoxes<'_, T>,
     (origin, normal): (Point3<T>, Vec3<T>),
     (rung, pad): (f64, (f64, f64)),
     (ends, band): ([Box3; 2], Band),
 ) -> Result<Option<Rung>, SsiError> {
-    let boxes = NurbsBoxes::new(surface);
+    let surface = boxes.surface();
     let Some(windows) = chart_tube_windows(pcurve, pad) else {
         return Ok(None);
     };
@@ -987,7 +993,7 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         let Some(rect) = UvWindow::new(u0, u1, v0, v1) else {
             return Ok(None);
         };
-        let Some(margin) = chart_transverse_margin(&boxes, n, rect, (tx, ty, tn))? else {
+        let Some(margin) = chart_transverse_margin(boxes, n, rect, (tx, ty, tn))? else {
             return Ok(None);
         };
         if margin < worst {
@@ -1004,7 +1010,7 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
             u: surface.knots_u().domain(),
             v: surface.knots_v().domain(),
         };
-        one_arc(&boxes, (n, p0), (domain, band), pcurve, &probed, ends)
+        one_arc(boxes, (n, p0), (domain, band), pcurve, &probed, ends)
     });
     #[allow(clippy::cast_possible_truncation)]
     Ok(Some(Rung {
@@ -1474,13 +1480,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                 // region (a window's corner can sit farther than the rung
                 // from the carrier).
                 let pad = n.speeds().pad(radius);
-                probe_tube_chart(
-                    p,
-                    n.surface(),
-                    (origin, normal),
-                    (radius, pad),
-                    (ends, band),
-                )
+                probe_tube_chart(p, &n.boxes(), (origin, normal), (radius, pad), (ends, band))
             })?
         }
         (SsiOperand::Nurbs(_), SsiOperand::Nurbs(_)) => {
@@ -1656,7 +1656,7 @@ mod tests {
         use geom_core::{Interval, Point2, Point3, Real, Vec3};
 
         use super::super::probe_tube_chart;
-        use crate::ssi::enclose::Box3;
+        use crate::ssi::enclose::{Box3, NurbsBoxes};
         use crate::ssi::{SsiError, TubeDegeneracy};
 
         fn iv(x: f64) -> Interval {
@@ -1729,7 +1729,7 @@ mod tests {
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
             let probe = probe_tube_chart(
                 &u_line(),
-                &unit_patch(),
+                &NurbsBoxes::new(&unit_patch()),
                 (on_line(), normal),
                 (0.0, (0.01, 0.01)),
                 at_ends(),
@@ -1766,7 +1766,7 @@ mod tests {
             let normal = Vec3::new(iv(0.0), n, iv(0.0));
             let verdict = probe_tube_chart(
                 &u_line(),
-                &unit_patch(),
+                &NurbsBoxes::new(&unit_patch()),
                 (on_line(), normal),
                 (0.0, (0.01, 0.01)),
                 at_ends(),
@@ -1806,7 +1806,7 @@ mod tests {
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
             let verdict = probe_tube_chart(
                 &pcurve,
-                &unit_patch(),
+                &NurbsBoxes::new(&unit_patch()),
                 (on_line(), normal),
                 (0.0, (0.01, 0.01)),
                 at_ends(),
@@ -1833,7 +1833,7 @@ mod tests {
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
             let verdict = probe_tube_chart(
                 &u_line(),
-                &point_patch,
+                &NurbsBoxes::new(&point_patch),
                 (on_line(), normal),
                 (0.0, (0.01, 0.01)),
                 at_ends(),
@@ -1867,7 +1867,7 @@ mod tests {
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
             let verdict = probe_tube_chart(
                 &u_line(),
-                &ridge,
+                &NurbsBoxes::new(&ridge),
                 (on_line(), normal),
                 (0.0, (0.01, 0.01)),
                 at_ends(),
@@ -1898,7 +1898,7 @@ mod tests {
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
             let verdict = probe_tube_chart(
                 &still,
-                &unit_patch(),
+                &NurbsBoxes::new(&unit_patch()),
                 (on_line(), normal),
                 (0.0, (0.01, 0.01)),
                 at_ends(),
@@ -2026,6 +2026,87 @@ mod tests {
         assert_eq!(breaks, want);
     }
 
+    /// **`refined_net` encloses the exact refined net** of the described
+    /// carrier. A rational cubic on non-dyadic knots, controls and
+    /// weights, refined at [`super::cert_grid`]: every point contains the
+    /// exact quotient of the refined homogeneous channels, by Boehm's
+    /// insertion in exact rationals (`crate::exact_q`). The contrast arm
+    /// refines the same carrier at `f64` (`refine_knots`) and lifts it
+    /// thin, which misses the exact net where an insertion rounds: the
+    /// shape this row is red for. A malformed coordinate set refuses.
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::expect_used)]
+    fn refined_net_encloses_the_exact_refined_net() {
+        use geom::NurbsCurve3;
+        use geom_core::spline::KnotVector;
+        use geom_core::{Bounds, Interval, Point3};
+
+        use crate::exact_q::{Q, refine_u};
+
+        let knots = vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.7, 1.0, 1.0, 1.0, 1.0];
+        let kv = KnotVector::clamped(knots.clone(), 3).unwrap();
+        let ctl = [
+            [0.1, 0.2, 0.3],
+            [0.9, 1.3, -0.3],
+            [1.7, -0.6, 0.4],
+            [2.3, 0.7, 1.3],
+            [3.1, 0.1, 0.7],
+            [3.7, 0.9, -0.1],
+        ];
+        let weights = vec![1.0, 0.3, 2.7, 0.6, 1.1, 0.9];
+        let thin = |x: f64| Interval::from_bounds(x, x);
+        let coords: Vec<Vec<Interval>> = (0..3)
+            .map(|d| ctl.iter().map(|p| thin(p[d])).collect())
+            .collect();
+        let (fine, net) = super::refined_net(&kv, &weights, &coords).unwrap();
+        let breaks = super::cert_grid(&kv);
+        let exact: Vec<[Q; 4]> = ctl
+            .iter()
+            .zip(&weights)
+            .map(|(p, &w)| {
+                let w = Q::of(w);
+                let [x, y, z] = p.map(|c| w.mul(&Q::of(c)));
+                [x, y, z, w]
+            })
+            .collect();
+        let (exact, exact_knots) = refine_u(&exact, (ctl.len(), 1), (&knots, 3), &breaks);
+        assert_eq!(exact_knots, fine.knots());
+        let misses = |pts: &dyn Fn(usize, usize) -> Interval| -> Vec<String> {
+            let mut out = Vec::new();
+            for (k, h) in exact.iter().enumerate() {
+                for c in 0..3 {
+                    let p = pts(k, c);
+                    if !h[c].div(&h[3]).within(p.lo(), p.hi()) {
+                        out.push(format!("{k}.{c}"));
+                    }
+                }
+            }
+            out
+        };
+        let missed = misses(&|k, c| net[c][k]);
+        assert!(
+            missed.is_empty(),
+            "refined_net missed the exact net at {missed:?}"
+        );
+        let curve = NurbsCurve3::new(
+            kv.clone(),
+            ctl.iter().map(|p| Point3::new(p[0], p[1], p[2])).collect(),
+            weights.clone(),
+        )
+        .unwrap();
+        let lifted = curve.refine_knots(&breaks).unwrap();
+        let at = |k: usize, c: usize| {
+            let p = lifted.control()[k];
+            thin([p.x, p.y, p.z][c])
+        };
+        assert!(
+            !misses(&at).is_empty(),
+            "the f64-refined net must miss the exact one somewhere, or this row cannot tell \
+             the two apart"
+        );
+        assert!(super::refined_net(&kv, &weights, &coords[..2]).is_none());
+    }
+
     /// `cert_grid`'s cut-off: a carrier with `SSI_CERT_SPANS + degree`
     /// control points takes no breaks, one with a control point fewer
     /// still takes the whole grid. The interior knots are odd 128ths,
@@ -2099,7 +2180,7 @@ mod tests {
         use geom_core::spline::KnotVector;
         use geom_core::{Band, Margin, Point3, Vec3};
 
-        use super::{Box3, Interval, SsiTube, chart_tube_windows, probe_tube_chart};
+        use super::{Box3, Interval, NurbsBoxes, SsiTube, chart_tube_windows, probe_tube_chart};
         use crate::ssi::{ChartedNurbs, SsiDomain, branch_chart_tubes, plane_nurbs_ssi};
 
         let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
@@ -2177,9 +2258,15 @@ mod tests {
                 }
             });
             let ends = (ends, band);
-            let probe = probe_tube_chart(pc, &wall, (origin, n), (rung, (pad_u, pad_v)), ends)
-                .unwrap()
-                .expect("the recorded pad probes");
+            let probe = probe_tube_chart(
+                pc,
+                &NurbsBoxes::new(&wall),
+                (origin, n),
+                (rung, (pad_u, pad_v)),
+                ends,
+            )
+            .unwrap()
+            .expect("the recorded pad probes");
             assert_eq!(
                 probe.one_arc,
                 Some(Ok(())),
@@ -2196,8 +2283,14 @@ mod tests {
                 "branch {i}: the probe at the recorded pad is not the certificate's"
             );
             let folded = rung / su.max(sv);
-            let at_fold =
-                probe_tube_chart(pc, &wall, (origin, n), (rung, (folded, folded)), ends).unwrap();
+            let at_fold = probe_tube_chart(
+                pc,
+                &NurbsBoxes::new(&wall),
+                (origin, n),
+                (rung, (folded, folded)),
+                ends,
+            )
+            .unwrap();
             assert!(
                 at_fold.is_none_or(|c| c.margin.to_bits() != margin.to_bits()),
                 "FIXTURE: branch {i}'s margin does not depend on the pad, so the \

@@ -75,7 +75,8 @@ use geom::{NurbsSurface, Surface, SurfaceWindow};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{div_down, max_bound, min_bound, norm_sq, norm_sup};
-use geom_core::spline::{ParamRange, Span};
+use geom_core::spline::algebra::refine_plan_homogeneous;
+use geom_core::spline::{KnotVector, ParamRange, Span, TensorNet};
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
 
 use super::{ChartAxis, ChartSpeedRefusal, SsiError, TubeDegeneracy};
@@ -567,14 +568,55 @@ impl UvWindow {
 /// goes through the homogeneous quotient rule over each cell's net cut
 /// to the rectangle ([`CellNet::cut`]), so it shrinks with the
 /// rectangle below a span cell too.
+///
+/// The cells are the surface's own, or a [`CellGrid`]'s: the same
+/// surface's net refined in certification arithmetic, whose finer cells
+/// read tighter hulls. Evaluation ([`NurbsBoxes::rect_box`]'s midpoint)
+/// and the boundary rows always read the surface itself.
 pub(crate) struct NurbsBoxes<'a, T: CertifiedBounds> {
     surface: &'a NurbsSurface<T>,
+    grid: Option<&'a CellGrid>,
 }
 
 impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
-    /// Wrap a surface.
+    /// Wrap a surface, reading its own cells.
     pub(crate) fn new(surface: &'a NurbsSurface<T>) -> Self {
-        Self { surface }
+        Self {
+            surface,
+            grid: None,
+        }
+    }
+
+    /// Wrap a surface, reading the cells of `grid`, a refinement of this
+    /// surface's net ([`CellGrid::refined`]).
+    pub(crate) fn on_grid(surface: &'a NurbsSurface<T>, grid: &'a CellGrid) -> Self {
+        Self {
+            surface,
+            grid: Some(grid),
+        }
+    }
+
+    /// The `u` and `v` vectors the cells are spans of.
+    fn cell_knots(&self) -> (&'a KnotVector, &'a KnotVector) {
+        match self.grid {
+            Some(g) => (&g.ku, &g.kv),
+            None => (self.surface.knots_u(), self.surface.knots_v()),
+        }
+    }
+
+    /// The control block of the cell at spans `(su, sv)`, with its two
+    /// spans; `None` for an empty span (it covers no parameters) or a
+    /// read that leaves the net.
+    fn cell(&self, su: usize, sv: usize) -> Option<(CellNet, (Span<'a>, Span<'a>))> {
+        let (ku, kv) = self.cell_knots();
+        let spans = (ku.span(su)?, kv.span(sv)?);
+        let net = match self.grid {
+            Some(g) => CellNet::of_spans(spans, kv.control_count(), |k| {
+                g.pts.get(k).copied().zip(g.wts.get(k).copied())
+            }),
+            None => CellNet::of_cell(self.surface.window(su, sv)?),
+        }?;
+        Some((net, spans))
     }
 
     /// The surface boxed.
@@ -623,8 +665,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// clamp is sound because the objects being enclosed — a pcurve, a
     /// foot point — cannot leave the domain either.
     fn cells(&self, w: UvWindow) -> CellRange {
-        let ku = self.surface.knots_u();
-        let kv = self.surface.knots_v();
+        let (ku, kv) = self.cell_knots();
         let clamped = self.clamped(w);
         let (cu, cv) = (clamped.u, clamped.v);
         // `span_range` answers in validated spans, but a cell RANGE is
@@ -755,12 +796,13 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                 // it is sound and strictly tighter. The corner cell is
                 // always nonempty (`cells` locates its ends with
                 // `span_at`), so the fold is never left unseeded.
-                let Some(win) = self.surface.window(su, sv) else {
+                let (ku, kv) = self.cell_knots();
+                if !(ku.span_is_nonempty(su) && kv.span_is_nonempty(sv)) {
                     continue;
-                };
-                let whole = CellNet::of_cell(win)?;
+                }
+                let (whole, spans) = self.cell(su, sv)?;
                 let r = read(&whole);
-                let r = match cut.then(|| whole.cut(win, range.clamped)).flatten() {
+                let r = match cut.then(|| whole.cut(spans, range.clamped)).flatten() {
                     Some(net) => meet(r, read(&net)),
                     None => r,
                 };
@@ -821,6 +863,107 @@ struct CellRange {
     clamped: UvWindow,
 }
 
+/// A wall's control net refined in certification arithmetic, for
+/// [`NurbsBoxes::on_grid`]: the knot pair it is a net over, and each
+/// entry's Cartesian point and weight, row-major as
+/// `NurbsSurface::control()` is.
+///
+/// A refinement made inside a certificate chooses nothing (C6), so it is
+/// held only as enclosures: the homogeneous channels `(w·P, w)` are
+/// refined by the exact insertion chain with
+/// [`CurvePlan::apply_certified`](geom_core::spline::CurvePlan::apply_certified),
+/// both ratios taken in the ring from the knots, so each entry encloses
+/// the described surface's refined coefficient; the point is the
+/// quotient. Knot insertion is exact in ℝ, so the grid describes the
+/// same surface over the same parameters.
+#[derive(Clone, Debug)]
+pub(crate) struct CellGrid {
+    ku: KnotVector,
+    kv: KnotVector,
+    pts: Vec<[Interval; 3]>,
+    wts: Vec<Interval>,
+}
+
+impl CellGrid {
+    /// `surface`'s net with `new_u` inserted along `u` and `new_v` along
+    /// `v`.
+    ///
+    /// `None` when an insertion chain refuses, or a refined weight is not
+    /// certified positive: the quotient would enclose no point, and the
+    /// caller reads the surface's own cells instead, coarser and sound.
+    pub(crate) fn refined<T: CertifiedBounds>(
+        surface: &NurbsSurface<T>,
+        new_u: &[f64],
+        new_v: &[f64],
+    ) -> Option<Self> {
+        let (ku, kv) = (surface.knots_u(), surface.knots_v());
+        let plans_u = refine_plan_homogeneous(ku, new_u).ok()?;
+        let plans_v = refine_plan_homogeneous(kv, new_v).ok()?;
+        let homogeneous: Vec<[Interval; 4]> = surface
+            .control()
+            .iter()
+            .zip(surface.weights())
+            .map(|(p, &w)| {
+                let w = Interval::from_certified(w);
+                let [x, y, z] = [p.x, p.y, p.z].map(|x| w * Interval::from_certified(x));
+                [x, y, z, w]
+            })
+            .collect();
+        let (nu, nv) = (ku.control_count(), kv.control_count());
+        let nets: [TensorNet; 4] = core::array::from_fn(|c| {
+            TensorNet::from_flat(nu, nv, homogeneous.iter().map(|h| h[c]).collect())
+                .refine_u(&plans_u)
+                .refine_v(&plans_v)
+        });
+        let [x, y, z, w] = nets.each_ref().map(TensorNet::as_flat);
+        if !w.iter().all(|w| w.is_certified() && w.lo() > 0.0) {
+            return None;
+        }
+        let pts = x
+            .iter()
+            .zip(y)
+            .zip(z)
+            .zip(w)
+            .map(|(((x, y), z), w)| [*x / *w, *y / *w, *z / *w])
+            .collect();
+        let refined = |plans: &[geom_core::spline::CurvePlan], kv: &KnotVector| {
+            plans
+                .last()
+                .map_or_else(|| kv.clone(), |p| p.knots().clone())
+        };
+        Some(Self {
+            ku: refined(&plans_u, ku),
+            kv: refined(&plans_v, kv),
+            pts,
+            wts: w.to_vec(),
+        })
+    }
+
+    /// The refined `u` vector.
+    #[cfg(test)]
+    pub(crate) fn knots_u(&self) -> &KnotVector {
+        &self.ku
+    }
+
+    /// The refined `v` vector.
+    #[cfg(test)]
+    pub(crate) fn knots_v(&self) -> &KnotVector {
+        &self.kv
+    }
+
+    /// The refined net's points, row-major.
+    #[cfg(test)]
+    pub(crate) fn points(&self) -> &[[Interval; 3]] {
+        &self.pts
+    }
+
+    /// The refined net's weights, row-major.
+    #[cfg(test)]
+    pub(crate) fn weights(&self) -> &[Interval] {
+        &self.wts
+    }
+}
+
 /// One span cell's control block in certification arithmetic, cut to
 /// a sub-rectangle or whole: the Cartesian points and weights,
 /// `(pu + 1) × (pv + 1)` row-major, and the derivative scale
@@ -846,20 +989,37 @@ impl CellNet {
     fn of_cell<T: CertifiedBounds>(win: SurfaceWindow<'_, T>) -> Option<Self> {
         let s = win.surface();
         let (ctl, wts) = (s.control(), s.weights());
-        let (spu, spv) = (win.span_u(), win.span_v());
+        Self::of_spans((win.span_u(), win.span_v()), win.stride(), |k| {
+            let (p, &w) = ctl.get(k).zip(wts.get(k))?;
+            Some((
+                [
+                    Interval::from_certified(p.x),
+                    Interval::from_certified(p.y),
+                    Interval::from_certified(p.z),
+                ],
+                Interval::from_certified(w),
+            ))
+        })
+    }
+
+    /// The control block of the cell at `(spu, spv)` of a row-major net
+    /// `stride` columns wide, each entry's point and weight read through
+    /// `at` by flat index. `None` when a read leaves the net or the
+    /// knots.
+    fn of_spans(
+        (spu, spv): (Span<'_>, Span<'_>),
+        stride: usize,
+        at: impl Fn(usize) -> Option<([Interval; 3], Interval)>,
+    ) -> Option<Self> {
         let (pu, pv) = (spu.degree(), spv.degree());
         let mut pts = Vec::with_capacity((pu + 1) * (pv + 1));
         let mut ws = Vec::with_capacity((pu + 1) * (pv + 1));
         for i in 0..=pu {
-            let row = win.row(i);
+            let row = (spu.first_control() + i) * stride + spv.first_control();
             for j in 0..=pv {
-                let (p, &w) = ctl.get(row + j).zip(wts.get(row + j))?;
-                pts.push([
-                    Interval::from_certified(p.x),
-                    Interval::from_certified(p.y),
-                    Interval::from_certified(p.z),
-                ]);
-                ws.push(Interval::from_certified(w));
+                let (p, w) = at(row + j)?;
+                pts.push(p);
+                ws.push(w);
             }
         }
         Some(Self {
@@ -894,8 +1054,8 @@ impl CellNet {
     /// symmetric interval rather than zero, and on a window a few ulps
     /// wide the `degree / (b − a)` scale amplifies every such width. So
     /// the caller meets the two ([`NurbsBoxes::deriv_box`]).
-    fn cut<T: CertifiedBounds>(&self, win: SurfaceWindow<'_, T>, w: UvWindow) -> Option<Self> {
-        let (cut_u, cut_v) = (inside(win.span_u(), w.u), inside(win.span_v(), w.v));
+    fn cut(&self, (span_u, span_v): (Span<'_>, Span<'_>), w: UvWindow) -> Option<Self> {
+        let (cut_u, cut_v) = (inside(span_u, w.u), inside(span_v, w.v));
         if cut_u.is_none() && cut_v.is_none() {
             return None;
         }
@@ -916,19 +1076,19 @@ impl CellNet {
         if let Some(cut) = cut_u {
             for j in 0..nv {
                 let line: Vec<[Interval; 4]> = (0..nu).map(|i| h[i * nv + j]).collect();
-                for (i, c) in bezier_on(&line, win.span_u(), cut)?.into_iter().enumerate() {
+                for (i, c) in bezier_on(&line, span_u, cut)?.into_iter().enumerate() {
                     h[i * nv + j] = c;
                 }
             }
-            scale_u = bezier_scales(win.span_u().degree(), cut);
+            scale_u = bezier_scales(span_u.degree(), cut);
         }
         if let Some(cut) = cut_v {
             for i in 0..nu {
                 let line = &h[i * nv..(i + 1) * nv];
-                let cut_line = bezier_on(line, win.span_v(), cut)?;
+                let cut_line = bezier_on(line, span_v, cut)?;
                 h[i * nv..(i + 1) * nv].copy_from_slice(&cut_line);
             }
-            scale_v = bezier_scales(win.span_v().degree(), cut);
+            scale_v = bezier_scales(span_v.degree(), cut);
         }
         Some(Self {
             nv,

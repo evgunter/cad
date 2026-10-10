@@ -2685,19 +2685,6 @@ fn area_midpoint_taylor<E>(
     Ok(widen(acc, boundary_defect))
 }
 
-/// One coefficient channel through a plan chain, in the certification
-/// ring: [`CurvePlan::apply_certified`] re-derives each Boehm ratio from
-/// the knots and rounds it outward, so the result encloses the refined
-/// channel of the DESCRIBED net — no `f64` ratio stands in for it. The
-/// channel is homogeneous (`w·P` or `w`) or unit-weight, which is what
-/// lets a plain convex combination refine it.
-fn refine_channel(plans: &[CurvePlan], mut channel: Vec<Interval>) -> Vec<Interval> {
-    for plan in plans {
-        channel = plan.apply_certified(&channel);
-    }
-    channel
-}
-
 /// **Certified knot refinement of a bracketed tensor net**, one
 /// direction, to a FIXED span target (D9: the schedule is a constant,
 /// never data-dependent).
@@ -2723,11 +2710,6 @@ fn refine_dir(
     nv: usize,
     along_u: bool,
 ) -> Option<(KnotVector, Vec<RVec3>, usize)> {
-    let refused = [
-        Interval::refused(),
-        Interval::refused(),
-        Interval::refused(),
-    ];
     let count = kv.control_count();
     if count == 0 || nv == 0 {
         return None;
@@ -2746,44 +2728,30 @@ fn refine_dir(
     if malformed {
         return None;
     }
-    let other = if along_u { nv } else { net.len() / nv };
     let add = algebra::domain_grid_points(kv, QUAD2_REFINE_SPANS);
     let plans = algebra::refine_plan_homogeneous(kv, &add).ok()?;
-    // Ascending-index fold over the lines of this direction, then over
-    // the plan chain (D9).
-    let mut cur: Vec<Vec<RVec3>> = (0..other)
-        .map(|j| {
-            (0..count)
-                .map(|i| {
-                    let idx = if along_u { i * nv + j } else { j * nv + i };
-                    net[idx]
-                })
-                .collect()
-        })
+    // Each coordinate a tensor net refined along this direction, per
+    // line in ascending index, through the plan chain (D9).
+    let nu = net.len() / nv;
+    let [x, y, z] = core::array::from_fn(|c| {
+        let channel = TensorNet::from_flat(nu, nv, net.iter().map(|q| q[c]).collect());
+        if along_u {
+            channel.refine_u(&plans)
+        } else {
+            channel.refine_v(&plans)
+        }
+    });
+    let out = x
+        .as_flat()
+        .iter()
+        .zip(y.as_flat())
+        .zip(z.as_flat())
+        .map(|((x, y), z)| [*x, *y, *z])
         .collect();
-    for line in &mut cur {
-        let channels: [Vec<Interval>; 3] =
-            core::array::from_fn(|c| refine_channel(&plans, line.iter().map(|q| q[c]).collect()));
-        *line = (0..channels[0].len())
-            .map(|i| [channels[0][i], channels[1][i], channels[2][i]])
-            .collect();
-    }
     let cur_kv = plans
         .last()
         .map_or_else(|| kv.clone(), |plan| plan.knots().clone());
     let new_count = cur_kv.control_count();
-    let (rows, cols) = if along_u {
-        (new_count, other)
-    } else {
-        (other, new_count)
-    };
-    let mut out = vec![refused; rows * cols];
-    for (j, line) in cur.iter().enumerate() {
-        for (i, p) in line.iter().enumerate() {
-            let idx = if along_u { i * cols + j } else { j * cols + i };
-            out[idx] = *p;
-        }
-    }
     Some((cur_kv, out, new_count))
 }
 
@@ -4159,16 +4127,16 @@ fn bezier_bisect(block: &[RPt2]) -> (Vec<RPt2>, Vec<RPt2>) {
 /// convex-hull property). Knot insertion is exact in ℝ, so a block is
 /// a statement about the same arc.
 ///
-/// `None` when the knot algebra refuses (a malformed net), the degree
-/// is zero, or a weight is not `1.0` — the caller then refuses typed.
+/// The net's weights are all `1.0`, which its one caller refuses
+/// otherwise, typed; that is what makes each axis its own homogeneous
+/// channel below.
+///
+/// `None` when the knot algebra refuses (a malformed net) or the
+/// degree is zero — the caller then refuses typed.
 fn bezier_blocks(img: &TrimPiece, m: usize) -> Option<Vec<Vec<RPt2>>> {
     let kv = &img.knots;
     let p = kv.degree();
-    if p == 0
-        || img.control.len() != kv.control_count()
-        || img.weights.len() != img.control.len()
-        || img.weights.iter().any(|w| *w != 1.0)
-    {
+    if p == 0 || img.control.len() != kv.control_count() || img.weights.len() != img.control.len() {
         return None;
     }
     let mut breaks: Vec<f64> = kv.interior_knots().map(|(k, _)| k).collect();
@@ -4188,8 +4156,12 @@ fn bezier_blocks(img: &TrimPiece, m: usize) -> Option<Vec<Vec<RPt2>>> {
     // Unit weights make the chart net its own homogeneous form, so
     // each axis refines as a channel in the certification ring.
     let plans = algebra::refine_plan_homogeneous(kv, &add).ok()?;
-    let cu = refine_channel(&plans, img.control.iter().map(|q| q.0).collect());
-    let cv = refine_channel(&plans, img.control.iter().map(|q| q.1).collect());
+    let cu: Vec<Interval> = img.control.iter().map(|q| q.0).collect();
+    let cv: Vec<Interval> = img.control.iter().map(|q| q.1).collect();
+    let (cu, cv) = (
+        CurvePlan::refine_certified(&plans, &cu),
+        CurvePlan::refine_certified(&plans, &cv),
+    );
     let ctl: Vec<RPt2> = cu.into_iter().zip(cv).collect();
     if ctl.len() < p + 1 || !(ctl.len() - 1).is_multiple_of(p) {
         return None;
@@ -7045,8 +7017,9 @@ mod tests {
         // In-bracket: the two sides of one shared vertex are DIFFERENT
         // brackets, each containing the other's reading — which is the
         // shipped assembler's own case, two pcurves reading one vertex.
-        // Their midpoints differ by `d`, so the walk does not close
-        // exactly and the lane PAYS the gap rather than refusing it.
+        // Their midpoints differ by `0.375·d` along `u` (`1 − d/2` and
+        // `1 − 7d/8`), so the walk does not close exactly and the lane
+        // PAYS the gap rather than refusing it.
         let d = 1.0e-3;
         let mut rim = iso((1.0, 0.0), (1.0, 1.0));
         rim.b = (Interval::from_bounds(1.0 - d, 1.0), pt(1.0));

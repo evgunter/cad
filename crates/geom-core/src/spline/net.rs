@@ -343,10 +343,7 @@ impl TensorNet {
         }
         let mut c = vec![Interval::refused(); nu_new * self.nv];
         for j in 0..self.nv {
-            let mut line = self.column(j);
-            for plan in plans {
-                line = plan.apply_certified(&line);
-            }
+            let line = CurvePlan::refine_certified(plans, &self.column(j));
             for (i, q) in line.iter().enumerate() {
                 if let Some(slot) = c.get_mut(i * self.nv + j) {
                     *slot = *q;
@@ -373,10 +370,7 @@ impl TensorNet {
         }
         let mut c = vec![Interval::refused(); self.nu * nv_new];
         for i in 0..self.nu {
-            let mut line = self.row(i).to_vec();
-            for plan in plans {
-                line = plan.apply_certified(&line);
-            }
+            let line = CurvePlan::refine_certified(plans, self.row(i));
             for (j, q) in line.iter().enumerate() {
                 if let Some(slot) = c.get_mut(i * nv_new + j) {
                     *slot = *q;

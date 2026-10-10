@@ -12,6 +12,7 @@
 use super::algebra::CurvePlan;
 use super::locate::SpanLocate;
 use crate::real::Real;
+use crate::{Point2, Point3};
 
 /// The scalars the PROJECTIVE knot algebra means something at: `f64`,
 /// `Probe`, and `Dual` and `Sym` over them — not `Interval`, and not
@@ -33,9 +34,31 @@ use crate::real::Real;
 /// use geom_core::spline::{KnotVector, algebra::refine_plan};
 /// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
 /// let plan = refine_plan(&kv, &[1.0, 1.0, 1.0], &[0.5]).unwrap().remove(0);
-/// let old = [Interval::point(0.0), Interval::point(1.0), Interval::point(2.0)];
+/// let pt = |x: f64| Interval::from_bounds(x, x);
+/// let old = [pt(0.0), pt(1.0), pt(2.0)];
 /// let _ = plan.apply_points(&old, Interval::refused(), |x, y, l: Interval| x + (y - x) * l);
 /// ```
+///
+/// The points are bounded with it ([`ProjectivePoint`]), so `λ` cannot
+/// stay an `f64` while the points it combines are ring enclosures —
+/// the shape that lifts `λ` inside the closure does not typecheck
+/// either:
+///
+/// ```compile_fail,E0277
+/// use geom_core::Interval;
+/// use geom_core::spline::{KnotVector, algebra::refine_plan};
+/// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+/// let plan = refine_plan(&kv, &[1.0, 1.0, 1.0], &[0.5]).unwrap().remove(0);
+/// let pt = |x: f64| Interval::from_bounds(x, x);
+/// let old = [pt(0.0), pt(1.0), pt(2.0)];
+/// let _ = plan.apply_points(&old, Interval::refused(), |x: Interval, y, l: f64| {
+///     x + (y - x) * Interval::from_bounds(l, l)
+/// });
+/// ```
+///
+/// What the bound cannot see is a closure that computes in the ring
+/// and carries the result out through a capture rather than its
+/// return value: its inputs and output are at an evaluation scalar.
 ///
 /// Its twin at an evaluation scalar compiles:
 ///
@@ -55,6 +78,9 @@ pub trait ProjectiveScalar: SpanLocate + sealed::Sealed {}
 mod sealed {
     /// The sealing supertrait (pub-in-private: unnameable downstream).
     pub trait Sealed {}
+
+    /// [`super::ProjectivePoint`]'s sealing supertrait.
+    pub trait SealedPoint<T> {}
 }
 
 impl sealed::Sealed for f64 {}
@@ -71,6 +97,24 @@ impl<T: ProjectiveScalar> ProjectiveScalar for crate::dual::Dual<T> where
 impl<T: ProjectiveScalar> sealed::Sealed for crate::sym::Sym<T> {}
 impl<T: ProjectiveScalar> ProjectiveScalar for crate::sym::Sym<T> {}
 
+/// The control data [`CurvePlan::apply_points`] combines at the
+/// projective scalar `T`: `T` itself, and the points and coordinate
+/// arrays over it. The applier's `λ` and its points share one scalar,
+/// so neither can be a certification enclosure ([`ProjectiveScalar`]).
+///
+/// Sealed: a statement about the kernel's own point types, not an
+/// extension point.
+pub trait ProjectivePoint<T: ProjectiveScalar>: Copy + sealed::SealedPoint<T> {}
+
+impl<T: ProjectiveScalar> sealed::SealedPoint<T> for T {}
+impl<T: ProjectiveScalar> ProjectivePoint<T> for T {}
+impl<T: ProjectiveScalar> sealed::SealedPoint<T> for Point2<T> {}
+impl<T: ProjectiveScalar> ProjectivePoint<T> for Point2<T> {}
+impl<T: ProjectiveScalar> sealed::SealedPoint<T> for Point3<T> {}
+impl<T: ProjectiveScalar> ProjectivePoint<T> for Point3<T> {}
+impl<T: ProjectiveScalar, const N: usize> sealed::SealedPoint<T> for [T; N] {}
+impl<T: ProjectiveScalar, const N: usize> ProjectivePoint<T> for [T; N] {}
+
 impl CurvePlan {
     /// **The same homogeneous schedule at the caller's scalar**, for a
     /// caller generic over [`Real`] that refines a homogeneous channel
@@ -79,9 +123,12 @@ impl CurvePlan {
     /// taken in `T` from the knots, so at `Interval` both ratios are
     /// outward-rounded enclosures and the result encloses the refined
     /// channel of the described curve, with no `f64` ratio standing in.
-    /// It has no hull meet, which `Real` cannot spell, so at `Interval`
-    /// it is the looser of the two: a caller that holds `Interval`
-    /// channels uses [`CurvePlan::apply_certified`].
+    /// It has no hull meet, which `Real` cannot spell, so it is not the
+    /// ring's step: a caller generic over the scalar refines through
+    /// [`SpanLocate::refine_homogeneous`], which is this at every
+    /// scalar but `Interval` and [`CurvePlan::refine_certified`] there,
+    /// and a caller that holds `Interval` channels uses
+    /// [`CurvePlan::apply_certified`].
     ///
     /// Total: a ratio-less step (elevation, removal), a malformed plan
     /// or a short channel yields `T`'s poison (`from_f64(NaN)`) in the
