@@ -8,7 +8,12 @@
 //! reads one through [`editor_core::eval::bound_pose`], as the reader
 //! at the named seat would bind it.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::result_large_err
+)]
 
 use std::sync::Arc;
 

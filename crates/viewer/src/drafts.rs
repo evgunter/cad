@@ -1430,9 +1430,7 @@ mod tests {
                 | NodeKindWanted::Body
                 | NodeKindWanted::Split
                 | NodeKindWanted::Instances => continue,
-                NodeKindWanted::Axis
-                | NodeKindWanted::Plane
-                | NodeKindWanted::Frame => {}
+                NodeKindWanted::Axis | NodeKindWanted::Plane | NodeKindWanted::Frame => {}
             }
             assert!(
                 // These seats are classified by the node's kind alone

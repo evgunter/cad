@@ -1519,6 +1519,7 @@ pub fn selection_into<P>(
 /// If a flip's read is not live.
 #[doc(hidden)]
 #[track_caller]
+#[allow(clippy::expect_used)]
 pub fn pose_into<P>(doc: &mut Doc<P>, def: crate::pose::PoseDef) -> VarId {
     let kind = def.kind().unwrap_or_else(|| {
         let crate::pose::PoseDef::Flip { pose } = &def else {

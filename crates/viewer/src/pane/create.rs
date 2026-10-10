@@ -1284,7 +1284,10 @@ impl ViewerBehavior<'_> {
             }
         });
         // Where the numbers are measured, said where they are typed.
-        crate::widgets::message(ui, "x and y are the profile's own; the axis lies in its plane");
+        crate::widgets::message(
+            ui,
+            "x and y are the profile's own; the axis lies in its plane",
+        );
         ui.horizontal(|ui| {
             ui.label("angle");
             unit_field(

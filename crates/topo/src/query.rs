@@ -55,6 +55,7 @@
 //!   candidate is judged by. The body is `geom-core`'s
 //!   ([`geom_core::decide_unit_direction`]); the name is this seat's,
 //!   and the evaluation layer passes it.
+//!
 //! Stable names themselves never appear below the G1 line, which is
 //! the point.
 

@@ -85,7 +85,7 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    PoseValue, Doc, Evaluation, Node, ProfileProgram, RecipeNodeId, ValuePayload,
+    Doc, Evaluation, Node, PoseValue, ProfileProgram, RecipeNodeId, ValuePayload,
 };
 use pncad::geom_core::{Point3, UnitVec3, Vec3};
 

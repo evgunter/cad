@@ -6453,7 +6453,7 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
 /// without naming a second crate.
 mod unit_vector_witness_through_the_facade {
     use pncad::document::{
-        CancelToken, Datum, PoseValue, Doc, EvalOptions, Node, NodeResult, ProfileProgram,
+        CancelToken, Datum, Doc, EvalOptions, Node, NodeResult, PoseValue, ProfileProgram,
         RecipeNodeId, ValuePayload, evaluate,
     };
     use pncad::geom_core::linalg::frame::{mirror_across_plane, path_start_frame, point_at};

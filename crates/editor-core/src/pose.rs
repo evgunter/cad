@@ -780,6 +780,7 @@ impl core::fmt::Display for PoseConstruction {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
     use super::{PoseValue, datum_distance, datum_distance_sign};
     use geom_core::linalg::{Point3, UnitVec3, Vec3};
     use geom_core::predicate::{Band, Sign};

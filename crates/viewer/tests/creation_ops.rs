@@ -886,7 +886,11 @@ fn the_revolve_tool_holds_its_profile_pick_and_survives_its_loss() {
         },
     );
     tool.pick(session.committed_doc(), profile);
-    assert_eq!(tool.profile(), Some(profile), "the next pick refills the seat");
+    assert_eq!(
+        tool.profile(),
+        Some(profile),
+        "the next pick refills the seat"
+    );
     assert!(tool_op(&tool).is_ok());
 
     // clear() empties the seat — the chrome's start-over door.

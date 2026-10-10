@@ -327,9 +327,9 @@ pub use editor_core::DocParamField;
 // `StepTurns` rides with `NodeErrorKind`: it is `FullRangeStep`'s
 // `turns`, how the copies of a step a turn or more would land.
 pub use editor_core::{
-    Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, PoseValue,
-    DirectionRefusal, EvalOptions, EvalOutcome, Evaluation, Found, FramePlacement, Mispaired,
-    NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
+    Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DirectionRefusal,
+    EvalOptions, EvalOutcome, Evaluation, Found, FramePlacement, Mispaired, NodeError,
+    NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue,
     ProfileLift, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
 };
 
