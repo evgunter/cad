@@ -467,12 +467,14 @@ impl<S: crate::expr::Slot> BodyRead<S> {
 
 impl<S: crate::expr::Slot> core::fmt::Debug for BodyRead<S> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        if self.at.is_empty() {
-            return self.read.fmt(f);
+        // A plain read dumps as the bare read, as it serializes.
+        let Self { read, at } = self;
+        if at.is_empty() {
+            return read.fmt(f);
         }
         f.debug_struct("BodyRead")
-            .field("read", &self.read)
-            .field("at", &self.at)
+            .field("read", read)
+            .field("at", at)
             .finish()
     }
 }
