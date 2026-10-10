@@ -270,11 +270,14 @@ fn probe_at_rest_gate_contradicts_a_false_curve_record() {
         .find(|_| true)
         .expect("brick has edges");
     let contacts = ContactRecords {
-        curves: vec![CurveContact {
-            face_a: top,
-            face_b: bottom,
-            witness,
-        }],
+        curves: vec![topo::Cited::new(
+            CurveContact {
+                face_a: top,
+                face_b: bottom,
+                witness,
+            },
+            topo::Cites::decided(0),
+        )],
         ..ContactRecords::default()
     };
     let errs = validate_pseudomanifold(&body, &contacts, Tol::witness())
@@ -294,10 +297,13 @@ fn probe_patch_contact_is_never_certified_at_rest() {
     let mut it = body.faces().map(|(k, _)| k);
     let (fa, fb) = (it.next().unwrap(), it.next().unwrap());
     let contacts = ContactRecords {
-        patches: vec![PatchContact {
-            face_a: fa,
-            face_b: fb,
-        }],
+        patches: vec![topo::Cited::new(
+            PatchContact {
+                face_a: fa,
+                face_b: fb,
+            },
+            topo::Cites::decided(0),
+        )],
         ..ContactRecords::default()
     };
     let errs = validate_pseudomanifold(&body, &contacts, Tol::witness())
@@ -336,18 +342,24 @@ fn probe_records_partialeq_bites_on_mutation() {
     };
     let mut mutated = out.contacts.clone();
     let fa = a.faces().next().unwrap().0;
-    mutated.patches.push(PatchContact {
-        face_a: fa,
-        face_b: fa,
-    });
+    mutated.patches.push(topo::Cited::new(
+        PatchContact {
+            face_a: fa,
+            face_b: fa,
+        },
+        topo::Cites::decided(0),
+    ));
     assert_ne!(out.contacts, mutated, "PartialEq must see the new fields");
     let mut curve_mutated = out.contacts.clone();
     if let Some((e, _)) = a.edges().next() {
-        curve_mutated.curves.push(CurveContact {
-            face_a: fa,
-            face_b: fa,
-            witness: e,
-        });
+        curve_mutated.curves.push(topo::Cited::new(
+            CurveContact {
+                face_a: fa,
+                face_b: fa,
+                witness: e,
+            },
+            topo::Cites::decided(0),
+        ));
         assert_ne!(out.contacts, curve_mutated);
     }
 }

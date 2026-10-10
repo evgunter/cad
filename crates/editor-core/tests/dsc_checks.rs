@@ -652,13 +652,18 @@ fn separation_off_is_visibly_skipped_and_independent() {
     );
     let off = ChecksConfig {
         separation: Advisory::Off,
+        unproven_coincidence: Advisory::Off,
         ..ChecksConfig::default()
     };
     let report = run_checks(&doc, &ev, &off, Tol::witness())
-        .expect("with the subject-reading resident off, no gather is attempted");
+        .expect("with the subject-reading residents off, no gather is attempted");
     assert_eq!(
         report.skipped,
-        vec![CheckId::ChartCoherence, CheckId::Separation]
+        vec![
+            CheckId::ChartCoherence,
+            CheckId::UnprovenCoincidence,
+            CheckId::Separation
+        ]
     );
     // …and with it on, the same document refuses on the subject.
     assert!(

@@ -97,6 +97,9 @@ pub(crate) struct OpOut<T: Decide> {
     /// The coincidences the op decided from values, named in its
     /// inputs' tables (`NodeValue::coincidences`).
     pub coincidences: Arc<[crate::coincide::NamedCoincidence]>,
+    /// What each input a carried record cites is
+    /// (`NodeValue::cited_inputs`).
+    pub cited_inputs: Arc<[crate::coincide::CitedInput]>,
 }
 
 impl<T: Decide> OpOut<T> {
@@ -110,6 +113,16 @@ impl<T: Decide> OpOut<T> {
             carried: Arc::new(crate::assembly::CarriedDeclarations::default()),
             parts: 1,
             coincidences: Arc::new([]),
+            cited_inputs: Arc::new([]),
+        }
+    }
+
+    /// This output, its records' carried citations naming `inputs` by
+    /// position.
+    fn citing(self, inputs: Vec<crate::coincide::CitedInput>) -> Self {
+        Self {
+            cited_inputs: inputs.into(),
+            ..self
         }
     }
 
@@ -389,7 +402,7 @@ where
         Node::PlaceInWorld { body, pose } => {
             let at = at(O::Body, body.read)?;
             let port = doc.defined_by(body.read).map_or(0, |(_, port)| port);
-            wire_place_in_world(id, at, port, pose, results, vals, tol)
+            wire_place_in_world(id, (at, body.read), port, pose, results, vals, tol)
         }
         Node::Pattern { input, kind, .. } => {
             let input = at(O::Input, *input)?;
@@ -549,13 +562,16 @@ where
     let placed = place(&part.body, map.as_ref(), tol)?;
     let table = names::name_in_part(id, &part.names, &placed).map_err(NodeErrorKind::Naming)?;
     // ASM-R2b D-1: the part's OWN declared contacts survive
-    // instantiation UNCHANGED, because `transform_rigid` is key-stable
-    // and the identity fast path clones keys verbatim. Re-deriving them
-    // from the placed geometry is the scan-to-bless move F1 bans. The
-    // bookkeeping rows ride unchanged for the same reason; what is
+    // instantiation with their cells UNCHANGED, because
+    // `transform_rigid` is key-stable and the identity fast path clones
+    // keys verbatim. Re-deriving them from the placed geometry is the
+    // scan-to-bless move F1 bans. Each record cites the part's record
+    // it is, through this instance ([`crate::coincide::CitedInput::Part`]).
+    // The bookkeeping rows ride unchanged for the same reason; what is
     // added here is each row's first hop, this instance
     // ([`crate::assembly::PartRow::through`]).
     let carried = crate::assembly::CarriedDeclarations {
+        refused: part.refused.as_ref().clone(),
         minted: part
             .minted
             .iter()
@@ -599,11 +615,12 @@ where
         payload: ValuePayload::Body(Arc::new(placed)),
         names: table,
         groups: Arc::default(),
-        contacts: Arc::clone(&part.contacts),
+        contacts: Arc::new(part.contacts.carried_from(0)),
         carried: Arc::new(carried),
         parts: part.parts,
         // The part's own rows are its document's, read there.
         coincidences: Arc::new([]),
+        cited_inputs: Arc::new([crate::coincide::CitedInput::Part(*doc_ref)]),
     })
 }
 
@@ -651,6 +668,16 @@ fn value_of<T: Decide>(
         node: input,
     })
     .map_err(|_| NodeErrorKind::MissingInput { input })
+}
+
+/// The contact records `value` holds for its output body 0: a
+/// boolean's own, or those the value's channel carries
+/// ([`OpOut::contacts`]).
+fn records_of<T: Decide>(value: &super::NodeValue<T>) -> Arc<topo::ContactRecords> {
+    match &value.payload {
+        ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) => Arc::clone(contacts),
+        _ => Arc::clone(&value.contacts),
+    }
 }
 
 // OPERAND-DOOR BEGIN — the region the `wire_operand_door` suite's
@@ -2705,6 +2732,9 @@ struct Member<T: Decide> {
     read: crate::VarId,
     body: Arc<topo::AtRestBody<T>>,
     table: Arc<NameTable>,
+    /// The member's own contact records, which a two-member node's
+    /// declared same-operand pair cites (D1 (ii)).
+    records: Arc<topo::ContactRecords>,
 }
 
 // `Bounds` rides along for the boolean lane only: the sweep's BVH
@@ -2741,7 +2771,16 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         BooleanDeclarations::none()
     } else {
         let sided = side_by_operand(declare, (a_read, &a_table), (b_read, &b_table), doc)?;
-        resolve_declarations(&sided, doc, &a_table, &b_table)?
+        let (a_records, b_records) = (
+            records_of(value_of(results_a, a)?),
+            records_of(value_of(results_b, b)?),
+        );
+        resolve_declarations(
+            &sided,
+            doc,
+            (&a_table, Some(&a_records)),
+            (&b_table, Some(&b_records)),
+        )?
     };
     let body_a = finished_operand(results_a, a, tol)?;
     let body_b = finished_operand(results_b, b, tol)?;
@@ -2790,6 +2829,10 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 emitted.table,
             )
             .grouped(Arc::new(names::FragmentGroups::minted(&emitted.groups)))
+            .citing(vec![
+                crate::coincide::CitedInput::Read(a_read),
+                crate::coincide::CitedInput::Read(b_read),
+            ])
             .recording(
                 &out.coincidences,
                 &crate::coincide::RowInputs {
@@ -2880,6 +2923,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     read,
                     body: Arc::new(finished_operand(results, at, tol)?),
                     table: Arc::clone(&value_of(results, at)?.name_table),
+                    records: records_of(value_of(results, at)?),
                 })
             })
             .collect::<Result<Vec<_>, NodeErrorKind>>(),
@@ -2914,6 +2958,9 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                         read: *read,
                         body: Arc::new(body),
                         table: Arc::new(table),
+                        // A family's records are the family's, not one
+                        // member's: a member read whole cites none.
+                        records: Arc::default(),
                     })
                 })
                 .collect::<Result<Vec<_>, NodeErrorKind>>()
@@ -2933,6 +2980,12 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     };
     let own: Vec<(crate::VarId, &NameTable)> =
         members.iter().map(|m| (m.read, m.table.as_ref())).collect();
+    // The node's own read: the space a fold row is published in.
+    let own_read =
+        doc.output(id, 0)
+            .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
+                what: UNION_NO_OUTPUT,
+            }))?;
     // Every member's read-keyed view, taken once for the pairwise
     // judgement and the fold. The FIRST member enters read-keyed too,
     // so every operand of every step is already in this node's name
@@ -2983,9 +3036,18 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             // The judgement's rows, named in the two members' own tables:
             // the node's coincidences are its pairwise judgement's (#4323:
             // the pass is its coincidence door, rows in member space),
-            // each pair's in the author's list order.
+            // each pair's in the author's list order. A vertex identity
+            // is a row only where a record cites it (D1), and the
+            // judgement's records are not the node's: the fold step that
+            // keeps the touch publishes the row its record cites.
+            let judged: Vec<topo::Coincidence> = out
+                .coincidences
+                .iter()
+                .filter(|row| row.site != topo::DecisionSite::VertexFusion)
+                .copied()
+                .collect();
             let rows = crate::coincide::name_rows(
-                &out.coincidences,
+                &judged,
                 &crate::coincide::RowInputs {
                     a: own[p],
                     b: Some(own[q]),
@@ -3031,7 +3093,24 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             } else {
                 drop_consumed(resolved, &acc_view)
             };
-            resolve_declarations(&resolved, doc, &acc_view, &member_table)?
+            // A pair's declared same-operand pair cites its member's
+            // record, as a pair verb's does. Past two members a step's
+            // records are not cited from the node, so such a pair has
+            // nothing to cite.
+            let (acc_records, member_records) = if pairwise {
+                (None, None)
+            } else {
+                (
+                    Some(first.records.as_ref()),
+                    Some(members[1].records.as_ref()),
+                )
+            };
+            resolve_declarations(
+                &resolved,
+                doc,
+                (&acc_view, acc_records),
+                (&member_table, member_records),
+            )?
         };
         if pairwise {
             given_verdicts(&mut decls, &verdicts, step + 1, &fold, &acc_body)?;
@@ -3078,7 +3157,8 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 };
                 if !pairwise {
                     // The pair's rows and links are its one step's, in
-                    // the two members' own tables.
+                    // the two members' own tables and the order its
+                    // records cite them, as a pair verb records them.
                     coincidences = crate::coincide::name_rows(
                         &out.coincidences,
                         &crate::coincide::RowInputs {
@@ -3090,6 +3170,28 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     .map_err(NodeErrorKind::Naming)?;
                     links.judged(0, 1, &naming).map_err(NodeErrorKind::Naming)?;
                 }
+                // The last step's records are the node's, and cite that
+                // step's rows: those are published after the pairwise
+                // judgement's, named in the node's own space (#4323: a
+                // fold row is published), and the records renumbered onto
+                // them.
+                let contacts = if pairwise && step + 1 == rest.len() {
+                    let acc_view =
+                        names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
+                    crate::coincide::publish_cited(
+                        &contacts,
+                        &out.coincidences,
+                        &crate::coincide::RowInputs {
+                            a: (own_read, &acc_view),
+                            b: Some((own_read, &member_table)),
+                            tool: None,
+                        },
+                        &mut coincidences,
+                    )
+                    .map_err(NodeErrorKind::Naming)?
+                } else {
+                    contacts
+                };
                 last = Some((kind, Arc::new(contacts)));
                 // Minted under THIS node's id, its two sides keyed by the
                 // fold's own reads, which tell an intermediate row from a
@@ -3156,7 +3258,16 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         &step_groups,
         &published_groups,
     )))
-    .with_coincidences(coincidences))
+    .with_coincidences(coincidences)
+    // A pair's records may cite its members' own, by read.
+    .citing(if pairwise {
+        Vec::new()
+    } else {
+        vec![
+            crate::coincide::CitedInput::Read(first.read),
+            crate::coincide::CitedInput::Read(members[1].read),
+        ]
+    }))
 }
 
 /// **A union or an intersect of one body is that body** (DM4): no
@@ -3176,6 +3287,9 @@ fn lone_member<T: Decide>(id: RecipeNodeId, one: &Member<T>) -> OpResult<T> {
 /// every door refuses.
 const UNION_FAMILY_INDEXED: &str =
     "a union's or an intersect's family argument carries an index the doors refuse";
+
+/// A union or an intersect the document defines no output for.
+const UNION_NO_OUTPUT: &str = "a union or an intersect defines no output variable";
 
 /// A union's or an intersect's fold of two members or more ran no step.
 const UNION_NO_STEP: &str = "a union fold of two members or more ran no step";
@@ -3291,7 +3405,7 @@ fn judge_pairwise_contact(
             let decls = if pairs.is_empty() {
                 BooleanDeclarations::none()
             } else {
-                resolve_declarations(&pairs, doc, tables[p], tables[q])?
+                resolve_declarations(&pairs, doc, (tables[p], None), (tables[q], None))?
             };
             let Some((naming, judged, glued)) = judge(p, q, decls)? else {
                 return Ok(None);
@@ -3847,8 +3961,8 @@ const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-em
 fn resolve_declarations<'n>(
     pairs: &'n [SidedPair<'n>],
     doc: &crate::doc::Doc<ProfileProgram>,
-    a_table: &NameTable,
-    b_table: &NameTable,
+    (a_table, a_records): (&NameTable, Option<&topo::ContactRecords>),
+    (b_table, b_records): (&NameTable, Option<&topo::ContactRecords>),
 ) -> Result<BooleanDeclarations, NodeErrorKind> {
     let mut out = BooleanDeclarations::none();
     for ((o1, n1, r1), (o2, n2, r2), class) in pairs {
@@ -3893,6 +4007,20 @@ fn resolve_declarations<'n>(
         // declared as one is an unsupported pair (the one check, read by
         // both vertex arms).
         let vertex_class = class.contact();
+        // A same-operand pair is a contact its operand carries in: it
+        // cites the operand's record of the pair, and a pair the operand
+        // records no contact for, or one at a union step, backs nothing.
+        let backing_record = |op: topo::Operand, pair| {
+            match op {
+                topo::Operand::A => a_records,
+                topo::Operand::B => b_records,
+            }
+            .and_then(|records| records.position(pair))
+            .ok_or(NodeErrorKind::DeclaredContactUnbacked {
+                reference: *r1,
+                at_union_step: a_records.is_none(),
+            })
+        };
         match step {
             DeclaredStep::CrossFaces(sides) => {
                 let (a, b) = sides.a_then_b(k1, k2);
@@ -3909,10 +4037,15 @@ fn resolve_declarations<'n>(
                 let (Some(va), Some(vb)) = (k1.vertex(), k2.vertex()) else {
                     return Err(broke("same-operand vertex-vertex"));
                 };
+                let record = backing_record(
+                    side.operand(),
+                    (topo::Cell::Vertex(va), topo::Cell::Vertex(vb)),
+                )?;
                 // The AUTHORED class, carried, not re-defaulted.
                 carried(&mut out, side.operand()).vv.push(CarriedVv {
                     pair: VvContact { a: va, b: vb },
                     class,
+                    record,
                 });
             }
             DeclaredStep::SameVf(side, roles) => {
@@ -3923,9 +4056,14 @@ fn resolve_declarations<'n>(
                 let (Some(vertex), Some(face)) = (v.vertex(), f.face()) else {
                     return Err(broke("same-operand vertex-face"));
                 };
+                let record = backing_record(
+                    side.operand(),
+                    (topo::Cell::Vertex(vertex), topo::Cell::Face(face)),
+                )?;
                 carried(&mut out, side.operand()).vf.push(CarriedVf {
                     rest: VfContact { vertex, face },
                     class,
+                    record,
                 });
             }
         }
@@ -4173,13 +4311,14 @@ fn wire_transform<T: Decide + topo::AtRestPolicy>(
 /// an empty copy, a typed success (F8) the gather finds no solid in.
 ///
 /// The copy carries the body's declared contact records and the
-/// declaration rows keyed with them (ASM-R2b D-1) verbatim: a rigid
-/// placement keeps every arena key (`transform_rigid`), so they key the
-/// copy as they keyed the body. A split's half carries none, as its
-/// value carries none.
+/// declaration rows keyed with them (ASM-R2b D-1) with their cells
+/// verbatim: a rigid placement keeps every arena key
+/// (`transform_rigid`), so they key the copy as they keyed the body.
+/// Each record cites the body's record it is, through the `body` read.
+/// A split's half carries none, as its value carries none.
 fn wire_place_in_world<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
-    of: RecipeNodeId,
+    (of, read): (RecipeNodeId, crate::VarId),
     port: u8,
     pose: &crate::placement::Placement,
     results: &Results<T>,
@@ -4227,9 +4366,11 @@ fn wire_place_in_world<T: Decide + topo::AtRestPolicy>(
     let placed = place(&body, map.as_ref(), tol)?;
     let table = names::name_placed(id, &table, &placed).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut {
-        contacts,
+        contacts: Arc::new(contacts.carried_from(0)),
         carried,
-        ..OpOut::plain(ValuePayload::Body(Arc::new(placed)), table).carrying(value.parts)
+        ..OpOut::plain(ValuePayload::Body(Arc::new(placed)), table)
+            .carrying(value.parts)
+            .citing(vec![crate::coincide::CitedInput::Read(read)])
     })
 }
 
@@ -5406,7 +5547,12 @@ mod route_tests {
             (Operand::B, f(ms[1], CapEnd::Start)),
             (Operand::B, f(ms[1], CapEnd::End)),
         );
-        let refused = resolve_declarations(std::slice::from_ref(&p), &doc, &acc, &member);
+        let refused = resolve_declarations(
+            std::slice::from_ref(&p),
+            &doc,
+            (&acc, None),
+            (&member, None),
+        );
         assert!(
             matches!(
                 refused,

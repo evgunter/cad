@@ -337,10 +337,15 @@ impl core::fmt::Display for CarriedRefusal {
 ///
 /// Bundled because the two travel together and are filled at ONE site
 /// — the instantiate op — and are empty on every other op.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct CarriedDeclarations {
     /// The declarations, in the inner documents' own order.
     pub minted: Vec<CarriedDeclaration>,
+    /// The at-rest census's findings for the mated pairs the documents
+    /// below refused to read as one carrier, which minted no record:
+    /// keyed in the same arena as the records, so the gate that raises
+    /// them names faces of this body ([`crate::Product::refused_at_rest`]).
+    pub refused: Vec<ValidationError>,
     /// The refusals, in the inner documents' own order.
     pub unminted: Vec<CarriedRefusal>,
     /// The unplaced groups below, in the inner documents' own order.
@@ -1294,9 +1299,16 @@ fn verdict<T: Decide + AtRestPolicy>(product: &Product<T>, tol: Tol) -> Result<(
             refusals: product.unminted.clone(),
         });
     }
-    let Err(errors) = T::gate_at_rest_declared(&product.body, &product.contacts, tol) else {
+    // The gate's findings over the records, then the census's findings
+    // for the mated pairs it refused at the mint, which minted no
+    // record: the gate's own order, as when it read those pairs itself.
+    let mut errors = T::gate_at_rest_declared(&product.body, &product.contacts, tol)
+        .err()
+        .unwrap_or_default();
+    errors.extend(product.refused_at_rest.iter().cloned());
+    if errors.is_empty() {
         return Ok(());
-    };
+    }
     let findings: Vec<AtRestFinding> = errors
         .into_iter()
         .map(|error| AtRestFinding {
@@ -1350,9 +1362,10 @@ fn verdict<T: Decide + AtRestPolicy>(product: &Product<T>, tol: Tol) -> Result<(
 pub(crate) fn mint<P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
-    names: &NameTable,
-    contacts: &mut ContactRecords,
+    (names, body): (&NameTable, &topo::Body<T>),
+    at_rest: &mut AtRestRows,
     space: crate::mate::Space,
+    band: Result<geom_core::Band, geom_core::BandError>,
 ) -> (Vec<MintedDeclaration>, Vec<MintRefusal>) {
     let mut minted = Vec::new();
     let mut unminted = Vec::new();
@@ -1412,13 +1425,24 @@ pub(crate) fn mint<P: crate::ProfilePayload, T: Decide>(
             // `CurveContact`. A same-instance mate is refused
             // `SelfMate` at the solve door, so a live mate reaching
             // here names two faces of two different instances.
+            //
+            // The mate places and never checks (D10): the record cites
+            // the at-rest census's decision that the two faces rest on
+            // one carrier, and where the census refuses that, the mate
+            // mints no record and the refusal is the census's finding.
             ClassAdmission::Mints => {
                 debug_assert!(
                     face_a != face_b,
                     "a live mate's two references resolved to one face: \
                      the solve door's `SelfMate` refusal was bypassed"
                 );
-                contacts.patches.push(PatchContact { face_a, face_b });
+                // Each side's cell is named at its instance's read: an
+                // instance defines its body's variable at insert.
+                let read = |r: &crate::node::SitedFace| {
+                    doc.output(r.at, 0)
+                        .unwrap_or_else(|| unreachable!("an instance defines its output"))
+                };
+                at_rest.decide(id, body, (a, face_a, read(a)), (b, face_b, read(b)), band);
             }
             other => {
                 unminted.push(MintRefusal::NoAtRestRecord {
@@ -1438,6 +1462,71 @@ pub(crate) fn mint<P: crate::ProfilePayload, T: Decide>(
         });
     }
     (minted, unminted)
+}
+
+/// **One at-rest census decision a mate's record cites**, with the mate
+/// whose pair it decided ([`crate::Product::coincidences`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct AtRestRow {
+    /// The mate whose two faces the census read as one carrier.
+    pub mate: RecipeNodeId,
+    /// The decision, each cell named as the mate's reference reads it.
+    pub row: crate::coincide::NamedCoincidence,
+}
+
+/// **What the mint door writes at rest**: the records, the at-rest
+/// census's rows they cite, and the census's findings for the pairs it
+/// refused, which mint no record ([`mint`]).
+#[derive(Debug, Default)]
+pub(crate) struct AtRestRows {
+    /// The records, the gathered ones and the minted ones.
+    pub(crate) contacts: ContactRecords,
+    /// The census's rows, in mint order; a minted record cites its own.
+    pub(crate) coincidences: Vec<AtRestRow>,
+    /// The census's findings for the pairs it refused.
+    pub(crate) refused: Vec<ValidationError>,
+}
+
+impl AtRestRows {
+    /// The census's decision of one mated pair: a row and a record
+    /// citing it, or the census's finding.
+    fn decide<T: Decide>(
+        &mut self,
+        mate: RecipeNodeId,
+        body: &topo::Body<T>,
+        (a, face_a, read_a): (&SitedFace, FaceKey, crate::VarId),
+        (b, face_b, read_b): (&SitedFace, FaceKey, crate::VarId),
+        band: Result<geom_core::Band, geom_core::BandError>,
+    ) {
+        let decided = match band {
+            Ok(band) => topo::census_rest_decision(body, face_a, face_b, band),
+            Err(error) => Err(ValidationError::Band { error }),
+        };
+        match decided {
+            Ok(row) => {
+                let cell = |r: &SitedFace, input| crate::coincide::NamedCell::Entity {
+                    input,
+                    name: (*r.name).clone(),
+                };
+                let k = u32::try_from(self.coincidences.len()).unwrap_or(u32::MAX);
+                self.coincidences.push(AtRestRow {
+                    mate,
+                    row: crate::coincide::NamedCoincidence {
+                        cells: [cell(a, read_a), cell(b, read_b)],
+                        relation: row.relation,
+                        site: row.site,
+                        margin: row.margin,
+                        discharge: row.discharge,
+                    },
+                });
+                self.contacts.patches.push(topo::Cited::new(
+                    PatchContact { face_a, face_b },
+                    topo::Cites::decided(k),
+                ));
+            }
+            Err(finding) => self.refused.push(finding),
+        }
+    }
 }
 
 /// One mate reference → the product face it names, `None` where no

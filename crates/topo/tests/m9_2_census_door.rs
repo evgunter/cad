@@ -123,7 +123,10 @@ fn stacked() -> (Body<f64>, ContactRecords) {
         let [va, vb] = hits[..] else {
             panic!("exactly two corners at ({x}, {y}, 1)");
         };
-        records.vv.push(VvContact { a: va, b: vb });
+        records.vv.push(topo::Cited::new(
+            VvContact { a: va, b: vb },
+            topo::Cites::decided(0),
+        ));
     };
     at(0.0, 0.0);
     at(1.0, 0.0);
@@ -322,10 +325,13 @@ fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
         panic!("exactly two z=1 faces, got {ifaces:?}");
     };
     let patch = |a, b| ContactRecords {
-        patches: vec![topo::PatchContact {
-            face_a: a,
-            face_b: b,
-        }],
+        patches: vec![topo::Cited::new(
+            topo::PatchContact {
+                face_a: a,
+                face_b: b,
+            },
+            topo::Cites::decided(0),
+        )],
         ..ContactRecords::default()
     };
     // The TRUE record on this fixture: the interface pair, certified
@@ -440,7 +446,10 @@ fn r1_delta_probe_bridged_nested_pair_stays_loud() {
     let va = body.vertices().next().unwrap().0;
     let vb = body.vertices().last().unwrap().0;
     let mut records = ContactRecords::default();
-    records.vv.push(VvContact { a: va, b: vb });
+    records.vv.push(topo::Cited::new(
+        VvContact { a: va, b: vb },
+        topo::Cites::decided(0),
+    ));
     let errs = validate_pseudomanifold(&body, &records, Tol::witness())
         .expect_err("the bridge must not silence the nested pair");
     assert!(

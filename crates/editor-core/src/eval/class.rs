@@ -160,6 +160,8 @@ pub enum NodeErrorClass {
     DeclareSiteNotAnOperand,
     /// [`NodeErrorKind::DeclareUnsupportedPair`].
     DeclareUnsupportedPair,
+    /// [`NodeErrorKind::DeclaredContactUnbacked`].
+    DeclaredContactUnbacked,
     /// [`NodeErrorKind::UnionFoldStep`].
     UnionFoldStep,
     /// [`NodeErrorKind::BlendSelectionEmpty`] refused by a fillet.
@@ -336,6 +338,7 @@ impl NodeErrorKind {
             Self::DeclareResolve { .. } => C::DeclareResolve,
             Self::DeclareSiteNotAnOperand { .. } => C::DeclareSiteNotAnOperand,
             Self::DeclareUnsupportedPair { .. } => C::DeclareUnsupportedPair,
+            Self::DeclaredContactUnbacked { .. } => C::DeclaredContactUnbacked,
             Self::UnionFoldStep { .. } => C::UnionFoldStep,
             Self::BlendSelectionEmpty { verb } => {
                 by_verb(*verb, C::FilletSelectionEmpty, C::ChamferSelectionEmpty)
@@ -552,6 +555,7 @@ mod tests {
         DeclareResolve,
         DeclareSiteNotAnOperand,
         DeclareUnsupportedPair,
+        DeclaredContactUnbacked,
         UnionFoldStep,
         FilletSelectionEmpty,
         ChamferSelectionEmpty,
@@ -879,6 +883,10 @@ mod tests {
             C::DeclareUnsupportedPair => K::DeclareUnsupportedPair {
                 kinds: (EntityKind::Edge, EntityKind::Vertex),
                 cross_operand: true,
+            },
+            C::DeclaredContactUnbacked => K::DeclaredContactUnbacked {
+                reference: 0,
+                at_union_step: false,
             },
             C::UnionFoldStep => K::UnionFoldStep {
                 member: 2,

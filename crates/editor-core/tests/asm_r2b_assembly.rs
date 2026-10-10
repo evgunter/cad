@@ -284,7 +284,7 @@ fn row1_a_parts_declared_contacts_survive_instantiation() {
         part_product.contacts
     );
     let part_pair = {
-        let c = part_product.contacts.vv[0];
+        let c = part_product.contacts.vv[0].record;
         (
             names_of(&part_product.names, EntityKey::Vertex(c.a)),
             names_of(&part_product.names, EntityKey::Vertex(c.b)),
@@ -306,7 +306,7 @@ fn row1_a_parts_declared_contacts_survive_instantiation() {
         "the record crossed the seam, exactly once: {:?}",
         product.contacts
     );
-    let c = product.contacts.vv[0];
+    let c = product.contacts.vv[0].record;
     let moved = (
         names_of(&product.names, EntityKey::Vertex(c.a)).map(|n| unwrap_in_part(&n)),
         names_of(&product.names, EntityKey::Vertex(c.b)).map(|n| unwrap_in_part(&n)),
@@ -354,7 +354,7 @@ fn row2_a_solved_rest_mate_mints_its_declaration() {
         1,
         "one mate, one minted record: {contacts:?}"
     );
-    let record: topo::PatchContact = contacts.patches[0];
+    let record: topo::PatchContact = contacts.patches[0].record;
 
     // RE-BLESSED at #1063: this pair CERTIFIES now, so the minting is
     // read off the gate's own `minted` row rather than out of a

@@ -378,7 +378,7 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
     for (name, want) in [
         ("crossing_slots", 0x865e_1c1c_5190_ad36u64),
         ("heat_sink", 0x1af3_a2d0_f8a0_8206),
-        ("kiss_carry", 0x65ca_8717_2659_26e3),
+        ("kiss_carry", 0xf3b2_61df_d422_2210),
     ] {
         let doc = corpus::documents()
             .into_iter()

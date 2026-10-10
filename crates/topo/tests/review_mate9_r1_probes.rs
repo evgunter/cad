@@ -46,6 +46,7 @@ fn declared(pairs: &[(FaceKey, FaceKey)]) -> ContactRecords {
                 face_a: a,
                 face_b: b,
             })
+            .map(|c| topo::Cited::new(c, topo::Cites::decided(0)))
             .collect(),
         ..ContactRecords::default()
     }

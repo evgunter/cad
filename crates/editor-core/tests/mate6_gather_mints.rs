@@ -841,6 +841,131 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
     }
 }
 
+// ---- What a record cites ----
+
+/// **A mate's record cites the at-rest census's decision, and the lint
+/// reports it** (D10: a mate places and never checks; D1 (ii): a record
+/// cites its decision). The stand's one patch cites row 0 of the
+/// product's rows, the census's `SameOpposite` decision of the two
+/// seated caps, kept beside the mate whose pair it decided; and
+/// `unproven-coincidence` reports that row against the mate, since no
+/// rung proves two placed copies' faces one construction yet. Red if
+/// the mint makes a record citing nothing the product holds, or the
+/// lint stays silent about the census's row.
+#[test]
+fn a_mated_record_cites_the_census_row_the_lint_reports() {
+    let mut store = PartStore::default();
+    let (part, body) = store.insert_part(cube_part("mate6-cites-cube"), Tol::witness());
+    let (stand, _, mate) = stand("mate6-cites-stand", part, body, 1.0);
+    let ev = run(&stand, &with_resolver(store));
+    let product = product_recorded(&stand, &ev, Tol::witness()).expect("the stand gathers");
+    assert_eq!(product.contacts.patches.len(), 1, "one mate, one record");
+    assert_eq!(
+        product.contacts.patches[0].cites,
+        topo::Cites::decided(0),
+        "the record cites the product's row 0"
+    );
+    let [row] = product.coincidences.as_slice() else {
+        panic!("one row: {:?}", product.coincidences);
+    };
+    assert_eq!(row.mate, mate, "the row is the mate's pair's");
+    assert_eq!(row.row.site, topo::DecisionSite::CensusAtRest);
+    assert_eq!(row.row.relation, topo::Relation::SameOpposite);
+    assert!(
+        product.refused_at_rest.is_empty(),
+        "{:?}",
+        product.refused_at_rest
+    );
+    let report = editor_core::run_checks(
+        &stand,
+        &ev,
+        &editor_core::ChecksConfig::default(),
+        Tol::witness(),
+    )
+    .expect("checks run over the stand");
+    assert!(
+        report
+            .findings
+            .iter()
+            .any(|f| f.check == editor_core::CheckId::UnprovenCoincidence
+                && f.subject == editor_core::FindingSubject::Node(mate)),
+        "the census's row is reported against its mate: {report}"
+    );
+}
+
+/// **A pair the census refuses mints no record**: seated half a unit
+/// apart, the stand's caps are definitely two carriers, so the census's
+/// decision is the finding `ContactContradicted`, no record is minted,
+/// and the product holds the finding for the gate. Red if a record
+/// ships with no decision behind it.
+#[test]
+fn a_pair_the_census_refuses_mints_no_record() {
+    let mut store = PartStore::default();
+    let (part, body) = store.insert_part(cube_part("mate6-refused-cube"), Tol::witness());
+    let (stand, _, _) = stand("mate6-refused-stand", part, body, 1.5);
+    let ev = run(&stand, &with_resolver(store));
+    let product = product_recorded(&stand, &ev, Tol::witness()).expect("the stand gathers");
+    assert!(
+        product.contacts.patches.is_empty(),
+        "{:?}",
+        product.contacts
+    );
+    assert!(
+        product.coincidences.is_empty(),
+        "{:?}",
+        product.coincidences
+    );
+    assert!(
+        matches!(
+            product.refused_at_rest.as_slice(),
+            [topo::ValidationError::ContactContradicted { .. }]
+        ),
+        "{:?}",
+        product.refused_at_rest
+    );
+}
+
+/// **Across the instantiate seam a record cites the part's record**:
+/// the instance's patch cites record 0 of its one input, the part, and
+/// the row's product cites that instance's record through its root.
+/// Red if the seam carries the part's citations unchanged (they name
+/// the part's rows, which the instance does not hold).
+#[test]
+fn an_instances_record_cites_the_parts_record() {
+    let mut store = PartStore::default();
+    let (part, body) = store.insert_part(cube_part("mate6-seam-cube"), Tol::witness());
+    let (stand, _, _) = stand("mate6-seam-stand", part, body, 1.0);
+    let stand_ref = store.insert(stand, Tol::witness());
+    let (outer, instances) = row_of("mate6-seam-row", stand_ref, 1, 4.0);
+    let ev = run(&outer, &with_resolver(store));
+    let value = ev.value(instances[0]).expect("the instance evaluates");
+    assert_eq!(
+        value.contacts.patches[0].cites,
+        topo::Cites::one(topo::Backing::Carried {
+            input: 0,
+            record: 0
+        })
+    );
+    assert_eq!(
+        value.cited_inputs.as_ref(),
+        [editor_core::CitedInput::Part(stand_ref)]
+    );
+    let product = product_recorded(&outer, &ev, Tol::witness()).expect("the row gathers");
+    assert_eq!(
+        product.contacts.patches[0].cites,
+        topo::Cites::one(topo::Backing::Carried {
+            input: 0,
+            record: 0
+        })
+    );
+    // The product cites its placement's records by the placement's
+    // read of the instance.
+    let [editor_core::CitedInput::Read(read)] = product.cited_inputs[..] else {
+        panic!("one input, read: {:?}", product.cited_inputs);
+    };
+    assert_eq!(outer.operation_of(read), Some(instances[0]));
+}
+
 /// **The at-rest gate's skip takes only a mate whose member is
 /// unplaced** (F's Q8 rule, landing with the world): two placed
 /// instances and a third nothing places, a mate between the placed two
