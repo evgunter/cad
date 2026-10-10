@@ -2667,11 +2667,20 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 MISMATCH
             }
         }
-        CertifyError::PlaneNurbs(P::Limb { limb, .. }) => match limb {
-            geom_brep::SsiLimb::HullSup => BOUND,
-            geom_brep::SsiLimb::OnLocus | geom_brep::SsiLimb::Tube => MISMATCH,
-        },
-        CertifyError::AnalyticRung3(A::Limb { .. }) => BOUND,
+        CertifyError::PlaneNurbs(P::Limb { limb, .. }) => {
+            if limb.check().bounds_a_miss() {
+                BOUND
+            } else {
+                MISMATCH
+            }
+        }
+        CertifyError::AnalyticRung3(A::Limb { limb, .. }) => {
+            if A::check(*limb).bounds_a_miss() {
+                BOUND
+            } else {
+                MISMATCH
+            }
+        }
         CertifyError::AnalyticRung3(A::NoOffsetBound { .. }) => {
             "its curve's distance from a face has no certified bound (it reaches a cone's \
              apex height or the other nappe)"

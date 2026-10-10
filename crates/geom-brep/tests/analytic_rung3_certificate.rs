@@ -113,7 +113,7 @@ fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
 fn in_file_words(eps_in: f64) -> String {
     format!(
         "The certificate's bound on this miss lies within the file's declared coincidence \
-         distance ε_in = {eps_in:e} m, so the miss does too. Recourse: re-export the file more \
+         distance ε_in = {eps_in:e} m. Recourse: re-export the file more \
          precisely, or, as a stopgap, set the tolerance to ε_in = {eps_in:e} m; this refusal \
          may indicate a kernel bug worth reporting"
     )

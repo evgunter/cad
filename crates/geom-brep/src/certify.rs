@@ -247,9 +247,10 @@ pub enum CertCheck {
 /// the sentence cannot. [`CertifyError::ResidualExceeded`] wrote the
 /// noun itself — "{check} residual at sample …" — for all thirteen
 /// checks that reach it, and three of them meter no residual:
-/// [`CertCheck::TangentHull`], [`CertCheck::PlaneNurbsHull`] and
-/// [`CertCheck::AnalyticHull`] are sup bounds, and [`CertCheck::TangentParallel`] a parallelism defect. A noun owned by the sentence is a noun the sentence
-/// cannot get right for every check that reaches it.
+/// [`CertCheck::TangentHull`] and [`CertCheck::PlaneNurbsHull`] are sup
+/// bounds, and [`CertCheck::TangentParallel`] a parallelism defect. A
+/// noun owned by the sentence is a noun the sentence cannot get right
+/// for every check that reaches it.
 impl core::fmt::Display for CertCheck {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(match self {
@@ -5465,7 +5466,7 @@ mod tests {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let file = FileCoincidence::new(1e-6);
         let named = "The certificate's bound on this miss lies within the file's declared \
-                     coincidence distance ε_in = 1e-6 m, so the miss does too. Recourse: \
+                     coincidence distance ε_in = 1e-6 m. Recourse: \
                      re-export the file more precisely, or, as a stopgap, set the tolerance to \
                      ε_in = 1e-6 m; this refusal may indicate a kernel bug worth reporting";
         let undecided = |margin| Indeterminate {

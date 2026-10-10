@@ -116,8 +116,9 @@ pub enum Unsized {
     Defect,
     /// The kernel approximated (a fitted carrier, a settled root, a
     /// spent budget), so a miss may be the approximation's limit (D4 ¶1
-    /// (i)'s last resort) where it was built, and is a stored
-    /// contradiction where it was read.
+    /// (i)'s last resort): at a build on every arm, and at rest on an
+    /// undecided one. A definite miss read at rest is a stored
+    /// contradiction.
     Fit,
     /// The refused margin is a certified upper bound on the miss, not
     /// the miss: a loose bound is the certificate's own limit, and

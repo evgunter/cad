@@ -1319,8 +1319,8 @@ impl FileCoincidence {
                 return match bound.within(eps_in) {
                     Some(Within::Wholly) => format!(
                         "The certificate's bound on this miss lies within the file's declared \
-                         coincidence distance ε_in = {eps_in:e} m, so the miss does too. \
-                         {stopgap}; this refusal may indicate a kernel bug worth reporting"
+                         coincidence distance ε_in = {eps_in:e} m. {stopgap}; this refusal may \
+                         indicate a kernel bug worth reporting"
                     ),
                     Some(Within::Partly) | None => otherwise.to_owned(),
                 };
