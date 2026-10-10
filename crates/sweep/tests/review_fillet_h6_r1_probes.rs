@@ -138,8 +138,8 @@ fn worst_admitted_obliquity_on_a_tight_rim_reads_the_band() {
                 }
                 // A smooth cap-wall pair has no material side, so the
                 // body the door hands back is one the at-rest gate
-                // refuses — once per smooth rim, under
-                // `material_wedge_side`.
+                // refuses — once per smooth rim, as the material
+                // pairing.
                 let refused = validate_geometric(&built.body, tol)
                     .expect_err("a smooth cap rim has no material side");
                 let sliver = refused
@@ -147,14 +147,16 @@ fn worst_admitted_obliquity_on_a_tight_rim_reads_the_band() {
                     .filter(|e| {
                         matches!(
                             e,
-                            topo::ValidationError::SliverDihedral { cause, .. }
-                                if cause.predicate == Some("material_wedge_side")
+                            topo::ValidationError::SliverDihedral {
+                                check: topo::WedgeCheck::MaterialPairing,
+                                ..
+                            }
                         )
                     })
                     .count();
                 assert_eq!(
                     sliver, 4,
-                    "f={f} K={k}: one material_wedge_side refusal per smooth rim, got {refused:?}",
+                    "f={f} K={k}: one material-pairing refusal per smooth rim, got {refused:?}",
                 );
             }
         }
