@@ -2183,84 +2183,32 @@ fn refusals_that_name_a_stable_name_forward_its_display() {
         mate: RecipeNodeId::new(0, tagged(2)),
         side: MateSide::A,
         name: Box::new(face_name()),
-        why: RefusedRef::Vanished { by: None },
+        why: RefusedRef::Ambiguous { width: 2 },
     });
     let shown = reference.to_string();
     assert!(
         shown.contains(&format!("({phrase})")),
         "the mate reference re-spells the name instead of forwarding it: {shown:?}"
     );
-    assert!(
-        shown.contains("no entity answers to it at the node the mate reads it at"),
-        "a vanished name is one the operand's table does not answer to: {shown:?}"
-    );
 }
 
 /// The WHY clause of a mate-reference refusal says what the gate
-/// checked and no more: a face placed again above its operand names
-/// the operand, the placer and the recourse; a face consumed on its
-/// way up names the consumer; a tie names its width. Every other row
-/// asserting these sentences compares against the impl, so this is
-/// their one home.
+/// checked and no more: a body placed twice names how many copies
+/// answer, and a mate with no value says it declares nothing. Every
+/// other row asserting these sentences compares against the impl, so
+/// this is their one home.
 #[test]
 fn a_mate_reference_refusal_says_what_the_gate_checked() {
-    let moved = mint(MintRefusal::Reference {
+    let unevaluated = mint(MintRefusal::Unevaluated {
         mate: RecipeNodeId::new(0, tagged(2)),
-        side: MateSide::B,
-        name: Box::new(face_name()),
-        why: RefusedRef::MovedAbove {
-            at: RecipeNodeId::new(0, tagged(5)),
-            by: RecipeNodeId::new(0, tagged(6)),
-            copies: false,
+        standing: editor_core::NodeStanding::Failed {
+            node: RecipeNodeId::new(0, tagged(2)),
         },
     });
     assert_f6(
-        &moved,
-        &[
-            "mate 000000000002's b reference",
-            "does not name a face of the product",
-            "it is read at node 000000000005, but node 000000000006 places it again before the \
-             product holds it; re-pick the face on node 000000000006",
-        ],
-        &["MovedAbove", "Reference"],
-    );
-    assert!(
-        !moved.to_string().contains("naming the copy"),
-        "a placer that places no copies asks for no copy: {moved}"
-    );
-
-    let copied = mint(MintRefusal::Reference {
-        mate: RecipeNodeId::new(0, tagged(2)),
-        side: MateSide::B,
-        name: Box::new(face_name()),
-        why: RefusedRef::MovedAbove {
-            at: RecipeNodeId::new(0, tagged(5)),
-            by: RecipeNodeId::new(0, tagged(6)),
-            copies: true,
-        },
-    });
-    assert_f6(
-        &copied,
-        &["re-pick the face on node 000000000006, naming the copy"],
-        &["MovedAbove", "Reference"],
-    );
-
-    let consumed = mint(MintRefusal::Reference {
-        mate: RecipeNodeId::new(0, tagged(2)),
-        side: MateSide::B,
-        name: Box::new(face_name()),
-        why: RefusedRef::Vanished {
-            by: Some(RecipeNodeId::new(0, tagged(7))),
-        },
-    });
-    assert_f6(
-        &consumed,
-        &[
-            "mate 000000000002's b reference",
-            "node 000000000007 consumes it before the product holds it — it merges or cuts the \
-             face, or holds no face of it — so no one face carries it to the product",
-        ],
-        &["Vanished", "Reference"],
+        &unevaluated,
+        &["mate 000000000002 declares nothing about the product, since it has no value"],
+        &["Unevaluated", "Failed"],
     );
 
     let tied = mint(MintRefusal::Reference {
@@ -2273,7 +2221,7 @@ fn a_mate_reference_refusal_says_what_the_gate_checked() {
         &tied,
         &[
             "mate 000000000002's a reference",
-            "2 entities answer to it",
+            "2 world copies answer to it",
             "a tie is never broken by picking",
         ],
         &["Ambiguous", "Reference"],
@@ -2372,7 +2320,7 @@ fn the_mint_arms_render_every_refusal_they_hold() {
                 mate: RecipeNodeId::new(0, tagged(2)),
                 side: MateSide::A,
                 name: Box::new(face_name()),
-                why: RefusedRef::Vanished { by: None },
+                why: RefusedRef::Ambiguous { width: 2 },
             },
             MintRefusal::NoAtRestRecord {
                 mate: RecipeNodeId::new(0, tagged(5)),
@@ -2411,7 +2359,7 @@ fn the_mint_arms_render_every_refusal_they_hold() {
                     mate: RecipeNodeId::new(0, tagged(2)),
                     side: MateSide::A,
                     name: Box::new(face_name()),
-                    why: RefusedRef::Vanished { by: None },
+                    why: RefusedRef::Ambiguous { width: 2 },
                 },
                 held: Default::default(),
             },

@@ -1,9 +1,11 @@
 //! **A mate reads its face where it says.**
 //!
-//! The at-rest gate resolves a mate's face at the node the mate reads
-//! it at, and carries it up the consumers to the product. A union
-//! carries it under the member's name; a placer above the operand
-//! moves it again before the product holds it, and refuses.
+//! A mate side is a selection of the body it is read in, and the
+//! at-rest gate mints the mate's declaration on the world copy of that
+//! body: on the placement that reads it. A side whose body no placement
+//! reads — one read below a union, a transform, a blend or a shell that
+//! is placed in its stead — has no world copy, and the mate mints
+//! nothing.
 //!
 //! The rows build the documents the gather's own recourse leads to — a
 //! union over two transforms of one mated instance — and measure the
@@ -19,9 +21,8 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions,
-    Formula, MateFrame, MatePrimitive, MateRole, MateSide, MintRefusal, Node, PartSelect,
-    PatternKind, ProfileDoc, RecipeNodeId, RefusedRef, RoleSeg, SitedFace, StableName, member_of,
-    product,
+    Formula, MateFrame, MatePrimitive, MateRole, Node, PartSelect, PatternKind, ProfileDoc,
+    RecipeNodeId, RoleSeg, SitedFace, StableName, member_of, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{gate, head, head_at, in_copy, insert, len, on_frame, run, scl, solve, step, xform};
@@ -129,8 +130,8 @@ fn seat_with(
     clocking: Option<f64>,
 ) -> AuthoredNode {
     Node::Mate {
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::authored(
@@ -264,14 +265,12 @@ fn a1a_a_union_over_two_transforms_of_a_mated_instance_mints_both_contacts() {
 
 // ---- A1 (b): a transform above the operand ----
 
-/// **`t3 = Transform(t1)` is the root, and the mate reads at `t1`.**
+/// **`t3 = Transform(t1)` is placed, and the mate reads at `t1`.**
 /// The solve seats the block at `t1`'s placement; the product holds
-/// the face where `t3` moved it, under the same names. The gate must
-/// not verify the contact there: `t3` places the face again before the
-/// product holds it, so the reference refuses rather than being
-/// refuted against geometry the mate never spoke about.
+/// the face where `t3` moved it. No placement reads `t1`, so the mate
+/// has no world copy to mint on and states nothing about the product.
 #[test]
-fn a1b_a_transform_above_the_operand_refuses_rather_than_refutes() {
+fn a1b_a_transform_above_the_operand_mints_nothing() {
     let s = scene("msolve13-a1b");
     let (doc, t1) = insert(
         s.doc.clone(),
@@ -288,27 +287,7 @@ fn a1b_a_transform_above_the_operand_refuses_rather_than_refutes() {
     );
     assert_eq!(poses.role(mate), Some(MateRole::Determining));
     let ev = run(&doc, &s.opts);
-    let err = gate(&doc, &ev).expect_err("the gate does not certify a moved face");
-    let AssemblyError::Mint { refusals } = &err else {
-        panic!("A1(b): expected the reference to refuse, not a verdict on geometry: {err:?}");
-    };
-    let [
-        MintRefusal::Reference {
-            mate: m, side, why, ..
-        },
-    ] = refusals.as_slice()
-    else {
-        panic!("A1(b): expected one reference refusal, got {refusals:?}");
-    };
-    assert_eq!((*m, *side), (mate, MateSide::B));
-    assert_eq!(
-        *why,
-        RefusedRef::MovedAbove {
-            at: t1,
-            by: t3,
-            copies: false,
-        }
-    );
+    crate::fixture::assert_mints_nothing(&doc, &ev, mate);
 }
 
 // ---- A1 (c): a pick on the fused body ----
@@ -496,16 +475,21 @@ fn seated_at_t1(s: &Scene) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     (doc, t1, mate)
 }
 
-/// **A pair boolean carries an operand's intact face as `FromA`.** A
-/// union boolean of the seated block with a block far from it: the
-/// mate read at `t1` lifts through the boolean, and the gate holds.
+/// **A consumer placed over the operand reads it; the mate read at the
+/// operand mints nothing**, whatever the consumer does with the face —
+/// a pair boolean that keeps it, a chamfer that trims it, a shell that
+/// keeps it as a wall or opens it. The world copy is the consumer's.
 #[test]
-fn a_pair_boolean_above_the_operand_carries_the_face() {
-    let s = scene_with("msolve13-lift-boolean", false);
-    let (doc, t1, _) = seated_at_t1(&s);
-    let (doc, far) = local_block(doc, [10.0, 10.0, 10.0], 1.0, 1.0);
+fn a_mate_read_below_a_placed_consumer_mints_nothing() {
+    let s = scene_with("msolve13-lift-consumers", false);
+    let (doc0, t1, mate) = seated_at_t1(&s);
+    let placed_over = |node: AuthoredNode| {
+        let (doc, consumer) = insert(doc0.clone(), node);
+        crate::fixture::place(doc, consumer).0
+    };
+    let (with_far, far) = local_block(doc0.clone(), [10.0, 10.0, 10.0], 1.0, 1.0);
     let (doc, fused) = insert(
-        doc,
+        with_far,
         Node::Boolean {
             op: editor_core::BooleanOp::Union,
             a: t1.into(),
@@ -513,66 +497,34 @@ fn a_pair_boolean_above_the_operand_carries_the_face() {
             declare: Vec::new(),
         },
     );
-    let (doc, _) = crate::fixture::place(doc, fused);
-    let ev = run(&doc, &s.opts);
-    let gated = gate(&doc, &ev);
-    assert!(gated.is_ok(), "the boolean carries the face: {gated:?}");
-}
-
-/// The one reference refusal a gate raised.
-fn the_refusal(err: &AssemblyError) -> (RecipeNodeId, MateSide, RefusedRef) {
-    let AssemblyError::Mint { refusals } = err else {
-        panic!("expected the reference refusal, got {err:?}");
+    let boolean = crate::fixture::place(doc, fused).0;
+    let edges = every_edge(&run(&doc0, &s.opts), t1);
+    let chamfer = placed_over(Node::Chamfer {
+        distance: len(0.1),
+        selection: editor_core::Operand::select(t1, edges),
+    });
+    let shell = |open: StableName| {
+        placed_over(Node::Shell {
+            thickness: len(0.1),
+            open: editor_core::Operand::select(t1, vec![open]),
+        })
     };
-    let [
-        MintRefusal::Reference {
-            mate, side, why, ..
-        },
-    ] = refusals.as_slice()
-    else {
-        panic!("expected one reference refusal, got {refusals:?}");
-    };
-    (*mate, *side, why.clone())
-}
-
-/// **`Vanished` blames the consumer that LOST the face, not a
-/// bystander.** A datum reads the seated block's top cap at `t1` — a
-/// seat that holds no face, inserted first — and an empty intersection
-/// with a far block is the root over `t1`. The boolean's table holds
-/// no `FromA` row for the mate's face, so the boolean is the node that
-/// consumed it; the datum merely reads beside it.
-#[test]
-fn vanished_names_the_consumer_that_lost_the_face_not_a_reading_datum() {
-    let s = scene_with("msolve13-lift-bystander", false);
-    let (doc, t1, mate) = seated_at_t1(&s);
-    let (doc, datum) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::FaceFrame {
-            face: editor_core::Operand::select(t1, vec![in_part(s.top, s.top_body, CapEnd::End)]),
-            spin: fixture::ang(0.0),
-        }),
-    );
-    let (doc, far) = local_block(doc, [10.0, 10.0, 10.0], 1.0, 1.0);
-    let (doc, empty) = insert(
-        doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Intersect,
-            a: t1.into(),
-            b: far.into(),
-            declare: Vec::new(),
-        },
-    );
-    assert!(
-        datum < empty,
-        "the premise: the datum is the earlier consumer"
-    );
-    let (doc, _) = crate::fixture::place(doc, empty);
-    let ev = run(&doc, &s.opts);
-    let err = gate(&doc, &ev).expect_err("the boolean consumes the face");
-    assert_eq!(
-        the_refusal(&err),
-        (mate, MateSide::B, RefusedRef::Vanished { by: Some(empty) })
-    );
+    for (what, doc) in [
+        ("a pair boolean", boolean),
+        ("a chamfer", chamfer),
+        (
+            "a shell keeping the face",
+            shell(in_part(s.top, s.top_body, CapEnd::End)),
+        ),
+        ("a shell opening the face", shell(s.top_cap())),
+    ] {
+        let ev = run(&doc, &s.opts);
+        assert!(
+            ev.result(mate).is_some_and(|r| r.value().is_some()),
+            "{what}: the mate itself evaluates"
+        );
+        crate::fixture::assert_mints_nothing(&doc, &ev, mate);
+    }
 }
 
 /// Every edge of the block, as `t1` names them.
@@ -582,65 +534,6 @@ fn every_edge(ev: &editor_core::Evaluation<f64>, t1: RecipeNodeId) -> Vec<Stable
         .filter(|(n, _)| n.kind == editor_core::EntityKind::Edge)
         .map(|(n, _)| n.clone())
         .collect()
-}
-
-/// **A chamfer carries a face it trims as `FromTarget`** (a fillet
-/// is the same blend translation, `names::emit_blend`, under its own
-/// node). Chamfering every edge of the seated block — the blend's
-/// corner rule asks for all three edges at a corner — trims the mated
-/// bottom cap but keeps it one face: the mate read at `t1` lifts
-/// through the chamfer, and the gate holds. (A chamfer rather than a
-/// fillet because the census cannot yet decide a curved face beside
-/// another part.)
-#[test]
-fn a_chamfer_above_the_operand_carries_the_face_it_trims() {
-    let s = scene_with("msolve13-lift-chamfer", false);
-    let (doc, t1, _) = seated_at_t1(&s);
-    let edges = every_edge(&run(&doc, &s.opts), t1);
-    let (doc, chamfer) = insert(
-        doc,
-        Node::Chamfer {
-            distance: len(0.1),
-            selection: editor_core::Operand::select(t1, edges),
-        },
-    );
-    let (doc, _) = crate::fixture::place(doc, chamfer);
-    let ev = run(&doc, &s.opts);
-    let gated = gate(&doc, &ev);
-    assert!(gated.is_ok(), "the chamfer carries the face: {gated:?}");
-}
-
-/// **A shell carries a surviving face as `FromTarget`, and an opened
-/// one vanishes, naming the shell.** Opening the block's top cap keeps
-/// the mated bottom cap as the outer wall's face, and the gate holds;
-/// opening the mated bottom cap itself leaves no face under its name,
-/// and the reference refuses `Vanished { by: shell }`.
-#[test]
-fn a_shell_above_the_operand_carries_a_survivor_and_loses_an_opened_face() {
-    let s = scene_with("msolve13-lift-shell", false);
-    let (doc0, t1, mate) = seated_at_t1(&s);
-    let shell = |open: StableName| {
-        let (doc, shell) = insert(
-            doc0.clone(),
-            Node::Shell {
-                thickness: len(0.1),
-                open: editor_core::Operand::select(t1, vec![open]),
-            },
-        );
-        (crate::fixture::place(doc, shell).0, shell)
-    };
-    let (doc, _) = shell(in_part(s.top, s.top_body, CapEnd::End));
-    let ev = run(&doc, &s.opts);
-    let gated = gate(&doc, &ev);
-    assert!(gated.is_ok(), "the shell carries the bottom cap: {gated:?}");
-
-    let (doc, opened) = shell(s.top_cap());
-    let ev = run(&doc, &s.opts);
-    let err = gate(&doc, &ev).expect_err("the shell opened the mated face");
-    assert_eq!(
-        the_refusal(&err),
-        (mate, MateSide::B, RefusedRef::Vanished { by: Some(opened) })
-    );
 }
 
 /// **A `Part` above a union selects nothing the walk could check, and

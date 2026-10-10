@@ -110,8 +110,8 @@ fn mate_frame(origin: [f64; 3]) -> MateFrame<Formula> {
 
 fn seat(a: StableName, b: StableName) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(a),
-        b: crate::fixture::head(b),
+        a: crate::fixture::head(a).into(),
+        b: crate::fixture::head(b).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: mate_frame([0.0, 0.0, 1.0]),
@@ -155,7 +155,7 @@ fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
     // A mate is an EDGE iff BOTH its heads resolve to members — which
     // the public A12 walk reports as two edges out of the mate.
     let edge_count = |m: RecipeNodeId| {
-        editor_core::reading_edges(doc)
+        crate::fixture::mate_edges(doc)
             .into_iter()
             .filter(|&(mate, _)| mate == m)
             .count()
@@ -201,7 +201,11 @@ fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
                 continue;
             };
             let inside = |n: &StableName| derivation_nodes(n).is_subset(&cut);
-            if inside(&a.name) != inside(&b.name) {
+            let (a, b) = (
+                crate::fixture::side_name(doc, *a),
+                crate::fixture::side_name(doc, *b),
+            );
+            if inside(&a) != inside(&b) {
                 seen.straddling_mates += 1;
                 assert_ne!(
                     edge_count(id),

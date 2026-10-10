@@ -85,8 +85,8 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
 
 fn seat_mate(a: StableName, b: StableName, origin: [f64; 3], sense: AxisSense) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(a),
-        b: crate::fixture::head(b),
+        a: crate::fixture::head(a).into(),
+        b: crate::fixture::head(b).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame(origin, [0.0, 0.0, 1.0]),

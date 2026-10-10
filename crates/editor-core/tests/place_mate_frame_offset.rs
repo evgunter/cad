@@ -68,8 +68,8 @@ fn slid_by_the_parameter() -> Placement<Formula> {
 /// outward normals opposed.
 fn seat(top: SitedFace, base: SitedFace, offset: Placement<Formula>) -> AuthoredNode {
     Node::Mate {
-        a: top,
-        b: base,
+        a: top.into(),
+        b: base.into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::from_face(),
@@ -329,8 +329,8 @@ fn an_authored_side_is_the_part_base_with_one_literal_step_bit_for_bit() {
         doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Mate {
-                a: head(p.base_cap(base)),
-                b: head(p.top_cap(top)),
+                a: head(p.base_cap(base)).into(),
+                b: head(p.top_cap(top)).into(),
                 class: ContactClass::Rest,
                 alignment: Alignment {
                     a,
@@ -653,8 +653,8 @@ fn a_mates_alignment_compares_by_bits() {
         ProfileProgram<Formula>,
         Formula,
     >::Mate {
-        a: cap(1, editor_core::CapEnd::Start),
-        b: cap(2, editor_core::CapEnd::End),
+        a: cap(1, editor_core::CapEnd::Start).into(),
+        b: cap(2, editor_core::CapEnd::End).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::from_face(),

@@ -51,7 +51,6 @@ fn var() -> editor_core::SpokenVar {
 test_utils::f6_variants! {
     const SPLIT: SplitError = [
         EmptyCut, UnknownCutNode, PartIdCollides, SeveredEdge, RemainderReadUncarried,
-        OperandSeveredFromMate,
         TornGroup, SeveredGauge, TwoAnchors, PlacingMateLeft, DeadGaugeReference,
         NoMaterial, UnplaceableRoot, UnplacedAlone, WouldStartPlacing, MateFrameCrosses,
         UncutVarReference, DefinitionStraddlesCut, UnresolvedVarCrossesCut,
@@ -98,12 +97,6 @@ fn split_refusals() -> Vec<SplitError> {
             why: editor_core::Uncarried::Posed {
                 placement: s(4, "PlaceInWorld"),
             },
-        },
-        SplitError::OperandSeveredFromMate {
-            mate: s(7, "Mate"),
-            side: MateSide::A,
-            operand: s(3, "InstantiatePart"),
-            mate_is_cut: false,
         },
         SplitError::TornGroup {
             root: s(2, "InstantiatePart"),

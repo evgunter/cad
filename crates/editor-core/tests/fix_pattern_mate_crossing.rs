@@ -95,8 +95,8 @@ fn mate_frame(origin: [f64; 3]) -> MateFrame<Formula> {
 /// A determining `Rest` mate seating `b`'s bottom onto `a`.
 fn seat(a: StableName, b: StableName) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(a),
-        b: crate::fixture::head(b),
+        a: crate::fixture::head(a).into(),
+        b: crate::fixture::head(b).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: mate_frame([0.0, 0.0, 1.0]),
@@ -215,7 +215,7 @@ fn crossings(
 fn a_pattern_headed_mate_is_an_edge_and_welds_the_pattern_input_instance() {
     let (doc, leg, _pattern, top, mate, _) = four_legs("fix-xs-edge");
     assert_eq!(
-        editor_core::reading_edges(&doc),
+        crate::fixture::mate_edges(&doc),
         vec![(mate, leg), (mate, top)],
         "the pattern-placed head reads through the pattern's input instance"
     );
@@ -350,8 +350,9 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
     let Some(Node::Mate { a, .. }) = out.part.node(new_mate) else {
         panic!("the mate moved into the part");
     };
+    let a = crate::fixture::side_head(&out.part, *a);
     assert_eq!(
-        *a,
+        a,
         crate::fixture::head(in_copy(
             new_pattern,
             COPY,
@@ -494,7 +495,7 @@ fn a_stranded_operand_over_an_instance_head_refuses_at_the_door() {
     let Node::Mate { a, .. } = &mut node else {
         panic!("a seat is a mate");
     };
-    *a = crate::fixture::head_at(stranger, (*a.name).clone());
+    *a = crate::fixture::head_at(stranger, (*crate::fixture::authored_head(a).name).clone()).into();
     let err = doc
         .apply(
             &DocEdit::InsertNode {

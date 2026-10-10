@@ -140,6 +140,8 @@ pub enum OperandSlot {
     Open,
     /// The face a face frame is read off.
     Face,
+    /// One side of a mate: the face it is read off.
+    Side(crate::mate::MateSide),
     /// Reference `i` of a measure, in argument order, under its
     /// primitive (which decides what the reference admits).
     Measured(crate::MeasureVerb, u8),
@@ -173,6 +175,7 @@ impl OperandSlot {
             Self::Selection => "selection".to_owned(),
             Self::Open => "open faces".to_owned(),
             Self::Face => "face".to_owned(),
+            Self::Side(side) => format!("side {}", side.name()),
             Self::Measured(_, i) => format!("reference {}", u16::from(i) + 1),
             Self::Tool => "tool".to_owned(),
             Self::A => "first operand".to_owned(),
@@ -197,7 +200,7 @@ impl OperandSlot {
             }
             Self::Selection => SlotKind::Is(VarKind::Edges),
             Self::Open => SlotKind::Is(VarKind::Faces),
-            Self::Face => SlotKind::Is(VarKind::Face),
+            Self::Face | Self::Side(_) => SlotKind::Is(VarKind::Face),
             Self::Measured(verb, _) => SlotKind::Measured(verb),
             Self::Input | Self::Of => SlotKind::Placeable,
         }
@@ -274,6 +277,14 @@ impl core::fmt::Display for SlotKind {
             Self::Placeable => f.write_str("a body or a list of bodies"),
             Self::Measured(verb) => f.write_str(&verb.admitted()),
         }
+    }
+}
+
+/// A mate side as its seat reads it: the `Face` selection of its name
+/// in `at`'s body.
+impl From<crate::SitedFace> for Operand {
+    fn from(r: crate::SitedFace) -> Self {
+        Self::select(r.at, vec![r.name.into_name()])
     }
 }
 

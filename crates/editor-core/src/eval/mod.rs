@@ -4998,10 +4998,11 @@ impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
                 // The solve's own derivation of the part a face side
                 // resolves against (`mate::solve::part_of`), so the key
                 // and the solve name one part for one side.
-                let part_of = |reference, frame: &crate::mate::MateFrame| match frame.base {
+                let part_of = |side: &crate::VarId, frame: &crate::mate::MateFrame| match frame.base
+                {
                     crate::mate::FrameBase::Part => None,
                     crate::mate::FrameBase::Face => {
-                        let member = crate::mate::member_of(doc, reference)?;
+                        let member = crate::mate::member::member_of_side(doc, *side)?;
                         crate::mate::solve::part_of(doc, &member).ok()
                     }
                 };
@@ -5505,23 +5506,23 @@ where
                 feed_stable_name(&mut h, inner);
             }
         }
-        // A mate's key is its RECIPE PAYLOAD — its references, its
-        // class and its alignment, which is what the mate SAYS — and
-        // the solve's answer for it, which is what the mate's value
-        // IS (`SolveAnswer` carries why the key reads that). A
-        // reference is a NAME AND AN OPERAND, and both are fed: two
-        // mates differing only in the node they are read at say
-        // different things about different geometry.
+        // A mate's key is what the mate SAYS — its two faces, its class
+        // and its alignment — and the solve's answer for it, which is
+        // what the mate's value IS (`SolveAnswer` carries why the key
+        // reads that). Each side is a selection: its body is carried by
+        // the upstream keys, in side order, and its name feeds here, as
+        // a face frame's does.
         Node::Mate {
             a,
             b,
             class,
             alignment,
         } => {
-            h.write_id(a.at.0);
-            feed_stable_name(&mut h, &a.name);
-            h.write_id(b.at.0);
-            feed_stable_name(&mut h, &b.name);
+            for side in [*a, *b] {
+                for name in selected(selections, side) {
+                    feed_stable_name(&mut h, name);
+                }
+            }
             // The class's word is `ContactClass::content_tag` — the one
             // spelling the crossing record, the mate and the declaration
             // all write, so the three cannot key a class inconsistently.

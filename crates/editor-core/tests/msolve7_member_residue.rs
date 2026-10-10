@@ -176,8 +176,8 @@ const TOP_HEIGHT: f64 = 3.0;
 /// The seat every parameter row's mate declares: `b` rests on `a`.
 fn seat(a: SitedFace, b: SitedFace) -> AuthoredNode {
     Node::Mate {
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::authored(
@@ -503,8 +503,8 @@ fn saved_with_a_planar_rest(label: &str) -> (ProfileDoc, String) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Mate {
-                a: crate::fixture::head(name(ids[0])),
-                b: crate::fixture::head(name(ids[1])),
+                a: crate::fixture::head(name(ids[0])).into(),
+                b: crate::fixture::head(name(ids[1])).into(),
                 class: ContactClass::Rest,
                 alignment: Alignment {
                     a: f.clone(),

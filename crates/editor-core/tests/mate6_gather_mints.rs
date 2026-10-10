@@ -106,8 +106,8 @@ fn rest_mate(a: StableName, b: StableName, seat: f64) -> AuthoredNode {
 /// a `Tangent` declaration, whose class mints no record at rest.
 fn classed_mate(a: StableName, b: StableName, seat: f64, class: ContactClass) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(a),
-        b: crate::fixture::head(b),
+        a: crate::fixture::head(a).into(),
+        b: crate::fixture::head(b).into(),
         class,
         alignment: Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),

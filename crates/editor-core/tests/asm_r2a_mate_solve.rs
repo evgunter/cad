@@ -110,8 +110,8 @@ fn mate(
     clocking: Option<f64>,
 ) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(in_part(a, body, CapEnd::Start)),
-        b: crate::fixture::head(in_part(b, body, CapEnd::Start)),
+        a: crate::fixture::head(in_part(a, body, CapEnd::Start)).into(),
+        b: crate::fixture::head(in_part(b, body, CapEnd::Start)).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: fa,
@@ -1123,7 +1123,7 @@ fn row6a_mated_instances_share_an_a9_component() {
     assert_eq!(together.len(), 1, "the mate COUPLES the components");
     assert!(together[0].contains(&mate_id));
     assert_eq!(
-        editor_core::reading_edges(&doc),
+        crate::fixture::mate_edges(&doc),
         vec![(mate_id, ids[0]), (mate_id, ids[1])],
         "the reading edges are recomputed from the name heads"
     );
@@ -1212,7 +1212,7 @@ fn row6d_a_dangling_head_contributes_no_edge_and_the_solve_refuses_typed() {
     );
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: ids[1] });
     assert_eq!(
-        editor_core::reading_edges(&doc),
+        crate::fixture::mate_edges(&doc),
         vec![(mate_id, ids[0])],
         "the stranded head contributes NO edge (N5)"
     );
@@ -1321,7 +1321,7 @@ fn row6f_rebind_repairs_a_mate_head_that_is_the_only_reference() {
     );
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: ids[1] });
     assert_eq!(
-        editor_core::reading_edges(&doc),
+        crate::fixture::mate_edges(&doc),
         vec![(mate_id, ids[0])],
         "the stranded head contributes NO edge (N5)"
     );
@@ -1337,7 +1337,7 @@ fn row6f_rebind_repairs_a_mate_head_that_is_the_only_reference() {
         )
         .expect("a mate head is a rebind site");
     assert_eq!(
-        editor_core::reading_edges(&applied.doc),
+        crate::fixture::mate_edges(&applied.doc),
         vec![(mate_id, ids[0]), (mate_id, ids[2])],
         "the repaired head reads through the instance it now names"
     );
@@ -1432,7 +1432,7 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
         "and its site was not — a site is an authored fact, not a repair target"
     );
     assert_eq!(
-        editor_core::reading_edges(&applied.doc),
+        crate::fixture::mate_edges(&applied.doc),
         vec![(mate_id, ids[0]), (mate_id, ids[2])],
         "and so was the mate head — one rebind repairs every site, or none of them"
     );
@@ -1584,8 +1584,8 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Mate {
-                a,
-                b: crate::fixture::head(bogus.clone()),
+                a: a.into(),
+                b: crate::fixture::head(bogus.clone()).into(),
                 class,
                 alignment,
             }),

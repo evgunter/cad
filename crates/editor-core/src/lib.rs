@@ -164,8 +164,8 @@ pub use mate::{
     MatePrimitive, MateReach, MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE,
     OFFSET_RECOURSE, OffsetCheck, PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal,
     RefusingReach, SolvedPoses, Space, Subgroup, SubgroupFamily, UNDER_RECOURSE, UNPLACED_RECOURSE,
-    Unplaced, class_admission, gauge_chain, groups, head_face, member_of, member_reading, places,
-    reading_edges, relative_freedom_components, root_of, solve_document, table_gap,
+    Unplaced, class_admission, gauge_chain, groups, head_face, head_of, member_of, member_reading,
+    places, relative_freedom_components, root_of, solve_document, table_gap,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport, McValue,

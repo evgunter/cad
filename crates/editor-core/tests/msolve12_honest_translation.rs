@@ -522,8 +522,8 @@ fn rest(
             .expect("a definite frame")
     };
     Node::Mate {
-        a: fixture::head(in_part(ids[0], body, CapEnd::Start)),
-        b: fixture::head(in_part(ids[1], body, CapEnd::Start)),
+        a: fixture::head(in_part(ids[0], body, CapEnd::Start)).into(),
+        b: fixture::head(in_part(ids[1], body, CapEnd::Start)).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: side(origin),

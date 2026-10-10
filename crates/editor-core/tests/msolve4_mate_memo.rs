@@ -111,8 +111,8 @@ fn seat(
     primitive: MatePrimitive,
 ) -> AuthoredNode {
     Node::Mate {
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: a_frame,

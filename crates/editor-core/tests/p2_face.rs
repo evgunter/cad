@@ -39,8 +39,8 @@ use geom_core::Tol;
 /// on their own head faces, outward normals opposed.
 fn face_mate(a: SitedFace, b: SitedFace) -> AuthoredNode {
     Node::Mate {
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::from_face(),
@@ -73,8 +73,8 @@ fn authored_a(node: AuthoredNode) -> AuthoredNode {
     )
     .expect("a definite frame");
     Node::Mate {
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         class,
         alignment,
     }
@@ -119,6 +119,7 @@ fn side_world(
         MateSide::A => (a, &alignment.a),
         MateSide::B => (b, &alignment.b),
     };
+    let head = &crate::fixture::side_head(doc, *head);
     assert_eq!(
         *frame,
         MateFrame::from_face(),
@@ -255,7 +256,8 @@ fn a_face_side_reading_a_non_root_member_crosses_split_and_inline_unmoved() {
     };
     assert_eq!(alignment.a, MateFrame::from_face());
     assert_eq!(
-        a.name.node, out.instance,
+        crate::fixture::side_head(&out.remainder, *a).name.node,
+        out.instance,
         "the head re-anchors through the instance"
     );
     assert_eq!(
@@ -501,8 +503,8 @@ fn a_face_side_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
     let doc = fixture::place(doc, mover).0;
     let copy_cap = in_copy(pattern, 2, p.top_upper_cap(leg));
     let node = Node::Mate {
-        a: head(in_part(mover, p.base_body, CapEnd::Start)),
-        b: head(copy_cap.clone()),
+        a: head(in_part(mover, p.base_body, CapEnd::Start)).into(),
+        b: head(copy_cap.clone()).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::authored(
@@ -524,6 +526,7 @@ fn a_face_side_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
     let Some(Node::Mate { b, .. }) = doc.node(m) else {
         panic!("the mate");
     };
+    let b = &crate::fixture::side_head(&doc, *b);
     let member = editor_core::member_of(&doc, b).expect("a copy is a member");
     assert_eq!(member.copy(), vec![(pattern, 2)]);
     let master = editor_core::head_face(&doc, b).expect("the strip");
@@ -637,8 +640,8 @@ fn renamed(base: &ProfileDoc, body: RecipeNodeId, height: f64) -> (ProfileDoc, R
 /// head: the top's origin lands on the cap's canonical origin.
 fn on_base_cap(top: SitedFace, base_cap: SitedFace) -> AuthoredNode {
     Node::Mate {
-        a: top,
-        b: base_cap,
+        a: top.into(),
+        b: base_cap.into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::authored(

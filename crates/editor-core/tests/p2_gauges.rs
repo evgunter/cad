@@ -172,8 +172,8 @@ pub(crate) fn seat(top: SitedFace, base: SitedFace) -> AuthoredNode {
 /// coordinates.
 pub(crate) fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> AuthoredNode {
     Node::Mate {
-        a: mover,
-        b: onto,
+        a: mover.into(),
+        b: onto.into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
@@ -1328,8 +1328,8 @@ fn a_from_face_side_crosses_split_and_inline_with_its_head() {
         doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Mate {
-                a,
-                b,
+                a: a.into(),
+                b: b.into(),
                 class,
                 alignment,
             }),
@@ -1363,7 +1363,10 @@ fn a_from_face_side_crosses_split_and_inline_with_its_head() {
     };
     assert_eq!(crossed_alignment.a, MateFrame::from_face());
     assert_eq!(
-        crossed.name.node, out.instance,
+        crate::fixture::side_head(&out.remainder, *crossed)
+            .name
+            .node,
+        out.instance,
         "the head re-anchors through the instance"
     );
     let ev = run(&out.remainder, &store_opts);

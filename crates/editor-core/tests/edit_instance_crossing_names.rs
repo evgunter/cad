@@ -107,8 +107,8 @@ fn crossing(outer: StableName, inner: FaceName) -> InterfaceCrossing {
 /// mints.
 fn mate(a: StableName, b: StableName) -> AuthoredNode {
     Node::Mate {
-        a: fixture::head(a),
-        b: fixture::head(b),
+        a: fixture::head(a).into(),
+        b: fixture::head(b).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::authored(
@@ -307,7 +307,8 @@ fn a_rebind_of_an_outer_rewrites_the_record_and_its_mate_together() {
         panic!("the crossing mate survives the rebind");
     };
     assert_eq!(
-        *head.name, to,
+        crate::fixture::side_name(&rebound, *head),
+        to,
         "the mate carrying the same head followed it too"
     );
 }

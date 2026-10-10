@@ -576,8 +576,8 @@ fn a_mates_head_strands_and_its_read_site_does_not() {
     let (doc, mate) = insert(
         doc,
         Node::Mate {
-            a: crate::fixture::head(head_a.clone()),
-            b: crate::fixture::head(instance_face(ib, part_body)),
+            a: crate::fixture::head(head_a.clone()).into(),
+            b: crate::fixture::head(instance_face(ib, part_body)).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(),
@@ -785,8 +785,8 @@ fn a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset() 
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Mate {
-                a: crate::fixture::head(head_a.clone()),
-                b: crate::fixture::head(instance_face(ib, part_body)),
+                a: crate::fixture::head(head_a.clone()).into(),
+                b: crate::fixture::head(instance_face(ib, part_body)).into(),
                 class: ContactClass::Rest,
                 alignment: Alignment {
                     a: mate_frame(),

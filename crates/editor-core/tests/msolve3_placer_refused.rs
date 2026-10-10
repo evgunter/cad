@@ -65,8 +65,8 @@ fn seat(a: StableName, b: StableName) -> AuthoredNode {
             .expect("a definite frame")
     };
     Node::Mate {
-        a: crate::fixture::head(a),
-        b: crate::fixture::head(b),
+        a: crate::fixture::head(a).into(),
+        b: crate::fixture::head(b).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame([0.0, 0.0, 1.0], [0.0, 0.0, 1.0]),
@@ -193,7 +193,8 @@ where
     if let Node::Mate { a, .. } = &mut node {
         // The reference is read AT the placer: that operand is what
         // puts the placer on the walk's chain.
-        *a = crate::fixture::head_at(placer, (*a.name).clone());
+        *a = crate::fixture::head_at(placer, (*crate::fixture::authored_head(a).name).clone())
+            .into();
     }
     let (doc, mate) = step(
         doc,

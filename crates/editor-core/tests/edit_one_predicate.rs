@@ -304,8 +304,8 @@ fn part_face(body: RecipeNodeId) -> StableName {
 
 fn mate(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, origin: [f64; 3]) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(in_part(a, body, CapEnd::Start)),
-        b: crate::fixture::head(in_part(b, body, CapEnd::Start)),
+        a: crate::fixture::head(in_part(a, body, CapEnd::Start)).into(),
+        b: crate::fixture::head(in_part(b, body, CapEnd::Start)).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::authored(
@@ -442,8 +442,14 @@ fn a_face_to_face_mate_round_trips() {
     let Some(Node::Mate { a, b, .. }) = loaded.doc.node(mate) else {
         panic!("the mate survives the round trip");
     };
-    assert_eq!(a.name.kind, EntityKind::Face);
-    assert_eq!(b.name.kind, EntityKind::Face);
+    assert_eq!(
+        crate::fixture::side_name(&loaded.doc, *a).kind,
+        EntityKind::Face
+    );
+    assert_eq!(
+        crate::fixture::side_name(&loaded.doc, *b).kind,
+        EntityKind::Face
+    );
 }
 
 // ---- An interface crossing's two references ----

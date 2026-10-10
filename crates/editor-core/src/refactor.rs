@@ -580,34 +580,6 @@ pub enum SplitError {
         /// Whether the CONSUMER is the cut-side endpoint.
         consumer_is_cut: bool,
     },
-    /// A mate and the OPERAND one of its references is read at land
-    /// on opposite sides of the cut — the reading-edge twin of
-    /// [`SplitError::SeveredEdge`], and refused for the same reason.
-    ///
-    /// An operand is not a consuming edge, so D-2's closure rule does
-    /// not reach it; but a mate whose operand is on the far side of a
-    /// cut can be carried by neither document. Kept, its operand names
-    /// a node the remainder no longer has, and nothing downstream
-    /// notices until the solve refuses a dangling reference. Cut, the
-    /// part document has no node to remap the operand onto. Both are
-    /// refused HERE, at the door, naming the mate, the side and the
-    /// operand — the repair is to widen the cut, or to re-author the
-    /// mate at a node on the side it is staying.
-    ///
-    /// A mate that WELDS a group meets `TornGroup` first, because
-    /// the cut also splits the group its two members share. This
-    /// arm is what catches the rest: a mate whose reference resolves
-    /// to no member welds nothing, and its operand still crosses.
-    OperandSeveredFromMate {
-        /// The mate whose reference is severed.
-        mate: SpokenNode,
-        /// Which of its two references.
-        side: crate::mate::MateSide,
-        /// The operand node on the far side of the cut.
-        operand: SpokenNode,
-        /// Whether the MATE is the cut-side endpoint.
-        mate_is_cut: bool,
-    },
     /// The cut TEARS a placement group: some of the group's
     /// instances are cut and some are kept (ASM-R2a; review MAJOR-2).
     ///
@@ -990,26 +962,6 @@ impl core::fmt::Display for SplitError {
                  document the cut references. {}",
                 Recourse("split under a fresh document id")
             ),
-            Self::OperandSeveredFromMate {
-                mate,
-                side,
-                operand,
-                mate_is_cut,
-            } => {
-                let (mate_side, operand_side) = cut_and_kept(*mate_is_cut);
-                let kept = if *mate_is_cut { operand } else { mate };
-                let s = side.name();
-                write!(
-                    f,
-                    "split: the cut severs the {s}-side reference of {mate} from {operand}, the \
-                     node it is read at. The mate is {mate_side} and that node is \
-                     {operand_side}. {}",
-                    Recourse(&format!(
-                        "add {kept} to the cut, or re-author {mate}'s {s} reference at a node \
-                         on its own side of the cut"
-                    )),
-                )
-            }
             Self::SeveredEdge {
                 consumer,
                 input,
@@ -2081,11 +2033,6 @@ pub fn remap_name(
 /// depends on it (a junction is a vertex's; a rank's rule is an edge's
 /// or a vertex's).
 ///
-/// Split out because that is exactly what a face name may have
-/// rewritten — `FaceName::map_derivation` hands this function the
-/// derivation and keeps the kind itself, which is what makes
-/// [`remap_face`] total without an arm for a kind change.
-///
 /// # Errors
 ///
 /// The first local id the maps lack.
@@ -2165,26 +2112,6 @@ impl SegRewrite for Remapping<'_> {
     fn member(&mut self, m: RecipeNodeId) -> Result<RecipeNodeId, Self::Error> {
         self.0.get(&m).copied().ok_or(Unmapped::Node(m))
     }
-}
-
-/// [`remap_name`] for a FACE name — the ONE answer this crate gives to
-/// "remap a face name across the split", and the only in-crate place a
-/// [`FaceName`] is re-made from a rewritten one.
-///
-/// The kind is not rewritten and cannot be: `FaceName::map_derivation`
-/// is handed the derivation alone and keeps the kind itself, so the
-/// only thing that can go wrong is the thing [`remap_name`]'s own
-/// errors are about — a local id the map lacks. It reports that id,
-/// exactly as [`remap_name`] does, so the two rewrites answer in one
-/// vocabulary and neither drops WHICH node was missing on the way to a
-/// caller's name-shaped refusal. [`remap_node`] is the one place the
-/// id is paired with the face it came from, as [`RemapMiss::Name`].
-///
-/// # Errors
-///
-/// The first local id the map lacks.
-fn remap_face(name: &FaceName, map: &NodeMap, steps: &StepMap) -> Result<FaceName, Unmapped> {
-    name.map_derivation(|node, path| remap_derivation(EntityKind::Face, node, path, map, steps))
 }
 
 /// What a payload rewrite could not map: a DAG input (unreachable
@@ -2305,16 +2232,6 @@ fn remap_node(
     let nm = |n: &StableName| {
         remap_name(n, map, steps).map_err(|missing| RemapMiss::Name {
             name: Box::new(n.clone()),
-            missing,
-        })
-    };
-    // A mate head across the cut, through the one face remap
-    // (`remap_face`): its derivation is rewritten and its kind is the
-    // type's, so the only miss is the miss `nm` reports for a bare
-    // name.
-    let face = |n: &FaceName| {
-        remap_face(n, map, steps).map_err(|missing| RemapMiss::Name {
-            name: Box::new((**n).clone()),
             missing,
         })
     };
@@ -2498,31 +2415,22 @@ fn remap_node(
             parent: regauge(*parent)?,
             placement: placement.clone(),
         },
-        // A mate's references cross the cut like any other name
-        // reference, and BOTH halves of each remap: the NAME through
-        // the name door, and the OPERAND through the id door, because
-        // an operand is a node id. Either one the cut severed makes
-        // the remap MISS loudly.
+        // A mate's sides are reads, and re-point as every read does: a
+        // selection crosses with its body, and one the cut severed
+        // makes the remap MISS loudly.
         Node::Mate {
             a,
             b,
             class,
             alignment,
         } => Node::Mate {
-            a: crate::node::SitedFace {
-                at: id(a.at)?,
-                name: face(&a.name)?,
-            },
-            b: crate::node::SitedFace {
-                at: id(b.at)?,
-                name: face(&b.name)?,
-            },
+            a: rd(crate::OperandSlot::Side(crate::mate::MateSide::A), *a)?,
+            b: rd(crate::OperandSlot::Side(crate::mate::MateSide::B), *b)?,
             class: *class,
             // The datum crosses verbatim: its frames are a base word
             // and a placement of numbers and expressions over document
             // parameters, which split and inline carry beside it, and
-            // a face base holds no name, its face being the head's,
-            // remapped above.
+            // a face base holds no name, its face being the side's.
             alignment: alignment.clone(),
         },
         Node::Measure { primitive } => {
@@ -2982,60 +2890,14 @@ pub fn split(
             continue;
         }
         if let (Some(x), Some(y)) = (
-            crate::mate::member_of(doc, a),
-            crate::mate::member_of(doc, b),
+            crate::mate::member::member_of_side(doc, *a),
+            crate::mate::member::member_of_side(doc, *b),
         ) && cut.contains(&x.instance)
             && cut.contains(&y.instance)
             && crate::mate::places(doc, x.instance, y.instance)
         {
             return Err(SplitError::PlacingMateLeft {
                 mate: doc.spoken(mate),
-            });
-        }
-    }
-    // The READING edge's own closure rule (A12). An operand is not an
-    // input, so the severed-edge loop never sees it — and a mate separated
-    // from the node its reference is read at is expressible in
-    // neither document: the remainder would keep an id it no longer
-    // has, and the part has no node to remap onto. Checked in BOTH
-    // directions.
-    //
-    // The exception is the interface crossing (below): a kept mate
-    // whose name re-anchors carries its at-mint operand with it.
-    //
-    // AFTER the group precondition on purpose: a mate that WELDS
-    // its two members is the case `TornGroup` already speaks to,
-    // and it is the more informative refusal — it names the group
-    // the cut tears rather than one of its edges. This arm catches
-    // what is left: a mate whose reference resolves to no member
-    // welds nothing, and its operand still crosses.
-    for mate in doc.ids() {
-        let Some(Node::Mate { a, b, .. }) = doc.node(mate) else {
-            continue;
-        };
-        let mate_is_cut = cut.contains(&mate);
-        for (side, r) in [(crate::mate::MateSide::A, a), (crate::mate::MateSide::B, b)] {
-            if cut.contains(&r.at) == mate_is_cut {
-                continue;
-            }
-            // THE ONE CROSSING THAT IS ALREADY CARRIED, and it is the
-            // interface crossing this module is built around: a KEPT
-            // mate whose reference is read AT ITS OWN MINT and whose
-            // NAME lies wholly inside the cut. That name re-anchors
-            // through the minted instance's `InPart` wrapper below,
-            // and `Rebind` moves an at-mint operand with the name it
-            // rewrites — so the operand arrives at the new instance
-            // with everything else. Nothing here to refuse.
-            let carried_by_the_rebind =
-                !mate_is_cut && r.at == r.name.node && derivation_nodes(&r.name).is_subset(cut);
-            if carried_by_the_rebind {
-                continue;
-            }
-            return Err(SplitError::OperandSeveredFromMate {
-                mate: doc.spoken(mate),
-                side,
-                operand: doc.spoken(r.at),
-                mate_is_cut,
             });
         }
     }
@@ -3223,10 +3085,13 @@ pub fn split(
             (crate::mate::MateSide::A, a, b, &alignment.a),
             (crate::mate::MateSide::B, b, a, &alignment.b),
         ] {
-            let Some(kept) = crate::mate::member_of(doc, outer) else {
+            let Some(kept) = crate::mate::member::member_of_side(doc, *outer) else {
                 continue;
             };
-            if !derivation_nodes(&inner.name).is_subset(cut) || cut.contains(&kept.instance) {
+            let Some(head) = crate::mate::member::head_of(doc, *inner) else {
+                continue;
+            };
+            if !derivation_nodes(&head.name).is_subset(cut) || cut.contains(&kept.instance) {
                 continue;
             }
             if doc.node(kept.instance).and_then(Node::gauge_ref) == anchor {
@@ -3234,7 +3099,7 @@ pub fn split(
                     mate: doc.spoken(mate),
                 });
             }
-            if let Some(read) = crate::mate::member_of(doc, inner)
+            if let Some(read) = crate::mate::member::member_of_side(doc, *inner)
                 && !frame_survives(frame, &read, &cut_groups, root_lands_empty)
             {
                 // A promote is the recourse where the root's own offset
@@ -3635,7 +3500,6 @@ pub fn split(
     // `asm_r2b_assembly.rs` pins it. The mate itself stays in the
     // document (N5) and its names rebind like any other; it simply
     // says nothing about the seam.
-    let is_mate_edge_end = |r: &crate::node::SitedFace| crate::mate::member_of(doc, r).is_some();
     let mut crossings: Vec<InterfaceCrossing> = Vec::new();
     for id in doc.ids() {
         if cut.contains(&id) {
@@ -3644,8 +3508,14 @@ pub fn split(
         let Some(Node::Mate { a, b, class, .. }) = doc.node(id) else {
             continue;
         };
-        // The edge gate, before the sides are even looked at.
-        if !(is_mate_edge_end(a) && is_mate_edge_end(b)) {
+        // The resolve gate, before the sides are even looked at.
+        let (Some(a), Some(b)) = (
+            crate::mate::member::head_of(doc, *a),
+            crate::mate::member::head_of(doc, *b),
+        ) else {
+            continue;
+        };
+        if crate::mate::member_of(doc, &a).is_none() || crate::mate::member_of(doc, &b).is_none() {
             continue;
         }
         let inside = |name: &StableName| derivation_nodes(name).is_subset(cut);
@@ -4106,8 +3976,8 @@ pub fn inline(
                     return false;
                 };
                 let (Some(x), Some(y)) = (
-                    crate::mate::member_of(doc, a),
-                    crate::mate::member_of(doc, b),
+                    crate::mate::member::member_of_side(doc, *a),
+                    crate::mate::member::member_of_side(doc, *b),
                 ) else {
                     return false;
                 };
@@ -4246,10 +4116,13 @@ pub fn inline(
             (crate::mate::MateSide::A, a, b, &alignment.a),
             (crate::mate::MateSide::B, b, a, &alignment.b),
         ] {
-            let [RoleSeg::InPart { of }] = &here.name.path[..] else {
+            let Some(head) = crate::mate::member::head_of(doc, *here) else {
                 continue;
             };
-            if here.name.node != instance {
+            let [RoleSeg::InPart { of }] = &head.name.path[..] else {
+                continue;
+            };
+            if head.name.node != instance {
                 continue;
             }
             let inner = of
@@ -4266,7 +4139,7 @@ pub fn inline(
                     side,
                 });
             };
-            if let Some(other) = crate::mate::member_of(doc, there)
+            if let Some(other) = crate::mate::member::member_of_side(doc, *there)
                 && crate::mate::places(doc, instance, other.instance)
             {
                 if let Some(&(_, first, _)) = pair_reads
@@ -4678,14 +4551,11 @@ pub fn inline(
 /// [`remap_name`] rewrites a name's derivation — its minting node and
 /// the node ids embedded in its role path — and copies the kind
 /// through untouched, for every [`crate::EntityKind`] and through a
-/// nested name-bearing segment. That is the fact [`remap_face`] rests
-/// on: it hands `FaceName::map_derivation` the derivation alone, so
-/// the kind is the type's rather than the rewrite's, and the two
-/// answers agree by construction.
+/// nested name-bearing segment.
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod remap_keeps_the_kind {
-    use super::{NodeMap, StepMap, Unmapped, remap_face, remap_name};
+    use super::{NodeMap, StepMap, remap_name};
     use crate::names::{FaceName, NameRef, RoleSeg, StableName};
     use crate::node::RecipeNodeId;
     use crate::{CapEnd, EntityKind};
@@ -4735,39 +4605,6 @@ mod remap_keeps_the_kind {
             );
         }
     }
-
-    /// The face rewrite agrees with it: same derivation, same kind,
-    /// and no way to ask for a different one.
-    #[test]
-    fn a_face_remap_agrees_with_it_on_a_covered_map() {
-        let face = FaceName::new(name(EntityKind::Face)).expect("a face");
-        let out = remap_face(&face, &map(), &StepMap::new())
-            .unwrap_or_else(|_| panic!("the map covers both ids"));
-        assert_eq!(out.node, RecipeNodeId::new(0, 10));
-        assert_eq!(out.kind, EntityKind::Face);
-        assert_eq!(
-            *out,
-            remap_name(&name(EntityKind::Face), &map(), &StepMap::new())
-                .expect("the map covers both ids"),
-            "the two rewrites are one rewrite"
-        );
-    }
-
-    /// Its ONE miss is the id miss — never a panic and never a kind
-    /// refusal.
-    #[test]
-    fn its_one_miss_is_the_id_the_map_lacks() {
-        let face = FaceName::new(name(EntityKind::Face)).expect("a face");
-        let empty = NodeMap::new();
-        match remap_face(&face, &empty, &StepMap::new()) {
-            Err(missing) => assert_eq!(
-                missing,
-                Unmapped::Node(RecipeNodeId::new(0, 0)),
-                "an empty map lacks the mint first, so that is the id reported"
-            ),
-            Ok(out) => panic!("an empty map covers no id, got {out}"),
-        }
-    }
 }
 
 /// **A name-shaped refusal carries the node the rewrite stopped at.**
@@ -4781,8 +4618,8 @@ mod remap_keeps_the_kind {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod a_miss_two_segments_down_is_not_the_outer_name {
-    use super::{NodeMap, RemapMiss, StepMap, Unmapped, remap_face, remap_name, remap_node};
-    use crate::names::{FaceName, NameRef, RoleSeg, StableName};
+    use super::{NodeMap, RemapMiss, StepMap, Unmapped, remap_name, remap_node};
+    use crate::names::{NameRef, RoleSeg, StableName};
     use crate::node::{Node, RecipeNodeId, SitedRef};
     use crate::{CapEnd, EntityKind};
 
@@ -4825,16 +4662,6 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
             Unmapped::Node(name.node),
             "the node that failed is not the name's own mint"
         );
-    }
-
-    /// And the face rewrite agrees, rather than collapsing the id into
-    /// the face it was asked about.
-    #[test]
-    fn the_face_rewrite_reports_it_too() {
-        let face = FaceName::new(nested(EntityKind::Face)).expect("a face");
-        let missing = remap_face(&face, &map(), &StepMap::new()).expect_err("INNER is unmapped");
-        assert_eq!(missing, Unmapped::Node(INNER));
-        assert_ne!(missing, Unmapped::Node(face.node));
     }
 
     /// The payload rewrite pairs them: the name it could not rewrite

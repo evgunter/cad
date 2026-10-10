@@ -92,8 +92,8 @@ fn z_up() -> MateFrame<Formula> {
 /// at its own mint.
 fn mate(a: StableName, b: StableName) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(a),
-        b: crate::fixture::head(b),
+        a: crate::fixture::head(a).into(),
+        b: crate::fixture::head(b).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: z_up(),

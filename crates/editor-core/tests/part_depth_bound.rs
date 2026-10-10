@@ -444,16 +444,18 @@ fn mated(
 ) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, ids) = instantiating_all(label, &[first, second]);
     let mate = Node::Mate {
-        a: fixture::head(
+        a: (fixture::head(
             leaf_cap(&first_doc, first_block, CapEnd::End)
                 .in_part(ids[0])
                 .into_name(),
-        ),
-        b: fixture::head(
+        ))
+        .into(),
+        b: (fixture::head(
             leaf_cap(&second_doc, second_block, CapEnd::Start)
                 .in_part(ids[1])
                 .into_name(),
-        ),
+        ))
+        .into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame([0.0, 0.0, 1.0]),

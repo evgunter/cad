@@ -28,9 +28,8 @@ use std::collections::BTreeMap;
 use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, Datum, Dimension,
     DocEdit, DocumentId, EvalOptions, Formula, FreeValue, FreeVar, MateFault, MateFrame,
-    MatePrimitive, MateRole, MateSide, MintRefusal, Node, PartSelect, PatternKind, ProfileDoc,
-    RecipeNodeId, RefusedRef, SitedFace, SplitHalf, StableName, VarName, groups, member_of,
-    product,
+    MatePrimitive, MateRole, MateSide, Node, PartSelect, PatternKind, ProfileDoc, RecipeNodeId,
+    SitedFace, SplitHalf, StableName, VarName, groups, member_of, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated as assert_seated_named, seat_map as seat_map_named};
@@ -78,8 +77,8 @@ fn part_doc(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
 /// declares the seat a sibling copy actually lands in.
 fn seat_at(a: SitedFace, b: SitedFace, a_origin: [f64; 3]) -> AuthoredNode {
     Node::Mate {
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::authored(
@@ -992,39 +991,12 @@ fn the_gate_on_a_mate_read_below_the_outer_pattern_names_the_operand() {
         product(&doc, &ev, Tol::witness()).is_ok(),
         "the product gathers"
     );
-    let err = gate(&doc, &ev).expect_err("the gate refuses the unrooted name");
-    let AssemblyError::Mint { refusals } = &err else {
-        panic!("expected the reference refusal, got {err:?}");
-    };
-    let [
-        MintRefusal::Reference {
-            mate: at,
-            side,
-            why,
-            ..
-        },
-    ] = refusals.as_slice()
-    else {
-        panic!("expected one reference refusal, got {refusals:?}");
-    };
-    assert_eq!((*at, *side), (mate, MateSide::B));
-    // The gate names the operand the mate reads at and the placer
-    // above it, not a vanished name: the `Part`'s row is there, one
-    // level below the root. (The sentence is pinned in
-    // `display_contract`.)
-    assert_eq!(
-        *why,
-        RefusedRef::MovedAbove {
-            at: part,
-            by: outer,
-            copies: true,
-        }
-    );
-    // Read AT the outer pattern instead, the same document gathers
-    // and the gate holds: the difference is whether the name is a
-    // product ROOT's own row.
+    // No placement reads the `Part` the mate reads at, so the mate has
+    // no world copy to mint on.
+    crate::fixture::assert_mints_nothing(&doc, &ev, mate);
+    let _ = part;
     assert!(
-        gate(&doc, &ev).is_err() && solve(&doc, &s.opts, Tol::witness()).fault(outer).is_none(),
+        solve(&doc, &s.opts, Tol::witness()).fault(outer).is_none(),
         "the outer pattern itself carries no fault"
     );
 }

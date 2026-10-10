@@ -98,8 +98,8 @@ fn mframe(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
 
 fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> AuthoredNode {
     Node::Mate {
-        a: mover,
-        b: onto,
+        a: mover.into(),
+        b: onto.into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: mframe([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
@@ -1609,7 +1609,7 @@ fn two_instances_on_one_gauge_are_one_component_with_no_mate() {
         c,
         Some(h),
     );
-    let edges = editor_core::reading_edges(&doc);
+    let edges = crate::fixture::mate_edges(&doc);
     for edge in [(g, outer), (a, g), (b, g), (c, h)] {
         assert!(edges.contains(&edge), "{edge:?} in {edges:?}");
     }
@@ -1619,7 +1619,7 @@ fn two_instances_on_one_gauge_are_one_component_with_no_mate() {
     assert_ne!(of(a), of(c), "another gauge, another component");
     let (dead, _) = step(doc, DocEdit::DeleteNode { id: h });
     assert!(
-        !editor_core::reading_edges(&dead)
+        !crate::fixture::mate_edges(&dead)
             .iter()
             .any(|&(r, _)| r == c),
         "a reference to a deleted gauge reads nothing"

@@ -705,9 +705,10 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
     /// admission of the mate they wrote: the insert of a `Node::Mate`,
     /// and a slot edit (`SetParam`, `SetExpression`) addressed at one
     /// of a mate side's frame-offset steps ([`SlotId::MateFrameStep`],
-    /// an address only a mate carries). A `Rebind` moves a reference's
-    /// NAME (and, read at its own mint, its operand), never the datum,
-    /// and what it strands is N5's — the solve's at evaluation; a
+    /// an address only a mate carries). A `Rebind` moves a side's
+    /// NAME and a slot edit at a side ([`crate::OperandSlot::Side`]) its
+    /// read, never the datum, and what either strands is N5's — the
+    /// solve's at evaluation; a
     /// document parameter an offset reads moves a STATE, which is the
     /// solve's at evaluation too.
     ///
@@ -720,7 +721,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             Self::SetParam { slot, .. } => slot.is_mate_frame_step(),
             Self::SetExpression { path, .. } => path.slot.is_mate_frame_step(),
             // A reshaping rewrites no name and never touches a datum;
-            // a head whose piece it stops drawing is N5's, the solve's
+            // a side whose piece it stops drawing is N5's, the solve's
             // at evaluation.
             Self::SetProgram { .. } => false,
             Self::DeleteNode { .. }
@@ -6118,8 +6119,8 @@ fn regauges_for<P: Clone + crate::ProfilePayload>(
     let mut edits = Vec::new();
     if let Node::Mate { a, b, .. } = mate
         && let (Some(ma), Some(mb)) = (
-            crate::mate::member_of(doc, a),
-            crate::mate::member_of(doc, b),
+            crate::mate::member::member_authored(doc, a),
+            crate::mate::member::member_authored(doc, b),
         )
     {
         let gauge = doc.node(mb.instance).and_then(Node::gauge_ref);
@@ -7580,8 +7581,8 @@ fn mate_that_would_start_placing<P>(
             return false;
         };
         let (Some(x), Some(y)) = (
-            crate::mate::member_of(doc, a),
-            crate::mate::member_of(doc, b),
+            crate::mate::member::member_of_side(doc, *a),
+            crate::mate::member::member_of_side(doc, *b),
         ) else {
             return false;
         };
@@ -7806,8 +7807,8 @@ fn clear_joined_offsets<P: crate::ProfilePayload>(
         return Vec::new();
     };
     let (Some(ia), Some(ib)) = (
-        crate::mate::member_of(after, a).map(|m| m.instance),
-        crate::mate::member_of(after, b).map(|m| m.instance),
+        crate::mate::member::member_of_side(after, *a).map(|m| m.instance),
+        crate::mate::member::member_of_side(after, *b).map(|m| m.instance),
     ) else {
         return Vec::new();
     };
@@ -8006,13 +8007,15 @@ mod tests {
         let frame = crate::mate::MateFrame::from_face();
         let mate: DocEdit<ProfileProgram> = DocEdit::InsertNode {
             node: Box::new(crate::node::Node::Mate {
-                a: crate::node::SitedFace::at_mint(
+                a: (crate::node::SitedFace::at_mint(
                     crate::names::FaceName::new(name(id)).expect("a face"),
-                ),
-                b: crate::node::SitedFace::at_mint(
+                ))
+                .into(),
+                b: (crate::node::SitedFace::at_mint(
                     crate::names::FaceName::new(name(crate::node::RecipeNodeId::new(0, 2)))
                         .expect("a face"),
-                ),
+                ))
+                .into(),
                 class: crate::mate::ContactClass::Rest,
                 alignment: crate::mate::Alignment {
                     a: frame.clone(),

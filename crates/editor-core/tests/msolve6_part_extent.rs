@@ -211,8 +211,8 @@ fn clocked(
     alignment: Alignment<Formula>,
 ) -> AuthoredNode {
     Node::Mate {
-        a: fixture::head(in_part(a, a_body, CapEnd::End)),
-        b: fixture::head(in_part(b, b_body, CapEnd::Start)),
+        a: fixture::head(in_part(a, a_body, CapEnd::End)).into(),
+        b: fixture::head(in_part(b, b_body, CapEnd::Start)).into(),
         class: ContactClass::Rest,
         alignment,
     }

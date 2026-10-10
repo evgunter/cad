@@ -141,13 +141,14 @@ fn mate_on(
     alignment: Alignment<Formula>,
 ) -> AuthoredNode {
     Node::Mate {
-        a: fixture::head(
+        a: (fixture::head(
             FaceName::new(a_face.clone())
                 .expect("a face")
                 .in_part(a)
                 .into_name(),
-        ),
-        b: fixture::head(in_part(b, b_body, CapEnd::Start)),
+        ))
+        .into(),
+        b: fixture::head(in_part(b, b_body, CapEnd::Start)).into(),
         class: ContactClass::Rest,
         alignment,
     }
@@ -1480,7 +1481,7 @@ fn a_face_sides_face_is_its_heads_row_in_the_part() {
         panic!("the mate");
     };
     assert_eq!(alignment.a, MateFrame::from_face());
-    let head: &SitedFace = a;
+    let head: &SitedFace = &crate::fixture::side_head(&s.doc, *a);
     assert_eq!(head.name.node, s.post_i, "a head is the instance's wrapper");
     assert_eq!(
         editor_core::head_face(&s.doc, head).map(FaceName::into_name),

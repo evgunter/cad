@@ -200,8 +200,8 @@ fn seat(
     clocking: Option<f64>,
 ) -> AuthoredNode {
     Node::Mate {
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::authored(
@@ -442,8 +442,8 @@ fn a_lever_out_of_range_refuses_typed_through_the_solve() {
 fn a_lever_out_of_range_refuses_typed_at_the_edit_door() {
     let s = scene("msolve11-range-door");
     let node = Node::Mate {
-        a: s.base_top(),
-        b: s.other_bottom(),
+        a: s.base_top().into(),
+        b: s.other_bottom().into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::authored(
@@ -911,8 +911,8 @@ fn a_box_run_over_an_escalating_mate_refuses_at_its_witness() {
     let mut mates = Vec::new();
     for axis in [[0.0, 0.0, 1.0], [tilt, 0.0, 1.0]] {
         let node = Node::Mate {
-            a: s.base_top(),
-            b: s.other_bottom(),
+            a: s.base_top().into(),
+            b: s.other_bottom().into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: MateFrame::authored(

@@ -119,8 +119,8 @@ fn seat_with(
     clocking: Option<f64>,
 ) -> AuthoredNode {
     Node::Mate {
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: a_frame(),
@@ -784,8 +784,8 @@ fn two_operands(label: &str, extra_lift: f64) -> (ProfileDoc, EvalOptions, [Reci
         },
     );
     let far_corner = Node::Mate {
-        a: crate::fixture::head(a),
-        b: crate::fixture::head_at(x2, b),
+        a: crate::fixture::head(a).into(),
+        b: crate::fixture::head_at(x2, b).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::authored(
@@ -1046,7 +1046,7 @@ fn a8b_deleting_the_operand_leaves_a_dangling_head() {
     );
     // The stranded SIDE contributes no edge; the live side still
     // does, which is what makes the refusal a per-side one.
-    let edges: Vec<RecipeNodeId> = editor_core::reading_edges(&doc)
+    let edges: Vec<RecipeNodeId> = crate::fixture::mate_edges(&doc)
         .into_iter()
         .filter(|&(m, _)| m == s.mate)
         .map(|(_, to)| to)
@@ -1114,8 +1114,16 @@ fn a8d_a_transform_operand_round_trips_through_persistence() {
     let Some(Node::Mate { a, b, .. }) = back.node(s.mate) else {
         panic!("the mate survived");
     };
-    assert_eq!(a.at, s.base, "the `a` operand rode the wire");
-    assert_eq!(b.at, s.b_at, "the `b` operand rode the wire");
+    assert_eq!(
+        crate::fixture::side_head(&back, *a).at,
+        s.base,
+        "the `a` side's body rode the wire"
+    );
+    assert_eq!(
+        crate::fixture::side_head(&back, *b).at,
+        s.b_at,
+        "the `b` side's body rode the wire"
+    );
     let poses = solve(&back, &s.opts, Tol::witness());
     assert!(poses.fault(s.mate).is_none(), "the loaded document solves");
     let ev = run(&back, &s.opts);
@@ -1369,7 +1377,11 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
         .ids()
         .iter()
         .find_map(|&id| match out.remainder.node(id) {
-            Some(Node::Mate { a, b, .. }) => Some((id, a.clone(), b.clone())),
+            Some(Node::Mate { a, b, .. }) => Some((
+                id,
+                crate::fixture::side_head(&out.remainder, *a),
+                crate::fixture::side_head(&out.remainder, *b),
+            )),
             _ => None,
         })
         .expect("the mate stayed in the remainder");
@@ -1406,14 +1418,12 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
     );
 }
 
-/// **A8(g) — a KEPT mate whose operand is inside the cut refuses.**
-/// The mate welds nothing (its `b` reference names local geometry, so
-/// it resolves to no member and `TornGroup` has nothing to say), and
-/// its operand is a transform the cut takes. Before the reading edge
-/// had a closure rule of its own the split ACCEPTED this: the remap
-/// runs over cut nodes only, so the remainder kept an operand naming a
-/// node it no longer had, invisible to the load door, and the solve
-/// reported a dangling reference some time later.
+/// **A8(g) — a KEPT mate whose side reads a body inside the cut
+/// refuses.** The mate welds nothing (its `b` side names local
+/// geometry, so it resolves to no member and `TornGroup` has nothing to
+/// say), and its `a` side reads a transform the cut takes and no cut
+/// placement places. A side is a read, so this is D-2's ordinary
+/// severed read.
 #[test]
 fn a8g_a_kept_mate_whose_operand_is_cut_refuses_at_the_door() {
     let (doc, mate, cut, xf) = severed_operand_scene("msolve1-a8g", false);
@@ -1428,21 +1438,20 @@ fn a8g_a_kept_mate_whose_operand_is_cut_refuses_at_the_door() {
     assert!(
         matches!(
             &err,
-            editor_core::SplitError::OperandSeveredFromMate {
-                mate: m,
-                side: MateSide::A,
-                operand,
-                mate_is_cut: false,
-            } if *m == doc.spoken(mate) && *operand == doc.spoken(xf)
+            editor_core::SplitError::SeveredEdge {
+                consumer,
+                input,
+                consumer_is_cut: false,
+            } if *consumer == doc.spoken(mate) && *input == doc.spoken(xf)
         ),
-        "expected the operand-severed refusal naming the mate, the side \
-         and the operand, got {err:?}"
+        "expected the severed-read refusal naming the mate and the body it \
+         reads, got {err:?}"
     );
     let text = err.to_string();
     assert!(
         text.contains(&format!(
-            "severs the a-side reference of {} from {}, the node it is read at. The mate is kept \
-             and that node is cut. Recourse:",
+            "severs the edge from {} to its input {}. The consumer is kept and the input is \
+             cut",
             doc.spoken(mate),
             doc.spoken(xf)
         )),
@@ -1456,10 +1465,8 @@ fn a8g_a_kept_mate_whose_operand_is_cut_refuses_at_the_door() {
     }
 }
 
-/// **A8(h) — and the other direction.** A CUT mate whose operand stays
-/// in the remainder refuses with the same variant. It used to refuse
-/// as `PartEdit { UnresolvedInput { input: at } }` — the INPUT's
-/// vocabulary, for a node this whole design says is not an input.
+/// **A8(h) — and the other direction.** A CUT mate whose side reads a
+/// body that stays in the remainder refuses with the same variant.
 #[test]
 fn a8h_a_cut_mate_whose_operand_is_kept_refuses_with_the_same_variant() {
     let (doc, mate, cut, xf) = severed_operand_scene("msolve1-a8h", true);
@@ -1474,14 +1481,13 @@ fn a8h_a_cut_mate_whose_operand_is_kept_refuses_with_the_same_variant() {
     assert!(
         matches!(
             &err,
-            editor_core::SplitError::OperandSeveredFromMate {
-                mate: m,
-                side: MateSide::A,
-                operand,
-                mate_is_cut: true,
-            } if *m == doc.spoken(mate) && *operand == doc.spoken(xf)
+            editor_core::SplitError::SeveredEdge {
+                consumer,
+                input,
+                consumer_is_cut: true,
+            } if *consumer == doc.spoken(mate) && *input == doc.spoken(xf)
         ),
-        "expected the operand-severed refusal, got {err:?}"
+        "expected the severed-read refusal, got {err:?}"
     );
 }
 

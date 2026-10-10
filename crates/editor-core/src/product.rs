@@ -1101,11 +1101,17 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // graft, rather than being lost because the consuming document
     // never ran the mate loop.
     //
-    // Last, and after the gate: minting resolves references against
-    // the FINISHED name table, and the aggregate's own at-rest verdict
+    // Last, and after the gate: minting carries each mate's faces
+    // across the graft bridge, and the aggregate's own at-rest verdict
     // is about geometry, so a product that is not a body at all
     // refuses before any mate is read.
-    let (minted, unminted) = crate::assembly::mint(doc, evaluation, &names, &mut contacts, space);
+    let copies = |placement: RecipeNodeId| {
+        grafted
+            .iter()
+            .find(|((node, ..), _)| *node == placement)
+            .map(|(_, keys)| keys)
+    };
+    let (minted, unminted) = crate::assembly::mint(doc, evaluation, &copies, &mut contacts, space);
     let spaces = match space {
         crate::mate::Space::World => own_spaces(doc, evaluation, tol),
         crate::mate::Space::Own { .. } => Vec::new(),

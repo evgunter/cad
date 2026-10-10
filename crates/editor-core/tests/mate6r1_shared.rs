@@ -85,8 +85,8 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
 
 fn mate_of(a: StableName, b: StableName, seat: f64, class: ContactClass) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(a),
-        b: crate::fixture::head(b),
+        a: crate::fixture::head(a).into(),
+        b: crate::fixture::head(b).into(),
         class,
         alignment: Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),
@@ -144,6 +144,9 @@ fn verdict(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> String
                 }
                 editor_core::MintRefusal::Reference { mate, side, .. } => {
                     format!("Reference(mate={}, side={side:?})", mate.0)
+                }
+                editor_core::MintRefusal::Unevaluated { mate, .. } => {
+                    format!("Unevaluated(mate={})", mate.0)
                 }
             })
             .collect::<Vec<_>>()

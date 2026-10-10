@@ -117,8 +117,8 @@ fn mate_across(
     alignment: Alignment<Formula>,
 ) -> AuthoredNode {
     Node::Mate {
-        a: fixture::head(in_part(a, a_body, CapEnd::End)),
-        b: fixture::head(in_part(b, b_body, CapEnd::Start)),
+        a: fixture::head(in_part(a, a_body, CapEnd::End)).into(),
+        b: fixture::head(in_part(b, b_body, CapEnd::Start)).into(),
         class: ContactClass::Rest,
         alignment,
     }
@@ -127,7 +127,7 @@ fn mate_across(
 /// `node` with its `b` head replaced.
 fn with_b(mut node: AuthoredNode, head: editor_core::SitedFace) -> AuthoredNode {
     if let Node::Mate { b, .. } = &mut node {
-        *b = head;
+        *b = head.into();
     }
     node
 }
@@ -135,7 +135,7 @@ fn with_b(mut node: AuthoredNode, head: editor_core::SitedFace) -> AuthoredNode 
 /// `node` with its `a` head replaced.
 fn with_a(mut node: AuthoredNode, head: editor_core::SitedFace) -> AuthoredNode {
     if let Node::Mate { a, .. } = &mut node {
-        *a = head;
+        *a = head.into();
     }
     node
 }
@@ -835,6 +835,7 @@ fn own_datum_subject(fault: &MateFault) -> Option<RecipeNodeId> {
         MateFault::Frame { mate, .. }
         | MateFault::ClassNotAdmitted { mate }
         | MateFault::TableLacks { mate, .. }
+        | MateFault::SideUnresolved { mate, .. }
         | MateFault::DanglingHead { mate, .. }
         | MateFault::PartSelectsAnotherCopy { mate, .. }
         | MateFault::SelfMate { mate, .. }
@@ -920,6 +921,11 @@ fn renamed(fault: MateFault, from: RecipeNodeId, to: RecipeNodeId) -> MateFault 
             parent,
             child,
             residual,
+        },
+        MateFault::SideUnresolved { mate, side, read } => MateFault::SideUnresolved {
+            mate: r(mate),
+            side,
+            read,
         },
         MateFault::DanglingHead { mate, side, head } => MateFault::DanglingHead {
             mate: r(mate),

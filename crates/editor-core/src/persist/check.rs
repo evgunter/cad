@@ -2729,8 +2729,8 @@ mod tests {
             )
         };
         let mate = Node::Mate {
-            a: face_head(name(ids[0])),
-            b: face_head(name(ids[1])),
+            a: face_head(name(ids[0])).into(),
+            b: face_head(name(ids[1])).into(),
             class: topo::ContactClass::Rest,
             alignment: crate::mate::Alignment {
                 a: crate::mate::MateFrame::on_part(crate::placement::Placement::IDENTITY),

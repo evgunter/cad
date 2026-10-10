@@ -648,8 +648,8 @@ fn i2_a_member_the_instance_placed_moves_onto_the_minted_gauge() {
     );
     match out.doc.node(mate) {
         Some(Node::Mate { b, .. }) => assert_eq!(
-            &*b.name,
-            &p.base_cap(out.node_map[&first]),
+            crate::fixture::side_name(&out.doc, *b),
+            p.base_cap(out.node_map[&first]),
             "the mate reads the inner root"
         ),
         other => panic!("the mate survives: {other:?}"),
@@ -761,8 +761,8 @@ fn i4_a_mate_placed_instance_over_one_such_group_inlines() {
     match out.doc.node(m) {
         Some(Node::Mate { a, .. }) => {
             assert_eq!(
-                &*a.name,
-                &base_bottom(&p, root),
+                crate::fixture::side_name(&out.doc, *a),
+                base_bottom(&p, root),
                 "the host mate reads the root"
             );
         }

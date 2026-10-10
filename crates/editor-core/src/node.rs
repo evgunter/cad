@@ -60,6 +60,7 @@ macro_rules! name_free_node {
             | $crate::node::Node::Measure { .. }
             | $crate::node::Node::Assertion { .. }
             | $crate::node::Node::Gauge { .. }
+            | $crate::node::Node::Mate { .. }
     };
 }
 
@@ -1072,9 +1073,9 @@ pub enum Datum<S: Slot = crate::VarId> {
 /// this enum rather than retrofitting a shape onto the first.
 ///
 /// **A crossing's two references are FACE names** ([`FaceName`]), the
-/// kind fixed by the type as a mate head's is. A crossing is written
-/// out of the two heads of a mate ([`SitedFace`]s), so the fields are
-/// face names by construction, and this is the record SAYING what the
+/// kind fixed by the type as a mate side's selection is. A crossing is
+/// written out of the two sides of a mate (`Face` selections), so the
+/// fields are face names by construction, and this is the record SAYING what the
 /// split guarantees rather than the readers re-asking it. The wire
 /// asks the question once, in `FaceName`'s `Deserialize`, so a file
 /// whose crossing names an edge refuses at the load door's parse; the
@@ -1102,8 +1103,7 @@ pub enum Datum<S: Slot = crate::VarId> {
 ///
 /// The RUNNING twin below — the same body, differing only in that the
 /// two references are made through [`FaceName::new`] — is why that
-/// block proves anything; [`SitedFace`]'s doc states the rule, for the
-/// pair it states it about.
+/// block proves anything.
 ///
 /// ```
 /// let face = || {
@@ -1425,12 +1425,8 @@ use expr_table;
 /// any kind: a face, an edge, a vertex, a whole body. A declared pair's
 /// sides ([`DeclaredPair`]) are the other reader, and keep the shape.
 ///
-/// A mate's head is the other sited reference in the vocabulary and is
-/// its own type, [`SitedFace`] — not this one with a different name in
-/// it. What `at` means there is a different fact (an A12 reading edge,
-/// never consuming) about a name that resolves somewhere else (the
-/// PRODUCT's table, at the at-rest gate), so the two carry their own
-/// contracts rather than one doc saying "it depends who holds it".
+/// A mate's side is authored in its own type, [`SitedFace`], which
+/// fixes the name's kind to a face and lowers the same way.
 ///
 /// There is no `Option` on `at`: "as authored" is spelled
 /// [`SitedRef::at_mint`].
@@ -1440,8 +1436,7 @@ use expr_table;
 /// a dependency behind the author's back; only the NAME is repaired
 /// (a measure's through its selection, `DocEdit::Rebind` with the
 /// selection's body; a declared pair's through
-/// `Node::rebind_payload_names`). [`SitedFace`]'s doc states the other
-/// half of that one repair.
+/// `Node::rebind_payload_names`).
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
@@ -1470,120 +1465,45 @@ impl SitedRef {
     }
 }
 
-/// **A mate head: a FACE name, and the node it is read at.**
+/// **A mate side as an author writes it: a FACE name, and the node it
+/// is read at.**
 ///
-/// [`SitedRef`]'s shape with the name's kind fixed by the type. A mate
-/// declares a FACE-PAIR contact, so a head that names a body, an edge
-/// or a vertex is a different statement — and because the kind is data
-/// on the name rather than a property of some product, the requirement
-/// is expressible where it belongs: in the type of the field. A mate
-/// whose head is a bare [`StableName`] does not compile, so no door
-/// downstream has a document to refuse.
+/// [`SitedRef`]'s shape with the name's kind fixed by the type, because
+/// a mate declares a FACE-PAIR contact. It lowers
+/// (`impl From<SitedFace> for Operand`) to the read a mate stores: a
+/// one-name selection of `at`'s output, which the door mints as a
+/// `Face` variable, so the selection's body read is an ordinary DAG
+/// edge and the name resolves against `at`'s own evaluated table
+/// through the N5 ladder every other authored name takes.
 ///
 /// Where a face name comes from is [`FaceName`]'s own doc: the three
 /// boundaries that turn DATA into one, and the single in-crate door
 /// that re-derives one without re-asking the kind.
 ///
-/// **`at` is an A12 READING edge** — never consuming, or the mated
-/// bodies would leave A10's root set. It names the OPERAND the mate is
-/// authored against, and the solve walks from it down to the name's
-/// head, composing every pose-bearing node it passes
-/// ([`crate::mate::member_of`]). The name resolves nowhere at the
-/// solve: the solve is structural and inspects no geometry, so it
-/// reads the name's HEAD and its `Instance(i)` qualifiers as recipe
-/// data and nothing more, and the name is resolved later against the
-/// PRODUCT's table by the at-rest gate that mints the declaration.
-///
-/// **`Rebind` moves a head's at-mint operand**, which is the half of
-/// that one repair a measure does not have ([`SitedRef`]'s doc states
-/// the other): a head read at its own mint is the reference saying
-/// "read me where I was minted", so the operand follows the name it
-/// was authored to coincide with, while a head read somewhere ELSE
-/// keeps its operand — that node is an authored fact the edit knows
-/// nothing about.
-///
-/// **A mate cannot be built from a bare name**, which is the whole
-/// claim, pinned where a claim about types belongs:
-///
-/// ```compile_fail,E0308
-/// fn head() -> editor_core::SitedRef {
-///     editor_core::SitedRef::at_mint(named(editor_core::EntityKind::Edge))
-/// }
-///
-/// let _: editor_core::Node<editor_core::ProfileProgram> = editor_core::Node::Mate {
-///     a: head(),
-///     b: head(),
-///     class: editor_core::ContactClass::Rest,
-///     alignment: alignment(),
+/// ```
+/// use editor_core::{
+///     Alignment, AxisSense, ContactClass, EntityKind, FaceName, MateFrame, MatePrimitive,
+///     Node, RecipeNodeId, SitedFace, StableName,
 /// };
-///
-/// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
-///     editor_core::StableName {
-///         kind,
-///         node: editor_core::RecipeNodeId::new(0, 0),
-///         path: Vec::new(),
-///     }
-/// }
-///
-/// fn alignment() -> editor_core::Alignment {
-///     let frame = editor_core::MateFrame::from_face();
-///     editor_core::Alignment {
+/// let face = FaceName::new(StableName {
+///     kind: EntityKind::Face,
+///     node: RecipeNodeId::new(0, 0),
+///     path: Vec::new(),
+/// })
+/// .expect("a face name is a face");
+/// let frame = MateFrame::from_face();
+/// let _: editor_core::AuthoredNode = Node::Mate {
+///     a: SitedFace::at_mint(face.clone()).into(),
+///     b: SitedFace::at_mint(face).into(),
+///     class: ContactClass::Rest,
+///     alignment: Alignment {
 ///         a: frame.clone(),
 ///         b: frame,
-///         primitive: editor_core::MatePrimitive::FrameCoincidence,
-///         sense: editor_core::AxisSense::Aligned,
+///         primitive: MatePrimitive::FrameCoincidence,
+///         sense: AxisSense::Aligned,
 ///         clocking: None,
-///     }
-/// }
-/// ```
-///
-/// **What that row proves, and what it does not.** Stable rustdoc
-/// checks only that the block FAILS to build; it does not enforce the
-/// `,E0308` named beside it, so a row whose body had a typo, a
-/// renamed field or a missing import would pass just as well and
-/// prove nothing about the head's type. The twin below is the same
-/// body with the one difference this claim is about — `head()` returns
-/// a [`SitedFace`] made through the constructor instead of a
-/// [`SitedRef`] made from a bare name — and it is a RUNNING doctest:
-/// every other line above is a line it also compiles, so a defect
-/// anywhere but the head reddens here rather than silently satisfying
-/// the block above for the wrong reason. (The idiom is
-/// `quantity::units`', which states the rule; the code was read off
-/// `rustc` on the snippet.)
-///
-/// ```
-/// fn head() -> editor_core::SitedFace {
-///     editor_core::SitedFace::at_mint(
-///         editor_core::FaceName::new(named(editor_core::EntityKind::Face))
-///             .expect("a face name is a face"),
-///     )
-/// }
-///
-/// let _: editor_core::Node<editor_core::ProfileProgram> = editor_core::Node::Mate {
-///     a: head(),
-///     b: head(),
-///     class: editor_core::ContactClass::Rest,
-///     alignment: alignment(),
+///     },
 /// };
-///
-/// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
-///     editor_core::StableName {
-///         kind,
-///         node: editor_core::RecipeNodeId::new(0, 0),
-///         path: Vec::new(),
-///     }
-/// }
-///
-/// fn alignment() -> editor_core::Alignment {
-///     let frame = editor_core::MateFrame::from_face();
-///     editor_core::Alignment {
-///         a: frame.clone(),
-///         b: frame,
-///         primitive: editor_core::MatePrimitive::FrameCoincidence,
-///         sense: editor_core::AxisSense::Aligned,
-///         clocking: None,
-///     }
-/// }
 /// ```
 ///
 /// The constructor's other answer is a typed refusal, never a face
@@ -1603,15 +1523,15 @@ impl SitedRef {
 )]
 #[serde(deny_unknown_fields)]
 pub struct SitedFace {
-    /// The node whose evaluated value the carrier is read at — the
-    /// PLACED geometry, when that node placed it.
+    /// The node whose output the face is read in — the PLACED
+    /// geometry, when that node placed it.
     pub at: RecipeNodeId,
     /// The face's stable name.
     pub name: FaceName,
 }
 
 impl SitedFace {
-    /// A head read at the node that minted the name — the degenerate
+    /// A side read at the node that minted the name — the degenerate
     /// case, and the honest spelling of "as authored".
     pub fn at_mint(name: FaceName) -> Self {
         Self {
@@ -1620,7 +1540,7 @@ impl SitedFace {
         }
     }
 
-    /// A head read at `at`.
+    /// A side read at `at`.
     pub fn new(at: RecipeNodeId, name: FaceName) -> Self {
         Self { at, name }
     }
@@ -2491,45 +2411,29 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// Where it sits on its parent.
         placement: crate::placement::Placement<S>,
     },
-    /// A **mate** between two instances (ASSEMBLY-DESIGN A3/A12;
-    /// ASM-R2a D-1): one node carrying BOTH the placement constraint
-    /// and the contact declaration, so there is no second vocabulary
-    /// to keep synced.
+    /// A **mate** between two instances (ASSEMBLY-DESIGN A3; ASM-R2a
+    /// D-1): one node carrying BOTH the placement constraint and the
+    /// contact declaration, so there is no second vocabulary to keep
+    /// synced.
     ///
-    /// **A leaf.** `a`/`b` are [`SitedFace`]s — each an
-    /// instance-qualified FACE name plus the OPERAND node it is
-    /// read at — and neither half is a consuming edge, so it reads no
-    /// operand and inserting a mate transfers no
-    /// root. A12 adds *reading* edges on top: the walk from each
-    /// operand down to its name's head yields the member the edge
-    /// lands on, RECOMPUTED at need ([`crate::mate::reading_edges`])
-    /// and never stored. A9's relative-freedom partition and A11's
-    /// placement groups read consuming ∪ reading edges; A10's
-    /// invariants, maintenance and product gather read consuming
-    /// edges only. Under consuming edges a mate is an isolated sink,
-    /// so it is an ordinary NON-BODY root: listed like any other,
-    /// denoting no body, ignored by the gather.
+    /// **Each side reads one `Face`** ([`crate::OperandSlot::Side`]):
+    /// a selection of the body the side is read in, stating that body
+    /// once, so a mate depends on what it reads exactly as every other
+    /// reader does (D10). The member a side lands on is the walk from
+    /// the selection's body down to its name's minting instance
+    /// ([`crate::mate::member_of`]): a transform mints no name (N1), so
+    /// a face read at a transform and one read at the instance carry
+    /// the same name, and the body read is what tells them apart. Two
+    /// mates from one instance through two different transforms are
+    /// two MEMBERS, and so are two mates onto two copies of one
+    /// pattern, at any depth of nesting; one placement spelled at two
+    /// bodies (a transform and a union above it naming that member, a
+    /// `Part` and the pattern it selects from) is one member.
     ///
-    /// **The operand is why a mate on placed geometry means what it
-    /// says.** A transform mints no name (N1), so a reference read at
-    /// the transform and one read at the instance carry the same
-    /// name; the operand is the only thing that tells them apart, and
-    /// the solve composes the map of every pose-bearing node between
-    /// the operand and the minting instance
-    /// ([`crate::mate::member_of`]). Two mates from one instance
-    /// through two different transforms are two MEMBERS. So are two
-    /// mates onto two copies of one pattern, at any depth of nesting:
-    /// a member's identity is its instance and the chain of placing
-    /// nodes the walk passed — each pattern with its copy, and each
-    /// transform. One placement spelled at two operands (a transform
-    /// and a union above it naming that member, a `Part` and the
-    /// pattern it selects from) is one member.
-    ///
-    /// The insert door checks both halves against the live document —
-    /// a never-existed operand or name node is a typo. A later delete
-    /// may strand either, which is N5's ratified semantics: no edge
-    /// until the mate is re-authored, and the solve refuses typed
-    /// naming the head.
+    /// Deleting a side's body leaves the mate unresolved, reported at
+    /// the delete and refused at evaluation; a name that stops
+    /// resolving is the selection's typed refusal, repaired by
+    /// `Rebind`.
     ///
     /// **A mate's VALUE is the solve's answer for it** — its role when
     /// the solve placed it, a typed refusal when the solve faulted it
@@ -2537,11 +2441,11 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// key feeds it beside this payload (`eval`'s `SolveAnswer` is the
     /// one home for why).
     Mate {
-        /// The `a` reference: an entity of one instance's product,
-        /// read at the operand the mate is authored against.
-        a: SitedFace,
-        /// The `b` reference: an entity of the other's.
-        b: SitedFace,
+        /// The `a` side: one `Face` read, a face of one instance's
+        /// product in the body the mate is authored against.
+        a: S::Read,
+        /// The `b` side: a face of the other's.
+        b: S::Read,
         /// The declared contact class — the KERNEL vocabulary (M9-1),
         /// re-exported rather than re-minted, so a mate's declaration
         /// is already the currency the boolean wrapper's records
@@ -3187,6 +3091,15 @@ impl<P> Node<P> {
                 direction: _,
             }) => vec![(O::Frame, *plane)],
             Node::Datum(Datum::FaceFrame { face, spin: _ }) => vec![(O::Face, *face)],
+            Node::Mate {
+                a,
+                b,
+                class: _,
+                alignment: _,
+            } => vec![
+                (O::Side(crate::mate::MateSide::A), *a),
+                (O::Side(crate::mate::MateSide::B), *b),
+            ],
             Node::Datum(
                 Datum::Plane {
                     origin: _,
@@ -3203,14 +3116,7 @@ impl<P> Node<P> {
                     v: _,
                 },
             )
-            // A mate's sides are names read at a node, and a gauge
-            // reference is a placement chain: neither is an operand.
-            | Node::Mate {
-                a: _,
-                b: _,
-                class: _,
-                alignment: _,
-            }
+            // A gauge reference is a placement chain, not an operand.
             | Node::InstantiatePart {
                 doc_ref: _,
                 interface: _,
@@ -3336,6 +3242,15 @@ impl<P> Node<P> {
                 direction: _,
             }) => vec![(O::Frame, plane)],
             Node::Datum(Datum::FaceFrame { face, spin: _ }) => vec![(O::Face, face)],
+            Node::Mate {
+                a,
+                b,
+                class: _,
+                alignment: _,
+            } => vec![
+                (O::Side(crate::mate::MateSide::A), a),
+                (O::Side(crate::mate::MateSide::B), b),
+            ],
             Node::Datum(
                 Datum::Plane {
                     origin: _,
@@ -3352,12 +3267,6 @@ impl<P> Node<P> {
                     v: _,
                 },
             )
-            | Node::Mate {
-                a: _,
-                b: _,
-                class: _,
-                alignment: _,
-            }
             | Node::InstantiatePart {
                 doc_ref: _,
                 interface: _,
@@ -3629,8 +3538,8 @@ impl<P> Node<P> {
 
     /// Rewrites every payload reference EXACTLY equal to `from` into
     /// `to`, returning how many it rewrote — `Rebind`'s reach into the
-    /// names a node still carries (declared pairs, mate heads, an
-    /// instance's crossings); a selection's names are the document's
+    /// names a node still carries (declared pairs, an instance's
+    /// crossings); a selection's names are the document's
     /// ([`crate::Doc::rewrite_selection_names`]).
     ///
     /// [`Node::rewrite_payload_names`] under the one-pair map; that
@@ -3676,9 +3585,8 @@ impl<P> Node<P> {
             }
         }
         /// A FACE-typed payload name rewritten through `map`, or
-        /// `None` where the map leaves it — the one re-derivation
-        /// both face-name payloads use (a mate's heads, an instance's
-        /// crossing `outer`s).
+        /// `None` where the map leaves it — the re-derivation an
+        /// instance's crossing `outer`s use.
         ///
         /// A face name's kind is the TYPE's, not this rewrite's:
         /// [`crate::DocEdit::Rebind`] refuses a cross-kind pair at
@@ -3708,26 +3616,6 @@ impl<P> Node<P> {
             Node::Boolean { declare, .. } | Node::Union { declare, .. } => {
                 for r in declare.iter_mut().flat_map(|((a, b), _)| [a, b]) {
                     hits += rewrite(&mut r.name, map);
-                }
-            }
-            // A mate's two references: the NAME rewrites like any
-            // other, and a reference read AT ITS OWN MINT stays read
-            // at its own mint — the operand follows the name it was
-            // authored to coincide with. A reference read somewhere
-            // ELSE keeps its operand: that node is an authored fact
-            // this edit knows nothing about, and re-targeting it is
-            // re-authoring the mate.
-            Node::Mate { a, b, .. } => {
-                for r in [a, b] {
-                    let Some(next) = rewrite_face(&r.name, map) else {
-                        continue;
-                    };
-                    let at_mint = r.at == r.name.node;
-                    r.name = next;
-                    if at_mint {
-                        r.at = r.name.node;
-                    }
-                    hits += 1;
                 }
             }
             // An instance's crossing `outer`s — the reading twin's
@@ -4251,8 +4139,8 @@ impl<P, S: Slot> Node<P, S> {
                 class,
                 alignment,
             } => Node::Mate {
-                a: a.clone(),
-                b: b.clone(),
+                a: read(O::Side(crate::mate::MateSide::A), a)?,
+                b: read(O::Side(crate::mate::MateSide::B), b)?,
                 class: *class,
                 alignment: alignment.try_map_slots(f)?,
             },
@@ -4500,8 +4388,8 @@ impl<P, S: Slot> Node<P, S> {
         }
     }
 
-    /// The [`StableName`]s this payload REFERENCES — declared pairs, a
-    /// mate's two heads, an instance's interface crossings' `outer`s; a
+    /// The [`StableName`]s this payload REFERENCES — declared pairs and
+    /// an instance's interface crossings' `outer`s; a
     /// name read through a slot is a selection's
     /// ([`crate::VarDef::Select`]), not a payload's. Document data, never DAG
     /// edges ([`crate::Doc::upstream`] excludes them): the edit door checks at
@@ -4540,19 +4428,13 @@ impl<P, S: Slot> Node<P, S> {
                 .iter()
                 .flat_map(|((a, b), _)| [&a.name, &b.name])
                 .collect(),
-            // A12: a mate's two heads are the instance-qualified
-            // names its reading edges are recomputed from. The
-            // operands they are read at are node ids, not names, and
-            // are listed by [`Node::payload_read_sites`]. A face-based
-            // frame holds no name: its face is the head's.
-            Node::Mate { a, b, .. } => vec![a.name.as_ref(), b.name.as_ref()],
             // An instance's interface record: each crossing's `outer`,
             // in record order.
             //
             // An `outer` is a REMAINDER name — it denotes a face in
             // THIS document, on a node this document can delete and
             // under a name this document can rebind — so it is a
-            // payload name like a mate's head, and the same FOUR
+            // payload name like a declared side, and the same FOUR
             // doors reach it: the insert door's liveness check,
             // `DocEdit::Rebind`, DM7's strand report, and `split`'s
             // `PartNameReachesRemainder` precondition, which refuses
@@ -4583,22 +4465,18 @@ impl<P, S: Slot> Node<P, S> {
     }
 
     /// **The nodes a payload's references are READ AT that are not
-    /// also DAG inputs** — a mate's two operands and a declared
-    /// pair's two sites.
+    /// also DAG inputs** — a declared pair's two sites.
     ///
     /// The insert door checks these are live exactly as it checks a
     /// payload name's head, and for the same reason: a never-existed
     /// id is a typo, and a later delete stranding one is N5's
-    /// dangling case, refused at the solve rather than at the edit.
-    ///
-    /// A mate's operand is an A12 reading edge rather than a read.
+    /// dangling case, refused at evaluation rather than at the edit.
     pub fn payload_read_sites(&self) -> Vec<RecipeNodeId> {
         match self {
-            Node::Mate { a, b, .. } => vec![a.at, b.at],
             // A declared pair's sites are meant to be the node's own
             // operands, but a site that is not one is the EVALUATION's
             // refusal, not the insert door's, so each is checked live
-            // here as a mate's operand is.
+            // here.
             Node::Boolean { declare, .. } | Node::Union { declare, .. } => declare
                 .iter()
                 .flat_map(|((a, b), _)| [a.at, b.at])

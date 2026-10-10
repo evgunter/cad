@@ -155,8 +155,8 @@ fn authored(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
 /// a point of its top cap, or the cap face's own pose.
 fn seat(mover: SitedFace, onto: SitedFace, onto_frame: MateFrame<Formula>) -> AuthoredNode {
     Node::Mate {
-        a: mover,
-        b: onto,
+        a: mover.into(),
+        b: onto.into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
@@ -401,8 +401,8 @@ fn shaft(label: &str, shape: ShaftShape, (bolt_at, slab_at): Bores) -> Shaft {
     let doc = declare(doc, rise(), RISE, Dimension::Length);
     let doc = declare(doc, idle(), IDLE, Dimension::Length);
     let bore = |a: [f64; 3], b: [f64; 3], clocking: Option<f64>| Node::Mate {
-        a: head(p.bolt_foot(bolt)),
-        b: head(p.slab_top(slab)),
+        a: head(p.bolt_foot(bolt)).into(),
+        b: head(p.slab_top(slab)).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: authored(a, [0.0, 0.0, -1.0]),
@@ -413,8 +413,8 @@ fn shaft(label: &str, shape: ShaftShape, (bolt_at, slab_at): Bores) -> Shaft {
         },
     };
     let rest = Node::Mate {
-        a: head(p.bolt_foot(bolt)),
-        b: head(p.slab_top(slab)),
+        a: head(p.bolt_foot(bolt)).into(),
+        b: head(p.slab_top(slab)).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
@@ -493,8 +493,8 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let p = parts("msolve14-c-coax");
     let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-coax", 1);
     let coax = Node::Mate {
-        a: head(p.bolt_foot(bolts[0])),
-        b: head(p.slab_top(slab)),
+        a: head(p.bolt_foot(bolts[0])).into(),
+        b: head(p.slab_top(slab)).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: authored([0.5, 0.5, 0.0], [0.0, 0.0, -1.0]),
@@ -505,8 +505,8 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         },
     };
     let rest = Node::Mate {
-        a: head(p.bolt_foot(bolts[0])),
-        b: head(p.slab_top(slab)),
+        a: head(p.bolt_foot(bolts[0])).into(),
+        b: head(p.slab_top(slab)).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
@@ -527,8 +527,8 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         Node::Mate {
             class, alignment, ..
         } => Node::Mate {
-            a: head(p.bolt_foot(_bolts[0])),
-            b: head(p.slab_top(_slab)),
+            a: head(p.bolt_foot(_bolts[0])).into(),
+            b: head(p.slab_top(_slab)).into(),
             class,
             alignment,
         },
@@ -705,8 +705,8 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let (doc, _) = insert(
         doc,
         Node::Mate {
-            a: head(p.bolt_foot(bolts[1])),
-            b: head(p.bolt_foot(bolts[0])),
+            a: head(p.bolt_foot(bolts[1])).into(),
+            b: head(p.bolt_foot(bolts[0])).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
@@ -726,8 +726,8 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let p = parts("msolve14-c-two-pin");
     let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-two-pin", 1);
     let pin = |a: [f64; 3], b: [f64; 3]| Node::Mate {
-        a: head(p.bolt_foot(bolts[0])),
-        b: head(p.slab_top(slab)),
+        a: head(p.bolt_foot(bolts[0])).into(),
+        b: head(p.slab_top(slab)).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::authored(a, [0.0, 0.0, -1.0], [0.6, 0.8, 0.0], Tol::witness())
@@ -744,8 +744,8 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let (doc, _) = insert(
         doc,
         Node::Mate {
-            a: head(p.bolt_foot(bolts[0])),
-            b: head(p.slab_top(slab)),
+            a: head(p.bolt_foot(bolts[0])).into(),
+            b: head(p.slab_top(slab)).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
@@ -767,8 +767,8 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let (doc, _) = insert(
         doc,
         Node::Mate {
-            a: head(p.bolt_foot(bolts[0])),
-            b: head(p.slab_top(slab)),
+            a: head(p.bolt_foot(bolts[0])).into(),
+            b: head(p.slab_top(slab)).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
@@ -782,8 +782,8 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let (doc, _) = insert(
         doc,
         Node::Mate {
-            a: head(p.bolt_foot(bolts[0])),
-            b: head(p.slab_top(slab)),
+            a: head(p.bolt_foot(bolts[0])).into(),
+            b: head(p.slab_top(slab)).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: MateFrame::authored(

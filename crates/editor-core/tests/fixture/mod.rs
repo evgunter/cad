@@ -268,21 +268,95 @@ pub fn gate(doc: &editor_core::ProfileDoc, ev: &Evaluation<f64>) -> Result<(), A
     assemble(doc, ev, Tol::witness()).map(|_| ())
 }
 
-/// A mate head over a name this fixture built as a face, read at its
-/// own mint.
+/// **What the gather minted for `doc`'s own mates**: the declarations,
+/// and the rows it could not mint (`Product::minted`, `unminted`).
+pub fn mate_mints(
+    doc: &ProfileDoc,
+    ev: &Evaluation<f64>,
+) -> (
+    Vec<editor_core::MintedDeclaration>,
+    Vec<editor_core::MintRefusal>,
+) {
+    let p = editor_core::product_recorded(doc, ev, Tol::witness()).expect("the product gathers");
+    (p.minted, p.unminted)
+}
+
+/// **Asserts the gather minted nothing for `mate`** — no declaration and
+/// no refusal: a mate side whose body no world placement reads has no
+/// world copy, so the mate states nothing about the product.
+pub fn assert_mints_nothing(doc: &ProfileDoc, ev: &Evaluation<f64>, mate: RecipeNodeId) {
+    let (minted, unminted) = mate_mints(doc, ev);
+    assert!(
+        minted.iter().all(|d| d.mate != mate) && unminted.iter().all(|r| r.mate() != mate),
+        "a mate whose side's body no placement reads mints nothing: {minted:?} {unminted:?}"
+    );
+}
+
+/// A mate side over a name this fixture built as a face, read at its
+/// own mint (`editor_core::SitedFace`, which lowers to the `Face`
+/// selection of the name in its minting node's body).
 ///
-/// A head is an `editor_core::SitedFace`, so the kind is the type's
-/// and a fixture that names an edge does not compile. The `expect` in
-/// [`face`] is the fixture's own claim that the name it just made is a
-/// face — if it is not, the fixture is wrong and says so where it is
-/// built.
+/// The `expect` in [`face`] is the fixture's own claim that the name it
+/// just made is a face — if it is not, the fixture is wrong and says so
+/// where it is built.
 pub fn head(name: StableName) -> editor_core::SitedFace {
     editor_core::SitedFace::at_mint(face(name))
 }
 
-/// The same head read at `at` rather than at its mint.
+/// The same side read at `at` rather than at its mint.
 pub fn head_at(at: RecipeNodeId, name: StableName) -> editor_core::SitedFace {
     editor_core::SitedFace::new(at, face(name))
+}
+
+/// **The face name a document's mate side selects** — the one name of
+/// the side's `Face` selection.
+pub fn side_name(doc: &ProfileDoc, side: editor_core::VarId) -> StableName {
+    doc.selection(side)
+        .expect("a mate side is a selection")
+        .names[0]
+        .clone()
+}
+
+/// **The head an authored mate side spells** — the node its selection
+/// is read in and its one face name, for a side authored as a
+/// selection at a node (`SitedFace`'s lowering).
+pub fn authored_head(side: &editor_core::Operand) -> editor_core::SitedFace {
+    let editor_core::Operand::Select { body, names } = side else {
+        panic!("an authored side is a selection, got {side:?}")
+    };
+    let editor_core::Operand::Node(at) = **body else {
+        panic!("an authored side is read at a node, got {body:?}")
+    };
+    let [name] = names.as_slice() else {
+        panic!("a side selects one face")
+    };
+    editor_core::SitedFace::new(at, face(name.clone()))
+}
+
+/// **The head a document's mate side reads** — its selection's body
+/// operation and its face name (`editor_core::head_of`).
+pub fn side_head(doc: &ProfileDoc, side: editor_core::VarId) -> editor_core::SitedFace {
+    editor_core::head_of(doc, side).expect("the side reads a face of a live body")
+}
+
+/// **Every mate side that resolves to a member, as `(mate, instance)`**:
+/// each mate in document order, `a` before `b`, landing on the member's
+/// instance. What a test asks of which instance each side reads now
+/// that a mate's sides are reads.
+pub fn mate_edges(doc: &ProfileDoc) -> Vec<(RecipeNodeId, RecipeNodeId)> {
+    let mut out = Vec::new();
+    for id in doc.ids() {
+        if let Some(Node::Mate { a, b, .. }) = doc.node(id) {
+            for side in [*a, *b] {
+                if let Some(m) = editor_core::head_of(doc, side)
+                    .and_then(|head| editor_core::member_of(doc, &head))
+                {
+                    out.push((id, m.instance));
+                }
+            }
+        }
+    }
+    out
 }
 
 /// A fixture's name as an `editor_core::FaceName`.
@@ -838,19 +912,16 @@ pub fn door_refusal(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> editor
 /// resolving only through a LATER edit (N5) — a rebind, a shrunk
 /// pattern (`SetStructuralParam` on its count), a re-pointed `Part`,
 /// a deleted operand — and this is the shortest road to a head on
-/// LIVE geometry. The mate enters with that head on copy 1 of a scratch
-/// pattern over `anchor`, the instance its OTHER head stands on — two
+/// LIVE geometry. The mate enters with that side on copy 1 of a scratch
+/// pattern over `anchor`, the instance its OTHER side stands on — two
 /// members over one instance, so it welds nothing and no group
-/// moves — then `DocEdit::Rebind` moves the head onto the name `node`
-/// spells for it (the name-repair door checks that its target is
-/// live, not that a member stands there), and the scratch pattern is
-/// deleted. Nothing solves, so the refusing reach suffices, and the
-/// document differs from one that inserted `node` as spelled only in
-/// the id the scratch pattern consumed.
+/// moves — then the side's slot door (`SetParam` at
+/// `OperandSlot::Side`, which re-points a read and asks no admission)
+/// writes the side `node` spells, and the scratch pattern is deleted.
+/// Nothing solves, so the refusing reach suffices.
 ///
-/// `side` is the head that resolves to nothing, spelled in `node` as
-/// it is meant to read — at its own mint, which is where the rebind
-/// leaves it. `anchor_body` is the body node of `anchor`'s part
+/// `side` is the side that resolves to nothing, spelled in `node` as it
+/// is meant to read. `anchor_body` is the body node of `anchor`'s part
 /// document.
 pub fn insert_mate_with_stranded_head(
     doc: ProfileDoc,
@@ -879,45 +950,34 @@ pub fn insert_mate_with_stranded_head(
             },
         },
     );
-    let stand_in = in_copy(
+    let stand_in = head(in_copy(
         scratch,
         1,
         resolver::in_part(anchor, anchor_body, CapEnd::End),
-    );
+    ));
     let (stranded, a, b) = match side {
-        editor_core::MateSide::A => (a, head(stand_in.clone()), b),
-        editor_core::MateSide::B => (b, a, head(stand_in.clone())),
+        editor_core::MateSide::A => (a, stand_in.into(), b),
+        editor_core::MateSide::B => (b, a, stand_in.into()),
     };
     let (doc, mate) = insert(
         doc,
         Node::Mate {
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             class,
             alignment,
         },
     );
     let (doc, _) = step(
         doc,
-        DocEdit::Rebind {
-            body: None,
-            from: stand_in,
-            to: (*stranded.name).clone(),
+        DocEdit::SetParam {
+            node: mate,
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Side(side)),
+            value: editor_core::SlotValue::Read(stranded),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: scratch });
-    let Some(Node::Mate { a, b, .. }) = doc.node(mate) else {
-        panic!("the mate is live");
-    };
-    let now = match side {
-        editor_core::MateSide::A => a,
-        editor_core::MateSide::B => b,
-    };
-    assert_eq!(
-        (now.at, &now.name),
-        (stranded.at, &stranded.name),
-        "the rebind left the head read where `node` spelled it"
-    );
     (doc, mate)
 }
 

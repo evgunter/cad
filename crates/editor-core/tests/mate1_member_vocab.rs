@@ -89,8 +89,8 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
 /// the A11 rule-4 tree edge wants no residual).
 fn seat_mate(a: StableName, b: StableName, origin: [f64; 3], sense: AxisSense) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(a),
-        b: crate::fixture::head(b),
+        a: crate::fixture::head(a).into(),
+        b: crate::fixture::head(b).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame(origin, [0.0, 0.0, 1.0]),
@@ -181,7 +181,7 @@ fn a_mate_to_a_pattern_copy_places_the_other_member_at_the_derived_pose() {
     // pattern's INPUT instance — the vertex that joins the top into
     // the pattern's group.
     assert_eq!(
-        editor_core::reading_edges(&doc),
+        crate::fixture::mate_edges(&doc),
         vec![(mate, leg), (mate, top)],
         "a pattern-placed head contributes the reading edge at the pattern's input instance"
     );
@@ -589,7 +589,7 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
 /// pattern }`), rather than a name that vanished — the leg's face is
 /// there, under the pattern's row.
 #[test]
-fn the_master_name_spelling_refuses_moved_above() {
+fn the_master_name_spelling_mints_nothing() {
     let mut store = PartStore::default();
     let (leg_ref, leg_body) = store.insert_part(leg_part("mate1-pin-master-leg"), Tol::witness());
     let (top_ref, top_body) = store.insert_part(leg_part("mate1-pin-master-top"), Tol::witness());
@@ -625,32 +625,9 @@ fn the_master_name_spelling_refuses_moved_above() {
     let mate = mate.expect("the mate mints");
 
     let ev = run(&doc, &with_resolver(store));
-    let result = assemble(&doc, &ev, Tol::witness());
-    let Err(AssemblyError::Mint { refusals }) = &result else {
-        panic!("the master-name seat refuses at the gate, got {result:?}");
-    };
-    let [
-        editor_core::MintRefusal::Reference {
-            mate: named,
-            side,
-            why,
-            ..
-        },
-    ] = refusals.as_slice()
-    else {
-        panic!("one mate refused, so one row: {refusals:?}");
-    };
-    assert_eq!(*named, mate);
-    assert_eq!(*side, editor_core::MateSide::A);
-    assert_eq!(
-        *why,
-        editor_core::RefusedRef::MovedAbove {
-            at: leg,
-            by: pattern,
-            copies: true,
-        },
-        "the consumed master's face is placed again by the pattern: {why:?}"
-    );
+    // No placement reads the master the side is read at — the pattern
+    // places it again — so the mate has no world copy to mint on.
+    crate::fixture::assert_mints_nothing(&doc, &ev, mate);
 }
 
 // ---- The fence: what the vocabulary still refuses ----

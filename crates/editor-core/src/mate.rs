@@ -8,24 +8,16 @@
 //!
 //! # What a mate is, structurally
 //!
-//! A mate is a **leaf**: its `a`/`b` are [`crate::SitedFace`]s — an
-//! instance-qualified FACE name plus the OPERAND node it is read at,
-//! the kind fixed by the type because a mate is a face-pair contact
-//! — and neither half is a DAG edge (the shipped D3 carve-out, which
-//! declared pairs established, extended to the node half by A12's reading
-//! rule). What A12 adds on top is the *reading* edge: the MEMBER
-//! instance each reference's OPERAND resolves through, walking down
-//! to the minting instance past any number of transforms, `Part`
-//! instance selections and pattern levels (A11's member vocabulary,
-//! [`member`]) — RECOMPUTED from the
-//! recipe at need ([`reading_edges`]) and never stored beside it. The
-//! partitions
-//! divide on that distinction — A9's relative-freedom components and
-//! A11's placement groups run over consuming ∪ reading edges, while
-//! A10's coverage, ancestor-freedom, maintenance and product gather
-//! run over consuming edges only. A mate is therefore an ordinary
-//! non-body root: an isolated sink under consuming edges, listed like
-//! any other, denoting no body, ignored by the gather.
+//! A mate reads two faces: each side is one `Face` variable, a
+//! selection of the body the side is read in (D10), so a mate depends
+//! on what it reads exactly as every other reader does and A9's
+//! relative-freedom partition runs over reads
+//! ([`relative_freedom_components`]). The MEMBER a side lands on is
+//! the walk from the selection's body down to its name's minting
+//! instance, past any number of transforms, `Part` instance selections
+//! and pattern levels (A11's member vocabulary, [`member`]),
+//! recomputed from the recipe at need and never stored. A mate defines
+//! nothing, so nothing reads it and no world placement places it.
 //!
 //! # What a mate says, geometrically
 //!
@@ -78,15 +70,15 @@ pub mod reach;
 pub mod solve;
 
 pub use coset::{Coset, PoseSymmetry, Subgroup, SubgroupFamily};
-pub use member::{Member, Placing, head_face, member_of, member_reading};
+pub use member::{Member, Placing, head_face, head_of, member_of, member_reading};
 pub use reach::{
     FacePoseRefusal, MateReach, ReachRefusal, RefusingReach, SurfaceKind, body_reach, part_reach,
 };
 pub(crate) use solve::solve_with_env;
 pub use solve::{
     MateRole, PoseRefusal, SolveScalar, SolvedPoses, Space, UNPLACED_RECOURSE, Unplaced,
-    gauge_chain, groups, places, reading_edges, relative_freedom_components, root_of,
-    solve_document, solve_document_at,
+    gauge_chain, groups, places, relative_freedom_components, root_of, solve_document,
+    solve_document_at,
 };
 
 /// The kernel's contact vocabulary, re-exported (M9-1 PR-1: one enum,
@@ -1087,19 +1079,32 @@ pub enum MateFault {
         /// What survived the fold.
         residual: Subgroup,
     },
+    /// **A side reads no face of a live body** (D10: a reader left
+    /// unresolved, typed, never re-pointed): its selection, or the body
+    /// the selection is read in, was deleted, or the selection holds no
+    /// one face name. The mate's evaluation refuses in the read's own
+    /// words (`UnresolvedRead`, `SelectKind`); the solve, which runs
+    /// first, records this so the mate is no edge of the partition.
+    SideUnresolved {
+        /// The mate.
+        mate: RecipeNodeId,
+        /// Which side.
+        side: MateSide,
+        /// The side's read.
+        read: crate::VarId,
+    },
     /// **A mate's reference names no member of A11's vocabulary** —
-    /// N5's dangling reference. It contributes no reading edge; the
-    /// insert door and every solve refuse typed rather than pretending
-    /// the mate is absent — at insert, where the head resolves to no
-    /// member as authored, and at evaluation, where a later edit
-    /// stranded it.
+    /// N5's dangling reference. The insert door and every solve refuse
+    /// typed rather than pretending the mate is absent — at insert,
+    /// where the side resolves to no member as authored, and at
+    /// evaluation, where a later edit broke it.
     ///
     /// Exactly two causes, and both are about a copy or a node that
     /// does not exist:
     ///
-    /// - the WALK from the reference's operand down to its name's
-    ///   head stopped — a stranded operand, or a node that places no
-    ///   body of its own ([`crate::member_of`]);
+    /// - the WALK from the side's body down to its name's head stopped
+    ///   at a node that places no body of its own
+    ///   ([`crate::member_of`]);
     /// - the copy the name says is at or beyond the pattern's
     ///   evaluated count, so the named copy is not there.
     ///
@@ -1117,10 +1122,9 @@ pub enum MateFault {
         /// Which side dangles.
         side: MateSide,
         /// **The node at which the reference resolves to no member**:
-        /// where the walk stopped, which is a stranded operand when
-        /// the operand is the broken half and the first node outside
-        /// the vocabulary otherwise; or the pattern whose count the
-        /// named copy is past. Not in general the reference's own
+        /// where the walk stopped, the first node outside the
+        /// vocabulary; or the pattern whose count the named copy is
+        /// past. Not in general the reference's own
         /// head, which is often live and fine.
         head: RecipeNodeId,
     },
@@ -1438,6 +1442,7 @@ impl MateFault {
             | Self::Band { .. }
             | Self::Contradictory { .. }
             | Self::Under { .. }
+            | Self::SideUnresolved { .. }
             | Self::DanglingHead { .. }
             | Self::PartSelectsAnotherCopy { .. }
             | Self::SelfMate { .. }
@@ -1684,6 +1689,14 @@ impl crate::spoken::Say for MateFault {
                 instance_(*child),
                 instance_(*parent),
                 residual.describe()
+            ),
+            Self::SideUnresolved { mate, side, read } => write!(
+                f,
+                "{}'s {} side reads {}, which is no face of a live body. Recourse: \
+                 re-author the side, or delete the mate",
+                mate_(*mate),
+                side.name(),
+                read
             ),
             Self::DanglingHead { mate, side, head } => write!(
                 f,

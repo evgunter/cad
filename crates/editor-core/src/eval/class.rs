@@ -237,6 +237,8 @@ pub enum NodeErrorClass {
     MateContradictory,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Under`].
     MateUnder,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::SideUnresolved`].
+    MateSideUnresolved,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::DanglingHead`].
     MateDanglingHead,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::PlacerRefused`].
@@ -429,6 +431,7 @@ impl NodeErrorClass {
             MateFault::Band { .. } => Self::MateBand,
             MateFault::Contradictory { .. } => Self::MateContradictory,
             MateFault::Under { .. } => Self::MateUnder,
+            MateFault::SideUnresolved { .. } => Self::MateSideUnresolved,
             MateFault::DanglingHead { .. } => Self::MateDanglingHead,
             MateFault::PlacerRefused { .. } => Self::MatePlacerRefused,
             MateFault::PartSelectsAnotherCopy { .. } => Self::MatePartSelectsAnotherCopy,
@@ -589,6 +592,7 @@ mod tests {
         MateBand,
         MateContradictory,
         MateUnder,
+        MateSideUnresolved,
         MateDanglingHead,
         MatePlacerRefused,
         MatePartSelectsAnotherCopy,
@@ -1002,6 +1006,11 @@ mod tests {
                 parent: n(6),
                 child: n(7),
                 residual: crate::Subgroup::Se3,
+            }),
+            C::MateSideUnresolved => mate(crate::MateFault::SideUnresolved {
+                mate: n(9),
+                side: crate::MateSide::A,
+                read: crate::VarId::new(3, 3),
             }),
             C::MateDanglingHead => mate(crate::MateFault::DanglingHead {
                 mate: n(9),

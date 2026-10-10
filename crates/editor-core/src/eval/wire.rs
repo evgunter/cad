@@ -433,21 +433,27 @@ where
         // A gauge DENOTES NO BODY (A11 (2)): its slots evaluated above,
         // and the instances on it read where it sits.
         Node::Gauge { .. } => Ok(OpOut::plain(ValuePayload::Gauge, names::empty())),
-        // A mate DENOTES NO BODY (A12): it evaluates to its role in
-        // the solve. A refusing mate fails here rather than at the
-        // instance it would have placed, so the message names the mate.
-        Node::Mate { .. } => match env.poses.fault(id) {
-            Some(fault) => Err(NodeErrorKind::Mate(Box::new(fault.clone()))),
-            None => Ok(OpOut::plain(
-                ValuePayload::Mate(env.poses.role(id).unwrap_or_else(|| {
-                    unreachable!(
-                        "the solve of this document records a role for every mate in its \
+        // A mate DENOTES NO BODY: it evaluates to its role in the
+        // solve. Its two faces are read first, so a side whose name no
+        // longer resolves refuses in the selection's own words. A
+        // refusing mate fails here rather than at the instance it would
+        // have placed, so the message names the mate.
+        Node::Mate { a, b, .. } => {
+            select(doc, results, O::Side(crate::mate::MateSide::A), *a)?;
+            select(doc, results, O::Side(crate::mate::MateSide::B), *b)?;
+            match env.poses.fault(id) {
+                Some(fault) => Err(NodeErrorKind::Mate(Box::new(fault.clone()))),
+                None => Ok(OpOut::plain(
+                    ValuePayload::Mate(env.poses.role(id).unwrap_or_else(|| {
+                        unreachable!(
+                            "the solve of this document records a role for every mate in its \
                          order, or faults it, yet mate {id:?} has neither"
-                    )
-                })),
-                names::empty(),
-            )),
-        },
+                        )
+                    })),
+                    names::empty(),
+                )),
+            }
+        }
     }
 }
 

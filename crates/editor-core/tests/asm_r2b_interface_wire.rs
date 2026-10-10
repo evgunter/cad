@@ -73,8 +73,8 @@ fn doc_with_a_crossing() -> ProfileDoc {
     host = push(
         &host,
         Box::new(Node::Mate {
-            a: sited(first, CapEnd::End),
-            b: sited(second, CapEnd::Start),
+            a: sited(first, CapEnd::End).into(),
+            b: sited(second, CapEnd::Start).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: frame.clone(),
