@@ -441,13 +441,14 @@ fn digest() -> String {
 /// **Re-cut at all three ε when the loft's placements and skinned walls
 /// began entering the scalar as computed values** (`Real::from_computed`
 /// in `sweep::loft`, an unknown each at `Sym` where each was a
-/// constant). Only the `frozen` column of the two `validate_geometric`
-/// rows moves, and up: `sym_arc_loft` 607 → 1282 / 539 → 1281 /
-/// 606 → 1281 and `sym_thin_strip` 704 → 1281 / 674 → 1280 /
-/// 699 → 1280 at ε = 1e-6 / 1e-9 / 1e-12. A form over the lifted walls
-/// and placements no longer folds to a constant, so more of them
-/// outgrow the session's budget and freeze. Decisions, discharges
-/// (`sz`), shapes, verdicts and every f64 row are unchanged.
+/// constant, a seam column shared by the two walls that end on it).
+/// Only the `frozen` column of the two `validate_geometric` rows moves,
+/// and up: `sym_arc_loft` 607 → 1255 / 539 → 1245 / 606 → 1254 and
+/// `sym_thin_strip` 704 → 1257 / 674 → 1268 / 699 → 1256 at
+/// ε = 1e-6 / 1e-9 / 1e-12. The walk freezes more nodes once its
+/// leaves are unknowns rather than constants; which freeze cause each
+/// added count is, is not measured. Decisions, discharges (`sz`),
+/// shapes, verdicts and every f64 row are unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

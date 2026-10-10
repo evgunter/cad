@@ -3148,6 +3148,17 @@ fn not_a_support(edge: EdgeKey) -> BlendError {
     )
 }
 
+/// A certified box's six bounds at `T`, `None` when one is not finite.
+/// Box arithmetic produced them in `f64`, so each enters as one
+/// computed value ([`Real::from_computed`]), shared by every corner and
+/// face that reads it.
+fn lifted_box<T: Real>(lo: [f64; 3], hi: [f64; 3]) -> Option<([T; 3], [T; 3])> {
+    if lo.iter().chain(hi.iter()).any(|v| !v.is_finite()) {
+        return None;
+    }
+    Some((lo.map(T::from_computed), hi.map(T::from_computed)))
+}
+
 /// **A certified range of the latitude function over one piece whose
 /// carrier has no windowed closed form here** — an ellipse, a spiric
 /// oval or a NURBS curve: `(low, high)` bounding the distance from `c`
@@ -3176,14 +3187,10 @@ fn boxed_reach<T: Bounds>(
         Curve3::Nurbs(n) => boxes::nurbs_curve_aabb(n),
         Curve3::Line { .. } | Curve3::Circle { .. } => return None,
     };
-    let lo = [aabb.min_x, aabb.min_y, aabb.min_z];
-    let hi = [aabb.max_x, aabb.max_y, aabb.max_z];
-    if lo.iter().chain(hi.iter()).any(|v| !v.is_finite()) {
-        return None;
-    }
-    // The box's six bounds, each one computed value, shared by every
-    // corner and face that reads it.
-    let (lo, hi) = (lo.map(T::from_computed), hi.map(T::from_computed));
+    let (lo, hi) = lifted_box(
+        [aabb.min_x, aabb.min_y, aabb.min_z],
+        [aabb.max_x, aabb.max_y, aabb.max_z],
+    )?;
     let corner = |i: usize| {
         let pick = |k: usize| if i >> k & 1 == 0 { lo[k] } else { hi[k] };
         Point3::new(pick(0), pick(1), pick(2))
@@ -5658,6 +5665,15 @@ mod tests {
         assert_eq!(
             revalued, [None; 4],
             "the box's bounds are unknowns: no reach re-values as if only the centre moved"
+        );
+        let none = |_: ParamSymbol| None::<f64>;
+        let (bounds, _) = with_session(budget, || {
+            let (lo, hi) = super::lifted_box::<S>([0.0, -1.0, 0.5], [1.0, 2.0, 3.5]).unwrap();
+            [lo, hi].map(|b| b.map(|v| revalue(v.node(), &none)))
+        });
+        assert_eq!(
+            bounds, [[None; 3]; 2],
+            "each of the box's six bounds is an unknown, the low corner's and the high's alike"
         );
     }
 

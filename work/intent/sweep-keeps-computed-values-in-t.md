@@ -46,5 +46,9 @@ Every `launders(sweep-keeps-computed-values-in-t)` row is gone from
 - `blend/surgery.rs`'s `boxed_reach`: a carrier's certified box bounds
   (pin `a_boxed_reach_reads_its_box_as_computed_values`);
 - `loft.rs`: each section placement, lifted once in `build` for the
-  stacking fold and the assembly, and the skinned walls' control nets
+  stacking fold and the assembly, and the skinned walls' control nets,
+  a seam column lifted once for the two walls that end on it
   (pin `a_lofts_placements_and_walls_are_computed_values_at_sym`).
+
+The placements are honest unknowns but lose the document's parameters
+the loft never receives: `a-loft-takes-its-placements-as-f64`.

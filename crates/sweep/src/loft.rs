@@ -63,9 +63,13 @@
 //! the section chains — is selected at `f64` ([`fn@crate::skin`]'s
 //! contract) and lifted exactly into the requested scalar, so every
 //! lane builds the SAME body and the interval lane encloses the very
-//! geometry the `f64` lane defines. They are computed values, so they
-//! enter through `from_computed` (an unknown each at `Sym`), each
-//! placement lifted once and shared by every reader.
+//! geometry the `f64` lane defines. Knots and weights stay `f64`
+//! fields, and the section chains are the profile's own lift. The
+//! walls' control points and the section placements are computed
+//! values, so they enter through `from_computed` (an unknown each at
+//! `Sym`), each lifted once and shared by every reader: a placement by
+//! the stacking fold and the assembly, a seam column by both walls
+//! that end on it.
 
 use core::fmt;
 use std::sync::Arc;
@@ -334,9 +338,64 @@ fn end_profile<T: Real>(
     canonical.clone().lift_onto(SketchPlane::new(place))
 }
 
-/// A section placement at `T`: composed in `f64`, so a computed value.
+/// A section placement at `T`. It reaches this door as `f64`, composed
+/// by `sweep_places` or read out of a caller's own scalar, so it is a
+/// computed value; an identity placement's zeros and ones are unknowns
+/// too, because the `f64` cannot say which entries were not computed.
 fn lift_place<T: Real>(place: &Affine3<f64>) -> Affine3<T> {
     place.map(T::from_computed)
+}
+
+/// One loop's skinned walls at `T`. Their control nets are computed
+/// values ([`Real::from_computed`]), and wall `j`'s `u = 1` column is
+/// wall `j + 1 mod n`'s `u = 0` column (the seam both walls end on), so
+/// a column the two nets hold bit for bit is lifted once and shared:
+/// at `Sym` the seam is one set of unknowns on both sides of it.
+///
+/// # Errors
+///
+/// [`LoftError::SeamStructure`] if a rebuilt net is refused, which a
+/// net of the counts it was lifted from cannot be.
+fn lift_loop_walls<T: Real>(
+    walls: &[Arc<NurbsSurface<f64>>],
+) -> Result<Vec<Arc<NurbsSurface<T>>>, LoftError> {
+    let mut nets: Vec<Vec<Point3<T>>> = walls
+        .iter()
+        .map(|w| {
+            w.control()
+                .iter()
+                .map(|p| p.map(T::from_computed))
+                .collect()
+        })
+        .collect();
+    let bits = |p: &Point3<f64>| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()];
+    let n = walls.len();
+    for j in 0..n {
+        let k = (j + 1) % n;
+        let ((nu, nv), (_, nv_k)) = (walls[j].control_counts(), walls[k].control_counts());
+        let last = (nu - 1) * nv;
+        let shared = nv == nv_k
+            && (0..nv)
+                .all(|iv| bits(&walls[j].control()[last + iv]) == bits(&walls[k].control()[iv]));
+        if shared {
+            let column: Vec<Point3<T>> = nets[j][last..last + nv].to_vec();
+            nets[k][..nv].copy_from_slice(&column);
+        }
+    }
+    walls
+        .iter()
+        .zip(nets)
+        .map(|(w, net)| {
+            NurbsSurface::new(
+                w.knots_u().clone(),
+                w.knots_v().clone(),
+                net,
+                w.weights().to_vec(),
+            )
+            .map(Arc::new)
+            .map_err(|source| LoftError::SeamStructure { source })
+        })
+        .collect()
 }
 
 /// The world point of a sketch-plane point under a lifted placement.
@@ -536,13 +595,8 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     let walls_t: Vec<Vec<Arc<NurbsSurface<T>>>> = geometry
         .walls
         .iter()
-        .map(|loop_walls| {
-            loop_walls
-                .iter()
-                .map(|w| Arc::new(w.map_scalar(T::from_computed)))
-                .collect()
-        })
-        .collect();
+        .map(|w| lift_loop_walls(w))
+        .collect::<Result<_, _>>()?;
 
     // ---- Phase 1: bottom lamina (the extrude shape: the seed face's
     // chain is minted at the BOTTOM vertices and survives as the TOP
