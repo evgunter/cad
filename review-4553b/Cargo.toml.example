@@ -1,0 +1,12 @@
+[package]
+name = "probe-head"
+version = "0.0.0"
+edition = "2024"
+[dependencies]
+geom = { path = "/home/user/cad/crates/geom" }
+geom-core = { path = "/home/user/cad/crates/geom-core" }
+geom-brep = { path = "/home/user/cad/crates/geom-brep" }
+[profile.release]
+debug-assertions = true
+overflow-checks = true
+[workspace]

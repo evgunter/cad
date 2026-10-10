@@ -2499,3 +2499,181 @@ mod tests {
         assert!(refused.at.is_none(), "limb 3 was located: {:?}", refused.at);
     }
 }
+
+/// Review 4553b probe: dumps `refined_net`, `CellGrid::refined` and the
+/// `apply_homogeneous` fold at `Interval` on random rational nets whose
+/// weights span decades, for an exact-rational checker outside the
+/// crate (`REVIEW_4553B_DUMP` names the output file; unset, it skips).
+#[cfg(test)]
+mod review_4553b_dump {
+    #![allow(
+        clippy::unwrap_used,
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation
+    )]
+    use std::fmt::Write as _;
+
+    use geom::NurbsSurface;
+    use geom_core::spline::algebra::{domain_grid_points, refine_plan_homogeneous};
+    use geom_core::spline::{CurvePlan, KnotVector};
+    use geom_core::{Bounds, Interval, Point3};
+
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> f64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            (self.0 >> 11) as f64 / (1u64 << 53) as f64
+        }
+        fn knots(&mut self, n: usize, p: usize) -> Vec<f64> {
+            let mut inner: Vec<f64> = (0..n - p - 1).map(|_| self.next()).collect();
+            if self.next() < 0.3 && inner.len() > 1 {
+                // A near-coincident pair.
+                inner[1] = inner[0] + 1e-9 * self.next();
+            }
+            inner.sort_by(f64::total_cmp);
+            let mut k = vec![0.0; p + 1];
+            k.extend(inner);
+            k.extend(vec![1.0; p + 1]);
+            k
+        }
+        fn weight(&mut self, decades: f64) -> f64 {
+            10f64.powf(decades * (2.0 * self.next() - 1.0))
+        }
+    }
+
+    fn list(v: &[f64]) -> String {
+        v.iter()
+            .map(|x| format!("{:e}", x))
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+    fn ivs(v: &[Interval]) -> String {
+        v.iter()
+            .map(|x| format!("{:e}:{:e}", x.lo(), x.hi()))
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    #[test]
+    fn dump() {
+        let Ok(path) = std::env::var("REVIEW_4553B_DUMP") else {
+            return;
+        };
+        let mut out = String::new();
+        let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+        for trial in 0..300 {
+            let p = 1 + (rng.next() * 4.0) as usize;
+            let n = p + 1 + (rng.next() * 7.0) as usize;
+            let k = rng.knots(n, p);
+            let Ok(kv) = KnotVector::clamped(k.clone(), p) else {
+                continue;
+            };
+            let decades = [1.0, 3.0, 6.0][trial % 3];
+            let w: Vec<f64> = (0..n).map(|_| rng.weight(decades)).collect();
+            let coords: Vec<Vec<Interval>> = (0..3)
+                .map(|_| {
+                    (0..n)
+                        .map(|_| {
+                            let x = 10.0 * rng.next() - 5.0;
+                            Interval::from_bounds(x, x)
+                        })
+                        .collect()
+                })
+                .collect();
+            let Some((fine, net)) = super::refined_net(&kv, &w, &coords) else {
+                writeln!(out, "NETREFUSED {trial}").unwrap();
+                continue;
+            };
+            let c: Vec<Vec<f64>> = coords
+                .iter()
+                .map(|c| c.iter().map(|x| x.lo()).collect())
+                .collect();
+            writeln!(
+                out,
+                "CURVE {p}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
+                list(&k),
+                list(&w),
+                list(&c[0]),
+                list(&c[1]),
+                list(&c[2]),
+                list(fine.knots()),
+                ivs(&net[0]),
+                ivs(&net[1]),
+                ivs(&net[2])
+            )
+            .unwrap();
+            // The apply_homogeneous fold at Interval (Dual<Interval>'s route, with no meet).
+            let plans = refine_plan_homogeneous(&kv, &domain_grid_points(&kv, 32)).unwrap();
+            let wi: Vec<Interval> = w.iter().map(|&x| Interval::from_bounds(x, x)).collect();
+            let mut h = wi.clone();
+            for plan in &plans {
+                h = plan.apply_homogeneous(&h);
+            }
+            let rc = CurvePlan::refine_certified(&plans, &wi);
+            writeln!(
+                out,
+                "WCHAN {p}|{}|{}|{}|{}|{}",
+                list(&k),
+                list(&w),
+                list(fine.knots()),
+                ivs(&h),
+                ivs(&rc)
+            )
+            .unwrap();
+        }
+        // Surfaces through CellGrid::refined.
+        for trial in 0..80 {
+            let pu = 1 + (rng.next() * 3.0) as usize;
+            let pv = 1 + (rng.next() * 2.0) as usize;
+            let nu = pu + 1 + (rng.next() * 4.0) as usize;
+            let nv = pv + 1 + (rng.next() * 3.0) as usize;
+            let (ku, kvv) = (rng.knots(nu, pu), rng.knots(nv, pv));
+            let decades = [1.0, 3.0, 6.0][trial % 3];
+            let w: Vec<f64> = (0..nu * nv).map(|_| rng.weight(decades)).collect();
+            let ctl: Vec<Point3<f64>> = (0..nu * nv)
+                .map(|_| {
+                    Point3::new(
+                        10.0 * rng.next() - 5.0,
+                        10.0 * rng.next() - 5.0,
+                        10.0 * rng.next() - 5.0,
+                    )
+                })
+                .collect();
+            let (Ok(a), Ok(b)) = (
+                KnotVector::clamped(ku.clone(), pu),
+                KnotVector::clamped(kvv.clone(), pv),
+            ) else {
+                continue;
+            };
+            let s = NurbsSurface::new(a.clone(), b.clone(), ctl.clone(), w.clone()).unwrap();
+            let (bu, bv) = (domain_grid_points(&a, 16), domain_grid_points(&b, 16));
+            let Some(g) = crate::ssi::enclose::CellGrid::refined(&s, &bu, &bv) else {
+                writeln!(out, "GRIDREFUSED {trial}").unwrap();
+                continue;
+            };
+            let px: Vec<Interval> = g.points().iter().map(|p| p[0]).collect();
+            let py: Vec<Interval> = g.points().iter().map(|p| p[1]).collect();
+            let pz: Vec<Interval> = g.points().iter().map(|p| p[2]).collect();
+            writeln!(
+                out,
+                "SURF {pu} {pv} {nu} {nv}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
+                list(&ku),
+                list(&kvv),
+                list(&w),
+                list(&ctl.iter().map(|p| p.x).collect::<Vec<_>>()),
+                list(&ctl.iter().map(|p| p.y).collect::<Vec<_>>()),
+                list(&ctl.iter().map(|p| p.z).collect::<Vec<_>>()),
+                list(g.knots_u().knots()),
+                list(g.knots_v().knots()),
+                ivs(g.weights()),
+                ivs(&px),
+                ivs(&py),
+                ivs(&pz)
+            )
+            .unwrap();
+        }
+        std::fs::write(path, out).unwrap();
+    }
+}
