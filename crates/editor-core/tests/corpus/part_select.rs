@@ -134,7 +134,8 @@ pub fn document() -> CorpusDoc {
             angle: ang(0.0),
         },
     ));
-    let _ = lifted;
+    r.place(whole);
+    r.place(lifted);
 
     CorpusDoc {
         name: "part_select",

@@ -112,6 +112,11 @@ from bench_scene import (
 )
 from pncad import CapEnd, DocEdit, DocRef, Formula, Node, SegTag, Workspace, evaluate, m, mm
 
+#: The layout's nodes: the post instance, its pattern and the shelf
+#: instance, then each pattern copy projected and placed, then the
+#: shelf's placement.
+LAYOUT_NODES = 3 + 2 * PATTERN_COUNT + 1
+
 TOUR = Path(__file__).resolve().parents[3] / "demos" / "tour" / "src" / "assembly.rs"
 
 _SCENE = None
@@ -227,7 +232,7 @@ class TestTheSeamIsCrossedOrRefused(CorpusCase):
     def test_without_a_resolver_every_instance_refuses_typed(self):
         _, docs = opened()
         refusals = failures(evaluate(docs["layout"]))
-        self.assertEqual(len(refusals), 3, "no node of the layout survives")
+        self.assertEqual(len(refusals), LAYOUT_NODES, "no node of the layout survives")
         for node, refusal in refusals.items():
             with self.subTest(node=node):
                 self.assertEqual(refusal.kind, "part_no_resolver")
@@ -246,7 +251,7 @@ class TestTheSeamIsCrossedOrRefused(CorpusCase):
         store, docs = opened()
         evaluation = evaluate(docs["layout"], resolver=store)
         self.assertEqual(failures(evaluation), {})
-        instance, family, shelf = evaluation.order()
+        instance, family, shelf, *_placed = evaluation.order()
         self.assertVolumes(volumes(evaluation, instance), [POST_VOLUME])
         self.assertVolumes(
             volumes(evaluation, family), [POST_VOLUME] * PATTERN_COUNT
@@ -254,13 +259,15 @@ class TestTheSeamIsCrossedOrRefused(CorpusCase):
         self.assertVolumes(volumes(evaluation, shelf), [SHELF_VOLUME])
 
     def test_the_stand_evaluates_through_the_store(self):
-        """The mated bench: two posts and a shelf. The mate nodes carry
-        the solve's declarations rather than a body, so they denote no
-        volume — which is why the material is three solids, not five."""
+        """The mated bench: two posts and a shelf, each placed once. The
+        mate nodes carry the solve's declarations rather than a body and
+        nothing places them, so the world is three solids."""
         store, docs = opened()
         evaluation = evaluate(docs["stand"], resolver=store)
         self.assertEqual(failures(evaluation), {})
-        material = [v for node in evaluation.order() for v in volumes(evaluation, node)]
+        material = [
+            v for node in docs["stand"].placements() for v in volumes(evaluation, node)
+        ]
         self.assertVolumes(sorted(material), sorted([POST_VOLUME] * 2 + [SHELF_VOLUME]))
 
     def test_one_part_document_is_evaluated_once_however_many_instances(self):
@@ -292,14 +299,14 @@ class TestTheResolutionRefusals(CorpusCase):
 
     THREE arms are exercised here — `part_no_resolver` (the class
     above), `part_pin_mismatch` and `part_unresolved` — and two more
-    below: `part_root_failed` by `TestAPartWhoseRootFails` and
-    `part_root_poisoned` by `TestAPartWhoseRootIsPoisoned`. The rest of
-    the family is typed and tagged but UNREACHED from Python today, each
-    for its own reason, and none of them is singled out:
+    below: `part_root_poisoned`, by `TestAPartWhoseRootFails` and
+    `TestAPartWhoseRootIsPoisoned`, and `part_product` by
+    `TestAPartWithAnEmptyWorld`. The rest of the family is typed and
+    tagged but UNREACHED from Python today, each for its own reason, and
+    none of them is singled out: `part_root_failed` needs a part whose
+    world placement fails on its own rather than through what it reads;
     `part_epsilon_seam` needs a stored document recording a different
-    ε; `part_product` needs a part whose own product is broken for a
-    reason other than a failed or poisoned root;
-    `part_root_failure_unrecorded` and `part_not_entered` are
+    ε; `part_root_failure_unrecorded` and `part_not_entered` are
     kernel bugs no document reaches; `part_reference_cycle` needs an instantiate node
     pointing back up its own chain — and an honest store cannot hold
     one at all, since a cycle with valid pins wants a content hash
@@ -324,9 +331,10 @@ class TestTheResolutionRefusals(CorpusCase):
 
         refusals = failures(evaluate(docs["layout"], resolver=store))
         self.assertEqual(
-            [r.kind for r in refusals.values()],
-            ["part_pin_mismatch"],
-            "only the shelf instance refuses; the posts still resolve",
+            [(r.kind, r.reason) for r in refusals.values()],
+            [("part_pin_mismatch", "node_failed"), ("part_pin_mismatch", "poisoned")],
+            "only the shelf instance refuses, and its placement with it; the "
+            "posts still resolve",
         )
         refusal = next(iter(refusals.values()))
         self.assertIn(pncad.PIN_MISMATCH_RECOURSE, str(refusal))
@@ -339,13 +347,17 @@ class TestTheResolutionRefusals(CorpusCase):
         refusals = failures(
             evaluate(docs["layout"], resolver=Workspace(str(directory)))
         )
+        # The post instance fails; the pattern over it, each copy
+        # projected out of the pattern and each copy's placement are
+        # poisoned.
+        downstream = 1 + 2 * PATTERN_COUNT
         self.assertEqual(
-            sorted(r.kind for r in refusals.values()),
-            ["part_unresolved", "part_unresolved"],
-            "the post instance fails and the pattern over it is poisoned",
+            [r.kind for r in refusals.values()],
+            ["part_unresolved"] * (1 + downstream),
         )
         self.assertEqual(
-            sorted(r.reason for r in refusals.values()), ["node_failed", "poisoned"]
+            sorted(r.reason for r in refusals.values()),
+            ["node_failed"] + ["poisoned"] * downstream,
         )
 
     def test_a_missing_part_resolves_once_its_recourse_is_followed(self):
@@ -381,8 +393,9 @@ class TestTheResolutionRefusals(CorpusCase):
 
 
 class TestAPartWhoseRootFails(unittest.TestCase):
-    """`part_root_failed`, reached: a part whose own product root
-    refuses, one document down and two.
+    """A part whose own product refuses because the node its world
+    placement reads failed, one document down and two: each level's
+    placement is poisoned through it (`part_root_poisoned`).
 
     The instance's message is its own short sentence: it names the
     part's failed node and points at it, and never quotes that node's
@@ -405,14 +418,16 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         directory = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
         self.store = Workspace(str(directory))
-        # The boss: its one root, an extrude, has no length to extrude.
+        # The boss: its one placed body, an extrude, has no length to
+        # extrude.
         boss = bench_scene.prism("pncad-partroot-boss", 0.02, 0.02, 0.0)
         self.store.create(boss)
         self.boss_ref = DocRef(boss.id, pncad.content_pin(boss))
-        # The bracket: its one root instantiates the boss.
+        # The bracket: its one placed body instantiates the boss.
         bracket = pncad.Doc("pncad-partroot-bracket")
         self.bracket_root = bracket.insert(Node.instantiate_part(self.boss_ref))
         bracket.apply(DocEdit.set_label(self.bracket_root, "bracket seat"))
+        bracket.place(self.bracket_root)
         self.store.create(bracket)
         self.bracket_ref = DocRef(bracket.id, pncad.content_pin(bracket))
         self.assembly = pncad.Doc("pncad-partroot-assembly")
@@ -423,7 +438,7 @@ class TestAPartWhoseRootFails(unittest.TestCase):
     def test_the_part_refusal_is_short_and_its_cause_is_typed(self):
         bracket_root, instance = self.bracket_root, self.instance
         refusal = failures(evaluate(self.assembly, resolver=self.store))[instance]
-        self.assertEqual(refusal.kind, "part_root_failed")
+        self.assertEqual(refusal.kind, "part_root_poisoned")
         text = str(refusal)
         self.assertLessEqual(len(text.split()), self.BUDGET, text)
         self.assertEqual(
@@ -439,7 +454,7 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         # bracket's label and never the assembly's for the same id.
         bracket_refusal = refusal.__cause__
         self.assertIsInstance(bracket_refusal, pncad.EvaluationError)
-        self.assertEqual(bracket_refusal.kind, "part_root_failed")
+        self.assertEqual(bracket_refusal.kind, "part_root_poisoned")
         self.assertEqual(bracket_refusal.node, bracket_root)
         self.assertTrue(
             str(bracket_refusal).startswith(f"{seat} failed: "), str(bracket_refusal)
@@ -484,11 +499,44 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         self.assertEqual(cause.__cause__.document, self.boss_ref)
 
 
+class TestAPartWithAnEmptyWorld(unittest.TestCase):
+    """`part_product`, reached: a part that places nothing. An empty
+    world is a valid document — it saves, loads and evaluates — and
+    the door that needs its product, an instance of it, refuses with
+    the part's own gather refusal as the cause of its words."""
+
+    def test_an_instance_of_a_part_that_places_nothing_refuses(self):
+        directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
+        store = Workspace(str(directory))
+        part = pncad.Doc("pncad-emptyworld-part")
+        profile = part.insert(
+            Node.polygon(
+                [
+                    (Formula.length_in(0, m), Formula.length_in(0, m)),
+                    (Formula.length_in(0.02, m), Formula.length_in(0, m)),
+                    (Formula.length_in(0.02, m), Formula.length_in(0.02, m)),
+                ],
+                plane=part.sketch_frame(elevation=Formula.length_in(0, m)),
+            )
+        )
+        part.insert(Node.extrude(profile, Formula.length_in(0.01, m)))
+        self.assertEqual(failures(evaluate(part)), {}, "the part itself evaluates")
+        store.create(part)
+        assembly = pncad.Doc("pncad-emptyworld-assembly")
+        instance = assembly.insert(
+            Node.instantiate_part(DocRef(part.id, pncad.content_pin(part)))
+        )
+        refusal = failures(evaluate(assembly, resolver=store))[instance]
+        self.assertEqual(refusal.kind, "part_product")
+        self.assertIn("nothing is placed in the world", str(refusal))
+
+
 class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
     """`part_root_poisoned`, reached: a part whose extrude refuses and
-    whose one root, a transform over it, never runs.
+    whose one placed body, a transform over it, never runs.
 
-    The instance names the part's root and points at the extrude, the
+    The instance names the part's placement and points at the extrude, the
     node the author repairs; the extrude's refusal crosses TYPED as the
     exception's `__cause__`, raised the way the part's own evaluation
     raises it.
@@ -520,6 +568,7 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
                 Formula.literal(0.0 * pncad.rad),
             )
         )
+        self.placed = part.place(self.root)
         self.store.create(part)
         self.part = part
         self.part_ref = DocRef(part.id, pncad.content_pin(part))
@@ -530,7 +579,7 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         refusal = failures(evaluate(self.assembly, resolver=self.store))[self.instance]
         self.assertEqual(refusal.kind, "part_root_poisoned")
         text = str(refusal)
-        self.assertIn(f"its root, Transform {tag(self.root)}", text)
+        self.assertIn(f"its root, PlaceInWorld {tag(self.placed)}", text)
         self.assertIn(f"repair Extrude {tag(self.extrude)}", text)
 
         cause = refusal.__cause__
@@ -552,8 +601,8 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         self.assertEqual(refusal.variant, "root_poisoned")
         self.assertEqual(
             (refusal.node, refusal.through),
-            (self.root, self.extrude),
-            "the poisoned root, and the failed ancestor that poisoned it",
+            (self.placed, self.extrude),
+            "the poisoned placement, and the failed ancestor that poisoned it",
         )
 
     def test_two_documents_down_the_cause_chain_ends_at_the_failing_node(self):
@@ -562,12 +611,14 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         instance, and the chain runs instance, instance, extrude."""
         bracket = pncad.Doc("pncad-partpoison-bracket")
         inner = bracket.insert(Node.instantiate_part(self.part_ref))
-        bracket.insert(
-            Node.transform(
-                inner,
-                (Formula.length_in(0.01, m), Formula.length_in(0, m), Formula.length_in(0, m)),
-                (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
-                Formula.literal(0.0 * pncad.rad),
+        bracket.place(
+            bracket.insert(
+                Node.transform(
+                    inner,
+                    (Formula.length_in(0.01, m), Formula.length_in(0, m), Formula.length_in(0, m)),
+                    (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
+                    Formula.literal(0.0 * pncad.rad),
+                )
             )
         )
         self.store.create(bracket)
@@ -619,7 +670,7 @@ try:
     first = None
     for level in range(1, levels + 1):
         doc = Doc(f"pncad-depth-level-{level}")
-        doc.insert(Node.instantiate_part(DocRef(below.id, content_pin(below))))
+        doc.place(doc.insert(Node.instantiate_part(DocRef(below.id, content_pin(below)))))
         store.create(doc)
         first = first or doc
         below = doc
@@ -678,7 +729,7 @@ class TestNestingPastTheBound(unittest.TestCase):
             f"the interpreter survives the descent: {child.stderr[-2000:]}",
         )
         said = json.loads(child.stdout)
-        self.assertEqual(said["top"], "part_root_failed")
+        self.assertEqual(said["top"], "part_root_poisoned")
         self.assertEqual(
             said["causes"],
             LINKED_CAUSES,
@@ -737,8 +788,8 @@ class TestTheMemoIsObservable(CorpusCase):
         store, docs = opened()
         first = evaluate(docs["layout"], resolver=store)
         again = evaluate(docs["layout"], resolver=store, prior=first)
-        self.assertEqual((first.reused, first.recomputed), (0, 3))
-        self.assertEqual((again.reused, again.recomputed), (3, 0))
+        self.assertEqual((first.reused, first.recomputed), (0, LAYOUT_NODES))
+        self.assertEqual((again.reused, again.recomputed), (LAYOUT_NODES, 0))
 
     def test_the_two_counters_account_for_every_node_that_ran_or_was_reused(self):
         """The invariant is `reused + recomputed == len(order) -
@@ -766,13 +817,14 @@ class TestTheMemoIsObservable(CorpusCase):
 
     def test_on_a_refusal_path_the_counters_undershoot_by_the_poisonings(self):
         """The no-resolver layout: two instantiate nodes RUN and fail,
-        the pattern over one of them is poisoned and never runs. So the
-        sum is 2 against three nodes in `order()` — and the difference
-        is exactly the poisoning."""
+        and everything over them — the pattern, its projected copies
+        and every placement — is poisoned and never runs. So the sum is
+        2 against every node in `order()` — and the difference is
+        exactly the poisoning."""
         _, docs = opened()
         refusing = evaluate(docs["layout"])
-        self.assertEqual(poisoned(refusing), 1)
-        self.assertEqual(len(refusing.order()), 3)
+        self.assertEqual(poisoned(refusing), LAYOUT_NODES - 2)
+        self.assertEqual(len(refusing.order()), LAYOUT_NODES)
         self.assertEqual((refusing.reused, refusing.recomputed), (0, 2))
         self.assertEqual(
             refusing.reused + refusing.recomputed,
@@ -787,7 +839,7 @@ class TestTheMemoIsObservable(CorpusCase):
         first = evaluate(docs["layout"], resolver=store)
         self.assertEqual(first.part_evaluations, 2)
         again = evaluate(docs["layout"], prior=first)
-        self.assertEqual((again.reused, again.recomputed), (3, 0))
+        self.assertEqual((again.reused, again.recomputed), (LAYOUT_NODES, 0))
         self.assertEqual(again.part_evaluations, 0)
 
     def test_an_edit_recomputes_only_the_cone_below_it(self):
@@ -805,14 +857,16 @@ class TestTheMemoIsObservable(CorpusCase):
         _, docs = opened()
         post = docs["post"]
         first = evaluate(post)
-        frame, profile, extrude = first.order()
+        frame, profile, extrude, placed = first.order()
+        post.apply(DocEdit.delete_node(placed))
         post.apply(DocEdit.delete_node(extrude))
-        post.insert(Node.extrude(profile, Formula.length_in(2 * POST_HEIGHT, m)))
+        post.place(post.insert(Node.extrude(profile, Formula.length_in(2 * POST_HEIGHT, m))))
         again = evaluate(post, prior=first)
         # TWO reused: the post's sketch frame and the section drawn on
-        # it are what the deleted extrude consumed, and neither moved.
+        # it are what the deleted extrude consumed, and neither moved;
+        # the new extrude and its placement run.
         self.assertEqual(again.order()[:2], [frame, profile])
-        self.assertEqual((again.reused, again.recomputed), (2, 1))
+        self.assertEqual((again.reused, again.recomputed), (2, 2))
         self.assertVolumes(volumes(again, again.order()[-1]), [2 * POST_VOLUME])
 
     def test_a_prior_of_another_document_reuses_nothing_and_is_legal(self):
@@ -896,7 +950,7 @@ class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
         fresh = evaluate(docs["layout"], resolver=store)
         self.assertEqual(
             [r.kind for r in failures(fresh).values()],
-            ["part_pin_mismatch"],
+            ["part_pin_mismatch", "part_pin_mismatch"],
             "an evaluation that ASKS still refuses the moved pin",
         )
 
@@ -904,7 +958,7 @@ class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
         self.assertEqual(
             failures(memoized), {}, "the memo never asks, so nothing refuses"
         )
-        self.assertEqual((memoized.reused, memoized.recomputed), (3, 0))
+        self.assertEqual((memoized.reused, memoized.recomputed), (LAYOUT_NODES, 0))
         self.assertEqual(memoized.part_evaluations, 0, "the seam is not crossed")
         self.assertVolumes(
             volumes(memoized, shelf_node),
@@ -927,12 +981,12 @@ class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
                 r.kind
                 for r in failures(evaluate(docs["layout"], resolver=gone)).values()
             ),
-            ["part_unresolved", "part_unresolved"],
+            ["part_unresolved"] * (2 + 2 * PATTERN_COUNT),
             "an evaluation that ASKS refuses the document that is not there",
         )
         memoized = evaluate(docs["layout"], resolver=gone, prior=before)
         self.assertEqual(failures(memoized), {})
-        self.assertEqual((memoized.reused, memoized.recomputed), (3, 0))
+        self.assertEqual((memoized.reused, memoized.recomputed), (LAYOUT_NODES, 0))
         self.assertEqual(memoized.part_evaluations, 0)
 
     def test_a_prior_evaluates_an_assembly_with_no_resolver_at_all(self):
@@ -942,7 +996,7 @@ class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
         before = evaluate(docs["layout"], resolver=store)
         after = evaluate(docs["layout"], prior=before)
         self.assertEqual(failures(after), {}, "no part_no_resolver either")
-        self.assertEqual((after.reused, after.recomputed), (3, 0))
+        self.assertEqual((after.reused, after.recomputed), (LAYOUT_NODES, 0))
         self.assertEqual(after.part_evaluations, 0)
 
 
@@ -968,8 +1022,9 @@ class TestTheResolverSnapshot(CorpusCase):
                 r.kind
                 for r in failures(evaluate(docs["layout"], resolver=store)).values()
             ],
-            ["part_pin_mismatch"],
-            "the store a resave went through sees its own write",
+            ["part_pin_mismatch", "part_pin_mismatch"],
+            "the store a resave went through sees its own write: the shelf "
+            "instance, and its placement through it",
         )
 
     def test_a_create_before_the_call_is_inside_the_snapshot(self):
@@ -983,7 +1038,7 @@ class TestTheResolverSnapshot(CorpusCase):
                 r.kind
                 for r in failures(evaluate(whole["layout"], resolver=gone)).values()
             ),
-            ["part_unresolved", "part_unresolved"],
+            ["part_unresolved"] * (2 + 2 * PATTERN_COUNT),
         )
         gone.create(whole["post"])
         self.assertEqual(
@@ -1047,7 +1102,7 @@ class TestTheSceneEvaluatesToWhatTheTourAsserts(CorpusCase):
         family = evaluation.order()[1]
         caps = evaluation.select(
             family,
-            bench_scene.cap_selector(CapEnd.End, [SegTag.Instance, SegTag.InPart]),
+            bench_scene.cap_selector(CapEnd.End, [SegTag.Instance, *bench_scene.PART_FACE]),
         )
         read = sorted(
             tuple(round(c.meters, 9) for c in evaluation.face_frame(family, cap).origin)

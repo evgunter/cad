@@ -60,7 +60,7 @@ use crate::boolean::PointInSolidError;
 use crate::boolean::SolidContainment;
 use crate::boolean::solid_contain::{SolidFaces, face_plane, point_in_face, point_in_solid_faces};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, VertexKey};
-use crate::props::{QuadLane, ShellClassifyError, ShellRole};
+use crate::props::{QuadLane, ShellRole};
 use crate::ray_walk::Ranked;
 
 /// What one witness read against the probed surfaces.
@@ -501,24 +501,21 @@ pub(crate) struct ShellRead {
 }
 
 impl ShellRead {
-    /// `shell` read: `None` where its selection cannot be read, and the
-    /// shell's typed refusal where its role cannot
-    /// ([`crate::props::shell_role`]).
+    /// `shell` read, or the shell's typed refusal where its role cannot
+    /// be, with the certified reading's sliver verdict
+    /// ([`crate::props::shell_role_read`]).
     pub(crate) fn of<T: Decide>(
         body: &Body<T>,
         shell: ShellKey,
         band: Band,
         tol: Tol,
         quad: Option<QuadLane<T>>,
-    ) -> Option<Result<Self, ShellClassifyError>> {
-        let sel = SolidFaces::of_shell(body, shell).ok()?;
-        Some(
-            crate::props::shell_role(body, shell, band, tol, quad).map(|(role, _)| Self {
-                shell,
-                role,
-                sel: sel.with_role(role),
-            }),
-        )
+    ) -> Result<Self, crate::props::RoleRefusal> {
+        crate::props::shell_role_read(body, shell, band, tol, quad).map(|(role, _)| Self {
+            shell,
+            role,
+            sel: SolidFaces::of_shell(body, shell).with_role(role),
+        })
     }
 }
 

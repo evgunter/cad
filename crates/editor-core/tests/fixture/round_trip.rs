@@ -314,12 +314,6 @@ pub fn same_up_to_ids(
             problems.push(format!("preimage: {id:?} has none"));
         }
     }
-    let roots_a: Vec<Option<RecipeNodeId>> =
-        a.roots().iter().map(|r| map.get(r).copied()).collect();
-    let roots_b: Vec<Option<RecipeNodeId>> = b.roots().iter().map(|&r| Some(r)).collect();
-    if roots_a != roots_b {
-        problems.push(format!("roots: {roots_a:?} vs {roots_b:?}"));
-    }
     let position: BTreeMap<RecipeNodeId, usize> =
         b.ids().iter().enumerate().map(|(i, &id)| (id, i)).collect();
     for group in editor_core::groups(a) {

@@ -22,7 +22,7 @@ use editor_core::program::ProgramRefusal;
 use editor_core::{
     AttrKind, ContentPin, CountMismatch, Dimension, DimensionError, DistributionFault,
     DistributionField, DocumentId, EditError, EntityKind, EvalError, FrameSite, Label, MateFault,
-    MeasureNodeFault, MetaVersionError, NodeErrorKind, RecipeNodeId, RootFault, SlotId, SpokenName,
+    MeasureNodeFault, MetaVersionError, NodeErrorKind, RecipeNodeId, SlotId, SpokenName,
     SpokenNode, StableName, StepIdFault, VarName,
 };
 use test_utils::refusal::Admission;
@@ -624,13 +624,6 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "Roots",
-            EditError::Roots(RootFault::Ancestor {
-                ancestor: s(3, "Extrude"),
-                descendant: s(5, "Fillet"),
-            }),
-        ),
-        (
             "OffsetOnNonInstance",
             EditError::OffsetOnNonInstance {
                 node: s(5, "Extrude"),
@@ -794,22 +787,6 @@ fn variant(witness: &impl core::fmt::Debug) -> String {
         .next()
         .unwrap_or_default()
         .to_owned()
-}
-
-fn next_root_fault(fault: &RootFault) -> Option<RootFault> {
-    match fault {
-        RootFault::NotLive { .. } => Some(RootFault::Duplicate {
-            root: s(3, "Extrude"),
-        }),
-        RootFault::Duplicate { .. } => Some(RootFault::Ancestor {
-            ancestor: s(3, "Extrude"),
-            descendant: s(5, "Fillet"),
-        }),
-        RootFault::Ancestor { .. } => Some(RootFault::Uncovered {
-            node: s(4, "Extrude"),
-        }),
-        RootFault::Uncovered { .. } => None,
-    }
 }
 
 fn next_distribution_fault(fault: &DistributionFault) -> Option<DistributionFault> {
@@ -1080,17 +1057,6 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
     }
     // Each states its own recourse, so each is rendered, not only the
     // representative row's — every arm, from the witness chains below.
-    for fault in witnesses(
-        RootFault::NotLive {
-            root: SpokenNode::absent(n(9)),
-        },
-        next_root_fault,
-    ) {
-        rows.push((
-            format!("Roots({})", variant(&fault)),
-            EditError::Roots(fault),
-        ));
-    }
     for shape in witnesses(CountMismatch::ListedOnPattern, next_count_mismatch) {
         let kind = match shape {
             CountMismatch::ListedOnPattern => "Pattern",

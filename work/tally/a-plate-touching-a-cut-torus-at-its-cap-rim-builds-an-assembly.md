@@ -78,3 +78,20 @@ Dropping the exclusion turns it red at ε 1e-9 at exactly those two,
 The contact machinery is under the D10 hold (`docs/DESIGN.md` D10).
 This item records the behaviour. It does not propose extending declared
 contacts, the placement registry or intent spellings.
+
+## 2026-10-09, the frustum's rims join the class (VERBS-CONE U7)
+
+With `Cone` on the operand roster, the same row's frustum (about y:
+inner cylinder `r = 0.2·s`, outer cone `r = 0.6·s → 0.4·s` over
+`y ∈ [0, 0.6·s]`, full and 270°) is no longer refused at the gate, and
+its support always falls on one of its four rim circles. Measured at
+ε 1e-9 over the row's 36 (scale, direction) cases per turn, at
+`δ = 0` and `δ = −ε`: every ∪ that builds (8, all on the 270° turn's
+cut) is an `Assembly` holding one `VfContact` (the minted rim vertex
+on the plate face), every ∩ that builds is `Empty` (52), and ∖ in both
+orders returns the operand whole (88), with no contact and no sampled
+point wrong. The other ∪ refuse. The row excludes the measured class
+and no more (`sweep/tests/operand_gate_support_plates.rs`): a support
+on the 270° frustum's cut under the torus's cut-cap rule, and the
+frustum's `∩` at any rim touch (40 of the 52 `Empty` fall off the cut,
+23 of them on the full turn). This item's question covers both.

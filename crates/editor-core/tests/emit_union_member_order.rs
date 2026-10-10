@@ -338,7 +338,7 @@ fn a_seam_passed_through_a_split_and_cut_later_is_named() {
     );
     let below = Operand::output(split, SplitHalf::Below.port());
     let (doc, cut) = block(doc, (0.7, 0.8), (0.3, 0.7), 0.95, 0.1);
-    let (doc, minus) = pair(doc, BooleanOp::Subtract, below, cut);
+    let (doc, minus) = pair(doc, BooleanOp::Subtract, below.clone(), cut);
     let (doc, plus) = pair(doc, BooleanOp::Union, below, cut);
     let ev = run(&doc);
     for (what, id) in [("subtract", minus), ("union", plus)] {

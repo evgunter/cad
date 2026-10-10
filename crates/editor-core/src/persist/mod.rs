@@ -481,6 +481,18 @@ impl Staged for PersistError {
                  layer's dimension checker: {error}"
             ),
             Self::Snapshot(e) => write!(f, "invalid snapshot: {e}"),
+            // A log no current door wrote: its recourse is the file's,
+            // not the edit door's "name it".
+            Self::EditReplay { index, error }
+                if matches!(**error, EditError::SharedVarNeedsName { .. }) =>
+            {
+                write!(
+                    f,
+                    "edit {index} refused on replay: {}. {}",
+                    error.problem(),
+                    crate::sentence::Recourse(REGENERATE_RECOURSE)
+                )
+            }
             Self::EditReplay { index, error } => {
                 write!(f, "edit {index} refused on replay: {error}")
             }

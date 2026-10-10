@@ -265,8 +265,8 @@ pub fn reads_as_inputs_by(doc: &Value, table: &Value) -> Value {
     doc
 }
 
-/// `doc` with the nodes `ids` names taken out whole: their rows, the
-/// root list's entries for them, their outputs, every other variable
+/// `doc` with the nodes `ids` names taken out whole: their rows,
+/// their outputs, every other variable
 /// no remaining node, definition or edit spells, and those ids'
 /// mint-log entries. For a
 /// subgraph whose shape a change moved by design, set aside on both
@@ -277,9 +277,6 @@ pub fn without_nodes(doc: &Value, ids: &[String]) -> Value {
     let nodes = snapshot["nodes"].as_object_mut().expect("a node map");
     for id in ids {
         nodes.remove(id);
-    }
-    if let Some(roots) = snapshot.get_mut("roots").and_then(Value::as_array_mut) {
-        roots.retain(|root| !root.as_str().is_some_and(|r| ids.iter().any(|id| id == r)));
     }
     // A variable stays while anything left spells it.
     let mut spelled = std::collections::BTreeSet::new();

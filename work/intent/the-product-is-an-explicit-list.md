@@ -2,12 +2,13 @@
 id: the-product-is-an-explicit-list
 kind: issue
 title: D10 stage 2 PR C: the product is the world — PlaceInWorld { body, pose } and a derived product; roots.rs, A10's invariants and maintenance, PlacedUnderTwoRoots/N4, D-2's consumer-ward closure and InstanceConsumed retire
-status: parked
+status: dispatched
 opened: 2026-10-07
 priority: P0
 cost: M
-blocked_on: [operands-are-reads]
 refs: [a-measured-part-is-not-a-product-root, a-failed-requirement-refuses-the-whole-product, error-design-e3-calls-a-measure-a-sink]
+branch: intent/s2-c-world
+pr: 4359
 ---
 
 INTENT stage 2, PR C. Spec: `docs/INTENT-STAGE2-SPEC.md` §4.

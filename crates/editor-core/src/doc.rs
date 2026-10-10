@@ -819,15 +819,6 @@ pub struct Doc<P> {
     /// input refs, spec D3).
     #[serde(with = "crate::persist::strict::nodes")]
     pub(crate) nodes: BTreeMap<RecipeNodeId, Node<P>>,
-    /// The document's ordered product roots (ASSEMBLY-DESIGN A10,
-    /// ASM-ROOTS D-1): document data, never a DAG node. Two invariants
-    /// hold at rest and after every edit — *coverage* (every node is
-    /// an ancestor of, or is, some root) and *ancestor-freedom* (no
-    /// root is a strict ancestor of another) — which together say the
-    /// root SET is exactly the DAG's sink set; the list adds the
-    /// product's solid ORDER, which is therefore semantic. No
-    /// duplicates; every entry is live.
-    pub(crate) roots: Vec<RecipeNodeId>,
     /// **The variables** (VARIABLES-DESIGN VR1/VR3), by minted id, so in
     /// declaration order. Every key is logged in the mint as
     /// [`crate::Minted::Var`].
@@ -977,7 +968,6 @@ impl<P> Doc<P> {
             id,
             mint: crate::Mint::empty(),
             nodes: BTreeMap::new(),
-            roots: Vec::new(),
             vars: BTreeMap::new(),
             var_names: BTreeMap::new(),
             epsilon: tol.eps(),
@@ -1061,10 +1051,41 @@ impl<P> Doc<P> {
         self.nodes.keys().copied().collect()
     }
 
-    /// The ordered product roots (A10): the gather order of the
-    /// document's product solids.
-    pub fn roots(&self) -> &[RecipeNodeId] {
-        &self.roots
+    /// **The world placements** (A10), in document order: the nodes
+    /// whose copies are the product.
+    pub fn placements(&self) -> Vec<RecipeNodeId> {
+        self.nodes
+            .iter()
+            .filter(|(_, node)| matches!(node, Node::PlaceInWorld { .. }))
+            .map(|(&id, _)| id)
+            .collect()
+    }
+
+    /// **The unplaced bodies** (A10): every live `Body` or `Bodies`
+    /// output no world placement reads, a placement's own copy aside,
+    /// in document order. What a door needing a product names when the
+    /// world is empty ([`crate::ProductError::EmptyProduct`]); a
+    /// `Bodies` output (a pattern's) is placed through a `Part` pick of
+    /// one of its bodies.
+    pub fn unplaced(&self) -> Vec<VarId> {
+        let placed: std::collections::BTreeSet<VarId> = self
+            .nodes
+            .values()
+            .filter_map(|node| match node {
+                Node::PlaceInWorld { body, .. } => Some(*body),
+                _ => None,
+            })
+            .collect();
+        self.nodes
+            .iter()
+            .filter(|(_, node)| !matches!(node, Node::PlaceInWorld { .. }))
+            .flat_map(|(&id, _)| self.outputs(id))
+            .filter(|var| {
+                self.vars.get(var).is_some_and(|v| {
+                    matches!(v.kind(), crate::VarKind::Body | crate::VarKind::Bodies)
+                }) && !placed.contains(var)
+            })
+            .collect()
     }
 
     /// Number of live nodes.
@@ -1214,11 +1235,60 @@ impl<P> Doc<P> {
         !self.var_names.contains_key(&var) && self.free(var).is_some()
     }
 
+    /// **How many readers each variable has** (VR2): each slot holding
+    /// it — a measure's value leaves and an assertion's bound among
+    /// them (VR4) — each operand reading it, and each definition reading
+    /// it, however often that one definition reads it. The one census
+    /// of readers: the VR7 sweep ([`Self::unread_anonymous_vars`]) and
+    /// the share check ([`Self::shared_unnamed_vars`]) both ask it.
+    pub fn reader_counts(&self) -> BTreeMap<VarId, usize>
+    where
+        P: crate::ProfilePayload,
+    {
+        let mut readers: BTreeMap<VarId, usize> = BTreeMap::new();
+        for node in self.nodes.values() {
+            let slots = node.exprs().into_iter().copied();
+            let operands = node.operand_rows().into_iter().map(|(_, var)| var);
+            for var in slots.chain(operands) {
+                *readers.entry(var).or_default() += 1;
+            }
+        }
+        for var in self.vars.keys() {
+            for read in self
+                .definition_reads(*var)
+                .into_iter()
+                .collect::<BTreeSet<_>>()
+            {
+                *readers.entry(read).or_default() += 1;
+            }
+        }
+        readers
+    }
+
+    /// **The unnamed variables more than one reader reads**, in id
+    /// order: what no door admits (VR2, VR7) and the load door refuses
+    /// (VR9). An output is not among them: it is read by its readers
+    /// and named by its operation and port.
+    pub fn shared_unnamed_vars(&self) -> Vec<VarId>
+    where
+        P: crate::ProfilePayload,
+    {
+        let readers = self.reader_counts();
+        self.vars
+            .iter()
+            .filter(|(id, var)| {
+                !self.var_names.contains_key(id)
+                    && var.def().output().is_none()
+                    && readers.get(id).is_some_and(|&n| n > 1)
+            })
+            .map(|(&id, _)| id)
+            .collect()
+    }
+
     /// **The anonymous variables [`Node::written`] would not reproduce**:
-    /// one read more than once — by two slots, as a fresh entry shared
-    /// within one edit, or by a slot and a definition — which a written
-    /// re-insert splits into one per reader, and a count read by a
-    /// definition, which written there reads back as the integer
+    /// one its one reader's formula reads more than once, which a
+    /// written re-insert splits into one per read, and a count read by
+    /// a definition, which written there reads back as the integer
     /// constant.
     /// Rebuilding a document by re-inserting its nodes as written is
     /// the document only where this is empty and no anonymous variable
@@ -1260,45 +1330,44 @@ impl<P> Doc<P> {
     }
 
     /// **The anonymous variables nothing live reads** (VR7), in the
-    /// order a cascading removal reports them: a variable is live when
-    /// it is named, when a node reads it, or when the definition of a
-    /// live variable reads it. An output is not among them: it lives
-    /// exactly as long as its node. Each round takes, in declaration order,
-    /// the anonymous variables read by no node and by no definition of
-    /// a variable still standing — so a defined variable comes before
-    /// the variables only its definition read.
+    /// order a cascading removal reports them: an unnamed variable with
+    /// no reader ([`Self::reader_counts`]) goes, and so, round by round,
+    /// does one whose only readers were definitions of variables that
+    /// went. An output is not among them: it lives exactly as long as
+    /// its node. Each round is in declaration order, so a defined
+    /// variable comes before the variables only its definition read.
     pub(crate) fn unread_anonymous_vars(&self) -> Vec<VarId>
     where
         P: crate::ProfilePayload,
     {
-        let mut node_read = BTreeSet::new();
-        for node in self.nodes.values() {
-            node_read.extend(node.exprs().into_iter().copied());
-        }
+        let counts = self.reader_counts();
         let edges = self.definition_edges();
         let unheld = |at: usize| {
             let id = edges.ids[at];
             !self.var_names.contains_key(&id)
-                && !node_read.contains(&id)
                 && self
                     .vars
                     .get(&id)
                     .is_some_and(|var| var.def().output().is_none())
         };
-        // How many standing definitions read each variable: a round
-        // removes its variables' reads, and a variable whose count
-        // falls to none joins the next round.
-        let mut holders: Vec<usize> = edges.definers.iter().map(Vec::len).collect();
+        // Each variable's readers still standing: a round removes its
+        // variables' definitions, and a variable whose count falls to
+        // none joins the next round.
+        let mut readers: Vec<usize> = edges
+            .ids
+            .iter()
+            .map(|id| counts.get(id).copied().unwrap_or(0))
+            .collect();
         let mut round: Vec<usize> = (0..edges.ids.len())
-            .filter(|&at| holders[at] == 0 && unheld(at))
+            .filter(|&at| readers[at] == 0 && unheld(at))
             .collect();
         let mut removed = Vec::new();
         while !round.is_empty() {
             let mut next = Vec::new();
             for &at in &round {
                 for &read in &edges.reads[at] {
-                    holders[read] -= 1;
-                    if holders[read] == 0 && unheld(read) {
+                    readers[read] -= 1;
+                    if readers[read] == 0 && unheld(read) {
                         next.push(read);
                     }
                 }
@@ -1470,7 +1539,10 @@ impl<P> Doc<P> {
     /// of an anonymous one by what it holds ([`Self::written`]) — a
     /// written value in its unit (`5 mm`), a definition expanded — and
     /// a reader of a variable the document does not hold by its full id
-    /// ([`crate::unparse`]).
+    /// ([`crate::unparse`]). An anonymous variable has one reader
+    /// (VR2), so the text set back where it was read re-mints it for
+    /// that reader alone: no share is split, and a shared variable is
+    /// written by its name.
     pub fn unparse<L: crate::expr::LeafSet>(&self, expr: &crate::expr::ExprTree<L>) -> String {
         crate::expr::unparse(&self.written_formula(&expr.to_formula()), &|id| {
             self.var_names.get(&id)
@@ -1545,17 +1617,24 @@ impl<P> Doc<P> {
         out
     }
 
-    /// **The kind of `held` when a seat admitting `expected` does not
-    /// admit it** (D10, [`crate::SlotKind::admits`]). Asked of a live read by every
-    /// door that writes or loads one — the edit doors' lowering and the
-    /// load door's operand walk — so the rule is stated once; liveness
-    /// is each door's own question, asked before.
+    /// **What is wrong with reading `held` at a seat admitting
+    /// `expected`** (D10), if anything: a kind the seat does not admit
+    /// ([`crate::SlotKind::admits`]), or a world placement's copy (D10:
+    /// construction never reads the world). Asked of a live read by
+    /// every door that writes or loads one — the edit doors' lowering
+    /// and the load door's operand walk — so the rule is stated once;
+    /// liveness is each door's own question, asked before.
     pub(crate) fn read_fault(
         &self,
         held: &crate::Var,
         expected: crate::SlotKind,
-    ) -> Option<crate::VarKind> {
-        (!expected.admits(held)).then(|| held.kind())
+    ) -> Option<ReadFault> {
+        if !expected.admits(held) {
+            return Some(ReadFault::Kind { found: held.kind() });
+        }
+        let (from, _) = held.def().output()?;
+        matches!(self.node(from), Some(Node::PlaceInWorld { .. }))
+            .then_some(ReadFault::WorldCopy { placement: from })
     }
 
     /// **The variable port `port` of `node` defines**
@@ -2129,7 +2208,6 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
     pub fn bit_eq(&self, other: &Doc<P>) -> bool {
         self.id == other.id
             && self.mint == other.mint
-            && self.roots == other.roots
             && self.epsilon.to_bits() == other.epsilon.to_bits()
             // Witness bytes are exact data (no float semantics to
             // conflate) — structural equality IS bit equality here.
@@ -2271,6 +2349,41 @@ pub(crate) fn witness_site_fault<P>(doc: &Doc<P>, node: RecipeNodeId) -> Option<
 /// method would have nothing to be called on there.
 pub(crate) fn epsilon_admissible(eps: f64) -> bool {
     eps.is_finite() && eps > 0.0
+}
+
+/// The strict ancestors of `from` in ONE document, visited depth-first
+/// over [`Doc::upstream`] in deterministic order; `visit` sees each
+/// reached node once. The crate's one transitive walk over reads —
+/// [`strict_ancestors`] is it with nothing to refuse.
+pub(crate) fn walk_strict_ancestors<P: crate::ProfilePayload, E>(
+    doc: &Doc<P>,
+    from: RecipeNodeId,
+    seen: &mut std::collections::BTreeSet<RecipeNodeId>,
+    mut visit: impl FnMut(RecipeNodeId) -> Result<(), E>,
+) -> Result<(), E> {
+    let mut stack: Vec<RecipeNodeId> = doc.upstream(from);
+    while let Some(id) = stack.pop() {
+        if !seen.insert(id) {
+            continue;
+        }
+        visit(id)?;
+        stack.extend(doc.upstream(id));
+    }
+    Ok(())
+}
+
+/// Every node `from` depends on through its reads in `doc`, itself
+/// excluded — [`walk_strict_ancestors`] collected.
+pub(crate) fn strict_ancestors<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    from: RecipeNodeId,
+) -> std::collections::BTreeSet<RecipeNodeId> {
+    let mut seen = std::collections::BTreeSet::new();
+    let walked: Result<(), core::convert::Infallible> =
+        walk_strict_ancestors(doc, from, &mut seen, |_| Ok(()));
+    match walked {
+        Ok(()) => seen,
+    }
 }
 
 #[cfg(test)]
@@ -2556,3 +2669,18 @@ mod tests {
     }
 }
 
+/// [`Doc::read_fault`]'s answer, rendered by each door in its own
+/// vocabulary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReadFault {
+    /// The variable's kind is not one the seat admits.
+    Kind {
+        /// The variable's kind.
+        found: crate::VarKind,
+    },
+    /// The variable is a world placement's copy.
+    WorldCopy {
+        /// The placement.
+        placement: RecipeNodeId,
+    },
+}

@@ -42,7 +42,7 @@
 //! coefficients, where the combination is the plain convex one and no
 //! `λ` is needed.
 
-use super::knots::{InteriorKnot, KnotVector, SplineError};
+use super::knots::{InteriorKnot, KnotVector, SplineError, find_span_in};
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
 use crate::readable::Readable;
@@ -448,8 +448,6 @@ fn check_weights(kv: &KnotVector, weights: &[f64]) -> Result<(), KnotAlgebraErro
 ///
 /// [`KnotAlgebraError`] on structure mismatch, out-of-domain `u`, or
 /// multiplicity overflow. `times == 0` is a no-op (empty chain).
-// NaN-catching negated comparisons — see `check_weights`' note.
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
 pub fn insert_knot_plan(
     kv: &KnotVector,
     weights: &[f64],
@@ -457,10 +455,9 @@ pub fn insert_knot_plan(
     times: usize,
 ) -> Result<Vec<CurvePlan>, KnotAlgebraError> {
     check_weights(kv, weights)?;
-    let (lo, hi) = kv.domain();
-    if !u.is_finite() || !(u > lo) || !(u < hi) {
+    let Some(knot) = kv.interior_knot(u) else {
         return Err(KnotAlgebraError::ParameterOutsideDomain { u });
-    }
+    };
     let have = kv.multiplicity_of(u).map_or(0, |(s, _)| s);
     if have + times > kv.degree() {
         return Err(KnotAlgebraError::MultiplicityOverflow {
@@ -473,7 +470,7 @@ pub fn insert_knot_plan(
     let mut cur_kv = kv.clone();
     let mut cur_w = weights.to_vec();
     for _ in 0..times {
-        let plan = insert_once(&cur_kv, &cur_w, u);
+        let plan = insert_once(&cur_kv, &cur_w, knot);
         cur_kv = plan.knots.clone();
         cur_w = plan.weights.clone();
         plans.push(plan);
@@ -483,7 +480,9 @@ pub fn insert_knot_plan(
 
 /// One insertion pass — preconditions established by the callers
 /// (`u` strictly interior, multiplicity budget available, weights
-/// validated).
+/// validated). `u` was minted against the chain's first vector; an
+/// insertion leaves both clamp runs alone, so it is interior to every
+/// vector of the chain.
 ///
 /// **The Boehm structure is shared with [`super::compose`]'s
 /// `insert_once_ring`, and the two are now a FILED duplication rather
@@ -501,10 +500,11 @@ pub fn insert_knot_plan(
 /// step, where a plan chain rebuilds one per insertion. Filed on PROPS'
 /// `f64-refinement-inside-an-enclosure-has-five-more-sites`; not done
 /// here.
-fn insert_once(kv: &KnotVector, weights: &[f64], u: f64) -> CurvePlan {
+fn insert_once(kv: &KnotVector, weights: &[f64], knot: InteriorKnot) -> CurvePlan {
     let p = kv.degree();
     let knots = kv.knots();
-    let k = kv.find_span(u);
+    let k = find_span_in(knots, p, knot);
+    let u = knot.value();
     let s = kv.multiplicity_of(u).map_or(0, |(s, _)| s);
     let n_old = kv.control_count();
     let n_new = n_old + 1;
@@ -671,47 +671,66 @@ pub fn equal_split_plan(
     refine_plan_homogeneous(kv, &equal_split_points(kv, splits))
 }
 
-/// How close a grid point may come to a knot before it is dropped
-/// instead of minting a hairline span or cell, in ulps of the range's
-/// own width — the clearance [`GridSkip::WithinUlps`] is spelled with.
+/// How close a grid point may come to a mandatory point (a knot, a
+/// caller's cut) before it is dropped, as a FRACTION OF THE GRID'S OWN
+/// SPACING `|hi − lo|/pieces`: the clearance of [`domain_grid_points`]
+/// and [`range_grid_points`], spelled out by [`grid_clearance`].
 ///
-/// A few ulps, because that is the whole width of the defect: the
-/// grid point and the knot are describing the same place, and the
-/// span between them is arithmetic noise rather than geometry. It is
-/// deliberately NOT a tolerance in the ε sense — no input's meaning
-/// depends on it, only whether one redundant subdivision is taken.
-pub const SLIVER_CLEARANCE_ULPS: u32 = 8;
+/// Grid points only subdivide, so either choice is sound; each costs
+/// width.
+///
+/// * **Skipping** one lets the span it would have closed run on to the
+///   mandatory point: at most `(1 + f)` spacings, under 0.4% wider at
+///   `f = 2⁻⁸`.
+/// * **Inserting** one at a gap `g` opens a span `g` wide, and every
+///   derivative read off it carries the inserted point's rounding over
+///   `g`. That excess grows as `1/g` without bound as the gap closes,
+///   which is why the clearance is a fraction of the spacing and not a
+///   count of ulps.
+///
+/// A measurement, not a guarded contract: on the rational quarter
+/// cylinder split a gap `g` above a point of the 16-span grid
+/// (`geom-brep`'s `props::quad` row
+/// `the_refine_grid_enclosure_has_no_cliff_at_any_knot_offset`), the
+/// round-0 flux width with the point inserted exceeds the on-grid
+/// `2.0e-2` by about `1.7e-15 / g` over `g` from `1.8e-15` (`47×`) to
+/// `1e-8`; with it skipped the width is about 0.2% wider than inserted
+/// at gaps of `1e-10` and more, and the two cross near `g ≈ 4e-11`. That
+/// row asserts only that no offset leaves `1.25×` of on-grid, so the
+/// law and the crossover are unguarded: they are the evidence for `f`,
+/// and nothing reads them.
+///
+/// `2⁻⁸` skips every gap below `spacing/256` — far past that crossover,
+/// paying the skip's few-tenths-of-a-percent there for decades of
+/// margin over the `1/g` regime on grids and consumers the row does not
+/// measure. It is exact in binary, so the clearance rounds once. It is
+/// NOT a tolerance in the ε sense: no input's meaning depends on it,
+/// only whether one optional subdivision is taken.
+pub const GRID_CLEARANCE: f64 = 1.0 / 256.0;
 
-/// When a uniform grid ([`domain_grid_points`], [`range_grid_points`])
-/// counts a grid point as already one of the MANDATORY points it
-/// defers to — a vector's interior knots, or a caller's cut set — and
-/// skips it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum GridSkip {
-    /// Skip a grid point that IS a mandatory point: `f64` equality, so
-    /// a knot one ulp off a grid point does not suppress it and both
-    /// reach the output's consumer. The same rule as `WithinUlps(0)`,
-    /// named for the reader.
-    BitEqual,
-    /// Skip a grid point within `ulps · ε · |hi − lo|` of a mandatory
-    /// point, `[lo, hi]` the grid's range: the mandatory point stands
-    /// and the hairline span the grid point would open beside it is
-    /// never minted. [`SLIVER_CLEARANCE_ULPS`] is the clearance the tree
-    /// uses.
-    WithinUlps(u32),
+/// The clearance of the `pieces`-span grid on `[lo, hi]`:
+/// [`GRID_CLEARANCE`] of its spacing `|hi − lo|/pieces`. A grid point
+/// within this of a mandatory point, inclusive, is dropped by
+/// [`range_grid_points`].
+#[must_use]
+pub fn grid_clearance(lo: f64, hi: f64, pieces: usize) -> f64 {
+    #[allow(clippy::cast_precision_loss)]
+    let spacing = (hi - lo).abs() / pieces as f64;
+    spacing * GRID_CLEARANCE
 }
 
 /// **The domain-uniform grid**: the interior points
 /// `lo + (hi − lo)·k/pieces`, `0 < k < pieces`, of the vector's DOMAIN
-/// `[lo, hi]`, ascending, minus every point `skip` finds on an interior
-/// knot — the `new_knots` a caller hands [`refine_plan`] or
-/// [`refine_plan_homogeneous`] to refine to at least `pieces` spans
-/// over the whole domain, or a break list for a per-span extraction.
+/// `[lo, hi]`, ascending, minus every point within [`GRID_CLEARANCE`]
+/// of the grid spacing of an interior knot — the `new_knots` a caller
+/// hands [`refine_plan`] or [`refine_plan_homogeneous`] to refine to
+/// about `pieces` spans over the whole domain, or a break list for a
+/// per-span extraction.
 ///
 /// **Not the equal-split schedule**: [`equal_split_points`] cuts each
 /// nonempty SPAN into equal pieces, so its grid restarts at every knot
 /// and a knot is a span end by construction. This grid is blind to
-/// where the knots fall, which is why it takes a `skip` rule and the
+/// where the knots fall, which is why it needs a clearance and the
 /// per-span schedule does not.
 ///
 /// It refines ANY vector, however fine already. A caller for whom a
@@ -719,17 +738,17 @@ pub enum GridSkip {
 /// tests that itself and does not call; the grid does not decide it.
 /// `pieces` of 0 or 1 yields none.
 #[must_use]
-pub fn domain_grid_points(kv: &KnotVector, pieces: usize, skip: GridSkip) -> Vec<f64> {
+pub fn domain_grid_points(kv: &KnotVector, pieces: usize) -> Vec<f64> {
     let (lo, hi) = kv.domain();
     let knots: Vec<f64> = kv.interior_knots().map(|(k, _)| k).collect();
-    range_grid_points(lo, hi, pieces, skip, &knots)
+    range_grid_points(lo, hi, pieces, &knots)
 }
 
 /// **The range-uniform grid** under [`domain_grid_points`]: the
 /// interior points `lo + (hi − lo)·k/pieces`, `0 < k < pieces`, of an
 /// arbitrary range `[lo, hi]`, ascending, minus every point that falls
-/// outside the open range or that `skip` finds on a point of
-/// `mandatory` — `skip`'s clearance scaled by `|hi − lo|`.
+/// outside the open range or within [`grid_clearance`] of a point of
+/// `mandatory`.
 ///
 /// `mandatory` is whatever set the grid must defer to, and it is not
 /// the grid's to widen: [`domain_grid_points`] passes a vector's
@@ -737,38 +756,23 @@ pub fn domain_grid_points(kv: &KnotVector, pieces: usize, skip: GridSkip) -> Vec
 /// slice passes its whole cut set, which carries the range's ends
 /// for completeness — the open-range test already keeps every grid
 /// point off them. The test is against `mandatory` alone, never
-/// against other grid points, so a point two grids share (a coarse
-/// grid's point is a fine grid's when the counts divide) is kept by
-/// both or dropped by both.
+/// against other grid points.
 ///
-/// The clearance is `|hi − lo|·(ulps·ε)`: `ulps·ε` is exact, so the
-/// product rounds once and a finite width never overflows it to `∞`
-/// (which would drop every grid point beside any mandatory one).
+/// The clearance scales with the grid's spacing, so a coarser grid
+/// clears more: a point a coarse grid shares with a finer one (the
+/// counts dividing) is dropped by the finer grid only if the coarser
+/// one drops it too. So doubling `pieces` keeps every point the
+/// coarser grid kept.
 ///
 /// `pieces` of 0 or 1 yields none.
 #[must_use]
-pub fn range_grid_points(
-    lo: f64,
-    hi: f64,
-    pieces: usize,
-    skip: GridSkip,
-    mandatory: &[f64],
-) -> Vec<f64> {
-    let sliver = match skip {
-        GridSkip::BitEqual => None,
-        GridSkip::WithinUlps(ulps) => Some((hi - lo).abs() * (f64::from(ulps) * f64::EPSILON)),
-    };
+pub fn range_grid_points(lo: f64, hi: f64, pieces: usize, mandatory: &[f64]) -> Vec<f64> {
+    let clearance = grid_clearance(lo, hi, pieces);
     (1..pieces)
         .filter_map(|k| {
             #[allow(clippy::cast_precision_loss)]
             let t = lo + (hi - lo) * (k as f64 / pieces as f64);
-            (t > lo
-                && t < hi
-                && mandatory.iter().all(|m| match sliver {
-                    None => *m != t,
-                    Some(sliver) => (t - *m).abs() > sliver,
-                }))
-            .then_some(t)
+            (t > lo && t < hi && mandatory.iter().all(|m| (t - *m).abs() > clearance)).then_some(t)
         })
         .collect()
 }
@@ -1134,7 +1138,7 @@ mod tests {
     /// plan machinery is dimension-agnostic, so scalar control points
     /// are a complete test bed.
     fn eval1(kv: &KnotVector, w: &[f64], x: &[f64], t: f64) -> f64 {
-        let span = kv.span_at(t);
+        let span = kv.span_at(t).expect("a numeric parameter");
         let n = basis_funs(span, t);
         let (mut num, mut den) = (0.0, 0.0);
         for (j, nj) in n.iter().enumerate() {
@@ -1205,32 +1209,33 @@ mod tests {
     }
 
     /// The domain-uniform grid runs over the whole domain, blind to
-    /// the spans: on `[0, 1]` with knots at `0.5` and one ulp above
-    /// `0.25`, the quarters grid is `0.25, 0.75` under the bit-equal
-    /// skip (`0.5` is a knot; `0.25` is not) and `0.75` alone under an
-    /// 8-ulp clearance. A vector already finer than the grid is still
+    /// the spans, and drops a grid point within `GRID_CLEARANCE` of the
+    /// grid's spacing of a knot. On `[0, 1]` in quarters (clearance
+    /// `2⁻¹⁰`): a knot one ulp above `0.25` drops `0.25`; a knot exactly
+    /// `2⁻¹⁰` below `0.75` drops it too (the clearance is inclusive);
+    /// `0.5` is a knot. A vector already finer than the grid is still
     /// given it, and `pieces` of 0 or 1 yields none.
     #[test]
-    fn domain_grid_points_skip_rules_and_no_cut_off() {
+    fn domain_grid_points_clearance_and_no_cut_off() {
         let near = f64::from_bits(0.25f64.to_bits() + 1);
-        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, near, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
-        assert_eq!(domain_grid_points(&kv, 4, GridSkip::BitEqual), [0.25, 0.75]);
-        assert_eq!(
-            domain_grid_points(&kv, 4, GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS)),
-            [0.75]
-        );
-        // The clearance scales with the domain's width: on `[0, 4]` a
-        // knot 4 ulps of `1.0` off the grid point `1.0` is inside it.
-        let off = f64::from_bits(1.0f64.to_bits() + 4);
-        let wide = KnotVector::clamped(vec![0.0, 0.0, off, 4.0, 4.0], 1).unwrap();
-        assert_eq!(
-            domain_grid_points(&wide, 4, GridSkip::BitEqual),
-            [1.0, 2.0, 3.0]
-        );
-        assert_eq!(
-            domain_grid_points(&wide, 4, GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS)),
-            [2.0, 3.0]
-        );
+        let edge = 0.75f64 - 1.0 / 1024.0;
+        let kv =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, near, 0.5, edge, 1.0, 1.0, 1.0], 2).unwrap();
+        assert!(domain_grid_points(&kv, 4).is_empty());
+        // One ulp further from `0.75` and the grid point stands.
+        let past = KnotVector::clamped(
+            vec![0.0, 0.0, 0.0, near, 0.5, edge.next_down(), 1.0, 1.0, 1.0],
+            2,
+        )
+        .unwrap();
+        assert_eq!(domain_grid_points(&past, 4), [0.75]);
+        // The clearance is a fraction of the SPACING, not of the domain:
+        // on `[0, 4]` in quarters the spacing is `1`, so a knot `2⁻⁹`
+        // off the grid point `1.0` is inside its `2⁻⁸` clearance; in
+        // eighths (spacing `½`, clearance `2⁻⁹`) it is on the edge.
+        let wide = KnotVector::clamped(vec![0.0, 0.0, 1.0 + 1.0 / 512.0, 4.0, 4.0], 1).unwrap();
+        assert_eq!(domain_grid_points(&wide, 4), [2.0, 3.0]);
+        assert_eq!(domain_grid_points(&wide, 8), [0.5, 1.5, 2.0, 2.5, 3.0, 3.5]);
         // Ten spans, a grid of four: every quarter is still offered.
         let fine = KnotVector::clamped(
             vec![
@@ -1240,20 +1245,17 @@ mod tests {
         )
         .unwrap();
         assert_eq!(fine.control_count(), 11);
-        assert_eq!(
-            domain_grid_points(&fine, 4, GridSkip::BitEqual),
-            [0.25, 0.5, 0.75]
-        );
-        assert!(domain_grid_points(&kv, 1, GridSkip::BitEqual).is_empty());
-        assert!(domain_grid_points(&kv, 0, GridSkip::BitEqual).is_empty());
+        assert_eq!(domain_grid_points(&fine, 4), [0.25, 0.5, 0.75]);
+        assert!(domain_grid_points(&kv, 1).is_empty());
+        assert!(domain_grid_points(&kv, 0).is_empty());
         // A non-dyadic domain pins the grid ARITHMETIC: `lo + (hi − lo)·(k/n)`
         // rounds to these values, and the counted-from-the-top form
         // `hi − (hi − lo)·((n − k)/n)` to others (`0.15999999999999992`,
         // `0.39999999999999997`, …). The knot at `0.4` is the grid's own
-        // point, so the bit-equal skip drops it.
+        // point, so the clearance drops it.
         let odd = KnotVector::clamped(vec![0.1, 0.1, 0.4, 0.7, 0.7], 1).unwrap();
         assert_eq!(
-            domain_grid_points(&odd, 10, GridSkip::BitEqual),
+            domain_grid_points(&odd, 10),
             [
                 0.16,
                 0.22,
@@ -1270,7 +1272,7 @@ mod tests {
         // `0.1923076923076923` at k = 2, `0.23846153846153845` at k = 3
         // and `0.6538461538461537` at k = 12.
         assert_eq!(
-            domain_grid_points(&odd, 13, GridSkip::BitEqual),
+            domain_grid_points(&odd, 13),
             [
                 0.146_153_846_153_846_16,
                 0.192_307_692_307_692_32,
@@ -1286,21 +1288,12 @@ mod tests {
                 0.653_846_153_846_153_9
             ]
         );
-        // A finite width near `f64::MAX`: the clearance is
-        // `|hi − lo|·(ulps·ε)`, finite, so a grid point clear of the
-        // knot stands. Spelled `(|hi − lo|·ulps)·ε` the product
-        // overflows to `∞` first and every point is dropped.
+        // A finite width near `f64::MAX`: `grid_clearance` divides
+        // before it scales, so it is finite and a grid point
+        // clear of the knot stands.
         let big = f64::MAX / 2.0;
         let huge = KnotVector::clamped(vec![-big, -big, 0.5 * big, big, big], 1).unwrap();
-        assert_eq!(
-            domain_grid_points(&huge, 4, GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS)),
-            [-0.5 * big, 0.0]
-        );
-        // `WithinUlps(0)` is the bit-equal rule.
-        assert_eq!(
-            domain_grid_points(&odd, 10, GridSkip::WithinUlps(0)),
-            domain_grid_points(&odd, 10, GridSkip::BitEqual)
-        );
+        assert_eq!(domain_grid_points(&huge, 4), [-0.5 * big, 0.0]);
     }
 
     fn apply_chain(plans: &[CurvePlan], x: &[f64]) -> Vec<f64> {

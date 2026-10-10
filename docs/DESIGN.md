@@ -25,7 +25,7 @@ is the board and `work/README.md` its contract.
 | `crates/editor-core/README.md` | Ratified (#79) | GQ1 witness mechanism, SOLVER-DESIGN W1–W9 |
 | `crates/editor-core/README.md` | Ratified with a recorded hedge (#1151) | The profile-parameter lift, PROFILE-LIFT-DESIGN PP1–PP6: guided replay — structure f64-once as the witness, geometry at the lane scalar with every consumed decision re-verified at `T` |
 | `crates/editor-core/README.md` | Ratified (#496, option A′) | Group boolean in the recipe layer, GROUP-BOOLEAN-DESIGN: `PlacedUnion`, a Pattern that fuses — one prototype, one body out |
-| `crates/editor-core/ASSEMBLY.md` | Ratified (#333); v1 shipped | Assemblies, ASSEMBLY-DESIGN A1–A13 + AQ1–AQ8: assembly-evaluates-to-a-body, mates as declarations, pins/split-inline, validity, mirror, relative freedom, product roots, the constructive-solve boundary |
+| `crates/editor-core/ASSEMBLY.md` | Ratified (#333); v1 shipped | Assemblies, ASSEMBLY-DESIGN A1–A13 + AQ1–AQ8: assembly-evaluates-to-a-body, mates as declarations, pins/split-inline, validity, mirror, relative freedom, the product is the world, the constructive-solve boundary |
 | `crates/topo/README.md` | Ratified (#178, #965) | Contact census & declared contact, CONTACT-DESIGN C1–C8 (the C7 join lane is shipped); at-rest census structural identity, the CENSUS-REST-CLOSURE-DESIGN clauses |
 | `crates/geom-core/README.md` | Ratified (Ev, 2026-09-05) | The spline layer's pairing rule, SPLINE-DESIGN S1: a `Span` borrows the `KnotVector` it indexes, a `CurveWindow` its curve and a `SurfaceWindow` its surface, so every span-restricted door takes one structure and reads everything from it and the mismatch is unrepresentable; one level down a `SplineCoeffs` borrows the `KnotVector` its coefficients were fitted against and `hull`'s doors read through it, `InteriorKnot` the deliberate crate-private exception |
 | `crates/sweep/README.md` | Ratified (#992) | ARMS-3, ARMS3-DESIGN A3-1…A3-3: the sphere×sphere fillet arm, the valence-4 seam vertex that is not a corner, what a run-out IS; the blend-vocabulary clauses V1–V4 |
@@ -509,9 +509,14 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   no arm refuses typed `CurvedBooleanUnsupported` /
   `CurvedPairUnsupported` naming the pair, never falling through to a
   containment verdict a curved boundary can defeat. The wired germ join
-  arms are plane×cylinder and plane×sphere (`boolean::join`'s dispatch);
-  sphere×sphere and the coaxial (sphere centre on the cylinder axis) cylinder×sphere have section
-  frames but no join arm; cone and torus operands refuse. The curved
+  arms are a plane against a plane, cylinder, sphere or cone, and two
+  spheres or two parallel cylinders along their radical plane
+  (`boolean::join`'s dispatch); a plane cuts a cone in a parabola or a
+  hyperbola only outside the conic inventory, and that pair refuses
+  naming the conic. Cone and torus operands answer where their face
+  pairs are certified with no event on them; every other curved pair
+  with an event on it refuses typed at its section frame or at the
+  join. The curved
   extent test refuses typed `NurbsExtentUnsupported` on NURBS faces — a
   certified extent needs a foot point plus a bound on the patch's
   reach past it, a derivation not yet written (C12.1).
@@ -614,7 +619,8 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   is the C5 table's cyl×sphere arm for the chord's carrier
   (`chord_join::section_case` has no curved×curved arm) and a frame for
   the germs' rotational-sense test (`boolean::join::pair_section_frame`).
-  Sphere×sphere seams, cone and torus operands refuse alongside it.
+  Every cone pair but plane × cone, and every torus pair, refuses at the
+  join alongside it.
 - **(e) the NURBS extent test** — `NurbsExtentUnsupported`, above.
 - **(f) the canal-surface general blend** — an approximating surface
   for fillet chains whose rolling-ball spine is neither a line nor a
@@ -1243,7 +1249,7 @@ intent.
 variable whose type suits the slot. The types are the scalars (`Length`,
 `Angle`, `Scalar`, `Count`), the discrete kinds (a side, a half, a
 sense) and the poses (`Point`, `Direction`, `Axis`, `Plane`, `Frame`),
-which are only defined: read off a body's geometry (a face's frame, a
+which are only defined: read off a body's geometry (a face's plane, a
 carrier's axis or centre), by coordinates over scalar variables in a
 frame the definition reads, by a construction over other poses, as a
 pose of a copy, or as an output of an operation, so no pose is free,
@@ -1315,6 +1321,51 @@ defines an *observed* variable, a function of the built geometry
 rather than of what was written; an observed variable, and any
 definition reading one, is read only by an assertion. A construction
 reads what was written.
+
+**Repetition.** A document repeats by an **index**: `k = index(N)`
+defines a `Count` variable over `0..N`, `N` any `Count` expression. A
+definition or operation whose reads reach `k` is evaluated once per
+value of it, and each of its outputs is a **family** of that kind (a
+`Bodies` is the family of `Body`), one member per value, keyed by the
+tuple of the indices it reaches, outer first. Membership is derived
+from reads, as dependency is: no node holds a template, and there is
+no pattern operation. A variable defined by reading `k` is, to a
+reader that reaches the same `k`, its member at the same value, and to
+every other reader the whole family: `xs[i, j]` reads one member, and
+`union` and `intersect` take a `Bodies`: a family, or its members spelled
+as reads; a subtract's tool is one `Body`, so cutting by a family is
+`subtract(a, union(holes))`.
+Lockstep is one index read twice. An index enters a placement as a value, a slide or a
+spin that is a `Length` or `Angle` expression over it, or through a
+mate whose target is a member of another family
+(`bolt.axis ≡ holes[k].axis`); no pose is constructed from an index, so
+an `Axis` mate with `spin = scalar(k)·turn/N` is a ring and a slide of
+`scalar(k)·pitch` a row. Two indices meet in one reader only when one is
+declared `within` the other, which is implied when its count reads the
+other; a reader of two unrelated indices refuses. `Count` arithmetic is
+exact and includes `mod`, so a relation between a ring's neighbours is
+one statement (`assert(gap(c[k].r, c[(k + 1) mod N].l) = −b)`), while a
+ring stepped by `turn/N` closes by construction and needs none. There
+is no list literal: an irregular family is its members written out,
+each saying where it is. A definer that refuses at one index refuses
+the whole family, naming the index; a read whose index leaves the
+range is unresolved and typed, never re-pointed. A member's names are
+`Member { (i, j), of }`, keyed by the index variables' ids and the
+integers. Copies of one body are built once and mapped; a construction
+whose scalar inputs read an index is built per member, and no
+construction reads a frame. A mirror image is not a copy, because a
+reflection is not a pose: `Mirror { body, plane }`
+is a construction defining a new `Body` in its source's root, the
+plane a `Plane` pose whose reads reach that root alone (a face read as a
+plane, or a plane constructed from the body's geometry), and every pose
+is proper. A symmetric part is `union(body, Mirror { body, plane })`,
+one construction whose seam is the plane's face read twice; a chiral
+twin elsewhere is a placement of the image, and there the plane carries
+no shape.
+Linear, circular, grid and bolt-circle patterns and mirroring are the
+façade's functions, which write this program; the document stores no
+preset, and the GUI's reading of one ("circular, 12 about A") is
+recognised from the program for display only.
 
 **Spaces and placement.** A part has no location, and no body has
 coordinates anyone reads. Every construction is built in coordinates of

@@ -2519,7 +2519,7 @@ mod tests {
         use crate::camera::Camera;
         use crate::generation::Generation;
         use crate::pickindex::{PickIndex, PictureKey};
-        use crate::test_support::{framed_square, inserted, len, plate_delta};
+        use crate::test_support::{framed_square, inserted, len, placed, plate_delta};
 
         const SIDE_PX: u32 = 64;
         const SIDE: f64 = 0.04;
@@ -2529,7 +2529,7 @@ mod tests {
         let tol = Tol::witness();
         let doc: Doc<ProfileProgram> = Doc::empty_derived("pixel-cube", tol);
         let (doc, profile) = framed_square(&doc, SIDE, tol);
-        let (doc, _) = inserted(
+        let (doc, cube) = inserted(
             &doc,
             Node::Extrude {
                 profile: profile.into(),
@@ -2538,6 +2538,7 @@ mod tests {
             },
             tol,
         );
+        let (doc, _) = placed(&doc, cube, tol);
         let eval = evaluate(
             &doc,
             None,

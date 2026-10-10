@@ -14,26 +14,6 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-/// A block, its frame at height `z`: a unit square raised 1.
-fn block_at(doc: ProfileDoc, z: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, _, profile) = on_frame_keeping(
-        doc,
-        [0.0, 0.0, z],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![fixture::square(0.25, 0.25, 0.5)],
-    );
-    let (doc, extrude) = insert(
-        doc,
-        Node::Extrude {
-            profile: profile.into(),
-            distance: len(1.0),
-            side: editor_core::ExtrudeSide::Along,
-        },
-    );
-    (doc, profile, extrude)
-}
-
 /// A frame, a square on it and an extrude of the square, `dx` along x.
 fn block(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, _, profile) = on_frame_keeping(
@@ -478,9 +458,7 @@ fn the_slot_door_takes_a_formula_or_a_read_by_the_slots_kind() {
                 node: extrude,
                 slot: SlotId::Operand(OperandSlot::Profile),
                 value: Operand::Node(profile).into(),
-                fresh: vec![editor_core::VarDecl::Free(
-                    editor_core::FreeVar::continuous(Dimension::Length, 1.0)
-                )],
+                fresh: vec![editor_core::FreeVar::continuous(Dimension::Length, 1.0).into()],
             },
         ),
         EditError::FreshUnread { index: 0 }

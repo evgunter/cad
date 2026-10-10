@@ -16,6 +16,7 @@ use std::sync::Arc;
 
 use crate::corpus::{body_of, failures};
 use crate::fixture::resolver::PartStore;
+use crate::fixture::split_world as split;
 use crate::fixture::{Recorder, insert, len, on_frame, prism_edges, square};
 use editor_core::analysis::{AnalysisPolicy, analyzed_box, seed_env};
 use editor_core::persist::SnapshotError;
@@ -25,7 +26,7 @@ use editor_core::{
     EvalError, EvalOptions, Evaluation, ExtrudeSide, Formula, FreeValue, FreeVar, InlineError,
     Maintenance, MeasureExpr, Node, NodeErrorKind, NodeResult, ParamBox, ParamValue, PersistError,
     ProfileDoc, ProfileProgram, RecipeNodeId, SeedError, UnitSym, VarDecl, VarId, VarName, apply,
-    evaluate, inline, load, save, split, var_env_over,
+    evaluate, inline, load, save, var_env_over,
 };
 use geom_core::predicate::{Band, Margin, Sign};
 use geom_core::{Bounds, Interval, Real, Sym, SymBudget, SymRules, Tol};
@@ -562,7 +563,7 @@ fn a_definition_past_the_expansion_bound_refuses() {
 // ---------------------------------------------------- the lifecycle
 
 /// An anonymous variable read only by an anonymous definition goes with
-/// it: the edit that detaches the definition's last reader removes the
+/// it: the edit that detaches the definition's reader removes the
 /// defined variable, then its input — and the mint log keeps both ids.
 #[test]
 fn the_anonymous_lifecycle_cascades_through_definitions() {
@@ -739,7 +740,8 @@ fn split_and_inline_carry_definitions() {
     )
     .doc;
     let (doc, cut) = block(doc, 0.0, named("h"));
-    let (doc, _) = block(doc, 10.0, named("kept"));
+    let (doc, kept) = block(doc, 10.0, named("kept"));
+    let doc = crate::fixture::place_all(doc, &[cut[2], kept[2]]);
     let out = split(
         &doc,
         &BTreeSet::from(cut),

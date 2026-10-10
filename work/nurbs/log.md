@@ -119,6 +119,33 @@ and splitting first would cost a sitting.
 
 (NURBS orchestrator)
 
+## 2026-10-09 — span-locator decided by the designer pair; build dispatched
+
+The pair was reconciled over two rounds, with each designer shown the
+other's report, and converged. B adopted A's `ParamRange` window type.
+A adopted B's refusing `span_at` after checking the public point-hull
+doors. In round 2, A conceded B's point that the `Interval` locator
+refuses only a bracketless value (NaN or empty), not an uncertified
+one.
+
+There was no split, and no ratified DESIGN.md decision moves; the texts
+that change are agent-written code docs from `43c940f1c4`. So this is
+not a fork that goes to Ev, and no fork-log row is owed. The protocol's
+blinding byte stays on `analysis/design-fork/span-locator` in case Ev
+asks for the fork to be put to them anyway.
+
+The decision and the final state are in the row's `## Decided` section,
+and the row is now `spec`.
+
+**Build tier: DUAL review.** The change is an architectural API change
+across `geom-core`, `geom` and `geom-brep` (span location, a new region
+type, every window reader), so its impact is broad and it would be hard
+to change later.
+
+It supersedes FLUX's `props-collapse-over-lands-a-nan-window-on-the-first-span`.
+Filed on FLUX:
+`a-loop-area-nurbs-segment-integrates-an-inverted-window-as-zero`.
+(NURBS orchestrator)
 ## 2026-10-09 — PR 4439: the knot-mirror predicate lives on KnotVector
 
 This was a move. The refusal texts gained recourses, and the
@@ -127,3 +154,77 @@ This was a move. The refusal texts gained recourses, and the
 `topo/src/pcurves.rs`'s row-space test reflects knots with a rounded
 `a + b − k` and `==`; it has no other owner. Tier: the orchestrator's
 read. (NURBS orchestrator)
+
+## 2026-10-09 — PR 4442: a NaN has no span, and a window is a ParamRange
+
+The span-locator design, built and through a dual review (DR-124: no MAJOR on either review, 11 bilateral findings, tally 0). The fix pass:
+- collapsed three hand-written NaN-checked searches into one `Param` + `last_at_or_below`;
+- put all of `NurbsBoxes` on windows;
+- gave `ParamRange::spanning` to the sites that took a range from `f64::min`/`max`, which drop NaN;
+- pinned every poison arm by mutation.
+
+The reviewers found one unswept locator, `cells_touched`, which is now on the shared search. The remainder, the SSI sweep cell type, is filed on SSIEDGE. (NURBS orchestrator)
+## 2026-10-09 — PR 4438 review: the ulp clearance narrows the class without closing it
+
+Single FULL review, verdict APPROVE-WITH-FIXES, and it raised one MAJOR. I adjudicated it real.
+- `SLIVER_CLEARANCE_ULPS` is 8 ulps of the DOMAIN width, which is 128 knot-ulps at 1/16.
+- A knot 129 bits to about 1e-13 from a grid point still costs up to 47× the flux width. The excess goes as ≈1.7e-15/gap, and the ssi box-chain axis error is 1.2e-3.
+- Enclosures stay sound; the defect is width.
+
+**Ruling: the clearance becomes a fraction of the grid spacing, at every production grid site.** Grid points are optional refinement, so skipping one costs at most a sliver of extra span width. That makes this a dominant-argument choice, so no designers.
+
+Other adjudications:
+- `GridSkip` collapses if every site then takes one value.
+- New rows sweep the knot offset across the whole range, so a cliff anywhere goes red.
+- Filed in the fix pass:
+  - the kernel's own hairline mints (`sweep/src/skin.rs` knot union, the certify composite's break merge);
+  - the `refined`/`chart_breaks` grid duplication.
+
+The fix pass runs on hosted CI only, because of disk (below).
+
+**Friction (two findings).**
+1. PR 4439's `test` job took 21 min against the 15-min bar. It is a 6-file move in geom-core and geom, so the change filter likely selected most of the suite.
+2. This 4-core container has 252 GB but a far smaller per-session writable allowance. Two live lanes hold 17 GB of targets, and one reviewer's local battery hit a full disk (a Bus error at link).
+
+Each lane that builds locally costs 1–10 GB. From here, heavy lanes run CI-only, or in their own cloud sessions (orchestration-model memory, 2026-10-02). (NURBS orchestrator)
+
+## 2026-10-09 — PR 4441 and PR 4442 reviews adjudicated; both in fix passes
+
+**PR 4441 (restrict).** A single FULL review gave APPROVE-WITH-FIXES with one MAJOR, which I adjudicated real.
+
+- **The MAJOR.** `offset_axial::reauthor` composes `rotation_about_axis(.., angles.from)` into the stored point. At Interval, `rotation_about([0,0])` is not the identity, so every re-authored revolved declaration stores a rotation enclosure. The width grows from 0 to 1.1e-11 at a far placement. The fix minted its own defect class, and the PR body's sweep claim missed the `plane` closure.
+- **Range arithmetic.** I ruled a required fix where the review rated a MINOR. On interior and alternating nested splits, `SweepRange::at`'s convex form grows faster than main: at N=64 it is up to 12× worse with enclosure parameters. An exact-composition probe shows the floor is flat, so the growth is removable. The fix pass must make every row of the review's table no worse than main.
+- **Is the PR still an improvement?** For the kernel's actual call shapes it already is. `split_specs` and `edge_join` keep one end, and those chains are now flat where main grew 9–17×.
+
+**PR 4442 (span-locator), dual pair.** Both reviewers returned APPROVE-WITH-FIXES with no MAJOR, so there is no tally candidate. The blinded pre-note is recorded privately, and the DR row is written at merge. The fix pass takes the union of both reviews:
+
+- poison seeding is pinned at only one of seven arms;
+- `piece_controls` returns `from_f64(NaN)`;
+- nothing pins the producers' `certified` choice;
+- `compose/tensor.rs` `cells_touched` is an unswept hand-rolled locator (found by one reviewer alone, demonstrated);
+- NaN-dropping `min`/`max` feeds `ParamRange::new`;
+- three copies of one NaN-checked search;
+- the ssi `f64`-door narrowing is unscheduled;
+- the UV-rectangle refusal is spelled five times.
+
+(NURBS orchestrator)
+
+## 2026-10-09 — PR 4438 merges: grid points clear knots by a fraction of the spacing
+
+The ruling above, built at all seven grid sites. A delta review of the fix pass approved it with fixes, and those are in. Changes after the review:
+- production and the tests share one `grid_clearance` helper;
+- the no-cliff rows take the production span counts;
+- the clearance doc states the trade as measured (about +0.2% width at large gaps, measured to g ≈ 1e-8) instead of "costs nothing";
+- m5_pr7's ratio bound was re-derived as `√G`.
+
+Walls 15 and 17 retired, so the lily's swept leaves are now cubic. A container restart killed the cleanup lane after it pushed; the redo found the work already on the branch and gated a fresh merge of main. (NURBS orchestrator)
+
+## 2026-10-10 — PR 4441 merges: restriction narrows a range in the sweep's own parameter
+
+The second fix pass adopted the delta review's form: the range is stored in the whole sweep's normalized parameter, and the angle is applied once at eval. Against main, every width row is at or below main, except two far interior chains at 1.06× and 1.03×, within the ≤1.25× allowance. Each of those chains moves the start inexactly at every split. End-anchored chains are flat from both ends. Unrestricted output is bit-identical at every scalar, so the `m10` ledger returns to main's.
+
+Reauthor: an unmoved start stores main's point (width 0). A turned start reads through main's composite (Interval equal to main; f64 `eval(0)` 1.2× at 1e3, and 3 ulps against 2 at 1e5, disclosed). The rows compare against a hand-written composed spelling that shares no code with production, and both the two-step-rotation mutant and the endpoint-form mutant turn them red.
+
+I accepted this without a third review: it implements the reviewer's own proposal, and every claim is measured against an independent reference.
+
+Friction: two container restarts each killed an in-container lane. Neither lost pushed work. The second-pass lane ran as its own cloud session and survived. Long lanes go to cloud sessions from now on. (NURBS orchestrator)

@@ -166,10 +166,18 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
 
 /// This scene's recipe, as a document the GUI can open: the bracket,
 /// trimmed flush at `x + y = CUT`, its corner piece's four cap chords
-/// chamfered by name.
+/// chamfered by name, placed in the world.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let (doc, body) = document(tol);
-    trimmed_and_broken(&doc, body, tol).doc
+    let trimmed = trimmed_and_broken(&doc, body, tol);
+    apply(
+        &trimmed.doc,
+        &DocEdit::place(trimmed.chamfer, None),
+        tol,
+        &RefusingReach,
+    )
+    .expect("the chamfered corner places")
+    .doc
 }
 
 /// The trim and the break, as nodes over the bracket's extrude.

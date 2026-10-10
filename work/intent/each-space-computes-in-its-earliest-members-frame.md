@@ -2,12 +2,12 @@
 id: each-space-computes-in-its-earliest-members-frame
 kind: issue
 title: D10 stage 3 PR E: an operation computes in a frame chosen from its own reads for conditioning, never the world's (D9); export alone composes the world's map
-status: parked
+status: closed
 opened: 2026-10-08
 priority: P0
 cost: M
-blocked_on: [a-placement-is-the-bundle-of-mates]
 refs: [intent-stage3-is-built]
+closed: 2026-10-09
 ---
 
 INTENT stage 3, PR E. Spec: `docs/INTENT-STAGE3-SPEC.md` §6.
@@ -36,3 +36,7 @@ drawn from display state no logic reads. This unit needs
 `a-minted-reference-direction-follows-the-computing-axes` first (or
 with it), since that is what makes the frame free of meaning. The
 at-rest census is defined order-free.
+
+## Closed
+
+Superseded, 2026-10-09. FORK-S3P (fork log row 95, PR 4324) and FORK-S3O (row 96, PR 4325) replaced "the frame of its earliest member" with "a frame that is a function of its reads". The unit is `an-operation-computes-in-a-frame-of-its-reads`, which carries this row's body as built.

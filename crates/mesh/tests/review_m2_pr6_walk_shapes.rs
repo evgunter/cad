@@ -112,15 +112,14 @@ fn survives_cone_wedges_apex_junctions_below_three_half_pi() {
 /// dome-cap face's loop carries a rim AND a pole junction.
 fn silo_profile() -> ProfileLoop<f64> {
     let b = (PI / 8.0).tan();
-    let mut lp = bulge_loop(vec![
+    let lp = bulge_loop(vec![
         (Point2::new(0.0, 0.0), 0.0),
         (Point2::new(1.0, 0.0), 0.0),
         (Point2::new(1.0, 1.0), b),
         (Point2::new(0.0, 2.0), 0.0),
     ]);
     // The dome cap leaves the cylinder wall tangentially at (1, 1) --
-    // intended smooth cap, declared (#101).
-    lp = lp.with_tangent_joints(vec![2]);
+    // intended smooth cap.
     lp
 }
 

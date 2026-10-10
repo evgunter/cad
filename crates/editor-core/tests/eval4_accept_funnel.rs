@@ -162,14 +162,15 @@ fn a_cut_that_would_start_a_mate_placing_refuses() {
     );
 }
 
-/// Row 2 — a group cut whole moves as selected (A4): the root keeps its
+/// Row 2 — a group cut whole, with the world placements of what it
+/// moves, moves as selected (A4): the root keeps its
 /// offset in the part and the instance left behind sits at the empty
 /// chain; the group re-forms there, and neither side reports anything:
 /// no edit records a frame.
 #[test]
 fn a_whole_group_cut_moves_as_selected_and_reports_nothing() {
     let (doc, store, [a, b, joint], offset) = placed_pair("eval4-r2");
-    let out = split(
+    let out = fixture::split_world(
         &doc,
         &BTreeSet::from([a, b, joint]),
         DocumentId::derive("eval4-r2-cell"),
@@ -215,7 +216,7 @@ fn a_whole_group_cut_moves_as_selected_and_reports_nothing() {
 #[test]
 fn inline_of_a_whole_group_split_restores_the_root_offset_and_reports_nothing() {
     let (doc, store, [a, b, joint], offset) = placed_pair("eval4-r3");
-    let out = split(
+    let out = fixture::split_world(
         &doc,
         &BTreeSet::from([a, b, joint]),
         DocumentId::derive("eval4-r3-cell"),
@@ -238,7 +239,8 @@ fn inline_of_a_whole_group_split_restores_the_root_offset_and_reports_nothing() 
     assert!(back.maintenance.is_empty(), "{:?}", back.maintenance);
 }
 
-/// Two instances of one block mated, the first placed at an offset:
+/// Two instances of one block mated, the first placed at an offset,
+/// both placed in the world:
 /// the document, its part store, `[a, b, mate]` and `a`'s offset.
 fn placed_pair(
     label: &str,
@@ -253,6 +255,7 @@ fn placed_pair(
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, b) = insert(doc, fixture::mated_instance(doc_ref));
+    let doc = fixture::place_all(doc, &[a, b]);
     let (doc, joint) = insert(
         doc,
         mate(

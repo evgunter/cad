@@ -28,7 +28,7 @@ is documented in `crates/topo/README.md`; the user-facing walk is
 | A9, A11 partitions | `relative_freedom_components`, `groups`, `root_of` in `src/mate/solve.rs` |
 | A11 (2) gauges, offsets, spaces | `Node::Gauge` and `InstantiatePart`'s `gauge`/`offset` in `src/node.rs`; `DocEdit::SetOffset`/`SetGauge`, the mate door (`clear_joined_offsets`) and `regauge_then_mate` in `src/edit.rs`; `group_frame`, `Pose`, `check_offsets`, `spaces_with` in `src/mate/solve.rs`; `instance_frame` in `src/eval/wire.rs`; the per-space gather and gate (`Product::spaces`, `own_spaces`, `gate_spaces`) in `src/product.rs` and `src/assembly.rs`; the one cross-space predicate `Evaluation::across_spaces`; an unplaced group below as `CarriedUnplaced` (`Evaluation::unplaced_below`) |
 | A11 (3) roots | `root_and_cause` in `src/mate/solve.rs` (a pattern's copies are values of the pattern node, never `InstantiatePart` nodes, so none is a root candidate) |
-| A10 roots and gather | `src/roots.rs`, `src/product.rs`, `DocEdit::SetRoots` |
+| A10 the world and the gather | `Node::PlaceInWorld` in `src/node.rs`, `Doc::placements`/`Doc::unplaced` in `src/doc.rs`, `src/product.rs`, `DocEdit::place` in `src/edit.rs` |
 | Store (AQ1) | `Workspace` in `crates/pncad/src/workspace.rs` |
 
 ## Scope
@@ -93,8 +93,8 @@ The doors that refuse:
 - `run_checks_on`, and `run_checks` as its wrapper
   (`ChecksError::EvaluationOfAnotherDocument`), which checks the
   evaluation and the document a `Subject::Product` carries, because a
-  resident reading `doc.roots()` against a foreign evaluation finds a
-  value for every root;
+  resident reading `doc.placements()` against a foreign evaluation
+  finds a value for every placement;
 - `resolve::apply_with_names` (`EditError::EvaluationOfAnotherDocument`),
   which reads the handed evaluation's name tables, so a foreign one
   admits a name the edited document does not carry or refuses one it
@@ -150,8 +150,9 @@ row `pair-doors-outside-the-three-do-not-check-document-identity`.
 **A3 — The node vocabulary; mates are declarations.**
 `Node::InstantiatePart { doc_ref, interface, gauge, offset }`
 instantiates a pinned document; it names its gauge and may carry an
-offset in it (A11 (2)). `Node::Pattern` replicates an instance by
-`PatternKind::Linear`, `Circular` or `Explicit`.
+offset in it (A11 (2)). Repetition is an index variable (D10,
+Repetition): a placement whose reads reach an index places one copy per
+value of it, and no node is a pattern.
 
 `Node::Mate { a, b, class, alignment }` is one contact declaration that
 also places:
@@ -383,11 +384,13 @@ implemented.
 part so an improper frame (det = −1) is representable, and it is refused
 wherever a document admits a frame, by one predicate
 (`Frame::admission_fault`): a literal step of an instance's offset, a
-gauge's placement or a transform's chain, and an explicit placement
-rule's listed frames, refuse `EditError::ImproperPlacement` for det ≤ 0,
-naming which frame, and the load validator refuses the same. Mirrored
-instances are not implemented; STEP import refuses a mirroring
-placement.
+gauge's placement or a transform's chain refuse
+`EditError::ImproperPlacement` for det ≤ 0, naming which frame, and the
+load validator refuses the same. A mirror is not a placement: a
+reflection is not a pose, so a mirrored body is the construction
+`Mirror { body, plane }`, which defines a new `Body` (MIRROR-DESIGN
+P1–P4), and no placement needs an improper frame. STEP import refuses a
+mirroring placement.
 
 ## Interchange
 
@@ -493,7 +496,7 @@ supplies.
 **(3) Roots.** A group's tree is rooted at its earliest member carrying
 an offset when its gauge chain is live, and at its earliest instance in
 document order otherwise, a convention that decides nothing a user
-placed. Pattern-placed instances are root-ineligible.
+placed.
 
 **(4) Tree mates determine; the rest declare.** `solve_document` takes
 the deterministic spanning tree rooted at the group's root. Tree mates

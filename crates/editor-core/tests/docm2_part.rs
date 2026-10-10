@@ -704,11 +704,11 @@ fn a5_the_content_key_separates_the_halves_and_the_instances() {
     );
 }
 
-/// **The product of a document whose only root is `Part(Above)` is
-/// that one half** — the unselected half is in no product (A7's
-/// product row; `sources_of`'s doc says so).
+/// **The product of a document whose one placement reads the split's
+/// `above` port is that one half** — the other half is in no product
+/// (A7's product row; `sources_of`'s doc says so).
 #[test]
-fn a7_the_product_of_a_lone_part_root_is_that_half() {
+fn a7_the_product_of_a_lone_placed_half_is_that_half() {
     let mut r = Recorder::new();
     let cube = unit_box(&mut r, 0.0);
     let tool = plane_z(&mut r, 0.5);
@@ -716,8 +716,10 @@ fn a7_the_product_of_a_lone_part_root_is_that_half() {
         target: cube.into(),
         tool: tool.into(),
     });
-    let above = part(&mut r, split, half(SplitHalf::Above));
-    assert_eq!(r.doc.roots(), &[above], "the Part is the only sink");
+    r.insert(Node::place_in_world(
+        port(split, SplitHalf::Above),
+        editor_core::Placement::IDENTITY,
+    ));
     let ev = eval(&r.doc);
     let body = product(&r.doc, &ev, Tol::witness()).expect("the product gathers");
     let m = mass_properties(&body, Tol::witness()).expect("mass properties");

@@ -594,9 +594,10 @@ on_gauge: DocEdit = DocEdit.set_gauge(instance, stand_on)
 to_world: DocEdit = DocEdit.set_gauge(instance, None)
 promoted: DocEdit = DocEdit.promote(instance)
 folded: DocEdit = DocEdit.fold(stand_on)
-designated: DocEdit = DocEdit.set_roots([instance])
 repinned: DocEdit = DocEdit.update_reference(instance, pin)
-product_roots: list[NodeId] = doc.roots
+placed: NodeId = doc.place(instance, Placement.identity(), label="the post")
+world: list[NodeId] = doc.placements()
+placer: Node = Node.place_in_world(instance)
 offset_read: Placement | None = doc.offset(instance)
 gauge_read: NodeId | None = doc.gauge(instance)
 carried_reference: DocRef | None = doc.reference(instance)
@@ -896,11 +897,9 @@ except EditError as edit_refusal:
     which_edit: str = edit_refusal.variant
     which_edit_arm: str | None = edit_refusal.inner_variant
     # ...and the arm's PAYLOAD beside them, every attribute present and
-    # each typed. A delete that would dangle carries the two node
-    # roles; the rest are `None` here, which is a value the stub types
-    # and not a missing attribute.
+    # each typed. An attribute the arm does not carry is `None`, which
+    # is a value the stub types and not a missing attribute.
     dangling: NodeId | None = edit_refusal.node
-    consumer: NodeId | None = edit_refusal.referenced_by
     operand: NodeId | None = edit_refusal.input
     which_slot: str | None = edit_refusal.slot
     which_param: str | None = edit_refusal.param

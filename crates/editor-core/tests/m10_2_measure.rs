@@ -1267,9 +1267,20 @@ fn cusp_extrude_doc(id: &str) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-/// The document's product, which must gather: `node` evaluated, and
-/// the aggregate passed the at-rest gate. Returns the gathered body.
+/// The product of `doc` with `node` placed in the world, which must
+/// gather: `node` evaluated, and the aggregate passed the at-rest gate.
+/// Returns the gathered body.
 fn gathers(doc: &ProfileDoc, node: RecipeNodeId) -> topo::Body<f64> {
+    gathers_placing(doc, node, &[node])
+}
+
+/// [`gathers`] with `bodies` placed in the world in place of `node`.
+fn gathers_placing(
+    doc: &ProfileDoc,
+    node: RecipeNodeId,
+    bodies: &[RecipeNodeId],
+) -> topo::Body<f64> {
+    let doc = &fixture::place_all(doc.clone(), bodies);
     let ev = eval(doc);
     assert!(
         matches!(ev.result(node), Some(NodeResult::Ok(_))),
@@ -1318,7 +1329,7 @@ fn on_the_kiss(p: &Point3<f64>) -> bool {
     p.x.abs() < 1e-9 && p.y.abs() < 1e-9
 }
 
-/// A document whose one root is an extrude of a `.cusp()` lune
+/// A document whose one placement is of an extrude of a `.cusp()` lune
 /// evaluates and GATHERS: the strut the cusp joint swept is a
 /// jet-determinate tangency, legal at rest with nothing carried beside
 /// the body (D1's second-order arm, ratified on PR 3317). The red-first
@@ -1461,8 +1472,8 @@ fn a_cusp_extrude_notched_clear_of_its_strut_gathers() {
     );
 }
 
-/// A PATTERN of the cusp extrude gathers: three copies, each carrying
-/// its own legal strut.
+/// A PATTERN of the cusp extrude gathers: three copies, each placed and
+/// each carrying its own legal strut.
 #[test]
 fn a_pattern_of_a_cusp_extrude_gathers() {
     let (doc, ex) = cusp_extrude_doc("cusp-extrude-pattern");
@@ -1477,7 +1488,20 @@ fn a_pattern_of_a_cusp_extrude_gathers() {
             },
         },
     );
-    let body = gathers(&doc, pattern);
+    let mut doc = doc;
+    let mut copies = Vec::new();
+    for k in 0..3 {
+        let (d, copy) = mint(
+            &doc,
+            Node::Part {
+                of: pattern.into(),
+                select: PartSelect::Instance(Formula::count(k)),
+            },
+        );
+        doc = d;
+        copies.push(copy);
+    }
+    let body = gathers_placing(&doc, pattern, &copies);
     assert_eq!(body.solids().count(), 3);
     // Copy k's kiss line is x = 5k, y = 0.
     let on_a_copys_kiss = |p: &Point3<f64>| {
@@ -1490,8 +1514,8 @@ fn a_pattern_of_a_cusp_extrude_gathers() {
     );
 }
 
-/// A SPLIT of the cusp extrude at mid-height, its upper half selected
-/// by a `Part`: the half keeps a (shorter) cusp strut, and gathers.
+/// A SPLIT of the cusp extrude at mid-height, its upper half placed by
+/// port: the half keeps a (shorter) cusp strut, and gathers.
 #[test]
 fn a_split_half_of_a_cusp_extrude_gathers() {
     let (doc, ex) = cusp_extrude_doc("cusp-extrude-split");
@@ -1509,14 +1533,21 @@ fn a_split_half_of_a_cusp_extrude_gathers() {
             tool: tool.into(),
         },
     );
-    let (doc, above) = mint(
+    let (doc, _) = mint(
         &doc,
-        Node::Part {
-            of: editor_core::Operand::output(split, SplitHalf::Above.port()),
-            select: PartSelect::SplitHalf(SplitHalf::Above),
-        },
+        Node::place_in_world(
+            editor_core::Operand::output(split, SplitHalf::Above.port()),
+            editor_core::Placement::IDENTITY,
+        ),
     );
-    let body = gathers(&doc, above);
+    let ev = eval(&doc);
+    assert!(
+        matches!(ev.result(split), Some(NodeResult::Ok(_))),
+        "the split evaluates: {:?}",
+        ev.result(split)
+    );
+    let body = editor_core::product(&doc, &ev, Tol::witness())
+        .unwrap_or_else(|e| panic!("the product gathers: {e:?}"));
     assert_eq!(body.solids().count(), 1);
     assert_eq!(
         tangent_marks(&body, on_the_kiss),
