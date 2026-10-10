@@ -7,7 +7,7 @@ opened: 2026-10-02
 priority: P1
 cost: M
 refs: [transform-and-pattern-drop-a-values-contact-records, 3856]
-blocked_on: [contact-records-carry-operand-labels-into-the-at-rest-currency]
+blocked_on: [at-rest-records-are-unordered-cell-pairs]
 ---
 
 

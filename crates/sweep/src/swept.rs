@@ -59,6 +59,64 @@ use topo::{
     MevSite, SurfaceKey,
 };
 
+/// Where a copy of the sketch stands: its placement, then for a
+/// revolve's far copy the turn about the revolution axis.
+///
+/// A point is placed and then turned on its offset from the axis
+/// ([`Affine3::rotate_point_about_axis`], W1 in
+/// `crates/geom-core/README.md`). A description that carries a
+/// placement rather than a point carries [`Placing::map`], the turn
+/// composed into the placement once.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Placing<T: Real> {
+    place: Affine3<T>,
+    turn: Option<(Point3<T>, Vec3<T>, T)>,
+}
+
+impl<T: Real> From<Affine3<T>> for Placing<T> {
+    fn from(place: Affine3<T>) -> Self {
+        Placing { place, turn: None }
+    }
+}
+
+impl<T: Real> Placing<T> {
+    /// `place`, then the turn by `angle` about the axis through
+    /// `origin` along `dir`.
+    pub(crate) fn turned(place: Affine3<T>, origin: Point3<T>, dir: Vec3<T>, angle: T) -> Self {
+        Placing {
+            place,
+            turn: Some((origin, dir, angle)),
+        }
+    }
+
+    /// Whether a turn follows the placement.
+    pub(crate) fn is_turned(self) -> bool {
+        self.turn.is_some()
+    }
+
+    /// The placement a description carries: the turn composed into
+    /// `place`.
+    pub(crate) fn map(self) -> Affine3<T> {
+        match self.turn {
+            None => self.place,
+            Some((origin, dir, angle)) => {
+                Affine3::rotation_about_axis(origin, dir, angle) * self.place
+            }
+        }
+    }
+
+    /// A sketch point placed, then turned.
+    pub(crate) fn point(self, p: Point2<T>) -> Point3<T> {
+        let placed = self.place.transform_point(Point3::new(p.x, p.y, T::zero()));
+        match self.turn {
+            None => placed,
+            Some((origin, dir, angle)) => {
+                Affine3::rotate_point_about_axis(origin, dir, angle, placed)
+            }
+        }
+    }
+}
+
 /// The classification funnel of this shared lowering, and of `extrude`
 /// and `revolve` above it (the `geom-brep` pattern).
 ///
@@ -537,7 +595,7 @@ pub(crate) fn register_rigidity<T: Real>(rim: Vec3<T>, arc: Arc2<T>, start: Poin
 fn register_placed_carrier_end<T: Real>(
     carrier: &Curve3<T>,
     param_end: T,
-    place: Affine3<T>,
+    place: Placing<T>,
     arc: Arc2<T>,
     start: Point2<T>,
     tol: Tol,
@@ -553,7 +611,7 @@ fn register_placed_carrier_end<T: Real>(
     };
     let end = Curve3::circle_at(center, axis, radius, u_ref, param_end);
     let sketch = arc.carrier_end(start);
-    let placed = place.transform_point(Point3::new(sketch.x, sketch.y, T::zero()));
+    let placed = place.point(sketch);
     for (built, held) in [(end.x, placed.x), (end.y, placed.y), (end.z, placed.z)] {
         built
             .register_equal(held, tol)
@@ -569,22 +627,24 @@ fn register_placed_carrier_end<T: Real>(
 ///
 /// `place` and `normal` are the placement the segment is lowered
 /// through and its plane normal — the sketch placement for a base
-/// lamina, the translated or rotated one for the swept copy. `tol` is
+/// lamina, the translated one for an extrude's swept copy, the turned
+/// [`Placing`] for a revolve's. `tol` is
 /// the run's ε, carried through to the rigidity the arc arm states
 /// ([`register_rigidity`], [`register_placed_carrier_end`]) and used for
 /// nothing else here.
 pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
     seg: &S,
-    place: Affine3<T>,
+    place: impl Into<Placing<T>>,
     normal: Vec3<T>,
     q_from: Point3<T>,
     q_to: Point3<T>,
     tol: Tol,
 ) -> EdgeCurveSpec<T> {
+    let place = place.into();
     let description =
         EdgeDescriptionSpec::Scaffold(MappedCurve::whole(MappedSource::PlacedSegment {
             segment: sketch_segment(seg),
-            place,
+            place: place.map(),
         }));
     match seg.kind().get() {
         SegmentKind::Line => EdgeCurveSpec {
@@ -597,7 +657,7 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
             param_end: q_from.distance(q_to),
         },
         SegmentKind::Arc { arc, turn } => {
-            let c_world = place.transform_point(Point3::new(arc.centre.x, arc.centre.y, T::zero()));
+            let c_world = place.point(arc.centre);
             let rim = q_from - c_world;
             // Rigidity, stated where it is guaranteed
             // (`register_rigidity` carries the proof). Bound out of the
@@ -636,14 +696,15 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
 /// so its winding is not necessarily the region's: [`cap_plane`]
 /// orients its plane by the region's.
 ///
-/// `qs` are the world vertices and `place` the matching placement, so
-/// a rotated or translated cap passes the rotated or translated pair.
+/// `qs` are the world vertices and `place` the matching [`Placing`], so
+/// a turned or translated cap passes the turned or translated pair.
 pub(crate) fn cap_points<T: Real, S: SweptChord<T>>(
     segs: &[S],
     qs: &[Point3<T>],
-    place: Affine3<T>,
+    place: impl Into<Placing<T>>,
 ) -> Vec<Point3<T>> {
-    let placed = |p: Point2<T>| place.transform_point(Point3::new(p.x, p.y, T::zero()));
+    let place = place.into();
+    let placed = |p: Point2<T>| place.point(p);
     let mut pts = Vec::with_capacity(segs.len() * 2 + 2);
     for (j, s) in segs.iter().enumerate() {
         pts.push(qs[j]);
