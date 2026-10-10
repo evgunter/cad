@@ -243,6 +243,115 @@ fn a_section_inside_the_band_keeps_the_apex_point() {
     }
 }
 
+/// The poses the band edge is read at, each beside its mirror through
+/// the apex's tangent plane (`axis·normal < 0`): a cone of half-angle
+/// `π/6` cut by a plane leaning `θ` off its axis, and a near-flat cone
+/// (`cos α = 0.9/10.5`) cut across its axis, each `gap` off the apex.
+fn edge_poses(tilted: (f64, f64), flat_gap: f64) -> [(&'static str, Pose); 4] {
+    let (theta, tilted_gap) = tilted;
+    let flat = (0.9_f64 / 10.5).acos();
+    let mirror = |mut p: Pose| {
+        p.normal = Vec3::new(-p.normal.x, p.normal.y, -p.normal.z);
+        p
+    };
+    let t = || upright(core::f64::consts::FRAC_PI_6, theta, tilted_gap);
+    let f = || upright(flat, 0.0, flat_gap);
+    [
+        ("tilted", t()),
+        ("tilted, mirrored", mirror(t())),
+        ("flat", f()),
+        ("flat, mirrored", mirror(f())),
+    ]
+}
+
+/// The tilted pose's lean and gap putting its reach at `reach_bands`·ε.
+fn tilted_at(reach_bands: f64) -> (f64, f64) {
+    let gap = 0.5 * eps();
+    let alpha = core::f64::consts::FRAC_PI_6;
+    (lean_for(alpha, -gap / (reach_bands * eps())), gap)
+}
+
+/// The flat pose's gap putting its reach at `reach_bands`·ε.
+fn flat_gap(reach_bands: f64) -> f64 {
+    reach_bands * eps() * 0.9 / 10.5
+}
+
+/// **A reach inside the band escalates**: neither the apex point nor
+/// the section is served where `|δ|/|D|` lies in `(ε, Kε]`.
+#[test]
+fn a_reach_inside_the_band_escalates() {
+    let (e, k) = (eps(), Tol::witness().k());
+    for reach_bands in [1.5, 0.95 * k] {
+        for (name, pose) in edge_poses(tilted_at(reach_bands), flat_gap(reach_bands)) {
+            let reach = pose.reach().expect("an ellipse");
+            assert!(
+                (reach / e - reach_bands).abs() < 1e-6 * reach_bands,
+                "{name} at {reach_bands}·ε: the oracle's reach is {:e}·ε",
+                reach / e
+            );
+            let got = pose.served(1.0, band());
+            assert!(
+                matches!(
+                    &got,
+                    Err(SectionError::Escalated(d)) if d.predicate == Some("pn_apex_point_reach")
+                ),
+                "{name} at {reach_bands}·ε: the reach escalates, got {got:?}"
+            );
+        }
+    }
+}
+
+/// **A reach just past the band is the section's**: the flat cone's
+/// axis-normal circle is served, on both surfaces and at the oracle's
+/// reach. The tilted pose's ellipse has semi-axes inside `Kε` of each
+/// other (its semi-major is at most the reach), so the carrier door
+/// refuses it typed; it is never the apex point and never an escalation
+/// of the reach.
+#[test]
+fn a_reach_just_past_the_band_is_the_section() {
+    let (e, k) = (eps(), Tol::witness().k());
+    let reach_bands = 1.05 * k;
+    for (name, pose) in edge_poses(tilted_at(reach_bands), flat_gap(reach_bands)) {
+        let reach = pose.reach().expect("an ellipse");
+        let got = pose.served(1.0, band());
+        if name.starts_with("flat") {
+            let Ok(PlaneConeSection::AxisNormalCircle(c)) = &got else {
+                panic!("{name}: the {reach:e} m circle is the section, got {got:?}");
+            };
+            let (on_plane, on_cone, far) = pose.residuals(c);
+            assert!(
+                on_plane < k * e && on_cone < k * e && (far - reach).abs() < 1e-6 * reach,
+                "{name}: served {on_plane:e} off the plane, {on_cone:e} off the cone, reaching \
+                 {far:e} beside the oracle's {reach:e}"
+            );
+        } else {
+            assert!(
+                matches!(got, Err(SectionError::Carrier(_))),
+                "{name}: the sliver ellipse's carrier refuses, got {got:?}"
+            );
+        }
+    }
+}
+
+/// **A reach just short of the band keeps the apex point.**
+#[test]
+fn a_reach_just_short_of_the_band_keeps_the_apex_point() {
+    let e = eps();
+    for (name, pose) in edge_poses(tilted_at(0.95), flat_gap(0.95)) {
+        let reach = pose.reach().expect("an ellipse");
+        assert!(
+            reach > 0.9 * e && reach < e,
+            "{name}: the oracle's reach is {:e}·ε",
+            reach / e
+        );
+        let got = pose.served(1.0, band());
+        assert!(
+            matches!(got, Ok(PlaneConeSection::ApexPoint(_))),
+            "{name}: the apex point, got {got:?}"
+        );
+    }
+}
+
 /// **Counterexample search.** Planes through and near the apex of cones
 /// at random half-angles, placements, scales and ε: a served apex point
 /// whose oracle section reaches past the zero band, or a served conic off
@@ -265,25 +374,37 @@ fn apex_lane_outcomes_agree_with_the_oracle() {
         let axis = unit(&mut g);
         let side = unit(&mut g);
         let u_ref = (side - axis * side.dot(axis)).normalize();
-        let alpha = g.range(0.02, 1.5);
         let extent = scale * g.range(0.5, 4.0);
-        // The discriminant, in bands at the extent: mostly just past the
-        // band, sometimes inside it or on the line-pair side.
-        let d_bands = match g.below(5) {
-            0 => g.range(-1.5, 1.5),
-            1 => -10f64.powf(g.range(0.0, 4.0)),
-            2 => 10f64.powf(g.range(0.0, 4.0)),
-            _ => -g.range(9.0, 14.0),
+        // One draw in six is a near-flat cone cut within the band of
+        // its axis' normal, where a gap in the band reaches `|δ|/cos α`
+        // and the axis-normal circle is the section past it. The rest
+        // place the discriminant, in bands at the extent: mostly just
+        // past the band, sometimes inside it or on the line-pair side.
+        let (alpha, theta, d) = if g.below(6) == 0 {
+            let alpha = g.range(1.45, 1.56);
+            let theta = g.range(0.0, 0.5) * e / extent;
+            (alpha, theta, -(alpha + theta).cos())
+        } else {
+            let alpha = g.range(0.02, 1.5);
+            let d_bands = match g.below(5) {
+                0 => g.range(-1.5, 1.5),
+                1 => -10f64.powf(g.range(0.0, 4.0)),
+                2 => 10f64.powf(g.range(0.0, 4.0)),
+                _ => -g.range(9.0, 14.0),
+            };
+            let d = (d_bands * e / extent).clamp(-0.999_999, 0.999_999);
+            (alpha, lean_for(alpha, d), d)
         };
-        let d = (d_bands * e / extent).clamp(-0.999_999, 0.999_999);
-        let theta = lean_for(alpha, d);
         if !(0.0..=core::f64::consts::FRAC_PI_2).contains(&theta) {
             continue;
         }
+        let d_bands = d * extent / e;
         let azimuth = g.range(0.0, core::f64::consts::TAU);
         let v_ref = axis.cross(u_ref);
         let radial = u_ref * azimuth.cos() + v_ref * azimuth.sin();
-        let normal = (axis * theta.cos() + radial * theta.sin()).normalize();
+        // Half the draws face the normal down the axis (`axis·normal < 0`).
+        let facing = if g.below(2) == 0 { 1.0 } else { -1.0 };
+        let normal = (axis * theta.cos() + radial * theta.sin()).normalize() * facing;
         let gap = if g.below(8) == 0 {
             0.0
         } else {
