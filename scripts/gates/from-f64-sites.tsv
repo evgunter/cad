@@ -5,10 +5,7 @@ crates/geom-brep/src/certify.rs	1	constant	f	a sample schedule's fraction
 crates/geom-brep/src/certify.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	d1 - d0	a NURBS carrier's knot-domain length, subtracted in f64
 crates/geom-brep/src/certify.rs	2	constant	schedule_fraction(i, CERT_SAMPLES)	a sample schedule's fraction
 crates/geom-brep/src/dihedral.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
-crates/geom-brep/src/edge_nurbs.rs	1	launders(geom-brep-keeps-computed-values-in-t)	<fn>	an f64 fitted image's control net, lifted
-crates/geom-brep/src/edge_nurbs.rs	1	launders(geom-brep-keeps-computed-values-in-t)	foot.x	a chart foot the fit's projection measured
-crates/geom-brep/src/edge_nurbs.rs	1	launders(geom-brep-keeps-computed-values-in-t)	foot.y	a chart foot the fit's projection measured
-crates/geom-brep/src/edge_nurbs.rs	1	launders(geom-brep-keeps-computed-values-in-t)	t	a sample on the edge's f64 parameter span
+crates/geom-brep/src/edge_nurbs.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	t	a sample on the carrier's knot domain (its stored end knots)
 crates/geom-brep/src/extent.rs	1	constant	f64::from(k)	a sample index
 crates/geom-brep/src/extent.rs	1	constant	parts.len() as f64	a count
 crates/geom-brep/src/implicit.rs	1	constant	k as f64	a sample index
@@ -43,12 +40,6 @@ crates/geom-brep/src/pcurve_cache.rs	3	stored-carrier-data(nurbs-weights-and-kno
 crates/geom-brep/src/pcurve_cache.rs	3	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	d1	a NURBS knot domain
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	0.5 * f64::from(m)	a quarter-turn count
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	nappe_sign(*nappe)	a cone nappe's sign, ±1
-crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(geom-brep-keeps-computed-values-in-t)	piece.tube_lo	a hull bound the f64 hull walk computed from the carrier
-crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(geom-brep-keeps-computed-values-in-t)	piece.x_lo	a hull bound the f64 hull walk computed from the carrier
-crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(geom-brep-keeps-computed-values-in-t)	span.f_sup	a certified span bound computed from the carrier
-crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(geom-brep-keeps-computed-values-in-t)	span.rho_lo	a certified span bound computed from the carrier
-crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(geom-brep-keeps-computed-values-in-t)	span.z.0	a certified span bound computed from the carrier
-crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(geom-brep-keeps-computed-values-in-t)	span.z.1	a certified span bound computed from the carrier
 crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	0.5 * (d0 + d1)	a projected net's knot-domain midpoint
 crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	<block> if r <= p - m	a piece breakpoint on the stored knots (the reader cuts the argument at its brace)
 crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	knots[j + 1 + i - r]	a projected net's stored knot
@@ -63,16 +54,11 @@ crates/geom-brep/src/props/loop_area.rs	1	constant	*w	a Gauss weight
 crates/geom-brep/src/props/loop_area.rs	1	constant	*x	a Gauss node
 crates/geom-brep/src/props/loop_area.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	kv.knots()[index + 1]	a stored knot
 crates/geom-brep/src/props/loop_area.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	kv.knots()[index]	a stored knot
-crates/geom-brep/src/ssi/certify.rs	1	launders(geom-brep-keeps-computed-values-in-t)	<fn>	the tube's bounds the certification computed
-crates/geom-brep/src/ssi/certify.rs	1	launders(geom-brep-keeps-computed-values-in-t)	clearance	a tube clearance the certification computed
-crates/geom-brep/src/ssi/certify.rs	1	launders(geom-brep-keeps-computed-values-in-t)	hull.sup	a hull bound the interval certification computed
-crates/geom-brep/src/ssi/certify.rs	1	launders(geom-brep-keeps-computed-values-in-t)	sup	a hull bound the interval certification computed
 crates/geom-brep/src/ssi/certify.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	0.5 * (a + b)	a window's midpoint on the traced carrier's knots
 crates/geom-brep/src/ssi/certify.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	w.mid	a window's midpoint on the traced carrier's knots
 crates/geom-brep/src/ssi/certify.rs	4	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	t	a sample on the traced carrier's knot domain (a fitted NURBS)
 crates/geom-brep/src/ssi/enclose.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	um	a window's midpoint on the stored knots
 crates/geom-brep/src/ssi/enclose.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	vm	a window's midpoint on the stored knots
-crates/geom-brep/src/ssi/one_arc.rs	1	launders(geom-brep-keeps-computed-values-in-t)	t	a pcurve parameter the f64 arc walk chose
 crates/geom-brep/src/tangent.rs	1	constant	f64::from(crate::certify::CERT_SAMPLES - 1)	a sample count
 crates/geom/src/convention.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/geom/src/curves/nurbs.rs	1	constant	active.len() as f64	a count of active basis functions

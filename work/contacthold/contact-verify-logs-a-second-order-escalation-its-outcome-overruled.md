@@ -2,10 +2,12 @@
 id: contact-verify-logs-a-second-order-escalation-its-outcome-overruled
 kind: issue
 title: contact_verify's tangency ladder leaves its early second-order escalation on the node log when a definite parallelism defect refuses, or a declaration bridges it
-status: open
+status: closed
 opened: 2026-09-28
 priority: P3
 cost: M
+pr: 4558
+closed: 2026-10-10
 ---
 
 
@@ -73,3 +75,24 @@ Its bridged-by-declaration arm is declared contact. (CONTACT close-out triage; C
 ## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-10)
 
 The glue door runs `contact_verify`'s tangency ladder on undeclared pairs as well. A pair it does not verify is left undeclared rather than refused, so an overruled early escalation can now land on the log of an op that builds. The question this row asks still holds.
+
+## Closed (PR 4558): bullets 1 and 3
+
+Both readings run `k_stats::detached` and are spliced in order. The
+second-order one goes through `splice_superseded` when it is in band and
+the first-order reading refuses on its own (a definite defect, or the
+in-band escalation returned). When an undeclared second-order refusal
+stands, it carries its own `Indeterminate`, so the refusal is the log's
+escalation. Red-first test:
+`an_overruled_second_order_escalation_leaves_the_log` (a pin in a
+bore). Bullet 2, a declaration bridging it, is not built (scheduled as
+`contact-verify-keeps-a-bridged-or-later-overruled-second-order-escalation`,
+with the cross-sample shape the review found): INTENT E makes
+every production caller pass `declared = true`, so it is now the normal
+case, and whether a bridged node should refine is still unmeasured. No read in
+the 8257-test corpus had the second-order reading in band, so this was
+latent.
+
+## Closed (2026-10-10, PR 4558)
+
+Merged after a full single review and a verified fix pass.
