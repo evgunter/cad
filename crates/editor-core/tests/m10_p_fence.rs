@@ -537,6 +537,18 @@
 //! asserted rather than argued: `intent_s2_c_world`'s migration check
 //! holds each document's product to the digest recorded on the tree
 //! before the change, body for body and in order.
+//!
+//! RE-BLESSED, ALL FOUR ROWS, WHEN A REVOLVE'S TURNED VERTEX CAME TO
+//! TURN ITS OFFSET FROM THE AXIS (`q + R·(p − q)`, W1 in
+//! `crates/geom-core/README.md`) rather than go through the composite
+//! map `R·p + (I − R)·q`. Measured by a scratch dump of every node's
+//! outcome and every point's bits, the tree with and without the
+//! change: every node outcome identical; 8 points moved, all in
+//! `kitchen_sink`, at most 2 ulps at `f64`; at `Interval` the same 8
+//! points, every one NARROWER, to 0.10–0.15× of its old width (6.4e-15
+//! at worst before, 8.9e-16 after). Turning a revolved description by
+//! the same spelling at evaluation moved no corpus point at either
+//! scalar.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -832,7 +844,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0xe249_c5dc_c8b7_22c4, 0x6f44_2203_4d09_c4b8),
+        (0x62bd_b0ba_9320_ac64, 0x53f1_0a2c_6d2e_b258),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -858,7 +870,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x9750_02a2_5c09_bc1c, 0xa8b9_b31e_324f_6d98),
+        (0x2ddc_3dcf_bc77_f4ec, 0x7a07_f29a_0243_60f8),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -882,7 +894,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0xe249_c5dc_c8b7_22c4, 0x6f44_2203_4d09_c4b8),
+        (0x62bd_b0ba_9320_ac64, 0x53f1_0a2c_6d2e_b258),
         "the corpus's Probe evaluation moved"
     );
 }
@@ -960,7 +972,7 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
     println!("m10-p fence id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0x2b03_cbac_a56c_3ad0, 0x6637_f0f0_be0b_f72c),
+        (0x4e83_a4d8_b6bd_ee50, 0x37d4_cb01_e189_8fac),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );

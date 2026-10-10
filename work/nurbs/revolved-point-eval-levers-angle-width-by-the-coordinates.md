@@ -2,8 +2,11 @@
 id: revolved-point-eval-levers-angle-width-by-the-coordinates
 kind: issue
 title: RevolvedPoint::eval's anchored rotation carries an angle's interval width to the point times the coordinates' magnitude, so restrictions with an inexact start still grow at a far placement; the radius-levered spellings cost f64 agreement on origin-axis geometry
-status: open
+status: closed
 opened: 2026-10-09
+closed: 2026-10-10
+branch: nurbs/revolved-point-axis-anchored
+pr: 4518
 refs: [mapped-curve-restrict-composes-placements-per-split]
 priority: P2
 cost: M
@@ -20,7 +23,7 @@ and every chain measured is at or under the composed placement except
 two: `(0.3, 0.7)` far at 1.06× and its quotient form at 1.03×. These are
 pinned by `crates/geom-brep/tests/revolved_point_anchor.rs`
 `restricted_widths_stay_under_their_ceilings`,
-`end_anchored_chains_stay_flat` and
+`end_anchored_chains_stay_at_the_f64_floor` and
 `restriction_is_no_wider_than_composing_into_the_placement`. What
 still grows is one mechanism, and this row is about it.
 
@@ -65,8 +68,10 @@ lands 2.5–3× farther from the corner (1.0e-12 against 3.4e-13 at 1e3;
 on the offset `p − q`:
 
 - `p − (I − R)·(p − q)` (`Mat3::identity_minus_rotation_about`) keeps
-  the start-sample anchor property that
-  `the_revolved_anchor_contributes_no_width_at_the_start_sample` pins.
+  the start sample free of the axis's width, which the shipped
+  spelling also held (`revolved_point_anchor.rs` now pins what the
+  chosen spelling gives up there:
+  `an_uncertain_axis_reaches_the_start_sample_at_most_twice_over`).
 - `p − 2·sin(θ/2)·(sin(θ/2)·v⊥ − cos(θ/2)·(n × v))` (Rodrigues anchored
   at `p`, `v = p − q`) is the other.
 
@@ -108,3 +113,62 @@ rounding of the coordinates) a thousand metres out
 figures are 1.2–1.35× what re-deriving the endpoints stored at the same
 counts (2.3e-14 / 4.0e-14), the far ones 44–51× under it. A spelling
 chosen for `RevolvedPoint::eval` here does not reach the segment arm.
+
+## Closed
+
+Decided by W1 (`crates/geom-core/README.md`): a revolved point
+evaluates as `q + R·(p − q)`, through
+`Affine3::rotate_point_about_axis`, and `offset_axial::reauthor` reads
+a turned corner back as `place⁻¹(q + R(−θ)·(p − q))`, its azimuth
+test included.
+
+- **The mechanism is gone.** An angle's width reaches the point times
+  the radius about the axis. Over every chain of the table above at
+  N = 1 / 8 / 64, a thousand metres out every chain with exact split
+  parameters sits at 2.3e-13 – 3.4e-13 (one to three ulps of the
+  coordinates) at every count, where the anchored rotation read up to
+  1.9e-10; at 1e5 out, 1.5e-11 – 2.9e-11 against up to 1.9e-8. Near
+  the origin every chain is a quarter of what it was. `(0.3, 0.7)` far
+  and its quotient form, the two that sat over the composed placement,
+  are at 0.002× of the anchored rotation and 0.01× of the composed
+  placement.
+- **The read-back.** On the tilted far placement, with the turned
+  corner built by the same spelling, the stored sketch point is
+  2.3e-11 – 3.9e-11 wide at `Interval` against the composite's
+  3.5e-7 – 5.2e-7 (which no longer fits the ordinary band), and at
+  `f64` the start sample lands 2.3e-13 (1e3) and 1.5e-11 (1e5) from
+  its corner, within four ulps of the coordinates; reading back
+  through the composite against this evaluation lands 8.0e-13 and
+  5.8e-11.
+- **A revolve's far copy** turns the same way: its vertices, its cap
+  arcs' carrier centres and the points its cap plane is fitted
+  through are sketch points placed and then turned
+  (`sweep::swept::Placing`). A full turn's return-half latitude arcs
+  and a full-turn strut describe themselves as the whole turn's range
+  run back, on the sketch placement. Only the far cap's segment
+  descriptions carry the turned placement, the turn composed into it
+  once; against a 70-digit reference they read within 3.7 ulps of the
+  coordinates at 1e3 and 1.9 at 1e5, the turned point within 0.85
+  (`revolved_point_anchor.rs`
+  `a_far_cap_placement_reads_within_ulps_of_the_turned_point`).
+- **What it gave up** is the turned point's independence from the
+  axis point's width, `q` being mentioned twice. With `p` exact and
+  `q` a box `w` wide, coordinate `i` of a sample is
+  `(1 + Σⱼ|Rᵢⱼ|)·w` wide: `2·w` at the zero turn, up to `(1 + √2)·w`
+  about a coordinate axis and `(1 + √3)·w` in general
+  (`Affine3::rotate_point_about_axis`; `revolved_point_anchor.rs`
+  `an_uncertain_axis_reaches_the_start_sample_at_most_twice_over` and
+  `an_uncertain_axis_reaches_a_turned_sample_within_its_row_bound`,
+  2.41–2.69·w at a 2.1 rad turn on a tilted axis). No producer hands
+  an axis wider than its point.
+- **The segment arm's near 1.2–1.35×** is `Arc2::point_from`'s
+  anchoring, not this evaluation, and is no defect under W1: it scales
+  with the radius times the sweep and stays flat in N
+  (`sketch_segment_restriction.rs`
+  `nested_segment_splits_stay_at_one_evaluations_width`), and the
+  spelling it is measured against is the retired re-derivation. No row
+  is opened for it.
+- **`tilted_lune`** evaluates on an axis through the origin, where the
+  new spelling is the old one's `R·p`; it stays green at 1e-6, 1e-9
+  and 1e-12.
+
