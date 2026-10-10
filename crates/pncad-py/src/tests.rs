@@ -6624,6 +6624,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("circle_circle", 2),
     ("coaxial", 2),
     ("contact_contradicted", 2),
+    ("containment", 2),
     ("corrupt", 2),
     ("cosurface_escalated", 2),
     // One fact at two doors: `node::declared_side_fault`, asked by the
@@ -6665,7 +6666,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("edge_along_edge", 2),
     // One fact, as `circle_circle`.
     ("edge_edge_point", 2),
-    ("empty", 2),
+    ("empty", 3),
     ("empty_boolean", 2),
     // Coincidence, not one fact: a profile loop authored with no vertex,
     // refused at validation, and a body face's empty (scaffolding) loop,
@@ -6781,7 +6782,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("unknown_node", 5),
     ("unknown_param", 3),
     ("unminted", 2),
-    ("unnamed", 2),
+    ("unnamed", 3),
     // One fact (A11 (2)): a group nothing places — the node that read
     // across its space, the inline that has no frame to splice at, the
     // STEP export that writes one world, and the world gather a
