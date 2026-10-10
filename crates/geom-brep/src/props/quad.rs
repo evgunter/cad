@@ -969,7 +969,7 @@ fn require_rings_wound_against<T: Decide>(
 ) -> Result<(), PropsError> {
     // The extent gate has certified `|R·A_s|` positive, so `A_s`
     // excludes zero and its sign is the face's side on the chart.
-    let side = if a_s.lo() > 0.0 { pt(1.0) } else { pt(-1.0) };
+    let side = if lo_or_refuse(a_s) > 0.0 { pt(1.0) } else { pt(-1.0) };
     for (edges, &ring) in loops.iter().zip(per_loop).skip(1) {
         let perim: f64 = edges.iter().map(|e| edge_metric_length(e, radius)).sum();
         let against = -(side * radius * ring);
