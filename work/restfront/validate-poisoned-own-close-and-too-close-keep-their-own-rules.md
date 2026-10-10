@@ -11,7 +11,7 @@ opened: 2026-10-09
 
 ## What
 
-That row gave the poison→note rule one home, `geom_core::MarginDiag::unreadable_note`: a poisoned margin keeps the decision's own ending (its lever, or the not-yet ending) and adds the unreadable-margin note its reading gives, naming the file at rest. D4 ¶1 (i) names the decision's lever "always", and a poisoned margin drops only the tolerance arm. Every sized, lever-only and not-yet ending in `geom_brep::recourse` reads it now.
+That row gave the poison→note rule one home: `geom_core::MarginDiag::unreadable_note` tests the poison, and `geom_brep::recourse::unreadable_margin_note(reading)` picks the note beside `defect_ending`. A poisoned margin keeps the decision's own ending (its lever, or the not-yet ending) and adds the unreadable-margin note its reading gives, naming the file at rest. D4 ¶1 (i) names the decision's lever "always", and a poisoned margin drops only the tolerance arm. Every sized, lever-only and not-yet ending in `geom_brep::recourse` reads it now.
 
 `crates/topo/src/validate.rs` still ends a poisoned margin two other ways, each its own rule:
 
@@ -22,4 +22,4 @@ That row gave the poison→note rule one home, `geom_core::MarginDiag::unreadabl
 
 ## Repair shape
 
-Decide each site against the one rule. For `own_close`, either keep the lever and route the note through `MarginDiag::unreadable_note(Reading::AtRest)`, or state why this decision's lever cannot reach a poisoned margin. For `too_close`, do the same, together with `at-rest-coincidence-endings-name-no-tolerance-value`, which already rewrites that function. Texts move only on poisoned arms at rest.
+Decide each site against the one rule. For `own_close`, either keep the lever and route the note through `unreadable_margin_note(Reading::AtRest)`, or state why this decision's lever cannot reach a poisoned margin. For `too_close`, do the same, together with `at-rest-coincidence-endings-name-no-tolerance-value`, which already rewrites that function. Texts move only on poisoned arms at rest.
