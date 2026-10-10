@@ -2,11 +2,12 @@
 id: a-sphere-face-whose-boundary-encodes-no-side-is-measured-under-its-bit-alone
 kind: issue
 title: A sphere face whose boundary encodes no side (the rimless band, a tilted-circle face with a pole on its loop) is measured under its sense bit alone, so a flipped bit measures the complement silently
-status: open
+status: review
 opened: 2026-10-02
 priority: P2
 cost: M
 refs: [sphere-flux-arm-carries-two-closed-forms-for-one-face-kind]
+pr: 4573
 ---
 
 

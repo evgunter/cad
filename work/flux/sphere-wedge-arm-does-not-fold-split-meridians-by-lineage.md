@@ -2,11 +2,12 @@
 id: sphere-wedge-arm-does-not-fold-split-meridians-by-lineage
 kind: issue
 title: sphere()'s wedge arm reads a two-edge boundary and refuses a meridian that arrives in lineage pieces, where the torus arm folds pieces by lineage
-status: open
+status: review
 opened: 2026-09-16
 refs: [2748, 542]
 priority: P0
 cost: H
+pr: 4573
 ---
 
 Found by BOOL-5's dual review (PR 2748) and filed by the S-BOOL

@@ -2,11 +2,12 @@
 id: sphere-face-with-a-hole-has-no-closed-form
 kind: issue
 title: A sphere face with a hole has no closed form (RingOnCurvedFace), though the Gauss–Bonnet loop lane extends to rings
-status: open
+status: review
 opened: 2026-10-05
 priority: P1
 cost: M
 refs: [a-ring-on-a-sphere-face-has-no-island-winding]
+pr: 4573
 ---
 
 

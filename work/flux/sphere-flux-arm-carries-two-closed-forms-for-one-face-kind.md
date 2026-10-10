@@ -2,11 +2,12 @@
 id: sphere-flux-arm-carries-two-closed-forms-for-one-face-kind
 kind: issue
 title: The sphere flux arm measures a tilted-circle face by Gauss-Bonnet and every other face by the iso-rectangle form, where the first subsumes the second
-status: open
+status: review
 opened: 2026-10-02
 priority: P1
 cost: H
 design: true
+pr: 4573
 ---
 
 
