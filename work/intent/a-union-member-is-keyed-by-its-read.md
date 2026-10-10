@@ -38,7 +38,8 @@ N2, and D10 Repetition state it:
   scope). Built by the second unit.
 - **One `Bodies` argument.** Union and intersect take one argument of kind
   `Bodies`: a read of a family (`Union(xs)`) or the member reads spelled at
-  the slot (`Union([a, b, c])`), the slot's spelling and not a list value;
+  the slot (`Union([a, b, c])`); a list is spelled at the slot and is not
+  a value, so a reusable collection is a family;
   a mix is ill-typed (`SlotVarKind`). A list of one is its member; an
   empty list is the typed empty body.
 - **A family member.** `xs[i]` is a read of the family `xs` at one `Count`
