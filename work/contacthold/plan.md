@@ -9,32 +9,23 @@ points against 30 with its P0 units landed or parked (PRs 4363, 4368,
 
 ## The slate
 
-In flight:
+In flight (each row's file moves to `review` on its own PR):
 
-- `a-tube-rim-vertex-touching-a-face-along-its-tangent-unions-past-tier-3-prime` — a measure lane on `contacthold/tube-rim-measure`: does it reproduce on main, and is its seat the vertex-on-face record (B2/E's ground) or vertex classification (this track's)
+- PR 4558 (`contacthold/tangent-locus`, full single review): `contact-verify-on-surface-residual-subtracts-its-sag`, `contact-tangent-relation-decides-offsets-and-tilt-per-sample` (closes, no code), `contact-verify-logs-a-second-order-escalation-its-outcome-overruled`
+- PR 4559 (`contacthold/census-edge-pass`, full single review): `census-edge-pass-reads-no-line-conic-crossing` (closes, no code), `ef-bound-backed-migrates-to-region-confinement`, `census-declared-sites-read-a-torn-record-as-absent`
+- PR 4550 (`contacthold/census-backstop`, full single review, fix pass): `census-backstop-separates-curved-pairs-only-along-world-axes`, with `a-tube-rim-vertex-touching-a-face-along-its-tangent-unions-past-tier-3-prime` riding
+- `contacthold/side-code-order2` (dual review): `boolean-conic-side-code-zero-is-first-order`
+
+Spec: `at-rest-records-are-unordered-cell-pairs` (H, dual review; Ev ruled on PR 4547). It waits for disk and build slots; `curve-contact-names-one-face-where-its-witness-edge-lies-in-two` and `contact-records-carry-operand-labels-into-the-at-rest-currency` ride with it.
+
+Open, held for designers: `contact-verify-lane-gate-answers-a-crossing-not-certifiable` (after PR 4558 lands; same function). Open: `zero-to-distinct-cells-on-one-point-doors-audit` (waits for a build slot).
 
 Parked, each on its named trigger:
 
-- `CONTACT-13` — on [intent-stage4-is-built]
-- `declared-only-meetings-clear-at-the-census-gate-unread` — on [intent-stage4-is-built]
-- `a-bridge-union-fuses-a-declared-tangent-rest-into-one-shell-with-an-edgeless-contact` — on [declared-pairs-retire]
-- `boolean-vertex-contact-records-are-inferred-from-values` — on [contact-records-cite-their-decision]
-- `contact-verify-on-surface-residual-subtracts-its-sag` — on [booleans-glue-on-zero]
-- `curve-contact-names-one-face-where-its-witness-edge-lies-in-two` — on [contact-records-cite-their-decision]
-- `topo-surgery-verbs-drop-a-bodys-contact-records` — on [contact-records-cite-their-decision]
-- `a-same-operand-f7-refusal-is-rendered-as-a-declarable-undeclared-contact` — on [booleans-glue-on-zero]
-- `boolean-conic-side-code-zero-is-first-order` — on [booleans-glue-on-zero]
-- `carrier-escalation-drops-its-plane-rung-at-the-contact-doors` — on [declared-pairs-retire]
-- `census-declared-sites-read-a-torn-record-as-absent` — on [booleans-glue-on-zero]
-- `census-edge-pass-reads-no-line-conic-crossing` — on [declared-pairs-retire]
-- `contact-records-carry-operand-labels-into-the-at-rest-currency` — on [contact-records-cite-their-decision]
-- `contact-tangent-relation-decides-offsets-and-tilt-per-sample` — on [booleans-glue-on-zero]
-- `contact-verify-lane-gate-answers-a-crossing-not-certifiable` — on [booleans-glue-on-zero]
-- `contact-verify-logs-a-second-order-escalation-its-outcome-overruled` — on [booleans-glue-on-zero]
-- `declared-faces-has-no-cross-solid-check` — on [booleans-glue-on-zero]
-- `ef-bound-backed-migrates-to-region-confinement` — on [declared-pairs-retire]
+- `CONTACT-13`, `declared-only-meetings-clear-at-the-census-gate-unread`, `the-touch-analysis-reads-curved-cones-tighter-than-the-reach-box` — on [intent-stage4-is-built]
+- `a-bridge-union-fuses-a-declared-tangent-rest-into-one-shell-with-an-edgeless-contact`, `carrier-escalation-drops-its-plane-rung-at-the-contact-doors` — on [declared-pairs-retire]
+- `topo-surgery-verbs-drop-a-bodys-contact-records`, `declared-faces-has-no-cross-solid-check` — on [at-rest-records-are-unordered-cell-pairs]
 - `notched-half-donut-owes-its-notch-and-volume-when-torus-plane-lands` — on [c5-plane-torus-cone-cylinder-arms]
-- `the-touch-analysis-reads-curved-cones-tighter-than-the-reach-box` — on [intent-stage4-is-built]
 
 ## Order
 
