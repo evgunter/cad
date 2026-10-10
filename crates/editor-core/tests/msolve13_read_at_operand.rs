@@ -54,8 +54,9 @@ fn box_part(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// Two slab instances and one block instance, with their resolver and
-/// part bodies. The first slab carries the world offset and roots the
-/// group; the others sit where their mates put them.
+/// part bodies, the slabs placed in the world. The first slab carries
+/// the world offset and roots the group; the others sit where their
+/// mates put them.
 struct Scene {
     doc: ProfileDoc,
     opts: EvalOptions,
@@ -91,6 +92,10 @@ fn scene_with(label: &str, two: bool) -> Scene {
         (doc, base1)
     };
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
+    // The slabs are in the world; each row places what it builds over
+    // `top`.
+    let bases: &[RecipeNodeId] = if two { &[base1, base2] } else { &[base1] };
+    let doc = fixture::place_all(doc, bases);
     Scene {
         doc,
         opts,
@@ -210,11 +215,7 @@ fn fused(s: &Scene, at_t1: impl Fn(&ProfileDoc, RecipeNodeId, RecipeNodeId) -> S
             declare: Vec::new(),
         },
     );
-    assert!(
-        doc.roots().contains(&union) && !doc.roots().contains(&t1),
-        "the union consumes both transforms: {:?}",
-        doc.roots()
-    );
+    let (doc, _) = crate::fixture::place(doc, union);
     let at = at_t1(&doc, t1, union);
     let (doc, m1) = mated(doc, seat(s.base_cap(s.base1), at));
     let (doc, m2) = mated(doc, seat(s.base_cap(s.base2), head_at(t2, s.top_cap())));
@@ -284,11 +285,7 @@ fn a1b_a_transform_above_the_operand_refuses_rather_than_refutes() {
         xform(s.top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0),
     );
     let (doc, t3) = insert(doc, xform(t1, [5.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
-    assert!(
-        doc.roots().contains(&t3) && !doc.roots().contains(&t1),
-        "t3 consumes t1's root: {:?}",
-        doc.roots()
-    );
+    let (doc, _) = crate::fixture::place(doc, t3);
     let (doc, mate) = mated(doc, seat(s.base_cap(s.base1), head_at(t1, s.top_cap())));
     let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(
@@ -368,6 +365,7 @@ fn a2_two_spellings_through_a_union_fold_into_one_pair() {
             declare: Vec::new(),
         },
     );
+    let (doc, _) = crate::fixture::place(doc, union);
     let (doc, m2) = mated(doc, seat(s.base_cap(s.base2), head_at(t2, s.top_cap())));
     let (doc, coax) = mated(
         doc,
@@ -434,6 +432,7 @@ fn a2_a_part_and_its_pattern_naming_one_copy_fold_into_one_pair() {
             select: PartSelect::Instance(Formula::count(1)),
         },
     );
+    let (doc, _) = crate::fixture::place(doc, part);
     let copy1 = in_copy(pattern, 1, s.top_cap());
     let (doc, coax) = mated(
         doc,
@@ -523,7 +522,7 @@ fn a_pair_boolean_above_the_operand_carries_the_face() {
             declare: Vec::new(),
         },
     );
-    assert!(doc.roots().contains(&fused), "{:?}", doc.roots());
+    let (doc, _) = crate::fixture::place(doc, fused);
     let ev = run(&doc, &s.opts);
     let gated = gate(&doc, &ev);
     assert!(gated.is_ok(), "the boolean carries the face: {gated:?}");
@@ -575,6 +574,7 @@ fn vanished_names_the_consumer_that_lost_the_face_not_a_reading_datum() {
         datum < empty,
         "the premise: the datum is the earlier consumer"
     );
+    let (doc, _) = crate::fixture::place(doc, empty);
     let ev = run(&doc, &s.opts);
     let err = gate(&doc, &ev).expect_err("the boolean consumes the face");
     assert_eq!(
@@ -613,7 +613,7 @@ fn a_chamfer_above_the_operand_carries_the_face_it_trims() {
             selection: edges,
         },
     );
-    assert!(doc.roots().contains(&chamfer), "{:?}", doc.roots());
+    let (doc, _) = crate::fixture::place(doc, chamfer);
     let ev = run(&doc, &s.opts);
     let gated = gate(&doc, &ev);
     assert!(gated.is_ok(), "the chamfer carries the face: {gated:?}");
@@ -629,14 +629,15 @@ fn a_shell_above_the_operand_carries_a_survivor_and_loses_an_opened_face() {
     let s = scene_with("msolve13-lift-shell", false);
     let (doc0, t1, mate) = seated_at_t1(&s);
     let shell = |open: StableName| {
-        insert(
+        let (doc, shell) = insert(
             doc0.clone(),
             Node::Shell {
                 target: t1.into(),
                 thickness: len(0.1),
                 open: vec![open],
             },
-        )
+        );
+        (crate::fixture::place(doc, shell).0, shell)
     };
     let (doc, _) = shell(in_part(s.top, s.top_body, CapEnd::End));
     let ev = run(&doc, &s.opts);
@@ -683,6 +684,7 @@ fn a_part_above_a_union_refuses_at_evaluation_before_the_gate_reads_it() {
             select: PartSelect::Instance(Formula::count(0)),
         },
     );
+    let (doc, placement) = crate::fixture::place(doc, part);
     let head = head_at(part, member_name(&doc, union, t1, s.top_cap()));
     let m = member_of(&doc, &head).expect("the walk descends the union below the Part");
     assert_eq!(m.instance, s.top);
@@ -697,13 +699,20 @@ fn a_part_above_a_union_refuses_at_evaluation_before_the_gate_reads_it() {
         "a Part over one body refuses: {:?}",
         ev.result(part)
     );
-    let err = gate(&doc, &ev).expect_err("the gather refuses the failed root");
+    let err = gate(&doc, &ev).expect_err("the gather refuses the poisoned placement");
     assert!(
         matches!(
             &err,
             AssemblyError::Product(e)
-                if matches!(**e, editor_core::ProductError::Root(editor_core::NodeStanding::Failed { node }) if node == part)
+                if matches!(
+                    **e,
+                    editor_core::ProductError::Root(editor_core::NodeStanding::Poisoned {
+                        node,
+                        through,
+                    }) if (node, through) == (placement, part)
+                )
         ),
-        "the gather refuses at the Part, before any reference is read: {err:?}"
+        "the gather refuses at the Part's placement, poisoned through the Part, before any \
+         reference is read: {err:?}"
     );
 }

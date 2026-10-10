@@ -696,13 +696,26 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
         .map(|&m| doc.operation_of(m).expect("a member reads a live output"))
         .collect();
     assert_eq!(members.len(), 21, "the die has 21 pips");
-    let blends: Vec<RecipeNodeId> = doc
-        .ids()
-        .iter()
-        .copied()
-        .filter(|id| matches!(doc.node(*id), Some(Node::Fillet { .. })))
-        .collect();
-    assert_eq!(blends.len(), 2, "the box-edge blend and the rim blend");
+    // The die is what the world places: the rim blend, over the
+    // box-edge blend.
+    let rim_blend = match doc.placements().as_slice() {
+        [placement] => match doc.node(*placement) {
+            Some(Node::PlaceInWorld { body, .. }) => doc
+                .operation_of(*body)
+                .expect("the placement reads the die"),
+            other => panic!("a placement, got {other:?}"),
+        },
+        other => panic!("the tour places the die alone, got {other:?}"),
+    };
+    let box_blend = match doc.node(rim_blend) {
+        Some(Node::Fillet { target, .. }) => doc.operation_of(*target).expect("a live target"),
+        other => panic!("the die is its rim blend, got {other:?}"),
+    };
+    assert!(
+        matches!(doc.node(box_blend), Some(Node::Fillet { .. })),
+        "the rim blend's target is the box-edge blend"
+    );
+    let blends = [box_blend, rim_blend];
     let before = run(&doc);
     // The radius as written: deleting the blend retires the anonymous
     // variable its radius reads, so the re-authored blend writes it
@@ -1287,59 +1300,3 @@ fn list_input(
     }
 }
 
-/// **`on_set_members`' ordering contract**, which the doc comment
-/// states and nothing measured: existing roots keep their ORDER, and
-/// nodes the rewrite orphaned join at the END in document order.
-///
-/// The edit moves the sink set in both directions at once — a member
-/// the new list dropped may have become a root, a member it added may
-/// have stopped being one — so the set is recomputed rather than
-/// spliced, and the recomputation has to be order-stable or a
-/// document's root list would shuffle under an unrelated edit.
-#[test]
-fn set_members_keeps_root_order_and_appends_orphans_last() {
-    let tol = Tol::witness();
-    // Two unions over four boxes, so the document has two roots; the
-    // second union is edited to drop a member, which orphans it.
-    let doc = ProfileDoc::empty_derived("docm3_union_roots", tol);
-    let (doc, a) = cube(doc, 0.0);
-    let (doc, b) = cube(doc, 2.0);
-    let (doc, c) = cube(doc, 4.0);
-    let (doc, d) = cube(doc, 6.0);
-    let (doc, first) = insert(
-        doc,
-        Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
-        },
-    );
-    let (doc, second) = insert(
-        doc,
-        Node::Union {
-            members: editor_core::Bodies::Spelled(vec![c.into(), d.into()]),
-            declare: Vec::new(),
-        },
-    );
-    assert_eq!(
-        doc.roots(),
-        &[first, second],
-        "the two unions are the document's roots"
-    );
-    // Drop `d` from the second union and add nothing: `d` is orphaned.
-    let after = doc
-        .apply(
-            &DocEdit::SetMembers {
-                node: second,
-                members: editor_core::Bodies::Spelled(vec![c.into(), a.into()]),
-            },
-            tol,
-            &editor_core::RefusingReach,
-        )
-        .expect("re-membering the second union is a legal edit")
-        .doc;
-    assert_eq!(
-        after.roots(),
-        &[first, second, d],
-        "the existing roots keep their order and the orphan joins at the end"
-    );
-}

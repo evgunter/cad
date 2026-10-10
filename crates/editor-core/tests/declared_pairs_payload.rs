@@ -158,6 +158,7 @@ fn declaring_each_refusals_finding_converges_on_a_union_that_builds() {
 fn a_declared_union_survives_a_split_and_an_inline() {
     let tol = Tol::witness();
     let (doc, union) = declared_overlap("declared-pairs-remap");
+    let doc = fixture::place(doc, union).0;
     let whole: BTreeSet<RecipeNodeId> = doc.ids().iter().copied().collect();
     let out = split(
         &doc,

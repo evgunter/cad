@@ -48,6 +48,11 @@ use topo::BooleanOp;
 /// name, and the most words each may render**: a ratchet, so a row
 /// that grows fails and a row that shrinks lowers its number.
 ///
+/// Two rows, one word over, since INTENT stage 2 PR C: every placed
+/// body's names are held twice, by the body and by its world copy, so
+/// the 90th-percentile name is a longer one of the same corpus (37
+/// words in full). No name a document held before grew.
+///
 /// Both rows forward two names, and the corpus's 90th-percentile name
 /// is a die pip's band face joined into the cutting tool and cut into
 /// the die: every member of a union says its join (FORK-DM4), so that
@@ -76,13 +81,18 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// it. The total moves with a word said once more by every name of a
 /// kind, which the quantiles of a long tail need not.
 ///
-/// The full p99 rose from 97 to 98 when the blend began ending with the
-/// join (`docs/DESIGN.md`, maximal edges; 3881 step 3, PR C): two host
-/// trimlines of a rim band the join makes one edge are said as the set
-/// of both trim names, which is longer than either. The ruling names a
-/// joined edge by the input cells it covers, so the longer name is the
-/// reading, not a regression; the total fell with the names the join
-/// took (a host foot and a trimline per band).
+/// Raised by INTENT stage 2 PR C (the product is the world): each
+/// corpus document places its bodies, and a copy's names are its
+/// body's under the placement, said "the world copy of …", four words
+/// over the body's own. The p99s rise by those four words and the
+/// totals by the copies' names; the p50s and the maxima held.
+///
+/// Merged with main's blend change (`d5a518b1b2`, the die's blend ends
+/// with the join), which on main moved the full p99 97 → 98 and the
+/// total down: the die's names are said once more each as their copy's,
+/// so its longer names weigh twice in the tail and the full p99 reads
+/// 106. The total fell by twice main's drop; the p50s, the scoped row
+/// and the maxima held.
 ///
 /// Every number rose with the three boolean nodes (FORK-DM4): a union's
 /// or an intersect's every member says its join and the read it came in
@@ -114,9 +124,10 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// reorder a `Borders` one (mint order, not digest order), and move no
 /// other word.
 ///
-/// The blend's closing join moved it: the two rim-filleting documents'
-/// joined host trimlines say the set of both trim names, and their
-/// joined-away feet and trimlines say nothing.
+/// INTENT stage 2 PR C: the words that moved are the copies' names, new
+/// with the placements ("the world copy of …"), and the node tags of
+/// the placements; no name a document held before says another word.
+/// Re-taken merged with main's blend change, whose die names it says.
 ///
 /// The three boolean nodes moved it with [`NAME_WORDS`]: every member
 /// says its join, and a carry said by tag says the read it came through.

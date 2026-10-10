@@ -112,6 +112,8 @@ pub fn document() -> CorpusDoc {
         declare: decl,
     });
 
+    r.place(sub2);
+
     CorpusDoc {
         name: "crossing_slots",
         about: "R13 / #86 crossing slots: boolean-of-boolean, declared floor",

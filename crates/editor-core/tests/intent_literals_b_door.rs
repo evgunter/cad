@@ -10,7 +10,7 @@
 
 use crate::corpus;
 use crate::docm7_union_declare::block;
-use crate::fixture::resolver::in_part;
+use crate::fixture::resolver::{PartStore, in_part};
 use crate::fixture::{ang, head, len, scl};
 use editor_core::{
     Alignment, AuthoredNode, AxisSense, CapEnd, ContactClass, CountMismatch, Dimension, DocEdit,
@@ -278,7 +278,11 @@ fn kind_of(node: &AuthoredNode) -> String {
 /// a caller.
 #[test]
 fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
-    let (edge_doc, b) = body();
+    // The block placed in its world, as a part stored for instancing
+    // is: the mate rows name its caps through that placement.
+    let mut store = PartStore::default();
+    let (part, b) = store.insert_part(body(), Tol::witness());
+    let edge_doc = store.doc(part.id);
     // The block's own sketch frame and profile, for the slots that read
     // those kinds.
     let held = |is: fn(&Node<ProfileProgram>) -> bool| {

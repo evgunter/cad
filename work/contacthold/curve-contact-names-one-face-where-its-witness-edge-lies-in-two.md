@@ -7,7 +7,7 @@ opened: 2026-10-02
 priority: P1
 cost: M
 design: true
-refs: [JOIN-1]
+refs: [3790]
 blocked_on: [coincidences-are-recorded-at-one-door]
 ---
 
@@ -22,7 +22,7 @@ by JOIN.
 edge of one operand, that edge lies in TWO of that operand's faces, so
 the record's single face is a choice it cannot state. This is the same
 ambiguity that left the join's section germs four loose ends on the
-half-lap (`work/join/an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired.md`).
+half-lap (`an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired`, JOIN, closed by PR 3790).
 JOIN-1 retires it from the join by giving a germ a per-operand cell,
 `OnEdge(edge) | InFace(face)`.
 

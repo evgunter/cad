@@ -39,9 +39,9 @@
 //! node the ray MET — so a pick on a transformed instance says the
 //! transformed instance, a pick on a pattern copy authors an
 //! `Instance(i)`-headed reference at the pattern, and a pick on a
-//! union of placed instances authors the member's face, `FromMember`
-//! headed, at the union. Everything the walk cannot stand a member on
-//! is
+//! union of placed instances authors the member's face, `From`
+//! headed (keyed by the member's read), at the union. Everything the
+//! walk cannot stand a member on is
 //! [`MateToolError::NotAnInstancePick`]. A copy's frame is read at
 //! its MASTER (the member walk takes off one `Instance(i)` per pattern
 //! level, `member_reading`):
@@ -180,12 +180,15 @@ fn picked_member(
     // rather than asserted against in one. The refusal is the
     // constructor's own sentence, carried: what this tool knows about
     // the mistake is exactly what the constructor said.
-    let name = editor_core::FaceName::new(pick.name.clone())
-        .map_err(|refusal| MateToolError::PickIsNotAFace { side, refusal })?;
-    // The pick's own operand: the node the ray met, which is the node
-    // whose body was drawn and therefore the geometry the author is
-    // pointing at.
-    let reference = SitedFace::new(pick.node, name);
+    let not_a_face = |refusal| MateToolError::PickIsNotAFace { side, refusal };
+    editor_core::FaceName::new(pick.name.clone()).map_err(not_a_face)?;
+    // A pick on a copy is read on its body (A10): the node defining the
+    // body the placement places, and the body's own name for the face.
+    let (at, _, own) = crate::world::on_body(doc, pick.node, pick.body, &pick.name);
+    let name = editor_core::FaceName::new(own).map_err(not_a_face)?;
+    // The pick's own operand: the node whose body was drawn, and
+    // therefore the geometry the author is pointing at.
+    let reference = SitedFace::new(at, name);
     let (member, placed) =
         member_reading(doc, &reference).ok_or(MateToolError::NotAnInstancePick { side, node })?;
     let placed = placed.clone();

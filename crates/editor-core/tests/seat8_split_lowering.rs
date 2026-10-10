@@ -197,13 +197,20 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// the split's motion into it: the digest feeds each curve's `Debug`,
 /// and these are the documents whose bodies store a swept-point
 /// description, split or whole.
+///
+/// RE-BLESSED for INTENT stage 2 PR C (the product is the world):
+/// each document now places its bodies, and every placement is a node
+/// with a value and a name table of its own, so the evaluation this
+/// digest walks holds those copies. What each document delivers did
+/// not move: `intent_s2_c_world`'s migration check holds each product
+/// to its pre-C digest.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x3708816be1b0c21au64),
-        ("part_select", 0x40bb4a741314cc87),
-        ("kitchen_sink", 0x6491016053a9269b),
+        ("cut_cylinder", 0x5b24_7f0a_1360_4db4u64),
+        ("part_select", 0x0f2b_e2d0_e2c1_5eff),
+        ("kitchen_sink", 0x59cd_a9f6_f2c5_f886),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

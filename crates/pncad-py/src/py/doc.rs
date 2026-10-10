@@ -50,7 +50,7 @@ fn edit_fields(
     variant: &str,
     inner: Option<&'static str>,
     payload: &crate::edit_payload::EditPayload<'_>,
-) -> [(&'static str, Py<PyAny>); 26] {
+) -> [(&'static str, Py<PyAny>); 25] {
     let none = || py.None();
     // A field whose own construction failed degrades to `None` rather
     // than replacing the kernel's refusal with a boundary one: the
@@ -72,7 +72,6 @@ fn edit_fields(
         ("inner_variant", inner_variant(py, inner)),
         ("node", node(payload.node)),
         ("input", node(payload.input)),
-        ("referenced_by", node(payload.referenced_by)),
         ("slot", word(payload.slot)),
         ("param", word(payload.param.map(|p| p.as_str()))),
         (
@@ -1031,11 +1030,36 @@ impl Doc {
         label: Option<d::Label>,
         resolver: Option<&super::store::Workspace>,
     ) -> Result<NodeId, d::EditError> {
+        self.minting(label, resolver, |action| action.insert(node))
+    }
+
+    /// `insert_node` for an insert spelled as its [`d::DocEdit`] — the
+    /// kernel's own sugar for one, `DocEdit::place`'s among them.
+    fn insert_edit(
+        &mut self,
+        edit: d::DocEdit<d::ProfileProgram>,
+        label: Option<d::Label>,
+    ) -> Result<NodeId, d::EditError> {
+        self.minting(label, None, |action| {
+            let minted = action.apply(edit)?;
+            Ok(minted.unwrap_or_else(|| unreachable!("an accepted insert mints a node")))
+        })
+    }
+
+    /// The shared tail: `insert` on a fresh action, then the label.
+    fn minting(
+        &mut self,
+        label: Option<d::Label>,
+        resolver: Option<&super::store::Workspace>,
+        insert: impl FnOnce(
+            &mut d::Recording<'_, d::ProfileProgram>,
+        ) -> Result<d::RecipeNodeId, d::EditError>,
+    ) -> Result<NodeId, d::EditError> {
         let tol = Tol::witness();
         let seam = seam(resolver);
         let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
         let mut action = d::Recording::start(&self.inner, tol, &reach);
-        let id = action.insert(node)?;
+        let id = insert(&mut action)?;
         if let Some(label) = label {
             action.apply(d::DocEdit::SetLabel {
                 node: id,
@@ -1318,16 +1342,16 @@ impl Doc {
             .collect()
     }
 
-    /// The document's ordered **product roots** — what `product` and
-    /// `assemble` gather, in this order.
+    /// **The world placements**, in document order: the nodes whose
+    /// copies are the product — what `product` and `assemble` gather,
+    /// in this order.
     ///
-    /// Set through `DocEdit.set_roots`. Maintained automatically by
-    /// every other edit (inserting a node that consumes a root
-    /// transfers it), so a document always states its product rather
-    /// than leaving it to be inferred.
-    #[getter]
-    fn roots(&self) -> Vec<NodeId> {
-        self.inner.roots().iter().copied().map(NodeId).collect()
+    /// Written through `place` (or an inserted `Node.place_in_world`),
+    /// and through nothing else: no edit places or unplaces as a side
+    /// effect, so a body is in the product exactly when a placement
+    /// reads it.
+    fn placements(&self) -> Vec<NodeId> {
+        self.inner.placements().into_iter().map(NodeId).collect()
     }
 
     /// An instance's **offset** in its gauge (A11 (2)), or `None` when
@@ -1494,6 +1518,32 @@ impl Doc {
     ) -> PyResult<NodeId> {
         let node = Node::sketch_frame(py, plane, elevation)?;
         self.insert(py, &node, label, None)
+    }
+
+    /// **Place one copy of `body` in the world** at `pose`, the
+    /// identity when `None`, and return the placement's id.
+    ///
+    /// The one door that puts a body in the product: nothing places as
+    /// a side effect, so a boolean of two placed bodies leaves both
+    /// placed and the boolean unplaced until it is placed here. The
+    /// edit is the Rust façade's `DocEdit::place`, the insert of
+    /// `Node.place_in_world(body, pose)`. A split's half is placed by
+    /// its output, `place(doc.output(split, 1))`.
+    ///
+    /// Two placements of one body are two copies. `label=` labels the
+    /// placement in the same call, as `insert`'s does.
+    #[pyo3(signature = (body, pose=None, *, label=None))]
+    fn place(
+        &mut self,
+        py: Python<'_>,
+        body: OperandArg,
+        pose: Option<super::place::Placement>,
+        label: Option<&str>,
+    ) -> PyResult<NodeId> {
+        let label = label.map(|text| label_from_text(py, text)).transpose()?;
+        Node::place_in_world(py, body, pose.clone())?;
+        self.insert_edit(d::DocEdit::place(body.read(), pose.map(|p| p.0)), label)
+            .map_err(|err| edit_err(py, &err))
     }
 
     /// The label a person gave `node`, or `None` when it has none.
@@ -2191,6 +2241,23 @@ fn loops_from_outline(
 #[derive(Clone)]
 pub(crate) struct Node {
     pub(crate) inner: d::AuthoredNode,
+}
+
+impl Node {
+    /// Each expression slot of `node` checked against the slot it
+    /// lands in, so a refusal names that slot.
+    fn check_slots(py: Python<'_>, node: &d::AuthoredNode) -> PyResult<()> {
+        for slot in node.slots() {
+            if let Some(expr) = node.expr(slot) {
+                slot_expr(
+                    py,
+                    slot,
+                    &super::expr::SlotArg::Formula(super::expr::Formula(expr.clone())),
+                )?;
+            }
+        }
+        Ok(())
+    }
 }
 
 #[pymethods]
@@ -2962,15 +3029,29 @@ impl Node {
         placement: &super::place::Placement,
     ) -> PyResult<Self> {
         let inner = d::Node::transform(input.read(), placement.0.clone());
-        for slot in inner.slots() {
-            if let Some(expr) = inner.expr(slot) {
-                slot_expr(
-                    py,
-                    slot,
-                    &super::expr::SlotArg::Formula(super::expr::Formula(expr.clone())),
-                )?;
-            }
-        }
+        Self::check_slots(py, &inner)?;
+        Ok(Self { inner })
+    }
+
+    /// **One copy of `body` in the world** at `pose`, the identity when
+    /// `None`: the operation whose output is a product copy. Inserting
+    /// it is `Doc.place`.
+    ///
+    /// The pose is a `Placement` chain, `Node.transform_by`'s, and each
+    /// rigid step's components are checked against the slot they land
+    /// in, as there.
+    #[staticmethod]
+    #[pyo3(signature = (body, pose=None))]
+    fn place_in_world(
+        py: Python<'_>,
+        body: OperandArg,
+        pose: Option<super::place::Placement>,
+    ) -> PyResult<Self> {
+        let inner = d::Node::place_in_world(
+            body.read(),
+            pose.map_or(d::Placement::IDENTITY, |pose| pose.0),
+        );
+        Self::check_slots(py, &inner)?;
         Ok(Self { inner })
     }
 
@@ -3240,8 +3321,8 @@ impl Node {
 
     /// A **gauge**: a frame other placements stand on (A11 (2)). It
     /// holds a `Placement` — rigid steps a document parameter can
-    /// drive, literal frames, or both — and denotes no body, so as a
-    /// product root it contributes nothing.
+    /// drive, literal frames, or both — and denotes no body, so
+    /// nothing can place it.
     ///
     /// `parent` is the gauge it sits on, `None` for the world; its
     /// frame is the parent's composed with `placement`. Instances name
@@ -3981,7 +4062,7 @@ impl FreeValue {
 /// The exposed edits are `insert_node`, `delete_node`,
 /// `set_members`, `set_param`, `set_tolerance`, the
 /// variable doors (`declare_var` / `define_var` / `set_var_value`),
-/// `set_roots`, `set_offset`, `set_gauge`, `promote`, `fold`,
+/// `set_offset`, `set_gauge`, `promote`, `fold`,
 /// `update_reference`, `rebind`, and
 /// `bind_count_param` / `bind_instance_param` / `bind_v_degree_param`,
 /// the structural-slot edit narrowed to one named slot and a
@@ -4526,30 +4607,6 @@ impl DocEdit {
                 slot: d::SlotId::VDegree,
                 expr: d::Formula::named(name.0.clone(), d::Dimension::Count),
                 fresh: Vec::new(),
-            },
-        }
-    }
-
-    /// Set the document's ordered **product roots** outright.
-    ///
-    /// THE designate/undesignate door: one TOTAL edit rather than
-    /// partial add/remove arms, so the product's solid order is always
-    /// stated rather than inferred from an edit sequence. What the
-    /// roots name is what `product` and `assemble` gather, in this
-    /// order.
-    ///
-    /// Validator-checked like any other apply. The four root
-    /// invariants refuse under their own tags — `root_not_live`,
-    /// `root_duplicate`, `root_ancestor` (one root upstream of
-    /// another would gather its material twice), `root_uncovered` (a
-    /// live node reaching no root is a silently dead subgraph) — on
-    /// `EditError`, because which invariant broke is what a caller
-    /// branches on.
-    #[staticmethod]
-    fn set_roots(roots: Vec<NodeId>) -> Self {
-        Self {
-            inner: d::DocEdit::SetRoots {
-                roots: roots.iter().map(|n| n.0).collect(),
             },
         }
     }

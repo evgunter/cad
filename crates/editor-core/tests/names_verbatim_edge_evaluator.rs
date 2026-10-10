@@ -90,6 +90,7 @@ test_utils::f6_variants! {
         Subtract,
         Union,
         Transform,
+        PlaceInWorld,
         Pattern,
         Part,
         PlacedUnion,

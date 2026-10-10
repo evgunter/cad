@@ -98,6 +98,9 @@ pub(crate) enum CarriedAs {
     /// Passed through whole from the input the op read through `read`:
     /// a member, a seat or a target.
     From(crate::VarId),
+    /// Copied into the product's world by a world placement, the same
+    /// entity at another pose.
+    Placed,
     /// Shortened to the part on one side of a split.
     Split(SplitHalf),
     /// Copied onto one side of a split, where the tool plane passed
@@ -121,6 +124,7 @@ pub(crate) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         // Carried through: the argument is the entity's own name one
         // level down.
         RoleSeg::From { read, of } => SegOrigin::Carried(of, CarriedAs::From(*read)),
+        RoleSeg::Placed { of } => SegOrigin::Carried(of, CarriedAs::Placed),
         RoleSeg::SplitFragment { parent, side } => SegOrigin::Carried(parent, CarriedAs::Split(*side)),
         RoleSeg::OnToolVertex { of, side } => SegOrigin::Carried(of, CarriedAs::ToolCopy(*side)),
         RoleSeg::Instance { of, i } => SegOrigin::Carried(of, CarriedAs::Instance(*i)),

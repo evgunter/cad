@@ -32,9 +32,9 @@ use common::{ang, body_volume, len, len2, len3, near, scl2, scl3, session_insert
 use pncad::document::BooleanValue;
 use pncad::document::SplitSide;
 use pncad::document::{
-    Axis3, Datum, Dimension, DimensionError, Doc, EditError, Expr, Formula, LoopProgram, Node,
-    NodeError, NodeErrorKind, NodeResult, NodeStanding, PartSelect, PatternKind, ProfileProgram,
-    RecipeNodeId, SlotId,
+    Axis3, Datum, Dimension, DimensionError, Doc, DocEdit, EditError, Expr, Formula, LoopProgram,
+    Node, NodeError, NodeErrorKind, NodeResult, NodeStanding, OperandSlot, PartSelect, PatternKind,
+    ProfileProgram, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName, ValuePayload};
@@ -221,9 +221,154 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
         "three spelled members, the picks' reads in pick order"
     );
     assert!(declare.is_empty(), "nothing declared: {declare:?}");
+    assert_eq!(
+        common::world(doc),
+        [union],
+        "the union takes all three members' place in the world"
+    );
     let va = A[0] * A[1] * A[2];
     let vb = B[0] * B[1] * B[2];
     assert_volume(&mut session, union, va + 2.0 * vb - OVERLAP, tol);
+}
+
+/// **Nothing places as a side effect, and the combine gesture takes its
+/// operands' place in the world** (spec §9 row 9, the viewer's half).
+///
+/// Two placed bodies `a`, `b`: the combine gesture leaves the world
+/// `[c]` — `a`'s placement re-pointed to `c` through the slot door and
+/// `b`'s deleted, in ONE recorded action — and one undo restores
+/// `[a, b]` bit for bit. Breaks if the gesture leaves the boolean
+/// unplaced (the world stays `[a, b]`), places it beside them, or
+/// records the world edits as a second action.
+#[test]
+fn the_combine_gesture_re_points_the_world_in_one_action() {
+    let tol = Tol::witness();
+    let (mut session, a, b) = two_boxes(tol);
+    session.pump();
+    let before = session.committed_doc().clone();
+    assert_eq!(common::world(&before), [a, b], "both operands are placed");
+    let [a_placement, b_placement] = before.placements()[..] else {
+        panic!("two placements: {:?}", before.placements());
+    };
+    let outcome = session.perform(SessionOp::AddBoolean {
+        spec: BooleanSpec::Union(vec![a, b]),
+        declare: Vec::new(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let union = outcome.minted[0];
+    assert!(
+        matches!(
+            &outcome.committed[..],
+            [
+                DocEdit::InsertNode { .. },
+                DocEdit::SetParam {
+                    node,
+                    slot: pncad::document::SlotId::Operand(OperandSlot::Body),
+                    value: pncad::document::SlotValue::Read(pncad::document::Operand::Node(read)),
+                    ..
+                },
+                DocEdit::DeleteNode { id },
+            ] if *node == a_placement && *read == union && *id == b_placement
+        ),
+        "the boolean, a's placement re-pointed to it, b's deleted: {:?}",
+        outcome.committed
+    );
+    let doc = session.committed_doc();
+    assert_eq!(doc.placements(), [a_placement], "a's placement stands");
+    assert_eq!(common::world(doc), [union], "and places the boolean");
+    let va = A[0] * A[1] * A[2];
+    let vb = B[0] * B[1] * B[2];
+    let drawn = drawn_volume(&mut session, tol);
+    assert!(
+        near(drawn, va + vb - OVERLAP),
+        "the drawn product is the union, once: {drawn}"
+    );
+
+    assert!(session.perform(SessionOp::Undo).refusal.is_none());
+    assert!(
+        session.committed_doc().bit_eq(&before),
+        "one undo restores [a, b], bit for bit"
+    );
+}
+
+/// **A combine of an operand nothing places places nothing of it**:
+/// the first placed operand's placements take the result, and an
+/// unplaced one has none to give.
+#[test]
+fn a_combine_takes_the_placement_of_the_operand_the_world_places() {
+    let tol = Tol::witness();
+    let (mut session, a, b) = two_boxes(tol);
+    let a_placement = session.committed_doc().placements()[0];
+    let unplaced = session.perform(SessionOp::DeleteNode { node: a_placement });
+    assert!(unplaced.refusal.is_none(), "{:?}", unplaced.refusal);
+    assert_eq!(
+        common::world(session.committed_doc()),
+        [b],
+        "only b is placed"
+    );
+    let union = session_insert(
+        &mut session,
+        SessionOp::AddBoolean {
+            spec: BooleanSpec::Union(vec![a, b]),
+            declare: Vec::new(),
+        },
+    );
+    assert_eq!(
+        common::world(session.committed_doc()),
+        [union],
+        "b's placement takes the result: the world still shows its material"
+    );
+}
+
+/// **A feature gesture re-points every placement of its target, and a
+/// target nothing places places nothing.** Two identity placements of
+/// one body are two copies (A10); a transform of the body takes both.
+#[test]
+fn a_feature_re_points_each_placement_of_its_target() {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("combine-two-copies", tol);
+    let (doc, profile) = common::framed_square(&doc, A[0], tol);
+    let (doc, body) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(A[2]),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    );
+    let (doc, _) = common::placed(&doc, body, tol);
+    let (doc, _) = common::placed(&doc, body, tol);
+    let mut session = DocSession::inline(doc, tol);
+    let moved = session_insert(
+        &mut session,
+        SessionOp::AddTransform {
+            input: body,
+            translation: len3([0.0, 0.0, A[2] * 4.0]),
+            rotation_axis: scl3([0.0, 0.0, 1.0]),
+            rotation_angle: ang(0.0),
+        },
+    );
+    assert_eq!(
+        common::world(session.committed_doc()),
+        [moved, moved],
+        "both copies now place the transform"
+    );
+
+    let world = common::world(session.committed_doc());
+    let outcome = session.perform(SessionOp::AddTransform {
+        input: body,
+        translation: len3(OFFSET),
+        rotation_axis: scl3([0.0, 0.0, 1.0]),
+        rotation_angle: ang(0.0),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(
+        outcome.committed.len(),
+        1,
+        "the body is no longer placed, so its second transform places nothing"
+    );
+    assert_eq!(common::world(session.committed_doc()), world);
 }
 
 /// **Difference is not commutative, and the door's operand order is
@@ -2305,14 +2450,12 @@ fn the_split_plane_is_the_datum_form_s_own_plane() {
 // AUTH-4: projecting one body out of several, and duplicating one.
 // ---------------------------------------------------------------
 
-/// The whole document's drawn volume — the gather over `Doc::roots`
-/// the viewport draws, as one number.
+/// The whole document's drawn volume — the gather over the world's
+/// placements the viewport draws (A10), as one number.
 ///
 /// **The product and not a node**, because every row below this line
 /// is about WHAT IS DRAWN rather than about what one node evaluates
-/// to, and the two stopped agreeing the moment a projection entered
-/// the recipe: `roots` maintenance decides which values reach the
-/// gather at all.
+/// to, and the two differ as soon as a body is authored and not placed.
 fn drawn_volume(session: &mut DocSession, tol: Tol) -> f64 {
     session.pump();
     let body = session.landed_body().expect("the landing kept a product");
@@ -2488,51 +2631,23 @@ fn the_part_door_refuses_the_crossed_selector() {
     );
 }
 
-/// **The finding this unit was sent to settle, asserted**: a `Part` of
-/// a pattern takes the PATTERN out of `Doc::roots`, so the copy it did
-/// not select stops being drawn.
-///
-/// Measured, not read: `roots` maintenance puts a new node in the
-/// earliest consumed root's slot and drops its inputs, the viewport
-/// draws roots, and the product gathers them — so the number that
-/// moves is the DRAWN volume. One projection halves it; the second
-/// puts it back, because the second's input is no longer a root and it
-/// is appended instead of replacing anything.
-///
-/// This is why the duplicate gesture commits two projections rather
-/// than one, and it is the row that reds if any of the three
-/// mechanisms changes.
+/// **A pattern places nothing, and each projection places its copy**
+/// (A10): the pattern defines several bodies, which no placement reads,
+/// so the world keeps the body it replicates; a `Part` is a creation,
+/// so each projection is placed beside what is drawn.
 #[test]
-fn a_part_of_a_pattern_takes_the_pattern_out_of_the_drawn_set() {
+fn a_pattern_places_nothing_and_a_projection_places_its_copy() {
     let tol = Tol::witness();
     let (mut session, body, pattern) = box_and_pattern(tol);
     let one = A[0] * A[1] * A[2];
 
     assert_eq!(
-        session.committed_doc().roots(),
-        [pattern],
-        "the pattern consumed the body it replicates",
+        common::world(session.committed_doc()),
+        [body],
+        "the pattern took nothing out of the world and put nothing in",
     );
-    let two_copies = drawn_volume(&mut session, tol);
-    assert!(near(two_copies, one * 2.0), "two copies drawn {two_copies}");
-
-    let first = session_insert(
-        &mut session,
-        SessionOp::AddPart {
-            of: pattern,
-            select: PartSelectSpec::Instance(0),
-        },
-    );
-    assert_eq!(
-        session.committed_doc().roots(),
-        [first],
-        "the projection consumed the pattern",
-    );
-    let projected = drawn_volume(&mut session, tol);
-    assert!(
-        near(projected, one),
-        "and the copy it did not select stopped being drawn: {projected}",
-    );
+    let drawn = drawn_volume(&mut session, tol);
+    assert!(near(drawn, one), "one body drawn {drawn}");
 
     let second = session_insert(
         &mut session,
@@ -2542,21 +2657,20 @@ fn a_part_of_a_pattern_takes_the_pattern_out_of_the_drawn_set() {
         },
     );
     assert_eq!(
-        session.committed_doc().roots(),
-        [first, second],
-        "the second projection's input is no longer a root, so it is appended",
+        common::world(session.committed_doc()),
+        [body, second],
+        "the projection is placed after the body",
     );
     let both = drawn_volume(&mut session, tol);
-    assert!(near(both, one * 2.0), "both copies drawn again {both}");
-    // The body itself is still in the document and still not drawn on
-    // its own account: it is the pattern's input, not a sink.
-    assert!(session.committed_doc().node(body).is_some());
+    assert!(near(both, one * 2.0), "both copies drawn {both}");
+    assert_eq!(separation_findings(&mut session), 0, "and they do not meet");
 }
 
-/// **Duplicate leaves two drawn, separately rooted bodies** — the
-/// gesture Ev asked for, and the shape the roots finding forces.
+/// **Duplicate leaves the original placed and its copy placed beside
+/// it** — the gesture Ev asked for, in the world's terms: the copy is a
+/// transform of the body, placed in the same action.
 #[test]
-fn duplicating_a_body_leaves_two_roots_and_two_drawn_copies() {
+fn duplicating_a_body_places_its_patterned_copy_beside_it() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
@@ -2565,43 +2679,36 @@ fn duplicating_a_body_leaves_two_roots_and_two_drawn_copies() {
 
     let outcome = session.perform(SessionOp::Duplicate { input: body });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 3, "a pattern and two projections");
+    assert_eq!(
+        outcome.committed.len(),
+        3,
+        "a pattern of two, its copy's projection, and that projection's placement"
+    );
     let minted = outcome.minted.clone();
-    let [pattern, original, copy] = minted[..] else {
+    let [pattern, copy, placement] = minted[..] else {
         panic!("three inserts mint three ids: {minted:?}");
     };
-
-    assert!(matches!(
-        session.committed_doc().node(pattern),
-        Some(Node::Pattern { .. })
-    ));
-    for (node, want) in [(original, 0_i64), (copy, 1_i64)] {
-        let Some(Node::Part {
-            of,
-            select: PartSelect::Instance(index),
-        }) = session.committed_doc().node(node)
-        else {
-            panic!("the gesture authored two instance projections");
-        };
-        assert_eq!(
-            Some(*of),
-            session.committed_doc().output(pattern, 0),
-            "both read the pattern it just authored"
-        );
-        assert_eq!(
-            Formula::from(
-                session
-                    .committed_doc()
-                    .written(&Expr::var(*index, Dimension::Count))
-            ),
-            Formula::count(want),
-            "instance {want}"
-        );
-    }
+    let doc = session.committed_doc();
+    let Some(Node::Pattern { input, .. }) = doc.node(pattern) else {
+        panic!("the duplicate is a pattern");
+    };
     assert_eq!(
-        session.committed_doc().roots(),
-        [original, copy],
-        "both projections are roots, the original first",
+        Some(*input),
+        doc.output(body, 0),
+        "of the body it duplicates"
+    );
+    assert!(
+        matches!(doc.node(copy), Some(Node::Part { .. })),
+        "the copy is the pattern's second instance, projected"
+    );
+    assert!(
+        matches!(doc.node(placement), Some(Node::PlaceInWorld { .. })),
+        "and the copy is placed"
+    );
+    assert_eq!(
+        common::world(doc),
+        [body, copy],
+        "the original's placement is untouched, the copy's after it",
     );
     let both = drawn_volume(&mut session, tol);
     assert!(near(both, one * 2.0), "two copies drawn {both}");
@@ -2638,12 +2745,8 @@ fn duplicating_is_one_undo() {
 }
 
 /// **The payoff**: the copy moves and the original stays put, both
-/// still drawn.
-///
-/// This is what the two projections buy and what a bare pattern of two
-/// could not express — a transform over the pattern would place both
-/// copies, and a transform over the pattern's one root has no way to
-/// name a single instance.
+/// still drawn — the copy is a body of its own, so a transform of it
+/// re-points the copy's placement alone.
 #[test]
 fn a_duplicates_copy_moves_on_its_own() {
     let tol = Tol::witness();
@@ -2653,7 +2756,7 @@ fn a_duplicates_copy_moves_on_its_own() {
     let one = A[0] * A[1] * A[2];
     let outcome = session.perform(SessionOp::Duplicate { input: body });
     let minted = outcome.minted.clone();
-    let [_pattern, original, copy] = minted[..] else {
+    let [_pattern, copy, _placement] = minted[..] else {
         panic!("three inserts mint three ids: {minted:?}");
     };
 
@@ -2667,9 +2770,9 @@ fn a_duplicates_copy_moves_on_its_own() {
         },
     );
     assert_eq!(
-        session.committed_doc().roots(),
-        [original, placed],
-        "the placement took the copy's root slot; the original is untouched",
+        common::world(session.committed_doc()),
+        [body, placed],
+        "the transform took the copy's placement; the original is untouched",
     );
     let both = drawn_volume(&mut session, tol);
     assert!(
@@ -2680,9 +2783,6 @@ fn a_duplicates_copy_moves_on_its_own() {
     // plane between them cuts each entirely to one side. `split` is
     // the probe because it is a door this suite already drives, and
     // an empty side is a typed value rather than a number to compare.
-    //
-    // These splits consume their targets from `roots`, so they come
-    // after every claim above.
     let between = session_insert(
         &mut session,
         SessionOp::AddDatum {
@@ -2709,7 +2809,7 @@ fn a_duplicates_copy_moves_on_its_own() {
     let cut_original = session_insert(
         &mut session,
         SessionOp::AddSplit {
-            target: original,
+            target: body,
             tool: between,
         },
     );
@@ -2926,14 +3026,34 @@ fn picked_from_above(session: &DocSession, x: f64, y: f64) -> Selection {
     Selection::Face(common::asm::pick_face(session, &common::asm::down_at(x, y)))
 }
 
-/// A literal slot's value, read back off the committed node.
+/// A duplicate's step, read back off the committed pattern: its
+/// direction scaled by its spacing, which the door authors literal.
+fn step_of(session: &DocSession, pattern: RecipeNodeId) -> [f64; 3] {
+    let doc = session.committed_doc();
+    let Some(Node::Pattern {
+        kind: PatternKind::Linear { direction, .. },
+        ..
+    }) = doc.node(pattern)
+    else {
+        panic!("a duplicate is a linear pattern");
+    };
+    let spacing = spacing_of(session, pattern);
+    direction.map(|c| {
+        doc.written(&Expr::var(c, Dimension::Scalar))
+            .literal_value()
+            .expect("a literal component")
+            * spacing
+    })
+}
+
+/// The pattern's spacing: the step's length along [`STEP_DIRECTION`].
 fn spacing_of(session: &DocSession, pattern: RecipeNodeId) -> f64 {
     let Some(Node::Pattern {
         kind: PatternKind::Linear { spacing, .. },
         ..
     }) = session.committed_doc().node(pattern)
     else {
-        panic!("a linear pattern");
+        panic!("a duplicate is a linear pattern");
     };
     session
         .committed_doc()
@@ -2963,7 +3083,7 @@ fn a_moved_copy(tol: Tol, lift: f64) -> (DocSession, RecipeNodeId, [f64; 2]) {
     let outcome = session.perform(SessionOp::Duplicate { input: body });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let minted = outcome.minted.clone();
-    let [pattern, _original, copy] = minted[..] else {
+    let [pattern, copy, _placement] = minted[..] else {
         panic!("three inserts mint three ids: {minted:?}");
     };
     let step = spacing_of(&session, pattern);
@@ -2996,7 +3116,11 @@ fn a_viewport_pick_seats_the_drawn_body_in_every_body_seat() {
     let Selection::Face(face) = &picked else {
         unreachable!("the helper answers a face")
     };
-    assert_eq!(face.node, moved, "the ray met the moved copy's body");
+    assert_eq!(
+        face.node,
+        common::copy_of(session.committed_doc(), moved),
+        "the ray met the moved copy, drawn by its placement"
+    );
     assert_ne!(
         face.feature(),
         moved,
@@ -3020,7 +3144,11 @@ fn a_viewport_pick_seats_the_drawn_body_in_every_body_seat() {
             // a profile and an axis, which a face pick never is.
             ToolKind::Mate | ToolKind::Blend | ToolKind::Revolve => continue,
         };
-        assert_eq!(held, Some(moved), "the {kind:?} tool seats the drawn body");
+        assert_eq!(
+            held,
+            Some(moved),
+            "the {kind:?} tool seats the body the drawn copy places"
+        );
     }
 }
 
@@ -3058,18 +3186,21 @@ fn duplicating_a_moved_copy_picked_in_the_viewport_duplicates_the_copy() {
     );
 }
 
-/// **The part tool seats a pattern clicked in the viewport** — which
-/// is where a pattern's instances are: on screen, not in the tree.
+/// **A pattern is not drawn, so the part tool takes it from the
+/// tree** (A10): a pattern defines several bodies, which no placement
+/// reads, so the viewport has no copy of it to click — the feature
+/// tree's row is the pick.
 #[test]
-fn the_part_tool_seats_a_pattern_picked_in_the_viewport() {
+fn the_part_tool_seats_a_pattern_picked_in_the_tree() {
     let tol = Tol::witness();
     let (mut session, _body, pattern) = box_and_pattern(tol);
     session.pump();
-    // Instance 1's top, one step along +x.
-    let picked = picked_from_above(&session, A[0] * 2.0, 0.0);
     let mut tools = Tools::new();
     tools.open(ToolKind::Part);
-    let _ = tools.feed(session.committed_doc(), &[SessionOp::Select(picked)]);
+    let _ = tools.feed(
+        session.committed_doc(),
+        &[SessionOp::Select(Selection::Node(pattern))],
+    );
     let tool = tools.part().expect("open");
     assert_eq!(
         (tool.split(), tool.pattern()),
@@ -3134,25 +3265,10 @@ fn a_duplicate_keeps_the_notes_promise() {
         got >= A[0] * (1.0 + DUPLICATE_GAP),
         "at least a quarter-width clear"
     );
-    let Some(Node::Pattern {
-        kind: PatternKind::Linear { direction, .. },
-        ..
-    }) = session.committed_doc().node(outcome.minted[0])
-    else {
-        panic!("a linear pattern");
-    };
-    let direction: Vec<f64> = direction
-        .iter()
-        .map(|&c| {
-            session
-                .committed_doc()
-                .written(&Expr::var(c, Dimension::Scalar))
-                .literal_value()
-                .expect("a literal component")
-        })
-        .collect();
+    let step = step_of(&session, outcome.minted[0]);
     assert_eq!(
-        direction, STEP_DIRECTION,
+        step.map(|c| c / got),
+        STEP_DIRECTION,
         "along the one stepping direction"
     );
 
@@ -3176,9 +3292,8 @@ fn a_duplicate_keeps_the_notes_promise() {
 }
 
 /// **A body whose value is several bodies is refused, typed** — a
-/// transform of a pattern, which a pattern of two would index IN PLACE:
-/// its two projections would select two of the existing bodies and the
-/// gesture would add nothing to the picture. The body seat refuses it
+/// transform of a pattern, whose transform would be several bodies
+/// again, which no world placement reads. The body seat refuses it
 /// by the kind of the variable it defines, before the duplicate door
 /// asks its value.
 #[test]
@@ -3287,8 +3402,9 @@ fn duplicating_before_anything_has_landed_is_refused() {
     );
 }
 
-/// **And a split clicked in the viewport lands in the split seat** —
-/// the other half of what the projection panel's sentence promises.
+/// **And a split half clicked in the viewport lands in the split seat**
+/// — where the world places a half by its port, a pick on that copy is
+/// a pick of the split that defines it.
 #[test]
 fn the_part_tool_seats_a_split_picked_in_the_viewport() {
     let tol = Tol::witness();
@@ -3310,6 +3426,18 @@ fn the_part_tool_seats_a_split_picked_in_the_viewport() {
             tool: plane,
         },
     );
+    // The world places the two halves in place of the box.
+    let mut doc = session.committed_doc().clone();
+    let whole_box = common::copy_of(&doc, body);
+    common::edit_into(&mut doc, DocEdit::DeleteNode { id: whole_box }, tol);
+    for port in [0, 1] {
+        common::edit_into(
+            &mut doc,
+            DocEdit::place(pncad::document::Operand::output(split, port), None),
+            tol,
+        );
+    }
+    let mut session = DocSession::inline(doc, tol);
     session.pump();
     let picked = picked_from_above(&session, 0.0, 0.0);
     let mut tools = Tools::new();

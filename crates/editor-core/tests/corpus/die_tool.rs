@@ -146,6 +146,8 @@ pub fn document() -> CorpusDoc {
         declare: Vec::new(),
     });
 
+    r.place(pipped);
+
     CorpusDoc {
         name: "die_tool",
         about: "the die's multi-shell cutting tool as one PlacedUnion(Explicit) node",

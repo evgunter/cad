@@ -387,18 +387,22 @@ fn the_parametric_living_walk() {
         },
     );
     assert_eq!(
-        session.committed_doc().roots(),
-        &[lighthouse],
-        "one product root: the finished part"
+        common::world(session.committed_doc()),
+        [lighthouse],
+        "the world is one copy: the finished part"
     );
     let got = body_volume(&mut session, lighthouse, tol);
     let want = lighthouse_volume(BASE_R, TAPER, HEIGHT, EMBED, LAMP_H);
     assert!(near(got, want), "lighthouse volume {got} vs {want}");
     let rows = session.tree_rows();
-    // Thirteen: the ten features, and the three sketch frames they are
+    // Fourteen: the ten features, the three sketch frames they are
     // drawn on — a plane is a feature of the document now, and the
-    // tree says so.
-    assert_eq!(rows.len(), 13, "ten features and three frames");
+    // tree says so — and the one world placement of the finished part.
+    assert_eq!(
+        rows.len(),
+        14,
+        "ten features, three frames and the lighthouse's placement"
+    );
     assert!(
         rows.iter().all(|row| row.status == RowStatus::Ok),
         "every row green: {rows:?}"

@@ -585,6 +585,11 @@ trait HoldsNodes {
     fn output_of(&self, var: crate::var::VarId) -> Option<OutputOf>;
     /// The name the document holds for the variable `id`, if any.
     fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName>;
+    /// The operation `id` is an output of, and its port's name, where
+    /// the document holds it.
+    fn output_port(&self, _id: crate::var::VarId) -> Option<(RecipeNodeId, &'static str)> {
+        None
+    }
     /// A reader of `id` at `dim` as written ([`Doc::written`]), where
     /// the document holds what `id` holds.
     fn written(
@@ -623,6 +628,12 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
 
     fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName> {
         self.var_name(id).cloned()
+    }
+
+    fn output_port(&self, id: crate::var::VarId) -> Option<(RecipeNodeId, &'static str)> {
+        let (node, port) = self.defined_by(id)?;
+        let name = self.node(node)?.outputs().get(usize::from(port))?.name;
+        Some((node, name))
     }
 
     fn step(&self, id: StepId) -> Option<StepAt> {
@@ -925,6 +936,12 @@ impl<P: ProfilePayload> HoldsNodes for Recording<'_, P> {
         var.name().cloned()
     }
 
+    fn output_port(&self, id: crate::var::VarId) -> Option<(RecipeNodeId, &'static str)> {
+        let (node, port) = self.doc.output_port(id)?;
+        let _ = self.speak(node);
+        Some((node, port))
+    }
+
     fn step(&self, id: StepId) -> Option<StepAt> {
         let at = self.doc.step(id)?;
         self.said.borrow_mut().keep(NodeFact::Step(id, at));
@@ -1160,6 +1177,23 @@ impl<'a> Speaker<'a> {
         })
     }
 
+    /// **An operation's output, said** (D10: an output is spoken by its
+    /// operation): its name where it has one, else `the <port> of
+    /// <node>`; by its id where the speaker's document does not hold it.
+    #[must_use]
+    pub fn output(self, var: crate::var::VarId) -> String {
+        let Some(doc) = self.doc else {
+            return var.to_string();
+        };
+        if let Some(name) = doc.speak_var(var) {
+            return format!("`{name}`");
+        }
+        match doc.output_port(var) {
+            Some((node, port)) => format!("the {port} of {}", self.node(node)),
+            None => var.to_string(),
+        }
+    }
+
     /// **A slot's variable, said as written**: what an anonymous one
     /// holds, its readers said ([`Self::formula`]); a named one by its
     /// name; `#<16 hex>` where the speaker's document does not hold it.
@@ -1297,6 +1331,7 @@ pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Revolve { .. } => "Revolve",
         Node::Transform { .. } => "Transform",
         Node::Subtract { .. } => "Subtract",
+        Node::PlaceInWorld { .. } => "PlaceInWorld",
         Node::Union { .. } => "Union",
         Node::Intersect { .. } => "Intersect",
         Node::Split { .. } => "Split",

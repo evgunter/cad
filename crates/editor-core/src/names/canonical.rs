@@ -490,6 +490,7 @@ fn segment(seg: RoleSeg, seams: Seams) -> RoleSeg {
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
         | RoleSeg::InPart { .. }
+        | RoleSeg::Placed { .. }
         | RoleSeg::Instance { .. }
         | name_free_seg!() => seg,
     }

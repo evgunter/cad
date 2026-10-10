@@ -73,7 +73,10 @@ fn selecting_a_feature_marks_every_patch_it_drew() {
     let index = index_of(&session);
 
     let focus = marks::focus(&index, session.doc(), session.selection());
-    let drawn: BTreeSet<u32> = index.ids_of_node(extrude).into_iter().collect();
+    let drawn: BTreeSet<u32> = index
+        .ids_of_node(common::copy_of(session.committed_doc(), extrude))
+        .into_iter()
+        .collect();
     assert!(!drawn.is_empty(), "the plate draws patches");
     assert_eq!(focus, drawn, "exactly the feature's own patches");
 
@@ -109,7 +112,7 @@ fn a_face_pick_marks_its_owning_feature() {
     let (mut session, extrude) = plate_session(tol);
     let index = index_of(&session);
     let id = index
-        .ids_of_node(extrude)
+        .ids_of_node(common::copy_of(session.committed_doc(), extrude))
         .first()
         .copied()
         .expect("the plate draws at least one patch");
@@ -135,7 +138,7 @@ fn a_face_pick_marks_its_owning_feature() {
 
 /// **A feature that draws nothing marks what was built from it.**
 ///
-/// A profile is not a drawn root — it has no body — so the empty answer
+/// A profile is not drawn — it has no body — so the empty answer
 /// would be technically true and useless. What the user is looking at
 /// when they select a profile is the shape of the walls above it, and
 /// that is what lights up.
@@ -181,7 +184,10 @@ fn selecting_a_parameter_marks_the_features_it_drives() {
         common::thickness_var(session.committed_doc()),
     )));
     let driven = marks::focus(&index, session.doc(), session.selection());
-    let extrude_ids: BTreeSet<u32> = index.ids_of_node(extrude).into_iter().collect();
+    let extrude_ids: BTreeSet<u32> = index
+        .ids_of_node(common::copy_of(session.committed_doc(), extrude))
+        .into_iter()
+        .collect();
     assert!(!extrude_ids.is_empty());
     assert_eq!(driven, extrude_ids, "the variable drives the extrude");
 
@@ -282,7 +288,7 @@ fn die_document(tol: Tol) -> pncad::document::Doc<pncad::document::ProfileProgra
 /// numbers that would go quietly wrong.
 struct Die {
     session: DocSession,
-    /// The rim-band fillet: the last node, and the only drawn root.
+    /// The rim-band fillet: the body the die's one placement places.
     composed: RecipeNodeId,
     /// The box-edge fillet it stands on.
     box_blend: RecipeNodeId,
@@ -316,7 +322,10 @@ fn die(tol: Tol) -> Die {
                 .find(|&id| want(doc.node(id).expect("an ordered node exists")))
                 .expect("the die has this node kind")
         };
-    let composed = *doc.ids().last().expect("the die has nodes");
+    let [copy] = doc.placements()[..] else {
+        panic!("the die is placed once")
+    };
+    let composed = viewer::world::seat_of(&doc, copy);
     let box_blend = input_of(&doc, composed);
     let cut = input_of(&doc, box_blend);
     let cube = input_of(&doc, cut);
@@ -375,7 +384,10 @@ fn each_die_face_is_marked_by_the_feature_that_made_it() {
     let tol = Tol::witness();
     let die = die(tol);
     let index = index_of(&die.session);
-    let drawn: BTreeSet<u32> = index.ids_of_node(die.composed).into_iter().collect();
+    let drawn: BTreeSet<u32> = index
+        .ids_of_node(common::copy_of(die.session.committed_doc(), die.composed))
+        .into_iter()
+        .collect();
     assert_eq!(drawn.len(), DIE_FACES, "the die's drawn faces");
 
     let of = |node| marks::focus(&index, die.session.doc(), &Selection::Node(node));
@@ -428,7 +440,10 @@ fn a_node_that_made_nothing_marks_what_passed_through_it() {
     let die = die(tol);
     let index = index_of(&die.session);
     let of = |node| marks::focus(&index, die.session.doc(), &Selection::Node(node));
-    let drawn: BTreeSet<u32> = index.ids_of_node(die.composed).into_iter().collect();
+    let drawn: BTreeSet<u32> = index
+        .ids_of_node(common::copy_of(die.session.committed_doc(), die.composed))
+        .into_iter()
+        .collect();
 
     let carried_by_the_cut: BTreeSet<u32> = of(die.cube).union(&of(die.ball)).copied().collect();
     assert_eq!(of(die.cut), carried_by_the_cut);
@@ -457,11 +472,12 @@ fn clicking_a_die_face_reaches_the_feature_that_made_it() {
     let flats = of(die.cube);
     let bands = of(die.composed);
 
+    let die_copy = common::copy_of(die.session.committed_doc(), die.composed);
     let selection_for = |id: u32| {
         let patch = index.ids().key_of(id).expect("the id maps back");
         assert_eq!(
-            patch.node, die.composed,
-            "every patch of the die is DRAWN under the outer fillet"
+            patch.node, die_copy,
+            "every patch of the die is DRAWN under the outer fillet's copy"
         );
         Selection::Face(viewer::session::FaceSelection {
             node: patch.node,

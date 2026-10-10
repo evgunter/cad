@@ -149,10 +149,15 @@ impl BooleanTool {
         }
     }
 
-    /// Feed one node pick; `doc` routes it, and does not judge it.
+    /// Feed one node pick; `doc` routes it, and does not judge it. A
+    /// pick on a copy seats the body it places.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         match &mut self.held {
-            BooleanPicks::Members(members) => members.push(doc.spoken(node)),
+            // A pick on a copy is a pick of the body it places
+            // ([`crate::world::seat_of`]), as in the two seats.
+            BooleanPicks::Members(members) => {
+                members.push(doc.spoken(crate::world::seat_of(doc, node)));
+            }
             BooleanPicks::Pair(seats) => seats.pick(doc, node),
         }
     }
@@ -283,7 +288,8 @@ impl SplitTool {
         self.seats.held(1)
     }
 
-    /// Feed one node pick; `doc` routes it, and does not judge it.
+    /// Feed one node pick; `doc` routes it, and does not judge it. A
+    /// pick on a copy seats the body it places.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.seats.pick(doc, node);
     }
@@ -477,7 +483,8 @@ impl PatternTool {
         self.seats.held(1)
     }
 
-    /// Feed one node pick; `doc` routes it, and does not judge it.
+    /// Feed one node pick; `doc` routes it, and does not judge it. A
+    /// pick on a copy seats the body it places.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.seats.pick(doc, node);
     }
@@ -667,7 +674,8 @@ impl PartTool {
         self.seats.held(1)
     }
 
-    /// Feed one node pick; `doc` routes it, and does not judge it.
+    /// Feed one node pick; `doc` routes it, and does not judge it. A
+    /// pick on a copy seats the body it places.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.seats.pick(doc, node);
     }
@@ -725,10 +733,9 @@ impl PartTool {
 /// copy away, so a form asking where the copy should go first would be
 /// the pattern form again under another name. Where the copy lands is
 /// [`duplicate_step`]'s rule — along [`STEP_DIRECTION`], clear of the
-/// original by at least [`DUPLICATE_GAP`] of its own width — and both
-/// numbers
-/// land in ordinary slots of the pattern node the gesture authors,
-/// editable in the property panel the moment the edit lands.
+/// original by at least [`DUPLICATE_GAP`] of its own width — and the
+/// step lands in the translation slots of the transform the gesture
+/// authors, editable in the property panel the moment the edit lands.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DuplicateTool {
     seats: Seats,
@@ -860,10 +867,9 @@ pub enum DuplicateFault {
         /// ([`held_by`]).
         held: HeldNodes,
     },
-    /// The input's VALUE is several bodies. A pattern of two over it
-    /// would index the flat list of those bodies, so its two
-    /// projections would select two of the ORIGINAL bodies in place and
-    /// the gesture would add nothing to the picture.
+    /// The input's VALUE is several bodies, and a duplicate copies one:
+    /// a transform of them would be several bodies again, which no
+    /// world placement reads.
     ///
     /// The body seat refuses a read of several bodies by its kind, so
     /// this is the value's own answer behind it: the door asks the
@@ -1059,12 +1065,8 @@ pub fn duplicate_rule(step: f64) -> Result<PatternRuleSpec, pncad::document::Dim
     })
 }
 
-/// **How many bodies a duplicate leaves**: the original and one copy.
-///
-/// The pattern's count, and the range the same action's projections
-/// are generated over (`0..DUPLICATE_COUNT` at the session door) — one
-/// number, so a pattern and its projections cannot disagree about how
-/// many bodies there are.
+/// **How many bodies a duplicate's pattern holds**: the original and
+/// one copy.
 pub const DUPLICATE_COUNT: i64 = 2;
 
 /// Lower one part spec to its node, minting the STRUCTURAL index.

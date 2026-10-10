@@ -217,6 +217,10 @@ pub(super) enum RoleSeg {
         of: NameRef,
     },
 
+    Placed {
+        of: NameRef,
+    },
+
     Instance {
         i: u32,
         of: NameRef,

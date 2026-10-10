@@ -570,6 +570,7 @@ test_utils::f6_variants! {
         Union,
         Intersect,
         Transform,
+        PlaceInWorld,
         Pattern,
         Part,
         PlacedUnion,
@@ -743,6 +744,22 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         Node::Transform {
             input: nid(1).into(),
             placement: Placement::literal(&Frame::translation([0.0, 0.0, 2.0])),
+        },
+        // A world placement at the identity: its pose is an empty chain.
+        Node::PlaceInWorld {
+            body: nid(1).into(),
+            pose: Placement::IDENTITY,
+        },
+        // A world placement at a pose of its own: one rigid step.
+        Node::PlaceInWorld {
+            body: nid(1).into(),
+            pose: Placement {
+                steps: vec![Step::Rigid {
+                    translation: [len(2.0), len(0.0), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.25),
+                }],
+            },
         },
     ]);
     for kind in [

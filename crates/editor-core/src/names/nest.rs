@@ -361,6 +361,7 @@ impl RoleSeg {
             | RoleSeg::Rim(n)
             | RoleSeg::HoleRim { of: n, .. }
             | RoleSeg::InPart { of: n }
+            | RoleSeg::Placed { of: n }
             | RoleSeg::Instance { of: n, .. } => f(Shared(n)),
             RoleSeg::Seam { a, b }
             | RoleSeg::Crossing {
@@ -412,6 +413,7 @@ impl RoleSeg {
             | RoleSeg::Rim(n)
             | RoleSeg::HoleRim { of: n, .. }
             | RoleSeg::InPart { of: n }
+            | RoleSeg::Placed { of: n }
             | RoleSeg::Instance { of: n, .. } => f(Shared(n)),
             RoleSeg::Seam { a, b }
             | RoleSeg::Crossing {
@@ -1936,6 +1938,7 @@ pub(super) mod tests {
                 R::Rim(r(b)),
                 R::HoleRim { of: r(a), hole: 4 },
                 R::InPart { of: r(b) },
+                R::Placed { of: r(a) },
                 R::Instance { i: 5, of: r(a) },
             ]
         }};

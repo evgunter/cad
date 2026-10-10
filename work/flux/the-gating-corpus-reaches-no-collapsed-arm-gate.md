@@ -40,10 +40,14 @@ caller has ALREADY gated the same quantity:
 - `topo::splitting::rules` decides `split_sector_extent` positive before
   it calls `enters_material` with that extent.
 - `topo::census`'s pairing lane runs the dihedral gate first, so a pair
-  reaching `classify_material_pairing` has coincident tangent planes —
-  whose unit normals cannot then be perpendicular, which is the
-  configuration `material_wedge_side` would have to escalate.
-  `classify_material_pairing`'s own doc states this.
+  reaching `classify_material_pairing` reads smooth: the wedge
+  `sin θ · arm` is within ε. That does not keep the pairing margin
+  `cos θ · arm` out of the band, though. It is bounded below only by
+  `√(arm² − ε²)`, so an arm near `K·ε` can land it in band. At `K < √2`
+  it can even be decided Zero, on sound geometry (ENCL PR 4474, whose
+  split-finish row reaches it at `K = 1.2`). Such a refusal is the arm,
+  too short to read a side over, and it ends as
+  `geom_brep::MATERIAL_PAIRING`.
 - `nurbs_span_meter` and `pcurve_interval_meter` gate a knot domain's
   extent; a zero or reversed domain is a malformed carrier the mint
   side refuses.

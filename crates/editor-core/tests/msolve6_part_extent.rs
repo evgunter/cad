@@ -36,9 +36,19 @@ use geom_core::{Decide, Point3, Tol};
 
 // ---- Substrate ----
 
+/// **`doc` with `body` placed in its world**, as
+/// [`PartStore::insert_part`] places it — so [`in_part`] spells the
+/// part's caps through that placement wherever the part is stored.
+fn placed_part(doc: ProfileDoc, body: RecipeNodeId) -> ProfileDoc {
+    let mut scratch = PartStore::new();
+    let (doc_ref, _) = scratch.insert_part((doc, body), Tol::witness());
+    scratch.doc(doc_ref.id)
+}
+
 /// A box part: a square of half-side `half` at the origin, extruded
 /// `height` along +z. Its farthest point from the part origin is the
-/// top corner, `sqrt(2 half² + height²)` away.
+/// top corner, `sqrt(2 half² + height²)` away. The body is placed in
+/// the part's world ([`placed_part`]).
 fn box_part(label: &str, half: f64, height: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
@@ -48,7 +58,7 @@ fn box_part(label: &str, half: f64, height: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![fixture::square(0.0, 0.0, half)],
     );
-    let (doc, _) = insert(
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
             profile: profile.into(),
@@ -56,7 +66,7 @@ fn box_part(label: &str, half: f64, height: f64) -> ProfileDoc {
             side: ExtrudeSide::Along,
         },
     );
-    doc
+    placed_part(doc, body)
 }
 
 /// `part` (a [`box_part`]) re-valued in place: its square's half-width
@@ -102,7 +112,8 @@ fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
 /// A cylinder part: a rectangle `radius × height` in the xy plane,
 /// revolved a full turn about the plane's +y through the origin. The
 /// cylinder stands on the origin along +y; its farthest point from
-/// the origin is the top rim, `sqrt(radius² + height²)` away.
+/// the origin is the top rim, `sqrt(radius² + height²)` away. The body
+/// is placed in the part's world ([`placed_part`]).
 fn cylinder_part(label: &str, radius: f64, height: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, plane, profile) = on_frame_keeping(
@@ -118,7 +129,7 @@ fn cylinder_part(label: &str, radius: f64, height: f64) -> ProfileDoc {
         ]],
     );
     let (doc, axis) = insert(doc, axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
-    let (doc, _) = insert(
+    let (doc, body) = insert(
         doc,
         Node::Revolve {
             profile: profile.into(),
@@ -126,7 +137,7 @@ fn cylinder_part(label: &str, radius: f64, height: f64) -> ProfileDoc {
             angle: ang(std::f64::consts::TAU),
         },
     );
-    doc
+    placed_part(doc, body)
 }
 
 /// **The node a part's caps are named on**: its one extrude or
@@ -153,8 +164,8 @@ fn body_node(part: &ProfileDoc) -> RecipeNodeId {
     body
 }
 
-/// `n` instances of `part`, the options that resolve them, and the
-/// part's [`body_node`].
+/// `n` instances of `part`, each placed in the world, the options that
+/// resolve them, and the part's [`body_node`].
 fn instances(
     label: &str,
     part: ProfileDoc,
@@ -170,6 +181,7 @@ fn instances(
         doc = next;
         ids.push(id);
     }
+    let doc = fixture::place_all(doc, &ids);
     let opts = EvalOptions {
         resolver: Some(Arc::new(store)),
         ..EvalOptions::default()
@@ -1199,7 +1211,7 @@ fn a5_at_interval_the_doors_reach_is_the_brackets_hi_bit_for_bit() {
 
 // ---- The correctness arm's probes, adopted ----
 
-/// The unit cube `[0,1]³`.
+/// The unit cube `[0,1]³`, placed in its world ([`placed_part`]).
 fn block(label: &str) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
@@ -1209,7 +1221,7 @@ fn block(label: &str) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
-    let (doc, _) = insert(
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
             profile: profile.into(),
@@ -1217,7 +1229,7 @@ fn block(label: &str) -> ProfileDoc {
             side: ExtrudeSide::Along,
         },
     );
-    doc
+    placed_part(doc, body)
 }
 
 /// A part's evaluated body, through the ordinary doors.
@@ -1454,7 +1466,8 @@ fn a6_a_split_levers_its_mate_through_the_callers_resolver() {
             coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
         ),
     );
-    let cut = [a, b, m].into_iter().collect();
+    // The group, its mate and the world placements of what it moves.
+    let cut = fixture::with_placements(&doc, &[a, b, m].into_iter().collect());
     split(
         &doc,
         &cut,

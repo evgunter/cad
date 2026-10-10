@@ -849,6 +849,45 @@ pub(crate) fn name_in_part<T: geom_core::Real>(
     Ok(Arc::new(t))
 }
 
+/// **A world placement's copy, named** (D10, A10): every row of the
+/// body placed (`body`'s table, already projected to that one body) is
+/// re-minted as `Placed(name)` at the PLACEMENT node, so two placements
+/// of one body name their copies apart, as an instance names its
+/// part's entities ([`name_in_part`]).
+///
+/// Keys hold verbatim, because `transform_rigid` is key-stable. The
+/// body row is the copy's own, minted here.
+pub(crate) fn name_placed<T: geom_core::Real>(
+    node: RecipeNodeId,
+    body: &NameTable,
+    placed: &Body<T>,
+) -> Result<Arc<NameTable>, NamingError> {
+    body.seal_order();
+    let mut t = NameTable::new();
+    t.insert(
+        name1(EntityKind::Body, node, super::role::RoleSeg::OutputBody),
+        ent(0, EntityKey::Body),
+    )?;
+    for (name, entry) in body.iter_refs() {
+        if name.kind == EntityKind::Body {
+            continue;
+        }
+        let wrapped = StableName {
+            kind: name.kind,
+            node,
+            path: vec![super::role::RoleSeg::Placed { of: name.clone() }],
+        };
+        match entry {
+            super::table::Entry::Unique(e) => t.insert(wrapped, ent(0, e.key))?,
+            super::table::Entry::Tied(es) => {
+                t.insert_tied(wrapped, es.iter().map(|e| ent(0, e.key)).collect())?;
+            }
+        }
+    }
+    check_total(&t, placed, 0)?;
+    Ok(Arc::new(t))
+}
+
 /// Per-body topology walk products the emitters share: half-edge
 /// incidence (vertex → edges, edge → faces) built in ONE deterministic
 /// arena-order pass — combinatorial wiring facts, not inspection.

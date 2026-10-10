@@ -111,9 +111,7 @@ class EditError(PncadError):
       doors that write one, `at` where the fault is a position in the
       graph). `input` is a node the subject NAMES — an operand that
       does not resolve, an input reached twice, the measure an
-      assertion constrains. `referenced_by` is a node DOWNSTREAM of
-      `node` that references it: the descendant root that makes an
-      ancestor redundant.
+      assertion constrains.
     - `expected` and `found` are the DIMENSION pair — what the door
       required and what it was offered — under every spelling the
       kernel gives them (`expected`/`found`, `declared`/`referenced`,
@@ -171,7 +169,6 @@ class EditError(PncadError):
     inner_variant: Optional[str]
     node: Optional[NodeId]
     input: Optional[NodeId]
-    referenced_by: Optional[NodeId]
     slot: Optional[str]
     param: Optional[str]
     name: Optional[str]
@@ -244,8 +241,8 @@ class EvaluationError(PncadError):
     declare that finding, or move the geometry.
 
     A refusal that CARRIES another node's refusal — `part_root_failed`,
-    a part whose product root failed, `part_root_poisoned`, a part
-    whose product root never ran because a node upstream of it failed,
+    a part whose world placement failed, `part_root_poisoned`, a part
+    whose world placement never ran because a node upstream of it failed,
     and `mate_placer_refused`, a mate whose poisoned placer could not
     derive its pose — names the node that failed and points at it, and
     never quotes it. The carried refusal is `__cause__`: an
@@ -709,7 +706,7 @@ class AssemblyError(PncadError):
     FRONTIER: nothing refuted, nothing undeclared, the census simply
     declined to certify, so nothing was decided about the geometry
     either way. A gather refusal arrives under the GATHER's own tag
-    (`no_body_roots`, `root_failed`, ...), not a wrapper tag.
+    (`empty_product`, `root_poisoned`, ...), not a wrapper tag.
 
     The two MINT arms each answer with a LIST, because a document with
     two broken mates is two repairs and learning about the second only
@@ -734,17 +731,25 @@ class AssemblyError(PncadError):
     through: Optional[NodeId]
 
 class ProductError(PncadError):
-    """The whole-document gather refused. A product is all of the
-    roots or none of them — there are no partial products.
+    """The whole-document gather refused. A product is every copy the
+    world's placements define or none of them — there are no partial
+    products.
 
     Its message names each node as the evaluation's own document holds
     it (kind, label and tag): the document the gather was taken of.
-    `node` and `through` carry the full ids."""
+    `node` and `through` carry the full ids: a failed or poisoned
+    placement and the failed node that poisoned it, and on
+    `stranded_placement` the placement whose body is gone.
+    `empty_product` is the world holding no placement; `unplaced_bodies`
+    is then the bodies nothing places, each its output variable — the
+    handle `Doc.place` takes — in document order, and `None` on every
+    other arm. (The `unplaced` arm is a different fact: placed material
+    living in an unplaced group's own space.)"""
 
     variant: str
     node: Optional[NodeId]
     through: Optional[NodeId]
-    name: Optional[str]
+    unplaced_bodies: Optional[list[Var]]
 
 class SplitError(PncadError):
     """The `split` refactoring refused."""
@@ -783,6 +788,7 @@ class InlineError(PncadError):
     variant: str
     node: Optional[NodeId]
     by: Optional[NodeId]
+    """`instance_read_uncarried`: the host node reading the instance."""
     name: Optional[str]
     param: Optional[str]
     key: Optional[str]
@@ -954,14 +960,14 @@ class NodePickError(PncadError):
 class ChecksError(PncadError):
     """The advisory-check registry could not RUN.
 
-    `variant` is `root_without_value` (a root produced no value in this
-    evaluation — checks are defined over roots that evaluated, and a
-    report over a partial one would claim more than was checked),
+    `variant` is `root_without_value` (a placement produced no value in
+    this evaluation — checks are defined over copies that evaluated, and
+    a report over a partial one would claim more than was checked),
     `band` (the tolerance forms no band), `evaluation_of_another
     _document` (the evaluation is not an evaluation of this document —
     DI3, refused before any check runs) or `product_unavailable` (the
-    roots gather into no product, so the registry has no subject for a
-    check that reads one). `node` names the root on the first arm and
+    placements gather into no product, so the registry has no subject
+    for a check that reads one). `node` names the placement on the first arm and
     is `None` on the others. Its message names each node as the
     evaluation's own document holds it, the gather's included.
 
@@ -2534,6 +2540,13 @@ class Node:
         `slot_dimension_mismatch` naming that step's slot)."""
 
     @staticmethod
+    def place_in_world(body: _Operand, pose: Optional[Placement] = None) -> Node:
+        """One copy of `body` in the world at `pose`, the identity when
+        `None`: the operation whose output is a product copy. Inserting
+        it is `Doc.place`. The pose is a `Placement` chain, checked as
+        `Node.transform_by`'s is."""
+
+    @staticmethod
     def union(
         members: Sequence[_Operand] | _Operand, declare: list[FlushFinding] = []
     ) -> Node:
@@ -3605,19 +3618,6 @@ class DocEdit:
         broken E2 invariant (`invalid_distribution`,
         `non_finite_var`)."""
     @staticmethod
-    def set_roots(roots: list[NodeId]) -> DocEdit:
-        """Set the document's ordered PRODUCT ROOTS outright.
-
-        The designate/undesignate door: one TOTAL edit rather than
-        partial add/remove arms, so the product's solid order is
-        always stated rather than inferred from an edit sequence. The
-        four root invariants refuse under their own tags on
-        `EditError` — `root_not_live`, `root_duplicate`,
-        `root_ancestor` (one root upstream of another would gather its
-        material twice), `root_uncovered` (a live node reaching no
-        root is a silently dead subgraph)."""
-
-    @staticmethod
     def set_offset(instance: NodeId, offset: Optional[Placement]) -> DocEdit:
         """Set an instance's OFFSET in its gauge, or clear it with
         `None`.
@@ -3954,13 +3954,13 @@ class Doc:
         maintenance, so "the last accepted edit" means the last one
         accepted through this object."""
 
-    @property
-    def roots(self) -> list[NodeId]:
-        """The document's ordered product roots — what `product` and
-        `assemble` gather, in this order. Set through
-        `DocEdit.set_roots`; maintained by every other edit, so a
-        document always states its product rather than leaving it to
-        be inferred."""
+    def placements(self) -> list[NodeId]:
+        """The world placements, in document order: the nodes whose
+        copies are the product — what `product` and `assemble` gather,
+        in this order. Written through `place` (or an inserted
+        `Node.place_in_world`) and nothing else: no edit places or
+        unplaces as a side effect, so a body is in the product exactly
+        when a placement reads it."""
 
     def offset(self, node: NodeId) -> Optional[Placement]:
         """An instance's OFFSET in its gauge, or `None` when it carries
@@ -3996,7 +3996,7 @@ class Doc:
         The vocabulary, in full: `datum`, `profile`, `extrude`,
         `revolve`, `tube`, `hollow_tube`, `loft`, `sweep`, `fillet`,
         `chamfer`, `shell`, `split`, `union`, `intersect`, `subtract`,
-        `transform`, `pattern`, `part`, `placed_union`,
+        `transform`, `place_in_world`, `pattern`, `part`, `placed_union`,
         `instantiate_part`, `mate`, `gauge`, `measure`, `assertion`.
 
         This is the NODE's kind, never its VALUE's: an extrude, a
@@ -4048,6 +4048,25 @@ class Doc:
         mints a FRESH frame; two sketches meant to share a plane bind
         the id once and pass it twice.
         """
+
+    def place(
+        self,
+        body: _Operand,
+        pose: Optional[Placement] = None,
+        *,
+        label: Optional[str] = None,
+    ) -> NodeId:
+        """Place one copy of `body` in the world at `pose`, the identity
+        when `None`, and return the placement's id.
+
+        The one door that puts a body in the product: nothing places as
+        a side effect, so a boolean of two placed bodies leaves both
+        placed and the boolean unplaced until it is placed here. The
+        edit is the Rust façade's `DocEdit::place`, the insert of
+        `Node.place_in_world(body, pose)`. A split's half is placed by
+        its output, `place(doc.output(split, 1))`. Two placements of one
+        body are two copies. `label=` labels the placement in the same
+        call, as `insert`'s does."""
 
     def declare(self, node: NodeId, finding: FlushFinding) -> None:
         """ADD one inspected finding's pair to the declared pairs of the
@@ -4468,6 +4487,7 @@ class SegTag:
     HoleRim: Final[SegTag]
     Instance: Final[SegTag]
     InPart: Final[SegTag]
+    Placed: Final[SegTag]
 
 class OpGroup:
     """The op group a role segment belongs to (`SegPat.group`).
@@ -4488,6 +4508,7 @@ class OpGroup:
     Fillet: Final[OpGroup]
     Pattern: Final[OpGroup]
     InstantiatePart: Final[OpGroup]
+    PlaceInWorld: Final[OpGroup]
     Shell: Final[OpGroup]
 
 class CapEnd:
@@ -6361,23 +6382,27 @@ class Maintenance:
 # --- the gather and the at-rest gate ----------------------------------
 
 def product(doc: Doc, evaluation: Evaluation) -> Body:
-    """The document's PRODUCT: every body-denoting root's solids,
-    gathered in root-list order into one body.
+    """The document's PRODUCT: its world — every copy a placement
+    defines, in the placements' document order — gathered into one
+    body.
 
     What a document IS — and for an assembly the only useful reading,
     because an assembly's nodes are instances and mates and no single
-    node's value is the assembly. A pure function of the root list and
-    the evaluation.
+    node's value is the assembly. A pure function of the placements
+    and the evaluation; nothing is in it that `Doc.place` did not put
+    there.
 
     `evaluation` must be an evaluation OF `doc`, and the door checks
     it: an evaluation carries the id of the document it was run on,
     and a foreign one raises ProductError with tag
-    `evaluation_of_another_document` before the first root is read.
-    Node ids alone could not decide this — they are minted by a
+    `evaluation_of_another_document` before the first placement is
+    read. Node ids alone could not decide this — they are minted by a
     per-document counter, so two documents built from one recipe
     carry the same ids for the same nodes and a gather over the wrong
     one would succeed, in full, about other geometry. Raises
-    ProductError, typed."""
+    ProductError, typed: `empty_product` naming the unplaced bodies,
+    `stranded_placement` naming a placement whose body is gone, a
+    failed or poisoned placement, a graft or validity refusal."""
 
 def product_named(doc: Doc, evaluation: Evaluation) -> tuple[Body, list[str]]:
     """The product with the stable names its entities answer to —
@@ -6675,8 +6700,13 @@ def split(
     in one store.
 
     The cut must be ancestor- and consumer-closed and a union of WHOLE
-    placement groups. Pure — `doc` is untouched. Raises SplitError,
-    typed, naming the offending edge, group, parameter or name.
+    placement groups. A part delivers only its world: the cut's world
+    placements are the part's, the remainder places one copy of the
+    instance left behind, and a remainder read of a cut body the cut
+    does not place refuses (`severed_edge`), as does a name reaching a
+    cut body no one cut placement places (`name_outside_part_world`).
+    Pure — `doc` is untouched. Raises SplitError, typed, naming the
+    offending edge, group, parameter or name.
 
     `resolver` is the document seam the part's mate inserts lever
     through where one carries a clocking rider, decided over the mated
@@ -6741,7 +6771,15 @@ def inline(doc: Doc, instance: NodeId, resolver: Workspace) -> InlineOutcome:
     mate-placed instance inlines only over a part that is one group
     rooted at the empty chain on its world, holding no gauge and no
     other member carrying an offset, whose root takes its place;
-    otherwise it refuses `mate_placed`."""
+    otherwise it refuses `mate_placed`.
+
+    The host's identity placements of the instance are deleted — the
+    part's own placements arrive with its nodes — and a host node that
+    read the instance reads the inlined body: the body the part's one placement places. A part
+    whose world is not one body for that reader refuses
+    `instance_read_uncarried` (`by` the reader), and a host placement
+    with a pose of its own over a part whose world is not one identity
+    placement refuses `placement_pose_crosses` (`node` the placement)."""
 
 # --- the pin-update door ----------------------------------------------
 
@@ -7014,10 +7052,10 @@ class Coincidence:
     def residual(self) -> Optional[str]: ...
 
 class CheckFinding:
-    """One finding of one check on one subject: a body-denoting root
-    output, attributed as `(root, output_ix)`, or a node of the
-    document (`node`), root or not — the node that decided an unproven
-    coincidence. Whichever it is not answers `None`.
+    """One finding of one check on one subject: a copy a placement
+    defines, attributed as `(root, output_ix)` with `root` the placement,
+    or a node of the document (`node`) — the node that decided an
+    unproven coincidence. Whichever it is not answers `None`.
 
     A REPORT about geometry, not a verdict on the program: holding one
     changes nothing. `subject_body` resolves the attribution back to
@@ -7060,8 +7098,8 @@ class ChecksReport:
 
     @property
     def findings(self) -> list[CheckFinding]:
-        """Deterministic order: each resident's own pass by root-list
-        position then output index, residents in registry order. NOT
+        """Deterministic order: each resident's own pass by placement
+        order then output index, residents in registry order. NOT
         one global sort."""
 
     @property
@@ -7083,8 +7121,8 @@ def run_checks(
     `enforce_checks` is the only door that turns one into a refusal.
 
     `evaluation` must be an evaluation OF `doc` that ran to completion:
-    subjects are the body-denoting outputs of the document's roots, so
-    a root that failed or was poisoned refuses `root_without_value`
+    subjects are the copies the document's placements define, so a
+    placement that failed or was poisoned refuses `root_without_value`
     rather than reporting over a partial evaluation.
 
     Expectations are TWO-DIRECTIONAL — an `expected_components` entry

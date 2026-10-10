@@ -154,6 +154,7 @@ pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
         | Node::Mate { .. }
         | Node::Gauge { .. }
         | Node::Measure { .. }
+        | Node::PlaceInWorld { .. }
         | Node::Assertion { .. } => None,
     }
 }
@@ -1301,7 +1302,8 @@ impl core::error::Error for FaceFrameFault {}
 /// RENDERS the answer and decides nothing.
 ///
 /// `Ok` carries the two picks the seat needs — the node whose body the
-/// ray met and the frozen face name — in the order
+/// ray met and the frozen face name, a pick on a copy read on the body
+/// it places ([`crate::world::on_body`]) — in the order
 /// [`crate::session::DatumSpec::FaceFrame`] takes them.
 ///
 /// # Errors
@@ -1345,7 +1347,11 @@ pub fn face_frame_seat(
     // DM1b as a TAG READ, consulting no number: the same comparison
     // the node itself makes at evaluation.
     match face_carrier_kind(ev, at, &face.name) {
-        Ok(SurfaceKind::Plane) => Ok((at, face.name.clone())),
+        // A pick on a copy is read on its body (A10).
+        Ok(SurfaceKind::Plane) => {
+            let (at, _, name) = crate::world::on_body(doc, at, face.body, &face.name);
+            Ok((at, name))
+        }
         Ok(carrier) => Err(FaceFrameFault::NotPlanar { carrier }),
         Err(error) => {
             let error = crate::tree::interrogation_as_drawn(error, ev);

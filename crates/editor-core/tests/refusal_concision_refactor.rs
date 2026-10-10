@@ -50,19 +50,22 @@ fn var() -> editor_core::SpokenVar {
 
 test_utils::f6_variants! {
     const SPLIT: SplitError = [
-        EmptyCut, UnknownCutNode, PartIdCollides, SeveredEdge, OperandSeveredFromMate,
+        EmptyCut, UnknownCutNode, PartIdCollides, SeveredEdge, RemainderReadUncarried,
+        OperandSeveredFromMate,
         TornGroup, SeveredGauge, TwoAnchors, PlacingMateLeft, DeadGaugeReference,
         NoMaterial, UnplaceableRoot, UnplacedAlone, WouldStartPlacing, MateFrameCrosses,
         UncutVarReference, DefinitionStraddlesCut, UnresolvedVarCrossesCut,
         PartNameReachesRemainder,
-        NameStraddlesCut, NameOnDroppedStep, BodyNameCrossesCut, Pin, PartEdit,
+        NameStraddlesCut, NameOnDroppedStep, BodyNameCrossesCut, NameOutsidePartWorld, Pin,
+        PartEdit,
         RemainderEdit,
     ];
 }
 
 test_utils::f6_variants! {
     const INLINE: InlineError = [
-        UnknownNode, NotAnInstance, InstanceConsumed, Unresolved, EpsilonSeam,
+        UnknownNode, NotAnInstance, PlacementPoseCrosses, InstanceReadUncarried, Unresolved,
+        EpsilonSeam,
         PartCarriesMetadata, VarNameConflict, InstanceOutputUncarried, UnresolvedVarCrossesCut,
         UnplaceableFrame, MatePlaced, Unplaced,
         MovedMemberOffset, PartDeadGauge, MateFrameCrosses, MatePairSplits,
@@ -85,6 +88,16 @@ fn split_refusals() -> Vec<SplitError> {
             consumer: s(5, "Extrude"),
             input: s(3, "Profile"),
             consumer_is_cut: true,
+        },
+        SplitError::RemainderReadUncarried {
+            reader: s(6, "Transform"),
+            why: editor_core::Uncarried::Bodies { count: 2 },
+        },
+        SplitError::RemainderReadUncarried {
+            reader: s(6, "Transform"),
+            why: editor_core::Uncarried::Posed {
+                placement: s(4, "PlaceInWorld"),
+            },
         },
         SplitError::OperandSeveredFromMate {
             mate: s(7, "Mate"),
@@ -189,6 +202,7 @@ fn split_refusals() -> Vec<SplitError> {
             step: StepId::new(0, 4),
         },
         SplitError::BodyNameCrossesCut { name: name() },
+        SplitError::NameOutsidePartWorld { name: name() },
         SplitError::Pin {
             error: Box::new(PersistError::Serialize {
                 message: "the writer refused".to_owned(),
@@ -216,9 +230,12 @@ fn inline_refusals() -> Vec<InlineError> {
         InlineError::NotAnInstance {
             node: s(5, "Extrude"),
         },
-        InlineError::InstanceConsumed {
-            node: s(4, "InstantiatePart"),
-            by: s(5, "Union"),
+        InlineError::PlacementPoseCrosses {
+            placement: s(4, "PlaceInWorld"),
+        },
+        InlineError::InstanceReadUncarried {
+            reader: s(5, "Union"),
+            why: editor_core::Uncarried::Bodies { count: 2 },
         },
         InlineError::Unresolved {
             failure: ResolveFailure::new(

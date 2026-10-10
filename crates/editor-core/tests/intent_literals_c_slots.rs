@@ -13,6 +13,7 @@
 use std::collections::BTreeSet;
 
 use crate::corpus::{body_of, failures};
+use crate::fixture::split_world as split;
 use crate::fixture::{insert, len, on_frame, prism_edges, square};
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::persist::SnapshotError;
@@ -20,7 +21,7 @@ use editor_core::{
     CancelToken, Datum, Dimension, Distribution, DocEdit, DocumentId, EditError, EvalOptions,
     Evaluation, ExtrudeSide, Formula, FreeValue, FreeVar, FreshEntry, LoopProgram, Maintenance,
     Node, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError, VarDecl,
-    VarId, VarName, apply, evaluate, load, save, split,
+    VarId, VarName, apply, evaluate, load, save,
 };
 use geom_brep::RadiusEvidence;
 use geom_core::Tol;
@@ -489,6 +490,7 @@ fn frame_sharing_a_fresh_entry(seed: &str) -> (ProfileDoc, [RecipeNodeId; 3]) {
             side: ExtrudeSide::Along,
         },
     );
+    let doc = crate::fixture::place(doc, extrude).0;
     (doc, [frame_id, profile, extrude])
 }
 

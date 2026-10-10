@@ -64,6 +64,8 @@ pub fn document() -> CorpusDoc {
         declare: Vec::new(),
     });
 
+    r.place(union);
+
     CorpusDoc {
         name: "boss_union",
         about: "M5 shape (ii): cylinder boss ∪ plate — the first transverse curved boolean",

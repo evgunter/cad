@@ -189,7 +189,7 @@ fn forward_selection() -> (ProfileDoc, editor_core::StableName, editor_core::Sta
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let wb = wall(&doc, b, 0);
-    let (doc, _fillet) = insert(
+    let (doc, fillet) = insert(
         doc,
         Node::Fillet {
             target: a.into(),
@@ -197,6 +197,7 @@ fn forward_selection() -> (ProfileDoc, editor_core::StableName, editor_core::Sta
             selection: vec![fname(b, wb.clone())],
         },
     );
+    let doc = crate::fixture::place(doc, fillet).0;
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let wc = wall(&doc, c, 0);
     let (from, to) = (fname(b, wb), fname(c, wc));

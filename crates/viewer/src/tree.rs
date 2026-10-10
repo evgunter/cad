@@ -339,8 +339,9 @@ pub struct TreeRow {
     pub pose: Option<String>,
     /// How far the node sits below the document's sources.
     pub depth: usize,
-    /// Whether this node is one of the document's product roots.
-    pub root: bool,
+    /// Whether a world placement places a body this node defines — the
+    /// world badge (A10). A placement's own row is an ordinary row.
+    pub placed: bool,
     /// What the evaluation said about it.
     pub status: RowStatus,
     /// A standing caveat about the NODE itself, independent of any
@@ -649,6 +650,7 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
         | Node::Mate { .. }
         | Node::Gauge { .. }
         | Node::Measure { .. }
+        | Node::PlaceInWorld { .. }
         | Node::Assertion { .. } => None,
     }
 }
@@ -754,7 +756,6 @@ pub fn rows(
         None => doc.ids().to_vec(),
     };
     let mut depths: BTreeMap<RecipeNodeId, usize> = BTreeMap::new();
-    let roots = doc.roots();
     let mut rows = Vec::with_capacity(order.len());
     for id in order {
         let Some(node) = doc.node(id) else {
@@ -783,7 +784,7 @@ pub fn rows(
             spoken: doc.spoken(id),
             pose: frame_pose(doc, node).or_else(|| part_file(node, files)),
             depth,
-            root: roots.contains(&id),
+            placed: crate::world::is_placed(doc, id),
             status,
             note: node_note(node),
             repair_at,
@@ -846,6 +847,7 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
         | Node::InstantiatePart { .. }
         | Node::Gauge { .. }
         | Node::Measure { .. }
+        | Node::PlaceInWorld { .. }
         | Node::Assertion { .. } => None,
     }
 }

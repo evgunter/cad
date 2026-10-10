@@ -66,6 +66,7 @@ pub fn node_kind<P>(node: &Node<P>) -> &'static str {
         Node::Intersect { .. } => "intersect",
         Node::Subtract { .. } => "subtract",
         Node::Transform { .. } => "transform",
+        Node::PlaceInWorld { .. } => "place_in_world",
         Node::Pattern { .. } => "pattern",
         Node::Part { .. } => "part",
         Node::PlacedUnion { .. } => "placed_union",

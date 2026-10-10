@@ -177,19 +177,25 @@ fn a_canceled_runs_missing_tail_reads_as_unevaluated() {
 }
 
 #[test]
-fn the_tree_marks_the_documents_product_roots() {
+fn the_tree_marks_the_bodies_the_world_places() {
     let tol = Tol::witness();
     let (doc, profile, extrude) = common::parametric_plate(tol);
     let rows = tree::rows(&doc, None, &viewer::parts::PartFiles::default());
-    let root_ids: Vec<_> = rows
+    let placed: Vec<_> = rows
         .iter()
-        .filter(|row| row.root)
+        .filter(|row| row.placed)
         .map(|row| row.id)
         .collect();
     assert_eq!(
-        root_ids,
+        placed,
         vec![extrude],
-        "the extrude is the product; the profile it consumes is not"
+        "the extrude is placed; the profile it reads is not, and the placement's own row is \
+         an ordinary one"
+    );
+    let placement = doc.placements()[0];
+    assert!(
+        rows.iter().any(|row| row.id == placement && !row.placed),
+        "the placement is a row of its own, unbadged"
     );
     assert_eq!(
         common::row_of(&rows, profile).spoken.kind(),
@@ -501,7 +507,7 @@ fn a_boolean_over_a_refused_groups_instances_points_at_the_mate() {
 /// mate tool's dropped pick, the sketch-on-face seat, the duplicate
 /// door and the blend loader each carry a standing, and each must
 /// carry the TREE's. The product's gather refusal is drawn by none of
-/// them: the tree badges the refused root at its row, and the at-rest
+/// them: the tree badges the refused copy at its row, and the at-rest
 /// badge takes no verdict on a product that did not gather.
 #[test]
 fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
@@ -684,10 +690,10 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
         other => panic!("the mate tool refuses the frame read, got {other:?}"),
     }
 
-    // The pick index refuses on a root with no value; its tooltip
-    // carries that root's standing as the tree draws it.
+    // The pick index refuses on a placement with no value; its tooltip
+    // carries that placement's standing as the tree draws it.
     let Err(refusal) = common::index_at(&session, common::asm::delta()) else {
-        panic!("the index does not build over a root with no value");
+        panic!("the index does not build over a placement with no value");
     };
     let badge = viewer::frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
         .expect("a refusal badges");
@@ -703,17 +709,17 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
     );
 
     // The product gather: its value is the kernel's, the tree draws the
-    // refused root downstream of the mate, and the at-rest badge says
+    // refused copy downstream of the mate, and the at-rest badge says
     // nothing about it.
-    let root = match session.product_fault() {
+    let refused = match session.product_fault() {
         Some(ProductError::Root(
             NodeStanding::Failed { node } | NodeStanding::Poisoned { node, .. },
         )) => *node,
-        other => panic!("the gather refuses on a root, got {other:?}"),
+        other => panic!("the gather refuses on a placement, got {other:?}"),
     };
     assert!(
-        matches!(common::status_of(&rows, root), RowStatus::Poisoned { through, .. } if through == offender),
-        "the refused root is drawn downstream of the offending mate"
+        matches!(common::status_of(&rows, refused), RowStatus::Poisoned { through, .. } if through == offender),
+        "the refused copy is drawn downstream of the offending mate"
     );
     assert_eq!(
         session.at_rest(),
@@ -826,13 +832,14 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
             "scene.rs",
             "product(",
             "runs only over a pair whose gather already succeeded (the A5 gate ate the \
-             body), so no root refusal reaches it",
+             body), so no placement refusal reaches it",
         ),
         (
             "session.rs",
             "product_recorded(",
             "the landing keeps the typed refusal (`product_fault`), and `frame::badge_site` \
-             sends a root's refusal to the feature tree, so no surface draws its standing",
+             sends a placement's refusal to the feature tree, so no surface draws its \
+             standing",
         ),
         (
             "session.rs",
@@ -1205,7 +1212,7 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
         spoken: spoken(RecipeNodeId::new(0, id), Some("Transform")),
         pose: None,
         depth: 0,
-        root: false,
+        placed: false,
         status,
         note: None,
         repair_at: None,
@@ -1322,7 +1329,7 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
 /// the cause.
 ///
 /// One document, built up: an intersect of two blocks that do not
-/// meet, first as the document's root and then under a transform; a
+/// meet, first alone and then under a transform; a
 /// split whose tool plane clears the block, with a `Part` reading its
 /// empty side; a `Part` indexed past a pattern's count; and a revolve
 /// whose axis lives on another frame than its profile.
@@ -1368,8 +1375,8 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         tol,
     );
 
-    // The empty intersect alone is the product: its row is the only
-    // place a reader learns the document makes nothing.
+    // The empty intersect: its row is the only place a reader learns
+    // it makes nothing.
     let (ev, rows) = run(&doc);
     assert!(
         matches!(
@@ -1379,13 +1386,12 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         "the fixture's blocks do not meet: {:?}",
         ev.result(apart)
     );
-    let root = common::row_of(&rows, apart);
-    assert!(root.root, "the premise: the intersect is the product");
-    assert!(matches!(root.status, RowStatus::Ok), "{root:?}");
+    let row = common::row_of(&rows, apart);
+    assert!(matches!(row.status, RowStatus::Ok), "{row:?}");
     assert_eq!(
-        root.readout,
+        row.readout,
         Some(Readout::Empty(Emptiness::Whole)),
-        "an empty root says so on its own row"
+        "an empty boolean says so on its own row"
     );
     assert_eq!(
         Emptiness::Whole.to_string(),
@@ -1561,7 +1567,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     assert_eq!(
         common::row_of(&rows, apart).readout,
         Some(Readout::Empty(Emptiness::Whole)),
-        "the intersect still says so once it is no longer the root"
+        "the intersect still says so under a transform"
     );
     assert_eq!(
         common::row_of(&rows, pattern).readout,

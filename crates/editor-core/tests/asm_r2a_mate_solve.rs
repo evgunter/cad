@@ -88,7 +88,7 @@ fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, PartStore,
         }
         ids.push(id);
     }
-    (doc, ids, store, body)
+    (crate::fixture::place_all(doc, &ids), ids, store, body)
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3], reference: [f64; 3]) -> MateFrame<Formula> {
@@ -523,8 +523,8 @@ fn row4b_a_mate_delete_is_not_refused_and_unplaces_the_orphan() {
 }
 
 /// Row 4c — deleting the root is not refused either: DM7 reports the
-/// mate head it stranded, and the survivor's group, which no member
-/// places, is unplaced.
+/// world placement that read it and the mate head it stranded, and the
+/// survivor's group, which no member places, is unplaced.
 #[test]
 fn row4c_deleting_the_root_unplaces_the_survivor() {
     let (doc, ids, _, store, body) = stacked_pair("asm-r2a-row4c");
@@ -543,14 +543,24 @@ fn row4c_deleting_the_root_unplaces_the_survivor() {
         .copied()
         .find(|&id| matches!(applied.doc.node(id), Some(Node::Mate { .. })))
         .expect("the mate survives its member");
+    // The root's world placement is the first, `assembly` placing the
+    // instances in order.
+    let placement = doc.placements()[0];
     assert_eq!(
         applied.maintenance,
-        vec![Maintenance::Strand {
-            node: doc.spoken(mate_node),
-            name: doc.spoken_name(&in_part(ids[0], body, CapEnd::Start)),
-            took: editor_core::Took::Node
-        }],
-        "the strand is the whole report: no frame is recorded"
+        vec![
+            Maintenance::StrandedRead {
+                node: doc.spoken(placement),
+                slot: editor_core::OperandSlot::Body,
+                var: doc.spoken_var(doc.output(ids[0], 0).expect("the root's body")),
+            },
+            Maintenance::Strand {
+                node: doc.spoken(mate_node),
+                name: doc.spoken_name(&in_part(ids[0], body, CapEnd::Start)),
+                took: editor_core::Took::Node
+            }
+        ],
+        "the strands are the whole report: no frame is recorded"
     );
     let poses = solve(&applied.doc, &with_resolver(store), Tol::witness());
     assert_eq!(
@@ -653,8 +663,9 @@ fn two_groups() -> (ProfileDoc, Vec<RecipeNodeId>, Vec<RecipeNodeId>, PartStore)
     (doc, ids, mates, store)
 }
 
-/// Row 4e — a cut of ONE WHOLE placed group moves as selected (A4): the
-/// part's root keeps its offset, and the remainder instance sits at the
+/// Row 4e — a cut of ONE WHOLE placed group, with the world placements
+/// of what it moves, moves as selected (A4): the part's root keeps its
+/// offset, and the remainder instance sits at the
 /// empty chain.
 #[test]
 fn row4e_a_whole_group_cut_moves_as_selected() {
@@ -662,7 +673,7 @@ fn row4e_a_whole_group_cut_moves_as_selected() {
     let (doc, ids, mates, store) = two_groups();
     let o = with_resolver(store);
     let cut = BTreeSet::from([ids[0], ids[1], mates[0]]);
-    let out = editor_core::split(
+    let out = fixture::split_world(
         &doc,
         &cut,
         editor_core::DocumentId::derive("asm-r2a-4e"),
@@ -681,7 +692,10 @@ fn row4e_a_whole_group_cut_moves_as_selected() {
         .remainder
         .ids()
         .iter()
-        .find(|id| doc.node(**id).is_none())
+        .find(|id| {
+            doc.node(**id).is_none()
+                && matches!(out.remainder.node(**id), Some(Node::InstantiatePart { .. }))
+        })
         .expect("the remainder gained an instance");
     assert_eq!(
         fixture::offset_of(&out.remainder, instance),
@@ -709,7 +723,7 @@ fn row4f_a_torn_group_cut_refuses_typed_naming_both_sides() {
     let o = with_resolver(store);
     // One whole group PLUS one instance torn out of the other.
     let cut = BTreeSet::from([ids[0], ids[1], mates[0], ids[2]]);
-    match editor_core::split(
+    match fixture::split_world(
         &doc,
         &cut,
         editor_core::DocumentId::derive("asm-r2a-4f"),
@@ -728,7 +742,7 @@ fn row4f_a_torn_group_cut_refuses_typed_naming_both_sides() {
         other => panic!("expected TornGroup, got {other:?}"),
     }
     // The message names the group, both sides, and the repair.
-    let message = editor_core::split(
+    let message = fixture::split_world(
         &doc,
         &cut,
         editor_core::DocumentId::derive("asm-r2a-4f2"),
@@ -756,7 +770,7 @@ fn row4f_a_torn_group_cut_refuses_typed_naming_both_sides() {
     // The tear is refused in the OTHER direction too: keeping the
     // root and cutting the member is the same fault.
     let other_way = BTreeSet::from([ids[0], ids[1], mates[0], ids[3]]);
-    match editor_core::split(
+    match fixture::split_world(
         &doc,
         &other_way,
         editor_core::DocumentId::derive("asm-r2a-4f3"),
@@ -1116,11 +1130,12 @@ fn row6a_mated_instances_share_an_a9_component() {
 }
 
 #[test]
-fn row6b_instances_keep_their_roots_across_mate_insert_and_delete() {
+fn row6b_a_mate_insert_and_delete_place_nothing() {
     let (doc, ids, store, body) = assembly("asm-r2a-row6b", 2);
     let o = with_resolver(store);
     let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    assert_eq!(doc.roots(), &ids[..], "both instances are roots");
+    let placed = doc.placements();
+    assert_eq!(placed.len(), 2, "both instances are placed");
     let (doc, mate_id) = mint(
         doc,
         DocEdit::InsertNode {
@@ -1137,11 +1152,7 @@ fn row6b_instances_keep_their_roots_across_mate_insert_and_delete() {
             fresh: Vec::new(),
         },
     );
-    assert_eq!(
-        doc.roots(),
-        &[ids[0], ids[1], mate_id][..],
-        "no tip transfer: the mate APPENDS as an ordinary non-body root"
-    );
+    assert_eq!(doc.placements(), placed, "a mate places nothing (A10)");
     // A lone coaxial mate leaves the pair UNDER-determined; deleting
     // it is the recourse that refusal names, and no edit records a
     // frame, so the door takes it and reports nothing.
@@ -1150,7 +1161,7 @@ fn row6b_instances_keep_their_roots_across_mate_insert_and_delete() {
         .expect("deleting an under-determined mate is its recourse");
     assert!(applied.maintenance.is_empty(), "{:?}", applied.maintenance);
     let doc = applied.doc;
-    assert_eq!(doc.roots(), &ids[..], "and leaves them as it found them");
+    assert_eq!(doc.placements(), placed, "and leaves them as it found them");
 }
 
 #[test]
@@ -1164,7 +1175,6 @@ fn row6c_the_gather_ignores_the_mate_root() {
         .filter(|&id| matches!(doc.node(id), Some(Node::Mate { .. })))
         .collect();
     for &m in &mates {
-        assert!(doc.roots().contains(&m), "a mate IS listed as a root");
         assert!(matches!(
             ev.result(m),
             Some(NodeResult::Ok(v)) if matches!(v.payload, editor_core::ValuePayload::Mate(_))

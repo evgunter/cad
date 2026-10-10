@@ -148,9 +148,13 @@ fn blade_polygon() -> LoopProgram<Formula> {
 }
 
 /// This scene's recipe at its first count, as a document the GUI can
-/// open: one `SetVarValue` on `blades` is the scene's whole edit.
+/// open, the impeller placed in the world: one `SetVarValue` on
+/// `blades` is the scene's whole edit.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
-    build_doc(tol).doc
+    let r = build_doc(tol);
+    apply(&r.doc, &DocEdit::place(r.solid, None), tol, &RefusingReach)
+        .expect("the impeller places")
+        .doc
 }
 
 fn build_doc(tol: Tol) -> Recipe {

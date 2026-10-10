@@ -524,6 +524,8 @@ fn walk<'n>(name: &'n StableName, by: Speaker<'_>) -> Walk<'n> {
                 let join = Join { at: at.node, read };
                 (!join_words(join, by).is_empty()).then_some(Step::Join(join))
             }
+            // A world placement's copy is the same entity, placed.
+            CarriedAs::Placed => None,
             CarriedAs::Split(side) => Some(Step::Wrap(Wrap::Split(side))),
             CarriedAs::ToolCopy(side) => Some(Step::Wrap(Wrap::ToolCopy(side))),
             CarriedAs::Instance(i) => Some(Step::Wrap(Wrap::Instance(i))),
@@ -972,6 +974,7 @@ fn role<'n, 's>(
         // The part's own steps and nodes are another document's ids,
         // so the part-local name is said by tag.
         RoleSeg::InPart { of } => vec![cites.by_tag(of), text(" in the part")],
+        RoleSeg::Placed { of } => vec![text("the world copy of "), cites.one(of)],
         // A carry or a qualifier is a role only inside a path no
         // operation mints: the walk looks through a lone carry, and a
         // qualifier never ends the head. Each still has words of its

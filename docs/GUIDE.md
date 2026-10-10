@@ -181,7 +181,7 @@ the tessellated mesh are computed by independent code paths, and
 comparing them is how you find out that one of them is wrong.
 
 An **assembly** runs this same ladder — on its gathered *product*,
-the body its roots denote — with two rungs of its own in front:
+the bodies its world places — with two rungs of its own in front:
 solving the mates for where each instance sits, and the at-rest gate
 that certifies the parts really meet as the mates declare.
 `docs/guide/assembly.md` is those two rungs, and the workspace store

@@ -97,6 +97,7 @@ import bench_scene
 import pncad
 from spoken import tag
 from bench_scene import (
+    PART_FACE,
     PATTERN_COUNT,
     PATTERN_SPACING,
     POST_HEIGHT,
@@ -129,6 +130,7 @@ from pncad import (
     MatePrimitive,
     MateRole,
     Node,
+    PartSelect,
     PatternKind,
     Placement,
     SegTag,
@@ -190,11 +192,12 @@ class TestBenchLayout(BenchWorkspace):
     def test_the_layout_gathers_the_scenes_material_exactly(self):
         for name, posts in SPELLINGS.items():
             with self.subTest(posts=name):
-                doc, family, _, shelf_i = self.layout(posts)
-                # The roots state the product: the family (which
-                # consumed the instance) and the shelf instance, in
-                # that order.
-                self.assertEqual(doc.roots, [family, shelf_i])
+                doc, _, _, _ = self.layout(posts)
+                # The placements state the product: the posts' copies
+                # (each pattern instance projected and placed, or the
+                # fused family placed whole), then the shelf instance.
+                placed = PATTERN_COUNT + 1 if name == "pattern" else 2
+                self.assertEqual(len(doc.placements()), placed)
                 ev = evaluate(doc, resolver=self.ws)
                 volume = product(doc, ev).mass_properties().volume
                 self.assertAlmostEqual(
@@ -207,7 +210,7 @@ class TestBenchLayout(BenchWorkspace):
                 doc, family, _, _ = self.layout(posts)
                 ev = evaluate(doc, resolver=self.ws)
                 caps = ev.select(
-                    family, cap_selector(CapEnd.End, [SegTag.Instance, SegTag.InPart])
+                    family, cap_selector(CapEnd.End, [SegTag.Instance, *PART_FACE])
                 )
                 # One per placement, and the name NESTS rather than
                 # concatenating: pattern index, then instance, then
@@ -307,11 +310,11 @@ class TestBenchLayout(BenchWorkspace):
                 cap = sorted(
                     ev.select(
                         family,
-                        cap_selector(CapEnd.End, [SegTag.Instance, SegTag.InPart]),
+                        cap_selector(CapEnd.End, [SegTag.Instance, *PART_FACE]),
                     )
                 )[0]
                 bottom = one(
-                    ev.select(shelf_i, cap_selector(CapEnd.Start, [SegTag.InPart]))
+                    ev.select(shelf_i, cap_selector(CapEnd.Start, PART_FACE))
                 )
                 node = Node.mate(
                     family,
@@ -328,6 +331,12 @@ class TestBenchLayout(BenchWorkspace):
                     self.assertIsNone(solved.fault(mate))
                     self.assertEqual(solved.role(mate), MateRole.Determining)
                     self.assertEqual(pncad.groups(doc), [[post_i, shelf_i]])
+                    # The gate reads the world: the copies and the shelf.
+                    for i in range(PATTERN_COUNT):
+                        doc.place(
+                            doc.insert(Node.part(family, PartSelect.instance(Formula.count(i))))
+                        )
+                    doc.place(shelf_i)
                     minted = assemble(doc, evaluate(doc, resolver=self.ws)).minted
                     self.assertEqual([d.mate for d in minted], [mate])
                 else:
@@ -363,11 +372,12 @@ class TestBenchLayout(BenchWorkspace):
         question is where a cap sits, and the answer is what
         identifies it.
         """
-        # Rung 1: the part's own cap, in the part's own coordinates.
+        # Rung 1: the part's own cap, in the part's own coordinates —
+        # on the copy its one placement puts in its world.
         part_ev = evaluate(self.post)
-        part_root = self.post.roots[0]
-        part_cap = one(part_ev.select(part_root, cap_selector(CapEnd.End)))
-        local = part_ev.face_frame(part_root, part_cap).origin
+        (placed,) = self.post.placements()
+        part_cap = one(part_ev.select(placed, cap_selector(CapEnd.End, [SegTag.Placed])))
+        local = part_ev.face_frame(placed, part_cap).origin
 
         for name, posts in SPELLINGS.items():
             with self.subTest(posts=name):
@@ -392,7 +402,7 @@ class TestBenchLayout(BenchWorkspace):
                 ]
 
                 caps = ev.select(
-                    family, cap_selector(CapEnd.End, [SegTag.Instance, SegTag.InPart])
+                    family, cap_selector(CapEnd.End, [SegTag.Instance, *PART_FACE])
                 )
                 read = sorted(
                     tuple(c.meters for c in ev.face_frame(family, cap).origin)
@@ -424,7 +434,7 @@ class TestBenchLayout(BenchWorkspace):
                 doc, family, _, _ = self.layout(posts)
                 ev = evaluate(doc, resolver=self.ws)
                 caps = ev.select(
-                    family, cap_selector(CapEnd.End, [SegTag.Instance, SegTag.InPart])
+                    family, cap_selector(CapEnd.End, [SegTag.Instance, *PART_FACE])
                 )
                 for cap in caps:
                     denotation = ev.denotation(family, cap)
@@ -585,7 +595,7 @@ class TestBenchStand(BenchWorkspace):
 
         outcome = pncad.split(
             doc,
-            [post_a, shelf_i, post_b, mate_1, mate_2],
+            [post_a, shelf_i, post_b, *doc.placements(), mate_1, mate_2],
             random_document_id(),
             resolver=self.ws,
         )
@@ -848,7 +858,7 @@ class TestAssemblyRefusals(BenchWorkspace):
             AxisSense.Aligned,
             (math.pi / 2) * rad,
         )
-        before = doc.roots
+        before = content_pin(doc)
         with self.assertRaises(pncad.EditError) as caught:
             doc.insert(
                 Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment),
@@ -868,7 +878,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         # in words what it found.
         self.assertNotIn("mate_clocking_redundant", str(refusal))
         self.assertIn("the clocking disagrees", str(refusal))
-        self.assertEqual(doc.roots, before, "a refused mate enters nothing")
+        self.assertEqual(content_pin(doc), before, "a refused mate enters nothing")
         # The same rider INSIDE the band is redundant and admitted, and
         # the solve places the pair.
         redundant = Alignment(
@@ -890,6 +900,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         post_i = doc.insert(Node.instantiate_part(self.post_ref))
         doc.apply(DocEdit.set_label(post_i, "post"))
         face = self.instance_face(doc, post_i, CapEnd.End)
+        before = content_pin(doc)
         # A pair is two instances; a self-mate constrains nothing and
         # is a recipe mistake — a fact about the mate alone, so the
         # edit door refuses it where it is authored, with the solve's
@@ -907,7 +918,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         spoken = f'InstantiatePart "post" ({tag(post_i)})'
         self.assertIn(f"this mate names one member on both sides (it stands on {spoken})", str(refusal))
         self.assertIn(f"(it stands on {spoken})", str(refusal.fault))
-        self.assertEqual(doc.roots, [post_i], "nothing entered")
+        self.assertEqual(content_pin(doc), before, "nothing entered")
 
     def test_a_mate_on_a_transformed_instance_is_read_at_the_transform(self):
         """A mate's reference is a NODE and a NAME. Wrap an instance in
@@ -1141,6 +1152,10 @@ class TestAssemblyRefusals(BenchWorkspace):
                 ), Formula.length_in(2.0 * SHELF_LENGTH, m))
             )
         )
+        # The world holds the post and the union: the transform and the
+        # shelf instance below it reach the product only through it.
+        doc.place(post_a)
+        doc.place(family)
         a_top = self.instance_face(doc, post_a, CapEnd.End)
         s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
         mate = doc.insert(
@@ -1157,12 +1172,6 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertEqual(solve_document(doc, resolver=self.ws).role(mate), MateRole.Determining)
         ev = evaluate(doc, resolver=self.ws)
         product(doc, ev)
-        # The union is the root the shelf reaches the product through;
-        # the transform below it is not one (the mate, denoting no
-        # body, is a root of its own).
-        self.assertIn(family, doc.roots)
-        self.assertNotIn(lifted, doc.roots)
-        self.assertNotIn(shelf_i, doc.roots)
         with self.assertRaises(pncad.AssemblyError) as caught:
             assemble(doc, ev)
         err = caught.exception
@@ -1188,7 +1197,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         doc, post_i, shelf_i = self.two_instances()
         ev = evaluate(doc, resolver=self.ws)
         edge = sorted(ev.all_edges(post_i))[0]
-        bottom = one(ev.select(shelf_i, cap_selector(CapEnd.Start, [SegTag.InPart])))
+        bottom = one(ev.select(shelf_i, cap_selector(CapEnd.Start, PART_FACE)))
         with self.assertRaises(pncad.EditError) as caught:
             Node.mate(post_i, edge, shelf_i, bottom, ContactClass.Rest, seat(POST_SEAT, SEAT_A))
         err = caught.exception
@@ -1196,41 +1205,45 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertIn("edge", str(err))
         # The same call with a face head builds, so the refusal above
         # is the KIND's and not the fixture's.
-        top = one(ev.select(post_i, cap_selector(CapEnd.End, [SegTag.InPart])))
+        top = one(ev.select(post_i, cap_selector(CapEnd.End, PART_FACE)))
         doc.insert(
             Node.mate(post_i, top, shelf_i, bottom, ContactClass.Rest, seat(POST_SEAT, SEAT_A))
         )
 
     def test_a_gather_refusal_arrives_under_the_gathers_own_tag(self):
         doc = Doc("no-resolver")
-        doc.insert(Node.instantiate_part(self.post_ref))
-        # Evaluated with no resolver, the instance produced no body, so
-        # the GATHER refuses before the gate runs — and it refuses with
-        # the gather's own tag, not a wrapper's, because which
-        # invariant broke is what a caller branches on.
+        doc.place(doc.insert(Node.instantiate_part(self.post_ref)))
+        # Evaluated with no resolver, the instance produced no body and
+        # its placement none either, so the GATHER refuses before the
+        # gate runs — and it refuses with the gather's own tag, not a
+        # wrapper's, because which invariant broke is what a caller
+        # branches on.
         with self.assertRaises(pncad.AssemblyError) as caught:
             assemble(doc, evaluate(doc))
-        self.assertEqual(caught.exception.variant, "root_failed")
+        self.assertEqual(caught.exception.variant, "root_poisoned")
         self.assertIsNotNone(caught.exception.node)
         self.assertIsNone(caught.exception.refusals)
         with self.assertRaises(pncad.ProductError) as gather:
             product(doc, evaluate(doc))
-        self.assertEqual(gather.exception.variant, "root_failed")
+        self.assertEqual(gather.exception.variant, "root_poisoned")
 
     def test_a_gather_refusal_speaks_its_root_from_the_evaluated_document(self):
         doc = Doc("no-resolver-labelled")
         lonely = doc.insert(Node.instantiate_part(self.post_ref))
         doc.apply(DocEdit.set_label(lonely, "lonely post"))
+        placed = doc.place(lonely)
         ev = evaluate(doc)
-        # The message says the root as the evaluation's document holds
+        # The placement is poisoned THROUGH the failed instance, and the
+        # message says that instance as the evaluation's document holds
         # it, label and all; said by tag it would read `node <tag>`.
-        # The payload keeps the full id either way.
+        # The payload keeps the full ids either way.
         for door in (product, pncad.product_named):
             with self.assertRaises(pncad.ProductError) as gather:
                 door(doc, ev)
-            self.assertEqual(gather.exception.variant, "root_failed")
+            self.assertEqual(gather.exception.variant, "root_poisoned")
             self.assertIn('InstantiatePart "lonely post" (', str(gather.exception))
-            self.assertEqual(gather.exception.node, lonely)
+            self.assertEqual(gather.exception.node, placed)
+            self.assertEqual(gather.exception.through, lonely)
 
     def test_a_moved_pin_refuses_and_carries_its_recourse_once_by_either_door(self):
         doc, post_i, _ = self.two_instances()
@@ -1659,6 +1672,8 @@ class TestRefactorings(BenchWorkspace):
         doc.apply(
             DocEdit.set_offset(shelf_i, Placement.literal(Frame.translation((0 * m, 0.9 * m, 0 * m))))
         )
+        doc.place(post_i)
+        doc.place(shelf_i)
         return doc, post_i, shelf_i
 
     def volume(self, doc):
@@ -1675,7 +1690,7 @@ class TestRefactorings(BenchWorkspace):
             doc.apply(
                 DocEdit.set_offset(node, Placement.literal(Frame.translation((i * m, 0 * m, 0 * m))))
             )
-            cut.append(node)
+            cut += [node, doc.place(node)]
         outcome = pncad.split(doc, cut, random_document_id())
         self.assertEqual([a for a, _ in outcome.node_map], cut)
         self.assertEqual([b for _, b in outcome.node_map], outcome.part.order())
@@ -1692,17 +1707,21 @@ class TestRefactorings(BenchWorkspace):
     def test_split_then_inline_preserves_the_products_material_exactly(self):
         doc, _, shelf_i = self.layout()
         before = self.volume(doc)
+        _, on_shelf = doc.placements()
 
-        outcome = pncad.split(doc, [shelf_i], random_document_id())
+        # The cut takes the shelf with its world placement: a part
+        # delivers only its world.
+        outcome = pncad.split(doc, [shelf_i, on_shelf], random_document_id())
         # PURE: the two documents come back as VALUES with the edits
         # that produce them, and the original is untouched.
         self.assertEqual(self.volume(doc), before)
         self.assertGreater(len(outcome.part_edits), 0)
         self.assertGreater(len(outcome.remainder_edits), 0)
-        self.assertEqual(len(outcome.node_map), 1)
+        self.assertEqual(len(outcome.node_map), 2)
         # An instance of the new part is what replaced the cut, and it
-        # carries the part's reference.
-        self.assertIn(outcome.instance, outcome.remainder.roots)
+        # carries the part's reference; the remainder places one copy
+        # of it beside the post's.
+        self.assertEqual(len(outcome.remainder.placements()), 2)
         self.assertIsNotNone(outcome.remainder.reference(outcome.instance))
         # An authored instance crosses nothing; this one crossed
         # nothing either, because no mate spanned the cut.
@@ -1784,40 +1803,91 @@ class TestRefactorings(BenchWorkspace):
         )
 
 
-class TestProductRoots(BenchWorkspace):
-    """`set_roots` and `product`: a document states what it IS."""
-
-    def test_the_roots_say_what_the_product_gathers_and_in_what_order(self):
-        doc, post_i, shelf_i = Doc("roots"), None, None
-        post_i = doc.insert(Node.instantiate_part(self.post_ref))
-        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
-        self.assertEqual(doc.roots, [post_i, shelf_i])
-        # The designate door is TOTAL: one edit states the whole list,
-        # so the product's solid order is never inferred from an edit
-        # sequence.
-        doc.apply(DocEdit.set_roots([shelf_i, post_i]))
-        self.assertEqual(doc.roots, [shelf_i, post_i])
-        volume = self.volume(doc)
-        self.assertAlmostEqual(volume, POST_VOLUME + SHELF_VOLUME, delta=1e-12)
+class TestTheWorld(BenchWorkspace):
+    """`place` and `product`: a document's product is its world, every
+    copy a placement defines, and nothing places but `place`."""
 
     def volume(self, doc):
         return product(doc, evaluate(doc, resolver=self.ws)).mass_properties().volume
 
-    def test_the_root_invariants_refuse_under_their_own_tags(self):
-        doc = Doc("roots-refuse")
+    def test_the_placements_say_what_the_product_gathers_and_in_what_order(self):
+        doc = Doc("world")
         post_i = doc.insert(Node.instantiate_part(self.post_ref))
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
-        with self.assertRaises(pncad.EditError) as dup:
-            doc.apply(DocEdit.set_roots([post_i, post_i]))
-        self.assertEqual(dup.exception.variant, "root_duplicate")
-        with self.assertRaises(pncad.EditError) as uncovered:
-            doc.apply(DocEdit.set_roots([post_i]))
-        # A live node reaching no root is a silently dead subgraph.
-        self.assertEqual(uncovered.exception.variant, "root_uncovered")
-        # A refused edit leaves the document untouched.
-        self.assertEqual(doc.roots, [post_i, shelf_i])
+        # Nothing is placed by an insert, so the world is empty and the
+        # refusal names every unplaced body, in document order.
+        self.assertEqual(doc.placements(), [])
+        with self.assertRaises(pncad.ProductError) as empty:
+            product(doc, evaluate(doc, resolver=self.ws))
+        self.assertEqual(empty.exception.variant, "empty_product")
+        self.assertEqual(
+            empty.exception.unplaced_bodies, [doc.output(post_i), doc.output(shelf_i)]
+        )
+        self.assertIsNone(empty.exception.node)
+        # The world is the placements in document order, whatever the
+        # order of the bodies they read.
+        on_shelf = doc.place(shelf_i)
+        on_post = doc.place(post_i)
+        self.assertEqual(doc.placements(), [on_shelf, on_post])
+        self.assertEqual(doc.node_kind(on_shelf), "place_in_world")
+        self.assertAlmostEqual(
+            self.volume(doc), POST_VOLUME + SHELF_VOLUME, delta=1e-12
+        )
 
-    def test_a_document_with_no_body_root_has_no_product(self):
+    def test_a_placement_whose_body_is_deleted_strands_and_refuses_naming_it(self):
+        doc = Doc("world-stranded")
+        post_i = doc.insert(Node.instantiate_part(self.post_ref))
+        placed = doc.place(post_i)
+        # The delete is accepted: the placement is a reader left
+        # reading nothing, never silently re-pointed or dropped.
+        doc.apply(DocEdit.delete_node(post_i))
+        self.assertEqual(doc.placements(), [placed])
+        with self.assertRaises(pncad.ProductError) as caught:
+            product(doc, evaluate(doc, resolver=self.ws))
+        self.assertEqual(caught.exception.variant, "stranded_placement")
+        self.assertEqual(caught.exception.node, placed)
+        self.assertIsNone(caught.exception.unplaced_bodies)
+
+    def test_a_boolean_inserted_without_place_leaves_the_world_as_it_was(self):
+        """Nothing places as a side effect: a cut of two placed bodies
+        is a new body nobody placed, so the product is still the two
+        copies — the same door `DocEdit::place` is for the Rust
+        façade, with the same answer."""
+        doc = Doc("world-no-side-effect")
+
+        def block(x0):
+            profile = doc.insert(
+                Node.polygon(
+                    [
+                        (Formula.length_in(x0, m), Formula.length_in(0, m)),
+                        (Formula.length_in(x0 + 1, m), Formula.length_in(0, m)),
+                        (Formula.length_in(x0 + 1, m), Formula.length_in(1, m)),
+                        (Formula.length_in(x0, m), Formula.length_in(1, m)),
+                    ],
+                    plane=doc.sketch_frame(),
+                )
+            )
+            return doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
+
+        a, b = block(0.0), block(3.0)
+        placed = [doc.place(a), doc.place(b)]
+        cut = doc.insert(Node.subtract(a, b))
+        self.assertEqual(doc.placements(), placed, "the boolean is not placed")
+        self.assertEqual(self.volume(doc), 2.0, "the world is still [a', b']")
+        # Placing it is what puts it in the world, beside the two.
+        doc.place(cut)
+        self.assertEqual(self.volume(doc), 3.0)
+
+    def test_two_placements_of_one_body_are_two_copies(self):
+        doc = Doc("world-two-copies")
+        post_i = doc.insert(Node.instantiate_part(self.post_ref))
+        shift = Placement.literal(Frame.translation((1 * m, 0 * m, 0 * m)))
+        doc.place(post_i)
+        doc.place(post_i, shift)
+        self.assertEqual(len(doc.placements()), 2)
+        self.assertAlmostEqual(self.volume(doc), 2 * POST_VOLUME, delta=1e-12)
+
+    def test_a_document_with_no_body_has_an_empty_world(self):
         doc = Doc("datum-only")
         doc.insert(Node.datum_plane((
             Formula.length_in(0, m),
@@ -1830,7 +1900,8 @@ class TestProductRoots(BenchWorkspace):
         )))
         with self.assertRaises(pncad.ProductError) as caught:
             product(doc, evaluate(doc))
-        self.assertEqual(caught.exception.variant, "no_body_roots")
+        self.assertEqual(caught.exception.variant, "empty_product")
+        self.assertEqual(caught.exception.unplaced_bodies, [], "a datum is no body to place")
 
 
 class TestCarriedAcrossTheSeam(BenchWorkspace):
@@ -1875,6 +1946,8 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         # The shelf sits where its mate puts it: with no offset of its
         # own, the post roots the stand whichever way the mate reads.
         doc.apply(DocEdit.set_offset(shelf_i, None))
+        doc.place(post_a)
+        doc.place(shelf_i)
         a_top = self.instance_face(doc, post_a, CapEnd.End)
         s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
         alignment = Alignment(
@@ -1895,7 +1968,9 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
 
     def instantiated(self, seed, ref):
         doc = Doc(seed)
-        return doc, doc.insert(Node.instantiate_part(ref))
+        instance = doc.insert(Node.instantiate_part(ref))
+        doc.place(instance)
+        return doc, instance
 
     def carried(self, findings, relation):
         return [f for f in findings if f.attribution.relation == relation]
@@ -1999,6 +2074,7 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         outer.apply(DocEdit.set_label(outer_mate, "outer seat"))
         instance = outer.insert(Node.instantiate_part(ref))
         outer.apply(DocEdit.set_label(instance, "left bracket"))
+        outer.place(instance)
         with self.assertRaises(pncad.AssemblyError) as caught:
             assemble(outer, evaluate(outer, resolver=self.ws))
         err = caught.exception
@@ -2028,6 +2104,7 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
                 instance, Placement.literal(Frame.translation((5 * m, 0 * m, 0 * m)))
             )
         )
+        outer.place(instance)
         with self.assertRaises(pncad.AssemblyError) as caught:
             assemble(outer, evaluate(outer, resolver=self.ws))
         refuted = self.carried(caught.exception.findings, "carried_refuted")
@@ -2052,6 +2129,8 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         outer.apply(
             DocEdit.set_offset(second, Placement.literal(Frame.translation((5 * m, 0 * m, 0 * m))))
         )
+        outer.place(first)
+        outer.place(second)
         assembly = assemble(outer, evaluate(outer, resolver=self.ws))
         self.assertEqual(assembly.minted, [])
         self.assertEqual(
@@ -2125,10 +2204,9 @@ class TestMateFrameFromFace(BenchWorkspace):
         # The post grows on disk, edited in place so its cap keeps the
         # name the head holds; the reference moves; the shelf comes up
         # with the cap, by exactly the height change.
+        (extrude,) = [n for n in self.post.order() if self.post.node_kind(n) == "extrude"]
         self.post.apply(
-            DocEdit.set_param(
-                self.post.roots[0], "distance", Formula.length_in(POST_HEIGHT + 0.1, m)
-            )
+            DocEdit.set_param(extrude, "distance", Formula.length_in(POST_HEIGHT + 0.1, m))
         )
         self.ws.resave(self.post)
         for edit in pncad.update_references(doc, self.post.id, content_pin(self.post)):
@@ -2204,8 +2282,9 @@ class TestMateFrameFromFace(BenchWorkspace):
 
     def test_a_vanished_face_refuses_typed_with_the_face_named(self):
         # The post's own cap, wrapped at the instance as a head is, with
-        # the part-local name inside re-headed at a node the post does
-        # not have: the shape of a head whose face an edit removed.
+        # the part-local name innermost — inside the copy the post's
+        # placement makes of it — re-headed at a node the post does not
+        # have: the shape of a head whose face an edit removed.
         import json
 
         probe = Doc("from-face-vanished-probe")
@@ -2222,7 +2301,7 @@ class TestMateFrameFromFace(BenchWorkspace):
                 for child in value:
                     yield from inner_names(child, depth + 1)
 
-        (local,) = list(inner_names(spelled))
+        (copy, local) = list(inner_names(spelled))
         local["node"] = "0:0000000000000063"
         with self.assertRaises(pncad.EditError) as caught:
             self.seated(
@@ -2235,10 +2314,11 @@ class TestMateFrameFromFace(BenchWorkspace):
         fault = err.fault
         self.assertEqual(fault.variant, "mate_face_unresolved")
         self.assertEqual(fault.inner_variant, "no_such_name")
-        # The name text is opaque; the fault's face is the head's
-        # part-local name, compared as names rather than as one
-        # spelling of the text.
-        self.assertEqual(json.loads(fault.face), local)
+        # The name text is opaque; the fault's face is the head's name
+        # in the part's product — the re-headed part-local name under
+        # its copy — compared as names rather than as one spelling of
+        # the text.
+        self.assertEqual(json.loads(fault.face), copy)
         self.assertIn("did not resolve to a pose", str(fault))
 
 

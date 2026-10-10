@@ -330,7 +330,12 @@ impl Seats {
     /// ever refuse — a second body clicked into a datum seat — where
     /// wanting to re-target the body is the only thing the click can
     /// have meant.
+    ///
+    /// **A pick on a copy seats its body** ([`crate::world::seat_of`]):
+    /// a world placement's row, or the copy it draws, is a pick of the
+    /// body it places, which is what a tool authors against.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
+        let node = crate::world::seat_of(doc, node);
         // **A one-seat tool has one seat, and its role names itself
         // twice to say so** (`Seats::one`) — so a pick can only
         // land in the first slot, and the second is not a seat to

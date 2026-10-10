@@ -310,6 +310,8 @@ pub fn document() -> CorpusDoc {
         editor_core::select(&ev, pipped, &selector()),
     ));
 
+    r.place(composed);
+
     CorpusDoc {
         name: "die_composed",
         about: "M6 unit 1: the pipped cube filleted in place — box blends, octants, and the \

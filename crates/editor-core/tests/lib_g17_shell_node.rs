@@ -647,11 +647,14 @@ fn a_dual_evaluation_refuses_the_shell_typed() {
                 d.name
             ),
         }
-        // Everything upstream of the shell built: the refusal is the
-        // shell's alone.
+        // Everything else built or is poisoned through the shell (its
+        // world placement): the refusal is the shell's alone.
         let upstream_bad: Vec<_> = failures(&ev)
             .into_iter()
-            .filter(|s| !s.starts_with(&format!("{shell:?}")))
+            .filter(|s| {
+                !s.starts_with(&format!("{shell:?}"))
+                    && !s.ends_with(&format!("poisoned through {shell:?}"))
+            })
             .collect();
         assert!(upstream_bad.is_empty(), "{}: {upstream_bad:?}", d.name);
     }

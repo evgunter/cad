@@ -331,14 +331,21 @@ fn both_sweeps_evaluate_in_one_document() {
 /// the split's motion into it: the digest feeds each curve's `Debug`,
 /// and these are the documents whose bodies store a swept-point
 /// description, split or whole.
+///
+/// RE-BLESSED, all five, for INTENT stage 2 PR C (the product is the
+/// world): each document now places its bodies, and every placement is
+/// a node with a value and a name table of its own, so the evaluation
+/// this digest walks holds those copies. No node evaluated before moved:
+/// `intent_s2_c_world`'s migration check holds each product to its
+/// pre-C digest.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xccf6606ee59d7c82),
-        ("corner_table", 0xb2a5e5916eac8293),
-        ("cut_cylinder", 0x3708816be1b0c21a),
-        ("boss_union", 0x213a83cb7e6cba09),
-        ("kitchen_sink", 0x6491016053a9269b),
+        ("die", 0x1077_757a_ce0f_17c1),
+        ("corner_table", 0x956a_8c9d_2a36_d96a),
+        ("cut_cylinder", 0x5b24_7f0a_1360_4db4),
+        ("boss_union", 0x97c7_3b56_4913_d69c),
+        ("kitchen_sink", 0x59cd_a9f6_f2c5_f886),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

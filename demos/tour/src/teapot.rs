@@ -1067,25 +1067,12 @@ fn wall_one_pot(tol: Tol) -> Body<f64> {
 /// [`build_doc`] the stops walk, so the gallery cannot be a second
 /// authoring of the scene.
 ///
-/// Three sinks are deleted, and the deletion is what makes the file
-/// draw the teapot rather than a pile: the SEALED hollow, which is the
-/// same operand and wall as the cup and would render inside it, and
-/// the two refusing unions, which produce no body at all and hold the
-/// cup, the spout and the handle down out of the root set while they
-/// stand. What is left is the four bodies the montage shows, as four
-/// roots.
-///
-/// **GAP.** That deletion, and the two probe documents beside it
-/// ([`wall_one_pot`] and [`per_rim_answers`]), are one cost paid three
-/// ways: a recipe cannot hold a NARRATION or PROBE body without that
-/// body becoming a product root, because the root set IS the sink set
-/// and nothing in the vocabulary says "measured, not modelled". A
-/// scene that wants to measure a body beside the one it ships must
-/// either delete it from the copy the gallery opens — which is what
-/// this door does, and which means the file and the scene are two
-/// documents — or build it in a document of its own, which is what
-/// the two probes do and which costs them the scene's own frame and
-/// axis. Filed on LIB's slate.
+/// The product is the four bodies the montage shows — the handle, the
+/// lid, the cup and the spout — each placed in the world once. Nothing
+/// places the SEALED hollow, the same operand and wall as the cup, so
+/// it is not in the product. It and the two refusing unions, which
+/// produce no body, are deleted as well, so the file holds what the
+/// montage shows and no refusal.
 ///
 /// They interpenetrate, and the file says so: the handle's roots are
 /// driven through the belly wall and the spout's root disc sits inside
@@ -1094,11 +1081,18 @@ fn wall_one_pot(tol: Tol) -> Body<f64> {
 /// through the checks registry.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let r = build_doc(tol);
-    [r.handle_union, r.spout_union, r.pot]
+    let tidied = [r.handle_union, r.spout_union, r.pot]
         .into_iter()
         .fold(r.doc, |doc, id| {
             apply(&doc, &DocEdit::DeleteNode { id }, tol, &RefusingReach)
-                .expect("each is a sink: deleting it drops a root and uncovers no body")
+                .expect("nothing reads it, so it deletes")
+                .doc
+        });
+    [r.handle, r.lid, r.cup, r.spout]
+        .into_iter()
+        .fold(tidied, |doc, body| {
+            apply(&doc, &DocEdit::place(body, None), tol, &RefusingReach)
+                .expect("each of the four places")
                 .doc
         })
 }
