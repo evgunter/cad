@@ -26,8 +26,8 @@ fn tight_band() -> Band {
     Band::new(1e-12, 1e-11).unwrap()
 }
 
-/// A band below the interval lane's subdivided hull on the quarter
-/// turn, which limb 2's budget does not bring under it.
+/// A band below the floor the interval lane's arithmetic sets under
+/// limb 2's subdivided hull on the quarter turn.
 fn tighter_band() -> Band {
     Band::new(1e-13, 1e-12).unwrap()
 }
@@ -116,9 +116,17 @@ fn the_f64_route_certifies_at_a_1e_12_band_at_any_process_eps() {
 }
 
 /// PROBE 2 (claim C1/C3, the payload): at the interval scalar the same
-/// route escalates at a band ten times tighter, where limb 2's budget
-/// leaves its subdivided bound at about 3.9e-13, and the refusal carries
+/// route escalates at a band ten times tighter, and the refusal carries
 /// a REAL enclosure — not a poison and not a hole — at any process ε.
+///
+/// The escalation is the arithmetic's, not the budget's: limb 2's
+/// subdivided bound on the quarter turn levels off at about 3.9e-13 m
+/// (the same bits at the shipped budget's last round and where a budget
+/// of 40 rounds and 262 144 cuts stopped, at round 9, on the bound not
+/// falling), past the
+/// band's 1e-13 zero, so no budget certifies it, and one round already
+/// brings the first hull's 1.016e-12 under the 1e-12 escalate bound, so
+/// no budget of a round or more refuses it outright.
 #[test]
 fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
     use geom_core::interval::Interval;

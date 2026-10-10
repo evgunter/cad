@@ -115,7 +115,6 @@
 
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
-use geom_core::interval::max_bound;
 use geom_core::spline::KnotVector;
 use geom_core::spline::algebra::{domain_grid_points, range_grid_points};
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
@@ -732,18 +731,6 @@ impl Hull {
         spans
     }
 
-    /// The bound over `[lo, hi]`, a union of this hull's spans: the
-    /// largest of theirs, `NaN` where any is refused.
-    fn over(&self, lo: f64, hi: f64) -> f64 {
-        self.breaks
-            .windows(2)
-            .zip(&self.spans)
-            .filter(|(w, _)| lo <= w[0] && w[1] <= hi)
-            .map(|(_, &bound)| bound)
-            .reduce(max_bound)
-            .unwrap_or(f64::NAN)
-    }
-
     /// The break whose value's certified lower bound is largest, with
     /// that bound, where it lies past the band's zero: no bound over a
     /// span holding the break can clear.
@@ -790,7 +777,7 @@ pub(crate) const SSI_HULL_CUTS: usize = 1024;
 /// Where limb 2's subdivision stopped.
 enum Subdivided {
     /// On the bound over the whole carrier: it cleared the band's zero,
-    /// or the budget ran out, or a round narrowed no span, first.
+    /// or the budget ran out, or a round did not lower it, first.
     Bound(Hull),
     /// On a break whose value is certified past the band's zero.
     Value {
@@ -806,8 +793,11 @@ enum Subdivided {
 /// uncleared spans are halved, round by round, until its bound clears
 /// the band's zero, or a break's certified value lies past it, or it
 /// stops: [`SSI_HULL_ROUNDS`] rounds are spent, or [`SSI_HULL_CUTS`]
-/// cuts, or no span is left to halve, or a round narrowed the bound of
-/// no span it halved (the arithmetic's floor there). Every round's hull
+/// cuts, or no span is left to halve, or the bound over the whole
+/// carrier is refused or a round did not lower it. A round halves the worst span first,
+/// and a Bernstein row's halves lie inside its own hull, so a bound that
+/// did not fall is the arithmetic's floor at that span, which no
+/// further halving lowers. Every round's hull
 /// is the composite's own, cut from each Bézier segment's row
 /// ([`CurveCertData::with_breaks`], the surface residual's extra
 /// breaks), so each piece's coefficients enclose that piece and no cut
@@ -824,7 +814,7 @@ fn subdivide(
     band: Band,
 ) -> Result<Subdivided, SsiError> {
     let mut cuts: Vec<f64> = Vec::new();
-    let mut halved: Vec<Halved> = Vec::new();
+    let mut before = f64::INFINITY;
     let mut rounds = 0;
     loop {
         let h = hull(&cuts)?;
@@ -839,15 +829,16 @@ fn subdivide(
         if let Some((at, floor)) = h.past(band) {
             return Ok(Subdivided::Value { hull: h, at, floor });
         }
-        let narrowed = halved.iter().any(|s| h.over(s.lo, s.hi) < s.bound);
+        // A refused (`NaN`) bound never falls, so it stops at once.
+        let fell = h.sup < before;
         let mut next = h.to_halve(band);
         next.truncate(SSI_HULL_CUTS - cuts.len());
-        if rounds == SSI_HULL_ROUNDS || next.is_empty() || (rounds > 0 && !narrowed) {
+        if !fell || rounds == SSI_HULL_ROUNDS || next.is_empty() {
             return Ok(Subdivided::Bound(h));
         }
         cuts.extend(next.iter().map(|s| s.mid()));
         cuts.sort_by(f64::total_cmp);
-        halved = next;
+        before = h.sup;
         rounds += 1;
     }
 }
