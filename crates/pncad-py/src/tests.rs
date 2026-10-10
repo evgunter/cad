@@ -5620,6 +5620,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "declare_resolve",
             "declare_site_not_an_operand",
             "declare_unsupported_pair",
+            "declared_contact_unbacked",
             "degenerate_direction",
             "degenerate_spacing",
             "degenerate_step",
@@ -10779,6 +10780,7 @@ mod product_memo_rows {
         let ev = evaluated(&doc);
         let cfg = d::ChecksConfig {
             separation: d::Advisory::Off,
+            unproven_coincidence: d::Advisory::Off,
             ..d::ChecksConfig::default()
         };
         assert!(!cfg.needs_a_subject());

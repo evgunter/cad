@@ -371,10 +371,11 @@ pub use editor_core::ContentBits;
 // `product` is the whole-document gather of those copies. `OwnSpace`
 // is one unplaced group's own space, which a `Product` carries beside
 // the world for the at-rest gate to check, and `own_spaces` gathers
-// every one.
+// every one. `AtRestRow` is one of the product's at-rest decisions,
+// the mate it is decided for beside the census's row.
 pub use editor_core::{
-    OwnSpace, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal, SourceFinding,
-    own_spaces, product, product_recorded,
+    AtRestRow, OwnSpace, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal,
+    SourceFinding, own_spaces, product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:

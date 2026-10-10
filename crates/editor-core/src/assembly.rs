@@ -1435,7 +1435,7 @@ pub(crate) fn mint<P: crate::ProfilePayload, T: Decide>(
                     "a live mate's two references resolved to one face: \
                      the solve door's `SelfMate` refusal was bypassed"
                 );
-                at_rest.decide(id, body, (a, face_a), (b, face_b), band.clone());
+                at_rest.decide(id, body, (a, face_a), (b, face_b), band);
             }
             other => {
                 unminted.push(MintRefusal::NoAtRestRecord {
@@ -1491,9 +1491,10 @@ impl AtRestRows {
         (b, face_b): (&SitedFace, FaceKey),
         band: Result<geom_core::Band, geom_core::BandError>,
     ) {
-        let decided = band
-            .map_err(|error| ValidationError::Band { error })
-            .and_then(|band| topo::census_rest_decision(body, face_a, face_b, band));
+        let decided = match band {
+            Ok(band) => topo::census_rest_decision(body, face_a, face_b, band),
+            Err(error) => Err(ValidationError::Band { error }),
+        };
         match decided {
             Ok(row) => {
                 let cell = |r: &SitedFace| crate::coincide::NamedCell::Entity {
