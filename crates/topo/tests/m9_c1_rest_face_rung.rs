@@ -155,9 +155,9 @@ fn pair_declined(errors: &[ValidationError], face_a: FaceKey, face_b: FaceKey) {
 ///
 /// **And since #1063 the pair itself CERTIFIES**, so the flush seat —
 /// the obvious way to draw a post under a shelf — leaves no residue at
-/// all. The two descriptions share no `SurfaceKey` and no `GeomSource`;
-/// their shared world carrier is the chart, the region walk refuses the
-/// shared trim edge as a touching boundary, and the interior-witness
+/// all. The two descriptions share no `SurfaceKey`; their shared
+/// world carrier is the chart, the region walk refuses the shared
+/// trim edge as a touching boundary, and the interior-witness
 /// rung proves the disc. This is #943's whole repro, certified.
 #[test]
 fn a_declared_flush_seat_leaves_no_undeclared_contact() {

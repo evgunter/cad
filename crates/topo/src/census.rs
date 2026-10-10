@@ -7649,14 +7649,11 @@ mod tests {
 
     // ============ MATE-5: the cross-description cylinder rows ==========
     //
-    // Issue 943's residue at the CENSUS door: the same wall-sheet
-    // fixtures, but the second sheet authored in a DIVERGENT
-    // description of the same cylinder locus (origin a quarter up the
-    // axis, axis direction opposed, seam rotated 0.7 rad, its own
-    // `GeomSource`) — the cross-instance class's fingerprint, which
-    // used to dead-end `ChartDivergence` → `CensusUnsupported{FacePair}`
-    // → `Declined` → `Uncertified` and now flows through the
-    // certified-ε enclosure arm.
+    // The same wall-sheet fixtures at the CENSUS door, but the second
+    // sheet authored in a DIVERGENT description of the same cylinder
+    // locus (origin a quarter up the axis, axis direction opposed,
+    // seam rotated 0.7 rad, its own surface key): the pair flows
+    // through the certified-ε enclosure arm.
 
     /// A wall sheet over the DIVERGENT description of the unit
     /// cylinder: `θ_world = 0.7 − u_B`, `z_world = 0.25 − v_B`. Takes
@@ -7680,7 +7677,6 @@ mod tests {
             body,
             CylFrame::opposed(d),
             CylKey::Bare,
-            Some(7102),
             (u0, u1),
             (v0, v1),
             Tol::witness(),
@@ -7690,7 +7686,7 @@ mod tests {
     }
 
     /// One arena, two wall sheets on DIVERGENT descriptions of one
-    /// cylinder, opposed senses, distinct sources — the seat, at the
+    /// cylinder, opposed senses — the seat, at the
     /// census's own door.
     fn cross_description_pair(
         th0: f64,
@@ -7699,7 +7695,7 @@ mod tests {
         z1: f64,
     ) -> (Body<f64>, FaceKey, FaceKey) {
         let mut body = Body::<f64>::new();
-        let (w1, cyl_a) = unit_cyl_sheet(
+        let (w1, _) = unit_cyl_sheet(
             &mut body,
             None,
             (0.2, 1.6),
@@ -7707,8 +7703,6 @@ mod tests {
             true,
             Tol::witness(),
         );
-        body.set_surface_source(cyl_a, crate::GeomSource::minted(7101, 0))
-            .unwrap();
         let w2 = cyl_sheet_b(&mut body, th0, th1, z0, z1, false);
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         (body, w1, w2)
@@ -11081,7 +11075,6 @@ mod torn_reach_rows {
         let face = crate::test_support_fixtures::cyl_wall_sheet(
             &mut body,
             crate::test_support_fixtures::CylFrame::canonical(1.0),
-            None,
             (0.2, 1.4),
             (0.0, 1.0),
             Tol::witness(),

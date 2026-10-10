@@ -225,12 +225,19 @@ fn both_blends_evaluate_in_one_document() {
 /// digest walks holds those copies. What each document delivers did
 /// not move: `intent_s2_c_world`'s migration check holds each product
 /// to its pre-C digest.
+///
+/// RE-BLESSED, every row that moved, for INTENT stage 4 E (booleans
+/// glue on Zero): a body no longer carries provenance side tables
+/// (`GeomSource` stamps, field and axis sources), and the digest feeds
+/// each body's `Debug`. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x1e58_cc60_87b0_f207u64),
-        ("die_chamfer", 0x6ff9_7da9_d32f_236d),
+        ("die_fillet", 0x1030_7726_e783_da9au64),
+        ("die_chamfer", 0x854d_40cb_a3df_004a),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -351,13 +358,20 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// digest walks holds those copies. What each document delivers did
 /// not move: `intent_s2_c_world`'s migration check holds each product
 /// to its pre-C digest.
+///
+/// RE-BLESSED, every row that moved, for INTENT stage 4 E (booleans
+/// glue on Zero): a body no longer carries provenance side tables
+/// (`GeomSource` stamps, field and axis sources), and the digest feeds
+/// each body's `Debug`. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0xae0c_a6e6_3dc8_a16fu64),
-        ("heat_sink", 0xd4e6_0488_19de_1520),
-        ("kiss_carry", 0xabc1_a39e_156e_7696),
+        ("crossing_slots", 0x8c4a_a1e9_6791_d8b3u64),
+        ("heat_sink", 0x8dae_ba61_42a1_9b5a),
+        ("kiss_carry", 0x5c44_b19c_489f_37ad),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -461,7 +475,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xcf5ec896df3a904c,
+        got, 0xe40c4fd49ed9f9be,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

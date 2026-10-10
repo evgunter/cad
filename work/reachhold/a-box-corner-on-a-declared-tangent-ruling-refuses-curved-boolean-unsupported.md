@@ -2,11 +2,10 @@
 id: a-box-corner-on-a-declared-tangent-ruling-refuses-curved-boolean-unsupported
 kind: issue
 title: A box whose corner stands on the ruling of a declared Tangent refuses CurvedBooleanUnsupported in both operand orders
-status: parked
+status: open
 opened: 2026-10-02
 priority: P3
 cost: M
-blocked_on: [intent-stage4-is-built]
 ---
 
 Found while building `a-stack-across-a-mid-edge-tangency-builds-in-one-operand-order-only`,
@@ -46,3 +45,7 @@ plate's). Measure the raising site before designing anything.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: reached only through a declared Tangent cover; stage 4 retires the declared-tangency channel and the undeclared-tangency refusal. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E's glue door now declares the wall × fillet tangency itself where the witness lane verifies it (`crates/topo/src/boolean/glue.rs:98`, `tangency`), so the declared and undeclared poses run one path. Nothing in E's diff reaches the C7 lump sites' `CurvedBooleanUnsupported` arm. Not re-measured on E. The row's first step stands: instrument the raising site.

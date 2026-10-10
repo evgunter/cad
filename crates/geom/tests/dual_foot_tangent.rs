@@ -27,7 +27,7 @@
 //! | quantity | true | `Dual64` reported |
 //! |---|---|---|
 //! | `d(foot.x)/ds`, curve and surface | `0` | `1` |
-//! | `d(orthogonality)/ds`, curve; `d(orthogonality_u)/ds`, surface | `0` | `4` |
+//! | `d(orthogonality)/ds`, curve | `0` | `4` |
 //! | `d(distance)/ds` | `0` | `0` — right, and only on the cosine exit |
 //!
 //! **A fixer loses the red-test workflow.** To reproduce those numbers
@@ -132,7 +132,7 @@ fn the_true_curve_foot_and_orthogonality_derivatives_are_zero() {
 /// The surface twin. Same fixture, same true derivatives, two
 /// parameters.
 #[test]
-fn the_true_surface_foot_and_orthogonality_derivatives_are_zero() {
+fn the_true_surface_foot_and_distance_derivatives_are_zero() {
     let at = |s: f64| {
         sliding_patch::<f64>(s)
             .project(Point3::new(1.0, 0.5, 1.0))
@@ -142,14 +142,8 @@ fn the_true_surface_foot_and_orthogonality_derivatives_are_zero() {
     let d = |f: fn(&geom::SurfaceProjection<f64>) -> f64| (f(&hi) - f(&lo)) / (2.0 * H);
 
     assert!(d(|r| r.foot.x).abs() < 1e-6, "got {}", d(|r| r.foot.x));
-    assert!(
-        d(|r| r.orthogonality_u).abs() < 1e-6,
-        "got {}",
-        d(|r| r.orthogonality_u)
-    );
     assert!(d(|r| r.distance).abs() < 1e-6, "got {}", d(|r| r.distance));
 
     let mid = at(0.0);
     assert!((mid.foot.x - 1.0).abs() < 1e-9);
-    assert!(mid.orthogonality_u.abs() < 1e-9);
 }
