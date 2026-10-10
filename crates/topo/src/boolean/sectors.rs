@@ -136,13 +136,16 @@ impl<T: Decide> Bend<T> {
         let bounds = match *carrier {
             // The parameter is the angle, so the arc is `radius·span`
             // long, no point lies further than the diameter, and the arc
-            // rises `radius·(1 − cos θ)` off its tangent at angle `θ`,
-            // most at `θ = min(span, π)`.
+            // rises `radius·(1 − cos θ) = 2·radius·sin²(θ/2)` off its
+            // tangent at angle `θ`, most at `θ = min(span, π)` (the sine
+            // form, since `1 − cos θ` cancels to nothing at a small `θ`).
             geom::Curve3::Circle { radius, .. } => BendBounds::Planar {
                 least: T::one() / radius,
                 most: T::one() / radius,
                 reach: (radius * span).min(radius * T::from_f64(2.0)),
-                rise: radius * (T::one() - span.min(T::pi()).cos()),
+                rise: radius
+                    * T::from_f64(2.0)
+                    * (span.min(T::pi()) * T::from_f64(0.5)).sin().powi(2),
             },
             // Semi-axes `a ≥ b`: the curvature runs from `b/a²` at the
             // ends of the minor axis to `a/b²` at the ends of the major,
@@ -5477,17 +5480,36 @@ mod tests {
                             })
                             .fold(0.0f64, f64::max);
                         let l = extent.min(core::f64::consts::FRAC_PI_2 / kmax);
-                        let mut walked = 0.0;
-                        let mut at_l = samples;
-                        for i in 1..=samples {
-                            walked += flat.eval(param(i)).distance(flat.eval(param(i - 1)));
-                            if walked >= l {
-                                at_l = i - 1;
-                                break;
+                        // The arc length `l` is found to a step of
+                        // `span / samples²`: coarse steps up to the one it
+                        // falls in, fine ones within it, so the witness
+                        // lands on `l` however short it is beside a step.
+                        let walk = |t0: f64, dt: f64, steps: usize, walked: f64| {
+                            let mut walked = walked;
+                            for i in 1..=steps {
+                                let (a, b) = (t0 + dt * (i - 1) as f64, t0 + dt * i as f64);
+                                let step = flat.eval(b).distance(flat.eval(a));
+                                if walked + step >= l {
+                                    return Err((a, step, walked));
+                                }
+                                walked += step;
                             }
-                        }
+                            Ok(walked)
+                        };
+                        let dt = span / samples as f64;
+                        let t_l = match walk(0.0, dt, samples, 0.0) {
+                            Ok(_) => span,
+                            Err((t0, _, walked)) => {
+                                match walk(t0, dt / samples as f64, samples, walked) {
+                                    Ok(_) => t0 + dt,
+                                    Err((a, step, walked)) => {
+                                        a + dt / samples as f64 * (l - walked) / step
+                                    }
+                                }
+                            }
+                        };
                         // The arc's excursion along its own normal at `l`.
-                        let depth = (flat.eval(param(at_l)) - base).z;
+                        let depth = (flat.eval(t_l) - base).z;
                         let beta = (rho * b.zero() / extent).asin();
                         let cg = sense * (q * b.zero() / depth).min(1.0);
                         let (carrier, _) = mk(beta, cg);
@@ -5501,7 +5523,7 @@ mod tests {
                         let heights: Vec<f64> = (0..=samples)
                             .map(|i| (carrier.eval(param(i)) - base).z)
                             .collect();
-                        let h_l = heights[at_l];
+                        let h_l = (carrier.eval(t_l) - base).z;
                         let lo = heights.iter().copied().fold(f64::INFINITY, f64::min);
                         let hi = heights.iter().copied().fold(f64::NEG_INFINITY, f64::max);
                         let what = format!(
@@ -5552,15 +5574,16 @@ mod tests {
     }
 
     /// **An arc long beside the band whose sagitta stays inside it is
-    /// `On`** (review row, R2 of PR 4575): radius 1000, a microradian
-    /// of span, so a millimetre long and `5e-10` off its tangent at its
-    /// far end. Bending toward the plane's normal it lies in the plane to
-    /// the band; a height bound read at its reach (a millimetre) refused.
+    /// `On`** (review row, R2 of PR 4575): radius 1000, and a span whose
+    /// sagitta is a tenth of the band, so the arc is over `10⁴` bands
+    /// long. Bending toward the plane's normal it lies in the plane to
+    /// the band; a height bound read at its reach refused.
     #[test]
     fn a_long_arc_whose_sagitta_is_in_the_band_is_on() {
         let b = band();
         let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
-        let (r, span) = (1e3, 1e-6);
+        let r = 1e3;
+        let span = (0.2 * b.zero() / r).sqrt();
         let z = Vec3::new(0.0, 0.0, 1.0);
         let x = Vec3::new(1.0, 0.0, 0.0);
         let carrier = geom::Curve3::Circle {
@@ -5570,7 +5593,11 @@ mod tests {
             u_ref: -z,
         };
         let chord = carrier.eval(span).distance(geom_core::Point3::origin());
-        assert!(chord > 9e-4 && (carrier.eval(span) - geom_core::Point3::origin()).z < b.zero());
+        let far = (carrier.eval(span) - geom_core::Point3::origin()).z;
+        assert!(
+            chord > 1e4 * b.zero() && far < b.zero(),
+            "the arc is long beside the band (chord {chord:e}) and its far end in it ({far:e})"
+        );
         let extent = geom_brep::edge_extent(&carrier, 0.0, span, chord);
         let bend = Bend::of(&carrier, carrier.deriv(0.0), carrier.deriv2(0.0), span);
         let dir = carrier.deriv(0.0).normalize() * extent;
