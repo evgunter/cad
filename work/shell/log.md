@@ -1373,3 +1373,7 @@ Ev said go.
   - One `gap_within_eps` helper holds the single ε read.
   - The orchestrator merged main twice before merging; the second merge kept both test modules in `replace_face.rs`.
   - Filed from the unit: SSIEDGE one-arc on a window edge, QUAD sub-range trim image, SHELL iso-row u-moving image.
+- **Units 17 and 18 dispatched** (2026-10-10 09:37–09:41Z).
+  - Unit 17: narrow the iso-row arm. Session `session_01RZJC9khmQTn8f8veyfg6rH`, branch `shell/iso-row-narrow`, M tier; rule-1 byte 37 (mod 3 = 1) puts it in the sequential arm.
+  - Unit 18: the general simultaneous door. Session `session_01De5VWXHkEBqhmCXCzNUivh`, branch `shell/general-door`, H tier, dual review.
+  - Both specs are in the dispatch prompts, as `## Decided` sections the lanes copy into their items.
