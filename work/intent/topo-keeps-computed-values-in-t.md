@@ -29,3 +29,5 @@ decisions it sees laundered and the row each is owed to; a fix here
 that clears one moves that pin, which is the evidence the fix landed.
 A move to `from_computed` can only lose symbolic `Zero`s, never
 geometry: say which `symbolic_zero` counts moved.
+
+**A candidate the census found.** With the tier off, `REVALUE_DOC=die` in release, reading the decisions before the two builds part (`revalue_corpus.rs`'s `revalue_census`, `parted`), the last decision compared is `volume_backstop` (`boolean/ops.rs`). It re-values to −3.1e-17, where `p0` decided 0 and `p1` decided −2.3e-16. Its margin is built from listed sites of this unit: `props.rs`'s `ac`, `fc` and `self.volume_pad`, and `boolean/ops.rs`'s `margin.lo()`. The loop it sits in refines a data-dependent number of rounds with no decision between them, so the prefix reading cannot attribute it on its own. Fixing those sites should make it re-value to the `p1` bits, or show that the difference is the round count.
