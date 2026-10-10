@@ -2,10 +2,11 @@
 id: interval-steep-cut-through-cylinder-caps-refuses-order-escalated
 kind: issue
 title: plane_section at Interval refuses OrderEscalated (split_join_order_u, enclosure ~±7e-15) on a steep cut through a cylinder's caps that f64 answers
-status: open
+status: dispatched
 opened: 2026-10-02
 priority: P3
 cost: E
+branch: cleave/interval-join-order
 ---
 
 
