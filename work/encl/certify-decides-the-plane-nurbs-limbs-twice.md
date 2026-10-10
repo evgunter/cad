@@ -2,7 +2,8 @@
 id: certify-decides-the-plane-nurbs-limbs-twice
 kind: issue
 title: geom-brep: certify.rs re-decides the PlaneNurbs limbs' on-locus and hull values through check_residual after the lane already decided them
-status: review
+status: closed
+closed: 2026-10-10
 branch: encl/plane-nurbs-limbs-once
 opened: 2026-10-10
 priority: P3
