@@ -2835,6 +2835,8 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         | CertCheck::ChartResidual
         | CertCheck::PlaneNurbsOnLocus
         | CertCheck::PlaneNurbsHull
+        | CertCheck::PlaneNurbsHullValue
+        | CertCheck::AnalyticBreakResidual
         | CertCheck::AnalyticHull => {
             geom_core::undecided!("whether it lies where its description says")
         }

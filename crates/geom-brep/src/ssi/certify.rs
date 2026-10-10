@@ -59,17 +59,8 @@
 //!   which is what retired the plane×NURBS arm — see the C5 table's
 //!   `(Plane, Nurbs)` note for the retirement record.
 //!
-//! Either composite is **subdivided until it decides**: where its bound
-//! does not clear the band, the spans that do not are halved, round by
-//! round under a budget, each piece cut from its Bézier segment's own
-//! row so no cut compounds another's width. A Bernstein row also
-//! interpolates its end coefficients, so each break carries a certified
-//! enclosure of the residual's VALUE there. Limb 2 passes when the bound
-//! clears; refuses on a measured residual (`SsiLimb::HullValue`, the
-//! on-locus check's kind) when a break's value lies past the band's
-//! zero, since no bound over a span holding it can clear; and refuses on
-//! the bound (`SsiLimb::HullSup`, a bound's kind) when the budget is
-//! spent first.
+//! Either composite is **subdivided until it decides** ([`subdivide`]);
+//! the rule is C2's paragraph in `crates/geom-brep/README.md`.
 //!
 //! # Limb 3 — the uniqueness tube (component selection, made real)
 //!
@@ -124,6 +115,8 @@
 
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
+use geom_core::interval::certification::Certification;
+use geom_core::interval::max_bound;
 use geom_core::spline::KnotVector;
 use geom_core::spline::algebra::{domain_grid_points, range_grid_points};
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
@@ -280,10 +273,16 @@ pub enum SsiLimb {
     OnLocus,
     /// Limb 2 — the control-hull sup-norm bound.
     HullSup,
-    /// Limb 2 — the sup-norm composite's certified value at one of its
-    /// breaks, past the band's zero: a measured residual, where the
-    /// bound did not clear.
+    /// Limb 2 against an analytic operand — the composite's certified
+    /// value at one of its breaks, past the band's zero: limb 1's
+    /// linearized residual, measured where the bound did not clear.
     HullValue,
+    /// Limb 2 against a NURBS operand — `|S(P(t)) − C(t)|` at one of the
+    /// composite's breaks, past the band's zero: the carrier against the
+    /// surface point its pcurve names, which bounds its miss from the
+    /// surface from above, so the bound over a span holding the break
+    /// cannot clear.
+    HullValueChart,
     /// Limb 3 — the uniqueness tube.
     Tube,
 }
@@ -294,7 +293,11 @@ impl SsiLimb {
         match self {
             Self::OnLocus => "limb 1 (on-locus residual)",
             Self::HullSup => "limb 2 (control-hull sup-norm bound)",
-            Self::HullValue => "limb 2 (the sup-norm composite's value at a break)",
+            Self::HullValue => "limb 2 (the carrier's residual at a break of its composite)",
+            Self::HullValueChart => {
+                "limb 2 (the carrier against its pcurve's surface point at a break of its \
+                 composite)"
+            }
             Self::Tube => "limb 3 (uniqueness tube)",
         }
     }
@@ -303,14 +306,17 @@ impl SsiLimb {
     /// of, whose ending ([`crate::certify::recourse`]) every door that
     /// reports the limb reads. Limbs 1 and 2 are the fitted carrier's
     /// on-locus residual and sup-norm bound; limb 2's value at a break
-    /// is that residual measured, at the surface point the operand's
-    /// foot or pcurve names; limb 3's margin is the operands'
+    /// is limb 1's residual against an analytic operand, and against a
+    /// NURBS operand the sup-norm bound's quantity at a point, a bound
+    /// on the miss like it; limb 3's margin is the operands'
     /// transversality over the box chain.
     #[must_use]
     pub fn check(self) -> CertCheck {
         match self {
-            Self::OnLocus | Self::HullValue => CertCheck::PlaneNurbsOnLocus,
+            Self::OnLocus => CertCheck::PlaneNurbsOnLocus,
             Self::HullSup => CertCheck::PlaneNurbsHull,
+            Self::HullValue => CertCheck::AnalyticBreakResidual,
+            Self::HullValueChart => CertCheck::PlaneNurbsHullValue,
             Self::Tube => CertCheck::Transversality,
         }
     }
@@ -442,7 +448,6 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     let hull = |cuts: &[f64]| -> Result<Hull, SsiError> {
         let (form, per_meter) =
             composite_form(surface).map_err(|what| SsiError::UnsupportedCertificate { what })?;
-        let to_meters = 1.0 / per_meter;
         let fine = fine.get_or_init(|| refined(carrier));
         let coords = fine.certified_coords();
         let data = CurveCertData::new(fine.knots(), fine.weights(), &coords)
@@ -455,14 +460,15 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
                 what: "the implicit composite refused the fitted carrier",
             }
         })?;
-        let per_meter = Interval::from_bounds(per_meter, per_meter);
+        // Every reading crosses to metres by one outward division.
+        let per_meter = Interval::point(per_meter);
         Ok(Hull {
-            sup: composite.sup_bound() * to_meters,
+            sup: (composite.bound() / per_meter).mag(),
             breaks: composite.num.breaks().to_vec(),
             spans: composite
-                .span_sup_bounds()
+                .span_bounds()
                 .into_iter()
-                .map(|b| b * to_meters)
+                .map(|b| (b / per_meter).mag())
                 .collect(),
             values: composite
                 .break_values()
@@ -487,11 +493,16 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
                 hull.uncleared(band, &mut at.spans);
             }
         }
-        limb_verdict(SsiLimb::OnLocus, decided, || r.hi(), at)?;
+        limb_verdict(
+            SsiLimb::OnLocus,
+            decided,
+            || RefusedResidual::Over(r.hi()),
+            at,
+        )?;
     }
 
     // ---- limb 2: the certified hull bound, subdivided ----
-    let sup = hull_limb("ssi_hull_sup", subdivide(hull, band)?, band, at)?;
+    let sup = hull_limb(&ANALYTIC_HULL, subdivide(hull, band)?, band, at)?;
     Ok((worst, sup))
 }
 
@@ -589,7 +600,12 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
                 hull.uncleared(band, &mut at.spans);
             }
         }
-        limb_verdict(SsiLimb::OnLocus, decided, || proj.distance.hi(), at)?;
+        limb_verdict(
+            SsiLimb::OnLocus,
+            decided,
+            || RefusedResidual::Over(proj.distance.hi()),
+            at,
+        )?;
     }
 
     // ---- limb 2: |S(P(t)) − C(t)| as ONE composite (M5 PR 7b) ----
@@ -597,20 +613,20 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     // every coefficient of every operand entered interval arithmetic through its
     // own bracket (`certified_coords`), so a widened control net widens the
     // composite and the bound stays honest.
-    let sup = hull_limb("ssi_hull_sup_chart", subdivide(hull, band)?, band, at)?;
+    let sup = hull_limb(&CHART_HULL, subdivide(hull, band)?, band, at)?;
     Ok((worst, sup))
 }
 
 /// A limb's verdict on its residual: `Ok` where it is zero to tolerance
 /// (the `dihedral_wedge` convention), and otherwise the limb's refusal,
-/// recorded in `at` as one [`LimbRefusal`] — `sup`, the upper end of the
+/// recorded in `at` as one [`LimbRefusal`] — `definite`, read off the
 /// residual's enclosure, as its residual on a definite refusal. A
 /// margin that is no number records nothing: no density of samples
 /// answers it.
 fn limb_verdict(
     limb: SsiLimb,
     decided: Result<Decided, Indeterminate>,
-    sup: impl FnOnce() -> f64,
+    definite: impl FnOnce() -> RefusedResidual,
     at: &mut Refused,
 ) -> Result<(), SsiError> {
     match decided {
@@ -621,7 +637,7 @@ fn limb_verdict(
             at.refusal = Some(LimbRefusal {
                 limb,
                 margin,
-                residual: RefusedResidual::Over(sup()),
+                residual: definite(),
             });
             Err(SsiError::CertificateLimb { limb, margin })
         }
@@ -672,6 +688,14 @@ fn clears(bound: f64, band: Band) -> bool {
     )
 }
 
+/// A span of limb 2's composite a round halves: its ends and its bound.
+#[derive(Clone, Copy)]
+struct Halved {
+    lo: f64,
+    hi: f64,
+    bound: f64,
+}
+
 impl Hull {
     /// Pushes onto `at` every span whose bound does not clear the band's
     /// zero. A selection of where to look, never a decision: the refusal
@@ -685,22 +709,45 @@ impl Hull {
         }
     }
 
-    /// The midpoint of every span whose bound does not clear the band's
-    /// zero, where it lies strictly inside the span.
-    fn halves(&self, band: Band) -> Vec<f64> {
+    /// The spans a round may halve, worst bound first: every span whose
+    /// bound does not clear the band's zero and has a midpoint strictly
+    /// inside it. A refused (`NaN`) span is not among them: interval
+    /// arithmetic refused its piece, and a piece of it is refused alike.
+    fn to_halve(&self, band: Band) -> Vec<Halved> {
+        let mut spans: Vec<Halved> = self
+            .breaks
+            .windows(2)
+            .zip(&self.spans)
+            .map(|(w, &bound)| Halved {
+                lo: w[0],
+                hi: w[1],
+                bound,
+            })
+            .filter(|s| !s.bound.is_nan() && !clears(s.bound, band))
+            .filter(|s| {
+                let m = s.mid();
+                s.lo < m && m < s.hi
+            })
+            .collect();
+        spans.sort_by(|a, b| b.bound.total_cmp(&a.bound).then(a.lo.total_cmp(&b.lo)));
+        spans
+    }
+
+    /// The bound over `[lo, hi]`, a union of this hull's spans: the
+    /// largest of theirs, `NaN` where any is refused.
+    fn over(&self, lo: f64, hi: f64) -> f64 {
         self.breaks
             .windows(2)
             .zip(&self.spans)
-            .filter(|(_, bound)| !clears(**bound, band))
-            .map(|(w, _)| 0.5 * (w[0] + w[1]))
-            .filter(|&m| self.breaks.binary_search_by(|b| b.total_cmp(&m)).is_err())
-            .collect()
+            .filter(|(w, _)| lo <= w[0] && w[1] <= hi)
+            .map(|(_, &bound)| bound)
+            .reduce(max_bound)
+            .unwrap_or(f64::NAN)
     }
 
     /// The break whose value's certified lower bound is largest, with
-    /// that bound, where it lies past the band's zero: there the
-    /// residual is measured past it, and no bound over a span holding
-    /// the break can clear.
+    /// that bound, where it lies past the band's zero: no bound over a
+    /// span holding the break can clear.
     fn past(&self, band: Band) -> Option<(f64, f64)> {
         self.breaks
             .iter()
@@ -708,6 +755,13 @@ impl Hull {
             .map(|(&t, &v)| (t, zero_free_lower_bound(v)))
             .filter(|&(_, floor)| !clears(floor, band))
             .max_by(|a, b| a.1.total_cmp(&b.1))
+    }
+}
+
+impl Halved {
+    /// Where the span is cut.
+    fn mid(self) -> f64 {
+        0.5 * (self.lo + self.hi)
     }
 }
 
@@ -719,69 +773,120 @@ impl Hull {
 /// bound.
 pub(crate) const SSI_HULL_ROUNDS: usize = 8;
 
-/// The most breaks limb 2's rounds add to its composite in all: the
-/// rounds halve only the uncleared spans, and this caps the work where
-/// most of the carrier stays uncleared, at [`SSI_HULL_ROUNDS`] more
-/// composites over at most this many more spans.
+/// The most breaks limb 2's rounds add to its composite in all, so the
+/// work is at most [`SSI_HULL_ROUNDS`] more composites over at most this
+/// many more spans. A round that would pass it halves its worst spans
+/// up to it.
+///
+/// Measured over the ci profiles of geom-brep, topo, step-import and
+/// sweep (810 limb-2 calls, 792 cleared on the first hull): every
+/// refusal the corpus raises decides within 3 rounds and 348 cuts. The
+/// adversarial wall of `m` C0 spans under each composite span
+/// (`ssi_limb3_one_arc`) clears at about 350 cuts for m = 64 (600 at
+/// its steepest P/N), and needs about 1500 at m = 256 and 6000 at
+/// m = 1024: this budget is three times the corpus's and clears every
+/// m = 64 row, and spends itself on m ≥ 256.
 pub(crate) const SSI_HULL_CUTS: usize = 1024;
 
 /// Where limb 2's subdivision stopped.
 enum Subdivided {
     /// On the bound over the whole carrier: it cleared the band's zero,
-    /// or the budget ran out first.
+    /// or the budget ran out, or a round narrowed no span, first.
     Bound(Hull),
     /// On a break whose value is certified past the band's zero.
     Value {
         hull: Hull,
         /// The break.
         at: f64,
-        /// The certified lower bound on the residual there, in metres.
+        /// The certified lower bound on the value there, in metres.
         floor: f64,
     },
 }
 
 /// **Limb 2, subdivided until it decides** (C2.2): the composite's
-/// uncleared spans are halved, round by round, under
-/// [`SSI_HULL_ROUNDS`] and [`SSI_HULL_CUTS`], until its bound clears
-/// the band's zero, or a break's certified value lies past it, or the
-/// budget is spent. Every round's hull is the composite's own, cut from
-/// each Bézier segment's row ([`CurveCertData::with_breaks`], the
-/// surface residual's extra breaks), so each piece's coefficients
-/// enclose that piece and no cut compounds another's width.
+/// uncleared spans are halved, round by round, until its bound clears
+/// the band's zero, or a break's certified value lies past it, or it
+/// stops: [`SSI_HULL_ROUNDS`] rounds are spent, or [`SSI_HULL_CUTS`]
+/// cuts, or no span is left to halve, or a round narrowed the bound of
+/// no span it halved (the arithmetic's floor there). Every round's hull
+/// is the composite's own, cut from each Bézier segment's row
+/// ([`CurveCertData::with_breaks`], the surface residual's extra
+/// breaks), so each piece's coefficients enclose that piece and no cut
+/// compounds another's width.
+///
+/// Each round recomputes the whole composite, the cleared spans too:
+/// the implicit composite is channel algebra over every span of its
+/// rows (`compose`'s `ch_*` steps), so a span-restricted round would
+/// thread a span mask through that algebra, and the tensor residual,
+/// whose spans are composed one by one, would need a public door of its
+/// own that only this caller reads.
 fn subdivide(
     hull: impl Fn(&[f64]) -> Result<Hull, SsiError>,
     band: Band,
 ) -> Result<Subdivided, SsiError> {
     let mut cuts: Vec<f64> = Vec::new();
+    let mut halved: Vec<Halved> = Vec::new();
     let mut rounds = 0;
     loop {
         let h = hull(&cuts)?;
         if clears(h.sup, band) {
             return Ok(Subdivided::Bound(h));
         }
+        // Against a NURBS operand the value is the bound's own quantity
+        // at a point, a bound on the miss and not the miss: past the
+        // band it still proves no bound over a span holding the break
+        // can clear, so the limb stops here as on the analytic arm, and
+        // only its ending differs ([`SsiLimb::HullValueChart`]).
         if let Some((at, floor)) = h.past(band) {
             return Ok(Subdivided::Value { hull: h, at, floor });
         }
-        let halves = h.halves(band);
-        if rounds == SSI_HULL_ROUNDS
-            || halves.is_empty()
-            || cuts.len() + halves.len() > SSI_HULL_CUTS
-        {
+        let narrowed = halved.iter().any(|s| h.over(s.lo, s.hi) < s.bound);
+        let mut next = h.to_halve(band);
+        next.truncate(SSI_HULL_CUTS - cuts.len());
+        if rounds == SSI_HULL_ROUNDS || next.is_empty() || (rounds > 0 && !narrowed) {
             return Ok(Subdivided::Bound(h));
         }
-        cuts.extend(halves);
+        cuts.extend(next.iter().map(|s| s.mid()));
         cuts.sort_by(f64::total_cmp);
+        halved = next;
         rounds += 1;
     }
 }
 
+/// One arm of limb 2: the predicates it decides its bound and its value
+/// at, and the limb a refusal on the value names.
+struct HullArm {
+    /// The bound's predicate.
+    sup: &'static str,
+    /// The value's predicate.
+    value: &'static str,
+    /// The limb a refusal on the value names.
+    value_limb: SsiLimb,
+}
+
+/// Limb 2 against an analytic operand: its value at a break is limb 1's
+/// residual.
+const ANALYTIC_HULL: HullArm = HullArm {
+    sup: "ssi_hull_sup",
+    value: "ssi_hull_value",
+    value_limb: SsiLimb::HullValue,
+};
+
+/// Limb 2 against a NURBS operand: its value at a break is the bound's
+/// quantity at a point.
+const CHART_HULL: HullArm = HullArm {
+    sup: "ssi_hull_sup_chart",
+    value: "ssi_hull_value_chart",
+    value_limb: SsiLimb::HullValueChart,
+};
+
 /// Limb 2's verdict on where [`subdivide`] stopped, and its bound: the
-/// bound decided at `predicate`, or the break's value as a measured
-/// residual (`ssi_hull_value`). Interval arithmetic answers with `f64`
-/// bounds, lifted here so the limb is banded at the caller's scalar
-/// like every other residual (field docs).
+/// bound or the break's value, each decided at `arm`'s predicate.
+/// Interval arithmetic answers with `f64` bounds, lifted here so the
+/// limb is banded at the caller's scalar like every other residual
+/// (field docs).
 fn hull_limb<T: Decide>(
-    predicate: &'static str,
+    arm: &HullArm,
     stopped: Subdivided,
     band: Band,
     at: &mut Refused,
@@ -790,19 +895,29 @@ fn hull_limb<T: Decide>(
         Subdivided::Bound(hull) => hull,
         Subdivided::Value { hull, at: t, floor } => {
             let value = T::from_f64(floor);
-            let decided = decide_reported("ssi_hull_value", Margin::of(value), band);
+            let decided = decide_reported(arm.value, Margin::of(value), band);
             at.spans.push(RefusedSpan { lo: t, hi: t });
             hull.uncleared(band, &mut at.spans);
-            limb_verdict(SsiLimb::HullValue, decided, || floor, at)?;
+            limb_verdict(
+                arm.value_limb,
+                decided,
+                || RefusedResidual::Floor(floor),
+                at,
+            )?;
             hull
         }
     };
     let sup = T::from_f64(hull.sup);
-    let decided = decide_reported(predicate, Margin::of(sup), band);
+    let decided = decide_reported(arm.sup, Margin::of(sup), band);
     if locatable(&decided) {
         hull.uncleared(band, &mut at.spans);
     }
-    limb_verdict(SsiLimb::HullSup, decided, || hull.sup, at)?;
+    limb_verdict(
+        SsiLimb::HullSup,
+        decided,
+        || RefusedResidual::Over(hull.sup),
+        at,
+    )?;
     Ok(sup)
 }
 
@@ -1382,7 +1497,7 @@ impl LimbRefusal {
     /// The round's report: definite or in the band, as the residual is.
     pub(crate) fn round(self) -> RoundMargin {
         match self.residual {
-            RefusedResidual::Over(_) => RoundMargin::Over(self.margin),
+            RefusedResidual::Over(_) | RefusedResidual::Floor(_) => RoundMargin::Over(self.margin),
             RefusedResidual::InBand => RoundMargin::InBand(self.margin),
         }
     }

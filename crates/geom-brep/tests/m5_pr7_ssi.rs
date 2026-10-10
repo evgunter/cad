@@ -447,9 +447,10 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
         let bad = displaced(&carrier, n, d);
         match certify_against(&bad) {
             // Limb 2 refuses on its bound, or on its composite's value
-            // at a break, which subdividing the bound reads past ε.
+            // at a break against either operand, which subdividing the
+            // bound reads past ε.
             Err(SsiError::CertificateLimb {
-                limb: SsiLimb::HullSup | SsiLimb::HullValue,
+                limb: SsiLimb::HullSup | SsiLimb::HullValue | SsiLimb::HullValueChart,
                 margin,
             }) => {
                 found = Some((d, upper(margin)));
@@ -459,9 +460,13 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             // escalation band, so limb 2 speaks as an F6 escalation
             // rather than a definite refusal, naming the same limb.
             Err(SsiError::CertificateEscalated {
-                limb: SsiLimb::HullSup | SsiLimb::HullValue,
+                limb: SsiLimb::HullSup | SsiLimb::HullValue | SsiLimb::HullValueChart,
                 ref cause,
-            }) if matches!(cause.predicate, Some("ssi_hull_sup" | "ssi_hull_value")) => {
+            }) if matches!(
+                cause.predicate,
+                Some("ssi_hull_sup" | "ssi_hull_value" | "ssi_hull_value_chart")
+            ) =>
+            {
                 found = Some((d, f64::NAN));
                 break;
             }
@@ -1132,10 +1137,10 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
     .expect_err("CORRUPT-PCURVE: a corrupted parameter map cannot certify");
     match err {
         SsiError::CertificateLimb {
-            limb: SsiLimb::HullValue,
+            limb: SsiLimb::HullValueChart,
             margin,
         } => assert!(upper(margin) > eps(), "CORRUPT-PCURVE: {margin:e}"),
-        other => panic!("CORRUPT-PCURVE: expected limb 2's measured value alone, got {other}"),
+        other => panic!("CORRUPT-PCURVE: expected limb 2's value at a break, got {other}"),
     }
 }
 
@@ -6115,7 +6120,7 @@ fn a_pair_bending_late_refuses_on_limb_3_without_refining_to_the_wall() {
 /// refusal**, and returns its last refused triple. The late-bend pair of
 /// [`bend_pair`] 1e-3 apart, `β = −3`, traced through `(0.1, 0.5)` at a
 /// march tolerance and band of 1e-9: the triple holds 173 control
-/// points, limbs 1 and 2 pass it, and limb 3 refuses it.
+/// points, limbs 1 and 2 pass it, and limb 3's tube straddles the band.
 #[test]
 fn the_uncertified_door_refines_until_limbs_1_and_2_pass() {
     let (plane, dom) = graph_cut();
@@ -6137,10 +6142,7 @@ fn the_uncertified_door_refines_until_limbs_1_and_2_pass() {
         band_at(1e-9),
     );
     assert!(
-        !matches!(
-            again,
-            Ok(_) | Err(SsiError::CertificateLimb { .. } | SsiError::CertificateEscalated { .. })
-        ),
-        "limbs 1 and 2 pass the returned triple and limb 3 refuses it: {again:?}"
+        matches!(again, Err(SsiError::TubeStraddles { .. })),
+        "limbs 1 and 2 pass the returned triple and limb 3's tube straddles: {again:?}"
     );
 }

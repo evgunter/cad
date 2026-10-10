@@ -71,9 +71,9 @@
 //! zero, the step rule's fit rung (`h_fit ∝ (ε/κ³)^¼`) unbinds and the
 //! realized deviation of the two independent fits can genuinely exceed
 //! ε (measured 3.8e-9 m at march-ε = 1e-9 on a gently inflected wall)
-//! — the certificate then refuses **in-band at `ssi_hull_sup_chart`**,
-//! which is the honest verdict about that carrier, not a bound
-//! artifact (the bound sits within ~1% of the dense-scan truth there).
+//! — the certificate then refuses that carrier at limb 2, which is
+//! the honest verdict about it, not a bound artifact (the bound sits
+//! within ~1% of the dense-scan truth there).
 //! That deviation is **phase-dependent and non-monotone in march-ε**,
 //! not a fixed cap (PR 7b review measurement: 4× tighter march-ε →
 //! 4.36× better, 16× → 16.92× better reaching 2.25e-10 m, 64× → only
@@ -911,6 +911,12 @@ impl core::fmt::Display for SsiError {
                     f,
                     "ssi: {} bounds the fitted carrier's distance from the locus it claims by \
                      {margin:e} m, past the tolerance",
+                    limb.name()
+                ),
+                SsiLimb::HullValueChart => write!(
+                    f,
+                    "ssi: the fitted carrier failed {} at {margin:e} m — the carrier is off \
+                     the surface point its pcurve names",
                     limb.name()
                 ),
                 SsiLimb::OnLocus | SsiLimb::HullValue | SsiLimb::Tube => write!(

@@ -119,8 +119,9 @@ pub struct RefusedRound {
 /// refusal's report only ([`MarginDiag`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum RoundMargin {
-    /// A definite refusal: limb 2's bound over the whole carrier, or
-    /// limb 1's residual at the first sample that refused.
+    /// A definite refusal: limb 2's bound over the whole carrier or its
+    /// value at a break, or limb 1's residual at the first sample that
+    /// refused.
     Over(MarginDiag),
     /// Undecided: inside the band.
     InBand(MarginDiag),
@@ -136,21 +137,28 @@ pub(crate) enum RefusedResidual {
     /// enclosure, in metres — limb 2's bound over the whole carrier, or
     /// limb 1's residual at the first sample that refused.
     Over(f64),
+    /// A definite refusal on limb 2's value at a break of its
+    /// composite: the LOWER end of that value's enclosure, in metres, a
+    /// floor under the bound rather than an upper end, so it is compared
+    /// only with another floor.
+    Floor(f64),
     /// Undecided: the residual lies in the band.
     InBand,
 }
 
 /// Whether the refused residual stopped falling over two consecutive
-/// rounds: both in the band, or both definite with the later bound no
-/// smaller. It decides when refinement asks limb 3 of the carrier, and
-/// the step budget's [`ResidualTrend`].
+/// rounds: both in the band, or both definite of one kind with the later
+/// no smaller. A round whose residual changed kind has not shown it. It
+/// decides when refinement asks limb 3 of the carrier, and the step
+/// budget's [`ResidualTrend`].
 pub(crate) fn stopped_falling(
     before: Option<RefusedResidual>,
     last: Option<RefusedResidual>,
 ) -> bool {
     match (before, last) {
         (Some(RefusedResidual::InBand), Some(RefusedResidual::InBand)) => true,
-        (Some(RefusedResidual::Over(a)), Some(RefusedResidual::Over(b))) => b >= a,
+        (Some(RefusedResidual::Over(a)), Some(RefusedResidual::Over(b)))
+        | (Some(RefusedResidual::Floor(a)), Some(RefusedResidual::Floor(b))) => b >= a,
         _ => false,
     }
 }
@@ -676,11 +684,12 @@ mod tests {
     }
 
     /// **The refused residual stops falling only where two rounds show
-    /// it**: both in the band, or both definite with the later bound no
-    /// smaller. A fall, a single round, or a change of arm does not.
+    /// it**: both in the band, or both definite of one kind with the
+    /// later no smaller. A fall, a single round, a change of arm, or a
+    /// change of kind between a bound and a floor does not.
     #[test]
     fn the_residual_stops_falling_only_over_two_rounds_that_show_it() {
-        use RefusedResidual::{InBand, Over};
+        use RefusedResidual::{Floor, InBand, Over};
         for (before, last, stalled) in [
             (Some(Over(1.0e-14)), Some(Over(1.17e-14)), true),
             (Some(Over(3.0e-9)), Some(Over(3.0e-9)), true),
@@ -689,6 +698,11 @@ mod tests {
             (None, Some(Over(1.0e-14)), false),
             (Some(InBand), Some(Over(1.0e-14)), false),
             (Some(Over(1.0e-14)), Some(InBand), false),
+            (Some(Floor(3.0e-6)), Some(Floor(3.0e-6)), true),
+            (Some(Floor(3.0e-6)), Some(Floor(1.0e-6)), false),
+            (Some(Floor(1.0e-6)), Some(Over(3.0e-6)), false),
+            (Some(Over(1.0e-6)), Some(Floor(3.0e-6)), false),
+            (Some(Floor(1.0e-6)), Some(InBand), false),
         ] {
             assert_eq!(
                 stopped_falling(before, last),

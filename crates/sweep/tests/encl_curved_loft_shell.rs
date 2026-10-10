@@ -336,7 +336,8 @@ fn vase() -> Body<f64> {
 /// is not exact structure as a row (its skinned weights differ along
 /// the stacking by an ulp), so the door marches it. The plane × NURBS
 /// certificate then refuses the marched rim on its rational wall, by
-/// its limb-2 composite's value at a break, measured about 4.8e-4 m, as
+/// its limb-2 composite's value at a break, the carrier read about
+/// 4.8e-4 m off the surface point its pcurve names, as
 /// the door re-charts the cap: the shell
 /// refuses at a cap before any wall moves, so the walls' smooth seams
 /// are never reached. A wall moved alone refuses at its fit instead:
@@ -360,7 +361,7 @@ fn shelling_the_vase_refuses_at_its_rims_certificate() {
                 edge,
                 error:
                     geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                        limb: geom_brep::ssi::SsiLimb::HullValue,
+                        limb: geom_brep::ssi::SsiLimb::HullValueChart,
                         margin,
                     }),
                 ..
@@ -372,7 +373,7 @@ fn shelling_the_vase_refuses_at_its_rims_certificate() {
     };
     assert!(
         upper(*margin) > 1e2 * Tol::witness().eps(),
-        "limb 2's measured value is far past the band, not at its edge: {margin}"
+        "limb 2's value at a break is far past the band, not at its edge: {margin}"
     );
     let data = body.get_edge(*edge).expect("the rim resolves");
     let walls = nurbs_walls(&body);
@@ -428,9 +429,10 @@ fn tilted_top_prism() -> Body<f64> {
 
 /// The march arm builds nothing yet: the moved tilted cap's section of
 /// each polynomial wall is certified by the march, and the plane ×
-/// NURBS edge certificate's limb 2 measures its composite a few
-/// micrometres off at a break, though the marched branch lies on both
-/// surfaces to ~5e-11
+/// NURBS edge certificate's limb 2 reads its composite a few
+/// micrometres at a break — the carrier against the surface point its
+/// pcurve names, a bound on its miss — though the marched branch lies
+/// on both surfaces to ~5e-11
 /// (`work/ssiedge/plane-nurbs-limb-two-refuses-a-non-row-section.md`).
 /// The gap is a length, not a multiple of ε, so which verdict it earns
 /// is ε's: past the band it refuses, inside the band it escalates.
@@ -465,17 +467,17 @@ fn a_tilted_caps_marched_rim_refuses_at_its_certificate() {
         };
         match error {
             geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                limb: geom_brep::ssi::SsiLimb::HullValue,
+                limb: geom_brep::ssi::SsiLimb::HullValueChart,
                 margin,
             }) => {
                 let value = upper(*margin);
                 assert!(
                     micrometres.contains(&value) && value > 10.0 * eps,
-                    "eps {eps:e}, d {d}: limb 2 measured {margin:e}"
+                    "eps {eps:e}, d {d}: limb 2 read {margin:e} at a break"
                 );
             }
             geom_brep::CertifyError::Escalated { check, .. } => {
-                assert_eq!(*check, geom_brep::ssi::SsiLimb::HullValue.check());
+                assert_eq!(*check, geom_brep::ssi::SsiLimb::HullValueChart.check());
                 assert!(
                     10.0 * eps > micrometres.start,
                     "eps {eps:e}, d {d}: limb 2 escalated with no micrometre in the band"
