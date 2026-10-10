@@ -316,11 +316,11 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/certify.rs",
-        11,
+        9,
         2,
         "the 2 that ask are the chart tube's span-hull window (`chart_tube_windows` \
          refuses either window hull by name before padding it — a refused hull is NaI, \
-         and its NaN ends name no window). The other 9 are `T: Bounds` reads on the \
+         and its NaN ends name no window). The other 7 are `T: Bounds` reads on the \
          evaluation scalar and not certification endpoints at all — blind spot 1: two \
          of them are `probe_tube_chart`'s reads of the pcurve's tangent, which select \
          a direction (structure, not a bound) and whose norm the probe refuses unless \

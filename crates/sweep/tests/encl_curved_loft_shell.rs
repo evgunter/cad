@@ -336,7 +336,8 @@ fn vase() -> Body<f64> {
 /// is not exact structure as a row (its skinned weights differ along
 /// the stacking by an ulp), so the door marches it. The plane × NURBS
 /// certificate then refuses the marched rim on its rational wall, by
-/// its own limb-2 bound, as the door re-charts the cap: the shell
+/// its limb-2 composite's value at a break, measured about 4.8e-4 m, as
+/// the door re-charts the cap: the shell
 /// refuses at a cap before any wall moves, so the walls' smooth seams
 /// are never reached. A wall moved alone refuses at its fit instead:
 /// its net carries a C⁰ crease the fit's Taylor bound cannot cross.
@@ -359,7 +360,7 @@ fn shelling_the_vase_refuses_at_its_rims_certificate() {
                 edge,
                 error:
                     geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                        limb: geom_brep::ssi::SsiLimb::HullSup,
+                        limb: geom_brep::ssi::SsiLimb::HullValue,
                         margin,
                     }),
                 ..
@@ -371,7 +372,7 @@ fn shelling_the_vase_refuses_at_its_rims_certificate() {
     };
     assert!(
         upper(*margin) > 1e2 * Tol::witness().eps(),
-        "limb 2 is far past the band, not at its edge: {margin}"
+        "limb 2's measured value is far past the band, not at its edge: {margin}"
     );
     let data = body.get_edge(*edge).expect("the rim resolves");
     let walls = nurbs_walls(&body);

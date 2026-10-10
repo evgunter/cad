@@ -780,7 +780,7 @@ fn subdivide(
 /// residual (`ssi_hull_value`). Interval arithmetic answers with `f64`
 /// bounds, lifted here so the limb is banded at the caller's scalar
 /// like every other residual (field docs).
-fn hull_limb<T: Decide + Bounds>(
+fn hull_limb<T: Decide>(
     predicate: &'static str,
     stopped: Subdivided,
     band: Band,
@@ -802,7 +802,7 @@ fn hull_limb<T: Decide + Bounds>(
     if locatable(&decided) {
         hull.uncleared(band, &mut at.spans);
     }
-    limb_verdict(SsiLimb::HullSup, decided, || sup.hi(), at)?;
+    limb_verdict(SsiLimb::HullSup, decided, || hull.sup, at)?;
     Ok(sup)
 }
 

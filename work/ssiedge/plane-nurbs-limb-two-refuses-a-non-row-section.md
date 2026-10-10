@@ -85,3 +85,14 @@ derives a moved cap's rim by section, so the vase's shell refuses
 here, at its cap. The offset fit mints unit weights, so a plane ×
 fitted-wall section is polynomial: the rational case is reached only
 where a cap is sectioned against a held rational base wall.
+
+## Measured, not a loose hull (encl/hull-bound-refine, 2026-10-10)
+
+Limb 2 now subdivides its composite before refusing, and reads the composite's certified value at each break (a Bernstein row interpolates its end coefficients). Both shipped rows refuse on that value, not on the bound:
+
+| row | bound (before) | certified value at a break |
+|---|---|---|
+| vase cap rim (`shelling_the_vase_refuses_at_its_rims_certificate`) | 4.787e-4 m | ≥ 4.776e-4 m |
+| tilted prism, cap −0.05 (`a_tilted_caps_marched_rim_refuses_at_its_certificate`) | 3.743e-6 m | ≥ 3.016e-6 m |
+
+So `|S(P(t)) − C(t)|` is that large at a point of the carrier: the marched carrier and its fitted pcurve disagree by the stated amount, at a break of the composite. The "likely cause" above — a hull that does not converge to the difference — is refuted for these two rows. What is left is the stored pair itself (the pcurve fit, or the carrier the pcurve is evaluated against). Both rows now refuse as `SsiLimb::HullValue`.

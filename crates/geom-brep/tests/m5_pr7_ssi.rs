@@ -4774,19 +4774,19 @@ fn a_curved_domes_oblique_arc_certifies_across_its_inflections() {
     assert!(samples.contains(&n), "{at}: {n} samples");
 }
 
-/// **The `z = 0.2` arc across a dome of curvature 4/m is refined where
-/// the hull limb refused it, at ε 1e-9.** The fit rung prices the gap
-/// between samples by `‖C⁗‖ ≈ κ³`, and along this parabola `‖C⁗‖/κ³`
-/// runs from 4 at the centre to 23 at the branch ends. At d = 2 limb 2
-/// read the marched carrier in band at its end; the gap there is
-/// halved, and the arc certifies on about 348 samples, two more than
-/// the march's 346 (cause 4 of
+/// **The `z = 0.2` arc across a dome of curvature 4/m certifies on the
+/// march's samples, at ε 1e-9.** The fit rung prices the gap between
+/// samples by `‖C⁗‖ ≈ κ³`, and along this parabola `‖C⁗‖/κ³` runs from 4
+/// at the centre to 23 at the branch ends. At d = 2 limb 2's first hull
+/// read the marched carrier in band at its end; subdivided, it clears,
+/// and the arc certifies on the march's 346 samples with no refinement
+/// round (cause 4 of
 /// `work/ssi/plane-nurbs-ssi-does-not-certify-a-curved-dome.md`). At
 /// d = 1 the march's samples certify as they stand.
 #[test]
-fn a_curved_domes_open_arc_is_refined_where_the_hull_limb_refused() {
+fn a_curved_domes_open_arc_certifies_on_the_marchs_samples() {
     let b = band_at(1e-9);
-    for (d, samples) in [(1.0, 230..250), (2.0, 347..352)] {
+    for (d, samples) in [(1.0, 230..250), (2.0, 340..347)] {
         let (_, dom) = dome_tilt(d);
         let zcut = Surface::Plane {
             origin: Point3::new(0.5, -d / 8.0, 0.2),
