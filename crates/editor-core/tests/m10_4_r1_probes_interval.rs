@@ -24,9 +24,8 @@ use editor_core::stackup::{
 };
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
-    LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamValue, ProfileDoc, ProfileLift,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, UnitSym,
-    ValuePayload, VarName, evaluate, seed_env,
+    LoopProgram, MeasurePrimitive, Node, ParamValue, ProfileDoc, ProfileLift, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, SitedRef, UnitSym, VarName, evaluate, seed_env,
 };
 use geom_core::{Dual64, Tol};
 
@@ -85,14 +84,8 @@ fn opts(doc: &ProfileDoc, seed: Option<&str>, lift: ProfileLift) -> EvalOptions 
     }
 }
 
-fn measured(ev: &Evaluation<Dual64>, id: RecipeNodeId) -> Dual64 {
-    match ev.result(id) {
-        Some(editor_core::NodeResult::Ok(v)) => match &v.payload {
-            ValuePayload::Measure { value, .. } => *value,
-            other => panic!("node {id:?} is a {}", other.kind_name()),
-        },
-        other => panic!("node {id:?} did not evaluate: {other:?}"),
-    }
+fn measured(doc: &ProfileDoc, ev: &Evaluation<Dual64>, var: editor_core::VarId) -> Dual64 {
+    fixture::reading(doc, ev, var).unwrap_or_else(|| panic!("{var:?} did not read"))
 }
 
 // ------------------------------------------------------------ fixtures
@@ -109,7 +102,7 @@ fn stepped_shaft(
     h2: f64,
     d1: Option<Distribution>,
     d2: Option<Distribution>,
-) -> (ProfileDoc, RecipeNodeId) {
+) -> (ProfileDoc, editor_core::VarId) {
     stepped_shaft_sized(1.0, h1, h2, d1, d2)
 }
 
@@ -119,7 +112,7 @@ fn stepped_shaft_sized(
     h2: f64,
     d1: Option<Distribution>,
     d2: Option<Distribution>,
-) -> (ProfileDoc, RecipeNodeId) {
+) -> (ProfileDoc, editor_core::VarId) {
     use editor_core::{CapEnd, RoleSeg};
 
     use fixture::fname;
@@ -173,13 +166,9 @@ fn stepped_shaft_sized(
         SitedRef::new(base, fname(base, RoleSeg::Cap(CapEnd::Start))),
         SitedRef::new(boss, fname(boss_raw, RoleSeg::Cap(CapEnd::End))),
     ];
-    let m = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            refs,
-        )
-        .expect("indices in range"),
-    );
+    let m = r
+        .measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs)
+        .outputs[0];
     (r.doc, m)
 }
 
@@ -189,15 +178,15 @@ fn stepped_shaft_sized(
 fn scalar_measure(
     nominal: f64,
     dist: Distribution,
-    build: impl Fn(&dyn Fn() -> MeasureExpr<Formula>) -> MeasureExpr<Formula>,
-) -> (ProfileDoc, RecipeNodeId) {
+    build: impl Fn(&dyn Fn() -> Formula) -> Formula,
+) -> (ProfileDoc, editor_core::VarId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("a"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Scalar, nominal, Some(dist))),
     });
-    let a = || MeasureExpr::value(param("a", Dimension::Scalar));
-    let m = r.insert(Node::measure(build(&a), Vec::new()).expect("no references to address"));
+    let a = || param("a", Dimension::Scalar);
+    let m = r.define("m", build(&a));
     (r.doc, m)
 }
 
@@ -205,7 +194,7 @@ fn scalar_measure(
 /// second leg is a sharp `arc_to` through a point, with the profile's
 /// x-extent driven by a document parameter `w`. Extruded by a literal;
 /// the measure is the distance between the two x-walls, which is `w`.
-fn arc_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
+fn arc_slab(w: f64) -> (ProfileDoc, editor_core::VarId) {
     use fixture::{fname, wall};
 
     let mut r = Recorder::new();
@@ -253,13 +242,9 @@ fn arc_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
         SitedRef::new(slab, fname(slab, wall(&r.doc, slab, 3))),
         SitedRef::new(slab, fname(slab, wall(&r.doc, slab, 1))),
     ];
-    let m = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            refs,
-        )
-        .expect("indices in range"),
-    );
+    let m = r
+        .measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs)
+        .outputs[0];
     (r.doc, m)
 }
 
@@ -320,7 +305,7 @@ fn r1_seed_none_is_bit_identical_at_every_scalar() {
     );
     // NOTE: `-0.0` on this fixture (`+0.0` on the plate the unit's own
     // row uses) — the "exactly zero" law is IEEE-zero, not bit-zero.
-    assert_eq!(measured(&unseeded, m).deriv, 0.0);
+    assert_eq!(measured(&doc, &unseeded, m).deriv, 0.0);
 }
 
 // -------------------------------------------- claim 2: seed hygiene
@@ -334,16 +319,12 @@ fn r1_seed_hygiene_and_schedule_independence_on_a_stepped_shaft() {
     // Toleranced, so the driver's entries are the two steps (VR8).
     let (doc, m) = stepped_shaft(1.0, 0.5, Some(uniform(0.1)), Some(uniform(0.1)));
     let f = eval_f64(&doc);
-    let Some(editor_core::NodeResult::Ok(v)) = f.result(m) else {
-        panic!("the shaft measures at f64")
-    };
-    let ValuePayload::Measure { value: nominal, .. } = v.payload else {
-        panic!("a measure")
-    };
+    let nominal = fixture::reading(&doc, &f, m).expect("the shaft measures at f64");
     assert!((nominal - 1.5).abs() < 1e-12, "nominal {nominal}");
     for p in ["h1", "h2"] {
         for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
             let d = measured(
+                &doc,
                 &evaluate(
                     &doc,
                     None,
@@ -400,7 +381,10 @@ fn r1_dl2_two_passes_share_a_subgraph_without_aliasing() {
         &opts(&doc, Some("h2"), ProfileLift::Guided),
         Tol::witness(),
     );
-    let (fresh, threaded) = (measured(&on_h2_fresh, m), measured(&on_h2_threaded, m));
+    let (fresh, threaded) = (
+        measured(&doc, &on_h2_fresh, m),
+        measured(&doc, &on_h2_threaded, m),
+    );
     assert_eq!(
         threaded.deriv.to_bits(),
         fresh.deriv.to_bits(),
@@ -410,9 +394,10 @@ fn r1_dl2_two_passes_share_a_subgraph_without_aliasing() {
     assert_eq!(threaded.value.to_bits(), fresh.value.to_bits());
     // Keys: the measure is downstream of both seeds, so the two passes
     // must key it differently — the memo cannot alias them.
+    let measure = doc.operation_of(m).expect("the value is a measure's");
     assert_ne!(
-        on_h1.value(m).map(|v| v.content_key),
-        on_h2_fresh.value(m).map(|v| v.content_key),
+        on_h1.value(measure).map(|v| v.content_key),
+        on_h2_fresh.value(measure).map(|v| v.content_key),
         "two seeds must not share the measure's key"
     );
     // And something WAS served: the boss's own profile is outside both
@@ -619,14 +604,10 @@ fn r1_another_documents_verdict_certifies_this_one() {
 /// clause is about.
 #[test]
 fn r1_the_abs_kink_reports_a_confident_one_sided_derivative() {
-    let (doc, m) = scalar_measure(
-        0.0,
-        uniform(eps() / 16.0),
-        |a: &dyn Fn() -> MeasureExpr<Formula>| {
-            MeasureExpr::max(a(), MeasureExpr::neg(a()).expect("a shallow negation"))
-                .expect("Scalar lattice max")
-        },
-    );
+    let (doc, m) = scalar_measure(0.0, uniform(eps() / 16.0), |a: &dyn Fn() -> Formula| {
+        Formula::max(a(), Formula::neg(a()).expect("a shallow negation"))
+            .expect("Scalar lattice max")
+    });
     let entries =
         sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("no refusal");
     match &entries[0].outcome {
@@ -650,11 +631,9 @@ fn r1_the_abs_kink_reports_a_confident_one_sided_derivative() {
 #[test]
 fn r1_tangent_degraded_does_not_check_that_the_value_is_finite() {
     // m = a / a at a = 0 → 0/0 in the VALUE channel as well.
-    let (doc, m) = scalar_measure(
-        0.0,
-        uniform(eps() / 16.0),
-        |a: &dyn Fn() -> MeasureExpr<Formula>| MeasureExpr::div(a(), a()).expect("Scalar / Scalar"),
-    );
+    let (doc, m) = scalar_measure(0.0, uniform(eps() / 16.0), |a: &dyn Fn() -> Formula| {
+        Formula::div(a(), a()).expect("Scalar / Scalar")
+    });
     let entries =
         sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("no refusal");
     println!(
@@ -681,8 +660,8 @@ fn r1_tangent_degraded_does_not_check_that_the_value_is_finite() {
 /// enclosure, its top must exceed the linearized top.
 #[test]
 fn r1_worst_case_is_the_range_not_the_linearization_on_a_cubic() {
-    let (doc, m) = scalar_measure(2.0, uniform(1.0), |a: &dyn Fn() -> MeasureExpr<Formula>| {
-        MeasureExpr::mul(MeasureExpr::mul(a(), a()).expect("scalar"), a()).expect("scalar")
+    let (doc, m) = scalar_measure(2.0, uniform(1.0), |a: &dyn Fn() -> Formula| {
+        Formula::mul(Formula::mul(a(), a()).expect("scalar"), a()).expect("scalar")
     });
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(16), Tol::witness()).expect("builds");
@@ -916,6 +895,7 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
 fn r1_an_arc_carrying_profile_propagates_the_seed() {
     let (doc, m) = arc_slab(2.0);
     let guided = measured(
+        &doc,
         &evaluate(
             &doc,
             None,
@@ -931,6 +911,7 @@ fn r1_an_arc_carrying_profile_propagates_the_seed() {
     );
     assert!(guided.deriv.is_finite(), "an arc profile's seed is finite");
     let pinned = measured(
+        &doc,
         &evaluate(
             &doc,
             None,

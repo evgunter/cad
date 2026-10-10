@@ -68,13 +68,14 @@ fn the_exit_demo_walk() {
         "resolution is against the opened document's directory"
     );
 
-    // ── 3. RESOLVE: the tree shows the three instances, every row ok.
+    // ── 3. RESOLVE: the tree shows the three instances and their
+    // world placements, every row ok.
     let rows = session.tree_rows();
-    assert_eq!(rows.len(), 3);
+    assert_eq!(rows.len(), 6, "three instances, three placements");
     for row in &rows {
-        assert_eq!(row.spoken.kind(), Some("InstantiatePart"));
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
+    assert_eq!(asm::instance_rows(&session).len(), 3);
 
     // ── 4. HIDE one instance (post_a). The scene and the pick index
     // drop it; the tree and the document keep it. It STAYS hidden for
@@ -150,12 +151,12 @@ fn the_exit_demo_walk() {
         ),
     );
     assert_eq!(
-        post_top.node, bench.post_b,
+        post_top.node, bench.post_b_copy,
         "the probed post is picked where it is drawn"
     );
     tool.pick(session.doc(), post_top.clone());
     let shelf_bottom = common::displayed_face_at(&session, &index, &asm::under_shelf());
-    assert_eq!(shelf_bottom.node, bench.shelf_i);
+    assert_eq!(shelf_bottom.node, bench.shelf_copy);
     tool.pick(session.doc(), shelf_bottom.clone());
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
 
@@ -297,7 +298,11 @@ fn the_exit_demo_walk() {
         "so did the probe (documentation, not a gate — see above)"
     );
     let rows = reopened.tree_rows();
-    assert_eq!(rows.len(), 4, "three instances and the mate");
+    assert_eq!(
+        rows.len(),
+        7,
+        "three instances, their three placements and the mate"
+    );
     assert!(rows.iter().any(|row| row.spoken.kind() == Some("Mate")));
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");

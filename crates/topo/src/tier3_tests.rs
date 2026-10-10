@@ -2376,6 +2376,123 @@ fn material_arm_error_table() {
     }
 }
 
+/// The tolerance a refusal's text offers, read off its sentence.
+fn offered_tolerance(text: &str) -> f64 {
+    let after = text
+        .split("tighten the tolerance below ")
+        .nth(1)
+        .unwrap_or_else(|| panic!("no tolerance offered: {text}"));
+    after.trim_end_matches(" m").parse().unwrap()
+}
+
+/// **The material reads stop with the margin their decision decided,
+/// and check 4 ends each stop as its decision.** At `K = 1.2` and an
+/// arm of `1.3·ε` the arm gate passes, and a plane leaning 42° or 30°
+/// off another reads smooth there (the wedge `sin θ · arm` is within
+/// ε): the state check 4 reaches. Their pairing margin `cos θ · arm` is
+/// decided zero at 42° and in band at 30°, and both refuse as the one
+/// pairing decision — the arm's lever with a tolerance that decides it.
+/// At 30° the wedge reads zero at the pairing's own `m/K`, which is
+/// offered; at 42° it would not, so the offer is the wedge's `w/K`,
+/// where the wedge and the pairing both decide. The cusp side reads a
+/// jet whose relative curvature is zero: its gate's decided Zero
+/// carries the margin tagged, not a mint.
+#[test]
+fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
+    use core::ops::ControlFlow;
+    use geom_brep::StationHook;
+    use geom_core::{MarginDiag, Sign};
+    let (eps, k) = (1e-9, 1.2);
+    let band = geom_core::Band::new(eps, k * eps).unwrap();
+    let arm = 1.3 * eps;
+    let edge = crate::fixtures::raw_prism(3, Tol::witness())
+        .body
+        .edges()
+        .next()
+        .expect("the fixture has edges")
+        .0;
+    let origin = Point3::new(0.0, 0.0, 0.0);
+    let floor = Surface::Plane {
+        origin,
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let leaning = |degrees: f64| {
+        let (sin, cos) = degrees.to_radians().sin_cos();
+        Surface::Plane {
+            origin,
+            normal: Vec3::new(sin, 0.0, cos),
+            u_ref: Vec3::unit_y(),
+        }
+    };
+    let station = |arm: f64, kappa_rel: f64| geom_brep::Station {
+        p: origin,
+        jet: geom_brep::TangentJet {
+            sin_theta: 0.0,
+            kappa_rel,
+        },
+        arm,
+    };
+    // Check 4's one push of a stop.
+    let finding = |stop: crate::validate::MaterialStop| ValidationError::SliverDihedral {
+        edge,
+        check: stop.check,
+        cause: stop.cause,
+    };
+    let lead = "which side of an edge the material of its two smoothly meeting faces lies on \
+                is undecided. Recourse: move the geometry so that edge is clearly longer and no \
+                face curves tightly there, or, if this length is intended, tighten the tolerance \
+                below ";
+    let sin42 = 42.0_f64.to_radians().sin();
+    let cos30 = 30.0_f64.to_radians().cos();
+    for (label, degrees, offered) in [
+        ("decided zero", 42.0, sin42 * arm / k),
+        ("in band", 30.0, cos30 * arm / k),
+    ] {
+        let wall = leaning(degrees);
+        assert_eq!(
+            geom_brep::classify_dihedral(&floor, &wall, origin, arm, band),
+            Ok(geom_brep::DihedralClass::Smooth),
+            "{label}: check 4 reaches the pairing"
+        );
+        let mut stations = crate::validate::MaterialStations::new(&floor, true, &wall, true, band);
+        let ControlFlow::Break(stop) = stations.before_decision(&station(arm, 1.0)) else {
+            panic!("{label}: the pairing stops the walk");
+        };
+        let text = finding(stop).to_string();
+        assert!(text.starts_with(lead), "{label}: {text}");
+        let quoted = offered_tolerance(&text);
+        assert!(
+            (quoted - offered).abs() <= 1e-9 * offered,
+            "{label}: offers {quoted:e}, wants {offered:e}"
+        );
+    }
+    let mut stations = crate::validate::MaterialStations::new(&floor, true, &floor, true, band);
+    let ControlFlow::Break(stop) = stations.after_positive(&station(1.0, 0.0)) else {
+        panic!("a zero cusp-side margin stops the walk");
+    };
+    assert_eq!(
+        (
+            stop.cause.predicate,
+            stop.cause.margin.rejected_sign(),
+            stop.cause.margin == MarginDiag::INVALID
+        ),
+        (Some("material_cusp_side"), Some(Sign::Zero), false),
+        "the cusp side stops with its gate's decided Zero, not a hand-minted poison"
+    );
+    // Its magnitude decided positive one decision before, so the Zero
+    // contradicts it: the defect ending, as a split's.
+    assert_eq!(
+        finding(stop).to_string(),
+        format!(
+            "which side of an edge the material of its two smoothly meeting faces lies on could \
+             not be read consistently along it. {}",
+            geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+        ),
+        "the cusp side's contradiction ends as a defect"
+    );
+}
+
 // ---------------------------------------------------------------------
 // Check 7's subject — the per-SOLID volume sign, and what tier 3
 // deliberately does NOT read about a solid's shells.

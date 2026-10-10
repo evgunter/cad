@@ -96,6 +96,10 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// its own, so it moves neither the geometry fence nor any other
 /// document's names.
 ///
+/// `measured_web`'s row moved, alone, when a measure became one
+/// primitive (INTENT stage 2 PR D): its measure's mint preimage moved
+/// with the node's shape, and with it the ids its tables are keyed by.
+///
 /// `die_composed` and `die_composed_tour` are the only registered
 /// documents that carve a CLOSED chain, so they are the only two whose
 /// tables carry the rim-phase roles at all (four band trimlines and
@@ -139,41 +143,42 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// `kitchen_sink` alone, whose formulas hold written quantities that
 /// now mint variables of their own; every other row held its word.
 ///
-/// **Re-pinned for the blend's closing join** (3881 step 3, PR C;
-/// `docs/DESIGN.md`, maximal edges): the two rim-filleting documents,
-/// `die_composed` and `die_composed_tour`, moved, and no other row did.
-/// Each band's two host trimlines are one edge, named as the set of
-/// both, and the host foot between them is gone with its name.
+/// **Re-pinned for INTENT stage 2 PR C** (the product is the world):
+/// each document now places its bodies, and every placement is a node
+/// with a name table of its own, its copy's names under it, so every
+/// row holds those tables too. What each document delivers did not
+/// move: `intent_s2_c_world`'s migration check holds each product to
+/// its pre-C digest.
 const PINNED: &[(&str, u64)] = &[
-    ("die", 0x2675dbf49f136408),
-    ("corner_table", 0x5d3e73e6923d9c9e),
-    ("heat_sink", 0xba0521abc0e7d912),
-    ("crossing_slots", 0x05c73a70c69da12f),
-    ("nested_islands_105", 0xe30db120b4075756),
-    ("nested_islands_106_depth1", 0x8baf35e420560809),
-    ("nested_islands_106_depth2", 0x77fa68b01b422fa8),
-    ("declared_tangency", 0xc717fb179107c425),
-    ("kitchen_sink", 0x96c9de2cd9f91e02),
-    ("cut_cylinder", 0xa976dff2c06c2538),
-    ("measured_web", 0x36ff1ecb7bb42a8d),
-    ("boss_union", 0xb0442006f5faf793),
-    ("die_fillet", 0xad617ddfac4cc893),
-    ("die_chamfer", 0x19016213a94ed689),
-    ("die_pips", 0xc8ffbab058a127a1),
-    ("heat_sink_fins", 0x8e083123f0ba666c),
-    ("die_tool", 0x272cd233a8f8bc13),
-    ("face_sketch", 0xb6e3d7dafdbedb72),
-    ("part_select", 0x3c7ddc50459375e1),
-    ("loft_prism", 0xb132b92c2c5472aa),
-    ("die_composed", 0xef2f13661de5dd5c),
-    ("die_composed_tour", 0xa51c4730b32258e1),
-    ("plate_param", 0x8b25aa61a5b6f711),
-    ("kiss_carry", 0x0ef3fc32fa014b79),
-    ("tube_ring", 0xc937e8054790ab85),
-    ("tube_arc", 0x3ae1656ccb6ec100),
-    ("hollow_tube_elbow", 0xd78e0e50095fac57),
-    ("hollow_tube_ring", 0xd7bd12edf7ef3c6b),
-    ("reshaped_rod", 0x849112dd74a880b6),
+    ("die", 0xddcc3ced224b3abe),
+    ("corner_table", 0xbf41aa6a471ab71c),
+    ("heat_sink", 0xaacd962298c4a53c),
+    ("crossing_slots", 0x502c3f6a3cfb1919),
+    ("nested_islands_105", 0xdf4442cd7b688111),
+    ("nested_islands_106_depth1", 0xe60447ef73de5f47),
+    ("nested_islands_106_depth2", 0x0d0f5287d3949db6),
+    ("declared_tangency", 0x370595ad9c1f1053),
+    ("kitchen_sink", 0x9b19e7c275c8b587),
+    ("cut_cylinder", 0xecad82208268b4e3),
+    ("measured_web", 0x9eb1447312b30c8f),
+    ("boss_union", 0xbb9123c70a8e96d8),
+    ("die_fillet", 0x89166ac05d7aa862),
+    ("die_chamfer", 0xe4b825bef56c47a6),
+    ("die_pips", 0x5f07295c3f1a2633),
+    ("heat_sink_fins", 0xf0b12754e2c4efed),
+    ("die_tool", 0x1cd399b374c5520c),
+    ("face_sketch", 0xac24651484178273),
+    ("part_select", 0xbd9176c4c3e50f39),
+    ("loft_prism", 0x4413e8ba1b27cd15),
+    ("die_composed", 0x690e7c680cebda97),
+    ("die_composed_tour", 0x7e7ec4fb3e9e7dbd),
+    ("plate_param", 0xb8c9e234c718e107),
+    ("kiss_carry", 0x8be2464010f4249d),
+    ("tube_ring", 0x0d0d950420bce9dd),
+    ("tube_arc", 0x0dc2a35cb5306ecc),
+    ("hollow_tube_elbow", 0xa033450e9f76acfa),
+    ("hollow_tube_ring", 0x2c05f4d199bc5e59),
+    ("reshaped_rod", 0x9cf09f79ade28dac),
 ];
 
 #[test]

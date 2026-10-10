@@ -3112,7 +3112,7 @@ impl JoinPlan {
     ) -> Result<Self, SplitJoinError> {
         // The second half can sit on another face: a boolean match can
         // take a germ's half from a sector on a face its ends do not
-        // share (`work/join/a-boolean-match-takes-a-half-from-a-sector-on-a-face-its-ends-do-not-share.md`).
+        // share (`a-boolean-match-takes-a-half-from-a-sector-on-a-face-its-ends-do-not-share`, JOIN, closed by PR 4364).
         // Such a plan stays on the first half's face, and what runs on
         // it answers: the curve's lane there, or the `mekr` across the
         // two faces (`NotSameFace`).

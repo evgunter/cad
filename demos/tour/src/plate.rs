@@ -11,28 +11,27 @@
 //! picture cannot survive.
 //!
 //! **The study's document does not cut its holes**: the web is read
-//! off the hole extrudes' own walls, so its product is the blank. A
-//! user would write the holes one of two natural ways, and both stop
-//! short of the study:
+//! off the hole extrudes' own walls, and the document places the
+//! blank, so its product is a slab with no holes. A user would write
+//! the holes one of two natural ways, and both stop short of the
+//! study:
 //!
 //! - **cut**: the blank minus the two hole extrudes, [`cut_plate`],
-//!   authored beside the study and attempted every run as two walls —
-//!   the certified drive certifies no box of it, and it has no product
-//!   root;
+//!   authored beside the study and attempted every run as a wall —
+//!   the certified drive certifies no box of it. It places the cut
+//!   part, which is its product;
 //! - **sketched**: one extrude of a profile with the two circles as
 //!   inner loops. No boolean, so no tie: it certifies whole boxes up to
 //!   `1e-2` of the study, and 0 of 512 leaves over the real study
 //!   (`work/paths/inner-loop-circles-bound-the-plate-study-at-arc-span.md`).
-//!   Its measure would read the part's own walls, so it has no product
-//!   root either.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::document::ExtrudeSide;
 use pncad::document::{
     AssertionDir, BooleanOp, CancelToken, Dimension, Distribution, DocEdit, DocumentId,
-    EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
+    EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc,
+    ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarId, VarName, apply, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::AuthoredNode;
@@ -129,8 +128,10 @@ fn declare(
 pub struct Plate {
     /// The document itself.
     pub doc: ProfileDoc,
-    /// The web `Measure` node — `distance(wall_a, wall_b) − r_a − r_b`.
-    pub measure: RecipeNodeId,
+    /// The web, `distance(wall_a, wall_b) − r_a − r_b`: the variable
+    /// the assertion reads, defined over the distance measure's output
+    /// and the two radii.
+    pub web: VarId,
     /// The `Assertion` over it. Read by [`crate::tolerance`].
     pub assertion: RecipeNodeId,
     /// The two hole extrudes, in the order their centres run along
@@ -161,13 +162,11 @@ pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -
 /// (the other, inner-loop circles in one extrude, is the module doc's):
 /// the holes subtracted from the blank by two `Boolean(Subtract)`s, and
 /// the web read off the cut part's bore walls. Not the study's
-/// document, because two doors refuse it:
-/// the certified drive certifies no box of it
+/// document, because the certified drive certifies no box of it
 /// (`work/tally/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`,
-/// pinned in [`crate::tolerance`]), and its one root is the assertion,
-/// so it has no product to draw
-/// (`work/recipe/a-measured-part-is-not-a-product-root.md`, pinned in
-/// [`crate::gallery`]).
+/// pinned in [`crate::tolerance`]). It places the cut part, and the
+/// web measure reading that part does not keep it out of the product
+/// (pinned in [`crate::gallery`]).
 pub fn cut_plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -> Plate {
     author(spacing_half_width, radius_sigma, bound, true, tol)
 }
@@ -307,19 +306,25 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
     // second's A side, then the first's B side.
     let face = || NamePat::of_kind(EntityKind::Face);
     let from = |side: SegTag, inner: NamePat| face().seg(SegPat::tag(side).of([inner]));
-    let sites = if cut {
+    let (placed, sites) = if cut {
         let drilled = subtract(&mut doc, blank, hole_a);
         let part = subtract(&mut doc, drilled, hole_b);
-        [
-            (
-                part,
-                from(SegTag::FromA, from(SegTag::FromB, face().node(hole_a))),
-            ),
-            (part, from(SegTag::FromB, face().node(hole_b))),
-        ]
+        (
+            part,
+            [
+                (
+                    part,
+                    from(SegTag::FromA, from(SegTag::FromB, face().node(hole_a))),
+                ),
+                (part, from(SegTag::FromB, face().node(hole_b))),
+            ],
+        )
     } else {
-        [(hole_a, face()), (hole_b, face())]
+        (blank, [(hole_a, face()), (hole_b, face())])
     };
+    let placement =
+        apply(&doc, &DocEdit::place(placed, None), tol, &RefusingReach).expect("the plate places");
+    doc = placement.doc;
 
     // The wall names come from the SELECTION door, the way a user gets
     // them: evaluate what is built so far, then ask for each hole's
@@ -346,35 +351,38 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
     // two parallel cylinder faces is their AXIS distance (the closed
     // form's own contract), so the subtraction of the radii is the
     // author's arithmetic and not a hidden convention.
-    let radius_of = |n: &'static str| MeasureExpr::value(param(n));
-    let web = MeasureExpr::sub(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("Length + Length"),
-    )
-    .expect("Length − Length");
     // The two references are read BEFORE the insert borrows the
     // document mutably — the borrow checker's way of saying that a
     // measure's references are resolved against a document that
     // already exists, which is exactly the E3 contract.
     let [site_a, site_b] = sites;
-    let refs = vec![wall(site_a), wall(site_b)];
-    let measure = insert(
-        &mut doc,
-        Node::measure(web, refs).expect("both indices in range"),
-        tol,
-    );
+    let primitive = MeasurePrimitive::Distance {
+        a: wall(site_a),
+        b: wall(site_b),
+    };
+    let measure = insert(&mut doc, Node::Measure { primitive }, tol);
+    let distance = doc.output(measure, 0).expect("a measure defines its value");
+    let web = Formula::sub(
+        Formula::var(distance, Dimension::Length),
+        Formula::add(param("hole_a_r"), param("hole_b_r")).expect("Length + Length"),
+    )
+    .expect("Length − Length");
     let assertion = insert(
         &mut doc,
         Node::Assertion {
-            measure: measure.into(),
+            value: web,
             bound: len(bound),
             dir: AssertionDir::AtLeast,
         },
         tol,
     );
+    let Some(Node::Assertion { value: web, .. }) = doc.node(assertion) else {
+        unreachable!("the assertion was inserted one line above")
+    };
+    let web = *web;
     Plate {
         doc,
-        measure,
+        web,
         assertion,
         holes: [hole_a, hole_b],
     }
