@@ -18,7 +18,7 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
     CertCheck, CertifyError, EdgeAuthority, EdgeCurve, EdgeCurveSpec, EdgeDescription,
-    EdgeDescriptionSpec, MappedCurve,
+    EdgeDescriptionSpec, MappedCurve, MappedSource,
 };
 use geom_core::{Band, Point3, Tol, Vec3};
 
@@ -428,7 +428,10 @@ fn r2_the_scaffolding_door_certifies_with_no_surface_at_all() {
     assert!(
         matches!(
             edge.authority(),
-            EdgeAuthority::Declared(MappedCurve::ExtrudedPoint { .. })
+            EdgeAuthority::Declared(MappedCurve {
+                source: MappedSource::ExtrudedPoint { .. },
+                ..
+            })
         ),
         "a scaffold's pushforward IS its declaration"
     );

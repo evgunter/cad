@@ -9,7 +9,7 @@
 
 use core::f64::consts::{FRAC_PI_3, TAU};
 
-use geom_brep::MappedCurve;
+use geom_brep::{MappedCurve, MappedSource};
 use geom_core::{Affine3, Mat3, Point2, Point3, Vec3};
 
 /// f64 lane: two nested restrictions; the sample must
@@ -20,14 +20,13 @@ fn r1_f64_nested_restrict_round_trip() {
         Mat3::rotation_about(Vec3::new(1.0f64, 1.0, 0.0), FRAC_PI_3),
         Vec3::new(0.5, -1.5, 3.0),
     );
-    let curve = MappedCurve::RevolvedPoint {
+    let curve = MappedCurve::whole(MappedSource::RevolvedPoint {
         point: Point2::new(2.0f64, -1.0),
         place,
         axis_origin: Point3::new(1.0, 2.0, 3.0),
         axis_dir: Vec3::new(2.0, 1.0, -2.0),
         angle: TAU,
-        range: geom_brep::SweepRange::whole(),
-    };
+    });
     // restrict twice: [0.3, 0.7] then [0.5, 1.0] of that = [0.5, 0.7].
     let r1 = curve.restrict(0.3, 0.7);
     let r2 = r1.restrict(0.5, 1.0);
@@ -39,14 +38,13 @@ fn r1_f64_nested_restrict_round_trip() {
         assert!(d <= 1e-12, "nested restrict drifted {d:e} from direct eval");
     }
     // Near-zero angle at f64: eval(s)·small-angle stays near the start.
-    let tiny = MappedCurve::RevolvedPoint {
+    let tiny = MappedCurve::whole(MappedSource::RevolvedPoint {
         point: Point2::new(2.0f64, -1.0),
         place,
         axis_origin: Point3::new(1.0, 2.0, 3.0),
         axis_dir: Vec3::new(2.0, 1.0, -2.0),
         angle: 1.0e-8,
-        range: geom_brep::SweepRange::whole(),
-    };
+    });
     let p0 = tiny.eval(0.0);
     let p1 = tiny.eval(1.0);
     let d = (p1 - p0).norm_inf();
@@ -70,7 +68,7 @@ mod interval_lane {
     /// fixture used a translation placement and a +z axis).
     fn rig(half: f64, angle: f64) -> MappedCurve<Interval> {
         let wd = |c: f64| Interval::from_bounds(c - half, c + half);
-        MappedCurve::RevolvedPoint {
+        MappedCurve::whole(MappedSource::RevolvedPoint {
             point: Point2::new(iv(2.0), iv(-1.0)),
             place: Affine3::from_parts(
                 Mat3::rotation_about(
@@ -82,8 +80,7 @@ mod interval_lane {
             axis_origin: Point3::new(wd(1.0), wd(2.0), wd(3.0)),
             axis_dir: Vec3::new(wd(2.0), wd(1.0), wd(-2.0)),
             angle: iv(angle),
-            range: geom_brep::SweepRange::whole(),
-        }
+        })
     }
 
     /// Near-but-not-zero angle: the start sample must not feel the
