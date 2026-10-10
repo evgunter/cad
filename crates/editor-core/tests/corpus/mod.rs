@@ -371,6 +371,33 @@ pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
     }
 }
 
+/// The single body a read holds: a split's port is that side of the
+/// split's value, any other read its operation's [`body_of`].
+pub fn body_read<'e, T: Decide>(
+    ev: &'e Evaluation<T>,
+    doc: &ProfileDoc,
+    read: editor_core::VarId,
+) -> &'e Body<T> {
+    let (node, port) = doc
+        .var(read)
+        .and_then(|var| var.def().output())
+        .expect("a read of a live output");
+    match &ev.value(node).expect("node evaluated to a value").payload {
+        ValuePayload::Split { above, below } => {
+            let side = if u32::from(port) == editor_core::SplitHalf::Above.output_body() {
+                above
+            } else {
+                below
+            };
+            match side {
+                editor_core::SplitSide::Body(b) => b,
+                editor_core::SplitSide::Empty => panic!("the half read holds no material"),
+            }
+        }
+        _ => body_of(ev, node),
+    }
+}
+
 /// **The node kinds no document can evaluate to a value** — the
 /// evaluation frontier, read by every suite that requires each kind
 /// evaluated somewhere (`m4_pr8_corpus`, `names_verbatim_edge_evaluator`).

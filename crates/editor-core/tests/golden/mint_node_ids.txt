@@ -33,7 +33,6 @@ Pattern 2:49bc34b89b22839b
 PlacedUnion 2:e4ddac107275f47e
 PlacedUnion 1:150544a5320c3e58
 Part 2:1f8ee0d754d2e01e
-Part 1:e59557703615f3f8
 InstantiatePart 8:1e58c21bab8525f2
 Gauge 8:8169e9c9fbdcbd7e
 Mate 8:e09e8b68c2c657de

@@ -646,16 +646,12 @@ fn a_shell_above_the_operand_carries_a_survivor_and_loses_an_opened_face() {
     );
 }
 
-/// **A `Part` above a union selects nothing the walk could check, and
-/// the evaluation refuses it.** The member walk passes a `Part` and a
-/// transform down to the union, where it continues at the member the
-/// name says, so the `Part`'s index meets no pattern to agree with.
-/// That is because there is no copy to select: the union is one body,
-/// and a `Part` naming an instance of it refuses at evaluation
-/// (`wrong_operand`), so the gather refuses at that root before any
-/// mate's face is read.
+/// **A `Part` above a union is refused at the door.** A `Part` picks
+/// one copy out of a pattern's copies and reads nothing else (DM3): the
+/// union is one body, so a `Part` over it refuses `SlotVarKind` at its
+/// source before a member walk or a gather could meet it.
 #[test]
-fn a_part_above_a_union_refuses_at_evaluation_before_the_gate_reads_it() {
+fn a_part_above_a_union_is_refused_at_the_door() {
     let s = scene_with("msolve13-part-over-union", false);
     let (doc, t1) = insert(
         s.doc.clone(),
@@ -670,42 +666,23 @@ fn a_part_above_a_union_refuses_at_evaluation_before_the_gate_reads_it() {
         },
     );
     let (doc, moved) = insert(doc, xform(union, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
-    let (doc, part) = insert(
-        doc,
+    let refusal = fixture::insert_refused(
+        &doc,
         Node::Part {
             of: moved.into(),
             select: PartSelect::Instance(Formula::count(0)),
         },
     );
-    let (doc, placement) = crate::fixture::place(doc, part);
-    let head = head_at(part, member_name(union, t1, s.top_cap()));
-    let m = member_of(&doc, &head).expect("the walk descends the union below the Part");
-    assert_eq!(m.instance, s.top);
-    let (doc, mate) = mated(doc, seat(s.base_cap(s.base1), head));
-    assert!(
-        solve(&doc, &s.opts, Tol::witness()).fault(mate).is_none(),
-        "the solve has no index to check"
-    );
-    let ev = run(&doc, &s.opts);
-    assert!(
-        matches!(ev.result(part), Some(editor_core::NodeResult::Failed(_))),
-        "a Part over one body refuses: {:?}",
-        ev.result(part)
-    );
-    let err = gate(&doc, &ev).expect_err("the gather refuses the poisoned placement");
     assert!(
         matches!(
-            &err,
-            AssemblyError::Product(e)
-                if matches!(
-                    **e,
-                    editor_core::ProductError::Root(editor_core::NodeStanding::Poisoned {
-                        node,
-                        through,
-                    }) if (node, through) == (placement, part)
-                )
+            &refusal,
+            editor_core::EditError::SlotVarKind {
+                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Of),
+                found: editor_core::VarKind::Body,
+                expected: editor_core::SlotKind::Is(editor_core::VarKind::Bodies),
+                ..
+            }
         ),
-        "the gather refuses at the Part's placement, poisoned through the Part, before any \
-         reference is read: {err:?}"
+        "{refusal:?}"
     );
 }
