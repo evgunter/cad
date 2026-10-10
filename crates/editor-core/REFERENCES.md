@@ -152,15 +152,18 @@ associates, and nothing is a unary "not", so its two seats are named, and
 several tools are `Subtract { from: a, tool: Union([tools…]) }`, the one
 way to say it. There is no `Boolean { op, a, b }` and no `BooleanOp`.
 
-A union or an intersect takes one argument of kind `Bodies`, the family of
-`Body` (D10), filled in one of two forms: one read of a family
-(`Union(xs)`), whose members join in index order, or the member reads
-spelled at the slot (`Union([a, b, c])`), which join in the spelled order.
-A list is spelled at the slot (`union([a, b, c])`, the three unrelated
-bodies just made). Naming a list so several readers share it, a spelled
-list as a `Bodies` definition, is not built, for lack of immediate need;
-nothing in the design forbids it. A collection that follows an index is a
-family (D10, Repetition). It is the argument a placement's
+A union or an intersect takes one argument of kind `Bodies` (D10). A
+`Bodies` is defined by index or by enumeration. By index it is a family:
+one program per value of `k`, its length a `Count`, its members named by
+`Member { (k), of }`; `Union(xs)` joins them in index order. By
+enumeration it is a spelled list of independent reads, `Union([a, b, c])`
+for the three unrelated bodies just made, each member named by its own
+read and joined in the spelled order; D10's "an irregular family is its
+members written out" already says this. Every reader of a `Bodies` (union,
+intersect, a placement's shapes) takes either. Today an enumeration is
+spelled at the slot; naming one, a definition several readers share, is
+not built, for lack of immediate need, and nothing in the design forbids
+it. It is the argument a placement's
 shape list takes (S3M). A mix (`[xs, a]`) puts a `Bodies` where a `Body`
 goes and is ill-typed at the door (`SlotVarKind`), so a list beside an
 individual cannot be written. A list of one is its member, and an empty
