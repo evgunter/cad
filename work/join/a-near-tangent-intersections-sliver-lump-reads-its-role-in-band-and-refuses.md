@@ -2,11 +2,12 @@
 id: a-near-tangent-intersections-sliver-lump-reads-its-role-in-band-and-refuses
 kind: issue
 title: A near-tangent intersection keeps the exact answer's sliver lump as its own shell; at a tilt of a few bands its V/A reads in band and the door refuses ShellRoleUndecided
-status: dispatched
+status: closed
 opened: 2026-10-08
 priority: P0
 cost: M
 refs: [near-tangent-boolean-results-ship-with-an-escalated-tier-3-census]
+closed: 2026-10-09
 branch: join/door-types-in-band-results
 ---
 
@@ -62,3 +63,52 @@ options:
 - refuse the pose at the split, typed;
 - keep the refusal as the door's answer, and say so in the door's
   contract.
+
+## Built (door-typing unit, branch `join/door-types-in-band-results`)
+
+DESIGN-FORK-LOG row 101 ruled the third option: refuse at the door,
+typed as the operands' ill-conditioning (D10, Booleans).
+
+- **The role read.** It carries the certified reading's escalation where
+  the interval re-derivation's one enclosure of `V/A` lies wholly inside
+  a sliver band (`RoleUnread::sliver`, then
+  `ValidationError::ShellRoleUndecided::sliver`, beside check 10's refusal).
+- **The gate.** It states every finding's arm (`ops.rs` `finding_arm`).
+  A check-10 role refusal with a certified sliver is in band. Where every
+  finding is in band, the door refuses
+  `BooleanError::Escalated { decision: ShellRole, diag }` on the
+  certified enclosure. The recourse is to move the parts, or tighten the
+  tolerance below |V/A|/K. Any other finding keeps `ResultInvalid`.
+- **The offer, executed both ways.** `offer_rows`
+  `sliver_lump_of_an_intersection` is this row's witness. Its sibling
+  `sliver_cavity_of_a_union` is the same lump as a cavity. Each passes
+  just below the tolerance it offers, 2.96e-10.
+
+**Probe, base `8e3edbe5` against head.** These are every line that
+moved:
+
+| ε | tilts | runs | `ShellRoleUndecided` (base) | `Escalated { ShellRole }` (head) | other lines moved |
+|---|---|---|---|---|---|
+| 1e-9 | ±1e-5 … ±1e-9 | 28 800 | 34 (d = 1e-8, ∩) | 34 | 0 |
+| 1e-9 | ±3e-7, ±3e-8, ±3e-9 | 17 280 | 60 (48 ∩ at 3e-8, 12 ∖ at −3e-8) | 60 | 0 |
+| 1e-6 | ±1e-3 … ±1e-9 | 40 320 | 34 (d = 1e-5) | 34 | 0 |
+| 1e-12 | ±1e-8 … ±1e-11 | 23 040 | 38 (36 ∩ at 1e-11, 2 ∖ at −1e-11) | 38 | 0 |
+
+Every one of the 166 lumps has a certified enclosure wholly in band.
+None stays `ResultInvalid`. ENCL's 74 straddling refusals at 1e-12 were
+already gone on base: PR 4386 builds them.
+
+**The witness's number.** The refusal quoted 3.05e-9, the f64 walk's
+value. The certified V/A is 3.2887e-9, and the pose's geometry agrees
+to 1e-7. The 3.87e-9 above was the oracle's own world-origin rounding.
+Filed on TALLY:
+`the-shell-role-refusal-quotes-the-walks-f64-margin-off-its-certificate`.
+
+## Closed
+
+Built as above. The residue is filed:
+- `the-door-gates-other-in-band-findings-are-typed-the-kernels`: the gate's
+  other undecided findings, which are point margins not yet shown to be
+  conditioned.
+- `a-result-that-is-only-a-sliver-shell-passes-the-door`: a lone sliver
+  lump ships.

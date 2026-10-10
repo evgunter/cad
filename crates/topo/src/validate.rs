@@ -1619,6 +1619,11 @@ pub enum ValidationError {
         solid: SolidKey,
         /// The shell's refusal, naming it.
         error: crate::props::ShellClassifyError,
+        /// The shell's certified `V/A`, where it lies wholly inside one
+        /// sliver band: the shell is in band of having no volume, whatever
+        /// `error`'s words (the walk's) say. `None` leaves open whether
+        /// the arithmetic or the geometry left the role unread.
+        sliver: Option<Box<crate::props::CertifiedSliver>>,
     },
     /// Tier 3′ (M3 PR 6a): the global coincidence census found a
     /// position coincidence between distinct entities that no declared
@@ -5252,7 +5257,13 @@ fn shell_winding_errors<T: Decide + crate::props::AtRestPolicy>(
         for &shell in &record.shells {
             match ShellRead::of(body, shell, band, tol, quad) {
                 Ok(read) => reads.push(read),
-                Err(error) => errors.push(ValidationError::ShellRoleUndecided { solid, error }),
+                Err(crate::props::RoleRefusal { error, sliver }) => {
+                    errors.push(ValidationError::ShellRoleUndecided {
+                        solid,
+                        error,
+                        sliver,
+                    });
+                }
             }
         }
         // A shell whose role does not read leaves the solid's winding

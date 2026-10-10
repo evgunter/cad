@@ -839,12 +839,50 @@ pub(crate) const SHELL_ROLE_NAMES: RoleNames = RoleNames::one("chk_shell_volume_
 pub(crate) const SHELL_ROLE_ENCLOSURE_NAMES: RoleNames =
     RoleNames::one("chk_shell_volume_sign_enclosure");
 
+/// **A shell certified in band of having no volume**: the interval
+/// re-derivation's escalation, where its one enclosure of `V/A` lies
+/// wholly inside one sliver band ([`Indeterminate::terminal_sliver`],
+/// the classifier's own verdict), so the shell is a sliver at this
+/// tolerance whatever its rounding. Minted only where that holds, so
+/// a holder never re-checks it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CertifiedSliver(Indeterminate);
+
+impl CertifiedSliver {
+    /// `certified` as a sliver, where its enclosure lies wholly in band.
+    pub(crate) fn of(certified: Indeterminate) -> Option<Self> {
+        certified.terminal_sliver.then_some(Self(certified))
+    }
+
+    /// The certified escalation: its enclosure, band and name.
+    #[must_use]
+    pub fn reading(&self) -> &Indeterminate {
+        &self.0
+    }
+}
+
+/// **Why a shell has no role**: the refusal its readers report, and
+/// whether its certified reading found it a sliver. The two are apart
+/// because the refusal's words are the walk's (a valued margin), while
+/// the sliver is the certificate's, which may refute what the walk read.
+#[derive(Clone, Debug)]
+pub(crate) struct RoleRefusal {
+    /// The refusal every reader of the shell's role reports.
+    pub(crate) error: ShellClassifyError,
+    /// The certified reading's verdict, where it lies wholly in band.
+    pub(crate) sliver: Option<Box<CertifiedSliver>>,
+}
+
 /// A role read that decided no role: the two ends' decisions (one and
-/// the same for an exact volume).
+/// the same for an exact volume), and whether the certified reading
+/// found the shell a sliver.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RoleUnread {
     lo: Result<Decided, Indeterminate>,
     hi: Result<Decided, Indeterminate>,
+    /// `None` where no certified reading was taken, or it was not wholly
+    /// in band.
+    sliver: Option<CertifiedSliver>,
 }
 
 impl RoleUnread {
@@ -853,9 +891,24 @@ impl RoleUnread {
         self.hi.err().or(self.lo.err())
     }
 
-    /// `shell`'s refusal for this read ([`shell_role_refusal`]).
-    pub(crate) fn refusal(self, shell: ShellKey, band: Band) -> ShellClassifyError {
-        shell_role_refusal(shell, self.lo, self.hi, band)
+    /// `shell`'s refusal for this read: the walk's ends pick its words
+    /// ([`shell_role_refusal`]), and the certified reading says whether
+    /// the shell is a sliver, whatever those ends decided.
+    pub(crate) fn refusal(self, shell: ShellKey, band: Band) -> RoleRefusal {
+        RoleRefusal {
+            error: shell_role_refusal(shell, self.lo, self.hi, band),
+            sliver: self.sliver.map(Box::new),
+        }
+    }
+
+    /// This read, with what the certified reading `certified` (an exact
+    /// one: both ends one enclosure) says of the sliver band.
+    fn certified_by(self, certified: &Self) -> Self {
+        let sliver = match (certified.lo, certified.hi) {
+            (Err(lo), Err(hi)) if lo == hi => CertifiedSliver::of(hi),
+            _ => None,
+        };
+        Self { sliver, ..self }
     }
 }
 
@@ -890,7 +943,11 @@ pub(crate) fn read_role<U: Decide>(
             let one = sign(names.high, volume, lever);
             read(
                 role_at(BracketEnd::Low, one).or_else(|| role_at(BracketEnd::High, one)),
-                RoleUnread { lo: one, hi: one },
+                RoleUnread {
+                    lo: one,
+                    hi: one,
+                    sliver: None,
+                },
             )
         }
         SignReading::Bracket(ends) => {
@@ -899,7 +956,14 @@ pub(crate) fn read_role<U: Decide>(
                 return RoleRead::Decided(role);
             }
             let lo = sign(names.low, ends.volume_lo, ends.surface_area);
-            read(role_at(BracketEnd::Low, lo), RoleUnread { lo, hi })
+            read(
+                role_at(BracketEnd::Low, lo),
+                RoleUnread {
+                    lo,
+                    hi,
+                    sliver: None,
+                },
+            )
         }
     }
 }
@@ -983,8 +1047,14 @@ pub(crate) fn certify_role<T: Decide>(
             (Some(Ok((exact, recentred))), walk) => {
                 let unread = match (read_role(exact, certified, band), walk) {
                     (RoleRead::Decided(role), _) => return Certified::Role(role),
-                    (RoleRead::Unread(_), RoleRead::Unread(unread))
-                    | (RoleRead::Unread(unread), RoleRead::Decided(_)) => unread,
+                    (RoleRead::Unread(cert), RoleRead::Unread(unread)) => {
+                        unread.certified_by(&cert)
+                    }
+                    // The walk's decision is not certified, so it is no role:
+                    // the certified read refuses, its own ends giving the
+                    // words. Where both are unread the walk's ends give them.
+                    // Either way the sliver verdict is the certificate's.
+                    (RoleRead::Unread(cert), RoleRead::Decided(_)) => cert.certified_by(&cert),
                 };
                 if recentred {
                     Certified::Open(unread)
@@ -3003,7 +3073,9 @@ pub(crate) fn classify_shells_through<T: Decide>(
         let role = match role {
             Ok(role) => role,
             Err(RoleWalkRefusal::Refused(source)) => return Err(props(source)),
-            Err(RoleWalkRefusal::Unread(unread)) => return Err(unread.refusal(shell_key, band)),
+            Err(RoleWalkRefusal::Unread(unread)) => {
+                return Err(unread.refusal(shell_key, band).error);
+            }
         };
         out.push(ShellClassification {
             shell: shell_key,
@@ -3043,7 +3115,22 @@ pub(crate) fn shell_role<'b, T: Decide>(
     tol: Tol,
     quad: Option<QuadLane<T>>,
 ) -> Result<(ShellRole, SignCertificate<'b, T>), ShellClassifyError> {
-    let props = |source| ShellClassifyError::Props { shell, source };
+    shell_role_read(body, shell, band, tol, quad).map_err(|refusal| refusal.error)
+}
+
+/// [`shell_role`], keeping the certified reading's sliver verdict beside
+/// a refusal, for check 10.
+pub(crate) fn shell_role_read<'b, T: Decide>(
+    body: &'b Body<T>,
+    shell: ShellKey,
+    band: Band,
+    tol: Tol,
+    quad: Option<QuadLane<T>>,
+) -> Result<(ShellRole, SignCertificate<'b, T>), RoleRefusal> {
+    let props = |source| RoleRefusal {
+        error: ShellClassifyError::Props { shell, source },
+        sliver: None,
+    };
     let faces = body.get_shell(shell).map_or(&[][..], |s| &s.faces[..]);
     let (role, certificate) = role_walk(
         body,
@@ -4717,6 +4804,111 @@ mod shell_role_refusal_tests {
         ];
         for (name, lo, hi, want) in rows {
             assert_eq!(shell_role_refusal(shell, lo, hi, band), want, "{name}");
+        }
+    }
+
+    /// **The sliver rides beside every refusal**, whatever the walk's ends
+    /// decided: a walk that read zero, or straddled, against a certificate
+    /// wholly in band is refuted by it, and the refusal's words stay the
+    /// walk's (`vee300 nt e0 a1 d6e-9`: the walk reads 8.7e-10, in the
+    /// zero band, and the certificate [1.69973e-9, 1.69973e-9]).
+    #[test]
+    fn a_refusal_keeps_the_certified_sliver_beside_the_walks_words() {
+        let shell = ShellKey::default();
+        let band = Band::new(1e-9, 1e-8).expect("a band");
+        let certified = CertifiedSliver::of(
+            geom_core::Interval::from_bounds(1.6997276e-9, 1.699728e-9)
+                .sign_within(band)
+                .expect_err("in band"),
+        )
+        .expect("an enclosure wholly in band");
+        let ok = |sign, m| {
+            Ok(Decided {
+                sign,
+                margin: MarginDiag::value(m),
+            })
+        };
+        let rows = [
+            (
+                "the walk reads zero",
+                ok(Sign::Zero, 8.7e-10),
+                ok(Sign::Zero, 8.7e-10),
+            ),
+            (
+                "the walk straddles",
+                ok(Sign::Negative, -1.0),
+                ok(Sign::Positive, 1.0),
+            ),
+            (
+                "the walk is in band",
+                3e-9_f64.sign_within(band),
+                3e-9_f64.sign_within(band),
+            ),
+        ];
+        for (name, lo, hi) in rows {
+            for sliver in [None, Some(certified)] {
+                let refusal = RoleUnread { lo, hi, sliver }.refusal(shell, band);
+                assert_eq!(
+                    refusal.error,
+                    shell_role_refusal(shell, lo, hi, band),
+                    "{name}"
+                );
+                assert_eq!(
+                    refusal.sliver.as_deref(),
+                    sliver.as_ref(),
+                    "{name}: the certificate's verdict rides"
+                );
+            }
+        }
+    }
+
+    /// The certified reading marks a read a sliver only where its one
+    /// enclosure lies wholly in band: a point margin in band, an
+    /// enclosure touching a threshold, or two different ends do not.
+    #[test]
+    fn only_an_enclosure_wholly_in_band_certifies_a_sliver() {
+        let band = Band::new(1e-9, 1e-8).expect("a band");
+        let read = |lo: f64, hi: f64| geom_core::Interval::from_bounds(lo, hi).sign_within(band);
+        let walk = RoleUnread {
+            lo: 3e-9_f64.sign_within(band),
+            hi: 3e-9_f64.sign_within(band),
+            sliver: None,
+        };
+        let one = |r: Result<Decided, Indeterminate>| RoleUnread {
+            lo: r,
+            hi: r,
+            sliver: None,
+        };
+        let rows = [
+            ("wholly in band", one(read(2e-9, 4e-9)), true),
+            ("a point in band", one(3e-9_f64.sign_within(band)), false),
+            ("touching the zero band", one(read(1e-9, 4e-9)), false),
+            (
+                "straddling the escalate edge",
+                one(read(4e-9, 1.2e-8)),
+                false,
+            ),
+            ("touching the escalate edge", one(read(4e-9, 1e-8)), false),
+            (
+                "straddling the escalate edge on the void side",
+                one(read(-1.2e-8, -4e-9)),
+                false,
+            ),
+            ("across zero", one(read(-2e-9, 4e-9)), false),
+            (
+                "two ends, each in band",
+                RoleUnread {
+                    lo: read(2e-9, 3e-9),
+                    hi: read(3e-9, 4e-9),
+                    sliver: None,
+                },
+                false,
+            ),
+        ];
+        for (name, certified, want) in rows {
+            let got = walk.certified_by(&certified);
+            assert_eq!(got.sliver.is_some(), want, "{name}");
+            assert_eq!(got.hi, walk.hi, "{name}: the walk's own reading stays");
         }
     }
 }
