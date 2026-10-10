@@ -113,7 +113,11 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// with the placements ("the world copy of …"), and the node tags of
 /// the placements; no name a document held before says another word.
 /// Re-taken merged with main's blend change, whose die names it says.
-const SAID_DIGEST: u64 = 0x103d_5735_924f_211b;
+///
+/// INTENT `part-split-half-retires`: `part_select`'s two half `Part`s
+/// are gone, its union reads the split's ports, and every node minted
+/// after them re-mints, so its node tags moved. [`NAME_WORDS`] held.
+const SAID_DIGEST: u64 = 0xa9fb_be26_2425_d3bf;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
