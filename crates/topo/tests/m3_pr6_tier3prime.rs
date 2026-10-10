@@ -332,7 +332,7 @@ fn tampered_declaration_is_stale() {
         .map(|(k, _)| k)
         .find(|&k| k != real_a && k != tampered.vv[0].b)
         .unwrap();
-    tampered.vv[0].a = wrong;
+    tampered.vv[0].record.a = wrong;
     let errors = validate_pseudomanifold(&body.body, &tampered, Tol::witness()).unwrap_err();
     assert!(
         errors

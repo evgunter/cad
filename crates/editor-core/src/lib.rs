@@ -106,16 +106,16 @@ pub use appearance::{
     Attr, AttrKind, AttrSet, Rgba8,
 };
 pub use assembly::{
-    Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
-    CarriedRefusal, CarriedUnplaced, MintRefusal, MintedDeclaration, RefusedRef, Relation, Route,
-    assemble, assemble_gathered,
+    Assembly, AssemblyError, AtRestFinding, AtRestRow, Attribution, CarriedDeclaration,
+    CarriedDeclarations, CarriedRefusal, CarriedUnplaced, MintRefusal, MintedDeclaration,
+    RefusedRef, Relation, Route, assemble, assemble_gathered,
 };
 pub use checks::{
     Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
     ChecksConfig, ChecksError, ChecksReport, FindingSubject, Severity, Subject, enforce_checks,
     run_checks, run_checks_on, subject_body,
 };
-pub use coincide::{NamedCell, NamedCoincidence, Proof, Residual, Rung};
+pub use coincide::{CitedInput, NamedCell, NamedCoincidence, Proof, Residual, Rung};
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
 pub use doc::{

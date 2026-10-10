@@ -2,11 +2,11 @@
 id: census-declared-sites-read-a-torn-record-as-absent
 kind: issue
 title: The census's declared-site walks (ee_cross_backed, sweep_conformal_patches, the patch arm of confirm_curve_and_patch_records) read a torn record as absent — the held half of census-arena-walks-read-a-torn-record-as-absent
-status: parked
+status: open
 opened: 2026-10-08
 priority: P3
 cost: E
-blocked_on: [contact-records-cite-their-decision]
+
 ---
 
 

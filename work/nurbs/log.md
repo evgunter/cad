@@ -316,3 +316,38 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - DR-140: tally 1, R1's ladder zeroing, which predates the PR;
   - the row is closed in the PR.
 - Merges when CI is green on `695dc165ce`. (NURBS orchestrator)
+- 2026-10-10 11:28 — PR 4485 merged at `695dc165ce` (CI green), with DR-140 and the row closed; tracker sync PR 4528 merged. (NURBS orchestrator)
+- 2026-10-10 12:15 — Q2 build is up as PR 4518 (`q + R(p − q)` via `Affine3::rotate_point_about_axis`, citing W1). Its sweep also moved `sweep::revolve` partial/full vertices and `offset_axial::reauthor` onto the new spelling, and it re-blessed `m10_p_fence`, `seat7`/`seat8`/`intent_s2_c_world` and `sym11`. A thousand metres out, widths are flat at 2–3 ulps of the coordinates. Class M, dual tier: rule 1 byte 52 (mod 3 = 1) gives SEQUENTIAL, so one FULL Opus review was dispatched on the frozen head `21a59ded5f`. A second review runs only if this one raises a MAJOR. (NURBS orchestrator)
+
+## 2026-10-10 — PR 4518's review approves with fixes; the next slate dispatched
+
+**PR 4518** (Q2, `q + R(p − q)`): the sequential arm's one review returned APPROVE-WITH-FIXES with no MAJOR, so no second review runs.
+- **Held under execution:**
+  - inclusion on 4000 wide boxes;
+  - bit-identity at an origin axis on 200,000 cases, at f64, `Dual` and Interval;
+  - against a 300-bit reference, never worse than the old spelling in any bucket;
+  - the width table reproduced at 1e3 and 1e5, and flat at 1e7;
+  - the corpus moves trace to the vertex sweep alone;
+  - every newly built `sym11` washer is closed with 4 faces;
+  - the re-posed rows go red under both eval mutants.
+- **MINOR-1:** the doc's "up to 2·w" axis bound is false away from the zero turn. The reviewer measured 2.41·w; a turned box grows by up to |cos| + |sin| before `q` is added back.
+- **MINOR-2:** the sweep is incomplete. Far-cap edge descriptions and arc centres still turn points through `rot * place`, so a far-cap vertex and its edge are turned by two spellings.
+- **Style:**
+  - two affine docs argue opposite postures;
+  - a bit-for-bit row compares `eval` to the function it calls;
+  - a round-trip row stands in for an exact reference;
+  - a FAR floor sits above its measurement;
+  - a stale cite, and an unwrapped line.
+- The fix pass went to the build session. Merge follows the orchestrator's delta check, and DR row (sequential arm) is the PR's last commit.
+
+**Next slate, dispatched 13:19Z:**
+- **Fork3:** the certified spline combine. It decides the form of the certified Boehm step (`the-convex-boehm-step-is-looser-than-lerp-on-a-varying-column`, `design: true`), what the projective applier means at `T = Interval` (`the-projective-applier-still-lerps…`), and the one certified primitive (`certified-blossom-primitive-in-geom-core-spline`), which waits on the first.
+  - One problem statement, three questions.
+  - One Opus and one Fable designer, concurrent on `5bcc5296ce`.
+  - Blinding byte drawn before dispatch.
+- **One implementer lane, two PRs:**
+  - `nurbs-iso-netview-carries-a-surface-unpaired`: read through the surface, delete the re-check;
+  - `a-swaying-loft-corner-refuses-as-a-vanishing-span`: a span meter that answers soundly on a swaying corner.
+- **Not dispatched:**
+  - `degree-elevation-recomposition…` (P4), which sits behind fork3's answer on the applier;
+  - `tilted-lune-sits-at-the-f64-floor-of-its-band` (P3 E). Q2 left the lune green at all three ε, because its axis passes through the origin. The hosted/local split it records needs PR 4441's old head to reproduce, so it waits for a nightly reading. (NURBS orchestrator)

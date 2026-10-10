@@ -6966,7 +6966,8 @@ class Coincidence:
     `tangent`, `cusp`, `tangent_contact`, `seam`, `coaxial` or
     `co_ruled`; `site` is `plane_ladder`, `carrier_ladder`,
     `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn`,
-    `battery_joint`, `battery_support_axis` or `profile_junction`. A
+    `battery_joint`, `battery_support_axis`, `profile_junction`,
+    `vertex_fusion`, `census_at_rest` or `import_anchor`. A
     `profile_junction` row is `tangent` or `cusp` between two carriers
     and `same_oriented` where its two pieces continue one carrier; a
     `tangent_witness` row is `tangent_contact` (the outward sides

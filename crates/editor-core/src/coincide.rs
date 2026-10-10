@@ -40,6 +40,19 @@ use crate::names::{
 };
 use crate::node::{Node, RecipeNodeId};
 
+/// **What a contact record's positional input is**: the input a
+/// [`topo::Backing::Carried`] names by its position, as the value that
+/// holds the record publishes it ([`crate::eval::NodeValue::cited_inputs`]).
+/// A carried citation names that input's record, which cites its own
+/// backing, so a chain of them ends at a row a node decided.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CitedInput {
+    /// An operand the node reads, by its read.
+    Read(crate::VarId),
+    /// The part an instance places: its product's records.
+    Part(crate::ident::DocRef),
+}
+
 /// **One coincidence an operation decided from values**, its cells
 /// named in the tables of the inputs the decision read.
 #[derive(Clone, Debug, PartialEq)]
@@ -269,6 +282,9 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
         topo::DecisionSite::BatterySupportAxis => {
             "a blend's two supports read as sharing the axis its band is minted on"
         }
+        topo::DecisionSite::VertexFusion => "a vertex its margin read on another operand's cell",
+        topo::DecisionSite::CensusAtRest => "two placed faces the at-rest census read as one",
+        topo::DecisionSite::ImportAnchor => "two imported vertices an anchor read as one",
         topo::DecisionSite::ProfileJunction => "a profile junction no constructor made",
     }
 }
@@ -454,6 +470,43 @@ pub(crate) struct RowInputs<'a> {
     pub tool: Option<RecipeNodeId>,
 }
 
+/// **The rows `records` cite, published**: each row of `rows` a record
+/// cites ([`topo::Backing::Decided`]), named in `inputs` and appended to
+/// `published` in decision order, and the records renumbered onto the
+/// published rows. For a node whose records come from a step whose rows
+/// it does not publish whole (an n-ary union's last fold step).
+///
+/// # Errors
+///
+/// As [`name_rows`].
+pub(crate) fn publish_cited(
+    records: &topo::ContactRecords,
+    rows: &[topo::Coincidence],
+    inputs: &RowInputs<'_>,
+    published: &mut Vec<NamedCoincidence>,
+) -> Result<topo::ContactRecords, NamingError> {
+    let used = records.decided();
+    let cited: Vec<topo::Coincidence> = used
+        .iter()
+        .map(|&k| {
+            rows.get(k as usize).copied().ok_or(NamingError::Emission {
+                what: "a contact record cites a row its step did not decide",
+            })
+        })
+        .collect::<Result<_, _>>()?;
+    let base = published.len();
+    published.extend(name_rows(&cited, inputs)?);
+    Ok(records
+        .clone()
+        .renumbered(|k| {
+            let rank = used
+                .binary_search(&k)
+                .unwrap_or_else(|_| unreachable!("every decided citation is in `used`"));
+            Some(u32::try_from(base + rank).unwrap_or(u32::MAX))
+        })
+        .unwrap_or_else(|_| unreachable!("every decided citation renumbers")))
+}
+
 /// **The kernel's rows, named**: each cell by its name in the input
 /// table its key is in.
 ///
@@ -474,6 +527,7 @@ pub(crate) fn name_rows(
                 .tool
                 .map(|input| NamedCell::Tool { input })
                 .ok_or_else(unnamed),
+            topo::RowCell::Result { .. } => Err(unnamed()),
             topo::RowCell::Input { input, cell } => {
                 let (node, table) = match input {
                     topo::Operand::A => Some(inputs.a),
