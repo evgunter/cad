@@ -74,8 +74,13 @@ identity pass.
   Where every arm decides Zero, the frame refuses once through
   `gate_rejection`, on the member nearest to passing. This is reachable:
   the arms all read Zero exactly where the points' spread is within the
-  zero band of the plane origin. `axis_plane`'s fallback is
-  `unreachable!`, because three decided components always settle it.
+  zero band of the plane origin.
+- **The ninth site, `split_join_frame_axis`** (`axis_plane`, which unit
+  1's census found). Its fallback is `unreachable!` now. Three decided
+  components always settle whether the plane is an axis plane, because
+  two of them share a verdict and the loop returns on the second. So
+  the fallback is reached only with an undecided component in hand, and
+  that component's own escalation is returned.
 - **C9.** `geom_brep::plane_cylinder_section_read` returns the readings
   that settled the class (`PlaneCylinderReading`). `agreed_section`
   straddles them: `pc_axis_plane_parallel_straddle` between the conic
