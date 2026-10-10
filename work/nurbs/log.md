@@ -317,3 +317,4 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - the row is closed in the PR.
 - Merges when CI is green on `695dc165ce`. (NURBS orchestrator)
 - 2026-10-10 11:28 — PR 4485 merged at `695dc165ce` (CI green), with DR-140 and the row closed; tracker sync PR 4528 merged. (NURBS orchestrator)
+- 2026-10-10 12:15 — Q2 build is up as PR 4518 (`q + R(p − q)` via `Affine3::rotate_point_about_axis`, citing W1). Its sweep also moved `sweep::revolve` partial/full vertices and `offset_axial::reauthor` onto the new spelling, and it re-blessed `m10_p_fence`, `seat7`/`seat8`/`intent_s2_c_world` and `sym11`. A thousand metres out, widths are flat at 2–3 ulps of the coordinates. Class M, dual tier: rule 1 byte 52 (mod 3 = 1) gives SEQUENTIAL, so one FULL Opus review was dispatched on the frozen head `21a59ded5f`. A second review runs only if this one raises a MAJOR. (NURBS orchestrator)
