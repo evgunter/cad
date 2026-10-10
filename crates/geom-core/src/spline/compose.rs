@@ -55,6 +55,7 @@
 //! `≤ ε` comparison (D4 ¶2).
 
 use super::algebra::convex_step;
+use super::hull::SplineCoeffs;
 use super::knots::{InteriorKnot, KnotVector, SplineError, find_span_in};
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
@@ -214,19 +215,19 @@ impl<'a> CurveCertData<'a> {
 
     /// The weight channel `W_i = w_i`, Bézier-decomposed.
     fn weight_channel(&self) -> BernsteinSpans {
-        let coeffs: Vec<Interval> = self.weights.iter().map(|w| Interval::point(*w)).collect();
-        to_bezier_spans_extra(self.kv, &coeffs, self.extra)
+        self.kv.with_coeffs_from_fn(
+            |i| Interval::point(self.weights[i]),
+            |pair| to_bezier_spans_extra(pair, self.extra),
+        )
     }
 
     /// The unshifted weighted channel `w_i·x_d,i`, Bézier-decomposed.
     /// Caller guarantees `d < dims()`.
     fn weighted_channel(&self, d: usize) -> BernsteinSpans {
-        let coeffs: Vec<Interval> = self.coords[d]
-            .iter()
-            .zip(self.weights.iter())
-            .map(|(x, w)| Interval::point(*w) * *x)
-            .collect();
-        to_bezier_spans_extra(self.kv, &coeffs, self.extra)
+        self.kv.with_coeffs_from_fn(
+            |i| Interval::point(self.weights[i]) * self.coords[d][i],
+            |pair| to_bezier_spans_extra(pair, self.extra),
+        )
     }
 
     /// The shifted weighted channel `w_i·(x_d,i − shift)` (module docs
@@ -234,12 +235,10 @@ impl<'a> CurveCertData<'a> {
     /// guarantees `d < dims()`.
     fn shifted_channel(&self, d: usize, shift: f64) -> BernsteinSpans {
         let s = Interval::point(shift);
-        let coeffs: Vec<Interval> = self.coords[d]
-            .iter()
-            .zip(self.weights.iter())
-            .map(|(x, w)| Interval::point(*w) * (*x - s))
-            .collect();
-        to_bezier_spans_extra(self.kv, &coeffs, self.extra)
+        self.kv.with_coeffs_from_fn(
+            |i| Interval::point(self.weights[i]) * (self.coords[d][i] - s),
+            |pair| to_bezier_spans_extra(pair, self.extra),
+        )
     }
 }
 
@@ -382,8 +381,8 @@ fn insert_once_ring(
 }
 
 /// Bézier-decomposes one scalar channel: knot insertion to full
-/// interior multiplicity (structure from `kv`, coefficients in the
-/// ring), then the per-span coefficient rows read off by chunks — with
+/// interior multiplicity (structure from the pair's vector,
+/// coefficients in the ring), then the per-span coefficient rows read off by chunks — with
 /// **extra break parameters** injected: each
 /// `extra` value strictly inside the domain and not already a knot is
 /// inserted to full multiplicity, so two channels decomposed with each
@@ -391,10 +390,11 @@ fn insert_once_ring(
 /// composite's alignment substrate, and knot insertion is exact in ℝ —
 /// the represented function is unchanged). Values outside the open
 /// domain or duplicating a knot are structure-filtered, not errors.
-fn to_bezier_spans_extra(kv: &KnotVector, coeffs: &[Interval], extra: &[f64]) -> BernsteinSpans {
+fn to_bezier_spans_extra(pair: SplineCoeffs<'_, Interval>, extra: &[f64]) -> BernsteinSpans {
+    let kv = pair.knots();
     let p = kv.degree();
     let mut knots = kv.knots().to_vec();
-    let mut c = coeffs.to_vec();
+    let mut c = pair.coeffs().to_vec();
     let (lo, hi) = kv.domain();
     // Merge the existing interior values (multiplicity from the vector)
     // with the fresh extras (multiplicity 0), ascending, exact-`f64`

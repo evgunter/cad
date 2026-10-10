@@ -522,11 +522,91 @@ impl KnotVector {
     }
 }
 
+impl KnotVector {
+    /// The coefficient array of exactly [`KnotVector::control_count`]
+    /// entries that `entry` builds, index by index in ascending order,
+    /// handed to `f` minted as **this** vector's — the mint by
+    /// construction rather than by count, for a caller whose array is
+    /// its own intermediate (a line of a tensor net, a collapse's
+    /// per-row results) and so has no length to check.
+    pub fn with_coeffs_from_fn<E: CertifiedBounds, T>(
+        &self,
+        entry: impl FnMut(usize) -> E,
+        f: impl FnOnce(SplineCoeffs<'_, E>) -> T,
+    ) -> T {
+        let coeffs: Vec<E> = (0..self.control_count()).map(entry).collect();
+        f(SplineCoeffs {
+            knots: self,
+            coeffs: &coeffs,
+        })
+    }
+
+    /// The vector of this one's derivative — the outer knot pair
+    /// dropped, degree one less ([`KnotVector::derivative_knot_slice`])
+    /// — or `None` when that is not a clamped vector: degree 1 (a
+    /// degree-0 vector is refused), or an interior knot of multiplicity
+    /// equal to the degree, where the derivative is discontinuous.
+    pub fn derivative(&self) -> Option<KnotVector> {
+        KnotVector::clamped(self.derivative_knot_slice().to_vec(), self.degree() - 1).ok()
+    }
+}
+
+/// A [`SplineCoeffs`] that owns both halves: the coefficient array and
+/// the knot vector it is a proof about, held together so a derivative
+/// level travels as one value. Minted only by
+/// [`SplineCoeffs::derivative`], whose coefficients have the derivative
+/// vector's control count by the knot-difference formula — so
+/// [`SplineCoeffsBuf::pair`] needs no check.
+#[derive(Clone)]
+pub struct SplineCoeffsBuf<E: CertifiedBounds> {
+    knots: KnotVector,
+    coeffs: Vec<E>,
+}
+
+/// The knot vector's degree and the array's length, never the arrays
+/// (see [`SplineCoeffs`]).
+impl<E: CertifiedBounds> core::fmt::Debug for SplineCoeffsBuf<E> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self { knots, coeffs } = self;
+        f.debug_struct("SplineCoeffsBuf")
+            .field("degree", &knots.degree())
+            .field("len", &coeffs.len())
+            .finish()
+    }
+}
+
+impl<E: CertifiedBounds> SplineCoeffsBuf<E> {
+    /// The borrowed pair every door reads.
+    pub fn pair(&self) -> SplineCoeffs<'_, E> {
+        SplineCoeffs {
+            knots: &self.knots,
+            coeffs: &self.coeffs,
+        }
+    }
+}
+
 impl<'a, E: CertifiedBounds> SplineCoeffs<'a, E> {
     /// The [`KnotVector`] these coefficients are a proof about — the
     /// one every door here reads its knots from.
     pub fn knots(self) -> &'a KnotVector {
         self.knots
+    }
+
+    /// The coefficient array, [`KnotVector::control_count`] long.
+    pub fn coeffs(self) -> &'a [E] {
+        self.coeffs
+    }
+
+    /// The derivative as a pair: [`SplineCoeffs::derivative_coeffs`]
+    /// against [`KnotVector::derivative`], or `None` exactly when that
+    /// vector is not a clamped one (degree 1, or a discontinuous
+    /// derivative). A caller that wants the coefficients regardless
+    /// reads [`SplineCoeffs::derivative_coeffs`].
+    pub fn derivative(self) -> Option<SplineCoeffsBuf<Interval>> {
+        Some(SplineCoeffsBuf {
+            knots: self.knots.derivative()?,
+            coeffs: self.derivative_coeffs(),
+        })
     }
 
     /// The window of this pair at span `index` — `None` when the index
@@ -719,6 +799,14 @@ impl<'a, E: CertifiedBounds> CoeffWindow<'a, E> {
     /// vector.
     pub fn span(self) -> Span<'a> {
         self.span
+    }
+
+    /// The `p + 1` coefficients active on this span, in
+    /// [`CoeffWindow::window`] order — the slice an evaluator restricted
+    /// to the span reads.
+    pub fn coeffs(self) -> &'a [E] {
+        // In range: index ≤ control_count() − 1 = coeffs.len() − 1 by the mint.
+        &self.pair.coeffs[self.span.first_control()..=self.span.index()]
     }
 
     /// The inclusive coefficient window this span's doors read,

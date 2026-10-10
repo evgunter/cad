@@ -8,7 +8,7 @@
 //! `S(u,v) = Σᵢⱼ Nᵢ(u)·Nⱼ(v)·Pᵢⱼ`, every partial is itself a
 //! tensor-product B-spline whose coefficient net comes from knot
 //! differencing per direction (The NURBS Book Eq. 3.24 — exactly
-//! [`geom_core::spline::net::TensorNet::diff_u_knots`], which is
+//! [`geom_core::spline::net::TensorCoeffs::diff_u`], which is
 //! [`geom_core::spline::SplineCoeffs::derivative_coeffs`] iterated across the
 //! net's lines; that iteration is the ONE spelling, here and in every
 //! other tensor consumer). Both
@@ -101,7 +101,7 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, norm_sup};
 use geom_core::spline::algebra::{equal_split_plan, equal_split_points};
 use geom_core::spline::compose::tensor::coefficient_norm_sup;
-use geom_core::spline::net::TensorNet;
+use geom_core::spline::net::{TensorCoeffs, TensorNet};
 use geom_core::spline::{CurvePlan, KnotVector};
 
 /// The fixed refinement schedule of the RATIONAL arm: every nonempty
@@ -480,10 +480,9 @@ fn span_extent(kv: &KnotVector, span: usize) -> (f64, f64) {
 /// The three spatial channels of a control net, as enclosure points.
 ///
 /// **The SHAPE is shared** with `offset_fit::channel`: both build a
-/// [`Net`], and the flat/nested bridge the two used to need is gone —
-/// [`geom_core::spline::net::TensorNet`] is row-major and hands out
-/// both a flat slice (what `PatchSpans::decompose` consumes) and
-/// indexed windows (what [`window_hull`] reads).
+/// [`TensorCoeffs`] against the surface's own knot vectors, which
+/// `PatchSpans::decompose` consumes and whose net [`window_hull`]
+/// reads.
 ///
 /// **The ARITHMETIC still diverges, and that is what is left.** This
 /// one extracts `w·P`; `offset_fit::channel` extracts `w·(P − c)`
@@ -506,11 +505,10 @@ fn span_extent(kv: &KnotVector, span: usize) -> (f64, f64) {
 /// one — a measurement on `offset_fit`'s numbers, not a refactor. It
 /// is filed rather than assigned here, because a residue whose owner
 /// is the unit that chose to keep it has no owner at all.
-fn comp_nets(n: &NurbsSurface<f64>, weighted: bool) -> Vec<Net> {
-    let (nu, nv) = n.control_counts();
-    (0..3)
-        .map(|c| {
-            Net::from_fn(nu, nv, |i, j| {
+fn comp_nets(n: &NurbsSurface<f64>, weighted: bool) -> [TensorCoeffs<'_>; 3] {
+    let nv = n.knots_v().control_count();
+    core::array::from_fn(|c| {
+            TensorCoeffs::from_fn(n.knots_u(), n.knots_v(), |i, j| {
                 // Row-major layout: control[iu·nv + iv] — the net's own.
                 let p = n.control()[i * nv + j];
                 let x = Interval::point(match c {
@@ -524,8 +522,7 @@ fn comp_nets(n: &NurbsSurface<f64>, weighted: bool) -> Vec<Net> {
                     x
                 }
             })
-        })
-        .collect()
+    })
 }
 
 /// The five per-direction derivative nets one channel needs.
@@ -538,18 +535,15 @@ struct DNets {
 }
 
 impl DNets {
-    fn build(
-        base: &Net,
-        kv_u: &KnotVector,
-        kv_v: &KnotVector,
-        kv_u1: Option<&KnotVector>,
-        kv_v1: Option<&KnotVector>,
-    ) -> Self {
-        let d10 = base.diff_u_knots(kv_u);
-        let d01 = base.diff_v_knots(kv_v);
-        let d11 = d10.diff_v_knots(kv_v);
-        let d20 = kv_u1.map(|k1| d10.diff_u_knots(k1));
-        let d02 = kv_v1.map(|k1| d01.diff_v_knots(k1));
+    /// `d20` / `d02` are `None` exactly where the direction's derived
+    /// vector is not a clamped one — degree 1, where the C¹ gate
+    /// ([`check_direction`]) has made the second partial zero.
+    fn build(base: &TensorCoeffs<'_>) -> Self {
+        let d10 = base.diff_u();
+        let d01 = base.diff_v();
+        let d11 = base.diff_uv();
+        let d20 = base.derivative_u().map(|t| t.diff_u());
+        let d02 = base.derivative_v().map(|t| t.diff_v());
         Self {
             d10,
             d01,
@@ -610,7 +604,7 @@ fn window_norm_sup(nets: [&Net; 3], wu: &RangeInclusive<usize>, wv: &RangeInclus
 /// assembly on the spatial nets — no quotient rule intervenes, so the
 /// enclosure IS the coefficient hull.
 fn integral_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundError> {
-    integral_cells_on(&comp_nets(n, false), n.knots_u(), n.knots_v())
+    integral_cells_on(&comp_nets(n, false))
 }
 
 /// [`integral_cells`] after refining every nonempty span into `splits`
@@ -626,13 +620,15 @@ fn integral_cells_refined(
     n: &NurbsSurface<f64>,
     splits: usize,
 ) -> Result<Vec<PatchCell>, PatchBoundError> {
-    let (kv_u, plans_u) = refine_chain(n.knots_u(), splits)?;
-    let (kv_v, plans_v) = refine_chain(n.knots_v(), splits)?;
-    let nets: Vec<Net> = comp_nets(n, false)
-        .iter()
-        .map(|net| net.refine_u(&plans_u).refine_v(&plans_v))
-        .collect();
-    integral_cells_on(&nets, &kv_u, &kv_v)
+    let (_, plans_u) = refine_chain(n.knots_u(), splits)?;
+    let (_, plans_v) = refine_chain(n.knots_v(), splits)?;
+    let base = comp_nets(n, false);
+    let [x, y, z] = &base;
+    integral_cells_on(&[
+        x.refine(&plans_u, &plans_v),
+        y.refine(&plans_u, &plans_v),
+        z.refine(&plans_u, &plans_v),
+    ])
 }
 
 /// The integral arm's per-cell assembly over ALREADY-BUILT spatial nets
@@ -643,21 +639,18 @@ fn integral_cells_refined(
 /// # Errors
 ///
 /// [`PatchBoundError::DerivedKnots`].
-fn integral_cells_on(
-    base_nets: &[Net],
-    kv_u: &KnotVector,
-    kv_v: &KnotVector,
-) -> Result<Vec<PatchCell>, PatchBoundError> {
-    let kv_u1 = (kv_u.degree() >= 2)
-        .then(|| derived_knots(kv_u))
-        .transpose()?;
-    let kv_v1 = (kv_v.degree() >= 2)
-        .then(|| derived_knots(kv_v))
-        .transpose()?;
-    let nets: Vec<DNets> = base_nets
-        .iter()
-        .map(|base| DNets::build(base, kv_u, kv_v, kv_u1.as_ref(), kv_v1.as_ref()))
-        .collect();
+fn integral_cells_on(base_nets: &[TensorCoeffs<'_>; 3]) -> Result<Vec<PatchCell>, PatchBoundError> {
+    // The three channels are one surface's, so they share both vectors.
+    let (kv_u, kv_v) = (base_nets[0].knots_u(), base_nets[0].knots_v());
+    // A degree ≥ 2 direction whose derived vector is not clamped has no
+    // second partial to bound, and refuses typed rather than reading it
+    // as the zero `DNets` holds for a degree-1 direction.
+    for kv in [kv_u, kv_v] {
+        if kv.degree() >= 2 {
+            derived_knots(kv)?;
+        }
+    }
+    let nets: Vec<DNets> = base_nets.iter().map(DNets::build).collect();
     let zero = Interval::zero();
     let mut cells = Vec::new();
     for su in kv_u.first_span()..=kv_u.last_span() {
@@ -744,11 +737,12 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     let (kv_u, plans_u) = refine_chain(n.knots_u(), splits)?;
     let (kv_v, plans_v) = refine_chain(n.knots_v(), splits)?;
     let (pu, pv) = (kv_u.degree(), kv_v.degree());
-    let (nu0, nv0) = n.control_counts();
-    let refine = |net: &Net| net.refine_u(&plans_u).refine_v(&plans_v);
-    let w_grid = refine(&Net::from_fn(nu0, nv0, |i, j| {
+    let nv0 = n.knots_v().control_count();
+    let w_described = TensorCoeffs::from_fn(n.knots_u(), n.knots_v(), |i, j| {
         Interval::point(n.weights()[i * nv0 + j])
-    }));
+    });
+    let w_pair = w_described.refine(&plans_u, &plans_v);
+    let w_grid = w_pair.net();
     let (nu, nv) = (w_grid.nu(), w_grid.nv());
     // Positivity survives insertion in ℝ (convex combinations); this
     // code may not assume the ARITHMETIC proved it, so the refined
@@ -770,14 +764,19 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     // linear span pre-refinement — the C¹ gate — and refinement's
     // inserted knots are removable), so those nets are `None` and
     // their terms exact zeros; the CROSS terms stay.
-    let kv_u1 = (pu >= 2).then(|| derived_knots(&kv_u)).transpose()?;
-    let kv_v1 = (pv >= 2).then(|| derived_knots(&kv_v)).transpose()?;
-    let w_nets = DNets::build(&w_grid, &kv_u, &kv_v, kv_u1.as_ref(), kv_v1.as_ref());
-    let a_base: Vec<Net> = comp_nets(n, true).iter().map(refine).collect();
-    let a_nets: Vec<DNets> = a_base
+    if pu >= 2 {
+        derived_knots(&kv_u)?;
+    }
+    if pv >= 2 {
+        derived_knots(&kv_v)?;
+    }
+    let w_nets = DNets::build(&w_pair);
+    let a_described = comp_nets(n, true);
+    let a_base: Vec<TensorCoeffs<'_>> = a_described
         .iter()
-        .map(|g| DNets::build(g, &kv_u, &kv_v, kv_u1.as_ref(), kv_v1.as_ref()))
+        .map(|a| a.refine(&plans_u, &plans_v))
         .collect();
+    let a_nets: Vec<DNets> = a_base.iter().map(DNets::build).collect();
     // The refined control points, `P = A / w` per channel, ONCE for the
     // whole net. Each is read by every cell whose window covers it —
     // `(pu + 1)(pv + 1)` cells at the interior, twice over (the centroid
@@ -787,7 +786,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     // at the cell's weight hull.
     let p_nets: Vec<Net> = a_base
         .iter()
-        .map(|a| Net::from_fn(nu, nv, |i, j| a.get(i, j) / w_grid.get(i, j)))
+        .map(|a| Net::from_fn(nu, nv, |i, j| a.net().get(i, j) / w_grid.get(i, j)))
         .collect();
     let zero = Interval::zero();
     let two = Interval::point(2.0);
@@ -836,7 +835,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                 *slot = sum / count;
             }
             // The cell's weight hull — the divisor (module docs).
-            let w_cell = window_hull(&w_grid, &w.u_val, &w.v_val);
+            let w_cell = window_hull(w_grid, &w.u_val, &w.v_val);
             // Weight-net hulls on the cell.
             let w10s = window_hull(&w_nets.d10, &w.u_d1, &w.v_val);
             let w01s = window_hull(&w_nets.d01, &w.u_val, &w.v_d1);

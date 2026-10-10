@@ -22,10 +22,11 @@
 //! # The differencing step is a parameter, not a fixed formula
 //!
 //! [`TensorNet::diff_u`] and [`TensorNet::diff_v`] take the
-//! one-dimensional step as a closure. A caller whose direction is a
-//! clamped [`KnotVector`] passes [`TensorNet::diff_u_knots`] /
-//! [`TensorNet::diff_v_knots`], which is
-//! [`super::hull::SplineCoeffs::derivative_coeffs`]. A caller carrying a direction
+//! one-dimensional step as a closure. A net whose directions are
+//! clamped [`KnotVector`]s is a [`TensorCoeffs`], which holds the two
+//! vectors beside the net and differences it through
+//! [`super::hull::SplineCoeffs::derivative_coeffs`] with no step to
+//! pass and no count to check. A caller carrying a direction
 //! the clamped invariant cannot spell — a derivative whose interior
 //! multiplicity equals the parent degree, so it is genuinely
 //! discontinuous — passes its own step and keeps its own structure.
@@ -50,10 +51,7 @@
 //! consumer as a refusal.
 //!
 //! *Measured reachability, so this is a guard and not a story about
-//! one:* neither shipped caller can trip it.
-//! [`super::hull::SplineCoeffs::derivative_coeffs`] answers `n - 1` for
-//! every line its knot vector admits, and the step short-answers only
-//! when the mint refuses a coefficient-count mismatch; `geom_brep::props::quad`'s `raw_deriv`
+//! one:* the one shipped step, `geom_brep::props::quad`'s `raw_deriv`,
 //! answers `n - 1` whenever its degree is at least 1, which its own
 //! `Dir` construction guarantees, and it fills a DEGENERATE (empty)
 //! span itself with an explicit zero rather than by returning fewer
@@ -68,6 +66,8 @@
 //! truncation. Nothing here compares anything.
 
 use core::ops::RangeInclusive;
+
+use std::borrow::Cow;
 
 use super::algebra::CurvePlan;
 use super::knots::KnotVector;
@@ -299,23 +299,6 @@ impl TensorNet {
         }
     }
 
-    /// [`TensorNet::diff_u`] with the clamped-knot-vector step
-    /// ([`KnotVector::difference_coeffs`]): a line this vector does
-    /// not admit — one the mint refuses — yields a refused derivative
-    /// rather than a widened one, because the step then short-answers
-    /// (one refused entry, never zero) and the line is refused.
-    #[must_use]
-    pub fn diff_u_knots(&self, kv: &KnotVector) -> Self {
-        self.diff_u(|c| kv.difference_coeffs(c))
-    }
-
-    /// [`TensorNet::diff_v`] with the clamped-knot-vector step
-    /// ([`TensorNet::diff_u_knots`]).
-    #[must_use]
-    pub fn diff_v_knots(&self, kv: &KnotVector) -> Self {
-        self.diff_v(|c| kv.difference_coeffs(c))
-    }
-
     /// **Refines the net along `u` IN INTERVAL ARITHMETIC**: the insertion chain is
     /// applied to each `u`-line by [`CurvePlan::apply_certified`], so the
     /// answer ENCLOSES the refined net of the described coefficients
@@ -402,6 +385,144 @@ impl TensorNet {
             c,
         }
     }
+}
+
+/// A tensor coefficient net with the two knot vectors it is a proof
+/// about — [`super::hull::SplineCoeffs`] in two directions: every `u`-line is
+/// `knots_u`'s coefficient array and every `v`-line `knots_v`'s.
+///
+/// Built only at the vectors' own extent — [`TensorCoeffs::from_fn`]
+/// fills `knots_u.control_count() × knots_v.control_count()` entries,
+/// and the derivative doors difference that — so no net of another
+/// extent can sit beside the vectors and no count is ever checked. The
+/// vectors are borrowed, or owned where a derivative door derived one
+/// ([`TensorCoeffs::derivative_u`]).
+#[derive(Clone, Debug)]
+pub struct TensorCoeffs<'a> {
+    ku: Cow<'a, KnotVector>,
+    kv: Cow<'a, KnotVector>,
+    net: TensorNet,
+}
+
+impl<'a> TensorCoeffs<'a> {
+    /// The net whose entry `(i, j)` is `f(i, j)`, at `ku × kv`'s extent.
+    #[must_use]
+    pub fn from_fn(
+        ku: &'a KnotVector,
+        kv: &'a KnotVector,
+        f: impl Fn(usize, usize) -> Interval,
+    ) -> Self {
+        Self {
+            net: TensorNet::from_fn(ku.control_count(), kv.control_count(), f),
+            ku: Cow::Borrowed(ku),
+            kv: Cow::Borrowed(kv),
+        }
+    }
+}
+
+impl TensorCoeffs<'_> {
+    /// The `u` direction's knot vector.
+    #[must_use]
+    pub fn knots_u(&self) -> &KnotVector {
+        &self.ku
+    }
+
+    /// The `v` direction's knot vector.
+    #[must_use]
+    pub fn knots_v(&self) -> &KnotVector {
+        &self.kv
+    }
+
+    /// The net, `knots_u().control_count() × knots_v().control_count()`.
+    #[must_use]
+    pub fn net(&self) -> &TensorNet {
+        &self.net
+    }
+
+    /// **The `u` partial's net**: each `u`-line differenced as
+    /// `knots_u`'s ([`super::hull::SplineCoeffs::derivative_coeffs`]), `(nu − 1) × nv`.
+    #[must_use]
+    pub fn diff_u(&self) -> TensorNet {
+        let cols: Vec<Vec<Interval>> = (0..self.net.nv())
+            .map(|j| {
+                self.ku.with_coeffs_from_fn(
+                    |i| self.net.get(i, j),
+                    |pair| pair.derivative_coeffs(),
+                )
+            })
+            .collect();
+        // `derivative_coeffs` answers `control_count() − 1` entries per line.
+        TensorNet::from_fn(self.net.nu() - 1, self.net.nv(), |i, j| cols[j][i])
+    }
+
+    /// **The `v` partial's net**, per [`TensorCoeffs::diff_u`]:
+    /// `nu × (nv − 1)`.
+    #[must_use]
+    pub fn diff_v(&self) -> TensorNet {
+        diff_rows(&self.kv, &self.net)
+    }
+
+    /// **The mixed partial's net**: [`TensorCoeffs::diff_u`], then each
+    /// of its `v`-lines differenced as `knots_v`'s — `(nu − 1) × (nv − 1)`.
+    /// The `u` derivative keeps the `v` structure, so this is defined
+    /// whether or not [`TensorCoeffs::derivative_u`] is.
+    #[must_use]
+    pub fn diff_uv(&self) -> TensorNet {
+        diff_rows(&self.kv, &self.diff_u())
+    }
+
+    /// The `u` partial as a pair: [`TensorCoeffs::diff_u`] against
+    /// [`KnotVector::derivative`] of `knots_u`, `None` exactly when that
+    /// vector is not a clamped one.
+    #[must_use]
+    pub fn derivative_u(&self) -> Option<TensorCoeffs<'_>> {
+        Some(TensorCoeffs {
+            ku: Cow::Owned(self.ku.derivative()?),
+            kv: Cow::Borrowed(&self.kv),
+            net: self.diff_u(),
+        })
+    }
+
+    /// **The net refined along both directions** by insertion chains
+    /// built from these vectors ([`TensorNet::refine_u`],
+    /// [`TensorNet::refine_v`]), paired with each chain's final vector —
+    /// the vector unchanged where a chain is empty. A chain of the wrong
+    /// extent refuses the net at the chain's extent, so the pair's
+    /// extents agree either way.
+    #[must_use]
+    pub fn refine<'s>(
+        &'s self,
+        plans_u: &'s [CurvePlan],
+        plans_v: &'s [CurvePlan],
+    ) -> TensorCoeffs<'s> {
+        let last = |plans: &'s [CurvePlan], kv: &'s KnotVector| {
+            plans.last().map_or(kv, CurvePlan::knots)
+        };
+        TensorCoeffs {
+            ku: Cow::Borrowed(last(plans_u, &self.ku)),
+            kv: Cow::Borrowed(last(plans_v, &self.kv)),
+            net: self.net.refine_u(plans_u).refine_v(plans_v),
+        }
+    }
+
+    /// The `v` partial as a pair, per [`TensorCoeffs::derivative_u`].
+    #[must_use]
+    pub fn derivative_v(&self) -> Option<TensorCoeffs<'_>> {
+        Some(TensorCoeffs {
+            ku: Cow::Borrowed(&self.ku),
+            kv: Cow::Owned(self.kv.derivative()?),
+            net: self.diff_v(),
+        })
+    }
+}
+
+/// `net`'s `v`-lines differenced as `kv`'s. Private: both callers hand
+/// it a net whose `v` extent is `kv`'s by construction.
+fn diff_rows(kv: &KnotVector, net: &TensorNet) -> TensorNet {
+    let rows: Vec<Vec<Interval>> = (0..net.nu())
+        .map(|i| kv.with_coeffs_from_fn(|j| net.get(i, j), |pair| pair.derivative_coeffs()))
+        .collect();
+    TensorNet::from_rows(&rows)
 }
 
 #[cfg(test)]
@@ -553,20 +674,40 @@ mod tests {
     #[test]
     fn diff_matches_the_knot_difference() {
         let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
-        let n = TensorNet::from_rows(&[vec![pt(0.0), pt(1.0)], vec![pt(2.0), pt(5.0)]]);
+        let rows = [[0.0, 1.0], [2.0, 5.0]];
+        let n = TensorCoeffs::from_fn(&kv, &kv, |i, j| pt(rows[i][j]));
         // Interval arithmetic rounds outward, so each answer is ENCLOSED, not
         // equalled (D4 ¶2: a bound, never an estimate).
         let holds = |iv: Interval, x: f64| iv.lo() <= x && x <= iv.hi();
-        let du = n.diff_u_knots(&kv);
+        let du = n.diff_u();
         assert_eq!((du.nu(), du.nv()), (1, 2));
         assert!(holds(du.get(0, 0), 2.0) && holds(du.get(0, 1), 4.0));
-        let dv = n.diff_v_knots(&kv);
+        let dv = n.diff_v();
         assert_eq!((dv.nu(), dv.nv()), (2, 1));
         assert!(holds(dv.get(0, 0), 1.0) && holds(dv.get(1, 0), 3.0));
-        // Mixed: the tensor collapse commutes — both orders enclose
-        // the same `d^2/dudv = 2`.
-        assert!(holds(du.diff_v_knots(&kv).get(0, 0), 2.0));
-        assert!(holds(dv.diff_u_knots(&kv).get(0, 0), 2.0));
+        // Mixed: `d^2/dudv = 2`.
+        assert!(holds(n.diff_uv().get(0, 0), 2.0));
+        // Degree 1 has no clamped derivative vector, so no derivative pair.
+        assert!(n.derivative_u().is_none() && n.derivative_v().is_none());
+    }
+
+    /// The derivative pair holds the derived vector beside the
+    /// differenced net, and differencing it again is the second
+    /// partial: the quadratic Bézier with coefficients `[0, 0, 4]`
+    /// (`f = 4t²`, `f'' = 8`) along `u`, constant along `v`.
+    #[test]
+    fn the_derivative_pair_differences_again() {
+        let k2 = KnotVector::unit_segment(core::num::NonZeroUsize::new(2).unwrap());
+        let k1 = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
+        let line = [0.0, 0.0, 4.0];
+        let n = TensorCoeffs::from_fn(&k2, &k1, |i, _| pt(line[i]));
+        let d1 = n.derivative_u().unwrap();
+        assert_eq!(d1.knots_u().degree(), 1);
+        assert_eq!((d1.net().nu(), d1.net().nv()), (2, 2));
+        let d2 = d1.diff_u();
+        assert!(d2.get(0, 0).lo() <= 8.0 && 8.0 <= d2.get(0, 0).hi());
+        assert!(d2.get(0, 1).lo() <= 8.0 && 8.0 <= d2.get(0, 1).hi());
+        assert!(n.derivative_v().is_none());
     }
 
     /// A step that does not answer the direction's new extent refuses

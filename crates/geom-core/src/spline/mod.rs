@@ -52,10 +52,10 @@ pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep};
 pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
 };
-pub use hull::{CoeffWindow, RationalCoeffs, RationalWindow, SplineCoeffs};
+pub use hull::{CoeffWindow, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf};
 pub use knots::{
     KnotMirrorError, KnotVector, KnotVectorIssue, Span, SplineError, derivative_knot_slice,
 };
 pub use locate::{SpanLocate, SpanSet, poison_from};
-pub use net::TensorNet;
+pub use net::{TensorCoeffs, TensorNet};
 pub use range::{Param, ParamRange, last_at_or_below};
