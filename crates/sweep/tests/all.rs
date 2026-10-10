@@ -69,6 +69,8 @@ mod a_ring_on_a_cone_face;
 mod a_ring_on_a_sphere_face;
 #[path = "a_ruling_lying_on_a_wall.rs"]
 mod a_ruling_lying_on_a_wall;
+#[path = "a_swaying_loft_corner_meters.rs"]
+mod a_swaying_loft_corner_meters;
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
 #[path = "a_tube_ending_on_a_ball.rs"]
@@ -590,6 +592,8 @@ mod s393_start_frame_door;
 mod s49_census_jurisdiction;
 #[path = "seam_vertex_sites.rs"]
 mod seam_vertex_sites;
+#[path = "shell_general_door.rs"]
+mod shell_general_door;
 #[path = "strut_cover_on_cylinder_pairs.rs"]
 mod strut_cover_on_cylinder_pairs;
 
@@ -726,6 +730,8 @@ mod germ_coplanar_conic;
 mod germ_interior_oval;
 #[path = "germ_interior_saddle.rs"]
 mod germ_interior_saddle;
+#[path = "germ_radial_hole.rs"]
+mod germ_radial_hole;
 #[path = "germ_sphere_no_crossings.rs"]
 mod germ_sphere_no_crossings;
 #[path = "germ_tilted_rod.rs"]

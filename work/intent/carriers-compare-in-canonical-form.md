@@ -2,10 +2,11 @@
 id: carriers-compare-in-canonical-form
 kind: issue
 title: D10 stage 4 PR C (with D): the door replays the document at Sym and proves a coincidence by two rungs: the kernel's carrier-pair verdict on the cells' symbolic carriers, then the deciding margin's identity
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P0
 cost: H
+branch: intent/s4-cd-symbolic-door
 ---
 
 INTENT stage 4, PR C, which absorbs PR D

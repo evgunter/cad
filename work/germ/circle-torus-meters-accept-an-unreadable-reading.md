@@ -5,6 +5,8 @@ title: The circle x torus half-angle door's noise and root-slack meters accept a
 status: open
 opened: 2026-10-01
 refs: [circle-torus-root-slack-crowds-the-zero-band-at-1e-12, 3659]
+priority: P2
+cost: M
 ---
 
 Found by the PR 3659 review (`reach-snowman` fix pass) while sweeping

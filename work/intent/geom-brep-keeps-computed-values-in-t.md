@@ -2,11 +2,14 @@
 id: geom-brep-keeps-computed-values-in-t
 kind: unit
 title: from_f64 audit, geom-brep: every listed launders site keeps its value in T or enters it through from_computed
-status: open
+status: closed
+pr: 4583
 opened: 2026-10-10
+closed: 2026-10-10
 priority: P0
 cost: M
 refs: [carriers-compare-in-canonical-form]
+branch: intent/from-f64-geom-brep
 ---
 
 
@@ -32,3 +35,13 @@ with them (`chart_region.rs`'s `the_wrap_band_keeps_its_corners_in_t`
 is the shape), red on the code before the fix. A move to
 `from_computed` can only lose symbolic `Zero`s, never geometry: say
 which `symbolic_zero` counts moved.
+
+
+## Closed
+
+PR 4583: 14 sites enter `T` through `Real::from_computed`, each with a
+per-site pin red on the old code; `edge_nurbs.rs` `chart_image`'s `t`
+(a sample over the carrier's stored end knots) is reclassified
+`stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)`. The pin
+fixture's `symbolic_zero` moved 12 → 11 (the plane operand's `hull.sup`,
+exactly zero, is now decided numerically).

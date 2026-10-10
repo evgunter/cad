@@ -4,6 +4,8 @@ kind: issue
 title: plane x cylinder and plane x cone mint a section whose construction error outgrows the band just past their degenerate trilean, and it refuses at certification instead of at the arm
 status: open
 opened: 2026-10-01
+priority: P2
+cost: M
 ---
 
 Found by the plane × cone split lane (`plane-cone-elliptic-section-split-refusal`),

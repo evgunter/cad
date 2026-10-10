@@ -322,6 +322,28 @@ pub fn box_with_spline_cap(chart: Surface<f64>) -> (Body<f64>, FaceKey) {
     (body, face)
 }
 
+/// **The unit box under a curved spline cap, at rest**:
+/// [`box_with_spline_cap`] on a biquadratic NURBS over exactly the
+/// cap's square, its middle control point raised by `bump` (`0` is
+/// flat). The net's `x` and `y` are linear in `(u, v)`, and its
+/// boundary rows are the box's top edges.
+pub fn box_with_bumped_cap(bump: f64) -> (Body<f64>, FaceKey) {
+    let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let mut control = Vec::new();
+    for x in [0.0, 1.0, 2.0] {
+        for y in [0.0, 1.0, 2.0] {
+            let z = if x == 1.0 && y == 1.0 {
+                1.0 + bump
+            } else {
+                1.0
+            };
+            control.push(Point3::new(x, y, z));
+        }
+    }
+    let cap = NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 9]).unwrap();
+    box_with_spline_cap(Surface::Nurbs(Arc::new(cap)))
+}
+
 /// Every non-placeholder spline wall of `body`, keyed.
 pub fn nurbs_walls(body: &Body<f64>) -> Vec<(FaceKey, Arc<NurbsSurface<f64>>)> {
     body.faces()
