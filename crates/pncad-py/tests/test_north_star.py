@@ -2196,26 +2196,17 @@ class TestTable(unittest.TestCase):
 
 class TestCrosslapAtTheNamingWall(unittest.TestCase):
     """Tour scene `crosslap` (row 37): the two notched beams MATED.
-    Undeclared, the mate refuses at the coincidence door — since
-    register R3 as the typed MENU (`kind == "undeclared_coincidence"`,
-    the candidate declaration attached). The recourse the menu names
-    is executed: detect, INSPECT (the joint's mate is the
-    resting-contact class — the notch floor/ceiling and the four
-    crossing walls, all `SameOpposite`), declare. The beams' tops and
-    bottoms carry on into each other across the notch edges —
-    continuations — so the mate alone still refuses, naming one; with
-    them declared too, the kernel glues at the scene's exact oracle
-    2·(BEAM_VOL − NOTCH_VOL) = 1.875 (`demos/tour/src/crosslap.rs`
-    asserts it), and the document layer stops at the naming wall the
-    next test pins.
+    The joint's contacts are the mate (the notch floor/ceiling and the
+    four crossing walls, all `SameOpposite`) and the beams' tops and
+    bottoms, which carry on into each other across the notch edges —
+    continuations. Declared or not, the kernel glues them at the
+    scene's exact oracle 2·(BEAM_VOL − NOTCH_VOL) = 1.875
+    (`demos/tour/src/crosslap.rs` asserts it), and the document layer
+    stops at the naming wall the next test pins.
 
-    The inspection step EARNS ITS KEEP here, and honestly: the
-    detector also reports the beams' coplanar exteriors (bottoms at
-    z=0, tops at z=0.5 — `SameOriented`, continuations), and
-    declaring the BOTTOM pairs trips a document-layer naming-emitter
-    wall (`kind == "naming"`) after the kernel glues fine — a
-    measured residue pinned below, not hidden. The scene's statement
-    (the mate) needs none of those pairs; its oracle holds exactly."""
+    The wall is the bottom plane's: the glued bottoms merge into one
+    face whose seam chords no naming rule places (`kind == "naming"`),
+    a measured residue pinned below, not hidden."""
 
     def beams(self, doc):
         beam_a = doc.insert(
@@ -2234,46 +2225,32 @@ class TestCrosslapAtTheNamingWall(unittest.TestCase):
         )
         return beam_a, beam_b
 
-    def test_the_mate_refuses_undeclared_then_glues_declared(self):
+    def test_the_mate_undeclared_or_in_part_reaches_the_naming_wall(self):
+        """Undeclared, the joint's contacts are decided by their values
+        and glued (D10): the mate (the notch floor/ceiling and the
+        four crossing walls, all `SameOpposite`) and the beams'
+        exteriors (`SameOriented`, continuations) alike. So the union
+        undeclared, and with only the mate declared, stops where the
+        full declaration stops: the naming wall the next test pins."""
         doc = Doc()
         beam_a, beam_b = self.beams(doc)
-        naive = doc.insert(Node.boolean(BooleanOp.Union, beam_a, beam_b))
-        ev = evaluate(doc)
-        self.assertFalse(ev.succeeded(naive))
-        with self.assertRaises(EvaluationError) as caught:
-            ev.value(naive)
-        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
-        menu = caught.exception.finding
-        self.assertIsNotNone(menu)
-
-        # The menu's declare arm, executed: the detector reports the
-        # joint's whole flush inventory, the menu's own finding among
-        # them — the mate itself (the resting-contact class: the notch
-        # floor/ceiling and the four crossing walls) and the beams'
-        # exteriors, whose tops and bottoms carry on into each other
-        # across the notch edges: continuations. Declaring the mate
-        # alone leaves those continuations undeclared, and the union
-        # refuses on one of them, which is the menu it carries.
-        findings = ev.find_flush_candidates(beam_a, beam_b)
-        self.assertIn(menu, findings)
-        self.assertEqual(menu.class_, BooleanCoincidence.Continuation)
+        findings = evaluate(doc).find_flush_candidates(beam_a, beam_b)
         mate = [f for f in findings if f.relation == PlaneRelation.SameOpposite]
         self.assertEqual(len(mate), 5)
         self.assertTrue(all(f.class_ == BooleanCoincidence.Rest for f in mate))
+        naive = doc.insert(Node.boolean(BooleanOp.Union, beam_a, beam_b))
         mate_only = doc.insert(
             Node.boolean(BooleanOp.Union, beam_a, beam_b, declare=mate)
         )
         ev = evaluate(doc)
-        with self.assertRaises(EvaluationError) as caught:
-            ev.value(mate_only)
-        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
-        self.assertEqual(
-            caught.exception.finding.class_, BooleanCoincidence.Continuation
-        )
-        # What following the menu to its end reaches is the next test's
-        # naming wall: the scene's exact oracle,
-        # 2·(4·0.5·0.5 − 0.5·0.5·0.25) = 1.875, waits on that rule at
-        # the document layer (the kernel tour glues it).
+        for node in (naive, mate_only):
+            self.assertFalse(ev.succeeded(node))
+            with self.assertRaises(EvaluationError) as caught:
+                ev.value(node)
+            self.assertEqual(caught.exception.kind, "naming")
+            self.assertEqual(
+                caught.exception.inner_kind, "merged_chord_constituents"
+            )
 
     def test_the_merge_stage_bottom_declaration_hits_the_naming_wall(self):
         """The measured residue, pinned so its fall is loud: declare
@@ -2285,9 +2262,8 @@ class TestCrosslapAtTheNamingWall(unittest.TestCase):
         merged face reads through to two faces of one operand, and no
         rule picks the one it lies on: a missing rule, not a kernel
         bug (`work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md`).
-        The continuations are not optional — the mate alone refuses on
-        them (the test above) — so this wall is where the document
-        crosslap stands. When this test fails with the union
+        The continuations glue whether declared or not (the test
+        above), so this wall is where the document crosslap stands. When this test fails with the union
         succeeding, the wall has fallen: pin the glued oracle here."""
         doc = Doc()
         beam_a, beam_b = self.beams(doc)
@@ -3695,8 +3671,9 @@ class TestTwopeg(unittest.TestCase):
     one planar `Rest` and two CYLINDRICAL ones, and the detector
     reports all three as findings a Python author can inspect and
     declare. That is G19 closed, and the rows below are the
-    measurement — including the differential that says the curved
-    declarations are what unlock the arm."""
+    measurement: declared in full, in part or not at all, the mate is
+    one body, since the values decide each contact the declarations
+    leave out (D10)."""
 
     PLATE: ClassVar[tuple] = (6.0, 4.0, 1.0)
     PEG_R: ClassVar[float] = 0.5
@@ -3761,22 +3738,16 @@ class TestTwopeg(unittest.TestCase):
                 body.mass_properties().volume, want, delta=1e-12
             )
 
-    def test_the_mate_is_authorable_and_the_declaration_is_what_unlocks_it(self):
+    def test_the_mate_is_authorable_through_its_findings(self):
         """Row 39's mate, through the curated surface, end to end.
 
         The detector reports all THREE of this mate's contacts now —
         the mating plane and both peg fits, since its reach is the
         `Rest` ladder's reach — so the findings a Python author can
         hold are the whole declaration, and the union GLUES at the
-        scene's own exactly-additive oracle, 2·6·4·1 = 48.
-
-        The differential that keeps this honest is the sibling row
-        below: declaring only the six `SameOriented` wall findings —
-        the pairs a Python author could hold and declare without any
-        curved rung being involved — still refuses, in the
-        reduction's curved-face arm. So the cylindrical declarations
-        are what unlock the arm, not a decoration on a union that
-        would have built anyway."""
+        scene's own exactly-additive oracle, 2·6·4·1 = 48. The sibling
+        row below builds the same mate from part of the declaration
+        and from none."""
         doc = Doc()
         p, q, _, _ = self.parts(doc)
         ev = evaluate(doc)
@@ -3802,21 +3773,12 @@ class TestTwopeg(unittest.TestCase):
         body.validate()
         self.assertAlmostEqual(body.mass_properties().volume, 48.0, delta=1e-12)
 
-    def test_declaring_only_the_walls_the_plane_rung_reaches_still_refuses(self):
-        """The other half of row 39, and the reason the mate above is
-        a statement about DECLARATION rather than about the detector.
-
-        The six `SameOriented` wall findings are declarable and always
-        were; on their own they leave the curved contact undeclared,
-        and the boolean refuses in the same curved-face arm it refused
-        in before the detector could see that contact at all.
-
-        SIX, not the seven the plane-only detector reported: the
-        seventh is the mating plane, and telling it from the eighteen
-        cylindrical `SameOpposite` findings from Python would mean
-        reading the opaque name text, which the binding forbids. The
-        seven-finding variant refuses identically — the declaration
-        that matters is the curved one either way."""
+    def test_declaring_only_the_walls_builds_the_declared_mate(self):
+        """The other half of row 39: a partial declaration is not a
+        different statement. The six `SameOriented` wall findings
+        declared alone leave the mating plane and the cylindrical
+        contacts to the values, which decide them one carrier and glue
+        them (D10), so the union builds the fully declared mate."""
         doc = Doc()
         p, q, _, _ = self.parts(doc)
         ev = evaluate(doc)
@@ -3826,13 +3788,14 @@ class TestTwopeg(unittest.TestCase):
             if f.relation == PlaneRelation.SameOriented
         ]
         self.assertEqual(len(walls), 6)
-        declared = doc.insert(Node.boolean(BooleanOp.Union, p, q, declare=walls))
+        partial = doc.insert(Node.boolean(BooleanOp.Union, p, q, declare=walls))
+        bare = doc.insert(Node.boolean(BooleanOp.Union, p, q))
         ev = evaluate(doc)
-        self.assertFalse(ev.succeeded(declared))
-        with self.assertRaises(EvaluationError) as caught:
-            ev.value(declared)
-        self.assertEqual(caught.exception.kind, "boolean")
-        self.assertIn("curved face", str(caught.exception))
+        for node in (partial, bare):
+            self.assertTrue(ev.succeeded(node))
+            body = ev.value(node).body()
+            body.validate()
+            self.assertAlmostEqual(body.mass_properties().volume, 48.0, delta=1e-12)
 
     def test_a_cylindrical_only_coincidence_is_a_finding_and_still_the_only_route(self):
         """A solid cylinder standing inside a block's bore of the SAME

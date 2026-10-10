@@ -853,6 +853,13 @@ pub struct BooleanDeclarations {
 /// union's fold, whose verdicts are the union's pairwise judgement's
 /// (DM4), handed in as its declared pairs ([`Verdicts::Given`]): a fold
 /// step decides no carrier pair again.
+///
+/// **Not carried by the façade.** `Given` is the union fold's channel
+/// (`editor_core`'s n-ary union hands each step the pass's verdicts);
+/// a caller of a pair boolean who set it would promise verdicts no
+/// pass decided, and every façade door takes the default. Falsifier: a
+/// façade door that folds an n-ary union itself, which would owe the
+/// carry with a Python word.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Verdicts {
     /// The operation decides its coincidences.

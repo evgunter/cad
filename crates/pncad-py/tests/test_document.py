@@ -602,7 +602,8 @@ class TestDetectDeclareDoors(unittest.TestCase):
         # the message says the node's kind, label and tag.
         doc = Doc()
         outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
-        inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        # The pocket's floor 2 nm off the block's: in band, so it refuses.
+        inner = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (2e-9 * m, 1 * m))
         cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
         doc.apply(DocEdit.set_label(cut, "pocket"))
         with self.assertRaises(SelectRefusal) as caught:
@@ -1106,7 +1107,8 @@ class TestStepExport(unittest.TestCase):
     def test_export_of_a_failed_node_is_a_typed_refusal(self):
         doc = Doc()
         outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
-        inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        # The pocket's floor 2 nm off the block's: in band, so it refuses.
+        inner = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (2e-9 * m, 1 * m))
         cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
         ev = evaluate(doc)
         with self.assertRaises(pncad.ExportError) as caught:

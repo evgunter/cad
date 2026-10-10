@@ -470,6 +470,13 @@ BOUNDS_ALLOWLIST=(
   # which has no certified enclosure (`real.rs`'s entry).
   'crates/topo/src/boolean/carrier_touch.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/mod.rs 5 2026-07-29 (M5 PR 8), the driver amendment'
+  # glue.rs's two are the glue door's box sweeps, the amendment's
+  # funnel shape: `decided_declarations` builds each face's certified
+  # box (`boxes::face_box`) and walks the box-overlapping cross pairs
+  # into the carrier ladder; `coaxial_rows` walks the same overlap for
+  # the cylinder × sphere pairs whose coaxial frame it decides. Neither
+  # reads a bracket of its own beyond the box builders'.
+  'crates/topo/src/boolean/glue.rs 2 2026-07-29 (M5 PR 8), the driver amendment'
   # ops.rs's no-crossings extent checks and its crossings-path guard
   # are one driver seam: each reads the certified face boxes the sweep
   # built and decides on them, the amendment's funnel shape. The
