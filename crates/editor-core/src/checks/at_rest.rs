@@ -424,6 +424,22 @@ fn localize<T: crate::EvalScalar>(
         return unlocalized(Unlocalized::Unnamed);
     };
     let verdicts = quiet_verdicts(product, a, b, &components, &result, tol);
+    // A quiet finding must not carry a verdict nothing checked: every
+    // undecided verdict on the pair names faces of the component it
+    // rides, which its containment check covered.
+    let covered = |component: &Component| {
+        evidence.iter().all(|error| match error {
+            ValidationError::CensusUndecidable {
+                a: topo::EntityId::Face(x),
+                b: topo::EntityId::Face(y),
+                ..
+            } => [x, y]
+                .into_iter()
+                .all(|f| component.sources.iter().any(|(_, s)| s == f)),
+            ValidationError::CensusUndecidable { .. } => false,
+            _ => true,
+        })
+    };
     let mut out = Vec::with_capacity(components.len());
     for (component, verdict) in components.iter().zip(verdicts) {
         let mut faces = Vec::with_capacity(component.sources.len());
@@ -443,7 +459,10 @@ fn localize<T: crate::EvalScalar>(
         faces.dedup();
         out.push(match verdict {
             Quiet::Loud => finding(Overlap::Bounded { faces }, None),
-            Quiet::By(assertion) => finding(Overlap::Bounded { faces }, Some(assertion)),
+            Quiet::By(assertion) if covered(component) => {
+                finding(Overlap::Bounded { faces }, Some(assertion))
+            }
+            Quiet::By(_) => finding(Overlap::Bounded { faces }, None),
             Quiet::Refused(refusal) => finding(
                 Overlap::Unlocalized(Unlocalized::Containment { refusal }),
                 None,

@@ -491,6 +491,21 @@ fn bore_and_pin(
     StableName,
     StableName,
 ) {
+    bore_pin_and_holes(pin_r, &[])
+}
+
+/// [`bore_and_pin`] with further holes `(cx, cy, r)` through the plate.
+fn bore_pin_and_holes(
+    pin_r: f64,
+    holes: &[(f64, f64, f64)],
+) -> (
+    ProfileDoc,
+    RecipeNodeId,
+    RecipeNodeId,
+    RecipeNodeId,
+    StableName,
+    StableName,
+) {
     use crate::fixture::{frame, piece};
     use editor_core::{LoopProgram, ProfileProgram};
     let circle = |r| LoopProgram::<Formula>::circle(0.0, 0.0, r).expect("a literal circle");
@@ -517,7 +532,13 @@ fn bore_and_pin(
     let outline = crate::fixture::desc(RecipeNodeId::new(0, 0), vec![square(0.0, 0.0, 1.0)])
         .loops
         .remove(0);
-    let (doc, plate) = prism(doc, 0.0, vec![outline, circle(0.5)], 1.0);
+    let mut loops = vec![outline, circle(0.5)];
+    loops.extend(
+        holes.iter().map(|&(cx, cy, r)| {
+            LoopProgram::<Formula>::circle(cx, cy, r).expect("a literal circle")
+        }),
+    );
+    let (doc, plate) = prism(doc, 0.0, loops, 1.0);
     let (doc, pin) = prism(doc, -0.5, vec![circle(pin_r)], 2.0);
     let (doc, p) = place(doc, plate);
     let (doc, q) = place(doc, pin);
@@ -587,4 +608,50 @@ fn a_clearance_fit_the_census_cannot_decide_stays_refused() {
         ),
         other => panic!("the undecided pair refuses: {other:?}"),
     }
+}
+
+/// **(B) A quiet finding carries no verdict nothing checked.** The
+/// press fit again, its plate drilled with a small hole beside the pin
+/// (0.586 from its axis at the nearest, within its faces' reach):
+/// the census leaves the pin's wall and that hole's wall undecided, a
+/// face pair outside the overlap the assertion's containment check
+/// covers, so the finding stays loud and carries the verdict.
+///
+/// Red if an undecided verdict anywhere on the pair rides a quiet
+/// finding.
+#[test]
+fn an_undecided_pair_beside_the_press_fit_keeps_it_loud() {
+    let (doc, p, q, _, bore, wall) = bore_pin_and_holes(0.505, &[(0.45, 0.45, 0.05)]);
+    let (doc, _) = gap_at_copies(
+        doc.clone(),
+        (p, bore),
+        (q, wall),
+        AssertionRelation::AtMost,
+        -0.001,
+    );
+    let assembly = assembled(&doc);
+    let [finding] = assembly.interference.as_slice() else {
+        panic!("one overlap: {:?}", assembly.interference)
+    };
+    let Overlap::Bounded { faces } = &finding.overlap else {
+        panic!("bounded: {:?}", finding.overlap)
+    };
+    let beside = finding.evidence.iter().filter(|e| match e {
+        ValidationError::CensusUndecidable {
+            a: topo::EntityId::Face(_),
+            b: topo::EntityId::Face(_),
+            ..
+        } => true,
+        _ => false,
+    });
+    assert!(
+        beside.count() > 0,
+        "the census left curved pairs undecided: {:?}",
+        finding.evidence
+    );
+    assert!(
+        finding.is_loud(),
+        "an undecided pair outside the overlap's {} faces keeps it loud",
+        faces.len()
+    );
 }
