@@ -49,9 +49,16 @@ operands. Three objects carry the design:
   cross-entity coincidence;
 - a **declaration** is recipe data asserting a contact class on a named
   face pair;
+- a **decision** (`Coincidence`, `crate::coincidence`) is a
+  coincidence an operation decided from values: which two of its
+  inputs' cells, what relation, where, and the margin read;
 - a **record** (`ContactRecords`: `VvContact`, `VeContact`,
-  `VfContact`, `EeContact`, `CurveContact`, `PatchContact`) is the
-  verified form a result body carries.
+  `VfContact`, `EeContact`, `CurveContact`, `PatchContact`) is a touch
+  a result body carries, citing the decisions that back it (`Cites`):
+  rows of the producing operation's own coincidences
+  (`Backing::Decided`), or a record of an input it carries in
+  (`Backing::Carried`, which cites its own). A record cannot be built
+  without one (D1 (ii)).
 
 The coincidence ladder (D10): at the Boolean, a margin decided Zero
 glues, declared or not, and the decision is recorded
@@ -127,16 +134,22 @@ Invariant: no flag, mode or setting moves a glue — the Boolean glues
 what its margin decides Zero under every setting, and the lint reads
 what it glued.
 
-**C3 — Record granularities.**
+**C3 — Record granularities.** Every granularity cites its backing
+(the preamble's decision); a vertex record cites the vertex identity
+the reduction decided (`DecisionSite::VertexFusion`), and a pair a
+chain of such identities implies cites every one on each shortest
+chain.
 
 - `CurveContact { face_a, face_b, witness }` is a certified curve touch:
   the jet schedule along the witness edge's carrier (coincidence within
   ε, normal opposition within ε·κ_rel, κ_rel definitely positive, hull
   bounds between samples). Its endpoints are bounded by vertex records or
   the locus's closure; an unbacked bound is `UndeclaredContact`.
-- `PatchContact { face_a, face_b }` is a certified conformal patch:
-  carrier identity by the carrier ladder (a margin decided Zero, or a
-  declaration bridging one in band), senses opposed
+- `PatchContact { face_a, face_b }` is a certified conformal patch,
+  backed by a `SameOpposite` decision (for a mate's patch, the at-rest
+  census's `CensusAtRest` row; the mate places and never checks):
+  carrier identity by the carrier ladder (a margin
+  decided Zero, or a declaration bridging one in band), senses opposed
   (aligned coincidence is contradicted), and definitely-positive trim
   overlap in a shared chart — exact on the planar trim inventory
   (`chart_region.rs`), typed elsewhere (`NonPlanarTrim`, `ArmUnbounded`,

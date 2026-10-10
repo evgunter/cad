@@ -2769,6 +2769,14 @@ NOT_BOUND = {
     # `CheckEvidence.variant`.
     "ChartCoherenceLane": INTERIOR,
     "ContactRecords": INTERIOR,
+    # What a contact record cites (D1 (ii)): its `ContactRecords`
+    # carrier is interior, so the citation rides behind the same door.
+    # `CitedInput` names the inputs a `NodeValue`'s and a `Product`'s
+    # records cite, both interior.
+    "Backing": INTERIOR,
+    "Cited": INTERIOR,
+    "Cites": INTERIOR,
+    "CitedInput": INTERIOR,
     # The contact vocabulary's fourth quarter, curated beside the
     # three that were already here. `INTERIOR` by the carrier rule,
     # measured one rung DOWN from where its carrier now crosses: it is
@@ -4234,6 +4242,13 @@ ARMS_SPELLED_BY_A_PROPERTY = {
 #: gone from this table. The remaining entry cites `G2`, the audit's,
 #: beside `sweep_body` above.
 MEMBERS_NOT_BOUND = {
+    # The kernel's coincidence row is curated beside the named row
+    # Python spells (`Coincidence`, `NamedCoincidence`'s binding). The
+    # margin is a reporting reading (`MarginDiag`, for error text only)
+    # and the discharge has one arm, so Python reads neither: the row's
+    # finding says whether the door proved it.
+    "Coincidence::margin": SHAPE,
+    "Coincidence::discharge": SHAPE,
     # The document a report was taken of, which the kernel's `render`
     # checks it is handed. Python's `McReport` holds that document
     # itself and renders from it, so there is no second document to
