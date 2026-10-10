@@ -37,7 +37,7 @@ exact row; hull 2.3e-14 at rest.
 
 The measurement was a scratch probe (one row per carrier above, built
 from `nurbs_walls` and the vase); the shipped row that reaches it is
-`encl_curved_loft_shell::shelling_the_vase_refuses_at_its_rims_certificate`,
+`encl_curved_loft_shell::shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_at_its_rims_certificate`,
 which refuses `RechartFalsifies { PlaneNurbs(Limb { HullSup, 4.787e-4 }) }`
 on a vase cap.
 
