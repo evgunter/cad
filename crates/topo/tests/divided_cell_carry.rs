@@ -280,3 +280,72 @@ fn a_rim_around_a_hole_lands_a_resting_corners_record_on_the_holes_rim() {
         "the carried record passes at rest"
     );
 }
+
+/// **A side holding two pieces of the divided face lands the record on
+/// the one that holds the corner.** A U-shaped slab (a notch x ∈ (1, 3)
+/// over y > 2) has one top face; the plane y = 3 cuts both arms, so the
+/// side above holds two fragments of the top, the two arms' tips, and
+/// the tilted cube's corner rests on the left tip at (0.5, 3.5, 1). The
+/// record lands on that tip alone, and both sides pass at rest. Red on a
+/// carry that lands on every piece a side holds: the right tip does not
+/// hold the corner.
+#[test]
+fn a_side_holding_two_fragments_lands_the_record_on_the_one_holding_the_corner() {
+    let slab = box_of((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), "slab");
+    let notch = box_of((1.0, 3.0), (2.0, 5.0), (-1.0, 2.0), "notch");
+    let u = match topo::subtract(&slab, &notch, tol()) {
+        Ok(BooleanResult::Body(r)) => r.body,
+        other => panic!("the notch cuts: {other:?}"),
+    };
+    let shift = geom_core::Affine3::translation(Vec3::new(-1.5, 1.5, 0.0));
+    let cube = common::finished(
+        "the shifted tilted cube",
+        topo::transform_rigid(&tilted_cube(), &shift, tol()).expect("a rigid move"),
+        tol(),
+    );
+    let base = union_of(&cube, &u);
+    assert_eq!(
+        base.contacts.vertex_face().count(),
+        1,
+        "{:?}",
+        base.contacts
+    );
+    let plane = common::split_plane(Point3::new(0.0, 3.0, 0.0), Vec3::new(0.0, 1.0, 0.0), tol());
+    let split = topo::split(&base.body, &plane, tol()).expect("the arms split");
+    let (top_above, side) = [(split.above.body(), "above"), (split.below.body(), "below")]
+        .into_iter()
+        .find_map(|(body, side)| {
+            let body = body?;
+            let tops = body
+                .faces()
+                .filter(|(_, f)| {
+                    matches!(
+                        body.get_surface(f.surface),
+                        Some(Surface::Plane { origin, normal, .. })
+                            if normal.z.abs() == 1.0 && origin.z == 1.0
+                    )
+                })
+                .count();
+            (tops == 2).then_some((tops, side))
+        })
+        .expect("one side holds two fragments of the top");
+    assert_eq!(top_above, 2);
+    let sides = split_passes(
+        "y = 3",
+        &base,
+        Point3::new(0.0, 3.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+    );
+    let holding = if side == "above" {
+        &sides.above
+    } else {
+        &sides.below
+    };
+    assert_eq!(
+        holding.vertex_face().count(),
+        1,
+        "{side}: the record lands on one fragment: {holding:?}"
+    );
+    assert_eq!(sides.above.len() + sides.below.len(), 1, "{sides:?}");
+    cites_its_record("y = 3", holding, 0);
+}

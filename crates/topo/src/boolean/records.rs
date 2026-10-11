@@ -40,7 +40,8 @@ pub enum ContactPairError {
 }
 
 /// Why a carry of a record list refused one of its records
-/// ([`ContactRecords::carried_through`], [`ContactRecords::rekeyed`]): a
+/// ([`ContactRecords::carried_through`],
+/// [`ContactRecords::carried_through_pieces`], [`ContactRecords::rekeyed`]): a
 /// record the map cannot take is refused, never dropped.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CarryRefusal {
@@ -435,9 +436,9 @@ impl ContactRecords {
     /// `input` and divided some of its cells: as
     /// [`Self::carried_through`], except that a record on a cell the op
     /// divided lands on every pair of pieces whose interiors still meet
-    /// (D1). `pieces` answers which cells the op divided an input cell
-    /// into (none where it did not divide it), each read through `image`
-    /// as the cell would be; the touch is placed among them by the
+    /// (D1). `divisions` are the op's division rows: what it divided an
+    /// input cell into, each piece read through `image` as the cell
+    /// would be; the touch is placed among them by the
     /// census's own confirm pass, so what lands is what the census
     /// confirms. A division only chooses among a record's own pieces:
     /// nothing else of the result is searched. Where no pair of pieces
@@ -456,58 +457,120 @@ impl ContactRecords {
         input: u32,
         result: &Body<T>,
         image: impl Fn(Cell) -> Option<Cell>,
-        pieces: impl Fn(Cell) -> Vec<Cell>,
+        divisions: &crate::Divisions,
         band: geom_core::Band,
         region: Option<crate::RegionLane<T>>,
     ) -> Result<Self, CarryRefusal> {
-        let mut out = Self::default();
-        let mut confirm = None;
+        let side = Side {
+            body: result,
+            image: &image,
+        };
+        let [out] =
+            <[Self; 1]>::try_from(self.carried_onto(input, &[side], divisions, band, region)?)
+                .unwrap_or_else(|_| unreachable!("one side carries one list"));
+        Ok(out)
+    }
+
+    /// These records carried onto `sides`, the bodies an op made from
+    /// its input `input`, one list per side, as
+    /// [`Self::carried_through_pieces`] carries them onto one: a record
+    /// on a cell `divisions` divides lands on every side's pairs of
+    /// pieces that meet, and one that lands nowhere so is carried by key
+    /// onto each side that holds both its cells.
+    ///
+    /// # Errors
+    ///
+    /// [`CarryRefusal::Unread`] for the first pair of pieces the confirm
+    /// cannot read; for a record that lands on no side,
+    /// [`CarryRefusal::Unmapped`] where no side holds one of its cells,
+    /// a side's [`CarryRefusal::Pair`], else [`CarryRefusal::Parted`]
+    /// (its cells are on different sides).
+    pub(crate) fn carried_onto<T: geom_core::Decide>(
+        &self,
+        input: u32,
+        sides: &[Side<'_, T>],
+        divisions: &crate::Divisions,
+        band: geom_core::Band,
+        region: Option<crate::RegionLane<T>>,
+    ) -> Result<Vec<Self>, CarryRefusal> {
+        let mut out: Vec<Self> = sides.iter().map(|_| Self::default()).collect();
+        let mut confirms: Vec<Option<crate::census::RecordConfirm<'_, T>>> =
+            sides.iter().map(|_| None).collect();
         for k in 0..self.rows.len() {
-            if self.divided(k, &pieces) {
-                let confirm = confirm
-                    .get_or_insert_with(|| crate::census::RecordConfirm::of(result, band, region));
-                let landed = self.landed_on_pieces(input, k, result, &image, &pieces, confirm)?;
-                if !landed.is_empty() {
-                    out.extend(landed);
+            let record = super::reduce::index(k);
+            let [x, y] = self.rows[k].cells();
+            if !divisions.pieces(x).is_empty() || !divisions.pieces(y).is_empty() {
+                let mut landed = false;
+                for ((side, list), confirm) in sides.iter().zip(&mut out).zip(&mut confirms) {
+                    let confirm = confirm.get_or_insert_with(|| {
+                        crate::census::RecordConfirm::of(side.body, band, region)
+                    });
+                    let rows = self.landed_on_pieces(input, k, side, divisions, confirm)?;
+                    landed |= !rows.is_empty();
+                    list.extend(rows);
+                }
+                if landed {
                     continue;
                 }
             }
-            out.extend(self.carried_row(input, k, result, &image)?);
+            let mut refusals = Vec::new();
+            let mut landed = false;
+            for (side, list) in sides.iter().zip(&mut out) {
+                match self.carried_row(input, k, side.body, &side.image) {
+                    Ok(row) => {
+                        landed = true;
+                        list.extend(row);
+                    }
+                    Err(refusal) => refusals.push(refusal),
+                }
+            }
+            if !landed {
+                let held = |c: Cell| {
+                    sides
+                        .iter()
+                        .any(|s| (s.image)(c).is_some_and(|i| holds(s.body, i)))
+                };
+                return Err(match (held(x), held(y)) {
+                    (true, true) => refusals
+                        .into_iter()
+                        .find(|r| matches!(r, CarryRefusal::Pair { .. }))
+                        .unwrap_or(CarryRefusal::Parted { record }),
+                    (false, _) => CarryRefusal::Unmapped { record, cell: x },
+                    (true, false) => CarryRefusal::Unmapped { record, cell: y },
+                });
+            }
         }
         Ok(out)
     }
 
-    /// Whether the op divided either of record `k`'s cells.
-    pub(crate) fn divided(&self, k: usize, pieces: &impl Fn(Cell) -> Vec<Cell>) -> bool {
-        self.rows[k].cells().iter().any(|&c| !pieces(c).is_empty())
-    }
-
-    /// Record `k` on every pair of its cells' pieces in `result` (each
-    /// cell itself and the pieces the op divided it into, each through
-    /// `image`) whose interiors `confirm` reads meeting, each citing
-    /// the input record: none where no pair meets.
+    /// Record `k` on every pair of its cells' pieces on `side` (each
+    /// cell itself and the pieces `divisions` divides it into, each
+    /// through the side's image) whose interiors `confirm` reads
+    /// meeting, each citing the input record: none where no pair meets.
+    /// A pair the confirm cannot read refuses even where another pair
+    /// meets: it may meet too, and a meeting pair left unrecorded is not
+    /// inferred later (D1).
     ///
     /// # Errors
     ///
     /// [`CarryRefusal::Unread`] for the first pair `confirm` cannot
     /// read.
-    pub(crate) fn landed_on_pieces<T: geom_core::Decide>(
+    fn landed_on_pieces<T: geom_core::Decide>(
         &self,
         input: u32,
         k: usize,
-        result: &Body<T>,
-        image: &impl Fn(Cell) -> Option<Cell>,
-        pieces: &impl Fn(Cell) -> Vec<Cell>,
+        side: &Side<'_, T>,
+        divisions: &crate::Divisions,
         confirm: &crate::census::RecordConfirm<'_, T>,
     ) -> Result<Vec<Cited<Contact>>, CarryRefusal> {
         let record = super::reduce::index(k);
         let held = |c: Cell| {
             let mut out: Vec<Cell> = Vec::new();
             for i in core::iter::once(c)
-                .chain(pieces(c))
-                .filter_map(image)
-                .filter(|&i| holds(result, i))
-                .map(|i| conventional_edge(result, i))
+                .chain(divisions.pieces(c))
+                .filter_map(side.image)
+                .filter(|&i| holds(side.body, i))
+                .map(|i| conventional_edge(side.body, i))
             {
                 if !out.contains(&i) {
                     out.push(i);
@@ -519,7 +582,8 @@ impl ContactRecords {
         let mut out = Vec::new();
         for &a in &held(x) {
             for &b in &held(y) {
-                let Ok(pair) = Contact::new(result, a, b) else {
+                // One cell, or one bounding the other: structure, not a touch.
+                let Ok(pair) = Contact::new(side.body, a, b) else {
                     continue;
                 };
                 if confirm.meets(pair).map_err(|_| CarryRefusal::Unread {
@@ -648,6 +712,14 @@ impl ContactRecords {
         }
         Ok(out)
     }
+}
+
+/// One body an op's records are carried onto
+/// ([`ContactRecords::carried_onto`]), and what the op made of each
+/// input cell there: the cell that holds it, or `None`.
+pub(crate) struct Side<'a, T: Real> {
+    pub(crate) body: &'a Body<T>,
+    pub(crate) image: &'a dyn Fn(Cell) -> Option<Cell>,
 }
 
 impl Extend<Cited<Contact>> for ContactRecords {

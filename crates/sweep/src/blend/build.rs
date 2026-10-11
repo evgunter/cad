@@ -150,22 +150,18 @@ impl<T: Decide> Blended<T> {
         region: Option<topo::RegionLane<T>>,
     ) -> Result<topo::ContactRecords, topo::CarryRefusal> {
         let joins = self.naming.as_ref().map_or(&[][..], |n| &n.edge_joins[..]);
-        let remnants = self
-            .naming
-            .as_ref()
-            .map_or(&[][..], |n| &n.meridian_remnants[..]);
+        let divisions = topo::Divisions {
+            edges: self
+                .naming
+                .as_ref()
+                .map_or_else(Vec::new, |n| n.meridian_remnants.clone()),
+            faces: Vec::new(),
+        };
         records.carried_through_pieces(
             0,
             &self.body,
             |c| Some(topo::joined_cell(joins, c)),
-            |c| match c {
-                topo::Cell::Edge(e) => remnants
-                    .iter()
-                    .filter(|&&(piece, source)| source == e && piece != e)
-                    .map(|&(piece, _)| topo::Cell::Edge(piece))
-                    .collect(),
-                _ => Vec::new(),
-            },
+            &divisions,
             band,
             region,
         )

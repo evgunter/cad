@@ -16,7 +16,10 @@ A split whose plane crosses a recorded touch mints a cell on each
 touching cell at the crossing, and the two share a point. No decision of
 the split relates them, so each side refuses the minted pair
 `UndeclaredContact`, and with it the half of the touch the pair now
-bounds. The body is fine; the refusal is false, and loud.
+bounds. By D1 as written the refusal is correct: the pair is a bound no
+record backs, and a missing bound is never inferred. The question is
+whether a cut through a recorded touch should back the pair it mints,
+and how.
 
 ## Measured
 
@@ -75,3 +78,13 @@ because there the cut copies one vertex (`SplitNaming::vertex_pairs`).
 3. **The split refuses typed.** A cut through a recorded touch refuses
    at the split, naming the touch, instead of building two sides the
    census refuses. Honest, and keeps the status quo's reach.
+
+## What it blocks besides
+
+A record landing on more than one pair of pieces (an edge–edge or
+edge–face touch divided along its length) has no row that passes at
+rest: a split that divides such a touch mints exactly this pair, and
+neither the shell's rim surgery nor a blend divides a cell into two
+live pieces that one touch spans (a hole's rim and the outer rim are
+parted by the opening; a blend's carved piece dies). Once this row
+backs the pair, the split's multi-pair landing gets its row.

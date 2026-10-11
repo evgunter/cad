@@ -70,9 +70,7 @@ use super::join::{CompletedSection, loop_points_of};
 use super::{KnifeEdge, KnifeEdgeSite, PlaneSide, SplitReduction, section_loops};
 use crate::attach::{Named, Rechart};
 use crate::body::Body;
-use crate::boolean::fragments::Lineage;
 use crate::boolean::{CarryRefusal, Cell};
-use crate::census::RecordConfirm;
 use crate::chord_join::SplitJoinError;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
@@ -179,77 +177,36 @@ impl<T: Decide> SplitResult<T> {
         })
         .collect();
         let section = |f: FaceKey| self.naming.sections.iter().any(|&(s, _)| s == f);
-        let fragments: Vec<(FaceKey, FaceKey)> = self
-            .naming
-            .face_fragments
-            .iter()
-            .copied()
-            .filter(|&(new, from)| !section(new) && !section(from))
-            .collect();
-        let pieces = |c: Cell| -> Vec<Cell> {
-            match c {
-                Cell::Vertex(_) => Vec::new(),
-                Cell::Edge(e) => Lineage::of(e, &self.naming.edge_pieces)
-                    .pieces(e)
-                    .map(Cell::Edge)
-                    .collect(),
-                Cell::Face(f) => Lineage::of(f, &fragments)
-                    .pieces(f)
-                    .map(Cell::Face)
-                    .collect(),
-            }
+        let divisions = crate::Divisions {
+            edges: self.naming.edge_pieces.clone(),
+            faces: self
+                .naming
+                .face_fragments
+                .iter()
+                .copied()
+                .filter(|&(new, from)| !section(new) && !section(from))
+                .collect(),
         };
-        let mut confirm: Vec<Option<RecordConfirm<'_, T>>> = sides.iter().map(|_| None).collect();
+        let images: Vec<_> = sides
+            .iter()
+            .map(|(_, body, joins)| move |c: Cell| self.side_image(body, joins, c))
+            .collect();
+        let carried = records.carried_onto(
+            0,
+            &sides
+                .iter()
+                .zip(&images)
+                .map(|((_, body, _), image)| crate::boolean::records::Side { body, image })
+                .collect::<Vec<_>>(),
+            &divisions,
+            band,
+            region,
+        )?;
         let mut out = SplitContacts::default();
-        for k in 0..records.len() {
-            if records.divided(k, &pieces) {
-                let mut landed = false;
-                for (i, (side, body, joins)) in sides.iter().enumerate() {
-                    let image = |c: Cell| self.side_image(body, joins, c);
-                    let confirm =
-                        confirm[i].get_or_insert_with(|| RecordConfirm::of(body, band, region));
-                    let rows = records.landed_on_pieces(0, k, body, &image, &pieces, confirm)?;
-                    landed |= !rows.is_empty();
-                    match side {
-                        PlaneSide::Above => out.above.extend(rows),
-                        _ => out.below.extend(rows),
-                    }
-                }
-                if landed {
-                    continue;
-                }
-            }
-            let mut refusals = Vec::new();
-            let mut landed = false;
-            for (side, body, joins) in &sides {
-                let image = |c: Cell| self.side_image(body, joins, c);
-                match records.carried_row(0, k, body, &image) {
-                    Ok(row) => {
-                        landed = true;
-                        match side {
-                            PlaneSide::Above => out.above.extend(row),
-                            _ => out.below.extend(row),
-                        }
-                    }
-                    Err(refusal) => refusals.push(refusal),
-                }
-            }
-            if !landed {
-                let record = crate::boolean::reduce::index(k);
-                let [x, y] = records.rows()[k].cells();
-                let held = |c: Cell| {
-                    sides
-                        .iter()
-                        .any(|(_, body, joins)| self.side_image(body, joins, c).is_some())
-                };
-                return Err(match (held(x), held(y)) {
-                    (true, true) => refusals
-                        .into_iter()
-                        .find(|r| matches!(r, CarryRefusal::Pair { .. }))
-                        .unwrap_or(CarryRefusal::Parted { record }),
-                    (false, _) => CarryRefusal::Unmapped { record, cell: x },
-                    (true, false) => CarryRefusal::Unmapped { record, cell: y },
-                });
+        for ((side, _, _), list) in sides.iter().zip(carried) {
+            match side {
+                PlaneSide::Above => out.above = list,
+                _ => out.below = list,
             }
         }
         Ok(out)
