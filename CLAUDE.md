@@ -20,7 +20,8 @@ client over the API), functional style, fail-loud.
   `docs/prompts/reviewer-style-lane.md` and
   `docs/prompts/designer.md` — the standing discipline handed
   to every implementer, reviewer and designer lane by path.
-  **Orchestrators read all three in full**: they are the rules the orchestrator adjudicates
+  **Orchestrators read all three in full, and again after every
+  compaction**: they are the rules the orchestrator adjudicates
   against, and they bind the orchestrator's own judgement too (e.g. a
   golden or stored bit that changes is never a cost to weigh against a
   change that makes the code right — re-baseline and say what moved).

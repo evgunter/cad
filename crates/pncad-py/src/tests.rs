@@ -2934,17 +2934,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         },
         &["input", "slot"],
     );
-    carries(
-        &E::PartHalfPort {
-            node: sp(1),
-            half: pncad::select::SplitHalf::Above,
-            var: Box::new(pncad::document::SpokenVar::new(
-                pncad::document::VarId(id(2).0),
-                None,
-            )),
-        },
-        &["node"],
-    );
 
     // The two-node arms answer with the ids they were given, not with
     // the first id twice: the roles are what a caller acts on.
@@ -5156,7 +5145,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_structural_slot",
             "offset_on_non_instance",
             "operand_unresolved",
-            "part_half_port",
             "path_off_tree",
             "payload_unknown_var_name",
             "payload_unresolved_var",
@@ -6219,7 +6207,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "observed_read",
             "operand_unminted",
             "output_signature",
-            "part_half_port",
             "payload_var_kind",
             "placement_improper",
             "placement_non_finite",
@@ -6734,9 +6721,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("not_an_instance", 3),
     ("null_scaffold_edge", 2),
     ("op", 3),
-    // One fact at the edit and load doors: a part over a split reads
-    // the half it does not select.
-    ("part_half_port", 2),
     ("part_unresolved", 3),
     // A coincidence: a sweep's path operand and a replay's path fault.
     ("path", 2),

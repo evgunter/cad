@@ -46,6 +46,12 @@ fn rows(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
         .to_vec()
 }
 
+/// The variable `split`'s port for `half` defines.
+fn port(doc: &ProfileDoc, split: RecipeNodeId, half: SplitHalf) -> VarId {
+    doc.output(split, half.port())
+        .expect("a split defines a port per half")
+}
+
 fn entity(input: VarId, name: &StableName) -> NamedCell {
     NamedCell::Entity {
         input,
@@ -136,11 +142,45 @@ fn face_on(ev: &Evaluation<f64>, node: RecipeNodeId, p: [f64; 3], n: [f64; 3]) -
         ValuePayload::Body(b) => b.clone(),
         other => panic!("expected a body, got {other:?}"),
     };
+    face_of(ev, node, &body, 0, p, n)
+}
+
+/// [`face_on`] on one half of `split`, read off the split's own value:
+/// the half's body and the split's rows for that output.
+fn half_face_on(
+    ev: &Evaluation<f64>,
+    split: RecipeNodeId,
+    half: SplitHalf,
+    p: [f64; 3],
+    n: [f64; 3],
+) -> StableName {
+    let side = match &ev.value(split).expect("the split evaluated").payload {
+        ValuePayload::Split { above, below } => match half {
+            SplitHalf::Above => above,
+            SplitHalf::Below => below,
+        },
+        other => panic!("expected a split, got {other:?}"),
+    };
+    let editor_core::SplitSide::Body(body) = side else {
+        panic!("{half:?} holds material")
+    };
+    face_of(ev, split, body, half.output_body(), p, n)
+}
+
+/// The face of output `index` of `node`, a plane through `p` facing `n`.
+fn face_of(
+    ev: &Evaluation<f64>,
+    node: RecipeNodeId,
+    body: &topo::Body<f64>,
+    index: u32,
+    p: [f64; 3],
+    n: [f64; 3],
+) -> StableName {
     table(ev, node)
         .iter()
         .find_map(|(name, entry)| match entry {
-            Entry::Unique(r) if r.body == 0 => match r.key {
-                EntityKey::Face(f) => match topo::face_carrier(&body, f)? {
+            Entry::Unique(r) if r.body == index => match r.key {
+                EntityKey::Face(f) => match topo::face_carrier(body, f)? {
                     topo::CarrierDesc::Plane { origin, normal } => {
                         let facing =
                             (normal - geom_core::Vec3::new(n[0], n[1], n[2])).norm() < 1e-12;
@@ -197,22 +237,8 @@ fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
             tool: tool.into(),
         },
     );
-    let (doc, above) = insert(
-        doc,
-        Node::Part {
-            of: editor_core::Operand::output(split, SplitHalf::Above.port()),
-            select: PartSelect::SplitHalf(SplitHalf::Above),
-        },
-    );
-    let (doc, below) = insert(
-        doc,
-        Node::Part {
-            of: editor_core::Operand::output(split, SplitHalf::Below.port()),
-            select: PartSelect::SplitHalf(SplitHalf::Below),
-        },
-    );
     let ev = run(&doc);
-    let wall = |node, z| face_on(&ev, node, [3.0, 0.5, z], [-1.0, 0.0, 0.0]);
+    let wall = |half, z| half_face_on(&ev, split, half, [3.0, 0.5, z], [-1.0, 0.0, 0.0]);
     let row = |cells| NamedCoincidence {
         cells,
         relation: Relation::SameOriented,
@@ -220,9 +246,13 @@ fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
         margin: MarginDiag::value(0.0),
         discharge: topo::Discharge::Numeric,
     };
+    let (above, below) = (
+        port(&doc, split, SplitHalf::Above),
+        port(&doc, split, SplitHalf::Below),
+    );
     let halves = row([
-        entity(out(&doc, above), &wall(above, 0.75)),
-        entity(out(&doc, below), &wall(below, 0.25)),
+        entity(above, &wall(SplitHalf::Above, 0.75)),
+        entity(below, &wall(SplitHalf::Below, 0.25)),
     ]);
     assert_eq!(
         coincide::prove(&doc, &halves),
@@ -232,7 +262,7 @@ fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
     let unplaced = face_on(&ev, the_box, [0.0, 0.5, 0.5], [-1.0, 0.0, 0.0]);
     let across = row([
         entity(out(&doc, the_box), &unplaced),
-        entity(out(&doc, above), &wall(above, 0.75)),
+        entity(above, &wall(SplitHalf::Above, 0.75)),
     ]);
     assert!(
         matches!(coincide::prove(&doc, &across), Proof::Unproven { .. }),
@@ -547,31 +577,26 @@ fn a_reunited_splits_section_caps_are_one_construction() {
             tool: tool.into(),
         },
     );
-    let half = |doc, side: SplitHalf| {
-        insert(
-            doc,
-            Node::Part {
-                of: editor_core::Operand::output(split, side.port()),
-                select: PartSelect::SplitHalf(side),
-            },
-        )
-    };
-    let (doc, above) = half(doc, SplitHalf::Above);
-    let (doc, below) = half(doc, SplitHalf::Below);
     let ev = run(&doc);
-    let cap = |node, z, nz| face_on(&ev, node, [0.5, 0.5, z], [0.0, 0.0, nz]);
-    let (above_cap, below_cap) = (cap(above, 0.5, -1.0), cap(below, 0.5, 1.0));
+    let cap = |half, z, nz| half_face_on(&ev, split, half, [0.5, 0.5, z], [0.0, 0.0, nz]);
+    let (above_cap, below_cap) = (
+        cap(SplitHalf::Above, 0.5, -1.0),
+        cap(SplitHalf::Below, 0.5, 1.0),
+    );
     assert!(
         matches!(above_cap.path.as_slice(), [RoleSeg::SectionFace { .. }])
             && matches!(below_cap.path.as_slice(), [RoleSeg::SectionFace { .. }]),
         "the premise: each cap is a section face of the split, {above_cap:?}, {below_cap:?}"
     );
-    let wall = |node, z| face_on(&ev, node, [0.0, 0.5, z], [-1.0, 0.0, 0.0]);
-    let (above_read, below_read) = (out(&doc, above), out(&doc, below));
+    let wall = |half, z| half_face_on(&ev, split, half, [0.0, 0.5, z], [-1.0, 0.0, 0.0]);
+    let (above_read, below_read) = (
+        port(&doc, split, SplitHalf::Above),
+        port(&doc, split, SplitHalf::Below),
+    );
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![above.into(), below.into()]),
+            members: editor_core::Bodies::Spelled(vec![above_read.into(), below_read.into()]),
             declare: vec![
                 (
                     (
@@ -582,8 +607,8 @@ fn a_reunited_splits_section_caps_are_one_construction() {
                 ),
                 (
                     (
-                        SitedRef::new(above_read, wall(above, 0.75)),
-                        SitedRef::new(below_read, wall(below, 0.25)),
+                        SitedRef::new(above_read, wall(SplitHalf::Above, 0.75)),
+                        SitedRef::new(below_read, wall(SplitHalf::Below, 0.25)),
                     ),
                     BooleanCoincidence::Continuation,
                 ),
@@ -594,8 +619,8 @@ fn a_reunited_splits_section_caps_are_one_construction() {
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     let got = rows(&ev, union);
     let caps = [
-        entity(out(&doc, above), &above_cap),
-        entity(out(&doc, below), &below_cap),
+        entity(above_read, &above_cap),
+        entity(below_read, &below_cap),
     ];
     let row = got
         .iter()

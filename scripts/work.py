@@ -57,7 +57,19 @@ NARRATIVE = {"plan.md", "log.md", "process-observations.md"}   # inside a progra
 LOG_EXEMPT = {"docs/MODEL-AB-LOG.md",        # the non-program logs in docs/
               "docs/DUAL-REVIEW-LOG.md",
               "docs/DESIGN-FORK-LOG.md"}
+LOG_EXEMPT_DUAL = "docs/DUAL-REVIEW-LOG.md"
 STALE_DAYS = 14
+
+
+def _dual_review_log():  # a module loaded by path: its file name has a hyphen
+    import importlib.util
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dual-review-log.py")
+    spec = importlib.util.spec_from_file_location("dual_review_log", path)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules.setdefault("dual_review_log", mod)
+    spec.loader.exec_module(mod)
+    return mod
 
 KINDS = ("program", "unit", "issue", "ruling")
 ITEM_STATUS = ("open", "spec", "dispatched", "review", "closed", "parked", "deferred")
@@ -650,6 +662,10 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
             rel = f"docs/{name}"
             if (name.endswith("-PLAN.md") or name.endswith("-LOG.md")) and rel not in LOG_EXEMPT:
                 errors.append(f"{rel}: plans and logs live in {WORK}/<program>/ (plan.md, log.md), not in docs/")
+    # the dual-review log: one file per row, the index a render of them
+    # (scripts/dual-review-log.py, whose header says why)
+    if os.path.isdir(os.path.join(root, "docs/dual-review-log")) or os.path.isfile(os.path.join(root, LOG_EXEMPT_DUAL)):
+        errors.extend(_dual_review_log().lint(root))
     if not programs and not errors:
         errors.append(f"{WORK}/ holds no program")
     if warnings is not None:

@@ -610,11 +610,9 @@ impl ProductError {
 /// other op's ride [`crate::eval::NodeValue::contacts`]. Downstream
 /// therefore never asks which op put records where.
 ///
-/// A [`crate::Node::Part`] is a `Body` value and contributes exactly
-/// the body it selected. The half or instance it did NOT select is in
-/// no product through it: a placement reads one `Body`, so the product
-/// of a document whose one placement reads a `Part(Above)` is that one
-/// half.
+/// A placement reads one `Body`, so the product of a document whose one
+/// placement reads a split's `above` port is that one half, and one
+/// reading a `Part` of a pattern is that one copy.
 pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<T>>> {
     let carried = || Arc::clone(&value.contacts);
     let none = || Arc::new(ContactRecords::default());
