@@ -2,7 +2,8 @@
 id: cone-ellipse-edges-carry-no-incidence-decide
 kind: issue
 title: The cone's vector-area lane reads an ellipse edge as the plane section it is stated to be, with no incidence decide
-status: dispatched
+status: review
+pr: 4744
 priority: P3
 cost: M
 refs: [4696]
