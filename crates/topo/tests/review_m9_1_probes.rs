@@ -183,7 +183,10 @@ fn probe_tangent_definite_separation_contradicts() {
         topo::ContactRefusal::Contradicted { diag, steer } => {
             assert_eq!(diag.predicate, Some("contact_tangent_gap"));
             let gap = diag.margin.diagnostic_f64_for_error_text().value();
-            assert!(gap.is_some_and(|g| g > 0.0), "apart, not crossing: {diag:?}");
+            assert!(
+                gap.is_some_and(|g| g > 0.0),
+                "apart, not crossing: {diag:?}"
+            );
             assert_eq!(steer, Some(topo::FIT_DEFERRAL));
         }
         other => panic!("expected Contradicted, got {other:?}"),

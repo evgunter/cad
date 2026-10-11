@@ -927,14 +927,22 @@ mod tests {
         let eps = band().zero();
         match lifted_cylinder_on_plane(1.8 * eps, 0.9 * eps) {
             Err(ContactRefusal::Escalated { diag }) => {
-                assert_eq!(diag.predicate, Some("contact_tangent_gap"), "1.8ε: {diag:?}");
+                assert_eq!(
+                    diag.predicate,
+                    Some("contact_tangent_gap"),
+                    "1.8ε: {diag:?}"
+                );
             }
             other => panic!("1.8ε apart escalates on the gap: {other:?}"),
         }
         for (gap, sign, what) in [(15.0, 1.0, "separation"), (-15.0, -1.0, "crossing")] {
             match lifted_cylinder_on_plane(gap * eps, 0.5 * gap * eps) {
                 Err(ContactRefusal::Contradicted { diag, steer }) => {
-                    assert_eq!(diag.predicate, Some("contact_tangent_gap"), "{what}: {diag:?}");
+                    assert_eq!(
+                        diag.predicate,
+                        Some("contact_tangent_gap"),
+                        "{what}: {diag:?}"
+                    );
                     assert!(
                         margin_of(&diag) * sign > 0.0,
                         "{what}: the margin's sign names it: {diag:?}"
