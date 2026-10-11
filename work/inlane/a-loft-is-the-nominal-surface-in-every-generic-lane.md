@@ -2,11 +2,10 @@
 id: a-loft-is-the-nominal-surface-in-every-generic-lane
 kind: issue
 title: A loft or sweep is its nominal surface in every generic lane: Dual sees no derivative in a section's variables, Interval certifies the nominal over a box
-status: open
+status: dispatched
 opened: 2026-10-11
 priority: P1
 cost: M
-blocked_on: [the-skin-computes-its-values-in-t]
 refs: [the-pinned-profile-lift-launders-at-sym, a-loft-takes-its-placements-as-f64]
 ---
 
