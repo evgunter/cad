@@ -53,7 +53,7 @@ fn a_join_refused_after_an_earlier_kill_leaves_the_body_as_found() {
     let centre = geom_core::Point3::new(0.0, 0.0, 1.0);
     let corner = centre + (p0 - centre) + (p1 - centre);
     let mid = centre + ((p0 - centre) + (p1 - centre)) / ((p0 - centre) + (p1 - centre)).norm();
-    let geom_brep::EdgeDescription::Intersection { s1, s2, .. } = *body
+    let geom_brep::EdgeDescription::Intersection { pair, .. } = *body
         .get_curve_geom(body.get_edge(spline).unwrap().curve)
         .and_then(topo::CurveGeom::certified)
         .unwrap()
@@ -65,11 +65,7 @@ fn a_join_refused_after_an_earlier_kill_leaves_the_body_as_found() {
     body.set_edge_curve(
         spline,
         topo::EdgeCurveSpec {
-            description: geom_brep::EdgeDescriptionSpec::Intersection {
-                s1,
-                s2,
-                witness: mid,
-            },
+            description: geom_brep::EdgeDescriptionSpec::Intersection { pair, witness: mid },
             carrier: geom::Curve3::Nurbs(Arc::new(
                 geom::NurbsCurve3::new(
                     kv,

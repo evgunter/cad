@@ -1793,9 +1793,9 @@ pub enum ValidationError {
     /// DECIDED by the material test and not undecidable. A vertex
     /// strictly inside another instance's material is an overlap of
     /// the two materials by itself (`census.rs` arm 2 states what the
-    /// arm probes and why). Recorded gate-skips — the declaration that
-    /// would admit a deliberate interference — do not exist, so no
-    /// record can answer for this finding.
+    /// arm probes and why). No record answers for this finding; between
+    /// two copies at rest the assembly layer reports it as an
+    /// interference finding.
     InstanceInterference {
         /// The instance whose material holds the witness. Nothing about
         /// size or nesting is implied: the arm probes both instances'
@@ -2124,6 +2124,36 @@ pub enum ValidationError {
     },
 }
 
+/// The crossing rung's SIDE VERDICT for an
+/// [`CensusContact::EdgeEdgeCross`] — deliberately three-valued, so no
+/// bool may stand where this enum does. Exactly one variant backs; the
+/// other two refuse, each its own way (`census.rs`'s `ee_cross_backed`
+/// contract). [`SameSide`](Self::SameSide) is interpenetration
+/// evidence: between two copies at rest the assembly layer reads it as
+/// an interference.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CrossingSideVerdict {
+    /// The two faces' material lies on opposite sides of the shared
+    /// carrier at the crossing — the legal in-contact-plane crossing
+    /// (an overhanging seat), the backing verdict.
+    OppositeSides,
+    /// The material lies on ONE side: the crossing is transverse —
+    /// interpenetration evidence. Refuses, naming this verdict.
+    SameSide,
+    /// The side question did not reach a verdict at a candidate that
+    /// held the crossing: the site's margins escalated in band, or —
+    /// contradicting the carrier screens that just passed — the
+    /// dihedral gate could not establish the Smooth precondition the
+    /// sense algebra requires (`geom_brep::classify_material_pairing`'s
+    /// contract). Escalated typed either way
+    /// ([`ValidationError::CensusEscalated`]), never sampled, never a
+    /// fake side verdict. A pair whose carriers are DEFINITELY
+    /// transverse at the crossing never reaches this arm at all: the
+    /// edge screen refuses it silently first, because a question about
+    /// "the shared carrier" has no subject there.
+    Undecided,
+}
+
 /// A census-discovered coincidence between **distinct** entities (the
 /// tier-3′ injectivity pass's finding kinds, M3 PR 6a). Interior means
 /// strictly interior (endpoint/boundary coincidences surface through
@@ -2164,10 +2194,9 @@ pub enum CensusContact {
         edge: EdgeKey,
     },
     /// An edge piercing a face transversally at both interiors — a
-    /// transverse dive, interpenetration at rest: categorically
-    /// undeclarable until the C6 interference-fit era's recorded
-    /// gate-skips exist (the MATE-4b staging defers this class to
-    /// that era by name).
+    /// transverse dive, interpenetration at rest, which no record
+    /// backs. Between two copies the assembly layer reports it as an
+    /// interference finding.
     EdgeFacePierce {
         /// The piercing edge.
         edge: EdgeKey,
@@ -2188,6 +2217,10 @@ pub enum CensusContact {
         a: EdgeKey,
         /// The other edge.
         b: EdgeKey,
+        /// The crossing rung's side verdict, where a declared,
+        /// region-holding pair answered one; `None` where no pair
+        /// answered for the crossing point.
+        side: Option<CrossingSideVerdict>,
     },
     /// Two collinear edges overlapping on a positive-length segment
     /// (certifiable via the D3 bounding-record reconstruction).
@@ -2827,10 +2860,8 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         }
         CertCheck::EndpointStart
         | CertCheck::EndpointEnd
-        | CertCheck::Surface1Residual
-        | CertCheck::Surface2Residual
-        | CertCheck::WitnessSurface1
-        | CertCheck::WitnessSurface2
+        | CertCheck::SurfaceResidual { .. }
+        | CertCheck::WitnessSurfaceResidual { .. }
         | CertCheck::WitnessMidpoint
         | CertCheck::TangentParallel
         | CertCheck::TangentHull
@@ -6422,9 +6453,9 @@ pub(crate) fn tier3_local_checks_marked<
         let (f_plus, f_minus) = sides.faces();
         let one_face = f_plus == f_minus;
         let adjacent = match curve.description() {
-            geom_brep::EdgeDescription::Intersection { s1, s2, .. }
-            | geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
-                !one_face && Body::<T>::cites_pair((*s1, *s2), fs_plus, fs_minus)
+            geom_brep::EdgeDescription::Intersection { pair, .. }
+            | geom_brep::EdgeDescription::TangentIntersection { pair, .. } => {
+                !one_face && *pair == geom_brep::SurfacePair::new(fs_plus, fs_minus)
             }
             // Chart adjacency (M6-3, the M5-LOG item 6(iii) rule): the
             // described chart is ONE of the edge's two adjacent faces'
@@ -11126,6 +11157,37 @@ mod tests {
         }
     }
 
+    /// **A straddle's enclosure is a margin that was read**: the census's
+    /// escalation of two decided bounds straddling the band (a crossing
+    /// cut's `pm_census_ef_cross_arc_straddle`) ends in the coincidence
+    /// menu, where the poisoned margin it carried before the enclosure
+    /// ended in the defect ending.
+    #[test]
+    fn too_close_reads_a_straddle_as_a_margin_that_was_read() {
+        use geom_core::{Decided, Sign};
+        let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+        let straddle = geom_core::k_stats::straddle(
+            "pm_census_ef_cross_arc_straddle",
+            Decided {
+                sign: Sign::Zero,
+                margin: geom_core::MarginDiag::value(0.5 * band.zero()),
+            },
+            Decided {
+                sign: Sign::Positive,
+                margin: geom_core::MarginDiag::value(3.0 * band.escalate()),
+            },
+            band,
+        );
+        assert_eq!(
+            super::too_close(&straddle.margin),
+            format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE)
+        );
+        assert_eq!(
+            super::too_close(&geom_core::MarginDiag::INVALID),
+            super::DEFECT
+        );
+    }
+
     /// `too_close` spells the shared coincidence menu, once in
     /// `geom_core`, on a margin that was read.
     #[test]
@@ -12644,8 +12706,7 @@ mod tests {
             };
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1: cyl,
-                    s2: plane,
+                    pair: geom_brep::SurfacePair::new(cyl, plane),
                     witness: frame.at((u0 + u1) * 0.5, v0),
                 },
                 carrier: geom::Curve3::Circle {
@@ -13627,8 +13688,7 @@ mod tests {
         };
         let spec = geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
-                s1: plane,
-                s2: cylinder,
+                pair: geom_brep::SurfacePair::new(plane, cylinder),
                 witness: carrier.mid_point(t0, t1),
             },
             carrier,
@@ -13878,7 +13938,7 @@ mod tests {
     #[test]
     fn a_ring_by_a_spiric_edge_is_placed_and_one_in_its_band_is_reported() {
         use core::f64::consts::FRAC_PI_2;
-        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the run's band");
         let spiric = geom::Curve3::Spiric {
@@ -13912,8 +13972,7 @@ mod tests {
                 p1,
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
-                        s1: torus,
-                        s2: plane,
+                        pair: SurfacePair::new(torus, plane),
                         witness: spiric.eval(0.0),
                     },
                     carrier: spiric.clone(),
@@ -15929,7 +15988,12 @@ mod certify_escalation_rows {
                  file; report it",
             ),
             (
-                escalated(CertCheck::Surface1Residual, MarginDiag::INVALID),
+                escalated(
+                    CertCheck::SurfaceResidual {
+                        surface: crate::SurfaceKey::default(),
+                    },
+                    MarginDiag::INVALID,
+                ),
                 "whether it lies where its description says is undecided. There is no way \
                  through: this is a kernel defect or a damaged \
                  file; report it",
@@ -15994,7 +16058,9 @@ mod certify_escalation_rows {
             // reaches: an approximation's residual, and the lane's limb.
             (
                 says(CertifyError::ResidualExceeded {
-                    check: CertCheck::Surface2Residual,
+                    check: CertCheck::SurfaceResidual {
+                        surface: crate::SurfaceKey::default(),
+                    },
                     sample: 0,
                     margin: geom_core::MarginDiag::value(3e-8),
                 }),

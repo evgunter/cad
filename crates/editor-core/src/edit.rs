@@ -12,6 +12,7 @@
 
 use crate::appearance::{Attr, AttrKind};
 use crate::distribution::{Distribution, DistributionFault};
+use crate::doc::Reader;
 use crate::doc::{
     DisplayUnitRefusal, DistributionRefusal, Doc, ExpansionFault, FreeValue, FreeVar,
     GaugeRefFault, NameCarrier, VarName, VarReadFault, WitnessSiteFault,
@@ -1213,6 +1214,28 @@ fn lower_operand<P: crate::ProfilePayload>(
     half: Option<crate::SplitHalf>,
     expected: crate::SlotKind,
 ) -> Result<VarId, EditError> {
+    lower_read(
+        doc,
+        spoken,
+        slot,
+        read,
+        half,
+        expected,
+        Reader::of(expected),
+    )
+}
+
+/// [`lower_operand`] read as `reader` reads: the seat's own reader,
+/// or, for a selection's body, [`Reader::Observes`].
+fn lower_read<P: crate::ProfilePayload>(
+    doc: &mut Doc<P>,
+    spoken: &impl Fn() -> SpokenNode,
+    slot: SlotId,
+    read: &crate::Operand,
+    half: Option<crate::SplitHalf>,
+    expected: crate::SlotKind,
+    reader: Reader,
+) -> Result<VarId, EditError> {
     let unresolved = || EditError::OperandUnresolved {
         node: spoken(),
         slot,
@@ -1264,7 +1287,7 @@ fn lower_operand<P: crate::ProfilePayload>(
             mint_selection(doc, spoken, slot, body, names, expected)?
         }
     };
-    check_read(doc, spoken, slot, var, half, expected, unresolved)
+    check_read(doc, spoken, slot, var, half, expected, reader, unresolved)
 }
 
 /// **A selection authored at a seat, minted** (D10): the body read
@@ -1280,13 +1303,17 @@ fn mint_selection<P: crate::ProfilePayload>(
     names: &[StableName],
     expected: crate::SlotKind,
 ) -> Result<VarId, EditError> {
-    let body = lower_operand(
+    // The selection's body read observes, and may name a world copy:
+    // every seat reading the selection is then asked whether it may
+    // read that copy (`Doc::read_fault`).
+    let body = lower_read(
         doc,
         spoken,
         slot,
         body,
         None,
         crate::SlotKind::Is(VarKind::Body),
+        Reader::Observes,
     )?;
     let shape = |fault| EditError::SelectionShape {
         node: spoken(),
@@ -1341,6 +1368,7 @@ fn mint_selection<P: crate::ProfilePayload>(
 /// [`lower_operand`]'s checks of the variable an operand resolved to:
 /// live, and then [`Doc::read_fault`] — the load door's rule too —
 /// rendered in this module's vocabulary.
+#[allow(clippy::too_many_arguments)] // the read and its seat, whole: one caller
 fn check_read<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     spoken: &impl Fn() -> SpokenNode,
@@ -1348,12 +1376,13 @@ fn check_read<P: crate::ProfilePayload>(
     var: VarId,
     half: Option<crate::SplitHalf>,
     expected: crate::SlotKind,
+    reader: Reader,
     unresolved: impl Fn() -> EditError,
 ) -> Result<VarId, EditError> {
     let Some(held) = doc.var(var) else {
         return Err(unresolved());
     };
-    match doc.read_fault(held, expected, half) {
+    match doc.read_fault(held, expected, half, reader) {
         None => Ok(var),
         Some(crate::doc::ReadFault::Kind { found }) => Err(EditError::SlotVarKind {
             var: Box::new(doc.spoken_var(var)),
@@ -1861,9 +1890,9 @@ pub enum EditError {
         /// The output it reads, boxed so the refusal stays a small `Err`.
         var: Box<SpokenVar>,
     },
-    /// A read names a world placement's copy (D10: construction never
-    /// reads the world): only the product gather and export read a
-    /// placement's pose, so a slot reads the body the placement reads.
+    /// A construction seat reads a world placement's copy (D10:
+    /// construction never reads the world; a measure observes a copy's
+    /// placed geometry), so a slot reads the body the placement reads.
     ReadsWorldCopy {
         /// The reading node.
         node: SpokenNode,
@@ -3461,8 +3490,8 @@ impl EditError {
             } => {
                 write!(
                     f,
-                    "{node}'s {slot} reads the world copy {placement} makes, which only the \
-                     product and export read"
+                    "{node}'s {slot} reads the world copy {placement} makes, which no \
+                     construction reads: only the product, export and a measure do"
                 )?;
                 tail.recourse(f, format_args!("read the body {placement} reads"))
             }

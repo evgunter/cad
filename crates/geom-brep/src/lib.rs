@@ -103,8 +103,9 @@ pub use edge_nurbs::{
     PlaneNurbsLimbs, PlaneNurbsRefusal, analytic_rung3, is_analytic, plane_nurbs_limbs,
 };
 pub use enters::{
-    EntersMaterial, LeverEscalation, LeverRung, OutwardNormal, ReferenceNormal, WallBend,
-    WallBendError, bends_into_material, enters_material, enters_material_order2,
+    EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
+    ParallelSense, ReferenceNormal, WallBend, WallBendError, bends_into_material, enters_material,
+    enters_material_order2, normal_alignment,
 };
 pub use extent::{ExtentBall, Reach};
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
@@ -128,9 +129,10 @@ pub use intersect::{
     Rung, SectionError, SectionRadius, SphereSphereSection, cone_cylinder_section,
     cylinder_axes_coplanar, cylinder_axes_parallel, cylinder_cylinder_section,
     cylinder_sphere_section, parallel_axes_at, plane_cone_section, plane_cylinder_section,
-    plane_sphere_section, plane_torus_section, route, route_pose, sphere_sphere_section,
+    plane_cylinder_section_read, plane_sphere_section, plane_torus_section, route, route_pose,
+    sphere_sphere_section,
 };
-pub use keys::{CurveKey, PointKey, SurfaceKey};
+pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{TangentLocus, TangentLocusError, tangent_locus};
 pub use mapped::{MappedCurve, MappedSource, SketchSegment, SubRange};
 pub use newell::{NewellError, newell_plane};

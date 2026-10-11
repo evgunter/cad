@@ -2,11 +2,12 @@
 id: near-tangent-pierce-poses-reach-three-classification-invariants
 kind: issue
 title: Near-tangent pierce poses reach ClassificationInvariant at three sites (an ON sector pair on distinct carriers, a pierce germ not within one sector, a coplanar sector on a distinct plane): 345 runs
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P1
 cost: M
 refs: [4335]
+branch: cleave/near-tangent-invariants
 ---
 
 ## What

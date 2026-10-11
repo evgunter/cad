@@ -8,6 +8,9 @@ github: 1057
 refs: [VERBS-C5ARMS, 1048]
 priority: P1
 cost: H
+design: true
+branch: germ/torus-plane-frame-spec
+pr: 4603
 ---
 
 ## From GitHub issue 1057
@@ -86,6 +89,14 @@ above; (2) the Klein demo's wall-pair re-authoring (rows 3/4/8), which
 waits on the props lane for a spiric-bounded face
 (`work/props/spiric-bounded-face-area-is-unimplemented.md`) and on
 SHELL's opened-arm lift (`work/shell/shell-open-lift-takes-the-per-chart-door-on-the-klein-elbow.md`).
+
+**2026-10-10 (FLUX, `spiric-bounded-face-area-is-unimplemented`).** The
+props lane for a spiric-bounded face landed (`geom_brep::props::spiric`):
+the sealed klein elbow, the elbow opened at one cap, the hand-built
+wall pair and the sectioned vessel all pass check 7 and measure against
+their cut-revolve oracles. Of (2) above, neither blocker stands: the
+props lane is in and SHELL's opened-arm lift closed, so rows 3/4/8's
+re-authoring is the demo's own work now.
 
 ## An obligation for the join-frame arm: the corner bar's lens (REACH, 2026-10-01)
 

@@ -53,6 +53,7 @@ use topo::{Body, ShellError, ValidationError};
 
 use crate::common::charts::hollow_moves;
 use crate::common::interval::{iv, p2, v2};
+use crate::common::torus_walls::disc_cut_volume;
 use sweep::test_support::finished;
 
 /// The tour's own wall thickness, the one `torax_axial` hollows by.
@@ -337,16 +338,18 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
 /// meters, the rim window's forward read (`offset_axial_edge_window`)
 /// and the equator seams' re-author — each end's out-of-plane decide
 /// and the turned start's verification — execute at the certified
-/// scalar on the way to the door f64 measures: tier 3's check 7,
-/// `VolumeUncomputable` at a spiric-bounded cap (`Unimplemented`). The
-/// old door, verbatim: `Face { error: Op { edge: None, error:
-/// RechartFalsifies { edge: EdgeKey(2v1), error: IntervalNotForward {
-/// margin: Enclosure [−0.7068583470577047, −0.7068583470577025] } } } }`,
-/// a rim window read backwards on `atan2`'s branch cut. An escalation
-/// at a strict band is the certified scalar's honest answer and is
-/// pinned as such.
+/// scalar, and the hollow passes tier 3 there: check 7 measures the
+/// spiric caps and walls by the spiric quadrature lane, and the volume
+/// enclosure holds the cut-revolve oracle (`disc_cut_volume`). The old
+/// doors, verbatim: check 7's `VolumeUncomputable` at a spiric-bounded
+/// cap (`Unimplemented`); before it `Face { error: Op { edge: None,
+/// error: RechartFalsifies { edge: EdgeKey(2v1), error:
+/// IntervalNotForward { margin: Enclosure [−0.7068583470577047,
+/// −0.7068583470577025] } } } }`, a rim window read backwards on
+/// `atan2`'s branch cut. An escalation at a strict band is the
+/// certified scalar's honest answer and is pinned as such.
 #[test]
-fn interval_the_klein_elbow_hollows_to_the_props_door() {
+fn interval_the_klein_elbow_hollows_to_its_measured_volume() {
     let tol = Tol::witness();
     let r = 0.275_f64;
     let profile = Profile::new(
@@ -369,37 +372,45 @@ fn interval_the_klein_elbow_hollows_to_the_props_door() {
     )
     .expect("the elbow revolves")
     .body;
-    let e = topo::shell(&finished("the operand", body.clone(), tol), iv(0.05), tol)
-        .expect_err("check 7's volume");
-    match e {
-        ShellError::NotValid { ref errors }
-            if matches!(
-                errors[..],
-                [ValidationError::VolumeUncomputable {
-                    source: topo::MassPropsError::Face {
-                        source: geom_brep::PropsError::Unimplemented,
-                        ..
-                    },
-                    ..
-                }]
-            ) => {}
+    match topo::shell(&finished("the operand", body.clone(), tol), iv(0.05), tol) {
+        Ok(hollow) => {
+            let props = topo::mass_properties(&hollow.body, tol)
+                .unwrap_or_else(|e| panic!("the interval hollow measures, got {e:?}"));
+            let theta = core::f64::consts::FRAC_PI_2;
+            let want = disc_cut_volume(theta, 0.05, 0.0, 1.2, r)
+                - disc_cut_volume(theta, 0.05, 2.0, 1.2, r - 0.05);
+            let slack = props.volume_pad + 1e-10 * want;
+            println!(
+                "[measured] the interval elbow: volume [{}, {}] ± {}, oracle {want}",
+                props.volume.lo(),
+                props.volume.hi(),
+                props.volume_pad
+            );
+            assert!(
+                props.volume.lo() - slack <= want && want <= props.volume.hi() + slack,
+                "the interval elbow's volume [{}, {}] ± {} misses the oracle {want}",
+                props.volume.lo(),
+                props.volume.hi(),
+                props.volume_pad
+            );
+        }
         // At a strict band the certified scalar may escalate first: at
         // the door's own decides, or (measured at ε = 1e-12) at the
         // pcurve envelope of a spiric RIM, whose enclosure is wider than
         // the band. Only a rim's: a re-authored seam's escalation is not
         // absorbed here.
-        ShellError::Face { ref error, .. }
+        Err(ShellError::Face { ref error, .. })
             if tol.eps() < DEFAULT_EPS
                 && (matches!(**error, topo::ReplaceFaceError::Escalated { .. })
                     || rim_envelope_escalation(&body, error)) =>
         {
             stood_down(
                 &format!("the klein elbow's interval hollow, eps = {:e}", tol.eps()),
-                "the certified scalar escalated before the props door was reachable, so \
-                 THIS RUN ASSERTS ONLY a typed escalation",
+                "the certified scalar escalated before the hollow assembled, so THIS RUN \
+                 ASSERTS ONLY a typed escalation",
             );
         }
-        other => panic!("expected check 7's props door, got {other:?}"),
+        Err(other) => panic!("expected the elbow to hollow and measure, got {other:?}"),
     }
 }
 
