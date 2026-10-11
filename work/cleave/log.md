@@ -783,3 +783,19 @@ Signed (CLEAVE orchestrator).
   triplication is filed on HONE.
 - **PR 4578 merged** (mints unit 2; single FULL review, fix pass done). `k_stats` has one
   gate-rejection path, reconciled with 4571.
+- **PR 4605 merged** (tracker only). The sliver-operand row is parked on FLUXTAIL's new
+  `a-sphere-faces-flux-cancels-r-times-its-area-against-its-vector-area` (P1). The re-pose is the
+  fix under the ratified Q1 premise, not a result-gate refusal, which PR 4335's honesty condition
+  forbids. Option (B) is noted on TALLY's typing row.
+- **PR 4578 merged** after a green re-run on the main merge.
+- **PR 4565** (apex section) re-review: APPROVE-WITH-FIXES. Across about 63k fuzz cells head ships 0
+  crossed corners, against base's about 1,500.
+  - About 0.5% of cells now refuse an existing `pcurve_map_residual` certification class that base
+    escaped only through the retired mirror rerun. Ruled: accept the trade, disclose it, and file
+    the class on its owner.
+  - `ArcSides` becomes `unreachable!`.
+  - File the pre-existing crown `join.rs` panic as a CLEAVE P1.
+- **Dispatched:**
+  - mints unit 4, `boolean-gate-mints-route-through-the-funnel`;
+  - `split-band-on-at-a-concave-edge-may-mint-a-pinch-from-near-coincidence`, its post-D10 residue
+    (kernel-defect voice at δ = 5e-10, and `SliverVertex` text beyond ε).
