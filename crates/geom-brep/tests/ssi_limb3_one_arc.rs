@@ -96,7 +96,7 @@ fn ground() -> (Surface<f64>, SsiDomain) {
 /// fold as the locus does. Certified on the graph alone, it answers the
 /// wrong pairing and this row goes red. At
 /// L = 1.2w the fold answers at every ε; at L = 1.5w it answers or
-/// refuses (at ε 1e-6 limb 3's margin is too close to call), and never
+/// refuses (at ε 1e-6 limb 3's margin is undecided), and never
 /// answers another pairing.
 #[test]
 fn the_fold_answers_its_two_arcs_paired_as_the_locus_pairs_them() {

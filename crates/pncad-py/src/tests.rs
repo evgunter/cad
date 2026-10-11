@@ -2472,6 +2472,7 @@ fn node_error_tags_are_the_published_words() {
         MateBand => "mate_band",
         MateContradictory => "mate_contradictory",
         MateUnder => "mate_under",
+        MateSideUnresolved => "mate_side_unresolved",
         MateDanglingHead => "mate_dangling_head",
         MatePlacerRefused => "mate_placer_refused",
         MatePartSelectsAnotherCopy => "mate_part_selects_another_copy",
@@ -4395,8 +4396,8 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
             // index and an argument role, a later placement step's by a
             // step index and a component, a mate offset's by a side, a
             // step index and a component, a list's entry by its
-            // position, and an indexed read's index by its seat, none
-            // of which the word carries.
+            // position, a mate's side by which side, and an indexed
+            // read's index by its seat, none of which the word carries.
             None => assert!(
                 matches!(
                     *word,
@@ -4407,6 +4408,7 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                         | "member"
                         | "index"
                         | "measured"
+                        | "side"
                 ),
                 "`{word}` is a slot a caller can read off a refusal and cannot write back at"
             ),
@@ -5520,7 +5522,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "mint_refusal_tag",
-        values: &["mate_reference_refused", "no_at_rest_record"],
+        values: &[
+            "mate_reference_refused",
+            "mate_unevaluated",
+            "no_at_rest_record",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5602,6 +5608,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_pose_out_of_range",
             "mate_poses_of_another_document",
             "mate_self",
+            "mate_side_unresolved",
             "mate_table_lacks",
             "mate_under",
             "mate_unleverable",
@@ -5750,6 +5757,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "profile",
             "section",
             "selection",
+            "side",
             "target",
             "tool",
         ],
@@ -5962,7 +5970,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "refused_ref_tag",
-        values: &["ref_ambiguous", "ref_moved_above", "ref_vanished"],
+        values: &["ref_ambiguous"],
         delegates: &[],
     },
     TagEntry {
@@ -6252,7 +6260,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_outside_part_world",
             "name_straddles_cut",
             "no_material",
-            "operand_severed_from_mate",
             "part_edit",
             "part_id_collides",
             "part_name_reaches_remainder",

@@ -120,8 +120,8 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
 /// is z ∈ [0,1]); anything larger leaves a definite gap.
 fn rest_mate(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, seat: f64) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(in_part(a, body, CapEnd::End)),
-        b: crate::fixture::head(in_part(b, body, CapEnd::Start)),
+        a: crate::fixture::head(in_part(a, body, CapEnd::End)).into(),
+        b: crate::fixture::head(in_part(b, body, CapEnd::Start)).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),
@@ -144,8 +144,8 @@ fn rest_mate_at(
     origin: [f64; 3],
 ) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(in_part(a, body, CapEnd::End)),
-        b: crate::fixture::head(in_part(b, body, CapEnd::Start)),
+        a: crate::fixture::head(in_part(a, body, CapEnd::End)).into(),
+        b: crate::fixture::head(in_part(b, body, CapEnd::Start)).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame(origin, [0.0, 0.0, 1.0]),
@@ -683,9 +683,9 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
 // **A finding, pinned rather than papered over — SCOPED to mate
 // EDGES** (review MAJOR-2 corrected an earlier over-claim here).
 //
-// A4 speaks of "every mate EDGE crossing the cut", and an edge exists
-// only when BOTH of a mate's heads are live instances (A12: `head_of`
-// requires `Node::InstantiatePart`). For such a PROPER mate edge the
+// A4 speaks of "every mate EDGE crossing the cut": a mate that welds
+// two members, which it does only when BOTH of its sides land on live
+// instances. For such a PROPER mate edge the
 // crossing is unreachable, and that is verified in both directions
 // below: the mate joins its two instances into ONE placement group
 // (A11 rule 2, role-blind), and ASM-R2a's ratified precondition
@@ -969,9 +969,9 @@ fn row5_c_inline_dissolves_the_crossing_record() {
 /// cross a cut, so a mate with a DANGLING head contributes NO crossing
 /// record however its names fall across the cut.
 ///
-/// A12's reading edge exists only when BOTH heads are live instances
-/// (`head_of` requires an instantiate node). A mate naming
-/// non-instance geometry is therefore not an edge: it joins no
+/// A mate welds members only when BOTH its sides land on live
+/// instances. A mate naming non-instance geometry therefore welds
+/// nothing: it joins no
 /// placement group, its instance stays a singleton, and a cut of
 /// that instance alone IS a whole-group cut the precondition
 /// accepts — but the record it produces is empty. The ruling's reason
@@ -1003,7 +1003,8 @@ fn row5_d_a_dangling_head_mate_contributes_no_crossing() {
             kind: EntityKind::Face,
             node: local,
             path: vec![RoleSeg::Cap(CapEnd::Start)],
-        });
+        })
+        .into();
     }
     let (doc, mate) = crate::fixture::insert_mate_with_stranded_head(
         doc,
@@ -1013,7 +1014,7 @@ fn row5_d_a_dangling_head_mate_contributes_no_crossing() {
         body,
     );
 
-    // The instance is a singleton group (no reading edge), so a cut
+    // The instance is a singleton group (the mate welds nothing), so a cut
     // of it alone is whole-group and the precondition accepts.
     let out = split(
         &doc,
@@ -1640,17 +1641,19 @@ fn every_admitted_class_has_a_wire_spelling() {
 }
 
 /// INVARIANT: a mate reference that names no face of the product
-/// refuses typed — never resolved by picking, never widened.
+/// refuses typed — never resolved by picking, never widened. The name is
+/// resolved at the side's selection, so the mate itself refuses there,
+/// and the gate does not let a mate with no value pass silently.
 #[test]
 fn a_mate_reference_that_names_nothing_refuses_typed() {
     let (doc, ids, _, store, body) = stacked("asm-r2b-vanish", 1.0);
     let mut node = rest_mate(body, ids[0], ids[1], 1.0);
     if let Node::Mate { a, .. } = &mut node {
-        // The head keeps its KIND — it is a face name that answers to
-        // nothing, which is what `Vanished` is about — so the rewrite
-        // goes through the head's own constructor rather than reaching
-        // into it.
-        let mut name = (*a.name).clone();
+        // The side keeps its KIND — a face name that answers to
+        // nothing — so the rewrite goes through the side's own
+        // constructor rather than reaching into it.
+        let head = crate::fixture::authored_head(a);
+        let mut name = (*head.name).clone();
         name.path = vec![RoleSeg::InPart {
             of: StableName {
                 kind: EntityKind::Face,
@@ -1659,20 +1662,23 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
             }
             .into(),
         }];
-        *a = crate::fixture::head_at(a.at, name);
+        *a = crate::fixture::head_at(head.at, name).into();
     }
-    let (doc, _) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(node),
-            fresh: Vec::new(),
-        },
-    );
+    let (doc, mate) = insert(doc, node);
     let ev = run(&doc, &with_resolver(store));
+    assert!(
+        matches!(
+            ev.node_error(mate).map(|e| &e.kind),
+            Some(NodeErrorKind::SelectResolve { .. })
+        ),
+        "the side's selection refuses: {:?}",
+        ev.node_error(mate)
+    );
     match assemble(&doc, &ev, Tol::witness()) {
         Err(AssemblyError::Mint { refusals }) => match refusals.as_slice() {
-            [MintRefusal::Reference { why, .. }] => {
-                assert_eq!(*why, editor_core::RefusedRef::Vanished { by: None });
+            [MintRefusal::Unevaluated { mate: m, standing }] => {
+                assert_eq!(*m, mate);
+                assert_eq!(*standing, editor_core::NodeStanding::Failed { node: mate });
             }
             rows => panic!("one mate refused, so one row: {rows:?}"),
         },
@@ -1758,8 +1764,8 @@ fn flush_seat(label: &str) -> (ProfileDoc, RecipeNodeId, PartStore) {
         doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Mate {
-                a: crate::fixture::head(in_part(post_id, post_body, CapEnd::End)),
-                b: crate::fixture::head(in_part(shelf_id, shelf_body, CapEnd::Start)),
+                a: crate::fixture::head(in_part(post_id, post_body, CapEnd::End)).into(),
+                b: crate::fixture::head(in_part(shelf_id, shelf_body, CapEnd::Start)).into(),
                 class: ContactClass::Rest,
                 alignment: Alignment {
                     a: frame([0.0, 0.0, 0.5], [0.0, 0.0, 1.0]),

@@ -2,7 +2,8 @@
 id: a-mate-lift-through-an-indexed-seat-lifts-the-whole-family
 kind: issue
 title: The mate member walk's lift through an indexed body seat lifts every name of the family, not the indexed member's
-status: open
+status: closed
+closed: 2026-10-11
 opened: 2026-10-10
 ---
 
@@ -21,3 +22,7 @@ heads) when the seat carries an index, evaluating the index slot as the walk
 evaluates a `Part(Instance)` pick.
 
 Found building FORK-DM4 unit 1's indexed read (`intent/dm4-names-keyed-by-read`).
+
+## Closed: the lift is gone
+
+Closed by stage 2 F (`a-mate-reads-face-variables`, PR 4566), which deletes `names::lift` and `Lift`. A mate's side is a `Face` selection of the body it reads, resolved once at the selection by the ordinary ladder (which projects an indexed read at its index, as `reads_projected` does for every reader), and the at-rest gate mints on the world copy of that body: no consumer is walked up to the product, so there is no lift to over-reach. The member walk (`mate/member.rs`) never called `lift`; it follows a side's head through `Part` picks and `From` segments.

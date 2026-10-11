@@ -1,7 +1,8 @@
-//! **A mate reads at its operand** — the transform-aware solve.
+//! **A mate reads the body its side names** — the transform-aware solve.
 //!
-//! A mate's two references are `SitedFace`s: a FACE name, and the node
-//! the reference is read at. The solve walks from that operand down to
+//! A mate's two sides are reads of a face: a FACE name, selected in the
+//! body it is read at (the side's operand). The solve walks from that
+//! body down to
 //! the name's minting instance and composes the map of every
 //! pose-bearing node it passes, so a mate on a TRANSFORMED instance
 //! seats the transformed geometry and a mate on the instance seats
@@ -119,8 +120,8 @@ fn seat_with(
     clocking: Option<f64>,
 ) -> AuthoredNode {
     Node::Mate {
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: a_frame(),
@@ -773,19 +774,23 @@ fn two_operands(label: &str, extra_lift: f64) -> (ProfileDoc, EvalOptions, [Reci
     let doc = world(doc, &[base, union], &[]);
     let a = in_part(base, base_body, CapEnd::End);
     let b = in_part(top, top_body, CapEnd::Start);
+    let (b1, b2) = (
+        crate::fixture::member_name(&doc, union, x1, b.clone()),
+        crate::fixture::member_name(&doc, union, x2, b),
+    );
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
             node: Box::new(seat(
                 crate::fixture::head(a.clone()),
-                crate::fixture::head_at(x1, b.clone()),
+                crate::fixture::head_at(union, b1),
             )),
             fresh: Vec::new(),
         },
     );
     let far_corner = Node::Mate {
-        a: crate::fixture::head(a),
-        b: crate::fixture::head_at(x2, b),
+        a: crate::fixture::head(a).into(),
+        b: crate::fixture::head_at(union, b2).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::authored(
@@ -821,9 +826,9 @@ fn two_operands(label: &str, extra_lift: f64) -> (ProfileDoc, EvalOptions, [Reci
 /// The gate is where a declaring mate is verified — the solve places
 /// on the tree edge and never checks the loop (A11 rule 4) — so a
 /// fixture whose CONSISTENT pair the gate also refuses would make
-/// this row vacuous. Both halves are asserted. (A placer ABOVE an
-/// operand is a different document, refused `MovedAbove`:
-/// `msolve13_read_at_operand`'s A1(b).)
+/// this row vacuous. Both halves are asserted. Each side reads the
+/// placed union, naming its transform's member, so each mate mints on
+/// the union's world copy.
 #[test]
 fn a5_two_operands_over_one_instance_are_two_members() {
     for (what, label, extra_lift) in [
@@ -1016,14 +1021,14 @@ fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
         )
         .expect_err("a never-existed operand is a typo");
     assert!(
-        matches!(&err, EditError::ReadSiteMissingNode { at } if at.id() == ghost),
-        "expected ReadSiteMissingNode, got {err:?}"
+        matches!(&err, EditError::UnresolvedInput { input } if input.id() == ghost),
+        "expected the unresolved read, got {err:?}"
     );
 }
 
-/// **A8(b).** Deleting the transform a mate reads at strands the
-/// operand: N5's dangling semantics, refused at the SOLVE naming the
-/// side and the head, with no edge until the mate is re-authored.
+/// **A8(b).** Deleting the transform a mate reads at strands the side:
+/// D10's unresolved reader, refused at the solve naming the side and at
+/// evaluation as the unresolved read, until the side is re-authored.
 #[test]
 fn a8b_deleting_the_operand_leaves_a_dangling_head() {
     let s = scene("msolve1-a8b", &[], &[LIFT]);
@@ -1032,21 +1037,31 @@ fn a8b_deleting_the_operand_leaves_a_dangling_head() {
     let (doc, _) = step_with(s.doc, DocEdit::DeleteNode { id: s.b_at }, &reach);
     let poses = solve(&doc, &s.opts, Tol::witness());
     let fault = poses.fault(s.mate).expect("the stranded mate refuses");
-    // The head the fault names is where the WALK STOPPED — the
-    // stranded operand — not the reference's own head node, which is
-    // still live and still fine.
+    // The side read a body the delete took: the solve names the side,
+    // and the mate's evaluation refuses the unresolved read.
     assert!(
         matches!(
             fault,
-            MateFault::DanglingHead { mate, side, head }
-                if *mate == s.mate && *side == MateSide::B && *head == s.b_at
+            MateFault::SideUnresolved { mate, side, .. }
+                if *mate == s.mate && *side == MateSide::B
         ),
-        "expected a dangling head at the deleted operand ({:?}), got {fault:?}",
-        s.b_at
+        "expected the stranded side, got {fault:?}"
+    );
+    let ev = run(&doc, &s.opts);
+    assert!(
+        matches!(
+            ev.node_error(s.mate).map(|e| &e.kind),
+            Some(editor_core::NodeErrorKind::UnresolvedRead {
+                slot: editor_core::OperandSlot::Side(MateSide::B),
+                ..
+            })
+        ),
+        "{:?}",
+        ev.node_error(s.mate)
     );
     // The stranded SIDE contributes no edge; the live side still
     // does, which is what makes the refusal a per-side one.
-    let edges: Vec<RecipeNodeId> = editor_core::reading_edges(&doc)
+    let edges: Vec<RecipeNodeId> = crate::fixture::mate_members(&doc)
         .into_iter()
         .filter(|&(m, _)| m == s.mate)
         .map(|(_, to)| to)
@@ -1054,7 +1069,7 @@ fn a8b_deleting_the_operand_leaves_a_dangling_head() {
     assert_eq!(
         edges,
         vec![s.base],
-        "only the resolving side contributes a reading edge"
+        "only the resolving side lands on a member"
     );
 }
 
@@ -1114,8 +1129,16 @@ fn a8d_a_transform_operand_round_trips_through_persistence() {
     let Some(Node::Mate { a, b, .. }) = back.node(s.mate) else {
         panic!("the mate survived");
     };
-    assert_eq!(a.at, s.base, "the `a` operand rode the wire");
-    assert_eq!(b.at, s.b_at, "the `b` operand rode the wire");
+    assert_eq!(
+        crate::fixture::side_head(&back, *a).at,
+        s.base,
+        "the `a` side's body rode the wire"
+    );
+    assert_eq!(
+        crate::fixture::side_head(&back, *b).at,
+        s.b_at,
+        "the `b` side's body rode the wire"
+    );
     let poses = solve(&back, &s.opts, Tol::witness());
     assert!(poses.fault(s.mate).is_none(), "the loaded document solves");
     let ev = run(&back, &s.opts);
@@ -1369,7 +1392,11 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
         .ids()
         .iter()
         .find_map(|&id| match out.remainder.node(id) {
-            Some(Node::Mate { a, b, .. }) => Some((id, a.clone(), b.clone())),
+            Some(Node::Mate { a, b, .. }) => Some((
+                id,
+                crate::fixture::side_head(&out.remainder, *a),
+                crate::fixture::side_head(&out.remainder, *b),
+            )),
             _ => None,
         })
         .expect("the mate stayed in the remainder");
@@ -1406,14 +1433,12 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
     );
 }
 
-/// **A8(g) — a KEPT mate whose operand is inside the cut refuses.**
-/// The mate welds nothing (its `b` reference names local geometry, so
-/// it resolves to no member and `TornGroup` has nothing to say), and
-/// its operand is a transform the cut takes. Before the reading edge
-/// had a closure rule of its own the split ACCEPTED this: the remap
-/// runs over cut nodes only, so the remainder kept an operand naming a
-/// node it no longer had, invisible to the load door, and the solve
-/// reported a dangling reference some time later.
+/// **A8(g) — a KEPT mate whose side reads a body inside the cut
+/// refuses.** The mate welds nothing (its `b` side names local
+/// geometry, so it resolves to no member and `TornGroup` has nothing to
+/// say), and its `a` side reads a transform the cut takes and no cut
+/// placement places. A side is a read, so this is D-2's ordinary
+/// severed read.
 #[test]
 fn a8g_a_kept_mate_whose_operand_is_cut_refuses_at_the_door() {
     let (doc, mate, cut, xf) = severed_operand_scene("msolve1-a8g", false);
@@ -1428,21 +1453,21 @@ fn a8g_a_kept_mate_whose_operand_is_cut_refuses_at_the_door() {
     assert!(
         matches!(
             &err,
-            editor_core::SplitError::OperandSeveredFromMate {
-                mate: m,
-                side: MateSide::A,
-                operand,
-                mate_is_cut: false,
-            } if *m == doc.spoken(mate) && *operand == doc.spoken(xf)
+            editor_core::SplitError::SeveredEdge {
+                consumer,
+                slot: Some(editor_core::OperandSlot::Side(MateSide::A)),
+                input,
+                consumer_is_cut: false,
+            } if *consumer == doc.spoken(mate) && *input == doc.spoken(xf)
         ),
-        "expected the operand-severed refusal naming the mate, the side \
-         and the operand, got {err:?}"
+        "expected the severed-read refusal naming the mate and the body it \
+         reads, got {err:?}"
     );
     let text = err.to_string();
     assert!(
         text.contains(&format!(
-            "severs the a-side reference of {} from {}, the node it is read at. The mate is kept \
-             and that node is cut. Recourse:",
+            "severs the edge from {}'s side a to its input {}. The consumer is kept and the \
+             input is cut",
             doc.spoken(mate),
             doc.spoken(xf)
         )),
@@ -1456,10 +1481,8 @@ fn a8g_a_kept_mate_whose_operand_is_cut_refuses_at_the_door() {
     }
 }
 
-/// **A8(h) — and the other direction.** A CUT mate whose operand stays
-/// in the remainder refuses with the same variant. It used to refuse
-/// as `PartEdit { UnresolvedInput { input: at } }` — the INPUT's
-/// vocabulary, for a node this whole design says is not an input.
+/// **A8(h) — and the other direction.** A CUT mate whose side reads a
+/// body that stays in the remainder refuses with the same variant.
 #[test]
 fn a8h_a_cut_mate_whose_operand_is_kept_refuses_with_the_same_variant() {
     let (doc, mate, cut, xf) = severed_operand_scene("msolve1-a8h", true);
@@ -1474,14 +1497,14 @@ fn a8h_a_cut_mate_whose_operand_is_kept_refuses_with_the_same_variant() {
     assert!(
         matches!(
             &err,
-            editor_core::SplitError::OperandSeveredFromMate {
-                mate: m,
-                side: MateSide::A,
-                operand,
-                mate_is_cut: true,
-            } if *m == doc.spoken(mate) && *operand == doc.spoken(xf)
+            editor_core::SplitError::SeveredEdge {
+                consumer,
+                slot: Some(editor_core::OperandSlot::Side(MateSide::A)),
+                input,
+                consumer_is_cut: true,
+            } if *consumer == doc.spoken(mate) && *input == doc.spoken(xf)
         ),
-        "expected the operand-severed refusal, got {err:?}"
+        "expected the severed-read refusal, got {err:?}"
     );
 }
 
