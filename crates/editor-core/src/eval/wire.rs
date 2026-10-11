@@ -2416,8 +2416,8 @@ fn wire_assertion<T: Decide>(
 ///
 /// A tool that is not a plane datum is `WrongOperand`, decided before
 /// any verb exists. Failure of the op itself is
-/// [`NodeErrorKind::Split`] through [`verb_refused`]. The D7 pinch lane
-/// lives inside the kernel door; nothing here re-derives the plane.
+/// [`NodeErrorKind::Split`] through [`verb_refused`]; nothing here
+/// re-derives the plane.
 fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::split::SplitVerb<T>,
     id: RecipeNodeId,

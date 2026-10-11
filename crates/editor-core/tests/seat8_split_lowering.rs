@@ -225,6 +225,10 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
 /// pins and `m5_pr8_bvh_diff` held.
 ///
+/// RE-BLESSED, `cut_cylinder` only, when a split's section face came to
+/// take its chart axis as its first chord projected into the plane: the
+/// tilted section's `u_ref` moved by one ulp in `z`, and nothing else did.
+///
 /// RE-BLESSED, `kitchen_sink` only, for INTENT stage 3 A (a revolve's
 /// axis is a line on the node): its in-plane axis datum left, so every
 /// later node id re-mints and the name table with it. No outcome or
@@ -235,7 +239,7 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x2f75_0d41_c9ca_4e19u64),
+        ("cut_cylinder", 0xa6c1_1622_9a6f_5245u64),
         ("part_select", 0x1413_2c09_88a7_ce7d),
         ("kitchen_sink", 0x6b95_5c68_645c_448d),
     ] {
