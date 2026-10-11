@@ -917,7 +917,7 @@ pub(crate) fn enforce_checks(
 #[pyfunction]
 pub(crate) fn subject_body(evaluation: &Evaluation, root: &NodeId, output_ix: u32) -> Option<Body> {
     d::subject_body(&evaluation.inner, root.0, output_ix)
-        .map(|(body, contacts)| Body::declared(body, contacts))
+        .map(|(body, contacts)| Body::recorded(body, contacts))
 }
 
 /// Register the advisory-check registry on the module.

@@ -1030,7 +1030,7 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
         // `Assembly` at all means tier 3′ ALREADY passed over exactly
         // this pair, so `Assembly.body.validate_pseudomanifold()` is
         // the same verdict re-taken, un-attributed.
-        body: Body::declared(Arc::new(assembly.body), Arc::new(assembly.contacts)),
+        body: Body::recorded(Arc::new(assembly.body), Arc::new(assembly.contacts)),
         names,
         minted: assembly.minted.into_iter().map(MintedDeclaration).collect(),
         carried: assembly
