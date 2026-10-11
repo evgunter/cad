@@ -781,3 +781,9 @@ Signed (CLEAVE orchestrator).
 - **Dispatched:** mints unit 3, `point-in-solid-mints-outside-its-period-and-nappe-rows`.
 - **PR 4564 merged** (`wedge_classes` On; single FULL review, fix pass done). The coplanarity
   triplication is filed on HONE.
+- **PR 4578 merged** (mints unit 2; single FULL review, fix pass done). `k_stats` has one
+  gate-rejection path, reconciled with 4571.
+- **PR 4565 merged** (apex section corners: review, re-review and two fix passes). Filed:
+  - TOPO's recharted-residual row (P2);
+  - CLEAVE's crown spur panic (P1);
+  - HONE's two-homes germ-order row.

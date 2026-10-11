@@ -247,12 +247,7 @@ fn a_ring_wound_against_its_face_is_a_hole_and_one_wound_with_it_refuses() {
     let reversed = build((0.3, 0.6), (0.3, 0.6), true, 10);
     let got = geom_brep::props::curved_face_loops(&surface, &[&outer, &reversed], true, band());
     assert!(
-        matches!(
-            got,
-            Err(geom_brep::props::PropsError::NotIsoRectangle {
-                what: "props_ring_winding"
-            })
-        ),
+        matches!(got, Err(geom_brep::props::PropsError::RingWoundWithFace)),
         "a ring wound with its face must refuse: {got:?}"
     );
 }

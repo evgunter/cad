@@ -2,11 +2,13 @@
 id: a-split-through-a-vertex-whose-above-runs-nest-crosses-its-section-face
 kind: issue
 title: A split through a vertex whose above runs nest under one builds a section face whose corners there overlap
-status: dispatched
+status: closed
 opened: 2026-10-08
 priority: P1
 cost: M
 branch: cleave/apex-section-corners
+closed: 2026-10-11
+pr: 4565
 ---
 
 
@@ -166,3 +168,16 @@ split's germ order beside the boolean's `germ_order`, `strut_order` and
 (the residual class, its witness and orientation dependence);
 `work/cleave/a-crown-touching-the-plane-along-one-edge-panics-at-the-section-spur-check.md`
 (a D9 panic on exact input, on main and on this branch alike).
+
+## Closed (PR 4565, 2026-10-11)
+
+The split mints one null edge per corner of its section, hung by `null::ring_tree`. The germs are
+ordered by the topology wherever it decides (an On entry's direction; the pair beside an in-plane
+entry), and by the four `split_germ_*` readings only between germs of different sectors. Over
+about 63k fuzz cells the split ships no crossed corner, against base's about 1,500. The D7 mirror
+rerun is retired.
+
+About 0.5% of cells now refuse an existing `pcurve_map_residual` certification class that base
+escaped only through the rerun. That class is TOPO's `a-split-recharts-an-edge-at-a-vertex-read-on-off-the-plane-into-the-band`.
+The crown spur panic is `a-crown-touching-the-plane-along-one-edge-panics-at-the-section-spur-check`
+(P1).
