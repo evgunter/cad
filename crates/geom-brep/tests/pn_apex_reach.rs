@@ -570,16 +570,18 @@ fn edge_poses(bands: f64, gap_sign: f64) -> Vec<(&'static str, Apex, Pose)> {
     ]
 }
 
-/// Every edge pose at `bands`, its oracle bound checked, with the pose
-/// and the section `plane_cone_section` serves it.
-fn at_the_edge(
-    bands: f64,
-) -> Vec<(
+/// An edge pose's label, its apex outcome, the pose and what
+/// `plane_cone_section` serves it.
+type EdgeRow = (
     String,
     Apex,
     Pose,
     Result<PlaneConeSection<f64>, SectionError>,
-)> {
+);
+
+/// Every edge pose at `bands`, its oracle bound checked, with the pose
+/// and the section `plane_cone_section` serves it.
+fn at_the_edge(bands: f64) -> Vec<EdgeRow> {
     let e = eps();
     let mut out = Vec::new();
     for gap_sign in [1.0, -1.0] {
