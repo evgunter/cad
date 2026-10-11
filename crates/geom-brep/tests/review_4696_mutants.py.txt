@@ -1,0 +1,91 @@
+import sys,subprocess,os
+S='/tmp/claude-0/-home-user-cad/bd07ed06-bf60-5009-b634-7f3872ea399c/scratchpad'
+F='/home/user/v4696/crates/geom-brep/src/props/curved.rs'
+MUTS={
+ 'gen': ('''            require_zero(
+                "props_meridian_generator",
+                Margin::levered(dir.dot(axis).abs() - cos_a, e.t1 - e.t0),
+                band,
+                Premise::OnSurface,
+            )?;
+            require_zero(
+                "props_meridian_apex",''','''            require_zero(
+                "props_meridian_apex",'''),
+ 'apex': ('''            require_zero(
+                "props_meridian_apex",
+                Margin::norm3((apex - e.p0()).cross(dir)),
+                band,
+                Premise::OnSurface,
+            )
+        }
+        Curve3::Circle {
+            center,
+            axis: n_c,
+            radius: r_c,
+            ..
+        } => {
+            if classify(''','''            Ok(())
+        }
+        Curve3::Circle {
+            center,
+            axis: n_c,
+            radius: r_c,
+            ..
+        } => {
+            if classify('''),
+ 'fit': ('''            let v = (center - apex).dot(axis) / cos_a;
+            require_zero(
+                "props_rim_fit",
+                Margin::of(r_c - v.abs() * sin_a),
+                band,
+                Premise::OnSurface,
+            )?;
+            require_rim_incidence(center - apex, n_c, r_c, axis, band, Premise::OnSurface)
+        }
+        Curve3::Ellipse { .. } => Ok(()),''','''            require_rim_incidence(center - apex, n_c, r_c, axis, band, Premise::OnSurface)
+        }
+        Curve3::Ellipse { .. } => Ok(()),'''),
+ 'incid': ('''                Premise::OnSurface,
+            )?;
+            require_rim_incidence(center - apex, n_c, r_c, axis, band, Premise::OnSurface)
+        }
+        Curve3::Ellipse { .. } => Ok(()),''','''                Premise::OnSurface,
+            )
+        }
+        Curve3::Ellipse { .. } => Ok(()),'''),
+ 'oncone': ('''            require_on_cone(apex, axis, sin_a, cos_a, e, band)?;''','''            let _ = (sin_a, e);'''),
+ 'sweep22': ('''Margin::levered(T::tau() - w.total.abs(), w.arm)''','''Margin::levered(T::from_f64(2.2) * T::pi() - w.total.abs(), w.arm)'''),
+ 'sweep25': ('''Margin::levered(T::tau() - w.total.abs(), w.arm)''','''Margin::levered(T::from_f64(2.5) * T::pi() - w.total.abs(), w.arm)'''),
+ 'sweepstrict': ('''        )? != Sign::Negative
+    } else {''','''        )? == Sign::Positive
+    } else {'''),
+ 'offapex5': ('''Margin::levered(T::from_f64(3.0) * T::pi() - w.total.abs(), w.arm)''','''Margin::levered(T::from_f64(5.0) * T::pi() - w.total.abs(), w.arm)'''),
+ 'offapex_tight': ('''Margin::levered(T::from_f64(3.0) * T::pi() - w.total.abs(), w.arm)''','''Margin::levered(T::from_f64(1.9) * T::pi() - w.total.abs(), w.arm)'''),
+ 'novertex': ('''    let n = w.vertices.len();
+    for i in 0..n {''','''    let n = w.vertices.len();
+    if n > 0 { return Ok(()); }
+    for i in 0..n {'''),
+ 'nosheet': ('''            let (Some(a), Some(b)) = (a, b) else {''','''            let (Some(a), Some(b), true) = (a, b, false) else {'''),
+ 'noholes': ('''    if read.side == outer {''','''    if true || read.side == outer {'''),
+ 'nospans': ('''        require_cone_circle_spans(edges, band)?;
+    }''','''    }'''),
+ 'circle_thirds': ('''            Curve3::Circle { axis: n, .. } => sense(n, rho)? * (e.t1 - e.t0),
+            Curve3::Ellipse { axis: n, .. } => {''','''            Curve3::Circle { axis: n, .. } | Curve3::Ellipse { axis: n, .. } => {'''),
+ 'winding_bare': ('''Margin::levered(T::from_f64(3.0) * T::pi() - w.total.abs(), w.arm)''','''Margin::of(T::from_f64(3.0) * T::pi() - w.total.abs())'''),
+ 'vertex_sq': ('''                Margin::of((p - q).norm()),''','''                Margin::of((p - q).norm_squared()),'''),
+}
+name=sys.argv[1]; filt=sys.argv[2:]
+src=open(F).read(); a,b=MUTS[name]
+assert src.count(a)==1, (name, src.count(a))
+open(F,'w').write(src.replace(a,b))
+try:
+    r=subprocess.run(['cargo','test','-p','geom-brep']+(['--features','probe'] if os.environ.get('PROBE') else [])+['--test','all','--','--skip','review_4696']+filt,cwd='/home/user/v4696',env=dict(os.environ,CARGO_TARGET_DIR=S+'/tgt'),capture_output=True,text=True,timeout=1500)
+    out=r.stdout+r.stderr
+    fails=[l for l in out.splitlines() if l.startswith('test ') and l.endswith('FAILED')]
+    errs=[l for l in out.splitlines() if l.startswith('error[') or l.startswith('error:')]
+    summ=[l for l in out.splitlines() if 'test result' in l]
+    print(f'== {name}: {len(fails)} red; {summ}')
+    for l in fails: print('   ',l)
+    for l in errs[:5]: print('   ',l)
+finally:
+    open(F,'w').write(src)
