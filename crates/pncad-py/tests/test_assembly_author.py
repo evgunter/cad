@@ -40,27 +40,17 @@ TWO THINGS THIS FILE CANNOT SAY, AND THEY ARE NOT DEFECTS OF IT
    against the placement arithmetic rather than against a
    transcribed coordinate.
 
-WHICH `RefusedRef` ARMS THIS FILE REACHES, AND WHY NOT THE OTHERS
-----------------------------------------------------------------
-`ref_moved_above` is reached below: `Node.mate` takes an operand,
-so a mate read at a transform that a `placed_union` consumes is
-authorable — the operand spells the name, and the placed union
-places that body again before the product holds it, so the gate
-names the operand and the placed union. (The kernel's own row spells
-the same document with `Node::Pattern`, which moves it the same way.)
-The other two are not reached here:
-
-* `ref_vanished` — the operand the mate reads at does not spell the
-  name, or a consumer above it merges, cuts or drops the face. The
-  first wants the referenced part to change shape under a name the
-  assembly still holds, which the pin gate refuses
-  (`part_pin_mismatch`) one door earlier; the second is the kernel's
-  own row (`msolve5_operand_refusals`, an empty boolean over the
-  operand).
-* `ref_ambiguous` — a tie. Nothing the instantiate seam's naming
-  produces is tied, and Python cannot hand-build a name.
-
-Each is bound and tagged; a reach appears when some other door does.
+WHAT THE GATE SAYS OF A MATE READ BELOW A PLACER, AND WHY
+---------------------------------------------------------
+A mate's side is a read of a face of the body it names, and the gate
+mints its declaration on the world copy of that body. `Node.mate` takes
+the node a side is read at, so a mate read at a transform that a
+`placed_union` consumes is authorable: no placement reads that
+transform, so the mate is no statement about the product, and the seat
+it would have declared is an undeclared contact (asserted below).
+`RefusedRef`'s one arm, `ref_ambiguous`, is a side whose body two
+placements copy; it is bound and tagged, and the kernel's own row
+(`intent_s2_f_mates`) reaches it.
 
 There is no arm for a head that is NOT A FACE, and that is the type's
 doing: a head is a `SitedFace` over a `FaceName`, `Node.mate` calls
@@ -485,17 +475,13 @@ class TestBenchStand(BenchWorkspace):
         # member agrees on it.
         for node in (post_a, shelf_i, post_b):
             self.assertEqual(pncad.root_of(doc, node), post_a)
-        # A mate's references are not recipe edges; the READING edges
-        # are what couples the graph, recomputed from the name heads.
-        self.assertEqual(
-            set(pncad.reading_edges(doc)),
-            {
-                (mate_1, post_a),
-                (mate_1, shelf_i),
-                (mate_2, shelf_i),
-                (mate_2, post_b),
-            },
+        # A mate's sides are reads, so the mates couple the three
+        # instances into one relative-freedom component.
+        component = next(
+            c for c in pncad.relative_freedom_components(doc) if mate_1 in c
         )
+        for node in (post_a, shelf_i, post_b, mate_2):
+            self.assertIn(node, component)
 
     def test_last_maintenance_describes_the_last_accepted_edit_at_every_door(self):
         """`last_maintenance` says "the LAST accepted edit", and `Doc`
@@ -544,7 +530,12 @@ class TestBenchStand(BenchWorkspace):
         # nothing. Put post_b back at an offset and re-mate it through
         # the compound door, which clears that offset again.
         doc.apply(DocEdit.delete_node(mate_2), resolver=self.ws)
-        self.assertEqual(doc.last_maintenance, [])
+        # The mate's two selections go with it, each a silent
+        # retirement of an anonymous variable.
+        self.assertEqual(
+            [m.variant for m in doc.last_maintenance],
+            ["anonymous_var_removed", "anonymous_var_removed"],
+        )
         doc.apply(DocEdit.set_offset(post_b, Placement.identity()))
         self.assertEqual(doc.last_maintenance, [])
         b_top = self.instance_face(doc, post_b, CapEnd.End)
@@ -600,7 +591,14 @@ class TestBenchStand(BenchWorkspace):
             resolver=self.ws,
         )
         self.assertEqual(outcome.part.last_maintenance, [])
-        self.assertEqual(outcome.remainder.last_maintenance, [])
+        # The cut mates' selections leave the remainder with them.
+        self.assertTrue(
+            all(
+                m.variant == "anonymous_var_removed"
+                for m in outcome.remainder.last_maintenance
+            ),
+            outcome.remainder.last_maintenance,
+        )
         # The cut moves as selected: the instance left behind sits at
         # the empty offset, and the root keeps its own.
         self.assertEqual(
@@ -1042,10 +1040,9 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertEqual(caught.exception.variant, "non_finite_placement")
 
     def test_a_mate_whose_operand_is_not_live_refuses_at_the_door(self):
-        """The operand is checked at the edit door exactly as the
-        name's head is: an operand that is not a live node at insert
-        is a typo, refused there rather than discovered as a dangling
-        reference at the solve."""
+        """A side is a read of the body its face is selected in, so a
+        body that is not a live node at insert is a typo, refused at the
+        edit door as the unresolved read it is."""
         doc, post_i, shelf_i = self.two_instances()
         top = self.instance_face(doc, post_i, CapEnd.End)
         bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
@@ -1062,7 +1059,7 @@ class TestAssemblyRefusals(BenchWorkspace):
                     seat(POST_SEAT, SEAT_A),
                 )
             )
-        self.assertEqual(caught.exception.variant, "read_site_missing_node")
+        self.assertEqual(caught.exception.variant, "unresolved_input")
 
     def test_a_class_the_gate_cannot_mint_refuses_at_the_gate(self):
         doc, _, (mate_1, mate_2) = TestBenchStand.stand(self, class_=ContactClass.Tangent)
@@ -1119,13 +1116,12 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertFalse(tangent.mints)
         self.assertIn("at rest", tangent.why)
 
-    def test_a_mate_read_below_a_placer_refuses_naming_the_operand_and_the_placer(self):
+    def test_a_mate_read_below_a_placer_declares_nothing(self):
         """The shelf is lifted by a transform and the transform is
-        consumed by a `placed_union`; the mate is read AT the
-        transform. The solve places it, the product gathers, and the
-        gate refuses in the operand's voice: the name is spelled at
-        the transform, and the placed union places that body again
-        before the product holds it."""
+        read by a `placed_union`; the mate is read AT the transform.
+        The solve places it and the product gathers, but no placement
+        reads the transform, so the mate declares nothing and the seat
+        it would have declared reaches the gate undeclared."""
         doc = Doc("pncad-moved-above")
         post_a = doc.insert(Node.instantiate_part(self.post_ref))
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
@@ -1175,15 +1171,8 @@ class TestAssemblyRefusals(BenchWorkspace):
         with self.assertRaises(pncad.AssemblyError) as caught:
             assemble(doc, ev)
         err = caught.exception
-        self.assertEqual(err.variant, "unminted_mates")
-        (row,) = err.refusals
-        self.assertEqual(row.variant, "mate_reference_refused")
-        self.assertEqual(row.mate, mate)
-        self.assertEqual(row.side, pncad.MateSide.B)
-        self.assertEqual(row.why.variant, "ref_moved_above")
-        self.assertEqual(row.why.at, lifted)
-        self.assertEqual(row.why.by, family)
-        self.assertIsNone(row.why.width)
+        self.assertEqual(err.variant, "at_rest")
+        self.assertIn("is an undeclared contact", str(err))
 
     def test_a_mate_head_that_is_not_a_face_refuses_where_the_mate_is_built(self):
         """A mate's declaration is a FACE-PAIR contact, and the kernel
