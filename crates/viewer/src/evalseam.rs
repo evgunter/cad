@@ -1,8 +1,10 @@
-//! The three seams the picture is built across — where a document
+//! The four seams a landing is built across — where a document
 //! becomes a result DAG, where the display budget prices that result
-//! to choose the δ it is drawn at, and where the DAG becomes the pick
-//! index the viewport draws and picks against. **The one place in this
-//! crate that OWNS a thread**: `app` spawns all three workers because
+//! to choose the δ it is drawn at, where the DAG becomes the pick
+//! index the viewport draws and picks against, and where the landing's
+//! checks report gets the coincidence door's answer at rest
+//! ([`DoorService`]). **The one place in this crate that OWNS a
+//! thread**: `app` spawns all four workers because
 //! it decides which implementation this build runs, and every join
 //! handle, channel and hand-off between them is here. The options a
 //! session's evaluation runs under are spelled here too ([`options`]),
@@ -16,8 +18,8 @@
 //! GUI plan carries that as a standing constraint for the web lane:
 //! natively a background thread, on wasm a Worker or an inline slice,
 //! with no source change above this boundary. So the vocabulary here
-//! is submit / poll over a [`Generation`] — plus cancel, for the one
-//! of the three whose work can be stopped — and
+//! is submit / poll over a [`Generation`] — plus cancel, for the two
+//! of the four whose work can be stopped — and
 //! [`InlineEvaluator`] — which runs the whole evaluation inside
 //! `poll` — satisfies it exactly as well as [`ThreadEvaluator`] does.
 //! Rows in this crate's suite drive both, and the application drives
@@ -116,7 +118,8 @@
 use std::sync::Arc;
 
 use pncad::document::{
-    CancelToken, Doc, EvalOptions, EvalOutcome, Evaluation, PartResolver, ProfileProgram, evaluate,
+    CancelToken, Doc, DoorFindings, DoorJob, EvalOptions, EvalOutcome, Evaluation, PartResolver,
+    ProfileProgram, coincide, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::select::PickMemo;
@@ -682,6 +685,91 @@ impl FitService for InlineFitter {
     }
 }
 
+/// **What the door seam was asked to prove**: the coincidence door a
+/// landing split off its checks report to run at rest
+/// (`pncad::document::run_checks_at_rest_on`).
+///
+/// **Keyed by generation alone**, as [`FitRequest`] is: the door is a
+/// question about the landing and has no input of its own.
+#[derive(Clone, Debug)]
+pub struct DoorRequest {
+    /// The landing whose report pends on this door.
+    pub generation: Generation,
+    /// The landing's document, which the rows are named in: shared,
+    /// since nothing edits a landed copy.
+    pub doc: Arc<Doc<ProfileProgram>>,
+    /// The door's rows.
+    pub job: DoorJob,
+}
+
+/// A finished door job.
+#[derive(Debug)]
+pub struct DoorDone {
+    /// The generation the request carried.
+    pub generation: Generation,
+    /// The findings to settle into that landing's report, or the
+    /// cancelation that stopped the door before it decided every row.
+    pub findings: Result<DoorFindings, coincide::Canceled>,
+}
+
+/// **The door seam's vocabulary** — [`EvalService`]'s shape, cancel
+/// included, because the door's replay reads a token between nodes
+/// and between the margins it discharges. The door costs seconds on a
+/// filleted document, which is why it is a seam at all: a landing
+/// draws at once, its checks report reads the door *pending*, and the
+/// next edit cancels the job.
+pub trait DoorService {
+    /// Ask for `request`. Cancels a job in flight and replaces any
+    /// waiting one.
+    fn submit(&mut self, request: DoorRequest);
+
+    /// Cancel whatever is in flight: the next edit's request makes the
+    /// landing it answers stale.
+    fn cancel(&mut self);
+
+    /// Take a finished job, if one is ready. Never blocks.
+    fn poll(&mut self) -> Option<DoorDone>;
+
+    /// Whether a job is in flight or waiting.
+    fn busy(&self) -> bool;
+}
+
+/// The door seam with no thread behind it: `submit` records the
+/// request and `poll` runs it — [`InlineEvaluator`]'s standing.
+#[derive(Debug, Default)]
+pub struct InlineProver {
+    pending: Option<DoorRequest>,
+}
+
+impl InlineProver {
+    /// A seam that has proved nothing.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl DoorService for InlineProver {
+    fn submit(&mut self, request: DoorRequest) {
+        self.pending = Some(request);
+    }
+
+    fn cancel(&mut self) {
+        self.pending = None;
+    }
+
+    fn poll(&mut self) -> Option<DoorDone> {
+        let request = self.pending.take()?;
+        Some(DoorDone {
+            generation: request.generation,
+            findings: request.job.run(&request.doc, &CancelToken::new()),
+        })
+    }
+
+    fn busy(&self) -> bool {
+        self.pending.is_some()
+    }
+}
+
 /// **The seam's traffic is `Send`, checked here rather than assumed.**
 ///
 /// The threaded implementation would fail to compile without it, but
@@ -697,12 +785,16 @@ const _: fn() = || {
     assert_send::<IndexDone>();
     assert_send::<FitRequest>();
     assert_send::<FitDone>();
+    assert_send::<DoorRequest>();
+    assert_send::<DoorDone>();
     // The memo moves onto the worker thread with the loop that owns it.
     assert_send::<PickMemo>();
 };
 
 #[cfg(not(target_family = "wasm"))]
-pub use threaded::{SpawnError, ThreadEvaluator, ThreadFitter, ThreadIndexer, Worker};
+pub use threaded::{
+    SpawnError, ThreadEvaluator, ThreadFitter, ThreadIndexer, ThreadProver, Worker,
+};
 
 /// The native seam: one worker thread, a request channel, a result
 /// channel.
@@ -719,11 +811,12 @@ mod threaded {
     use pncad::document::CancelToken;
 
     use super::{
-        EvalDone, EvalRequest, EvalService, FitDone, FitRequest, FitService, IndexDone,
-        IndexRequest, IndexService, PickMemo, PriorRun, build_index, run_fit, run_once,
+        DoorDone, DoorRequest, DoorService, EvalDone, EvalRequest, EvalService, FitDone,
+        FitRequest, FitService, IndexDone, IndexRequest, IndexService, PickMemo, PriorRun,
+        build_index, run_fit, run_once,
     };
 
-    /// Which of this module's three workers a refusal is about (D4 ¶3:
+    /// Which of this module's four workers a refusal is about (D4 ¶3:
     /// a closed enum, because the set is this file's own and a reader
     /// asking which values occur should be able to see them).
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -734,6 +827,8 @@ mod threaded {
         Index,
         /// The display budget's fit worker ([`ThreadFitter`]).
         Fit,
+        /// The coincidence door's worker ([`ThreadProver`]).
+        Door,
     }
 
     impl core::fmt::Display for Worker {
@@ -742,6 +837,7 @@ mod threaded {
                 Self::Evaluation => "evaluation",
                 Self::Index => "index",
                 Self::Fit => "display fit",
+                Self::Door => "coincidence door",
             })
         }
     }
@@ -779,7 +875,7 @@ mod threaded {
     impl core::error::Error for SpawnError {}
 
     /// What a worker carries, what it answers with, and **the one rule
-    /// that differs between the three seams**.
+    /// that differs between the four seams**.
     ///
     /// Everything else about carrying a job is [`Coalescing`]'s and is
     /// written once there; this trait is where a seam says the part
@@ -877,7 +973,7 @@ mod threaded {
             let handle = std::thread::Builder::new()
                 .name(thread_name.to_owned())
                 .spawn(move || {
-                    // The worker loop, once for all three seams:
+                    // The worker loop, once for all four seams:
                     // answer one job at a time — which is the other
                     // half of at-most-one-outstanding, the half that
                     // lives on this side of the channel — and stop
@@ -1361,23 +1457,107 @@ mod threaded {
         }
     }
 
+    /// A door request plus the token that stops it: [`EvalJob`]'s
+    /// shape, for its reason.
+    #[derive(Debug)]
+    struct DoorJobOf {
+        request: DoorRequest,
+        cancel: CancelToken,
+    }
+
+    impl Job for DoorJobOf {
+        type Done = DoorDone;
+
+        /// **Always**, for [`EvalJob`]'s reason: a submit that left a
+        /// job waiting canceled the one `done` answers.
+        fn supersedes(&self, _done: &DoorDone) -> bool {
+            true
+        }
+    }
+
+    /// A background-thread door seam: [`ThreadEvaluator`]'s machine,
+    /// token and all, over the coincidence door's job.
+    ///
+    /// **Its own thread.** On the evaluator's, a door job would sit in
+    /// front of the next evaluation until its token was seen; on its
+    /// own, a landing's door runs beside the index and the fit that
+    /// draw the same landing.
+    #[derive(Debug)]
+    pub struct ThreadProver {
+        inner: Coalescing<DoorJobOf>,
+        /// The token of the most recently submitted job.
+        cancel: CancelToken,
+    }
+
+    impl ThreadProver {
+        /// Spawn the worker. Nothing survives between jobs.
+        ///
+        /// # Errors
+        ///
+        /// [`SpawnError::Thread`] if the OS refuses the thread: every
+        /// landing's door would otherwise read pending forever.
+        pub fn spawn() -> Result<Self, SpawnError> {
+            let inner = Coalescing::spawn(Worker::Door, "viewer-door", (), |_, job: DoorJobOf| {
+                DoorDone {
+                    generation: job.request.generation,
+                    findings: job.request.job.run(&job.request.doc, &job.cancel),
+                }
+            })?;
+            Ok(Self {
+                inner,
+                cancel: CancelToken::new(),
+            })
+        }
+    }
+
+    impl DoorService for ThreadProver {
+        fn submit(&mut self, request: DoorRequest) {
+            self.cancel.cancel();
+            let cancel = CancelToken::new();
+            self.cancel = cancel.clone();
+            self.inner.submit(DoorJobOf { request, cancel });
+        }
+
+        fn cancel(&mut self) {
+            self.cancel.cancel();
+        }
+
+        fn poll(&mut self) -> Option<DoorDone> {
+            self.inner.poll()
+        }
+
+        fn busy(&self) -> bool {
+            self.inner.busy()
+        }
+    }
+
+    impl Drop for ThreadProver {
+        /// [`ThreadEvaluator`]'s `Drop`: the job reads its token, so the
+        /// join is bounded by one node or one margin's discharge.
+        fn drop(&mut self) {
+            self.cancel.cancel();
+            self.inner.close_and_join();
+        }
+    }
+
     /// **The crash announcement, on the machine that makes it.**
     ///
     /// # Why these rows are here and not against a public door
     ///
-    /// The three shipped handles cannot be crashed from outside, by
+    /// The four shipped handles cannot be crashed from outside, by
     /// construction: a worker only dies by panicking inside its own
-    /// job, the job is `build_index`, `run_fit` or `run_once`, and the
+    /// job, the job is `build_index`, `run_fit`, `run_once` or a door
+    /// job's `run`, and the
     /// closure that calls it is private to this module with no door to
     /// inject a failure through. So a row driven through
     /// [`ThreadIndexer`] would have to make the KERNEL panic on an
     /// input, which is the thing D9 says cannot happen.
     ///
     /// What these drive instead is [`Coalescing`] itself — not a
-    /// hand-written mirror of it, but the very type all three handles
+    /// hand-written mirror of it, but the very type all four handles
     /// delegate every `submit`, `poll` and `busy` to, carrying both of
     /// the arms under test. **What that does not prove** is the last
-    /// inch: that a panic inside one of those three private closures is
+    /// inch: that a panic inside one of those four private closures is
     /// the only way to arrive, which is argued from the worker loop's
     /// three exits rather than executed.
     ///

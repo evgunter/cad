@@ -42,7 +42,7 @@ So `CrossingEscalated` takes the lever plus the note unless its owner shows that
 
 ## Repair shape
 
-Carry how the reading stands, as `splitting::containment::Escalation` does (`Margin` / `Straddle` / `Decided`), from each mint above to the error that renders it. Then end each arm through `RefusedArm`:
+Carry how the reading stands, as `splitting::containment::Escalation` does (`Margin` / `Straddle`; a decided contradiction is no escalation and is typed as its own finding, as `contfp`'s `ContainError::ArcEndClearOfCorners` is), from each mint above to the error that renders it. Then end each arm through `RefusedArm`:
 - the lever on a margin that was read, or on a straddle;
 - the defect ending on a decided contradiction;
 - the lever plus the note on poison an input can carry.
