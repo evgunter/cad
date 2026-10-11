@@ -682,7 +682,7 @@ BOUNDS_ALLOWLIST=(
   # at its domain middle and read no bracket, and its callers in
   # `ssi.rs` now take `Curve3::mid_point`, the witness pin's own point.
   # The seam is unmoved: the branch certificate keeps its bounds.
-  'crates/geom-brep/src/ssi/certify.rs 14 M6-2, the SSI rung-3 certificate'
+  'crates/geom-brep/src/ssi/certify.rs 16 M6-2, the SSI rung-3 certificate; its two-chart tube (probe_tube_pair, pair_tube_chain) at the same bound'
   # M7-8, the declare-and-check edge lane.
   # 6 -> 8: the edge lane's door value (`NurbsLane`) gained a second
   # body, `analytic_rung3` (`Decide + Bounds + CertifiedEnclosure`, two
@@ -694,7 +694,7 @@ BOUNDS_ALLOWLIST=(
   # ratified at this bound) with `Limbs::Tube`, and its bound is its
   # callee's: nothing weaker compiles. The kernel reaches it only through `NurbsLane::certified`;
   # it is public so the at-rest rows can run the limb directly.
-  'crates/geom-brep/src/edge_nurbs.rs 8 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2'
+  'crates/geom-brep/src/edge_nurbs.rs 10 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound'
   # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the one
   # DOOR that names the certified body `plane_nurbs_limbs`, the lane's
   # door value `NurbsLane::certified`'s block (`Decide +
@@ -714,14 +714,16 @@ BOUNDS_ALLOWLIST=(
   # run at once, so the two doors are one registry body at one bound.
   'crates/editor-core/src/checks.rs 5 2026-08-29, the advisory-check registry; its at-rest door'
   # 2026-09-02, the certified at-rest validator and the shell verbs.
-  # `validate.rs` carries the at-rest validator's bounds, 22 of them:
+  # `validate.rs` carries the at-rest validator's bounds, 23 of them:
   # the 10 public doors of the module doc's door roster (5 at
   # `CertifiedBounds`, their 5 `_structural` twins at `Bounds`); the 2
   # `AtRestBody` methods beside the roster (`validate`, which is
   # `validate_geometric` keeping its verdict, and
   # `validate_pseudomanifold`, the tier-3′ door reading it), each at its
-  # door's own `CertifiedBounds` bound; the 7 private passes they share
-  # (`structural_via`, `validate_geometric_certified`,
+  # door's own `CertifiedBounds` bound; the 8 private passes they share
+  # (`validate_geometric_kept`, the composed door keeping check 7's
+  # slivers for `AtRestBody::validate`, `structural_via`,
+  # `validate_geometric_certified`,
   # `tier3_local_checks`, `tier3_local_checks_marked`,
   # `contact_marks_via`, `pseudomanifold_certificate_via`, and
   # `census_verdict`, the census tail both tier-3′ paths end in, at the
@@ -734,7 +736,7 @@ BOUNDS_ALLOWLIST=(
   # is why the census took the C10 tree as its pre-filter — the driver
   # amendment's seam, argued in the ledger under 2026-07-29 beside
   # `separation`.
-  'crates/topo/src/validate.rs 22 2026-09-02, the certified at-rest validator; the three census doors and ring_pairs under 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/validate.rs 23 2026-09-02, the certified at-rest validator; the three census doors and ring_pairs under 2026-07-29 (M5 PR 8), the driver amendment'
   # The census's BVH pre-filter: `Trees::build`, `Candidates::build`,
   # the three census entries above them (`census_and_certify`,
   # `census_traces`, `census_with`) and the backstop's own tree over its

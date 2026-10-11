@@ -1309,18 +1309,19 @@ pub enum ValidationError {
     /// [`crate::Face::sense`] bit **definitely disagrees** with the
     /// material side its own boundary encodes — the
     /// [`Self::LoopRoleInverted`] sibling for the analytic curved kinds
-    /// (cylinder, cone, rim-bearing sphere, torus). The face's two
-    /// orientation encodings are the S10 `sense` bit and the stored
-    /// outer-loop traversal (interior-left): the flux derivations read
-    /// the material side off the latter
-    /// (`geom_brep::props::boundary_material_sign` — the rim-side /
-    /// meridian-orientation decides), and a face where the two
-    /// encodings disagree is INSIDE-OUT at that face. Tier 3 refuses
-    /// it here, per face, and no volume gate can: the flux is
-    /// traversal-derived, so a lone `sense` flip on a rim-bearing
-    /// curved face is BIT-IDENTICAL in volume (executed truth table,
-    /// M6-6 substrate — washer walls, cone laterals, sphere zones,
-    /// torus bands all certified green before this arm).
+    /// (cylinder, cone, sphere, torus). The face's two orientation
+    /// encodings are the S10 `sense` bit and the stored loop traversal
+    /// (interior-left), read per kind off the quantity its flux
+    /// integrates (`geom_brep::props::boundary_material_sign_loops`:
+    /// the chart Green form's area, the cone's axial vector area, the
+    /// sphere's Gauss–Bonnet area or pole-free side); a face where the
+    /// two disagree is INSIDE-OUT at that face. Tier 3 refuses it here,
+    /// per face: on every kind but the sphere the flux is
+    /// traversal-derived, so a lone `sense` flip there is BIT-IDENTICAL
+    /// in volume (executed truth table, M6-6 substrate — washer walls,
+    /// cone laterals, torus bands all certified green before this arm),
+    /// and the sphere's flux refuses the same face
+    /// (`PropsError::SenseContradicted`).
     ///
     /// The comparison is **combinatorial** — two exact ±1s, no
     /// comparand, no new margin: the derived side reuses the flux
@@ -1328,25 +1329,25 @@ pub enum ValidationError {
     /// from check 7: only a DEFINITE disagreement refuses; an
     /// escalated/degenerate/out-of-inventory derivation is exempt.
     ///
-    /// **What is exempt, in full**, because this set is larger than a
-    /// reader expects and it grew:
+    /// **What is exempt, in full**:
     ///
-    /// * the **rimless** sphere band — its boundary encodes no side at
-    ///   all (`s_f` IS the bit), the documented residual;
-    /// * a face whose **domain is not an iso-parameter rectangle**.
-    ///   `props`' side derivation runs the `props_rim_level` predicate
-    ///   before answering, on all four curved kinds, because
-    ///   `lo + hi − 2v` reads *which extreme is this rim at* and that
-    ///   is a material side only on a rectangle. Such a face returns
-    ///   `Err` and is exempt HERE, which is correct — without the
-    ///   premise it returned a definite ±1 that depended on where
-    ///   `loop_edges` started the cycle, and this arm turned that into
-    ///   a refusal that also suppressed check 7's honest
-    ///   `VolumeUncomputable { NotIsoRectangle }` through the
-    ///   `errors.is_empty()` gate. **The coverage is real and is
-    ///   given up on purpose**: the corpus's `cross.step` and
-    ///   `tee.step` walls are exempt here now, and the flux lane
-    ///   refuses those bodies anyway;
+    /// * a one-loop sphere face with **both chart poles on its loop**
+    ///   (a lune, a hemisphere split at its poles), or within the band
+    ///   of it (a near-great carrier passing within the band of one
+    ///   pole passes within it of the other) — its boundary encodes no
+    ///   side, the documented residual. Such a face meets its seam
+    ///   sibling tangentially, where check 4 reads a flip of ONE of
+    ///   the two as a lamina; a flip of BOTH keeps the seam consistent,
+    ///   and where their other edges meet their neighbours
+    ///   transversally nothing in tier 3 sees it, and the volume is
+    ///   measured wrong
+    ///   (`work/flux/a-pair-of-seam-siblings-flipped-together-is-silent.md`);
+    /// * a one-loop sphere face with a chart pole off its loop on EACH
+    ///   side — a rim-only cap, a tilted cap or a blend corner patch
+    ///   holding a pole. Under either sense it holds a pole, which
+    ///   breaks the rule that a chart singularity inside a face is a
+    ///   vertex of it, so its loop says nothing about the bit; refusing
+    ///   such a face is this validity's rule to state, not check 6's;
     /// * conic-trimmed faces the quadrature lane owns, and NURBS.
     ///
     /// S11's honest `sense: false` faces (a washer's bore, a die's
@@ -1388,12 +1389,14 @@ pub enum ValidationError {
     ///
     /// * `Face` — **row 2**, and the reachable one. The body carries a
     ///   face whose measurement lane the kernel has not built: today
-    ///   the cone, sphere and torus closed forms need an iso-parameter
-    ///   rectangle (`geom_brep::props`' `props_rim_level`, S58) and
-    ///   the certified-quadrature lane consumes only conic/NURBS trims.
+    ///   the cone's closed form needs an iso-parameter rectangle on a
+    ///   rim-and-generator boundary (`geom_brep::props`'
+    ///   `props_rim_level`, S58) and the certified-quadrature lane
+    ///   consumes only conic/NURBS trims.
     /// * `RingOnCurvedFace` — **row 2** as well: a ringed curved face
-    ///   other than a cone wall, a cylinder wall or a rim-and-ruling
-    ///   torus wall, which a boolean pierce leaves in the face it pierces.
+    ///   other than a cone wall, a cylinder wall, a rim-and-ruling
+    ///   torus wall or a sphere face bounded by circles, which a boolean
+    ///   pierce leaves in the face it pierces.
     /// * `Corrupt`, `NullScaffoldEdge` — **row 1** by their own docs:
     ///   unresolvable structure and a mid-surgery body carrying M3
     ///   null-edge scaffolding.
@@ -1672,10 +1675,10 @@ pub enum ValidationError {
         /// The face pair and class that were declared.
         declaration: DeclaredContact,
         /// Where the contradiction holds, as a place read after
-        /// "contradicted" in the message, preposition included: along
-        /// the witnessing edge (the curve-record confirm pass), or
-        /// across both faces (the patch-record confirm pass's Door 1,
-        /// whose verdict compares whole surfaces). Never the pair
+        /// "contradicted" in the message, preposition included: across
+        /// both faces (the face–face record confirm pass's Door 1,
+        /// whose verdict compares whole surfaces), or the region the
+        /// conformal arm reads. Never the pair
         /// again, and never a key: `declaration` carries both.
         witness: String,
         /// The margin that decided, and its predicate — carried for a
@@ -2316,15 +2319,13 @@ pub enum StaleDeclaration {
         /// The other.
         b: crate::entity::EdgeKey,
     },
-    /// A curve-granularity record whose faces or witness edge no
-    /// longer resolve — the locus that certified it is gone.
-    CurveLocus {
-        /// The record's A-side face.
-        face_a: FaceKey,
-        /// The record's B-side face.
-        face_b: FaceKey,
-        /// The record's witness edge.
-        witness: crate::entity::EdgeKey,
+    /// An edge-face record whose edge or face is dead, or whose
+    /// interiors no longer meet.
+    EdgeFace {
+        /// The record's edge.
+        edge: crate::entity::EdgeKey,
+        /// The record's face.
+        face: FaceKey,
     },
     /// A patch-granularity record whose faces are dead or whose trim
     /// regions definitely no longer overlap in the shared chart
@@ -2352,7 +2353,7 @@ impl fmt::Display for StaleDeclaration {
             Self::VertexOnFace { .. } => "a recorded vertex-on-face contact",
             Self::VertexOnEdge { .. } => "a recorded vertex-on-edge contact",
             Self::EdgeEdge { .. } => "a recorded edge-to-edge contact",
-            Self::CurveLocus { .. } => "a recorded contact along an edge",
+            Self::EdgeFace { .. } => "a recorded edge-on-face contact",
             Self::Patch { .. } => "a recorded face-to-face contact",
         })
     }
@@ -3060,16 +3061,23 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 DEFECT.into(),
                 true,
             ),
-            // A tilted-circle sphere face whose loop does not bound a
-            // region of its sphere, or whose bit its boundary
-            // contradicts: stored data that is wrong.
+            // A sphere face whose loops do not bound a region of its
+            // sphere, or whose bit its boundary contradicts (an inverted
+            // bit, or a chart pole inside the face): stored data that is
+            // wrong.
             P::SphereLoop { .. } => reading(
                 "a sphere face's boundary does not bound a region of its sphere",
                 DEFECT.into(),
                 true,
             ),
             P::SenseContradicted => reading(
-                "a sphere face is inside-out against its own boundary",
+                "a sphere face is inside-out against its own boundary, or holds a pole of \
+                 its sphere inside it",
+                DEFECT.into(),
+                true,
+            ),
+            P::SenseInverted => reading(
+                "a sphere face with holes is inside-out against its own boundary",
                 DEFECT.into(),
                 true,
             ),
@@ -4921,6 +4929,18 @@ pub fn validate_geometric_certificate<
     body: &Body<T>,
     tol: Tol,
 ) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
+    validate_geometric_kept(body, tol).map(|(certificate, _)| certificate)
+}
+
+/// [`validate_geometric_certificate`], with the one-shell solids its
+/// check 7 passed as slivers, each its solid's only shell
+/// ([`InBandShell`]).
+fn validate_geometric_kept<
+    T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
+>(
+    body: &Body<T>,
+    tol: Tol,
+) -> Result<(crate::props::SignCertificate<'_, T>, Vec<InBandShell>), Vec<ValidationError>> {
     // The structural phase runs WITH check 2's plane x NURBS lane
     // injected, which is what keeps this composed door re-deriving the
     // M7-8 certificate class at rest; the public structural door,
@@ -5098,17 +5118,17 @@ fn validate_geometric_certified<
 >(
     body: &Body<T>,
     tol: Tol,
-) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
+) -> Result<(crate::props::SignCertificate<'_, T>, Vec<InBandShell>), Vec<ValidationError>> {
     let band = match Band::linear(tol) {
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
     let quad = Some(CertifiedLanes::<T>::held().quad);
-    let certificate = plus_v_by_sign(body, band, tol, quad)?;
+    let kept = plus_v_by_sign(body, band, tol, quad)?;
     // Check 10, behind a clean check 7 (`shell_winding_errors`).
     let errors = shell_winding_errors(body, band, tol, quad);
     if errors.is_empty() {
-        Ok(certificate)
+        Ok(kept)
     } else {
         Err(errors)
     }
@@ -5155,19 +5175,20 @@ fn validate_geometric_certified<
 /// partition the face arena, which [`crate::SignCertificate::assembled`]
 /// asserts — and `Err` is check 7's verdicts, never empty (it is built
 /// only when one was pushed). There is no state where the check came
-/// back clean without a certificate to hand on.
+/// back clean without a certificate to hand on. Beside it, `Ok` lists
+/// the shells it passed as slivers, each its solid's only one
+/// ([`InBandShell`]).
 fn plus_v_by_sign<'b, T: geom_core::Decide>(
     body: &'b Body<T>,
     band: Band,
     tol: Tol,
     quad: Option<crate::props::QuadLane<T>>,
-) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
+) -> Result<(crate::props::SignCertificate<'b, T>, Vec<InBandShell>), Vec<ValidationError>> {
     let mut errors = Vec::new();
     let mut parts = Vec::new();
+    let mut slivers = Vec::new();
     for (solid, faces) in check7_subjects(body) {
-        // Whether the last round's sign was unresolved rather than in
-        // band ([`crate::props::Certified::Unresolved`]).
-        let unresolved = core::cell::Cell::new(false);
+        let last = core::cell::Cell::new(OpenRound::AboutTheBody(None));
         match crate::props::sign_walk(
             body,
             &faces,
@@ -5175,10 +5196,22 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
             tol,
             quad,
             quad,
-            |round| plus_v_round(round.certify(PLUS_V, PLUS_V_EXACT), &unresolved),
-            |refusal| plus_v_at_target(refusal, unresolved.get()),
+            |round| plus_v_round(round.certify(PLUS_V, PLUS_V_EXACT), &last),
+            |refusal| plus_v_at_target(refusal, last.get()),
         ) {
             Ok((verdict, certificate)) => {
+                if let (PlusVVerdict::Sliver(sliver), Some([shell])) = (
+                    &verdict,
+                    body.solids
+                        .get(solid)
+                        .map(|record| record.shells.as_slice()),
+                ) {
+                    slivers.push(InBandShell {
+                        solid,
+                        shell: *shell,
+                        sliver: *sliver,
+                    });
+                }
                 errors.extend(plus_v_errors(solid, &verdict));
                 parts.push(certificate);
             }
@@ -5186,8 +5219,9 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
         }
     }
     if errors.is_empty() {
-        Ok(crate::props::SignCertificate::assembled(
-            body, band, tol, quad, parts,
+        Ok((
+            crate::props::SignCertificate::assembled(body, band, tol, quad, parts),
+            slivers,
         ))
     } else {
         Err(errors)
@@ -5510,6 +5544,40 @@ pub(crate) enum PlusVVerdict {
     /// measure about the body), so the straddle is not known to be the
     /// body's own rounding.
     Unresolved,
+    /// The certified reading lies wholly inside one sliver band: the
+    /// invariant exempts it and the solid passes, a sliver at this
+    /// tolerance. A boolean may not return it ([`InBandShell`]).
+    Sliver(crate::props::CertifiedSliver),
+}
+
+/// **How check 7's last open round left the sign**, for
+/// [`plus_v_at_target`] to read once the schedule runs out.
+#[derive(Clone, Copy, Debug)]
+enum OpenRound {
+    /// Taken about the body ([`Certified::Open`]): in band, or straddling
+    /// zero by the body's own rounding; with the certified sliver where
+    /// the reading lies wholly in band.
+    AboutTheBody(Option<crate::props::CertifiedSliver>),
+    /// Straddling zero at a face's world-origin width.
+    Unresolved,
+}
+
+/// **A shell certified wholly in band**, which a boolean's result may
+/// not hold (D10, Booleans): check 10's role read of a shell of a
+/// solid of several ([`ValidationError::ShellRoleUndecided`]), or check
+/// 7's of a solid's only shell ([`AtRestBody::slivers`]), which the
+/// at-rest invariant passes. A solid of several shells whose total is
+/// in band while each shell's role decides is neither, and nothing
+/// refuses it
+/// (`work/flush/a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses.md`).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct InBandShell {
+    /// Its solid.
+    pub(crate) solid: SolidKey,
+    /// The shell.
+    pub(crate) shell: crate::entity::ShellKey,
+    /// The certified reading of its `V/A`.
+    pub(crate) sliver: crate::props::CertifiedSliver,
 }
 
 /// Check 7's names: the bracket's high end under `positive_volume`, the
@@ -5536,40 +5604,40 @@ pub(crate) fn plus_v_read<T: geom_core::Decide>(
 
 /// **What a round that decided nothing means once there is nothing
 /// left to refine** — the sign-level walk's `last_word`, handed the
-/// outstanding target refusal and whether the last round's sign was
-/// unresolved. Undecided with the schedule run out is not a pass when
+/// outstanding target refusal and how the last round left the sign. Undecided with the schedule run out is not a pass when
 /// the quadrature still owes a refusal: it never produced an enclosure
 /// tight enough to decide, and the body is exactly as unvalidatable as
 /// the reporting door says it is. Nor is it a pass when the enclosure
 /// kept a face's world-origin width: a straddle there may be
 /// that width and not the body, and is escalated. A sign in band or
 /// straddling zero by the body's own rounding is what the invariant
-/// exempts.
+/// exempts; one certified wholly in band is a sliver.
 fn plus_v_at_target(
     refusal: Option<crate::props::MassPropsError>,
-    unresolved: bool,
+    last: OpenRound,
 ) -> PlusVVerdict {
-    match (refusal, unresolved) {
+    match (refusal, last) {
         (Some(source), _) => PlusVVerdict::Uncomputable(source),
-        (None, true) => PlusVVerdict::Unresolved,
-        (None, false) => PlusVVerdict::Pass,
+        (None, OpenRound::Unresolved) => PlusVVerdict::Unresolved,
+        (None, OpenRound::AboutTheBody(Some(sliver))) => PlusVVerdict::Sliver(sliver),
+        (None, OpenRound::AboutTheBody(None)) => PlusVVerdict::Pass,
     }
 }
 
 /// **Check 7's reading of one round** ([`plus_v_by_sign`]'s `settle`):
-/// a certified role decides; an open round decides nothing, and
-/// `unresolved` records whether it was in band or unresolved, for
-/// [`plus_v_at_target`] to read once the schedule runs out.
-fn plus_v_round(certified: Certified, unresolved: &core::cell::Cell<bool>) -> Option<PlusVVerdict> {
+/// a certified role decides; an open round decides nothing, and `last`
+/// records how it left the sign, for [`plus_v_at_target`] to read once
+/// the schedule runs out.
+fn plus_v_round(certified: Certified, last: &core::cell::Cell<OpenRound>) -> Option<PlusVVerdict> {
     match certified {
         Certified::Role(crate::props::ShellRole::Outer) => Some(PlusVVerdict::Pass),
         Certified::Role(crate::props::ShellRole::Void) => Some(PlusVVerdict::Refuse),
-        Certified::Open(_) => {
-            unresolved.set(false);
+        Certified::Open(unread) => {
+            last.set(OpenRound::AboutTheBody(unread.sliver()));
             None
         }
         Certified::Unresolved(_) => {
-            unresolved.set(true);
+            last.set(OpenRound::Unresolved);
             None
         }
         Certified::Refused(source) => Some(PlusVVerdict::Uncomputable(source)),
@@ -5579,7 +5647,7 @@ fn plus_v_round(certified: Certified, unresolved: &core::cell::Cell<bool>) -> Op
 /// Check 7's verdict as the tier's error vector.
 fn plus_v_errors(solid: SolidKey, verdict: &PlusVVerdict) -> Vec<ValidationError> {
     match verdict {
-        PlusVVerdict::Pass => Vec::new(),
+        PlusVVerdict::Pass | PlusVVerdict::Sliver(_) => Vec::new(),
         PlusVVerdict::Refuse => vec![ValidationError::NegativeVolume { solid }],
         PlusVVerdict::Uncomputable(source) => vec![ValidationError::VolumeUncomputable {
             solid,
@@ -6994,34 +7062,22 @@ pub(crate) fn tier3_local_checks_marked<
     // statement as the planar arm — the face's two orientation
     // encodings must agree — but the boundary's encoding is read the
     // way the flux lanes read it:
-    // `geom_brep::props::boundary_material_sign_loops` re-runs the
-    // sub-derivations the flux lanes consume: the chart Green form's
-    // sign on a cylinder (`props_chart_area_side`, over every loop, so
-    // a notched or ringed wall is checked, not exempt), and the
-    // rim-side / meridian-orientation reading on the iso kinds
-    // (`props_rim_side`, `props_rim_level`, `props_circle_axis_class`,
-    // `props_meridian_orient` — already length-metered named decides).
-    // No new comparand exists: the final comparison is two exact ±1s,
-    // genuinely combinatorial.
+    // `geom_brep::props::boundary_material_sign_loops` reads every
+    // loop, per kind: the chart Green form's sign on a cylinder or
+    // torus (`props_chart_area_side`), the axial vector area's on a
+    // cone (`props_cone_area_side`), and on a sphere the side of its
+    // loops with positive area with holes (`props_sphere_face_area`) or
+    // the loop's pole-free side without (`props_sphere_pole_winding`).
+    // None rests
+    // on an iso-rectangle premise. The final comparison is two exact
+    // ±1s, genuinely combinatorial.
     //
-    // `props_rim_level` — the iso-rectangle premise — is on the iso
-    // kinds' list because their rim-side derivation rests on it: `lo + hi − 2v` is a
-    // material side only on a domain whose rims all sit at an extreme,
-    // and without it a plus-shaped face answered a definite ±1 that
-    // depended on where `loop_edges` started the cycle. Such a face now
-    // arrives here as `Err`, i.e. EXEMPT by the posture below, which is
-    // what it always should have been: this arm firing on it pushed a
-    // `CurvedSenseInverted` that suppressed check 7's honest
-    // `VolumeUncomputable { NotIsoRectangle }` through the
-    // `errors.is_empty()` gate.
-    // Fires BEFORE check 7, which cannot see this defect — the flux is
-    // traversal-derived, so a lone sense flip on a rim-bearing curved
-    // face leaves the volume BIT-IDENTICAL (M6-6 substrate truth
-    // table: washer walls, cone laterals, sphere zones, torus bands
-    // all certified green before this arm), and a whole-body-inverted
-    // washer/cone/donut even keeps its POSITIVE volume (this arm
-    // refuses their walls; the planar arm above, their arc-bounded
-    // caps).
+    // Fires BEFORE check 7, which cannot see this defect on the
+    // traversal-derived kinds: a lone sense flip on a cylinder, cone
+    // or torus face leaves the volume BIT-IDENTICAL (M6-6 substrate
+    // truth table), and a whole-body-inverted washer/cone/donut even
+    // keeps its POSITIVE volume (this arm refuses their walls; the
+    // planar arm above, their arc-bounded caps).
     //
     // Posture inherited (check 7): only a DEFINITE disagreement
     // refuses. A failed derivation (escalated classification,
@@ -7033,12 +7089,11 @@ pub(crate) fn tier3_local_checks_marked<
     // (bit-free) quadrature flux AND an exempt parse, so its flips —
     // single-face and whole-body — certify green today (executed on
     // the tilted-section cylinder, pinned as residual; closes when the
-    // ellipse-rim material-side encoding lands). The rimless sphere
-    // band returns `Unencoded` (its
+    // ellipse-rim material-side encoding lands). A one-loop sphere
+    // face with both poles on its loop returns `Unencoded` (its
     // boundary encodes no side; the bit is the ONLY encoding) and
-    // stays exempt: the documented residual — a half-flipped rimless
-    // ball meters V = 0, Zero-exempt by the ratified posture, while
-    // the fully-inverted ball is check 7's NegativeVolume.
+    // stays exempt: the documented residual. So does one with a pole
+    // off its loop on each side, which holds a pole under either sense.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
         let Some(surface) = body.surfaces.get(face.surface) else {
@@ -7072,16 +7127,18 @@ pub(crate) fn tier3_local_checks_marked<
                 }
             }
             // The boundary encodes no side, so there is no second
-            // encoding to cross-check the stored bit against: the
-            // rimless sphere band, the documented residual above.
+            // encoding to cross-check the stored bit against: a sphere
+            // face with both poles on its loop, the residual above.
             // An ANSWER, not a refusal.
             Ok(geom_brep::props::MaterialSign::Unencoded) => {}
             // A REFUSED derivation is exempt here, never a
             // disagreement (the posture above, and the contract on
             // `boundary_material_sign` itself). It is not a discard:
             // every cause reachable on this arm is a premise the flux
-            // lane runs before it integrates, so the same face refuses
-            // there and check 7 reports it cause-carrying as
+            // lane runs before it integrates, or a face of no area or
+            // a side read in the band, so a face that refuses here for
+            // a cause the volume needs refuses there and check 7
+            // reports it cause-carrying as
             // `VolumeUncomputable { source }`. Pushing anything here
             // would DESTROY that report rather than add to it, check 7
             // being gated on `errors.is_empty()` — the recorded
@@ -7132,7 +7189,7 @@ pub(crate) fn tier3_local_checks_marked<
         // through, so the two tiers cannot disagree on it at one lane.
         if let PlusVCheck::Through(quad) = plus_v {
             match plus_v_by_sign(body, band, tol, quad) {
-                Ok(derived) => certificate = Some(derived),
+                Ok((derived, _)) => certificate = Some(derived),
                 Err(verdicts) => errors.extend(verdicts),
             }
         }
@@ -8767,8 +8824,8 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// Since M9-2 the census reaches beyond the exact planar sweeps: the
 /// conformal face-pair arm (shared-carrier opposed-sense curved pairs
 /// through the chart-region predicate), face-granularity backing from
-/// curve/patch records, and the record certifiers (jet schedule for
-/// `CurveContact`, chart-region overlap for `PatchContact`). ASM R2-b
+/// face–face records, and the record certifiers (chart-region overlap
+/// for a face–face record). ASM R2-b
 /// consumes THIS gate (ASM-R2-SPEC-DRAFT:39-58): mate declarations
 /// land in the product body's [`crate::boolean::ContactRecords`] —
 /// same currency, no adapter — and validate here.
@@ -8966,6 +9023,8 @@ pub fn validate_pseudomanifold_certificate_structural<
 pub struct AtRestBody<T: Real> {
     body: Body<T>,
     outcome: AtRestOutcome,
+    /// The one-shell solids check 7 passed as slivers.
+    slivers: Vec<InBandShell>,
 }
 
 impl<T: Real> AtRestBody<T> {
@@ -8980,10 +9039,11 @@ impl<T: Real> AtRestBody<T> {
     where
         T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
     {
-        validate_geometric(&body, tol)?;
+        let slivers = validate_geometric_kept(&body, tol)?.1;
         Ok(Self {
             body,
             outcome: AtRestOutcome::Validated,
+            slivers,
         })
     }
 
@@ -8994,7 +9054,16 @@ impl<T: Real> AtRestBody<T> {
         Self {
             body,
             outcome: AtRestOutcome::NotRunAtThisScalar,
+            slivers: Vec::new(),
         }
+    }
+
+    /// The shells the gate passed as slivers, each its solid's only
+    /// shell: check 7 certified each one's volume sign wholly in band,
+    /// which the invariant exempts at rest. Empty where the gate did
+    /// not run.
+    pub(crate) fn slivers(&self) -> &[InBandShell] {
+        &self.slivers
     }
 
     /// What the gate said: [`AtRestOutcome::Validated`] exactly when
@@ -10151,12 +10220,12 @@ mod tests {
         };
         let solid = SolidKey::default();
         let at_target = |certified| {
-            let unresolved = core::cell::Cell::new(false);
+            let last = core::cell::Cell::new(OpenRound::AboutTheBody(None));
             assert!(
-                plus_v_round(certified, &unresolved).is_none(),
+                plus_v_round(certified, &last).is_none(),
                 "an open round decides nothing"
             );
-            plus_v_errors(solid, &plus_v_at_target(None, unresolved.get()))
+            plus_v_errors(solid, &plus_v_at_target(None, last.get()))
         };
         assert_eq!(at_target(Certified::Open(unread())), Vec::new(), "in band");
         assert_eq!(
@@ -15572,11 +15641,7 @@ mod review_census_display_keys {
                         !declaration.to_string().contains("Key("),
                         "{label}: {declaration}"
                     );
-                    let want = match declaration {
-                        super::StaleDeclaration::CurveLocus { .. } => 3,
-                        _ => 2,
-                    };
-                    assert_eq!(keys_in_debug, want, "{label}: {e:?}");
+                    assert_eq!(keys_in_debug, 2, "{label}: {e:?}");
                     checked += 1;
                 }
                 _ => {}

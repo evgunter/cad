@@ -292,7 +292,7 @@ class ValidationFinding:
       `"undecided"` neither; `None` on every other finding.
     - `stale_kind` — which contact record the tier-3′ census could
       not confirm (`"vertex_vertex"`, `"vertex_on_face"`,
-      `"vertex_on_edge"`, `"edge_edge"`, `"curve_locus"`, `"patch"`).
+      `"vertex_on_edge"`, `"edge_edge"`, `"edge_face"`, `"patch"`).
       A record a declaration made is withdrawn or re-seated at that
       granularity, and withdrawing another one leaves the refusal
       standing. `"vertex_on_edge"` and `"edge_edge"` are records an op
