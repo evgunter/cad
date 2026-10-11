@@ -225,6 +225,26 @@ fn r2_flush_between_halves() {
     );
 }
 
+/// A revolve named alone: the evaluation's `at_var` reads its one named
+/// output, the document's `read_of_node` (which Python's `resolve`
+/// door reads through) refuses it as several outputs.
+#[test]
+fn r2_revolve_named_alone_two_answers() {
+    let d = crate::corpus::die_pips::document();
+    let ball = d
+        .doc
+        .ids()
+        .iter()
+        .copied()
+        .find(|&id| matches!(d.doc.node(id), Some(Node::Revolve { .. })))
+        .expect("the pip ball");
+    let ev = fixture::run(&d.doc, &Default::default());
+    let at_var = ev.at_var(ball);
+    let read = d.doc.read_of_node(ball);
+    println!("at_var {at_var:?} read_of_node {read:?}");
+    assert_eq!(at_var, read, "two doors, one answer for a node named alone");
+}
+
 fn tool_of(doc: &ProfileDoc, split: RecipeNodeId) -> RecipeNodeId {
     doc.upstream(split)
         .into_iter()
