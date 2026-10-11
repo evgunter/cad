@@ -14,9 +14,9 @@ refs: [boolean-conic-side-code-zero-is-first-order, an-arc-tangent-to-a-face-at-
 
 From PR 4575 and both its reviews.
 `crates/sweep/tests/an_arc_tangent_at_a_boolean_vertex.rs`'s
-`the_flush_and_corner_postures` (print-only; run
-`cargo test -p sweep --test all the_flush_and_corner_postures -- --ignored --nocapture`)
-also prints the untilted `dip`: a quarter round whose bottom face rests
+`the_untilted_dip` (print-only; run
+`cargo test -p sweep --test all the_untilted_dip -- --ignored --nocapture`)
+prints the untilted `dip`: a quarter round whose bottom face rests
 on the slab's top (z = 1) up to the rim x = 2, and whose cap arcs leave
 the rim vertices tangent to the top and bend down into the slab, so the
 two overlap in a lens of volume `4 − π`.
