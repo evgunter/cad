@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::print_stdout)]
 
 use geom_core::{Dual64, Tol};
-use topo::{ContactRecords, PatchContact, ValidationError};
+use topo::{ContactRecords, ValidationError};
 
 fn render(label: &str, r: Result<(), Vec<ValidationError>>) {
     match r {
@@ -28,13 +28,15 @@ fn main() {
     // --- f64: the straddle seat with its declared patch pair ---
     let seat = topo::test_support::straddle_seat(tol);
     let mut records = ContactRecords::default();
-    records.patches.push(topo::Cited::new(
-        PatchContact {
-            face_a: seat.post_top,
-            face_b: seat.shelf_bottom,
-        },
+    records.extend([topo::Cited::new(
+        topo::Contact::new(
+            &seat.body,
+            topo::Cell::Face(seat.post_top),
+            topo::Cell::Face(seat.shelf_bottom),
+        )
+        .unwrap(),
         topo::Cites::decided(0),
-    ));
+    )]);
 
     render(
         "f64 validate_pseudomanifold (declared)",
@@ -65,13 +67,15 @@ fn main() {
     let mut dual = post.body;
     let keys = topo::graft_disjoint_all_keyed(&mut dual, &shelf.body).unwrap();
     let mut drecords = ContactRecords::default();
-    drecords.patches.push(topo::Cited::new(
-        PatchContact {
-            face_a: post.top_face,
-            face_b: keys.face(shelf.bottom_face).unwrap(),
-        },
+    drecords.extend([topo::Cited::new(
+        topo::Contact::new(
+            &dual,
+            topo::Cell::Face(post.top_face),
+            topo::Cell::Face(keys.face(shelf.bottom_face).unwrap()),
+        )
+        .unwrap(),
         topo::Cites::decided(0),
-    ));
+    )]);
     render(
         "Dual64 validate_pseudomanifold_structural (declared)",
         topo::validate_pseudomanifold_structural(&dual, &drecords, tol),

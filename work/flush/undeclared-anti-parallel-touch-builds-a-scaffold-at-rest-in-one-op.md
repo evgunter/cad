@@ -2,12 +2,13 @@
 id: undeclared-anti-parallel-touch-builds-a-scaffold-at-rest-in-one-op
 kind: issue
 title: An undeclared anti-parallel touch at a wedge builds a body only the final validator catches, in one op/order per pose
-status: review
+status: closed
 opened: 2026-10-03
 priority: P2
 cost: M
 branch: flush/anti-parallel-scaffold
 pr: 4649
+closed: 2026-10-11
 ---
 
 
@@ -107,3 +108,14 @@ No kernel change: PR 4496 fixed it. This row adds the regression gate,
 6 runs × 3 maps, each SOUND or `EMPTY ok`. It is red at `5c9315aed`
 (the first pose, `ScaffoldAtRest`). It takes 10.7 s in debug, so it is
 in the `ci` profile's slow set.
+
+## Closed
+
+PR 4496 fixed it. INTENT stage 4 E made `merge_coplanar_faces` glue an
+undeclared coplanar pair on a Zero verdict (`faces_continue`) instead of
+only a declared one. The 8 poses are SOUND on main, and `5c9315aed`, just
+before PR 4496, is the last commit that fails. PR 4649 pins the whole
+class, the 18 pose-ops (the 8 subtractions plus 4 union and 6 intersect
+poses that refused `UndeclaredCoincidence` before PR 4496), with
+`a_flank_touch_glues_the_half_turn_it_leaves`, which is red at
+`5c9315aed`.
