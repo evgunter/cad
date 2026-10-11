@@ -166,8 +166,12 @@ enum Rung {
 /// (DOCM-1's measurement of record); the SPLIT of that box does not:
 /// at ε/10 its section-edge carrier certification against the mapped
 /// source escalates (`carrier_matches_mapped_source`, an enclosure a
-/// few parts per million over the band's zero); ε/16 and every
-/// narrower rung certify. Each
+/// few parts per million over the band's zero). At ε/16 the split
+/// certifies and the union of its halves does not: the glue door reads
+/// the cut faces' plane offset in band (`bool_plane_offset`), so the pair
+/// is not glued, and the corner that reads it one carrier refuses
+/// (`carrier_unglued_coincidence`). ε/32 and every narrower rung
+/// certify. Each
 /// rung is asserted, so a floor that moves — up or down — reds this
 /// row naming the rung.
 #[test]
@@ -175,6 +179,7 @@ fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
     let e = Tol::witness().eps();
     let doc = widened_document(e);
     let split = node_where(&doc, |n| matches!(n, Node::Split { .. }));
+    let union = node_where(&doc, |n| matches!(n, Node::Union { .. }));
     let ladder: [(u32, Rung); 8] = [
         (
             10,
@@ -183,7 +188,13 @@ fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
                 predicate: "carrier_matches_mapped_source",
             },
         ),
-        (16, Rung::Green),
+        (
+            16,
+            Rung::Escalates {
+                node: union,
+                predicate: "carrier_unglued_coincidence",
+            },
+        ),
         (32, Rung::Green),
         (64, Rung::Green),
         (128, Rung::Green),
@@ -227,7 +238,7 @@ fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
 
 /// The divisor of ε the assertion row is pinned at — two rungs under
 /// the floor the ladder measures at the default ε.
-const A7_DIVISOR: f64 = 64.0;
+const A7_DIVISOR: f64 = 128.0;
 
 /// **A7 — the corpus document at `Interval`, nominal and widened.** The
 /// height the split's body reads is widened by ε/`A7_DIVISOR`; the

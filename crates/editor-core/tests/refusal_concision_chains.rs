@@ -445,7 +445,6 @@ fn the_bare_recourses_are_geom_cores_constants() {
     assert_eq!(
         test_utils::refusal::BARE_RECOURSES,
         [
-            geom_core::COINCIDENCE_RECOURSE,
             geom_core::SPLIT_PLANE_RECOURSE,
             geom_core::COINCIDENCE_RECOURSE,
         ]

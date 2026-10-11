@@ -75,15 +75,13 @@ const SENTENCE_WORDS: &[&str] = &[
 ];
 
 /// The recourse phrases the kernel's shared vocabulary states WITHOUT a
-/// `Recourse:` label (`geom_core::COINCIDENCE_RECOURSE`,
-/// `SPLIT_PLANE_RECOURSE` and `COINCIDENCE_RECOURSE`, longest
-/// first, since the last is a suffix of the first). This crate is a
+/// `Recourse:` label (`geom_core::SPLIT_PLANE_RECOURSE` and
+/// `COINCIDENCE_RECOURSE`, longest first). This crate is a
 /// dependency-free leaf, so the text is restated here;
 /// `editor-core/tests/refusal_concision_chains.rs`
 /// `the_bare_recourses_are_geom_cores_constants` holds the copy equal
 /// to the constants.
 pub const BARE_RECOURSES: &[&str] = &[
-    "declare the coincidence, or move the geometry",
     "move the split plane or the geometry",
     "move the geometry",
 ];
