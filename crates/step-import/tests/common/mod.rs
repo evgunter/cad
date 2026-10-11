@@ -137,30 +137,16 @@ pub fn arena_census(body: &Body<f64>) -> (usize, usize, usize, usize, usize) {
     (c.solids, c.shells, c.faces, c.edges, c.vertices)
 }
 
-/// **The options an own-corpus fixture imports under**, and the single
-/// declaration of which fixture needs what.
-///
-/// Exactly one fixture needs anything: `kiss_assembly`, the corpus's
-/// only touching assembly, whose corner kiss at (1, 1, 1) is DECLARED
-/// through the M9-2 import-side channel (D7 step 4) — the shared
-/// tier-3′ gate then certifies the touch instead of refusing it
-/// undeclared. A suite walking the corpus with options of its own
-/// calls this rather than restating the anchor: two spellings of which
-/// fixture is the exception drift apart silently, and the drift
-/// surfaces as one fixture refusing in one suite and importing in
-/// another.
+/// **The options an own-corpus fixture imports under.** No fixture
+/// needs anything of its own: `kiss_assembly`'s corner kiss at
+/// (1, 1, 1), the corpus's only touching assembly, is recorded by the
+/// shared tier-3′ gate as a contact between its two instances
+/// (`topo::record_at_rest`).
 ///
 /// `examine` is [`step_import::ImportOptions::examine_chart_coherence`],
 /// which every caller but the coherence-channel suite leaves `false`.
-pub fn own_import_options(name: &str, examine: bool) -> step_import::ImportOptions {
+pub fn own_import_options(examine: bool) -> step_import::ImportOptions {
     step_import::ImportOptions {
-        declared_contacts: if name == "kiss_assembly" {
-            vec![step_import::ImportContact::VertexRest {
-                at: [1.0, 1.0, 1.0],
-            }]
-        } else {
-            Vec::new()
-        },
         examine_chart_coherence: examine,
         ..step_import::ImportOptions::default()
     }
@@ -170,7 +156,7 @@ pub fn own_import_options(name: &str, examine: bool) -> step_import::ImportOptio
 /// suites' entry point for files that must import).
 pub fn import_fixture(name: &str) -> step_import::StepImport {
     let text = fixture(name, "step");
-    step_import::import_step(&text, &own_import_options(name, false), Tol::witness())
+    step_import::import_step(&text, &own_import_options(false), Tol::witness())
         .unwrap_or_else(|e| panic!("importing {name}: {e}"))
 }
 

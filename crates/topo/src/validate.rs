@@ -1637,12 +1637,15 @@ pub enum ValidationError {
         /// the arithmetic or the geometry left the role unread.
         sliver: Option<Box<crate::props::CertifiedSliver>>,
     },
-    /// Tier 3′ (M3 PR 6a): the global coincidence census found a
-    /// position coincidence between distinct entities that no declared
-    /// contact record backs (directly, or via the D3 segment
-    /// reconstruction) — an **undeclared contact** is a hard error,
-    /// never blessed (F1/F2(iii): discovery ≠ declaration, ever).
-    UndeclaredContact {
+    /// Tier 3′: the global coincidence census found a position
+    /// coincidence between distinct entities that no contact record
+    /// backs (directly, or via the D3 segment reconstruction).
+    /// Inside one group of a body (one op's result, one copy, one
+    /// imported solid) it is that group's defect; between two groups
+    /// at rest the census records it rather than report it, a row of
+    /// its Zero and a record citing it (`census::record_at_rest`, D1
+    /// (iii), D10).
+    UnrecordedContact {
         /// The coinciding entity pair, typed by census kind.
         contact: CensusContact,
         /// Where the contact was witnessed, read after "at" in the
@@ -1653,8 +1656,14 @@ pub enum ValidationError {
         /// edge-edge crossing's side verdict) appends it after " — ";
         /// the message renders the part before, and `Debug` the whole.
         witness: String,
+        /// The margin the census decided Zero to find the coincidence
+        /// (an edge lying in a plane: both ends' residuals, jointly).
+        /// `None` where no Zero decided it: a pierce, which is a
+        /// crossing rather than a coincidence, and a conformal patch,
+        /// whose two faces share one carrier by key.
+        margin: Option<geom_core::MarginDiag>,
     },
-    /// Tier 3′: a declared contact record has no geometric witness —
+    /// Tier 3′: a contact record has no geometric witness —
     /// the named entities do not coincide (or no longer resolve).
     /// Silent tolerance of unconfirmed declarations is forbidden
     /// (F1/F2(iii), the other direction of the certification diff).
@@ -1662,8 +1671,8 @@ pub enum ValidationError {
         /// The unconfirmed declaration.
         declaration: StaleDeclaration,
     },
-    /// Tier 3′ (C4): a declared contact meets DEFINITE counter-evidence
-    /// — the declaration is a lie where it meets the geometry.
+    /// Tier 3′ (C4): a contact record meets DEFINITE counter-evidence
+    /// — the record is a lie where it meets the geometry.
     ///
     /// Distinct from [`Self::StaleContactDeclaration`], which is the
     /// *absence* of a witness: this is the presence of a
@@ -1738,7 +1747,7 @@ pub enum ValidationError {
     /// chart-overlap lane, so a census arm that needs one could not
     /// examine this face pair — a fact about the door, not about the
     /// geometry. Two arms raise it: the conformal face-pair sweep on an
-    /// undeclared candidate, and the declared-record confirm pass
+    /// unrecorded candidate, and the record confirm pass
     /// (`confirm_curve_and_patch_records`' Door 2) on a declared patch.
     ///
     /// The `_structural` doors ([`validate_pseudomanifold_structural`],
@@ -1790,6 +1799,19 @@ pub enum ValidationError {
         b: EntityId,
         /// The not-yet-supported class, named.
         what: &'static str,
+    },
+    /// Tier 3′: the census read a point at an arc's end that lies
+    /// definitely off both of its edge's corners, on a body tier 3 passed
+    /// at the same band, which pins every carrier end within the zero
+    /// band of its corner. The kernel's two readings of one end disagree
+    /// (certification's against the boundary walk's, which part by
+    /// rounding alone), so this is a defect to report, never a reading
+    /// of the geometry.
+    ArcEndOffCorner {
+        /// The face whose boundary the census read.
+        face: FaceKey,
+        /// The arc's ends against its edge's corners.
+        gaps: Box<crate::boolean::ArcEndGaps>,
     },
     /// Tier 3′ (the census's instance-containment arm): one instance's
     /// material contains a vertex of another's — an interference fit,
@@ -2144,16 +2166,13 @@ pub enum CrossingSideVerdict {
     /// interpenetration evidence. Refuses, naming this verdict.
     SameSide,
     /// The side question did not reach a verdict at a candidate that
-    /// held the crossing: the site's margins escalated in band, or —
-    /// contradicting the carrier screens that just passed — the
-    /// dihedral gate could not establish the Smooth precondition the
-    /// sense algebra requires (`geom_brep::classify_material_pairing`'s
-    /// contract). Escalated typed either way
-    /// ([`ValidationError::CensusEscalated`]), never sampled, never a
-    /// fake side verdict. A pair whose carriers are DEFINITELY
-    /// transverse at the crossing never reaches this arm at all: the
-    /// edge screen refuses it silently first, because a question about
-    /// "the shared carrier" has no subject there.
+    /// held the crossing: the dihedral or the sense algebra
+    /// (`geom_brep::classify_material_pairing`) escalated in band.
+    /// Escalated typed ([`ValidationError::CensusEscalated`]), never
+    /// sampled, never a fake side verdict. A pair whose carriers are
+    /// DEFINITELY transverse at the crossing never reaches this arm at
+    /// all: the carrier screens refuse it silently first, because a
+    /// question about "the shared carrier" has no subject there.
     Undecided,
 }
 
@@ -2255,7 +2274,7 @@ pub enum CensusContact {
 }
 
 /// Prose, not `Debug` guts: this payload is quoted verbatim into
-/// [`ValidationError::UndeclaredContact`]'s message, which every façade
+/// [`ValidationError::UnrecordedContact`]'s message, which every façade
 /// pastes as the refusal a user reads. The arena keys stay `{:?}` —
 /// tuple-shaped, and the key IS the name a caller resolves — while the
 /// enum's own struct-variant braces do not reach the message.
@@ -2279,7 +2298,7 @@ impl fmt::Display for CensusContact {
     }
 }
 
-/// A declared contact the census could not confirm (tier 3′).
+/// A contact record the census could not confirm (tier 3′).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg_attr(
@@ -2523,12 +2542,7 @@ const REPARAMETERIZE: &str = geom_brep::CARRIER_DOMAIN_RECOURSE;
 fn too_close(margin: &geom_core::MarginDiag) -> &'static str {
     own_close(
         margin,
-        concat!(
-            "Recourse: ",
-            geom_core::coincidence_declare_arm!(),
-            ", or ",
-            geom_core::coincidence_move_arm!()
-        ),
+        concat!("Recourse: ", geom_core::coincidence_move_arm!()),
     )
 }
 
@@ -2854,6 +2868,7 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         CertCheck::TangentSecondOrder | CertCheck::TangentTube => {
             "its faces curve apart too little to decide where it runs at this tolerance"
         }
+        CertCheck::TangentGap => geom_core::undecided!("whether its faces touch along it"),
         CertCheck::ChartImage => {
             geom_core::undecided!("where it sits on its face's parameter chart")
         }
@@ -2945,17 +2960,14 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, Cow<'sta
             };
             return (why, m.ending(Reading::AtRest).into());
         }
-        O::BudgetExhausted {
-            last_round: geom_brep::LastRound::Improved,
-            ..
+        O::SampleCapReached { .. } => (DRIFT, "Recourse: split the face"),
+        O::SeedOverCap { .. } => (
+            "its fitted surface has more knot spans than the fit's sample limit can seed",
+            "Recourse: split the face",
+        ),
+        O::RefinementStalled { .. } | O::BoundNotFinite { best: Some(_), .. } => {
+            (DRIFT, geom_core::KERNEL_LIMIT_RECOURSE)
         }
-        | O::SampleCapReached { .. } => (DRIFT, "Recourse: split the face"),
-        O::BudgetExhausted {
-            last_round: geom_brep::LastRound::DidNotImprove,
-            ..
-        }
-        | O::RefinementStalled { .. }
-        | O::BoundNotFinite { best: Some(_), .. } => (DRIFT, geom_core::KERNEL_LIMIT_RECOURSE),
         O::BoundNotFinite { best: None, .. } => (
             "the fitted surface's error cannot be bounded at this offset distance",
             "Recourse: use an offset distance of larger magnitude",
@@ -3078,6 +3090,16 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             ),
             P::SenseInverted => reading(
                 "a sphere face with holes is inside-out against its own boundary",
+                DEFECT.into(),
+                true,
+            ),
+            P::ConeLoop { .. } => reading(
+                "a cone face's boundary does not bound a region of its cone once",
+                DEFECT.into(),
+                true,
+            ),
+            P::HolesExceedFace => reading(
+                "a face's holes cover more area than its outer boundary encloses",
                 DEFECT.into(),
                 true,
             ),
@@ -3237,7 +3259,32 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, Cow<'static, str>) 
         ContainError::LoopUnreadable(_) => (UNWALKABLE.into(), DEFECT.into()),
         ContainError::Curved(e) => classify_point_in_solid(e),
         ContainError::Uncrossable(u) => (uncrossable(u), NOT_YET_ENDING.into()),
+        ContainError::ArcEndClearOfCorners(gaps) => arc_end_clear_of_corners(gaps),
     }
+}
+
+/// A point at an arc's end the corner pass placed clear of the edge's
+/// corners, read at rest. Where an end of the arc lies definitely off
+/// both corners on a body certified at this band, the kernel's two
+/// readings of one end disagree, which no move of the geometry repairs;
+/// otherwise the band alone parted the two passes (`K ≤ 3`), and the arc
+/// end's own lever is the way through.
+fn arc_end_clear_of_corners(
+    gaps: &crate::boolean::ArcEndGaps,
+) -> (Cow<'static, str>, Cow<'static, str>) {
+    use crate::boolean::{ContainDecision, placement_lever};
+    (
+        format!("a point lies at an arc's end clear of its corners: {gaps}").into(),
+        if gaps.off_corner() {
+            DEFECT.into()
+        } else {
+            format!(
+                "Recourse: {}",
+                placement_lever(Some(ContainDecision::ArcEnd))
+            )
+            .into()
+        },
+    )
 }
 
 const UNWALKABLE: &str = "its boundary could not be walked";
@@ -3463,7 +3510,7 @@ fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
             crate::contact::CONTACT_RECOURSE_MARKED,
         ),
         ContactRefusal::Undeclared { .. } => (
-            "the faces touch with no declared contact behind them",
+            "the faces touch with no contact record behind them",
             crate::contact::CONTACT_RECOURSE_MARKED,
         ),
         ContactRefusal::NotCertifiable { .. } => (
@@ -3853,9 +3900,11 @@ impl fmt::Display for ValidationError {
             }
             // The position alone: a witness may carry detail after " — "
             // (the field's contract), which rides in `Debug`.
-            Self::UndeclaredContact { contact, witness } => write!(
+            Self::UnrecordedContact {
+                contact, witness, ..
+            } => write!(
                 f,
-                "{contact} at {} is an undeclared contact. {}",
+                "{contact} at {} is an unrecorded contact. {}",
                 witness.split(" — ").next().unwrap_or(witness),
                 crate::contact::CONTACT_RECOURSE_MARKED
             ),
@@ -3901,6 +3950,11 @@ impl fmt::Display for ValidationError {
                  decided about the geometry. Recourse: run the certified check \
                  (validate_pseudomanifold, or validate_pseudomanifold_certificate for a \
                  certificate) at a certifying scalar"
+            ),
+            Self::ArcEndOffCorner { gaps, .. } => write!(
+                f,
+                "a face's boundary reads an arc's end off its corner where certification pinned \
+                 it: {gaps}. {DEFECT}"
             ),
             Self::CensusUndecidable { a, b, what } => write!(
                 f,
@@ -8811,7 +8865,7 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 ///    the derivation.
 /// 4. The certification diff, both directions: every census finding
 ///    must be backed by a declaration
-///    ([`ValidationError::UndeclaredContact`] otherwise — the
+///    ([`ValidationError::UnrecordedContact`] otherwise — the
 ///    validator never blesses discovered contacts; F1: no
 ///    scan-to-bless) and every declaration must be geometrically
 ///    confirmed ([`ValidationError::StaleContactDeclaration`]
@@ -8890,13 +8944,13 @@ pub fn validate_pseudomanifold<
 /// chart-region candidate and backs no crossing by a declared pair**:
 /// the pass hands the census no region door, so its two chart-region
 /// arms refuse rather than examine — the conformal face-pair arm on
-/// every same-key opposed-sense curved pair, and the declared-record
+/// every same-key opposed-sense curved pair, and the record
 /// confirm arm on every patch record whose pair passes Door 1 — each
 /// as [`ValidationError::CensusLaneUnsupported`] naming the pair; and
 /// the crossing rung's backing consult answers `false`, so an in-plane
 /// `EdgeEdgeCross` at a declared seat that [`validate_pseudomanifold`]
 /// reports backed is reported here as
-/// [`ValidationError::UndeclaredContact`], with the declaration in
+/// [`ValidationError::UnrecordedContact`], with the declaration in
 /// hand. The declaration is not found wrong; it is not read.
 ///
 /// # Errors
@@ -8904,7 +8958,7 @@ pub fn validate_pseudomanifold<
 /// As [`validate_pseudomanifold`], less the check-2 verdicts above,
 /// plus the closed form's typed refusal at check 7, plus the census's
 /// `CensusLaneUnsupported` on every conformal candidate and every
-/// Door-1-verified patch record, and an `UndeclaredContact` on every
+/// Door-1-verified patch record, and an `UnrecordedContact` on every
 /// crossing a declared pair would have backed.
 pub fn validate_pseudomanifold_structural<
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
@@ -11348,44 +11402,15 @@ mod tests {
     /// No ending this module renders tells the user to lower the
     /// tolerance (D4 ¶1 (i)): a tolerance is tightened only on a
     /// band-decided arm of a sized decision, conditionally and with its
-    /// value. The coincidence menu `too_close` spells is
-    /// `geom_core::COINCIDENCE_RECOURSE`'s wording, the constant's own to
-    /// change, so it is taken out of exactly the arms that compose it (on
-    /// a margin that was read), and those arms are held to composing it.
+    /// value.
     #[test]
     fn no_validate_ending_says_lower_the_tolerance() {
-        use crate::chart_region::ChartRegionError as R;
-        let menu = geom_core::COINCIDENCE_RECOURSE;
-        let composes = |e: &ValidationError| match e {
-            ValidationError::CensusEscalated { cause: diag }
-            | ValidationError::CensusUnsupported {
-                cause: CensusUnsupportedCause::ChartRegion(R::Escalated(diag)),
-                ..
-            } => !diag.margin.is_invalid(),
-            _ => false,
-        };
-        let samples = crate::test_support_samples::validation_error_samples();
-        let mut problems = Vec::new();
-        let mut menus = 0;
-        for (label, e) in &samples {
-            let text = e.to_string();
-            if composes(e) != text.contains(menu) {
-                problems.push(format!("{label} composes the menu unexpectedly: {text}"));
-            }
-            let text = if composes(e) {
-                menus += 1;
-                text.replace(menu, "")
-            } else {
-                text
-            };
-            if text.contains("lower the tolerance") {
-                problems.push(format!("{label}: {text}"));
-            }
-        }
-        assert!(
-            menus > 0,
-            "no sample composes the menu: the exemption is vacuous"
-        );
+        let problems: Vec<_> = crate::test_support_samples::validation_error_samples()
+            .iter()
+            .map(|(label, e)| (label, e.to_string()))
+            .filter(|(_, text)| text.contains("lower the tolerance"))
+            .map(|(label, text)| format!("{label}: {text}"))
+            .collect();
         assert!(problems.is_empty(), "{}", problems.join("\n"));
     }
 
@@ -15554,7 +15579,7 @@ mod tests {
     }
 
     /// S6 (two-tolerance, D4 ¶1 addendum): the census pair —
-    /// exactly-touching (`UndeclaredContact`) and in-band
+    /// exactly-touching (`UnrecordedContact`) and in-band
     /// (`CensusEscalated`) — is one user situation, both arms carrying
     /// the shared recourse fragment. Also the regression net for the
     /// S6 `{:?}` bug: `CensusEscalated` used Debug formatting on its
@@ -15563,7 +15588,7 @@ mod tests {
     fn census_pair_carries_the_shared_recourse() {
         use crate::entity::VertexKey;
 
-        let contact = ValidationError::UndeclaredContact {
+        let contact = ValidationError::UnrecordedContact {
             contact: CensusContact::VertexVertex {
                 a: VertexKey::default(),
                 b: VertexKey::default(),
@@ -15573,6 +15598,7 @@ mod tests {
             // triple as `(0.0, 0.0, 0.0)`. The arm treats the field as
             // opaque, so any triple-shaped string exercises it.
             witness: "(0e0, 0e0, 0e0)".to_string(),
+            margin: Some(geom_core::MarginDiag::value(0.0)),
         };
         let msg = contact.to_string();
         // The CONTACT tier carries the two-arm menu (SELECT-DESIGN
@@ -15629,7 +15655,7 @@ mod review_census_display_keys {
         for (label, e) in &samples {
             let keys_in_debug = format!("{e:?}").matches("Key(").count();
             match e {
-                super::ValidationError::UndeclaredContact { contact, .. } => {
+                super::ValidationError::UnrecordedContact { contact, .. } => {
                     assert!(!contact.to_string().contains("Key("), "{label}: {contact}");
                     // Every contact names two entities.
                     assert!(keys_in_debug >= 2, "{label}: {e:?}");
@@ -15952,13 +15978,13 @@ mod offset_fit_door_rows {
     }
 
     /// The checks window ends each refinement refusal in its routed
-    /// sentence: a loop still improving when its budget or sample cap
-    /// ran out names splitting the face and no loosening at all, and a
+    /// sentence: a loop still improving when its sample cap ran out
+    /// names splitting the face and no loosening at all, and a
     /// loop that stopped improving names loosening as the last resort,
     /// whole, with nothing after it.
     #[test]
     fn a_refinement_refusal_ends_in_its_routed_sentence() {
-        use geom_brep::{BestBound, LastRound, OffsetFitError};
+        use geom_brep::{BestBound, OffsetFitError};
         let best = BestBound {
             bound: 1.5e-9,
             grid: (4, 5),
@@ -15970,31 +15996,19 @@ mod offset_fit_door_rows {
             }
             .to_string()
         };
-        let budget = |last_round| OffsetFitError::BudgetExhausted {
-            budget: 8,
-            grid: (5, 5),
+        let split = [says(OffsetFitError::SampleCapReached {
+            cap: 64,
+            rounds: 3,
+            grid: (64, 5),
             achieved: 2e-9,
             tolerance: 1e-9,
-            last_round,
             best,
-        };
-        let split = [
-            says(budget(LastRound::Improved)),
-            says(OffsetFitError::SampleCapReached {
-                cap: 64,
-                rounds: 3,
-                grid: (64, 5),
-                achieved: 2e-9,
-                tolerance: 1e-9,
-                best,
-            }),
-        ];
+        })];
         for msg in split {
             assert!(msg.ends_with("Recourse: split the face"), "{msg}");
             assert!(!msg.contains("loosen"), "{msg}");
         }
         let last_resort = [
-            says(budget(LastRound::DidNotImprove)),
             says(OffsetFitError::RefinementStalled {
                 rounds: 3,
                 grid: (5, 5),

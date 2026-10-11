@@ -150,7 +150,6 @@ fn boolean_part(label: &str) -> ProfileDoc {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
-            declare: Vec::new(),
         },
     );
     crate::fixture::place(doc, fused).0
@@ -1563,13 +1562,9 @@ fn r1_the_placement_frame_matches_the_transform_node_bit_for_bit() {
     }
 }
 
-/// **The coincidence door's full pass says when a row stands on a
-/// part.** Two instances of a unit cube, the second a unit along `x`,
-/// glue on their touching walls; the door's replay with every variable
-/// a symbol resolves no part (a symbolic run crosses no part seam), so
-/// each row says that, rather than that the replay refused.
-#[test]
-fn the_doors_replay_names_a_row_on_a_part() {
+/// Two instances of a unit cube, the second a unit along `x`, glued on
+/// their touching walls: the document, the union, and its rows.
+fn two_cubes_glued_on_a_wall() -> (ProfileDoc, RecipeNodeId, Vec<editor_core::NamedCoincidence>) {
     let mut store = StubStore::default();
     let doc_ref = store.insert(part("asm2a-door-part", 0.0, 1.0), Tol::witness());
     let opts = with_resolver(store);
@@ -1588,7 +1583,6 @@ fn the_doors_replay_names_a_row_on_a_part() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![ids[0].into(), ids[1].into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc, &opts);
@@ -1598,20 +1592,49 @@ fn the_doors_replay_names_a_row_on_a_part() {
         .coincidences
         .to_vec();
     assert!(!rows.is_empty(), "the touching walls are a row");
+    (doc, union, rows)
+}
+
+/// **The coincidence door says when a row stands on a part.** The
+/// door's replay with every variable a symbol resolves no part (a
+/// symbolic run crosses no part seam), so each row says that, rather
+/// than that the replay refused, and names an assertion as its recourse.
+#[test]
+fn the_doors_replay_names_a_row_on_a_part() {
+    let (doc, union, rows) = two_cubes_glued_on_a_wall();
     let proofs = editor_core::coincide::prove(
         &doc,
         &[(union, &rows[..])],
         Tol::witness(),
-        editor_core::SymbolicPass::Full,
-    );
+        &CancelToken::new(),
+    )
+    .expect("an uncanceled door");
     for proof in proofs.into_iter().flatten() {
         assert!(
             matches!(
                 &proof,
-                editor_core::Proof::Unproven { residual, .. }
+                editor_core::Proof::Unproven { residual, recourse }
                     if residual.replay == editor_core::Unreplayed::ThroughAPart
+                        && *recourse == editor_core::coincide::Recourse::Assert
             ),
             "{proof:?}"
         );
     }
+}
+
+/// **A canceled token reaches the door's replay.** Each row here stands
+/// on a part, which the replay answers without discharging a margin, so
+/// the door consults no token of its own after the replay: only a
+/// replay that runs under the caller's token stops canceled. A replay
+/// under a token of its own runs to the end, and the rows come back
+/// unproven instead.
+#[test]
+fn a_canceled_door_stops_in_its_replay() {
+    let (doc, union, rows) = two_cubes_glued_on_a_wall();
+    let cancel = CancelToken::new();
+    cancel.cancel();
+    assert_eq!(
+        editor_core::coincide::prove(&doc, &[(union, &rows[..])], Tol::witness(), &cancel),
+        Err(editor_core::coincide::Canceled)
+    );
 }

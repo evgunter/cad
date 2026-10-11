@@ -38,3 +38,35 @@ measured by the certified quadrature lane, and main's recent NURBS work
 merges) is the likely mover. The table's own rule (at `expected`): the
 branch whose change moved it re-cuts it at all three ε, if the new
 reading is right, and names what moved.
+
+## Two sym-session rows moved too (INTENT, 2026-10-11)
+
+Reproduced on `origin/main` alone at `9baeb0056e` (ε = 1e-9, four
+threads): besides `arc_loft_1e9eps`, the two `validate_geometric`
+sym-session rows no longer match the committed digest. Their decision
+counts and verdicts hold. Only the split between symbolic zeros,
+numeric discharges and frozen nodes moves:
+
+| row | committed | main |
+|---|---|---|
+| `sym_arc_loft` | `sz=48 num=604 frozen=1244` | `sz=28 num=624 frozen=3706` |
+| `sym_thin_strip` | `sz=48 num=612 frozen=1268` | `sz=24 num=636 frozen=3430` |
+
+PR 4684's re-cut covers the `arc_loft_1e9eps` line only, so the row
+stays red after it. 20 symbolic zeros now discharge numerically, which
+a re-cut alone should not paper over. The likely mover is PR 4703
+(NURBS weights and knots in `T`, which reclassed the arc rim's
+decisions). Found on INTENT's PR 4669 (the slow set runs there because
+its diff seeds sweep).
+
+## Also moved (PR 4732's CI, ε = 1e-9)
+
+Seen on `cleave/chord-end-sample` at `090278cdb`, whose diff changes no
+kernel code. CI run 38159733248, job "test (the slow set of the crates
+this diff seeds)". Besides `arc_loft_1e9eps`, two `Sym` rows of the same
+digest move. Their decisions and shapes do not:
+
+| line | committed | got |
+|---|---|---|
+| `sym_arc_loft validate_geometric` | `sz=48 num=604 frozen=1244` | `sz=40 num=612 frozen=3732` |
+| `sym_thin_strip validate_geometric` | `sz=48 num=612 frozen=1268` | `sz=36 num=624 frozen=2792` |

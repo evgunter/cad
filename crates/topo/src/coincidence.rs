@@ -105,13 +105,13 @@ pub enum Relation {
 }
 
 impl Relation {
-    /// The class a declaration of a face pair glued under this relation
-    /// asserts: one carrier opposed a `Rest` contact, aligned a
-    /// continuation, a tangency a `Tangent` contact or a seam. `None`
-    /// for a relation that glues no face pair.
+    /// The class a face pair glued under this relation glues as: one
+    /// carrier opposed a `Rest` contact, aligned a continuation, a
+    /// tangency a `Tangent` contact or a seam. `None` for a relation
+    /// that glues no face pair.
     #[must_use]
-    pub const fn glued_class(self) -> Option<crate::contact::BooleanCoincidence> {
-        use crate::contact::BooleanCoincidence as C;
+    pub const fn glued_class(self) -> Option<crate::contact::GlueClass> {
+        use crate::contact::GlueClass as C;
         match self {
             Self::SameOpposite => Some(C::REST),
             Self::SameOriented => Some(C::Continuation),
@@ -136,7 +136,11 @@ pub enum DecisionSite {
     /// The carrier ladder, for a curved pair.
     CarrierLadder,
     /// The tangent witness lane: two faces touching tangentially along
-    /// a closed-form locus or a shared rim, verified along it.
+    /// a closed-form locus or a shared rim, verified along it. The
+    /// margin is the touch: the pair's separation along the shared
+    /// normal, its worst sample plus the span's sag
+    /// (`contact_tangent_touch`), standing jointly for the locus it was
+    /// read along (`MarginDiag::jointly`).
     TangentWitness,
     /// The cylinder×sphere pair's coaxial classification: the sphere's
     /// centre on the cylinder's axis.
@@ -162,15 +166,10 @@ pub enum DecisionSite {
     /// vertex on a vertex the reduction minted, whose touch survives
     /// into the result.
     VertexFusion,
-    /// The at-rest census: two faces of placed copies decided one
-    /// carrier, opposed.
+    /// The at-rest census: two cells of different groups of a body at
+    /// rest (two copies, two imported instances) decided one, or two
+    /// placed faces decided one carrier, opposed.
     CensusAtRest,
-    /// An imported file's vertex anchor: two of the body's vertices each
-    /// read within the file's ε_in of the anchor's point. The margin is
-    /// the farther vertex's distance from that point, not the two
-    /// vertices' distance from each other, and it is read against the
-    /// file's ε_in rather than classified against the band.
-    ImportAnchor,
 }
 
 /// **How a row's Zero was discharged**: against the band, or, in a

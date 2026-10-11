@@ -153,7 +153,7 @@ fn the_census_sees_a_brick_standing_in_the_lune() {
         .filter(|e| {
             matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: topo::CensusContact::VertexOnFace { face, .. },
                     ..
                 } if *face == cap

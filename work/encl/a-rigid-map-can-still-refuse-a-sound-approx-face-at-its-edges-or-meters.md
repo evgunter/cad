@@ -92,8 +92,10 @@ move today carries a curved `Approx` face with edges" no longer holds.
 `crates/sweep/tests/encl_curved_loft_shell.rs`'s
 `a_moved_curved_fitted_cap_builds_where_its_fit_certifies`: the unit
 box with a biquadratic NURBS bump cap, moved by ±0.05, builds at
-ε = 1e-6 (the fit refuses `BudgetExhausted` at 1e-9 and 1e-12, best
-bound ≈ 2.4e-9). The moved cap is a curved `Approx` face whose four
+ε = 1e-6. Re-measured 2026-10-11 (SHELL, PR 4672, which retired
+the round budget): at 1e-12 the fit stops at the sample cap at
+4.382e-11 m on 45 x 45; at 1e-9 the fit certifies and the moved cap's
+rim refuses its plane × fit limb 2 (`HullValueChart`, 6.75e-7 m). The moved cap is a curved `Approx` face whose four
 edges are plane × fit sections. One rigid map of it, a 0.7 rad rotation
 about a vertical axis, succeeds, so neither refusal above is
 reproduced yet; the row is open for the probe this body now allows.

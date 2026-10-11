@@ -2,11 +2,12 @@
 id: the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone
 kind: issue
 title: The pre-zip pinch weld (finish::weld_pinches) stays as the repair of an operand's coincident pierces; it retires once those split per cone (D10 ground)
-status: open
+status: dispatched
 opened: 2026-10-06
 priority: P1
 cost: H
 refs: [4139, a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face]
+branch: flush/pinch-cluster
 ---
 
 

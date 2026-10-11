@@ -361,8 +361,8 @@ pub fn patch_cells_refined(
 /// ([`TensorChannels::refine_equal_split`]), IN INTERVAL ARITHMETIC. The
 /// chains are built from structure alone (the homogeneous nets this
 /// module refines are polynomial, so their weights are unit): the same
-/// chain the `f64` surface refinement applies through
-/// [`geom_core::spline::CurvePlan::apply_points`], with interval
+/// chain the surface refinement applies through
+/// [`geom_core::spline::CurvePlan::apply_rational`], with interval
 /// arithmetic re-deriving each insertion ratio from the knots it is made
 /// of instead of widening the plan's `f64` `λ`.
 ///

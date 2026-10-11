@@ -259,8 +259,8 @@ fn a_union_offers_its_members_run_wall_across_a_station() {
         ProgramStep::LineTo(ProgramTarget::Start),
     ];
     let (doc, p, ex) = build(plain, ExtrudeSide::ALL[0]);
-    let (doc, apart) = crate::docm7_union_declare::block(doc, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union) = crate::fixture::union_over(doc, &[ex, apart], Vec::new());
+    let (doc, apart) = crate::blocks::block(doc, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, union) = crate::fixture::union_over(doc, &[ex, apart]);
     let ex_read = crate::fixture::out(&doc, ex);
     let keyed = |n: StableName| member_entity(union, ex_read, n, EntityKind::Face);
     let held = keyed(lateral(ex, vec![piece(&doc, ex, 0, 0)]));

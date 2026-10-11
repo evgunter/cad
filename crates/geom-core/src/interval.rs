@@ -851,6 +851,10 @@ impl crate::spline::SpanLocate for Interval {
         let (lo, hi) = (Bounds::lo(self), Bounds::hi(self));
         (lo == hi && !lo.is_nan()).then_some(lo)
     }
+
+    fn split_projective<A: crate::spline::ProjectiveSplit<Self>>(arm: A) -> A::Out {
+        arm.enclosure()
+    }
 }
 
 /// Certified sign classification of an enclosure `[lo, hi]` against a

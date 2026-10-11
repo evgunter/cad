@@ -17,8 +17,10 @@
 //! refuses as in band its certified `V/A`. `scripts/near_tangent_census_classify.py`
 //! re-reads every `PAIR` at 60 digits and classifies it.
 //!
-//! `NT_D` (comma list) sets the tilts, `NT_ONLY` one prism, `NT_POSE`
-//! a substring of the pose tag, and `NT_DUMP=1` turns on the dump.
+//! `NT_D` (comma list) sets the tilts, `NT_A` (comma list) the
+//! sixteenths, off the integer grid too, `NT_ONLY` one prism, `NT_POSE`
+//! a substring of the pose tag, `NT_DUMP=1` turns on the dump, and
+//! `NT_FULL=1` prints each refusal whole.
 //!
 //! `cargo run -p sweep --release --example near_tangent_census_probe`
 
@@ -35,8 +37,8 @@ use differential::{
 use geom_core::{Band, Point3, Tol};
 use topo::entity::{EntityId, LoopBoundary};
 use topo::{
-    AtRestBody, Body, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
-    BooleanResult, CensusStrategy, RegionLane, ValidationError, mass_properties,
+    AtRestBody, Body, BooleanBody, BooleanDecision, BooleanError, BooleanResult, CensusStrategy,
+    RegionLane, ValidationError, mass_properties,
 };
 
 type V3 = [f64; 3];
@@ -218,12 +220,7 @@ fn dump(tag: &str, body: &BooleanBody<f64>) -> Vec<String> {
     out
 }
 
-type Op = fn(
-    &AtRestBody<f64>,
-    &AtRestBody<f64>,
-    &BooleanDeclarations,
-    Tol,
-) -> Result<BooleanResult<f64>, BooleanError>;
+type Op = fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
 
 fn run_all(
     tag: &str,
@@ -234,16 +231,15 @@ fn run_all(
     common: f64,
     lumps: &[String],
 ) {
-    let decls = BooleanDeclarations::default();
     let dumping = std::env::var("NT_DUMP").is_ok();
     for (order, x, y, vx) in [("pc", prism, cube, va), ("cp", cube, prism, vb)] {
         let ops: [(&str, Op, f64); 3] = [
-            ("U", topo::union_with, va + vb - common),
-            ("I", topo::intersect_with, common),
-            ("S", topo::subtract_with, vx - common),
+            ("U", topo::union, va + vb - common),
+            ("I", topo::intersect, common),
+            ("S", topo::subtract, vx - common),
         ];
         for (op, f, want) in ops {
-            let r = f(x, y, &decls, tol());
+            let r = f(x, y, tol());
             let line = format!("{tag} {order} {op}");
             let mut after = Vec::new();
             match &r {
@@ -283,6 +279,9 @@ fn run_all(
                 }
                 Err(_) => {}
             }
+            if let (Err(e), true) = (&r, std::env::var("NT_FULL").is_ok()) {
+                after.push(format!("  FULL {line} | {e:?}"));
+            }
             println!("{line}: {}", outcome(r, want, tol()));
             for a in after {
                 println!("{a}");
@@ -300,6 +299,10 @@ fn main() {
         },
         |s| s.split(',').map(|x| x.parse().unwrap()).collect(),
     );
+    let sixteenths: Vec<f64> = std::env::var("NT_A").map_or_else(
+        |_| (0..16).map(f64::from).collect(),
+        |s| s.split(',').map(|x| x.parse().unwrap()).collect(),
+    );
     let only = std::env::var("NT_ONLY").ok();
     let pose = std::env::var("NT_POSE").ok();
     for pr in nt_prisms() {
@@ -308,7 +311,7 @@ fn main() {
         }
         let body = pr.body(tol());
         let va = mass_properties(&body, tol()).unwrap().volume;
-        for (j, a) in (0..3).flat_map(|j| (0..16).map(move |a| (j, a))) {
+        for (j, &a) in (0..3).flat_map(|j| sixteenths.iter().map(move |a| (j, a))) {
             for &d in &ds {
                 let tag = format!("{} nt e{j} a{a} d{d:e}", pr.name);
                 if pose.as_deref().is_some_and(|p| !tag.contains(p)) {
