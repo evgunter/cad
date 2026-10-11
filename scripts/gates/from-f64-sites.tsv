@@ -85,10 +85,7 @@ crates/geom-core/src/interval.rs	1	constant	x	the Real impl's own door: Interval
 crates/geom-core/src/interval/certification.rs	1	constant	x	the concrete Interval's point embed, the door itself: never Sym
 crates/geom-core/src/spline/algebra.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	lambda	the f64 plan's knot ratio at the evaluation scalars; sealed off Interval by ProjectiveScalar
 crates/geom-core/src/spline/basis.rs	1	constant	factor	a falling factorial of the degree, a count
-crates/geom-core/src/spline/basis.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	*a	a derivative coefficient from the knot vector's differences
-crates/geom-core/src/spline/basis.rs	2	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	denom	a knot difference
-crates/geom-core/src/spline/basis.rs	2	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	u[span + 1 + r - j]	a stored knot
-crates/geom-core/src/spline/basis.rs	2	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	u[span + 1 + r]	a stored knot
+crates/geom-core/src/spline/basis.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	self.0.knots().knots()[i]	a stored knot, read by the lifted basis
 crates/geom-core/src/spline/knots.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	hi	knot_difference: a stored knot, lifted exactly so the difference is formed in T
 crates/geom-core/src/spline/knots.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	lo	knot_difference: a stored knot, lifted exactly so the difference is formed in T
 crates/geom-core/src/spline/locate.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	*w	SpanLocate::refine_weights' default: a stored NURBS weight at the evaluation scalars
@@ -112,6 +109,8 @@ crates/geom/src/net.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-sca
 crates/geom/src/net.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	orig_weights[i]	a NURBS net's stored weight
 crates/geom/src/net.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	rw	a re-fit net's stored weight
 crates/geom/src/surfaces/nurbs.rs	3	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	self.surface.weights[idx]	the surface's stored weight
+crates/geom/src/test_support/held_arc.rs	1	constant	m as f64	a sub-arc count
+crates/geom/src/test_support/held_arc.rs	2	constant	k as f64	a sub-arc index
 crates/pncad/src/authoring.rs	2	constant	z	an authoring helper's argument: the caller's literal (a door, KNOWN GAPS)
 crates/pncad/src/authoring.rs	5	constant	y	an authoring helper's argument: the caller's literal (a door, KNOWN GAPS)
 crates/pncad/src/authoring.rs	6	constant	x	an authoring helper's argument: the caller's literal (a door, KNOWN GAPS)

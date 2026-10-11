@@ -165,6 +165,15 @@ pub trait SpanLocate: sealed::Sealed + Real {
         let lifted: Vec<Self> = weights.iter().map(|w| Self::from_f64(*w)).collect();
         Some(Self::refine_homogeneous(refinement, &lifted))
     }
+    /// The one `f64` this value locates by, or `None` when it is no
+    /// single point: poison, or an enclosure wider than a point.
+    ///
+    /// This is how knot values held in the scalar give the `f64` knot
+    /// vector its value channel ([`super::Knots::new`]): the read the
+    /// locator itself makes, and nothing else. An interval answers only for a point
+    /// bracket, because a wide one names no knot structure, and a
+    /// midpoint would invent one.
+    fn point_value(self) -> Option<f64>;
 }
 
 impl SpanLocate for f64 {
@@ -188,6 +197,10 @@ impl SpanLocate for f64 {
         #[allow(clippy::neg_cmp_op_on_partial_ord)]
         let refused = w.iter().any(|w| !(*w > 0.0) || !w.is_finite());
         (!refused).then_some(w)
+    }
+
+    fn point_value(self) -> Option<f64> {
+        (!self.is_nan()).then_some(self)
     }
 }
 
@@ -216,6 +229,8 @@ mod tests {
         assert_eq!(indices(2.0.locate_spans(&k)), (3, 3));
         assert!(f64::NAN.locate_spans(&k).is_none(), "NaN located a span");
         assert!(0.5f64.enclosure_hull(0.6).is_nan());
+        assert_eq!(0.5f64.point_value(), Some(0.5));
+        assert_eq!(f64::NAN.point_value(), None, "NaN read as a point");
     }
 
     /// The `Probe` half is behind the `probe` feature (the recording
@@ -232,6 +247,8 @@ mod tests {
         }
         let d = Dual64::variable(1.0);
         assert_eq!(indices(d.locate_spans(&k)), (3, 3));
+        assert_eq!(d.point_value(), Some(1.0), "the dual's value channel");
+        assert_eq!(Dual::new(f64::NAN, 1.0).point_value(), None);
         assert!(
             Dual::new(f64::NAN, 1.0).locate_spans(&k).is_none(),
             "a poisoned value channel located a span"

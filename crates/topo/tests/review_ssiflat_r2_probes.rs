@@ -221,7 +221,8 @@ fn a_structural_tube_refusal_reports_an_honest_typed_shape() {
 /// 2's hull bound escalates with its margin as an ENCLOSURE, and the
 /// consumer-visible text renders it. The band sits between the two
 /// limbs' readings on the quarter turn: limb 1's worst sample reads
-/// `[0, 4.0e-15]`, under the band, and limb 2's first hull
+/// about 4.77e-15 (its upper end; knots held in the scalar since
+/// PR 4608), under the band, and limb 2's first hull
 /// `[5.0e-15, 5.0e-15]`, inside it. Limb 2 subdivides its composite
 /// before it refuses, and its bound stays in the band (about 4.86e-15),
 /// so limb 2 is the one that escalates, carrying the subdivided bound:
@@ -235,7 +236,7 @@ fn the_interval_hull_bound_escalates_with_an_enclosure() {
     let cert = certify_at::<Interval>(1.0, ARC, tight_band())
         .expect("the quarter turn certifies at a 1e-12 band");
     let (locus, hull) = (cert.on_locus_max.hi(), cert.hull_sup);
-    let band = Band::new(4.5e-15, 5.5e-15).unwrap();
+    let band = Band::new(4.8e-15, 5.5e-15).unwrap();
     assert!(
         locus < band.zero() && band.zero() < hull.lo() && hull.hi() < band.escalate(),
         "the band must sit between limb 1 ({locus:e}) and limb 2 ([{:e}, {:e}])",

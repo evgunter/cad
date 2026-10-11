@@ -845,6 +845,11 @@ impl crate::spline::SpanLocate for Interval {
         let refined = refinement.refine(&lifted);
         crate::spline::algebra::certainly_positive(&refined).then_some(refined)
     }
+
+    fn point_value(self) -> Option<f64> {
+        let (lo, hi) = (Bounds::lo(self), Bounds::hi(self));
+        (lo == hi && !lo.is_nan()).then_some(lo)
+    }
 }
 
 /// Certified sign classification of an enclosure `[lo, hi]` against a
