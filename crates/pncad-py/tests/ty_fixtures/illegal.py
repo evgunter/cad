@@ -270,10 +270,6 @@ Node.placed_union(solid, 5 * m, PatternKind.linear((Formula.literal(1.0), Formul
 # The narrowed count edit takes a VarName, never bare text.
 DocEdit.bind_count_param(solid, "fins")  # ty: error
 
-# LIB-B-PART. A HALF IS NOT AN INSTANCE: a split's half is its output,
-# never a selector.
-PartSelect.split_half(solid)  # ty: error
-
 # An index is a count `Formula` — never a dimensioned quantity, and the
 # pattern's count is the same rule.
 PartSelect.instance(2 * m)  # ty: error

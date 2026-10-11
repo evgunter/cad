@@ -2663,7 +2663,8 @@ pub enum EditError {
         name: SpokenName,
     },
     /// A `SetAppearance` or `SetAppearanceMeta` reading its name in a
-    /// body that no live operation defines as an output: an appearance
+    /// body that no live operation defines as an output holding a body
+    /// (a deleted operation's read, or a datum's): an appearance
     /// entry is addressed by body and name (D10; NAMES N1, the scope),
     /// so the body is a read whose table can hold the name. Node
     /// existence now, name-level resolution at evaluation, as for the
@@ -4767,7 +4768,8 @@ impl core::fmt::Display for Maintenance {
             Self::StrandedAppearance { body, name, took } => write!(
                 f,
                 "the appearance store holds an attachment under a name for {} read in {}; this \
-                 edit {}, so the name resolves to nothing until it is rebound or cleared",
+                 edit {}, so the name resolves to nothing until it is rebound, re-attached in a \
+                 live body or cleared",
                 name,
                 body,
                 took.said(name)
@@ -5458,7 +5460,8 @@ fn check_name_steps<P: crate::ProfilePayload>(
 }
 
 /// **An appearance edit's body read, checked** — a variable a live
-/// operation of `doc` defines as an output ([`EditError::AppearanceBodyNotARead`]).
+/// operation of `doc` defines as an output holding a body
+/// ([`EditError::AppearanceBodyNotARead`]).
 /// `doc` is the document being written, `before` the one the door was
 /// handed.
 fn check_appearance_body<P: crate::ProfilePayload>(
@@ -5467,11 +5470,7 @@ fn check_appearance_body<P: crate::ProfilePayload>(
     body: VarId,
     name: &StableName,
 ) -> Result<(), EditError> {
-    let live = doc
-        .var(body)
-        .and_then(|held| held.def().output())
-        .is_some_and(|(node, _)| doc.nodes.contains_key(&node));
-    if live {
+    if doc.holds_body(body) {
         Ok(())
     } else {
         Err(EditError::AppearanceBodyNotARead {
@@ -6051,7 +6050,8 @@ fn write_reads<P: crate::ProfilePayload>(
 /// operation or upstream of it — where it could in `before`, or, for a
 /// selection the edit authored at `id`, where the read it replaced
 /// there could. Payload rows in document order, within a node in
-/// [`Node::payload_names`]' order; then selection rows.
+/// [`Node::payload_names`]' order; then selection rows; then the
+/// appearance keys read in such a body, in key order.
 fn stranded_by_repoint<P: crate::ProfilePayload>(
     before: &Doc<P>,
     new: &Doc<P>,
@@ -6147,6 +6147,28 @@ fn stranded_by_repoint<P: crate::ProfilePayload>(
                     took: Took::Reach,
                 });
             }
+        }
+    }
+    // An appearance key is read in its body read as a selection is
+    // (NAMES N1), so a re-point upstream of that read takes its name
+    // out of reach the same way.
+    for key in new.appearance().keys() {
+        let (Some(at), Some(after), Some(was)) = (
+            new.read_operation(key.at),
+            reach(new, key.at),
+            reach(before, key.at),
+        ) else {
+            continue;
+        };
+        if (at == id || crate::doc::strict_ancestors(new, at).contains(&id))
+            && was.contains(&key.name.node)
+            && !after.contains(&key.name.node)
+        {
+            rows.push(Maintenance::StrandedAppearance {
+                body: new.spoken_var(key.at),
+                name: before.spoken_name(&key.name),
+                took: Took::Reach,
+            });
         }
     }
     rows

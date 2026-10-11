@@ -2,8 +2,8 @@
 //! attributes attach **in the document layer, keyed by stable names,
 //! from M4 — and nowhere, in any form, before that**).
 //!
-//! Per-face and per-body PRESENTATION attributes keyed by
-//! [`StableName`] — never by arena key (G1: keys are per-evaluation
+//! Per-face and per-body PRESENTATION attributes keyed by a body read
+//! and a [`StableName`] ([`AppearanceKey`]) — never by arena key (G1: keys are per-evaluation
 //! and die on recompute; an arena-keyed container would be fake
 //! durability). Appearance is document metadata: it does **not**
 //! enter evaluation content keys, so an appearance edit recomputes no
@@ -195,18 +195,22 @@ pub type AppearanceMap = BTreeMap<AppearanceKey, AppearanceRecord>;
 /// itself can see without that engine.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AppearanceLossCause {
-    /// The name's minting node is no longer in the document (a later
-    /// `DeleteNode` stranded it — N5's `NodeGone` semantics; the
-    /// repair is `Rebind` (PR 4) or `ClearAppearance`).
+    /// The name's minting node, or the operation defining the entry's
+    /// body read, is no longer in the document (a later `DeleteNode`
+    /// stranded it — N5's `NodeGone` semantics; the repair is `Rebind`
+    /// for the name, a re-attachment for the read, or
+    /// `ClearAppearance`).
     NodeGone,
-    /// The name's minting node has no value in this evaluation — its
-    /// standing says why. The attachment is indeterminate, not
-    /// retired: it resolves again when the node evaluates.
+    /// The name's minting node, or the operation defining the entry's
+    /// body read, has no value in this evaluation — its standing says
+    /// why. The attachment is indeterminate, not retired: it resolves
+    /// again when the node evaluates.
     Indeterminate(NodeStanding),
-    /// The name's node evaluated, but no table in the evaluation
-    /// carries the name — the entity's derivation no longer produces
-    /// it (N5 `Vanished`: a verdict flip, structural-parameter
-    /// change, or recipe edit; PR 4 diagnoses which).
+    /// The name's node evaluated, but neither the entry's body read
+    /// nor any read downstream of it carries the name — the entity's
+    /// derivation no longer produces it there (N5 `Vanished`: a verdict
+    /// flip, structural-parameter change, or recipe edit; PR 4
+    /// diagnoses which).
     Vanished {
         /// N3 candidate offers, when structurally detectable: the
         /// merged name a constituent retired into, or a vanished
@@ -218,12 +222,13 @@ pub enum AppearanceLossCause {
     /// ambiguous, so painting any candidate would be an auto-pick —
     /// refused loudly until the recipe records a disambiguation.
     /// Reported ONCE per name even when pass-through tables carry the
-    /// tie several times (review A2); `at` is the first carrying node
-    /// in evaluation order, and the full candidate set is recoverable by
-    /// table lookup at `at` (PR 4's `Ambiguous{candidates}` builds on
-    /// exactly that).
+    /// tie several times (review A2); `at` is the operation of the
+    /// first read holding the tie — the entry's body read, else the
+    /// first read downstream of it — and the full candidate set is
+    /// recoverable by table lookup there (PR 4's
+    /// `Ambiguous{candidates}` builds on exactly that).
     Ambiguous {
-        /// The first (defining) node whose table holds the tie.
+        /// The operation of the first read whose table holds the tie.
         at: RecipeNodeId,
         /// How many candidates tie there.
         width: usize,

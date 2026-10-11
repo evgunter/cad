@@ -1422,7 +1422,9 @@ impl Evaluation {
     }
 
     /// Every BODY name `node`'s evaluation carries, same contract.
-    /// Usually one row; a split's two halves are the plural case.
+    /// Usually one row; a family's members are the plural case. A
+    /// split's halves are two reads (`Doc.output(split, 0 | 1)`) with a
+    /// row each.
     fn all_bodies(&self, py: Python<'_>, node: super::doc::AtArg) -> PyResult<Vec<String>> {
         names(py, pncad::select::all_bodies(&self.inner, node.at()))
     }

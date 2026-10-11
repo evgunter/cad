@@ -100,8 +100,8 @@ use geom_core::Tol;
 /// never a string.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ResolveError {
-    /// The name's minting node is live but no table in the evaluation
-    /// derives the name any more.
+    /// The name's minting node is live but the table of the read it is
+    /// resolved in no longer derives the name.
     Vanished {
         /// The unresolvable name.
         name: StableName,
@@ -951,8 +951,8 @@ pub struct MeshPatchKey {
     pub entity: EntityRef,
 }
 
-/// A successful resolution: the first (evaluation-order) node whose
-/// table carries the name, and the entity it denotes there.
+/// A successful resolution: the node whose output is the read the name
+/// was resolved in, and the entity it denotes in that node's value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Resolved {
     /// The carrying node.
@@ -1149,13 +1149,15 @@ fn enrich_impl<T: Decide, P: PriorCtx>(
     // The Ambiguous arm maps DIRECTLY off the recorded site (spec D9:
     // candidates and witness by table lookup at `at`); everything
     // else — and any stale row — takes the full ladder below.
+    // The tie is read where the loss read it: the entry's body read
+    // when `at` is its operation, else the read downstream of it at
+    // `at` whose table holds the tie.
     if let AppearanceLossCause::Ambiguous { at, .. } = &loss.cause
-        && let Some(Entry::Tied(ents)) = new
-            .eval
-            .named_outputs(*at)
-            .into_iter()
-            .filter_map(|var| new.eval.table(var))
-            .find_map(|table| table.lookup(&loss.name))
+        && let Some(Entry::Tied(ents)) = core::iter::once(loss.body)
+            .filter(|&body| new.eval.read_port(body).is_some_and(|(node, _)| node == *at))
+            .chain(new.eval.named_outputs(*at))
+            .filter_map(|var| new.eval.table(var)?.lookup(&loss.name))
+            .find(|entry| matches!(entry, Entry::Tied(_)))
     {
         return Resolution::Failed(ResolutionFailure {
             error: ResolveError::ambiguous(&loss.name, loss.name.clone(), *at, ents.len()),
@@ -1175,7 +1177,8 @@ fn enrich_impl<T: Decide, P: PriorCtx>(
 /// this maps EVERY appearance key (resolving or not — the gap is
 /// silent by design, so offers cannot be gated on a loss) to the
 /// evaluation's derivations wrapping its name ([`rebind_suggestions`]'s
-/// ladder), each with the read whose table holds it. Total over the
+/// ladder), each with every read whose table holds it — a name both of
+/// a split's halves hold is offered in each. Total over the
 /// store: a key with nothing wrapping its name maps to an empty list,
 /// never a dropped row.
 ///
@@ -1195,12 +1198,13 @@ pub fn appearance_rebind_suggestions<T: Decide>(
         .map(|key| {
             let offers = rebind_suggestions(eval, &key.name)
                 .into_iter()
-                .filter_map(|name| {
-                    let read = tables(eval).find_map(|carrier| {
-                        carrier.table.lookup(&name)?;
-                        eval.output_var(carrier.node, carrier.port)
-                    })?;
-                    Some(crate::appearance::AppearanceKey::new(read, name))
+                .flat_map(|name| {
+                    tables(eval)
+                        .filter(|carrier| carrier.table.lookup(&name).is_some())
+                        .filter_map(|carrier| eval.output_var(carrier.node, carrier.port))
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                        .map(move |read| crate::appearance::AppearanceKey::new(read, name.clone()))
                 })
                 .collect();
             (key.clone(), offers)
@@ -1224,13 +1228,25 @@ trait PriorCtx {
         name: &StableName,
         path: &BTreeSet<RecipeNodeId>,
     ) -> Option<Diagnosis>;
-    fn tombstone<T: Decide>(&self, new: RunCtx<'_, T>, name: &StableName) -> Option<Tombstone>;
+    /// The last-good entry of `name` in the read `site` (none without
+    /// a prior run).
+    fn tombstone<T: Decide>(
+        &self,
+        new: RunCtx<'_, T>,
+        site: crate::VarId,
+        name: &StableName,
+    ) -> Option<Tombstone>;
     /// The group-size rung ([`group_resized`]): with-prior only, since
     /// a size CHANGE needs a size to change from.
-    fn group_resized<T: Decide>(&self, new: RunCtx<'_, T>, name: &StableName) -> Option<Diagnosis>;
-    /// Whether the last-good run's tables carry `name` (none without a
-    /// prior run).
-    fn carried(&self, name: &StableName) -> bool;
+    fn group_resized<T: Decide>(
+        &self,
+        new: RunCtx<'_, T>,
+        site: crate::VarId,
+        name: &StableName,
+    ) -> Option<Diagnosis>;
+    /// Whether the last-good run's table of the read `site` carries
+    /// `name` (none without a prior run).
+    fn carried(&self, site: crate::VarId, name: &StableName) -> bool;
 }
 
 struct NoPrior;
@@ -1250,7 +1266,7 @@ impl<U: Decide> Prior<'_, U> {
 }
 
 impl PriorCtx for NoPrior {
-    fn carried(&self, _name: &StableName) -> bool {
+    fn carried(&self, _site: crate::VarId, _name: &StableName) -> bool {
         false
     }
 
@@ -1271,13 +1287,19 @@ impl PriorCtx for NoPrior {
         None
     }
 
-    fn tombstone<T: Decide>(&self, _new: RunCtx<'_, T>, _name: &StableName) -> Option<Tombstone> {
+    fn tombstone<T: Decide>(
+        &self,
+        _new: RunCtx<'_, T>,
+        _site: crate::VarId,
+        _name: &StableName,
+    ) -> Option<Tombstone> {
         None
     }
 
     fn group_resized<T: Decide>(
         &self,
         _new: RunCtx<'_, T>,
+        _site: crate::VarId,
         _name: &StableName,
     ) -> Option<Diagnosis> {
         None
@@ -1331,8 +1353,8 @@ enum Evidence {
 }
 
 impl<U: Decide> PriorCtx for Prior<'_, U> {
-    fn carried(&self, name: &StableName) -> bool {
-        lookup(self.ctx.eval, name).is_some()
+    fn carried(&self, site: crate::VarId, name: &StableName) -> bool {
+        lookup_in(self.ctx.eval, site, name).is_some()
     }
 
     /// The PATH scope (the scope rule: [`upstream_nodes`]): the lane
@@ -1399,17 +1421,33 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
         })
     }
 
-    fn group_resized<T: Decide>(&self, new: RunCtx<'_, T>, name: &StableName) -> Option<Diagnosis> {
-        group_resized(self.ctx.eval, new, name)
+    fn group_resized<T: Decide>(
+        &self,
+        new: RunCtx<'_, T>,
+        site: crate::VarId,
+        name: &StableName,
+    ) -> Option<Diagnosis> {
+        group_resized(self.ctx.eval, new, site, name)
     }
 
-    fn tombstone<T: Decide>(&self, _new: RunCtx<'_, T>, name: &StableName) -> Option<Tombstone> {
-        // A line is no row: its last-good entry is the least row on it,
-        // as a union reads a cited line (N5, "A cited line").
-        let (carrier, entity) = lookup_unique(self.ctx.eval, name).or_else(|| {
-            line_rows(self.ctx.eval, name)
+    fn tombstone<T: Decide>(
+        &self,
+        _new: RunCtx<'_, T>,
+        site: crate::VarId,
+        name: &StableName,
+    ) -> Option<Tombstone> {
+        // The entry the reference had where it is read: the site's
+        // table in the last-good run. A line is no row: its last-good
+        // entry is the least row on it, as a union reads a cited line
+        // (N5, "A cited line").
+        let unique = |n: &StableName| match lookup_in(self.ctx.eval, site, n)? {
+            (carrier, Entry::Unique(e)) => Some((carrier, *e)),
+            _ => None,
+        };
+        let (carrier, entity) = unique(name).or_else(|| {
+            line_rows_in(self.ctx.eval, site, name)
                 .iter()
-                .find_map(|row| lookup_unique(self.ctx.eval, row))
+                .find_map(|row| unique(row))
         })?;
         let (node, table) = (carrier.node, carrier.table);
         let Some(body) = table.name_of(&EntityRef {
@@ -1431,7 +1469,10 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
         Some(Tombstone {
             kind: name.kind,
             body: body.clone(),
-            patch: MeshPatchKey { node, entity },
+            patch: MeshPatchKey {
+                node,
+                entity: carrier.in_value(entity),
+            },
         })
     }
 }
@@ -1496,7 +1537,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         // An edge piece's base is its line, which no table publishes:
         // the surviving pieces of the line are offered (N5, "A cited
         // line"), the undivided edge among them where it is one row.
-        for row in line_rows(new.eval, &line) {
+        for row in line_rows_in(new.eval, site, &line) {
             if matches!(here(row), Some((_, Entry::Unique(_)))) {
                 offers.push((**row).clone());
             }
@@ -1537,7 +1578,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
     // spelled with no piece qualifier that neither run holds as a row.
     let is_line = name.kind == EntityKind::Edge
         && *crate::names::edge_line(&crate::names::NameRef::new(name.clone())) == *name
-        && !prior.carried(name);
+        && !prior.carried(site, name);
     let lines = cited_lines(name, is_line);
     let mut cascade: Option<StableName> = None;
     walk_names(name, Partners::Cascade, &mut |inner| {
@@ -1564,21 +1605,21 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             // population-cancel blind spot, or a single-run resolve —
             // the N2 discriminators recorded IN the names themselves
             // are still evidence.
-            .or_else(|| border_delta(new.eval, name, |n| prior.carried(n)))
+            .or_else(|| border_delta(new.eval, site, name, |n| prior.carried(site, n)))
             // The upstream scope ([`upstream_nodes`]): below every
             // rung that names a cause ON the path, qualifier delta
             // included, because a path cause decided the name and an
             // upstream one only fed it.
             .or_else(|| prior.upstream(new, name, &path))
             // The group-size rung (`group_resized`'s docs).
-            .or_else(|| prior.group_resized(new, name))
+            .or_else(|| prior.group_resized(new, site, name))
             // Every rung above came up empty: no verdict flip, no doc
             // delta, no recorded qualifier delta, and no group-size
             // change the rung could state (unchanged, or too large to
             // count).
             .unwrap_or_else(|| Diagnosis::cause_not_in_evidence(name.node))
     };
-    let last_good = prior.tombstone(new, name);
+    let last_good = prior.tombstone(new, site, name);
     Resolution::Failed(ResolutionFailure {
         error: ResolveError::Vanished {
             name: name.clone(),
@@ -1619,9 +1660,22 @@ fn piece_line(name: &StableName) -> Option<StableName> {
     .flatten()
 }
 
-/// **The rows that lie on `line`** (N5, "A cited line"): the edge rows
-/// of `line`'s node's table whose line it is, in key order. Empty where
-/// that node has no table in this run or no row lies on it.
+/// **The rows that lie on `line` in the read `site`** (N5, "A cited
+/// line"): the edge rows of that read's table whose line it is, in key
+/// order. Empty where the read has no table in this run or no row lies
+/// on it.
+fn line_rows_in<'a, T: Decide>(
+    eval: &'a Evaluation<T>,
+    site: crate::VarId,
+    line: &StableName,
+) -> &'a [crate::names::NameRef] {
+    eval.table(site).map_or(&[], |table| table.on_line(line))
+}
+
+/// **Whether any row lies on `line`** in this run, in any output of
+/// `line`'s node: the cascade asks whether an embedded line still
+/// stands at all, not where a reference reads it. The first output
+/// with rows on it answers.
 fn line_rows<'a, T: Decide>(
     eval: &'a Evaluation<T>,
     line: &StableName,
@@ -1721,6 +1775,7 @@ fn unqualified(name: &StableName) -> Option<StableName> {
 /// has no `Borders` sibling left, and the group-size rung answers it.
 fn border_delta<T: Decide>(
     eval: &Evaluation<T>,
+    site: crate::VarId,
     name: &StableName,
     carried: impl Fn(&StableName) -> bool,
 ) -> Option<Diagnosis> {
@@ -1730,7 +1785,9 @@ fn border_delta<T: Decide>(
     let base = fragment_base(name)?;
     let was: BTreeSet<&StableName> = was.iter().collect();
     let mut now: BTreeSet<Vec<StableName>> = BTreeSet::new();
-    for Carrier { table, .. } in tables(eval) {
+    // The site's own table: a sibling piece of another output (a
+    // split's other half) is not where this reference reads.
+    if let Some(table) = eval.table(site) {
         for (candidate, _) in table.iter() {
             if let Some(RoleSeg::Fragment(Qualifier::Borders(walls))) = candidate.path.last()
                 && candidate.kind == name.kind
@@ -1854,17 +1911,15 @@ fn border_delta<T: Decide>(
 fn group_resized<U: Decide, T: Decide>(
     prior: &Evaluation<U>,
     RunCtx { doc, eval: new }: RunCtx<'_, T>,
+    site: crate::VarId,
     name: &StableName,
 ) -> Option<Diagnosis> {
     let base = fragment_base(name)?;
-    // The output whose table carried the name: a name is scoped by the
-    // variable that holds its body (N1), and a variable keeps its id
-    // across the two runs.
-    let var = prior.named_outputs(name.node).into_iter().find(|&var| {
-        prior
-            .table(var)
-            .is_some_and(|table| table.lookup(name).is_some())
-    })?;
+    // The read the reference is read in, whose table carried the name:
+    // a name is scoped by the variable that holds its body (N1), and a
+    // variable keeps its id across the two runs.
+    let var = site;
+    prior.table(var)?.lookup(name)?;
     let (prior_table, prior_groups) = (prior.table(var)?, prior.groups(var)?);
     let was = group_reading(prior_groups, &base)?;
     if was.size == 0 {
@@ -2205,17 +2260,6 @@ fn lookup_in<'a, T: Decide>(
     table
         .lookup(name)
         .map(|entry| (Carrier { node, port, table }, entry))
-}
-
-/// [`lookup`], demanding a unique entry.
-fn lookup_unique<'a, T: Decide>(
-    eval: &'a Evaluation<T>,
-    name: &StableName,
-) -> Option<(Carrier<'a>, EntityRef)> {
-    match lookup(eval, name)? {
-        (carrier, Entry::Unique(e)) => Some((carrier, *e)),
-        _ => None,
-    }
 }
 
 /// The widened base of a ranked fragment name: the same name without

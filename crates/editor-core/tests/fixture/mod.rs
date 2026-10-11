@@ -1765,22 +1765,46 @@ pub fn resolve_with_prior_at_mint<T: geom_core::Decide, U: geom_core::Decide>(
 /// outputs, and nothing painted on it — reads in a variable no document
 /// defines: a row about a refusal the door raises before it reads the
 /// body.
+///
+/// # Panics
+///
+/// If the store holds `name` under two reads: which one a row means is
+/// the row's to say, by reading `doc.appearance_of(read, name)` itself.
 pub fn painted_in(doc: &ProfileDoc, name: &StableName) -> editor_core::VarId {
-    doc.appearance()
-        .keys()
-        .find(|key| key.name == *name)
-        .map(|key| key.at)
+    let mut held = doc.appearance().keys().filter(|key| key.name == *name);
+    let first = held.next().map(|key| key.at);
+    if let Some(second) = held.next() {
+        panic!(
+            "{name:?} is painted in two reads ({:?} and {:?}): the row names its read",
+            first,
+            second.at
+        );
+    }
+    first
         .or_else(|| doc.read_of_node(name.node))
         .unwrap_or(editor_core::VarId::new(0, 0))
 }
 
 /// **The appearance record on `name`, read where it was minted** —
 /// [`painted_in`]'s entry.
+///
+/// # Panics
+///
+/// If the record is held on a read the document no longer defines: a
+/// key whose read went is a stranded key whatever its name says, and a
+/// row asking for a live paint must not find one there. A row about a
+/// stranded record reads it with `doc.appearance_of` directly.
 pub fn painted<'a>(
     doc: &'a ProfileDoc,
     name: &StableName,
 ) -> Option<&'a editor_core::AppearanceRecord> {
-    doc.appearance_of(painted_in(doc, name), name)
+    let read = painted_in(doc, name);
+    let record = doc.appearance_of(read, name);
+    assert!(
+        record.is_none() || doc.operation_of(read).is_some(),
+        "{name:?} is painted in {read:?}, which no node of the document defines"
+    );
+    record
 }
 
 /// **The name table of `split`'s half `half`** — the read of its port

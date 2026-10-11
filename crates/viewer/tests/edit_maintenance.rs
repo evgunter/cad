@@ -236,7 +236,8 @@ fn every_maintenance_row_rides_beside_a_refusal() {
          name resolves to nothing until it is rebound \u{2022} the appearance store holds an \
          attachment under a name for the face of node 000000000008 read in \
          #0:0000000000090000; this edit deleted node 000000000008, which minted the name, so \
-         the name resolves to nothing until it is rebound or cleared"
+         the name resolves to nothing until it is rebound, re-attached in a live body or \
+         cleared"
     );
 }
 

@@ -454,10 +454,10 @@ fn deleting_the_minting_node_strands_the_attribute_loudly() {
     // Nothing silently dropped: the payload rides the loss and the
     // store still holds the entry.
     assert_eq!(loss.attrs.get(&AttrKind::Color), Some(&red()));
-    assert!(crate::fixture::painted(&doc, &cap).is_some());
+    let read = crate::fixture::painted_in(&doc, &cap);
+    assert!(doc.appearance_of(read, &cap).is_some());
     // ClearAppearance is the repair path and works on the stranded
     // name (no liveness requirement).
-    let read = crate::fixture::painted_in(&doc, &cap);
     let (doc, _) = step(
         doc,
         DocEdit::ClearAppearance {

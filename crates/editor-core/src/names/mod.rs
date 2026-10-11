@@ -139,7 +139,8 @@ pub fn all_vertices<T: geom_core::Decide>(
 /// **Every body name a node's evaluation carries, as of THIS
 /// evaluation** — [`all_edges`]'s sibling, same contract. Usually one
 /// row (a body-producing op mints one [`RoleSeg::OutputBody`]); a
-/// split's two halves are the plural case.
+/// family's members are the plural case. A split's halves are two
+/// reads with a row each, and a split named alone has none.
 pub fn all_bodies<T: geom_core::Decide>(
     ev: &crate::eval::Evaluation<T>,
     at: impl Into<crate::At>,

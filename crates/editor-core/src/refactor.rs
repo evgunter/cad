@@ -3778,6 +3778,21 @@ pub fn split(
             }
         }
     }
+    // An appearance key read in a cut body is re-attached in the
+    // instance's body, its name read through it as a selection's is: a
+    // Rebind keeps a key's read, and the cut takes that read with it.
+    for (key, record) in remainder.doc().appearance().clone() {
+        let Some(at) = remainder.doc().operation_of(key.at).filter(|at| cut.contains(at)) else {
+            continue;
+        };
+        let onto = crate::AppearanceKey::new(instance_body, in_part(&key.name, Some(at))?);
+        reattach_appearance(
+            &mut |edit| rem_apply(&mut remainder, edit),
+            &key,
+            &record,
+            &onto,
+        )?;
+    }
     for from in &rebinds {
         let to = in_part(from, None)?;
         // A repair is addressed by body: one per remainder selection
@@ -4738,6 +4753,49 @@ pub fn inline(
             }
         }
     }
+    // A host appearance key read in the instance's body (or a host
+    // placement of it, which goes with it) is re-attached in the
+    // inlined body, as a selection of that body is re-authored: a
+    // Rebind keeps a key's read, and the inline takes that read away.
+    for (key, record) in current.doc().appearance().clone() {
+        if !current
+            .doc()
+            .operation_of(key.at)
+            .is_some_and(|at| at == instance || host_placements.contains(&at))
+        {
+            continue;
+        }
+        let name = if wrapped.contains(&key.name) {
+            rehost(&key.name)?
+        } else {
+            key.name.clone()
+        };
+        let body = heir(current.doc()).ok_or_else(|| InlineError::InstanceReadUncarried {
+            reader: doc.spoken(instance),
+            why: heir_placement.clone().err().unwrap_or(Uncarried::Bodies {
+                count: part_placements.len(),
+            }),
+        })?;
+        // A `Part` pick carries its pattern's names verbatim, so a name
+        // headed at the pattern is read in the pattern (`selection_heir`).
+        let body = match current
+            .doc()
+            .operation_of(body)
+            .and_then(|at| current.doc().node(at))
+        {
+            Some(Node::Part {
+                of,
+                select: crate::node::PartSelect::Instance(_),
+            }) if current.doc().operation_of(*of) == Some(name.node) => *of,
+            _ => body,
+        };
+        reattach_appearance(
+            &mut |edit| step(&mut current, edit),
+            &key,
+            &record,
+            &crate::AppearanceKey::new(body, name),
+        )?;
+    }
     if let Some(heir) = heir(current.doc()) {
         for &placement in &posed {
             step(
@@ -4788,6 +4846,51 @@ pub fn inline(
 /// the node ids embedded in its role path — and copies the kind
 /// through untouched, for every [`crate::EntityKind`] and through a
 /// nested name-bearing segment.
+/// **One appearance record re-attached from `from` to `onto`**: every
+/// attribute and metadata entry set at `onto`, then cleared at `from`. A
+/// Rebind never moves a key's read, so a refactor that takes a key's
+/// read away re-attaches the key this way, as an author would.
+fn reattach_appearance<E>(
+    apply: &mut dyn FnMut(DocEdit<ProfileProgram>) -> Result<(), E>,
+    from: &crate::AppearanceKey,
+    record: &crate::AppearanceRecord,
+    onto: &crate::AppearanceKey,
+) -> Result<(), E> {
+    if from == onto {
+        return Ok(());
+    }
+    for attr in record.attrs.values() {
+        apply(DocEdit::SetAppearance {
+            body: onto.at,
+            name: onto.name.clone(),
+            attr: attr.clone(),
+        })?;
+    }
+    for (key, value) in &record.metadata {
+        apply(DocEdit::SetAppearanceMeta {
+            body: onto.at,
+            name: onto.name.clone(),
+            key: key.clone(),
+            value: value.clone(),
+        })?;
+    }
+    for kind in record.attrs.keys() {
+        apply(DocEdit::ClearAppearance {
+            body: from.at,
+            name: from.name.clone(),
+            kind: *kind,
+        })?;
+    }
+    for key in record.metadata.keys() {
+        apply(DocEdit::ClearAppearanceMeta {
+            body: from.at,
+            name: from.name.clone(),
+            key: key.clone(),
+        })?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod remap_keeps_the_kind {

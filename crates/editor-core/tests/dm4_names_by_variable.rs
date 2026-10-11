@@ -297,3 +297,249 @@ fn every_regenerated_document_is_the_base_one_with_its_appearance_keys_sited() {
         println!("{file}: the base's save under the total map");
     }
 }
+
+/// A fragment of an extrude face that both of `split`'s halves hold,
+/// with the face it fragments.
+fn shared_fragment(
+    ev: &editor_core::Evaluation<f64>,
+    doc: &ProfileDoc,
+    split: RecipeNodeId,
+) -> (StableName, StableName) {
+    let (above, below) = (
+        doc.output(split, 0).expect("above"),
+        doc.output(split, 1).expect("below"),
+    );
+    let (ta, tb) = (ev.table(above).expect("above"), ev.table(below).expect("below"));
+    ta.iter()
+        .find_map(|(n, _)| match n.path.last() {
+            Some(RoleSeg::SplitFragment { parent })
+                if n.kind == EntityKind::Face && tb.lookup(n).is_some() =>
+            {
+                Some((n.clone(), (**parent).clone()))
+            }
+            _ => None,
+        })
+        .expect("a wall fragment both halves hold")
+}
+
+/// **A vanished name's last-good entry is the one its read held**
+/// (PR #4674 review): a fragment both halves hold, referenced through
+/// the lower half's read, leaves when the plane leaves the body; its
+/// tombstone is the lower half's fragment, said in the split's value
+/// (body 1), never the upper half's.
+#[test]
+fn a_vanished_shared_fragments_tombstone_is_its_own_reads() {
+    let (doc, _ext, tool, split) = step_split(1.0);
+    let below = doc.output(split, 1).expect("below");
+    let before = fixture::run(&doc, &Default::default());
+    let (frag, _) = shared_fragment(&before, &doc, split);
+    let prior = RunCtx {
+        doc: &doc,
+        eval: &before,
+    };
+    let Resolution::Resolved(was) = resolve(prior, below, &frag) else {
+        panic!("the lower read resolves the fragment");
+    };
+    assert_eq!(was.entity.body, 1, "the lower half is the value's body 1");
+    let (moved, _) = fixture::step(
+        doc.clone(),
+        DocEdit::SetParam {
+            node: tool,
+            slot: SlotId::Origin(Axis3::X),
+            value: len(5.0).into(),
+            fresh: Vec::new(),
+        },
+    );
+    let after = fixture::run(&moved, &Default::default());
+    let new = RunCtx {
+        doc: &moved,
+        eval: &after,
+    };
+    let Resolution::Failed(failed) = resolve_with_prior(new, prior, below, &frag) else {
+        panic!("the lower read lost the fragment");
+    };
+    let ResolveError::Vanished {
+        last_good: Some(ghost),
+        ..
+    } = failed.error
+    else {
+        panic!("vanished, with a tombstone: {:?}", failed.error);
+    };
+    assert_eq!(
+        (ghost.patch.node, ghost.patch.entity),
+        (was.node, was.entity),
+        "the ghost is the lower half's fragment"
+    );
+}
+
+/// **A re-attachment offer names every read holding the name**: a key
+/// on a face the split cuts is offered the face's fragment in each half
+/// that holds it, so either half can be repainted from the offers.
+#[test]
+fn a_rebind_offer_names_every_read_holding_a_shared_name() {
+    let (doc, ext, _, split) = step_split(1.0);
+    let ev = fixture::run(&doc, &Default::default());
+    let (frag, parent) = shared_fragment(&ev, &doc, split);
+    let (above, below) = (doc.output(split, 0).unwrap(), doc.output(split, 1).unwrap());
+    let (painted, _) = fixture::step(
+        doc.clone(),
+        DocEdit::SetAppearance {
+            body: fixture::out(&doc, ext),
+            name: parent.clone(),
+            attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(1, 2, 3)),
+        },
+    );
+    let ev = fixture::run(&painted, &Default::default());
+    let offers = editor_core::appearance_rebind_suggestions(painted.appearance(), &ev);
+    let mine = offers
+        .iter()
+        .find(|(key, _)| key.name == parent)
+        .map(|(_, offers)| offers.clone())
+        .expect("the key has an offer row");
+    let reads: Vec<_> = mine.iter().filter(|o| o.name == frag).map(|o| o.at).collect();
+    assert!(
+        reads.contains(&above) && reads.contains(&below),
+        "both halves hold the fragment, so both reads are offered: {reads:?}"
+    );
+}
+
+/// **An appearance entry is read in a body**: a datum plane's output is
+/// a live read holding no body, and a deleted operation's read is no
+/// live read at all, so `SetAppearance` refuses both; deleting the
+/// operation a key's read is an output of strands the key `Took::Body`.
+#[test]
+fn an_appearance_read_must_hold_a_body_and_its_delete_strands_the_key() {
+    let (doc, ext, tool, split) = step_split(1.0);
+    let riser = fixture::fname(ext, fixture::wall(&doc, ext, 3));
+    let paint = |doc: &ProfileDoc, body| {
+        editor_core::apply(
+            doc,
+            &DocEdit::SetAppearance {
+                body,
+                name: riser.clone(),
+                attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(1, 2, 3)),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+    };
+    let plane = doc.output(tool, 0).expect("the plane's output");
+    assert!(
+        matches!(
+            paint(&doc, plane),
+            Err(editor_core::EditError::AppearanceBodyNotARead { .. })
+        ),
+        "a datum plane's read holds no body"
+    );
+    let above = doc.output(split, 0).unwrap();
+    let painted = paint(&doc, above).expect("a half's read holds a body").doc;
+    let applied = editor_core::apply(
+        &painted,
+        &DocEdit::DeleteNode { id: split },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("a delete strands, it does not refuse");
+    assert!(
+        applied.maintenance.iter().any(|m| matches!(
+            m,
+            editor_core::Maintenance::StrandedAppearance {
+                took: editor_core::Took::Body,
+                ..
+            }
+        )),
+        "the delete strands the key by its read: {:?}",
+        applied.maintenance
+    );
+    assert!(
+        matches!(
+            paint(&applied.doc, above),
+            Err(editor_core::EditError::AppearanceBodyNotARead { .. })
+        ),
+        "a deleted operation's read is no body read"
+    );
+}
+
+/// **A node named alone is one read in every door**: a revolve's body
+/// beside its axis is the node's one body, to the document and to the
+/// evaluation alike; a split's two halves are no one read to either.
+#[test]
+fn a_node_named_alone_is_the_same_read_to_the_document_and_the_evaluation() {
+    let doc = ProfileDoc::empty_derived("dm4_named_alone", Tol::witness());
+    let (doc, profile) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        vec![fixture::square(2.0, 0.0, 0.5)],
+    );
+    let (doc, revolve) = insert(
+        doc,
+        Node::Revolve {
+            profile: profile.into(),
+            axis_origin: [len(0.0), len(0.0)],
+            axis_direction: [scl(0.0), scl(1.0)],
+            angle: fixture::ang(std::f64::consts::TAU),
+        },
+    );
+    let ev = fixture::run(&doc, &Default::default());
+    assert!(doc.read_of_node(revolve).is_some(), "the revolve's body");
+    assert_eq!(ev.at_var(revolve), doc.read_of_node(revolve));
+    let (doc, _, _, split) = step_split(1.0);
+    let ev = fixture::run(&doc, &Default::default());
+    assert_eq!((ev.at_var(split), doc.read_of_node(split)), (None, None));
+}
+
+/// **A re-point that takes a key's name out of its read's reach strands
+/// the key** (PR #4674 review), as it strands a selection there: a key
+/// read in a transform's output, its name the input block's cap; the
+/// transform re-pointed at another block reports the key `Took::Reach`.
+#[test]
+fn a_repoint_that_takes_a_keys_name_out_of_reach_strands_it() {
+    let doc = ProfileDoc::empty_derived("dm4_repoint", Tol::witness());
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let sq = |x: f64| vec![vec![(x, 0.0), (x + 1.0, 0.0), (x + 1.0, 1.0), (x, 1.0)]];
+    let (doc, pa) = insert(doc, Node::Profile(fixture::desc(plane, sq(0.0))));
+    let (doc, pb) = insert(doc, Node::Profile(fixture::desc(plane, sq(3.0))));
+    let ext = |p: RecipeNodeId| Node::Extrude {
+        profile: p.into(),
+        distance: len(1.0),
+        side: ExtrudeSide::Along,
+    };
+    let (doc, a) = insert(doc, ext(pa));
+    let (doc, b) = insert(doc, ext(pb));
+    let (doc, t) = insert(doc, fixture::xform(a, [0.0, 0.0, 2.0], [0.0, 0.0, 1.0], 0.0));
+    let cap = fixture::fname(a, RoleSeg::Cap(editor_core::CapEnd::End));
+    let (doc, _) = fixture::step(
+        doc.clone(),
+        DocEdit::SetAppearance {
+            body: fixture::out(&doc, t),
+            name: cap,
+            attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(1, 2, 3)),
+        },
+    );
+    assert!(fixture::run(&doc, &Default::default()).appearance.is_lossless());
+    let applied = editor_core::apply(
+        &doc,
+        &DocEdit::SetParam {
+            node: t,
+            slot: SlotId::Operand(editor_core::OperandSlot::Input),
+            value: editor_core::Operand::from(fixture::out(&doc, b)).into(),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("a re-point applies");
+    assert!(
+        applied.maintenance.iter().any(|m| matches!(
+            m,
+            editor_core::Maintenance::StrandedAppearance {
+                took: editor_core::Took::Reach,
+                ..
+            }
+        )),
+        "the key's name left its read's reach: {:?}",
+        applied.maintenance
+    );
+}

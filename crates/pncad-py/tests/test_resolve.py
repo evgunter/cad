@@ -239,6 +239,40 @@ class TestInOneRead(unittest.TestCase):
         self.assertEqual(self.ev.resolve(self.other, name).status, "failed")
         self.assertEqual(self.ev.resolve(self.cube, name).status, "resolved")
 
+    def test_a_node_named_alone_is_its_one_body_read(self):
+        """A node named alone reads in its one body output, in
+        `resolve` as in every name door: a revolve's body beside its
+        axis resolves; a split's two halves are no one read, so naming
+        the split alone is a `ValueError` saying to name a half."""
+        doc = Doc()
+        chain = (
+            Open.at((2 * m, 0 * m))
+            .line_to((3 * m, 0 * m))
+            .line_to((3 * m, 1 * m))
+            .line_to((2 * m, 1 * m))
+            .line_to(Start)
+        )
+        profile = doc.insert(Node.profile(chain, plane=doc.sketch_frame()))
+        revolve = doc.insert(Node.revolve(
+            profile,
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.literal(0.0), Formula.literal(1.0)),
+            Formula.angle_in(360, deg),
+        ))
+        cube = unit_cube(doc, at=(9.0, 9.0))
+        tool = doc.insert(Node.datum_plane(
+            (Formula.length_in(9.5, m), Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+        ))
+        split = doc.insert(Node.split(cube, tool))
+        ev = evaluate(doc)
+        name = ev.all_faces(revolve)[0]
+        self.assertEqual(ev.resolve(revolve, name).status, "resolved")
+        half = ev.all_faces(doc.output(split, 0))[0]
+        self.assertEqual(ev.resolve(doc.output(split, 0), half).status, "resolved")
+        with self.assertRaises(ValueError):
+            ev.resolve(split, half)
+
 
 def plate(doc, corners):
     """A 0.1 m-thick plate over `corners`, on the sketch plane."""

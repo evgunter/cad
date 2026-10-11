@@ -1942,3 +1942,112 @@ fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
         other => panic!("expected NameOnDroppedStep, got {other:?}"),
     }
 }
+
+/// **A split-out part takes an appearance key's read with it, and the
+/// key follows** (PR #4674 review): a key is never moved off its read by
+/// a Rebind, so the split re-attaches a key read in a cut body in the
+/// instance's body, and the paint still lands on the remainder.
+#[test]
+fn a_split_reattaches_an_appearance_key_onto_the_instances_body() {
+    let (store, doc, ids) = two_group_assembly("asm4-split-reattach");
+    let opts = with_resolver(store);
+    let ev = run(&doc, &opts);
+    let face = ev
+        .table_at(ids[1])
+        .expect("the instance evaluated")
+        .iter()
+        .map(|(n, _)| n.clone())
+        .find(|n| n.kind == editor_core::EntityKind::Face)
+        .expect("a face name");
+    let read = crate::fixture::painted_in(&doc, &face);
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetAppearance {
+            body: read,
+            name: face,
+            attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(1, 2, 3)),
+        },
+    );
+    assert!(run(&doc, &opts).appearance.is_lossless(), "premise");
+    let cut = BTreeSet::from([ids[1]]);
+    let out = split(
+        &doc,
+        &cut,
+        DocumentId::derive("asm4-split-reattach-new"),
+        Tol::witness(),
+        None,
+    )
+    .expect("legal");
+    let keys: Vec<_> = out.remainder.appearance().keys().cloned().collect();
+    assert_eq!(keys.len(), 1, "one key, re-attached: {keys:?}");
+    assert_eq!(
+        out.remainder.operation_of(keys[0].at),
+        Some(out.instance),
+        "the key reads the instance's body"
+    );
+    let mut store2 = PartStore::default();
+    store2.insert(part("asm4-split-reattach-part", 0.0, 1.0), Tol::witness());
+    store2.insert(out.part.clone(), Tol::witness());
+    let ev2 = run(&out.remainder, &with_resolver(store2));
+    assert!(
+        ev2.appearance.is_lossless(),
+        "the paint still lands: {:?}",
+        ev2.appearance.losses
+    );
+}
+
+/// **The same for inline**: a host key painted in the instance's body is
+/// re-attached in the inlined body, so the paint lands after the
+/// instance is gone.
+#[test]
+fn an_inline_reattaches_an_appearance_key_onto_the_inlined_body() {
+    let (_store, doc, ids) = two_group_assembly("asm4-inline-reattach");
+    let cut = BTreeSet::from([ids[1]]);
+    let out = split(
+        &doc,
+        &cut,
+        DocumentId::derive("asm4-inline-reattach-new"),
+        Tol::witness(),
+        None,
+    )
+    .expect("legal");
+    let mut store2 = PartStore::default();
+    store2.insert(part("asm4-inline-reattach-part", 0.0, 1.0), Tol::witness());
+    store2.insert(out.part.clone(), Tol::witness());
+    let opts = with_resolver(store2.clone());
+    let ev = run(&out.remainder, &opts);
+    let face = ev
+        .table_at(out.instance)
+        .expect("the instance evaluated")
+        .iter()
+        .map(|(n, _)| n.clone())
+        .find(|n| n.kind == editor_core::EntityKind::Face)
+        .expect("a face name");
+    let read = out
+        .remainder
+        .read_of_node(out.instance)
+        .expect("the instance's read");
+    let (host, _) = step(
+        out.remainder.clone(),
+        DocEdit::SetAppearance {
+            body: read,
+            name: face,
+            attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(1, 2, 3)),
+        },
+    );
+    assert!(run(&host, &opts).appearance.is_lossless(), "premise");
+    let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store2);
+    let inlined = inline(&host, out.instance, &resolver, Tol::witness()).expect("legal");
+    let keys: Vec<_> = inlined.doc.appearance().keys().cloned().collect();
+    assert_eq!(keys.len(), 1, "one key, re-attached: {keys:?}");
+    assert!(
+        inlined.doc.operation_of(keys[0].at).is_some(),
+        "the key reads a live body"
+    );
+    let ev2 = run(&inlined.doc, &opts);
+    assert!(
+        ev2.appearance.is_lossless(),
+        "the paint still lands: {:?}",
+        ev2.appearance.losses
+    );
+}

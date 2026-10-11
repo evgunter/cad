@@ -246,7 +246,7 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// tree is neither value. `m4_pr8_corpus`'s exact mass pins,
 /// `m5_pr8_bvh_diff` and `m10_p_fence`'s id-masked geometry held.
 ///
-/// RE-BLESSED, `kitchen_sink`, beside `part_select` above,, merging main's INTENT stage 3 A
+/// RE-BLESSED, `kitchen_sink`, beside `part_select` above, merging main's INTENT stage 3 A
 /// re-pin with the at-rest records' cell-pair shape: each moved it
 /// alone, and the merged tree is neither value. `m4_pr8_corpus`'s exact
 /// mass pins, `m5_pr8_bvh_diff` and `m10_p_fence`'s id-masked geometry

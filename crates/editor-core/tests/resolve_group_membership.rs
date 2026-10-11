@@ -108,10 +108,12 @@ fn vanished(
                 .expect("the node evaluated before")
                 .iter()
                 .filter(move |(n, _)| now.lookup(n).is_none())
+                .map(move |(n, e)| (var, n, e))
         })
-        .filter(|(n, e)| matches!(n.path.last(), Some(RoleSeg::Fragment(_))) && pick(n, e))
-        .map(|(n, _)| {
-            let res = crate::fixture::resolve_with_prior_at_mint(
+        .filter(|(_, n, e)| matches!(n.path.last(), Some(RoleSeg::Fragment(_))) && pick(n, e))
+        .map(|(var, n, _)| {
+            // Resolved in the read whose table held it.
+            let res = editor_core::resolve_with_prior(
                 RunCtx {
                     doc: doc2,
                     eval: ev2,
@@ -120,6 +122,7 @@ fn vanished(
                     doc: doc1,
                     eval: ev1,
                 },
+                var,
                 n,
             );
             let Resolution::Failed(f) = res else {

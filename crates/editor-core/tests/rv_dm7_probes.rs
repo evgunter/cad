@@ -223,7 +223,10 @@ fn rv_a_stranded_appearance_key_round_trips_after_the_delete() {
         .expect("the post-delete document saves with its stranded key");
     let loaded = editor_core::persist::load(&text, Tol::witness()).expect("and loads");
     assert!(
-        crate::fixture::painted(&loaded.doc, &painted).is_some(),
+        loaded
+            .doc
+            .appearance_of(crate::fixture::painted_in(&loaded.doc, &painted), &painted)
+            .is_some(),
         "the stranded attachment is document state, not a residue"
     );
     assert!(
@@ -232,12 +235,14 @@ fn rv_a_stranded_appearance_key_round_trips_after_the_delete() {
     );
 }
 
-/// **`Rebind` is the other repair the arm's doc names, and it moves a
-/// reported key.** `ClearAppearance` has a row in the unit's suite;
-/// this is the half that needs a live node to move TO, which is what
-/// makes it the repair `Strand` and `StrandedAppearance` share.
+/// **A reported key is repaired by re-attaching it.** `ClearAppearance`
+/// has a row in the unit's suite; this is the half that needs a live
+/// body to move TO. The delete took the key's read with its node, and a
+/// `Rebind` never moves a key's read (NAMES N1: the key is the read's),
+/// so the repair is the re-attachment the arm's doc names: the record
+/// set in a live read, the stranded key cleared.
 #[test]
-fn rv_a_reported_appearance_strand_is_rebindable() {
+fn rv_a_reported_appearance_strand_is_reattachable() {
     use editor_core::{Attr, Rgba8};
 
     let doc = ProfileDoc::empty_derived("rv_app_rebind", Tol::witness());
@@ -268,20 +273,33 @@ fn rv_a_reported_appearance_strand_is_rebindable() {
         "the door named the key"
     );
     let live = fname(body, wall(&doc, body, 0));
-    let repaired = apply(
+    let gone = crate::fixture::painted_in(&applied.doc, &painted);
+    let reattached = apply(
         &applied.doc,
-        &DocEdit::Rebind {
-            body: None,
-            from: painted.clone(),
-            to: live.clone(),
+        &DocEdit::SetAppearance {
+            body: crate::fixture::out(&applied.doc, body),
+            name: live.clone(),
+            attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
-    .expect("the reported key is rebindable onto a live name")
+    .expect("a live read takes the record")
+    .doc;
+    let repaired = apply(
+        &reattached,
+        &DocEdit::ClearAppearance {
+            body: gone,
+            name: painted.clone(),
+            kind: editor_core::AttrKind::Color,
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the stranded key clears")
     .doc;
     assert!(
-        !crate::fixture::painted(&repaired, &painted).is_some(),
+        repaired.appearance_of(gone, &painted).is_none(),
         "the stranded key is gone"
     );
     assert!(

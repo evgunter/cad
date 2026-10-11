@@ -51,10 +51,9 @@ a name which output holds the entity, so a split's roles carry no half
 (`SplitBody`, `SectionFace`, `SectionEdge`, `SplitFragment`,
 `CrossingVertex`): the variable says it, through the read that carries the
 entity on (`From { read: split.above, of }`) or the body a selection
-states. A per-node table compensates by restating the output: the
-split's half did, and is gone now that each output has its own table, and
-the pattern's `Instance { i }` segment exists only to keep one node's table
-distinct. D10 makes the compensation fail: `P1` and
+states. Each output has its own table, so a split's roles say no half;
+the pattern's `Instance { i }` segment still restates the output, only to
+keep one node's table distinct. D10 makes the compensation fail: `P1` and
 `P2` are two placements of `X`, each equally a copy of it; pinned into one
 space, a later `Place [P1, P2]` defines two outputs carrying `X`'s rows
 verbatim (a placement adds no name segment, above), which one table per
