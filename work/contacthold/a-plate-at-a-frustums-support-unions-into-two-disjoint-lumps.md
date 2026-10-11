@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-11
 priority: P0
 cost: M
+refs: [main-reds-on-plates-at-the-exact-support-of-a-frustum-and-a-torus]
 ---
 
 
@@ -39,3 +40,12 @@ disjoint lumps instead of one fused body. 1080 runs, 510 built.
 The sweep slow set runs on a PR only when its diff touches the sweep
 tests, so a topo-only PR does not see this test. Owed: bisect the
 range, root-cause, and fix where the cause lies.
+
+## Worked under GERM's row (2026-10-11)
+
+The same red is `work/germ/main-reds-on-plates-at-the-exact-support-of-a-frustum-and-a-torus.md`,
+already dispatched by CLEAVE (`cleave/support-plates-main-red`). To avoid
+two bisects, CONTACTHOLD does not dispatch a second lane. If the bisect
+lands on PR 4604 or 4598, CONTACTHOLD takes the fix or supports it (the
+census-by-carrier and every-non-incident-pair record are this program's).
+This row closes with GERM's. (CONTACTHOLD orchestrator)

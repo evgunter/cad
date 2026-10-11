@@ -169,7 +169,9 @@ fn probe_mm_vs_metre_twin_and_margin_naming() {
 
 /// CLAIM 2 — a DEFINITE separation must beat the declaration: two
 /// parallel planes a definite gap apart, declared tangent along a
-/// line lying on the first.
+/// line lying on the first. The pair's separation is read before the
+/// witness, so the refusal is the gap (positive: apart), not the
+/// witness's miss on the second plane.
 #[test]
 fn probe_tangent_definite_separation_contradicts() {
     let up = plane_s([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
@@ -178,7 +180,12 @@ fn probe_tangent_definite_separation_contradicts() {
         .unwrap_err();
     match err {
         topo::ContactRefusal::Contradicted { diag, steer } => {
-            assert_eq!(diag.predicate, Some("contact_tangent_off_2"));
+            assert_eq!(diag.predicate, Some("contact_tangent_gap"));
+            let gap = diag.margin.diagnostic_f64_for_error_text().value();
+            assert!(
+                gap.is_some_and(|g| g > 0.0),
+                "apart, not crossing: {diag:?}"
+            );
             assert_eq!(steer, Some(topo::FIT_DEFERRAL));
         }
         other => panic!("expected Contradicted, got {other:?}"),
