@@ -63,20 +63,29 @@ valley, through distinct entities. The strut is not: with the panic
 bypassed, every cell refused `ResultInvalid` with
 `ScaffoldingStrutVertex` at `MEET`'s Below copy.
 
-- `finish::kill_section_struts` kills each strut of a section loop
-  (`kev`) before promotion. Below's section face is then the plain
-  polygon, and Below keeps no vertex at `MEET`.
-- `Sweep::assert_spurs_paired` replaces `assert_no_spur`. It reads both
-  loops and requires as many straight struts as slits. A slit with no
-  strut, which is the contact-joined-into-a-section the old argument
-  ruled out, refuses `SplitJoinError::SectionInvariant`.
+- `Sweep::strip_spurs` (the join) replaces `assert_no_spur`. It reads
+  both loops' straight tips (`join::spur_tips`), requires as many struts
+  as slits (an unpaired one panics, as the old invariant did), and
+  kills every strut (`join::strut_turn`, curved included) with its tip.
+  Below's section face is then the plain polygon, Below keeps no vertex
+  at `MEET`, and the finish and `plane_section` read one loop.
+- `plane_section` takes each slit out of its outline
+  (`section::drop_slits`): the slit lies inside the region.
 - `meeting::corners_disjoint` reads a slit's tip as a full turn where
-  the face lies round it, and refuses a spur out of the face.
+  the face lies round it, and refuses a spur out of the face
+  (`corner_sweep`, with a unit row for both).
 
-Pin: `split_through_an_apex::a_crown_with_one_corner_in_the_plane_splits_sound`.
-C2 plus four ring families (3 to 6 corners; the seed, a middle and the
-last corner in the plane), the corner at 0 and ±0.6 ε, 5 poses × both
-normals. It asserts both sides' volumes against `crown_above`, tier 3,
-corners disjoint, one vertex at `MEET` above and none below, and
-`plane_section`'s area against the bottom fan's section. It passes at
-all three ε.
+Pins, in `split_through_an_apex`:
+- `a_crown_with_one_corner_in_the_plane_splits_sound`: C2 plus four
+  ring families (3 to 6 corners; the seed, a middle and the last corner
+  in the plane), the corner at 0, ±0.6 ε and ±0.9 ε, 5 poses × both
+  normals. Both sides' volumes against `crown_above`, tier 3, corners
+  disjoint, one vertex at `MEET` above and none below, and
+  `plane_section`'s one region against the bottom fan's section: its
+  area, and an outline of as many distinct corners as the ring.
+- `a_trench_whose_keel_lies_in_the_plane_splits_sound`: a box less a
+  trench (`topo::subtract`) whose keel runs from `MEET` out through the
+  box's side, at every pose: the same assertions against the closed
+  form.
+
+All pass at the three ε.

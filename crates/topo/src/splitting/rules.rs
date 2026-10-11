@@ -82,12 +82,7 @@
 //! one vertex copy, cannot host both fans. Sending the tip `Below`
 //! separates the runs (`{slantL}`, `{slantR}` — two null edges, two
 //! vertex copies, one fan each; the tip edge survives inside Below's
-//! coplanar top as an artifact edge). Where Above's material joins round
-//! one end of the edge instead — a valley in the plane ending at a
-//! vertex whose other edges all rise — Above's piece touches itself
-//! along the edge, and its section runs out along it and back; the edge
-//! reaches into Below's section from its other end only, and the finish
-//! kills it there (`finish::kill_section_struts`). TOG §3's AOA→ABOVE is the
+//! coplanar top as an artifact edge). TOG §3's AOA→ABOVE is the
 //! erratum; the book's Program 14.6 is right. The touching-wedge
 //! fixture (the notch cut from below, `[slantL: Below, tip: ON,
 //! slantR: Below, cap-bisector: Above]`) reads the same physical
@@ -98,6 +93,13 @@
 //! That also gives the groove fin its own vertex copies, a legal 3′
 //! touching through distinct entities rather than a shared-entity
 //! pinch (F2).
+//!
+//! Where Above's material joins round one end of the tip edge instead —
+//! a valley in the plane ending at a vertex whose other edges all rise
+//! — the runs are apart at the other end only. Above's piece touches
+//! itself along the edge, and its section runs out along it and back;
+//! the edge reaches into Below's section from its other end, and the
+//! join kills it there (`join::Sweep::strip_spurs`).
 //!
 //! **Smooth edges and duplicates: the wall decides.** Neither carries
 //! a corner to read. A smooth edge (a curved face's seam along the

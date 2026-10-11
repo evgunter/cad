@@ -20,6 +20,7 @@
 
 use geom_core::{Decide, Indeterminate, Point2, Point3, Real, Vec2, Vec3};
 
+use super::join::{Spur, spur_tips};
 use super::section_loops::{self, NestFault, SenseFault};
 use super::{KnifeEdge, PlaneSide, SplitError, SplitPlane, SplitReduceError, split_scratch};
 use crate::body::Body;
@@ -35,7 +36,9 @@ use geom_core::Tol;
 /// cuts a circle with two corners), so the corners alone need not
 /// enclose the polygon's area; [`SectionPolygon::area`] reads it on the
 /// edges. Only [`plane_section`] builds one, from one walk of the
-/// section loop, so there is exactly one edge per corner.
+/// section loop with its slits taken out (where a piece on one side
+/// touches itself along an edge in the plane), so there is exactly one
+/// edge per corner and no corner is visited twice.
 #[derive(Clone, Debug)]
 pub struct SectionPolygon<T: Real> {
     points: Vec<Point3<T>>,
@@ -296,12 +299,24 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let mut outlines = Vec::new();
     let mut holes = Vec::new();
     for section in &completed {
-        let halves = section_walk(&red.body, section.below_loop)?;
-        let points: Vec<_> = halves.iter().map(|h| h.corner).collect();
-        // The caller's plane, which the frame is reported on.
+        let mut halves = section_walk(&red.body, section.below_loop)?;
+        // The caller's plane, which the frame is reported on: the below
+        // loop's first chord, as the split's section face reads it.
         let u = *u_ref.get_or_insert_with(|| {
-            section_loops::chord_u_ref(&red.body, section.below_loop, &points, plane.normal)
+            let corners: Vec<_> = halves.iter().map(|h| h.corner).collect();
+            section_loops::chord_u_ref(&red.body, section.below_loop, &corners, plane.normal)
         });
+        let slits: Vec<usize> = spur_tips(&red.body, section.face, section.below_loop, band)
+            .map_err(|e| SectionError::from(SplitError::Join(e)))?
+            .into_iter()
+            .filter_map(|tip| match tip {
+                Spur::Slit { index, .. } => Some(index),
+                // The join killed every strut.
+                Spur::Strut { .. } => None,
+            })
+            .collect();
+        drop_slits(&mut halves, &slits);
+        let points: Vec<_> = halves.iter().map(|h| h.corner).collect();
         let v = *v_ref.get_or_insert_with(|| normal.cross(u));
         let corner = points[0];
         let outline = match section_loops::loop_sense(&red.body, section.below_loop, normal, band) {
@@ -365,6 +380,33 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
             .map(|(outline, holes)| SectionRegion { outline, holes })
             .collect(),
     })
+}
+
+/// Takes each slit out of a walked section loop: at a tip in `slits`
+/// (indices into `halves`, ascending) the loop runs out along a chord
+/// and back from a second copy of the vertex it left, where the side
+/// whose loop this is touches itself ([`super::join::Spur::Slit`]). The
+/// slit lies inside the section's region, so the outline goes on from
+/// the first copy along the second's run, and the tip and the second
+/// copy leave it.
+fn drop_slits<T: Real>(halves: &mut Vec<Half<T>>, slits: &[usize]) {
+    let mut slits = slits.to_vec();
+    while let Some(tip) = slits.pop() {
+        let n = halves.len();
+        let (before, copy) = ((tip + n - 1) % n, (tip + 1) % n);
+        let run = core::mem::replace(&mut halves[copy].carrier, HalfCarrier::Chord);
+        halves[before].carrier = run;
+        if copy == 0 {
+            halves.remove(tip);
+            halves.remove(0);
+            for t in &mut slits {
+                *t -= 1;
+            }
+        } else {
+            halves.remove(copy);
+            halves.remove(tip);
+        }
+    }
 }
 
 /// One traversed half of a section loop: the corner it starts at, and

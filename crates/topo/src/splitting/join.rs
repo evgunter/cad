@@ -52,10 +52,11 @@
 //! certifies the polygon's area definitely-positive
 //! (**`split_section_area`**, margin 2·A/P) — a zero-area section
 //! polygon is refused typed,
-//! [`SplitJoinError::DegenerateSection`] — holds a positive-area
-//! polygon's zero-width spurs to pairs, a strut on one loop under a
-//! slit on the other (`split_section_spur`;
-//! `Sweep::assert_spurs_paired`), and writes the F9 record.
+//! [`SplitJoinError::DegenerateSection`] — reads a positive-area
+//! polygon's zero-width spurs in pairs, a strut on one loop under a
+//! slit on the other, and kills the struts (`split_section_spur`;
+//! `Sweep::strip_spurs`), so the finish and the section query read one
+//! loop, and writes the F9 record.
 
 use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Point3, Sign};
@@ -765,7 +766,7 @@ impl<T: Decide> Sweep<T> {
                 let outer_loop = body.get_face(face).ok_or_else(|| corrupt_face(face))?.outer;
                 let (above_loop, below_loop) = self.resolve_roles(body, face, outer_loop, ring)?;
                 self.certify_section_area(body, face, below_loop)?;
-                self.assert_spurs_paired(body, face, above_loop, below_loop)?;
+                self.strip_spurs(body, face, above_loop, below_loop)?;
                 body.set_null_face_pair(
                     face,
                     NullFacePair::Split {
@@ -933,110 +934,191 @@ impl<T: Decide> Sweep<T> {
 }
 
 impl<T: Decide> Sweep<T> {
-    /// Every **spur** of a completed polygon of positive area — a vertex
-    /// at which a loop runs out along a straight edge and straight back,
-    /// so the vertex before it and the vertex after it coincide — is the
-    /// trace of one edge of the operand lying in the plane, and comes as
-    /// a pair, one on each loop:
+    /// Takes a completed polygon's **spurs** off it. A spur is a vertex
+    /// at which a loop runs out along an edge and back. Every spur of a
+    /// polygon of positive area is the trace of one edge of the operand
+    /// lying in the plane, and comes as a pair, one on each loop:
     ///
     /// - on the loop of the side the edge belongs to, a **strut**: the
-    ///   edge itself, its two halves one after the other, out to a vertex
-    ///   it alone reaches. The finish kills it (`kill_section_struts`):
-    ///   that side's material lies under the edge, and its section face
-    ///   runs on across it.
+    ///   edge itself, one half followed by the other ([`strut_turn`]), out
+    ///   to a vertex no other edge reaches. That side's material lies
+    ///   under the edge, so its section runs on across it: the strut is
+    ///   killed, tip and all, and every reader of the section (the
+    ///   finish, [`super::plane_section`]) reads the loop without it.
     /// - on the other side's loop, a **slit**: two distinct chords on the
     ///   edge, from two copies of its far end to one vertex at its tip.
     ///   That side's material lies on both sides of the edge, and its
-    ///   piece touches itself along it, through distinct entities.
+    ///   piece touches itself along it, through distinct entities. The
+    ///   slit stays in that side's section face; the section query takes
+    ///   it out of the region's outline, inside which it lies
+    ///   (`section::drop_slits`).
     ///
     /// The edge is one rule (b) reads reflex: both its faces leave it
     /// into one side, which holds material on both sides of it, and the
     /// edge goes to the other. Where that side's runs either side of it
-    /// lie apart at both its ends, it bounds two polygons; where they
-    /// join round one end, in one copy of the vertex there, it is a
-    /// spur of one. A contact the
-    /// plane only touches makes no spur, because none mints a null edge
-    /// of its own: rule (b) sends an edge touched along a convex corner
-    /// with its material; rule (a) refuses a wall that bends away from
-    /// its material ([`crate::SplitReduceError::KnifeEdge`]); and a cusp,
-    /// which rule (b)'s safety default could otherwise send across, has
-    /// a zero-width sector the neighbourhood classifier refuses first
-    /// ([`crate::SplitReduceError::SliverSector`] on `sector_straight`).
-    /// Such a contact joined into a real section's loop would be a slit
-    /// on both loops, with no edge of the operand under it; a slit
-    /// without its strut is that invariant broken, refused
-    /// [`SplitJoinError::SectionInvariant`]. A tip the band cannot tell
-    /// from a corner escalates.
+    /// lie apart at both its ends, it bounds two polygons and is no
+    /// spur. Where they join round one end, in one copy of the vertex
+    /// there, it is a spur of one polygon. Where they join round both
+    /// ends, its trace is a polygon of its own that bounds nothing, which
+    /// [`Self::certify_section_area`] has refused
+    /// ([`SplitJoinError::DegenerateSection`];
+    /// `work/cleave/a-keel-in-the-plane-wrapped-round-at-both-ends-refuses-a-degenerate-section.md`).
+    ///
+    /// A contact the plane only touches makes no spur, because none mints
+    /// a null edge of its own: rule (b) sends an edge touched along a
+    /// convex corner with its material; rule (a) refuses a wall that
+    /// bends away from its material ([`crate::SplitReduceError::KnifeEdge`]);
+    /// and a cusp, which rule (b)'s safety default could otherwise send
+    /// across, has a zero-width sector the neighbourhood classifier
+    /// refuses first ([`crate::SplitReduceError::SliverSector`] on
+    /// `sector_straight`). So at the straight tips, where the pairing is
+    /// read, the struts and the slits are as many: an unpaired one is
+    /// that invariant broken, and panics. A tip the band cannot tell from
+    /// a corner escalates.
     ///
     /// The margin is the distance between the tip's two neighbours
     /// (`split_section_spur`, a length through [`Margin::norm3`]).
-    /// **Only straight tips are read.** A curved out-and-back — the
-    /// loop running out along an arc and back along the same arc — is
-    /// a spur too (its two excesses cancel; it bounds nothing), but
-    /// telling it from two DIFFERENT arcs between one pair of points,
-    /// which do bound area, needs a carrier comparison this check does
-    /// not make (`work/hone/split-section-spur-guard-skips-curved-spurs.md`).
-    fn assert_spurs_paired(
+    /// **Only straight tips are paired**; every strut is killed, curved
+    /// or straight, since [`strut_turn`] reads topology alone. A curved
+    /// out-and-back that is not a strut — the loop running out along an
+    /// arc and back along a different edge on the same arc — is a slit
+    /// too, but telling it from two DIFFERENT arcs between one pair of
+    /// points, which do bound area, needs a carrier comparison this
+    /// reading does not make
+    /// (`work/hone/split-section-spur-guard-skips-curved-spurs.md`).
+    fn strip_spurs(
         &self,
-        body: &Body<T>,
+        body: &mut Body<T>,
         face: FaceKey,
         above_loop: LoopKey,
         below_loop: LoopKey,
     ) -> Result<(), SplitJoinError> {
-        let (mut struts, mut slits) = (0_usize, 0_usize);
+        let (mut struts, mut slits) = (Vec::new(), Vec::new());
         for l in [above_loop, below_loop] {
-            let LoopBoundary::Cycle { first } =
-                body.get_loop(l).ok_or_else(|| corrupt_loop(l))?.boundary
-            else {
-                continue;
-            };
-            let hes = body.loop_cycle(first).ok_or_else(|| corrupt_he(first))?;
-            let n = hes.len();
-            if n < 3 {
-                continue;
-            }
-            let mut members = Vec::with_capacity(n);
-            for &he in &hes {
-                let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
-                let edge = body
-                    .get_edge(he_data.edge)
-                    .ok_or_else(|| corrupt_edge(he_data.edge))?;
-                let straight = matches!(
-                    body.edge_curve_linked(he_data.edge, edge),
-                    CurveGeom::Certified(c) if matches!(c.carrier(), geom::Curve3::Line { .. })
-                );
-                members.push((he_data.edge, vertex_point(body, he_data.start), straight));
-            }
-            for i in 0..n {
-                let inbound = (i + n - 1) % n;
-                let (in_edge, before, in_straight) = members[inbound];
-                let (out_edge, _, out_straight) = members[i];
-                if !(in_straight && out_straight) {
-                    continue;
-                }
-                let after = members[(i + 1) % n].1;
-                match decide(
-                    "split_section_spur",
-                    Margin::norm3(after - before),
-                    self.band,
-                ) {
-                    Ok(Sign::Zero) if in_edge == out_edge => struts += 1,
-                    Ok(Sign::Zero) => slits += 1,
-                    Ok(_) => {}
-                    Err(diag) => return Err(SplitJoinError::Escalated { face, diag }),
+            for tip in spur_tips(body, face, l, self.band)? {
+                match tip {
+                    Spur::Strut { at } => struts.push(at),
+                    Spur::Slit { at, .. } => slits.push(at),
                 }
             }
         }
-        if struts == slits {
-            Ok(())
-        } else {
-            Err(SplitJoinError::SectionInvariant {
-                face,
-                what: "a section polygon runs out along an edge and back with no edge of the \
-                       operand in the plane under it: a contact the plane only touches minted \
-                       a null edge of its own",
-            })
+        if struts.len() != slits.len() {
+            unreachable!(
+                "section polygon {face:?} has {} strut(s) at {struts:?} and {} slit(s) at \
+                 {slits:?} among its straight tips: every spur is the trace of one edge of the \
+                 operand in the plane, the edge itself on the loop of the side that holds it \
+                 and two chords on the other's, and a contact the plane only touches mints no \
+                 null edge to trace one without the other",
+                struts.len(),
+                slits.len()
+            );
         }
+        for l in [above_loop, below_loop] {
+            kill_struts(body, l)?;
+        }
+        Ok(())
+    }
+}
+
+/// A spur of a section loop at a straight tip ([`Sweep::strip_spurs`]),
+/// at its point.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum Spur<T: Decide> {
+    /// The loop runs out along one edge and back along the same edge.
+    Strut { at: Point3<T> },
+    /// The loop runs out along one edge and back along another on the
+    /// same line, from a copy of the vertex it left; `index` is the
+    /// tip's place in the loop's cycle.
+    Slit { index: usize, at: Point3<T> },
+}
+
+/// The spurs of the loop `l` of the section polygon `face` at its
+/// straight tips, in cycle order: each tip at which the loop's two
+/// edges are lines and the vertices before and after it coincide
+/// (`split_section_spur`, the distance between them through
+/// [`Margin::norm3`]).
+///
+/// # Errors
+///
+/// [`SplitJoinError::Escalated`] where the band cannot tell a tip from
+/// a corner; corruption on a torn loop.
+pub(super) fn spur_tips<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    l: LoopKey,
+    band: Band,
+) -> Result<Vec<Spur<T>>, SplitJoinError> {
+    let LoopBoundary::Cycle { first } = body.get_loop(l).ok_or_else(|| corrupt_loop(l))?.boundary
+    else {
+        return Ok(Vec::new());
+    };
+    let hes = body.loop_cycle(first).ok_or_else(|| corrupt_he(first))?;
+    let n = hes.len();
+    let mut members = Vec::with_capacity(n);
+    for &he in &hes {
+        let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
+        let edge = body
+            .get_edge(he_data.edge)
+            .ok_or_else(|| corrupt_edge(he_data.edge))?;
+        let straight = matches!(
+            body.edge_curve_linked(he_data.edge, edge),
+            CurveGeom::Certified(c) if matches!(c.carrier(), geom::Curve3::Line { .. })
+        );
+        members.push((vertex_point(body, he_data.start), straight));
+    }
+    let mut tips = Vec::new();
+    for index in 0..n {
+        let inbound = (index + n - 1) % n;
+        let ((before, in_straight), (at, out_straight)) = (members[inbound], members[index]);
+        if !(in_straight && out_straight) {
+            continue;
+        }
+        let after = members[(index + 1) % n].0;
+        match decide("split_section_spur", Margin::norm3(after - before), band) {
+            Ok(Sign::Zero) if strut_turn(body, hes[inbound])? => {
+                tips.push(Spur::Strut { at });
+            }
+            Ok(Sign::Zero) => tips.push(Spur::Slit { index, at }),
+            Ok(_) => {}
+            Err(diag) => return Err(SplitJoinError::Escalated { face, diag }),
+        }
+    }
+    Ok(tips)
+}
+
+/// Whether `he` turns back at its end: the next half of its loop is its
+/// own mate, so its edge is a **strut** of that loop, out to a vertex no
+/// other edge reaches and back. The one edge of a closed curve, which
+/// is its own next half, is not one.
+fn strut_turn<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<bool, SplitJoinError> {
+    let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
+    let next = body
+        .get_half_edge(he_data.next)
+        .ok_or_else(|| corrupt_he(he_data.next))?;
+    Ok(he_data.next != he && next.edge == he_data.edge)
+}
+
+/// Kills every strut of the loop `l` ([`strut_turn`]) with the vertex at
+/// its tip ([`Body::kev`]), repeating until none is left, so a chain of
+/// struts goes from its tip back.
+fn kill_struts<T: Decide>(body: &mut Body<T>, l: LoopKey) -> Result<(), SplitJoinError> {
+    loop {
+        let LoopBoundary::Cycle { first } =
+            body.get_loop(l).ok_or_else(|| corrupt_loop(l))?.boundary
+        else {
+            return Ok(());
+        };
+        let mut strut = None;
+        for he in body.loop_cycle(first).ok_or_else(|| corrupt_he(first))? {
+            if strut_turn(body, he)? {
+                strut = Some(he);
+                break;
+            }
+        }
+        let Some(he) = strut else {
+            return Ok(());
+        };
+        body.kev(he)?;
     }
 }
 

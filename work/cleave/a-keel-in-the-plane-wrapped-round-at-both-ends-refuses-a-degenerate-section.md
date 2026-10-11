@@ -44,9 +44,8 @@ does not reach it") do not hold for a pinch along an edge.
 
 Where the material joins round ONE end only (a crown with one ring
 corner in the plane), the keel's trace joins the real section's loop
-as a spur: a strut on Below's loop that the finish kills
-(`finish::kill_section_struts`) and a slit on Above's
-(`Sweep::assert_spurs_paired`). This row is the same edge with both
+as a spur: a strut on Below's loop and a slit on Above's, which the
+join pairs and whose strut it kills (`Sweep::strip_spurs`). This row is the same edge with both
 ends wrapped, where the trace is a loop of its own.
 
 ## Owed

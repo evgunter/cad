@@ -462,9 +462,6 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         } else {
             return Err(SplitFinishError::Corrupt);
         };
-        for l in [section.above_loop, section.below_loop] {
-            kill_section_struts(&mut body, l)?;
-        }
         let u_ref = below_chord_u_ref(&body, section, red.plane.normal)?;
         let normal_of =
             |side: PlaneSide| section_loops::section_normal(red.plane.normal.get(), side);
@@ -1061,48 +1058,6 @@ fn section_sense<T: Decide>(
             SplitFinishError::SectionWindingUndecided { face, diag }
         }
     })
-}
-
-/// Kills each strut of the section loop `l`: an edge whose two halves
-/// follow one another in it, out to a vertex with no other edge and back.
-/// It is an edge in the plane that rule (b) gave this side, with the
-/// other side's material on both sides of it and this side's under it
-/// (the join's `Sweep::assert_spurs_paired`), so it lies inside this
-/// side's section face and bounds nothing; the vertex at its tip goes
-/// with it.
-///
-/// # Errors
-///
-/// [`SplitFinishError::Euler`] from the kill;
-/// [`SplitFinishError::Corrupt`] on a torn loop.
-fn kill_section_struts<T: Decide>(
-    body: &mut Body<T>,
-    l: crate::entity::LoopKey,
-) -> Result<(), SplitFinishError> {
-    loop {
-        let LoopBoundary::Cycle { first } =
-            body.get_loop(l).ok_or(SplitFinishError::Corrupt)?.boundary
-        else {
-            return Ok(());
-        };
-        let hes = body.loop_cycle(first).ok_or(SplitFinishError::Corrupt)?;
-        let mut strut = None;
-        for he in hes {
-            let he_data = body.get_half_edge(he).ok_or(SplitFinishError::Corrupt)?;
-            let next = body
-                .get_half_edge(he_data.next)
-                .ok_or(SplitFinishError::Corrupt)?;
-            // A closed curve's one edge is its own successor, not a strut.
-            if he_data.next != he && next.edge == he_data.edge {
-                strut = Some(he);
-                break;
-            }
-        }
-        let Some(he) = strut else {
-            return Ok(());
-        };
-        body.kev(he)?;
-    }
 }
 
 /// Classifies one component shell (module docs): section-face seeds,

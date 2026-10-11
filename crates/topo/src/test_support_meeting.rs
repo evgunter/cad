@@ -417,10 +417,8 @@ pub fn notch_rows() -> Vec<(&'static str, Vec<Hole>)> {
 /// several vertices on one point (a pinch split per cone) are compared
 /// too, and distinct vertices any further apart are not.
 ///
-/// A corner whose two edges leave along one direction is the tip of a
-/// slit, a full turn, where the face lies round it (the rest of its
-/// cycle winds round the tip), and of a spur out of the face where it
-/// does not, which is refused.
+/// A corner whose two edges leave along one direction is read by
+/// [`corner_sweep`]: a slit's tip, a full turn, or a spur's, refused.
 ///
 /// It reads planar faces with straight edges of positive length and an
 /// outer loop that is a cycle, and refuses any other face rather than
@@ -483,50 +481,16 @@ pub fn corners_disjoint(body: &Body<f64>, tol: Tol) -> Result<(), String> {
         };
         let u = n.cross(seed).normalize();
         let v = n.cross(u);
-        let angle = |d: geom_core::Vec3<f64>| d.dot(v).atan2(d.dot(u)).rem_euclid(TAU);
         let mut corners: Vec<(Point3<f64>, f64, f64)> = Vec::new();
         for (c, cycle) in cycles.iter().enumerate() {
-            let m = cycle.len();
-            for i in 0..m {
-                let (prev, here, next) = (
-                    pt(cycle[(i + m - 1) % m])?,
-                    pt(cycle[i])?,
-                    pt(cycle[(i + 1) % m])?,
-                );
-                let (out, back) = (next - here, prev - here);
-                if out.norm() < 1e-12 || back.norm() < 1e-12 {
-                    return Err(format!("{fk:?}: a zero-length edge at {:?}", cycle[i]));
-                }
-                let from = angle(out);
-                let mut sweep = (angle(back) - from).rem_euclid(TAU);
-                // Both edges along one direction: the tip of a slit, a
-                // full turn where the face lies round the tip, or of a
-                // spur, nothing where it does not.
-                if !(1e-9..=TAU - 1e-9).contains(&sweep) {
-                    let rest: Vec<_> = (1..m)
-                        .map(|k| pt(cycle[(i + k) % m]))
-                        .collect::<Result<_, _>>()?;
-                    let crossings = (0..rest.len())
-                        .filter(|&k| {
-                            let (a, b) = (rest[k] - here, rest[(k + 1) % rest.len()] - here);
-                            let (au, av, bu, bv) = (a.dot(u), a.dot(v), b.dot(u), b.dot(v));
-                            (av > 0.0) != (bv > 0.0)
-                                && au + (bu - au) * (0.0 - av) / (bv - av) > 0.0
-                        })
-                        .count();
-                    // Round the tip of a ring's slit the face lies
-                    // outside the ring.
-                    let ring = c > 0;
-                    if (crossings % 2 == 1) == ring {
-                        return Err(format!(
-                            "{fk:?}: a corner at {:?} whose edges leave along one direction, \
-                             the tip of a spur out of the face",
-                            cycle[i]
-                        ));
-                    }
-                    sweep = TAU;
-                }
-                corners.push((here, from, sweep));
+            let points = cycle
+                .iter()
+                .map(|&he| pt(he))
+                .collect::<Result<Vec<_>, _>>()?;
+            for i in 0..cycle.len() {
+                let (from, sweep) = corner_sweep(&points, i, [u, v], c > 0)
+                    .map_err(|what| format!("{fk:?}: {what} at {:?}", cycle[i]))?;
+                corners.push((points[i], from, sweep));
             }
         }
         // One point: corners chained within `K·ε` of one another.
@@ -559,6 +523,50 @@ pub fn corners_disjoint(body: &Body<f64>, tol: Tol) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+/// The corner of a cycle `points` at its `i`th corner, in the plane
+/// frame `[u, v]`: the angle its leaving edge points at, and how far it
+/// sweeps counterclockwise to its arriving edge, the face on the left.
+/// `ring` says the cycle is a ring of its face, which lies outside it.
+///
+/// A corner whose two edges leave along one direction is the tip of a
+/// slit, a full turn, where the face lies round it (the rest of the
+/// cycle winds round the tip, or for a ring does not), and of a spur out
+/// of the face where it does not, which is refused.
+fn corner_sweep(
+    points: &[Point3<f64>],
+    i: usize,
+    [u, v]: [geom_core::Vec3<f64>; 2],
+    ring: bool,
+) -> Result<(f64, f64), &'static str> {
+    use std::f64::consts::TAU;
+    let m = points.len();
+    let angle = |d: geom_core::Vec3<f64>| d.dot(v).atan2(d.dot(u)).rem_euclid(TAU);
+    let (prev, here, next) = (points[(i + m - 1) % m], points[i], points[(i + 1) % m]);
+    let (out, back) = (next - here, prev - here);
+    if out.norm() < 1e-12 || back.norm() < 1e-12 {
+        return Err("a zero-length edge");
+    }
+    let from = angle(out);
+    let sweep = (angle(back) - from).rem_euclid(TAU);
+    if (1e-9..=TAU - 1e-9).contains(&sweep) {
+        return Ok((from, sweep));
+    }
+    let rest: Vec<_> = (1..m).map(|k| points[(i + k) % m] - here).collect();
+    let crossings = (0..rest.len())
+        .filter(|&k| {
+            let (a, b) = (rest[k], rest[(k + 1) % rest.len()]);
+            let (au, av, bu, bv) = (a.dot(u), a.dot(v), b.dot(u), b.dot(v));
+            (av > 0.0) != (bv > 0.0) && au + (bu - au) * (0.0 - av) / (bv - av) > 0.0
+        })
+        .count();
+    if (crossings % 2 == 1) == ring {
+        return Err(
+            "a corner whose edges leave along one direction, the tip of a spur out of the face",
+        );
+    }
+    Ok((from, TAU))
 }
 
 /// The half-edge cycles of a face's loops, outer first.
@@ -1064,4 +1072,58 @@ pub fn posed_boxes(
     }
     describe_as_intersections(&mut body, tol);
     finished(what, body, tol)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::corner_sweep;
+    use geom_core::{Point3, Vec3};
+    use std::f64::consts::TAU;
+
+    /// **A corner whose edges leave along one direction is a slit's tip,
+    /// a full turn, inside the face, and refused as a spur's outside
+    /// it.** The square `[0, 2]²` runs out along `y = 1` from its side
+    /// `x = 0`: to `(1, 1)` inside it, a slit, and to `(−1, 1)` outside
+    /// it, a spur. Read as a ring the two swap. An ordinary corner of the
+    /// square sweeps a quarter turn.
+    #[test]
+    fn a_tip_inside_the_face_is_a_full_turn_and_one_outside_it_refuses() {
+        let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
+        let frame = [Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0)];
+        let cycle = |tip: f64| {
+            vec![
+                p(0.0, 0.0),
+                p(2.0, 0.0),
+                p(2.0, 2.0),
+                p(0.0, 2.0),
+                p(0.0, 1.0),
+                p(tip, 1.0),
+                p(0.0, 1.0),
+            ]
+        };
+        let (slit, spur) = (cycle(1.0), cycle(-1.0));
+        assert_eq!(
+            corner_sweep(&slit, 5, frame, false).map(|c| c.1),
+            Ok(TAU),
+            "the slit's tip"
+        );
+        assert!(
+            corner_sweep(&spur, 5, frame, false).is_err(),
+            "the spur's tip"
+        );
+        assert!(
+            corner_sweep(&slit, 5, frame, true).is_err(),
+            "the slit's tip, read as a ring"
+        );
+        assert_eq!(
+            corner_sweep(&spur, 5, frame, true).map(|c| c.1),
+            Ok(TAU),
+            "the spur's tip, read as a ring"
+        );
+        let quarter = corner_sweep(&slit, 1, frame, false).map(|c| c.1);
+        assert!(
+            quarter.is_ok_and(|q| (q - TAU / 4.0).abs() < 1e-12),
+            "a corner of the square: {quarter:?}"
+        );
+    }
 }
