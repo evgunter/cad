@@ -22,14 +22,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::corpus::body_of;
-use crate::blocks::{
-    declared_union, declared_union_classed, failure, flush_pairs, run,
-};
+use crate::blocks::{failure, run};
 use crate::emit_shared_rim_several::{Bx, document, permutations, probe_corpus};
-use crate::fixture::{ang, face_vertices, fname, insert, len, scl, table, wall};
+use crate::fixture::{ang, face_vertices, insert, len, scl, table};
 
 use editor_core::{
-    CapEnd, EntityKey, EntityKind, Entry, Node, RecipeNodeId, RoleSeg, SitedRef, StableName,
+    CapEnd, EntityKey, EntityKind, Entry, Node, RecipeNodeId, RoleSeg, StableName,
 };
 
 /// A rounded point, comparable across two evaluations.
@@ -141,40 +139,21 @@ pub(crate) struct Case {
     pub(crate) label: String,
     blocks: Vec<Bx>,
     creation: Vec<usize>,
-    /// Pairs of blocks declared flush; none makes an undeclared union.
-    flush: Vec<(usize, usize)>,
-    /// The families of `fixture::flush_segs` each pair is declared on.
-    families: Vec<usize>,
-    /// Blocks 0 and 1 in an inner union declared flush (both orders), and
-    /// that union with the rest in an outer undeclared one (every order).
+    /// Blocks 0 and 1 in an inner union (both orders), and that union
+    /// with the rest in an outer one (every order).
     nested: bool,
     /// A block behind a `Transform` translated along x: `(block, dx)`.
     shift: Option<(usize, f64)>,
 }
 
 impl Case {
-    pub(crate) fn flat(
-        label: &str,
-        blocks: Vec<Bx>,
-        creation: Vec<usize>,
-        flush: Vec<(usize, usize)>,
-    ) -> Self {
+    pub(crate) fn flat(label: &str, blocks: Vec<Bx>, creation: Vec<usize>) -> Self {
         Case {
             label: label.into(),
             blocks,
             creation,
-            flush,
-            families: ALL_FAMILIES.to_vec(),
             nested: false,
             shift: None,
-        }
-    }
-
-    /// This case with its pairs declared on `families` only.
-    fn on(self, families: &[usize]) -> Self {
-        Case {
-            families: families.to_vec(),
-            ..self
         }
     }
 
@@ -184,16 +163,11 @@ impl Case {
             label: label.into(),
             blocks,
             creation,
-            flush: vec![(0, 1)],
-            families: ALL_FAMILIES.to_vec(),
             nested: true,
             shift: None,
         }
     }
 }
-
-/// Both y-walls and both caps: every family two x-offset blocks share.
-const ALL_FAMILIES: [usize; 4] = [0, 1, 2, 3];
 
 const A: Bx = ((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
 const B: Bx = ((0.5, 1.5), (0.0, 1.0), (0.0, 1.0));
@@ -229,44 +203,34 @@ const CEND: Bx = ((-1.0, 1.0), (0.0, 1.0), (0.0, 1.0));
 /// `r1three`), the same beside a flush partner (`r1flush`), a member
 /// flush with TWO partners (`r2ends`, `r2endsg`), three members each
 /// flush with the other two (`r4tri`, `r4trig`), a member touching
-/// another along a line (`r4touch`), and a declared union nested in an
-/// undeclared one (`r3nest`, `r3nest2`).
+/// another along a line (`r4touch`), and a union nested in another
+/// (`r3nest`, `r3nest2`).
 pub(crate) fn cases() -> Vec<Case> {
     let g = ((0.3, 0.4), (-1.0, 2.0), (0.5, 3.0));
     let smid = ((1.4, 1.6), (-1.0, 2.0), (0.5, 3.0));
     let mut out: Vec<Case> = probe_corpus()
         .into_iter()
-        .map(|(label, blocks, creation)| Case::flat(&label, blocks, creation, vec![(0, 1)]))
+        .map(|(label, blocks, creation)| Case::flat(&label, blocks, creation))
         .collect();
     out.extend([
-        Case::flat("r1two", vec![A, S1, S2], vec![0, 1, 2], vec![]),
-        Case::flat("r1three", vec![A, S1, S2, S3], vec![0, 1, 2, 3], vec![]),
-        Case::flat(
-            "r1flush",
-            vec![A, B, S1, S2],
-            vec![0, 1, 2, 3],
-            vec![(0, 1)],
-        ),
+        Case::flat("r1two", vec![A, S1, S2], vec![0, 1, 2]),
+        Case::flat("r1three", vec![A, S1, S2, S3], vec![0, 1, 2, 3]),
+        Case::flat("r1flush", vec![A, B, S1, S2], vec![0, 1, 2, 3]),
         r2ends(),
-        Case::flat(
-            "r2endsg",
-            vec![ALONG, BEND, CEND, smid],
-            vec![0, 1, 2, 3],
-            vec![(0, 1), (0, 2)],
-        ),
-        Case::flat("r4tri", vec![A, B, C8], vec![0, 1, 2], TRI.to_vec()),
-        Case::flat("r4trig", vec![A, B, C8, g], vec![0, 1, 2, 3], TRI.to_vec()),
-        Case::flat("r4touch", vec![A, B, TOUCH], vec![0, 1, 2], vec![(0, 1)]),
+        Case::flat("r2endsg", vec![ALONG, BEND, CEND, smid], vec![0, 1, 2, 3]),
+        Case::flat("r4tri", vec![A, B, C8], vec![0, 1, 2]),
+        Case::flat("r4trig", vec![A, B, C8, g], vec![0, 1, 2, 3]),
+        Case::flat("r4touch", vec![A, B, TOUCH], vec![0, 1, 2]),
         // `b` inside `a`, flush on both caps and both y-walls: `b` adds
         // no surface, and its faces are held through `a`'s.
-        Case::flat("r5covered", vec![A2, B], vec![0, 1], vec![(0, 1)]),
-        // `b` out of `a`'s top, declared on the y-walls and the bottom:
+        Case::flat("r5covered", vec![A2, B], vec![0, 1]),
+        // `b` out of `a`'s top, flush on the y-walls and the bottom:
         // its bottom is held through `a`'s, and its y-walls add surface.
-        Case::flat("r5poke", vec![A2, BTALL], vec![0, 1], vec![(0, 1)]).on(&[0, 1, 2]),
-        Case::flat("r5coveredids", vec![A2, B], vec![1, 0], vec![(0, 1)]),
-        Case::flat("r5pokehi", vec![A2, BTALLER], vec![0, 1], vec![(0, 1)]).on(&[0, 1, 2]),
+        Case::flat("r5poke", vec![A2, BTALL], vec![0, 1]),
+        Case::flat("r5coveredids", vec![A2, B], vec![1, 0]),
+        Case::flat("r5pokehi", vec![A2, BTALLER], vec![0, 1]),
         // `b` flush with `a` and merged with it, then swallowed by `c`.
-        Case::flat("xmerge", vec![A, XB, XC], vec![0, 1, 2], vec![(0, 1)]),
+        Case::flat("xmerge", vec![A, XB, XC], vec![0, 1, 2]),
         Case::nested("r3nest", vec![A, B, g]),
         Case::nested("r3nest2", vec![A, B, S1, S2]),
     ]);
@@ -287,8 +251,6 @@ impl Case {
             label: format!("{} moved {dx}", self.label),
             blocks: self.blocks.clone(),
             creation: self.creation.clone(),
-            flush: self.flush.clone(),
-            families: self.families.clone(),
             nested: self.nested,
             shift: Some((i, dx)),
         }
@@ -320,16 +282,8 @@ fn centroids(case: &Case) -> BTreeMap<String, BTreeMap<StableName, [f64; 3]>> {
     out
 }
 
-/// Every pair of three blocks declared flush.
-const TRI: [(usize, usize); 3] = [(0, 1), (1, 2), (0, 2)];
-
 fn r2ends() -> Case {
-    Case::flat(
-        "r2ends",
-        vec![ALONG, BEND, CEND],
-        vec![0, 1, 2],
-        vec![(0, 1), (0, 2)],
-    )
+    Case::flat("r2ends", vec![ALONG, BEND, CEND], vec![0, 1, 2])
 }
 
 /// Every run of `case`: `each` is handed the orders that built it, the
@@ -387,22 +341,10 @@ pub(crate) fn runs_in(
             .0
         }
     };
-    let flush = |ids: &[RecipeNodeId]| {
-        case.flush
-            .iter()
-            .flat_map(|&(p, q)| {
-                flush_pairs(&doc, (ids[p], ids[p]), (ids[q], ids[q]))
-                    .into_iter()
-                    .enumerate()
-                    .filter(|(k, _)| case.families.contains(k))
-                    .map(|(_, pair)| pair)
-            })
-            .collect::<Vec<_>>()
-    };
     if case.nested {
         for inner in permutations(&[0, 1]) {
             let io: Vec<_> = inner.iter().map(|&i| ids[i]).collect();
-            let (d1, u1) = declared_union(doc.clone(), &io, flush(&ids));
+            let (d1, u1) = crate::fixture::union_over(doc.clone(), &io);
             let outer: Vec<_> = std::iter::once(u1)
                 .chain(ids[2..].iter().copied())
                 .collect();
@@ -423,11 +365,7 @@ pub(crate) fn runs_in(
     }
     for order in permutations(&(0..case.blocks.len()).collect::<Vec<_>>()) {
         let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
-        let (docx, union) = if case.flush.is_empty() {
-            crate::fixture::union_over(doc.clone(), &members)
-        } else {
-            declared_union(doc.clone(), &members, flush(&ids))
-        };
+        let (docx, union) = crate::fixture::union_over(doc.clone(), &members);
         let ev = run(&docx);
         each(&format!("{order:?}"), &docx, &ev, &ids, &[("U", union)]);
     }
@@ -474,7 +412,7 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
 /// `r5pokehi` the vertex where `b`'s lateral edge crosses `a`'s top rim
 /// is spelled as an edge–edge seam in one order and as a face–edge seam
 /// in the other, and so is the rim piece whose end it is; `cross` and
-/// `r1three`, whose flush contacts glue undeclared, publish the same
+/// `r1three`, whose flush contacts glue, publish the same
 /// split: an edge-crossing vertex and the rim pieces it ends, spelled by
 /// member order;
 /// `work/emit/an-edge-edge-crossing-vertex-of-a-union-is-spelled-by-member-order.md`
@@ -728,8 +666,7 @@ type Signatures = BTreeMap<StableName, String>;
 /// cut, or cut by several members; a member flush with two others;
 /// three members each flush with the other two; a member another
 /// covers, wholly or on one face; a member merged and then swallowed; a
-/// member touching another along a line; a declared union nested in an
-/// undeclared one.
+/// member touching another along a line; a union nested in another.
 /// A union of [`KNOWN_ABSENT`] is compared on the names every one of its
 /// fused orders publishes: its tables differ by the names pinned there.
 #[test]
@@ -1004,7 +941,7 @@ fn fam010_names_a_rim_the_same_way_in_both_orders() {
     };
     // x-span → the name there, for every edge along the rim line.
     let along = |order: [editor_core::RecipeNodeId; 3]| {
-        let (docx, union) = declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
+        let (docx, union) = crate::fixture::union_over(doc.clone(), &order);
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
@@ -1062,39 +999,15 @@ fn fam010_names_a_rim_the_same_way_in_both_orders() {
 /// x = 1 wall, which `b` (x 0.5..1.5) covers.
 const H: Bx = ((1.0, 1.1), (-1.0, 2.0), (0.5, 3.0));
 
-/// `a`'s x = 1 wall (segment 1) against `h`'s x = 1.0 wall (segment 3),
-/// sited at the two members.
-fn a_h_contact(
-    doc: &editor_core::ProfileDoc,
-    a: RecipeNodeId,
-    h: RecipeNodeId,
-) -> (SitedRef<editor_core::VarId>, SitedRef<editor_core::VarId>) {
-    (
-        SitedRef::new(crate::fixture::out(doc, a), fname(a, wall(doc, a, 1))),
-        SitedRef::new(crate::fixture::out(doc, h), fname(h, wall(doc, h, 3))),
-    )
-}
-
-/// Every order of `blocks` (`a` = 0 and `b` = 1 declared flush, and, if
-/// `ah` names `h`'s block, `(a, h)` declared too): the order, and
-/// `"fuse"` or the refusal's variant.
-fn outcomes(blocks: &[Bx], creation: &[usize], ah: Option<usize>) -> Vec<(Vec<usize>, String)> {
+/// Every order of `blocks`: the order, and `"fuse"` or the refusal's
+/// variant.
+fn outcomes(blocks: &[Bx], creation: &[usize]) -> Vec<(Vec<usize>, String)> {
     let (doc, ids) = document(blocks, creation);
-    let mut pairs: Vec<_> = flush_pairs(&doc, (ids[0], ids[0]), (ids[1], ids[1]))
-        .into_iter()
-        .map(|p| (p, editor_core::BooleanCoincidence::Continuation))
-        .collect();
-    if let Some(h) = ah {
-        pairs.push((
-            a_h_contact(&doc, ids[0], ids[h]),
-            editor_core::BooleanCoincidence::REST,
-        ));
-    }
     permutations(&(0..blocks.len()).collect::<Vec<_>>())
         .into_iter()
         .map(|order| {
             let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
-            let (docx, union) = declared_union_classed(doc.clone(), &members, pairs.clone());
+            let (docx, union) = crate::fixture::union_over(doc.clone(), &members);
             let ev = run(&docx);
             let variant = |shown: String| {
                 shown
@@ -1124,13 +1037,13 @@ fn orders_that(outcomes: &[(Vec<usize>, String)], what: &str) -> Vec<Vec<usize>>
 
 /// **A covered contact decides alike declared or not, in every member
 /// order** (DM4's contact rule). `row` is `a`, `b`, `g`, `h`, with
-/// `(a, b)` declared; `b` covers the `(a, h)` contact. The margins decide
+/// `(a, b)` got; `b` covers the `(a, h)` contact. The margins decide
 /// `(a, h)` one carrier, so leaving it undeclared or declaring it gives
 /// every one of the 24 orders the same outcome, whichever order the
 /// members are in and whichever order they were created in (`rowids`):
 /// 6 orders fuse, 2 refuse `Emission`
 /// (`a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission`)
-/// and 16 refuse `DeclareResolve` on a declared face the fold split
+/// and 16 refuse `DeclareResolve` on a got face the fold split
 /// (`union-refuses-in-some-member-orders-and-publishes-in-others`).
 #[test]
 fn a_covered_contact_decides_alike_declared_or_not_in_every_order() {
@@ -1144,35 +1057,31 @@ fn a_covered_contact_decides_alike_declared_or_not_in_every_order() {
         vec![2, 1, 0, 3],
     ];
     for (label, creation) in [("row", [0, 1, 2, 3]), ("rowids", [3, 2, 1, 0])] {
-        let undeclared = outcomes(&[A, B, g, H], &creation, None);
-        let declared = outcomes(&[A, B, g, H], &creation, Some(3));
-        assert_eq!(undeclared, declared, "{label}: undeclared vs declared");
-        assert_eq!(orders_that(&declared, "fuse"), fused, "{label}");
+        let got = outcomes(&[A, B, g, H], &creation);
+        assert_eq!(orders_that(&got, "fuse"), fused, "{label}");
         assert_eq!(
-            orders_that(&declared, "Emission"),
+            orders_that(&got, "Emission"),
             [vec![0, 3, 1, 2], vec![3, 0, 1, 2]],
             "{label}"
         );
         assert_eq!(
-            orders_that(&declared, "DeclareResolve").len(),
+            orders_that(&got, "DeclareResolve").len(),
             16,
             "{label}"
         );
     }
 }
 
-/// **The covered-contact row itself: `{a, b, h}`**, alike declared or
+/// **The covered-contact row itself: `{a, b, h}`**, alike got or
 /// not. `[a, b, h]` and `[b, a, h]` fuse: `b` consumes `a`'s wall whole
 /// before `h` joins, so a declaration of `(a, h)` is satisfied. The
 /// other four refuse: `Emission` where `a` and `h` meet first, and
 /// `DeclareResolve` on a face of `b` that `h` split, which is GATHER's.
 #[test]
 fn a_contact_b_covers_decides_alike_declared_or_not() {
-    let undeclared = outcomes(&[A, B, H], &[0, 1, 2], None);
-    let declared = outcomes(&[A, B, H], &[0, 1, 2], Some(2));
-    assert_eq!(undeclared, declared, "undeclared vs declared");
+    let got = outcomes(&[A, B, H], &[0, 1, 2]);
     assert_eq!(
-        declared,
+        got,
         [
             (vec![0, 1, 2], "fuse"),
             (vec![0, 2, 1], "Emission"),

@@ -22,7 +22,7 @@ use crate::common;
 
 use common::{brick, finished, prism_z};
 use geom_core::Tol;
-use topo::{Body, BooleanError, BooleanResult, BooleanResultKind, mass_properties, subtract, union, validate_geometric, validate_pseudomanifold};
+use topo::{BooleanResult, BooleanResultKind, mass_properties, subtract, union, validate_geometric, validate_pseudomanifold};
 
 fn glued(
     a: &topo::AtRestBody<f64>,
@@ -123,55 +123,12 @@ fn probe_symmetric_two_patch_bridge() {
     );
 }
 
-/// PROBE 3 (review F3): a second false-declaration shape — planes
-/// nearly-but-not coincident (1/16 apart) declared coincident, riding
-/// a genuine REST contact so the lane actually runs. Refuses
-/// `DeclarationContradicted`, never a silent no-op.
-#[test]
-fn probe_near_miss_false_declaration_contradicts() {
-    let bot = finished(
-        "bot",
-        brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness()),
-        Tol::witness(),
-    );
-    let top = finished(
-        "top",
-        brick::<f64>((0.0625, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness()),
-        Tol::witness(),
-    );
-    let mut decls = flush_declarations(&bot, &top, Tol::witness());
-    assert!(
-        !decls.coincident_faces.is_empty(),
-        "genuine contact declared"
-    );
-    let side_of = |b: &Body<f64>, x: f64| -> topo::FaceKey {
-        b.faces()
-            .find(|(_, f)| match b.get_surface(f.surface) {
-                Some(&topo::Surface::Plane { origin, normal, .. }) => {
-                    normal.x.abs() > 0.5 && (origin.x - x).abs() < 1e-12
-                }
-                _ => false,
-            })
-            .map(|(k, _)| k)
-            .unwrap()
-    };
-    decls.coincident_faces.push(topo::FacePairDeclaration::rest(
-        side_of(&bot, 0.0),
-        side_of(&top, 0.0625),
-    ));
-    let err = union(&bot, &top, Tol::witness()).unwrap_err();
-    assert!(
-        matches!(err, BooleanError::ContactContradicted { .. }),
-        "near-miss false declaration must contradict: {err:?}"
-    );
-}
-
 /// PROBE 4 (review F5 → MINOR-1's counterexample): the three-wall
 /// notch fill — B exactly plugs A's U-notch, interiors disjoint.
 /// The ∖ reaches the containment fallback: every vertex of B lies on
 /// A's boundary, and the midpoint of an edge along B's open side
 /// (y = 2), such as (1.5, 2, 0), lies outside A, so B classifies Out at
-/// the edge tier and A ∖ B is A. The declared
+/// the edge tier and A ∖ B is A. The
 /// UNION of the same mate builds exactly (three-patch chain glue,
 /// volume 6).
 #[test]
@@ -199,7 +156,6 @@ fn probe_subtract_notch_rests_on_b() {
         brick((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), Tol::witness()),
         Tol::witness(),
     );
-    assert!(!decls.coincident_faces.is_empty());
     let BooleanResult::Body(sub) = subtract(&a, &b, Tol::witness())
         .expect("an edge along B's open side decides it lies outside A")
     else {

@@ -8,8 +8,7 @@
 //! section path. Raised to z 0..2, `b` pokes out of `a`'s top and the
 //! union takes the section path in either order; its bottom and y-walls
 //! stay flush.
-//! Every flush pair is declared. On either path, and with either block as
-//! operand A, each flush pair is recorded once, as `(A face, B face)`,
+//! On either path, and with either block as operand A, each flush pair is recorded once, as `(A face, B face)`,
 //! whichever copy the classification kept.
 //!
 //! A discarded face that a kept face holds part of records the kept
@@ -42,11 +41,10 @@ fn normal(body: &Body<f64>, f: FaceKey) -> Axis {
     [normal.x, normal.y, normal.z].map(|c| c.round() as i8)
 }
 
-/// The union of `x` and `y` with every flush pair declared: its kind and
+/// The union of `x` and `y`: its kind and
 /// the normals of each covered pair, operand A's then operand B's.
 fn covered(x: &AtRestBody<f64>, y: &AtRestBody<f64>) -> (BooleanResultKind, BTreeSet<AxisPair>) {
     let tol = Tol::witness();
-    let decls = declare_all(&find_flush_candidates(x, y, tol).expect("the flush detector decides"));
     let BooleanResult::Body(out) = union(x, y, tol).expect("the union fuses") else {
         panic!("a union of non-empty blocks cannot be empty");
     };
@@ -120,7 +118,7 @@ fn a_union_records_each_flush_pair_it_holds_through_one_face_in_either_operand_o
 /// holds it. The edge of `b`'s top along the slab at x 0.501 runs into
 /// it, and on each y-wall so do the two edges of the notch the slab cut
 /// in `b`'s wall. The rows also hold `b`'s edges at x 0.5 on the bottom
-/// and below the notch: the declared merge glues the faces beside them,
+/// and below the notch: the merge glues the faces beside them,
 /// and the output stage joins their ends away (maximal edges), so no
 /// live edge holds them.
 #[test]
@@ -139,9 +137,6 @@ fn a_discarded_face_holds_the_edges_of_the_kept_face_that_runs_into_it() {
     else {
         panic!("a union of non-empty blocks cannot be empty");
     };
-    let decls = declare_all(
-        &find_flush_candidates(&cut.body, &a, tol).expect("the flush detector decides"),
-    );
     let BooleanResult::Body(out) = union(&cut.body, &a, tol).expect("the union fuses")
     else {
         panic!("a union of non-empty blocks cannot be empty");
@@ -171,7 +166,7 @@ fn a_discarded_face_holds_the_edges_of_the_kept_face_that_runs_into_it() {
 /// Each stretch's live edge, by its two ends in thousandths, sorted:
 /// the edge between its ends read through the zip's fusions, or the
 /// edge a join made of it. A stretch no live edge holds is left out
-/// only where the declared merge glued the faces beside it and the
+/// only where the merge glued the faces beside it and the
 /// output stage joined one of its ends away (`naming.edge_joins`);
 /// any other is a stretch the rows lost, and panics.
 fn stretches(
@@ -259,18 +254,14 @@ fn a_held_edge_goes_only_to_the_fragment_it_enters() {
         brick((0.15, 0.55), (0.45, 0.55), (1.5, 1.8), tol),
         tol,
     );
-    let none = topo::BooleanDeclarations::default();
-    let union = |x: &AtRestBody<f64>, y: &AtRestBody<f64>| -> AtRestBody<f64> {
-        let BooleanResult::Body(o) =
-            union(x, y, tol).expect("an undeclared union fuses")
+    let fused = |x: &AtRestBody<f64>, y: &AtRestBody<f64>| -> AtRestBody<f64> {
+        let BooleanResult::Body(o) = union(x, y, tol).expect("the union fuses")
         else {
             panic!("a union of non-empty blocks cannot be empty");
         };
         o.body
     };
-    let x = union(&union(&union(&b, &slab), &bridge), &pillar);
-    let decls =
-        declare_all(&find_flush_candidates(&x, &a, tol).expect("the flush detector decides"));
+    let x = fused(&fused(&fused(&b, &slab), &bridge), &pillar);
     let BooleanResult::Body(out) = union(&x, &a, tol).expect("the union fuses") else {
         panic!("a union of non-empty blocks cannot be empty");
     };
@@ -307,9 +298,6 @@ fn coplanar_faces_that_share_no_region_are_not_covered() {
         ("apart", brick((2.0, 3.0), unit, unit, tol)),
     ] {
         let other = finished(label, other, tol);
-        let decls = declare_all(
-            &find_flush_candidates(&a, &other, tol).expect("the flush detector decides"),
-        );
         let BooleanResult::Body(out) =
             union(&a, &other, tol).expect("the union fuses")
         else {

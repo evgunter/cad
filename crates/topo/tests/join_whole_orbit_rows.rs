@@ -22,13 +22,12 @@ use topo::{AtRestBody, Body, BooleanError, BooleanResult, intersect, mass_proper
 type Op = fn(
     &AtRestBody<f64>,
     &AtRestBody<f64>,
-    &BooleanDeclarations,
     Tol,
 ) -> Result<BooleanResult<f64>, BooleanError>;
 
 fn exact(label: &str, op: Op, x: &AtRestBody<f64>, y: &AtRestBody<f64>, want: f64) {
     let tol = Tol::witness();
-    let r = op(x, y, &decls, tol).unwrap_or_else(|e| panic!("{label}: refused {e:?}"));
+    let r = op(x, y, tol).unwrap_or_else(|e| panic!("{label}: refused {e:?}"));
     let BooleanResult::Body(bb) = r else {
         panic!("{label}: an overlapping pair cannot be Empty");
     };
@@ -82,28 +81,28 @@ fn a_merged_rim_vertex_under_a_coplanar_cap_answers_every_op() {
         let tag = format!("g = {gx:?} × {gy:?} × {gz:?}");
         exact(
             &format!("bar ∪ {tag}"),
-            union_with,
+            union,
             &bar,
             &g,
             bar_v + g_v - meet,
         );
         exact(
             &format!("{tag} ∪ bar"),
-            union_with,
+            union,
             &g,
             &bar,
             bar_v + g_v - meet,
         );
-        exact(&format!("bar ∩ {tag}"), intersect_with, &bar, &g, meet);
-        exact(&format!("{tag} ∩ bar"), intersect_with, &g, &bar, meet);
+        exact(&format!("bar ∩ {tag}"), intersect, &bar, &g, meet);
+        exact(&format!("{tag} ∩ bar"), intersect, &g, &bar, meet);
         exact(
             &format!("bar ∖ {tag}"),
-            subtract_with,
+            subtract,
             &bar,
             &g,
             bar_v - meet,
         );
-        exact(&format!("{tag} ∖ bar"), subtract_with, &g, &bar, g_v - meet);
+        exact(&format!("{tag} ∖ bar"), subtract, &g, &bar, g_v - meet);
     }
 }
 
@@ -147,24 +146,24 @@ fn the_reflex_315_corner_under_a_tilted_cap_answers_exactly() {
         );
         common::describe_as_intersections(&mut b, tol);
         let b = finished("b", b, tol);
-        exact(&format!("shear {k}: a ∩ b"), intersect_with, &a, &b, meet);
+        exact(&format!("shear {k}: a ∩ b"), intersect, &a, &b, meet);
         exact(
             &format!("shear {k}: a ∖ b"),
-            subtract_with,
+            subtract,
             &a,
             &b,
             14.0 - meet,
         );
         exact(
             &format!("shear {k}: b ∖ a"),
-            subtract_with,
+            subtract,
             &b,
             &a,
             8.0 - meet,
         );
         exact(
             &format!("shear {k}: a ∪ b"),
-            union_with,
+            union,
             &a,
             &b,
             22.0 - meet,

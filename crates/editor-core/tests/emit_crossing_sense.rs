@@ -1,6 +1,6 @@
 //! **Where two edges cross, the vertex carries each edge's sense against
 //! the other operand's closed body** (N2). Two blocks overlap in an L,
-//! their caps declared continuations so each cap pair merges: on each
+//! their caps flush so each cap pair merges: on each
 //! merged cap, an edge of `a` crosses an edge of `b` where the walls
 //! cross. Past the crossing one edge runs on into the other block's cap
 //! — into its closed body — and the other runs out of the first's, so
@@ -11,9 +11,9 @@
 
 use crate::corpus::body_of;
 use crate::blocks::{block, failure, run};
-use crate::fixture::{ends, fname, insert, point, table};
+use crate::fixture::{ends, insert, point, table};
 use editor_core::{
-    CapEnd, EntityKey, Entry, Node, ProfileDoc, RecipeNodeId, RoleSeg, Sense, SitedRef, StableName,
+    EntityKey, Entry, Node, ProfileDoc, RecipeNodeId, RoleSeg, Sense, StableName,
 };
 use geom_core::Tol;
 
@@ -60,23 +60,10 @@ fn two_crossing_edges_carry_each_ones_sense_against_the_other_block() {
     let doc = ProfileDoc::empty_derived("crossing-sense-edges", Tol::witness());
     let (doc, a) = block(doc, (plan_a.0, plan_a.1), (plan_a.2, plan_a.3), 0.0, 1.0);
     let (doc, b) = block(doc, (plan_b.0, plan_b.1), (plan_b.2, plan_b.3), 0.0, 1.0);
-    let (ar, br) = (crate::fixture::out(&doc, a), crate::fixture::out(&doc, b));
-    let decl = editor_core::declare_continuation(
-        [CapEnd::End, CapEnd::Start]
-            .into_iter()
-            .map(|cap| {
-                (
-                    SitedRef::new(ar, fname(a, RoleSeg::Cap(cap))),
-                    SitedRef::new(br, fname(b, RoleSeg::Cap(cap))),
-                )
-            })
-            .collect(),
-    );
     let (doc, u) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: decl,
         },
     );
     let ev = run(&doc);
@@ -105,6 +92,7 @@ fn two_crossing_edges_carry_each_ones_sense_against_the_other_block() {
         let at = [p.x, p.y];
         // Each side names a member's edge in the union's space,
         // `From` the member's read: read against the OTHER block.
+        let (ar, br) = (crate::fixture::out(&doc, a), crate::fixture::out(&doc, b));
         let member = |edge: &StableName| match edge.path.as_slice() {
             [RoleSeg::From { read, of }] if *read == ar => (a, (**of).clone(), plan_b),
             [RoleSeg::From { read, of }] if *read == br => (b, (**of).clone(), plan_a),

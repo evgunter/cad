@@ -1,5 +1,5 @@
-//! **A declared area-overlap cap contact merges.** Two blocks whose
-//! coplanar caps are declared in contact and overlap in AREA meet
+//! **An area-overlap cap contact merges.** Two blocks whose coplanar
+//! caps are flush and overlap in AREA meet
 //! along a seam that bends at the overlap's corner. The merge output
 //! stage joins each cap pair, deletes the seam edge the glue leaves
 //! dangling together with its free end, and publishes one cap top and
@@ -62,7 +62,7 @@ fn assert_green(bb: &BooleanBody<f64>, what: &str) {
     );
 }
 
-/// `a ∪ f`, caps declared: each cap pair meets along a two-edge seam
+/// `a ∪ f`, caps glued: each cap pair meets along a two-edge seam
 /// bent 90° at (1, 1).
 fn a_union_f() -> BooleanBody<f64> {
     let tol = Tol::witness();
@@ -76,8 +76,7 @@ fn a_union_f() -> BooleanBody<f64> {
         brick::<f64>((0.5, 1.5), (0.5, 1.5), (0.0, 1.0), tol),
         tol,
     );
-    assert_eq!(decls.coincident_faces.len(), 2, "both caps declared");
-    unwrap_body(union(&a, &f, tol).expect("the declared area-overlap union runs"))
+    unwrap_body(union(&a, &f, tol).expect("the area-overlap union runs"))
 }
 
 /// The third brick, touching both blocks.
@@ -117,11 +116,11 @@ fn an_area_overlap_cap_contact_publishes_one_cap_top_and_bottom() {
     assert_green(&bb, "a ∪ f");
 }
 
-/// **The merged union is a legal operand**: the next union, with its
-/// own contacts declared, runs and skips nothing. The finished body is
+/// **The merged union is a legal operand**: the next union, gluing its
+/// own contacts, runs and skips nothing. The finished body is
 /// the L-shaped hexagon's prism: six walls and two caps.
 #[test]
-fn the_merged_union_takes_a_third_brick_declared() {
+fn the_merged_union_takes_a_third_brick() {
     let tol = Tol::witness();
     let af = a_union_f();
     let c = c();
@@ -138,30 +137,6 @@ fn the_merged_union_takes_a_third_brick_declared() {
     assert_eq!(faces_at_height(&bb.body, 0.0), 1, "one bottom cap");
     assert_eq!(mass_properties(&bb.body, tol).unwrap().volume, 2.0);
     assert_green(&bb, "(a ∪ f) ∪ c");
-}
-
-/// **Without its declarations the next union glues the same body**:
-/// every flush pair across the operands decides Zero on its own
-/// margins, so the undeclared union is the declared one, bit for bit.
-#[test]
-fn the_merged_union_glues_an_undeclared_third_brick_as_declared() {
-    let tol = Tol::witness();
-    let af = a_union_f();
-    let c = c();
-    let declared = unwrap_body(
-        union(&af.body, &c, tol)
-            .expect("a merged union is a boolean operand"),
-    );
-    let undeclared = unwrap_body(
-        union(&af.body, &c, tol)
-            .expect("c's flush faces glue on their decided zero"),
-    );
-    assert_eq!(
-        format!("{:?}", undeclared.body),
-        format!("{:?}", declared.body),
-        "declared and undeclared are one body"
-    );
-    assert_green(&undeclared, "(a ∪ f) ∪ c, undeclared");
 }
 
 /// **The bent seam's corner is deleted, and no record survives to
@@ -215,7 +190,7 @@ fn a_bent_seam_around_a_hole_merges_to_one_ringed_cap() {
         brick::<f64>((0.5, 2.5), (2.0, 3.5), (0.0, 1.0), tol),
         tol,
     );
-    let bb = unwrap_body(union(&u, &bar, tol).expect("the declared union runs"));
+    let bb = unwrap_body(union(&u, &bar, tol).expect("the union runs"));
     assert!(
         bb.naming.merge_skipped.is_empty(),
         "{:?}",
@@ -244,7 +219,7 @@ fn holed() -> AtRestBody<f64> {
     finished("the holed block", block, tol)
 }
 
-/// `holed() ∪ plug`, every flush pair declared, then a next union with
+/// `holed() ∪ plug`, every flush pair glued, then a next union with
 /// a brick flush on the block's `x = 3` wall: both must run, publish
 /// no skip and stay green, at the volumes given.
 fn assert_plug_merges(plug: Body<f64>, volume: f64, what: &str) {

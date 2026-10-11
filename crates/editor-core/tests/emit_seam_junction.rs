@@ -1,11 +1,11 @@
-//! **Where a slab crosses the merged rim of two flush-declared members,
+//! **Where a slab crosses the merged rim of two flush members,
 //! a union names the point by the rim and the slab, whatever the member
 //! order.**
 //!
 //! The pair emitter names a seam JUNCTION — the vertex where k ≥ 2 seam
 //! lines meet and no operand edge does — by the sorted run of those
-//! lines' `Seam` segments. A declared union's fold reaches that shape
-//! whenever a slab crosses the merged edge of two flush-declared members
+//! lines' `Seam` segments. A union's fold reaches that shape whenever a
+//! slab crosses the merged edge of two flush members
 //! before the second of them is folded in; folded after them, it meets a
 //! piece of the rim instead. The merged edge lies along a member's rim,
 //! and the published table names the point from the finished body
@@ -16,14 +16,12 @@
 use std::collections::BTreeSet;
 
 use crate::corpus::body_of;
-use crate::blocks::{
-    block, declared_union_classed, failure, flush_pairs, member_face, run,
-};
-use crate::fixture::{ename, fname, member_entity, table, vertex_of, wall};
+use crate::blocks::{block, failure, run};
+use crate::fixture::{ename, fname, member_entity, member_face, table, vertex_of, wall};
 
 use editor_core::{
-    BooleanCoincidence, CapEnd, EntityKind, NameTable, NamingError, NodeErrorKind, ProfileDoc,
-    RecipeNodeId, RoleSeg, Sense, SitedRef, StableName,
+    CapEnd, EntityKind, NameTable, NamingError, NodeErrorKind, ProfileDoc,
+    RecipeNodeId, RoleSeg, Sense, StableName,
 };
 use geom_core::Tol;
 
@@ -63,8 +61,8 @@ fn junctions(t: &NameTable) -> BTreeSet<StableName> {
         .collect()
 }
 
-/// The row's document: `a` and `b` meet flush along x with all four
-/// families declared, so their caps and y-walls merge; `g` is a slab
+/// The row's document: `a` and `b` meet flush along x on all four
+/// families, so their caps and y-walls merge; `g` is a slab
 /// through `a` alone, rising out of the top cap and through both
 /// y-walls; `h` a second slab, over the merged overlap's far end.
 /// `(z0, dz)` places `g`, so the same shape is had through the bottom
@@ -89,30 +87,6 @@ fn fixture(g_z: (f64, f64), with_h: bool) -> Fixture {
         (doc, None)
     };
     Fixture { doc, a, b, g, h }
-}
-
-/// The fixture's declarations: `a` and `b` flush (continuations), and,
-/// with `h`, `h`'s x = 1.0 wall resting on `a`'s x = 1 wall (a `Rest`).
-/// `b` covers that contact, and it is a contact of the pair all the
-/// same (DM4).
-fn declared(f: &Fixture) -> Vec<editor_core::DeclaredPair> {
-    let mut pairs: Vec<_> = flush_pairs(&f.doc, (f.a, f.a), (f.b, f.b))
-        .into_iter()
-        .map(|p| (p, BooleanCoincidence::Continuation))
-        .collect();
-    pairs.extend(f.h.map(|h| {
-        (
-            (
-                SitedRef::new(
-                    crate::fixture::out(&f.doc, f.a),
-                    fname(f.a, wall(&f.doc, f.a, 1)),
-                ),
-                SitedRef::new(crate::fixture::out(&f.doc, h), fname(h, wall(&f.doc, h, 3))),
-            ),
-            BooleanCoincidence::REST,
-        )
-    }));
-    pairs
 }
 
 /// The name every fused order gives the point where `g`'s `x = 0.3`
@@ -193,10 +167,9 @@ fn point_of(ev: &editor_core::Evaluation<f64>, union: RecipeNodeId, name: &Stabl
 #[test]
 fn a_slab_crossing_a_merged_rim_is_named_by_the_rim_and_the_slab() {
     let f = fixture((0.5, 3.0), true);
-    let pairs = declared(&f);
     let Fixture { doc, a, b, g, h } = f;
     let h = h.unwrap();
-    let (docx, union) = declared_union_classed(doc, &[b, g, a, h], pairs);
+    let (docx, union) = crate::fixture::union_over(doc, &[b, g, a, h]);
     let ev = run(&docx);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     let v = volume(body_of(&ev, union));
@@ -212,8 +185,8 @@ fn a_slab_crossing_a_merged_rim_is_named_by_the_rim_and_the_slab() {
 }
 
 /// The member orders, spelled by member, in which the four-member
-/// document reaches the seam-vertex residue `Emission` once `(a, h)` is
-/// declared: measured, and pinned exactly.
+/// document reaches the seam-vertex residue `Emission`: measured, and
+/// pinned exactly.
 const SEAM_VERTEX_RESIDUE: [&str; 2] = ["ahbg", "habg"];
 
 /// **Every order of every such document names the crossing the same.**
@@ -221,9 +194,8 @@ const SEAM_VERTEX_RESIDUE: [&str; 2] = ["ahbg", "habg"];
 /// Three documents reach it: the row's four members, the same without
 /// `h`, and `g` lowered through the bottom cap (the crossing then on
 /// `a`'s bottom / `y = 1` rim). Orders that refuse for reasons of their
-/// own (a declaration that no longer resolves, an undeclared contact)
-/// are other rows' subjects; what is asserted of them is only that none
-/// of them is an `Emission`.
+/// own are other rows' subjects; what is asserted of them is only that
+/// none of them is an `Emission`.
 ///
 /// Whether `a` and `b` fold before `g` decides what the fold meets: a
 /// piece of `a`'s rim, or three seam lines. The published name is the
@@ -242,8 +214,7 @@ fn a_crossing_of_a_merged_rim_is_named_the_same_in_every_order_that_fuses() {
         ),
     ] {
         let f = fixture(g_z, with_h);
-        let pairs = declared(&f);
-        let Fixture { doc, a, b, g, h } = f;
+            let Fixture { doc, a, b, g, h } = f;
         let members: Vec<_> = [a, b, g].into_iter().chain(h).collect();
         let (mut ab_first, mut g_between) = (0, 0);
         let mut residue = BTreeSet::new();
@@ -259,7 +230,7 @@ fn a_crossing_of_a_merged_rim_is_named_the_same_in_every_order_that_fuses() {
                 .collect()
         };
         for order in permutations(&members) {
-            let (docx, union) = declared_union_classed(doc.clone(), &order, pairs.clone());
+            let (docx, union) = crate::fixture::union_over(doc.clone(), &order);
             let ev = run(&docx);
             match failure(&ev, union) {
                 None => {
@@ -281,8 +252,8 @@ fn a_crossing_of_a_merged_rim_is_named_the_same_in_every_order_that_fuses() {
                         g_between += 1;
                     }
                 }
-                // Declaring `(a, h)` reaches the seam-vertex residue
-                // in exactly the measured orders
+                // The seam-vertex residue, in exactly the measured
+                // orders
                 // (`a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission`).
                 Some(NodeErrorKind::Naming(NamingError::Emission {
                     what: "seam vertex parentage underdetermined from incident edges",

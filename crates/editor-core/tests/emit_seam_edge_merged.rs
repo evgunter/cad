@@ -1,7 +1,7 @@
 //! **A chord between two merged faces that lies on one member is named
 //! as that member's edge.**
 //!
-//! `a` and `b` meet flush along x with all four families declared, so
+//! `a` and `b` meet flush along x on all four families, so
 //! their caps and y-walls merge. A third member folded in before `a`
 //! splits `a`'s rim edge where `a` stands alone (x < 0.5); when `a`
 //! then joins, a piece of that rim edge sits between the merged top
@@ -13,7 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
-use crate::blocks::{block, declared_union, failure, flush_pairs, run};
+use crate::blocks::{block, failure, run};
 use crate::emit_shared_rim_several::is_rim_piece;
 use crate::fixture::{edge_of, table};
 
@@ -52,8 +52,8 @@ fn slab(x0: f64, x1: f64) -> Bx {
     ((x0, x1), (-1.0, 2.0), 0.5, 3.0)
 }
 
-/// `a`, `b` and the rest, in that creation order; `a` and `b` declared
-/// flush on all four families.
+/// `a`, `b` and the rest, in that creation order; `a` and `b` flush on
+/// all four families.
 fn document(rest: &[Bx]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty_derived("emit_seam_edge_merged", Tol::witness());
     let mut ids = Vec::new();
@@ -76,7 +76,7 @@ fn a_chord_between_two_merged_faces_is_named_as_its_members_rim_edge() {
     let (a, b, c) = (ids[0], ids[1], ids[2]);
     let mut name_sets = Vec::new();
     for order in [[b, c, a], [c, b, a]] {
-        let (docx, union) = declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
+        let (docx, union) = crate::fixture::union_over(doc.clone(), &order);
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
@@ -174,8 +174,8 @@ fn assert_rim_pieces(
 /// **No order of the row's documents refuses with an `Emission`.**
 /// Orders that refuse for reasons of their own — `SharedRim` (a
 /// fragmented merged face,
-/// `work/emit/shared-rim-several-is-a-missing-rule-legal-declared-unions-reach.md`),
-/// a declaration that no longer resolves — are other rows' subjects,
+/// `work/emit/shared-rim-several-is-a-missing-rule-legal-declared-unions-reach.md`)
+/// — are other rows' subjects,
 /// and what is asserted of them is that none of them reads as a kernel
 /// bug.
 #[test]
@@ -189,10 +189,9 @@ fn no_order_of_the_rows_documents_refuses_with_an_emission() {
         ),
     ] {
         let (doc, ids) = document(&rest);
-        let (a, b) = (ids[0], ids[1]);
         for order in permutations(&ids) {
             let (docx, union) =
-                declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
+                crate::fixture::union_over(doc.clone(), &order);
             let ev = run(&docx);
             if let Some(e) = failure(&ev, union) {
                 assert!(

@@ -1,19 +1,16 @@
-//! Declared REST unions beyond the crosslap (`crosslap_rest.rs` holds
+//! REST unions beyond the crosslap (`crosslap_rest.rs` holds
 //! the headline pins), built by the join:
 //!
 //! - stacked plates (full-face REST contact): single pair and the
-//!   three-plate chain (two declared contacts, sequential ops);
+//!   three-plate chain (two contacts, sequential ops);
 //! - corner-flush REST (the tier-3′ fixture's shape) — chords +
 //!   pierce-ring consumption in the pierced face;
-//! - the contradiction row: a false REST declaration refuses
-//!   `DeclarationContradicted`, never a silent no-op;
 //! - the annular (ringed-patch) contact UNIONS exactly additively;
 //! - ∖/∩ disposition rows on the PINNED REST fixtures (crosslap,
 //!   corner-flush): classification resolves them structurally
 //!   (operand A / typed Empty) without reaching a join door (the
 //!   three-wall notch-fill REST ∖ reaches the containment fallback
 //!   instead, `review_s1_probes.rs`);
-//! - undeclared doors unchanged (the ladder is law);
 //! - re-run bit-identity for the stacked union.
 //!
 //! Every volume assertion is EXACT dyadic f64 equality — the
@@ -24,10 +21,10 @@
 
 use crate::common;
 
-use common::{brick, finished, prism_z};
+use common::{brick, finished};
 use geom_core::Decide;
 use geom_core::Tol;
-use topo::{AtRestBody, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, mass_properties, subtract, union, validate_geometric, validate_pseudomanifold};
+use topo::{AtRestBody, BooleanBody, BooleanResult, BooleanResultKind, mass_properties, subtract, union, validate_geometric, validate_pseudomanifold};
 
 /// The brick `x × y × z`, finished.
 fn finished_brick<T: Decide + topo::AtRestPolicy>(
@@ -48,7 +45,7 @@ fn glue<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
         b,
         Tol::witness(),
     )
-    .expect("declared REST union builds")
+    .expect("the REST union builds")
     {
         BooleanResult::Body(body) => body,
         BooleanResult::Empty => panic!("REST union cannot be empty"),
@@ -60,23 +57,6 @@ fn glue<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
 /// surviving records, rest records consumed (3′ ≡ tier 3). Exact
 /// volume equality is asserted by the f64 rows (the Interval lane has
 /// no scalar equality by design — NaI ≠ NaI).
-/// Declared and undeclared are one body (D10): the undeclared union of
-/// `a` and `b` is `glued`'s body, bit for bit.
-fn assert_undeclared_is_glued<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
-    a: &AtRestBody<T>,
-    b: &AtRestBody<T>,
-    glued: &BooleanBody<T>,
-) {
-    match union(a, b, Tol::witness()).expect("the undeclared union glues on Zero") {
-        BooleanResult::Body(undeclared) => assert_eq!(
-            format!("{:?}", undeclared.body),
-            format!("{:?}", glued.body),
-            "declared and undeclared are one body"
-        ),
-        BooleanResult::Empty => panic!("a glued union is not empty"),
-    }
-}
-
 fn assert_glued<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(g: &BooleanBody<T>) {
     assert_eq!(g.kind, BooleanResultKind::Seamed);
     assert_eq!(
@@ -96,21 +76,19 @@ fn assert_glued<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(g: 
     );
 }
 
-/// Stacked plates, full-face REST contact: the declared union is ONE
-/// body with the contact faces gone; the declared same-oriented side
-/// planes merge in the output stage, leaving the plain brick's six
-/// faces. Undeclared, the union glues on Zero to the same body.
+/// Stacked plates, full-face REST contact: the union is ONE body with
+/// the contact faces gone; the glued same-oriented side planes merge in
+/// the output stage, leaving the plain brick's six faces.
 fn stacked_plates_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
 -> BooleanBody<T> {
     let bot = finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
     let top = finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0));
     let g = glue(&bot, &top);
-    assert_undeclared_is_glued(&bot, &top, &g);
     assert_glued(&g);
     assert_eq!(
         g.body.faces().count(),
         6,
-        "contact faces removed, coplanar declared sides merged: a brick"
+        "contact faces removed, coplanar sides merged: a brick"
     );
     assert_eq!(g.body.shells().count(), 1, "one closed shell");
     g
@@ -126,9 +104,9 @@ fn stacked_plates_full_face_rest() {
     );
 }
 
-/// The three-plate chain: two declared REST contacts consumed by two
-/// sequential ops (the second op's declarations name the FIRST glued
-/// result's faces — reuse of a REST result as an operand).
+/// The three-plate chain: two REST contacts consumed by two sequential
+/// ops (the second op glues the FIRST glued result's faces — reuse of a
+/// REST result as an operand).
 #[test]
 fn three_plate_chain() {
     let p1 = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
@@ -152,14 +130,13 @@ fn three_plate_chain() {
 /// Corner-flush REST (the tier-3′ fixture's shape): the contact square
 /// shares two edges with the slab's rim and pierces the top face with
 /// one interior corner (a pierce-ring vertex the seam chords consume).
-/// Declared or not, the union BUILDS, one body; ∖ stays operand A (no
+/// The union BUILDS, one body; ∖ stays operand A (no
 /// join door was ever reached).
 fn corner_flush_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
 -> (BooleanBody<T>, BooleanBody<T>) {
     let slab = finished_brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
     let corner = finished_brick::<T>((0.0, 1.0), (0.0, 1.0), (1.0, 3.0));
     let g = glue(&slab, &corner);
-    assert_undeclared_is_glued(&slab, &corner, &g);
     assert_glued(&g);
     // ∖ disposition: pure REST subtract classifies structurally — the
     // whole of A survives (never a join refusal; SPEC §1 note).
@@ -182,45 +159,6 @@ fn corner_flush_rest_union_builds() {
     assert_eq!(
         mass_properties(&sub.body, Tol::witness()).unwrap().volume,
         16.0
-    );
-}
-
-/// The contradiction row: a FALSE REST declaration (two definitely
-/// distinct planes declared coincident) refuses
-/// `DeclarationContradicted` at the lane — the lie is met where the
-/// lane consumes the declaration set, never a silent no-op. The pair
-/// is chosen so classification itself never meets it (the faces are
-/// far apart), isolating the lane door.
-#[test]
-fn false_rest_declaration_contradicts_at_the_lane() {
-    let bot = prism_z::<f64>(
-        &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
-        0.0,
-        1.0,
-        Tol::witness(),
-    );
-    let top = prism_z::<f64>(
-        &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
-        1.0,
-        2.0,
-        Tol::witness(),
-    );
-    let (bot_body, top_body) = (
-        finished("bot", bot.body, Tol::witness()),
-        finished("top", top.body, Tol::witness()),
-    );
-    let mut decls = flush_declarations(&bot_body, &top_body, Tol::witness());
-    // The lie: bot's bottom cap (z = 0, outward −z) declared
-    // coincident with top's top cap (z = 2, outward +z) — opposite
-    // orientation, definitely-distinct planes.
-    decls.coincident_faces.push(topo::FacePairDeclaration::rest(
-        bot.bottom_face,
-        top.top_face,
-    ));
-    let err = union(&bot_body, &top_body, Tol::witness()).unwrap_err();
-    assert!(
-        matches!(err, BooleanError::ContactContradicted { .. }),
-        "false REST declaration must contradict, naming the class and the margin: {err:?}"
     );
 }
 

@@ -172,7 +172,6 @@ fn a_declared_strand_a_later_set_declare_clears_is_not_reported() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let pairs = editor_core::declare_continuation(flush_pairs(&doc, (a, a), (b, b)));
     let (doc, union) = union_over(doc, &[a, b, c], pairs);
     let doc = applied(
         &doc,
@@ -218,7 +217,6 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let pairs = editor_core::declare_continuation(flush_pairs(&doc, (a, a), (b, b)));
     let (doc, union) = union_over(doc, &[a, b, c], pairs);
     let doc = applied(
         &doc,

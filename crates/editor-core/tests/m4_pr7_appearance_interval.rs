@@ -60,12 +60,10 @@ fn f64_and_interval_lanes_resolve_appearance_identically() {
     let doc = ProfileDoc::empty_derived("m4_pr7_appearance_interval", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let decl = declare_x_offset_flush(&doc, a, b);
     let (doc, uni) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: decl,
         },
     );
     // Resolving: the union body, a union-minted face, and operand A's

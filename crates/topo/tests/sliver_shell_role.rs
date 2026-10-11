@@ -168,7 +168,6 @@ fn a_sliver_the_walk_reads_as_zero_refuses_in_band_in_both_orders() {
     }
     let profile = [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (2.0, 0.5), (0.0, 4.0)];
     let (prism, cube) = corner_pose(&profile, [2.0, 0.5, 1.0], [2.0, 3.5, 0.0], 1, 6e-9, tol);
-    let decls = BooleanDeclarations::default();
     for (order, refusal) in [
         ("prism first", intersect(&prism, &cube, tol)),
         ("cube first", intersect(&cube, &prism, tol)),

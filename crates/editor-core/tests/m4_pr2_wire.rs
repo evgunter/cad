@@ -944,7 +944,6 @@ fn set_declare_on_a_live_boolean_builds_its_undeclared_body() {
     let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
     let (doc, a) = unit_cube(doc, 0.0, 0.0);
     let (doc, b) = unit_cube(doc, 0.5, 0.0); // overlapping, flush y/z planes
-    let pairs = fixture::declare_x_offset_flush(&doc, a, b);
     let (doc, boolean) = insert(
         doc,
         Node::Union {

@@ -17,14 +17,12 @@ use common::{brick, finished};
 use geom_core::Tol;
 use topo::{AtRestBody, Body, BooleanError, BooleanResult, mass_properties, union};
 
-/// The union of `a` and `b`, every flush pair the detector finds
-/// declared.
-fn declared_union(
+/// The union of `a` and `b`.
+fn fused(
     a: &AtRestBody<f64>,
     b: &AtRestBody<f64>,
 ) -> Result<AtRestBody<f64>, BooleanError> {
     let tol = Tol::witness();
-    let decls = declare_all(&find_flush_candidates(a, b, tol).expect("the flush detector decides"));
     match union(a, b, tol)? {
         BooleanResult::Body(body) => Ok(body.body),
         BooleanResult::Empty => panic!("a union of non-empty blocks cannot be empty"),
@@ -71,9 +69,9 @@ fn every_member_order_of_a_flush_trio_fuses_to_the_accumulation() {
         [2, 0, 1],
         [2, 1, 0],
     ] {
-        let first = declared_union(&blocks[order[0]], &blocks[order[1]])
+        let first = fused(&blocks[order[0]], &blocks[order[1]])
             .unwrap_or_else(|e| panic!("order {order:?}, first step: {e:?}"));
-        let all = declared_union(&first, &blocks[order[2]])
+        let all = fused(&first, &blocks[order[2]])
             .unwrap_or_else(|e| panic!("order {order:?}, second step: {e:?}"));
         assert_valid_with_volume(&format!("order {order:?}"), &all, 2.0);
     }
@@ -95,19 +93,18 @@ fn an_uncut_lump_flush_inside_the_other_operand_takes_its_side_from_a_face() {
     let BooleanResult::Body(bx) = topo::union(&b, &x, tol).expect("two disjoint blocks") else {
         panic!("a union of non-empty blocks cannot be empty");
     };
-    let ac = declared_union(&a, &c).expect("a ∪ c");
-    let all = declared_union(&ac, &bx.body).expect("the uncut lump classifies");
+    let ac = fused(&a, &c).expect("a ∪ c");
+    let all = fused(&ac, &bx.body).expect("the uncut lump classifies");
     assert_valid_with_volume("(a ∪ c) ∪ (b ∪ x)", &all, 2.0 + 0.5 * 0.36);
 }
 
-/// The same body twice, every flush pair declared: every witness of
-/// either operand lies on the other's boundary, and the declarations
-/// settle each face with its twin, so the shell is `On` and one copy is
+/// The same body twice: every witness of either operand lies on the
+/// other's boundary, and the glue settles each face with its twin, so the shell is `On` and one copy is
 /// kept.
 #[test]
-fn one_body_twice_declared_is_one_copy() {
+fn one_body_twice_is_one_copy() {
     let [a, _, _] = trio();
-    let both = declared_union(&a, &a).expect("one body twice, declared, is answered");
+    let both = fused(&a, &a).expect("one body twice is answered");
     assert_valid_with_volume("a ∪ a", &both, 1.0);
     assert_eq!(both.shells().count(), 1, "one copy of the shell is kept");
 }
@@ -131,7 +128,7 @@ fn a_non_convex_end_face_offers_only_a_certified_interior_point() {
     ];
     let a = finished("a", common::prism_z::<f64>(&l, 0.0, 1.0, tol).body, tol);
     let c = finished("c", common::prism_z::<f64>(&l, 0.8, 2.0, tol).body, tol);
-    let ac = declared_union(&a, &c).expect("a ∪ c");
+    let ac = fused(&a, &c).expect("a ∪ c");
     for start in 0..l.len() {
         let profile: Vec<(f64, f64)> = l[start..].iter().chain(&l[..start]).copied().collect();
         let b = finished(
@@ -139,7 +136,7 @@ fn a_non_convex_end_face_offers_only_a_certified_interior_point() {
             common::prism_z::<f64>(&profile, 0.5, 1.5, tol).body,
             tol,
         );
-        let all = declared_union(&ac, &b)
+        let all = fused(&ac, &b)
             .unwrap_or_else(|e| panic!("profile from vertex {start}: {e:?}"));
         assert_valid_with_volume(&format!("profile from vertex {start}"), &all, 6.0);
     }

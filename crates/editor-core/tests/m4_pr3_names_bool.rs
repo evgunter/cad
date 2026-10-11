@@ -71,12 +71,10 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let decl = declare_x_offset_flush(&doc, a, b);
     let (doc, u) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: decl,
         },
     );
     let ev = run(&doc);
@@ -378,12 +376,10 @@ fn no_flip_translation_edit_leaves_every_table_identical() {
             ),
         );
         // The B side is read at the TRANSFORM, the boolean's operand.
-        let decl = declare_x_offset_flush_at(&doc, (a, a), (tb, b0));
         let (doc, u) = insert(
             doc,
             Node::Union {
                 members: editor_core::Bodies::Spelled(vec![a.into(), tb.into()]),
-                declare: decl,
             },
         );
         (doc, u, tb)
@@ -421,12 +417,10 @@ fn flip_changes_exactly_the_boolean_nodes_table() {
             ),
         );
         // The B side is read at the TRANSFORM, the boolean's operand.
-        let decl = declare_x_offset_flush_at(&doc, (a, a), (tb, b0));
         let (doc, u) = insert(
             doc,
             Node::Union {
                 members: editor_core::Bodies::Spelled(vec![a.into(), tb.into()]),
-                declare: decl,
             },
         );
         (doc, u, tb)

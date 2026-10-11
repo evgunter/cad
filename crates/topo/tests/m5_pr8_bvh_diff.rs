@@ -394,7 +394,6 @@ fn grazing_infinite_plane_divergence_is_exactly_as_documented() {
         // disjoint, and every containment witness reads `Out`
         // (`every_grazing_witness_reads_out_against_the_far_brick`).
         for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
-            let decls = topo::BooleanDeclarations::none();
             let real = boolean_op_with(op, &a, &b, &topo::BooleanInputs::default(), SweepStrategy::Realized, Tol::witness());
             let ideal =
                 boolean_op_with(op, &a, &b, &topo::BooleanInputs::default(), SweepStrategy::Idealized, Tol::witness());

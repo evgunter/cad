@@ -121,7 +121,6 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
         Node::Subtract {
             from: x.into(),
             tool: y.into(),
-            declare: decl,
         },
     );
     (doc, s)
@@ -760,7 +759,6 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
             Node::Subtract {
                 from: cube.into(),
                 tool: tr.into(),
-                declare: decl,
             },
         );
         (doc, sub)

@@ -1,7 +1,7 @@
-//! **A split tangent to a declared union's edge classifies the contact
+//! **A split tangent to a flush union's edge classifies the contact
 //! with its material, and names both halves.**
 //!
-//! `a` and `b` meet flush along x, declared on all four families; `g`
+//! `a` and `b` meet flush along x on all four families; `g`
 //! is a slab at x = 1.2..1.3 that the plane y + z = 2 really cuts. The
 //! plane touches the union along its top/far rim y = z = 1, a convex
 //! edge whose material is all below. The rim stays an ordinary edge of
@@ -11,7 +11,7 @@
 //! above half is empty.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::blocks::{block, declared_union, failure, flush_pairs, run};
+use crate::blocks::{block, failure, run};
 use crate::fixture::{insert, len, scl};
 use editor_core::{Evaluation, Node, ProfileDoc, RecipeNodeId, SplitSide, ValuePayload};
 use geom_core::Tol;
@@ -65,13 +65,13 @@ fn near(got: Option<f64>, want: f64) -> bool {
 /// `g` spans z = 0.5..3. Its part above the plane is 0.1 × 4.375; the
 /// rest of the union, 2.2 − 0.4375, is below.
 #[test]
-fn a_tangent_split_of_a_fused_declared_union_cuts_only_the_slab() {
+fn a_tangent_split_of_a_fused_flush_union_cuts_only_the_slab() {
     let doc = ProfileDoc::empty_derived("emit_split_duplicate", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, g) = block(doc, (1.2, 1.3), (-1.0, 2.0), 0.5, 2.5);
     for (label, order) in [("[a, g, b]", [a, g, b]), ("[g, a, b]", [g, a, b])] {
-        let (d, u) = declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
+        let (d, u) = crate::fixture::union_over(doc.clone(), &order);
         let (d, s) = split_of(d, u);
         let (above, below) = halves(label, &run(&d), u, s);
         assert!(near(above, 0.4375), "{label}: above {above:?}");
@@ -92,7 +92,7 @@ fn the_tangent_contact_standing_alone_lands_below_whole() {
     assert_eq!(above, None, "a");
     assert!(near(below, 1.0), "a: below {below:?}");
     for (label, order) in [("[a, b]", vec![a, b]), ("[b, a]", vec![b, a])] {
-        let (d, u) = declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
+        let (d, u) = crate::fixture::union_over(doc.clone(), &order);
         let (d, s) = split_of(d, u);
         let (above, below) = halves(label, &run(&d), u, s);
         assert_eq!(above, None, "{label}");

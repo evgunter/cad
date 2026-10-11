@@ -18,7 +18,6 @@ use topo::{AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, subtract,
 type BoolOp<T> = fn(
     &AtRestBody<T>,
     &AtRestBody<T>,
-    &topo::BooleanDeclarations,
     Tol,
 ) -> Result<BooleanResult<T>, BooleanError>;
 
@@ -30,7 +29,6 @@ fn run<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
     match op(
         a,
         b,
-        &common::flush_declarations(a, b, Tol::witness()),
         Tol::witness(),
     )
     .unwrap()
@@ -47,7 +45,7 @@ fn pinches<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
     let block = |what, x, y, z| finished(what, brick::<T>(x, y, z, t), t);
     let slab = block("slab", (0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
     let notched = run(
-        subtract_with,
+        subtract,
         &slab,
         &block("first notch", (1.0, 3.0), (-1.0, 1.0), (-1.0, 2.0)),
     );
@@ -80,7 +78,7 @@ fn pinches<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
         (
             "reflex_edge_split",
             run(
-                subtract_with,
+                subtract,
                 &notched.body,
                 &block("second notch", (-1.0, 1.0), (1.0, 3.0), (-1.0, 2.0)),
             ),
@@ -89,22 +87,22 @@ fn pinches<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
         (
             "reflex_edge_split_upper",
             run(
-                subtract_with,
+                subtract,
                 &notched.body,
                 &block("upper notch", (-1.0, 1.0), (1.0, 3.0), (0.5, 2.0)),
             ),
         ),
         // A wedge whose edge runs along the cube's convex edge (1, 1, z).
-        ("wedge_on_edge", run(subtract_with, &cube, &wedge(-1.0))),
+        ("wedge_on_edge", run(subtract, &cube, &wedge(-1.0))),
         (
             "wedge_on_edge_upper",
-            run(subtract_with, &cube, &wedge(0.5)),
+            run(subtract, &cube, &wedge(0.5)),
         ),
         // A cube kissing the L's reflex edge at its top vertex.
         (
             "reflex_vertex_kiss",
             run(
-                union_with,
+                union,
                 &ell,
                 &block("kissing cube", (1.0, 2.0), (1.0, 2.0), (1.0, 2.0)),
             ),

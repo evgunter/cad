@@ -80,7 +80,6 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
         Node::Subtract {
             from: cube.into(),
             tool: placed.into(),
-            declare: decl,
         },
     );
 

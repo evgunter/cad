@@ -156,7 +156,6 @@ fn tilted_saddle_corner_builds_every_op() {
     let va = 12.0;
     assert!(common > 0.0 && common < vb, "the cube crosses the corner");
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
-    let d = BooleanDeclarations::default();
     for (op, got, want) in [
         ("a ∪ b", union(&a, &b, tol), va + vb - common),
         ("a ∩ b", intersect(&a, &b, tol), common),

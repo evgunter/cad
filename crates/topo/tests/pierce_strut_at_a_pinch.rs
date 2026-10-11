@@ -386,7 +386,6 @@ fn a_pinch_standing_on_a_face_builds_in_every_op() {
     type DeclaredOp = fn(
         &AtRestBody<f64>,
         &AtRestBody<f64>,
-        &BooleanDeclarations,
         Tol,
     ) -> Result<BooleanResult<f64>, topo::BooleanError>;
     let q1 = block((0.0, 1.0), (0.0, 1.0), (0.5, 1.5));
@@ -399,16 +398,16 @@ fn a_pinch_standing_on_a_face_builds_in_every_op() {
     // Each op's counts and volume, or `None` where it is empty.
     type Want = Option<([usize; 3], f64)>;
     let rows: [(&str, DeclaredOp, bool, Want); 6] = [
-        ("pinch ∪ B", union_with, false, Some(([13, 30, 19], 4.0))),
-        ("pinch − B", subtract_with, false, Some(([12, 24, 16], 2.0))),
-        ("pinch ∩ B", intersect_with, false, None),
-        ("B ∪ pinch", union_with, true, Some(([13, 30, 19], 4.0))),
-        ("B − pinch", subtract_with, true, Some(([6, 12, 8], 2.0))),
-        ("B ∩ pinch", intersect_with, true, None),
+        ("pinch ∪ B", union, false, Some(([13, 30, 19], 4.0))),
+        ("pinch − B", subtract, false, Some(([12, 24, 16], 2.0))),
+        ("pinch ∩ B", intersect, false, None),
+        ("B ∪ pinch", union, true, Some(([13, 30, 19], 4.0))),
+        ("B − pinch", subtract, true, Some(([6, 12, 8], 2.0))),
+        ("B ∩ pinch", intersect, true, None),
     ];
     for (name, op, swap, want) in rows {
         let (x, y) = if swap { (&b, &pinch) } else { (&pinch, &b) };
-        let got = op(x, y, &flush_declarations(x, y, t()), t())
+        let got = op(x, y, t())
             .unwrap_or_else(|e| panic!("{name}: refused: {e:?}"));
         match (got, want) {
             (BooleanResult::Empty, None) => {}

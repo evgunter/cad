@@ -16,7 +16,7 @@
 use editor_core::VarNameReason;
 use editor_core::mate::SurfaceKind;
 use editor_core::{
-    AssemblyError, CapEnd, CarriedRefusal, Clash, ContactClass, DeclareError, Diagnosis, Dimension,
+    AssemblyError, CapEnd, CarriedRefusal, Clash, ContactClass, Diagnosis, Dimension,
     DimensionError, DocRef, DocumentId, EditError, EntityKind, EvalError, FreeValue, HitTestError,
     InterrogateError, Lever, LeverRefusal, Maintenance, MateFault, MateSide, MeshPickError,
     MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError, ParseError,
@@ -153,57 +153,6 @@ fn stable_name_display_is_its_role_of_its_feature() {
     assert!(
         !shown.contains("Cap") && !shown.contains('['),
         "the role path's structure leaked into prose: {shown:?}"
-    );
-}
-
-/// **A flush pair one boolean carried says two different faces**, each
-/// by its role and its feature and by the read the boolean carried it
-/// in through; the sentence meets the refusal standard.
-#[test]
-fn a_pair_in_band_says_two_faces_of_one_node_apart() {
-    use editor_core::NameRef;
-    let operand = |node: u64, end| StableName {
-        kind: EntityKind::Face,
-        node: RecipeNodeId::new(0, tagged(node)),
-        path: vec![RoleSeg::Cap(end)],
-    };
-    let carried = |read: u64, inner| StableName {
-        kind: EntityKind::Face,
-        node: RecipeNodeId::new(0, tagged(9)),
-        path: vec![RoleSeg::From {
-            read: editor_core::VarId::new(0, tagged(read)),
-            of: NameRef::new(inner),
-        }],
-    };
-    let refusal = SelectRefusal::PairInBand {
-        pair: Box::new((
-            carried(2, operand(2, CapEnd::End)),
-            carried(5, operand(5, CapEnd::Start)),
-        )),
-        at: (
-            RecipeNodeId::new(0, tagged(9)),
-            RecipeNodeId::new(0, tagged(9)),
-        ),
-        predicate: "bool_plane_offset",
-        source: in_band("bool_plane_offset"),
-    };
-    let shown = refusal.to_string();
-    assert!(
-        shown.starts_with(
-            "select: the end cap of node 000000000002, through read 000000000002 at node \
-             000000000009 and the start cap of node 000000000005, through read \
-             000000000005 at node 000000000009 may coincide (margin "
-        ),
-        "{shown}"
-    );
-    assert!(
-        !shown.contains("declare"),
-        "a query takes no declaration, so its recourse offers none: {shown}"
-    );
-    assert_eq!(
-        test_utils::refusal::problems("PairInBand", &shown, &["select"], false),
-        Vec::<String>::new(),
-        "{shown}"
     );
 }
 
@@ -422,35 +371,6 @@ fn resolve_indeterminate_display_names_its_content_not_its_struct() {
 }
 
 test_utils::f6_variants! {
-    /// `DeclareError`'s census — see [`NODE_PICK_ERROR`].
-    const DECLARE_ERROR: DeclareError = [NoFindings, Edit];
-}
-
-#[test]
-fn declare_error_display_names_its_content_not_its_struct() {
-    let cases = [
-        (
-            DeclareError::NoFindings,
-            vec!["no findings", "records no intent"],
-        ),
-        // The wrapping arm forwards the document edit's problem and
-        // states its own recourse: the caller passed findings, and the
-        // edit door's "name an entity" is about a node nobody wrote.
-        (
-            DeclareError::Edit(EditError::DeclareNamesMissingNode {
-                name: SpokenName::absent(face_name()),
-            }),
-            vec![
-                "the document edit refused",
-                "refers to a node that is not live",
-                "Recourse: declare findings inspected from this document as it now stands",
-            ],
-        ),
-    ];
-    assert_f6_every_variant(&cases, &DECLARE_ERROR, &[]);
-}
-
-test_utils::f6_variants! {
     /// `InterrogateError`'s census — see [`NODE_PICK_ERROR`].
     ///
     /// `pub(crate)` because `lib_u5_interrogate` welds the ladder rungs
@@ -536,12 +456,9 @@ fn select_refusal_is_exhaustive(e: &SelectRefusal) {
         | SelectRefusal::Unreadable { .. }
         | SelectRefusal::NotADatum { .. }
         | SelectRefusal::DatumHasNoValue(_)
-        | SelectRefusal::NodeHasNoValue(_)
         | SelectRefusal::NotALength { .. }
-        | SelectRefusal::PairInBand { .. }
         | SelectRefusal::BadValue(_)
-        | SelectRefusal::Band(_)
-        | SelectRefusal::DistinctFinding(_) => (),
+        | SelectRefusal::Band(_) => (),
         other => panic!("`SelectRefusal` grew a variant with no arm here: {other:?}"),
     }
 }
@@ -563,12 +480,9 @@ const SELECT_REFUSAL: test_utils::f6::VariantCensus<SelectRefusal> =
             "Unreadable",
             "NotADatum",
             "DatumHasNoValue",
-            "NodeHasNoValue",
             "NotALength",
-            "PairInBand",
             "BadValue",
             "Band",
-            "DistinctFinding",
         ],
     );
 
@@ -645,34 +559,10 @@ fn select_refusal_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            SelectRefusal::NodeHasNoValue(NodeStanding::Failed {
-                node: RecipeNodeId::new(0, tagged(9)),
-            }),
-            vec!["flush query's node", "node 000000000009", "failed"],
-        ),
-        (
             SelectRefusal::NotALength {
                 dim: Dimension::Angle,
             },
             vec!["distance is a distance", "dimension angle"],
-        ),
-        // The detector's pair-shaped sibling of `InBand`: it names the
-        // PAIR, and says that detection reports neither.
-        (
-            SelectRefusal::PairInBand {
-                pair: Box::new((face_name(), face_name())),
-                at: (
-                    RecipeNodeId::new(0, tagged(3)),
-                    RecipeNodeId::new(0, tagged(4)),
-                ),
-                predicate: "bool_plane_side_of",
-                source: in_band("bool_plane_side_of"),
-            },
-            vec![
-                "select: the end cap",
-                "on node 000000000003 and the end cap",
-                "on node 000000000004 may coincide (margin",
-            ],
         ),
         (
             SelectRefusal::BadValue(EvalError::ContinuousExprInCountEval {
@@ -693,10 +583,6 @@ fn select_refusal_display_names_its_content_not_its_struct() {
                 escalate: 5e-324,
             }),
             vec!["ambiguity band", "ambient tolerance", "not below"],
-        ),
-        (
-            SelectRefusal::DistinctFinding(topo::flush::DistinctFinding),
-            vec!["DISTINCT carriers", "no finding carries"],
         ),
     ];
     assert_f6_every_variant(&cases, &SELECT_REFUSAL, &also_banned);
@@ -1143,7 +1029,6 @@ test_utils::f6_variants! {
         MintLogOrder,
         NameReadNotMinted,
         NameStepNotMinted,
-        DeclaredNameNotUpstream,
     ];
 }
 
@@ -1692,24 +1577,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 "of Extrude \"base plate\" (000000000005) spells",
                 "profile step id 000000000008",
                 "mint log does not hold",
-            ],
-        ),
-        (
-            SnapshotError::DeclaredNameNotUpstream {
-                node: held(6, "Boolean"),
-                name: editor_core::test_support::spoken_name(
-                    StableName {
-                        kind: EntityKind::Face,
-                        node: RecipeNodeId::new(0, tagged(5)),
-                        path: vec![RoleSeg::OutputBody],
-                    },
-                    node(),
-                ),
-            },
-            vec![
-                "the output body of Extrude \"base plate\" (000000000005)",
-                "which Boolean 000000000006 mints itself",
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
             ],
         ),
     ];
@@ -3838,41 +3705,6 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
                 mate: held(6, "Mate"),
             },
             vec![held(3, "Gauge"), held(6, "Mate")],
-        ),
-        (
-            EditError::SetDeclareOnNonDeclaring {
-                node: held(4, "Extrude"),
-            },
-            vec![held(4, "Extrude")],
-        ),
-        (
-            EditError::DeclaredSiteNotAnOperand {
-                node: held(6, "Union"),
-                name: editor_core::test_support::spoken_name(
-                    StableName {
-                        kind: EntityKind::Face,
-                        node: RecipeNodeId::new(0, tagged(4)),
-                        path: vec![RoleSeg::OutputBody],
-                    },
-                    held(4, "Extrude"),
-                ),
-                site: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(4)), None),
-            },
-            vec![held(6, "Union"), held(4, "Extrude")],
-        ),
-        (
-            EditError::DeclaredNameNotUpstream {
-                node: held(6, "Union"),
-                name: editor_core::test_support::spoken_name(
-                    StableName {
-                        kind: EntityKind::Face,
-                        node: RecipeNodeId::new(0, tagged(7)),
-                        path: vec![RoleSeg::OutputBody],
-                    },
-                    held(7, "Extrude"),
-                ),
-            },
-            vec![held(6, "Union"), held(7, "Extrude")],
         ),
         (
             EditError::UnresolvedInput {

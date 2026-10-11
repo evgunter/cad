@@ -362,7 +362,7 @@ enum PairOp {
 }
 
 impl PairOp {
-    /// The node of this kind over `a` and `b`, declaring nothing.
+    /// The node of this kind over `a` and `b`.
     fn node(self, a: RecipeNodeId, b: RecipeNodeId) -> editor_core::AuthoredNode {
         match self {
             Self::Union => Node::Union {

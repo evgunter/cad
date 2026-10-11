@@ -37,15 +37,14 @@ fn operands<T: Decide + AtRestPolicy>(ccw: bool, tol: Tol) -> (Body<T>, Body<T>)
 type Op<T> = fn(
     &AtRestBody<T>,
     &AtRestBody<T>,
-    &topo::BooleanDeclarations,
     Tol,
 ) -> Result<BooleanResult<T>, BooleanError>;
 
 fn ops<T: Decide + Bounds + AtRestPolicy>() -> [(&'static str, Op<T>); 3] {
     [
-        ("∖", subtract_with::<T>),
-        ("∩", intersect_with::<T>),
-        ("∪", union_with::<T>),
+        ("∖", subtract::<T>),
+        ("∩", intersect::<T>),
+        ("∪", union::<T>),
     ]
 }
 
@@ -99,7 +98,7 @@ fn an_inside_out_operand_refuses_in_every_op_at_a_dual() {
     assert_eq!(wedge.outcome(), AtRestOutcome::NotRunAtThisScalar);
     for (name, op) in ops::<Dual64>() {
         for (a, b, inside_out) in [(&brick, &wedge, Operand::B), (&wedge, &brick, Operand::A)] {
-            match op(a, b, &decls, tol) {
+            match op(a, b, tol) {
                 Err(BooleanError::InsideOutOperand { operand, .. }) => assert_eq!(
                     operand, inside_out,
                     "{name}: the refusal names the inside-out operand"
@@ -111,11 +110,10 @@ fn an_inside_out_operand_refuses_in_every_op_at_a_dual() {
 }
 
 /// **The public reduction reads check 7 at a dual too.**
-/// `boolean_reduce` and `boolean_reduce_declared` take finished
-/// operands, and an operand with no verdict passes the door's own
+/// `boolean_reduce` takes finished operands, and an operand with no verdict passes the door's own
 /// orientation read there: every op, in both operand orders, refuses
 /// the clockwise wedge as the inside-out operand, naming it. Red if
-/// either takes a plain body again without that read (the delta
+/// it takes a plain body again without that read (the delta
 /// review's mutant MC, which compiles, every caller's `&AtRestBody`
 /// coercing; its `d_public_boolean_reduce_at_a_dual_refuses_the_inside_out_wedge`).
 #[test]
@@ -132,23 +130,15 @@ fn the_public_reduction_refuses_an_inside_out_operand_at_a_dual() {
         topo::BooleanOp::Intersect,
     ] {
         for (a, b, inside_out) in [(&brick, &wedge, Operand::B), (&wedge, &brick, Operand::A)] {
-            for (door, r) in [
-                ("boolean_reduce", topo::boolean_reduce(op, a, b, tol)),
-                (
-                    "boolean_reduce_declared",
-                    topo::boolean_reduce(op, a, b, tol),
+            match topo::boolean_reduce(op, a, b, tol) {
+                Err(BooleanError::InsideOutOperand { operand, .. }) => assert_eq!(
+                    operand, inside_out,
+                    "{op:?}: the refusal names the inside-out operand"
                 ),
-            ] {
-                match r {
-                    Err(BooleanError::InsideOutOperand { operand, .. }) => assert_eq!(
-                        operand, inside_out,
-                        "{door} {op:?}: the refusal names the inside-out operand"
-                    ),
-                    other => panic!(
-                        "{door} {op:?}: want InsideOutOperand, got {:?}",
-                        other.map(|_| ())
-                    ),
-                }
+                other => panic!(
+                    "{op:?}: want InsideOutOperand, got {:?}",
+                    other.map(|_| ())
+                ),
             }
         }
     }
@@ -175,7 +165,7 @@ fn the_counterclockwise_wedge_answers_the_true_volumes() {
             .into_iter()
             .zip([1.0 - inside, inside, 1.0 + wedge - inside])
     {
-        let Ok(BooleanResult::Body(out)) = op(&brick, &prism, &decls, tol) else {
+        let Ok(BooleanResult::Body(out)) = op(&brick, &prism, tol) else {
             panic!("{name}: the outward wedge builds");
         };
         let got = mass_properties(&out.body, tol).unwrap().volume;
@@ -192,7 +182,7 @@ fn the_counterclockwise_wedge_answers_the_true_volumes() {
     for (name, op) in ops::<Interval>() {
         assert!(
             matches!(
-                op(&at_interval.0, &at_interval.1, &decls, tol),
+                op(&at_interval.0, &at_interval.1, tol),
                 Ok(BooleanResult::Body(_))
             ),
             "Interval {name}: the outward wedge builds"

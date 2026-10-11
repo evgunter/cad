@@ -1,7 +1,5 @@
 //! **The contact vocabulary at the boolean door** (CONTACT-DESIGN
-//! C3/C4): the class is data the op ACTS on, the records replay
-//! bit-identically, and a declaration is trusted exactly on its
-//! bridged residue.
+//! C3/C4): the records replay bit-identically.
 //!
 //! The per-class verification tables and their ε rows live beside the
 //! ladders they exercise (`boolean::carrier_eq`,
@@ -14,7 +12,7 @@ use crate::common;
 
 use common::{brick, finished};
 use geom_core::Tol;
-use topo::{AtRestBody, Body, GlueClass, BooleanError, BooleanResult, ContactClass, mass_properties, union};
+use topo::{AtRestBody, BooleanResult, mass_properties, union};
 
 /// A flush stack: two bricks meeting on z = 1, independently authored.
 fn stacked() -> (AtRestBody<f64>, AtRestBody<f64>) {
@@ -33,27 +31,15 @@ fn stacked() -> (AtRestBody<f64>, AtRestBody<f64>) {
     )
 }
 
-/// A declared planar `Rest` still unions, and its RECORDS replay
+/// A planar `Rest` unions, and its RECORDS replay
 /// bit-identically — the D9/C4 replay clause checked on the records
 /// themselves rather than on naming standing in for them (the new
 /// `PartialEq`). Records carry arena keys, and key identity is part of
 /// what determinism means for a rerun of the same pipeline.
 #[test]
-fn declared_rest_unions_and_replays_records_bit_identically() {
+fn a_rest_unions_and_replays_records_bit_identically() {
     let (a, b) = stacked();
-    assert!(
-        !decls.coincident_faces.is_empty(),
-        "the stack's shared cap must be found"
-    );
-    assert!(
-        decls
-            .coincident_faces
-            .iter()
-            .all(|d| d.class == BooleanCoincidence::REST),
-        "a flush cap is the conformal class, spelled out"
-    );
-
-    let first = union(&a, &b, Tol::witness()).expect("declared flush union runs");
+    let first = union(&a, &b, Tol::witness()).expect("the flush union runs");
     let second = union(&a, &b, Tol::witness()).expect("the rerun runs");
     let (BooleanResult::Body(x), BooleanResult::Body(y)) = (first, second) else {
         panic!("an overlapping union cannot be Empty");
@@ -68,149 +54,3 @@ fn declared_rest_unions_and_replays_records_bit_identically() {
     );
 }
 
-/// The undeclared kiss glues on its decided zero (D10): the same body
-/// as the declared one.
-#[test]
-fn undeclared_kiss_glues_as_declared() {
-    let (a, b) = stacked();
-    let declared = union(&a, &b, Tol::witness()).expect("declared flush union runs");
-    let undeclared = topo::union(&a, &b, Tol::witness()).expect("an undeclared kiss glues");
-    let (BooleanResult::Body(x), BooleanResult::Body(y)) = (declared, undeclared) else {
-        panic!("an overlapping union cannot be Empty");
-    };
-    assert_eq!(format!("{:?}", y.body), format!("{:?}", x.body));
-}
-
-/// **The class is acted on, not carried and ignored** — the row a
-/// class-ignoring implementation fails.
-///
-/// The pair below is a genuine flush cap, so a mutant that reads the
-/// declaration and drops its class unions happily. The op instead
-/// CONTRADICTS the claim: a flush pair is conformal contact — `Rest`,
-/// not `Tangent` — and the Tangent door's conformal screen says so
-/// with the geometry's own margins (the carrier ladder detecting one
-/// carrier). The wrong class is refused by verification, never
-/// silently treated as the right one.
-#[test]
-fn a_wrong_class_declaration_contradicts_instead_of_being_ignored() {
-    let (a, b) = stacked();
-    let mut tangent = rest.clone();
-    for d in &mut tangent.coincident_faces {
-        *d = FacePairDeclaration::new(d.a, d.b, ContactClass::Tangent);
-    }
-    assert!(
-        union(&a, &b, Tol::witness()).is_ok(),
-        "the same pair under the right class unions (the green half)"
-    );
-    let err = union(&a, &b, Tol::witness())
-        .expect_err("a conformal pair declared Tangent must be contradicted");
-    let msg = err.to_string();
-    assert!(
-        matches!(
-            err,
-            BooleanError::ContactContradicted {
-                declaration: topo::DeclaredContact {
-                    class: ContactClass::Tangent,
-                    ..
-                },
-                ..
-            }
-        ),
-        "{err:?}"
-    );
-    assert!(
-        msg.contains("Tangent") && msg.contains("contradicted"),
-        "the refusal names the class asked for and the contradiction: {msg}"
-    );
-}
-
-/// A declared `Rest` whose carriers are DEFINITELY distinct is
-/// contradicted at use, and the message names the reason the margin
-/// decided, in words, plus the recourse — not a bare "contradicted".
-///
-/// AQ6's steer rides here too: the counter-evidence is a plane OFFSET
-/// (a separation), which is exactly the shape a designed clearance
-/// has, so the message says a designed gap cannot be declared yet
-/// rather than pointing at a variant that does not exist.
-#[test]
-fn a_false_rest_is_contradicted_naming_the_margin_and_steering_to_fit() {
-    // Full-face stacked plates: the mate is a pure REST contact, and
-    // the op door verifies every declared pair.
-    let a = finished(
-        "the lower plate",
-        brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness()),
-        Tol::witness(),
-    );
-    let b = finished(
-        "the upper plate",
-        brick((0.0, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness()),
-        Tol::witness(),
-    );
-    let cap_of = |body: &Body<f64>, z: f64| -> topo::FaceKey {
-        body.faces()
-            .find(|(_, f)| match body.get_surface(f.surface) {
-                Some(&topo::Surface::Plane { origin, normal, .. }) => {
-                    normal.z.abs() > 0.5 && (origin.z - z).abs() < 1e-12
-                }
-                _ => false,
-            })
-            .map(|(k, _)| k)
-            .unwrap()
-    };
-    // The genuine contact stays declared (otherwise the op refuses at
-    // the undeclared-coincidence door and never reaches the lie), and
-    // A's z = 0 floor is ALSO declared flush with B's z = 2 ceiling:
-    // parallel, definitely offset by 2 m. The lane verifies every
-    // declared pair, so the lie meets geometry and refuses.
-    let mut decls = flush_declarations(&a, &b, Tol::witness());
-    decls
-        .coincident_faces
-        .push(FacePairDeclaration::rest(cap_of(&a, 0.0), cap_of(&b, 2.0)));
-    let err = union(&a, &b, Tol::witness()).expect_err("a false Rest must refuse");
-    let msg = err.to_string();
-    match &err {
-        BooleanError::ContactContradicted {
-            declaration,
-            margin,
-            steer,
-            fact,
-        } => {
-            assert_eq!(declaration.class, ContactClass::Rest);
-            assert_eq!(margin.predicate, Some("bool_plane_offset"));
-            assert_eq!(*steer, Some(topo::FIT_DEFERRAL));
-            assert_eq!(*fact, Some(topo::Contradiction::PlanesApart));
-        }
-        other => panic!("expected ContactContradicted, got {other:?}"),
-    }
-    assert!(
-        msg.contains("contradicted: the declared planes are parallel but apart."),
-        "the fact the carrier ladder found, not the margin payload: {msg}"
-    );
-    assert!(msg.contains(topo::CONTRADICTION_RECOURSE), "{msg}");
-    assert!(
-        !msg.contains("lower the tolerance") && !msg.contains("indeterminate"),
-        "a contact refusal has no tolerance arm (SELECT §3d), and a definite \
-         contradiction does not read as indeterminate: {msg}"
-    );
-    assert!(
-        msg.ends_with("a designed gap between the faces cannot be declared yet"),
-        "the deferral is NAMED, in the user's words, never a dead pointer: {msg}"
-    );
-}
-
-/// The declared-pair index answers "declared as WHAT", not merely
-/// "declared" — the erasure the map replaced the set to remove.
-#[test]
-fn a_declaration_without_a_class_is_unrepresentable() {
-    let (a, b) = stacked();
-    // Every constructor takes the class as an argument; there is no
-    // class-less mint, so "I forgot the class" is a compile error and
-    // never a silent `Rest`.
-    let d = decls.coincident_faces[0];
-    assert_eq!(FacePairDeclaration::rest(d.a, d.b), d);
-    assert_ne!(
-        FacePairDeclaration::new(d.a, d.b, ContactClass::Tangent),
-        d,
-        "two classes on one pair are two different declarations"
-    );
-}

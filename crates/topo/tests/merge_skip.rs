@@ -1,6 +1,6 @@
-//! The declared-merge L-corner (M4 PR 5 review F1/F2's probe): flush
-//! caps DECLARED on an otherwise ordinary partial overlap (walls
-//! offset). Each cap group is licensed by its declaration, and its two
+//! The merged L-corner: flush caps on an otherwise ordinary partial
+//! overlap (walls offset). Each cap group is licensed by the glue the
+//! union decides on its zero margin, and its two
 //! faces share a seam that bends 90° at the overlap's re-entrant
 //! corner. The merge joins them, and the seam edge the glue leaves
 //! dangling goes together with its free end — the corner — at any
@@ -24,10 +24,10 @@ use topo::validate::{validate_closed, validate_geometric};
 use topo::{BooleanResult, mass_properties, union, validate_pseudomanifold};
 
 /// The probe: a = [0,1]³, b = [0.5,1.5]×[0.25,1.25]×[0,1] — caps flush
-/// (declared), walls offset (transversal). Exact dyadic volume:
+/// (glued), walls offset (transversal). Exact dyadic volume:
 /// 1 + 1 − (0.5 · 0.75 · 1).
 #[test]
-fn declared_l_corner_caps_merge_and_stay_tier3_green() {
+fn l_corner_caps_merge_and_stay_tier3_green() {
     let tol = Tol::witness();
     let a = finished(
         "a",
@@ -39,8 +39,7 @@ fn declared_l_corner_caps_merge_and_stay_tier3_green() {
         brick::<f64>((0.5, 1.5), (0.25, 1.25), (0.0, 1.0), tol),
         tol,
     );
-    assert_eq!(decls.coincident_faces.len(), 2, "both caps declared");
-    let r = union(&a, &b, Tol::witness()).expect("declared flush-caps union runs");
+    let r = union(&a, &b, Tol::witness()).expect("the flush-caps union runs");
     let BooleanResult::Body(bb) = r else {
         panic!("overlapping union cannot be Empty");
     };

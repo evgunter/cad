@@ -1,7 +1,7 @@
 //! **A chord on a flush rim line is named for the member edges it lies
 //! along.**
 //!
-//! `a` and `b` meet flush along x with all four families declared, so
+//! `a` and `b` meet flush along x on all four families, so
 //! `a`'s top cap and its y = 1 wall (or their merged successors) meet
 //! along one line that runs over both members' rims. A slab cuts a
 //! chord out of that line. In orders that fold `a` and `b` first, the
@@ -14,7 +14,7 @@
 use std::collections::BTreeMap;
 
 use crate::corpus::body_of;
-use crate::blocks::{block, declared_union, failure, flush_pairs, run};
+use crate::blocks::{block, failure, run};
 use crate::fixture::{edge_of, out, table};
 
 use editor_core::{
@@ -247,8 +247,7 @@ fn cited_faces(doc: &ProfileDoc, side: &StableName) -> Vec<(RecipeNodeId, Stable
 fn the_chord_is_named_for_the_rims_it_lies_along() {
     let (doc, ids) = document(&[A, B, G], &[0, 1, 2]);
     let (a, b) = (ids[0], ids[1]);
-    let pairs = flush_pairs(&doc, (a, a), (b, b));
-    let (docx, union) = declared_union(doc, &ids, pairs);
+    let (docx, union) = crate::fixture::union_over(doc, &ids);
     let ev = run(&docx);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     let rim = |m: RecipeNodeId, seg: usize| StableName {
@@ -291,12 +290,11 @@ fn the_chord_is_named_for_the_rims_it_lies_along() {
 /// **No order of the review probe's documents refuses
 /// `SharedRim { found: Several }`, and none refuses with an
 /// `Emission`.** The documents are PR 3112's review corpus: `a` and
-/// `b` declared flush on all four families, plus one to three slabs,
+/// `b` flush on all four families, plus one to three slabs,
 /// every member order. On main, 62 of its cells refused
 /// `SharedRim(Several)`; every chord there lay within exactly one
-/// piece. What the other orders refuse with (a declaration that no
-/// longer resolves, an undeclared contact) is other rows' subject.
-/// PR 3112's review corpus: `a` and `b` declared flush on all four
+/// piece. What the other orders refuse with is other rows' subject.
+/// PR 3112's review corpus: `a` and `b` flush on all four
 /// families, plus one to three slabs; `(label, blocks, creation order)`.
 pub(crate) fn probe_corpus() -> Vec<(String, Vec<Bx>, Vec<usize>)> {
     let g = ((0.3, 0.4), (-1.0, 2.0), (0.5, 3.0));
@@ -333,8 +331,7 @@ pub(crate) fn probe_corpus() -> Vec<(String, Vec<Bx>, Vec<usize>)> {
 }
 
 /// The emitter's two open residues the probe corpus reaches, by the
-/// cases that reach them, now that a flush contact the test leaves
-/// undeclared glues:
+/// cases that reach them:
 /// - `row` and `rowids`, where `a` and `h` (their x = 1 walls glued)
 ///   fold before `b` joins across them, reach the unenumerated
 ///   seam-vertex residue
@@ -366,11 +363,7 @@ fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
         let (doc, ids) = document(&blocks, &creation);
         for order in permutations(&(0..blocks.len()).collect::<Vec<_>>()) {
             let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
-            let (docx, union) = declared_union(
-                doc.clone(),
-                &members,
-                flush_pairs(&doc, (ids[0], ids[0]), (ids[1], ids[1])),
-            );
+            let (docx, union) = crate::fixture::union_over(doc.clone(), &members);
             let ev = run(&docx);
             match failure(&ev, union) {
                 Some(NodeErrorKind::Naming(NamingError::Emission { what }))
@@ -396,9 +389,7 @@ fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
             }
         }
     }
-    // 172 cells fuse: `row`, `rowids` and `cross` fuse in orders that
-    // refused before, their contacts the test leaves undeclared glued
-    // (D10). In the two orders of `row` and `rowids` that fold `a` and
+    // 172 cells fuse. In the two orders of `row` and `rowids` that fold `a` and
     // `h` first, and in four of `cross`, the emitter reaches a residue
     // ([`RESIDUES`]).
     assert_eq!(fused, 172, "cells fused");
@@ -430,8 +421,7 @@ fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
 fn a_retired_rim_piece_is_offered_its_joined_edge() {
     let (doc, ids) = document(&[A, B], &[0, 1]);
     let (a, b) = (ids[0], ids[1]);
-    let pairs = flush_pairs(&doc, (a, a), (b, b));
-    let (docx, union) = declared_union(doc, &ids, pairs);
+    let (docx, union) = crate::fixture::union_over(doc, &ids);
     let ev = run(&docx);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     let rim = |m: RecipeNodeId| {
@@ -495,8 +485,7 @@ fn a_retired_rim_piece_is_offered_its_joined_edge() {
     assert!(f.offers.contains(&joined), "{:?}", f.offers);
 }
 
-/// Every member order of the declared union of `blocks`, each pair in
-/// `flush` declared flush on all four families: the orders that fuse,
+/// Every member order of the union of `blocks`: the orders that fuse,
 /// each with its table read as geometry
 /// (`emit_union_rim_piece_ranks::signature`), and every one of them held
 /// to [`every_member_edge_lies_on_its_source`]. An order that refuses
@@ -504,18 +493,13 @@ fn a_retired_rim_piece_is_offered_its_joined_edge() {
 /// other rows own.
 fn fused_tables(
     blocks: &[Bx],
-    flush: &[(usize, usize)],
 ) -> Vec<(Vec<usize>, RecipeNodeId, BTreeMap<StableName, String>)> {
     let creation: Vec<usize> = (0..blocks.len()).collect();
     let (doc, ids) = document(blocks, &creation);
-    let pairs: Vec<_> = flush
-        .iter()
-        .flat_map(|&(p, q)| flush_pairs(&doc, (ids[p], ids[p]), (ids[q], ids[q])))
-        .collect();
     let mut out = Vec::new();
     for order in permutations(&creation) {
         let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
-        let (docx, union) = declared_union(doc.clone(), &members, pairs.clone());
+        let (docx, union) = crate::fixture::union_over(doc.clone(), &members);
         let ev = run(&docx);
         match failure(&ev, union) {
             None => {
@@ -577,7 +561,7 @@ fn sets(table: &BTreeMap<StableName, String>, ids: impl Fn(VarId) -> usize) -> V
 
 /// **Four boxes flush in a line publish one table in all 24 orders.**
 /// Each overlaps its neighbours along x and no other box, every
-/// neighbour pair declared flush. The four long rims are each one edge
+/// neighbour pair flush. The four long rims are each one edge
 /// along all four members' rims, named for the set of the four. Red when
 /// any name, a joined edge's among them, depends on member order, or
 /// when a joined edge is named for less than the rims it runs along.
@@ -585,7 +569,7 @@ fn sets(table: &BTreeMap<StableName, String>, ids: impl Fn(VarId) -> usize) -> V
 fn four_flush_boxes_in_a_line_publish_one_table_in_every_order() {
     let row = |x0: f64, x1: f64| ((x0, x1), (0.0, 1.0), (0.0, 1.0));
     let blocks = [row(0.0, 1.0), row(0.6, 1.6), row(1.2, 2.2), row(1.8, 2.8)];
-    let fused = fused_tables(&blocks, &[(0, 1), (1, 2), (2, 3)]);
+    let fused = fused_tables(&blocks);
     assert_eq!(fused.len(), 24, "every order fuses");
     one_table("four in a line", &fused);
     let (d0, ids) = document(&blocks, &[0, 1, 2, 3]);
@@ -607,8 +591,7 @@ fn four_flush_boxes_in_a_line_publish_one_table_in_every_order() {
 fn partial_overlaps_name_each_joined_edge_for_the_rims_it_runs_along() {
     let row = |x0: f64, x1: f64| ((x0, x1), (0.0, 1.0), (0.0, 1.0));
     let (a, b, c, d) = (row(0.0, 2.0), row(1.5, 3.0), row(2.5, 4.0), row(3.5, 5.0));
-    let flush = [(0, 1), (1, 2), (2, 3)];
-    let fused = fused_tables(&[a, b, c, d], &flush);
+    let fused = fused_tables(&[a, b, c, d]);
     one_table("partial overlaps", &fused);
     let (d0, ids) = document(&[a, b, c, d], &[0, 1, 2, 3]);
     let reads: Vec<VarId> = ids.iter().map(|&i| out(&d0, i)).collect();
@@ -616,7 +599,7 @@ fn partial_overlaps_name_each_joined_edge_for_the_rims_it_runs_along() {
     assert_eq!(sets(&fused[0].2, index), vec![vec![0, 1, 2, 3]; 4]);
 
     let slab = ((2.6, 2.7), (-1.0, 2.0), (0.5, 3.0));
-    let fused = fused_tables(&[a, b, c, d, slab], &flush);
+    let fused = fused_tables(&[a, b, c, d, slab]);
     one_table("partial overlaps under a slab", &fused);
     let (doc, ids) = document(&[a, b, c, d, slab], &[0, 1, 2, 3, 4]);
     let reads: Vec<VarId> = ids.iter().map(|&i| out(&doc, i)).collect();
@@ -635,11 +618,7 @@ fn partial_overlaps_name_each_joined_edge_for_the_rims_it_runs_along() {
     );
 
     // The offers for a piece of `c`'s top y = 0 rim (segment 0).
-    let pairs: Vec<_> = flush
-        .iter()
-        .flat_map(|&(p, q)| flush_pairs(&doc, (ids[p], ids[p]), (ids[q], ids[q])))
-        .collect();
-    let (docx, union) = declared_union(doc, &ids, pairs);
+    let (docx, union) = crate::fixture::union_over(doc, &ids);
     let ev = run(&docx);
     let rim = crate::fixture::member_entity(
         union,
@@ -685,14 +664,14 @@ fn partial_overlaps_name_each_joined_edge_for_the_rims_it_runs_along() {
 }
 
 /// **One member inside two others.** `c` = x 1..2.5 lies inside the
-/// union of `a` = 0..2 and `b` = 1.5..3 and runs flush with both, each
-/// pair declared. Each long rim is one edge along all three members'
+/// union of `a` = 0..2 and `b` = 1.5..3 and runs flush with both. Each
+/// long rim is one edge along all three members'
 /// rims, named for the set of the three, in every order.
 #[test]
 fn a_member_inside_two_others_is_in_their_rims_set() {
     let row = |x0: f64, x1: f64| ((x0, x1), (0.0, 1.0), (0.0, 1.0));
     let blocks = [row(0.0, 2.0), row(1.5, 3.0), row(1.0, 2.5)];
-    let fused = fused_tables(&blocks, &[(0, 1), (0, 2), (1, 2)]);
+    let fused = fused_tables(&blocks);
     one_table("one inside two", &fused);
     let (d0, ids) = document(&blocks, &[0, 1, 2]);
     let reads: Vec<VarId> = ids.iter().map(|&i| out(&d0, i)).collect();

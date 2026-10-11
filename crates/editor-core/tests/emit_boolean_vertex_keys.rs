@@ -27,7 +27,7 @@ use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 
 use crate::corpus::body_of;
-use crate::blocks::{block, declared_union, failure, flush_pairs, run};
+use crate::blocks::{block, failure, run};
 use crate::fixture::{
     ang, ename, ends, face_vertices, insert, len, on_frame, out, point, scl, table, vertex_of,
     vname,
@@ -58,12 +58,11 @@ fn boolean(
     b: RecipeNodeId,
 ) -> (ProfileDoc, RecipeNodeId) {
     let members = editor_core::Bodies::Spelled(vec![a.into(), b.into()]);
-    let declare = Vec::new();
     insert(
         doc,
         match op {
-            Op::Union => Node::Union { members, declare },
-            Op::Intersect => Node::Intersect { members, declare },
+            Op::Union => Node::Union { members },
+            Op::Intersect => Node::Intersect { members },
         },
     )
 }
@@ -436,7 +435,7 @@ pub(crate) fn seamed_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, Recipe
     (doc, ell, wedge)
 }
 
-/// A bar — the declared union of two flush, x-offset placements of one
+/// A bar — the union of two flush, x-offset placements of one
 /// unit block, whose merged front and top faces meet along one joined
 /// top-front edge — and a small prism inside it whose apex touches
 /// that line at (0.6, 0, 1).
@@ -457,8 +456,7 @@ fn bar_and_tip(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     };
     let (doc, m1) = place(doc, 0.0);
     let (doc, m2) = place(doc, 0.5);
-    let pairs = flush_pairs(&doc, (m1, proto), (m2, proto));
-    let (doc, bar) = declared_union(doc, &[m1, m2], pairs);
+    let (doc, bar) = crate::fixture::union_over(doc, &[m1, m2]);
     // The tip's frame: normal (1, 1, -1)/sqrt3 pointing into the bar.
     let s3 = 3f64.sqrt();
     let n = [1.0 / s3, 1.0 / s3, -1.0 / s3];
@@ -491,7 +489,7 @@ fn bar_and_tip(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 ///
 /// The tip lies inside the bar, so `tip ∪ bar` is the bar — B's clone —
 /// and its apex touches the bar's top-front line. That line is one
-/// edge: the bar is a declared flush union, and its output stage
+/// edge: the bar is a flush union, and its output stage
 /// joined the line into one edge across both blocks. The touch mints
 /// no vertex on it, so the line is named `From` the bar's read of the
 /// bar's edge, exactly as `bar ∪ tip` (A's clone) names it.

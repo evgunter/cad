@@ -251,12 +251,11 @@ fn a_unions_rows_follow_its_member_order() {
     let doc = ProfileDoc::empty_derived("coincide-union-order", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let pairs = crate::fixture::flush_pairs(&doc, (a, a), (b, b));
     let n = pairs.len();
     let mut seen = Vec::new();
     for members in [[a, b], [b, a]] {
         let (doc, union) =
-            crate::blocks::declared_union(doc.clone(), &members, pairs.clone());
+            crate::fixture::union_over(doc.clone(), &members);
         let ev = run(&doc);
         let got = rows(&ev, union);
         assert_eq!(got.len(), n, "{members:?}: one row per declared pair");
@@ -647,7 +646,6 @@ fn apart(subtract: bool, id: &str) -> (ProfileDoc, Evaluation<f64>, RecipeNodeId
     let doc = ProfileDoc::empty_derived(id, Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
-    let pairs = crate::fixture::flush_pairs(&doc, (a, a), (b, b));
     let n = pairs.len();
     let declare = pairs
         .into_iter()

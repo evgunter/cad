@@ -20,7 +20,7 @@
 //!   six member orders: a seam line's pieces are a seam chain in some
 //!   orders and a later step's cut of a whole seam in others, and no
 //!   name binds a different entity in any two orders;
-//! - two declared-flush members and a bar across both, in both orders
+//! - two flush members and a bar across both, in both orders
 //!   of the flush pair: the bar's cap pieces carry their `Borders`
 //!   walls in member space, so each piece has one name.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -50,7 +50,7 @@ enum Op {
 }
 
 impl Op {
-    /// The node of this kind over `a` and `b`, declaring nothing.
+    /// The node of this kind over `a` and `b`.
     fn node(self, a: RecipeNodeId, b: RecipeNodeId) -> editor_core::AuthoredNode {
         match self {
             Self::Union => Node::Union {
@@ -444,7 +444,7 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
 /// order** (the `abys` witness of
 /// `name-ordered-positions-in-a-path-have-no-single-home`).
 ///
-/// `a` and `b` overlap in x and are declared flush; the bar `y` crosses
+/// `a` and `b` overlap in x and are flush; the bar `y` crosses
 /// both, so `y`'s start cap is cut into two pieces told apart by the
 /// walls of `a` and `b` each borders. The pair emitter writes the walls
 /// in the FOLD's space, where the first member is the A side; the
@@ -453,8 +453,7 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
 /// same face.
 #[test]
 fn a_fragments_borders_walls_are_one_spelling_in_every_member_order() {
-    use crate::blocks::{declared_union, flush_pairs};
-    let tables: Vec<std::collections::BTreeMap<String, String>> = [[0usize, 1, 2], [1, 0, 2]]
+        let tables: Vec<std::collections::BTreeMap<String, String>> = [[0usize, 1, 2], [1, 0, 2]]
         .into_iter()
         .map(|p| {
             let doc = ProfileDoc::empty_derived("emit_union_member_order_abys", Tol::witness());
@@ -463,8 +462,7 @@ fn a_fragments_borders_walls_are_one_spelling_in_every_member_order() {
             let (doc, y) = block(doc, (-1.0, 2.0), (0.3, 0.4), 0.5, 3.5);
             let m = [a, b, y];
             let members: Vec<RecipeNodeId> = p.iter().map(|&i| m[i]).collect();
-            let pairs = flush_pairs(&doc, (a, a), (b, b));
-            let (doc, u) = declared_union(doc, &members, pairs);
+            let (doc, u) = crate::fixture::union_over(doc, &members);
             let ev = run(&doc);
             bindings(&ev, u)
                 .into_iter()

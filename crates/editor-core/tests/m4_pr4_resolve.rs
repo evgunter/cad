@@ -159,13 +159,11 @@ fn slide_union(tx: f64) -> Slide {
     // The B side is read at the TRANSFORM — the boolean's operand —
     // and named in `b0`'s vocabulary, which the transform carries
     // verbatim (N1).
-    let decl = fixture::declare_x_offset_flush_at(&doc, (a, a), (transform, b0));
     let (a_read, t_read) = (fixture::out(&doc, a), fixture::out(&doc, transform));
     let (doc, union) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), transform.into()]),
-            declare: decl,
         },
     );
     Slide {

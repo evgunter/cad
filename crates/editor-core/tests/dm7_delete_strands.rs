@@ -130,7 +130,6 @@ fn union_released_from_a_declared_member(
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let pairs = editor_core::declare_continuation(flush_pairs(&doc, (a, a), (b, b)));
     let (declared, union) = crate::fixture::union_over(doc, &[a, b, c], pairs);
     let released = apply(
         &declared,

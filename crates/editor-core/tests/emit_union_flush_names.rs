@@ -11,7 +11,7 @@
 //!   face a merge lists is published by no face of its own;
 //! - a seam edge's sides are the parents of the faces it lies between;
 //! - a document whose finished body depends on member order (a vertex a
-//!   declared merge left behind) still publishes, with no two rows
+//!   flush merge left behind) still publishes, with no two rows
 //!   sharing a name.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -253,9 +253,9 @@ const NEAR: Bx = ((0.499, 0.501), (-1.0, 2.0), (0.5, 2.0));
 
 /// The ZIP row's shape
 /// (`work/fuse/a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made.md`):
-/// `a`, `b` declared flush and a slab over `b`'s end.
+/// `a`, `b` flush and a slab over `b`'s end.
 fn near_slab() -> Case {
-    Case::flat("near", vec![A, B, NEAR], vec![0, 1, 2], vec![(0, 1)])
+    Case::flat("near", vec![A, B, NEAR], vec![0, 1, 2])
 }
 
 /// The unions that refuse in some member orders, as `(case, union,
@@ -405,7 +405,7 @@ fn wall_at_y0(ev: &Evaluation<f64>, union: RecipeNodeId, m: RecipeNodeId) -> Sta
 
 /// **A face cut and merged in one step publishes no piece under a
 /// constituent's name** (N3). `fam012`: `a` = x 0..1 and `b` = x
-/// 0.5..1.5, declared flush, and a slab `g` at x 0.3..0.4 through `a`'s
+/// 0.5..1.5, flush, and a slab `g` at x 0.3..0.4 through `a`'s
 /// y = 0 wall. In `[b, g, a]` one step cuts `a`'s wall and merges its
 /// right piece with `b`'s; in `[a, b, g]` the wall merges first and `g`
 /// cuts the merge. Either way the wall is two faces, both fragments of
@@ -452,7 +452,7 @@ fn a_face_cut_and_merged_in_one_step_publishes_no_constituent() {
 }
 
 /// **The ZIP document's body is one in every member order.** `[b, s, a]`
-/// and `[s, b, a]` cut the slab's bottom seam before the declared merge
+/// and `[s, b, a]` cut the slab's bottom seam before the flush merge
 /// meets it; the output stage joins the vertex that cut leaves between
 /// the slab's bottom and the merged wall (maximal edges), so they build
 /// the vertex set the other orders build, and every order publishes.
@@ -600,7 +600,6 @@ fn a_boss_on_one_piece_of_a_covered_face_is_cited_in_no_order() {
         "nearpillar",
         vec![A, B, NEAR, PILLAR],
         vec![0, 1, 2, 3],
-        vec![(0, 1)],
     );
     let (faces, ids) = face_tables(&case);
     assert!(
