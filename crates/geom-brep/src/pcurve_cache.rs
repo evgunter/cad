@@ -2437,8 +2437,8 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     twin_net: &NurbsCurve3<T>,
     twin: &Surface<T>,
 ) -> Result<projected::ProjectedHull, PcurveCertifyError> {
+    use geom_core::Bounds;
     use geom_core::spline::compose::{CanonicalSurface, CurveCertData, canonical_composite};
-    use geom_core::{Bounds, Point3};
     use projected::{PieceHull, ProjectedHull, SpanHull};
     let cross = geom_core::Interval::from_certified;
     let refuse = |why| PcurveCertifyError::ImageMismatch {
@@ -2448,17 +2448,10 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     let FramedCarrier::Net(net) = &image.carrier else {
         return Err(refuse("a circle's projected row takes no door"));
     };
-    let lift = |n: &NurbsCurve3<T>| {
-        NurbsCurve3::new(
-            n.knots().clone(),
-            n.control()
-                .iter()
-                .map(|p| Point3::new(cross(p.x), cross(p.y), cross(p.z)))
-                .collect(),
-            n.weights().to_vec(),
-        )
-        .map_err(|_| refuse("the stored net would not lift to certification arithmetic"))
-    };
+    // The stored net at the certification scalar: control points, held
+    // knots and weights, each through the certified enclosure of its
+    // value (a lift: every point is kept).
+    let lift = |n: &NurbsCurve3<T>| n.map_scalar(cross);
     let chart = match image.chart {
         ProjectedChart::Plane => ProjectedChart::Plane,
         ProjectedChart::Cylinder => ProjectedChart::Cylinder,
@@ -2472,7 +2465,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             major: cross(major),
         },
     };
-    let lifted_net = Arc::new(lift(net)?);
+    let lifted_net = Arc::new(lift(net));
     let lifted = ProjectedImage {
         chart,
         carrier: FramedCarrier::Net(Arc::clone(&lifted_net)),
@@ -2574,9 +2567,9 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     // and its span's, both bounds on `|f|` over the part; its floors are
     // read off its own controls (`projected::piece_controls`, whose
     // ratios are formed in the scalar).
-    let twin_net = lift(twin_net)?;
+    let twin_net = lift(twin_net);
     let coords = twin_net.certified_coords();
-    let data = CurveCertData::new(twin_net.knots(), twin_net.weights(), &coords)
+    let data = CurveCertData::new(twin_net.knots(), twin_net.weight_channel(), &coords)
         .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;
     let composite_of = |data: &CurveCertData<'_>| {
         let composite = canonical_composite(data, &form)
@@ -2701,6 +2694,41 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     // the refusal asks for. The rule is `certify_branch`'s own, in its
     // words: the first operand's NURBS limbs have no traced pcurve, and
     // a NURBS second operand's chart tube is written against a plane.
+    // Two spline charts: the mate's image is derived from the carrier
+    // by the one producer of such images, and the pair certifies with
+    // both, its tube the two-chart one.
+    if let (Some(mate_chart), true) = (mate.spline_chart(), spline_operand(surface)) {
+        let mate_image = crate::edge_nurbs::chart_image(carrier, mate_chart, |_, _| Ok(()))
+            .map_err(|e| {
+                ssi_refusal(match e {
+                    crate::edge_nurbs::PlaneNurbsRefusal::FootPointInconclusive {
+                        last_distance,
+                        ..
+                    } => crate::ssi::SsiError::FootPointInconclusive {
+                        t: f64::NAN,
+                        last_distance,
+                    },
+                    _ => crate::ssi::SsiError::UnsupportedCertificate {
+                        what: "the mate chart's image of the carrier could not be derived",
+                    },
+                })
+            })?;
+        let ssi = crate::ssi::certify::certify_branch(
+            carrier,
+            crate::ssi::certify::Lane::AtRest {
+                a: &operand(mate)?,
+                b: &operand(surface)?,
+                pcurve_a: Some(&mate_image),
+                pcurve_b: Some(image),
+            },
+            arm,
+            band,
+            crate::ssi::certify::Limbs::All,
+            &mut crate::ssi::certify::Refused::default(),
+        )
+        .map_err(ssi_refusal)?;
+        return Ok(FittedEnvelope { ssi });
+    }
     let routing = if spline_operand(mate) {
         Some(crate::ssi::certify::NURBS_LIMBS_NEED_PCURVE)
     } else if spline_operand(surface) && !matches!(mate, Surface::Plane { .. }) {
@@ -2837,6 +2865,8 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::SideSignBudget { .. }
         | E::EndNotOnLocus { .. }
         | E::CrossingUnmatched { .. }
+        | E::PairBoundaryUnresolved { .. }
+        | E::SeedOutsideTube { .. }
         | E::ShortBranchUncertified { .. }
         | E::MarchStepInBand { .. }
         | E::MarchShortOfFit { .. }
@@ -5660,7 +5690,7 @@ fn nurbs_stretch_bounds<T: Real>(s: &geom::NurbsSurface<T>) -> (SupSpeed<T>, Sup
     // `side_of`'s boundary snap harder to admit and every slack term
     // larger, never the reverse. Exactly 1 for a weight-1 net, so no
     // integral-lane number moves.
-    let ratio = weight_ratio_factor::<T>(s.weights());
+    let ratio = weight_ratio_factor::<T>(s.weight_channel());
     // ONE spelling of the derivative net for the whole file: this
     // function's two loops were the same walk as `derivative_net`'s,
     // down to the `denom == 0.0` skip, and a second copy of a
@@ -5901,7 +5931,7 @@ fn derivative_net<T: Real>(s: &geom::NurbsSurface<T>, along_v: bool) -> Vec<Vec3
 
 /// [`chart_stretch_inf`]'s spline arm — the derivation lives there.
 fn nurbs_stretch_inf<T: Real>(s: &geom::NurbsSurface<T>) -> ChartStretchInf<T> {
-    let ratio = weight_ratio_factor::<T>(s.weights());
+    let ratio = weight_ratio_factor::<T>(s.weight_channel());
     // The same two nets [`nurbs_stretch_bounds`] reads, from the same
     // door, so `sup_u`/`sup_v` below ARE that function's components.
     let (q_u, q_v) = (derivative_net(s, false), derivative_net(s, true));
@@ -5950,7 +5980,7 @@ fn curve_rate_bound<T: Real>(c: &NurbsCurve3<T>) -> SupSpeed<T> {
     // 1992) multiplies it by the weight ratio; squaring it is the
     // conservative reading. Exactly 1 on a unit-weight net, so no
     // integral-lane number moves.
-    SupSpeed::new(sup * weight_ratio_factor::<T>(c.weights()))
+    SupSpeed::new(sup * weight_ratio_factor::<T>(c.weight_channel()))
 }
 
 /// `(w_max/w_min)²` — exactly 1 on a unit-weight net.
@@ -6351,7 +6381,7 @@ fn run_iso_arc_checks<T: Decide>(
         }
     }
     let slack_knots = stretch_u.to_meters(knot_dev);
-    let bw = b.weights();
+    let bw = b.weight_channel();
     if bw.len() != 2 * spans + 1 || bw.first() != Some(&1.0) || bw.last() != Some(&1.0) {
         return Err(bad(
             "an arc rim whose chart column weights are not the arc pattern",
@@ -6811,7 +6841,7 @@ fn seam_envelope<T: Decide>(
     if let Curve3::Line { origin, dir } = carrier {
         let u_start = p0.x + pl.x * t0;
         let (b, slack_u) = traversed_column(payload, u_start, stretch_u, du_drift, band, esc)?;
-        if b.weights().iter().any(|w| *w != 1.0) {
+        if b.weight_channel().iter().any(|w| *w != 1.0) {
             return Err(PcurveCertifyError::IsoUnsupported {
                 what: "a LINE seam on a RATIONAL chart column: the Greville hull \
                            is a linear-precision fact and the rational basis has none \
@@ -6882,7 +6912,10 @@ fn seam_envelope<T: Decide>(
     // this class used to carry was over-broad: what is
     // load-bearing is the shared spline space, not the
     // weights being 1.
-    if c.weights().iter().any(|w| !w.is_finite() || *w <= 0.0) {
+    if c.weight_channel()
+        .iter()
+        .any(|w| !w.is_finite() || *w <= 0.0)
+    {
         return Err(PcurveCertifyError::IsoUnsupported {
             what: "a seam carrier with a non-positive or non-finite weight — the \
                        rational convex-hull property is exactly the hypothesis that \
@@ -6927,12 +6960,12 @@ fn seam_envelope<T: Decide>(
     // constant (a collapsed row wrapped polynomial, whose carrier's
     // constant cancels the same way).
     let row_weights: Vec<f64> = if backward {
-        b.weights().iter().rev().copied().collect()
+        b.weight_channel().iter().rev().copied().collect()
     } else {
-        b.weights().to_vec()
+        b.weight_channel().to_vec()
     };
-    let shared_weights = row_weights == c.weights()
-        || (constant_weights(b.weights()) && constant_weights(c.weights()));
+    let shared_weights = row_weights == c.weight_channel()
+        || (constant_weights(b.weight_channel()) && constant_weights(c.weight_channel()));
     let shared_knots = if backward {
         b.knots().is_reflection_of(c.knots())
     } else {
@@ -10138,9 +10171,10 @@ mod fitted_lane_routing_tests {
     /// **A pairing the certificate is not written for refuses as that,
     /// ahead of a degenerate face's chart speeds.** Mending the face
     /// would still meet the routing boundary, so the boundary answers
-    /// first: a NURBS mate (whose limbs have no traced pcurve) and a
-    /// non-plane analytic mate of a NURBS face, each against the point
-    /// wall.
+    /// first: a NURBS mate of an analytic face (whose limbs have no
+    /// traced pcurve) and a non-plane analytic mate of a NURBS face, each
+    /// with the point wall. Two spline charts are no routing boundary:
+    /// they certify with the two-chart tube.
     #[test]
     fn the_routing_boundary_answers_before_the_chart_mint() {
         let lin = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -10166,8 +10200,8 @@ mod fitted_lane_routing_tests {
         let carrier = Curve3::Nurbs(Arc::new(carrier));
         for (name, surface, mate, want) in [
             (
-                "NURBS × NURBS",
-                point_wall(),
+                "NURBS × cylinder",
+                cylinder.clone(),
                 point_wall(),
                 NURBS_LIMBS_NEED_PCURVE,
             ),

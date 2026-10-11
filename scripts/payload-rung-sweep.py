@@ -152,6 +152,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                                "is the facade crate's row and owes the CUR3 property "
                                "row plus a Python word"),
     "BandField": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
+    # `BooleanError::GermSectionSpiric`'s loops: `WedgeCheck`'s shape,
+    # argued beside the declaration.
+    "SpiricLoops": ("argued", "non-carriage with its falsifier, beside the declaration "
+                    "in crates/topo/src/boolean/mod.rs"),
     # `BooleanError::Escalated`'s and `DeclarationContradicted`'s closed
     # decision types. The row also holds the two types nested one rung
     # further down (`SectorRung`, `CrossingDecision`), which this sweep
@@ -204,6 +208,18 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Unwalked": ("argued", "the coincidence door's vocabulary is `document::coincide`'s, "
                            "re-exported whole; Python's `Coincidence.residual` says the "
                            "arm, crates/pncad-py/src/py/value.rs (`Coincidence`)"),
+
+    # The pose definitions (D10, INTENT stage 3 A): carried through
+    # `document::pose`, re-exported whole, and said in Python by
+    # `PoseDef`'s constructors (a definition), `tags.rs`'s `pose_*` words
+    # (a construction's degenerate case) and `errors.rs`'s
+    # `pose_admits_tag` (what a pose read admits).
+    "PoseDef": ("argued", "the pose vocabulary is `document::pose`'s, re-exported whole; "
+                          "Python writes it with `PoseDef`, crates/pncad-py/src/py/pose.rs"),
+    "PoseConstruction": ("argued", "`document::pose`, re-exported whole; Python says the arm "
+                                   "as `pose_degenerate`'s inner word, crates/pncad-py/src/tags.rs"),
+    "PoseAdmits": ("argued", "`document::pose`, re-exported whole; Python says the arm as "
+                             "`pose_admits_tag`, crates/pncad-py/src/errors.rs"),
 
     # Blind spot (k)'s rows: a discriminant behind an uncurated struct
     # payload, reported under the carrier `via` the struct.

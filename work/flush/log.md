@@ -73,3 +73,88 @@ honestly at dispatch.
   is dispatched once F and 4598 have merged. The curved pinch row waits
   with it: its open question is the curved census, which 4604 extends.
   — (FLUSH orchestrator)
+
+## 2026-10-11 — reader's closes merge (PR 4635)
+
+Tier: the orchestrator's read. The diff is two pins and tracker edits,
+no kernel code; the reflex pin goes red under a `strut_order` mutant.
+Three rows close, 10 points:
+- the reflex corner (H): 0 `SeamOrientation` in 1152 declared lines,
+  and 1071 SOUND / 81 EMPTY plain;
+- the declared-flush wedge: never `JoinDesync` either way;
+- the one-order declared intersect: every nesting is SOUND plain.
+
+**A finding that is a class, not an instance, and crosses into
+INTENT.** On main a declaration moves a body. The door-backstop wedge,
+flush on a block top with its face 1.74e-10 off the block's plane (Zero
+against a ±1e-9 band), builds declared and refuses every op plain.
+`carrier_eq_reading` reads an undeclared pair's planes over an
+`ExtentBall` of radius `s1.span()`, where the tilt reads `Distinct`;
+the declared spelling reads over the consumed face extent. INTENT F's
+premise, that a declaration already moves no body (so F is bit-equal
+to E), is false for this fixture, and F deletes the fixture. Filed as
+`a-wedge-flush-on-a-block-top-refuses-every-op-undeclared-though-its-face-reads-zero`
+(P1, M), on this slate because its fix is the plain door's carrier
+read. A seam note on INTENT's log and a comment on PR 4641 ask F to
+keep the fixture through the plain booleans (or name the row), so the
+regression stays visible.
+— (FLUSH orchestrator)
+
+## 2026-10-11 — the sliver-only result refuses (PR 4636)
+
+**Tier: a single FULL review.** The diff was short and readable: check 7
+and the door's `gate`. But every boolean's result crosses that gate, so
+the review carried claims to falsify as well as the style lane. No
+MAJOR, so there was no second review, and the orchestrator read the fix
+pass's delta.
+- **MINOR-1 (the PR body's "no sound result regresses" was false):** a
+  lone slab under 2Kε thick, which shipped `Ok` on main, now refuses
+  `ShellRole`. **Ruled intended.** A sole shell is measured by its
+  certified V/A, the reading check 10 already applies to every shell,
+  and D10's "no in-band shell" is read on it. The body and the row now
+  state the change, and a slab row pins it.
+- **MINOR-2:** a thin-walled hollow, whose shells each decide while the
+  solid's total is in band, ships on main and here. Filed as
+  `a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses` (P2, design).
+- **Style:** S1 (a false doc comment), S2 (`SliverSolid`/`InBandShell`,
+  now one type), S4/S7 (a test claiming a landing it does not cover)
+  and S6 (the dual scalar is not covered) are fixed.
+  - S3: the variant is renamed; the `Cell` side channel predates the
+    PR and stays.
+  - S5: DESIGN.md's positive-volume clause re-worded to the present
+    truth. That is a re-wording forced by the code change, not a new
+    decision.
+
+**Friction:**
+- A per-PR `test` job took 33 min (PR 4635), against the 15-min bar.
+- Two slow-set rows are red on main since PR 4553
+  (`work/nurbs/main-slow-set-reds-on-two-rows-since-4553`). Each FLUSH
+  lane whose diff touches `crates/sweep/tests` meets them, and two lanes
+  spent time reproducing them before the FYI reached them.
+— (FLUSH orchestrator)
+
+## 2026-10-11 — the anti-parallel touch closes as fixed by PR 4496 (PR 4649)
+
+Tier: the orchestrator's read. The PR is a regression gate plus tracker
+edits, with no kernel change, and its gate is red at the commit before
+the fix. The lane bisected the fix to PR 4496 (INTENT stage 4 E,
+booleans glue on Zero). It also found that the class is 18 pose-ops,
+not the 8 the row named. The union and intersect poses refused
+`UndeclaredCoincidence` before PR 4496, so the original review never
+saw them. CONTACTHOLD's PRs 4598 and 4604 merged during this unit, so
+the tier-3′ rows (the corner ruling and its planar siblings) now read
+the new census. The track's load is 31/32, back under budget.
+## 2026-10-11 — wave 2 begins (CONTACTHOLD 4598/4604 merged; F still open)
+
+- **A designer pair on `a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses`**
+  (what a sliver measures for a solid), dispatched concurrently with one
+  problem statement and no candidate answers. The labels are on
+  `analysis/design-fork/flush-thin-hollow`. If the two recommend a fork
+  that is Ev's, it goes to an `[ev]` PR. Otherwise the orchestrator acts
+  on the recommendation.
+- **`flush/curved-pinch-reread`:** the curved shared-pinch row (P2) is
+  re-measured on main now that 4604 has extended the curved census. It
+  closes, re-homes to the owning lane, or is priced.
+- **Still held on F (PR 4641):** the pinch cluster, the wedge residue
+  and the E tail. Corner-ruling PR 4650 is merging 4598's conflict.
+— (FLUSH orchestrator)

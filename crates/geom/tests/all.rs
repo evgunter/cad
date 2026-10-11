@@ -81,6 +81,8 @@ mod curves_domain_door;
 mod curves_fit_certify;
 #[path = "curves/fitting.rs"]
 mod curves_fitting;
+#[path = "curves/held_weights_and_knots.rs"]
+mod curves_held_weights_and_knots;
 #[path = "curves/hull_circle_rehearsal.rs"]
 mod curves_hull_circle_rehearsal;
 #[path = "curves/lt_r1_probes.rs"]

@@ -484,3 +484,64 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - `work.py incoming` at each check-in. Now run: 0 incoming.
     - Friction is a finding. Filed `work/issues/the-dual-review-logs-shared-tally-line-conflicts-every-unit.md` (DR-log contention, plus the 35-minute `test` job on PR 4553).
   - PR 4551 is still waiting on build A's push of its main merge. (NURBS orchestrator)
+- **2026-10-11 06:27Z.**
+  - `incoming` brought INTENT's filing of `main-slow-set-reds-on-two-rows-since-4553` (P0). Two slow-set rows have been red on main since PR 4553: sweep's serial-golden digest, and step-import's arc-loft native-vs-imported volume bits.
+  - These are the same two rows PR 4551 had already shown to be quadrature-sensitive. The per-PR gate never selected them, because 4553 touched neither crate.
+  - The orchestrator's miss: before merging 4553 it should have run those two rows, since 4551 had just shown they move with quadrature changes.
+  - Build B (`session_01VSe9NnecKcXKBB3VP44z5J`) is re-dispatched to root-cause both on `nurbs/main-slow-set-reds-since-4553`:
+    - re-baseline only with a stated, measured cause;
+    - for the import bits, make both sides compute the same thing rather than re-pin.
+  - Build A was told not to attribute these rows to 4551. (NURBS orchestrator)
+- **2026-10-11 07:12Z.**
+  - PR 4647 (merged by Ev) splits the dual-review log into one file per row, with numbers assigned on main and the foot computed. NURBS's contention issue is closed against it. 4551's row will be `rows/PR-4551.md`.
+  - Build A's main merge into 4551 (`11a6b7253a`) has the right `SpanLocate` union, and `knot_difference` is the only spelling.
+  - Its probe-5 commit re-aimed 4553's MINOR-B guard from limb 2 (`ssi_hull_sup`) to limb 1, because under the monotone step limb 2 now reads 3.13e-15, under limb 1's 4.77e-15. That re-opens MINOR-B: limb 1 is already pinned by r2 probe 2.
+  - Sent back: give `ssi_hull_sup`'s `Interval` payload a row that can still go red (a fixture where limb 2 leads, or a direct `hull_limb` row). Mutation red is to be shown by execution.
+  - Build B is working the P0 slow-set reds with a candidate walk-order fix. (NURBS orchestrator)
+- 2026-10-11 — Seam note from ENCL (PR 4653, merged): `geom_core::spline::compose::sub_segment` is now public and re-exported from `geom_core::spline`. It cuts a Bernstein row on [s0, s1] down to [a, b] through `convex_step`, as an outward enclosure. Its `p` argument is gone. It refuses (returns the refused row) for an empty row or segment, a NaN cut, a cut outside the segment, and a reversed cut, the last by contract. `geom_brep::ssi::section::sub_piece` is deleted, and section's `Pieces::over`, `slope_over` and `refined_sign` cut through it. `refined_sign` still halves the halves it reads (measured as tighter near a zero). (ENCL orchestrator)
+- 2026-10-11 — Note from ENCL: main is red on step-import `nurbs_import::arc_loft_natively_computes_its_rational_volume`. ENCL bisected it to NURBS #4553. The cause is a face-order dependence in `fold_runs` that #4553 exposed; #4553 itself is not wrong. Filed `work/exch/arc-loft-round-trip-volume-differs-by-face-order.md` (P1) with the mechanism and two repair shapes. (ENCL orchestrator)
+- **2026-10-11 08:25Z.**
+  - **PR 4551.**
+    - Build A's `1a61afdae7` restores 4553's MINOR-B guard at `hull_limb` itself: it is red under `Margin::of(hull.sup)`, with both arms executed. Accepted.
+    - 4551 now conflicts with main over ENCL's PR 4653, which made `compose::sub_segment` public through `convex_step` and routed `ssi::section` through it. 4551 retires `convex_step` in favour of `between` and has `restrict_bernstein` do that cut.
+    - Build A is told to leave one Bernstein-row cut through `between`, keeping ENCL's refusal contract, and to check QUAD's `bezier_bisect` row.
+  - **The P0 slow-set reds:**
+    - ENCL root-caused the import row as a face-order-dependent volume fold that 4553 exposed (`exch/arc-loft-round-trip-volume-differs-by-face-order`).
+    - Build B's bisect pins the sweep digest to CLEAVE's PR 4626.
+    - Build B is validating its PR. (NURBS orchestrator)
+- **2026-10-11 09:00Z.** Build B root-caused the P0 slow-set reds. Both start at PR 4553: its first bisect to #4626 came from stale cargo artifacts in a second worktree.
+  - **Sweep digest.** Only `arc_loft_1e9eps` moves, the roster's only rational-wall body.
+    - Cause: `refine_dir` moved from `ring_lerp` (f64 λ) to the ring's step.
+    - Every new volume and area enclosure nests inside the old one.
+    - Re-cut accepted.
+  - **Import bits.** Per-face flux is bit-identical native vs imported. `props::fold_runs` sums the same six terms in face-arena order, and the two arenas differ, so the bodies round 1 ulp apart.
+    - 4553 only changed which orders happen to round alike.
+    - 4551's filed `de_boor` row is the same mechanism; its "inputs differ" premise is refuted.
+  - **Rulings:**
+    - The import row is re-scoped to per-face bit identity, each body's own paths, and overlapping body enclosures (ENCL's repair (b), not a re-pin: the row's premise was false).
+    - Summing in shell order was built and backed out. It reddened two sweep bit-identity rows (one-call == sequential).
+    - The exact, order-independent sum is a design fork (scalar traits, D9 idiom 2), filed for FLUX with `design: true`, for the designer pair.
+  - Tier: orchestrator's read. (NURBS orchestrator)
+- **2026-10-11 09:22Z.** PR 4551's main merge, over ENCL's PR 4653, reached a form finding.
+  - `between`'s monotone corner `x + (y−x)·Λ` rounds twice at an exact dyadic Λ = ½. The convex `x·½ + y·½` rounds once.
+  - ENCL's new section sign bisection (`a_sign_at_the_rows_floor_reads_on_halves_of_halves`) therefore hits its halving floor before the sign clears. It reads `None` where main reads `Some(true)`.
+  - The designers' batteries drew random ratios, where monotone wins.
+  - **Ruled: option 1.** Meet each corner's monotone lerp with its convex form. That is sound and never wider, and it refines fork row 107's adopted form rather than reversing it, so it is recorded for Ev in the PR body, not an `[ev]` PR.
+  - Owed: cost, the batteries re-run, a mutation row per half, and the docs.
+  - `sub_segment` gives way to `blossom::restrict_segment`, with ENCL's contract carried over. QUAD's `bezier_bisect` row closes with 4551. (NURBS orchestrator)
+- **2026-10-11 09:42Z.**
+  - PR 4551's step-form ruling is refined to **1b**: `between` meets the convex form only for a point ratio (`t.lo == t.hi`, a structural branch); an interval ratio keeps the monotone corner alone.
+  - Measured:
+    - the full meet (option 1) cost +37% on `canonical_composite`, 627 → 860 µs (main 400);
+    - 1b costs +5%, at 660 µs;
+    - ENCL's halves-of-halves row is green under both.
+  - Owed: the four-ε suite, the batteries, a mutation row per arm, the endpoint census, and the docs. (NURBS orchestrator)
+- **2026-10-11 09:57Z.** PR 4551: build A's equivalence probe refutes the case for 1b.
+  - 394,939 draws compared 1b against always-meet at interval ratios.
+    - 21% differ.
+    - Always-meet is narrower in 95% of those, by up to 62.5% of the width.
+    - 2.7% of draws are more than 1% narrower, all at thin ratios: knot quotients and drawn thin ratios.
+  - No suite row tells the two apart.
+  - Re-ruled: option 1, the unconditional meet, unless its suite-level cost (m5 fast set, `props::quad` rows) exceeds 1b's by more than about 10%.
+    - If it does, 1b stays, with the trade stated at the claim site and a P3 revisit row.
+  - Either way, a static thin-ratio row guards the meet. (NURBS orchestrator)

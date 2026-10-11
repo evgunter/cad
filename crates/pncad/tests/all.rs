@@ -476,15 +476,10 @@ fn stale_declaration_and_ring_contact_are_matchable(
             named::<EdgeKey>(b);
             "edge_edge"
         }
-        StaleDeclaration::CurveLocus {
-            face_a,
-            face_b,
-            witness,
-        } => {
-            named::<FaceKey>(face_a);
-            named::<FaceKey>(face_b);
-            named::<EdgeKey>(witness);
-            "curve_locus"
+        StaleDeclaration::EdgeFace { edge, face } => {
+            named::<EdgeKey>(edge);
+            named::<FaceKey>(face);
+            "edge_face"
         }
         StaleDeclaration::Patch { .. } => "patch",
     };
@@ -6450,12 +6445,12 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
 }
 
 /// A user's program through the façade, holding the unit-vector
-/// witness: datum nodes evaluate, their `DatumValue` fields ARE the
+/// witness: datum nodes evaluate, their `PoseValue` fields ARE the
 /// witnesses, and the doors that take or mint the type are reached
 /// without naming a second crate.
 mod unit_vector_witness_through_the_facade {
     use pncad::document::{
-        CancelToken, Datum, DatumValue, Doc, EvalOptions, Node, NodeResult, ProfileProgram,
+        CancelToken, Datum, Doc, EvalOptions, Node, NodeResult, PoseValue, ProfileProgram,
         RecipeNodeId, ValuePayload, evaluate,
     };
     use pncad::geom_core::linalg::frame::{mirror_across_plane, path_start_frame, point_at};
@@ -6464,7 +6459,7 @@ mod unit_vector_witness_through_the_facade {
 
     type ProfileDoc = Doc<ProfileProgram>;
 
-    fn datum_of(doc: &ProfileDoc, node: RecipeNodeId) -> DatumValue<f64> {
+    fn datum_of(doc: &ProfileDoc, node: RecipeNodeId) -> PoseValue<f64> {
         let ev = evaluate::<f64>(
             doc,
             None,
@@ -6507,10 +6502,10 @@ mod unit_vector_witness_through_the_facade {
                 direction: [super::scl(3.0), super::scl(4.0), super::scl(0.0)],
             }),
         );
-        let DatumValue::Plane { origin, normal } = datum_of(&doc, plane) else {
+        let PoseValue::Plane { origin, normal } = datum_of(&doc, plane) else {
             panic!("a plane datum");
         };
-        let DatumValue::Axis { origin: ao, dir } = datum_of(&doc, axis) else {
+        let PoseValue::Axis { origin: ao, dir } = datum_of(&doc, axis) else {
             panic!("an axis datum");
         };
         assert_eq!(bits(normal.get()), bits(Vec3::new(0.0, 0.0, 1.0)));
@@ -6542,7 +6537,7 @@ mod unit_vector_witness_through_the_facade {
     }
 
     /// The funnel-site name is the caller's: a direction minted under
-    /// ANY name builds a `DatumValue`, so "a datum's direction is
+    /// ANY name builds a `PoseValue`, so "a datum's direction is
     /// decided under `datum_unit_norm`" is `editor-core`'s convention
     /// at its `datum_unit` door, not a property of the type. The
     /// refusals under the datum name are the constructor's typed ones.
@@ -6555,11 +6550,11 @@ mod unit_vector_witness_through_the_facade {
             band,
         )
         .unwrap();
-        let d = DatumValue::<f64>::Plane {
+        let d = PoseValue::<f64>::Plane {
             origin: Point3::origin(),
             normal: n,
         };
-        let DatumValue::Plane { normal, .. } = d else {
+        let PoseValue::Plane { normal, .. } = d else {
             panic!("a plane datum");
         };
         assert_eq!(bits(normal.get()), bits(Vec3::new(0.0, 0.0, 1.0)));

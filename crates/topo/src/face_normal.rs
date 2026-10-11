@@ -830,10 +830,12 @@ mod tests {
         ];
         // Each a genuinely signed SCALAR, negated at its point of use
         // as D6 spells it: a jet curvature measured along the plus
-        // face's outward normal, a loop's chart-frame area, an offset
-        // distance into the material.
+        // face's outward normal, the sphere's radial flux term
+        // `R·Area`, a loop's chart-frame area, an offset distance into
+        // the material.
         let sanctioned: Vec<(String, String)> = [
             ("crates/geom-brep/src/dihedral.rs", "kappa_rel"),
+            ("crates/geom-brep/src/props/curved.rs", "radial"),
             ("crates/mesh/src/walk.rs", "area"),
             ("crates/topo/src/shell.rs", "thickness"),
         ]

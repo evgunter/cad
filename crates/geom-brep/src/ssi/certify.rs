@@ -214,6 +214,18 @@ pub enum SsiTube<T> {
         /// The pad along `v`, in chart units.
         pad_v: T,
     },
+    /// The two-chart arm (NURBS × NURBS): a per-span chain of ℝ⁴ boxes,
+    /// each the product of the two pcurves' span windows, padded per
+    /// axis in each chart's units. As on the chart arm, the rung is the
+    /// ladder radius tried and the pads are the proved region.
+    TwoChart {
+        /// The ladder rung tried, in metres.
+        rung: T,
+        /// The first chart's pads along `u` and `v`, in its units.
+        pad_a: (T, T),
+        /// The second chart's pads along `u` and `v`, in its units.
+        pad_b: (T, T),
+    },
 }
 
 impl<T> SsiTube<T> {
@@ -225,6 +237,11 @@ impl<T> SsiTube<T> {
                 rung: f(rung),
                 pad_u: f(pad_u),
                 pad_v: f(pad_v),
+            },
+            Self::TwoChart { rung, pad_a, pad_b } => SsiTube::TwoChart {
+                rung: f(rung),
+                pad_a: (f(pad_a.0), f(pad_a.1)),
+                pad_b: (f(pad_b.0), f(pad_b.1)),
             },
         }
     }
@@ -485,7 +502,7 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         let mut breaks: Vec<f64> = grid.iter().chain(cuts).copied().collect();
         breaks.sort_by(f64::total_cmp);
         breaks.dedup();
-        let data = CurveCertData::new(carrier.knots(), carrier.weights(), &coords)
+        let data = CurveCertData::new(carrier.knots(), carrier.weight_channel(), &coords)
             .map_err(|_| SsiError::UnsupportedCertificate {
                 what: "the fitted carrier's enclosure data is malformed",
             })?
@@ -570,24 +587,21 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         // analytic limb and the box chain, the cut itself made in the
         // ring (C6).
         let coords = carrier.certified_coords();
-        let cdata =
-            CurveCertData::new(carrier.knots(), carrier.weights(), &coords).map_err(|_| {
-                SsiError::UnsupportedCertificate {
-                    what: "the fitted carrier's enclosure data is malformed",
-                }
+        let cdata = CurveCertData::new(carrier.knots(), carrier.weight_channel(), &coords)
+            .map_err(|_| SsiError::UnsupportedCertificate {
+                what: "the fitted carrier's enclosure data is malformed",
             })?;
         let pcoords = pcurve.certified_coords();
-        let pdata =
-            CurveCertData::new(pcurve.knots(), pcurve.weights(), &pcoords).map_err(|_| {
-                SsiError::UnsupportedCertificate {
-                    what: "the traced pcurve's enclosure data is malformed",
-                }
-            })?;
+        let pdata = CurveCertData::new(pcurve.knots(), pcurve.weight_channel(), &pcoords).map_err(
+            |_| SsiError::UnsupportedCertificate {
+                what: "the traced pcurve's enclosure data is malformed",
+            },
+        )?;
         let scoords = surface.certified_coords();
         let sdata = tensor::SurfaceCertData::new(
             surface.knots_u(),
             surface.knots_v(),
-            surface.weights(),
+            surface.weight_channel(),
             &scoords,
         )
         .map_err(|_| SsiError::UnsupportedCertificate {
@@ -1021,7 +1035,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
     // reads as a definite refusal (no box, so nothing banked).
     let Some((kv, coords)) = refined_net(
         carrier.knots(),
-        carrier.weights(),
+        carrier.weight_channel(),
         &carrier.certified_coords(),
     ) else {
         return out;
@@ -1311,6 +1325,131 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
     }))
 }
 
+/// The most boxes a two-chart tube's chain has: consecutive span windows
+/// are hulled in runs of equal length to stay within it. A structure
+/// choice (C6's `f64` lane): the one-arc proof walks every box's eight
+/// faces, so its cost grows with the count, and a box over several
+/// spans proves the same theorem over a wider region.
+pub(crate) const PAIR_TUBE_BOXES: usize = 16;
+
+/// **The two-chart tube's chain**: each box the product of the two
+/// pcurves' padded span windows ([`chart_tube_windows`]), consecutive
+/// spans hulled in runs so the chain has at most [`PAIR_TUBE_BOXES`],
+/// with the parameter midpoint of each run. Limb 3 proves over exactly
+/// these and the section's accounting banks exactly these.
+///
+/// `None` when either pcurve has no windows or the two disagree on their
+/// spans: both are fitted on the carrier's own parameter, so their spans
+/// are one list.
+pub(crate) fn pair_tube_chain<T: geom_core::CertifiedBounds>(
+    (pa, pb): (&NurbsCurve2<T>, &NurbsCurve2<T>),
+    (pad_a, pad_b): PairPads,
+) -> Option<Vec<(super::four::Box4, f64)>> {
+    let wa = chart_tube_windows(pa, pad_a)?;
+    let wb = chart_tube_windows(pb, pad_b)?;
+    if wa.len() != wb.len() || wa.is_empty() || wa.iter().zip(&wb).any(|(a, b)| a.ends != b.ends) {
+        return None;
+    }
+    let run = wa.len().div_ceil(PAIR_TUBE_BOXES);
+    let hull = |p: (f64, f64), q: (f64, f64)| (p.0.min(q.0), p.1.max(q.1));
+    Some(
+        wa.chunks(run)
+            .zip(wb.chunks(run))
+            .map(|(ca, cb)| {
+                let side = |w: &[ChartWindow], u: bool| {
+                    w.iter()
+                        .map(|w| if u { w.rect.u } else { w.rect.v })
+                        .reduce(hull)
+                        .unwrap_or((f64::NAN, f64::NAN))
+                };
+                let mid = 0.5 * (ca[0].ends.0 + ca[ca.len() - 1].ends.1);
+                (
+                    super::four::Box4([
+                        side(ca, true),
+                        side(ca, false),
+                        side(cb, true),
+                        side(cb, false),
+                    ]),
+                    mid,
+                )
+            })
+            .collect(),
+    )
+}
+
+/// The two-chart tube's pads, each chart's `(u, v)` in its own units.
+type PairPads = ((f64, f64), (f64, f64));
+
+/// Limb 3's enclosure probe for the **NURBS × NURBS** arm: the graph
+/// criterion in ℝ⁴ ([`super::four::graph_margin`]) over a chain of
+/// boxes, each the product of the two pcurves' padded span windows
+/// ([`chart_tube_windows`] on each, the spans shared because both
+/// pcurves were fitted on the carrier's parameter), and, where it is
+/// zero-free, the one-arc proof over the chain cut to the product of
+/// the two knot rectangles ([`super::four::one_arc_pair`]).
+///
+/// `None` when either pcurve has no windows, the two disagree on their
+/// spans, or a tangent is unusable: a definite structural refusal at
+/// this rung.
+fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
+    (pa, pb): (&NurbsCurve2<T>, &NurbsCurve2<T>),
+    (na, nb): (super::ChartedNurbs<'_, T>, super::ChartedNurbs<'_, T>),
+    (rung, (pad_a, pad_b)): (f64, PairPads),
+    band: Band,
+) -> Option<Rung> {
+    use super::four::{Box4, PairBoxes, dominant, graph_margin, one_arc_pair};
+    let (sa, sb) = (na.speeds(), nb.speeds());
+    let speeds = [sa.u.get(), sa.v.get(), sb.u.get(), sb.v.get()];
+    let pair = PairBoxes::new(na.surface(), nb.surface(), speeds);
+    let chain = pair_tube_chain((pa, pb), (pad_a, pad_b))?;
+    // The tangent is a DIRECTION — structure — selected through the
+    // bracket's upper end as the chart lane's is: the graph margin is
+    // certified for whatever direction it is handed, so the read only
+    // steers which determinant is asked.
+    let tangent = |t: f64| -> Option<[f64; 4]> {
+        let (da, db) = (pa.deriv(T::from_f64(t)), pb.deriv(T::from_f64(t)));
+        let raw = [da.x.hi(), da.y.hi(), db.x.hi(), db.y.hi()];
+        let scaled: [f64; 4] = core::array::from_fn(|k| raw[k] * speeds[k]);
+        let n = scaled.iter().map(|v| v.powi(2)).sum::<f64>().sqrt();
+        (n.is_finite() && n > 0.0).then(|| scaled.map(|v| v / n))
+    };
+    let mut worst = f64::INFINITY;
+    let mut boxes = Vec::with_capacity(chain.len());
+    for (x, mid) in chain {
+        let e = tangent(mid)?;
+        worst = worst.min(zero_free_lower_bound(graph_margin(&pair, x, e)));
+        boxes.push(x);
+    }
+    // An end's state is a point the one-arc proof looks for inside an
+    // end box `ε/8` wide on each axis: on the `f64` lane the bracket is
+    // the point, and on a wider one any point of it is as good a read.
+    let state = |t: f64| {
+        let (p, q) = (pa.eval(T::from_f64(t)), pb.eval(T::from_f64(t)));
+        [p.x.lo(), p.y.lo(), q.x.lo(), q.y.lo()]
+    };
+    // Each end's dominant axis is read off its tangent; an unusable one
+    // refuses the rung, as one inside the chain does.
+    let (t0, t1) = pa.domain();
+    let [Some(e0), Some(e1)] = [t0, t1].map(tangent) else {
+        return None;
+    };
+    let one = (worst > 0.0).then(|| {
+        let ends = [(t0, e0), (t1, e1)].map(|(t, raw)| {
+            let e: [f64; 4] = core::array::from_fn(|k| raw[k] / speeds[k]);
+            (state(t), dominant(&pair, e))
+        });
+        let domain = Box4::of_charts(na.surface(), nb.surface());
+        one_arc_pair(&pair, (&boxes, domain), ends, band.zero())
+    });
+    #[allow(clippy::cast_possible_truncation)]
+    Some(Rung {
+        tube: SsiTube::TwoChart { rung, pad_a, pad_b },
+        margin: worst,
+        boxes: boxes.len() as u32,
+        one_arc: one,
+    })
+}
+
 /// [`certify_branch`]'s routing boundary for a NURBS operand with no
 /// traced pcurve — the first operand's, which never has one.
 pub(crate) const NURBS_LIMBS_NEED_PCURVE: &str = "a NURBS operand's limbs need the traced pcurve \
@@ -1518,6 +1657,8 @@ pub(crate) enum Lane<'a, T: Real> {
         a: &'a SsiOperand<'a, T>,
         /// The second operand.
         b: &'a SsiOperand<'a, T>,
+        /// The first operand's pcurve, where both are NURBS charts.
+        pcurve_a: Option<&'a NurbsCurve2<T>>,
         /// The second operand's pcurve, where it is a NURBS wall.
         pcurve_b: Option<&'a NurbsCurve2<T>>,
     },
@@ -1530,6 +1671,18 @@ pub(crate) enum Lane<'a, T: Real> {
         wall: super::ChartedNurbs<'a, T>,
         /// The wall's pcurve.
         pcurve: &'a NurbsCurve2<T>,
+    },
+    /// A NURBS × NURBS search's branch, its chain cut to the product of
+    /// the two knot rectangles, which the search banks.
+    Pair {
+        /// The first chart, its speeds minted.
+        a: super::ChartedNurbs<'a, T>,
+        /// The second chart, its speeds minted.
+        b: super::ChartedNurbs<'a, T>,
+        /// The first chart's pcurve.
+        pcurve_a: &'a NurbsCurve2<T>,
+        /// The second chart's pcurve.
+        pcurve_b: &'a NurbsCurve2<T>,
     },
     /// An ℝ³ search's branch, its chain cut to the box the search is
     /// confined to and banks the tube over.
@@ -1674,25 +1827,39 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
 ) -> Result<SsiCertificate<T>, SsiError> {
     // The pair the first two limbs read, the pcurve beside the second.
     let (first, second);
-    let (a, b, pcurve_b) = match lane {
-        Lane::AtRest { a, b, pcurve_b } => (a, b, pcurve_b),
+    let (a, b, pcurve_a, pcurve_b) = match lane {
+        Lane::AtRest {
+            a,
+            b,
+            pcurve_a,
+            pcurve_b,
+        } => (a, b, pcurve_a, pcurve_b),
         Lane::Chart {
             plane,
             wall,
             pcurve,
         } => {
             (first, second) = (SsiOperand::Analytic(plane), SsiOperand::Nurbs(wall));
-            (&first, &second, Some(pcurve))
+            (&first, &second, None, Some(pcurve))
+        }
+        Lane::Pair {
+            a,
+            b,
+            pcurve_a,
+            pcurve_b,
+        } => {
+            (first, second) = (SsiOperand::Nurbs(a), SsiOperand::Nurbs(b));
+            (&first, &second, Some(pcurve_a), Some(pcurve_b))
         }
         Lane::Spatial { pair, .. } => {
             (first, second) = (SsiOperand::Analytic(pair.0), SsiOperand::Analytic(pair.1));
-            (&first, &second, None)
+            (&first, &second, None, None)
         }
     };
     let mut on_locus = T::zero();
     let mut hull_sup = T::zero();
     let asked: &[_] = match limbs {
-        Limbs::All => &[(a, None), (b, pcurve_b)],
+        Limbs::All => &[(a, pcurve_a), (b, pcurve_b)],
         Limbs::Tube => &[],
     };
     for &(op, pc) in asked {
@@ -1715,7 +1882,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     // which every chart enclosure is clipped to).
     let slab = match lane {
         Lane::Spatial { slab, .. } => Some(slab),
-        Lane::AtRest { .. } | Lane::Chart { .. } => None,
+        Lane::AtRest { .. } | Lane::Chart { .. } | Lane::Pair { .. } => None,
     };
     // The carrier's two ends, as the carrier's scalar evaluates them: on
     // the f64 lane a point, not an enclosure of the exact end, which the
@@ -1769,12 +1936,20 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                 probe_tube_chart(p, &n.boxes(), (origin, normal), (radius, pad), (ends, band))
             })?
         }
-        (SsiOperand::Nurbs(_), SsiOperand::Nurbs(_)) => {
-            return Err(SsiError::UnsupportedCertificate {
-                what: "NURBS × NURBS routes to the general rung but its uniqueness \
-                       tube is not implemented in this build (arms retire one at \
-                       a time, each with its proof)",
-            });
+        (SsiOperand::Nurbs(na), SsiOperand::Nurbs(nb)) => {
+            let (Some(pa), Some(pb)) = (pcurve_a, pcurve_b) else {
+                return Err(SsiError::UnsupportedCertificate {
+                    what: "the two-chart uniqueness tube needs both traced pcurves",
+                });
+            };
+            limb_three((widest, extent), band, |radius| {
+                Ok(probe_tube_pair(
+                    (pa, pb),
+                    (*na, *nb),
+                    (radius, (na.speeds().pad(radius), nb.speeds().pad(radius))),
+                    band,
+                ))
+            })?
         }
     };
     Ok(certificate((on_locus, hull_sup), three))
@@ -1983,15 +2158,15 @@ mod tests {
         /// and `S_v = (0, 1, 0)`, so `∇φ = (n·S_u, n·S_v) = (n.x, n.y)`.
         fn unit_patch() -> NurbsSurface<Interval> {
             NurbsSurface::new(
-                linear_kv(),
-                linear_kv(),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
                 vec![
                     Point3::new(iv(0.0), iv(0.0), iv(0.0)),
                     Point3::new(iv(0.0), iv(1.0), iv(0.0)),
                     Point3::new(iv(1.0), iv(0.0), iv(0.0)),
                     Point3::new(iv(1.0), iv(1.0), iv(0.0)),
                 ],
-                vec![1.0; 4],
+                vec![geom_core::Real::one(); 4],
             )
             .expect("valid patch")
         }
@@ -2000,9 +2175,9 @@ mod tests {
         /// and the margin reads `n.y` alone.
         fn u_line() -> NurbsCurve2<Interval> {
             NurbsCurve2::new(
-                linear_kv(),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
                 vec![Point2::new(iv(0.1), iv(0.5)), Point2::new(iv(0.9), iv(0.5))],
-                vec![1.0, 1.0],
+                vec![geom_core::Real::one(); 2],
             )
             .expect("valid pcurve")
         }
@@ -2084,9 +2259,9 @@ mod tests {
             );
             assert!(!bad.is_certified(), "fixture drifted: it certifies");
             let pcurve = NurbsCurve2::new(
-                linear_kv(),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
                 vec![Point2::new(bad, iv(0.5)), Point2::new(iv(0.9), iv(0.5))],
-                vec![1.0, 1.0],
+                vec![geom_core::Real::one(); 2],
             )
             .expect("valid pcurve");
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
@@ -2114,8 +2289,13 @@ mod tests {
         #[test]
         fn a_chart_constant_across_the_locus_refuses_rather_than_trying_a_smaller_rung() {
             let p = Point3::new(iv(0.3), iv(0.3), iv(0.0));
-            let point_patch = NurbsSurface::new(linear_kv(), linear_kv(), vec![p; 4], vec![1.0; 4])
-                .expect("a patch a caller can build");
+            let point_patch = NurbsSurface::new(
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
+                vec![p; 4],
+                vec![geom_core::Real::one(); 4],
+            )
+            .expect("a patch a caller can build");
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
             let verdict = probe_tube_chart(
                 &u_line(),
@@ -2148,8 +2328,13 @@ mod tests {
         fn a_chart_constant_across_the_locus_refuses_on_a_net_that_is_not_one_point() {
             let a = Point3::new(iv(0.1), iv(0.1), iv(0.1));
             let b = Point3::new(iv(0.7), iv(0.7), iv(0.7));
-            let ridge = NurbsSurface::new(linear_kv(), linear_kv(), vec![a, a, b, b], vec![1.0; 4])
-                .expect("a patch a caller can build");
+            let ridge = NurbsSurface::new(
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
+                vec![a, a, b, b],
+                vec![geom_core::Real::one(); 4],
+            )
+            .expect("a patch a caller can build");
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
             let verdict = probe_tube_chart(
                 &u_line(),
@@ -2176,9 +2361,9 @@ mod tests {
         #[test]
         fn a_pcurve_with_no_tangent_refuses_rather_than_trying_a_smaller_rung() {
             let still = NurbsCurve2::new(
-                linear_kv(),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
                 vec![Point2::new(iv(0.5), iv(0.5)), Point2::new(iv(0.5), iv(0.5))],
-                vec![1.0, 1.0],
+                vec![geom_core::Real::one(); 2],
             )
             .expect("a pcurve a caller can build");
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
@@ -2213,7 +2398,12 @@ mod tests {
         let n = kv.control_count();
         #[allow(clippy::cast_precision_loss)]
         let control = (0..n).map(|i| Point3::new(i as f64, 0.0, 0.0)).collect();
-        geom::NurbsCurve3::new(kv, control, vec![1.0; n]).unwrap()
+        geom::NurbsCurve3::new(
+            geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
+            control,
+            vec![geom_core::Real::one(); n],
+        )
+        .unwrap()
     }
 
     /// `cert_grid` is the DOMAIN's 32nds, a grid point skipped up to
@@ -2261,7 +2451,12 @@ mod tests {
                     Point3::new(bend[0], bend[1], bend[2]),
                     Point3::new(1.0, 1.0, 1.0),
                 ];
-                let curve = geom::NurbsCurve3::new(kv, control, vec![1.0; 3]).unwrap();
+                let curve = geom::NurbsCurve3::new(
+                    geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
+                    control,
+                    vec![geom_core::Real::one(); 3],
+                )
+                .unwrap();
                 let chain = super::box_chain(&curve);
                 let worst = chain
                     .iter()
@@ -2377,7 +2572,7 @@ mod tests {
             "refined_net missed the exact net at {missed:?}"
         );
         let curve = NurbsCurve3::new(
-            kv.clone(),
+            geom_core::spline::Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
             ctl.iter().map(|p| Point3::new(p[0], p[1], p[2])).collect(),
             weights.clone(),
         )
@@ -2437,7 +2632,7 @@ mod tests {
         let pc = NurbsCurve2::new(
             KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
             vec![Point2::new(0.2, 0.4), Point2::new(0.6, 0.5)],
-            vec![1.0, 1.0],
+            vec![geom_core::Real::one(); 2],
         )
         .unwrap();
         let (pad_u, pad_v) = (0.125, 0.375);
@@ -2488,10 +2683,15 @@ mod tests {
             control.push(Point3::new(x, y, 0.0));
             control.push(Point3::new(x, y, 3.0));
         }
-        let wall = NurbsSurface::new(ku, kv, control, vec![1.0; 8])
-            .unwrap()
-            .refine_knots_u(&(1..16).map(|k| f64::from(k) / 16.0).collect::<Vec<_>>())
-            .unwrap();
+        let wall = NurbsSurface::new(
+            geom_core::spline::Knots::from(ku).lift(geom_core::Real::from_f64),
+            geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
+            control,
+            vec![geom_core::Real::one(); 8],
+        )
+        .unwrap()
+        .refine_knots_u(&(1..16).map(|k| f64::from(k) / 16.0).collect::<Vec<_>>())
+        .unwrap();
         let n = Vec3::new(0.0, 0.25, 1.0);
         let n = n / n.norm();
         let u = Vec3::new(1.0, 0.0, 0.0);
@@ -2760,19 +2960,19 @@ mod tests {
                 )
             })
             .collect();
-        let wall = NurbsSurface::new(k2(), k2(), control, vec![1.0; 9]).unwrap();
+        let wall = NurbsSurface::new(k2(), k2(), control, vec![geom_core::Real::one(); 9]).unwrap();
         let k1 = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let carrier = NurbsCurve3::new(
             k1(),
             vec![Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, l, 0.0)],
-            vec![1.0, 1.0],
+            vec![geom_core::Real::one(); 2],
         )
         .unwrap();
         let u0 = -x0 / (x1 - x0);
         let pcurve = NurbsCurve2::new(
             k1(),
             vec![Point2::new(u0, 0.0), Point2::new(u0, 1.0)],
-            vec![1.0, 1.0],
+            vec![geom_core::Real::one(); 2],
         )
         .unwrap();
         let plane = Surface::Plane {

@@ -76,7 +76,7 @@ use core::num::NonZeroUsize;
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::predicate::KERNEL_OR_FILE_DEFECT_ENDING;
-use geom_core::spline::{KnotVector, KnotVectorIssue, SplineError};
+use geom_core::spline::{KnotVector, SpanLocate, SplineError};
 use geom_core::{
     Band, Bounds, Decide, Decided, Indeterminate, MarginDiag, Point2, Point3, Readable, Real, Sign,
     Vec3,
@@ -274,10 +274,11 @@ pub enum CarrierDomainFault {
     /// increasing interval of finite width — for a validated carrier,
     /// a width that overflows.
     Interval,
-    /// [`SplineError::KnotVectorInvalid`]: `f64` rounding collapsed the
-    /// image's knots onto a domain too narrow for the magnitude of its
-    /// ends, and the clamp contract refused the result by this clause.
-    Collapse(KnotVectorIssue),
+    /// [`SplineError::KnotRunsNotIncreasing`]: rounding put two of the
+    /// image's breakpoints on one value on a domain too narrow for the
+    /// magnitude of its ends, and the held knots refuse to merge them
+    /// into one run nobody wrote.
+    Merge,
 }
 
 impl CarrierDomainRefusal {
@@ -285,23 +286,28 @@ impl CarrierDomainRefusal {
     ///
     /// # Panics
     ///
-    /// On a weight, count or held-breakpoint arm of [`SplineError`],
-    /// which the door never returns: it re-expresses an `f64` knot
-    /// vector alone and carries the validated net and weights over
-    /// verbatim.
+    /// On any other arm of [`SplineError`], which the door never returns
+    /// on an `f64` image (the door's one caller): it carries the
+    /// validated net and weights over verbatim, its re-expressed
+    /// breakpoints are `f64` points, and `Knots::new` refuses any two
+    /// that collide before a clamp clause could.
     fn of(lo: f64, hi: f64, e: &SplineError) -> Self {
         let fault = match e {
             SplineError::DomainInvalid { .. } => CarrierDomainFault::Interval,
-            SplineError::KnotVectorInvalid { reason } => CarrierDomainFault::Collapse(*reason),
-            SplineError::NonPositiveWeight { .. }
+            SplineError::KnotVectorInvalid { .. }
+            | SplineError::NonPositiveWeight { .. }
             | SplineError::NonFiniteWeight { .. }
             | SplineError::ControlCountMismatch { .. }
             | SplineError::WeightCountMismatch { .. }
-            | SplineError::KnotNotAPoint { .. }
-            | SplineError::KnotRunsNotIncreasing { .. } => unreachable!(
-                "the domain door re-expresses an f64 knot vector, so it cannot refuse a \
-                 weight, a count or a held breakpoint: {e:?}"
+            | SplineError::WeightNotAPoint { .. }
+            | SplineError::KnotNotAPoint { .. } => unreachable!(
+                "the domain door re-expresses a validated f64 image's knots, so it cannot \
+                 refuse a weight, a count, a breakpoint that is no point or a clamp clause: {e:?}"
             ),
+            // Two breakpoints the re-expression rounds onto one value:
+            // the held knots refuse to merge them (the `f64` vector's
+            // door merged them into a higher multiplicity).
+            SplineError::KnotRunsNotIncreasing { .. } => CarrierDomainFault::Merge,
         };
         Self { lo, hi, fault }
     }
@@ -316,10 +322,11 @@ impl core::fmt::Display for CarrierDomainRefusal {
                 "the carrier's parameter domain [{lo}, {hi}] is not a finite increasing interval \
                  of finite width"
             )?,
-            CarrierDomainFault::Collapse(_) => write!(
+            CarrierDomainFault::Merge => write!(
                 f,
-                "f64 rounding collapsed the chart image's knots onto the carrier's parameter \
-                 domain [{lo}, {hi}], which is too narrow for the magnitude of its ends"
+                "f64 rounding collapsed two of the chart image's knots onto one value on the \
+                 carrier's parameter domain [{lo}, {hi}], which is too narrow for the magnitude \
+                 of its ends"
             )?,
         }
         write!(
@@ -639,6 +646,115 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     })
 }
 
+/// **The certified NURBS × NURBS derivation** — [`plane_nurbs_limbs`]
+/// for an edge between two spline charts, a described wall or a fit on
+/// either side: the carrier's chart image on EACH chart, from the same
+/// fixed schedule of foot points ([`chart_image`], the one producer of
+/// that image), the normal angle between the two charts at each
+/// interior sample's feet decided definitely transverse, and C2's
+/// certificate against both, its limb 3 the two-chart tube
+/// ([`crate::ssi::SsiTube::TwoChart`]).
+///
+/// The images are re-derived here, as the plane lane's is, so the
+/// limb-2 bound is this lane's own and need not reproduce the section's
+/// certificate bit for bit.
+///
+/// # Errors
+///
+/// [`PlaneNurbsRefusal`], whose vocabulary this lane shares: a foot that
+/// will not converge, an image that will not fit, a sample whose two
+/// charts are not definitely transverse, and a limb's refusal with its
+/// measured bound.
+pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
+    carrier: &NurbsCurve3<T>,
+    a: &NurbsSurface<T>,
+    b: &NurbsSurface<T>,
+    extent: T,
+    band: Band,
+) -> Result<PlaneNurbsLimbs<T>, PlaneNurbsRefusal> {
+    if a.is_placeholder() || b.is_placeholder() {
+        return Err(PlaneNurbsRefusal::Unsupported {
+            what: geom::PLACEHOLDER_SURFACE,
+        });
+    }
+    // Each chart localized on its own cell grid, as the plane lane's wall.
+    let (grid_a, grid_b) = (wall_grid(a), wall_grid(b));
+    let op_a = match &grid_a {
+        Some(g) => SsiOperand::nurbs_on(a, g),
+        None => SsiOperand::nurbs(a),
+    }
+    .map_err(refusal)?;
+    let op_b = match &grid_b {
+        Some(g) => SsiOperand::nurbs_on(b, g),
+        None => SsiOperand::nurbs(b),
+    }
+    .map_err(refusal)?;
+    let mut feet_a: Vec<Point2<f64>> = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
+    let pcurve_a = chart_image(carrier, a, |_, foot| {
+        feet_a.push(foot);
+        Ok(())
+    })?;
+    let mut min_sin = T::from_f64(f64::MAX);
+    let pcurve_b = chart_image(carrier, b, |i, foot| {
+        // Interior samples only, as the plane lane reads them.
+        if i == 0 || i == PXN_FIT_SAMPLES - 1 {
+            return Ok(());
+        }
+        let Some(fa) = feet_a.get(i as usize) else {
+            return Err(PlaneNurbsRefusal::PcurveFit);
+        };
+        let (ua, va) = measured_foot(*fa);
+        let (ub, vb) = measured_foot(foot);
+        let (ja, jb) = (a.ders(ua, va), b.ders(ub, vb));
+        let sin_theta = normal_angle_sine(ja.du.cross(ja.dv), jb.du.cross(jb.dv));
+        let kappa = crate::shape_operator::max_principal_curvature(&ja)
+            .max(crate::shape_operator::max_principal_curvature(&jb));
+        let (arm, reach) = crate::ssi::point_arm(kappa, extent);
+        let margin = geom_core::Margin::levered(sin_theta, arm);
+        match crate::dihedral::decide_reported("nurbs_pair_transversality", margin, band) {
+            Ok(decided) => {
+                if let Some(verdict) = Refused::of(decided, band) {
+                    return Err(PlaneNurbsRefusal::NotTransverse {
+                        sample: i,
+                        lever: PointLever::of(Bounds::lo(reach)),
+                        verdict,
+                    });
+                }
+            }
+            Err(cause) => {
+                return Err(PlaneNurbsRefusal::TransversalityEscalated { sample: i, cause });
+            }
+        }
+        min_sin = min_sin.min(sin_theta);
+        Ok(())
+    })?;
+    let min_sin =
+        geom_core::k_stats::gate_measured("nurbs_pair_transversality_reported", min_sin, band)
+            .map_err(PlaneNurbsRefusal::ReportedTransversalityPoisoned)?;
+    let cert = crate::ssi::certify::certify_branch(
+        carrier,
+        crate::ssi::certify::Lane::AtRest {
+            a: &op_a,
+            b: &op_b,
+            pcurve_a: Some(&pcurve_a),
+            pcurve_b: Some(&pcurve_b),
+        },
+        extent,
+        band,
+        crate::ssi::certify::Limbs::All,
+        &mut crate::ssi::certify::Refused::default(),
+    )
+    .map_err(refusal)?;
+    Ok(PlaneNurbsLimbs {
+        on_locus_max: cert.on_locus_max,
+        hull_sup: cert.hull_sup,
+        tube: cert.tube,
+        tube_transversality: cert.tube_transversality,
+        tube_boxes: cert.tube_boxes,
+        min_sin_theta: min_sin,
+    })
+}
+
 /// Whether `surface` is an analytic operand: one with an implicit form
 /// and a chart frame, which the analytic rung-3 certificate reads
 /// ([`analytic_rung3`]). A spline operand's pair is the plane × NURBS
@@ -721,6 +837,7 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         crate::ssi::certify::Lane::AtRest {
             a: &SsiOperand::Analytic(s1),
             b: &SsiOperand::Analytic(s2),
+            pcurve_a: None,
             pcurve_b: None,
         },
         // The tube's extent, from the object being certified: the
@@ -746,13 +863,13 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 /// stretch, joined at full multiplicity — are formed with ratios in the
 /// scalar ([`crate::pcurve_cache::projected::piece_controls`]), so at an
 /// enclosure scalar each encloses the true piece's control. A carrier
-/// with unequal weights has no piece whose weights are `f64` at an
-/// enclosure scalar (an `f64` insertion plan would re-round them into a
-/// neighbouring curve's), so the tube reads the whole carrier: sound,
+/// with unequal weights has no piece whose weights are the carrier's
+/// own at an enclosure scalar (a refinement there is held only as
+/// homogeneous enclosures, C6), so the tube reads the whole carrier: sound,
 /// since the chain around the piece is a stretch of the whole carrier's
 /// chain, and conservative, since geometry past the edge's ends can
 /// refuse it (`work/pcert/the-tube-reads-a-rational-carriers-whole-net.md`).
-fn edge_piece<T: Real>(
+fn edge_piece<T: SpanLocate>(
     carrier: &NurbsCurve3<T>,
     lo: f64,
     hi: f64,
@@ -765,8 +882,8 @@ fn edge_piece<T: Real>(
             "the edge's interval is empty on the carrier's domain",
         ));
     }
-    let weights = carrier.weights();
-    let constant = weights.iter().all(|w| w.to_bits() == weights[0].to_bits());
+    let channel = carrier.weight_channel();
+    let constant = channel.iter().all(|w| w.to_bits() == channel[0].to_bits());
     if (a <= d0 && b >= d1) || !constant {
         return Ok(carrier.clone());
     }
@@ -800,9 +917,15 @@ fn edge_piece<T: Real>(
         knots.extend(std::iter::repeat_n(w[1], if last { p + 1 } else { p }));
     }
     let n = control.len();
+    // The piece's interior breaks are the carrier's breakpoints and keep
+    // their held values; its ends are the edge's parameters, entered as
+    // the constants they are.
     KnotVector::clamped(knots, p)
         .ok()
-        .and_then(|kv| NurbsCurve3::new(kv, control, vec![weights[0]; n]).ok())
+        .and_then(|kv| {
+            let held = carrier.knot_values().restructure(kv, T::from_f64);
+            NurbsCurve3::new(held, control, vec![carrier.weights()[0]; n]).ok()
+        })
         .ok_or(refuse(
             "the carrier's piece over the edge's interval is malformed",
         ))
@@ -1276,21 +1399,34 @@ fn normal_angle_sine<T: Real>(plane_normal: Vec3<T>, wall_normal: Vec3<T>) -> T 
 /// parameter domain and lifted to the caller's scalar — two
 /// operations, in that order: the interpolation's clamped `0 → 1`
 /// knots onto `[t0, t1]` through the curve's own domain door (ends
-/// exact, interior affine, at `f64`), then the control net through
-/// `T::from_computed`: the net is a fit to measured feet, so at `Sym`
-/// each coordinate is its own unknown, never a constant. The rescale
-/// is the only step that can refuse — the lift carries a validated
-/// curve's net verbatim — so the `Result` is the knot door's alone.
+/// exact, interior affine, at `f64`), then the control net and the
+/// knots through `T::from_computed`: they are a fit to measured feet,
+/// so at `Sym` each is its own unknown, never a constant. The weights
+/// are the interpolation's unit weights, a constant of its form, and
+/// enter through `from_f64`. The rescale is the only step that can
+/// refuse (the lift carries a validated curve's net verbatim), so the
+/// `Result` is the knot door's alone. (The domain ends are the
+/// carrier's stored `f64` domain, entered with the knots;
+/// `stored-carrier-data`, owed to this item's unit 3.)
 ///
 /// The knot map's own rounding is not a soundness question — the image
 /// is evidence that limb 2 bounds, not a certified quantity (module
 /// docs).
-fn on_carrier_domain<T: Real>(
+fn on_carrier_domain<T: SpanLocate>(
     image: &NurbsCurve2<f64>,
     t0: f64,
     t1: f64,
 ) -> Result<NurbsCurve2<T>, SplineError> {
-    Ok(image.on_domain(t0, t1)?.map_scalar(T::from_computed))
+    let image = image.on_domain(t0, t1)?;
+    NurbsCurve2::new(
+        image.knot_values().lift(T::from_computed),
+        image
+            .control()
+            .iter()
+            .map(|p| p.map(T::from_computed))
+            .collect(),
+        image.weights().iter().map(|w| T::from_f64(*w)).collect(),
+    )
 }
 
 /// The SSI refusal, in this lane's vocabulary.
@@ -1819,7 +1955,12 @@ mod tests {
         let (a, b) = (0.1, 0.55);
         let piece = edge_piece(&carrier, a, b).unwrap();
         assert_eq!(piece.domain(), (a, b));
-        assert!(piece.weights().iter().all(|&x| x.to_bits() == w.to_bits()));
+        assert!(
+            piece
+                .weight_channel()
+                .iter()
+                .all(|&x| x.to_bits() == w.to_bits())
+        );
         let exact: Vec<[Q; 3]> = exact_piece(&knots, p, &ctl, a, 0.3)
             .into_iter()
             .chain(exact_piece(&knots, p, &ctl, 0.3, b).into_iter().skip(1))
