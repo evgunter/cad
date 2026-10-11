@@ -2,12 +2,14 @@
 id: topo-keeps-computed-values-in-t
 kind: unit
 title: from_f64 audit, topo: every listed launders site keeps its value in T or enters it through from_computed
-status: dispatched
+status: closed
 opened: 2026-10-10
 priority: P0
 cost: M
 refs: [carriers-compare-in-canonical-form]
 branch: intent/from-f64-topo
+pr: 4585
+closed: 2026-10-10
 ---
 
 
@@ -43,4 +45,6 @@ whose corners the driver computes by subdividing the window in `f64`.
 Is a cell a constant of the query, so `constant`, or a function of the
 window, so it re-enters through `from_computed` or stays in `T`?
 
-Closing this removes a way for the coincidence door to report a false proof: the door's symbolic rungs (`carriers-compare-in-canonical-form`) are theorems about the expression the `Sym` replay saw, and a listed site re-enters a computed value there as a constant.
+## Closed
+
+PR 4585. Every topo `launders` site enters through `Real::from_computed`; none could stay in `T`. Each has its own `Sym<f64>` re-valuation pin (`crates/topo/src/revalue_pin.rs`), red on the old spelling. The `chart_bound` cell is a function of the window, so it enters as computed. The `die` `volume_backstop` candidate is confirmed, and its site is this crate's `margin.lo()`: the census's name-only pairing first read it as foreign (`die-volume-backstop-launders-a-constant-no-open-row-names`, closed; PR 4596). The review's clamped-foot point is filed as `a-clamped-carrier-foot-is-the-stored-knot`.
