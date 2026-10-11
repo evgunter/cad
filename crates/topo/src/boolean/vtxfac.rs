@@ -2038,12 +2038,16 @@ mod tests {
                 let outward = OutwardNormal::from_chart(n_p, true);
                 let mut entries: Vec<Entry> = sectors
                     .iter()
-                    .map(|s| Entry {
-                        he: s.he,
-                        is_edge: s.end_edge(),
-                        class: side_code(s.end, s.end_reach, outward, NO_CURVATURE(), band)
-                            .unwrap(),
-                        lumped: false,
+                    .map(|s| {
+                        let class =
+                            side_code(s.end, s.end_reach, outward, NO_CURVATURE(), band).unwrap();
+                        Entry {
+                            he: s.he,
+                            is_edge: s.end_edge(),
+                            class,
+                            tied: class == SideCode::On,
+                            lumped: false,
+                        }
                     })
                     .collect();
                 resolve_on_entries(&mut entries, band).unwrap();
