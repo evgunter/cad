@@ -145,7 +145,14 @@ fn spring<S: Scalar>(
         .fold(f64::NEG_INFINITY, f64::max);
     let path = coil(BOSS_Z.1 + depth);
     let stations = usize::try_from(TURNS * per_turn + 1).expect("a station count");
-    sweep_body::<S>(wire, start_frame(&path), &path, stations, 3, tol).map(|l| l.body)
+    // The wire and its start frame are built in `f64`, so they enter `S`
+    // as the computed values they are.
+    let wire: Vec<_> = wire
+        .iter()
+        .map(|lp| lp.map_scalar(S::from_computed))
+        .collect();
+    let place = start_frame(&path).map(S::from_computed);
+    sweep_body::<S>(&wire, place, &path, stations, 3, tol).map(|l| l.body)
 }
 
 /// The continuum volume of a wire of cross-section `area` swept along
