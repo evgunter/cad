@@ -22,7 +22,7 @@ item 1.
 - Fixtures move to a `test-support` constructor. On 2026-10-10 that
   covers 136 test literals and 85 `INVALID` spellings outside
   `geom-core`.
-- `crates/topo/src/invalid_margin.rs` is deleted: done in PR 4613, when its last production caller went.
+- `crates/topo/src/invalid_margin.rs` is deleted.
 - `scripts/gates/reporting-margin-door.sh`'s `terminal_sliver: true`
   literal pin becomes a compile error. Its prose says so.
 

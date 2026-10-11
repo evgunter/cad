@@ -505,12 +505,10 @@ mod tally_rows {
         for e in [
             PointInSolidError::Escalated {
                 face,
-                diag: geom_core::Indeterminate {
-                    margin: geom_core::MarginDiag::INVALID,
-                    band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
-                    predicate: Some("test_tally"),
-                    terminal_sliver: false,
-                },
+                diag: crate::invalid_margin::invalid(
+                    geom_core::Band::new(1e-9, 1e-8).unwrap(),
+                    "test_tally",
+                ),
             },
             PointInSolidError::WallOutlineUnsupported { face },
             PointInSolidError::PartialConeFace { face },
