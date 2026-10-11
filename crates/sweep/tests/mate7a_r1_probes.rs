@@ -357,7 +357,8 @@ fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
 /// The boolean's glue door runs first: before the declared path it
 /// reads every cross pair (four here) for a tangency its witness
 /// verifies, and that read takes the first-order screen at every
-/// station of each pair (`contact_tangent_on_1` counts the four reads).
+/// station of each pair (`contact_tangent_opposed`, the witness lane's
+/// first reading, counts the four reads: each refuses there).
 ///
 /// The whole current price:
 ///
@@ -464,7 +465,7 @@ fn p2_the_g1_chain_price_is_the_measured_195_rows() {
         ("seam_rim_traversal", 2),
         ("carrier_torus_axis_parallel", 1),
         ("carrier_torus_center", 1),
-        ("contact_tangent_on_1", 4),
+        ("contact_tangent_opposed", 4),
     ] {
         assert_eq!(
             count(name),
