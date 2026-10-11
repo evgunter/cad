@@ -112,6 +112,7 @@ pub mod plane_eq;
 #[cfg(test)]
 mod r2_probes;
 pub(crate) mod recl;
+mod records;
 pub(crate) mod reduce;
 pub(crate) mod refusal_routes;
 pub(crate) use refusal_routes::PlaneDoor;
@@ -141,7 +142,7 @@ use geom_core::{
 
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
-use crate::coincidence::{Backing, Cited, Cites};
+use crate::coincidence::{Cited, Cites};
 use crate::contact::{BooleanCoincidence, ContactClass};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
@@ -174,6 +175,8 @@ pub use ops::{
     intersect, intersect_with, subtract, subtract_with, union, union_with,
 };
 pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
+pub(crate) use records::incident;
+pub use records::{Contact, ContactKind, ContactPairError, ContactRecords, RekeyRefusal};
 #[cfg(feature = "sweep-testing")]
 pub use reduce::PlantedDegradation;
 pub use reduce::{SweepStrategy, SweepTrace};
@@ -483,8 +486,10 @@ pub struct EdgePieceClass {
     pub class: SideCode,
 }
 
-/// A coincident vertex pair — one `sonvv` record: a contact between
-/// vertex `a` of body A and vertex `b` of body B.
+/// A coincident vertex pair in the reduction's working set (`sonvv`):
+/// vertex `a` of operand A and vertex `b` of operand B, each in its
+/// operand clone's keys ([`ReductionContacts`]). Carried within one
+/// operand ([`CarriedVv`]), both are that operand's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VvContact {
     /// The A-side vertex (key into the A clone).
@@ -493,8 +498,9 @@ pub struct VvContact {
     pub b: VertexKey,
 }
 
-/// A vertex-on-face record (`sonva`/`sonvb`): `vertex` (in the operand
-/// named by the containing list) lies within `face` of the other body.
+/// A vertex on a face in the reduction's working set (`sonva`/`sonvb`):
+/// `vertex`, of the operand the containing list names, lies within
+/// `face` of the other operand ([`ReductionContacts`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VfContact {
     /// The piercing vertex.
@@ -503,10 +509,8 @@ pub struct VfContact {
     pub face: FaceKey,
 }
 
-/// A vertex-on-edge record: `vertex` rests on the interior of `edge`,
-/// a cell of the other touching side ([`Cell`]). It is what a join leaves of a v-v record whose partner it
-/// joined away, and what an edge split hands the piece the vertex lies
-/// on: the cell pair `(vertex, edge)`, never a point or a parameter.
+/// A vertex resting on an edge's interior, within one operand carried
+/// back into an op ([`CarriedContacts`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VeContact {
     /// The resting vertex.
@@ -515,13 +519,8 @@ pub struct VeContact {
     pub edge: crate::entity::EdgeKey,
 }
 
-/// An edge-edge record: the interiors of edges `a` and `b`, of the two
-/// touching sides ([`Cell`]), meet — at a point where they cross, or along a
-/// segment where they overlap. A crossing has no bound a vertex record
-/// can hold, so this record is what backs it; an overlap is certified
-/// from its bounds whether or not it is held. The cell pair `(a, b)`,
-/// unordered: what a substitution leaves of a v-v record whose two
-/// vertices were both joined into edges.
+/// Two edges whose interiors meet, within one operand carried back into
+/// an op ([`CarriedContacts`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EeContact {
     /// One edge.
@@ -547,20 +546,12 @@ pub(crate) struct EdgeSplit {
     pub(crate) child: crate::entity::EdgeKey,
 }
 
-/// One cell of a body: what a contact record names, two at a time.
+/// One cell of a body: what a contact record names, two at a time
+/// ([`Contact`]).
 ///
-/// A record is a pair of cells, one from each touching side, whose
-/// interiors meet. Its kind is the pair's dimensions: vertex/vertex
-/// ([`VvContact`]), vertex/edge ([`VeContact`]), vertex/face
-/// ([`VfContact`]), edge/edge ([`EeContact`]), face/face
-/// ([`CurveContact`], [`PatchContact`]). Edge/face contacts are
-/// certified from their bounds, each a vertex event of one of the kinds
-/// above (`topo::census`, the D3 rule): an edge resting in a face
-/// overlaps it, and a transverse pierce is never contact, so the kind
-/// is not stored.
-///
-/// A side is a shell, or one side of a shell's pinch: a pinch's two
-/// sides touch within one shell, and their records name its cells.
+/// The order is vertex < edge < face, then key: a record's canonical
+/// order, so its kind reads off its two cells' dimensions
+/// ([`ContactKind`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Cell {
     /// A vertex.
@@ -571,400 +562,55 @@ pub enum Cell {
     Face(FaceKey),
 }
 
-/// A **certified curve touch** (C3): two faces meeting along the
-/// locus carried by `witness`.
-///
-/// `witness` is the seam EDGE whose carrier IS the contact locus, not
-/// a free point: the edge's own description already pins its witness
-/// at `carrier(mid)` (the S2 contract), so naming the edge inherits
-/// that pin instead of minting a second, unpinned one. Certification
-/// is per-locus — the jet schedule of CURVED-DESIGN C7 applied to the
-/// face pair along the carrier ([`tangent_pair_relation`]) — and its
-/// strength equals its skeleton: samples plus hull bounds, refusing
-/// typed outside the certifiable lane rather than sampling harder.
-/// Endpoints are bounded by vertex records or by the locus's own
-/// closure; a bound without a backing vertex record is
-/// `UndeclaredContact`, never inferred.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct CurveContact {
-    /// The A-side face.
-    pub face_a: FaceKey,
-    /// The B-side face.
-    pub face_b: FaceKey,
-    /// The edge whose carrier is the witnessed locus.
-    pub witness: crate::entity::EdgeKey,
-}
-
-/// A **certified conformal patch** (C3): two faces meeting over a
-/// two-dimensional region.
-///
-/// **Not yet certifiable, stated as a posture rather than discovered
-/// as a gap.** The record's certification obligation is structural
-/// carrier identity (rung 2 or 3, never "value-equal") plus opposed
-/// senses plus region overlap **in the shared chart** with
-/// definitely-positive area. The third condition needs a trim-region
-/// overlap predicate in (u,v) that does not exist: the planar census's
-/// containment machinery run in chart space. Until it does, every
-/// door that would certify a `PatchContact` refuses
-/// [`crate::contact::ContactRefusal::NotCertifiable`] — the type is
-/// here so the vocabulary is complete and the obligation is written
-/// down, not so a caller can mint an unbacked blessing. An
-/// area-SAMPLED certifier is rejected outright: sampling can miss a
-/// trim hole and certify a contact that is not there.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct PatchContact {
-    /// The A-side face.
-    pub face_a: FaceKey,
-    /// The B-side face.
-    pub face_b: FaceKey,
-}
-
-/// The ON-sets as **contact records** (F1/F2): emitted by the
-/// pipeline as it discovers each contact, each citing the coincidence
-/// that decided it. Deterministic discovery order, deduplicated.
-///
-/// `PartialEq` is load-bearing, not a convenience: D9's bit-identical
-/// replay promises that a rerun reproduces the RECORDS bit-identically
-/// (C4's replay clause), and a replay row that can only compare naming
-/// is checking a shadow of that promise. Comparing records compares
-/// arena keys, which is exactly right here — replay reruns the same
-/// pipeline on the same input, so key identity is part of what
-/// determinism means.
+/// **The boolean reduction's working contact set** (Mäntylä's ON-sets
+/// `sonvv`, `sonva`, `sonvb`), each row citing the reduction's own
+/// decisions: operand-tagged, every key in its operand clone's arena.
+/// It is the reduction's vocabulary, read by operand by the
+/// classification and the insertion, and it is not a body's record:
+/// the result's carry maps it onto the result's cells and drops the
+/// tags ([`ContactRecords`]). Deterministic discovery order,
+/// deduplicated.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct ContactRecords {
+pub struct ReductionContacts {
     /// Coincident vertex pairs (`sonvv`).
     pub vv: Vec<Cited<VvContact>>,
     /// Vertices of A on faces of B (`sonva`).
     pub a_on_b: Vec<Cited<VfContact>>,
     /// Vertices of B on faces of A (`sonvb`).
     pub b_on_a: Vec<Cited<VfContact>>,
-    /// Vertices resting on the other side's edge interiors.
-    pub ve: Vec<Cited<VeContact>>,
-    /// Edges whose interiors meet the other side's.
-    pub ee: Vec<Cited<EeContact>>,
-    /// Curve-granularity contacts (C3).
-    pub curves: Vec<Cited<CurveContact>>,
-    /// Patch-granularity contacts (C3) — see [`PatchContact`] for the
-    /// not-yet-certifiable posture this list ships under.
-    pub patches: Vec<Cited<PatchContact>>,
 }
 
-impl ContactRecords {
-    /// Every record as the cell pair it names, kind by kind in field
-    /// order. A face/face record's witness edge is not a cell of the
-    /// pair: it is where the pair's contact is certified.
-    pub fn cell_pairs(&self) -> impl Iterator<Item = (Cell, Cell)> + '_ {
-        // Every field, by name: a new kind fails to compile here until
-        // it says which pair it is.
-        let Self {
-            vv,
-            a_on_b,
-            b_on_a,
-            ve,
-            ee,
-            curves,
-            patches,
-        } = self;
-        let vv = vv.iter().map(|c| (Cell::Vertex(c.a), Cell::Vertex(c.b)));
-        let vf = a_on_b
-            .iter()
-            .chain(b_on_a)
-            .map(|c| (Cell::Vertex(c.vertex), Cell::Face(c.face)));
-        let ve = ve
-            .iter()
-            .map(|c| (Cell::Vertex(c.vertex), Cell::Edge(c.edge)));
-        let ee = ee.iter().map(|c| (Cell::Edge(c.a), Cell::Edge(c.b)));
-        let ff = curves
-            .iter()
-            .map(|c| (c.face_a, c.face_b))
-            .chain(patches.iter().map(|c| (c.face_a, c.face_b)))
-            .map(|(a, b)| (Cell::Face(a), Cell::Face(b)));
-        vv.chain(vf).chain(ve).chain(ee).chain(ff)
-    }
-
-    /// Every record's citations, in [`Self::cell_pairs`] order: a
-    /// record's position here is its index in this list, the index a
-    /// [`Backing::Carried`] names.
-    pub fn cites(&self) -> impl Iterator<Item = &Cites> + '_ {
-        let Self {
-            vv,
-            a_on_b,
-            b_on_a,
-            ve,
-            ee,
-            curves,
-            patches,
-        } = self;
-        vv.iter()
-            .map(|c| &c.cites)
-            .chain(a_on_b.iter().chain(b_on_a).map(|c| &c.cites))
-            .chain(ve.iter().map(|c| &c.cites))
-            .chain(ee.iter().map(|c| &c.cites))
-            .chain(curves.iter().map(|c| &c.cites))
-            .chain(patches.iter().map(|c| &c.cites))
-    }
-
-    /// Every record's citations, mutably, in [`Self::cites`] order.
-    fn cites_mut(&mut self) -> impl Iterator<Item = &mut Cites> + '_ {
-        let Self {
-            vv,
-            a_on_b,
-            b_on_a,
-            ve,
-            ee,
-            curves,
-            patches,
-        } = self;
-        vv.iter_mut()
-            .map(|c| &mut c.cites)
-            .chain(a_on_b.iter_mut().chain(b_on_a).map(|c| &mut c.cites))
-            .chain(ve.iter_mut().map(|c| &mut c.cites))
-            .chain(ee.iter_mut().map(|c| &mut c.cites))
-            .chain(curves.iter_mut().map(|c| &mut c.cites))
-            .chain(patches.iter_mut().map(|c| &mut c.cites))
-    }
-
-    /// Every row of the producing op's own list some record cites
-    /// ([`Backing::Decided`]), ascending and once each.
-    #[must_use]
-    pub fn decided(&self) -> Vec<u32> {
-        let mut used: Vec<u32> = self
-            .cites()
-            .flat_map(Cites::iter)
-            .filter_map(|b| match b {
-                Backing::Decided(k) => Some(k),
-                Backing::Carried { .. } => None,
+impl ReductionContacts {
+    /// Every row as its two operand-tagged cells and its citations, in
+    /// one fixed order: the vertex pairs (A's vertex, B's), then A's
+    /// vertices on B's faces, then B's on A's, each vertex first.
+    pub fn rows(&self) -> impl Iterator<Item = ([(Operand, Cell); 2], &Cites)> + '_ {
+        let vv = self.vv.iter().map(|c| {
+            (
+                [
+                    (Operand::A, Cell::Vertex(c.a)),
+                    (Operand::B, Cell::Vertex(c.b)),
+                ],
+                &c.cites,
+            )
+        });
+        fn vf(
+            side: Operand,
+            other: Operand,
+            list: &[Cited<VfContact>],
+        ) -> impl Iterator<Item = ([(Operand, Cell); 2], &Cites)> + '_ {
+            list.iter().map(move |c| {
+                (
+                    [(side, Cell::Vertex(c.vertex)), (other, Cell::Face(c.face))],
+                    &c.cites,
+                )
             })
-            .collect();
-        used.sort_unstable();
-        used.dedup();
-        used
-    }
-
-    /// These records with every [`Backing::Decided`] citation renumbered
-    /// through `row`, the citation dropped where `row` answers `None`;
-    /// carried citations stay.
-    ///
-    /// # Errors
-    ///
-    /// The index in [`Self::rows`] of the first record whose citations
-    /// all dropped.
-    pub fn renumbered(mut self, row: impl Fn(u32) -> Option<u32>) -> Result<Self, usize> {
-        let mapped = self
-            .cites()
-            .enumerate()
-            .map(|(k, cites)| {
-                cites
-                    .try_map(|b| {
-                        Ok::<_, core::convert::Infallible>(match b {
-                            Backing::Decided(i) => row(i).map(Backing::Decided),
-                            carried @ Backing::Carried { .. } => Some(carried),
-                        })
-                    })
-                    .unwrap_or_else(|never| match never {})
-                    .ok_or(k)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        for (cites, new) in self.cites_mut().zip(mapped) {
-            *cites = new;
         }
-        Ok(self)
-    }
-
-    /// Every record as its cell pair and its citations, in list order
-    /// ([`Self::cites`]).
-    pub fn rows(&self) -> impl Iterator<Item = ((Cell, Cell), &Cites)> + '_ {
-        self.cell_pairs().zip(self.cites())
-    }
-
-    /// The index in [`Self::rows`] of the record of `pair`, in either
-    /// order: what a record carried from this list cites
-    /// ([`crate::Backing::Carried`]).
-    #[must_use]
-    pub fn position(&self, (x, y): (Cell, Cell)) -> Option<u32> {
-        self.cell_pairs()
-            .position(|p| p == (x, y) || p == (y, x))
-            .map(|k| u32::try_from(k).unwrap_or(u32::MAX))
-    }
-
-    /// These records as an op's that carries them from its input
-    /// `input` unchanged: each cell kept, each record citing this list's
-    /// record ([`Backing::Carried`]) in place of what it cited here.
-    #[must_use]
-    pub fn carried_from(&self, input: u32) -> Self {
-        fn recite<R: Copy>(list: &[Cited<R>], input: u32, k: &mut u32) -> Vec<Cited<R>> {
-            list.iter()
-                .map(|c| {
-                    let record = *k;
-                    *k += 1;
-                    Cited::new(c.record, Cites::one(Backing::Carried { input, record }))
-                })
-                .collect()
-        }
-        // List order is `rows` order, so `k` is each record's index.
-        let mut k = 0_u32;
-        let vv = recite(&self.vv, input, &mut k);
-        let a_on_b = recite(&self.a_on_b, input, &mut k);
-        let b_on_a = recite(&self.b_on_a, input, &mut k);
-        let ve = recite(&self.ve, input, &mut k);
-        let ee = recite(&self.ee, input, &mut k);
-        let curves = recite(&self.curves, input, &mut k);
-        let patches = recite(&self.patches, input, &mut k);
-        Self {
-            vv,
-            a_on_b,
-            b_on_a,
-            ve,
-            ee,
-            curves,
-            patches,
-        }
-    }
-
-    /// These records carried back into an op as one operand's own, each
-    /// with its index here, the vertex records asserting `class`. A
-    /// face-granularity record has no carried kind and stays here.
-    #[must_use]
-    pub fn carried(&self, class: ContactClass) -> CarriedContacts {
-        let index = |k: usize| u32::try_from(k).unwrap_or(u32::MAX);
-        let mut out = CarriedContacts::default();
-        let mut k = 0;
-        for c in &self.vv {
-            out.vv.push(CarriedVv {
-                pair: c.record,
-                class,
-                record: index(k),
-            });
-            k += 1;
-        }
-        for c in self.a_on_b.iter().chain(&self.b_on_a) {
-            out.vf.push(CarriedVf {
-                rest: c.record,
-                class,
-                record: index(k),
-            });
-            k += 1;
-        }
-        for c in &self.ve {
-            out.ve.push(CarriedRecord {
-                contact: c.record,
-                record: index(k),
-            });
-            k += 1;
-        }
-        for c in &self.ee {
-            out.ee.push(CarriedRecord {
-                contact: c.record,
-                record: index(k),
-            });
-            k += 1;
-        }
-        out
-    }
-
-    /// The same records with every cell re-keyed through `key`, a map
-    /// that keeps each cell's kind (a graft into another arena). The
-    /// first cell `key` cannot map refuses with that cell.
-    ///
-    /// # Errors
-    ///
-    /// The cell that has no image.
-    pub fn rekeyed(&self, key: impl Fn(Cell) -> Option<Cell>) -> Result<Self, Cell> {
-        let vertex = |v| match key(Cell::Vertex(v)) {
-            Some(Cell::Vertex(k)) => Ok(k),
-            _ => Err(Cell::Vertex(v)),
-        };
-        let edge = |e| match key(Cell::Edge(e)) {
-            Some(Cell::Edge(k)) => Ok(k),
-            _ => Err(Cell::Edge(e)),
-        };
-        let face = |f| match key(Cell::Face(f)) {
-            Some(Cell::Face(k)) => Ok(k),
-            _ => Err(Cell::Face(f)),
-        };
-        let vf = |c: &Cited<VfContact>| {
-            Ok(Cited::new(
-                VfContact {
-                    vertex: vertex(c.vertex)?,
-                    face: face(c.face)?,
-                },
-                c.cites.clone(),
-            ))
-        };
-        let Self {
-            vv,
-            a_on_b,
-            b_on_a,
-            ve,
-            ee,
-            curves,
-            patches,
-        } = self;
-        Ok(Self {
-            vv: vv
-                .iter()
-                .map(|c| {
-                    Ok(Cited::new(
-                        VvContact {
-                            a: vertex(c.a)?,
-                            b: vertex(c.b)?,
-                        },
-                        c.cites.clone(),
-                    ))
-                })
-                .collect::<Result<_, _>>()?,
-            a_on_b: a_on_b.iter().map(vf).collect::<Result<_, _>>()?,
-            b_on_a: b_on_a.iter().map(vf).collect::<Result<_, _>>()?,
-            ve: ve
-                .iter()
-                .map(|c| {
-                    Ok(Cited::new(
-                        VeContact {
-                            vertex: vertex(c.vertex)?,
-                            edge: edge(c.edge)?,
-                        },
-                        c.cites.clone(),
-                    ))
-                })
-                .collect::<Result<_, _>>()?,
-            ee: ee
-                .iter()
-                .map(|c| {
-                    Ok(Cited::new(
-                        EeContact {
-                            a: edge(c.a)?,
-                            b: edge(c.b)?,
-                        },
-                        c.cites.clone(),
-                    ))
-                })
-                .collect::<Result<_, _>>()?,
-            curves: curves
-                .iter()
-                .map(|c| {
-                    Ok(Cited::new(
-                        CurveContact {
-                            face_a: face(c.face_a)?,
-                            face_b: face(c.face_b)?,
-                            witness: edge(c.witness)?,
-                        },
-                        c.cites.clone(),
-                    ))
-                })
-                .collect::<Result<_, _>>()?,
-            patches: patches
-                .iter()
-                .map(|c| {
-                    Ok(Cited::new(
-                        PatchContact {
-                            face_a: face(c.face_a)?,
-                            face_b: face(c.face_b)?,
-                        },
-                        c.cites.clone(),
-                    ))
-                })
-                .collect::<Result<_, _>>()?,
-        })
+        vv.chain(vf(Operand::A, Operand::B, &self.a_on_b)).chain(vf(
+            Operand::B,
+            Operand::A,
+            &self.b_on_a,
+        ))
     }
 }
 
@@ -1985,10 +1631,10 @@ pub struct BooleanReduction<T: Real> {
     pub a: Body<T>,
     /// The annotated B clone.
     pub b: Body<T>,
-    /// The contact records (the three ON-sets). Each cites
-    /// the reduction's own decisions (`pending`), which the carry onto
-    /// the result renumbers onto the result's coincidences.
-    pub contacts: ContactRecords,
+    /// The reduction's working contact set (the three ON-sets). Each
+    /// row cites the reduction's own decisions (`pending`), which the
+    /// carry onto the result renumbers onto the result's coincidences.
+    pub contacts: ReductionContacts,
     /// Every null edge minted, both operands, insertion order.
     pub null_edges: Vec<BoolNullEdgeRecord<T>>,
     /// The cross-body correspondence pairs.
@@ -4518,7 +4164,7 @@ pub fn sweep_records(
     b_operand: &Body<f64>,
     strategy: SweepStrategy,
     tol: Tol,
-) -> Result<(ContactRecords, [usize; 4]), BooleanError> {
+) -> Result<(ReductionContacts, [usize; 4]), BooleanError> {
     let band = Band::linear(tol)?;
     let declared = DeclaredPairs::default();
     reduce::gate_operand_pairs(

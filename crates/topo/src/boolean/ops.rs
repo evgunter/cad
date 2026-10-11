@@ -131,9 +131,9 @@ use super::solid_contain::{SolidContainment, closed_sphere_group};
 use super::voids;
 use super::zip::{Fusions, SeamCorrespondence, zip_seam};
 use super::{
-    BooleanDeclarations, BooleanError, BooleanOp, BooleanReduction, CarriedContacts, Cell,
-    ContactRecords, CurveContact, EeContact, FacePairDeclaration, Operand, PatchContact, SelfCheck,
-    SweepStrategy, VeContact, VfContact, VvContact,
+    BooleanDeclarations, BooleanError, BooleanOp, BooleanReduction, CarriedContacts, Cell, Contact,
+    ContactKind, ContactRecords, EeContact, FacePairDeclaration, Operand, ReductionContacts,
+    SelfCheck, SweepStrategy, VeContact, VfContact, VvContact,
 };
 use crate::body::Body;
 use crate::coincidence::{Backing, Cited, Cites};
@@ -279,8 +279,8 @@ pub struct BooleanNaming {
     /// B-side chord-mef fragment rows, in B-CLONE keys (translate the
     /// new-face column through `graft_faces` for result keys).
     pub face_fragments_b: Vec<(FaceKey, FaceKey)>,
-    /// The reduction's contact records BEFORE result
-    /// remapping: each row's A column in A-CLONE keys and its B column
+    /// The reduction's working contact set BEFORE result
+    /// remapping ([`ReductionContacts`]): each row's A column in A-CLONE keys and its B column
     /// in B-CLONE keys — the result's keys on whichever side is
     /// `Direct`, the graft's source keys on a `Grafted` side, and keys
     /// of no body in the result on an `Absent` side. The mint-time
@@ -291,7 +291,7 @@ pub struct BooleanNaming {
     /// names a decision of the reduction's own, which the result
     /// records as a row only where a record citing it survives, so its
     /// citations index no list a reader holds.
-    pub reduction_contacts: ContactRecords,
+    pub reduction_contacts: ReductionContacts,
     /// Every face an operand lost to the result, with the kept faces it
     /// bordered (`boolean::discard`, which says which paths record
     /// rows and why the others have none to record).
@@ -1617,7 +1617,7 @@ fn event_pairs<T: Real>(red: &BooleanReduction<T>) -> BTreeSet<(FaceKey, FaceKey
 pub(crate) fn contact_face_pairs<T: Real>(
     a: &Body<T>,
     b: &Body<T>,
-    contacts: &ContactRecords,
+    contacts: &ReductionContacts,
     null_edges: &[super::BoolNullEdgeRecord<T>],
 ) -> BTreeSet<(FaceKey, FaceKey)> {
     let a_faces = faces_by_vertex(a);
@@ -3065,8 +3065,8 @@ fn push_cited<R>(list: &mut Vec<Cited<R>>, record: Cited<R>, same: impl Fn(&R, &
 /// splits ([`ledger`]), and every decision a record may cite, in
 /// decision order.
 pub(super) struct Ledger {
-    /// The reduction's records, citing rows of `pending`.
-    discovered: ContactRecords,
+    /// The reduction's working set, citing rows of `pending`.
+    discovered: ReductionContacts,
     /// Each operand's carried records, through the reduction's splits.
     carried: [Rows; 2],
     /// The reduction's decisions, then the lineage's.
@@ -3274,6 +3274,16 @@ impl Rows {
 /// and the cell.
 type End = (Operand, Cell);
 
+/// A record entering [`carry`], operand-tagged: its two ends and what
+/// it cites.
+type Tagged<'a> = ([End; 2], &'a Cites);
+
+/// The reduction's working set as tagged rows
+/// ([`ReductionContacts::rows`]).
+fn tagged(d: &ReductionContacts) -> Vec<Tagged<'_>> {
+    d.rows().collect()
+}
+
 /// **The substitution door**: every contact record an op holds,
 /// discovered or carried, in operand keys, rewritten into result keys
 /// through the operand views and the descendant map. A record whose
@@ -3321,8 +3331,7 @@ type End = (Operand, Cell);
 /// # Errors
 ///
 /// [`BooleanError::JoinDesync`] on a corrupt fusion list or cycling
-/// substitution rows ([`Descendants::live`]), and on a reduction that
-/// handed a `(vertex, edge)` or edge-edge record, which it never mints;
+/// substitution rows ([`Descendants::live`]);
 /// [`BooleanError::ClassificationInvariant`] on a surviving record no
 /// decision backs.
 pub(super) fn carry<T: Real>(
@@ -3331,14 +3340,15 @@ pub(super) fn carry<T: Real>(
     views: [&KeyView<'_>; 2],
     desc: &Descendants,
 ) -> Result<(ContactRecords, Vec<crate::Coincidence>), BooleanError> {
-    let discovered = &ledger.discovered;
-    if !discovered.ve.is_empty() || !discovered.ee.is_empty() {
-        return Err(BooleanError::JoinDesync {
-            what: "a reduction handed a vertex-on-edge or edge-edge record, which it never mints",
-        });
-    }
     let [a, b] = &ledger.carried;
-    let records = carry_rows(body, discovered, [a, b], views, desc, false)?;
+    let records = carry_rows(
+        body,
+        &tagged(&ledger.discovered),
+        [a, b],
+        views,
+        desc,
+        false,
+    )?;
     cite_rows(records, ledger)
 }
 
@@ -3433,9 +3443,17 @@ pub(super) fn carry_in_place<T: Real>(
     desc: &Descendants,
 ) -> Result<ContactRecords, BooleanError> {
     let none = Rows::default();
+    let rows: Vec<Tagged<'_>> = records
+        .rows()
+        .iter()
+        .map(|c| {
+            let [x, y] = c.cells();
+            ([(Operand::A, x), (Operand::A, y)], &c.cites)
+        })
+        .collect();
     carry_rows(
         body,
-        records,
+        &rows,
         [&none, &none],
         [&KeyView::Direct, &KeyView::Direct],
         desc,
@@ -3588,7 +3606,7 @@ mod chain_rows {
 /// false, the operands') or one.
 fn carry_rows<T: Real>(
     body: &Body<T>,
-    discovered: &ContactRecords,
+    discovered: &[Tagged<'_>],
     carried: [&Rows; 2],
     views: [&KeyView<'_>; 2],
     desc: &Descendants,
@@ -3597,33 +3615,23 @@ fn carry_rows<T: Real>(
     let sides = [Operand::A, Operand::B];
     let view = |side: Operand| views[usize::from(side == Operand::B)];
     let mut out = ContactRecords::default();
-    // The vertex rows and the edge ends attached to them.
-    let mut vv_rows: Vec<([End; 2], &Cites)> = discovered
-        .vv
-        .iter()
-        .map(|c| {
-            (
-                [
-                    (Operand::A, Cell::Vertex(c.a)),
-                    (Operand::B, Cell::Vertex(c.b)),
-                ],
-                &c.cites,
-            )
-        })
-        .collect();
-    let mut ve_rows: Vec<([End; 2], &Cites)> = discovered
-        .ve
-        .iter()
-        .map(|c| {
-            (
-                [
-                    (Operand::A, Cell::Vertex(c.vertex)),
-                    (Operand::A, Cell::Edge(c.edge)),
-                ],
-                &c.cites,
-            )
-        })
-        .collect();
+    // The rows by the kinds of their two cells, each vertex end first.
+    let mut vv_rows: Vec<Tagged<'_>> = Vec::new();
+    let mut ve_rows: Vec<Tagged<'_>> = Vec::new();
+    let mut vf_rows: Vec<Tagged<'_>> = Vec::new();
+    let mut cell_rows: Vec<Tagged<'_>> = Vec::new();
+    for &([x, y], cites) in discovered {
+        match (x.1, y.1) {
+            (Cell::Vertex(_), Cell::Vertex(_)) => vv_rows.push(([x, y], cites)),
+            (Cell::Vertex(_), Cell::Edge(_)) => ve_rows.push(([x, y], cites)),
+            (Cell::Edge(_), Cell::Vertex(_)) => ve_rows.push(([y, x], cites)),
+            (Cell::Vertex(_), Cell::Face(_)) => vf_rows.push(([x, y], cites)),
+            (Cell::Face(_), Cell::Vertex(_)) => vf_rows.push(([y, x], cites)),
+            (Cell::Edge(_) | Cell::Face(_), Cell::Edge(_) | Cell::Face(_)) => {
+                cell_rows.push(([x, y], cites));
+            }
+        }
+    }
     for (side, rows) in sides.into_iter().zip(carried) {
         vv_rows.extend(rows.vv.iter().map(|c| {
             (
@@ -3637,6 +3645,17 @@ fn carry_rows<T: Real>(
                 &c.cites,
             )
         }));
+        vf_rows.extend(rows.vf.iter().map(|c| {
+            (
+                [(side, Cell::Vertex(c.vertex)), (side, Cell::Face(c.face))],
+                &c.cites,
+            )
+        }));
+        cell_rows.extend(
+            rows.ee
+                .iter()
+                .map(|c| ([(side, Cell::Edge(c.a)), (side, Cell::Edge(c.b))], &c.cites)),
+        );
     }
     // Groups over vertex ends, closed transitively; `ends` holds each
     // end once, in the order the rows first name it.
@@ -3724,86 +3743,40 @@ fn carry_rows<T: Real>(
         }
     }
     // Vertex-on-face records: the vertex's own key, the face chased.
-    let vf_rows = discovered
-        .a_on_b
-        .iter()
-        .map(|c| ((Operand::A, c.vertex), (Operand::B, c.face), &c.cites))
-        .chain(
-            discovered
-                .b_on_a
-                .iter()
-                .map(|c| ((Operand::B, c.vertex), (Operand::A, c.face), &c.cites)),
-        )
-        .chain(sides.into_iter().zip(carried).flat_map(|(side, rows)| {
-            rows.vf
-                .iter()
-                .map(move |c| ((side, c.vertex), (side, c.face), &c.cites))
-        }));
-    for ((vs, v), (fs, f), cites) in vf_rows {
+    for ([(vs, vc), (fs, fc)], cites) in vf_rows {
         // A vertex a zip fused sits on the seam, on the boundary of the
         // face it rested on: the substituted pair is an incidence.
+        let Cell::Vertex(v) = vc else {
+            unreachable!("a vertex-on-face row's first end is its vertex")
+        };
         if view(vs).vertex(v).is_some_and(|k| desc.fused.contains(&k)) {
             continue;
         }
         if let (Some(x), Some(y)) = (
-            desc.live(body, vs, view(vs), Cell::Vertex(v))?,
-            desc.live(body, fs, view(fs), Cell::Face(f))?,
+            desc.live(body, vs, view(vs), vc)?,
+            desc.live(body, fs, view(fs), fc)?,
         ) {
             record(body, &mut out, (vs, x), (fs, y), cites.clone())?;
         }
     }
-    // Edge-edge records: the joins' (no reduction mints one), then
-    // each operand's carried ones, both edges in its own arena.
-    let ee_rows = discovered.ee.iter().map(|c| (Operand::A, c)).chain(
-        sides
-            .into_iter()
-            .zip(carried)
-            .flat_map(|(side, rows)| rows.ee.iter().map(move |c| (side, c))),
-    );
-    for (side, c) in ee_rows {
-        let edge = |e| desc.live(body, side, view(side), Cell::Edge(e));
-        if let (Some(x), Some(y)) = (edge(c.a)?, edge(c.b)?) {
-            record(body, &mut out, (side, x), (side, y), c.cites.clone())?;
-        }
-    }
-    // The face-granularity records: the faces chase, and so does the
-    // witness, which is an edge of the result in A's keys (the result
-    // arena is A's clone): a zipped or joined witness names the edge
-    // that holds its locus now, and one the merge swallowed leaves the
-    // record, since a face's interior is no locus.
-    let face = |side, f| desc.live(body, side, view(side), Cell::Face(f));
-    for c in &discovered.curves {
-        if let (Some(Cell::Face(face_a)), Some(Cell::Face(face_b)), Some(Cell::Edge(witness))) = (
-            face(Operand::A, c.face_a)?,
-            face(Operand::B, c.face_b)?,
-            desc.live(body, Operand::A, view(Operand::A), Cell::Edge(c.witness))?,
+    // Records of two edges or faces: the joins' (no reduction mints
+    // one) and each operand's carried ones, both cells chased.
+    for ([(xs, xc), (ys, yc)], cites) in cell_rows {
+        if let (Some(x), Some(y)) = (
+            desc.live(body, xs, view(xs), xc)?,
+            desc.live(body, ys, view(ys), yc)?,
         ) {
-            out.curves.push(Cited::new(
-                CurveContact {
-                    face_a,
-                    face_b,
-                    witness,
-                },
-                c.cites.clone(),
-            ));
-        }
-    }
-    for c in &discovered.patches {
-        if let (Some(Cell::Face(face_a)), Some(Cell::Face(face_b))) =
-            (face(Operand::A, c.face_a)?, face(Operand::B, c.face_b)?)
-        {
-            out.patches
-                .push(Cited::new(PatchContact { face_a, face_b }, c.cites.clone()));
+            record(body, &mut out, (xs, x), (ys, y), cites.clone())?;
         }
     }
     Ok(out)
 }
 
-/// Records the cell pair `x`, `y` (result keys) under its kind, once,
-/// backed by `cites` (a second record of the pair adds its citations):
-/// two cells that are one, or one of which bounds the other, are
-/// structure and record nothing, and so does a pair with no stored kind
-/// whose arm says why it is structure (module docs of [`carry`]).
+/// Records the cell pair `x`, `y` (result keys), once, backed by
+/// `cites` (a second record of the pair adds its citations): two cells
+/// that are one, or one of which bounds the other, are structure and
+/// record nothing ([`Contact::new`]), and so does a pair whose arm says
+/// why it is structure (module docs of [`carry`]).
 ///
 /// # Errors
 ///
@@ -3827,83 +3800,14 @@ fn record<T: Real>(
             .map_or(c, |h| Cell::Edge(h.edge)),
         _ => c,
     };
-    let ((xs, xc), (ys, yc)) = ((x.0, cell(x.1)), (y.0, cell(y.1)));
-    match (xc, yc) {
-        (Cell::Vertex(a), Cell::Vertex(b)) if a != b => {
-            let (a, b) = if (xs, ys) == (Operand::B, Operand::A) {
-                (b, a)
-            } else {
-                (a, b)
-            };
-            push_cited(
-                &mut out.vv,
-                Cited::new(VvContact { a, b }, cites),
-                |r, c| (r.a, r.b) == (c.a, c.b) || (r.a, r.b) == (c.b, c.a),
-            );
-        }
-        (Cell::Vertex(vertex), Cell::Edge(edge)) | (Cell::Edge(edge), Cell::Vertex(vertex)) => {
-            // Both cells are live ([`Descendants::live`]); every hop past
-            // them is a link.
-            let e = proven(&body.edges, edge, EntityId::Edge);
-            let incident = [(e.he_plus, "he_plus"), (e.he_minus, "he_minus")]
-                .into_iter()
-                .any(|(h, field)| {
-                    linked(
-                        &body.half_edges,
-                        h,
-                        EntityId::HalfEdge,
-                        EntityId::Edge(edge),
-                        field,
-                    )
-                    .start
-                        == vertex
-                });
-            if !incident {
-                push_cited(
-                    &mut out.ve,
-                    Cited::new(VeContact { vertex, edge }, cites),
-                    |r, c| r == c,
-                );
-            }
-        }
-        (Cell::Edge(a), Cell::Edge(b)) if a != b => {
-            push_cited(
-                &mut out.ee,
-                Cited::new(EeContact { a, b }, cites),
-                |r, c| (r.a, r.b) == (c.a, c.b) || (r.a, r.b) == (c.b, c.a),
-            );
-        }
-        (Cell::Vertex(vertex), Cell::Face(face)) | (Cell::Face(face), Cell::Vertex(vertex)) => {
-            let vertex_side = if matches!(xc, Cell::Vertex(_)) {
-                xs
-            } else {
-                ys
-            };
-            let incident = bounds(body, face, vertex);
-            let same = |r: &VfContact| (r.vertex, r.face) == (vertex, face);
-            let held = if out.a_on_b.iter().any(|r| same(r)) {
-                Some(&mut out.a_on_b)
-            } else if out.b_on_a.iter().any(|r| same(r)) {
-                Some(&mut out.b_on_a)
-            } else {
-                None
-            };
-            if let Some(list) = held {
-                push_cited(
-                    list,
-                    Cited::new(VfContact { vertex, face }, cites),
-                    |r, c| r == c,
-                );
-            } else if !incident {
-                let list = match vertex_side {
-                    Operand::A => &mut out.a_on_b,
-                    Operand::B => &mut out.b_on_a,
-                };
-                list.push(Cited::new(VfContact { vertex, face }, cites));
-            }
-        }
-        // One cell (the arms above take two distinct ones): structure.
-        (Cell::Vertex(_), Cell::Vertex(_)) | (Cell::Edge(_), Cell::Edge(_)) => {}
+    let Ok(contact) = Contact::new(body, cell(x.1), cell(y.1)) else {
+        return Ok(());
+    };
+    match contact.kind() {
+        ContactKind::VertexVertex(..)
+        | ContactKind::VertexEdge(..)
+        | ContactKind::VertexFace(..)
+        | ContactKind::EdgeEdge(..) => out.push(Cited::new(contact, cites)),
         // An edge resting on a face: a vertex-on-face record whose vertex
         // was joined away (PR 3881's ruling), or a vertex-on-edge or
         // edge-edge record one of whose cells the merge swallowed into a
@@ -3911,12 +3815,12 @@ fn record<T: Real>(
         // either lies in it or pierces it, and a pierce is a crossing
         // the boolean already cut, so the edge lies in the face (the
         // joined vertex's two edges did), and its rest there is backed
-        // at its own bounds. Consumed, with no stored kind: a wrong drop
-        // is the census's `EdgeFaceOverlap` unbacked, or its
-        // `EdgeFacePierce`, both loud. The argument is a line's and a
-        // plane's alone, so a curved edge or face refuses typed: a circle
-        // can rest on a plane at one point, which no kind stores.
-        (Cell::Edge(edge), Cell::Face(face)) | (Cell::Face(face), Cell::Edge(edge)) => {
+        // at its own bounds. Consumed: a wrong drop is the census's
+        // `EdgeFaceOverlap` unbacked, or its `EdgeFacePierce`, both
+        // loud. The argument is a line's and a plane's alone, so a
+        // curved edge or face refuses typed: a circle can rest on a
+        // plane at one point.
+        ContactKind::EdgeFace(edge, face) => {
             let f = proven(&body.faces, face, EntityId::Face);
             let e = proven(&body.edges, edge, EntityId::Edge);
             if !matches!(
@@ -3927,29 +3831,14 @@ fn record<T: Real>(
                 return Err(BooleanError::CurvedRestUnrecorded { edge, face });
             }
         }
-        // A point record both of whose cells a merge absorbed: one face
-        // (structure), or a point on both faces' interiors, a face-face
-        // rest (two shells touching across coincident faces) that the
-        // census checks at face granularity against its patch record or
-        // declared pair. Consumed; no point record has that kind.
-        (Cell::Face(_), Cell::Face(_)) => {}
+        // A point record both of whose cells a merge absorbed into two
+        // faces: a point on both faces' interiors, a face-face rest (two
+        // shells touching across coincident faces) that the census
+        // checks at face granularity against its face-face record or
+        // declared pair. Consumed.
+        ContactKind::FaceFace(..) => {}
     }
     Ok(())
-}
-
-/// Whether `vertex` is on one of `face`'s loops. `face` is live
-/// ([`Descendants::live`]), so every hop past it is a link.
-fn bounds<T: Real>(body: &Body<T>, face: FaceKey, vertex: VertexKey) -> bool {
-    let f = proven(&body.faces, face, EntityId::Face);
-    body.face_loops_linked(face, f)
-        .any(|(_, l)| match l.boundary {
-            LoopBoundary::Empty { vertex: v } => v == vertex,
-            LoopBoundary::Cycle { first } => body
-                .loop_walk(first)
-                .closed("loop", first)
-                .into_iter()
-                .any(|h| proven(&body.half_edges, h, EntityId::HalfEdge).start == vertex),
-        })
 }
 
 /// The declared face pairs lowered to SURVIVING result SURFACE pairs
@@ -5783,8 +5672,9 @@ mod tests {
 
     /// **An edge resting on a face's interior is consumed only on a
     /// line and a plane** ([`super::record`]): a brick's edge on a
-    /// brick's face records nothing, and a cylinder sheet's edges on
-    /// its curved wall refuse typed, naming the pair.
+    /// brick's face records nothing, a cylinder sheet's edges on its own
+    /// wall are structure, and its edges on another sheet's curved wall
+    /// refuse typed, naming the pair.
     #[test]
     fn an_edge_on_a_face_is_structure_only_on_a_line_and_a_plane() {
         use crate::boolean::{BooleanError, Cell, ContactRecords, Operand};
@@ -5817,7 +5707,32 @@ mod tests {
             (0.0, 1.0),
             tol,
         );
-        for (edge, _) in sheet.edges() {
+        let own: Vec<crate::EdgeKey> = sheet.edges().map(|(e, _)| e).collect();
+        for &edge in &own {
+            super::record(
+                &sheet,
+                &mut out,
+                (Operand::A, Cell::Edge(edge)),
+                (Operand::B, Cell::Face(wall)),
+                crate::Cites::decided(0),
+            )
+            .unwrap();
+        }
+        assert!(out.is_empty(), "an edge bounding the face is structure");
+        cyl_wall_sheet(
+            &mut sheet,
+            CylFrame::canonical(1.0),
+            (2.0, 3.0),
+            (0.0, 1.0),
+            tol,
+        );
+        let other: Vec<crate::EdgeKey> = sheet
+            .edges()
+            .map(|(e, _)| e)
+            .filter(|e| !own.contains(e))
+            .collect();
+        assert!(!other.is_empty(), "the second sheet has edges");
+        for edge in other {
             let r = super::record(
                 &sheet,
                 &mut out,
@@ -5834,12 +5749,13 @@ mod tests {
     /// The door over discovered records alone.
     fn found<T: geom_core::Real>(
         body: &crate::Body<T>,
-        contacts: &crate::boolean::ContactRecords,
+        contacts: &crate::boolean::ReductionContacts,
         views: [&super::KeyView<'_>; 2],
         desc: &super::Descendants,
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::BooleanError> {
         let none = super::Rows::default();
-        super::carry_rows(body, contacts, [&none, &none], views, desc, false)
+        let rows = super::tagged(contacts);
+        super::carry_rows(body, &rows, [&none, &none], views, desc, false)
     }
 
     /// The door over carried records alone.
@@ -5851,7 +5767,7 @@ mod tests {
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::BooleanError> {
         super::carry_rows(
             body,
-            &crate::boolean::ContactRecords::default(),
+            &[],
             [
                 &super::Rows::of(&decls.carried_a, crate::boolean::Operand::A),
                 &super::Rows::of(&decls.carried_b, crate::boolean::Operand::B),
@@ -6618,7 +6534,7 @@ mod tests {
     #[test]
     fn descendant_chase_wiring() {
         use super::{Descendants, KeyView};
-        use crate::boolean::{ContactRecords, VfContact, VvContact};
+        use crate::boolean::{ContactKind, ReductionContacts, VfContact, VvContact};
 
         let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
         let mut body = quad_prism(&square, 1.0, Tol::witness());
@@ -6630,7 +6546,7 @@ mod tests {
         body.faces.remove(dead_face);
         assert!(body.get_face(dead_face).is_none(), "key is dead");
 
-        let contacts = ContactRecords {
+        let contacts = ReductionContacts {
             vv: vec![],
             a_on_b: vec![crate::Cited::new(
                 VfContact {
@@ -6640,7 +6556,6 @@ mod tests {
                 crate::Cites::decided(0),
             )],
             b_on_a: vec![],
-            ..ContactRecords::default()
         };
         // Without the descendant row: the record drops (pre-D5 loss).
         let out = found(
@@ -6650,21 +6565,22 @@ mod tests {
             &Descendants::default(),
         )
         .unwrap();
-        assert!(out.a_on_b.is_empty());
+        assert!(out.is_empty());
         // With the row: the record survives, renamed to the survivor.
         let mut desc = Descendants::default();
         desc.faces.insert(dead_face, live_face);
         let out = found(&body, &contacts, [&KeyView::Direct; 2], &desc).unwrap();
-        assert_eq!(out.a_on_b.len(), 1);
-        assert_eq!(out.a_on_b[0].face, live_face);
-        assert_eq!(out.a_on_b[0].vertex, live_vertex);
+        assert_eq!(
+            out.kinds().collect::<Vec<_>>(),
+            [ContactKind::VertexFace(live_vertex, live_face)]
+        );
 
         // v-v consumed-pair rule: both sides chased into one vertex ⇒
         // the coincidence is structural now, the record drops.
         let dead_vertex = body.vertices().map(|(k, _)| k).nth(3).unwrap();
         assert_ne!(dead_vertex, live_vertex);
         body.vertices.remove(dead_vertex);
-        let contacts = ContactRecords {
+        let contacts = ReductionContacts {
             vv: vec![crate::Cited::new(
                 VvContact {
                     a: dead_vertex,
@@ -6674,12 +6590,11 @@ mod tests {
             )],
             a_on_b: vec![],
             b_on_a: vec![],
-            ..ContactRecords::default()
         };
         let mut desc = Descendants::default();
         desc.vertices.push((dead_vertex, live_vertex)).unwrap();
         let out = found(&body, &contacts, [&KeyView::Direct; 2], &desc).unwrap();
-        assert!(out.vv.is_empty(), "fused-into-one pair is consumed");
+        assert!(out.is_empty(), "fused-into-one pair is consumed");
     }
 
     /// **A fusion chase that ends on a key dead in the body drops the
@@ -6692,7 +6607,7 @@ mod tests {
     fn a_dead_end_drops_and_a_refused_fusion_fails_its_absorb() {
         use super::{Descendants, KeyView};
         use crate::boolean::{
-            BooleanDeclarations, CarriedContacts, CarriedVv, ContactClass, ContactRecords,
+            BooleanDeclarations, CarriedContacts, CarriedVv, ContactClass, ReductionContacts,
             VvContact,
         };
         use crate::entity::VertexKey;
@@ -6704,9 +6619,9 @@ mod tests {
         body.vertices.remove(a);
         body.vertices.remove(c);
         let pair = VvContact { a: c, b: partner };
-        let contacts = ContactRecords {
+        let contacts = ReductionContacts {
             vv: vec![crate::Cited::new(pair, crate::Cites::decided(0))],
-            ..ContactRecords::default()
+            ..ReductionContacts::default()
         };
         let decls = BooleanDeclarations {
             carried_a: CarriedContacts {
@@ -6724,10 +6639,10 @@ mod tests {
         dead_end.vertices.push((c, a)).unwrap();
         let dropped = found(&body, &contacts, [&KeyView::Direct; 2], &dead_end)
             .expect("a well-ordered list remaps");
-        assert!(dropped.vv.is_empty(), "dead end: {:?}", dropped.vv);
+        assert!(dropped.is_empty(), "dead end: {dropped:?}");
         let carried = carried_in(&body, &decls, [&KeyView::Direct; 2], &dead_end)
             .expect("a well-ordered list remaps");
-        assert!(carried.vv.is_empty(), "carried dead end: {:?}", carried.vv);
+        assert!(carried.is_empty(), "carried dead end: {carried:?}");
 
         let mut corrupt = Descendants::default();
         corrupt.vertices.push((a, b)).unwrap();
@@ -6806,7 +6721,7 @@ mod tests {
     fn a_cycling_absorption_row_refuses_where_a_dead_end_drops() {
         use super::{Descendants, KeyView};
         use crate::boolean::{
-            BooleanDeclarations, CarriedContacts, CarriedVf, ContactClass, ContactRecords,
+            BooleanDeclarations, CarriedContacts, CarriedVf, ContactClass, ReductionContacts,
             VfContact,
         };
         use crate::entity::FaceKey;
@@ -6818,19 +6733,19 @@ mod tests {
         let (d0, d1) = (keys[4], keys[5]);
         body.faces.remove(d0);
         body.faces.remove(d1);
-        let contacts = ContactRecords {
+        let contacts = ReductionContacts {
             a_on_b: vec![crate::Cited::new(
                 VfContact { vertex, face: d0 },
                 crate::Cites::decided(0),
             )],
-            ..ContactRecords::default()
+            ..ReductionContacts::default()
         };
         let remap = |desc: &Descendants| found(&body, &contacts, [&KeyView::Direct; 2], desc);
 
         let mut dead_end = Descendants::default();
         dead_end.faces.insert(d0, d1);
         let dropped = remap(&dead_end).expect("a chain that ends is not corrupt");
-        assert!(dropped.a_on_b.is_empty(), "dead end: {:?}", dropped.a_on_b);
+        assert!(dropped.is_empty(), "dead end: {dropped:?}");
 
         let mut cycle = Descendants::default();
         cycle.faces.insert(d0, d1);
@@ -6859,11 +6774,7 @@ mod tests {
         };
         let carry = |desc: &Descendants| carried_in(&body, &decls, [&KeyView::Direct; 2], desc);
         let carried = carry(&dead_end).expect("a chain that ends is not corrupt");
-        assert!(
-            carried.a_on_b.is_empty(),
-            "carried dead end: {:?}",
-            carried.a_on_b
-        );
+        assert!(carried.is_empty(), "carried dead end: {carried:?}");
         assert_eq!(
             joined(carry(&cycle).map(|_| ())),
             "a cell's substitution rows are cyclic",
@@ -6886,7 +6797,7 @@ mod tests {
     fn a_vv_record_follows_a_pinch_weld_on_either_side() {
         use super::{Descendants, KeyView};
         use crate::boolean::combine::GraftMap;
-        use crate::boolean::{ContactRecords, VvContact};
+        use crate::boolean::{ContactKind, ReductionContacts, VvContact};
 
         let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
         let mut body = quad_prism(&square, 1.0, Tol::witness());
@@ -6898,7 +6809,7 @@ mod tests {
         // graft row), `b_kept` for its partner, grafted to `keys[5]`.
         let mut graft = GraftMap::default();
         graft.vertices.insert(b_kept, keys[5]);
-        let contacts = ContactRecords {
+        let contacts = ReductionContacts {
             vv: vec![
                 crate::Cited::new(
                     VvContact {
@@ -6915,7 +6826,7 @@ mod tests {
                     crate::Cites::decided(0),
                 ),
             ],
-            ..ContactRecords::default()
+            ..ReductionContacts::default()
         };
         let remap = |desc: &Descendants| {
             found(
@@ -6925,7 +6836,11 @@ mod tests {
                 desc,
             )
             .unwrap()
-            .vv
+            .kinds()
+            .collect::<Vec<_>>()
+        };
+        let vv = |a: crate::VertexKey, b: crate::VertexKey| {
+            ContactKind::VertexVertex(a.min(b), a.max(b))
         };
         assert!(
             remap(&Descendants::default()).is_empty(),
@@ -6939,16 +6854,7 @@ mod tests {
         let welded = Descendants::welded(&weld((a_dead, a_kept)), &weld((b_dead, b_kept)));
         assert_eq!(
             remap(&welded),
-            vec![
-                VvContact {
-                    a: a_live,
-                    b: keys[5]
-                },
-                VvContact {
-                    a: a_kept,
-                    b: keys[5]
-                },
-            ],
+            vec![vv(a_live, keys[5]), vv(a_kept, keys[5])],
             "each record follows its side's weld"
         );
     }
@@ -7020,7 +6926,9 @@ mod tests {
     #[test]
     fn a_record_citing_a_pruned_free_end_lands_on_the_face_that_swallowed_it() {
         use super::{Cell, Descendants, KeyView, Operand};
-        use crate::boolean::{ContactRecords, VfContact, VvContact};
+        use crate::boolean::{
+            Contact, ContactKind, ContactRecords, ReductionContacts, VfContact, VvContact,
+        };
         use crate::entity::VertexKey;
         use crate::{MefSite, MevSite};
         use geom_core::Point3;
@@ -7100,24 +7008,18 @@ mod tests {
         let killed_edges = &merged.groups[0].killed_edges;
         assert!(!killed_edges.is_empty(), "the glue killed the seam's edges");
         for &edge in killed_edges {
-            let on_edge = ContactRecords {
-                ve: vec![crate::Cited::new(
-                    crate::boolean::VeContact {
-                        vertex: survivor,
-                        edge,
-                    },
-                    crate::Cites::decided(0),
-                )],
-                ..ContactRecords::default()
-            };
+            let on_edge: ContactRecords = [crate::Cited::new(
+                Contact::of(Cell::Vertex(survivor), Cell::Edge(edge)).unwrap(),
+                crate::Cites::decided(0),
+            )]
+            .into_iter()
+            .collect();
             assert_eq!(
                 super::carry_in_place(&body, &on_edge, &desc)
                     .unwrap()
-                    .a_on_b,
-                vec![VfContact {
-                    vertex: survivor,
-                    face: kept
-                }],
+                    .kinds()
+                    .collect::<Vec<_>>(),
+                [ContactKind::VertexFace(survivor, kept)],
                 "{edge:?}: the record lands on the kept face"
             );
         }
@@ -7130,7 +7032,7 @@ mod tests {
             "{bend:?} lands on the kept face"
         );
 
-        let records = |v: VertexKey| ContactRecords {
+        let records = |v: VertexKey| ReductionContacts {
             vv: vec![crate::Cited::new(
                 VvContact { a: v, b: survivor },
                 crate::Cites::decided(0),
@@ -7143,51 +7045,40 @@ mod tests {
                 VfContact { vertex: v, face },
                 crate::Cites::decided(0),
             )],
-            ..ContactRecords::default()
         };
-        let remap = |c: &ContactRecords| found(&body, c, [&KeyView::Direct; 2], &desc).unwrap();
+        let remap = |c: &ReductionContacts| {
+            found(&body, c, [&KeyView::Direct; 2], &desc)
+                .unwrap()
+                .kinds()
+                .collect::<Vec<_>>()
+        };
         assert_eq!(
             lands(fused_in).unwrap(),
             Some(Cell::Face(kept)),
             "the chase through the fusion lands too"
         );
         for cited in [bend, fused_in] {
-            let out = remap(&records(cited));
-            assert!(out.vv.is_empty(), "{cited:?}: {:?}", out.vv);
             assert_eq!(
-                out.b_on_a,
-                vec![VfContact {
-                    vertex: survivor,
-                    face: kept
-                }],
-                "{cited:?}: the partner rests on the face that swallowed it"
-            );
-            assert!(
-                out.a_on_b.is_empty(),
-                "{cited:?}: a dead vertex's own rest has no vertex left: {:?}",
-                out.a_on_b
+                remap(&records(cited)),
+                [ContactKind::VertexFace(survivor, kept)],
+                "{cited:?}: the partner rests on the face that swallowed it, \
+                 and a dead vertex's own rest has no vertex left"
             );
         }
         // The control: the same records on a live vertex carry.
         let other = body
             .vertices()
             .map(|(k, _)| k)
-            .find(|&k| k != survivor && !super::bounds(&body, face, k))
+            .find(|&k| {
+                k != survivor && Contact::new(&body, Cell::Vertex(k), Cell::Face(face)).is_ok()
+            })
             .unwrap();
-        let out = remap(&records(other));
         assert_eq!(
-            out.vv,
-            vec![VvContact {
-                a: other,
-                b: survivor
-            }]
-        );
-        assert_eq!(
-            out.a_on_b,
-            vec![VfContact {
-                vertex: other,
-                face
-            }]
+            remap(&records(other)),
+            [
+                ContactKind::VertexVertex(other.min(survivor), other.max(survivor)),
+                ContactKind::VertexFace(other, face),
+            ]
         );
     }
 
