@@ -2,10 +2,12 @@
 id: cone-face-closed-form-runs-an-iso-premise-its-formula-does-not-need
 kind: issue
 title: cone_face_closed_form runs the S58 iso premise (require_rims_at_extremes, du_of_rims) on rim/generator loops, though apex·VA and |axis·VA|/sin α are exact for any one-nappe region
-status: dispatched
+status: review
 opened: 2026-10-10
 priority: P1
 cost: M
+pr: 4696
+branch: flux/cone-vector-area
 ---
 
 
