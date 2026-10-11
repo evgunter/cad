@@ -19,7 +19,7 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use sweep::test_support::{brick, finished};
 use sweep::{Revolution, revolve};
-use topo::{AtRestBody, BooleanDeclarations};
+use topo::AtRestBody;
 
 use crate::common::solid_truth::{self, Op, Solid, Want};
 
@@ -210,7 +210,7 @@ fn poses() -> [(&'static str, Affine3<f64>); 3] {
 /// (`geom_brep::props::cone_face_closed_form`).
 #[test]
 fn a_box_edge_through_a_cone_wall_crosses_it_at_the_rings_corners() {
-    let (tol, none) = (Tol::witness(), BooleanDeclarations::none());
+    let tol = Tol::witness();
     for (pose_name, pose) in poses() {
         for s in [0.6, 0.1] {
             let (c, x) = (cone(pose), wedge(s, pose));
@@ -253,7 +253,7 @@ fn a_box_edge_through_a_cone_wall_crosses_it_at_the_rings_corners() {
                 };
                 let vc = core::f64::consts::PI * R * R * height() / 3.0;
                 // ∪ keeps the lune as a ring on the cone face.
-                let union = topo::union_with(a, b, &none, tol);
+                let union = topo::union(a, b, tol);
                 solid_truth::assert_is_but(
                     &format!("{label}, {order}, ∪"),
                     &union,
@@ -263,7 +263,7 @@ fn a_box_edge_through_a_cone_wall_crosses_it_at_the_rings_corners() {
                     &points,
                     ring_partial,
                 );
-                let inter = topo::intersect_with(a, b, &none, tol);
+                let inter = topo::intersect(a, b, tol);
                 let vi = solid_truth::assert_is_but(
                     &format!("{label}, {order}, ∩"),
                     &inter,
@@ -273,7 +273,7 @@ fn a_box_edge_through_a_cone_wall_crosses_it_at_the_rings_corners() {
                     &points,
                     partial,
                 );
-                let diff = topo::subtract_with(a, b, &none, tol);
+                let diff = topo::subtract(a, b, tol);
                 if cone_first {
                     // The cone less the box keeps the ring too.
                     solid_truth::assert_is_but(
@@ -414,12 +414,12 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
 /// reads as `LaminaWedge` at the face's edges.
 #[test]
 fn a_ringed_cone_faces_sense_flip_fails_tier_3() {
-    let (tol, none) = (Tol::witness(), BooleanDeclarations::none());
+    let tol = Tol::witness();
     let (c, x) = (cone(Affine3::identity()), wedge(0.6, Affine3::identity()));
     for (op, r) in [
-        ("cone ∪ box", topo::union_with(&c, &x, &none, tol)),
-        ("box ∪ cone", topo::union_with(&x, &c, &none, tol)),
-        ("cone ∖ box", topo::subtract_with(&c, &x, &none, tol)),
+        ("cone ∪ box", topo::union(&c, &x, tol)),
+        ("box ∪ cone", topo::union(&x, &c, tol)),
+        ("cone ∖ box", topo::subtract(&c, &x, tol)),
     ] {
         let mut body = r.unwrap().body().unwrap().body.clone().into_body();
         let ringed: Vec<_> = body

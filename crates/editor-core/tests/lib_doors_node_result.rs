@@ -86,14 +86,12 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Box::new(Node::Subtract {
             from: outer.into(),
             tool: inner.into(),
-            declare: Vec::new(),
         }),
     );
     let downstream = insert(
         &mut doc,
         Box::new(Node::Union {
             members: editor_core::Bodies::Spelled(vec![cut.into(), outer.into()]),
-            declare: Vec::new(),
         }),
     );
     (doc, cut, downstream)
@@ -291,15 +289,6 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
             slot: editor_core::SlotId::Distance,
             source: editor_core::EvalError::NonFiniteResult,
         },
-        K::DeclareResolve {
-            error: Box::new(editor_core::ResolveError::NodeGone {
-                name: name(editor_core::EntityKind::Face),
-                edit: editor_core::RecipeEditRef::NodeDeleted {
-                    node: RecipeNodeId::new(0, tagged(3)),
-                },
-            }),
-            reference: 0,
-        },
         K::SelectResolve {
             slot: editor_core::OperandSlot::Selection,
             var: editor_core::VarId::new(0, 7),
@@ -380,7 +369,6 @@ fn a_kernel_payload_arm_forwards_the_payloads_own_message() {
         let payload = match &kind {
             K::Profile(e) => e.to_string(),
             K::Expr { source, .. } => source.to_string(),
-            K::DeclareResolve { error, .. } => error.to_string(),
             K::SelectResolve { error, .. } => error.to_string(),
             K::WitnessBifurcation(e) => e.to_string(),
             K::PlacementRule(e) => e.to_string(),

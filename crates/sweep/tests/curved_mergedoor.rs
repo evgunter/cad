@@ -1,19 +1,17 @@
-//! The merge door and a declared pair on a CYLINDER carrier.
+//! The merge door and a glued pair on a CYLINDER carrier.
 //!
-//! A declared `Rest` pair whose faces both survive a boolean is handed
-//! to `merge_coplanar_faces_declared` whatever its carrier, and the door
+//! A glued pair whose faces both survive a boolean is handed to
+//! `merge_coplanar_faces_declared` whatever its carrier, and the door
 //! reads every meeting edge on the carrier ladder, planar and curved
-//! alike, declared or not: faces their margins decide one carrier
-//! facing the same way glue. A curved run whose glue would close its
+//! alike: faces their margins decide one carrier facing the same way
+//! glue. A curved run whose glue would close its
 //! carrier's full period stays in its cut form and is recorded as a
 //! `SkippedMerge` carrying `PeriodClosure` — visible in
 //! `BooleanNaming::merge_skipped`, never a refusal blaming the caller,
 //! and never a record of the declaration itself. Scenes A, B, C, D and
 //! F ship honest bodies whose only records are their wall runs' period
 //! closures; scenes C and D build through the chord join, which
-//! consumes the bore side of the pair before the door; scene E, the
-//! same stack with only the caps declared or nothing, is scene F's body
-//! (D10).
+//! consumes the bore side of the pair before the door.
 //!
 //! Scenes A–D are `mate2_common`'s; scene D's plate/peg builders are
 //! copied from `r1_probes_m9_3` (private there).
@@ -25,65 +23,48 @@ use crate::mate2_common;
 use geom::SurfaceKind;
 use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
 use mate2_common::{
-    assert_additive, boolean_body, collar, collar_at, continuations, peg_at, plane_face, volume,
-    wall_decls, walls_at,
+    assert_additive, boolean_body, collar, collar_at, peg_at, plane_face, volume, walls_at,
 };
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::test_support::finished;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{
-    AtRestBody, Body, BooleanBody, BooleanDeclarations, ContactClass, FacePairDeclaration,
-    FaceSurface, MergeCoplanarError, Rechart, SkippedMerge, validate_closed, validate_geometric,
-    validate_pseudomanifold,
+    AtRestBody, Body, BooleanBody, FaceSurface, MergeCoplanarError, Rechart, SkippedMerge,
+    validate_closed, validate_geometric, validate_pseudomanifold,
 };
 
 const BORE_R: f64 = 0.5;
 
 /// Scene A: the peg floats in the bore (z ∈ [1.5, 2.5] against a bore
 /// z ∈ [1, 2]); nine wall `Rest`s.
-fn scene_a() -> (AtRestBody<f64>, AtRestBody<f64>, BooleanDeclarations) {
+fn scene_a() -> (AtRestBody<f64>, AtRestBody<f64>) {
     let c = collar();
     let p = peg_at(0.0, 1.5, 1.0);
-    let d = wall_decls(&c, &p);
     let tol = Tol::witness();
-    (
-        finished("the collar", c, tol),
-        finished("the peg", p, tol),
-        d,
-    )
+    (finished("the collar", c, tol), finished("the peg", p, tol))
 }
 
 /// Scene B: the peg ends mid-bore (z ∈ [0.5, 1.5]).
-fn scene_b() -> (AtRestBody<f64>, AtRestBody<f64>, BooleanDeclarations) {
+fn scene_b() -> (AtRestBody<f64>, AtRestBody<f64>) {
     let c = collar_at(0.0);
     let p = peg_at(0.0, 0.5, 1.0);
-    let d = wall_decls(&c, &p);
     let tol = Tol::witness();
-    (
-        finished("the collar", c, tol),
-        finished("the peg", p, tol),
-        d,
-    )
+    (finished("the collar", c, tol), finished("the peg", p, tol))
 }
 
 /// Scene C: flush at the bottom, proud at the top (z ∈ [1, 2.5]).
-fn scene_c() -> (AtRestBody<f64>, AtRestBody<f64>, BooleanDeclarations) {
+fn scene_c() -> (AtRestBody<f64>, AtRestBody<f64>) {
     let c = collar_at(0.0);
     let p = peg_at(0.0, 1.0, 1.5);
-    let d = wall_decls(&c, &p);
     let tol = Tol::witness();
-    (
-        finished("the collar", c, tol),
-        finished("the peg", p, tol),
-        d,
-    )
+    (finished("the collar", c, tol), finished("the peg", p, tol))
 }
 
 /// Scene D: partial engagement — a plate with a peg reaching halfway up
 /// the through-bore of a plate above it; one planar `Rest` (the plates'
 /// mating faces) plus nine wall `Rest`s.
-fn scene_d() -> (AtRestBody<f64>, AtRestBody<f64>, BooleanDeclarations) {
+fn scene_d() -> (AtRestBody<f64>, AtRestBody<f64>) {
     let tol = Tol::witness();
     let p = boolean_body(
         topo::union(
@@ -103,33 +84,15 @@ fn scene_d() -> (AtRestBody<f64>, AtRestBody<f64>, BooleanDeclarations) {
         .unwrap(),
     )
     .body;
-    // The plates' flush outer walls are continuations.
-    let mut d = continuations(&p, &q);
-    d.coincident_faces.push(FacePairDeclaration::new(
-        plane_face(&p, 1.0, true),
-        plane_face(&q, 1.0, false),
-        ContactClass::Rest,
-    ));
-    for &fa in &walls_at(&p, BORE_R) {
-        for &fb in &walls_at(&q, BORE_R) {
-            d.coincident_faces
-                .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
-        }
-    }
-    (p, q, d)
+    (p, q)
 }
 
 /// The union must run, be exactly additive, and be tier-3 and
 /// 3′-clean — the skip has exposed the zip's body, and that body has
 /// to be right on its own.
-fn union_honest(
-    label: &str,
-    a: &AtRestBody<f64>,
-    b: &AtRestBody<f64>,
-    d: &BooleanDeclarations,
-) -> BooleanBody<f64> {
+fn union_honest(label: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> BooleanBody<f64> {
     let bb = boolean_body(
-        topo::union_with(a, b, d, Tol::witness())
+        topo::union(a, b, Tol::witness())
             .unwrap_or_else(|e| panic!("{label}: the door must not refuse: {e:?}")),
     );
     assert_additive(volume(&bb.body), volume(a), volume(b));
@@ -229,9 +192,9 @@ fn sorted(mut faces: Vec<topo::FaceKey>) -> Vec<topo::FaceKey> {
 /// records is the two surviving wall runs (the peg's and the collar's
 /// outer wall), each of whose glue would close its full period.
 #[test]
-fn proud_peg_declared_walls_union_builds_through_the_join() {
-    let (c, p, d) = scene_c();
-    let bb = union_honest("C", &c, &p, &d);
+fn proud_peg_walls_union_builds_through_the_join() {
+    let (c, p) = scene_c();
+    let bb = union_honest("C", &c, &p);
     assert_eq!(
         assert_period_closures("C", &bb).len(),
         2,
@@ -544,8 +507,8 @@ fn a_run_across_keys_is_recorded_whole() {
 /// shipped body with every peg-wall face re-keyed.)
 #[test]
 fn pair_with_no_live_faces_is_the_undeclared_merge() {
-    let (c, p, d) = scene_c();
-    let mut body = union_honest("C", &c, &p, &d).body.into_body();
+    let (c, p) = scene_c();
+    let mut body = union_honest("C", &c, &p).body.into_body();
     let walls = walls_at(&body, BORE_R);
     let pk = body.get_face(walls[0]).unwrap().surface;
     assert!(
@@ -713,7 +676,7 @@ fn sphere_and_torus_pairs_record_their_period_closure() {
 fn floating_and_mid_bore_pegs_ship_honest_with_their_period_closures() {
     use topo::SolidContainment::{In, Out};
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
-    for (label, (a, b, d), pts) in [
+    for (label, (a, b), pts) in [
         (
             "A",
             scene_a(),
@@ -737,7 +700,7 @@ fn floating_and_mid_bore_pegs_ship_honest_with_their_period_closures() {
             ],
         ),
     ] {
-        let bb = union_honest(label, &a, &b, &d);
+        let bb = union_honest(label, &a, &b);
         assert_eq!(
             assert_period_closures(label, &bb).len(),
             3,
@@ -763,30 +726,21 @@ fn floating_and_mid_bore_pegs_ship_honest_with_their_period_closures() {
 /// Row 3 (C, D): one side of the declared pair is CONSUMED by the
 /// union before the door runs — scene C's bore wall, scene D's peg wall
 /// — and its surface goes with it, so the door records only the
-/// surviving wall runs' period closures, and the body is one in
-/// whichever order the caller lists the declarations. Both build
-/// through the chord join (row 1).
+/// surviving wall runs' period closures. Both build through the chord
+/// join (row 1).
 #[test]
 fn consumed_side_of_the_pair_leaves_only_period_closures() {
-    let (c, p, d) = scene_c();
-    let bb = union_honest("C", &c, &p, &d);
+    let (c, p) = scene_c();
+    let bb = union_honest("C", &c, &p);
     assert_eq!(
         assert_period_closures("C", &bb).len(),
         2,
         "C: two wall runs"
     );
 
-    let (p, q, d) = scene_d();
-    let bb = union_honest("D", &p, &q, &d);
+    let (p, q) = scene_d();
+    let bb = union_honest("D", &p, &q);
     assert_eq!(assert_period_closures("D", &bb).len(), 1, "D: one wall run");
-    let mut reversed = BooleanDeclarations::none();
-    reversed.coincident_faces = d.coincident_faces.iter().rev().cloned().collect();
-    let rb = union_honest("D (planar pair last)", &p, &q, &reversed);
-    assert_eq!(
-        format!("{:?}", rb.body),
-        format!("{:?}", bb.body),
-        "D (planar pair last): one body"
-    );
 }
 
 /// A peg body's planar cap key and one cylinder wall key.
@@ -813,7 +767,7 @@ fn mixed_kind_declared_pair_still_refuses_typed() {
         assert!(
             matches!(
                 err,
-                MergeCoplanarError::InvalidDeclaration {
+                MergeCoplanarError::InvalidInput {
                     surface,
                     what: "declared surfaces are not one kind",
                 } if surface == k2
@@ -837,7 +791,7 @@ fn mixed_kind_declared_pair_still_refuses_typed() {
         assert!(
             matches!(
                 err,
-                MergeCoplanarError::InvalidDeclaration {
+                MergeCoplanarError::InvalidInput {
                     surface,
                     what: "declared surfaces are not one kind",
                 } if surface == cyl
@@ -874,7 +828,7 @@ fn unresolved_declared_key_still_refuses() {
         assert!(
             matches!(
                 err,
-                MergeCoplanarError::InvalidDeclaration {
+                MergeCoplanarError::InvalidInput {
                     surface,
                     what: "declared surface key does not resolve",
                 } if surface == dangling
@@ -886,34 +840,16 @@ fn unresolved_declared_key_still_refuses() {
 }
 
 /// Row 7 (E, F): two equal pegs stacked end to end, their walls one
-/// cylinder carried on across the caps — continuations. With every
-/// wall pair declared a continuation (F) the union is exact and
-/// honest, and its six wall faces are one run, all of one sense, each
+/// cylinder carried on across the caps — continuations, one carrier by
+/// margin. The union (F) is exact and honest, and its six wall faces are one run, all of one sense, each
 /// lower sector meeting its upper across the z = 1 rim, whose glue
 /// would close the full period: the one record is that
-/// `PeriodClosure`. With only the caps declared, or nothing (E), the
-/// walls are one carrier by margin and the union is F's body bit for
-/// bit (D10).
+/// `PeriodClosure`.
 #[test]
 fn stacked_equal_pegs_same_sense_walls() {
     let lo = finished("the lower peg", peg_at(0.0, 0.0, 1.0), Tol::witness());
     let hi = finished("the upper peg", peg_at(0.0, 1.0, 1.0), Tol::witness());
-    let mut caps = BooleanDeclarations::none();
-    caps.coincident_faces.push(FacePairDeclaration::new(
-        plane_face(&lo, 1.0, true),
-        plane_face(&hi, 1.0, false),
-        ContactClass::Rest,
-    ));
-    let ce = topo::union_with(&lo, &hi, &caps, Tol::witness());
-    let ue = topo::union(&lo, &hi, Tol::witness());
-    let mut both = caps.clone();
-    for &fa in &walls_at(&lo, BORE_R) {
-        for &fb in &walls_at(&hi, BORE_R) {
-            both.coincident_faces
-                .push(FacePairDeclaration::continuation(fa, fb));
-        }
-    }
-    let bb = union_honest("F", &lo, &hi, &both);
+    let bb = union_honest("F", &lo, &hi);
     let v = volume(&bb.body);
     assert!(
         (v - core::f64::consts::FRAC_PI_2).abs()
@@ -928,16 +864,6 @@ fn stacked_equal_pegs_same_sense_walls() {
         6,
         "F: the record names both walls: {skip:?}"
     );
-    for (what, r) in [("E, caps only", ce), ("E, undeclared", ue)] {
-        let Ok(topo::BooleanResult::Body(e)) = r else {
-            panic!("{what}: builds: {r:?}");
-        };
-        assert_eq!(
-            format!("{:?}", e.body),
-            format!("{:?}", bb.body),
-            "{what}: F's body"
-        );
-    }
     let faces = bore_radius_faces(&bb.body);
     assert_eq!(
         faces.len(),

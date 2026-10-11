@@ -41,9 +41,9 @@
 //!   (`sectors::cone_read`);
 //! - the plate alone, and the arches without it, read once.
 //!
-//! The operands' own contacts do not reach a result
-//! (`work/wire/a-boolean-drops-its-operands-own-contact-records.md`), so
-//! tier 3′ is asserted where the result holds no such contact and
+//! A kernel op called without `BooleanInputs` records carries none of
+//! its operands' records, so the operands' own contacts do not reach a
+//! result here, and tier 3′ is asserted where the result holds no such contact and
 //! otherwise refuses only those, at `MEET`, or a touch there the
 //! census misreads (`three_prime`). Each result's material near `MEET`
 //! is the op's over the operands' (`material_holds`), and each class
@@ -124,9 +124,8 @@ fn volume(b: &AtRestBody<f64>) -> f64 {
 }
 
 /// Every refusal of tier 3′ is at [`MEET`]: a contact there no record
-/// backs, an operand's own, which the result does not carry
-/// (`work/wire/a-boolean-drops-its-operands-own-contact-records.md`),
-/// or a touch there between two solids that the census misreads. Those
+/// backs, an operand's own, which a kernel op called without
+/// `BooleanInputs` records does not carry, or a touch there between two solids that the census misreads. Those
 /// are a pyramid notched by another, a saddle corner on the plate
 /// (`work/inside/a-touch-at-a-saddle-corner-refuses-unanalysed.md`),
 /// and a pyramid on a solid that touches itself there, read from its

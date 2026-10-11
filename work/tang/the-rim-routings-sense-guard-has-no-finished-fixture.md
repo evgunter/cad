@@ -2,12 +2,11 @@
 id: the-rim-routings-sense-guard-has-no-finished-fixture
 kind: issue
 title: The rim routing's second-sense guard has no finished fixture: its row reversed a torus's walls, which the at-rest gate refuses
-status: parked
+status: open
 opened: 2026-10-03
 priority: P3
 cost: M
 refs: [3987]
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -34,3 +33,7 @@ door reading the first bit twice answers wrong; or a unit row on
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: the guard is on verify_tangent_declaration → classify_shared_rim, the declared-Tangent door stage 4 retires. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by stage 4 F (2026-10-11)
+
+Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.

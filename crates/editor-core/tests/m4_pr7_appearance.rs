@@ -504,7 +504,6 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     // Attribute a UNION-minted face name (node = the boolean).
@@ -650,7 +649,6 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
         Node::Subtract {
             from: a.into(),
             tool: b.into(),
-            declare: Vec::new(),
         },
     );
     (doc, sub)
@@ -746,7 +744,6 @@ fn operand_paint_does_not_follow_the_face_through_a_boolean() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let cap = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));

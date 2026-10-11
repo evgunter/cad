@@ -15,8 +15,8 @@
 //! geometry in the second.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::blocks::{block, failure, run};
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, failure, run};
 use crate::fixture::{ends, face_vertices, insert, point, table};
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -92,16 +92,13 @@ fn build(blocks: &[B], ops: &[Op], creation: &[usize]) -> Built {
                 members: editor_core::Bodies::Spelled(
                     ms.iter().map(|&m| r(m, &out).into()).collect(),
                 ),
-                declare: Vec::new(),
             },
             Op::Pair(BooleanOp::Union, a, b) => Node::Union {
                 members: editor_core::Bodies::Spelled(vec![r(a, &out).into(), r(b, &out).into()]),
-                declare: Vec::new(),
             },
             Op::Pair(BooleanOp::Subtract, a, b) => Node::Subtract {
                 from: r(a, &out).into(),
                 tool: r(b, &out).into(),
-                declare: Vec::new(),
             },
         };
         let (d, id) = insert(doc, node);

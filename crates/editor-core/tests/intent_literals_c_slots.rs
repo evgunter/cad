@@ -894,7 +894,7 @@ fn the_load_door_reads_every_slots_variable() {
 
     // The divide's other direction (r1 n3): a count slot reading a
     // continuous variable.
-    let (doc, body) = crate::docm7_union_declare::block(
+    let (doc, body) = crate::blocks::block(
         empty("intent-literals-c-load-count"),
         (0.0, 1.0),
         (0.0, 1.0),

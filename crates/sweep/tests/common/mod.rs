@@ -68,21 +68,14 @@
 //!   row as text, the whole body bit for bit, and how its contact edges
 //!   are described. Readers of stored data that evaluate nothing, so
 //!   they route beside [`cap_rims`] rather than into [`orient`];
-//! - [`outcomes`] — a boolean's outcome as one comparable string, the
-//!   body's whole `Debug` or the refusal's: what a suite reads off a
-//!   result to compare two runs of one scene, so beside [`bitdump`];
 //! - [`poses`] — the rigid poses a re-posed row asks its question at:
 //!   what a suite drives a door WITH, as [`charts`];
 //! - [`certificates`] — a built body's stored edge certificates
 //!   against a fresh re-certification: a check of a body that
 //!   evaluates, so it routes beside [`orient`] rather than beside the
 //!   readers of stored data;
-//! - [`revert_ops`] — ∖ in both operand orders and ∩ under one set of
-//!   declarations, swapped for the reversed order: what a suite drives
-//!   a door WITH, as [`poses`];
-//! - [`seam_pairs`] — the face pairs of two face sets that meet along
-//!   a curve, so a seam or `Tangent` declaration names only those: what
-//!   a suite drives a door WITH, as [`revert_ops`];
+//! - [`revert_ops`] — ∖ in both operand orders and ∩: what a suite
+//!   drives a door WITH, as [`poses`];
 //! - [`differential`] — the differential batteries' polygon oracles,
 //!   their one per-pose `outcome` line, the reflex-corner pose and the
 //!   near-tangent corner poses: a
@@ -240,10 +233,6 @@ pub mod pcurve_rows;
 /// arms it. What a suite reads off a body, so it routes here.
 pub mod bitdump;
 
-/// A boolean's outcome as one comparable string. What a suite reads off
-/// a result, so it routes here beside [`bitdump`].
-pub mod outcomes;
-
 /// The counts of a carved body's contact-edge descriptions — intrinsic
 /// tangency, or chart image. What a suite CHECKS of a body, so it
 /// routes here.
@@ -254,8 +243,7 @@ pub mod contact_edges;
 /// WITH, so it routes here.
 pub mod poses;
 
-/// ∖ in both operand orders and ∩ under one set of declarations,
-/// swapped for the reversed order. What a suite drives a door WITH, so
+/// ∖ in both operand orders and ∩. What a suite drives a door WITH, so
 /// it routes here.
 pub mod revert_ops;
 
@@ -274,10 +262,6 @@ pub mod differential;
 /// body holds there: a truth plus the check of a body against it, so
 /// beside [`differential`].
 pub mod pinch_cones;
-/// The pairs of two face sets that meet along a curve, kept from a
-/// cross product of seam or `Tangent` declarations. What a suite drives
-/// a door WITH, so it routes here.
-pub mod seam_pairs;
 /// The operands' point membership in closed form, and the check every
 /// body a boolean returns is held to against it (volume, tier 3,
 /// `point_in_solid`): a truth plus the check of a body against it, so

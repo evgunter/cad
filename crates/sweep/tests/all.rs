@@ -57,6 +57,8 @@ mod revolve_common;
 
 #[path = "a_curved_keel_in_the_plane.rs"]
 mod a_curved_keel_in_the_plane;
+#[path = "a_flank_touch_at_a_shared_corner.rs"]
+mod a_flank_touch_at_a_shared_corner;
 #[path = "a_flipped_shallow_dimple.rs"]
 mod a_flipped_shallow_dimple;
 #[path = "a_move_through_a_neighbour_inverts_the_body.rs"]
@@ -372,6 +374,8 @@ mod ladder_split_key;
 mod lamina_annulus;
 #[path = "lib_u3_sections.rs"]
 mod lib_u3_sections;
+#[path = "loft_lifts_its_placements_as_computed.rs"]
+mod loft_lifts_its_placements_as_computed;
 #[path = "loft_v_is_the_section_set.rs"]
 mod loft_v_is_the_section_set;
 #[path = "m3_pr5_extrude_booleans.rs"]
@@ -742,6 +746,8 @@ mod germ_coplanar_conic;
 mod germ_interior_oval;
 #[path = "germ_interior_saddle.rs"]
 mod germ_interior_saddle;
+#[path = "germ_plane_torus_frame.rs"]
+mod germ_plane_torus_frame;
 #[path = "germ_radial_hole.rs"]
 mod germ_radial_hole;
 #[path = "germ_sphere_no_crossings.rs"]
@@ -788,8 +794,6 @@ mod mate2_r1_probes;
 mod mate2_r2_probes;
 #[path = "mate7a_r1_probes.rs"]
 mod mate7a_r1_probes;
-#[path = "mate7a_r2_probes.rs"]
-mod mate7a_r2_probes;
 #[path = "mate7a_torus_rest.rs"]
 mod mate7a_torus_rest;
 #[path = "near_tangent_pierce_poses.rs"]

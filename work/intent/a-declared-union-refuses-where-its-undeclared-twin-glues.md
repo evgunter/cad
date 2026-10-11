@@ -2,7 +2,8 @@
 id: a-declared-union-refuses-where-its-undeclared-twin-glues
 kind: issue
 title: A union whose rest is declared refuses DeclareResolve where its undeclared twin glues
-status: open
+status: closed
+closed: 2026-10-11
 opened: 2026-10-10
 priority: P2
 cost: M
@@ -31,3 +32,7 @@ to the fragments the value decides carry the contact, rather than
 refusing. Another is to drop such a declaration in favour of the
 glue. Either is a design call for the stage that retires the
 declared seat (`declared-pairs-retire`).
+
+## Closed (2026-10-11, stage 4 F)
+
+No union can be declared: the declare field, its routing and `DeclareResolve` are deleted.
