@@ -489,7 +489,7 @@ pub(super) fn chart_transverse_margin<T: CertifiedBounds>(
 /// (The mignitude. `offset_meters::mig` is the same arithmetic read
 /// as a coefficient-hull assembly term rather than a decision; noted
 /// at both sites.)
-pub(super) fn zero_free_lower_bound(i: Interval) -> f64 {
+pub(crate) fn zero_free_lower_bound(i: Interval) -> f64 {
     if !i.is_certified() {
         return 0.0;
     }

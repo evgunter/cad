@@ -2,8 +2,9 @@
 id: degree-1-partial-has-four-spellings
 kind: issue
 title: A degree-1 direction's constant partial is spelled four ways, one per consumer of KnotVector::derivative's None
-status: open
+status: dispatched
 opened: 2026-10-11
+branch: encl/degree-1-partial
 ---
 
 
