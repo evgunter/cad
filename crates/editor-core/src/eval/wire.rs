@@ -49,7 +49,7 @@ use geom_core::{
 use sweep::{Revolution, RevolveAxis};
 use topo::splitting::SplitPart;
 use topo::transform::transform_rigid;
-use topo::{Body, BooleanDeclarations, DATUM_UNIT_NORM};
+use topo::{Body, BooleanInputs, DATUM_UNIT_NORM};
 
 use super::anchor::{self, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
@@ -2736,10 +2736,10 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 ) -> OpResult<T> {
     let a_table = Arc::clone(&value_of(results_a, a)?.name_table);
     let b_table = Arc::clone(&value_of(results_b, b)?.name_table);
-    let kernel_decls = BooleanDeclarations::none();
+    let inputs = BooleanInputs::default();
     let body_a = finished_operand(results_a, a, tol)?;
     let body_b = finished_operand(results_b, b, tol)?;
-    match (verb.build)(BooleanOp::Subtract, kernel_decls)
+    match (verb.build)(BooleanOp::Subtract, inputs)
         .run_pair(&body_a, &body_b, boolean_sweep, tol)
         .map_err(verb_refused)?
     {
@@ -2966,7 +2966,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         Some((names::UnionLinks::default(), Vec::new(), Vec::new()))
     } else {
         judge_pairwise_contact(&hulls, |p, q| {
-            let out = (verb.build)(op, BooleanDeclarations::none())
+            let out = (verb.build)(op, BooleanInputs::default())
                 .run_pair(&members[p].body, &members[q].body, boolean_sweep, tol)
                 .map_err(verb_refused)?;
             let verbs::PairOut::Out(out) = out else {
@@ -3020,9 +3020,9 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     for step in 0..rest.len() {
         let member_body = Arc::clone(&members[step + 1].body);
         let member_table = Arc::clone(&views[step + 1]);
-        let mut decls = BooleanDeclarations::none();
+        let mut inputs = BooleanInputs::default();
         if pairwise {
-            given_verdicts(&mut decls, &verdicts, step + 1, &fold, &acc_body)?;
+            inputs.given = Some(given_verdicts(&verdicts, step + 1, &fold, &acc_body)?);
         }
         // A pair's refusal is the pair's own; past two members a refusal
         // only a step raises names the member that step folds in.
@@ -3037,7 +3037,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 refusal
             }
         };
-        match (verb.build)(op, decls.clone())
+        match (verb.build)(op, inputs.clone())
             .run_pair(&acc_body, &member_body, boolean_sweep, tol)
             .map_err(|err| step_refusal(verb_refused(err)))?
         {
@@ -3052,7 +3052,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             }
             verbs::PairOut::Out(out) => {
                 if pairwise {
-                    debug_assert_given(&out.coincidences, &decls);
+                    debug_assert_given(&out.coincidences, &inputs);
                 }
                 let verbs::VerbRecord::Boolean {
                     kind,
@@ -3278,17 +3278,17 @@ fn judge_pairwise_contact(
 }
 
 /// **One carrier pair a union's pairwise judgement glued**: a face of
-/// each of two members, by member index, and the class its decided
-/// relation makes it. The fold reads it through lineage
-/// ([`given_verdicts`]) and decides the pair nowhere else.
+/// each of two members, by member index, and the relation it decided.
+/// The fold reads it through lineage ([`given_verdicts`]) and decides
+/// the pair nowhere else.
 #[derive(Clone, Copy, Debug)]
 struct PairVerdict {
     /// The listed-first member's face: `(member index, face)`.
     a: (usize, topo::FaceKey),
     /// The other member's face.
     b: (usize, topo::FaceKey),
-    /// The class the judgement's relation makes the pair.
-    class: topo::BooleanCoincidence,
+    /// The relation the judgement decided.
+    relation: topo::Relation,
 }
 
 /// The carrier pairs the judgement of members `p` (operand A) and `q`
@@ -3310,41 +3310,36 @@ fn pair_verdicts(p: usize, q: usize, rows: &[topo::Coincidence]) -> Vec<PairVerd
             else {
                 return None;
             };
-            let class = row.relation.glued_class()?;
+            row.relation.glued_class()?;
             Some(PairVerdict {
                 a: (p, fa),
                 b: (q, fb),
-                class,
+                relation: row.relation,
             })
         })
         .collect()
 }
 
 /// **The pass's verdicts for the fold step that folds in member
-/// `member`**, added to `decls` as declared pairs and `decls` marked
-/// [`topo::Verdicts::Given`]: each verdict whose second face is
-/// `member`'s, between that face and every accumulation face whose
-/// lineage holds the verdict's first face. A pair the step's routed
-/// declarations already name is left as declared.
+/// `member`**, the step's given pairs ([`BooleanInputs::given`]): each
+/// verdict whose second face is `member`'s, between that face and
+/// every accumulation face whose lineage holds the verdict's first
+/// face.
 ///
 /// # Errors
 ///
 /// An emission bug ([`UNION_VERDICTS_DISAGREE`]) where two verdicts
-/// glue one accumulation face to one member face under two classes, or
-/// an accumulation face carries no lineage.
+/// glue one accumulation face to one member face under two relations,
+/// or an accumulation face carries no lineage.
 fn given_verdicts<T: Decide>(
-    decls: &mut BooleanDeclarations,
     verdicts: &[PairVerdict],
     member: usize,
     fold: &names::UnionFold,
     acc: &topo::Body<T>,
-) -> Result<(), NodeErrorKind> {
+) -> Result<Vec<topo::GivenPair>, NodeErrorKind> {
     let bug = |what| NodeErrorKind::Naming(names::NamingError::Emission { what });
-    let mut given: std::collections::BTreeMap<(topo::FaceKey, topo::FaceKey), _> = decls
-        .coincident_faces
-        .iter()
-        .map(|d| ((d.a, d.b), (d.class, true)))
-        .collect();
+    let mut given: std::collections::BTreeMap<(topo::FaceKey, topo::FaceKey), topo::Relation> =
+        std::collections::BTreeMap::new();
     for (f, _) in acc.faces() {
         let parents = fold.member_faces(f).ok_or(bug(UNION_FACE_NO_LINEAGE))?;
         for v in verdicts.iter().filter(|v| v.b.0 == member) {
@@ -3353,39 +3348,33 @@ fn given_verdicts<T: Decide>(
             }
             match given.entry((f, v.b.1)) {
                 std::collections::btree_map::Entry::Vacant(slot) => {
-                    slot.insert((v.class, false));
+                    slot.insert(v.relation);
                 }
                 std::collections::btree_map::Entry::Occupied(held) => {
-                    let (class, routed) = *held.get();
-                    if !routed && class != v.class {
+                    if *held.get() != v.relation {
                         return Err(bug(UNION_VERDICTS_DISAGREE));
                     }
                 }
             }
         }
     }
-    for (&(a, b), &(class, routed)) in &given {
-        if !routed {
-            decls
-                .coincident_faces
-                .push(topo::FacePairDeclaration::new(a, b, class));
-        }
-    }
-    decls.verdicts = topo::Verdicts::Given;
-    Ok(())
+    Ok(given
+        .into_iter()
+        .map(|((a, b), relation)| topo::GivenPair { a, b, relation })
+        .collect())
 }
 
 /// **Every face-pair row a fold step recorded is a pair it was given**
 /// (DM4, the fold re-glues no carrier pair): the verdict reuse, asserted
-/// where the step's rows come back. A step's face-pair rows are its
-/// declaration door's, so one naming a pair outside `decls` is a fresh
-/// glue on a piece — what a glue door or recording site that ignored
-/// `Verdicts::Given` would add. Readings that record no row are outside
-/// it: the merge's continuation reading, the maximal-faces gate and the
-/// join's coaxial frame read a step's carriers by their margins, as the
-/// pairwise pass read the members'.
-fn debug_assert_given(rows: &[topo::Coincidence], decls: &BooleanDeclarations) {
+/// where the step's rows come back. One naming a pair outside the
+/// step's given pairs is a fresh glue on a piece — what a glue door or
+/// recording site that ignored the given verdicts would add. Readings
+/// that record no row are outside it: the merge's continuation reading,
+/// the maximal-faces gate and the join's coaxial frame read a step's
+/// carriers by their margins, as the pairwise pass read the members'.
+fn debug_assert_given(rows: &[topo::Coincidence], inputs: &BooleanInputs) {
     if cfg!(debug_assertions) {
+        let given = inputs.given.as_deref().unwrap_or_default();
         for row in rows {
             if let [
                 topo::RowCell::Input {
@@ -3399,10 +3388,7 @@ fn debug_assert_given(rows: &[topo::Coincidence], decls: &BooleanDeclarations) {
             ] = row.cells
             {
                 debug_assert!(
-                    decls
-                        .coincident_faces
-                        .iter()
-                        .any(|d| d.a == fa && d.b == fb),
+                    given.iter().any(|g| g.a == fa && g.b == fb),
                     "a union fold step decided the carrier pair {fa:?}/{fb:?} itself: its \
                      verdict is the pairwise judgement's, read through lineage"
                 );

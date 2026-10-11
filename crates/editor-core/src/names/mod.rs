@@ -88,7 +88,9 @@ pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, selec
 pub use table::{DuplicateName, EntityKey, EntityRef, Entry, NameTable};
 /// The kernel's contact vocabulary, re-exported so a refusal the recipe
 /// layer renders quotes the kernel's own words.
-pub use topo::{CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict, FIT_DEFERRAL};
+pub use topo::{
+    CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL,
+};
 pub use words::{LeafRole, leaf_role, role_leaf};
 
 /// **Every edge name of a node's output body, as of THIS evaluation**

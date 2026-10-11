@@ -10,13 +10,9 @@
 //! - **Two operand inputs** (`a`, `b`), each a node whose evaluated
 //!   body AND name table the lowering reads — the arity the kernel
 //!   declaration states (`verbs::VerbKind::arity`).
-//! - **The `declare` payload**: the node's declared pairs, whose
-//!   names resolve through the OPERANDS' name tables into
-//!   the kernel's `BooleanDeclarations` (`resolve_declarations`, the
-//!   N5 ladder — resolution failures are the typed trio, never a
-//!   silent drop). Name resolution is the document's semantics, so it
-//!   runs upstairs; what this correspondence's `build` receives is the
-//!   already-lowered arena-key form.
+//! - **The kernel inputs** (`BooleanInputs`): each operand's own
+//!   contact records and, at a union's fold step, the verdicts its
+//!   pairwise judgement decided, already in arena keys.
 //! - **The contact-record carry**: the surviving contacts come back
 //!   in the verb's record channel and the lowering carries them into
 //!   the boolean VALUE (`BooleanValue::Body { contacts, .. }`), the
@@ -35,9 +31,7 @@
 //! a future verb never has to open it.
 
 use geom_core::{Decide, Tol};
-use topo::{
-    Body, BooleanDeclarations, BooleanNaming, BooleanOp, BooleanResultKind, ContactRecords,
-};
+use topo::{Body, BooleanInputs, BooleanNaming, BooleanOp, BooleanResultKind, ContactRecords};
 use verbs::{Verb, VerbRecord};
 
 use crate::names::{self, NamingError};
@@ -59,10 +53,10 @@ pub(crate) type PairEmitter<T> = fn(
 /// [`verbs::Verb`] and its result into a name table. Adding a field here is
 /// how a pair verb declares something the lowering must know.
 pub(crate) struct PairVerb<T: Decide> {
-    /// **Structural payload + resolved declarations → the kernel
-    /// verb.** The one place a document's op selector and lowered
-    /// declaration set become a [`verbs::Verb`] payload, per instance.
-    pub(crate) build: fn(BooleanOp, BooleanDeclarations) -> Verb<T>,
+    /// **Op selector + kernel inputs → the kernel verb.** The one
+    /// place a document's op selector and its lowered inputs become a
+    /// [`verbs::Verb`] payload, per instance.
+    pub(crate) build: fn(BooleanOp, BooleanInputs) -> Verb<T>,
     /// This verb's naming emitter.
     pub(crate) emitter: PairEmitter<T>,
     /// **This family's arm of the closed record channel**, as a
@@ -90,10 +84,10 @@ pub(crate) struct BooleanRecord {
 
 /// The boolean's kernel payload. A named function rather than a
 /// closure so it can be a plain `fn` pointer in the struct above.
-fn build_boolean<T: geom_core::Real>(op: BooleanOp, declare: BooleanDeclarations) -> Verb<T> {
+fn build_boolean<T: geom_core::Real>(op: BooleanOp, inputs: BooleanInputs) -> Verb<T> {
     Verb::Boolean {
         op,
-        declare: Box::new(declare),
+        inputs: Box::new(inputs),
     }
 }
 
@@ -145,7 +139,7 @@ mod tests {
     #[test]
     fn the_correspondence_builds_the_boolean() {
         for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
-            let v: Verb<f64> = (boolean::<f64>().build)(op, BooleanDeclarations::none());
+            let v: Verb<f64> = (boolean::<f64>().build)(op, BooleanInputs::none());
             assert_eq!(
                 v.kind(),
                 VerbKind::Boolean(op),

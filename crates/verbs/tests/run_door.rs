@@ -21,7 +21,7 @@ use geom_core::{Affine3, Vec3};
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::{Extrusion, Revolution};
 use topo::{
-    AtRestBody, Body, BooleanDeclarations, BooleanOp, BooleanResult, SplitPart, SweepStrategy,
+    AtRestBody, Body, BooleanInputs, BooleanOp, BooleanResult, SplitPart, SweepStrategy,
     boolean_op_with, split,
 };
 use verbs::{Arity, PairOut, Verb, VerbError, VerbKind, VerbRecord};
@@ -177,7 +177,7 @@ fn the_boolean_dispatch_is_the_boolean_door() {
     // A proper crossing: overlap in every axis, no face-on-face rest.
     let b = shifted_cube(Vec3::new(0.5, 0.5, 0.5));
 
-    let decls = BooleanDeclarations::none();
+    let decls = BooleanInputs::none();
     let door = boolean_op_with(
         BooleanOp::Union,
         &a,
@@ -189,7 +189,7 @@ fn the_boolean_dispatch_is_the_boolean_door() {
     .unwrap();
     let via = Verb::Boolean {
         op: BooleanOp::Union,
-        declare: Box::new(BooleanDeclarations::none()),
+        inputs: Box::new(BooleanInputs::default()),
     }
     .run_pair(&a, &b, SweepStrategy::Realized, tol())
     .unwrap();
@@ -232,7 +232,7 @@ fn an_empty_boolean_result_crosses_as_the_typed_empty() {
         BooleanOp::Intersect,
         &a,
         &b,
-        &BooleanDeclarations::none(),
+        &BooleanInputs::none(),
         SweepStrategy::Realized,
         tol(),
     )
@@ -241,7 +241,7 @@ fn an_empty_boolean_result_crosses_as_the_typed_empty() {
 
     let via = Verb::Boolean {
         op: BooleanOp::Intersect,
-        declare: Box::new(BooleanDeclarations::none()),
+        inputs: Box::new(BooleanInputs::default()),
     }
     .run_pair(&a, &b, SweepStrategy::Realized, tol())
     .unwrap();
@@ -263,14 +263,14 @@ fn a_boolean_refusal_crosses_the_dispatch_unaltered() {
         BooleanOp::Union,
         &a,
         &b,
-        &BooleanDeclarations::none(),
+        &BooleanInputs::none(),
         SweepStrategy::Realized,
         tol(),
     )
     .unwrap_err();
     let via = Verb::Boolean {
         op: BooleanOp::Union,
-        declare: Box::new(BooleanDeclarations::none()),
+        inputs: Box::new(BooleanInputs::default()),
     }
     .run_pair(&a, &b, SweepStrategy::Realized, tol())
     .unwrap_err();
@@ -303,7 +303,7 @@ fn sample(kind: VerbKind) -> Verb<f64> {
         },
         VerbKind::Boolean(op) => Verb::Boolean {
             op,
-            declare: Box::new(BooleanDeclarations::none()),
+            inputs: Box::new(BooleanInputs::default()),
         },
         VerbKind::Split => Verb::Split {
             plane: z_plane(0.5),
@@ -524,7 +524,7 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
     // and names a `Boolean` door no caller can reach.
     let err = Verb::Boolean {
         op: BooleanOp::Subtract,
-        declare: Box::new(BooleanDeclarations::none()),
+        inputs: Box::new(BooleanInputs::default()),
     }
     .run(&finished("the operand", cube.clone(), tol()), tol())
     .expect_err("a boolean takes two operands, not one");

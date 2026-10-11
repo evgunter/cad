@@ -181,15 +181,15 @@ pub use meta::{MetaError, MetaInt, MetaValue, MetaVersionError, from_value, to_v
 pub use mint::{Mint, MintId, Minted};
 pub use names::{
     CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict, CurveKind,
-    CurveKindSet, Denotation, DuplicateName, EntityKey, EntityKind, EntityRef, Entry, FIT_DEFERRAL,
-    FaceName, FragmentGroups, GeomPred, InterrogateError, LeafRole, MeridianEnd, NameOrigin,
-    NamePat, NameRef, NameTable, NameTextError, NamingError, NotAFaceName, OpGroup, PieceRole,
-    PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare, RimSupport, RolePath, RoleSeg,
-    SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, Side,
-    SplitHalf, StableName, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
-    attribute, band, band_pi, band_rim, band_rim_pi, carried, denotation, edge_carrier_kind,
-    edge_frame, face_carrier_kind, face_frame, leaf_role, meridian_vertex, role_leaf, select,
-    select_where, vertex_position,
+    CurveKindSet, DeclaredContact, Denotation, DuplicateName, EntityKey, EntityKind, EntityRef,
+    Entry, FIT_DEFERRAL, FaceName, FragmentGroups, GeomPred, InterrogateError, LeafRole,
+    MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NameTextError, NamingError, NotAFaceName,
+    OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare,
+    RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag,
+    SelectRefusal, Selector, Sense, Side, SplitHalf, StableName, SurfaceKindSet, TagPat,
+    all_bodies, all_edges, all_faces, all_vertices, attribute, band, band_pi, band_rim,
+    band_rim_pi, carried, denotation, edge_carrier_kind, edge_frame, face_carrier_kind, face_frame,
+    leaf_role, meridian_vertex, role_leaf, select, select_where, vertex_position,
 };
 pub use node::{
     AuthoredNode, Axis3, CountMismatch, Datum, ExtrudeSide, InputFault, InterfaceCrossing,
