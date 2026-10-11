@@ -819,3 +819,4 @@ Signed (CLEAVE orchestrator).
   - `a-crown-touching-the-plane-along-one-edge-panics-at-the-section-spur-check` (P1, a D9 panic on
     exact input);
   - `single-on-edge-crossing-without-a-flanking-record-at-1e-12` (P1).
+- **PR 4609 merged** (band-on pinch residue; orchestrator read). The row is closed.

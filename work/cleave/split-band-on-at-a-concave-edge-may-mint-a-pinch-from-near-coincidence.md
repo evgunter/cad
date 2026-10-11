@@ -2,13 +2,14 @@
 id: split-band-on-at-a-concave-edge-may-mint-a-pinch-from-near-coincidence
 kind: issue
 title: Split's ON verdicts at margins within ε can mint a pinch from a value coincidence, which D1 tier 3′ (i) forbids
-status: dispatched
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [3856]
 design: true
-branch: cleave/band-on-pinch-residue
+closed: 2026-10-11
+pr: 4609
 ---
 
 
@@ -164,3 +165,46 @@ change: (1) the δ = 5e-10 arm refusing in kernel-defect voice at the
 attachment gate, and (2) `SliverVertex`'s "within tolerance" text firing
 beyond ε. Item 3 (a scratch row for the undeclared refusal) belonged to
 the `SplitDeclarations` design D10 replaced, and lapses with it.
+
+## Built (branch cleave/band-on-pinch-residue)
+
+Measured on main (7244e06f5b), `NOTCHED` and `MIRRORED` under `±n`,
+`plane_y(1 + δ)`, at ε = 1e-9, 1e-6 and 1e-12:
+
+- **Item 1 was a kernel defect, not an honest refusal.** For
+  ε/8 < |δ| ≤ ε the split read the vertices ON, then refused at the
+  attachment gate (the chart residual, 8δ, in band, in kernel-defect
+  voice) or, in the mirror lane, as "a section is degenerate: it bounds
+  zero area". The cause: `section_loops::chord_u_ref` took the section
+  face's `u_ref` as the loop's first chord, unprojected. That chord
+  runs from a crossing minted on the plane to a corner δ off it, so the
+  chart axis leaned δ per unit out of the plane and the 8-long section's
+  edges missed their images by 8δ. Fixed: the axis is the chord's
+  in-plane component. Every |δ| < ε now cuts, with valid halves and the
+  pinch recorded, as δ ≤ ε/8 already did.
+- **Item 2.** `SliverVertex` fires only on a margin in (ε, Kε] or an
+  unreadable one, never within ε. Its text now reads "whether a vertex
+  lies on the split plane is undecided: margin … lies inside the
+  ambiguity band (…). Recourse: move the split plane or the geometry",
+  with an unreadable margin's note where one applies.
+
+Pins in `crates/topo/tests/m3_pr3_split.rs`, red on main at every ε:
+`a_plane_within_eps_of_a_pinch_cuts_it_and_records_the_pinch` and
+`a_vertex_in_the_band_of_the_split_plane_refuses_as_undecided`.
+
+## Closed (PR 4609, 2026-10-11)
+
+- `splitting::section_loops::chord_u_ref` takes the section face's chart
+  axis as its first chord projected into the plane, so a chord from a
+  minted crossing to an ON corner off the plane no longer tilts the
+  chart. That tilt is what refused ε/8 < |δ| ≤ ε at the attachment gate
+  (and as a zero-area section in the mirror lane).
+- Every |δ| < ε now cuts, with valid halves, and records its pinch as two
+  D10 rows, at every ε.
+- `SliverVertex` tells the undecided story: "whether a vertex lies on the
+  split plane is undecided: margin … lies inside the ambiguity band".
+- The SSI texts that claim "within the tolerance" for a band reading are
+  filed on SSIEDGE
+  (`ssi-boundary-texts-say-within-the-tolerance-of-a-side-read-in-the-band`)
+  and SSIMARCH
+  (`ssi-march-short-of-fit-counts-in-band-gaps-as-within-the-tolerance`).
