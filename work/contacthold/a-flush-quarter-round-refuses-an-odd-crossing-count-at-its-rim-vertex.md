@@ -8,6 +8,7 @@ priority: P1
 cost: M
 refs: [boolean-conic-side-code-zero-is-first-order, a-vertex-pair-near-coincidence-refuses-where-its-long-edges-decide, two-discs-kissing-externally-refuse-classification-invariant]
 branch: contacthold/flush-quarter-round
+pr: 4704
 ---
 
 
