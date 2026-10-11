@@ -64,11 +64,17 @@ fn an_undeclared_flush_rest_glues_and_records_one_unproven_row() {
                 &doc,
                 &[(union, &rows[..])],
                 Tol::witness(),
-                editor_core::SymbolicPass::Full
-            )[0][0],
-            Proof::Unproven { .. }
+                &editor_core::CancelToken::new()
+            )
+            .expect("an uncanceled door")[0][0],
+            Proof::Unproven {
+                recourse: coincide::Recourse::Assert,
+                ..
+            }
         ),
-        "two constructions, no proof"
+        "two constructions, no proof; the offset's form freezes at the door's budget \
+         (declared-rest-rows-are-two-values-or-too-big-to-close), so the recourse is an \
+         assertion"
     );
 }
 

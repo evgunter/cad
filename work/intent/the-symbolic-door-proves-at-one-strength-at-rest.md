@@ -2,10 +2,11 @@
 id: the-symbolic-door-proves-at-one-strength-at-rest
 kind: unit
 title: The coincidence door proves at one strength, a kernel constant; the viewer runs it at rest; the resident/full switch goes
-status: open
+status: closed
 opened: 2026-10-11
 priority: P1
 cost: M
+closed: 2026-10-11
 ---
 
 
@@ -31,3 +32,17 @@ spec §5b holds the shape.
   evaluation still runs the replay to the end.
 - **Measure** replay time against discharge time per corpus document,
   and report the split in the PR body.
+
+## Closed
+
+Built as ruled. The door's one strength is `coincide/replay.rs`'s
+`BUDGET` with the drive's `kept_atom` ladder; `SymbolicPass`,
+`ChecksConfig::symbolic_pass`, Python's `full_symbolic_pass` and the
+resident wording are gone. `coincide::prove` takes the caller's
+`CancelToken` into the replay and checks it before each discharge
+(`a_canceled_door_stops_in_its_replay`). An unproven row whose margin
+keeps an opaque atom (`geom_core::sym::deferred::keeps_an_opaque_atom`)
+names an assertion as its recourse (`Recourse::Assert`). The viewer
+runs the door at rest (`run_checks_at_rest_on`, `DoorJob`,
+`viewer::DoorService`); its report reads `pending` until the job
+settles.

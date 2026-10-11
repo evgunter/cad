@@ -476,11 +476,14 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         (row,) = rows
         self.assertEqual((row.relation, row.site), ("same_opposite", "plane_ladder"))
+        # The door replays the document with every variable a symbol,
+        # and says so of a row it does not prove.
         self.assertIsNone(row.rung)
         self.assertEqual(
             row.residual,
-            "the two cells are two constructions; unproven at the resident budget; "
-            "the full symbolic pass decides",
+            "the two cells are two constructions; with every variable a symbol, "
+            "neither the carriers' verdict nor the deciding margin is shown "
+            "identically zero within the door's budget",
         )
         # Each cell is named in the table of the read it came in
         # through: the two members' outputs.
@@ -515,26 +518,6 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         self.assertEqual(
             [f for f in off.findings if f.check == CheckId.UnprovenCoincidence], []
         )
-
-        # The full pass replays the document with every variable a
-        # symbol, and says so of a row it does not prove.
-        full = (
-            "the two cells are two constructions; with every variable a symbol, "
-            "neither the carriers' verdict nor the deciding margin is shown "
-            "identically zero within the full pass's budget"
-        )
-        (row,) = ev.coincidences(glued, full_symbolic_pass=True)
-        self.assertIsNone(row.rung)
-        self.assertEqual(row.residual, full)
-        self.assertFalse(cfg.full_symbolic_pass)
-        cfg = ChecksConfig(
-            connectedness=Severity.Off,
-            separation=Advisory.Off,
-            full_symbolic_pass=True,
-        )
-        self.assertTrue(cfg.full_symbolic_pass)
-        (finding,) = run_checks(doc, ev, cfg).findings
-        self.assertEqual(finding.evidence.reason, full)
 
 
 if __name__ == "__main__":

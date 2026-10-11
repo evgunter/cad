@@ -38,7 +38,8 @@ limit recorded here. The probe is `probe_mitre_at_sym` in
 `crates/editor-core/tests/coincidence_door.rs` (ignored; run with
 `--ignored --nocapture`, release).
 
-The door pins the eight rows unproven under its full pass
+The door pins the eight rows unproven, each with an assertion as its
+recourse because the residual keeps opaque atoms
 (`a_filleted_box_records_one_unproven_turn_per_corner`) and pins the
 angle term's identity apart
 (`a_box_mitres_angle_term_is_the_zero_polynomial`). The disc's joints

@@ -4485,6 +4485,45 @@ fn discharge_retried(id: SymId) -> Option<(Discharge, u8)> {
     discharge_in(id, true)
 }
 
+/// **Whether the early form of `id` keeps an opaque atom**: an
+/// indeterminate that is no parameter symbol, not π, and no atom over
+/// those alone — a node the walk froze on its budget, or an opaque
+/// value ([`SymOp::Opaque`]). A poisoned form keeps one. `None` outside
+/// a session.
+fn keeps_an_opaque_atom(id: SymId) -> Option<bool> {
+    SESSION.with(|s| {
+        let mut slot = s.borrow_mut();
+        let sess = slot.as_mut()?;
+        let params: std::collections::HashSet<u128> = sess
+            .nodes
+            .values()
+            .filter(|n| n.op == SymOp::Param)
+            .map(|n| indet_param(n.payload))
+            .collect();
+        let mut stack = vec![early_form(sess, id)];
+        let mut seen = std::collections::HashSet::new();
+        while let Some(form) = stack.pop() {
+            if form.poisoned {
+                return Some(true);
+            }
+            for poly in [&form.num, &form.den] {
+                for (mono, _) in poly.terms() {
+                    for &(x, _) in mono {
+                        if x == INDET_PI || params.contains(&x) || !seen.insert(x) {
+                            continue;
+                        }
+                        match sess.atoms.get(&x) {
+                            Some(atom) => stack.extend(atom.args.iter().flatten().cloned()),
+                            None => return Some(true),
+                        }
+                    }
+                }
+            }
+        }
+        Some(false)
+    })
+}
+
 fn discharge_in(id: SymId, retries: bool) -> Option<(Discharge, u8)> {
     SESSION.with(|s| {
         let mut slot = s.borrow_mut();

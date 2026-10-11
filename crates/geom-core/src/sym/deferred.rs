@@ -144,6 +144,32 @@ fn discharge_entry(first: Pending) -> Option<Theorem> {
     Some(weakest)
 }
 
+/// **Whether a Zero behind `margin` keeps an opaque atom** in its
+/// early form: a form the budget froze, or a value computed apart from
+/// the symbols ([`super::SymOp::Opaque`]). An identity that keeps one
+/// is past what the tier can see at this strength, and no rebuilding of
+/// the variables exposes it. `false` where the margin stands for no
+/// deferred Zero, or outside its session.
+#[must_use]
+pub fn keeps_an_opaque_atom(margin: MarginDiag) -> bool {
+    let Some(first) = margin.pending() else {
+        return false;
+    };
+    let mut stack = vec![first];
+    while let Some(next) = stack.pop() {
+        match next {
+            Pending::Zero(node) => {
+                if super::keeps_an_opaque_atom(node) == Some(true) {
+                    return true;
+                }
+            }
+            Pending::Proven(_) => {}
+            Pending::Both(a, b) => stack.extend(entry(a).into_iter().chain(entry(b))),
+        }
+    }
+    false
+}
+
 /// The entry at `index` of the installed session's list.
 pub(crate) fn entry(index: u32) -> Option<Pending> {
     SESSION.with(|s| s.borrow().as_ref()?.deferred.as_ref()?.get(&index).copied())

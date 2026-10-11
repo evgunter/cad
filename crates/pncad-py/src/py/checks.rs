@@ -230,14 +230,13 @@ impl ChecksConfig {
     /// would report "checked and fine" about a number the caller did
     /// not state.
     #[new]
-    #[pyo3(signature = (connectedness = Severity::Warn, expected_components = None, separation = Advisory::Warn, chart_coherence = Advisory::Off, unproven_coincidence = Advisory::Warn, full_symbolic_pass = false))]
+    #[pyo3(signature = (connectedness = Severity::Warn, expected_components = None, separation = Advisory::Warn, chart_coherence = Advisory::Off, unproven_coincidence = Advisory::Warn))]
     fn new(
         connectedness: Severity,
         expected_components: Option<Vec<(NodeId, u32, u32)>>,
         separation: Advisory,
         chart_coherence: Advisory,
         unproven_coincidence: Advisory,
-        full_symbolic_pass: bool,
     ) -> PyResult<Self> {
         let mut expected: BTreeMap<(d::RecipeNodeId, u32), u32> = BTreeMap::new();
         for (NodeId(root), output_ix, count) in expected_components.unwrap_or_default() {
@@ -253,11 +252,6 @@ impl ChecksConfig {
             separation: separation.to_kernel(),
             chart_coherence: chart_coherence.to_kernel(),
             unproven_coincidence: unproven_coincidence.to_kernel(),
-            symbolic_pass: if full_symbolic_pass {
-                d::SymbolicPass::Full
-            } else {
-                d::SymbolicPass::Resident
-            },
         }))
     }
 
@@ -292,13 +286,6 @@ impl ChecksConfig {
         Advisory::from_kernel(self.0.unproven_coincidence)
     }
 
-    /// Whether the `unproven-coincidence` lint's door runs its symbolic
-    /// rungs at the full budget rather than the resident one.
-    #[getter]
-    fn full_symbolic_pass(&self) -> bool {
-        self.0.symbolic_pass == d::SymbolicPass::Full
-    }
-
     /// The stated expectations, ascending by subject.
     #[getter]
     fn expected_components(&self) -> Vec<(NodeId, u32, u32)> {
@@ -322,13 +309,12 @@ impl ChecksConfig {
     fn __repr__(&self) -> String {
         format!(
             "ChecksConfig(connectedness={:?}, expected_components={}, separation={:?}, \
-             chart_coherence={:?}, unproven_coincidence={:?}, full_symbolic_pass={})",
+             chart_coherence={:?}, unproven_coincidence={:?})",
             self.0.connectedness,
             self.0.expected_components.len(),
             self.0.separation,
             self.0.chart_coherence,
-            self.0.unproven_coincidence,
-            self.0.symbolic_pass == d::SymbolicPass::Full
+            self.0.unproven_coincidence
         )
     }
 }

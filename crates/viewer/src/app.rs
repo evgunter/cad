@@ -731,6 +731,27 @@ fn fitter() -> Result<Box<dyn FitService>, StartupError> {
     }
 }
 
+/// The coincidence door's seam this build runs on — [`evaluator`]'s
+/// choice again, for its reason.
+///
+/// # Errors
+///
+/// [`StartupError::Worker`] if the OS refuses the thread; the wasm arm
+/// is infallible. Every landing's checks would otherwise read their
+/// door pending forever.
+fn prover() -> Result<Box<dyn crate::evalseam::DoorService>, StartupError> {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        Ok(Box::new(
+            crate::evalseam::ThreadProver::spawn().map_err(StartupError::Worker)?,
+        ))
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        Ok(Box::new(crate::evalseam::InlineProver::new()))
+    }
+}
+
 impl ViewerApp {
     /// Build the application: author the starting document, evaluate
     /// it, tessellate at the initial δ, frame a camera on the result,
@@ -834,7 +855,7 @@ impl ViewerApp {
         // a default rather than a check.
         crate::widgets::install_number_formatter(egui_ctx);
 
-        let mut session = DocSession::new(document, tol, evaluator()?);
+        let mut session = DocSession::new(document, tol, evaluator()?).with_door(prover()?);
         session.set_notation(notation);
 
         Ok(Self {
@@ -1457,7 +1478,7 @@ impl ViewerApp {
                         ui.label("nothing has been checked yet");
                     }
                     Some((report, (landed, _))) => {
-                        if report.findings.is_empty() {
+                        if report.findings.is_empty() && report.pending.is_empty() {
                             ui.label("checks: no findings");
                         }
                         for row in frame::check_rows(report, landed) {
@@ -1481,6 +1502,15 @@ impl ViewerApp {
                                     ops.push(SessionOp::Select(select));
                                 }
                             }
+                        }
+                        if let Some(line) = frame::pending_line(report) {
+                            ui.separator();
+                            crate::widgets::message_toned(
+                                ui,
+                                line,
+                                &self.theme,
+                                frame::Tone::Advisory,
+                            );
                         }
                         if !report.skipped.is_empty() {
                             ui.separator();
@@ -1730,6 +1760,13 @@ impl ViewerApp {
                     ui.ctx().request_repaint();
                 }
                 None => {}
+            }
+            // The door's answer is a background result too; it changes
+            // the Checks window and its badge, not the picture, so a
+            // slower wake than a spinner's is enough.
+            if self.session.proving() {
+                ui.ctx()
+                    .request_repaint_after(std::time::Duration::from_millis(250));
             }
             // **The reads, one draw each.** Each is a function of
             // the typed value it reads — including its silence,

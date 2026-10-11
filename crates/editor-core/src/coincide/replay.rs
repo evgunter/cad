@@ -45,14 +45,14 @@ use geom_core::sym::deferred;
 use geom_core::{Band, Sym, SymBudget, SymRules, Tol};
 use topo::{Body, CarrierRelation, FaceKey};
 
-use super::{NamedCell, NamedCoincidence, Rung, Unreplayed};
-use crate::eval::{BooleanValue, EvalOptions, Evaluation, ProfileLift, ValuePayload};
+use super::{Canceled, NamedCell, NamedCoincidence, Recourse, Rung, Unreplayed};
+use crate::eval::{BooleanValue, EvalOptions, EvalOutcome, Evaluation, ProfileLift, ValuePayload};
 use crate::names::{EntityKey, EntityRef, Entry};
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
 
-/// **The tier's budget at the door's full pass**, with the drive's
-/// retry ladder: a margin whose form outgrows it is not proved, and
+/// **The door's one strength**: the tier's budget, with the drive's
+/// retry ladder. A margin whose form outgrows it is not proved, and
 /// fails fast. Measured in release: a filleted disc's two coaxial
 /// supports prove here and its two joints only from 1024 terms; a
 /// filleted box's eight mitres prove at no budget
@@ -67,6 +67,9 @@ const BUDGET: SymBudget = SymBudget {
 /// symbol.
 type Lane = Sym<f64>;
 
+/// Why a row is left unproven, and what would prove it.
+type Left = (Unreplayed, Recourse);
+
 /// **The symbolic rungs for each row of each node**: in the order
 /// given, a rung that proved the row or why the replay could not.
 /// `nodes` holds each deciding node with its rows in decision order,
@@ -75,7 +78,8 @@ pub(super) fn rungs(
     doc: &crate::doc::Doc<ProfileProgram>,
     nodes: &[(RecipeNodeId, &[NamedCoincidence])],
     tol: Tol,
-) -> Vec<Vec<Result<Rung, Unreplayed>>> {
+    cancel: &crate::CancelToken,
+) -> Result<Vec<Vec<Result<Rung, Left>>>, Canceled> {
     let opts = EvalOptions {
         symbols: true,
         profile_lift: ProfileLift::Guided,
@@ -86,8 +90,10 @@ pub(super) fn rungs(
         SymRules::shipped(),
         crate::drive::DEFAULT_SYM_RETRY,
         || {
-            let ev: Evaluation<Lane> =
-                crate::eval::evaluate(doc, None, &crate::CancelToken::new(), &opts, tol);
+            let ev: Evaluation<Lane> = crate::eval::evaluate(doc, None, cancel, &opts, tol);
+            if ev.outcome == EvalOutcome::Canceled {
+                return Err(Canceled);
+            }
             let band = Band::linear(tol).ok();
             nodes
                 .iter()
@@ -98,7 +104,7 @@ pub(super) fn rungs(
                             let ordinal = ordinals.entry(row.site).or_insert(0usize);
                             let at = *ordinal;
                             *ordinal += 1;
-                            prove_row(doc, &ev, node, row, at, band)
+                            prove_row(doc, &ev, node, row, at, band, cancel)
                         })
                         .collect()
                 })
@@ -109,7 +115,7 @@ pub(super) fn rungs(
 }
 
 /// The two symbolic rungs for one row, `at` its ordinal among its
-/// node's rows at its site.
+/// node's rows at its site. Canceled before it discharges a margin.
 fn prove_row(
     doc: &crate::doc::Doc<ProfileProgram>,
     ev: &Evaluation<Lane>,
@@ -117,26 +123,42 @@ fn prove_row(
     row: &NamedCoincidence,
     at: usize,
     band: Option<Band>,
-) -> Result<Rung, Unreplayed> {
+    cancel: &crate::CancelToken,
+) -> Result<Result<Rung, Left>, Canceled> {
+    let left = |why| Ok(Err((why, Recourse::OneConstruction)));
     if row.site == topo::DecisionSite::CensusAtRest {
-        return Err(Unreplayed::NotReplayed);
+        return left(Unreplayed::NotReplayed);
     }
-    let value = ev.value(node).ok_or_else(|| why_no_value(ev, node))?;
-    let replayed = value
+    let Some(value) = ev.value(node) else {
+        return left(why_no_value(ev, node));
+    };
+    let Some(replayed) = value
         .coincidences
         .iter()
         .filter(|r| r.site == row.site)
         .nth(at)
         .filter(|r| r.cells == row.cells && r.relation == row.relation)
-        .ok_or(Unreplayed::OtherDecisions)?;
+    else {
+        return left(Unreplayed::OtherDecisions);
+    };
+    if cancel.is_canceled() {
+        return Err(Canceled);
+    }
     if let Some(band) = band
         && let Some(how) = carrier_verdict(doc, ev, row, band)
     {
-        return Ok(Rung::CarrierVerdict(how));
+        return Ok(Ok(Rung::CarrierVerdict(how)));
     }
-    deferred::discharge(replayed.margin)
-        .map(Rung::MarginIdentity)
-        .ok_or(Unreplayed::Numeric)
+    if cancel.is_canceled() {
+        return Err(Canceled);
+    }
+    Ok(match deferred::discharge(replayed.margin) {
+        Some(how) => Ok(Rung::MarginIdentity(how)),
+        None if deferred::keeps_an_opaque_atom(replayed.margin) => {
+            Err((Unreplayed::Numeric, Recourse::Assert))
+        }
+        None => Err((Unreplayed::Numeric, Recourse::OneConstruction)),
+    })
 }
 
 /// Why the replay holds no value at `node`: a part it does not resolve
