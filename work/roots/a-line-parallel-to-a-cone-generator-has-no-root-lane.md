@@ -47,3 +47,18 @@ through the sector face's apex. Pinned as a refusal in
 (`a_tangent_plane_and_a_sector_on_the_cone_face_refuse`): a cone sector
 lying on a cone face is a coincidence D10 holds, so the row stays a
 refusal whatever this item lands.
+
+## 2026-10-11, a prism edge along a cone's ruling (FLUSH)
+
+A square prism whose corner edge is a ruling of a frustum's wall (the
+frustum about `y`, radius 1 at `y = 0` to `0.5` at `y = 2`, the edge at
+azimuth `0.7` between `y = 0.5` and `1.5`, the square opening into the
+cone) refuses `CurvedPierceUnsupported` on that edge in all six ops
+and orders, before any record is carried: the second pose above,
+reached by a finished planar operand. Pinned as a refusal in
+`sweep/tests/a_ruling_through_a_box_corner_edge.rs`
+(`a_prism_edge_along_a_cone_ruling_refuses_at_the_crossing_layer`).
+The cylinder's twin of the pose builds, and once this lane answers
+the cone's, the cone's owes what that file's cylinder test checks:
+the edge's two ends recorded as v-f rests on the piece of the wall
+that holds them (`boolean::ops::Descendants::holder`).

@@ -22,7 +22,7 @@ use sweep::test_support::{cube, finished};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::{self, SurfaceKindSet};
-use topo::{Body, BooleanDeclarations, EdgeKey};
+use topo::{Body, EdgeKey};
 
 const DIE_L: f64 = 1.0;
 const DIE_R: f64 = 0.12;
@@ -69,7 +69,7 @@ fn subtract(a: &Body<f64>, b: &Body<f64>) -> Result<Body<f64>, topo::BooleanErro
         BooleanOp::Subtract,
         &finished("operand A", a.clone(), Tol::witness()),
         &finished("operand B", b.clone(), Tol::witness()),
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )?;
@@ -366,7 +366,7 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
             BooleanOp::Union,
             &finished("the first pip ball", b1, Tol::witness()),
             &finished("the second pip ball", b2, Tol::witness()),
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         )
@@ -434,7 +434,7 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
             BooleanOp::Union,
             &finished("the first pip ball", b1, Tol::witness()),
             &finished("the second pip ball", b2, Tol::witness()),
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         )

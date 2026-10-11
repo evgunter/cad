@@ -66,7 +66,7 @@
 //! `classify_dihedral` pattern.
 
 use geom_core::k_stats::{Magnitude, NonzeroSign};
-use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Real, Sign, Vec3};
 
 /// Which rung of a reading metered over a lever arm escalated: the arm
 /// gate or the reading itself. [`enters_material`],
@@ -313,14 +313,33 @@ pub fn enters_material<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<EntersMaterial, LeverEscalation> {
+    enters_material_reported(dir, outward_normal, arm, band).map(|(verdict, _)| verdict)
+}
+
+/// [`enters_material`], keeping the reporting margin the verdict was
+/// decided on: for a `Tangent` a later refusal quotes.
+///
+/// # Errors
+///
+/// As [`enters_material`].
+pub fn enters_material_reported<T: Decide>(
+    dir: Vec3<T>,
+    outward_normal: OutwardNormal<T>,
+    arm: T,
+    band: Band,
+) -> Result<(EntersMaterial, MarginDiag), LeverEscalation> {
     let margin = sense_margin(dir, outward_normal, arm, band)?;
-    Ok(
-        match decide("enters_material", margin, band).map_err(LeverEscalation::reading)? {
+    let Decided { sign, margin } =
+        crate::dihedral::decide_reported("enters_material", margin, band)
+            .map_err(LeverEscalation::reading)?;
+    Ok((
+        match sign {
             Sign::Negative => EntersMaterial::Enters,
             Sign::Positive => EntersMaterial::Exits,
             Sign::Zero => EntersMaterial::Tangent,
         },
-    )
+        margin,
+    ))
 }
 
 /// How a face's outward normal stands against the line of a direction,
@@ -494,7 +513,9 @@ pub fn enters_material_order2<T: Decide>(
         .map_err(LeverEscalation::arm)?;
     let margin = Margin::sagitta(deriv2.dot(reference_normal.vec()) / speed_sq, arm);
     Ok(
-        match decide("tangent_sector_order2", margin, band).map_err(LeverEscalation::reading)? {
+        match crate::dihedral::decide("tangent_sector_order2", margin, band)
+            .map_err(LeverEscalation::reading)?
+        {
             Sign::Negative => EntersMaterial::Enters,
             Sign::Positive => EntersMaterial::Exits,
             Sign::Zero => EntersMaterial::Tangent,
@@ -595,7 +616,7 @@ pub fn bends_into_material<T: Decide>(
     let mean_into = trace / g_norm * fold / T::from_f64(2.0);
     let margin = Margin::sagitta(mean_into, arm);
     Ok(
-        match decide("wall_bend_order2", margin, band)
+        match crate::dihedral::decide("wall_bend_order2", margin, band)
             .map_err(|d| WallBendError::Lever(LeverEscalation::reading(d)))?
         {
             Sign::Positive => WallBend::IntoMaterial,
@@ -603,16 +624,6 @@ pub fn bends_into_material<T: Decide>(
             Sign::Zero => WallBend::Flat,
         },
     )
-}
-
-/// The crate-local funnel wrapper (the `geom-brep` pattern: one
-/// greppable `sign_within` door per crate, unified recorder — M2 PR 7).
-fn decide<T: Decide>(
-    name: &'static str,
-    margin: Margin<T>,
-    band: Band,
-) -> Result<Sign, Indeterminate> {
-    geom_core::k_stats::decide(name, margin, band)
 }
 
 #[cfg(test)]

@@ -12,7 +12,7 @@ use geom_core::Tol;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{brick, finished};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{AtRestBody, Body, BooleanDeclarations};
+use topo::{AtRestBody, Body};
 
 /// The unit-side box with its low corner at `x0` on the x axis — the
 /// `x0 + l` arithmetic done once, so a second placement cannot get it
@@ -65,7 +65,7 @@ fn x4_disjoint_boolean_over_a_filleted_body_builds_past_the_plane_touches() {
             op,
             x,
             y,
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         )
@@ -111,7 +111,7 @@ fn x4b_a_filleted_body_assembles_with_an_operand_off_its_carriers() {
         BooleanOp::Union,
         &a,
         &far,
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     );

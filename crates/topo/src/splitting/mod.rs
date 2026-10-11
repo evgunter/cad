@@ -105,7 +105,7 @@ pub use containment::{
     Escalation, LoopContainment, LoopDecision, OffPlane, OffPlaneCause, PointInLoopError,
     Uncrossable, UncrossableCarrier, point_in_loop,
 };
-pub use finish::{SplitFinishError, SplitNaming, SplitPart, SplitResult};
+pub use finish::{SplitContacts, SplitFinishError, SplitNaming, SplitPart, SplitResult};
 pub use neighborhood::classify_neighborhood;
 pub use section::{
     Section, SectionEdge, SectionError, SectionPolygon, SectionRegion, plane_section,
@@ -262,6 +262,9 @@ pub struct SplitReduction<T: Real> {
     /// The pinches the ON verdicts decided, in ON-vertex order, keyed in
     /// the operand ([`crate::coincidence`]).
     pub coincidences: Vec<crate::Coincidence>,
+    /// Each piece a crossing split minted, `(new edge, divided-from
+    /// edge)` in mint order.
+    pub edge_pieces: Vec<(EdgeKey, EdgeKey)>,
 }
 
 /// **A knife edge the split would mint and cannot declare.** The plane
@@ -864,7 +867,8 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     classify::carrier_gate(&body, plane, band)?;
     let (mut sides, mut on_vertices, on_margins) =
         classify::classify_vertices_margined(&body, plane, band)?;
-    classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices, tol)?;
+    let edge_pieces =
+        classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices, tol)?;
 
     let mut null_edges = Vec::new();
     let mut coincidences = Vec::new();
@@ -914,6 +918,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
         on_vertices,
         null_edges,
         coincidences,
+        edge_pieces,
     })
 }
 

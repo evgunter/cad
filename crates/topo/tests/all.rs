@@ -89,6 +89,8 @@ mod carried_citations_past_index_zero;
 mod cell_pair_records;
 #[path = "census_g2_carrier.rs"]
 mod census_g2_carrier;
+#[path = "census_records_what_it_decides.rs"]
+mod census_records_what_it_decides;
 #[path = "cone_apex_cap_body.rs"]
 mod cone_apex_cap_body;
 #[path = "cone_apex_sector_joints.rs"]
@@ -291,8 +293,6 @@ mod rigid_map_near_eps_plane_nurbs;
 mod rim_dim_boolean_twins;
 #[path = "rim_dim_review_probes.rs"]
 mod rim_dim_review_probes;
-#[path = "seat3_flush_detector.rs"]
-mod seat3_flush_detector;
 #[path = "shell_operand_gate.rs"]
 mod shell_operand_gate;
 #[path = "shell_roles.rs"]
@@ -317,6 +317,8 @@ mod split_gate_per_face;
 mod split_operand_gate;
 #[path = "stated_general_image_mint.rs"]
 mod stated_general_image_mint;
+#[path = "surgery_carries_records.rs"]
+mod surgery_carries_records;
 #[path = "trim_3_chart_bound.rs"]
 mod trim_3_chart_bound;
 #[path = "union_flush_onto_edge_contact.rs"]
@@ -325,6 +327,10 @@ mod union_flush_onto_edge_contact;
 mod vertex_on_edge_records;
 #[path = "void_door.rs"]
 mod void_door;
+#[path = "wedge_flush_on_a_block_top.rs"]
+mod wedge_flush_on_a_block_top;
+#[path = "wedge_flush_review_probes.rs"]
+mod wedge_flush_review_probes;
 
 test_utils::every_suite_file_is_aggregated!();
 #[path = "f7d_delta_probes.rs"]
@@ -374,12 +380,16 @@ mod a_whole_villarceau_circle_bounds_a_torus_face;
 mod certified_enclosure_impl_census;
 #[path = "cleave_mint_doors.rs"]
 mod cleave_mint_doors;
-#[path = "door_backstop_settled_residue.rs"]
-mod door_backstop_settled_residue;
+#[path = "divided_cell_carry.rs"]
+mod divided_cell_carry;
 #[path = "holes_meeting_at_a_vertex.rs"]
 mod holes_meeting_at_a_vertex;
 #[path = "pierce_strut_at_a_pinch.rs"]
 mod pierce_strut_at_a_pinch;
+#[path = "review_4694_carry_probes.rs"]
+mod review_4694_carry_probes;
+#[path = "review_4730_divided_carry_probes.rs"]
+mod review_4730_divided_carry_probes;
 #[path = "review_cleave_mint_doors.rs"]
 mod review_cleave_mint_doors;
 #[path = "spline_reanchor_rows.rs"]
@@ -388,5 +398,7 @@ mod spline_reanchor_rows;
 mod split_tangent_edge;
 #[path = "split_through_an_apex.rs"]
 mod split_through_an_apex;
+#[path = "tangent_touch_charges_both_sags.rs"]
+mod tangent_touch_charges_both_sags;
 #[path = "three_solids_on_one_line.rs"]
 mod three_solids_on_one_line;

@@ -82,7 +82,7 @@ use geom_core::{
     Vec3,
 };
 
-use crate::certify::{CERT_SAMPLES, CertCheck, recourse, schedule_fraction, schedule_param};
+use crate::certify::{CERT_SAMPLES, CertCheck, recourse, schedule_fraction};
 use crate::recourse::{ReadAt, Refused, RefusedArm};
 use crate::ssi::enclose::CellGrid;
 use crate::ssi::{
@@ -1283,12 +1283,20 @@ where
     // exactly, its assigned ends included: the image is re-expressed
     // on `[t0, t1]` exactly (`on_carrier_domain`), so the foot its last
     // knot carries is the projection at `t1` itself.
+    // The fit's parameters are the schedule's `f64` fractions (the
+    // image's knots are the fit's); the carrier is read at the same
+    // station, its ends held (`held_station`).
+    let (h0, h1) = carrier.knot_values().domain();
     let mut uv = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
     let mut params = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
     for i in 0..PXN_FIT_SAMPLES {
         let frac = schedule_fraction(i, PXN_FIT_SAMPLES);
-        let t = schedule_param(t0, t1, i, PXN_FIT_SAMPLES);
-        let p = carrier.eval(T::from_f64(t));
+        let p = carrier.eval(crate::certify::held_station(
+            (t0, t1),
+            (h0, h1),
+            i,
+            PXN_FIT_SAMPLES,
+        ));
         let proj = wall
             .project(p)
             .map_err(|e| PlaneNurbsRefusal::FootPointInconclusive {
@@ -1454,9 +1462,11 @@ fn normal_angle_sine<T: Real>(plane_normal: Vec3<T>, wall_normal: Vec3<T>) -> T 
 /// are the interpolation's unit weights, a constant of its form, and
 /// enter through `from_f64`. The rescale is the only step that can
 /// refuse (the lift carries a validated curve's net verbatim), so the
-/// `Result` is the knot door's alone. (The domain ends are the
-/// carrier's stored `f64` domain, entered with the knots;
-/// `stored-carrier-data`, owed to this item's unit 3.)
+/// `Result` is the knot door's alone. The image's end knots are the
+/// carrier's `f64` domain ends and enter with the rest of the knots as
+/// unknowns: sound, but not the carrier's held ends, so an identity
+/// between the image's end and the carrier's does not discharge
+/// (`work/intent/an-edges-parameter-ends-enter-a-carrier-piece-as-constants.md`).
 ///
 /// The knot map's own rounding is not a soundness question — the image
 /// is evidence that limb 2 bounds, not a certified quantity (module

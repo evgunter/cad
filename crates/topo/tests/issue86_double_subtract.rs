@@ -22,12 +22,11 @@
 
 use crate::common;
 
-use common::{brick, finished, flush_declarations, geometric_cube};
+use common::{brick, finished, geometric_cube};
 use geom_core::Decide;
 use geom_core::Tol;
 use topo::{
-    Body, BooleanBody, BooleanResult, subtract_with, validate, validate_closed,
-    validate_pseudomanifold,
+    Body, BooleanBody, BooleanResult, subtract, validate, validate_closed, validate_pseudomanifold,
 };
 
 fn double_subtract_crossing_slots<T: Decide + geom_core::Bounds + topo::AtRestPolicy>()
@@ -35,23 +34,15 @@ fn double_subtract_crossing_slots<T: Decide + geom_core::Bounds + topo::AtRestPo
     let block = |what, x, y, z| finished(what, brick::<T>(x, y, z, Tol::witness()), Tol::witness());
     let a = block("plate", (0.0, 3.0), (0.0, 3.0), (0.0, 1.0));
     let b1 = block("slot 1", (1.0, 2.0), (-1.0, 4.0), (0.5, 1.5));
-    let BooleanResult::Body(s1) = subtract_with(
-        &a,
-        &b1,
-        &flush_declarations(&a, &b1, Tol::witness()),
-        Tol::witness(),
-    )
-    .expect("first subtract succeeds") else {
+    let BooleanResult::Body(s1) =
+        subtract(&a, &b1, Tol::witness()).expect("first subtract succeeds")
+    else {
         panic!("first subtract yields a body");
     };
     let b2 = block("slot 2", (-1.0, 4.0), (1.0, 2.0), (0.5, 1.5));
-    let BooleanResult::Body(s2) = subtract_with(
-        &s1.body,
-        &b2,
-        &flush_declarations(&s1.body, &b2, Tol::witness()),
-        Tol::witness(),
-    )
-    .expect("second subtract succeeds (issue #86)") else {
+    let BooleanResult::Body(s2) =
+        subtract(&s1.body, &b2, Tol::witness()).expect("second subtract succeeds (issue #86)")
+    else {
         panic!("second subtract yields a body");
     };
     s2

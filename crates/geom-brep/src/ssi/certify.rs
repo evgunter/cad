@@ -532,11 +532,16 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         })
     };
     // ---- limb 1: the fixed schedule ----
+    // The schedule on the carrier's held domain (its ends held, its
+    // interior stations chosen points); the value channel names a
+    // refused sample.
     let (t0, t1) = carrier.domain();
+    let (h0, h1) = carrier.knot_values().domain();
     let mut worst = T::zero();
     for i in 0..CERT_SAMPLES {
         let t = sample_param(t0, t1, i);
-        let r = crate::implicit::implicit_residual(surface, carrier.eval(T::from_f64(t))).abs();
+        let station = crate::certify::held_station((t0, t1), (h0, h1), i, CERT_SAMPLES);
+        let r = crate::implicit::implicit_residual(surface, carrier.eval(station)).abs();
         // `max`, not a `>` branch: the running worst is a scalar-typed
         // quantity now, and generic evaluation code does not compare.
         worst = worst.max(r);
@@ -633,17 +638,22 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         })
     };
     // ---- limb 1: the fixed schedule, through certified foot points --
+    // The schedule on the carrier's held domain (its ends held, its
+    // interior stations chosen points; the pcurve shares the carrier's
+    // parameter); the value channel names a refused sample.
     let (t0, t1) = carrier.domain();
+    let (h0, h1) = carrier.knot_values().domain();
     let mut worst = T::zero();
     for i in 0..CERT_SAMPLES {
         let t = sample_param(t0, t1, i);
-        let c = carrier.eval(T::from_f64(t));
+        let th = crate::certify::held_station((t0, t1), (h0, h1), i, CERT_SAMPLES);
+        let c = carrier.eval(th);
         // Warm-start from the trace's own pcurve: the projection is a
         // *check*, and starting it where the trace says the foot is
         // makes a disagreement visible rather than hidden by a global
         // seeding sweep landing somewhere else. The seed is a
         // parameter — `f64` structure on both sides of the M6-2 lift.
-        let p = pcurve.eval(T::from_f64(t));
+        let p = pcurve.eval(th);
         let proj = surface
             .project_from_seed(c, p.x.lo(), p.y.lo())
             .map_err(|e| SsiError::FootPointInconclusive {
@@ -1435,8 +1445,8 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
     // bracket's upper end as the chart lane's is: the graph margin is
     // certified for whatever direction it is handed, so the read only
     // steers which determinant is asked.
-    let tangent = |t: f64| -> Option<[f64; 4]> {
-        let (da, db) = (pa.deriv(T::from_f64(t)), pb.deriv(T::from_f64(t)));
+    let tangent = |t: T| -> Option<[f64; 4]> {
+        let (da, db) = (pa.deriv(t), pb.deriv(t));
         let raw = [da.x.hi(), da.y.hi(), db.x.hi(), db.y.hi()];
         let scaled: [f64; 4] = core::array::from_fn(|k| raw[k] * speeds[k]);
         let n = scaled.iter().map(|v| v.powi(2)).sum::<f64>().sqrt();
@@ -1445,20 +1455,22 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
     let mut worst = f64::INFINITY;
     let mut boxes = Vec::with_capacity(chain.len());
     for (x, mid) in chain {
-        let e = tangent(mid)?;
+        // A chain box's midpoint steers which determinant is asked: a
+        // point the chain chose, entered as the constant it is.
+        let e = tangent(T::from_f64(mid))?;
         worst = worst.min(zero_free_lower_bound(graph_margin(&pair, x, e)));
         boxes.push(x);
     }
     // An end's state is a point the one-arc proof looks for inside an
     // end box `ε/8` wide on each axis: on the `f64` lane the bracket is
     // the point, and on a wider one any point of it is as good a read.
-    let state = |t: f64| {
-        let (p, q) = (pa.eval(T::from_f64(t)), pb.eval(T::from_f64(t)));
+    let state = |t: T| {
+        let (p, q) = (pa.eval(t), pb.eval(t));
         [p.x.lo(), p.y.lo(), q.x.lo(), q.y.lo()]
     };
     // Each end's dominant axis is read off its tangent; an unusable one
     // refuses the rung, as one inside the chain does.
-    let (t0, t1) = pa.domain();
+    let (t0, t1) = pa.knot_values().domain();
     let [Some(e0), Some(e1)] = [t0, t1].map(tangent) else {
         return None;
     };
@@ -1917,9 +1929,9 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     // the f64 lane a point, not an enclosure of the exact end, which the
     // end checks then read within ε of
     // (`work/ssiarith/limb3-carrier-ends-read-at-f64-points.md`).
-    let (t0, t1) = carrier.domain();
+    let (t0, t1) = carrier.knot_values().domain();
     let ends = [t0, t1].map(|t| {
-        let p = carrier.eval(T::from_f64(t));
+        let p = carrier.eval(t);
         Box3 {
             x: Interval::from_certified(p.x),
             y: Interval::from_certified(p.y),

@@ -155,7 +155,7 @@ impl<T: geom_core::Real> PairExtent<T> {
 /// [`PairExtent`] of `fa` on `a` and `fb` on `b`. Read on the operands
 /// at rest: mid-operation, a face whose boundary carries null
 /// scaffolding has no box to read, and the sites there take a declared
-/// pair's extent from [`super::DeclaredPairs::consumed`].
+/// pair's extent from [`super::GluedPairs::consumed`].
 ///
 /// # Errors
 ///
