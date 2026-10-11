@@ -2461,9 +2461,9 @@ mod tests {
             "knots must be carried verbatim"
         );
         assert_eq!(
-            lifted.weights(),
-            source.weights(),
-            "weights must be carried verbatim"
+            lifted.weight_channel(),
+            source.weight_channel(),
+            "the weights\' value channel must be carried verbatim"
         );
         for t in knot_and_span_params(&c) {
             let p = cd.eval(Dual::variable(t));
@@ -2812,9 +2812,9 @@ mod tests {
                 "knots must be carried verbatim"
             );
             assert_eq!(
-                lifted.weights(),
-                source.weights(),
-                "weights must be carried verbatim"
+                lifted.weight_channel(),
+                source.weight_channel(),
+                "the weights\' value channel must be carried verbatim"
             );
             for t in super::knot_and_span_params(&c) {
                 let p = ci.eval(Interval::from_f64(t));

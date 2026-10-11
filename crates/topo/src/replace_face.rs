@@ -1228,11 +1228,9 @@ pub(crate) fn translate_curve<T: Real>(
             minor_radius: *minor_radius,
             offset: *offset,
         },
-        Curve3::Nurbs(n) => Curve3::Nurbs(Arc::new(NurbsCurve3::new(
-            n.knots().clone(),
-            n.control().iter().map(|p| *p + delta).collect(),
-            n.weights().to_vec(),
-        )?)),
+        // A translation is affine: the net's image, knots and weights
+        // as they are held.
+        Curve3::Nurbs(n) => Curve3::Nurbs(Arc::new(n.map_points(|p| p + delta))),
     })
 }
 
@@ -1256,11 +1254,9 @@ fn homothety<T: Real>(
             radius: *radius * k,
             u_ref: *u_ref,
         },
-        Curve3::Nurbs(n) => Curve3::Nurbs(Arc::new(NurbsCurve3::new(
-            n.knots().clone(),
-            n.control().iter().map(|p| map(*p)).collect(),
-            n.weights().to_vec(),
-        )?)),
+        // A homothety is affine: the net's image, knots and weights as
+        // they are held.
+        Curve3::Nurbs(n) => Curve3::Nurbs(Arc::new(n.map_points(map))),
         // A line, an ellipse or a spiric does not lie on a sphere, so
         // a carrier of any of those kinds is not a curve this map was
         // derived for.

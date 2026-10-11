@@ -37,7 +37,7 @@
 use geom::NurbsCurve3;
 use geom::NurbsSurface;
 use geom_core::k_stats::decide;
-use geom_core::spline::basis::basis_funs;
+use geom_core::spline::basis::basis_funs_in;
 use geom_core::spline::{SpanLocate, SplineError};
 use geom_core::{Band, Decide, Indeterminate, Margin, NO_DECLARATION_RECOURSE, Point3, Real, Sign};
 
@@ -53,7 +53,7 @@ use crate::ssi::ChartAxis;
 /// [`SplineError::NonFiniteWeight`] for a bad weight on the extracted
 /// row (its `index` counts along the row) — unreachable for a surface
 /// `NurbsSurface::new` built, surfaced rather than swallowed (D4 ¶2).
-pub fn boundary_iso_u<T: Real>(
+pub fn boundary_iso_u<T: SpanLocate>(
     s: &NurbsSurface<T>,
     end: bool,
 ) -> Result<NurbsCurve3<T>, SplineError> {
@@ -61,7 +61,7 @@ pub fn boundary_iso_u<T: Real>(
     let base = if end { (nu - 1) * nv } else { 0 };
     let control = s.control()[base..base + nv].to_vec();
     let weights = s.weights()[base..base + nv].to_vec();
-    NurbsCurve3::new(s.knots_v().clone(), control, weights)
+    NurbsCurve3::new(s.knot_values_v().clone(), control, weights)
 }
 
 /// `column` run back: its knots reflected through 0
@@ -77,9 +77,9 @@ pub fn boundary_iso_u<T: Real>(
 /// on a four-section loft's column), and a curve on rounded knots is
 /// not the column run back.
 #[must_use]
-pub fn reversed_column<T: Real>(column: &NurbsCurve3<T>) -> NurbsCurve3<T> {
+pub fn reversed_column<T: SpanLocate>(column: &NurbsCurve3<T>) -> NurbsCurve3<T> {
     NurbsCurve3::new(
-        column.knots().negated(),
+        column.knot_values().negated(),
         column.control().iter().rev().copied().collect(),
         column.weights().iter().rev().copied().collect(),
     )
@@ -93,7 +93,7 @@ pub fn reversed_column<T: Real>(column: &NurbsCurve3<T>) -> NurbsCurve3<T> {
 /// # Errors
 ///
 /// [`SplineError`], as [`boundary_iso_u`]'s.
-pub fn boundary_iso_v<T: Real>(
+pub fn boundary_iso_v<T: SpanLocate>(
     s: &NurbsSurface<T>,
     end: bool,
 ) -> Result<NurbsCurve3<T>, SplineError> {
@@ -101,7 +101,7 @@ pub fn boundary_iso_v<T: Real>(
     let offset = if end { nv - 1 } else { 0 };
     let control = (0..nu).map(|iu| s.control()[iu * nv + offset]).collect();
     let weights = (0..nu).map(|iu| s.weights()[iu * nv + offset]).collect();
-    NurbsCurve3::new(s.knots_u().clone(), control, weights)
+    NurbsCurve3::new(s.knot_values_u().clone(), control, weights)
 }
 
 /// **The interior iso-curve `u = u*` of a clamped surface, by de Boor
@@ -156,37 +156,41 @@ pub fn interior_iso_u<T: SpanLocate>(
     u: T,
 ) -> Result<NurbsCurve3<T>, IsoRowError<T>> {
     let (nu, nv) = s.control_counts();
+    // The separability tests read the weights' value channel, bitwise
+    // (structure decisions); the factors and the row's weights are the
+    // held weights.
+    let c = s.weight_channel();
     let w = s.weights();
-    let along_u_constant = (0..nu).all(|i| (0..nv).all(|j| w[i * nv + j] == w[j]));
-    let along_v_constant = (0..nu).all(|i| (0..nv).all(|j| w[i * nv + j] == w[i * nv]));
+    let along_u_constant = (0..nu).all(|i| (0..nv).all(|j| c[i * nv + j] == c[j]));
+    let along_v_constant = (0..nu).all(|i| (0..nv).all(|j| c[i * nv + j] == c[i * nv]));
     // The per-row factor `ωᵢ` of `λᵢ ∝ Nᵢ(u*)·ωᵢ`, and the weights the
     // row is wrapped with (module docs: the two separable cases).
-    let (omega, weights): (Vec<f64>, Vec<f64>) = if along_u_constant {
-        (vec![1.0; nu], w[..nv].to_vec())
+    let (omega, weights): (Vec<T>, Vec<T>) = if along_u_constant {
+        (vec![T::one(); nu], w[..nv].to_vec())
     } else if along_v_constant {
-        ((0..nu).map(|i| w[i * nv]).collect(), vec![1.0; nv])
+        ((0..nu).map(|i| w[i * nv]).collect(), vec![T::one(); nv])
     } else {
         return Err(IsoRowError::WeightsNotSeparable {
             control_counts: (nu, nv),
         });
     };
-    let ku = s.knots_u();
-    let Some(spans) = u.locate_spans(ku) else {
+    let ku = s.knot_values_u();
+    let Some((first, last)) = ku.locate(u) else {
         // A poison `u*` locates no span, and the row is poison in every
         // channel `u*` carries.
         let control = vec![Point3::<T>::origin().map(|_| geom_core::spline::poison_from(u)); nv];
-        return NurbsCurve3::new(s.knots_v().clone(), control, weights)
+        return NurbsCurve3::new(s.knot_values_v().clone(), control, weights)
             .map_err(|source| IsoRowError::Structure { source });
     };
     let mut hulled: Option<Vec<Point3<T>>> = None;
-    for index in spans.first.index()..=spans.last.index() {
+    for index in first.span().index()..=last.span().index() {
         // The locator's range may cross an EMPTY span (interior knot
         // multiplicity); the evaluators skip those the same way.
         let Some(span) = ku.span(index) else {
             continue;
         };
-        let n = basis_funs(span, u);
-        let base = span.first_control();
+        let n = basis_funs_in(span, u);
+        let base = span.span().first_control();
         // `λᵢ = Nᵢ·ωᵢ / Σₖ Nₖ·ωₖ`, the denominator once per span (it
         // does not depend on `j`). In case (a) `ωᵢ = 1` and the
         // denominator is the partition of unity, identically 1 in ℝ:
@@ -196,7 +200,7 @@ pub fn interior_iso_u<T: SpanLocate>(
         let lam: Vec<T> = n
             .iter()
             .enumerate()
-            .map(|(r, nr)| *nr * T::from_f64(omega[base + r]))
+            .map(|(r, nr)| *nr * omega[base + r])
             .collect();
         let den = lam.iter().fold(T::zero(), |acc, l| acc + *l);
         let row: Vec<Point3<T>> = (0..nv)
@@ -235,7 +239,7 @@ pub fn interior_iso_u<T: SpanLocate>(
     let Some(control) = hulled else {
         unreachable!("locate_spans returned no nonempty span")
     };
-    NurbsCurve3::new(s.knots_v().clone(), control, weights)
+    NurbsCurve3::new(s.knot_values_v().clone(), control, weights)
         .map_err(|source| IsoRowError::Structure { source })
 }
 

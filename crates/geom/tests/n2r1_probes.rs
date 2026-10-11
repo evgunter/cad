@@ -15,6 +15,7 @@
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
+use geom_core::spline::Knots;
 use geom_core::{Dual, Point2, Point3, Real};
 
 fn knots5() -> KnotVector {
@@ -22,7 +23,7 @@ fn knots5() -> KnotVector {
 }
 
 fn curve_from(control: Vec<Point3<f64>>) -> NurbsCurve3<f64> {
-    NurbsCurve3::new(knots5(), control, vec![1.0; 5]).unwrap()
+    NurbsCurve3::new(Knots::constant(knots5()), control, vec![Real::one(); 5]).unwrap()
 }
 
 /// Poison in y only, z only, and in two channels — every one of these
@@ -81,7 +82,12 @@ fn probe_dual_poison_is_the_value_channel_in_both_directions() {
             Point3::new(d(f64::from(i)), d(1.0), d(0.0))
         })
         .collect();
-    let c = NurbsCurve3::new(knots5(), poisoned_deriv, vec![1.0; 5]).unwrap();
+    let c = NurbsCurve3::new(
+        Knots::constant(knots5()),
+        poisoned_deriv,
+        vec![Real::one(); 5],
+    )
+    .unwrap();
     assert!(
         !c.is_placeholder(),
         "a poisoned tangent is not a poisoned number (D8)"
@@ -96,7 +102,12 @@ fn probe_dual_poison_is_the_value_channel_in_both_directions() {
             Point3::new(d, d, d)
         })
         .collect();
-    let c2 = NurbsCurve3::new(knots5(), poisoned_value, vec![1.0; 5]).unwrap();
+    let c2 = NurbsCurve3::new(
+        Knots::constant(knots5()),
+        poisoned_value,
+        vec![Real::one(); 5],
+    )
+    .unwrap();
     assert!(
         c2.is_placeholder(),
         "value-channel poison in every channel reads placeholder at Dual — \
@@ -120,7 +131,7 @@ fn probe_the_two_channel_payload_has_no_placeholder_state() {
     let ctl: Vec<Point2<f64>> = (0..5)
         .map(|i| Point2::new(f64::NAN, f64::from(i)))
         .collect();
-    let _c = NurbsCurve2::new(knots5(), ctl, vec![1.0; 5]).unwrap();
+    let _c = NurbsCurve2::new(Knots::constant(knots5()), ctl, vec![Real::one(); 5]).unwrap();
 }
 
 /// The enum doors carry the answer for the 3-D curve and the surface —
@@ -136,12 +147,12 @@ fn probe_enum_doors_agree_on_every_partial_shape() {
     assert!(matches!(&e, Curve3::Nurbs(n) if !n.is_placeholder()));
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let s = NurbsSurface::new(
-        kv.clone(),
-        kv,
+        Knots::constant(kv.clone()),
+        Knots::constant(kv),
         (0..4)
             .map(|i| Point3::new(f64::from(i), 1.0, f64::NAN))
             .collect(),
-        vec![1.0; 4],
+        vec![Real::one(); 4],
     )
     .unwrap();
     let se = Surface::Nurbs(std::sync::Arc::new(s));
@@ -180,7 +191,7 @@ fn probe_wide_implies_narrow_over_every_channel_pattern() {
 }
 
 mod interval {
-    use super::{Point3, knots5};
+    use super::{Knots, Point3, knots5};
     use geom::NurbsCurve3;
     use geom_core::{Interval, Real};
 
@@ -203,9 +214,9 @@ mod interval {
 
         let net = |c: Interval| {
             NurbsCurve3::new(
-                knots5(),
+                Knots::constant(knots5()),
                 (0..5).map(|_| Point3::new(c, c, c)).collect(),
-                vec![1.0; 5],
+                vec![Real::one(); 5],
             )
             .unwrap()
         };
@@ -222,7 +233,7 @@ mod interval {
 
         // One channel empty, the others point brackets: described.
         let mixed = NurbsCurve3::new(
-            knots5(),
+            Knots::constant(knots5()),
             (0..5)
                 .map(|i| {
                     Point3::new(
@@ -232,7 +243,7 @@ mod interval {
                     )
                 })
                 .collect(),
-            vec![1.0; 5],
+            vec![Real::one(); 5],
         )
         .unwrap();
         assert!(!mixed.is_placeholder());

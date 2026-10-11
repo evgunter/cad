@@ -332,7 +332,7 @@ fn normal_in_plane_along<T: Decide>(
         return false;
     };
     let row = |r: usize| r * nv..(r + 1) * nv;
-    let (ctl, w) = (net.control(), net.weights());
+    let (ctl, w) = (net.control(), net.weight_channel());
     let mut sense = None;
     ctl[row(first)]
         .iter()
@@ -365,7 +365,7 @@ fn normal_in_plane_along<T: Decide>(
 fn translates_along<T: Decide>(wall: &NurbsSurface<T>, n: Vec3<T>, reach: T, band: Band) -> bool {
     let zero = |name, value| held_zero(name, value, band);
     let (nu, nv) = wall.control_counts();
-    let (ctl, w) = (wall.control(), wall.weights());
+    let (ctl, w) = (wall.control(), wall.weight_channel());
     // `at(i, j)` reads the net with `j` the axis the translation runs.
     let along = |at: &dyn Fn(usize, usize) -> usize, (ni, nj): (usize, usize)| -> bool {
         for i in 0..ni {

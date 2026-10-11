@@ -41,7 +41,8 @@
 use core::num::NonZeroUsize;
 use geom_core::spline::ProjectiveScalar;
 use geom_core::spline::{
-    self, KnotAlgebraError, KnotMirrorError, KnotVector, Span, SpanLocate, SplineError,
+    self, KnotAlgebraError, KnotMirrorError, KnotSpan, KnotVector, Knots, Span, SpanLocate,
+    SplineError,
 };
 use geom_core::{Point3, Real, Vec3};
 
@@ -151,8 +152,8 @@ pub struct SurfaceJet3<T: Real> {
 #[derive(Clone, Copy)]
 pub struct SurfaceWindow<'a, T: Real> {
     surface: &'a NurbsSurface<T>,
-    span_u: Span<'a>,
-    span_v: Span<'a>,
+    span_u: KnotSpan<'a, T>,
+    span_v: KnotSpan<'a, T>,
     base: usize,
     stride: usize,
 }
@@ -183,8 +184,8 @@ impl<T: Real> core::fmt::Debug for SurfaceWindow<'_, T> {
         } = self;
         f.debug_struct("SurfaceWindow")
             .field("surface", &core::ptr::from_ref(*surface))
-            .field("span_u", span_u)
-            .field("span_v", span_v)
+            .field("span_u", &span_u.span())
+            .field("span_v", &span_v.span())
             .field("base", base)
             .field("stride", stride)
             .finish()
@@ -208,8 +209,8 @@ impl<T: Real> PartialEq for SurfaceWindow<'_, T> {
             stride: other_stride,
         } = other;
         core::ptr::eq(*surface, *other_surface)
-            && span_u == other_span_u
-            && span_v == other_span_v
+            && span_u.span() == other_span_u.span()
+            && span_v.span() == other_span_v.span()
             && base == other_base
             && stride == other_stride
     }
@@ -226,12 +227,12 @@ impl<'a, T: Real> SurfaceWindow<'a, T> {
 
     /// The u-direction span.
     pub fn span_u(self) -> Span<'a> {
-        self.span_u
+        self.span_u.span()
     }
 
     /// The v-direction span.
     pub fn span_v(self) -> Span<'a> {
-        self.span_v
+        self.span_v.span()
     }
 
     /// The row-major stride — the v control count of this window's
@@ -257,7 +258,7 @@ impl<'a, T: Real> SurfaceWindow<'a, T> {
     /// Whether control point `(iu, iv)` (grid coordinates) is one of
     /// the `(pu + 1)·(pv + 1)` the window names.
     pub fn contains(self, iu: usize, iv: usize) -> bool {
-        self.span_u.window().contains(&iu) && self.span_v.window().contains(&iv)
+        self.span_u().window().contains(&iu) && self.span_v().window().contains(&iv)
     }
 }
 
@@ -274,8 +275,8 @@ impl<T: Real> SurfaceWindow<'_, T> {
     /// the PARAMETERS still gives garbage-out (the polynomial
     /// extension of the window's patch), unchanged.
     pub fn eval_in_span(self, u: T, v: T) -> Point3<T> {
-        let bu = spline::basis::basis_funs(self.span_u, u);
-        let bv = spline::basis::basis_funs(self.span_v, v);
+        let bu = spline::basis::basis_funs_in(self.span_u, u);
+        let bv = spline::basis::basis_funs_in(self.span_v, v);
         let (mut x, mut y, mut z, mut w) = (T::zero(), T::zero(), T::zero(), T::zero());
         for (i, bui) in bu.iter().enumerate() {
             // Indexed off the window base, deliberately: the basis row
@@ -288,7 +289,7 @@ impl<T: Real> SurfaceWindow<'_, T> {
             let row = self.row(i);
             for (j, bvj) in bv.iter().enumerate() {
                 let idx = row + j;
-                let cw = (*bui * *bvj) * T::from_f64(self.surface.weights[idx]);
+                let cw = (*bui * *bvj) * self.surface.weights[idx];
                 let pt = self.surface.control[idx];
                 x = x + cw * pt.x;
                 y = y + cw * pt.y;
@@ -309,8 +310,8 @@ impl<T: Real> SurfaceWindow<'_, T> {
     /// Same totality contract as [`Self::eval_in_span`]: no refusal,
     /// garbage-out on the parameters only.
     pub fn ders_in_span(self, u: T, v: T) -> SurfaceJet<T> {
-        let du = spline::basis::ders_basis_funs(self.span_u, u, 2);
-        let dv = spline::basis::ders_basis_funs(self.span_v, v, 2);
+        let du = spline::basis::ders_basis_funs_in(self.span_u, u, 2);
+        let dv = spline::basis::ders_basis_funs_in(self.span_v, v, 2);
         // Homogeneous partials A_kl for the six (k, l) with k + l ≤ 2,
         // indexed [k][l]; each lane accumulated in the double
         // ascending pass.
@@ -324,7 +325,7 @@ impl<T: Real> SurfaceWindow<'_, T> {
             let row = self.row(i);
             for (j, _) in dv[0].iter().enumerate() {
                 let idx = row + j;
-                let wf = T::from_f64(self.surface.weights[idx]);
+                let wf = self.surface.weights[idx];
                 let pt = self.surface.control[idx];
                 for k in 0..3usize {
                     for l in 0..3usize {
@@ -385,8 +386,8 @@ impl<T: Real> SurfaceWindow<'_, T> {
     /// S03 = (A03 − 3·w01·S02 − 3·w02·S01 −   w03·S00) / w00
     /// ```
     pub fn ders3_in_span(self, u: T, v: T) -> SurfaceJet3<T> {
-        let du = spline::basis::ders_basis_funs(self.span_u, u, 3);
-        let dv = spline::basis::ders_basis_funs(self.span_v, v, 3);
+        let du = spline::basis::ders_basis_funs_in(self.span_u, u, 3);
+        let dv = spline::basis::ders_basis_funs_in(self.span_v, v, 3);
         // Homogeneous partials A_kl for the ten (k, l) with k + l ≤ 3,
         // indexed [k][l]; each lane accumulated in the double
         // ascending pass (the second-order pass's shape, one order up).
@@ -400,7 +401,7 @@ impl<T: Real> SurfaceWindow<'_, T> {
             let row = self.row(i);
             for (j, _) in dv[0].iter().enumerate() {
                 let idx = row + j;
-                let wf = T::from_f64(self.surface.weights[idx]);
+                let wf = self.surface.weights[idx];
                 let pt = self.surface.control[idx];
                 for k in 0..4usize {
                     for l in 0..4usize {
@@ -523,37 +524,47 @@ pub enum NetState {
 /// surface).
 #[derive(Clone, Debug)]
 pub struct NurbsSurface<T: Real> {
-    knots_u: KnotVector,
-    knots_v: KnotVector,
+    knots_u: Knots<T>,
+    knots_v: Knots<T>,
     control: Vec<Point3<T>>,
-    weights: Vec<f64>,
+    weights: Vec<T>,
+    /// The weights' value channel, read off `weights` at construction
+    /// (the curve's field of the same name says what reads it).
+    weight_channel: Vec<f64>,
 }
 
-impl<T: Real> NurbsSurface<T> {
+impl<T: SpanLocate> NurbsSurface<T> {
     /// Validated construction: `control.len()` must equal
     /// `knots_u.control_count() · knots_v.control_count()` (row-major
-    /// layout, module docs), weights match and are strictly positive
-    /// and finite.
+    /// layout, module docs), weights match, each is one point, and they
+    /// are strictly positive and finite on their value channel. Knots
+    /// and weights are held in `T` (at `f64` a [`KnotVector`]
+    /// converts), as [`crate::curves::NurbsCurve3::new`] holds them.
     ///
     /// # Errors
     ///
     /// [`SplineError`] naming the exact violation.
     pub fn new(
-        knots_u: KnotVector,
-        knots_v: KnotVector,
+        knots_u: impl Into<Knots<T>>,
+        knots_v: impl Into<Knots<T>>,
         control: Vec<Point3<T>>,
-        weights: Vec<f64>,
+        weights: Vec<T>,
     ) -> Result<Self, SplineError> {
-        let expected = knots_u.control_count() * knots_v.control_count();
-        net::validate_counts(expected, control.len(), &weights)?;
+        let (knots_u, knots_v) = (knots_u.into(), knots_v.into());
+        let weight_channel = net::weight_channel(&weights)?;
+        let expected = knots_u.structure().control_count() * knots_v.structure().control_count();
+        net::validate_counts(expected, control.len(), &weight_channel)?;
         Ok(Self {
             knots_u,
             knots_v,
             control,
             weights,
+            weight_channel,
         })
     }
+}
 
+impl<T: Real> NurbsSurface<T> {
     /// The "no description yet" placeholder payload for
     /// [`crate::surfaces::Surface::Nurbs`]: structurally valid (bilinear on
     /// `[0,1]²`, unit weights) with all-poison control points, so
@@ -562,11 +573,13 @@ impl<T: Real> NurbsSurface<T> {
     /// certification loudly).
     pub fn placeholder() -> Self {
         let p = net::poison_point::<T, Point3<T>>();
+        let unit = || Knots::from(KnotVector::unit_segment(NonZeroUsize::MIN)).lift(T::from_f64);
         Self {
-            knots_u: KnotVector::unit_segment(NonZeroUsize::MIN),
-            knots_v: KnotVector::unit_segment(NonZeroUsize::MIN),
+            knots_u: unit(),
+            knots_v: unit(),
             control: vec![p; 4],
-            weights: vec![1.0; 4],
+            weights: vec![T::one(); 4],
+            weight_channel: vec![1.0; 4],
         }
     }
 
@@ -602,13 +615,23 @@ impl<T: Real> NurbsSurface<T> {
         }
     }
 
-    /// The u-direction knot vector.
+    /// The u-direction knot vector: the held knots' value channel.
     pub fn knots_u(&self) -> &KnotVector {
+        self.knots_u.structure()
+    }
+
+    /// The v-direction knot vector: the held knots' value channel.
+    pub fn knots_v(&self) -> &KnotVector {
+        self.knots_v.structure()
+    }
+
+    /// The u-direction knots held in `T`.
+    pub fn knot_values_u(&self) -> &Knots<T> {
         &self.knots_u
     }
 
-    /// The v-direction knot vector.
-    pub fn knots_v(&self) -> &KnotVector {
+    /// The v-direction knots held in `T`.
+    pub fn knot_values_v(&self) -> &Knots<T> {
         &self.knots_v
     }
 
@@ -617,14 +640,25 @@ impl<T: Real> NurbsSurface<T> {
         &self.control
     }
 
-    /// The weights, same layout as [`NurbsSurface::control`].
-    pub fn weights(&self) -> &[f64] {
+    /// The weights held in `T`, same layout as
+    /// [`NurbsSurface::control`].
+    pub fn weights(&self) -> &[T] {
         &self.weights
+    }
+
+    /// The weights' value channel, same layout: the `f64` every
+    /// structure decision on them reads. Arithmetic reads
+    /// [`Self::weights`].
+    pub fn weight_channel(&self) -> &[f64] {
+        &self.weight_channel
     }
 
     /// `(nu, nv)` — control counts per direction.
     pub fn control_counts(&self) -> (usize, usize) {
-        (self.knots_u.control_count(), self.knots_v.control_count())
+        (
+            self.knots_u().control_count(),
+            self.knots_v().control_count(),
+        )
     }
 
     /// Construction from parts whose invariants are ALREADY
@@ -639,45 +673,53 @@ impl<T: Real> NurbsSurface<T> {
     /// `debug_assert` below cannot check — has ONE home for the whole
     /// crate: `crate::scalar_lift`'s module docs.
     fn from_validated_parts(
-        knots_u: KnotVector,
-        knots_v: KnotVector,
+        knots_u: Knots<T>,
+        knots_v: Knots<T>,
         control: Vec<Point3<T>>,
-        weights: Vec<f64>,
+        weights: Vec<T>,
+        weight_channel: Vec<f64>,
     ) -> Self {
+        let expected = knots_u.structure().control_count() * knots_v.structure().control_count();
         debug_assert!(
-            control.len() == knots_u.control_count() * knots_v.control_count()
-                && weights.len() == control.len(),
+            control.len() == expected
+                && weights.len() == control.len()
+                && weight_channel.len() == control.len(),
             "from_validated_parts: a structural map changed a count \
-             (control {}, knots want {}, weights {})",
+             (control {}, knots want {}, weights {}, channel {})",
             control.len(),
-            knots_u.control_count() * knots_v.control_count(),
-            weights.len()
+            expected,
+            weights.len(),
+            weight_channel.len()
         );
         Self {
             knots_u,
             knots_v,
             control,
             weights,
+            weight_channel,
         }
     }
 
     /// The same surface read at another scalar: `f` applied to every
-    /// control coordinate, both knot vectors and the weights carried
-    /// over verbatim — `f64` structure at every scalar. Construction
-    /// goes through [`Self::from_validated_parts`], which states why no
+    /// control coordinate, every weight and once per knot breakpoint
+    /// in each direction, both knot structures and the weights' value
+    /// channel carried over. Construction goes through
+    /// [`Self::from_validated_parts`], which states why no
     /// re-validation is run. The contract is
-    /// [`NurbsCurve3::map_scalar`]'s one dimension up: exact whenever
-    /// `f` is; what the placeholder and a poisoned net lift to is
-    /// argued once, in `crate::scalar_lift`'s module docs.
+    /// [`NurbsCurve3::map_scalar`]'s one dimension up: `f` is a lift
+    /// that keeps every value's point; what the placeholder and a
+    /// poisoned net lift to is argued once, in `crate::scalar_lift`'s
+    /// module docs.
     ///
     /// [`NurbsCurve3::map_scalar`]: crate::curves::NurbsCurve3::map_scalar
     #[must_use]
     pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> NurbsSurface<U> {
         NurbsSurface::from_validated_parts(
-            self.knots_u.clone(),
-            self.knots_v.clone(),
+            self.knots_u.lift(&f),
+            self.knots_v.lift(&f),
             self.control.iter().map(|p| p.map(&f)).collect(),
-            self.weights.clone(),
+            net::map_weights(&self.weights, &f),
+            self.weight_channel.clone(),
         )
     }
 
@@ -712,6 +754,7 @@ impl<T: Real> NurbsSurface<T> {
             self.knots_v.clone(),
             self.control.iter().map(|p| f(*p)).collect(),
             self.weights.clone(),
+            self.weight_channel.clone(),
         )
     }
 
@@ -732,13 +775,17 @@ impl<T: Real> NurbsSurface<T> {
     /// caller can be handed, which is why this is private: it is
     /// discharged here, at each mint, against the vector each span was
     /// drawn from.
-    fn window_of<'a>(&'a self, span_u: Span<'a>, span_v: Span<'a>) -> SurfaceWindow<'a, T> {
-        let stride = self.knots_v.control_count();
+    fn window_of<'a>(
+        &'a self,
+        span_u: KnotSpan<'a, T>,
+        span_v: KnotSpan<'a, T>,
+    ) -> SurfaceWindow<'a, T> {
+        let stride = self.knots_v().control_count();
         SurfaceWindow {
             surface: self,
             span_u,
             span_v,
-            base: span_u.first_control() * stride + span_v.first_control(),
+            base: span_u.span().first_control() * stride + span_v.span().first_control(),
             stride,
         }
     }
@@ -756,7 +803,10 @@ impl<T: Real> NurbsSurface<T> {
     /// is NaN, exactly as [`KnotVector::span_at`] locates each
     /// (out-of-domain clamps to an end span).
     pub fn window_at(&self, u: f64, v: f64) -> Option<SurfaceWindow<'_, T>> {
-        Some(self.window_of(self.knots_u.span_at(u)?, self.knots_v.span_at(v)?))
+        self.window(
+            self.knots_u().span_at(u)?.index(),
+            self.knots_v().span_at(v)?.index(),
+        )
     }
 
     /// The transposed surface: `u` and `v` swapped (knot vectors
@@ -772,14 +822,22 @@ impl<T: Real> NurbsSurface<T> {
         let (nu, nv) = self.control_counts();
         let mut control = Vec::with_capacity(self.control.len());
         let mut weights = Vec::with_capacity(self.weights.len());
+        let mut channel = Vec::with_capacity(self.weights.len());
         for iv in 0..nv {
             for iu in 0..nu {
                 // Indexing justified: iu < nu, iv < nv (construction).
                 control.push(self.control[iu * nv + iv]);
                 weights.push(self.weights[iu * nv + iv]);
+                channel.push(self.weight_channel[iu * nv + iv]);
             }
         }
-        Self::from_validated_parts(self.knots_v.clone(), self.knots_u.clone(), control, weights)
+        Self::from_validated_parts(
+            self.knots_v.clone(),
+            self.knots_u.clone(),
+            control,
+            weights,
+            channel,
+        )
     }
 
     /// The same surface with its `u` orientation reversed —
@@ -806,15 +864,17 @@ impl<T: Real> NurbsSurface<T> {
     /// symmetry: this door is DEFINED only on a `knots_u` that is its
     /// own reflection.
     pub fn reversed_u(&self) -> Result<Self, KnotMirrorError> {
-        self.knots_u.mirror_symmetric()?;
+        self.knots_u().mirror_symmetric()?;
         let (nu, nv) = self.control_counts();
         let mut control = Vec::with_capacity(self.control.len());
         let mut weights = Vec::with_capacity(self.weights.len());
+        let mut channel = Vec::with_capacity(self.weights.len());
         for iu in (0..nu).rev() {
             for iv in 0..nv {
                 // Indexing justified: iu < nu, iv < nv (construction).
                 control.push(self.control[iu * nv + iv]);
                 weights.push(self.weights[iu * nv + iv]);
+                channel.push(self.weight_channel[iu * nv + iv]);
             }
         }
         Ok(Self::from_validated_parts(
@@ -822,6 +882,7 @@ impl<T: Real> NurbsSurface<T> {
             self.knots_v.clone(),
             control,
             weights,
+            channel,
         ))
     }
 
@@ -891,44 +952,81 @@ impl<T: Real> NurbsSurface<T> {
         Ok(self.transposed().reversed_u()?.transposed())
     }
 
-    /// Extracts v-column `iv` as a (points, weights) pair — a curve in
-    /// the u direction.
-    fn u_column(&self, iv: usize) -> (Vec<Point3<T>>, Vec<f64>) {
+    /// Extracts v-column `iv` — a curve in the u direction — as its
+    /// points, weights and weights' value channel.
+    fn u_column(&self, iv: usize) -> Column<T> {
         let (nu, nv) = self.control_counts();
-        let mut pts = Vec::with_capacity(nu);
-        let mut w = Vec::with_capacity(nu);
+        let mut col = Column {
+            points: Vec::with_capacity(nu),
+            weights: Vec::with_capacity(nu),
+            channel: Vec::with_capacity(nu),
+        };
         for iu in 0..nu {
-            pts.push(self.control[iu * nv + iv]);
-            w.push(self.weights[iu * nv + iv]);
+            col.points.push(self.control[iu * nv + iv]);
+            col.weights.push(self.weights[iu * nv + iv]);
+            col.channel.push(self.weight_channel[iu * nv + iv]);
         }
-        (pts, w)
+        col
     }
 
-    /// Rebuilds a surface from per-column (points, weights) with a new
-    /// u knot vector (columns share it by construction).
-    fn from_u_columns(
-        knots_u: KnotVector,
-        knots_v: KnotVector,
-        cols: Vec<(Vec<Point3<T>>, Vec<f64>)>,
-    ) -> Self {
-        let nu = knots_u.control_count();
-        let nv = knots_v.control_count();
+    /// Rebuilds a surface from per-column nets with a new u knot vector
+    /// (columns share it by construction).
+    fn from_u_columns(knots_u: Knots<T>, knots_v: Knots<T>, cols: Vec<Column<T>>) -> Self {
+        let nu = knots_u.structure().control_count();
+        let nv = knots_v.structure().control_count();
         let mut control = Vec::with_capacity(nu * nv);
         let mut weights = Vec::with_capacity(nu * nv);
+        let mut channel = Vec::with_capacity(nu * nv);
         for iu in 0..nu {
-            for (pts, w) in &cols {
+            for col in &cols {
                 // Indexing justified: every column has nu entries (the
                 // shared plan chain fixes the length).
-                control.push(pts[iu]);
-                weights.push(w[iu]);
+                control.push(col.points[iu]);
+                weights.push(col.weights[iu]);
+                channel.push(col.channel[iu]);
             }
         }
-        Self {
-            knots_u,
-            knots_v,
-            control,
-            weights,
+        Self::from_validated_parts(knots_u, knots_v, control, weights, channel)
+    }
+}
+
+/// One v-column of a surface's net: a curve in the u direction, held as
+/// the surface holds it.
+struct Column<T: Real> {
+    points: Vec<Point3<T>>,
+    weights: Vec<T>,
+    channel: Vec<f64>,
+}
+
+impl<T: ProjectiveScalar> Column<T> {
+    /// This column through a plan chain made on its value channel
+    /// ([`spline::CurvePlan::apply_rational`], over the u knots held in
+    /// `T` and carried plan to plan), with the knots the chain ends on.
+    fn through(self, knots: &Knots<T>, plans: &[spline::CurvePlan]) -> (Self, Knots<T>) {
+        let Some(last) = plans.last() else {
+            return (self, knots.clone());
+        };
+        let mut held = knots.clone();
+        let (mut points, mut weights) = (self.points, self.weights);
+        for plan in plans {
+            (points, weights) = plan.apply_rational(
+                held.values(),
+                &points,
+                &weights,
+                net::poison_point::<T, Point3<T>>(),
+                |x, y, l: T| x.lerp(y, l),
+            );
+            held = held.restructure(plan.knots().clone(), T::from_f64);
         }
+        let channel = last.weights().to_vec();
+        (
+            Self {
+                points,
+                weights,
+                channel,
+            },
+            held,
+        )
     }
 }
 
@@ -967,19 +1065,11 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
         let mut cols = Vec::with_capacity(nv);
         let mut new_knots_u = self.knots_u.clone();
         for iv in 0..nv {
-            let (mut pts, col_w) = self.u_column(iv);
-            let plans = build(&self.knots_u, &col_w)?;
-            let mut w = col_w;
-            for plan in &plans {
-                pts = plan.apply_points(&pts, net::poison_point::<T, Point3<T>>(), |x, y, l: T| {
-                    x.lerp(y, l)
-                });
-                w = plan.weights().to_vec();
-            }
-            if let Some(last) = plans.last() {
-                new_knots_u = last.knots().clone();
-            }
-            cols.push((pts, w));
+            let col = self.u_column(iv);
+            let plans = build(self.knots_u(), &col.channel)?;
+            let (col, knots) = col.through(&self.knots_u, &plans);
+            new_knots_u = knots;
+            cols.push(col);
         }
         Ok(Self::from_u_columns(
             new_knots_u,
@@ -1071,8 +1161,8 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
             let mut reinserted_cols = Vec::with_capacity(nv);
             let mut new_knots_u = cur.knots_u.clone();
             for iv in 0..nv {
-                let (pts, col_w) = cur.u_column(iv);
-                let steps = spline::algebra::remove_knot_plan(&cur.knots_u, &col_w, u, 1)?;
+                let col = cur.u_column(iv);
+                let steps = spline::algebra::remove_knot_plan(cur.knots_u(), &col.channel, u, 1)?;
                 // remove_knot_plan(times = 1) yields exactly one step;
                 // the refusal arm is unreachable but keeps this total
                 // without an unwrap (D9: no panic path).
@@ -1080,16 +1170,16 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
                     .into_iter()
                     .next()
                     .ok_or(KnotAlgebraError::KnotNotPresent { u })?;
-                let lerp = |x: Point3<T>, y: Point3<T>, l: T| x.lerp(y, l);
-                let rem_pts =
-                    step.plan
-                        .apply_points(&pts, net::poison_point::<T, Point3<T>>(), lerp);
-                let re_pts =
-                    step.reinsert
-                        .apply_points(&rem_pts, net::poison_point::<T, Point3<T>>(), lerp);
-                new_knots_u = step.plan.knots().clone();
-                removed_cols.push((rem_pts, step.plan.weights().to_vec()));
-                reinserted_cols.push((re_pts, step.reinsert.weights().to_vec()));
+                let (removed, knots) = col.through(&cur.knots_u, core::slice::from_ref(&step.plan));
+                let (reinserted, _) = Column {
+                    points: removed.points.clone(),
+                    weights: removed.weights.clone(),
+                    channel: removed.channel.clone(),
+                }
+                .through(&knots, core::slice::from_ref(&step.reinsert));
+                new_knots_u = knots;
+                removed_cols.push(removed);
+                reinserted_cols.push(reinserted);
             }
             let reinserted =
                 Self::from_u_columns(cur.knots_u.clone(), cur.knots_v.clone(), reinserted_cols);
@@ -1122,15 +1212,14 @@ impl<T: SpanLocate> NurbsSurface<T> {
     /// spans outer, v spans inner). A poison parameter locates no span,
     /// and its jet is poison in every channel.
     pub fn ders(&self, u: T, v: T) -> SurfaceJet<T> {
-        let (Some(su), Some(sv)) = (u.locate_spans(&self.knots_u), v.locate_spans(&self.knots_v))
-        else {
+        let (Some(su), Some(sv)) = (self.knots_u.locate(u), self.knots_v.locate(v)) else {
             return poison_jet(u + v);
         };
         // The seed cell's window comes straight from the located
         // spans, which ARE proofs — no re-validation.
-        let (su_first, su_last) = (su.first.index(), su.last.index());
-        let (sv_first, sv_last) = (sv.first.index(), sv.last.index());
-        let mut acc = self.window_of(su.first, sv.first).ders_in_span(u, v);
+        let (su_first, su_last) = (su.0.span().index(), su.1.span().index());
+        let (sv_first, sv_last) = (sv.0.span().index(), sv.1.span().index());
+        let mut acc = self.window_of(su.0, sv.0).ders_in_span(u, v);
         for cu in su_first..=su_last {
             for cv in sv_first..=sv_last {
                 if cu == su_first && cv == sv_first {
@@ -1164,14 +1253,13 @@ impl<T: SpanLocate> NurbsSurface<T> {
     /// selection and channel-independent cell hulling, one order up
     /// (M5 PR 7's ℝ⁴ trace).
     pub fn ders3(&self, u: T, v: T) -> SurfaceJet3<T> {
-        let (Some(su), Some(sv)) = (u.locate_spans(&self.knots_u), v.locate_spans(&self.knots_v))
-        else {
+        let (Some(su), Some(sv)) = (self.knots_u.locate(u), self.knots_v.locate(v)) else {
             return poison_jet3(u + v);
         };
         // Seed window and empty-span skip: see [`NurbsSurface::ders`].
-        let (su_first, su_last) = (su.first.index(), su.last.index());
-        let (sv_first, sv_last) = (sv.first.index(), sv.last.index());
-        let mut acc = self.window_of(su.first, sv.first).ders3_in_span(u, v);
+        let (su_first, su_last) = (su.0.span().index(), su.1.span().index());
+        let (sv_first, sv_last) = (sv.0.span().index(), sv.1.span().index());
+        let mut acc = self.window_of(su.0, sv.0).ders3_in_span(u, v);
         for cu in su_first..=su_last {
             for cv in sv_first..=sv_last {
                 if cu == su_first && cv == sv_first {
@@ -1203,14 +1291,13 @@ impl<T: SpanLocate> NurbsSurface<T> {
     /// The point at `(u, v)` (span selection as [`NurbsSurface::ders`];
     /// point-only pass).
     pub fn eval(&self, u: T, v: T) -> Point3<T> {
-        let (Some(su), Some(sv)) = (u.locate_spans(&self.knots_u), v.locate_spans(&self.knots_v))
-        else {
+        let (Some(su), Some(sv)) = (self.knots_u.locate(u), self.knots_v.locate(v)) else {
             return poison_point(u + v);
         };
         // Seed window and empty-span skip: see [`NurbsSurface::ders`].
-        let (su_first, su_last) = (su.first.index(), su.last.index());
-        let (sv_first, sv_last) = (sv.first.index(), sv.last.index());
-        let mut acc = self.window_of(su.first, sv.first).eval_in_span(u, v);
+        let (su_first, su_last) = (su.0.span().index(), su.1.span().index());
+        let (sv_first, sv_last) = (sv.0.span().index(), sv.1.span().index());
+        let mut acc = self.window_of(su.0, sv.0).eval_in_span(u, v);
         for cu in su_first..=su_last {
             for cv in sv_first..=sv_last {
                 if cu == su_first && cv == sv_first {

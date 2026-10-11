@@ -9,7 +9,9 @@
 #![allow(clippy::unwrap_used)]
 
 use geom::NurbsSurface;
+use geom_core::Real;
 use geom_core::spline::KnotVector;
+use geom_core::spline::Knots;
 use geom_core::{Dual64, Point3, Vec3};
 
 fn dual_patch() -> NurbsSurface<Dual64> {
@@ -22,7 +24,13 @@ fn dual_patch() -> NurbsSurface<Dual64> {
             control.push(p.map(Dual64::constant));
         }
     }
-    NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap()
+    NurbsSurface::new(
+        Knots::constant(ku),
+        Knots::constant(kv),
+        control,
+        vec![Real::one(); 8],
+    )
+    .unwrap()
 }
 
 fn all_poison(v: &[Vec3<Dual64>]) -> bool {

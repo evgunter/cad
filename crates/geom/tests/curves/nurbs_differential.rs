@@ -14,6 +14,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
+use geom_core::spline::Knots;
 use geom_core::spline::{KnotVector, SplineError};
 use geom_core::{Dual64, Interval, Point2, Point3, Real, Vec3};
 
@@ -417,7 +418,12 @@ fn dual_channels_are_consistent_with_derivatives() {
         .iter()
         .map(|p| p.map(Dual64::constant))
         .collect();
-    let nd = NurbsCurve3::new(n64.knots().clone(), ctrl, n64.weights().to_vec()).unwrap();
+    let nd = NurbsCurve3::new(
+        n64.knot_values().lift(Dual64::constant),
+        ctrl,
+        n64.weights().iter().map(|w| Dual64::constant(*w)).collect(),
+    )
+    .unwrap();
     for i in 0..=100usize {
         let t = i as f64 / 100.0;
         let p = nd.eval(Dual64::variable(t));
@@ -457,7 +463,7 @@ fn dual_kink_convention_at_knot_follows_the_tie_break() {
     ];
     let n64 = NurbsCurve3::new(kv.clone(), ctrl64.clone(), vec![1.0; 5]).unwrap();
     let ctrl: Vec<Point3<Dual64>> = ctrl64.iter().map(|p| p.map(Dual64::constant)).collect();
-    let nd = NurbsCurve3::new(kv, ctrl, vec![1.0; 5]).unwrap();
+    let nd = NurbsCurve3::new(Knots::constant(kv), ctrl, vec![Dual64::constant(1.0); 5]).unwrap();
     let t = 0.5;
     let span_right = n64.span_at(t).expect("a numeric parameter"); // the span starting at 0.5
     // The [0, 0.5) span (mult-2 knot between).
@@ -506,7 +512,12 @@ fn a_poison_parameter_evaluates_to_poison_in_every_channel() {
         Point3::new(3.0, 2.0, 1.0),
     ];
     let ctrl: Vec<Point3<Dual64>> = ctrl64.iter().map(|p| p.map(Dual64::constant)).collect();
-    let nd = NurbsCurve3::new(kv.clone(), ctrl, vec![1.0; 4]).unwrap();
+    let nd = NurbsCurve3::new(
+        Knots::constant(kv.clone()),
+        ctrl,
+        vec![Dual64::constant(1.0); 4],
+    )
+    .unwrap();
     let t = Dual64::variable(f64::NAN);
     let all_nan = |p: [Dual64; 3]| p.iter().all(|c| c.value.is_nan() && c.deriv.is_nan());
     let p = nd.eval(t);
@@ -522,9 +533,9 @@ fn a_poison_parameter_evaluates_to_poison_in_every_channel() {
         assert!(all_nan(v), "ders at NaN, {name}: {v:?}");
     }
     let ci = NurbsCurve3::new(
-        kv,
+        Knots::constant(kv),
         ctrl64.iter().map(|p| p.map(Interval::from_f64)).collect(),
-        vec![1.0; 4],
+        vec![Interval::from_f64(1.0); 4],
     )
     .unwrap();
     let pi = ci.eval(Interval::from_f64(f64::NAN));

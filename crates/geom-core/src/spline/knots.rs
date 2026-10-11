@@ -93,6 +93,16 @@ pub enum SplineError {
         /// Index of the offending run.
         index: usize,
     },
+    /// A weight held in the scalar is an enclosure wider than a point
+    /// (`SpanLocate::point_value` reads none, and it is not poison,
+    /// which refuses as a non-positive weight). The weights' value
+    /// channel is what every structure decision on them reads
+    /// (positivity, the knot algebra's plans), and such a value gives
+    /// it nothing to read.
+    WeightNotAPoint {
+        /// Index of the offending weight.
+        index: usize,
+    },
 }
 
 impl core::fmt::Display for SplineError {
@@ -147,6 +157,12 @@ impl core::fmt::Display for SplineError {
                  would merge into one run or reverse the vector. Recourse: supply one \
                  breakpoint with the summed multiplicity where the two are one knot, or \
                  breakpoints that increase"
+            ),
+            SplineError::WeightNotAPoint { index } => write!(
+                f,
+                "weight {index} is an enclosure wider than a point, so no positivity or \
+                 knot-algebra decision can read it. Recourse: supply a weight that is a \
+                 single number there"
             ),
         }
     }
@@ -1980,6 +1996,7 @@ mod tests {
             SplineError::DomainInvalid { lo: 1.0, hi: 1.0 },
             SplineError::KnotNotAPoint { index: 1 },
             SplineError::KnotRunsNotIncreasing { index: 2 },
+            SplineError::WeightNotAPoint { index: 1 },
         ];
         // Exhaustive by the compiler: a new arm fails to build here
         // until it is listed above.
@@ -1992,10 +2009,11 @@ mod tests {
                 | SplineError::WeightCountMismatch { .. }
                 | SplineError::DomainInvalid { .. }
                 | SplineError::KnotNotAPoint { .. }
-                | SplineError::KnotRunsNotIncreasing { .. } => {}
+                | SplineError::KnotRunsNotIncreasing { .. }
+                | SplineError::WeightNotAPoint { .. } => {}
             }
         }
-        assert_eq!(arms.len(), 8, "an arm was added without a row here");
+        assert_eq!(arms.len(), 9, "an arm was added without a row here");
         // The repair is labelled, once: a wrapper that forwards this
         // carrier whole and adds a `Recourse:` of its own is then two
         // to the checker, not one it cannot see.

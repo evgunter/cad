@@ -457,7 +457,7 @@ pub(crate) fn piece_controls<T: Real>(
     let base: Vec<(Vec3<T>, T)> = span
         .window()
         .map(|i| {
-            let w = T::from_f64(net.weights()[i]);
+            let w = net.weights()[i];
             ((net.control()[i] - Point3::origin()) * w, w)
         })
         .collect();
@@ -1810,7 +1810,7 @@ pub(super) fn run_projected_checks<T: Decide>(
             // The structure is the carrier's, exactly (C6): one knot
             // vector and one weight vector, so the stored net and the
             // carrier's differ control point for control point.
-            if net.knots() != c.knots() || net.weights() != c.weights() {
+            if net.knots() != c.knots() || net.weight_channel() != c.weight_channel() {
                 return Err(refuse(
                     "the stored net's knots or weights are not the carrier's",
                 ));

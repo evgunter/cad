@@ -219,6 +219,37 @@ impl<T: SpanLocate> Knots<T> {
 }
 
 impl<T: Real> Knots<T> {
+    /// The same knots at another scalar under a LIFT `f`, one that
+    /// keeps each breakpoint's point: `f` applied once per breakpoint,
+    /// the structure carried over. That `f` keeps the point is the
+    /// caller's contract, the one every `map_scalar` door states; a
+    /// caller at a scalar that reads its point takes [`Self::map`],
+    /// which checks it.
+    #[must_use]
+    pub fn lift<U: Real>(&self, f: impl Fn(T) -> U) -> Knots<U> {
+        let mut values = Vec::with_capacity(self.values.len());
+        for (_, m) in self.structure.knot_runs() {
+            let mapped = f(self.values[values.len()]);
+            values.extend(core::iter::repeat_n(mapped, m));
+        }
+        Knots {
+            structure: self.structure.clone(),
+            values,
+        }
+    }
+
+    /// These knots reflected through 0, `k'_i = 0 − k_{m−i}` in `T`
+    /// over the held values, on [`KnotVector::negated`]'s structure:
+    /// negation does not round, so the structure is still the values'
+    /// value channel.
+    #[must_use]
+    pub fn negated(&self) -> Self {
+        Self {
+            structure: self.structure.negated(),
+            values: self.values.iter().rev().map(|k| T::zero() - *k).collect(),
+        }
+    }
+
     /// The value channel: the structure every `f64` reader of these
     /// knots reads.
     pub fn structure(&self) -> &KnotVector {

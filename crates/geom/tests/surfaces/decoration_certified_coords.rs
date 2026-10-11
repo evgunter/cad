@@ -14,6 +14,7 @@
 
 use geom::NurbsSurface;
 use geom_core::spline::KnotVector;
+use geom_core::spline::Knots;
 use geom_core::{Bounds, CertifiedEnclosure, Interval, Point3, Real};
 
 fn trv() -> Interval {
@@ -35,15 +36,15 @@ fn kv() -> KnotVector {
 /// A bilinear patch whose `(0, 0)` corner carries `c` in `x`.
 fn patch(c: Interval) -> NurbsSurface<Interval> {
     NurbsSurface::new(
-        kv(),
-        kv(),
+        Knots::constant(kv()),
+        Knots::constant(kv()),
         vec![
             Point3::new(c, iv(0.0), iv(0.0)),
             Point3::new(iv(0.0), iv(1.0), iv(0.0)),
             Point3::new(iv(1.0), iv(0.0), iv(0.0)),
             Point3::new(iv(1.0), iv(1.0), iv(0.0)),
         ],
-        vec![1.0; 4],
+        vec![Real::one(); 4],
     )
     .unwrap()
 }

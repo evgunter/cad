@@ -485,7 +485,7 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         let mut breaks: Vec<f64> = grid.iter().chain(cuts).copied().collect();
         breaks.sort_by(f64::total_cmp);
         breaks.dedup();
-        let data = CurveCertData::new(carrier.knots(), carrier.weights(), &coords)
+        let data = CurveCertData::new(carrier.knots(), carrier.weight_channel(), &coords)
             .map_err(|_| SsiError::UnsupportedCertificate {
                 what: "the fitted carrier's enclosure data is malformed",
             })?
@@ -570,24 +570,21 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         // analytic limb and the box chain, the cut itself made in the
         // ring (C6).
         let coords = carrier.certified_coords();
-        let cdata =
-            CurveCertData::new(carrier.knots(), carrier.weights(), &coords).map_err(|_| {
-                SsiError::UnsupportedCertificate {
-                    what: "the fitted carrier's enclosure data is malformed",
-                }
+        let cdata = CurveCertData::new(carrier.knots(), carrier.weight_channel(), &coords)
+            .map_err(|_| SsiError::UnsupportedCertificate {
+                what: "the fitted carrier's enclosure data is malformed",
             })?;
         let pcoords = pcurve.certified_coords();
-        let pdata =
-            CurveCertData::new(pcurve.knots(), pcurve.weights(), &pcoords).map_err(|_| {
-                SsiError::UnsupportedCertificate {
-                    what: "the traced pcurve's enclosure data is malformed",
-                }
-            })?;
+        let pdata = CurveCertData::new(pcurve.knots(), pcurve.weight_channel(), &pcoords).map_err(
+            |_| SsiError::UnsupportedCertificate {
+                what: "the traced pcurve's enclosure data is malformed",
+            },
+        )?;
         let scoords = surface.certified_coords();
         let sdata = tensor::SurfaceCertData::new(
             surface.knots_u(),
             surface.knots_v(),
-            surface.weights(),
+            surface.weight_channel(),
             &scoords,
         )
         .map_err(|_| SsiError::UnsupportedCertificate {
@@ -1021,7 +1018,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
     // reads as a definite refusal (no box, so nothing banked).
     let Some((kv, coords)) = refined_net(
         carrier.knots(),
-        carrier.weights(),
+        carrier.weight_channel(),
         &carrier.certified_coords(),
     ) else {
         return out;

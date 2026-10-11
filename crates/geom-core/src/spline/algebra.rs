@@ -172,7 +172,7 @@ pub(super) struct Ratio {
 /// form it at its own scalar: a ratio of the input vector's knots,
 /// `(u − U[lo])/(U[hi] − U[lo])`, or a combinatorial constant.
 #[derive(Clone, Copy, Debug)]
-enum Coef {
+pub(super) enum Coef {
     /// `(u − U[lo])/(U[hi] − U[lo])`, the knots read off the vector the
     /// step was planned against.
     Knots { u: KnotAt, lo: usize, hi: usize },
@@ -185,7 +185,7 @@ enum Coef {
 /// ratio reads that breakpoint's one quantity), or a value the
 /// insertion brings in.
 #[derive(Clone, Copy, Debug)]
-enum KnotAt {
+pub(super) enum KnotAt {
     Index(usize),
     Fresh(f64),
 }
@@ -197,7 +197,7 @@ enum KnotAt {
 /// [`CurvePlan::apply_rational`] takes them again at the applier's
 /// scalar, so at `f64` the two agree bit for bit.
 #[derive(Clone, Copy, Debug)]
-enum Form {
+pub(super) enum Form {
     /// Insertion and elevation: `w_Q = a·w_y + (1 − a)·w_x`,
     /// `λ = a·w_y/w_Q`.
     Blend(Coef),
@@ -469,8 +469,8 @@ impl CurvePlan {
     /// length. The refusal then flows through every hull the caller
     /// reads.
     pub fn apply_certified(&self, old: &[Interval]) -> Vec<Interval> {
-        self.apply_ratios(old, Interval::refused(), |x, y, r| {
-            convex_step(x, y, r.lo, r.hi, r.inserted)
+        self.apply_ratios(old, Interval::refused(), |x, y, r, _| {
+            Some(convex_step(x, y, r.lo, r.hi, r.inserted))
         })
     }
 
@@ -481,7 +481,7 @@ impl CurvePlan {
         &self,
         old: &[P],
         refused: P,
-        step: impl Fn(P, P, Ratio) -> P,
+        step: impl Fn(P, P, Ratio, Form) -> Option<P>,
     ) -> Vec<P> {
         let n_new = self.knots.control_count();
         let mut new: Vec<Option<P>> = vec![None; n_new];
@@ -503,11 +503,12 @@ impl CurvePlan {
                     x,
                     y,
                     ratio,
+                    form,
                     ..
                 } => {
                     if target < n_new {
                         new[target] = match (fetch(&new, x), fetch(&new, y), ratio) {
-                            (Some(cx), Some(cy), Some(r)) => Some(step(cx, cy, r)),
+                            (Some(cx), Some(cy), Some(r)) => step(cx, cy, r, form),
                             _ => None,
                         };
                     }

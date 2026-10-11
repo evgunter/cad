@@ -76,7 +76,7 @@ use core::num::NonZeroUsize;
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::predicate::KERNEL_OR_FILE_DEFECT_ENDING;
-use geom_core::spline::{KnotVector, KnotVectorIssue, SplineError};
+use geom_core::spline::{KnotVector, KnotVectorIssue, SpanLocate, SplineError};
 use geom_core::{
     Band, Bounds, Decide, Decided, Indeterminate, MarginDiag, Point2, Point3, Readable, Real, Sign,
     Vec3,
@@ -278,6 +278,10 @@ pub enum CarrierDomainFault {
     /// image's knots onto a domain too narrow for the magnitude of its
     /// ends, and the clamp contract refused the result by this clause.
     Collapse(KnotVectorIssue),
+    /// [`SplineError::KnotRunsNotIncreasing`]: rounding put two of the
+    /// image's breakpoints on one value, and the held knots refuse to
+    /// merge them into one run nobody wrote.
+    Merge,
 }
 
 impl CarrierDomainRefusal {
@@ -297,11 +301,15 @@ impl CarrierDomainRefusal {
             | SplineError::NonFiniteWeight { .. }
             | SplineError::ControlCountMismatch { .. }
             | SplineError::WeightCountMismatch { .. }
-            | SplineError::KnotNotAPoint { .. }
-            | SplineError::KnotRunsNotIncreasing { .. } => unreachable!(
-                "the domain door re-expresses an f64 knot vector, so it cannot refuse a \
-                 weight, a count or a held breakpoint: {e:?}"
+            | SplineError::WeightNotAPoint { .. }
+            | SplineError::KnotNotAPoint { .. } => unreachable!(
+                "the domain door re-expresses a validated carrier's knots, so it cannot \
+                 refuse a weight, a count or a breakpoint that is no point: {e:?}"
             ),
+            // Two breakpoints the re-expression rounds onto one value:
+            // the held knots refuse to merge them, which on the `f64`
+            // vector was a multiplicity collapse.
+            SplineError::KnotRunsNotIncreasing { .. } => CarrierDomainFault::Merge,
         };
         Self { lo, hi, fault }
     }
@@ -316,7 +324,7 @@ impl core::fmt::Display for CarrierDomainRefusal {
                 "the carrier's parameter domain [{lo}, {hi}] is not a finite increasing interval \
                  of finite width"
             )?,
-            CarrierDomainFault::Collapse(_) => write!(
+            CarrierDomainFault::Collapse(_) | CarrierDomainFault::Merge => write!(
                 f,
                 "f64 rounding collapsed the chart image's knots onto the carrier's parameter \
                  domain [{lo}, {hi}], which is too narrow for the magnitude of its ends"
@@ -752,7 +760,7 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 /// since the chain around the piece is a stretch of the whole carrier's
 /// chain, and conservative, since geometry past the edge's ends can
 /// refuse it (`work/pcert/the-tube-reads-a-rational-carriers-whole-net.md`).
-fn edge_piece<T: Real>(
+fn edge_piece<T: SpanLocate>(
     carrier: &NurbsCurve3<T>,
     lo: f64,
     hi: f64,
@@ -765,8 +773,8 @@ fn edge_piece<T: Real>(
             "the edge's interval is empty on the carrier's domain",
         ));
     }
-    let weights = carrier.weights();
-    let constant = weights.iter().all(|w| w.to_bits() == weights[0].to_bits());
+    let channel = carrier.weight_channel();
+    let constant = channel.iter().all(|w| w.to_bits() == channel[0].to_bits());
     if (a <= d0 && b >= d1) || !constant {
         return Ok(carrier.clone());
     }
@@ -800,9 +808,15 @@ fn edge_piece<T: Real>(
         knots.extend(std::iter::repeat_n(w[1], if last { p + 1 } else { p }));
     }
     let n = control.len();
+    // The piece's interior breaks are the carrier's breakpoints and keep
+    // their held values; its ends are the edge's parameters, entered as
+    // the constants they are.
     KnotVector::clamped(knots, p)
         .ok()
-        .and_then(|kv| NurbsCurve3::new(kv, control, vec![weights[0]; n]).ok())
+        .and_then(|kv| {
+            let held = carrier.knot_values().restructure(kv, T::from_f64);
+            NurbsCurve3::new(held, control, vec![carrier.weights()[0]; n]).ok()
+        })
         .ok_or(refuse(
             "the carrier's piece over the edge's interval is malformed",
         ))

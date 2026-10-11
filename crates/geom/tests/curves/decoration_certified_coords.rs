@@ -20,6 +20,7 @@
 
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom_core::spline::KnotVector;
+use geom_core::spline::Knots;
 use geom_core::{Bounds, CertifiedEnclosure, Interval, Real};
 use geom_core::{Point2, Point3};
 
@@ -58,7 +59,7 @@ fn the_fixture_is_a_finite_bracket_that_cannot_certify() {
 #[test]
 fn construction_admits_a_violated_coefficient() {
     let c = NurbsCurve3::new(
-        kv(),
+        Knots::constant(kv()),
         vec![
             Point3::new(trv(), Interval::from_f64(0.0), Interval::from_f64(0.0)),
             Point3::new(
@@ -67,7 +68,7 @@ fn construction_admits_a_violated_coefficient() {
                 Interval::from_f64(0.0),
             ),
         ],
-        vec![1.0, 1.0],
+        vec![Interval::from_f64(1.0); 2],
     )
     .unwrap();
     assert!(c.control()[0].x.certified_bracket().is_none());
@@ -76,7 +77,7 @@ fn construction_admits_a_violated_coefficient() {
 #[test]
 fn curve3_certified_coords_refuses_a_violated_coefficient_per_channel() {
     let c = NurbsCurve3::new(
-        kv(),
+        Knots::constant(kv()),
         vec![
             Point3::new(trv(), healthy(), Interval::from_f64(0.0)),
             Point3::new(
@@ -85,7 +86,7 @@ fn curve3_certified_coords_refuses_a_violated_coefficient_per_channel() {
                 Interval::from_f64(0.0),
             ),
         ],
-        vec![1.0, 1.0],
+        vec![Interval::from_f64(1.0); 2],
     )
     .unwrap();
     let coords = c.certified_coords();
@@ -106,12 +107,12 @@ fn curve3_certified_coords_refuses_a_violated_coefficient_per_channel() {
 #[test]
 fn curve2_certified_coords_refuses_a_violated_coefficient_per_channel() {
     let c = NurbsCurve2::new(
-        kv(),
+        Knots::constant(kv()),
         vec![
             Point2::new(healthy(), trv()),
             Point2::new(Interval::from_f64(1.0), Interval::from_f64(0.0)),
         ],
-        vec![1.0, 1.0],
+        vec![Interval::from_f64(1.0); 2],
     )
     .unwrap();
     let coords = c.certified_coords();
@@ -130,7 +131,7 @@ fn curve2_certified_coords_refuses_a_violated_coefficient_per_channel() {
 #[test]
 fn a_certified_net_crosses_unchanged() {
     let c = NurbsCurve3::new(
-        kv(),
+        Knots::constant(kv()),
         vec![
             Point3::new(healthy(), healthy(), healthy()),
             Point3::new(
@@ -139,7 +140,7 @@ fn a_certified_net_crosses_unchanged() {
                 Interval::from_f64(4.0),
             ),
         ],
-        vec![1.0, 1.0],
+        vec![Interval::from_f64(1.0); 2],
     )
     .unwrap();
     for ch in c.certified_coords() {
