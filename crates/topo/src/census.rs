@@ -11814,7 +11814,7 @@ mod review_4604_r1 {
     /// interior. With the edge-face record alone that vertex's touch is
     /// still undeclared. Red when the record backs its edge's end
     /// vertices (a `conventional_vertices` that drops its filter is
-    /// green on every other topo row).
+    /// green on every other census, tier-3 and ops row).
     #[test]
     fn a_straight_edge_face_record_backs_no_touch_at_its_ends() {
         use crate::test_support_fixtures::brick;
