@@ -208,7 +208,7 @@ fn paint(doc: &editor_core::ProfileDoc, name: &StableName) -> ProfileDoc {
     apply(
         doc,
         &DocEdit::SetAppearance {
-            body: crate::fixture::painted_in(&doc, &name),
+            body: crate::fixture::painted_in(doc, name),
             name: name.clone(),
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },

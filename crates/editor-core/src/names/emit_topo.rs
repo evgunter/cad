@@ -660,7 +660,7 @@ fn name_split_edges_vertices<T: Decide>(
         };
         name_edge_pieces(
             &mut pieces[slot],
-            &mut halves[slot].t,
+            &halves[slot].t,
             from_tie,
             &base,
             (s.body, 0),

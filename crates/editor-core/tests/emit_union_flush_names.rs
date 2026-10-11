@@ -91,7 +91,7 @@ fn member_vertices_hold(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> 
             .copied()
             .filter(|&n| {
                 n != union
-                    && crate::fixture::tables(&ev, n).into_iter().any(|t| {
+                    && crate::fixture::tables(ev, n).into_iter().any(|t| {
                         matches!(t.lookup(of), Some(Entry::Unique(w))
                             if matches!(w.key, EntityKey::Vertex(_)))
                     })

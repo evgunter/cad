@@ -239,6 +239,12 @@ CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
     "SplitHalf": ("argued", "the naming vocabulary is `select`'s and is spelled once, "
                             "crates/pncad/src/select.rs; the general rule is at the "
                             "payload-rule header of crates/pncad/src/document.rs"),
+    # Where a name door reads a table (NAMES N1): a node at its one output or
+    # a read. `SitedRef<At>` meets it through a type parameter of the same
+    # name, which the sweep reads by name.
+    "At": ("argued", "the naming vocabulary is `select`'s and is spelled once, "
+                     "crates/pncad/src/select.rs; the general rule is at the "
+                     "payload-rule header of crates/pncad/src/document.rs"),
     # A coincidence row's cell names a profile piece by the same reference a
     # profile pick does, so `NamedCell::Piece` carries `select`'s word for it.
     "ProfileEdgeRef": ("argued", "the naming vocabulary is `select`'s and is spelled "

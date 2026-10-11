@@ -304,7 +304,7 @@ fn standings_and_names(
         .iter()
         .filter_map(|(id, r)| {
             r.value().map(|_| {
-                let tables = crate::fixture::tables(&ev, *id);
+                let tables = crate::fixture::tables(ev, *id);
                 (
                     *id,
                     tables
