@@ -2107,6 +2107,28 @@ fn the_pseudomanifold_gate_judges_a_cusp_as_tier_3_does() {
     );
 }
 
+/// Reviewer probe (CONTACTHOLD R2): the two faces the dropped curve
+/// record named are a pair `Contact::new` accepts (two faces are never
+/// incident), so the dropped half was not dropped for being structure.
+/// Prints what the 3' pass says of that face-face record.
+#[test]
+fn review_r2_the_cusps_two_faces_are_a_record_the_type_accepts() {
+    let tol = Tol::witness();
+    let p = cusp_prism(tol);
+    let (a, b) = (
+        crate::boolean::Cell::Face(p.face_side[0]),
+        crate::boolean::Cell::Face(p.face_side[2]),
+    );
+    let contact = crate::boolean::Contact::new(&p.body, a, b);
+    assert!(contact.is_ok(), "{contact:?}");
+    let records: crate::boolean::ContactRecords =
+        [crate::Cited::new(contact.unwrap(), crate::Cites::decided(0))]
+            .into_iter()
+            .collect();
+    let got = crate::validate::validate_pseudomanifold(&p.body, &records, tol);
+    println!("R2PROBE cusp face-face record: {got:?}");
+}
+
 /// The kissing edge of a [`cusp_prism`]: the vertical meridian at the
 /// tangency, between the two cylinder walls.
 fn kiss_edge(p: &crate::fixtures::RawPrism) -> crate::entity::EdgeKey {
