@@ -356,7 +356,7 @@ fn lift_place<T: Real>(place: &Affine3<f64>) -> Affine3<T> {
 ///
 /// [`LoftError::SeamStructure`] if a rebuilt net is refused, which a
 /// net of the counts it was lifted from cannot be.
-fn lift_loop_walls<T: geom_core::SpanLocate>(
+fn lift_loop_walls<T: geom_core::spline::SpanLocate>(
     walls: &[Arc<NurbsSurface<f64>>],
 ) -> Result<Vec<Arc<NurbsSurface<T>>>, LoftError> {
     let mut nets: Vec<Vec<Point3<T>>> = walls
@@ -387,10 +387,10 @@ fn lift_loop_walls<T: geom_core::SpanLocate>(
         .zip(nets)
         .map(|(w, net)| {
             NurbsSurface::new(
-                w.knot_values_u().lift(T::from_f64),
-                w.knot_values_v().lift(T::from_f64),
+                w.knot_values_u().lift(T::from_computed),
+                w.knot_values_v().lift(T::from_computed),
                 net,
-                w.weights().iter().map(|&x| T::from_f64(x)).collect(),
+                w.weights().iter().map(|&x| T::from_computed(x)).collect(),
             )
             .map(Arc::new)
             .map_err(|source| LoftError::SeamStructure { source })
