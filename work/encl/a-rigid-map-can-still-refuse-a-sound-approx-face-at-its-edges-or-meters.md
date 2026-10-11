@@ -98,3 +98,18 @@ edges are plane × fit sections. One rigid map of it, a 0.7 rad rotation
 about a vertical axis, succeeds, so neither refusal above is
 reproduced yet; the row is open for the probe this body now allows.
 
+
+## Measured (ENCL meters-sup-coefficients lane, 2026-10-11)
+
+The meters' SUP side (the chart speeds and `sup‖S_u × S_v‖`) now
+reads coefficient-vector norms on both arms and moves under a rotation
+by rounding alone. What still moves is the box-assembled inf side and
+the curvature forms. On the bowed fixture of `offset_fit.rs`'
+`the_vector_upper_bounds_do_not_move_under_a_rotation` (16 rotations,
+first meter rung), the worst relative move is: the regularity
+thinness `1.8e-4` on the integral patch and `1.9e-2` on a rational twin,
+all of it the floor; and the collapse headroom `1.2e-3` (integral)
+and `0.98` (rational), all of it the fundamental forms' boxes
+(`cell_curvature`). The rational headroom moved by `0.98` before the sup
+side changed as well, so the meters' half of item 1 is now the floor
+and the forms, not the sups.

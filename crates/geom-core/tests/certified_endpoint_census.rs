@@ -285,15 +285,17 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/patch_bound.rs",
-        2,
-        2,
-        "both are in `rational_cells`, and only one of them is guarded by the \
-         `is_certified()` this counts — blind spot 2. That one is the refined weight \
-         licence, which asks by name before reading `lo`. The other is the cell \
-         CENTROID, safe because a centre is a translation choice and no enclosure \
-         rests on it: the site takes each refined control point's midpoint and \
-         contributes `0` for a non-finite one, so a refused point still yields a \
-         finite centre and the widened hulls report the trouble",
+        5,
+        4,
+        "three are in `rational_cells`, and the `is_certified()` this counts guards \
+         two of them — blind spot 2: the refined weight licence, which asks by name \
+         before reading `lo`, and the cell's weight hull `w_cell.lo()`, read only \
+         after `w_cell` and both weight-partial hulls have asked. `upper` asks by \
+         name. Two are CENTRES, safe because a centre is a translation choice and \
+         no enclosure rests on it: `rational_cells`' cell centroid and \
+         `cross_norm_sup`'s vector centres (the remainder) each take midpoints and \
+         contribute `0` for a non-finite one, so a refused input still yields a \
+         finite centre and the reach about it reports the trouble",
     ),
     ("crates/geom-brep/src/pcurve_cache.rs", 2, 2, ""),
     (
