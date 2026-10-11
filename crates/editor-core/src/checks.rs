@@ -1648,7 +1648,7 @@ fn declared_pairs<T: Decide>(
 /// pair, and this door hands the whole pair on rather than dropping
 /// half of it. Splitting them again downstream re-opens the failure
 /// this signature closes: a subject that IS a declared boolean result
-/// reporting its own certified seam as an UNDECLARED contact under the
+/// reporting its own certified seam as an UNRECORDED contact under the
 /// tier-3′ gate, while the identical body read through its value
 /// passes. (That direction fails loud, never silently — an absent
 /// record set can only make the gate refuse — but a loud wrong answer

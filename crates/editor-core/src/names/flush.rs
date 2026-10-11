@@ -444,7 +444,7 @@ pub fn declared_pairs(findings: &[FlushFinding]) -> Vec<DeclaredPair> {
 
 /// ADDS one inspected finding's pair to the declared pairs of the live
 /// Boolean or Union `node`, keeping every pair it declares already —
-/// the door an undeclared-contact refusal's recourse names. A refusal
+/// the door an unrecorded-contact refusal's recourse names. A refusal
 /// carries one contact; following each refusal with this converges on
 /// a node that declares every contact it meets, where a whole-list
 /// replace would trade one contact for the next forever.

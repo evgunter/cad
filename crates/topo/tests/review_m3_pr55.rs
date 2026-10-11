@@ -961,7 +961,7 @@ fn g_boundary_on_boundary_contacts_sharp() {
     let b = finished_brick::<f64>((0.0, 0.5), (0.0, 0.5), (2.0, 3.0));
     let undeclared_glues = |a: &AtRestBody<f64>, b: &AtRestBody<f64>| {
         let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
-        let r1 = topo::union(a, b, Tol::witness()).expect("the undeclared contact glues");
+        let r1 = topo::union(a, b, Tol::witness()).expect("the unrecorded contact glues");
         let r2 = topo::union(a, b, Tol::witness()).expect("the rerun glues");
         assert_eq!(format!("{a:?}"), a0, "operand A untouched");
         assert_eq!(format!("{b:?}"), b0, "operand B untouched");

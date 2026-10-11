@@ -221,7 +221,7 @@ const SEAM_VERTEX_RESIDUE: [&str; 2] = ["ahbg", "habg"];
 /// Three documents reach it: the row's four members, the same without
 /// `h`, and `g` lowered through the bottom cap (the crossing then on
 /// `a`'s bottom / `y = 1` rim). Orders that refuse for reasons of their
-/// own (a declaration that no longer resolves, an undeclared contact)
+/// own (a declaration that no longer resolves, an unrecorded contact)
 /// are other rows' subjects; what is asserted of them is only that none
 /// of them is an `Emission`.
 ///

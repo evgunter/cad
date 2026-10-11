@@ -228,7 +228,7 @@ class TestTheRecordsRideWithTheBody(unittest.TestCase):
 
         # The fourth rung is where they part. The at-rest body's
         # declarations back its seats; the gathered body has none, so
-        # every seat is an undeclared contact.
+        # every seat is an unrecorded contact.
         assembly.body.validate_pseudomanifold()
         with self.assertRaises(ValidationError) as caught:
             gathered.validate_pseudomanifold()
@@ -297,7 +297,7 @@ class TestTheRefusalsShape(unittest.TestCase):
 
     def test_the_message_is_the_kernel_s_own_diagnosis(self):
         message = str(self.refusal())
-        self.assertIn("is an undeclared contact", message)
+        self.assertIn("is a contact no record backs", message)
         self.assertIn(
             "Recourse: declare the named contact class, or move the geometry", message
         )
@@ -307,7 +307,7 @@ class TestTheRefusalsShape(unittest.TestCase):
         KERNEL rendering rather than a binding one, and they read as
         prose like every other typed refusal in this library.
 
-        They did not always. `UndeclaredContact` rendered its census
+        They did not always. `UnrecordedContact` rendered its census
         contact through `Debug`, `StaleContactDeclaration` its stale
         declaration, and the witness position was a `Point3`'s derived
         rendering — so the first honest call of this door tripped the
@@ -346,7 +346,7 @@ class TestTheRefusalsShape(unittest.TestCase):
         self.assertFalse(hasattr(refusal, "variant"))
         self.assertIsInstance(refusal, pncad.PncadError)
         self.assertTrue(
-            all(f.variant == "undeclared_contact" for f in refusal.findings)
+            all(f.variant == "unrecorded_contact" for f in refusal.findings)
         )
         self.assertEqual(
             {f.contact_kind for f in refusal.findings},
@@ -425,7 +425,7 @@ class TestTheRefusalsShape(unittest.TestCase):
 
         A cylinder resting on a slab, gathered by `product`, is the
         smallest scene that reaches two: the flat seat under the
-        cylinder is an undeclared contact, and the curved face within
+        cylinder is an unrecorded contact, and the curved face within
         reach of the slab's is a candidate the census can neither
         examine nor definitely clear, refused as undecidable rather
         than silently not looked at. Before this the two differed only
@@ -443,12 +443,12 @@ class TestTheRefusalsShape(unittest.TestCase):
         self.assertEqual(len(refusal.findings), refusal.failure_count)
         self.assertEqual(
             {f.variant for f in refusal.findings},
-            {"undeclared_contact", "census_undecidable"},
+            {"unrecorded_contact", "census_undecidable"},
         )
         # The payload rides only where the arm carries one.
         for finding in refusal.findings:
             with self.subTest(variant=finding.variant):
-                if finding.variant == "undeclared_contact":
+                if finding.variant == "unrecorded_contact":
                     self.assertEqual(finding.contact_kind, "vertex_on_face")
                 else:
                     self.assertIsNone(finding.contact_kind)

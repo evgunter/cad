@@ -269,7 +269,7 @@ class ValidationFinding:
     A frozen value with no constructor: findings come off a refusal.
     Two that say the same thing compare equal and hash equal.
 
-    `variant` is which validator arm refused (`undeclared_contact`,
+    `variant` is which validator arm refused (`unrecorded_contact`,
     `census_undecidable`, `negative_volume`, …). The other five are
     that arm's payload and are `None` on an arm that carries none, so
     reading one never raises `AttributeError`:
@@ -590,7 +590,6 @@ class StepImportError(PncadError):
     `dangling_reference`, `wrong_entity_type`, `malformed_record`,
     `unsupported_entity`, `unsupported_unit`, `nothing_to_import`,
     `structure`, `missing_uncertainty`, `invalid_eps_override`,
-    `declaration_unresolved`,
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
@@ -685,7 +684,7 @@ class AssemblyError(PncadError):
 
     The two verdict arms are NOT interchangeable. `at_rest` is a
     finding AGAINST the document — a refuted declaration or an
-    undeclared contact. `uncertified` is the declared direction's
+    unrecorded contact. `uncertified` is the declared direction's
     FRONTIER: nothing refuted, nothing undeclared, the census simply
     declined to certify, so nothing was decided about the geometry
     either way. A gather refusal arrives under the GATHER's own tag
@@ -4807,7 +4806,7 @@ class Body:
         contract rather than a wrinkle: `assemble`'s at-rest body
         carries its mates' minted records and passes over its seats,
         while `product`, which gathers the same solids and declares
-        nothing, reports every seat as an undeclared contact. With no
+        nothing, reports every seat as an unrecorded contact. With no
         declarations at all this is simply the strictest rung — the
         census still runs, and on a body with no coincidences it finds
         nothing.
@@ -6481,7 +6480,7 @@ class Attribution:
         against the document), `declined` (the census has no certifier
         lane for a face the declaration names, so nothing was decided
         either way), or `unattributed` (no declaration of ANY document
-        in the tree answers — an UNDECLARED contact, the hard error by
+        in the tree answers — an UNRECORDED contact, the hard error by
         definition).
 
         A declaration a document BELOW this one authored answers under
@@ -7125,7 +7124,7 @@ class Coincidence:
     `co_ruled`; `site` is `plane_ladder`, `carrier_ladder`,
     `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn`,
     `battery_joint`, `battery_support_axis`, `profile_junction`,
-    `vertex_fusion`, `census_at_rest` or `import_anchor`. A
+    `vertex_fusion` or `census_at_rest`. A
     `profile_junction` row is `tangent` or `cusp` between two carriers
     and `same_oriented` where its two pieces continue one carrier; a
     `tangent_witness` row is `tangent_contact` (the outward sides
@@ -7259,7 +7258,7 @@ def subject_body(
     same ones `Value.body` captures — so a subject reached through an
     attribution has the SAME tier-3′ verdict as the same body reached
     through its value, and a declared boolean's own certified seam is
-    not reported here as an undeclared contact."""
+    not reported here as an unrecorded contact."""
 
 def import_step(text: str, *, eps_in: Optional[Length] = None) -> ImportReport:
     """Parse a STEP text with the kernel's importer and adopt its

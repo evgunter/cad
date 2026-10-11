@@ -33,7 +33,7 @@ from pncad import (
 
 # Three boxes of side 2, offset so that every pair overlaps in a
 # volume and NO two faces are coplanar: a flush pair would be an
-# undeclared contact, which is a different subject with its own door
+# unrecorded contact, which is a different subject with its own door
 # (`declare=`), and this scene is about the fold.
 A = ((0.0, 2.0), (0.0, 2.0), (0.0, 2.0))
 B = ((1.0, 3.0), (0.5, 2.5), (0.25, 2.25))

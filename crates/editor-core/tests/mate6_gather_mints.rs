@@ -230,7 +230,7 @@ fn findings(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> Vec<S
 /// map, exactly as it already carried boolean-discovered records.
 ///
 /// Before minting moved into the gather this refused
-/// `UndeclaredContact` at the outer gate: the inner seat is a real
+/// `UnrecordedContact` at the outer gate: the inner seat is a real
 /// contact of the outer product, and the only thing that ever declared
 /// it — the inner mate — was minted by a door the seam does not call.
 #[test]

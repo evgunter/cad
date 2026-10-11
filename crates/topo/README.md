@@ -65,10 +65,13 @@ faces meet, at a point, an edge or an area (`crate::coincidence`), for
 the document's `unproven-coincidence` lint;
 a declaration is verified, never trusted, and bridges a margin in band;
 structure is decided at the document's door, not here. At rest,
-certification runs both ways — a finding with no backing declaration is
-`UndeclaredContact`, a declaration with no witness is
-`StaleContactDeclaration` — and the census never blesses what it
-discovers.
+certification runs both ways: a record with no witness is
+`StaleContactDeclaration`, and a touch no record backs is
+`UnrecordedContact` inside one group of the body (one op's result, one
+copy) — and between two groups (two copies, two imported instances)
+the census records it, a row of its own Zero and a record citing it,
+which its next pass confirms like any other (`record_at_rest`, D1
+(iii)).
 
 **C1 — Classification of the pair germ.** At p ∈ ∂A ∩ ∂B interior to a
 face of each, write each boundary as a graph h_X over its tangent plane
@@ -154,7 +157,7 @@ pair is from the two cells' carriers:
   carriers the census derives it from the carriers, on the closed-form
   lane the deciding operation used, and refuses typed where no such lane
   exists. Its endpoints are bounded by vertex records or the locus's
-  closure; an unbacked bound is `UndeclaredContact`.
+  closure; an unbacked bound is `UnrecordedContact`.
 - A **patch** is a face–face pair on one carrier, backed by a
   `SameOpposite` decision (for a mate's patch, the at-rest
   census's `CensusAtRest` row; the mate places and never checks):
@@ -234,7 +237,7 @@ Declarations live in `BooleanDeclarations::coincident_faces`
 in the `BooleanBody` wrapper, never persisted. Replay is scalar-generic;
 an indeterminate verification at an interval scalar aborts.
 
-Failures, all typed: `UndeclaredContact` (the census);
+Failures, all typed: `UnrecordedContact` (the census);
 `ContactContradicted` (at use and
 at rest); `ContinuationContradicted` and `SeamContradicted` (at use);
 `StaleContactDeclaration`; `CensusEscalated`. Invariant: every definite
@@ -408,7 +411,7 @@ record (a vertex–edge pair, which a join writes from the v-v record whose
 vertex it joined away), and `Declared::ve_face_backed`, a declared face
 pair that holds the vertex on one boundary and names a face the edge
 bounds. With neither, the event is a defect
-(`CensusContact::VertexOnEdge` as `UndeclaredContact`). Both are written
+(`CensusContact::VertexOnEdge` as `UnrecordedContact`). Both are written
 before the census runs, never read off the geometry's agreement with
 itself.
 

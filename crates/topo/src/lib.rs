@@ -869,7 +869,10 @@ pub use chord_join::face_azimuth_window_traces;
 // The census's idealized/realized pair (its `Candidates`): the
 // vocabulary always, the door on the boolean sweep's terms.
 pub use attach::Rechart;
-pub use census::{CensusStrategy, CensusTrace, SweepPairs, census_rest_decision};
+pub use census::{
+    CensusStrategy, CensusTrace, RecordedAtRest, SweepPairs, census_contact_row,
+    census_rest_decision, record_at_rest,
+};
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
 pub use contact::{

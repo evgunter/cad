@@ -1444,8 +1444,12 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             _ => "(0.4375, 0.5, 0.25)".to_owned(),
         };
         s.push((
-            label("UndeclaredContact", &contact),
-            ValidationError::UndeclaredContact { contact, witness },
+            label("UnrecordedContact", &contact),
+            ValidationError::UnrecordedContact {
+                contact,
+                witness,
+                margin: Some(geom_core::MarginDiag::value(0.0)),
+            },
         ));
     }
     for declaration in stale_declarations() {

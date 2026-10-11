@@ -135,7 +135,7 @@ fn volume(b: &AtRestBody<f64>) -> f64 {
 /// [`material_holds`] reads those results right. Where `along`, a
 /// pyramid's edge lies in a face of the other's, and that edge's own
 /// contact, which no record carries, may refuse too
-/// (`work/flush/a-corner-pair-with-an-edge-in-the-partners-face-plane-builds-with-undeclared-contacts.md`).
+/// (`work/flush/a-corner-pair-with-an-edge-in-the-partners-face-plane-builds-with-unrecorded-contacts.md`).
 /// Returns whether 3′ held.
 fn three_prime(what: &str, r: &topo::BooleanBody<f64>, pose: &Pose, along: bool) -> bool {
     let Err(errors) = validate_pseudomanifold(&r.body, &r.contacts, t()) else {
@@ -153,7 +153,7 @@ fn three_prime(what: &str, r: &topo::BooleanBody<f64>, pose: &Pose, along: bool)
     };
     for e in &errors {
         let ok = match e {
-            ValidationError::UndeclaredContact { contact, .. } => match *contact {
+            ValidationError::UnrecordedContact { contact, .. } => match *contact {
                 CensusContact::VertexVertex { a, b } => at_meet(a) && at_meet(b),
                 CensusContact::VertexOnFace { vertex, .. } => at_meet(vertex),
                 CensusContact::EdgeFaceOverlap { .. } => along,

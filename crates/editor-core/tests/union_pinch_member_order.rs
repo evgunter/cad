@@ -264,7 +264,7 @@ struct Outcome {
     shape: Shape,
     record: Record,
     /// The tier-3′ verdict over the body and its record, each error by
-    /// its kind and, for an undeclared contact, its census kind and
+    /// its kind and, for an unrecorded contact, its census kind and
     /// witness point.
     verdict: Result<(), Vec<(String, Option<Point>)>>,
     /// `mesh::validate::check_mesh` on the tessellation, by error kind.
@@ -316,8 +316,10 @@ fn checked(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str, volume: f64) -> O
         let mut es: Vec<(String, Option<Point>)> = es
             .iter()
             .map(|e| match e {
-                topo::ValidationError::UndeclaredContact { contact, witness } => (
-                    format!("UndeclaredContact {}", kind(&format!("{contact:?}"))),
+                topo::ValidationError::UnrecordedContact {
+                    contact, witness, ..
+                } => (
+                    format!("UnrecordedContact {}", kind(&format!("{contact:?}"))),
                     witness_point(witness),
                 ),
                 other => (kind(&format!("{other:?}")).to_owned(), None),
@@ -375,7 +377,7 @@ const DROPPED_RECORDS: &str = "work/wire/a-boolean-drops-its-operands-own-contac
 const DOUBLED_EDGE: &str =
     "work/tess/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md";
 
-/// An undeclared contact 3′ reports: its kind and its witness point.
+/// An unrecorded contact 3′ reports: its kind and its witness point.
 type Contact = (&'static str, Point);
 
 /// Where two blocks touch beyond the plate: the overlap of their
@@ -399,7 +401,7 @@ fn p1_p2() -> [Contact; 2] {
 fn dropped(o: &Outcome, what: &str, contacts: &[Contact]) {
     let mut want: Vec<(String, Option<Point>)> = contacts
         .iter()
-        .map(|&(k, p)| (format!("UndeclaredContact {k}"), Some(p)))
+        .map(|&(k, p)| (format!("UnrecordedContact {k}"), Some(p)))
         .collect();
     want.sort_unstable();
     match &o.verdict {
@@ -1096,7 +1098,7 @@ fn every_order_on_a_line(
         };
         for (kind, p) in &refused {
             assert!(
-                kind.starts_with("UndeclaredContact")
+                kind.starts_with("UnrecordedContact")
                     && p.is_some_and(|(x, y, _)| (x, y) == (1_500_000, 1_000_000)),
                 "{what}: 3′ refused off the line: {kind} at {p:?}"
             );

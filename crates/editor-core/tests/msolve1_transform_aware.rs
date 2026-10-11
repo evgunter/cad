@@ -483,7 +483,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
                 // Spaced wide enough that copies 0 and 2 clear the
                 // slab entirely: the row is about the copy the mate
                 // names, and a sibling resting on the base uninvited
-                // is an UNDECLARED contact the gate is right to refuse.
+                // is an UNRECORDED contact the gate is right to refuse.
                 kind: PatternKind::Linear {
                     direction: [scl(1.0), scl(0.0), scl(0.0)],
                     spacing: len(5.0),
@@ -1182,7 +1182,7 @@ fn a10_a_nested_pattern_head_is_a_member() {
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     // Spaced so that every copy but the mated one clears the slab —
-    // a sibling resting on the base uninvited is an undeclared contact
+    // a sibling resting on the base uninvited is an unrecorded contact
     // the gate is right to refuse. Inner along x, outer along y.
     const SPACING: f64 = 5.0;
     let rule = |dir: [f64; 3]| PatternKind::Linear {

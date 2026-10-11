@@ -172,7 +172,7 @@ const S: Bx = ((0.3, 0.4), (-1.0, 2.0), (0.5, 3.0));
 /// the merged top before `c` joins, the top survives in pieces, so the
 /// declaration naming it refuses `ConsumedByFold { FragmentedMerge }`,
 /// as a member's own face would; it is never read as consumed whole and
-/// dropped, which leaves the step to meet an undeclared contact and
+/// dropped, which leaves the step to meet an unrecorded contact and
 /// refuse as an emission bug. Where `s` divides it before either partner
 /// joins it refuses `ConsumedByFold { Split }`; every other order
 /// publishes.

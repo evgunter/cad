@@ -22,7 +22,7 @@
 //! `a_mixed_verdict_is_the_at_rest_arm_not_the_frontier` pins the case
 //! that separates the two arms, and `row4_a` pins that a REFUTED
 //! declaration is never dressed as a decline. The declaration still
-//! does its job: it is what suppresses the F1 `UndeclaredContact`
+//! does its job: it is what suppresses the F1 `UnrecordedContact`
 //! refusal (row 3).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -474,7 +474,7 @@ fn row2_b_a_declaring_mate_mints_identically() {
     // finding. The two assertions below are the same claim, read the
     // way it has to be read once certification exists: the only mate
     // attributed is the one whose declaration is false, and the
-    // declaring mate's interface produced no undeclared contact, which
+    // declaring mate's interface produced no unrecorded contact, which
     // an UNMINTED declaration could not have prevented.
     assert_eq!(
         declared,
@@ -484,7 +484,7 @@ fn row2_b_a_declaring_mate_mints_identically() {
     );
     let errs: Vec<String> = findings.iter().map(|f| format!("{:?}", f.error)).collect();
     assert!(
-        !errs.iter().any(|e| e.contains("UndeclaredContact")),
+        !errs.iter().any(|e| e.contains("UnrecordedContact")),
         "the DECLARING mate minted too — role does not enter minting, so \
          the z = 2 interface it declares is backed: {errs:?}"
     );
@@ -510,7 +510,7 @@ fn row3_a_an_undeclared_touching_pair_is_the_hard_error() {
     let result = assemble(&doc, &ev, Tol::witness());
     let errs = findings(&result);
     assert!(
-        errs.iter().any(|e| e.contains("UndeclaredContact")),
+        errs.iter().any(|e| e.contains("UnrecordedContact")),
         "an undeclared cross-instance contact refuses, naming the \
          finding: {errs:?} (instances {ids:?})"
     );
@@ -518,7 +518,7 @@ fn row3_a_an_undeclared_touching_pair_is_the_hard_error() {
 
 /// INVARIANT (the scan-to-bless ban, DECLARED direction): the same
 /// geometry WITH the mate's declaration minted is no longer an
-/// UNDECLARED contact — the declaration is what suppresses the F1
+/// UNRECORDED contact — the declaration is what suppresses the F1
 /// refusal, and nothing else does.
 ///
 /// **And the residual verdict is PINNED, exactly** (review MAJOR-1):
@@ -527,13 +527,13 @@ fn row3_a_an_undeclared_touching_pair_is_the_hard_error() {
 /// turn it red and demand a deliberate re-bless; #1063 built that rung
 /// and this is the re-bless — see the body.
 #[test]
-fn row3_b_the_declared_touching_pair_is_not_an_undeclared_contact() {
+fn row3_b_the_declared_touching_pair_is_not_an_unrecorded_contact() {
     let (doc, _, mate, store, _) = stacked("asm-r2b-row3b", 1.0);
     let ev = run(&doc, &with_resolver(store));
     let result = assemble(&doc, &ev, Tol::witness());
     let errs = findings(&result);
     assert!(
-        !errs.iter().any(|e| e.contains("UndeclaredContact")),
+        !errs.iter().any(|e| e.contains("UnrecordedContact")),
         "the minted declaration backs the touching pair: {errs:?}"
     );
     // **RE-BLESSED at #1063, which is what this pin exists for.** The
@@ -576,7 +576,7 @@ fn row3_b_the_declared_touching_pair_is_not_an_undeclared_contact() {
 /// only fixture whose findings are attributed to NO declaration, so it
 /// is the sole guard against two structurally distinct widenings of
 /// the frontier arm: an `Unattributed` finding being swept into
-/// `Uncertified`, and an undeclared contact being swept there with it.
+/// `Uncertified`, and an unrecorded contact being swept there with it.
 /// Delete it and both open silently.
 ///
 /// The gap is DERIVED FROM THE COMMITTED BAND, never spelled as a
@@ -1830,7 +1830,7 @@ fn a_flush_seat_certifies_at_the_gate() {
 /// INVARIANT (the scan-to-bless ban, F1): the backing consults the
 /// DECLARATION, never the geometry's agreement with itself. The same
 /// flush seat with its mate removed is the hard error — the events
-/// nothing declared are `UndeclaredContact`, unattributed.
+/// nothing declared are `UnrecordedContact`, unattributed.
 #[test]
 fn the_same_flush_seat_undeclared_is_the_hard_error() {
     let (doc, mate, store) = flush_seat("asm-r2b-flush-bare");
@@ -1848,7 +1848,7 @@ fn the_same_flush_seat_undeclared_is_the_hard_error() {
          back it: {errors:?}"
     );
     assert!(
-        errors.iter().all(|e| e.contains("UndeclaredContact")),
+        errors.iter().all(|e| e.contains("UnrecordedContact")),
         "and every finding is that hard error: {errors:?}"
     );
 }

@@ -3395,7 +3395,7 @@ mod line_conic_review {
             assert!(
                 errors.iter().any(|e| matches!(
                     e,
-                    ValidationError::UndeclaredContact {
+                    ValidationError::UnrecordedContact {
                         contact: crate::CensusContact::EdgeFaceOverlap { face, .. },
                         ..
                     } if *face == cap
@@ -3467,7 +3467,7 @@ mod line_conic_review {
         assert!(
             !errors
                 .iter()
-                .any(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+                .any(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
             "no census lane reads the touch itself: {errors:?}"
         );
     }

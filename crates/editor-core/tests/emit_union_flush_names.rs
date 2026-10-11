@@ -687,7 +687,7 @@ fn a_member_of_two_touching_shells_names_each_shell_for_itself() {
                         union == top
                             && errors.iter().all(|e| matches!(
                                 e,
-                                topo::ValidationError::UndeclaredContact { .. }
+                                topo::ValidationError::UnrecordedContact { .. }
                             )),
                         "{at}: 3′ refuses only the dropped touch: {errors:?}"
                     ),

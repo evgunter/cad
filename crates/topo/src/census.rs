@@ -101,7 +101,7 @@
 //! naming the pair instead of examining it, and the region-confined
 //! rungs' backing consult ([`pair_region_verified`], for a crossing and
 //! for an edge-on-face bound) answers `false`, so an event the pair
-//! would have backed stays an [`ValidationError::UndeclaredContact`].
+//! would have backed stays an [`ValidationError::UnrecordedContact`].
 //! `validate_pseudomanifold` hands `Some(RegionLane::certified())`; its
 //! `_structural` twin hands `None` at every scalar it is called at — a
 //! dual's only route, and an `f64` caller's when it chooses that door.
@@ -209,7 +209,7 @@
 //!     an op's edge-edge record, or [`ee_cross_backed`]. A conic
 //!     boundary edge's crossing is no event any census lane examines,
 //!     so nothing backs that bound and the cell is an
-//!     `UndeclaredContact`.
+//!     `UnrecordedContact`.
 //!
 //!   Same argument as the edge-edge bullet's, one dimension up: which
 //!   entity ends at a bound is a fact about the configuration, not
@@ -219,7 +219,7 @@
 //!   midpoint probe answers for all of it.
 //!
 //! Failure mode: a segment overlap with a missing bounding record is
-//! [`ValidationError::UndeclaredContact`] — never inferred. (A
+//! [`ValidationError::UnrecordedContact`] — never inferred. (A
 //! configuration needing MORE than bounding records would require a
 //! curved carrier — out of the planar inventory, refused as
 //! `CensusUnsupported` with an inventory cause; no counterexample
@@ -251,7 +251,7 @@
 //!   edge-on-face lane.
 //!
 //! With neither, the census reports [`CensusContact::VertexOnEdge`] as
-//! `UndeclaredContact`. Both are written before the census runs — the
+//! `UnrecordedContact`. Both are written before the census runs — the
 //! record by the op that decided the coincidence, the face pair by the
 //! recipe — and neither is read off the geometry's own agreement with
 //! itself: a configuration nothing records stays the F1 hard error
@@ -266,7 +266,9 @@ use std::collections::BTreeSet;
 
 use bvh::{Aabb, Bvh};
 use geom_core::k_stats::Magnitude;
-use geom_core::{Band, Bounds, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
+use geom_core::{
+    Band, Bounds, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Tol, Vec3,
+};
 
 use crate::body::Body;
 use crate::boolean::boxes::{edge_box, face_box, sweep_pad};
@@ -1341,7 +1343,7 @@ fn witness<T: Real>(p: Point3<T>) -> String {
 /// The witness of a conformal-patch finding: the chart-region verdict
 /// (`ChartOverlap::PositiveArea`) says the two faces share a region of
 /// positive area and hands back no point in it, so the slot names that
-/// region. It reads after "at" in [`ValidationError::UndeclaredContact`]'s
+/// region. It reads after "at" in [`ValidationError::UnrecordedContact`]'s
 /// `Display`, as a coordinate does.
 pub(crate) const CONFORMAL_REGION_WITNESS: &str = "their shared region";
 
@@ -1363,9 +1365,20 @@ fn gap_is_zero<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
-    match geom_core::k_stats::decide_magnitude(name, margin, band) {
-        Ok(Magnitude::Zero) => Some(true),
-        Ok(Magnitude::Positive) => Some(false),
+    gap_zero_reading(name, margin, band, errors).map(|zero| zero.is_some())
+}
+
+/// [`gap_is_zero`], keeping the Zero's reading: `Some(Some(margin))`
+/// zero, `Some(None)` definitely positive, `None` escalated (pushed).
+fn gap_zero_reading<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Option<MarginDiag>> {
+    match geom_core::k_stats::decide_magnitude_reported(name, margin, band) {
+        Ok((Magnitude::Zero, margin)) => Some(Some(margin)),
+        Ok((Magnitude::Positive, _)) => Some(None),
         Err(cause) => {
             errors.push(ValidationError::CensusEscalated { cause });
             None
@@ -1407,19 +1420,21 @@ fn pair_vertex_vertex<T: Decide>(
     (kb, pb): (VertexKey, Point3<T>),
     errors: &mut Vec<ValidationError>,
 ) {
-    let Some(zero) = gap_is_zero("pm_census_vv_gap", Margin::norm3(pa - pb), band, errors) else {
+    let Some(zero) = gap_zero_reading("pm_census_vv_gap", Margin::norm3(pa - pb), band, errors)
+    else {
         return;
     };
-    if zero
+    if let Some(margin) = zero
         && !geo.same_point(ka, kb)
         && !declared.vv.contains(&(ka, kb))
         && !declared.vv_face_backed(geo, ka, kb)
         && !declared.at_conventional(geo, ka, EntityId::Vertex(kb))
         && !declared.at_conventional(geo, kb, EntityId::Vertex(ka))
     {
-        errors.push(ValidationError::UndeclaredContact {
+        errors.push(ValidationError::UnrecordedContact {
             contact: CensusContact::VertexVertex { a: ka, b: kb },
             witness: witness(pa),
+            margin: Some(margin),
         });
     }
 }
@@ -1462,17 +1477,18 @@ fn pair_vertex_edge<T: Decide>(
     e: &EdgeGeo<T>,
     errors: &mut Vec<ValidationError>,
 ) {
-    if on_edge_interior(q, e, band, errors) == Some(true)
+    if let Some(Some(margin)) = on_edge_interior_reading(q, e, band, errors)
         && !declared.ve_recorded(vk, e.key)
         && !declared.ve_face_backed(geo, vk, e)
         && !declared.at_conventional(geo, vk, EntityId::Edge(e.key))
     {
-        errors.push(ValidationError::UndeclaredContact {
+        errors.push(ValidationError::UnrecordedContact {
             contact: CensusContact::VertexOnEdge {
                 vertex: vk,
                 edge: e.key,
             },
             witness: witness(q),
+            margin: Some(margin),
         });
     }
 }
@@ -1488,16 +1504,28 @@ fn on_edge_interior<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
+    on_edge_interior_reading(q, e, band, errors).map(|on| on.is_some())
+}
+
+/// [`on_edge_interior`], keeping the reading of the Zero that put `q`
+/// on the line: `Some(Some(margin))` on the interior, `Some(None)` off
+/// it, `None` escalated (pushed).
+fn on_edge_interior_reading<T: Decide>(
+    q: Point3<T>,
+    e: &EdgeGeo<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Option<MarginDiag>> {
     let off = Margin::norm3((q - e.p0).cross(e.dir));
-    if !gap_is_zero("pm_census_ve_line_gap", off, band, errors)? {
-        return Some(false);
-    }
+    let Some(margin) = gap_zero_reading("pm_census_ve_line_gap", off, band, errors)? else {
+        return Some(None);
+    };
     let s = (q - e.p0).dot(e.dir);
-    let mut interior = Some(true);
+    let mut interior = Some(Some(margin));
     for m in [s, e.len - s] {
         match decide("pm_census_ve_span", Margin::of(m), band) {
             Ok(Sign::Positive) => {}
-            Ok(_) => interior = interior.map(|_| false),
+            Ok(_) => interior = interior.map(|_| None),
             Err(cause) => {
                 errors.push(ValidationError::CensusEscalated { cause });
                 interior = None;
@@ -1515,9 +1543,23 @@ fn signed_is_zero<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
-    match decide(name, margin, band) {
-        Ok(Sign::Zero) => Some(true),
-        Ok(Sign::Positive | Sign::Negative) => Some(false),
+    signed_zero_reading(name, margin, band, errors).map(|zero| zero.is_some())
+}
+
+/// [`signed_is_zero`], keeping the Zero's reading, as
+/// [`gap_zero_reading`] does.
+fn signed_zero_reading<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Option<MarginDiag>> {
+    match geom_core::k_stats::decide_reported(name, margin, band) {
+        Ok(geom_core::Decided {
+            sign: Sign::Zero,
+            margin,
+        }) => Some(Some(margin)),
+        Ok(_) => Some(None),
         Err(cause) => {
             errors.push(ValidationError::CensusEscalated { cause });
             None
@@ -1628,22 +1670,24 @@ fn pair_vertex_face<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) {
     let residual = (q - f.origin).dot(f.normal);
-    match signed_is_zero("pm_census_vf_residual", Margin::of(residual), band, errors) {
-        Some(true) => {}
-        _ => return,
-    }
+    let Some(Some(margin)) =
+        signed_zero_reading("pm_census_vf_residual", Margin::of(residual), band, errors)
+    else {
+        return;
+    };
     // Boundary coincidences are pass-1/2 findings; Out and
     // escalations (pushed) need nothing more here.
     if contain(body, f, q, band, errors) == Some(FaceContainment::In)
         && !declared.vf.contains(&(vk, f.key))
         && !declared.vf_face_backed(geo, vk, f.key)
     {
-        errors.push(ValidationError::UndeclaredContact {
+        errors.push(ValidationError::UnrecordedContact {
             contact: CensusContact::VertexOnFace {
                 vertex: vk,
                 face: f.key,
             },
             witness: witness(q),
+            margin: Some(margin),
         });
     }
 }
@@ -1859,11 +1903,11 @@ fn pair_edge_face<T: Decide>(
     let p1 = e.p0 + e.dir * e.len;
     let r0 = (e.p0 - f.origin).dot(f.normal);
     let r1 = (p1 - f.origin).dot(f.normal);
-    let (s0, s1) = match (
-        decide("pm_census_ef_residual", Margin::of(r0), band),
-        decide("pm_census_ef_residual", Margin::of(r1), band),
+    let (d0, d1) = match (
+        geom_core::k_stats::decide_reported("pm_census_ef_residual", Margin::of(r0), band),
+        geom_core::k_stats::decide_reported("pm_census_ef_residual", Margin::of(r1), band),
     ) {
-        (Ok(s0), Ok(s1)) => (s0, s1),
+        (Ok(d0), Ok(d1)) => (d0, d1),
         (a, b) => {
             for r in [a, b] {
                 if let Err(cause) = r {
@@ -1873,7 +1917,7 @@ fn pair_edge_face<T: Decide>(
             return;
         }
     };
-    match (s0, s1) {
+    match (d0.sign, d1.sign) {
         (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
             // Proper plane crossing at both-strict interiors.
             let q = e.p0 + (p1 - e.p0) * (r0 / (r0 - r1));
@@ -1889,17 +1933,19 @@ fn pair_edge_face<T: Decide>(
             // rung [`ee_cross_backed`] is the in-contact-plane
             // case and does not reach here.
             if contain(body, f, q, band, errors) == Some(FaceContainment::In) {
-                errors.push(ValidationError::UndeclaredContact {
+                errors.push(ValidationError::UnrecordedContact {
                     contact: CensusContact::EdgeFacePierce {
                         edge: e.key,
                         face: f.key,
                     },
                     witness: witness(q),
+                    margin: None,
                 });
             }
         }
         (Sign::Zero, Sign::Zero) => {
-            ef_overlap_lane(body, e, f, geo, declared, band, region, errors);
+            let margin = d0.margin.jointly(d1.margin);
+            ef_overlap_lane(body, (e, f, margin), geo, declared, band, region, errors);
         }
         // One endpoint on the plane: pass-1/2/3 territory.
         _ => {}
@@ -1912,8 +1958,7 @@ fn pair_edge_face<T: Decide>(
 #[allow(clippy::too_many_arguments)] // the lane's whole state, the region door riding to the rung
 fn ef_overlap_lane<T: Decide>(
     body: &Body<T>,
-    e: &EdgeGeo<T>,
-    f: &FaceGeo<T>,
+    (e, f, margin): (&EdgeGeo<T>, &FaceGeo<T>, MarginDiag),
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
@@ -1925,12 +1970,13 @@ fn ef_overlap_lane<T: Decide>(
             ef_bound_backed(body, e, f, cut, geo, declared, band, region, errors)
         };
         if !(bound(cell.lo, errors) && bound(cell.hi, errors)) {
-            errors.push(ValidationError::UndeclaredContact {
+            errors.push(ValidationError::UnrecordedContact {
                 contact: CensusContact::EdgeFaceOverlap {
                     edge: e.key,
                     face: f.key,
                 },
                 witness: witness(cell.mid),
+                margin: Some(margin),
             });
         }
     }
@@ -2665,17 +2711,30 @@ fn crossing_in_both_interiors<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
+    crossing_reading(ea, eb, ncross, band, errors).map(|cross| cross.is_some())
+}
+
+/// [`crossing_in_both_interiors`], keeping the reading of the Zero that
+/// made the two lines meet: `Some(Some(margin))` a crossing, `Some(None)`
+/// none, `None` escalated (pushed).
+fn crossing_reading<T: Decide>(
+    ea: &EdgeGeo<T>,
+    eb: &EdgeGeo<T>,
+    ncross: Vec3<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Option<MarginDiag>> {
     let d = eb.p0 - ea.p0;
     let gap = Margin::levered_inv(d.dot(ncross).abs(), ncross.norm());
-    if !gap_is_zero("pm_census_ee_gap", gap, band, errors)? {
-        return Some(false);
-    }
+    let Some(margin) = gap_zero_reading("pm_census_ee_gap", gap, band, errors)? else {
+        return Some(None);
+    };
     let (sa, sb) = ee_cross_spans(ea, eb);
-    let mut interior = Some(true);
+    let mut interior = Some(Some(margin));
     for m in [sa, ea.len - sa, sb, eb.len - sb] {
         match decide("pm_census_ee_span", Margin::of(m), band) {
             Ok(Sign::Positive) => {}
-            Ok(_) => interior = interior.map(|_| false),
+            Ok(_) => interior = interior.map(|_| None),
             Err(cause) => {
                 errors.push(ValidationError::CensusEscalated { cause });
                 interior = None;
@@ -2703,9 +2762,9 @@ fn ee_crossing_lane<T: Decide>(
     region: Option<RegionLane<T>>,
     errors: &mut Vec<ValidationError>,
 ) {
-    if crossing_in_both_interiors(ea, eb, ncross, band, errors) != Some(true) {
+    let Some(Some(margin)) = crossing_reading(ea, eb, ncross, band, errors) else {
         return;
-    }
+    };
     if declared.ee_recorded(ea.key, eb.key) {
         return;
     }
@@ -2713,13 +2772,14 @@ fn ee_crossing_lane<T: Decide>(
     match ee_cross_backed(body, geo, declared, ea, eb, q, band, region, errors) {
         CrossingBacking::Backed => {}
         CrossingBacking::Unanswered => {
-            errors.push(ValidationError::UndeclaredContact {
+            errors.push(ValidationError::UnrecordedContact {
                 contact: CensusContact::EdgeEdgeCross {
                     a: ea.key,
                     b: eb.key,
                     side: None,
                 },
                 witness: witness(q),
+                margin: Some(margin),
             });
         }
         CrossingBacking::Refused(verdict) => {
@@ -2729,22 +2789,19 @@ fn ee_crossing_lane<T: Decide>(
             if verdict == CrossingSideVerdict::OppositeSides {
                 unreachable!("Backed above");
             }
-            errors.push(ValidationError::UndeclaredContact {
+            errors.push(ValidationError::UnrecordedContact {
                 contact: CensusContact::EdgeEdgeCross {
                     a: ea.key,
                     b: eb.key,
                     side: Some(verdict),
                 },
                 witness: witness(q),
+                margin: Some(margin),
             });
         }
     }
 }
 
-/// Parallel pair: if collinear, the span overlap `[lo, hi]` on `ea`'s
-/// axis is a finding when positive-length; certified iff both bounds
-/// carry a coincident vertex pair that is v-v-declared, one vertex, or
-/// two on one point (structural) — the D3 rule.
 /// The positive-length overlap `[lo, hi]` of two parallel edges on
 /// `ea`'s axis, where they are collinear: `None` where they are not, the
 /// overlap is a point or empty (pass 1's territory), or a decision
@@ -2755,11 +2812,9 @@ fn collinear_overlap<T: Decide>(
     eb: &EdgeGeo<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
-) -> Option<(T, T)> {
+) -> Option<((T, T), MarginDiag)> {
     let off = Margin::norm3((eb.p0 - ea.p0).cross(ea.dir));
-    if gap_is_zero("pm_census_ee_line_gap", off, band, errors) != Some(true) {
-        return None;
-    }
+    let margin = gap_zero_reading("pm_census_ee_line_gap", off, band, errors)??;
     let t0 = (eb.p0 - ea.p0).dot(ea.dir);
     let t1 = t0 + eb.len * eb.dir.dot(ea.dir);
     let (blo, bhi) = match tri_cmp(t0, t1, band, errors)? {
@@ -2775,7 +2830,7 @@ fn collinear_overlap<T: Decide>(
         _ => ea.len,
     };
     match decide("pm_census_ee_overlap", Margin::of(hi - lo), band) {
-        Ok(Sign::Positive) => Some((lo, hi)),
+        Ok(Sign::Positive) => Some(((lo, hi), margin)),
         Ok(_) => None,
         Err(cause) => {
             errors.push(ValidationError::CensusEscalated { cause });
@@ -2792,18 +2847,19 @@ fn ee_collinear_lane<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) {
-    let Some((lo, hi)) = collinear_overlap(ea, eb, band, errors) else {
+    let Some(((lo, hi), margin)) = collinear_overlap(ea, eb, band, errors) else {
         return;
     };
     let backed = ee_bound_backed(ea, eb, lo, geo, declared, band, errors)
         && ee_bound_backed(ea, eb, hi, geo, declared, band, errors);
     if !backed {
-        errors.push(ValidationError::UndeclaredContact {
+        errors.push(ValidationError::UnrecordedContact {
             contact: CensusContact::EdgeEdgeOverlap {
                 a: ea.key,
                 b: eb.key,
             },
             witness: witness(ea.p0 + ea.dir * geom::mid_param(lo, hi)),
+            margin: Some(margin),
         });
     }
 }
@@ -2884,7 +2940,7 @@ fn ee_bound_backed<T: Decide>(
 /// vocabulary's [`crate::contact::ContactFinding`], carried on the
 /// refusal so the recourse can quote exactly what would verify —
 /// and, unbacked by a face-granularity record, refuses as
-/// `UndeclaredContact` (discovery is never declaration, F1).
+/// `UnrecordedContact` (discovery is never declaration, F1).
 fn sweep_conformal_patches<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -2950,9 +3006,10 @@ fn sweep_conformal_patches<T: Decide>(
                             // pair typed, and `PositiveArea` is a
                             // region verdict that hands back no point,
                             // so the locus is the region itself.
-                            errors.push(ValidationError::UndeclaredContact {
+                            errors.push(ValidationError::UnrecordedContact {
                                 contact: CensusContact::ConformalPatch { finding },
                                 witness: CONFORMAL_REGION_WITNESS.to_owned(),
+                                margin: None,
                             });
                         }
                     }
@@ -3754,7 +3811,7 @@ enum Named {
 impl Named {
     fn of(e: &ValidationError) -> Self {
         match e {
-            ValidationError::UndeclaredContact { contact, .. } => match TouchSite::of(contact) {
+            ValidationError::UnrecordedContact { contact, .. } => match TouchSite::of(contact) {
                 Some(site) => {
                     let (x, y) = site.entities();
                     Self::Two(x, y, Said::Touch(site))
@@ -6545,6 +6602,153 @@ pub fn census_rest_decision<T: Decide>(
     })
 }
 
+/// **What the census recorded over one body at rest**
+/// ([`record_at_rest`]).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct RecordedAtRest {
+    /// A record for each touch between two groups that no record
+    /// backed, each citing its row by `first_row` plus its place in
+    /// [`Self::rows`].
+    pub records: ContactRecords,
+    /// The census's decisions those records cite, in the order it made
+    /// them ([`crate::DecisionSite::CensusAtRest`]).
+    pub rows: Vec<crate::Coincidence>,
+    /// Every other finding, in the census's order: a touch inside one
+    /// group (that group's defect, D1 (iii)), a pierce or a same-side
+    /// crossing, and whatever else the census refuses.
+    pub findings: Vec<ValidationError>,
+}
+
+/// How many times [`record_at_rest`] runs the census before it reports
+/// what is still unrecorded: once to find the touches, once to confirm
+/// their records, and once for a touch only those records expose.
+const RECORDING_PASSES: usize = 3;
+
+/// **The tier-3′ census over a body at rest, recording what it
+/// decides** (D1 (ii), (iii); D10): every touch it finds between cells
+/// of two different groups that no record backs is a row of its own
+/// Zero, and a record of that pair citing it, and the census runs again
+/// over the records so each is confirmed like any other; an edge lying
+/// in a face is recorded by its bounds alone, which back it on that next
+/// pass (D1). `group` is the
+/// caller's partition of the body's solids: a placement's copies, a
+/// file's instances. Where everything is one group nothing is recorded,
+/// and the census is an op's finished-body gate. A touch inside one
+/// group stays a finding, as do a pierce and a same-side crossing, which
+/// are interpenetration rather than coincidence.
+///
+/// `census` is the caller's door to the tier-3′ pass over `body` with
+/// the records it is handed (its at-rest policy, or the certificate
+/// form an import keeps): this door decides nothing of its own, and
+/// what it records is only what that pass found.
+pub fn record_at_rest<T: Real>(
+    body: &Body<T>,
+    contacts: &ContactRecords,
+    mut census: impl FnMut(&ContactRecords) -> Vec<ValidationError>,
+    group: &dyn Fn(crate::SolidKey) -> Option<u32>,
+    first_row: u32,
+) -> RecordedAtRest {
+    let mut recorded = RecordedAtRest::default();
+    let mut all = contacts.clone();
+    for pass in 1..=RECORDING_PASSES {
+        let mut minted = false;
+        let mut kept = Vec::new();
+        for finding in census(&all) {
+            let between = (pass < RECORDING_PASSES)
+                .then(|| census_contact_row(&finding))
+                .flatten()
+                .and_then(|row| {
+                    let [x, y] = row.cells.map(|cell| match cell {
+                        crate::RowCell::Result { cell } => {
+                            cell_solid(body, cell).and_then(group).map(|g| (cell, g))
+                        }
+                        crate::RowCell::Input { .. } | crate::RowCell::Tool => None,
+                    });
+                    let ((x, gx), (y, gy)) = (x?, y?);
+                    let contact = crate::Contact::new(body, x, y).ok()?;
+                    // An edge lying in a face is confirmed from its
+                    // bounds' records, never one of its own (D1).
+                    let in_face = matches!(contact.kind(), crate::ContactKind::EdgeFace(..));
+                    (gx != gy && !in_face).then_some((row, contact))
+                });
+            match between {
+                Some((row, contact)) => {
+                    let k = u32::try_from(recorded.rows.len())
+                        .ok()
+                        .and_then(|k| first_row.checked_add(k))
+                        .unwrap_or_else(|| unreachable!("a body's rows number fewer than u32"));
+                    recorded.rows.push(row);
+                    let cited = crate::Cited::new(contact, crate::Cites::decided(k));
+                    recorded.records.extend([cited.clone()]);
+                    all.extend([cited]);
+                    minted = true;
+                }
+                None => kept.push(finding),
+            }
+        }
+        if !minted {
+            recorded.findings = kept;
+            break;
+        }
+    }
+    recorded
+}
+
+/// The solid a cell of `body` belongs to: a face's, or an edge's or a
+/// vertex's through a half-edge of it; `None` for a lone vertex.
+fn cell_solid<T: Real>(body: &Body<T>, cell: crate::Cell) -> Option<crate::SolidKey> {
+    let he = match cell {
+        crate::Cell::Face(f) => return body.solid_of_face(f),
+        crate::Cell::Edge(e) => body.get_edge(e)?.he_plus,
+        crate::Cell::Vertex(v) => body.get_vertex(v)?.emanating?,
+    };
+    body.solid_of_face(body.face_of_half_edge(he)?)
+}
+
+/// **The census's coincidence a finding reports, as the row recording
+/// it** ([`crate::DecisionSite::CensusAtRest`]): a contact no record
+/// backs whose Zero the census decided, its cells in the body's own keys
+/// and its margin that Zero's. `None` for every other finding, and for a
+/// contact no Zero decided or that is interpenetration rather than a
+/// coincidence: a pierce, and a crossing whose side test read `SameSide`.
+#[must_use]
+pub fn census_contact_row(finding: &ValidationError) -> Option<crate::Coincidence> {
+    let ValidationError::UnrecordedContact {
+        contact,
+        margin: Some(margin),
+        ..
+    } = finding
+    else {
+        return None;
+    };
+    use crate::Cell::{Edge, Face, Vertex};
+    let cells = match *contact {
+        CensusContact::VertexVertex { a, b } => [Vertex(a), Vertex(b)],
+        CensusContact::VertexOnFace { vertex, face } => [Vertex(vertex), Face(face)],
+        CensusContact::VertexOnEdge { vertex, edge } => [Vertex(vertex), Edge(edge)],
+        CensusContact::EdgeFaceOverlap { edge, face } => [Edge(edge), Face(face)],
+        CensusContact::EdgeEdgeOverlap { a, b }
+        | CensusContact::EdgeEdgeCross {
+            a,
+            b,
+            side: None | Some(CrossingSideVerdict::OppositeSides | CrossingSideVerdict::Undecided),
+        } => [Edge(a), Edge(b)],
+        CensusContact::EdgeEdgeCross {
+            side: Some(CrossingSideVerdict::SameSide),
+            ..
+        }
+        | CensusContact::EdgeFacePierce { .. }
+        | CensusContact::ConformalPatch { .. } => return None,
+    };
+    Some(crate::Coincidence {
+        cells: cells.map(|cell| crate::RowCell::Result { cell }),
+        relation: crate::Relation::OnCarrier,
+        site: crate::DecisionSite::CensusAtRest,
+        margin: *margin,
+        discharge: crate::Discharge::of(*margin),
+    })
+}
+
 /// The at-rest confirmation of a face–face record, as a patch (C3):
 /// through the two doors its certification obligation names — the
 /// `Rest` carrier/sense door (`contact_pair_verdict`: carrier identity
@@ -7000,7 +7204,7 @@ mod tests {
         let hit = errors
             .iter()
             .find_map(|e| match e {
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::ConformalPatch { finding },
                     ..
                 } => Some(*finding),
@@ -7345,7 +7549,7 @@ mod tests {
         assert!(
             !errors
                 .iter()
-                .any(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+                .any(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
             "nothing was examined, so nothing is found undeclared: {errors:?}"
         );
     }
@@ -7372,9 +7576,10 @@ mod tests {
             errors
                 .iter()
                 .filter_map(|e| match e {
-                    ValidationError::UndeclaredContact {
+                    ValidationError::UnrecordedContact {
                         contact: contact @ CensusContact::EdgeEdgeCross { .. },
                         witness,
+                        ..
                     } => Some(format!("{contact:?} at {witness}")),
                     _ => None,
                 })
@@ -7593,7 +7798,7 @@ mod tests {
         assert!(
             !arm.iter().any(|e| matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::ConformalPatch { .. },
                     ..
                 }
@@ -7666,7 +7871,7 @@ mod tests {
         assert!(
             arm.iter().any(|e| matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::ConformalPatch { .. },
                     ..
                 }
@@ -7744,7 +7949,7 @@ mod tests {
         assert!(
             !arm_only.iter().any(|e| matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::ConformalPatch { .. },
                     ..
                 }
@@ -8406,7 +8611,7 @@ mod tests {
             Some(RegionLane::certified()),
             CensusStrategy::Realized,
         );
-        assert!(!errors.is_empty(), "flush cubes have undeclared contacts");
+        assert!(!errors.is_empty(), "flush cubes have unrecorded contacts");
         assert!(pin(&flush) > 0, "the flush pair prunes the far faces");
         // Far: nothing cross-solid survives the filter, and the census
         // is clean either way.
@@ -8733,7 +8938,7 @@ mod tests {
         assert!(
             ideal_errors.iter().all(|e| !matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::VertexOnFace { face, .. },
                     ..
                 } if *face == cap
@@ -8805,7 +9010,7 @@ mod tests {
             errors.iter().all(|e| !matches!(
                 e,
                 ValidationError::CensusUnsupported { .. }
-                    | ValidationError::UndeclaredContact {
+                    | ValidationError::UnrecordedContact {
                         contact: CensusContact::VertexOnFace { .. },
                         ..
                     }
@@ -9398,7 +9603,7 @@ mod tests {
         census_and_certify(body, &ContactRecords::default(), band, tol, None)
             .iter()
             .filter_map(|e| match e {
-                ValidationError::UndeclaredContact { contact, .. } => TouchSite::of(contact),
+                ValidationError::UnrecordedContact { contact, .. } => TouchSite::of(contact),
                 _ => None,
             })
             .map(|site| (site, site.verdict(body, &geo, band)))
@@ -9836,7 +10041,7 @@ mod tests {
                 .err()
                 .unwrap_or_default()
                 .iter()
-                .filter(|e| !matches!(e, ValidationError::UndeclaredContact { .. }))
+                .filter(|e| !matches!(e, ValidationError::UnrecordedContact { .. }))
                 .map(|e| format!("{e:?}"))
                 .collect();
                 assert!(others.is_empty(), "{name} @ {ang}: {others:?}");
@@ -10896,7 +11101,7 @@ mod tests {
     /// bit-equal point leaves a coincidence of values, which the
     /// census refuses as an undeclared vertex–vertex contact.
     #[test]
-    fn a_tip_copy_on_its_own_bit_equal_point_is_an_undeclared_contact() {
+    fn a_tip_copy_on_its_own_bit_equal_point_is_an_unrecorded_contact() {
         let notched = [
             (0.0, 0.0),
             (8.0, 0.0),
@@ -10947,7 +11152,7 @@ mod tests {
         assert!(
             errors.iter().any(|e| matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::VertexVertex { a, b },
                     ..
                 } if [*a, *b] == [copies[0], copies[1]] || [*a, *b] == [copies[1], copies[0]]
@@ -11010,7 +11215,7 @@ mod tests {
         assert!(
             errors.iter().any(|e| matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::EdgeFaceOverlap { .. },
                     ..
                 }

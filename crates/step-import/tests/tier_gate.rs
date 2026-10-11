@@ -857,7 +857,7 @@ const CORPUS: [(&str, Disposition); 75] = [
         // (the WITH/WITHOUT pair is pinned in
         // review_r1_tier_gate_probes.rs, the retired R1 finding).
         "../step-export/tests/fixtures/kiss_assembly.step",
-        Refused("undeclared contact"),
+        Refused("unrecorded contact"),
     ),
     (
         "../step-export/tests/fixtures/lily_lantern.step",

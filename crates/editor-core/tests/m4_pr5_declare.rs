@@ -4,7 +4,7 @@
 //! - **D6.1, the M3 closure gap CLOSED by recipe intent**: a 3′ body
 //!   (corner-kiss union) reused as an operand certifies at the 3′
 //!   gate exactly when the recipe DECLARES the surviving v-v intent
-//!   by name — and stays a loud `UndeclaredContact` refusal without
+//!   by name — and stays a loud `UnrecordedContact` refusal without
 //!   it (the envelope entry's fix direction, landed).
 //! - **D6.3, the #91 flush-plane narrative**: a coincident-plane pair
 //!   glues when the union declares it (N3 `Merged` row minted);
@@ -153,8 +153,8 @@ fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
     assert!(
         errors
             .iter()
-            .all(|e| matches!(e, topo::ValidationError::UndeclaredContact { .. })),
-        "undeclared reuse must 3'-refuse UndeclaredContact only: {errors:?}"
+            .all(|e| matches!(e, topo::ValidationError::UnrecordedContact { .. })),
+        "undeclared reuse must 3'-refuse UnrecordedContact only: {errors:?}"
     );
 
     // DECLARING the surviving v-v intent BY NAME (the

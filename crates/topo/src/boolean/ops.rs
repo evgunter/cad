@@ -4018,7 +4018,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBandShell> {
         | V::PinchCornerEscalated { .. } => None,
         // The census's findings: the door runs no census
         // (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
-        V::UndeclaredContact { .. }
+        V::UnrecordedContact { .. }
         | V::StaleContactDeclaration { .. }
         | V::ContactContradicted { .. }
         | V::CensusEscalated { .. }
