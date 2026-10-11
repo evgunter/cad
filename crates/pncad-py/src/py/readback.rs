@@ -289,6 +289,18 @@ pub(crate) fn readback_err(
             none(),
             none(),
         ),
+        // The node named alone, in `which`: the read is the caller's
+        // to name (a split's half by its port).
+        E::SeveralOutputs { node } => (
+            obj(Py::new(py, super::doc::NodeId(*node)).map(|v| v.into_any())),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
         E::Readback(R::NoCanonicalFrame { carrier }) => (
             none(),
             none(),

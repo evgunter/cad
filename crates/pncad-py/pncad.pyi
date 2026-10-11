@@ -5607,7 +5607,9 @@ class Evaluation:
         evaluation has no value for; then the loud `unnamed` bug arm
         if the winning face inverts to no name."""
 
-    def find_flush_candidates(self, a: NodeId, b: NodeId) -> list[FlushFinding]:
+    def find_flush_candidates(
+        self, a: NodeId | Var, b: NodeId | Var
+    ) -> list[FlushFinding]:
         """The cross-body flush candidates between `a`'s and `b`'s
         outputs, as of THIS evaluation — the detect arm of the
         detect/declare protocol, run by the C4 verifier itself (a
