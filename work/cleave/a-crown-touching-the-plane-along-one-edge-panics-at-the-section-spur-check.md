@@ -2,10 +2,11 @@
 id: a-crown-touching-the-plane-along-one-edge-panics-at-the-section-spur-check
 kind: issue
 title: A crown whose ring touches the split plane at one corner panics at the join's section-spur check
-status: open
+status: dispatched
 opened: 2026-10-10
 priority: P1
 cost: M
+branch: cleave/crown-spur-panic
 ---
 
 Found by the re-review fuzz of PR 4565, on main before it and on its

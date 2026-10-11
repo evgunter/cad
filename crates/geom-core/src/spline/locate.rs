@@ -50,6 +50,7 @@
 //! same style rule as [`crate::Bounds`] — it is a `Real` subtrait, so
 //! the ring operations come with it).
 
+use super::algebra::RingRefinement;
 use super::knots::{KnotVector, Span};
 use crate::real::Real;
 
@@ -131,6 +132,48 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// selection would follow one branch's tangent and drop the
     /// other's — unsound for a straddling enclosure).
     fn enclosure_hull(self, other: Self) -> Self;
+
+    /// One homogeneous channel (`w`, or one coordinate of `w·P`) through
+    /// `refinement` at this scalar, per scalar as the locator is. At
+    /// `Interval` it is the certification ring's refinement
+    /// ([`RingRefinement::refine`]), so the result encloses the
+    /// described curve's refined channel through the ring's one step.
+    /// At every other scalar it is [`CurvePlan::apply_homogeneous`](super::CurvePlan::apply_homogeneous) per
+    /// plan, both Boehm ratios formed in the scalar. Either way a
+    /// channel that is not one entry per source control point refuses:
+    /// every entry of the refined length is poison.
+    fn refine_homogeneous(refinement: &RingRefinement, channel: &[Self]) -> Vec<Self> {
+        if channel.len() != refinement.source_count() {
+            return vec![Self::from_f64(f64::NAN); refinement.knots().control_count()];
+        }
+        refinement
+            .plans()
+            .iter()
+            .fold(channel.to_vec(), |c, plan| plan.apply_homogeneous(&c))
+    }
+
+    /// A rational curve's stored `weights` through `refinement` at this
+    /// scalar, or `None` unless every refined weight is certainly
+    /// positive: the weights a de-homogenization divides by, and the
+    /// licence of a rational hull. One refinement at `f64` (the check
+    /// reads the weights it returns) and at `Interval` (the ring's,
+    /// checked by [`certainly_positive`](super::algebra::certainly_positive)). At every other scalar the
+    /// check reads the `f64` refinement, the scalar's own value, and
+    /// the weights are [`SpanLocate::refine_homogeneous`]'s.
+    fn refine_weights(refinement: &RingRefinement, weights: &[f64]) -> Option<Vec<Self>> {
+        f64::refine_weights(refinement, weights)?;
+        let lifted: Vec<Self> = weights.iter().map(|w| Self::from_f64(*w)).collect();
+        Some(Self::refine_homogeneous(refinement, &lifted))
+    }
+    /// The one `f64` this value locates by, or `None` when it is no
+    /// single point: poison, or an enclosure wider than a point.
+    ///
+    /// This is how knot values held in the scalar give the `f64` knot
+    /// vector its value channel ([`super::Knots::new`]): the read the
+    /// locator itself makes, and nothing else. An interval answers only for a point
+    /// bracket, because a wide one names no knot structure, and a
+    /// midpoint would invent one.
+    fn point_value(self) -> Option<f64>;
 }
 
 impl SpanLocate for f64 {
@@ -146,6 +189,18 @@ impl SpanLocate for f64 {
         // Unreachable through the evaluators (single-span locator);
         // total anyway — poison, never a fabricated point value.
         f64::NAN
+    }
+
+    fn refine_weights(refinement: &RingRefinement, weights: &[f64]) -> Option<Vec<Self>> {
+        let w = Self::refine_homogeneous(refinement, weights);
+        // `!(w > 0.0)` catches NaN too.
+        #[allow(clippy::neg_cmp_op_on_partial_ord)]
+        let refused = w.iter().any(|w| !(*w > 0.0) || !w.is_finite());
+        (!refused).then_some(w)
+    }
+
+    fn point_value(self) -> Option<f64> {
+        (!self.is_nan()).then_some(self)
     }
 }
 
@@ -174,6 +229,8 @@ mod tests {
         assert_eq!(indices(2.0.locate_spans(&k)), (3, 3));
         assert!(f64::NAN.locate_spans(&k).is_none(), "NaN located a span");
         assert!(0.5f64.enclosure_hull(0.6).is_nan());
+        assert_eq!(0.5f64.point_value(), Some(0.5));
+        assert_eq!(f64::NAN.point_value(), None, "NaN read as a point");
     }
 
     /// The `Probe` half is behind the `probe` feature (the recording
@@ -190,6 +247,8 @@ mod tests {
         }
         let d = Dual64::variable(1.0);
         assert_eq!(indices(d.locate_spans(&k)), (3, 3));
+        assert_eq!(d.point_value(), Some(1.0), "the dual's value channel");
+        assert_eq!(Dual::new(f64::NAN, 1.0).point_value(), None);
         assert!(
             Dual::new(f64::NAN, 1.0).locate_spans(&k).is_none(),
             "a poisoned value channel located a span"

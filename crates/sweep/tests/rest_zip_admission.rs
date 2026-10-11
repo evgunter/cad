@@ -179,7 +179,7 @@ fn a_tangent_sites_controls_build_sound() {
 /// dips into the plate: across its straight south wall, or inside the
 /// contact, where the dip's boundary on the plate's top is the slab's
 /// own edges and no section segment marks it
-/// (`work/zip/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate.md`).
+/// (`work/fuse/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate.md`).
 /// Each builds sound at box arithmetic, in both orders. The control, a
 /// box above the plate, joins too.
 #[test]
@@ -438,7 +438,7 @@ fn cited_rows(r: &topo::BooleanBody<f64>) -> Vec<String> {
 
 /// **A line kiss beside the tangent site builds at its closed form and
 /// records its contact** (shape 2 of
-/// `work/zip/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate`).
+/// `work/fuse/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate`).
 /// At these poses one of `b`'s cap edges from the reflex corner lies in
 /// `a`'s top, with the cap above it elsewhere: `v∩ = 0`, and `b` kisses
 /// `a` along that edge and at its far vertex. Each union, in both

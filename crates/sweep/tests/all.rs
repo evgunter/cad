@@ -75,10 +75,14 @@ mod a_ruling_through_a_box_corner_edge;
 mod a_swaying_loft_corner_meters;
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
+#[path = "a_tangent_arc_at_other_boolean_vertices.rs"]
+mod a_tangent_arc_at_other_boolean_vertices;
 #[path = "a_tube_ending_on_a_ball.rs"]
 mod a_tube_ending_on_a_ball;
 #[path = "an_annular_tube_through_a_plate.rs"]
 mod an_annular_tube_through_a_plate;
+#[path = "an_arc_tangent_at_a_boolean_vertex.rs"]
+mod an_arc_tangent_at_a_boolean_vertex;
 #[path = "at_rest_pcurve_faces.rs"]
 mod at_rest_pcurve_faces;
 #[path = "band_apart_partners_on_a_steep_ellipse.rs"]
@@ -119,6 +123,8 @@ mod carved_sphere_operand;
 mod cone_join_lane;
 #[path = "cone_operand_rows.rs"]
 mod cone_operand_rows;
+#[path = "continuation_pose.rs"]
+mod continuation_pose;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
 #[path = "four_crossings_on_one_section_circle.rs"]
