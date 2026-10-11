@@ -128,3 +128,22 @@ Waits on `intent-stage4-is-built`, not on the whole program: only a declared Ver
 ## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
 
 E does not reach this. Its glue door reads face pairs (`crates/topo/src/boolean/glue.rs:40`). It reads no vertex coincidence and links no point keys, and the touch union's `VertexVertex` contact is still not carried as intent. `PinchConesOnSeparateKeys` still guards the hang (`crates/topo/src/boolean/mod.rs:2416`, raised by `zip::refuse_split_hung_points`, `crates/topo/src/boolean/zip.rs:372`). Under D10 the link is a coincidence read, a vertex pair decided Zero and recorded. That is not built.
+
+## Measured (2026-10-11, branch `flush/pinch-cluster`)
+
+The pinch cluster mints the pierces of one face at one point as one
+ring (`vtxfac::mint_ring`). Where a pinched operand on two keys pierces
+a face at its pinch (`dbl`'s shape), both of its keys now pair with
+the ring's copies, which share one key. So the seams tie all three
+(`zip::point_classes`), and `share_points` moves the cones onto one.
+`join_pierce_runs_sweep::dbl_battery` (2 160 lines, new) goes from 968
+`SOUND` to 2 120.
+
+Nothing else in this row moves. `touch`, `dbl3`, `three`, `tripod` and
+`four_pairs` are vertex-vertex pinches, with no pierce. The release
+batteries are byte-identical with and without the change (a build
+switch that restored the per-pierce rings and the weld):
+`four_pairs_battery` (5 334 lines, its `PinchConesOnSeparateKeys`
+refusals included) and `pinch_runs_battery` (3 024). Still nothing in
+the records ties a point-touch union's two keys, so the row stands on
+D10's coincidence read, as its INTENT stage 4 E section says.

@@ -2,11 +2,12 @@
 id: the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone
 kind: issue
 title: The pre-zip pinch weld (finish::weld_pinches) stays as the repair of an operand's coincident pierces; it retires once those split per cone (D10 ground)
-status: open
+status: review
 opened: 2026-10-06
 priority: P1
 cost: H
 refs: [4139, a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face]
+branch: flush/pinch-cluster
 ---
 
 
@@ -86,3 +87,87 @@ Waits on `intent-stage4-is-built`, not on the whole program: the weld cannot ret
 ## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
 
 E does not reach this. `finish::weld_pinches` and `pinch_site` stand (`crates/topo/src/boolean/finish.rs:523`, `:738`). The contact records of `union_flush_onto_edge_contact`'s rows still reach the pierce copies only through the weld rows, because E records face-pair coincidences only (`crates/topo/src/boolean/glue.rs:40`). The shape to give stands: mint the coincident pierces on one point key per cone, and record the copies' v-v contact.
+
+## Measured (2026-10-11, main `bef9a8f1`, plain booleans)
+
+Main does not compile as it stands: `boolean/ops.rs` `piece_holds`
+(PR 4650) misses `ContainError::ArcEndClearOfCorners` (PR 4613). This
+branch's first commit routes it with the door's other unread refusals.
+
+With `weld_pinches` skipped and nothing else changed (release), 15
+tests go red, none of them through the declared surface, which F
+retired:
+- topo `union_flush_onto_edge_contact`: `a_pinch_line_through_a_face_…`
+  refuses tier 3′ `UndeclaredContact { VertexVertex, EdgeEdgeOverlap }`
+  between the two pierce copies at (0, 0, 1);
+- topo `pierce_strut_at_a_pinch` (all four rows): `RingMeetsOuter`, or
+  a vertex count one off;
+- editor-core `union_pinch_member_order` (six rows): the mesher's
+  `PinchWedge`, or `RingMeetsRing`;
+- sweep `join_pierce_runs_sweep`: `a_pinched_operands_pierces_weld_…`
+  (`dbl`, `xy U` fails 3′), `a_pinchs_cones_share_one_point_key`,
+  `a_pinchs_unions_from_every_root_of_the_ring`,
+  `the_join_stage_leaves_a_pinchs_cones_their_vertices`.
+
+## Fix (branch `flush/pinch-cluster`)
+
+The pierces of one face at one point mint one ring
+(`vtxfac::mint_ring`). `classify_vertex_on_face` inserts the piercing
+side's null edges and returns its half of the ring (`RingPlan`). Each
+vertex-on-face pass then groups its pierces by face and point
+(`vtxfac::ring_groups`, `bool_contact_vertex`). It mints one ring vertex
+per group, with one strut tree over every member's runs
+(`null::ring_tree` on their germs together). So the copies are on one
+point key, with a vertex per corner of the face round the point, and
+`zip::split_cones` splits them per cone as it does one pierce's.
+- A tie between two members' germs (two cones touching along a ray in
+  the face) is broken so that their runs' chords nest
+  (`vtxfac::tie_breaks_after`). A tie inside one pierce still refuses.
+- A group of one mints exactly as before, in the same order and with
+  the same keys.
+
+`finish::weld_pinches`, `weld_pair`, `pinch_site`, `corners_nest`,
+`corner_holds_pierce`, `corner_holds` and `Joint::Hole` are gone, and so
+are the weld rows in `FinishOut`, `Descendants` and `BooleanNaming`
+(`weld_merges_b`, read by editor-core's `emit_topo`). The seam
+correspondence accepts a ring copy that pairs with the runs of several
+pierces of its face (`finish::one_ring`), where it accepted the weld's
+vertex.
+
+The contact records need no row for the copies: they share one point
+key, which tier 3′ reads as structural (`census` `Geo::same_point`).
+
+## Measured (release, ignored batteries, before and after)
+
+The before side is the branch built with a switch that restores the
+per-pierce rings and the weld. A group of one mints exactly as before.
+
+| battery | lines | moved |
+|---|---|---|
+| `dbl_battery` (new) | 2 160 | 1 188 |
+| `pinch_runs_battery` | 3 024 | 0 |
+| `four_pairs_battery` | 5 334 | 0 |
+| `corner_pairs_battery` | 16 381 | 0 |
+| `pierce_runs_battery` | 4 537 | 0 |
+| `near_tangent_battery` | 7 200 | 0 |
+| `eight_crossings_with_a_pinched_cube_battery` | 576 | 0 |
+| `review_sixx_pinch` | 207 | 0 |
+| `curved_notch_pinch` | 1 513 | 0 |
+
+`dbl_battery`'s moves, and none from `SOUND`:
+- 1 126 `OK BAD` (tier 3′ only; 46 of them also a wrong cone count)
+  → `SOUND`;
+- 26 `ResultInvalid` → `SOUND`;
+- 36 `yx S` lines → `ZipCorrespondence` ("a split section face does not
+  pair one to one"): 23 were `OK BAD` with three vertices at `v` for
+  two cones, 13 `ResultInvalid`. Filed as
+  `a-cube-less-a-pinched-operand-piercing-its-face-refuses-the-split-cones-re-pair`.
+
+The default suites of topo, sweep and editor-core move only where a
+pin flips to 3′ passing:
+- `pierce_strut_at_a_pinch`'s staircase `P − X`;
+- `a_pinch_line_through_a_face_…` (FUSE's
+  `a-pinch-line-crossing-a-face-interior-drops-the-pinchs-records`);
+- `union_pinch_member_order`'s four rows (WIRE's
+  `a-boolean-clipping-a-carried-contact-at-a-pinch-records-no-contact-for-the-pierce`);
+- `a_pinched_operands_pierces_…`, all twelve lines now `SOUND`.

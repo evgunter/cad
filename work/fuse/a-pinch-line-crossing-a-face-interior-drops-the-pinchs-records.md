@@ -62,3 +62,16 @@ Waits on `intent-stage4-is-built`, not on the whole program: a missing v-v conta
 ## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
 
 E does not reach this. The missing record is a v-v row at a pierce, not a face pair, and E's door glues and records face pairs only (`crates/topo/src/boolean/glue.rs:40`). `a_pinch_line_through_a_face_drops_its_records_at_the_new_end` (`crates/topo/tests/union_flush_onto_edge_contact.rs:780`) is unchanged on E and pins the failure as it stands. "Owed" stands.
+
+## Fixed by FLUSH's pinch cluster (2026-10-11, branch `flush/pinch-cluster`)
+
+The pinch line's two coincident edges pierce the face at one point,
+and each pierce used to mint its own ring vertex there, on its own
+point key. `vtxfac::mint_ring` now mints one ring per face and point
+for all the pierces there, so the pieces' vertices at the crossing sit
+on one point key, which tier 3′ reads as structural
+(`census` `Geo::same_point`). No v-v row is needed. The pin is flipped in the
+same PR and renamed
+`a_pinch_line_through_a_face_keeps_the_pinch_at_the_new_end`: all six
+sheared-wedge ops and `block ∩ pinch` build and pass 3′ (release). The
+"Owed" record is moot, and the row can close when that PR merges.

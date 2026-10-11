@@ -43,3 +43,16 @@ lie at one point (the pinch's two kept vertices) and the edges'
 overlap. That comes from the carried record's lineage through the clip,
 not from geometry (the substitution door, `boolean::ops::carry`). When
 it does, the four pins turn green.
+
+## Fixed by FLUSH's pinch cluster (2026-10-11, branch `flush/pinch-cluster`)
+
+The pierce point's two vertices came from two rings, one per pierce of
+the contact's two coincident edges, each on its own point key.
+`vtxfac::mint_ring` now mints one ring per face and point for all the
+pierces there, so they share one key, which tier 3′ reads as
+structural (`census` `Geo::same_point`). That PR flips the four pins
+to 3′ passing (release): plate ∩ blocks, plate ∖ X, X ∪ plate and
+plate ∪ X. It also renames the witnesses
+`the_plate_against_the_joined_blocks_builds_in_every_op` and
+`a_slab_holding_the_contact_is_one_vertex_only_on_one_fragment`, and
+drops `PIERCE_UNRECORDED`. The row can close when that PR merges.
