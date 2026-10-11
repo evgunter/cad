@@ -50,8 +50,8 @@ fn r2_base_the_saturated_span_refuses_at_the_parse() {
         let r = curved_face(&sphere, &pair, true, bd).map(|f| f.area);
         if !matches!(
             r,
-            Err(PropsError::NotIsoRectangle {
-                what: "props_meridian_span_winding"
+            Err(PropsError::SphereLoop {
+                what: "props_sphere_arc_span_winding"
             })
         ) {
             answered.push((delta, r));
@@ -67,6 +67,6 @@ fn r2_base_the_saturated_span_refuses_at_the_parse() {
     }
     assert!(
         answered.is_empty(),
-        "every saturated span refuses at the parse under `props_meridian_span_winding`"
+        "every saturated span refuses at the parse under `props_sphere_arc_span_winding`"
     );
 }

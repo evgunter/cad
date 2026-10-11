@@ -79,8 +79,8 @@ use std::collections::BTreeMap;
 use super::sectors::{BoolSector, PierceLever, build_sectors, pierce_side};
 use super::tables::{eq15_3_lump, lump_keeps_one};
 use super::{
-    BoolNullEdgeRecord, BooleanError, BooleanOp, ContactRecords, NullEdgePairRecord, Operand,
-    PairSite, PierceRingRecord, SectorRead, SideCode, VfContact,
+    BoolNullEdgeRecord, BooleanError, BooleanOp, NullEdgePairRecord, Operand, PairSite,
+    PierceRingRecord, ReductionContacts, SectorRead, SideCode, VfContact,
 };
 use super::{Coincide, Contradiction, DeclarationRead};
 use crate::body::{Body, WALKS_CLOSE};
@@ -102,7 +102,7 @@ use geom_core::Tol;
 /// several pairs and in no pierce is not returned, since the
 /// vertex-vertex passes read every pair before the first writes.
 pub(super) fn pierced_and_paired(
-    contacts: &ContactRecords,
+    contacts: &ReductionContacts,
 ) -> Result<BTreeMap<(Operand, VertexKey), SectorRead>, BooleanError> {
     let mut rereads = BTreeMap::new();
     for (operand, pierced) in [
@@ -416,7 +416,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     contact: VfContact,
     op: BooleanOp,
     declared: &super::DeclaredPairs<T>,
-    contacts: &super::ContactRecords,
+    contacts: &super::ReductionContacts,
     reread: Option<SectorRead>,
     band: Band,
     tol: Tol,
@@ -1516,7 +1516,7 @@ mod tests {
         let (f, g) = (FaceKey::from(key(4)), FaceKey::from(key(5)));
         let vf = |vertex, face| VfContact { vertex, face };
         let vv = |a, b| VvContact { a, b };
-        let read = |c: &ContactRecords| match pierced_and_paired(c) {
+        let read = |c: &ReductionContacts| match pierced_and_paired(c) {
             Err(BooleanError::VertexReadTwice {
                 operand,
                 vertex,
@@ -1528,7 +1528,7 @@ mod tests {
         let rows = [
             (
                 "pierced twice by A",
-                ContactRecords {
+                ReductionContacts {
                     a_on_b: vec![
                         crate::Cited::new(vf(v, f), crate::Cites::decided(0)),
                         crate::Cited::new(vf(w, f), crate::Cites::decided(0)),
@@ -1544,7 +1544,7 @@ mod tests {
             ),
             (
                 "pierced and paired, B",
-                ContactRecords {
+                ReductionContacts {
                     b_on_a: vec![crate::Cited::new(vf(w, f), crate::Cites::decided(0))],
                     vv: vec![
                         crate::Cited::new(vv(x, v), crate::Cites::decided(0)),
@@ -1557,7 +1557,7 @@ mod tests {
             ),
             (
                 "paired twice",
-                ContactRecords {
+                ReductionContacts {
                     vv: vec![
                         crate::Cited::new(vv(v, w), crate::Cites::decided(0)),
                         crate::Cited::new(vv(v, x), crate::Cites::decided(0)),
@@ -1569,7 +1569,7 @@ mod tests {
             ),
             (
                 "one key on each operand, pierced by A's and paired by B's",
-                ContactRecords {
+                ReductionContacts {
                     a_on_b: vec![crate::Cited::new(vf(v, f), crate::Cites::decided(0))],
                     vv: vec![crate::Cited::new(vv(w, v), crate::Cites::decided(0))],
                     ..Default::default()
@@ -2262,7 +2262,7 @@ mod tests {
                 },
                 super::super::BooleanOp::Union,
                 &super::super::DeclaredPairs::default(),
-                &super::super::ContactRecords::default(),
+                &super::super::ReductionContacts::default(),
                 None,
                 band,
                 tol,

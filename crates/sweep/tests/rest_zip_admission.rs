@@ -423,6 +423,8 @@ fn the_tangent_site_keeps_building_pure_contacts() {
 fn cited_rows(r: &topo::BooleanBody<f64>) -> Vec<String> {
     r.contacts
         .rows()
+        .iter()
+        .map(|c| (c.cells(), &c.cites))
         .map(|(cells, cites)| {
             let rows: Vec<String> = cites
                 .iter()

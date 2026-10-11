@@ -156,9 +156,9 @@ fn a_slab_crossing_one_section_circle_four_times_builds_under_every_boolean() {
 /// At `x > 0.5, θ = 10°, 70°, 110°, 170°` the walk pairs the crossings
 /// as above, and the section's loop on the ball's face is a ring clear
 /// of every edge of that face, whose island the ring lane winds without
-/// a chart (`chord_join::path_island_winding`): ∩ and slab ∖ ball
-/// build at the slab's closed form. ∪ and ball ∖ slab keep the ring as a
-/// hole of the ball's face, which the result gate refuses
+/// a chart (`chord_join::path_island_winding`). Every op builds at the
+/// slab's closed form; ∪ and ball ∖ slab keep the ring as a hole of the
+/// ball's face, which the sphere arm measures over both its loops
 /// (`work/flux/sphere-face-with-a-hole-has-no-closed-form.md`).
 #[test]
 fn four_crossings_above_the_centre_wind_the_sphere_ring() {
@@ -178,6 +178,7 @@ fn four_crossings_above_the_centre_wind_the_sphere_ring() {
         ("y-poled", ball(Vec3::unit_z(), 0.0)),
         ("turned", ball(Vec3::new(0.4, 0.1, 0.9), 1.3)),
     ] {
+        let ball_volume = 4.0 * PI / 3.0;
         for (name, op, x, y, expected) in [
             ("slab ∩ ball", BooleanOp::Intersect, &slab, &b, shared),
             (
@@ -186,6 +187,20 @@ fn four_crossings_above_the_centre_wind_the_sphere_ring() {
                 &slab,
                 &b,
                 slab_volume - shared,
+            ),
+            (
+                "slab ∪ ball",
+                BooleanOp::Union,
+                &slab,
+                &b,
+                slab_volume + ball_volume - shared,
+            ),
+            (
+                "ball ∖ slab",
+                BooleanOp::Subtract,
+                &b,
+                &slab,
+                ball_volume - shared,
             ),
         ] {
             let label = format!("{pole} ball, {name}");
@@ -199,29 +214,6 @@ fn four_crossings_above_the_centre_wind_the_sphere_ring() {
             assert!(
                 (v - expected).abs() <= 1e-9 * expected,
                 "{label}: volume {v} against the closed form {expected}"
-            );
-        }
-        for (name, out) in [
-            (
-                "slab ∪ ball",
-                topo::boolean::union(&slab, &b, Tol::witness()),
-            ),
-            (
-                "ball ∖ slab",
-                topo::boolean::subtract(&b, &slab, Tol::witness()),
-            ),
-        ] {
-            assert!(
-                matches!(
-                    &out,
-                    Err(topo::BooleanError::ResultInvalid { errors })
-                        if matches!(errors.as_slice(), [topo::ValidationError::VolumeUncomputable {
-                            source: topo::MassPropsError::RingOnCurvedFace { .. },
-                            ..
-                        }])
-                ),
-                "{pole} ball, {name}: expected the result gate on the ringed ball face, got {:?}",
-                out.map(|_| "a body")
             );
         }
     }
