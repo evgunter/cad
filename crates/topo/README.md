@@ -26,7 +26,7 @@ feeds a decision, every walk is bounded.
 | Chart-region overlap (Door 2) | `src/chart_region.rs` (`chart_region_overlap`, `declared_pair_overlap`, `world_carrier`, `cylinder_pair_overlap`, `interior_witness`), `src/chart.rs`, `src/chart_iso.rs`, `src/pcurves.rs` |
 | Chart-boundary description | `src/chart_bound.rs` (`ChartBound`, `ChartLoop`, `ChartEdge`, `assembled`, `metred`, `MetredBound::certifies_outside`, `MetredRect`), `src/pcurves.rs` (`chart_boundary`) |
 | Plane splitting | `src/splitting/` (`classify`, `neighborhood`, `rules`, `insert`, `order`, `join`, `finish`, `section`, `containment`), `src/chord_join.rs`, `src/ring_path.rs`, `src/null.rs` |
-| Booleans | `src/boolean/mod.rs` (reduction, classification, `ContactRecords`, `BooleanDeclarations`), `reduce.rs`, `vtxfac.rs`, `sectors.rs`, `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `ops.rs`, `carrier_pair.rs`, `combine.rs`, `voids.rs`, `boxes.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
+| Booleans | `src/boolean/mod.rs` (reduction, classification, `ContactRecords`, `BooleanInputs`, the glue), `reduce.rs`, `vtxfac.rs`, `sectors.rs`, `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `ops.rs`, `carrier_pair.rs`, `combine.rs`, `voids.rs`, `boxes.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
 | Instances, separation | `src/instance.rs` (disjoint graft), `src/separation.rs` (certified no-touch), `src/transform.rs` (rigid placement) |
 | Shell and offset surgery | `src/shell.rs`, `src/replace_face.rs`, `src/offset_general.rs`, `src/offset_together.rs`, `src/offset_axial.rs`, `src/merge_faces.rs` — decisions in `crates/geom-brep/README.md` (OFFSET-DESIGN). `shell` and `shell_open` take a finished body (`AtRestBody`): their thickness is measured into the solid's material. `replace_face_offset`, `replace_faces_offset`, `offset_surfaces_together`, `offset_planes_together` and `offset_charts_together` take construction state (`Body`), tier 2 in and tier 2 out: their argument is a distance along each chart's stored normal, which no face's sense decides, and `shell` runs them over a clone mid-construction. Their result becomes finished only through `AtRestBody::validate`, where an inside-out result refuses `NegativeVolume`. A move that carries a face through its neighbours inverts the body too, and refuses there on the rings it leaves outside the moved face (`RingOutsideOuter`) |
 | Queries, flush detection, read-back | `src/query.rs` (the EXACT/DECIDED atoms and `rim_of`; `crates/verbs/README.md` S1), `src/flush.rs`, `src/readback.rs`, `src/props.rs` (mass properties, `AtRestPolicy`), `src/ray_walk.rs` |
@@ -224,9 +224,10 @@ interior-witness rung runs only on `Definite` (a precondition may not be
 discharged by the claim under test), and the cylinder enclosure halves
 its zero band on `Bridged`.
 
-Declarations live in `BooleanDeclarations::coincident_faces`
-(`FacePairDeclaration`) and on mate nodes
-(`crates/editor-core/ASSEMBLY.md`). Bodies carry only verified records,
+A boolean's face pairs are the glue its margins decide (`boolean::glue`),
+or, at a step of an n-ary union's fold, the verdicts that union's pairwise
+judgement decided (`BooleanInputs::given`); declarations live on mate
+nodes alone (`crates/editor-core/ASSEMBLY.md`). Bodies carry only verified records,
 in the `BooleanBody` wrapper, never persisted. Replay is scalar-generic;
 an indeterminate verification at an interval scalar aborts.
 
@@ -239,21 +240,19 @@ verdict wins over every declaration.
 **Continuation.** Two faces, one from each operand, on one carrier with
 their senses ALIGNED are a *continuation*: one surface carried on,
 whether the two abut along a boundary curve or overlap on a patch. The
-kernel derives exactly which; the author declares only the coincidence.
+kernel derives exactly which.
 
-A continuation is not a contact and not a `ContactClass`. The two
-declaration seats take different types, so each states only what its
-consumer can use: a mate (and every record and census reading) takes a
-`ContactClass`; a boolean node takes a `BooleanCoincidence`, which is
-`Contact(ContactClass) | Continuation | Seam`. A continuation is
-therefore declared on a boolean node and nowhere else — a mate cannot
-state one, and at rest two flush walls carry nothing to verify.
+A continuation is not a contact and not a `ContactClass`: a mate (and every
+record and census reading) speaks `ContactClass`, and a boolean glues a
+pair as a `GlueClass`, which is `Contact(ContactClass) | Continuation |
+Seam`. A mate cannot state a continuation, and at rest two flush walls
+carry nothing to verify.
 
 Verification is `Rest`'s carrier rung with the sense bit reversed:
 carrier non-contradiction through the kind ladder, senses aligned as an
 exact bit. Opposed senses contradict it, as aligned senses contradict
-`Rest` at every door. A union merges a continuation, declared or decided
-by its margin: the merge stage reads the same ladder (D10), keeping the
+`Rest` at every door. A union merges a continuation its margin decides:
+the merge stage reads the same ladder (D10), keeping the
 description of the group's arena-first face that lies in no other
 member's hole. That is ordinarily operand A's, and B's where A's face
 plugs a hole of B's.
@@ -262,7 +261,8 @@ plugs a hole of B's.
 along a curve with their senses ALIGNED are a *seam*: the two surfaces
 join G1 along that curve, material wedge π. It is the aligned-sense twin
 of `Tangent`, as a continuation is of `Rest`, and like a continuation it
-is not a contact: a boolean node declares it and a mate cannot.
+is not a contact: a boolean glues it where the witness lane verifies it,
+and a mate cannot state it.
 
 Verification is the `Tangent` witness lane along the same locus with the
 sense bit reversed; opposed senses contradict it. Wherever the two faces

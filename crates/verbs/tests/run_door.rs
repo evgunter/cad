@@ -177,7 +177,7 @@ fn the_boolean_dispatch_is_the_boolean_door() {
     // A proper crossing: overlap in every axis, no face-on-face rest.
     let b = shifted_cube(Vec3::new(0.5, 0.5, 0.5));
 
-    let decls = BooleanInputs::none();
+    let decls = BooleanInputs::default();
     let door = boolean_op_with(
         BooleanOp::Union,
         &a,
@@ -232,7 +232,7 @@ fn an_empty_boolean_result_crosses_as_the_typed_empty() {
         BooleanOp::Intersect,
         &a,
         &b,
-        &BooleanInputs::none(),
+        &BooleanInputs::default(),
         SweepStrategy::Realized,
         tol(),
     )
@@ -263,7 +263,7 @@ fn a_boolean_refusal_crosses_the_dispatch_unaltered() {
         BooleanOp::Union,
         &a,
         &b,
-        &BooleanInputs::none(),
+        &BooleanInputs::default(),
         SweepStrategy::Realized,
         tol(),
     )

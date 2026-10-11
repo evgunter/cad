@@ -347,12 +347,10 @@ that face. A reference to a member edge, or to a piece of one, that no longer
 resolves is offered every set listing that member edge.
 
 **A union's face is named for its PARENT.** Two member faces are linked when
-all of these hold: their margins decide them one carrier, declared or not
-(D10), with the same orientation; the pairwise judgement
-certifies the pair (DM4); and that judgement consumed the pair, meaning its
-two-member union merged the faces or held either face's region through the
-other (`BooleanNaming::merge_groups`, `BooleanNaming::covered`). A certified
-pair the judgement never brought together links nothing. Linking is
+the pairwise judgement of their two members (DM4) merged or covered them:
+its two-member union merged the faces or held either face's region through
+the other (`BooleanNaming::merge_groups`, `BooleanNaming::covered`). A pair
+the judgement never brought together links nothing. Linking is
 transitive. The member faces so linked are one parent, named `Merged` of all of
 them, and a member face nothing links is its own parent. A parent is a set of
 member-face entities, never a name: the candidates of a tied row are separate
