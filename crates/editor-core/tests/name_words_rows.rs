@@ -523,7 +523,7 @@ fn the_full_form_says_no_two_names_alike() {
 /// lists, nested lists, seams and joins, and of names nested over every
 /// carry — no two of which differ only in a node the full form never
 /// says, which no table of one node's output is known to hold
-/// (`work/recipe/two-names-differing-only-in-an-unsaid-carry-node-read-alike.md`).
+/// (`work/doctail/two-names-differing-only-in-an-unsaid-carry-node-read-alike.md`).
 #[test]
 fn a_tables_words_say_no_two_of_its_names_alike() {
     let mut rng = fuzz::start("a_tables_words_say_no_two_of_its_names_alike");
