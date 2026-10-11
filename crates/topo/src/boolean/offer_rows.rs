@@ -2182,6 +2182,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermEdgeCarrierUnsupported
         | BooleanErrorKind::ArcLoopContainmentUnsupported
         | BooleanErrorKind::PointInFaceRefused
+        | BooleanErrorKind::RestPieceUnread
         | BooleanErrorKind::ScaffoldingOperand
         | BooleanErrorKind::InsideOutOperand
         | BooleanErrorKind::UnjoinedOperand
@@ -2604,6 +2605,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "ee_lineage", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "ee_lineage", "BooleanDecision::VertexOnVertex", 1),
     ("ops.rs", "ee_lineage", "SelfCheck::CarriedLineage", 1),
+    ("ops.rs", "piece_holds", "BooleanDecision::SelfCheck", 1),
+    ("ops.rs", "piece_holds", "SelfCheck::CarriedLineage", 1),
     ("ops.rs", "ledger", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "ledger", "BooleanDecision::VertexOnVertex", 1),
     ("ops.rs", "ledger", "SelfCheck::CarriedLineage", 1),

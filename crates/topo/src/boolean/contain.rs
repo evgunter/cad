@@ -783,6 +783,50 @@ pub(crate) enum CurvedPlacement {
     Trim(Option<FaceContainment>),
 }
 
+/// **Where a point lies against a face of any kind**: the one read
+/// that places a vertex-on-face record, at rest by the census's confirm
+/// and in a boolean's carry onto the pieces of a divided face, and a
+/// section witness in its face. On a plane, `q` is first decided on the
+/// plane by `on_plane` (the caller's predicate) and `OffCarrier` is that
+/// decision's nonzero, then [`contfp`] places it; on a curved face the
+/// chart trim places it ([`curved_face_placement`]). `Trim(None)` is the
+/// curved trim's remainder, a face it does not read.
+///
+/// # Errors
+///
+/// [`PlacementError::OnPlane`] where the on-plane margin is in band, and
+/// [`PlacementError::Door`] carrying the containment door's own refusal.
+pub(crate) fn face_placement<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    q: Point3<T>,
+    band: Band,
+    on_plane: &'static str,
+) -> Result<CurvedPlacement, PlacementError> {
+    let f = proven(&body.faces, face, EntityId::Face);
+    match *body.face_surface_linked(face, f) {
+        geom::Surface::Plane { origin, normal, .. } => {
+            match decide(on_plane, Margin::of((q - origin).dot(normal)), band) {
+                Ok(Sign::Zero) => contfp(body, face, normal, q, band)
+                    .map(|at| CurvedPlacement::Trim(Some(at)))
+                    .map_err(PlacementError::Door),
+                Ok(Sign::Positive | Sign::Negative) => Ok(CurvedPlacement::OffCarrier),
+                Err(diag) => Err(PlacementError::OnPlane(diag)),
+            }
+        }
+        _ => curved_face_placement(body, face, q, band).map_err(PlacementError::Door),
+    }
+}
+
+/// Why [`face_placement`] placed nothing.
+#[derive(Clone, Debug)]
+pub(crate) enum PlacementError {
+    /// The point's margin from the face's plane is in band.
+    OnPlane(Indeterminate),
+    /// The containment door refused, its refusal carried whole.
+    Door(ContainError),
+}
+
 /// The placement behind [`curved_face_containment`] (see
 /// [`CurvedPlacement`]); the public door is its projection.
 ///

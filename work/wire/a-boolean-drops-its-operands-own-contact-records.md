@@ -81,3 +81,16 @@ node hands on a body without the records that certify it.
 ## Closed (2026-10-11, stage 4 F)
 
 Stage 4 F makes this row's ruling: an operand's own records carry mechanically into every pair boolean and every union fold step (`BooleanInputs::records_a`/`records_b`, `OperandRecords`, cited `Backing::Carried`), under the existing drop rules, at vertex and edge granularity (curve and patch records do not carry yet: `a-boolean-drops-its-operands-curve-and-patch-records`); a union's records cite its members by their place in the member list. `union_pinch_member_order`'s six scenes, the reused corner-kiss union and the member of two touching shells now pass 3′ in every member order, with one record. Nothing new refuses at rest.
+
+## 2026-10-11, one witness was a different defect (FLUSH, PR 4650)
+
+`three_solids_on_one_line.rs`'s `a_prism_whose_face_holds_the_line_builds_or_refuses_typed`
+pinned two on-line refusals when the face prism folds last. Those were
+not operand-own records: they were the last step's own vertex-on-face
+records, dropped because their face was chased by key through the
+section's division (`boolean::ops::carry_rows`). FLUSH's
+`a-box-and-a-cylinder-through-its-corner-edge-intersect-past-tier-3-prime`
+lands them on the piece that holds the vertex, and all twelve building
+orders now pass tier 3′; the pin is `[0, 0, 0, 0]`. The test's other
+`DROPPED_RECORDS` pins did not move on that branch; their defect is
+this row's, which stage 4 F closes (above).
