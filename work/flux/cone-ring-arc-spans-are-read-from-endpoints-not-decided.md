@@ -2,7 +2,7 @@
 id: cone-ring-arc-spans-are-read-from-endpoints-not-decided
 kind: issue
 title: props: a cone's ellipse-arc spans are never decided; the ring-winding test reads each arc's turn from its endpoints while the vector area reads the stored span
-status: open
+status: dispatched
 opened: 2026-10-11
 priority: P2
 cost: E
