@@ -107,9 +107,8 @@ fn split_edge_splits_an_m7_8_edge_into_two_of_the_class_at_f64() {
         format!(
             "whether two edges meeting at a vertex on one curve are one edge is undecided \
              (margin is invalid (NaN or a refused enclosure) against the ambiguity band ({:?}, {:?})). \
-             Recourse: check the operation's inputs upstream, then move the vertex clear of \
-             the pole, apex or tangency it sits near; an unreadable margin may indicate a \
-             kernel or file defect worth reporting",
+             Recourse: move the vertex clear of the pole, apex or tangency it sits near; an \
+             unreadable margin may indicate a kernel or file defect worth reporting",
             band.zero(),
             band.escalate()
         )

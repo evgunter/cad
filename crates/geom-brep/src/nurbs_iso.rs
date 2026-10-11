@@ -611,8 +611,9 @@ mod tests {
 
     /// The boundary-row coincidence escalating, raised for real at
     /// each margin kind: its sentence says what was being decided,
-    /// keeps the kind's own lever, and routes the two levers a door
-    /// without a declaration has, once.
+    /// keeps what the kind adds to the ending (a lever in front of the
+    /// door's, or, at a value, the tolerance arm after it), and routes
+    /// the one lever a door without a declaration has, once.
     #[test]
     fn an_escalated_row_states_its_decision_and_no_declaration() {
         let band = geom_core::Band::new(1e-6, 1e-3).unwrap();
@@ -630,7 +631,7 @@ mod tests {
             IsoRowError::Escalated { source } => IsoRowError::<f64>::Escalated { source },
             other => panic!("the straddling enclosure escalates, got {other}"),
         });
-        for (kind, got, lever) in [
+        for (kind, got, added) in [
             (
                 "value",
                 value,
@@ -670,15 +671,15 @@ mod tests {
                 "{kind}: one recourse: {text}"
             );
             assert!(
-                text.contains(lever),
-                "{kind}: the margin kind keeps its own lever: {text}"
+                text.contains(added),
+                "{kind}: the margin kind keeps what it adds to the ending: {text}"
             );
             // The door's one lever, labelled (the marker count above
             // reads the label) and — on a band-decided arm whose margin
             // gives one — followed by the tolerance below which a
-            // smaller one decides it. An unreadable margin puts the
-            // input check in front of the lever, so the lever is read by
-            // `contains` rather than by position. Never a declaration:
+            // smaller one decides it. An unreadable or straddling
+            // margin puts its own lever in front of the door's, so the
+            // door's is read by `contains` rather than by position. Never a declaration:
             // this door takes none.
             assert!(
                 text.contains(NO_DECLARATION_RECOURSE) && !text.contains("declare"),
