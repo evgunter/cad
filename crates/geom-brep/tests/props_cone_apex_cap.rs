@@ -345,7 +345,10 @@ fn verdict_multiset(edges: &[LoopEdge<f64>]) -> Vec<(String, usize)> {
 /// the two records here, and `props_rim_only_closed` is the `Δu` angle
 /// at the azimuthal arm `props_du_consistent` already meters. `Δu`
 /// itself costs nothing to agree on: one rim is one group, so neither
-/// `props_rim_level_group` nor `props_du_consistent` is asked.
+/// `props_rim_level_group` nor `props_du_consistent` is asked. The rim
+/// is minted under certification's span bound, a full period sitting
+/// AT it: `props_rim_span_forward` Positive, `props_rim_span_winding`
+/// Zero.
 #[test]
 fn the_apex_cap_records_its_named_decides() {
     let got = verdict_multiset(&[rim(SL, 0.0, TAU, 0, 0)]);
@@ -361,6 +364,8 @@ fn the_apex_cap_records_its_named_decides() {
         ("props_rim_only_closed Zero", 1),
         ("props_rim_only_extent Zero", 1),
         ("props_rim_only_join Zero", 1),
+        ("props_rim_span_forward Positive", 1),
+        ("props_rim_span_winding Zero", 1),
     ]
     .into_iter()
     .map(|(k, n)| (k.to_string(), n))
