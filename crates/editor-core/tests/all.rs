@@ -122,6 +122,8 @@ mod display_contract;
 mod dm3_indexed_read;
 #[path = "dm4_migration_one_shot.rs"]
 mod dm4_migration_one_shot;
+#[path = "dm4_names_by_variable.rs"]
+mod dm4_names_by_variable;
 #[path = "dm4_reads_key_booleans.rs"]
 mod dm4_reads_key_booleans;
 #[path = "dm7_delete_strands.rs"]

@@ -1047,7 +1047,36 @@ pub struct RunCtx<'a, T: Decide> {
 /// docs). Prefer [`resolve_with_prior`] whenever a last-good run
 /// exists.
 pub fn resolve<T: Decide>(new: RunCtx<'_, T>, name: &StableName) -> Resolution {
-    resolve_impl(new, NoPrior, name)
+    resolve_impl(new, NoPrior, None, name)
+}
+
+/// **Resolves `name` in the table of the read `read`** (NAMES N1, the
+/// scope: a name tells apart only what its variable holds), with no
+/// prior-run history. What a reference sited by its body's read asks —
+/// a selection's body read, a declaration's [`crate::SitedRef`]: the
+/// name a split's other half carries is not this half's, so it does not
+/// resolve here. Prefer [`resolve_at_with_prior`] whenever a last-good
+/// run exists.
+pub fn resolve_at<T: Decide>(
+    new: RunCtx<'_, T>,
+    read: crate::VarId,
+    name: &StableName,
+) -> Resolution {
+    resolve_impl(new, NoPrior, Some(read), name)
+}
+
+/// [`resolve_at`] with the last-good run as diagnosis context, as
+/// [`resolve_with_prior`] is [`resolve`]'s: a piece whose split side
+/// flips when the plane moves leaves its read's table, and N5 diagnoses
+/// the flip from the split's recorded classification (NAMES N2, the
+/// Split op's pieces).
+pub fn resolve_at_with_prior<T: Decide, U: Decide>(
+    new: RunCtx<'_, T>,
+    prior: RunCtx<'_, U>,
+    read: crate::VarId,
+    name: &StableName,
+) -> Resolution {
+    resolve_impl(new, Prior { ctx: prior }, Some(read), name)
 }
 
 /// Resolves `name` against the new run with the last-good run as
@@ -1060,7 +1089,7 @@ pub fn resolve_with_prior<T: Decide, U: Decide>(
     prior: RunCtx<'_, U>,
     name: &StableName,
 ) -> Resolution {
-    resolve_impl(new, Prior { ctx: prior }, name)
+    resolve_impl(new, Prior { ctx: prior }, None, name)
 }
 
 /// Enriches one appearance loss with the full N5 ladder (spec D9's
@@ -1125,7 +1154,7 @@ fn enrich_impl<T: Decide, P: PriorCtx>(
             offers: Vec::new(),
         });
     }
-    resolve_impl(new, prior, &loss.name)
+    resolve_impl(new, prior, None, &loss.name)
 }
 
 /// Rebind suggestions for every appearance-carrying name (the spec D9
@@ -1383,6 +1412,7 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
 fn resolve_impl<T: Decide, P: PriorCtx>(
     new: RunCtx<'_, T>,
     prior: P,
+    site: Option<crate::VarId>,
     name: &StableName,
 ) -> Resolution {
     // 1. NodeGone: the minting node is not live.
@@ -1392,11 +1422,23 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             offers: Vec::new(),
         });
     }
+    // A sited read whose node has no value answers nothing either way.
+    if let Some((node, _)) = site.and_then(|read| new.eval.read_port(read))
+        && let Err(standing) = new.eval.usable(node)
+    {
+        return Resolution::Indeterminate(ResolveIndeterminate { standing });
+    }
+    // The name's own rows: in the sited read's table, or the first
+    // carrying table in evaluation order.
+    let here = |n: &StableName| match site {
+        Some(read) => lookup_in(new.eval, read, n),
+        None => lookup(new.eval, n),
+    };
 
     // 2. The table lookup (N4: resolution IS this read). First
     //    carrying node in evaluation order wins (deterministic;
     //    pass-through tables carry the same rows).
-    match lookup(new.eval, name) {
+    match here(name) {
         Some((carrier, Entry::Unique(entity))) => {
             return Resolution::Resolved(Resolved {
                 node: carrier.node,
@@ -1417,7 +1459,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
     //    against the WIDENED base row — never a mis-bind.
     let mut offers = Vec::new();
     if let Some(base) = widened_base(name) {
-        match lookup(new.eval, &base) {
+        match here(&base) {
             Some((carrier, Entry::Tied(ents))) => {
                 return Resolution::Failed(ResolutionFailure {
                     error: ResolveError::ambiguous(name, base, carrier.node, ents.len()),
@@ -1434,7 +1476,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         // the surviving pieces of the line are offered (N5, "A cited
         // line"), the undivided edge among them where it is one row.
         for row in line_rows(new.eval, &line) {
-            if matches!(lookup(new.eval, row), Some((_, Entry::Unique(_)))) {
+            if matches!(here(row), Some((_, Entry::Unique(_)))) {
                 offers.push((**row).clone());
             }
         }
@@ -1443,7 +1485,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         // offered for an explicit `Rebind`, never bound. There is no
         // over-tie to widen to here — a `Borders` or `Keeps` tie is a
         // row of the QUALIFIED name, which step 2 already answered.
-        && matches!(lookup(new.eval, &base), Some((_, Entry::Unique(_))))
+        && matches!(here(&base), Some((_, Entry::Unique(_))))
     {
         offers.push(base);
     }
@@ -1486,7 +1528,13 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             cascade = Some(inner.clone());
         }
     });
-    let path = derivation_nodes(name);
+    // A sited reference's path runs on to the read's node: the name left
+    // that read's table there (a split piece whose side flipped).
+    let mut path = derivation_nodes(name);
+    path.extend(
+        site.and_then(|read| new.eval.read_port(read))
+            .map(|(node, _)| node),
+    );
     let diagnosis = if let Some(through) = cascade {
         Diagnosis::Cascade { through }
     } else {
@@ -2126,6 +2174,19 @@ fn lookup<'a, T: Decide>(
     name: &StableName,
 ) -> Option<(Carrier<'a>, &'a Entry)> {
     tables(eval).find_map(|carrier| carrier.table.lookup(name).map(|entry| (carrier, entry)))
+}
+
+/// [`lookup`] in the one table of the read `read`.
+fn lookup_in<'a, T: Decide>(
+    eval: &'a Evaluation<T>,
+    read: crate::VarId,
+    name: &StableName,
+) -> Option<(Carrier<'a>, &'a Entry)> {
+    let (node, port) = eval.read_port(read)?;
+    let table = eval.table(read)?;
+    table
+        .lookup(name)
+        .map(|entry| (Carrier { node, port, table }, entry))
 }
 
 /// [`lookup`], demanding a unique entry.

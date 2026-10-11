@@ -28,7 +28,8 @@ use test_utils::refusal::tagged;
 use editor_core::{
     CancelToken, Cmp, CurveKind, CurveKindSet, Datum, EntityKind, Entry, EvalOptions, Evaluation,
     GeomPred, NamePat, NameTable, NamingError, Node, NodeErrorKind, ProfileDoc, RecipeNodeId,
-    RoleSeg, SegPat, SegTag, Selector, SplitHalf, StableName, VarEnv, evaluate, select, select_where,
+    RoleSeg, SegPat, SegTag, Selector, SplitHalf, StableName, VarEnv, evaluate, select,
+    select_where,
 };
 
 // `table` panics on a node with no value rather than answering `None`,
