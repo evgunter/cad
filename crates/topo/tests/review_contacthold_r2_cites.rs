@@ -12,8 +12,8 @@
 use crate::common::{brick, finished};
 use geom_core::Tol;
 use topo::{
-    AtRestBody, Backing, Body, BooleanBody, BooleanDeclarations, BooleanResult, Cell, Cited,
-    Cites, Contact, ContactClass, ContactKind, ContactRecords, Operand, RowCell, union_with,
+    AtRestBody, Backing, Body, BooleanBody, BooleanDeclarations, BooleanResult, Cell, Cited, Cites,
+    Contact, ContactClass, ContactKind, ContactRecords, Operand, RowCell, union_with,
 };
 
 fn tol() -> Tol {
@@ -54,10 +54,7 @@ fn face_at(body: &Body<f64>, axis: usize, at: f64) -> topo::FaceKey {
             let mut n = 0;
             let all = body
                 .vertex_points()
-                .filter(|(v, _)| {
-                    body.faces_of_vertex(*v)
-                        .is_some_and(|fs| fs.contains(&f))
-                })
+                .filter(|(v, _)| body.faces_of_vertex(*v).is_some_and(|fs| fs.contains(&f)))
                 .all(|(_, p)| {
                     n += 1;
                     ([p.x, p.y, p.z][axis] - at).abs() < 1e-12
@@ -83,7 +80,11 @@ fn follow(cites: &Cites, at: [f64; 3], lists: &[(&BooleanBody<f64>, [&Body<f64>;
                         panic!("an input cell: {c:?}")
                     };
                     let body = inputs[usize::from(input == Operand::B)];
-                    assert_eq!(point(body, cell), at, "row {k}'s cell {c:?} is at the record");
+                    assert_eq!(
+                        point(body, cell),
+                        at,
+                        "row {k}'s cell {c:?} is at the record"
+                    );
                 }
                 hops = hops.max(1);
             }
@@ -161,14 +162,15 @@ fn a_carried_citation_past_index_zero_names_its_record_and_its_decision() {
         depth.push(follow(
             &cited.cites,
             at,
-            &[
-                (&kiss, [&*a, &*b]),
-                (&r2, [&*kiss.body, &*c]),
-            ],
+            &[(&kiss, [&*a, &*b]), (&r2, [&*kiss.body, &*c])],
         ));
     }
     indices.sort_unstable();
     assert_eq!(indices, [1, 2], "the face-face record keeps index 0");
     depth.sort_unstable();
-    assert_eq!(depth, [1, 2], "one decided in r2, one carried from the kiss");
+    assert_eq!(
+        depth,
+        [1, 2],
+        "one decided in r2, one carried from the kiss"
+    );
 }

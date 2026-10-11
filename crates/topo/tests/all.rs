@@ -221,14 +221,14 @@ mod r2_probes;
 mod readback_sense_kind;
 #[path = "records_cite_their_decision.rs"]
 mod records_cite_their_decision;
-#[path = "review_contacthold_r2_cites.rs"]
-mod review_contacthold_r2_cites;
 #[path = "result_gate_sites.rs"]
 mod result_gate_sites;
 #[path = "review_cleave_farplane.rs"]
 mod review_cleave_farplane;
 #[path = "review_cleave_nurbs_lane.rs"]
 mod review_cleave_nurbs_lane;
+#[path = "review_contacthold_r2_cites.rs"]
+mod review_contacthold_r2_cites;
 #[path = "review_m1_pr5.rs"]
 mod review_m1_pr5;
 #[path = "review_m2_pr3.rs"]

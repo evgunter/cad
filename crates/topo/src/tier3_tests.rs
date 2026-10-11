@@ -2121,10 +2121,12 @@ fn review_r2_the_cusps_two_faces_are_a_record_the_type_accepts() {
     );
     let contact = crate::boolean::Contact::new(&p.body, a, b);
     assert!(contact.is_ok(), "{contact:?}");
-    let records: crate::boolean::ContactRecords =
-        [crate::Cited::new(contact.unwrap(), crate::Cites::decided(0))]
-            .into_iter()
-            .collect();
+    let records: crate::boolean::ContactRecords = [crate::Cited::new(
+        contact.unwrap(),
+        crate::Cites::decided(0),
+    )]
+    .into_iter()
+    .collect();
     let got = crate::validate::validate_pseudomanifold(&p.body, &records, tol);
     println!("R2PROBE cusp face-face record: {got:?}");
 }

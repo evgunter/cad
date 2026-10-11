@@ -82,11 +82,7 @@ fn corpus_outcomes_with_records_normalised() {
         let ev = corpus::eval::<f64>(&doc.doc);
         let failures = corpus::failures(&ev);
         let (h, lines) = digest_without_contacts(&ev);
-        println!(
-            "R2DIFF {}: {h:#018x} failures={}",
-            doc.name,
-            failures.len()
-        );
+        println!("R2DIFF {}: {h:#018x} failures={}", doc.name, failures.len());
         for l in lines {
             println!("R2DIFF {}{l}", doc.name);
         }
