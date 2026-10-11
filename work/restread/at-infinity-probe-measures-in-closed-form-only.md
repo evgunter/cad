@@ -240,3 +240,23 @@ that brick. The brick ∖ plug result is accepted. The refusal is the
 same at all 13 poses of that suite. Each body measures at its closed
 form through `topo::mass_properties`. The suite's apart pin does not
 assert legality for this reason.
+
+## 2026-10-11 — 1 023 boolean results at a curved corner pinch (FLUSH)
+
+`sweep` `join_pierce_runs_sweep::curved_pinch::curved_notch_pinch`
+(ignored, release; `notch343` with one face bowed into a cylinder arc,
+against a two-cube corner pinch, 84 directions × 3 turns, every op in
+both orders, plain booleans) on main `6e3985cb7`: 1 023 of 1 497
+built bodies refuse a union with a far brick
+`Containment(VolumeUncertified)`. Each has the right volume and
+passes tier 2 and the certificate. Instrumented on three poses, the
+probe's props refusal is the one this row names, on the bowed wall:
+`Face { source: NotIsoRectangle { what: "cylinder boundary carries an
+ellipse arc (curved cut) …" } }`. A cube face cutting the wall
+obliquely leaves an ellipse arc on its boundary. The 474 bodies whose
+further union passes are the poses where no cube face cuts the wall
+that way.
+
+Pinned by `a_curved_notch_at_a_corner_pinch_builds_bodies_two_lanes_cannot_read_yet`
+(poses `0 0 0 ab I` and `0 0 0 ab U` refuse; `9 4 4 ab S` passes):
+when this lane lands, flip those two expectations.

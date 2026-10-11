@@ -2771,3 +2771,6 @@ fn eight_crossings_with_a_pinched_cube_battery() {
         }
     }
 }
+
+#[path = "join_pierce_runs_sweep/curved_pinch.rs"]
+mod curved_pinch;
