@@ -124,6 +124,29 @@ pub fn stored_reading(
                 let body = given(doc, slot, body, read);
                 crate::edit::selection_into(&mut doc.borrow_mut(), slot, body, names)
             }
+            crate::Operand::Pose(def) => {
+                let lowered = def
+                    .try_map(
+                        &mut |pose_read, operand| {
+                            // A selection read off geometry is the
+                            // singleton of its names' entity kind, as a
+                            // distance reference mints one.
+                            let at = match pose_read {
+                                crate::pose::PoseRead::Face | crate::pose::PoseRead::Of => {
+                                    crate::OperandSlot::Measured(crate::MeasureVerb::Distance, 0)
+                                }
+                                _ => slot,
+                            };
+                            Ok::<_, core::convert::Infallible>(given(doc, at, operand, read))
+                        },
+                        &mut |_, f| {
+                            Ok(crate::edit::lower_slot_into(&mut doc.borrow_mut(), f)
+                                .expect("a pose's formula the document can answer lowers"))
+                        },
+                    )
+                    .unwrap_or_else(|never| match never {});
+                crate::edit::pose_into(&mut doc.borrow_mut(), lowered)
+            }
         }
     }
     let doc = core::cell::RefCell::new(doc);
