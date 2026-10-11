@@ -476,11 +476,11 @@ fn to_bezier_spans_extra(pair: SplineCoeffs<'_, Interval>, extra: &[f64]) -> Ber
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
 #[must_use]
 pub fn sub_segment(row: &[Interval], (s0, s1): (f64, f64), (a, b): (f64, f64)) -> Vec<Interval> {
-    if a == s0 && b == s1 {
-        return row.to_vec();
-    }
     if !(s0 <= a && a <= b && b <= s1 && s0 < s1) {
         return vec![Interval::refused(); row.len()];
+    }
+    if a == s0 && b == s1 {
+        return row.to_vec();
     }
     let p = row.len().saturating_sub(1);
     (0..=p)
@@ -1787,6 +1787,35 @@ mod tests {
         }
 
         out
+    }
+
+    /// **A cut out of order refuses its row.** `sub_segment`'s convex
+    /// steps are sound only for cut points inside the segment and in
+    /// order; outside it the hull meet would clip a value the segment
+    /// does not hold. Red under the guard removed: the reversed cut
+    /// comes back certified.
+    #[test]
+    fn a_sub_segment_cut_out_of_order_refuses_its_row() {
+        let row: Vec<Interval> = [1.0, -2.0, 3.0].map(Interval::point).to_vec();
+        for (seg, cut) in [
+            ((0.0, 1.0), (0.5, 0.25)),
+            ((0.0, 1.0), (-0.5, 0.5)),
+            ((0.0, 1.0), (0.5, 1.5)),
+            ((1.0, 1.0), (1.0, 1.0)),
+            ((0.0, 1.0), (f64::NAN, 0.5)),
+        ] {
+            let got = sub_segment(&row, seg, cut);
+            assert_eq!(got.len(), row.len(), "{seg:?} {cut:?}");
+            assert!(
+                got.iter().all(|c| !c.is_certified()),
+                "{seg:?} cut at {cut:?} came back certified: {got:?}"
+            );
+        }
+        let point = sub_segment(&row, (0.0, 1.0), (0.25, 0.25));
+        assert!(
+            point.iter().all(|c| c.is_certified()),
+            "a point cut inside the segment reads: {point:?}"
+        );
     }
 
     /// **The claim this unit exists to establish: the convex form still
