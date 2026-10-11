@@ -2783,7 +2783,6 @@ area `kernel`; prefix `walks/`; tag `(WALKS orchestrator)`; ab_band `6600-6699`.
 | `an-ellipse-span-is-metered-at-its-minor-axis-and-refuses-a-flank-edge-k-times-longer-than-the-band` | 2026-10-09 | The certifier meters an ellipse span at its minor semi-axis, so an edge on a steep ellipse's flank refuses IntervalNotForward at up to k times the band |
 | `axis-projections-spelled-v-minus-a-a-dot-v-outside-the-section-certificate` | 2026-10-09 | Projections square to an axis spelled v − a(a·v) outside the section certificate keep an axial rounding component; unmeasured |
 | `aabb-poison-is-per-lane-and-a-one-lane-nan-box-prunes` | 2026-10-10 | bvh::Aabb promises a NaN bound poisons the whole box, but from_points folds per lane and overlaps prunes on a finite lane |
-| `the-dual-review-logs-shared-tally-line-conflicts-every-unit` | 2026-10-11 | docs/DUAL-REVIEW-LOG.md's one tally line and global DR numbering make every unit's merge conflict with every other program's |
 
 ## Blocked
 
