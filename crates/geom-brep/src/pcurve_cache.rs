@@ -3754,7 +3754,7 @@ fn chart_windings<T: Decide>(
 /// receive one: `carrier_harmonic` answers `None` for a net, and the
 /// ARC-RIM class refuses any carrier that is not a `Curve3::Circle`.
 /// A new caller that CAN see a net must take the gate.
-fn param_rate<T: Real>(carrier: &Curve3<T>) -> InfSpeed<T> {
+fn param_rate<T: SpanLocate>(carrier: &Curve3<T>) -> InfSpeed<T> {
     match *carrier {
         Curve3::Line { .. } => InfSpeed::new(T::one()),
         Curve3::Nurbs(ref n) => n.speed_lower_bound(),

@@ -229,7 +229,7 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::max_bound;
 use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::compose::patch::PatchSpans;
-use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
+use geom_core::spline::{KnotVector, SplineError};
 use geom_core::{
     Band, BandError, Interval, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_LAST_RESORT, Point3, Tol,
 };
@@ -715,26 +715,6 @@ pub enum OffsetFitError {
         /// The tolerance it was classified against.
         tolerance: f64,
     },
-    /// Raising a degree-1 base direction to degree 2 refused. The
-    /// certifying composite needs each direction's derived knot vector,
-    /// which a degree-1 direction does not have, so it is built on the
-    /// elevated form; this carries the knot-algebra refusal whole.
-    ///
-    /// No door reaches it. A direction reaching the composite has
-    /// passed the meters' C¹ gate ([`crate::patch_bound::check_direction`]),
-    /// so a degree-1 one is a single span, whose elevation is one
-    /// Bézier stage with no insertion or removal to refuse. What is
-    /// left is the `check_weights` each elevation runs first. The u
-    /// elevation reads weights the surface's constructor validated;
-    /// the v elevation, when both directions are raised, reads the
-    /// weights the u elevation produced, and those are convex
-    /// combinations of positive finite weights, so they stay finite and
-    /// can reach zero only by underflow, which needs subnormal weights.
-    /// The arm exists because the elevation is fallible by type; a
-    /// refusal there is a kernel finding, which is why the message
-    /// asks for a report and names the weight rather than rendering
-    /// the carrier's own repair.
-    Elevation(KnotAlgebraError),
     /// The run's tolerance could not form the linear band the door
     /// meters classify against. Both of `Band::linear`'s arms reach it
     /// from a tolerance the run's validator admits: an ε within a
@@ -926,26 +906,6 @@ impl core::fmt::Display for OffsetFitError {
                     bound: *bound,
                     tolerance: *tolerance
                 }
-            ),
-            // The carrier's own prose is not rendered: its repairs are
-            // addressed to a caller building a spline, and this arm's
-            // one repair is the report. The fact the report needs is
-            // the weight the elevation produced, which is what
-            // `check_weights` refuses on; any other payload is named
-            // by kind.
-            Self::Elevation(KnotAlgebraError::Structure(
-                SplineError::NonPositiveWeight { index, weight }
-                | SplineError::NonFiniteWeight { index, weight },
-            )) => write!(
-                f,
-                "the offset surface's fit could not raise the face to degree 2 where it is \
-                 linear: weight {index} came out as {weight}, which a valid surface never \
-                 gives. {KERNEL_DEFECT_ENDING}"
-            ),
-            Self::Elevation(_) => write!(
-                f,
-                "the offset surface's fit could not raise the face to degree 2 where it is \
-                 linear, which a valid surface always allows. {KERNEL_DEFECT_ENDING}"
             ),
             // The carrier's own prose is not rendered: its repairs
             // (set a positive ε; raise ε or K) are addressed to a
@@ -2345,30 +2305,6 @@ impl Composite {
         fit: &NurbsSurface<f64>,
         d: f64,
     ) -> Result<Self, OffsetFitError> {
-        // A degree-1 direction has no derived KNOT VECTOR (degree 0
-        // is not a clamped vector), and the composite needs one to
-        // decompose the derivative nets. Degree elevation is exact in
-        // ℝ and represents the same surface, so the composite is
-        // built on the elevated form; the meters' floor, taken on the
-        // original, is a fact about the same surface either way.
-        let raised;
-        let base = if base.knots_u().degree() < 2 || base.knots_v().degree() < 2 {
-            let mut b = base.clone();
-            if b.knots_u().degree() < 2 {
-                b = b
-                    .elevate_degree_u(2 - b.knots_u().degree())
-                    .map_err(OffsetFitError::Elevation)?;
-            }
-            if b.knots_v().degree() < 2 {
-                b = b
-                    .elevate_degree_v(2 - b.knots_v().degree())
-                    .map_err(OffsetFitError::Elevation)?;
-            }
-            raised = b;
-            &raised
-        } else {
-            base
-        };
         let (ku, kv) = (base.knots_u(), base.knots_v());
         let rational = is_rational(base);
         // One break list per direction, carrying every operand's
@@ -2391,24 +2327,56 @@ impl Composite {
         // The base's homogeneous nets and their first derivatives.
         let a_grid: [TensorCoeffs<'_>; 3] =
             core::array::from_fn(|c| channel(base, c, NetForm::of(base), &ctr));
-        // A direction whose derived vector is not clamped has no first
-        // partial net to decompose: refused typed.
+        // A degree-1 direction's partial is constant on each span; its
+        // derived vector would be degree 0, which no clamped vector
+        // spells. On a single span it is decomposed on the direction's
+        // own vector as the constant's degree-1 form, both coefficients
+        // the one difference. Across an interior knot the partial jumps,
+        // which no continuous degree-1 form spells, so that direction is
+        // refused as the crease it is. Every base channel is then raised
+        // one degree in each degree-1 direction it varies along, in the
+        // ring: exact in ℝ, so the composite is still about the base's
+        // own nets. The raise buys hull tightness, measured once on
+        // `tests/offset_fit.rs`' degree-1 rows (certified sup, raised
+        // against not): bilinear 4.26e-5 against 4.58e-5, rational
+        // bilinear 7.58e-5 against 9.46e-5, ruled 1.228e-5 against
+        // 1.229e-5, with the same cells and rounds. A degree ≥ 2
+        // direction whose derived vector is not clamped is refused typed.
+        let lift = |k: &KnotVector| match k.degree() {
+            1 if k.interior_knots().next().is_some() => Err(PatchBoundError::Degree1Crease),
+            1 => Ok(1),
+            _ => Ok(0),
+        };
+        let (lift_u, lift_v) = (lift(ku)?, lift(kv)?);
+        let raise = |p: PatchSpans, lu: usize, lv: usize| {
+            let (pu, pv) = p.degree();
+            p.elevated(pu + lu, pv + lv)
+        };
+        let val = |g: &TensorCoeffs<'_>| raise(dec(g), lift_u, lift_v);
         let du = |g: &TensorCoeffs<'_>| {
-            g.derivative_u()
-                .map(|d| dec(&d))
-                .ok_or(PatchBoundError::DerivedKnots)
+            let p = if lift_u == 1 {
+                let diff = g.diff_u();
+                dec(&TensorCoeffs::from_fn(ku, kv, |_, j| diff.get(0, j)))
+            } else {
+                dec(&g.derivative_u().ok_or(PatchBoundError::DerivedKnots)?)
+            };
+            Ok::<_, PatchBoundError>(raise(p, 0, lift_v))
         };
         let dv = |g: &TensorCoeffs<'_>| {
-            g.derivative_v()
-                .map(|d| dec(&d))
-                .ok_or(PatchBoundError::DerivedKnots)
+            let p = if lift_v == 1 {
+                let diff = g.diff_v();
+                dec(&TensorCoeffs::from_fn(ku, kv, |i, _| diff.get(i, 0)))
+            } else {
+                dec(&g.derivative_v().ok_or(PatchBoundError::DerivedKnots)?)
+            };
+            Ok::<_, PatchBoundError>(raise(p, lift_u, 0))
         };
-        let a: [PatchSpans; 3] = [dec(&a_grid[0]), dec(&a_grid[1]), dec(&a_grid[2])];
+        let a: [PatchSpans; 3] = [val(&a_grid[0]), val(&a_grid[1]), val(&a_grid[2])];
         let a_u: [PatchSpans; 3] = [du(&a_grid[0])?, du(&a_grid[1])?, du(&a_grid[2])?];
         let a_v: [PatchSpans; 3] = [dv(&a_grid[0])?, dv(&a_grid[1])?, dv(&a_grid[2])?];
         let w_grid = weight_net(base);
         let w = if rational {
-            dec(&w_grid)
+            val(&w_grid)
         } else {
             a[0].constant(Interval::one())
         };
@@ -3345,6 +3313,118 @@ mod tests {
         assert_eq!(mu, vec![true, false]);
         assert_eq!(mv, vec![false, false]);
     }
+    /// A degree-1 direction's partial is its per-span constant, scaled
+    /// by the span: on the bilinear `S = (u, v, u·v/2)` over
+    /// `[0, 2] × [0, 1]`, `M̃ = S_u × S_v = (−v/2, −u/2, 1)`, so its
+    /// three channels range over exactly `[−1/2, 0]`, `[−1, 0]` and
+    /// `{1}`. A partial read on the wrong direction, or unscaled by the
+    /// span width, moves a range.
+    #[test]
+    fn a_degree_1_partial_is_the_spans_constant() {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 2.0, 2.0], 1).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let base = geom::NurbsSurface::new(
+            ku,
+            kv,
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0),
+                Point3::new(2.0, 0.0, 0.0),
+                Point3::new(2.0, 1.0, 1.0),
+            ],
+            vec![1.0; 4],
+        )
+        .unwrap();
+        let comp = Composite::build(&base, &base, 0.05).unwrap();
+        assert_eq!(comp.m_tilde[0].cell_counts(), (1, 1), "cell structure");
+        for (c, (lo, hi)) in [(-0.5, 0.0), (-1.0, 0.0), (1.0, 1.0)]
+            .into_iter()
+            .enumerate()
+        {
+            let h = comp.m_tilde[c].cell_hull(0, 0);
+            assert!(
+                h.lo() <= lo && hi <= h.hi() && lo - h.lo() < 1e-12 && h.hi() - hi < 1e-12,
+                "M̃ channel {c} reads {h:?}, not [{lo}, {hi}]"
+            );
+        }
+    }
+
+    /// **The composite is about the supplied net, not a rounded
+    /// elevation of it.** A rational bilinear with weight `1` on the
+    /// `u = 0` ruling and `0.6` on `u = 1`, fitted by itself: every
+    /// coefficient of `Ẽ` encloses `0`, and the base's weight channel,
+    /// raised to degree 2 in `u`, encloses the exact middle weight
+    /// `(1 + 0.6)/2` of the stored `0.6`. An `f64` elevation stores
+    /// that weight as the point `0.8`, `5.6e-17` above it.
+    #[test]
+    fn a_rational_degree_1_composite_encloses_the_supplied_net() {
+        let k1 = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let base = geom::NurbsSurface::new(
+            k1(),
+            k1(),
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(0.0, 1.0, 0.1),
+                Point3::new(1.0, 0.0, 0.2),
+                Point3::new(1.0, 1.0, 1.0),
+            ],
+            vec![1.0, 1.0, 0.6, 0.6],
+        )
+        .unwrap();
+        let comp = Composite::build(&base, &base, 0.05).unwrap();
+        for c in 0..3 {
+            for (k, z) in comp.e[c].cell_coeffs(0, 0).unwrap().iter().enumerate() {
+                assert!(
+                    z.lo() <= 0.0 && 0.0 <= z.hi(),
+                    "Ẽ{c} coefficient {k} reads {z:?}"
+                );
+            }
+        }
+        assert_eq!(comp.w.degree(), (2, 2), "the weight channel's bidegree");
+        let w = comp.w.cell_coeffs(0, 0).unwrap();
+        // Row-major in `u`: the middle `u` row is entries 3..6. `2·x − 1`
+        // is exact for `2·x` in `[1, 2]` (Sterbenz), so the comparison
+        // with the stored `0.6` is too.
+        for (k, h) in w.iter().enumerate().take(6).skip(3) {
+            assert!(
+                2.0 * h.lo() - 1.0 <= 0.6 && 0.6 <= 2.0 * h.hi() - 1.0,
+                "w coefficient {k} reads {h:?}, which misses (1 + 0.6)/2"
+            );
+        }
+    }
+
+    /// A degree-1 direction with an interior knot has a partial that
+    /// jumps there, and the composite refuses it as the crease it is
+    /// rather than reading the first span's constant across both.
+    #[test]
+    fn a_two_span_degree_1_direction_refuses_at_the_composite() {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let base = geom::NurbsSurface::new(
+            ku,
+            kv,
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0),
+                Point3::new(0.5, 0.0, 0.2),
+                Point3::new(0.5, 1.0, 0.1),
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, 1.0, 0.3),
+            ],
+            vec![1.0; 6],
+        )
+        .unwrap();
+        let err = Composite::build(&base, &base, 0.05).err();
+        assert!(
+            matches!(
+                err,
+                Some(super::OffsetFitError::PatchBound(
+                    crate::patch_bound::PatchBoundError::Degree1Crease
+                ))
+            ),
+            "a two-span degree-1 direction reached the composite as {err:?}"
+        );
+    }
 }
 
 #[cfg(test)]
@@ -3355,7 +3435,7 @@ mod recourse_tests {
     use crate::patch_bound::PatchBoundError;
     use crate::recourse::{Classified, Reading, Refused};
     use geom::curves::fit::FitError;
-    use geom_core::spline::{KnotAlgebraError, SplineError};
+    use geom_core::spline::SplineError;
     use geom_core::{BandError, BandField};
 
     /// **The recourse claim for the carrier tier 3 renders whole.**
@@ -3369,15 +3449,11 @@ mod recourse_tests {
     /// TRANSITIVELY: the carrier is rendered whole, and its recourse
     /// survives into the message.
     ///
-    /// `Elevation` and `Band` do NOT render their carriers. The
-    /// `KnotAlgebraError` a `check_weights` refusal carries is a
-    /// `SplineError` whose own repair is addressed to a caller building
-    /// a spline, and rendering it would put a second, contradicting
-    /// repair beside the report this arm asks for. The `BandError`'s
-    /// repairs are addressed to a caller choosing thresholds, and a
-    /// `Tol` caller holds a valid tolerance already. So their rows
-    /// assert the opposite: the carrier's prose is absent, and the one
-    /// recourse is the arm's own.
+    /// `Band` does NOT render its carrier. The `BandError`'s repairs
+    /// are addressed to a caller choosing thresholds, and a `Tol`
+    /// caller holds a valid tolerance already. So its rows assert the
+    /// opposite: the carrier's prose is absent, and the one recourse is
+    /// the arm's own.
     ///
     /// **A floor, not a proof**, on the terms `topo`'s
     /// `every_chart_region_arm_names_a_recourse` states: a vocabulary
@@ -3426,18 +3502,6 @@ mod recourse_tests {
                 zero: 5e-324,
                 escalate: 5e-324,
             },
-        ];
-        // The payloads the elevation can produce: `check_weights`'
-        // refusals on the weights it reads.
-        let elevations = [
-            KnotAlgebraError::Structure(SplineError::NonPositiveWeight {
-                index: 3,
-                weight: 0.0,
-            }),
-            KnotAlgebraError::Structure(SplineError::NonFiniteWeight {
-                index: 3,
-                weight: f64::INFINITY,
-            }),
         ];
         let arms = [
             OffsetFitError::Meter(meter),
@@ -3540,22 +3604,19 @@ mod recourse_tests {
                 bound: f64::NAN,
                 tolerance: 1e-9,
             },
-            OffsetFitError::Elevation(elevations[0].clone()),
-            OffsetFitError::Elevation(elevations[1].clone()),
             OffsetFitError::Band(bands[0]),
             OffsetFitError::Band(bands[1]),
         ];
-        // Fifteen variants; `BudgetExhausted` is rendered at both of
+        // Fourteen variants; `BudgetExhausted` is rendered at both of
         // its `LastRound` readings, which are two different
         // sentences, `BoundNotFinite` at both of its `best`
         // cases, which are two different messages sending the caller
         // to two different repairs, `Limb` at both limbs, which the
         // message names in two different words, and at a NaN bound,
         // which it names as no number, `MintLimb` at its limb's NaN and
-        // finite bounds, and
-        // `Elevation` at both weights `check_weights` refuses, and
-        // `Band` at both arms `Band::linear` can return.
-        assert_eq!(arms.len(), 22, "an arm was added without a row here");
+        // finite bounds, and `Band` at both arms `Band::linear` can
+        // return.
+        assert_eq!(arms.len(), 20, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             let delegated = match arm {
@@ -3585,17 +3646,6 @@ mod recourse_tests {
                 assert!(
                     !msg.contains(&carrier) && msg.ends_with(geom_core::KERNEL_DEFECT_ENDING),
                     "not the report in place of the carrier's repair: {msg}"
-                );
-            }
-            if let OffsetFitError::Elevation(KnotAlgebraError::Structure(spline)) = arm {
-                assert!(
-                    !msg.contains(&spline.to_string()),
-                    "the carrier's own repair is rendered: {msg}"
-                );
-                assert!(msg.contains("weight 3 came out as"), "{msg}");
-                assert!(
-                    msg.ends_with(geom_core::KERNEL_DEFECT_ENDING),
-                    "not the shared kernel-defect ending: {msg}"
                 );
             }
             // The at-rest limb's repair is the re-fit; at the mint the

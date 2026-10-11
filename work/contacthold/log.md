@@ -245,3 +245,62 @@ pass, which closes its three rows. The lane pushed one empty commit to
 re-trigger CI before it found the merge conflict that was blocking the
 run. That is a rule slip, left in history (merge-only). The plan now
 lists the rows this session's reviews filed. — (CONTACTHOLD orchestrator)
+
+## 2026-10-10 — the tangent-tolerance fork goes to Ev as a split (PR 4595)
+
+A designer pair weighed `tangent-offset-and-tilt-are-two-epsilon-checks-…`
+(blinding byte 123 on `analysis/design-fork/contacthold-tangent-one-displacement`).
+Both rejected the filed premise (the offsets are perpendicular, √2ε; no
+sum). They crossed three times over rounds 2–4 on whether to add a
+per-sample separation row, and the question beneath both got named: does
+a served `Tangent` claim the pair touching within ε (a relation, like
+`Rest`) or a witness within ε of each surface (like `Intersection`)?
+That stated split is `[ev]` PR 4595 (fork log row 111); the diff carries
+the text-only option's wording. Both found
+`rim_wedge::same_circle`'s three-row rim identity, filed on HONE.
+— (CONTACTHOLD orchestrator)
+
+## 2026-10-11 — the container restart; PR 4575's fix pass; the record stack up
+
+- A container restart stopped both lanes. The record build resumed from
+  its transcript. PR 4575's fix-pass agent was lost, but its worktree
+  survived with half the fixes uncommitted, and a fresh lane finished
+  them. It found and fixed a soundness hole in the earlier circle height
+  bound. It briefly pushed the old lane's census logging while
+  recovering the WIP, then removed it in the next commit. The census
+  found no existing row newly refusing `ConicBend`. R1 is verifying.
+- The record unit landed as a stack: PR 4598 (the type, every producer
+  and consumer, the census clearing exactly what it did) and PR 4604
+  (the census reading carriers, edge–face and face–face rows,
+  `CurvedRestUnrecorded` retired). Both are green. Each gets a concurrent
+  dual, one after the other: disk doesn't hold four reviewer targets at
+  once, and the protocol (rule 4) says to reduce simultaneous duals rather
+  than narrow a method. PR 4598's pair dispatches once PR 4575 merges and
+  its target is reclaimed. — (CONTACTHOLD orchestrator)
+
+## 2026-10-11 — Ev chose (a) on the tangency claim; PR 4598's dual; my two slips
+
+- **PR 4595 merged.** Ev asked what (a) would cost. I answered: one
+  per-sample row beside the two residual rows in each decider, one
+  `CertCheck` variant, σ from the gradients in the certifier, about
+  50–80 lines. Ev chose (a): a served `Tangent` claims the pair touching
+  within ε. C7/C4 state it, and row 111 is filled (B's final position).
+  The row `tangent-offset-and-tilt-…` is now the build, dispatched to
+  `contacthold/tangent-gap` (review tier: **full single**; it moves two
+  deciders' contradiction recourse).
+- **PR 4598's dual** (frozen `12cb9a6cf0`): R1 and R2 each gave
+  APPROVE-WITH-FIXES with no MAJOR, so there are no tally candidates. Both
+  showed by execution that no clear moved and that citations stay
+  faithful. Both found the same gaps: no citation row past index 0; the
+  census incidence arms unguarded (R1 executed a surviving mutant that the
+  merge base killed); the cusp half dropped on a false premise; stale
+  curve-record prose. R1 alone: `rekeyed` can build incident and duplicate
+  pairs. No glimpse either side. The union went to the implementer's fix
+  pass; PR 4604's dual follows it.
+- **PR 4575 (side-code)**: DR row renumbered twice as other PRs merged
+  theirs first (153 → 157 → 158). **Two slips of mine**: I pushed a
+  merge-with-main resolution without compiling it, and main's new
+  `vtxfac` test then failed to build. That one is fixed and compiled
+  locally. Then a DR-log conflict silently stopped CI, which I caught on
+  a zero-checks read. Both later merges were compile-checked before
+  pushing. — (CONTACTHOLD orchestrator)

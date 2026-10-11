@@ -4,6 +4,8 @@ kind: issue
 title: A feature gesture re-points every placement of its target body, not only the placement whose copy the author picked
 status: open
 opened: 2026-10-08
+priority: P1
+cost: M
 ---
 
 
@@ -31,3 +33,7 @@ two, its second instance projected and placed), not a second placement
 of the original: a feature on either would otherwise re-point both.
 When this row lands, Duplicate can become a second placement of the
 same body, with no `Transform` (#4326: `Transform` retires).
+
+## Priced (2026-10-11)
+
+P1 M. A gesture changes every copy of a body where the author picked one. It is open rather than parked, because threading the picked placement through the seats is the viewer's part and survives stage 3; read `a-placement-is-the-bundle-of-mates` first if it has merged.
