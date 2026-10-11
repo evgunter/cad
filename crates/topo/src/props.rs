@@ -892,6 +892,12 @@ impl RoleUnread {
         self.hi.err().or(self.lo.err())
     }
 
+    /// The certified reading's verdict, where it lies wholly in band
+    /// ([`Self::certified_by`]'s).
+    pub(crate) fn sliver(&self) -> Option<CertifiedSliver> {
+        self.sliver
+    }
+
     /// `shell`'s refusal for this read: the walk's ends pick its words
     /// ([`shell_role_refusal`]), and the certified reading says whether
     /// the shell is a sliver, whatever those ends decided.

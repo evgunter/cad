@@ -65,11 +65,7 @@ fn corner_pose(
 ) -> (AtRestBody<f64>, AtRestBody<f64>) {
     let prism = common::prism::<f64>(profile, 1.0, tol).body;
     let prism = AtRestBody::validate(prism, tol).expect("the prism is at rest");
-    let e = unit(e);
-    let (p1, p2) = basis(e);
-    let al = std::f64::consts::TAU * (f64::from(a) + 0.25) / 16.0;
-    let base = add(scale(p1, al.cos()), scale(p2, al.sin()));
-    let m = unit(unit(add(base, scale(e, d))));
+    let m = cube_axis(e, a, d);
     let (u, w) = basis(m);
     let cube = common::mapped_cube::<f64>(
         move |x, y, z| {
@@ -81,6 +77,16 @@ fn corner_pose(
     );
     let cube = AtRestBody::validate(cube, tol).expect("the cube is at rest");
     (prism, cube)
+}
+
+/// The axis of the probe's cube at pose `nt e<·> a<a> d<d>` about the
+/// corner's edge `e`: the normal of its face through the corner.
+fn cube_axis(e: V3, a: u32, d: f64) -> V3 {
+    let e = unit(e);
+    let (p1, p2) = basis(e);
+    let al = std::f64::consts::TAU * (f64::from(a) + 0.25) / 16.0;
+    let base = add(scale(p1, al.cos()), scale(p2, al.sin()));
+    unit(unit(add(base, scale(e, d))))
 }
 
 /// The probe's `notch307` prism ∩ its cube at pose `nt e0 a<a> d<d>`.
@@ -190,4 +196,100 @@ fn a_sliver_the_walk_reads_as_zero_refuses_in_band_in_both_orders() {
             "{order}: the certified V/A is quoted: {diag}"
         );
     }
+}
+
+/// The convex piece of the `notch307` prism beyond its notch.
+const NOTCH307_PIECE: [(f64, f64); 4] = [(2.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 1.0)];
+
+/// Stands the row down at every ε but 1e-9, where these poses' lumps
+/// were measured in band.
+fn stood_down_off_1e9(tol: Tol) -> bool {
+    if (tol.eps() - 1e-9).abs() > 1e-21 {
+        test_utils::vacuity::stood_down(
+            "eps other than 1e-9",
+            "the notch307 piece's lump is in band at ε = 1e-9",
+        );
+        return true;
+    }
+    false
+}
+
+/// The refusal a result whose in-band shell is alone in its solid
+/// earns: `Escalated` on its shell role, the certified `V/A` wholly in
+/// band.
+fn assert_refuses_in_band(what: &str, refusal: Result<(), BooleanError>) {
+    let Err(BooleanError::Escalated {
+        decision: BooleanDecision::ShellRole { others: 0, .. },
+        diag,
+    }) = &refusal
+    else {
+        panic!("{what}: the ∩ refuses its in-band shell, got {refusal:?}");
+    };
+    assert!(
+        diag.terminal_sliver,
+        "{what}: the certified reading is wholly in band: {diag:?}"
+    );
+}
+
+/// **A result that is only a sliver refuses**: the `notch307` piece
+/// beyond its notch, ∩ the census witness cube (`nt e0 a3`), leaves one
+/// lump, a wedge less than a band thick, as the only shell of its
+/// solid. At d = 1e-8 and 3e-8 its certified `V/A` lies wholly in band,
+/// and the ∩ refuses it as the operands' ill-conditioning (D10,
+/// Booleans); at d = −1e-8 the cube misses the piece and the ∩ is
+/// empty.
+#[test]
+fn a_result_that_is_only_a_sliver_refuses_in_band() {
+    let tol = Tol::witness();
+    if stood_down_off_1e9(tol) {
+        return;
+    }
+    let corner = [2.0, 1.0, 1.0];
+    let edge = [2.0, 1.0, 0.0];
+    for d in [1e-8, 3e-8] {
+        let (piece, cube) = corner_pose(&NOTCH307_PIECE, corner, edge, 3, d, tol);
+        let refusal = topo::intersect(&piece, &cube, tol).map(|_| ());
+        assert_refuses_in_band(&format!("d = {d:e}"), refusal);
+    }
+    let (piece, cube) = corner_pose(&NOTCH307_PIECE, corner, edge, 3, -1e-8, tol);
+    let meet = topo::intersect(&piece, &cube, tol)
+        .unwrap_or_else(|e| panic!("d = -1e-8: the ∩ builds, got {e:?}"));
+    assert!(meet.body().is_none(), "d = -1e-8: the ∩ is empty");
+}
+
+/// **A sliver beside a definite lump refuses, whichever solid it lands
+/// in**: the piece of the row above and a block 0.4 m wide standing
+/// apart from it inside the cube, two solids, ∩ the cube at d = 1e-8.
+/// The block comes through whole. The pieces sort leaves the wedge,
+/// whose role does not read, in the block's solid, where check 10 reads
+/// it; alone in a solid of its own, check 7 would.
+#[test]
+fn a_sliver_beside_a_lump_refuses_in_band() {
+    let tol = Tol::witness();
+    if stood_down_off_1e9(tol) {
+        return;
+    }
+    let (corner, edge, d) = ([2.0, 1.0, 1.0], [2.0, 1.0, 0.0], 1e-8);
+    let (piece, cube) = corner_pose(&NOTCH307_PIECE, corner, edge, 3, d, tol);
+    // Two metres along the cube's axis from the corner: inside the cube,
+    // and above the piece, whose top is z = 1.
+    let at = add(corner, scale(cube_axis(edge, 3, d), 2.0));
+    assert!(at[2] > 1.5, "the block stands above the piece: {at:?}");
+    let block = common::mapped_cube::<f64>(
+        move |x, y, z| {
+            Point3::new(
+                at[0] + 0.4 * (x - 0.5),
+                at[1] + 0.4 * (y - 0.5),
+                at[2] + 0.4 * (z - 0.5),
+            )
+        },
+        tol,
+    );
+    let block = AtRestBody::validate(block, tol).expect("the block is at rest");
+    let both = topo::union(&piece, &block, tol).expect("the piece and the block unite");
+    let both = both.body().expect("the union is not empty");
+    let solids: Vec<usize> = both.body.solids().map(|(_, s)| s.shells.len()).collect();
+    assert_eq!(solids, [1, 1], "the piece and the block are two solids");
+    let refusal = topo::intersect(&both.body, &cube, tol).map(|_| ());
+    assert_refuses_in_band("piece and block", refusal);
 }

@@ -3997,7 +3997,11 @@ pub(super) fn declared_surface_pairs<T: Real>(
 /// act is tiers 1 and 2), so the verdict rides the result and is taken
 /// on the bits the caller receives. Where the scalar runs no at-rest
 /// gate, [`structural_gate`] runs in its place. The at-rest gate's
-/// findings are typed by [`finished_body_refusal`]; the structural
+/// findings are typed by [`finished_body_refusal`], and a solid it
+/// passed whose only shell is certified in band
+/// ([`crate::AtRestBody::slivers`]) is refused as the in-band shell it
+/// is: the at-rest invariant exempts it, and a result may not hold
+/// it (D10, Booleans). The structural
 /// gate's are structure alone, the kernel's.
 ///
 /// # Errors
@@ -4025,6 +4029,18 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
         kept.as_ref().map(|_| ()).map_err(Vec::as_slice),
     ));
     let kept = kept.map_err(finished_body_refusal)?;
+    let slivers: Vec<InBandShell> = kept
+        .slivers()
+        .iter()
+        .map(|sliver| InBandShell {
+            solid: sliver.solid,
+            shell: sliver.shell,
+            certified: *sliver.sliver.reading(),
+        })
+        .collect();
+    if let Some(refusal) = escalated(&slivers) {
+        return Err(refusal);
+    }
     if kept.outcome() == crate::AtRestOutcome::NotRunAtThisScalar {
         structural_gate(&kept, band)?;
     }
@@ -4043,30 +4059,30 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
 /// every finding. Each finding's arm is [`finding_arm`]'s.
 fn finished_body_refusal(errors: Vec<ValidationError>) -> BooleanError {
     let in_band: Option<Vec<InBandShell>> = errors.iter().map(finding_arm).collect();
-    let binding = in_band.as_deref().and_then(|shells| {
-        shells
-            .iter()
-            .copied()
-            .reduce(|a, b| {
-                if a.certified.margin.binds_before(b.certified.margin) {
-                    a
-                } else {
-                    b
-                }
-            })
-            .map(|binding| (binding, shells.len() - 1))
-    });
-    match binding {
-        Some((binding, others)) => BooleanError::Escalated {
-            decision: BooleanDecision::ShellRole {
-                solid: binding.solid,
-                shell: binding.shell,
-                others,
-            },
-            diag: binding.certified,
+    in_band
+        .and_then(|shells| escalated(&shells))
+        .unwrap_or(BooleanError::ResultInvalid { errors })
+}
+
+/// The refusal for `shells`, the result's shells certified in band: on
+/// the one whose enclosure binds the offer, naming how many more there
+/// are. `None` where there are none.
+fn escalated(shells: &[InBandShell]) -> Option<BooleanError> {
+    let binding = shells.iter().copied().reduce(|a, b| {
+        if a.certified.margin.binds_before(b.certified.margin) {
+            a
+        } else {
+            b
+        }
+    })?;
+    Some(BooleanError::Escalated {
+        decision: BooleanDecision::ShellRole {
+            solid: binding.solid,
+            shell: binding.shell,
+            others: shells.len() - 1,
         },
-        None => BooleanError::ResultInvalid { errors },
-    }
+        diag: binding.certified,
+    })
 }
 
 /// A shell of the result certified in band.
