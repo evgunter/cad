@@ -28,7 +28,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::outcomes::outcome;
 use geom::Curve3;
 use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfacePair};
 use geom_core::k_stats::Bracket;
@@ -681,8 +680,7 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
 /// consumer — two parallel cylinders of one height, overlapping,
 /// unioned — has a body: the rims' crossings of the walls are
 /// certified, and the two pairs of cap discs, one plane each by margin,
-/// glue whether or not they are declared, so the union is the declared
-/// union bit for bit (D10) at its closed form, the fixture the concave
+/// glue, so the union builds at its closed form, the fixture the concave
 /// ruled band can be cut from. And a box's single edge, which is not a
 /// ruled link, is cut off at its end faces by the plane–plane band's
 /// own cut-off.
