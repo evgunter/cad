@@ -14,7 +14,6 @@ use pncad::document::{
 };
 use pncad::prelude::StableName;
 use pncad::profile::SketchPlane;
-use pncad::select::SplitHalf;
 use pncad::topo::BooleanOp;
 
 /// The literal payload of one add-datum form (GAUTH-1): plain numbers
@@ -221,7 +220,7 @@ pub enum PatternRuleSpec {
     },
 }
 
-/// **Which body of a multi-body value one part form selects** — the
+/// **Which copy of a pattern one part form selects** — the
 /// authoring counterpart of [`pncad::document::PartSelect`], beside
 /// [`PatternRuleSpec`] for its reason: it names what a form authors,
 /// in the numbers a form holds.
@@ -237,13 +236,8 @@ pub enum PatternRuleSpec {
 /// the same division of labour [`super::SessionOp::AddPattern`]'s
 /// count already takes.
 ///
-/// One shape for BOTH selections rather than two ops, because the two
-/// arms differ in what is selected and in nothing else — the pick, the
-/// door and the node are one apiece.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PartSelectSpec {
-    /// The named half of a `Node::Split` value.
-    SplitHalf(SplitHalf),
     /// The `i`-th instance of a `Node::Pattern` value.
     Instance(i64),
 }
@@ -257,18 +251,18 @@ pub enum PartSelectSpec {
 /// operands that are not interchangeable: `from` is the body KEPT and
 /// `tool` the body REMOVED. Three arms rather than an operation beside
 /// a list, so a subtraction of the wrong count has no spelling.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum BooleanSpec {
     /// The material in any member, members in fold order.
-    Union(Vec<RecipeNodeId>),
+    Union(Vec<Operand>),
     /// The material in every member, members in fold order.
-    Intersect(Vec<RecipeNodeId>),
+    Intersect(Vec<Operand>),
     /// `from` with `tool` cut away.
     Subtract {
         /// The body kept.
-        from: RecipeNodeId,
+        from: Operand,
         /// The body removed.
-        tool: RecipeNodeId,
+        tool: Operand,
     },
 }
 
@@ -284,17 +278,18 @@ impl BooleanSpec {
 
     /// Every operand, in the node's order: the members, or `from`
     /// then `tool`.
-    pub fn operands(&self) -> Vec<RecipeNodeId> {
+    pub fn operands(&self) -> Vec<Operand> {
         match self {
             Self::Union(members) | Self::Intersect(members) => members.clone(),
-            Self::Subtract { from, tool } => vec![*from, *tool],
+            Self::Subtract { from, tool } => vec![from.clone(), tool.clone()],
         }
     }
 
     /// Lower to the node, carrying `declare` as its declared pairs.
     pub fn node(&self, declare: Vec<DeclaredPair>) -> AuthoredNode {
-        let spelled =
-            |members: &[RecipeNodeId]| Bodies::Spelled(members.iter().map(Into::into).collect());
+        let spelled = |members: &[Operand]| {
+            Bodies::Spelled(members.iter().cloned().map(Into::into).collect())
+        };
         match self {
             Self::Union(members) => Node::Union {
                 members: spelled(members),
@@ -305,8 +300,8 @@ impl BooleanSpec {
                 declare,
             },
             Self::Subtract { from, tool } => Node::Subtract {
-                from: (*from).into(),
-                tool: (*tool).into(),
+                from: from.clone().into(),
+                tool: tool.clone().into(),
                 declare,
             },
         }

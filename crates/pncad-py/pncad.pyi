@@ -2100,19 +2100,10 @@ class PatternKind:
         EditError (`empty_placement_list`) at insert."""
 
 class PartSelect:
-    """Which body of a multi-body value a `Node.part` selects: the
-    named half of a split, or one instance of a pattern by index.
-
-    One class for the two because the node is one sentence — "this
-    body, out of those" — and the VALUE decides which arm is
-    well-typed. Any other pairing refuses at `evaluate`
-    (`wrong_operand`), never at construction.
+    """Which copy of a pattern a `Node.part` selects, by index. A
+    split's halves need no selector: each is an output of the split,
+    read as `doc.output(split, port)`.
     """
-
-    @staticmethod
-    def split_half(half: SplitHalf) -> PartSelect:
-        """The named half of a `Node.split` value. A half the cut left
-        with no material refuses at `evaluate` (`empty_half`)."""
 
     @staticmethod
     def instance(index: _CountArg) -> PartSelect:
@@ -2425,8 +2416,11 @@ class Node:
     @staticmethod
     def split(target: _BodyArg, tool: _Operand) -> Node:
         """Split `target` by `tool` (a plane: a `datum_plane`, or a
-        `PoseDef` of kind plane). The value is a
-        split — read it with `Value.split()`, not `Value.body()`."""
+        `PoseDef` of kind plane). The value is a split — read it with
+        `Value.split()`, not `Value.body()`. Its two outputs are its
+        halves, read by port (`doc.output(split, 0)` is the half above
+        the plane's normal); a read of a half the cut left with no
+        material refuses at `evaluate` (`empty_half`)."""
 
     @staticmethod
     def transform(
@@ -2546,15 +2540,14 @@ class Node:
 
     @staticmethod
     def part(of: _Operand, select: PartSelect) -> Node:
-        """ONE body out of a multi-body value — a split's half or a
-        pattern's instance.
+        """ONE body out of a pattern's copies.
 
-        A projection, not an operation: the body is the half's or the
-        instance's own and the names pass through verbatim, so a
-        selector spelled against that half resolves here unchanged.
-        Refuses at `evaluate`: `wrong_operand` when the selector and
-        the value disagree in kind, `empty_half`,
-        `instance_out_of_range`."""
+        A projection, not an operation: the body is the instance's own
+        and the names pass through verbatim, so a selector spelled
+        against that instance resolves here unchanged. `of` reads a
+        list of bodies, or the insert raises EditError
+        (`slot_var_kind`); an index outside `0 .. count` refuses at
+        `evaluate` (`instance_out_of_range`)."""
 
     @staticmethod
     def placed_union(input: _Operand, count: _CountArg, kind: PatternKind) -> Node:

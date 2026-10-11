@@ -200,6 +200,8 @@ pub mod query;
 pub(crate) mod ray_walk;
 pub mod readback;
 pub mod replace_face;
+#[cfg(test)]
+pub(crate) mod revalue_pin;
 pub mod revert;
 #[cfg(test)]
 mod review_d18;

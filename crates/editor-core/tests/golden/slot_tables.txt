@@ -177,8 +177,6 @@ PlacedUnion { input: @0, count: None, kind: Explicit([]) }
 Part { of: @0, select: Instance(#0) }
   #0 Instance
   @0 Operand(Of)
-Part { of: @0, select: SplitHalf(Above) }
-  @0 Operand(Of)
 InstantiatePart { doc_ref: DocRef { id: DocumentId(272522191089886152265255929154993748228), pin: ContentPin([205, 5, 221, 101, 178, 25, 73, 194, 233, 249, 132, 107, 246, 149, 121, 4, 119, 31, 132, 192, 233, 43, 185, 169, 63, 156, 228, 98, 7, 179, 48, 228]) }, interface: InterfaceRecord { crossings: [] }, gauge: None, offset: Some(Placement { steps: [Rigid { translation: [#0, #1, #2], axis: [#3, #4, #5], angle: #6 }] }) }
   #0 Translation(X)
   #1 Translation(Y)

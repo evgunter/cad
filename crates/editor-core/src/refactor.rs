@@ -1894,7 +1894,6 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::OperandUnresolved { .. }
             | EditError::AmbiguousOutput { .. }
             | EditError::DefinesNothing { .. }
-            | EditError::PartHalfPort { .. }
             | EditError::ReadsWorldCopy { .. }
             | EditError::UnknownSlot { .. }
             | EditError::SlotDimensionMismatch { .. }

@@ -1105,7 +1105,6 @@ test_utils::f6_variants! {
         NodeNotMinted,
         OperandUnminted,
         SlotVarKind,
-        PartHalfPort,
         ReadsWorldCopy,
         SelectionShape,
         SelectionBody,
@@ -1230,17 +1229,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 "Extrude \"base plate\" (000000000005)'s target reads #9:",
                 "which is a profile, where it takes a body",
             ],
-        ),
-        (
-            SnapshotError::PartHalfPort {
-                node: node(),
-                half: editor_core::SplitHalf::Below,
-                var: Box::new(editor_core::SpokenVar::new(
-                    editor_core::VarId::new(9, tagged(9)),
-                    None,
-                )),
-            },
-            vec!["selects the below half but reads #9:"],
         ),
         (
             SnapshotError::ReadsWorldCopy {

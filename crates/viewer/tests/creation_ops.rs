@@ -1356,3 +1356,24 @@ fn an_add_on_an_existing_frame_mints_only_the_profile() {
         Some(Node::Profile(_))
     ));
 }
+
+/// **A viewport pick on a revolve's body is that body, not a half**: a
+/// revolve defines a body and an axis, so the pick seats its body's
+/// port; the seat line says no half, and the duplicate lands.
+#[test]
+fn a_viewport_picked_revolve_is_its_body_not_a_split_half() {
+    use viewer::combine::DuplicateTool;
+    let tol = Tol::witness();
+    let (mut session, revolve) = authored_ring(tol);
+    session.pump();
+    let doc = session.committed_doc().clone();
+    let mut tool = DuplicateTool::new();
+    tool.pick_at(&doc, revolve, Some(0));
+    let line = viewer::seats::seat_line(tool.seats(), &doc);
+    assert!(
+        !line.contains("half"),
+        "a revolve is said as a split half: {line}"
+    );
+    let outcome = session.perform(tool.op().expect("seated"));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+}

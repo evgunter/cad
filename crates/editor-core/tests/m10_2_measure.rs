@@ -1394,8 +1394,8 @@ fn a_pattern_of_a_cusp_extrude_gathers() {
     );
 }
 
-/// A SPLIT of the cusp extrude at mid-height, its upper half selected
-/// by a `Part`: the half keeps a (shorter) cusp strut, and gathers.
+/// A SPLIT of the cusp extrude at mid-height, its upper half placed by
+/// port: the half keeps a (shorter) cusp strut, and gathers.
 #[test]
 fn a_split_half_of_a_cusp_extrude_gathers() {
     let (doc, ex) = cusp_extrude_doc("cusp-extrude-split");
@@ -1413,14 +1413,21 @@ fn a_split_half_of_a_cusp_extrude_gathers() {
             tool: tool.into(),
         },
     );
-    let (doc, above) = mint(
+    let (doc, _) = mint(
         &doc,
-        Node::Part {
-            of: editor_core::Operand::output(split, SplitHalf::Above.port()),
-            select: PartSelect::SplitHalf(SplitHalf::Above),
-        },
+        Node::place_in_world(
+            editor_core::Operand::output(split, SplitHalf::Above.port()),
+            editor_core::Placement::IDENTITY,
+        ),
     );
-    let body = gathers(&doc, above);
+    let ev = eval(&doc);
+    assert!(
+        matches!(ev.result(split), Some(NodeResult::Ok(_))),
+        "the split evaluates: {:?}",
+        ev.result(split)
+    );
+    let body = editor_core::product(&doc, &ev, Tol::witness())
+        .unwrap_or_else(|e| panic!("the product gathers: {e:?}"));
     assert_eq!(body.solids().count(), 1);
     assert_eq!(
         tangent_marks(&body, on_the_kiss),

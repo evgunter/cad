@@ -135,6 +135,13 @@
 //! re-taken once more; only `measured_web`'s rows moved, where both
 //! changes meet.
 //!
+//! **ALL FOUR NUMBERS MOVED WHEN A SPLIT'S HALF BECAME ITS PORT**,
+//! through `part_select` alone: the document's two `Part` projections
+//! of a split's halves are gone and its union reads the split's two
+//! ports. Two nodes fewer is two outcomes fewer, so the id-masked fence
+//! moved too; `lib_g16_corpus_name_digests` moved that row and no
+//! other, and every point of the bodies that remain is where it was.
+//!
 //! A whole-corpus scalar is a blunt instrument for "did an existing
 //! document move", and there is now a SECOND, finer measurement to
 //! read beside it: `lib_g16_corpus_name_digests` pins a digest PER

@@ -16,8 +16,8 @@
 
 use pncad::document::{
     BooleanValue, Datum, Dimension, DimensionError, Doc, DocumentId, EditError, EvalError,
-    Evaluation, HeldNodes, Node, ParseError, ProfileProgram, RecipeNodeId, Said, SlotId, Speaker,
-    SpokenNode, SpokenVar, ValuePayload, VarId, VarName, held_by,
+    Evaluation, HeldNodes, Node, Operand, ParseError, ProfileProgram, RecipeNodeId, Said, SlotId,
+    Speaker, SpokenNode, SpokenVar, ValuePayload, VarId, VarName, held_by,
 };
 use pncad::prelude::{Body, StableName, SurfaceKind};
 use pncad::select::{InterrogateError, face_carrier_kind};
@@ -54,18 +54,11 @@ pub enum NodeKindWanted {
     /// A `Node::Datum(Datum::Frame)` or a `Node::Datum(Datum::FaceFrame)`
     /// — what a profile is drawn on. Both evaluate to a frame value.
     Frame,
-    /// A node whose value is ONE body — the combining seats' kind
-    /// ([`combine::denotes_body`] carries the admissible set and why a
-    /// split's sides and a pattern's instances are not in it).
+    /// A read of ONE body — the combining seats' kind: a node whose one
+    /// output is a body ([`combine::denotes_body`] carries the
+    /// admissible set and why a pattern's instances are not in it), or
+    /// a split's half read by its port ([`admits_read`]).
     Body,
-    /// A `Node::Split` — the value a [`pncad::document::PartSelect::
-    /// SplitHalf`] reads a half out of.
-    ///
-    /// The node kind IS the family here, with no placer to walk
-    /// through: `eval::wire`'s placeable operand door refuses a split
-    /// value outright, so a transform over a split is a failed node
-    /// and never a second way to hold one.
-    Split,
     /// A node whose value is a pattern's INSTANCES — what a
     /// [`pncad::document::PartSelect::Instance`] indexes: read alone,
     /// it defines a `Bodies` variable, a pattern's or a transform's of
@@ -98,13 +91,37 @@ pub fn admits(doc: &Doc<ProfileProgram>, node: RecipeNodeId, wanted: NodeKindWan
         NodeKindWanted::Profile
         | NodeKindWanted::Axis
         | NodeKindWanted::Plane
-        | NodeKindWanted::Frame
-        | NodeKindWanted::Split => held.and_then(seat_kind) == Some(wanted),
+        | NodeKindWanted::Frame => held.and_then(seat_kind) == Some(wanted),
     }
 }
 
+/// **Whether `read` in `doc` is the wanted kind**: [`admits`] for a
+/// node named alone, and for a port the kind of the variable it names
+/// (a split's half is a body) — the gate every body seat's commit asks
+/// of the read it holds.
+pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWanted) -> bool {
+    use pncad::document::{SlotKind, VarKind};
+    let var = match read {
+        Operand::Node(node) => return admits(doc, *node, wanted),
+        Operand::Output { node, port } => doc.output(*node, *port),
+        Operand::Var(var) => Some(*var),
+        Operand::Name(name) => doc.var_named(name.as_str()),
+        Operand::Select { .. } | Operand::Pose(_) => return false,
+    };
+    let kind = match wanted {
+        NodeKindWanted::Body => VarKind::Body,
+        NodeKindWanted::Instances => VarKind::Bodies,
+        NodeKindWanted::Profile
+        | NodeKindWanted::Axis
+        | NodeKindWanted::Plane
+        | NodeKindWanted::Frame => return false,
+    };
+    var.and_then(|var| doc.var(var))
+        .is_some_and(|var| SlotKind::Is(kind).admits(var))
+}
+
 /// **Which seat kind a node is by its kind alone**, or `None` for a
-/// node no profile, axis, plane, frame or split seat takes — the one
+/// node no profile, axis, plane or frame seat takes — the one
 /// classification [`admits`] reads for every kind but the two read off
 /// the variable a node named alone defines ([`NodeKindWanted::Body`],
 /// [`NodeKindWanted::Instances`]).
@@ -121,8 +138,8 @@ pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
             // No seat asks for a point.
             Datum::Point { .. } => None,
         },
-        Node::Split { .. } => Some(NodeKindWanted::Split),
-        Node::Pattern { .. }
+        Node::Split { .. }
+        | Node::Pattern { .. }
         | Node::Extrude { .. }
         | Node::Revolve { .. }
         | Node::Tube { .. }
@@ -156,7 +173,6 @@ impl NodeKindWanted {
             Self::Plane => "a plane datum",
             Self::Frame => "a frame datum",
             Self::Body => "a body",
-            Self::Split => "a split",
             Self::Instances => "a pattern",
         }
     }
@@ -304,6 +320,13 @@ pub enum Refusal {
         node: SpokenNode,
         /// The kind the seat requires.
         wanted: NodeKindWanted,
+    },
+    /// A body seat's read names no output of the document: a selection,
+    /// or a variable name nothing defines. A seat reads a node or one of
+    /// its outputs.
+    NotABodyRead {
+        /// The read, as the session op held it.
+        read: Box<Operand>,
     },
     /// A duplicate could not be placed — its input's landed value is
     /// not one body with a width ([`combine::DuplicateFault`]).
@@ -459,6 +482,7 @@ impl Refusal {
                 notation,
             },
             unspoken @ (Self::NoSuchVariable(_)
+            | Self::NotABodyRead { .. }
             | Self::EmptyName
             | Self::Dimension(_)
             | Self::Parse(_)
@@ -490,6 +514,7 @@ impl Refusal {
             | Self::OfferIsNamed(_)
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
+            | Self::NotABodyRead { .. }
             | Self::Duplicate(_)
             | Self::Edit(_)
             | Self::Dimension(_)
@@ -533,6 +558,7 @@ impl Refusal {
             | Self::OfferIsNamed(_)
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
+            | Self::NotABodyRead { .. }
             | Self::Duplicate(_)
             | Self::Edit(_)
             | Self::Dimension(_)
@@ -787,6 +813,13 @@ impl core::fmt::Display for Refusal {
             Self::WrongNodeKind { node, wanted } => {
                 write!(f, "{node} is not {} in this document", wanted.name())
             }
+            Self::NotABodyRead { read } => match &**read {
+                Operand::Name(name) => write!(f, "no variable is named {name} in this document"),
+                _ => f.write_str(
+                    "a selection names cells of a body, not the body: a body seat reads a node \
+                     or one of its outputs",
+                ),
+            },
             // The frame is layer 3's and the sentence is the door's.
             // Nothing is doubled: `EditError`'s arms state the problem
             // and carry no category prefix of their own, so this reads

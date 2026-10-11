@@ -1913,19 +1913,17 @@ impl<P> Doc<P> {
 
     /// **What is wrong with reading `held` at a seat admitting
     /// `expected`** (D10), if anything: a kind the seat does not admit
-    /// ([`crate::SlotKind::admits`]); for a part projection that
-    /// selects `half` of a split, the split's other half; or, for a
-    /// reader that constructs, a world placement's copy, read directly
-    /// or through a selection of it (D10: construction never reads the
-    /// world; a measure observes a copy's placed geometry). Asked of a live read by every door that writes
-    /// or loads one — the edit doors' lowering and the load door's
-    /// operand walk — so the rule is stated once; liveness is each
-    /// door's own question, asked before.
+    /// ([`crate::SlotKind::admits`]); or, for a reader that
+    /// constructs, a world placement's copy, read directly or through a
+    /// selection of it (D10: construction never reads the world; a
+    /// measure observes a copy's placed geometry). Asked of a live read
+    /// by every door that writes or loads one — the edit doors' lowering
+    /// and the load door's operand walk — so the rule is stated once;
+    /// liveness is each door's own question, asked before.
     pub(crate) fn read_fault(
         &self,
         held: &crate::Var,
         expected: crate::SlotKind,
-        half: Option<crate::SplitHalf>,
         reader: Reader,
     ) -> Option<ReadFault> {
         if !expected.admits(held) {
@@ -1938,16 +1936,9 @@ impl<P> Doc<P> {
             return matches!(self.node(body), Some(Node::PlaceInWorld { .. }))
                 .then_some(ReadFault::WorldCopy { placement: body });
         }
-        let (from, port) = held.def().output()?;
-        match (half, self.node(from)) {
-            (Some(half), Some(Node::Split { .. })) if u32::from(port) != half.output_body() => {
-                Some(ReadFault::OtherHalf { half })
-            }
-            (_, Some(Node::PlaceInWorld { .. })) if reader == Reader::Constructs => {
-                Some(ReadFault::WorldCopy { placement: from })
-            }
-            _ => None,
-        }
+        let (from, _) = held.def().output()?;
+        (reader == Reader::Constructs && matches!(self.node(from), Some(Node::PlaceInWorld { .. })))
+            .then_some(ReadFault::WorldCopy { placement: from })
     }
 
     /// **The variable port `port` of `node` defines**
@@ -3057,12 +3048,6 @@ pub(crate) enum ReadFault {
     Kind {
         /// The variable's kind.
         found: crate::VarKind,
-    },
-    /// A part projection selecting `half` of a split reads the split's
-    /// other half.
-    OtherHalf {
-        /// The half the projection selects.
-        half: crate::SplitHalf,
     },
     /// The variable is a world placement's copy.
     WorldCopy {

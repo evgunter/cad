@@ -173,7 +173,7 @@ pub enum OperandSlot {
     Members,
     /// What a transform, a pattern or a placed union places.
     Input,
-    /// What a part projection picks from.
+    /// The copies a part projection picks one of.
     Of,
     /// The body a world placement places.
     Body,
@@ -217,12 +217,12 @@ impl OperandSlot {
             Self::Target | Self::From | Self::Cut | Self::Member(_) | Self::Body => {
                 SlotKind::Is(VarKind::Body)
             }
-            Self::Members => SlotKind::Is(VarKind::Bodies),
+            Self::Members | Self::Of => SlotKind::Is(VarKind::Bodies),
             Self::Selection => SlotKind::Is(VarKind::Edges),
             Self::Open => SlotKind::Is(VarKind::Faces),
             Self::Face | Self::Side(_) => SlotKind::Is(VarKind::Face),
             Self::Measured(verb, _) => SlotKind::Measured(verb),
-            Self::Input | Self::Of => SlotKind::Placeable,
+            Self::Input => SlotKind::Placeable,
         }
     }
 }

@@ -534,7 +534,6 @@ fn every_node_shape_states_its_signature() {
         "PlacedUnion -> [body:Body]",
         "PlacedUnion -> [body:Body]",
         "Part -> [body:Body]",
-        "Part -> [body:Body]",
         "InstantiatePart -> [body:Body]",
         "Gauge -> []",
         "Mate -> []",

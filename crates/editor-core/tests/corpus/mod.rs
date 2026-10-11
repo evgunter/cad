@@ -243,11 +243,10 @@ pub fn documents() -> Vec<CorpusDoc> {
         // registry, so the derived frame carries the standard rows
         // (every ε, the Interval lane under DM1c, persistence, latency).
         face_sketch::document(),
-        // `part_select` (DOCM-2): a split's two halves and a pattern's
-        // middle instance each selected by a `Node::Part` and consumed
-        // downstream, so the census counts both selectors and every
-        // standard row (every ε, the Interval lane, persistence,
-        // latency) runs the projection.
+        // `part_select` (DOCM-2): a split's two halves read by port and
+        // a pattern's middle instance selected by a `Node::Part`, each
+        // consumed downstream, so every standard row (every ε, the
+        // Interval lane, persistence, latency) runs both.
         part_select::document(),
         // `loft_prism` (M6-3): R5 shape (iii)'s loft body — the
         // Band 4 corpus's first NURBS-walled solid. Standard rows
@@ -370,6 +369,24 @@ pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
         other => panic!("expected a single body, got {}", other.kind_name()),
     }
+}
+
+/// The single body a read holds: its output's body
+/// ([`ValuePayload::output_body`]), a split's port that half.
+pub fn read_body<'e, T: Decide>(
+    ev: &'e Evaluation<T>,
+    doc: &ProfileDoc,
+    read: editor_core::VarId,
+) -> &'e Body<T> {
+    let (node, port) = doc
+        .var(read)
+        .and_then(|var| var.def().output())
+        .expect("a read of a live output");
+    ev.value(node)
+        .expect("node evaluated to a value")
+        .payload
+        .output_body(u32::from(port))
+        .unwrap_or_else(|e| panic!("the read holds one body: {e}"))
 }
 
 /// **The node kinds no document can evaluate to a value** — the
@@ -505,7 +522,7 @@ pub const EDIT_KINDS: [&str; 21] = [
 /// The node SUB-kinds the corpus must also cover in full: every datum
 /// flavour, the declared boolean, and
 /// both pattern kinds.
-pub const SUB_KINDS: [&str; 16] = [
+pub const SUB_KINDS: [&str; 15] = [
     "Datum::Plane",
     "Datum::Axis",
     "Datum::Point",
@@ -515,9 +532,8 @@ pub const SUB_KINDS: [&str; 16] = [
     "Boolean+Declare",
     "Pattern::Linear",
     "Pattern::Circular",
-    // Both selectors of the projection node: `part_select` reads a
-    // split's two halves and a pattern's middle instance.
-    "Part::SplitHalf",
+    // The projection node: `part_select` reads a pattern's middle
+    // instance.
     "Part::Instance",
     // LIB-PLACEDUNION's two register payoffs. `PlacedUnion::Circular`
     // is deliberately NOT listed: no corpus document needs one, and a
@@ -574,13 +590,10 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
             PatternKind::Circular { .. } => "PlacedUnion::Circular",
             PatternKind::Explicit(_) => "PlacedUnion::Explicit",
         }],
-        // The two selectors are two sub-kinds: which value kind the
-        // node reads, and so which refusals it can meet, follows the
-        // selector.
-        Node::Part { select, .. } => vec![match select {
-            PartSelect::SplitHalf(_) => "Part::SplitHalf",
-            PartSelect::Instance(_) => "Part::Instance",
-        }],
+        Node::Part {
+            select: PartSelect::Instance(_),
+            ..
+        } => vec!["Part::Instance"],
         // EXHAUSTIVE on purpose (review MIN-2): no wildcard arm, so a
         // new `Node` variant — or a new `Datum`/
         // `PatternKind` flavour above — is a COMPILE error here rather

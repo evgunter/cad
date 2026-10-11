@@ -205,6 +205,7 @@ cases! {
         sector_side(Vec3::new(1.0, 0.0, -D), Reach::Extent(1.0));
     pierce_curvature_short_of_its_bend: "PierceCurvature", D, SECTOR_SITE, Valued =>
         pierce_curvature(D);
+    conic_bend_short_of_the_band: "ConicBend", D, SECTOR_SITE, Valued => conic_bend(D);
     joined_vertex_off_a_pole: "JoinUndecided", D, EDGE_JOIN_SITE, Valued => vertex_off_a_pole(D);
     tangent_side_in_band: "Coincidence(TangentSide)", -D, TANGENT_SITE, Valued =>
         tangent_side(false);
@@ -776,6 +777,33 @@ fn pierce_curvature(margin: f64) -> Result<(), BooleanError> {
     let c = 2.0 * margin.sqrt();
     let dir = Vec3::new((1.0 - c * c).sqrt(), 0.0, c);
     side_code(dir, Reach::Bisector(0.5), n, 1.0, band()).map(|_| ())
+}
+
+/// A unit-radius arc leaving a plane along it, short enough that the
+/// least lift its bend gives it at its extent, `2·sin²(extent/2)`, is
+/// `margin`.
+fn conic_bend(margin: f64) -> Result<(), BooleanError> {
+    use super::super::sectors::{Bend, BendBounds, FaceShape, pierce_side};
+    let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+    let extent = 2.0 * (margin / 2.0).sqrt().asin();
+    let bend = Bend {
+        curvature: Vec3::new(0.0, 0.0, 1.0),
+        bounds: BendBounds::Planar {
+            least: 1.0,
+            most: 1.0,
+            reach: core::f64::consts::FRAC_PI_2,
+            rise: 1.0,
+        },
+    };
+    pierce_side(
+        Vec3::new(1.0, 0.0, 0.0),
+        Reach::Conic { extent, bend },
+        n,
+        FaceShape::Plane,
+        NO_CURVATURE(),
+        band(),
+    )
+    .map(|_| ())
 }
 
 // The join's regularity readings share one refusal. The pole distance
@@ -2873,6 +2901,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "build_sectors", "BooleanDecision::Corner", 1),
+    ("sectors.rs", "conic_side", "BooleanDecision::ConicBend", 1),
     ("sectors.rs", "in_sector", "Coincide::Sectors", 1),
     (
         "sectors.rs",
@@ -2882,15 +2911,15 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("sectors.rs", "pair_search", "Coincide::Sectors", 1),
     ("sectors.rs", "parallel_same", "Coincide::Sectors", 1),
-    ("sectors.rs", "runs_in", "Coincide::EdgeOnPlane", 1),
     (
         "sectors.rs",
-        "side_code",
+        "read_side",
         "BooleanDecision::PierceCurvature",
         1,
     ),
-    ("sectors.rs", "side_code", "Coincide::SectorSide", 1),
-    ("sectors.rs", "side_code", "LeverArm::SectorSide", 1),
+    ("sectors.rs", "read_side", "Coincide::SectorSide", 1),
+    ("sectors.rs", "read_side", "LeverArm::SectorSide", 1),
+    ("sectors.rs", "runs_in", "Coincide::EdgeOnPlane", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentLocus", 1),
     (
         "sectors.rs",
@@ -2903,6 +2932,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "sphere_region.rs",
         "-",
         "BooleanDecision::CONTAINMENT_UNNAMED",
+        1,
+    ),
+    (
+        "vtxfac.rs",
+        "classify_vertex_on_face",
+        "BooleanDecision::ConicBend",
         1,
     ),
     (
