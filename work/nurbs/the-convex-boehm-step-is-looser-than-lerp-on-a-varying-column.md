@@ -60,6 +60,13 @@ The form is decided (fork 3, `[ev]` PR 4539's two designer reports):
 the certified two-point step is `Certification::between`, the monotone
 form — the lower ends combined together and the upper ends together,
 from the nearer source, met with the sources' hull.
+Each corner is also met with its convex form `x·(1 − Λ) + y·Λ` (the
+orchestrator's ruling on PR 4551, refining fork row 107's form): both
+enclose the same corner range and either can be the narrower. At an
+exact dyadic ratio the convex products are exact and it rounds once
+where the lerp rounds twice, which `ssi::section`'s sign bisection at
+`½` needs; at a thin knot-quotient ratio the convex corner is the
+narrower on about a fifth of drawn steps, by up to 62.5%.
 `algebra::convex_step` is gone; `CurvePlan::apply_certified` steps
 through the door, as does every certified two-point step in the spline
 layer (`CoeffWindow::blossom`).

@@ -2292,7 +2292,7 @@ mod tests {
     /// of the last one's width.
     ///
     /// **The ceilings are goldens with a margin, per degree.** Head reads
-    /// 2, 2, 4, 3.5 and 5 ulps of 1; the convex step (`β·x + α·y`, the
+    /// 2, 2, 4, 3.25 and 5 ulps of 1; the convex step (`β·x + α·y`, the
     /// battery's comparison) reads 2.5, 2.75, 6.5, 5.5 and 10.5. Each
     /// ceiling sits halfway between the two, so a change to the step that
     /// gives back half the gap at any degree reds here, and the convex
@@ -2313,7 +2313,7 @@ mod tests {
                 .flatten()
                 .map(|c| c.hi() - c.lo())
                 .fold(0.0f64, f64::max);
-            let ceiling = [2.25, 2.375, 5.25, 4.5, 7.75][p - 1] * f64::EPSILON;
+            let ceiling = [2.25, 2.375, 5.25, 4.375, 7.75][p - 1] * f64::EPSILON;
             assert!(
                 widest <= ceiling,
                 "degree {p}: the widest coefficient after 254 cuts is {widest:e}, {} ulps of 1",
@@ -2333,7 +2333,7 @@ mod tests {
     /// below that takes a step exists for this comparison; the shipped
     /// side of each row calls production code (`algebra::boehm_step`,
     /// `CurvePlan::apply_certified`, [`to_bezier_spans_extra`]).
-    fn convex_step(x: Interval, y: Interval, lo: f64, hi: f64, u: f64) -> Interval {
+    fn convex_reference(x: Interval, y: Interval, lo: f64, hi: f64, u: f64) -> Interval {
         let (lo, hi, u) = (Interval::point(lo), Interval::point(hi), Interval::point(u));
         let span = hi - lo;
         (x * ((hi - u) / span) + y * ((u - lo) / span)).meet(Interval::hull(x, y))
@@ -2350,7 +2350,7 @@ mod tests {
                 if i + p <= k {
                     c[i]
                 } else if i + s <= k {
-                    convex_step(c[i - 1], c[i], knots[i], knots[i + p], u)
+                    convex_reference(c[i - 1], c[i], knots[i], knots[i + p], u)
                 } else {
                     c[i - 1]
                 }
@@ -2427,7 +2427,7 @@ mod tests {
                 for level in 0..p {
                     let t = if level < p - i { a } else { b };
                     for j in 0..p - level {
-                        r[j] = convex_step(r[j], r[j + 1], 0.0, 1.0, t);
+                        r[j] = convex_reference(r[j], r[j + 1], 0.0, 1.0, t);
                     }
                 }
                 r[0]
@@ -2508,7 +2508,7 @@ mod tests {
             for (k, step) in [
                 super::super::algebra::boehm_step
                     as fn(Interval, Interval, f64, f64, f64) -> Interval,
-                convex_step,
+                convex_reference,
             ]
             .into_iter()
             .enumerate()

@@ -452,7 +452,7 @@ mod tests {
     }
 
     /// **A cut out of order refuses its row** (carried from `compose`'s
-    /// `sub_segment` row when the segment cut moved onto the door).
+    /// segment-cut row when the segment cut moved onto the door).
     /// Outside the segment the cut is no restriction of it; a reversed
     /// cut inside it is refused by contract. Red under the guard
     /// removed: the reversed cut comes back certified.
