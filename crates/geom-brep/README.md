@@ -776,7 +776,15 @@ singularity inside a face is a vertex of it, so a sphere face lies on
 the side of its loop that holds no chart pole. The closed-form lane and
 tier 3 read that side to cross-check the face's sense bit, and refuse a
 contradiction, wherever at least one pole lies off the loop
-(`sphere_loop_side`). A loop with a pole off it on each side encodes no
+(`sphere_loop_side`). A face whose loop holds both poles is read
+through its seam region, the faces of its surface it reaches across
+shared edges: a pole on an edge interior to the region lies inside it,
+so the region is the side of its boundary that holds such a pole, and
+not the side that holds a pole on no member's loop
+(`sphere_region_material_sign`). A region with no boundary is a whole
+sphere, whose side is its shell's orientation. A region whose boundary
+carries both poles encodes no side; for a region of one face, the
+flipped bit describes the complement, another valid body. A loop with a pole off it on each side encodes no
 side: under either sense its face holds a pole, which is validity's to
 refuse. Nor does a loop whose poles both read undecided: a pole within
 the ambiguity band of a great or near-great carrier's plane has its
