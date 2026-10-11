@@ -63,8 +63,16 @@ SmoothEdgeDisagrees}` in place of an `Indeterminate`, and ends through
 No `SliverSector` arm is a decided contradiction any more, so none
 takes the defect ending.
 
-Still open on this row: `CrossingEscalated`, `SplitJoinError`,
-`SectionError::WindingUndecided` and `SplitFinishError`.
+`SplitJoinError` (`Escalated`, `OrderEscalated`),
+`SectionError::WindingUndecided` and `SplitFinishError`
+(`DescribeEscalated`, `DescribeBendEscalated`, `SectionWindingUndecided`)
+end the same way since PR 4745, with the join's, the section's and the
+split's lever. `RingHoming` ends as the walk's `LoopDecision` does.
+
+Still open on this row: `CrossingEscalated` (no note on poison), and,
+at those sites, an invalid margin minted from a contradiction of
+decided readings, which still takes the lever and the note rather
+than the defect ending until the mint carries its `Escalation`.
 
 ## `agreed_section` no longer mints poison (branch `cleave/split-straddles-carry-reading`)
 
