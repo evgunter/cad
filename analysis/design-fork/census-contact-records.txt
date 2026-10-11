@@ -1,0 +1,5 @@
+fork: census-contact-records (INTENT stage 4 J, an-unattributed-contact-at-rest-is-a-finding)
+drawn: 2026-10-11T07:39:20Z, python3 os.urandom(1)
+byte: 58 (even)
+mapping: A = Opus designer, B = Fable designer
+protocol: d4ffadd10c
