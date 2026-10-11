@@ -2898,12 +2898,15 @@ impl<T: Decide> Body<T> {
             ([], Some(margin), _) => {
                 return Err(MergeCoplanarError::Escalated {
                     decision: MergeDecision::LoopWinding,
-                    diag: Indeterminate {
-                        margin,
+                    diag: geom_core::k_stats::gate_rejection(
+                        WINDING_PREDICATE,
+                        Decided {
+                            sign: geom_core::Sign::Zero,
+                            margin,
+                        },
                         band,
-                        predicate: Some(WINDING_PREDICATE),
-                        terminal_sliver: false,
-                    },
+                        LOOP_WINDING.passes,
+                    ),
                 });
             }
             ([], None, Some(r#loop)) => OutlineVerdict::UnsupportedWinding { r#loop },
@@ -5099,54 +5102,76 @@ mod winding_arm_tests {
 
     /// **A zero winding that leaves the merged face no outline tells
     /// the winding decision's in-band story**, with the tolerance its
-    /// own margin gives.
+    /// own margin gives, and is the gate's rejection on the frame's log.
     ///
     /// The fixture: one triangle `(0,0) → (2,0) → (1,h)`, the merged
-    /// face's only loop, with `h` the band's zero threshold. Its
+    /// face's only loop, with `h` within the band's zero threshold. Its
     /// margin `2A/P = 2h/P ≈ h/2` is nonzero and lies within the zero
     /// band at every tolerance row, so the winding classifies zero and
     /// no loop is an outline. [`LOOP_WINDING`] passes on either
     /// nonzero sign, so a smaller tolerance decides this margin: the
-    /// ending offers `m/K`, read here off the loop's own geometry.
+    /// ending offers `m/K`, read here off the loop's own geometry. The
+    /// refusal carries that decided margin tagged Zero, and it is the
+    /// one escalation the frame records.
     #[test]
     fn a_zero_winding_that_leaves_no_outline_tells_the_winding_story() {
         let tol = Tol::witness();
         let band = band(tol);
-        let h = band.zero();
-        let t = tri(
-            Point3::new(0.0, 0.0, 0.0),
-            Point3::new(2.0, 0.0, 0.0),
-            Point3::new(1.0, h, 0.0),
-            tol,
-        );
-        let face = t.body.get_loop(t.r#loop).unwrap().face;
-        let survivor = t.body.get_face(face).unwrap().clone();
-        let text = t
-            .body
-            .merged_outline_ring(face, &survivor, tol)
-            .expect_err("a face whose one loop winds zero has no outline")
-            .to_string();
-        assert_one_story(&text);
-        assert!(
-            text.starts_with(
-                "which way a loop of the merged face winds about its normal is undecided: \
-                 margin "
-            ) && text.contains("lies within the zero band")
-                && text.contains(LOOP_WINDING.lever),
-            "{text}"
-        );
-        let margin = 2.0 * h / (2.0 + 2.0 * (1.0 + h * h).sqrt());
-        let want = margin / (band.escalate() / band.zero());
-        let offered: f64 = text
-            .split_once("tighten the tolerance below ")
-            .and_then(|(_, tail)| tail.strip_suffix(" m"))
-            .and_then(|v| v.parse().ok())
-            .unwrap_or_else(|| panic!("a valued tolerance offer ends the text: {text}"));
-        assert!(
-            (offered - want).abs() <= 1e-9 * want,
-            "the offer is the zero winding's own margin over K: offered {offered:e}, \
-             want {want:e}: {text}"
-        );
+        for h in [0.25, 0.5, 1.0].map(|f| f * band.zero()) {
+            let t = tri(
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(2.0, 0.0, 0.0),
+                Point3::new(1.0, h, 0.0),
+                tol,
+            );
+            let face = t.body.get_loop(t.r#loop).unwrap().face;
+            let survivor = t.body.get_face(face).unwrap().clone();
+            let bracket = geom_core::k_stats::Bracket::open();
+            let err = t
+                .body
+                .merged_outline_ring(face, &survivor, tol)
+                .expect_err("a face whose one loop winds zero has no outline");
+            let log = bracket.finish();
+            let MergeCoplanarError::Escalated {
+                decision: MergeDecision::LoopWinding,
+                diag,
+            } = &err
+            else {
+                panic!("h {h:e}: the winding decision refuses: {err:?}");
+            };
+            assert_eq!(
+                diag.margin.rejected_sign(),
+                Some(geom_core::Sign::Zero),
+                "h {h:e}: the gate's rejection of a decided zero"
+            );
+            assert_eq!(
+                log.escalations.iter().map(|e| e.source).collect::<Vec<_>>(),
+                vec![*diag],
+                "h {h:e}: the rejection is the one escalation on the log"
+            );
+            let text = err.to_string();
+            assert_one_story(&text);
+            assert!(
+                text.starts_with(
+                    "which way a loop of the merged face winds about its normal is undecided: \
+                     margin "
+                ) && text.contains("lies within the zero band")
+                    && text.contains(LOOP_WINDING.lever),
+                "{text}"
+            );
+            let margin = 2.0 * h / (2.0 + 2.0 * (1.0 + h * h).sqrt());
+            let want = margin / (band.escalate() / band.zero());
+            let offered: f64 = text
+                .split_once("tighten the tolerance below ")
+                .and_then(|(_, tail)| tail.strip_suffix(" m"))
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_else(|| panic!("a valued tolerance offer ends the text: {text}"));
+            assert!(
+                (offered - want).abs() <= 1e-9 * want,
+                "the offer is the zero winding's own margin over K: offered {offered:e}, \
+                 want {want:e}: {text}"
+            );
+        }
     }
 
     /// **Several positive windings end in their own story**: two

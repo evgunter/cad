@@ -1557,15 +1557,28 @@ mod tests {
             ..twin(bis, Reach::Bisector(1.0), bis, Reach::Bisector(1.0))
         }];
         let one_sided = twins([1.0, 0.0, 0.5], [-1.0, 0.0, 0.5]);
-        assert!(
-            matches!(
-                resolve_bisector_graze(&[], &one_sided, &reference, band, Some(0), Some(0)),
-                Err(BooleanError::Escalated {
-                    decision: crate::boolean::BooleanDecision::BisectorSide,
-                    diag,
-                }) if diag.predicate == Some("bool_sector_bisector_side")
-            ),
-            "the graze between two Out keys refuses as the bisector's own decision"
+        let bracket = geom_core::k_stats::Bracket::open();
+        let got = resolve_bisector_graze(&[], &one_sided, &reference, band, Some(0), Some(0));
+        let log = bracket.finish();
+        let Err(BooleanError::Escalated {
+            decision: crate::boolean::BooleanDecision::BisectorSide,
+            diag,
+        }) = got
+        else {
+            panic!(
+                "the graze between two Out keys refuses as the bisector's own decision: {got:?}"
+            );
+        };
+        assert_eq!(diag.predicate, Some("bool_sector_bisector_side"));
+        assert_eq!(
+            diag.margin.rejected_sign(),
+            Some(geom_core::Sign::Zero),
+            "the nonzero gate's rejection of the graze's Zero"
+        );
+        assert_eq!(
+            log.escalations.last().map(|e| e.source),
+            Some(diag),
+            "the rejection is on the log"
         );
         let crossing = twins([1.0, 0.0, 0.5], [-1.0, 0.0, -0.5]);
         let records = [rec(0, 0, (On, Out), (Out, In))];

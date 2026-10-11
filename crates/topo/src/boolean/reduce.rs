@@ -3336,14 +3336,16 @@ fn wall_crossing<T: Decide + Bounds>(
                 super::contain::driver_face_stale(face)
             }
             // The face's boundary read refused (a lone-vertex loop, a
-            // loop it cannot walk, a chart refusal): the roots are not
-            // placed, so the caller keeps its door.
+            // loop it cannot walk, a chart refusal, an arc's end its
+            // corners disagree with): the roots are not placed, so the
+            // caller keeps its door.
             Err(
                 super::contain::ContainError::EmptyLoop(_)
                 | super::contain::ContainError::LoopUnreadable(_)
                 | super::contain::ContainError::Curved(_)
                 | super::contain::ContainError::RayExhausted
-                | super::contain::ContainError::Uncrossable(_),
+                | super::contain::ContainError::Uncrossable(_)
+                | super::contain::ContainError::ArcEndClearOfCorners(_),
             ) => return Ok(SpanVerdict::Unsettled),
         }
     }
@@ -3831,7 +3833,8 @@ pub(super) fn esc(e: ContainError, operand: Operand, face: FaceKey) -> BooleanEr
         refusal @ (ContainError::RayExhausted
         | ContainError::EmptyLoop(_)
         | ContainError::LoopUnreadable(_)
-        | ContainError::Curved(_)) => BooleanError::PointInFaceRefused {
+        | ContainError::Curved(_)
+        | ContainError::ArcEndClearOfCorners(_)) => BooleanError::PointInFaceRefused {
             operand,
             face,
             refusal,

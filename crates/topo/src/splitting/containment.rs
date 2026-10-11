@@ -257,8 +257,7 @@ pub(crate) const fn placement_sized(
 
 /// **How an escalation's refused reading stands**, as the site that
 /// raised it knows it: the one thing the carried [`Indeterminate`] cannot
-/// say, since a site with no margin to carry still names its row there
-/// (`crate::invalid_margin`).
+/// say.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Escalation {
     /// The carried margin is the reading: in the band, or unreadable.
@@ -267,9 +266,6 @@ pub enum Escalation {
     /// verdict of either states the reading; the carried diagnostic is
     /// their enclosure, under the site's straddle row.
     Straddle,
-    /// The site's own row decided definitely, and the site still cannot
-    /// answer on it; the carried diagnostic names the row.
-    Decided,
 }
 
 impl Escalation {
@@ -279,7 +275,6 @@ impl Escalation {
         match self {
             Self::Margin => RefusedArm::Undecided(diag),
             Self::Straddle => RefusedArm::Straddle,
-            Self::Decided => RefusedArm::SignCertain(None),
         }
     }
 }

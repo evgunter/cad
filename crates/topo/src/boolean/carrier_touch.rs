@@ -301,7 +301,8 @@ fn ball_off_face<T: Decide + Bounds>(
             | ContainError::LoopUnreadable(_)
             | ContainError::Curved(_)
             | ContainError::RayExhausted
-            | ContainError::Uncrossable(_),
+            | ContainError::Uncrossable(_)
+            | ContainError::ArcEndClearOfCorners(_),
         ) => Ok(false),
         Err(ContainError::Escalated {
             decision,

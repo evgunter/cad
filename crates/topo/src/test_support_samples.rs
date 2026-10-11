@@ -42,6 +42,7 @@ use geom_brep::offset_fit::{OffsetFitError, OffsetLimb};
 use geom_brep::pcurve_cache::{FittedMagnitude, PcurveCertifyError, PcurveCheck};
 use geom_brep::props::PropsError;
 use geom_brep::recourse::{Classified, Refused};
+use geom_core::k_stats::Magnitude;
 use geom_core::{Band, BandError, BandField, Indeterminate, MarginDiag};
 use strum::IntoEnumIterator as _;
 
@@ -263,9 +264,8 @@ fn contain_errors() -> Vec<ContainError> {
     };
     // Each ending form a site can raise: the valued tighten (or the lever
     // alone where the margin gives none), the lever with the
-    // unreadable-margin note, a straddle of two bounds, and a row decided
-    // and still refused. The span rule escalates only on an over-wound
-    // margin or a straddle.
+    // unreadable-margin note, and a straddle of two bounds. The span rule
+    // escalates only on an over-wound margin or a straddle.
     let arc_span = Some(ContainDecision::Loop(LoopDecision::ArcSpan));
     let escalated = |decision, escalation, diag| ContainError::Escalated {
         decision,
@@ -284,12 +284,27 @@ fn contain_errors() -> Vec<ContainError> {
                 escalated(decision, escalation, value),
                 escalated(decision, escalation, poisoned),
             ],
-            Escalation::Straddle | Escalation::Decided => {
+            Escalation::Straddle => {
                 vec![escalated(decision, escalation, poisoned)]
             }
         })
         .collect();
+    // An arc's end clear of its corners: an end decided off both, and
+    // (at `K ≤ 3`) every end at a corner.
+    let (zero, off) = (
+        (Magnitude::Zero, MarginDiag::value(5e-10)),
+        (Magnitude::Positive, MarginDiag::value(2e-8)),
+    );
+    let band = value.band;
     v.extend([
+        ContainError::ArcEndClearOfCorners(Box::new(crate::boolean::ArcEndGaps {
+            gaps: [[off, off], [off, zero]],
+            band,
+        })),
+        ContainError::ArcEndClearOfCorners(Box::new(crate::boolean::ArcEndGaps {
+            gaps: [[zero, off], [off, zero]],
+            band,
+        })),
         ContainError::RayExhausted,
         ContainError::StaleFace(crate::entity::FaceKey::default()),
         ContainError::EmptyLoop(LoopKey::default()),

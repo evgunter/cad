@@ -39,7 +39,8 @@ use super::carrier_eq::{CarrierDesc, CoincidenceMeasure, ConsumedExtent};
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use crate::contact::ContactVerdict;
-use crate::validate::{decide, decide_reported};
+use crate::validate::{decide, decide_nonzero};
+use geom_core::k_stats::NonzeroSign;
 
 /// The relation between two oriented planes — the PLANE SPELLING of
 /// the one carrier verdict.
@@ -238,20 +239,10 @@ pub(super) fn plane_ladder<T: Decide>(
     let sign_margin = Margin::levered(p1.normal.dot(p2.normal), arm);
     // `relation` rides beside σ: it is the orientation this decision
     // just made definite, and the relation the offset's Zero glues
-    // under.
-    let (sigma, relation) = match decide_reported("bool_plane_orient", sign_margin, band) {
-        Ok(Decided {
-            sign: Sign::Positive,
-            ..
-        }) => (T::one(), PlaneRelation::SameOriented),
-        Ok(Decided {
-            sign: Sign::Negative,
-            ..
-        }) => (-T::one(), PlaneRelation::SameOpposite),
-        Ok(Decided {
-            sign: Sign::Zero,
-            margin,
-        }) => return Err(orientation_zero(margin, band)),
+    // under. A zero has no side to read, so it is the gate's rejection.
+    let (sigma, relation) = match decide_nonzero("bool_plane_orient", sign_margin, band) {
+        Ok(NonzeroSign::Positive) => (T::one(), PlaneRelation::SameOriented),
+        Ok(NonzeroSign::Negative) => (-T::one(), PlaneRelation::SameOpposite),
         Err(diag) => {
             return Err(PlaneEqError::Escalated {
                 rung: PlaneRung::Orientation,
@@ -492,5 +483,63 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    /// **An orientation decided zero is the nonzero gate's rejection, on
+    /// the log, and ends as before.** Two parallel planes read over an arm
+    /// inside the zero band have `|cos|·arm = arm` there, so the
+    /// orientation reads Zero, which has no side: the escalation carries
+    /// that decided margin, tagged Zero, and is on the frame's log. The
+    /// tag is the gate's alone: every door's ending renders the same as
+    /// on the untagged margin.
+    #[test]
+    fn an_orientation_decided_zero_is_the_gates_rejection_on_the_log() {
+        use crate::boolean::refusal_routes::PlaneDoor;
+        use crate::boolean::{BooleanError, DeclarationRead};
+        use geom_core::k_stats::Bracket;
+        let band = band();
+        let up = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
+        let down = plane([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]);
+        for frac in [0.1, 0.5, 1.0] {
+            let arm = frac * band.zero();
+            let extent =
+                ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(Point3::origin(), arm));
+            for (other, cos) in [(up, 1.0), (down, -1.0)] {
+                let bracket = Bracket::open();
+                let got = oriented_plane_eq(&up, &other, PlaneIdentity::NONE, &extent, band);
+                let log = bracket.finish();
+                let what = format!("arm {arm:e}, cos {cos}");
+                let Err(PlaneEqError::Escalated {
+                    rung: PlaneRung::Orientation,
+                    diag,
+                }) = got
+                else {
+                    panic!("{what}: the orientation reads zero: {got:?}");
+                };
+                assert_eq!(diag.predicate, Some("bool_plane_orient"), "{what}");
+                assert_eq!(diag.margin.rejected_sign(), Some(Sign::Zero), "{what}");
+                assert_eq!(
+                    log.escalations.iter().map(|e| e.source).collect::<Vec<_>>(),
+                    vec![diag],
+                    "{what}: the rejection is the one escalation on the log"
+                );
+                let untagged = Indeterminate {
+                    margin: MarginDiag::value(cos * arm),
+                    ..diag
+                };
+                for door in [
+                    PlaneDoor::Neighbours,
+                    PlaneDoor::OnPair(DeclarationRead::Moot),
+                    PlaneDoor::Screen(DeclarationRead::Moot),
+                ] {
+                    let text = |d| BooleanError::plane_identity(PlaneRung::Orientation, door, d);
+                    assert_eq!(
+                        text(diag).to_string(),
+                        text(untagged).to_string(),
+                        "{what}, {door:?}: the ending reads the margin, not the gate's tag"
+                    );
+                }
+            }
+        }
     }
 }

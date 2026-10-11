@@ -1674,22 +1674,40 @@ mod tests {
 
     /// A bisector reading On between two bounds read Out is the band's
     /// Zero (reachable only at K ≤ 2, which no suite runs), and it
-    /// refuses; an edge's On there, a real one, resolves; a bisector
-    /// between mixed neighbours resolves, since its code moves no edge.
+    /// refuses as the nonzero gate's rejection, on the frame's log; an
+    /// edge's On there, a real one, resolves; a bisector between mixed
+    /// neighbours resolves, since its code moves no edge.
     #[test]
     fn a_bisector_on_between_one_sided_bounds_refuses() {
         let band = Band::linear(Tol::witness()).unwrap();
-        let mut one_sided = [entry(true, Out), entry(false, On), entry(true, Out)];
-        assert!(
-            matches!(
-                resolve_on_entries(&mut one_sided, band),
-                Err(BooleanError::Escalated {
-                    decision: super::super::BooleanDecision::BisectorSide,
-                    diag,
-                }) if diag.predicate == Some("bool_sector_bisector_side")
-            ),
-            "the bisector's Zero refuses as its own decision"
-        );
+        for side in [Out, In] {
+            let mut one_sided = [entry(true, side), entry(false, On), entry(true, side)];
+            let bracket = geom_core::k_stats::Bracket::open();
+            let got = resolve_on_entries(&mut one_sided, band);
+            let log = bracket.finish();
+            let Err(BooleanError::Escalated {
+                decision: super::super::BooleanDecision::BisectorSide,
+                diag,
+            }) = got
+            else {
+                panic!("{side:?}: the bisector's Zero refuses as its own decision: {got:?}");
+            };
+            assert_eq!(
+                diag.predicate,
+                Some("bool_sector_bisector_side"),
+                "{side:?}"
+            );
+            assert_eq!(
+                diag.margin.rejected_sign(),
+                Some(geom_core::Sign::Zero),
+                "{side:?}: the nonzero gate's rejection of the Zero"
+            );
+            assert_eq!(
+                log.escalations.iter().map(|e| e.source).collect::<Vec<_>>(),
+                vec![diag],
+                "{side:?}: the rejection is the one escalation on the log"
+            );
+        }
         let mut edge = [entry(true, Out), entry(true, On), entry(true, Out)];
         resolve_on_entries(&mut edge, band).unwrap();
         assert_eq!(edge[1].class, Out, "an edge's On resolves");

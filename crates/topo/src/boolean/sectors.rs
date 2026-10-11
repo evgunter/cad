@@ -410,17 +410,23 @@ pub(super) fn sector_face<T: Decide>(
 /// The refusal for a bisector reading On between two bounds definitely
 /// on one side (`vtxfac`'s on-edge resolution,
 /// `recl::resolve_bisector_graze`): reachable only when K ≤ 2, where the
-/// Zero is the band's and does not decide. The payload says what is
-/// known: the reading lies within `±zero`.
+/// Zero is the band's and does not decide. The side is read off a sign,
+/// so the Zero is the nonzero gate's rejection, on the log. The `On`
+/// code it rejects keeps no margin (a coplanar pair's codes are `On`
+/// with no bound read at all), so the reading it carries is what every
+/// `On` states: within `±zero`.
 pub(super) fn bisector_zero_refusal(band: Band) -> BooleanError {
     BooleanError::Escalated {
         decision: BooleanDecision::BisectorSide,
-        diag: geom_core::Indeterminate {
-            margin: geom_core::MarginDiag::enclosure(-band.zero(), band.zero()),
+        diag: geom_core::k_stats::gate_rejection(
+            "bool_sector_bisector_side",
+            geom_core::Decided {
+                sign: Sign::Zero,
+                margin: geom_core::MarginDiag::enclosure(-band.zero(), band.zero()),
+            },
             band,
-            predicate: Some("bool_sector_bisector_side"),
-            terminal_sliver: false,
-        },
+            geom_core::SizedPass::NonZero,
+        ),
     }
 }
 
