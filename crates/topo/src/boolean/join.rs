@@ -415,12 +415,13 @@ impl SolidJoin {
     }
 
     /// The planar-side curve against the partner `wall`, through
-    /// [`JoinLane::BoolPlanar`], the wall copy keyed by `partner_face`.
+    /// [`JoinLane::BoolPlanar`], the wall copy keyed by `partner_face`;
+    /// `window` is that face's along a cone's axis.
     fn bool_planar_curve<T: Decide>(
         &mut self,
         body: &mut Body<T>,
         plan: &JoinPlan,
-        wall: geom::Surface<T>,
+        (wall, window): (geom::Surface<T>, Option<(T, T)>),
         partner_face: FaceKey,
         leave: Leave<T>,
     ) -> Result<SegmentCurve<T>, BooleanError> {
@@ -428,6 +429,7 @@ impl SolidJoin {
         let mut partner = self.aux.get(&datum).copied();
         let lane = JoinLane::BoolPlanar {
             wall,
+            window,
             partner_key: &mut partner,
         };
         let curve = self.curve(body, plan, lane, leave)?;
@@ -1180,7 +1182,13 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 sb.curve(&mut red.b, &plan_b, JoinLane::Planar, leave_b)?,
             ),
             Some(GermLane::PlaneWall(plane)) => (
-                sa.bool_planar_curve(&mut red.a, &plan_a, gb.clone(), germ.b_face, leave_a)?,
+                sa.bool_planar_curve(
+                    &mut red.a,
+                    &plan_a,
+                    (gb.clone(), cone_window(&red.b, germ.b_face, &gb, band)),
+                    germ.b_face,
+                    leave_a,
+                )?,
                 sb.split_curve(
                     &mut red.b,
                     &plan_b,
@@ -1197,8 +1205,14 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     AuxDatum::Partner(germ.b_face),
                     leave_a,
                 )?;
-                let curve_b =
-                    sb.bool_planar_curve(&mut red.b, &plan_b, ga.clone(), germ.a_face, leave_b)?;
+                let window = cone_window(&red.a, germ.a_face, &ga, band);
+                let curve_b = sb.bool_planar_curve(
+                    &mut red.b,
+                    &plan_b,
+                    (ga.clone(), window),
+                    germ.a_face,
+                    leave_b,
+                )?;
                 (curve_a, curve_b)
             }
             Some(GermLane::Radical(radical)) => {
@@ -1940,6 +1954,7 @@ fn germ_section_frame<T: Decide>(
         (&sb, &red.b, germ.b_face),
         at,
         span,
+        band,
     )
     .map_err(desync)?;
     pair_section_frame_at(&sa, &sb, at, extent, band)
@@ -1992,8 +2007,8 @@ pub(super) fn frame_reading<T: Decide>(
 
 /// **What [`pair_section_frame_at`] levers a pair at**: the consumed
 /// region's measure, taken from the reading point `at`.
-#[derive(Clone, Copy, Debug)]
-pub(super) enum FrameExtent<T> {
+#[derive(Clone, Debug)]
+pub(super) enum FrameExtent<T: geom_core::Real> {
     /// Nothing measured: the pair is levered by its radii.
     Radii,
     /// A cylinder pair's walls' span ([`frame_reading`]).
@@ -2013,11 +2028,9 @@ pub(super) enum FrameExtent<T> {
         /// ([`agreed_section`](crate::chord_join::agreed_section)).
         round: T,
     },
-    /// A plane×cone pair's wall face: its farthest distance from `at`,
-    /// each edge levered round its whole carrier
-    /// ([`face_reach_from`](crate::splitting::rules::face_reach_from) on
-    /// a cone).
-    Reach(T),
+    /// A plane×cone pair's cone face, against the cone's axis
+    /// ([`cone_face_reach`](crate::splitting::rules::cone_face_reach)).
+    Cone(geom_brep::Reach<T>),
 }
 
 /// **The consumed region's measure [`pair_section_frame_at`] levers at**,
@@ -2032,9 +2045,9 @@ pub(super) enum FrameExtent<T> {
 /// ([`face_reach_round_from`](crate::splitting::rules::face_reach_round_from)),
 /// which [`agreed_section`](crate::chord_join::agreed_section) reads
 /// together. A plane×cone pair's section lies on the cone face, which
-/// hands the table its farthest distance from `at`: the one measure the
-/// cone's split lane levers the same section at. Every other pair takes
-/// the walls' `span`.
+/// hands the table its range along the cone's axis from `at` and its
+/// farthest distance from `at`: the measures the cone's split lane
+/// reads the same section at. Every other pair takes the walls' `span`.
 ///
 /// # Errors
 ///
@@ -2044,6 +2057,7 @@ pub(super) fn frame_extent<T: Decide>(
     (sb, body_b, face_b): (&geom::Surface<T>, &Body<T>, FaceKey),
     at: geom_core::Point3<T>,
     span: Option<T>,
+    band: Band,
 ) -> Result<FrameExtent<T>, &'static str> {
     let (body, face, axis) = match (sa, sb) {
         (geom::Surface::Plane { .. }, geom::Surface::Cylinder { axis, .. }) => {
@@ -2052,11 +2066,11 @@ pub(super) fn frame_extent<T: Decide>(
         (geom::Surface::Cylinder { axis, .. }, geom::Surface::Plane { .. }) => {
             (body_a, face_a, *axis)
         }
-        (geom::Surface::Plane { .. }, geom::Surface::Cone { .. }) => {
-            return cone_reach(body_b, face_b, at);
+        (geom::Surface::Plane { .. }, cone @ geom::Surface::Cone { .. }) => {
+            return cone_reach(body_b, face_b, at, cone, band);
         }
-        (geom::Surface::Cone { .. }, geom::Surface::Plane { .. }) => {
-            return cone_reach(body_a, face_a, at);
+        (cone @ geom::Surface::Cone { .. }, geom::Surface::Plane { .. }) => {
+            return cone_reach(body_a, face_a, at, cone, band);
         }
         _ => return Ok(span.map_or(FrameExtent::Radii, FrameExtent::Span)),
     };
@@ -2076,14 +2090,31 @@ pub(super) fn frame_extent<T: Decide>(
 /// [`frame_extent`]'s refusal: a wall with no extent to lever at.
 const LONE_WALL: &str = "a germ wall's outer loop is a lone vertex";
 
+/// The window along a partner cone wall's axis its face `face` reaches
+/// over ([`cone_axial_window`](crate::splitting::rules::cone_axial_window)),
+/// which the planar side's section lies in; `None` off a cone, or for a
+/// face with no extent, where the planar face's own window stands alone.
+fn cone_window<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    wall: &geom::Surface<T>,
+    band: Band,
+) -> Option<(T, T)> {
+    matches!(wall, geom::Surface::Cone { .. })
+        .then(|| crate::splitting::rules::cone_axial_window(body, face, wall, band).ok())
+        .flatten()
+}
+
 /// [`frame_extent`]'s plane×cone arm: the cone face's reach from `at`.
 fn cone_reach<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     at: geom_core::Point3<T>,
+    cone: &geom::Surface<T>,
+    band: Band,
 ) -> Result<FrameExtent<T>, &'static str> {
-    crate::splitting::rules::face_reach_from(body, face, at)
-        .map(FrameExtent::Reach)
+    crate::splitting::rules::cone_face_reach(body, face, at, (cone, None), band)
+        .map(FrameExtent::Cone)
         .map_err(|_| LONE_WALL)
 }
 
@@ -2465,7 +2496,7 @@ pub(super) fn pair_section_frame_at<T: Decide>(
             let lever = match extent {
                 FrameExtent::Span(l) => l.max(r1.max(*r2)),
                 FrameExtent::Radii | FrameExtent::Wall { .. } => r1.max(*r2),
-                FrameExtent::Reach(_) => return Err(FrameError::Desync(CONE_REACH_ELSEWHERE)),
+                FrameExtent::Cone(_) => return Err(FrameError::Desync(CONE_REACH_ELSEWHERE)),
             };
             let reach = geom_brep::Reach::Measured { at, lever };
             match geom_brep::cylinder_axes_parallel(&reach, (*o1, *a1), (*o2, *a2), band) {
@@ -2520,7 +2551,7 @@ pub(super) fn pair_section_frame_at<T: Decide>(
             &geom_brep::Reach::Measured { at, lever: radius },
             band,
         ),
-        FrameExtent::Reach(_) => return Err(FrameError::Desync(CONE_REACH_ELSEWHERE)),
+        FrameExtent::Cone(_) => return Err(FrameError::Desync(CONE_REACH_ELSEWHERE)),
     };
     match section {
         Ok(geom_brep::PlaneCylinderSection::Rim(geom::Curve3::Circle { center, axis, .. }))
@@ -2540,7 +2571,7 @@ pub(super) fn pair_section_frame_at<T: Decide>(
     }
 }
 
-/// [`FrameExtent::Reach`] handed to a cylinder pair: only a cone face's
+/// [`FrameExtent::Cone`] handed to a cylinder pair: only a cone face's
 /// frame is levered at it ([`frame_extent`]).
 const CONE_REACH_ELSEWHERE: &str = "a cone face's reach levered a pair with no cone";
 
@@ -2569,9 +2600,9 @@ fn section_refusal(e: geom_brep::SectionError) -> FrameError {
 /// decision (R1), and its refusal carries the table's own naming of the
 /// conic ([`FrameError::OutsideInventory`]).
 ///
-/// Levered at the cone face's reach from the reading point
-/// ([`FrameExtent::Reach`], the only extent [`frame_extent`] hands a
-/// plane×cone pair); any other extent is a desync.
+/// Read over the cone face's reach ([`FrameExtent::Cone`], the only
+/// extent [`frame_extent`] hands a plane×cone pair); any other extent is
+/// a desync.
 #[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
 fn pk_germ_frame<T: Decide>(
     plane: &geom::Surface<T>,
@@ -2579,12 +2610,12 @@ fn pk_germ_frame<T: Decide>(
     extent: FrameExtent<T>,
     band: Band,
 ) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, FrameError> {
-    let FrameExtent::Reach(lever) = extent else {
+    let FrameExtent::Cone(reach) = extent else {
         return Err(FrameError::Desync(
             "a plane×cone frame was levered at no cone face's reach",
         ));
     };
-    match geom_brep::plane_cone_section(plane, cone, lever, band) {
+    match geom_brep::plane_cone_section(plane, cone, &reach, band) {
         Ok(
             geom_brep::PlaneConeSection::TiltedEllipse(geom::Curve3::Ellipse {
                 center, axis, ..
@@ -4046,7 +4077,8 @@ mod frame_dispatch_tests {
                 (on.clone(), Vec::new())
             };
             let (at, span) = super::frame_reading(a, b, on_a, on_b).expect("a reading");
-            let extent = super::frame_extent((a, body, face), (b, body, face), at, span).unwrap();
+            let extent =
+                super::frame_extent((a, body, face), (b, body, face), at, span, band()).unwrap();
             let got = super::pair_section_frame_at(a, b, at, extent, band());
             (label, got)
         })

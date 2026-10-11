@@ -579,27 +579,33 @@ pub(crate) fn corrupt_face(face: FaceKey) -> SplitJoinError {
 }
 
 /// Where the section table reads a wall's pose, and how far `face`
-/// reaches from there: the base vertex `at`'s point, [`face_extent`]
-/// (the cone lane's lever), and on a cylinder the [`WallReach`]
-/// [`agreed_section`] reads: the face's axial range from the vertex
-/// ([`face_axial_range`], the curved edges' bulge included) and its
-/// distance from it, each edge read over its span ([`face_extent`]) and
-/// round its whole carrier (`face_reach_round_from`).
+/// reaches from there, measured from the base vertex `at`'s point: on a
+/// cone the [`geom_brep::Reach::Face`] the cone lane reads
+/// (`splitting::rules::cone_face_reach`), and on a cylinder the
+/// [`WallReach`] [`agreed_section`] reads: the face's axial range from
+/// the vertex ([`face_axial_range`], the curved edges' bulge included)
+/// and its distance from it, each edge read over its span
+/// ([`face_extent`]) and round its whole carrier
+/// (`face_reach_round_from`). A sphere's lane reads neither. `within`
+/// is a window along a cone's axis the consumed region also lies in:
+/// the partner wall face's, where `face` is the plane the boolean cuts
+/// it with.
 fn section_reach<T: Decide>(
     body: &Body<T>,
     at: VertexKey,
     face: FaceKey,
-    wall: &geom::Surface<T>,
-) -> Result<(T, Option<WallReach<T>>), SplitJoinError> {
+    (wall, within): (&geom::Surface<T>, Option<(T, T)>),
+    band: Band,
+) -> Result<SectionReach<T>, SplitJoinError> {
     let p = body.resolve_vertex_point(at, Proven);
-    let extent = face_extent(body, at, face).map_err(unbounded)?;
     Ok(match wall {
         geom::Surface::Cylinder { axis, .. } => {
+            let extent = face_extent(body, at, face).map_err(unbounded)?;
             let (below, above) = face_axial_range(body, face, p, *axis).map_err(unbounded)?;
             let round =
                 crate::splitting::rules::face_reach_round_from(body, face, p).map_err(unbounded)?;
             (
-                extent,
+                None,
                 Some(WallReach {
                     at: p,
                     below,
@@ -609,7 +615,14 @@ fn section_reach<T: Decide>(
                 }),
             )
         }
-        _ => (extent, None),
+        geom::Surface::Cone { .. } => (
+            Some(
+                crate::splitting::rules::cone_face_reach(body, face, p, (wall, within), band)
+                    .map_err(unbounded)?,
+            ),
+            None,
+        ),
+        _ => (None, None),
     })
 }
 
@@ -831,6 +844,10 @@ pub(crate) enum JoinLane<'a, T: Real> {
     BoolPlanar {
         /// The partner wall surface (value; from the other operand).
         wall: geom::Surface<T>,
+        /// The partner wall face's window along a cone's axis
+        /// (`splitting::rules::cone_axial_window`), which the section
+        /// this face shares with it lies in; `None` off a cone.
+        window: Option<(T, T)>,
         /// The aux wall key in THIS body (minted once, caller-cached).
         partner_key: &'a mut Option<SurfaceKey>,
     },
@@ -895,6 +912,10 @@ pub(crate) enum SectionCase<T: Real> {
     /// The tangent locus, as the table constructed it.
     Tangent(geom::Curve3<T>),
 }
+
+/// What [`section_reach`] measured of a face: a cone wall's reach, or a
+/// cylinder wall's.
+pub(crate) type SectionReach<T> = (Option<geom_brep::Reach<T>>, Option<WallReach<T>>);
 
 /// **A plane×cylinder wall face's reach from the one point it is read
 /// from**: how far it reaches either way along the cylinder's axis from
@@ -995,7 +1016,7 @@ fn section_case<T: Decide>(
     band: Band,
     s1: &geom::Surface<T>,
     s2: &geom::Surface<T>,
-    (extent, reach): (T, Option<WallReach<T>>),
+    (cone_reach, reach): SectionReach<T>,
 ) -> Result<SectionCase<T>, SplitJoinError> {
     let invariant = |what: &'static str| SplitJoinError::SectionInvariant { face, what };
     // The pair normalization: exactly one member must be the plane the
@@ -1079,7 +1100,12 @@ fn section_case<T: Decide>(
     // generator pair is the ruling case, its tangent generator the
     // tangent one — the cylinder's parallel-axis lane, one kind over.
     if let geom::Surface::Cone { .. } = wall {
-        return match geom_brep::plane_cone_section(plane_s, wall, extent, band).map_err(table)? {
+        let Some(cone_reach) = cone_reach else {
+            unreachable!("`section_reach` measures a cone wall's face, and this lane is its")
+        };
+        return match geom_brep::plane_cone_section(plane_s, wall, &cone_reach, band)
+            .map_err(table)?
+        {
             geom_brep::PlaneConeSection::TiltedEllipse(c)
             | geom_brep::PlaneConeSection::AxisNormalCircle(c) => conic(c),
             geom_brep::PlaneConeSection::ApexLinePair { l1, l2 } => {
@@ -1368,12 +1394,16 @@ fn chord_spec<T: Decide>(
         // takes its own lane (M5 PR 9); every other lane keeps
         // the straight chord BIT-IDENTICALLY.
         return match lane {
-            JoinLane::BoolPlanar { wall, partner_key } => bool_planar_chord_spec(
+            JoinLane::BoolPlanar {
+                wall,
+                window,
+                partner_key,
+            } => bool_planar_chord_spec(
                 body,
                 band,
                 face,
                 wall_key,
-                &wall,
+                (&wall, window),
                 partner_key,
                 u1,
                 u2,
@@ -1561,7 +1591,7 @@ pub(crate) fn wall_section<T: Decide>(
         band,
         &plane_s,
         &wall,
-        section_reach(body, at, face, &wall)?,
+        section_reach(body, at, face, (&wall, None), band)?,
     )?;
     Ok(Some(WallSection { wall, case }))
 }
@@ -1639,7 +1669,7 @@ fn bool_planar_chord_spec<T: Decide>(
     band: Band,
     face: FaceKey,
     plane_key: SurfaceKey,
-    wall: &geom::Surface<T>,
+    (wall, partner_window): (&geom::Surface<T>, Option<(T, T)>),
     partner_key: &mut Option<SurfaceKey>,
     u1: VertexKey,
     u2: VertexKey,
@@ -1679,7 +1709,7 @@ fn bool_planar_chord_spec<T: Decide>(
         band,
         &plane_s,
         wall,
-        section_reach(body, u1, face, wall)?,
+        section_reach(body, u1, face, (wall, partner_window), band)?,
     )? {
         // A two-ruling section's chords are straight on the plane too.
         SectionCase::Straight(_) => return Ok(None),
@@ -4878,7 +4908,7 @@ mod tests {
 mod section_case_pair_tests {
     use geom_core::{Band, Point3, Tol, Vec3};
 
-    use super::{SectionCase, WallReach, section_case};
+    use super::{SectionCase, SectionReach, WallReach, section_case};
     use crate::entity::FaceKey;
     use crate::splitting::SplitJoinError;
 
@@ -4886,7 +4916,7 @@ mod section_case_pair_tests {
         Band::linear(Tol::witness()).expect("a linear band")
     }
 
-    fn reach() -> (f64, Option<WallReach<f64>>) {
+    fn reach() -> SectionReach<f64> {
         let reach = WallReach {
             at: Point3::origin(),
             below: 4.0,
@@ -4894,7 +4924,7 @@ mod section_case_pair_tests {
             span: 4.0,
             round: 4.0,
         };
-        (4.0, Some(reach))
+        (None, Some(reach))
     }
 
     fn plane() -> geom::Surface<f64> {

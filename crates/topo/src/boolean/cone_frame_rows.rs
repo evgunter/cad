@@ -66,11 +66,24 @@ fn wall_reach() -> f64 {
     (on_wall() - Point3::new(-1.0, 1.0, 0.0)).norm()
 }
 
+/// A cone face's reach as a length measured from `at`.
+fn measured(at: Point3<f64>, lever: f64) -> geom_brep::Reach<f64> {
+    geom_brep::Reach::Measured { at, lever }
+}
+
 /// The frame both ways round, levered at the frustum face's reach
-/// ([`FrameExtent::Reach`]). The two readings must agree; the row reads
+/// ([`FrameExtent::Cone`]). The two readings must agree; the row reads
 /// the first.
 fn frame(p: &geom::Surface<f64>, cone: &geom::Surface<f64>, at: Point3<f64>) -> Frame {
-    let read = |a, b| pair_section_frame_at(a, b, at, FrameExtent::Reach(wall_reach()), band());
+    let read = |a, b| {
+        pair_section_frame_at(
+            a,
+            b,
+            at,
+            FrameExtent::Cone(measured(at, wall_reach())),
+            band(),
+        )
+    };
     let (first, other) = (read(p, cone), read(cone, p));
     assert_eq!(
         shape(&first),
@@ -301,8 +314,9 @@ fn a_near_parabola_escalates_and_is_never_snapped_to_an_ellipse() {
             Vec3::new((alpha + theta).cos(), -(alpha + theta).sin(), 0.0),
         )
     };
-    let read =
-        |p: &geom::Surface<f64>| pair_section_frame_at(p, &cone, at, FrameExtent::Reach(lever), b);
+    let read = |p: &geom::Surface<f64>| {
+        pair_section_frame_at(p, &cone, at, FrameExtent::Cone(measured(at, lever)), b)
+    };
     let sliver = (b.zero() * b.escalate()).sqrt();
     let got = read(&turned(sliver));
     assert!(
@@ -378,12 +392,12 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
             (on.clone(), Vec::new())
         };
         let (at, span) = frame_reading(a, c, on_a, on_b).unwrap();
-        let extent = frame_extent((a, &body, face), (c, &body, face), at, span).unwrap();
+        let extent = frame_extent((a, &body, face), (c, &body, face), at, span, b).unwrap();
         (at, extent)
     };
     let probe = plane([0.5, 0.5, 0.0], Vec3::new(1.0, 0.0, 0.0));
     let (at, extent) = reading(&probe, &cone);
-    let FrameExtent::Reach(reach) = extent else {
+    let FrameExtent::Cone(geom_brep::Reach::Face { across: reach, .. }) = extent else {
         panic!("a plane×cone pair is levered at the cone face's reach, got {extent:?}");
     };
     let half = (Point3::new(1.01, 1.0, 0.0) - Point3::new(1.0, 0.0, 0.0)).norm() / 2.0;
@@ -485,7 +499,7 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
             round: 1.0,
         },
     ] {
-        let got = pair_section_frame_at(&p, &cone, on_wall(), extent, b);
+        let got = pair_section_frame_at(&p, &cone, on_wall(), extent.clone(), b);
         assert!(
             matches!(got, Err(FrameError::Desync(_))),
             "plane×cone under {extent:?}: got {}",
@@ -505,8 +519,13 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
         u_ref: Vec3::new(0.0, 1.0, 0.0),
     };
     for (label, a, c) in [("plane, wall", &p, &wall), ("wall, wall", &wall, &other)] {
-        let got =
-            pair_section_frame_at(a, c, Point3::new(1.0, 0.3, 0.0), FrameExtent::Reach(1.0), b);
+        let got = pair_section_frame_at(
+            a,
+            c,
+            Point3::new(1.0, 0.3, 0.0),
+            FrameExtent::Cone(measured(Point3::new(1.0, 0.3, 0.0), 1.0)),
+            b,
+        );
         assert!(
             matches!(got, Err(FrameError::Desync(_))),
             "{label} under a cone face's reach: got {}",

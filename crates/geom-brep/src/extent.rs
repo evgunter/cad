@@ -53,6 +53,10 @@
 //! hinge's station ([`Reach::hinge_lever`]), and the reach across the
 //! wall from the hinge, `at`'s own offset from it included
 //! ([`Reach::turn_lever`]). The classifier adds no length of its own.
+//! A plane×cone caller hands the same measures against the cone's axis,
+//! read at the apex: the face's farthest distance from `at` is its
+//! lever, and its window along the axis ([`Reach::range_along`]) bounds
+//! how near the apex, and on which nappe, a consumed point stands.
 //!
 //! The tangent-locus witness reads a ball, [`Reach::Ball`]: the one its
 //! callers, the carrier doors, hand it.
@@ -325,11 +329,13 @@ pub enum Reach<T: Real> {
         /// The caller's length.
         lever: T,
     },
-    /// A face on the cylinder the caller measured from `at`, read at the
-    /// foot of `at`: how far it reaches either way along the cylinder's
-    /// axis from `at` ([`Self::hinge_lever`]), and its farthest distance
-    /// from `at` ([`Self::turn_lever`]). The plane×cylinder callers hand
-    /// it.
+    /// A face the caller measured from `at` against a cylinder or a
+    /// cone: how far it reaches either way along that surface's axis
+    /// from `at`, and its farthest distance from `at`. The plane×cylinder
+    /// callers hand it, read at the foot of `at`
+    /// ([`Self::hinge_lever`], [`Self::turn_lever`]); the plane×cone
+    /// callers hand it, read at the apex ([`Self::lever_from`],
+    /// [`Self::range_along`]).
     Face {
         /// The point the caller measured from.
         at: Point3<T>,
@@ -363,10 +369,10 @@ impl<T: Real> Reach<T> {
     ///   the germ frame's longer of the larger radius and the walls'
     ///   span, which the cylinder pair also floors at the foot's distance
     ///   from `at` ([`Self::lever_between`]).
-    /// - [`Self::Face`]: the larger of its two axial sides. No caller
-    ///   reads it: the plane×cylinder row reads a face from its hinge
-    ///   ([`Self::hinge_lever`]), and no caller hands the cylinder pair a
-    ///   face.
+    /// - [`Self::Face`]: its farthest distance from `at`, whatever the
+    ///   pivot, as [`Self::Measured`]'s length: the plane×cone arm levers
+    ///   its apex reading at it. The plane×cylinder row reads a face from
+    ///   its hinge instead ([`Self::hinge_lever`]).
     /// - [`Self::Span`]: per carrier, never an underestimate and exact
     ///   where the carrier allows:
     ///   - a **line** segment: its endpoints (distance to a point is
@@ -386,7 +392,7 @@ impl<T: Real> Reach<T> {
         match self {
             Self::Ball(ball) => ball.lever_from(pivot),
             Self::Measured { lever, .. } => *lever,
-            Self::Face { below, above, .. } => below.max(*above),
+            Self::Face { across, .. } => *across,
             Self::Span { carrier, .. } => match carrier {
                 Curve3::Circle { center, radius, .. } => (*center - pivot).norm() + radius.abs(),
                 Curve3::Ellipse {
@@ -469,9 +475,10 @@ impl<T: Real> Reach<T> {
     ///
     /// - [`Self::Ball`]: the centre's reading, less and plus the radius
     ///   times `|dir|`.
-    /// - [`Self::Measured`]: the caller's length either way;
-    ///   [`Self::Face`]: its `below` and `above` (along its cylinder's
-    ///   axis, which `dir` is).
+    /// - [`Self::Measured`]: the caller's length either way from `at`;
+    ///   [`Self::Face`]: its `below` and `above` from `at` (along its
+    ///   surface's axis, which `dir` is); each moved by `at`'s own
+    ///   reading `(at − pivot)·dir`.
     /// - [`Self::Span`], per carrier:
     ///   - a **line** segment or a **NURBS** carrier: its endpoints or
     ///     its whole control net (a linear function peaks over a segment
@@ -495,8 +502,13 @@ impl<T: Real> Reach<T> {
                 let (c, r) = (at(ball.center()), ball.radius() * dir.norm());
                 (c - r, c + r)
             }
-            Self::Measured { lever, .. } => (-*lever, *lever),
-            Self::Face { below, above, .. } => (-*below, *above),
+            Self::Measured { at: from, lever } => (at(*from) - *lever, at(*from) + *lever),
+            Self::Face {
+                at: from,
+                below,
+                above,
+                ..
+            } => (at(*from) - *below, at(*from) + *above),
             Self::Span { carrier, t0, t1 } => match carrier {
                 Curve3::Circle {
                     center,

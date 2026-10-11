@@ -2,7 +2,8 @@
 id: pn-apex-line-reach-is-read-at-the-apex-not-over-the-consumed-span
 kind: issue
 title: plane×cone bounds its apex line outcomes at the apex, so a consumer whose span stays clear of it is refused a line that is within band of its section there
-status: open
+status: review
+branch: germ/pn-apex-reach-over-span
 opened: 2026-10-10
 priority: P1
 cost: M
