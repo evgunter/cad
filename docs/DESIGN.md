@@ -386,9 +386,13 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    across seam-zip/merge mints by a descendant map, never re-derived),
    each citing the coincidence (D10) that backs it, which the
    `unproven-coincidence` lint checks; (iii) a contact the
-   census discovers that no record backs is never silently blessed:
-   between copies at rest it is an `unproven-coincidence` finding
-   (D10), and inside one op's result it is that op's defect, refused
+   census discovers that no record backs is never silently blessed.
+   Between groups no op joined (the copies of a product at rest, the
+   instances of an imported file) the census is the deciding operation:
+   it records each such contact as an `unproven-coincidence` finding
+   (D10) and leaves on the result a contact record citing it, so a
+   later census over that result confirms the touch and never decides
+   it again. Inside one op's result it is that op's defect, refused
    typed.
 
    **Validity class rides the result wrapper, never a mutable `Body`
@@ -1508,13 +1512,17 @@ census is silence. A contact or interference finding observes the sign
 of the gap (CONTACT-DESIGN C5) between two copies: a contact is `g = 0`
 at two cells, an interference `g < 0` over one connected overlap of
 their material. Holding assertions quiet a finding when they say the
-same: each reads a `Gap`'s output directly, over an opposed pair of
-faces of the two copies, and admits only values of the finding's sign
-(`= 0` for a contact; `≤ b` or `= b` with `b` negative for an
-interference). A contact is quiet when such an assertion's two faces
-are the two cells the census found coincident; an interference, when
-the assertion's two faces bound the overlap and every face bounding it
-lies between the carriers of an asserted pair. An assertion speaks for
+same: each reads a `Gap`'s output directly and admits only values of
+the finding's sign (`= 0` for a contact; `≤ b` or `= b` with `b`
+negative for an interference). A contact is quiet when such an
+assertion's `Gap` is taken between the finding's two cells as its
+record carries them, at whatever dimension they are (two faces, a
+vertex or an edge on a face, an edge on an edge, two vertices) and
+wherever they lie: in two copies here, or in two solids that a placed
+part or an imported file brought in. An interference is quiet when the
+assertion's `Gap` is over an opposed pair of faces of the two copies,
+those faces bound the overlap, and every face bounding it lies between
+the carriers of an asserted pair. An assertion speaks for
 nothing else, so a new contact or overlap anywhere else is loud until
 something says otherwise, and an overlap the kernel cannot bound is
 loud and nothing quiets it. The bodies of a pattern's `Bodies` are
