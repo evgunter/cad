@@ -11,9 +11,10 @@
 //! The above body's section face carries **m = −n_SP**, the below
 //! body's **m = +n_SP** (derived at [`section_loops`]). Both faces
 //! carry the SAME split plane (same origin, same in-plane `u_ref`: the
-//! below loop's first chord, or for a loop of one corner — a whole
-//! section conic — the first axis of the run plane's normal basis) with
-//! opposite normals; the mirror test pins both signs bitwise.
+//! below loop's first chord projected into the plane, or for a loop of
+//! one corner — a whole section conic — the first axis of the run
+//! plane's normal basis) with opposite normals; the mirror test pins
+//! both signs bitwise.
 //!
 //! That is each face's CHART normal. Its sense is its loop's winding
 //! about it, the reading tier 3's check 6 makes: a section's outer
@@ -140,9 +141,9 @@ pub struct SplitNaming {
     /// F9 records, in record order: each coincident copy with the
     /// vertex it was minted at (the naming layer derives the copy's
     /// parentage through the original's birth record). Which side
-    /// holds which is not fixed — the copy is the Above end save for
-    /// a whole-orbit strut, and the mirrored lane swaps the sides —
-    /// so consumers read a key's side from the body that holds it.
+    /// holds which is not fixed — a copy stands for whichever piece its
+    /// corner's arc holds — so consumers read a key's side from the body
+    /// that holds it.
     pub vertex_pairs: Vec<(crate::entity::VertexKey, crate::entity::VertexKey)>,
     /// The joins each side ended with ([`crate::Body::join_edges`]), in
     /// the order made, with the side whose body they were made on: each
@@ -156,35 +157,6 @@ pub struct SplitNaming {
     /// joined edge's cover is read through to the operand edges it lies
     /// along.
     pub joined_lineage: Vec<(crate::entity::EdgeKey, crate::entity::EdgeKey)>,
-}
-
-impl SplitNaming {
-    /// The record of a run made against the MIRRORED plane, in the
-    /// caller's orientation: every side flipped. The pairs, fragments
-    /// and lineage carry keys alone, which the mirror does not move.
-    #[must_use]
-    pub(crate) fn mirrored(self) -> Self {
-        Self {
-            sections: self
-                .sections
-                .into_iter()
-                .map(|(f, s)| (f, s.opposite()))
-                .collect(),
-            face_fragments: self.face_fragments,
-            // Pairs stay (copy, original): the mirrored run's copies
-            // land on the caller's BELOW side, but consumers resolve
-            // pair roles by which body holds each key, so no swap is
-            // needed here.
-            vertex_pairs: self.vertex_pairs,
-            // Each join on the side the caller sees it on.
-            edge_joins: self
-                .edge_joins
-                .into_iter()
-                .map(|(s, j)| (s.opposite(), j))
-                .collect(),
-            joined_lineage: self.joined_lineage,
-        }
-    }
 }
 
 /// Typed failure of the finish step.
@@ -292,9 +264,7 @@ pub enum SplitFinishError {
     /// one tier-2 finding the reduction refuses is an empty OUTER loop
     /// on a face rule (a) measures at an ON vertex
     /// ([`super::SplitReduceError::UnboundedFace`], via
-    /// `rules::face_extent`). Only the direct run's refusal
-    /// is ever surfaced (a mirrored run's is replaced by it), so
-    /// `side` is in the caller's orientation.
+    /// `rules::face_extent`). `side` is in the caller's orientation.
     ResultInvalid {
         /// The side whose body failed.
         side: PlaneSide,
@@ -837,7 +807,11 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
             let (witness, arm) = (draft.witness, draft.extent);
             match geom_brep::classify_dihedral(surf_self, surf_other, witness, arm, band) {
                 Ok(geom_brep::DihedralClass::Transverse) => {
-                    body.set_edge_curve(edge, draft.into_spec(s_self, s_other), tol)?;
+                    body.set_edge_curve(
+                        edge,
+                        draft.into_spec(geom_brep::SurfacePair::new(s_self, s_other)),
+                        tol,
+                    )?;
                 }
                 // A curved wall smooth against the section plane is
                 // either a π seam or a wedge end, and only the material
@@ -879,16 +853,18 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                     );
                     // What the join stores is the must-carry rule's
                     // over the edge, and each refusal is this op's own.
+                    let (pair, [sa, sb]) =
+                        geom_brep::SurfacePair::sorted(s_self, surf_self, s_other, surf_other);
                     let demanded = geom_brep::must_carry_over_edge(
-                        surf_self,
-                        surf_other,
+                        sa,
+                        sb,
                         &spec.carrier,
                         spec.param_start,
                         spec.param_end,
                         arm,
                         band,
                     )
-                    .description(s_self, s_other, witness)
+                    .description(pair, witness)
                     .map_err(|refusal| match refusal {
                         geom_brep::MustCarryRefusal::InBand(
                             geom_brep::MustCarryEscalation::FirstOrder(escalation),
@@ -922,10 +898,8 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         geom_brep::EdgeDescription::Chart(ref ch) => {
                             !intrinsic && (ch.surface == s_self || ch.surface == s_other)
                         }
-                        geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
-                            intrinsic
-                                && ((s1 == s_self && s2 == s_other)
-                                    || (s1 == s_other && s2 == s_self))
+                        geom_brep::EdgeDescription::TangentIntersection { pair, .. } => {
+                            intrinsic && pair == geom_brep::SurfacePair::new(s_self, s_other)
                         }
                         geom_brep::EdgeDescription::Intersection { .. }
                         | geom_brep::EdgeDescription::Scaffold(_) => false,
@@ -1046,9 +1020,8 @@ fn whole_body_side<T: Decide>(
 }
 
 /// The section's in-plane u axis ([`section_loops::chord_u_ref`] of
-/// the below loop, on the plane of this run: under the split's
-/// mirrored rerun, `normal` is the mirrored one). Two adjacent corners
-/// of a loop are distinct certified endpoints, so a chord is nonzero.
+/// the below loop, on the split's plane). Two adjacent corners of a
+/// loop are distinct certified endpoints, so a chord is nonzero.
 fn below_chord_u_ref<T: Decide>(
     body: &Body<T>,
     section: &CompletedSection,
@@ -1613,8 +1586,7 @@ mod smooth_arm_rows {
             .unwrap()
             .restated_spec();
         spec.description = geom_brep::EdgeDescriptionSpec::TangentIntersection {
-            s1: s_self,
-            s2: s_other,
+            pair: geom_brep::SurfacePair::new(s_self, s_other),
             witness: mid,
         };
         body.set_edge_curve(edge, spec, tol())
@@ -1643,51 +1615,5 @@ mod smooth_arm_rows {
             }
             other => panic!("an under-determined edge keeps no tangency, got {other:?}"),
         }
-    }
-}
-
-#[cfg(test)]
-mod mirrored {
-    use super::{PlaneSide, SplitNaming};
-    use crate::boolean::EdgeJoin;
-    use crate::entity::{EdgeKey, FaceKey, VertexKey};
-
-    /// **The mirrored run's record states every side in the caller's
-    /// orientation**: a join the mirrored run made on its Above side is
-    /// the caller's Below join, as its section is; the keys stand.
-    #[test]
-    fn a_mirrored_record_states_each_join_on_the_callers_side() {
-        let join = EdgeJoin {
-            vertex: VertexKey::default(),
-            gone: EdgeKey::default(),
-            kept: EdgeKey::default(),
-            conventional: None,
-        };
-        let record = SplitNaming {
-            sections: vec![(FaceKey::default(), PlaneSide::Above)],
-            face_fragments: Vec::new(),
-            vertex_pairs: Vec::new(),
-            edge_joins: vec![(PlaneSide::Above, join), (PlaneSide::Below, join)],
-            joined_lineage: vec![(EdgeKey::default(), EdgeKey::default())],
-        };
-        let caller = record.mirrored();
-        assert_eq!(
-            caller.edge_joins,
-            vec![(PlaneSide::Below, join), (PlaneSide::Above, join)]
-        );
-        assert_eq!(
-            caller.sections,
-            vec![(FaceKey::default(), PlaneSide::Below)]
-        );
-        assert_eq!(
-            caller.joined_lineage,
-            vec![(EdgeKey::default(), EdgeKey::default())],
-            "the lineage carries keys alone"
-        );
-        assert_eq!(
-            caller.mirrored().edge_joins,
-            vec![(PlaneSide::Above, join), (PlaneSide::Below, join)],
-            "an involution"
-        );
     }
 }

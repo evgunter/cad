@@ -61,7 +61,7 @@ use geom_core::{
 };
 
 use crate::description::{
-    ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
+    ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, SurfacePair, authority_of,
 };
 use crate::dihedral::{
     DihedralClass, WedgeEscalation, decide, decide_positive, decide_reported, wedge_decided,
@@ -116,14 +116,18 @@ pub enum CertCheck {
     EndpointStart,
     /// `|carrier(t₁) − end point|` (check 2).
     EndpointEnd,
-    /// Intersection: implicit residual against `s1` at a sample.
-    Surface1Residual,
-    /// Intersection: implicit residual against `s2` at a sample.
-    Surface2Residual,
-    /// Intersection: the witness point's residual against `s1`.
-    WitnessSurface1,
-    /// Intersection: the witness point's residual against `s2`.
-    WitnessSurface2,
+    /// Intersection: implicit residual against `surface`, one of the
+    /// pair, at a sample.
+    SurfaceResidual {
+        /// The surface the residual is measured against.
+        surface: SurfaceKey,
+    },
+    /// Intersection: the witness point's residual against `surface`,
+    /// one of the pair.
+    WitnessSurfaceResidual {
+        /// The surface the residual is measured against.
+        surface: SurfaceKey,
+    },
     /// Intersection: `|carrier((t₀ + t₁)/2) − witness|` — the witness
     /// **is** the edge's mid-parameter point (the M2 PR 3 fix-pass
     /// sharpening of the witness contract): together with endpoint
@@ -198,6 +202,19 @@ pub enum CertCheck {
     /// **sup-norm** bound over the whole span — the number that
     /// certifies (a bound, never a sampled max).
     PlaneNurbsHull,
+    /// Intersection, limb 2 against a NURBS operand:
+    /// `|S(P(t)) − C(t)|` at a break of limb 2's composite — the
+    /// carrier against the surface point its pcurve names, which bounds
+    /// the carrier's miss from the surface from above (C2 limb 1). It is
+    /// [`CertCheck::PlaneNurbsHull`]'s quantity read at a point, so past
+    /// the band it shows that bound cannot clear, and like it it is a
+    /// bound on the miss, never the miss.
+    PlaneNurbsHullValue,
+    /// Intersection, limb 2 against an analytic operand: the operand's
+    /// implicit form at the carrier, linearized to metres, at a break of
+    /// limb 2's composite — limb 1's own residual, measured where the
+    /// composite's bound did not clear.
+    AnalyticBreakResidual,
     /// Intersection, analytic rung 3: the carrier's certified distance
     /// bound from an analytic operand over the edge's whole interval
     /// (`crate::analytic_rung3`'s limb 2) — a bound on the miss, never
@@ -252,16 +269,18 @@ pub enum CertCheck {
 /// sentence cannot get right for every check that reaches it.
 impl core::fmt::Display for CertCheck {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // The surface rides the typed field, not the words: a refusal
+        // names what it is about without an arena key.
         f.write_str(match self {
+            Self::SurfaceResidual { .. } => "the residual against one of the edge's surfaces",
+            Self::WitnessSurfaceResidual { .. } => {
+                "the witness point's residual against one of the edge's surfaces"
+            }
             Self::ParamSpan => "the stored interval's span",
             Self::ParamSpanMeter => "the spline carrier's metered length",
             Self::ParamWinding => "the stored interval's headroom to one full period",
             Self::EndpointStart => "the start-endpoint residual",
             Self::EndpointEnd => "the end-endpoint residual",
-            Self::Surface1Residual => "the residual against surface 1",
-            Self::Surface2Residual => "the residual against surface 2",
-            Self::WitnessSurface1 => "the witness point's residual against surface 1",
-            Self::WitnessSurface2 => "the witness point's residual against surface 2",
             Self::WitnessMidpoint => "the witness-midpoint residual",
             Self::Transversality => "the transversality margin",
             Self::TransversalityArm => "the length its faces' angle is measured over",
@@ -275,6 +294,12 @@ impl core::fmt::Display for CertCheck {
             Self::ChartResidual => "the unified conventional residual",
             Self::PlaneNurbsOnLocus => "the plane × NURBS on-locus residual",
             Self::PlaneNurbsHull => "the plane × NURBS sup-norm bound",
+            Self::PlaneNurbsHullValue => {
+                "the carrier's distance from the surface point its pcurve names, at a break"
+            }
+            Self::AnalyticBreakResidual => {
+                "the carrier's linearized residual against an analytic surface, at a break"
+            }
             Self::AnalyticHull => "the carrier's certified distance bound from an analytic surface",
             Self::PlaneNurbsReportedTransversality => {
                 "the plane × NURBS lane's reported minimum crossing angle"
@@ -864,8 +889,7 @@ impl CertCheck {
             // carrier's own normals.
             Self::EndpointStart
             | Self::EndpointEnd
-            | Self::WitnessSurface1
-            | Self::WitnessSurface2
+            | Self::WitnessSurfaceResidual { .. }
             | Self::WitnessMidpoint
             | Self::TangentParallel
             | Self::MappedSource
@@ -901,14 +925,15 @@ impl CertCheck {
             // the exact analytic ones too, where a miss would be a defect:
             // the routing reads the decision alone and cannot see which
             // kind of carrier it measured.
-            Self::Surface1Residual | Self::Surface2Residual | Self::PlaneNurbsOnLocus => {
-                Ending::Residual(Unsized::Fit)
-            }
-            // Certified bounds on the miss: the tangent lane's sag bound
-            // and the two hull limbs.
-            Self::TangentHull | Self::PlaneNurbsHull | Self::AnalyticHull => {
-                Ending::Residual(Unsized::Bound)
-            }
+            Self::SurfaceResidual { .. }
+            | Self::PlaneNurbsOnLocus
+            | Self::AnalyticBreakResidual => Ending::Residual(Unsized::Fit),
+            // Certified bounds on the miss: the tangent lane's sag bound,
+            // the two hull limbs, and the NURBS hull's value at a break.
+            Self::TangentHull
+            | Self::PlaneNurbsHull
+            | Self::PlaneNurbsHullValue
+            | Self::AnalyticHull => Ending::Residual(Unsized::Bound),
         }
     }
 }
@@ -1689,15 +1714,13 @@ impl<T: Real> EdgeCurve<T> {
         mut remap: impl FnMut(crate::keys::SurfaceKey) -> Option<crate::keys::SurfaceKey>,
     ) -> Option<Self> {
         let description = match self.description {
-            EdgeDescription::Intersection { s1, s2, witness } => EdgeDescription::Intersection {
-                s1: remap(s1)?,
-                s2: remap(s2)?,
+            EdgeDescription::Intersection { pair, witness } => EdgeDescription::Intersection {
+                pair: pair.try_map(|k| remap(k).ok_or(())).ok()?,
                 witness,
             },
-            EdgeDescription::TangentIntersection { s1, s2, witness } => {
+            EdgeDescription::TangentIntersection { pair, witness } => {
                 EdgeDescription::TangentIntersection {
-                    s1: remap(s1)?,
-                    s2: remap(s2)?,
+                    pair: pair.try_map(|k| remap(k).ok_or(())).ok()?,
                     witness,
                 }
             }
@@ -1811,10 +1834,9 @@ impl<T: SpanLocate> EdgeCurve<T> {
         let a = (t - t0) / span;
         let child = |s0: T, s1: T, ta: T, tb: T| -> EdgeCurveSpec<T> {
             let description = match self.description {
-                EdgeDescription::Intersection { s1: k1, s2: k2, .. } => {
+                EdgeDescription::Intersection { pair, .. } => {
                     EdgeDescriptionSpec::Intersection {
-                        s1: k1,
-                        s2: k2,
+                        pair,
                         // The point the WitnessMidpoint pin reads:
                         // zero residual by construction.
                         witness: self.carrier.mid_point(ta, tb),
@@ -1823,10 +1845,9 @@ impl<T: SpanLocate> EdgeCurve<T> {
                 // TangentIntersection splits exactly as Intersection:
                 // surfaces kept, witness re-minted at the child's own
                 // mid-parameter (the witness contract, one order up).
-                EdgeDescription::TangentIntersection { s1: k1, s2: k2, .. } => {
+                EdgeDescription::TangentIntersection { pair, .. } => {
                     EdgeDescriptionSpec::TangentIntersection {
-                        s1: k1,
-                        s2: k2,
+                        pair,
                         witness: self.carrier.mid_point(ta, tb),
                     }
                 }
@@ -1897,11 +1918,11 @@ impl<T: Real> EdgeCurve<T> {
             EdgeAuthority::Derived => None,
         };
         match self.description {
-            EdgeDescription::Intersection { s1, s2, witness } => {
-                EdgeDescriptionSpec::Intersection { s1, s2, witness }
+            EdgeDescription::Intersection { pair, witness } => {
+                EdgeDescriptionSpec::Intersection { pair, witness }
             }
-            EdgeDescription::TangentIntersection { s1, s2, witness } => {
-                EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+            EdgeDescription::TangentIntersection { pair, witness } => {
+                EdgeDescriptionSpec::TangentIntersection { pair, witness }
             }
             EdgeDescription::Chart(ref c) => EdgeDescriptionSpec::Chart {
                 surface: c.surface,
@@ -2026,12 +2047,11 @@ impl<T: SpanLocate> IntersectionDraft<T> {
 }
 
 impl<T: Real> IntersectionDraft<T> {
-    /// The `Intersection` spec of `s1` and `s2` at this draft's witness.
-    pub fn into_spec(self, s1: SurfaceKey, s2: SurfaceKey) -> EdgeCurveSpec<T> {
+    /// The `Intersection` spec of `pair` at this draft's witness.
+    pub fn into_spec(self, pair: SurfacePair) -> EdgeCurveSpec<T> {
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1,
-                s2,
+                pair,
                 witness: self.witness,
             },
             carrier: self.carrier,
@@ -2245,15 +2265,15 @@ fn run_checks<T: Decide>(
         }
         Ok(s)
     };
+    // The pair's two surfaces resolved, in key order: the checks run
+    // in that order and each names its surface by key.
     enum Resolved<T: Real> {
         Intersection {
-            surf1: Surface<T>,
-            surf2: Surface<T>,
+            surfs: [(SurfaceKey, Surface<T>); 2],
             witness: Point3<T>,
         },
         Tangent {
-            surf1: Surface<T>,
-            surf2: Surface<T>,
+            surfs: [(SurfaceKey, Surface<T>); 2],
             witness: Point3<T>,
         },
         /// D3's fenced scaffolding door: a pushforward standing in
@@ -2296,6 +2316,7 @@ fn run_checks<T: Decide>(
         /// fitted one (M7-8): the declare-and-check lane's shape, with
         /// the lane that derives its limbs. `wall` has a spline chart.
         PlaneNurbs {
+            plane_key: SurfaceKey,
             plane: Surface<T>,
             wall: Surface<T>,
             witness: Point3<T>,
@@ -2303,9 +2324,10 @@ fn run_checks<T: Decide>(
         },
     }
     let resolved = match spec.description {
-        EdgeDescriptionSpec::Intersection { s1, s2, witness } => {
-            if s1 == s2 {
-                return Err(CertifyError::IntersectionSameSurface { key: s1 });
+        EdgeDescriptionSpec::Intersection { pair, witness } => {
+            let [k1, k2] = pair.keys();
+            if k1 == k2 {
+                return Err(CertifyError::IntersectionSameSurface { key: k1 });
             }
             // The plane × NURBS lane (M7-8) is tried FIRST, because it
             // is the only reading under which a described `Nurbs` or a
@@ -2315,9 +2337,10 @@ fn run_checks<T: Decide>(
             // no certificate (the C5 table's general rung), and its
             // refusal is `Unimplemented`. The pair with no lane in hand
             // is refused here, before any other check of the edge.
-            if let Some((plane, wall)) = plane_nurbs_pair(surfaces(s1), surfaces(s2)) {
+            if let Some((plane_key, plane, wall)) = plane_nurbs_pair(pair, surfaces) {
                 let lane = lane.ok_or(CertifyError::NurbsLaneNotSupplied)?;
                 Resolved::PlaneNurbs {
+                    plane_key,
                     plane,
                     wall,
                     witness,
@@ -2325,21 +2348,20 @@ fn run_checks<T: Decide>(
                 }
             } else {
                 Resolved::Intersection {
-                    surf1: resolve(s1)?,
-                    surf2: resolve(s2)?,
+                    surfs: [(k1, resolve(k1)?), (k2, resolve(k2)?)],
                     witness,
                 }
             }
         }
-        EdgeDescriptionSpec::TangentIntersection { s1, s2, witness } => {
+        EdgeDescriptionSpec::TangentIntersection { pair, witness } => {
             // A same-surface "tangency" is a seam exactly as a
             // same-surface intersection is (D2's taxonomy).
-            if s1 == s2 {
-                return Err(CertifyError::IntersectionSameSurface { key: s1 });
+            let [k1, k2] = pair.keys();
+            if k1 == k2 {
+                return Err(CertifyError::IntersectionSameSurface { key: k1 });
             }
             Resolved::Tangent {
-                surf1: resolve(s1)?,
-                surf2: resolve(s2)?,
+                surfs: [(k1, resolve(k1)?), (k2, resolve(k2)?)],
                 witness,
             }
         }
@@ -2529,18 +2551,18 @@ fn run_checks<T: Decide>(
     // the kernel has not yet accepted.
     let canonical: EdgeDescription<T> = match resolved {
         Resolved::Intersection { witness, .. } | Resolved::PlaneNurbs { witness, .. } => {
-            let EdgeDescriptionSpec::Intersection { s1, s2, .. } = spec.description else {
+            let EdgeDescriptionSpec::Intersection { pair, .. } = spec.description else {
                 // Unreachable: exactly one spec arm resolves either
                 // way. Typed rather than assumed (D4 ¶2).
                 return Err(CertifyError::Unimplemented);
             };
-            EdgeDescription::Intersection { s1, s2, witness }
+            EdgeDescription::Intersection { pair, witness }
         }
         Resolved::Tangent { witness, .. } => {
-            let EdgeDescriptionSpec::TangentIntersection { s1, s2, .. } = spec.description else {
+            let EdgeDescriptionSpec::TangentIntersection { pair, .. } = spec.description else {
                 return Err(CertifyError::Unimplemented);
             };
-            EdgeDescription::TangentIntersection { s1, s2, witness }
+            EdgeDescription::TangentIntersection { pair, witness }
         }
         Resolved::Scaffold(mc) => EdgeDescription::Scaffold(mc),
         Resolved::Chart {
@@ -2618,11 +2640,14 @@ fn run_checks<T: Decide>(
         // arm's end samples, take the point alone, so no pass computes
         // a tangent that is then discarded.
         match &resolved {
-            Resolved::Intersection { surf1, surf2, .. } => {
+            Resolved::Intersection {
+                surfs: [(k1, surf1), (k2, surf2)],
+                ..
+            } => {
                 let p = spec.carrier.eval(t);
                 check_residual(
                     "carrier_on_surface_1",
-                    CertCheck::Surface1Residual,
+                    CertCheck::SurfaceResidual { surface: *k1 },
                     i,
                     Margin::of(implicit_residual(surf1, p)),
                     band,
@@ -2630,7 +2655,7 @@ fn run_checks<T: Decide>(
                 )?;
                 check_residual(
                     "carrier_on_surface_2",
-                    CertCheck::Surface2Residual,
+                    CertCheck::SurfaceResidual { surface: *k2 },
                     i,
                     Margin::of(implicit_residual(surf2, p)),
                     band,
@@ -2680,7 +2705,10 @@ fn run_checks<T: Decide>(
             // arm when there is one, so a definite first-order defect is
             // reported as itself whatever the surfaces' order or the
             // scalar.
-            Resolved::Tangent { surf1, surf2, .. } => {
+            Resolved::Tangent {
+                surfs: [(k1, surf1), (k2, surf2)],
+                ..
+            } => {
                 let (p, tau) = if i > 0 && i < CERT_SAMPLES - 1 {
                     let (p, tau) = spec.carrier.ders1(t);
                     (p, Some(tau))
@@ -2692,7 +2720,7 @@ fn run_checks<T: Decide>(
                 tangent_resid_max = tangent_resid_max.max(r1.abs()).max(r2.abs());
                 check_residual(
                     "tangent_on_surface_1",
-                    CertCheck::Surface1Residual,
+                    CertCheck::SurfaceResidual { surface: *k1 },
                     i,
                     Margin::of(r1),
                     band,
@@ -2700,7 +2728,7 @@ fn run_checks<T: Decide>(
                 )?;
                 check_residual(
                     "tangent_on_surface_2",
-                    CertCheck::Surface2Residual,
+                    CertCheck::SurfaceResidual { surface: *k2 },
                     i,
                     Margin::of(r2),
                     band,
@@ -2937,7 +2965,11 @@ fn run_checks<T: Decide>(
     // locus — the jet system's IFT margin) holds along the whole
     // edge. Outside the certified span-bound lane: typed refusal,
     // never a fallback. ----
-    if let Resolved::Tangent { surf1, surf2, .. } = &resolved {
+    if let Resolved::Tangent {
+        surfs: [(_, surf1), (_, surf2)],
+        ..
+    } = &resolved
+    {
         let Some(bounds) = crate::tangent::tangent_span_bounds(surf1, surf2, &spec.carrier, t0, t1)
         else {
             return Err(CertifyError::TangentCertificateUnsupported);
@@ -2996,8 +3028,14 @@ fn run_checks<T: Decide>(
     // (`work/pcert/lane-free-doors-skip-the-analytic-rung3-limbs.md`). A
     // spline operand's pair is the plane × NURBS lane's above, whose
     // limbs are its own. ----
-    if let (Resolved::Intersection { surf1, surf2, .. }, Curve3::Nurbs(carrier), Some(lane)) =
-        (&resolved, &spec.carrier, lane)
+    if let (
+        Resolved::Intersection {
+            surfs: [(_, surf1), (_, surf2)],
+            ..
+        },
+        Curve3::Nurbs(carrier),
+        Some(lane),
+    ) = (&resolved, &spec.carrier, lane)
         && crate::edge_nurbs::is_analytic(surf1)
         && crate::edge_nurbs::is_analytic(surf2)
     {
@@ -3010,19 +3048,17 @@ fn run_checks<T: Decide>(
     // docs for the witness contract: the witness IS the edge's
     // mid-parameter point). ----
     if let Resolved::Intersection {
-        surf1,
-        surf2,
+        surfs: [(k1, surf1), (k2, surf2)],
         witness,
     }
     | Resolved::Tangent {
-        surf1,
-        surf2,
+        surfs: [(k1, surf1), (k2, surf2)],
         witness,
     } = &resolved
     {
         check_residual(
             "witness_on_surface_1",
-            CertCheck::WitnessSurface1,
+            CertCheck::WitnessSurfaceResidual { surface: *k1 },
             NOT_A_SAMPLE,
             Margin::of(implicit_residual(surf1, *witness)),
             band,
@@ -3030,7 +3066,7 @@ fn run_checks<T: Decide>(
         )?;
         check_residual(
             "witness_on_surface_2",
-            CertCheck::WitnessSurface2,
+            CertCheck::WitnessSurfaceResidual { surface: *k2 },
             NOT_A_SAMPLE,
             Margin::of(implicit_residual(surf2, *witness)),
             band,
@@ -3053,10 +3089,18 @@ fn run_checks<T: Decide>(
     // mid-parameter exactly (`PXN_FIT_SAMPLES` is odd). The
     // mid-parameter pin is unchanged — the witness contract does not
     // move at this rung.
-    if let Resolved::PlaneNurbs { plane, witness, .. } = &resolved {
+    if let Resolved::PlaneNurbs {
+        plane_key,
+        plane,
+        witness,
+        ..
+    } = &resolved
+    {
         check_residual(
             "witness_on_surface_1",
-            CertCheck::WitnessSurface1,
+            CertCheck::WitnessSurfaceResidual {
+                surface: *plane_key,
+            },
             NOT_A_SAMPLE,
             Margin::of(implicit_residual(plane, *witness)),
             band,
@@ -3082,9 +3126,9 @@ fn run_checks<T: Decide>(
     ))
 }
 
-/// The plane × NURBS pairing, in either order: exactly one PLANE and
-/// exactly one **described** NURBS wall (the mvfs placeholder is a
-/// mid-surgery "no description yet" fact, never an operand), or one
+/// The plane × NURBS pairing: exactly one PLANE (returned with its
+/// key) and exactly one **described** NURBS wall (the mvfs placeholder
+/// is a mid-surgery "no description yet" fact, never an operand), or one
 /// fitted (`Approx`) wall, which is its fit here
 /// ([`Surface::spline_chart`]): the fit's distance from its description
 /// is the face's claim, re-derived per face at rest, and the edge's
@@ -3093,19 +3137,18 @@ fn run_checks<T: Decide>(
 /// `None` for every other pair, which then takes the analytic path and
 /// its existing refusals verbatim.
 fn plane_nurbs_pair<T: Real>(
-    s1: Option<Surface<T>>,
-    s2: Option<Surface<T>>,
-) -> Option<(Surface<T>, Surface<T>)> {
-    let (a, b) = (s1?, s2?);
+    pair: SurfacePair,
+    surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
+) -> Option<(SurfaceKey, Surface<T>, Surface<T>)> {
     let wall = |s: &Surface<T>| match s {
         Surface::Nurbs(n) => !n.is_placeholder(),
         _ => s.spline_chart().is_some(),
     };
-    match (&a, &b) {
-        (Surface::Plane { .. }, s) if wall(s) => Some((a, b)),
-        (s, Surface::Plane { .. }) if wall(s) => Some((b, a)),
-        _ => None,
-    }
+    pair.keys().into_iter().find_map(|k| {
+        let plane = surfaces(k).filter(|s| matches!(s, Surface::Plane { .. }))?;
+        let other = surfaces(pair.other(k)?).filter(|s| wall(s))?;
+        Some((k, plane, other))
+    })
 }
 
 /// **The lane's WIRING** — the rows that say which free function
@@ -3308,43 +3351,46 @@ mod tests {
     /// below. Held total against the enum by
     /// [`all_is_the_whole_taxonomy`]'s compile-time visit, not by
     /// review.
-    const ALL_CHECKS: [CertCheck; 26] = [
-        CertCheck::ParamSpan,
-        CertCheck::ParamSpanMeter,
-        CertCheck::ParamWinding,
-        CertCheck::EndpointStart,
-        CertCheck::EndpointEnd,
-        CertCheck::Surface1Residual,
-        CertCheck::Surface2Residual,
-        CertCheck::WitnessSurface1,
-        CertCheck::WitnessSurface2,
-        CertCheck::WitnessMidpoint,
-        CertCheck::Transversality,
-        CertCheck::TransversalityArm,
-        CertCheck::TangentPlanes,
-        CertCheck::TangentParallel,
-        CertCheck::TangentSecondOrder,
-        CertCheck::TangentHull,
-        CertCheck::TangentTube,
-        CertCheck::MappedSource,
-        CertCheck::ChartImage,
-        CertCheck::ChartResidual,
-        CertCheck::PlaneNurbsOnLocus,
-        CertCheck::PlaneNurbsHull,
-        CertCheck::AnalyticHull,
-        CertCheck::PlaneNurbsReportedTransversality,
-        CertCheck::PlaneNurbsChartSpeed,
-        CertCheck::PlaneNurbsChartSpeedBound,
-    ];
+    fn all_checks() -> [CertCheck; 26] {
+        let surface = SurfaceKey::default();
+        [
+            CertCheck::ParamSpan,
+            CertCheck::ParamSpanMeter,
+            CertCheck::ParamWinding,
+            CertCheck::EndpointStart,
+            CertCheck::EndpointEnd,
+            CertCheck::SurfaceResidual { surface },
+            CertCheck::WitnessSurfaceResidual { surface },
+            CertCheck::WitnessMidpoint,
+            CertCheck::Transversality,
+            CertCheck::TransversalityArm,
+            CertCheck::TangentPlanes,
+            CertCheck::TangentParallel,
+            CertCheck::TangentSecondOrder,
+            CertCheck::TangentHull,
+            CertCheck::TangentTube,
+            CertCheck::MappedSource,
+            CertCheck::ChartImage,
+            CertCheck::ChartResidual,
+            CertCheck::PlaneNurbsOnLocus,
+            CertCheck::PlaneNurbsHull,
+            CertCheck::PlaneNurbsHullValue,
+            CertCheck::AnalyticBreakResidual,
+            CertCheck::AnalyticHull,
+            CertCheck::PlaneNurbsReportedTransversality,
+            CertCheck::PlaneNurbsChartSpeed,
+            CertCheck::PlaneNurbsChartSpeedBound,
+        ]
+    }
 
-    /// **[`ALL_CHECKS`] is the WHOLE taxonomy**, pinned against a
+    /// **[`all_checks`] is the WHOLE taxonomy**, pinned against a
     /// compile-time visit rather than reviewed.
     ///
     /// The match below is exhaustive with no wildcard, so a check added
     /// to [`CertCheck`] makes this file fail to compile until it is
     /// visited here, and every arm names the same total, so visiting it
     /// means writing the new count — which then reds until
-    /// [`ALL_CHECKS`] has grown too.
+    /// [`all_checks`] has grown too.
     ///
     /// The no-repeats half is what makes the count a census: with every
     /// entry distinct, a `len` equal to the number of rows means the
@@ -3357,10 +3403,8 @@ mod tests {
             CertCheck::ParamWinding => 26,
             CertCheck::EndpointStart => 26,
             CertCheck::EndpointEnd => 26,
-            CertCheck::Surface1Residual => 26,
-            CertCheck::Surface2Residual => 26,
-            CertCheck::WitnessSurface1 => 26,
-            CertCheck::WitnessSurface2 => 26,
+            CertCheck::SurfaceResidual { .. } => 26,
+            CertCheck::WitnessSurfaceResidual { .. } => 26,
             CertCheck::WitnessMidpoint => 26,
             CertCheck::Transversality => 26,
             CertCheck::TransversalityArm => 26,
@@ -3374,23 +3418,25 @@ mod tests {
             CertCheck::ChartResidual => 26,
             CertCheck::PlaneNurbsOnLocus => 26,
             CertCheck::PlaneNurbsHull => 26,
+            CertCheck::PlaneNurbsHullValue => 26,
+            CertCheck::AnalyticBreakResidual => 26,
             CertCheck::AnalyticHull => 26,
             CertCheck::PlaneNurbsReportedTransversality => 26,
             CertCheck::PlaneNurbsChartSpeed => 26,
             CertCheck::PlaneNurbsChartSpeedBound => 26,
         };
-        for (i, check) in ALL_CHECKS.iter().enumerate() {
+        for (i, check) in all_checks().iter().enumerate() {
             assert!(
-                !ALL_CHECKS[..i].contains(check),
-                "{check:?} appears twice in ALL_CHECKS"
+                !all_checks()[..i].contains(check),
+                "{check:?} appears twice in all_checks()"
             );
         }
         assert_eq!(
-            ALL_CHECKS.len(),
+            all_checks().len(),
             rows,
-            "ALL_CHECKS has drifted from the taxonomy — it holds {} rows, the taxonomy has \
+            "all_checks() has drifted from the taxonomy — it holds {} rows, the taxonomy has \
              {rows}",
-            ALL_CHECKS.len()
+            all_checks().len()
         );
     }
 
@@ -3400,9 +3446,8 @@ mod tests {
     /// The `Display` arms are an exhaustive match, so the words cannot
     /// fall BEHIND the taxonomy — a check without a word does not
     /// compile. What hand-written phrases CAN do is collide,
-    /// and several of these are one token apart by design (surface 1
-    /// against surface 2, the carrier's residual against the witness
-    /// point's), so a literal copied onto a neighbouring row is the
+    /// and several of these are one token apart by design (the
+    /// carrier's residual against the witness point's), so a literal copied onto a neighbouring row is the
     /// live failure mode, and a refusal naming a phrase two checks
     /// share cannot say which check refused.
     ///
@@ -3414,7 +3459,7 @@ mod tests {
     #[test]
     fn the_taxonomy_says_each_check_by_one_unshared_phrase() {
         let mut said: Vec<(String, CertCheck)> = Vec::new();
-        for check in ALL_CHECKS {
+        for check in all_checks() {
             let word = check.to_string();
             let shared = said.iter().find(|(w, _)| *w == word).map(|(_, o)| *o);
             assert!(
@@ -4260,8 +4305,7 @@ mod tests {
         let p1 = Point3::new(1.0, 0.0, 0.0);
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: src_keys[0],
-                s2: src_keys[1],
+                pair: SurfacePair::new(src_keys[0], src_keys[1]),
                 witness: Point3::new(0.5, 0.0, 0.0),
             },
             carrier: Curve3::Line {
@@ -4280,9 +4324,8 @@ mod tests {
 
         // The handles moved.
         match *moved.description() {
-            EdgeDescription::Intersection { s1, s2, witness } => {
-                assert_eq!(s1, dst_keys[0]);
-                assert_eq!(s2, dst_keys[1]);
+            EdgeDescription::Intersection { pair, witness } => {
+                assert_eq!(pair, SurfacePair::new(dst_keys[0], dst_keys[1]));
                 // ...and the witness, a POINT, did not.
                 assert!((witness.x - 0.5).abs() < 1e-15);
             }
@@ -4340,8 +4383,7 @@ mod tests {
         let p1 = Point3::new(1.0, 0.0, 0.0);
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: keys[0],
-                s2: keys[1],
+                pair: SurfacePair::new(keys[0], keys[1]),
                 witness: Point3::new(0.5, 0.0, 0.0),
             },
             carrier: Curve3::Line {
@@ -4353,8 +4395,8 @@ mod tests {
         };
         EdgeCurve::certify(spec.clone(), p0, p1, &lookup, band()).unwrap();
 
-        // Both-surface teeth: a carrier lying ON s1 but definitely off
-        // s2 fails the s2 residual specifically.
+        // Both-surface teeth: a carrier lying ON keys[0] but definitely
+        // off keys[1] fails keys[1]'s residual specifically.
         let mut bad = spec.clone();
         bad.carrier = Curve3::Line {
             origin: Point3::new(0.0, 0.5, 0.0), // on z = 0, off y = 0
@@ -4372,10 +4414,10 @@ mod tests {
             matches!(
                 err,
                 CertifyError::ResidualExceeded {
-                    check: CertCheck::Surface2Residual,
+                    check: CertCheck::SurfaceResidual { surface },
                     sample: 0,
                     ..
-                }
+                } if surface == keys[1]
             ),
             "{err:?}"
         );
@@ -4383,8 +4425,7 @@ mod tests {
         // A displaced witness fails the witness checks.
         let mut bad = spec.clone();
         bad.description = EdgeDescriptionSpec::Intersection {
-            s1: keys[0],
-            s2: keys[1],
+            pair: SurfacePair::new(keys[0], keys[1]),
             witness: Point3::new(0.5, 0.0, 0.25),
         };
         let err = EdgeCurve::certify(bad, p0, p1, &lookup, band()).unwrap_err();
@@ -4392,10 +4433,10 @@ mod tests {
             matches!(
                 err,
                 CertifyError::ResidualExceeded {
-                    check: CertCheck::WitnessSurface1,
+                    check: CertCheck::WitnessSurfaceResidual { surface },
                     sample: NOT_A_SAMPLE,
                     ..
-                }
+                } if surface == keys[0]
             ),
             "{err:?}"
         );
@@ -4403,8 +4444,7 @@ mod tests {
         // Same surface twice is structurally malformed.
         let mut bad = spec.clone();
         bad.description = EdgeDescriptionSpec::Intersection {
-            s1: keys[0],
-            s2: keys[0],
+            pair: SurfacePair::new(keys[0], keys[0]),
             witness: Point3::new(0.5, 0.0, 0.0),
         };
         assert_eq!(
@@ -4415,8 +4455,7 @@ mod tests {
         // A stale key is a typed error.
         let mut bad = spec.clone();
         bad.description = EdgeDescriptionSpec::Intersection {
-            s1: keys[0],
-            s2: SurfaceKey::default(),
+            pair: SurfacePair::new(keys[0], SurfaceKey::default()),
             witness: Point3::new(0.5, 0.0, 0.0),
         };
         assert_eq!(
@@ -4448,8 +4487,7 @@ mod tests {
         let p1 = Point3::new(1.0, 0.0, 0.0);
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: keys[0],
-                s2: keys[1],
+                pair: SurfacePair::new(keys[0], keys[1]),
                 witness: Point3::new(0.5, 0.0, 0.0),
             },
             carrier: Curve3::Line {
@@ -4485,8 +4523,7 @@ mod tests {
         ]);
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: keys[0],
-                s2: keys[1],
+                pair: SurfacePair::new(keys[0], keys[1]),
                 witness: Point3::new(0.5, 0.0, 0.0),
             },
             carrier: Curve3::Line {
@@ -5127,7 +5164,12 @@ mod tests {
                 KERNEL_DEFECT_ENDING,
             ),
             (
-                undecided(CertCheck::Surface1Residual, MarginDiag::value(5e-9)),
+                undecided(
+                    CertCheck::SurfaceResidual {
+                        surface: SurfaceKey::default(),
+                    },
+                    MarginDiag::value(5e-9),
+                ),
                 KERNEL_LIMIT_RECOURSE,
             ),
             (
@@ -5191,7 +5233,9 @@ mod tests {
             ),
             (
                 CertifyError::ResidualExceeded {
-                    check: CertCheck::Surface2Residual,
+                    check: CertCheck::SurfaceResidual {
+                        surface: SurfaceKey::default(),
+                    },
                     sample: 0,
                     margin: MarginDiag::value(3e-8),
                 }
@@ -5267,7 +5311,7 @@ mod tests {
             };
             (cause, miss)
         });
-        for check in ALL_CHECKS {
+        for check in all_checks() {
             let mut arms: Vec<(RefusedArm<'_>, bool)> = causes
                 .iter()
                 .map(|(cause, miss)| (RefusedArm::Undecided(cause), *miss))
@@ -5418,9 +5462,14 @@ mod tests {
                  agree. {stopgap}"
             )
         );
-        let fit = exceeded(CertCheck::Surface2Residual, 5e-7)
-            .ending(file)
-            .unwrap();
+        let fit = exceeded(
+            CertCheck::SurfaceResidual {
+                surface: SurfaceKey::default(),
+            },
+            5e-7,
+        )
+        .ending(file)
+        .unwrap();
         assert_eq!(
             fit,
             "This miss lies beyond the tolerance and within the file's declared coincidence \
@@ -5444,7 +5493,12 @@ mod tests {
                 && across.ends_with("a kernel defect or a damaged file, worth reporting"),
             "{across}"
         );
-        for check in [CertCheck::EndpointStart, CertCheck::Surface2Residual] {
+        for check in [
+            CertCheck::EndpointStart,
+            CertCheck::SurfaceResidual {
+                surface: SurfaceKey::default(),
+            },
+        ] {
             let past = exceeded(check, 2e-6);
             assert_eq!(
                 past.ending(file),
@@ -5649,8 +5703,7 @@ mod tests {
         let p0 = Point3::origin() - dir * reach;
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: keys[0],
-                s2: keys[1],
+                pair: SurfacePair::new(keys[0], keys[1]),
                 witness: p0 + dir * (reach / 2.0),
             },
             carrier: Curve3::Line { origin: p0, dir },
@@ -5714,8 +5767,7 @@ mod tests {
         ]);
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: keys[0],
-                s2: keys[1],
+                pair: SurfacePair::new(keys[0], keys[1]),
                 witness: on + Vec3::unit_z() * 0.5,
             },
             carrier: Curve3::Line {
@@ -5808,10 +5860,18 @@ mod tests {
             (CertCheck::ParamSpan, Sized(Positive)),
             (CertCheck::ParamSpanMeter, Sized(Positive)),
             (CertCheck::ParamWinding, Sized(NonNegative)),
-            (CertCheck::Surface1Residual, Miss(Unsized::Fit)),
-            (CertCheck::Surface2Residual, Miss(Unsized::Fit)),
-            (CertCheck::WitnessSurface1, Miss(Unsized::Defect)),
-            (CertCheck::WitnessSurface2, Miss(Unsized::Defect)),
+            (
+                CertCheck::SurfaceResidual {
+                    surface: SurfaceKey::default(),
+                },
+                Miss(Unsized::Fit),
+            ),
+            (
+                CertCheck::WitnessSurfaceResidual {
+                    surface: SurfaceKey::default(),
+                },
+                Miss(Unsized::Defect),
+            ),
             (CertCheck::WitnessMidpoint, Miss(Unsized::Defect)),
             (CertCheck::Transversality, Sized(Positive)),
             (CertCheck::TransversalityArm, Sized(Positive)),
@@ -5825,6 +5885,8 @@ mod tests {
             (CertCheck::ChartImage, NoSize(Unsized::Defect)),
             (CertCheck::PlaneNurbsOnLocus, Miss(Unsized::Fit)),
             (CertCheck::PlaneNurbsHull, Miss(Unsized::Bound)),
+            (CertCheck::PlaneNurbsHullValue, Miss(Unsized::Bound)),
+            (CertCheck::AnalyticBreakResidual, Miss(Unsized::Fit)),
             (CertCheck::AnalyticHull, Miss(Unsized::Bound)),
             (
                 CertCheck::PlaneNurbsReportedTransversality,
@@ -5833,8 +5895,8 @@ mod tests {
             (CertCheck::PlaneNurbsChartSpeed, Sized(Positive)),
             (CertCheck::PlaneNurbsChartSpeedBound, Sized(Positive)),
         ];
-        assert_eq!(table.len(), ALL_CHECKS.len());
-        for check in ALL_CHECKS {
+        assert_eq!(table.len(), all_checks().len());
+        for check in all_checks() {
             let (_, want) = table
                 .iter()
                 .find(|(c, _)| *c == check)

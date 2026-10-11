@@ -357,13 +357,18 @@ refuse by default, with an explicit opt-in subtracting closed-form
 overlap volumes; booleans are unchanged; STEP export drops the
 declaration.
 
-Not implemented: the variant lands with its first consumer. Until then
-the backstop's containment arm decides the nested-instance class by a
+Not implemented: the variant lands with its first consumer. The
+backstop's containment arm decides the nested-instance class by a
 material test — a nested placement sharing no material clears; an
-instance with a vertex inside another's material refuses typed
-(`ValidationError::InstanceInterference`) — and no declaration admits an
-interference. Invariant: an undeclared interference is always a typed
-error; no blanket "disable interference checking" exists.
+instance with a vertex inside another's material is
+`ValidationError::InstanceInterference` — and no declaration admits an
+interference. Between two copies at rest the editor's gate reads that
+verdict, a pierce and a same-side crossing as interference evidence
+(ASSEMBLY A5 *Interference.*), quieted by a one-sided `Gap` assertion at
+the overlap, not by a declaration. Invariant: inside one body an interference is always a
+typed error, and at rest between two copies it is always a finding
+(ASSEMBLY A5 *Interference.*), loud unless an assertion at its site
+quiets it; no blanket "disable interference checking" exists.
 
 **C7 — The join lane.** At the curved coplanar-lump sites (`vtxfac.rs`,
 `recl.rs`) a tangent pair the witness lane decides, declared or not (the
@@ -450,10 +455,10 @@ Confinement is by carrier, not incidence: nothing requires the crossing
 edges to bound the declared faces.
 
 **Three-valued side verdict** (`CrossingSideVerdict`). `OppositeSides`
-backs. `SameSide` refuses, naming the verdict; it is the hook for
-declared interpenetration, which C6 will consume as admission evidence,
-so no bool may stand there (the verdict reaches the refusal only as
-rendered witness text, not a typed field). `Undecided` escalates
+backs. `SameSide` refuses, naming the verdict in the refusal's typed
+`side` field; it is interpenetration evidence, which the assembly layer
+reads as an interference between two copies at rest, so no bool may
+stand there. `Undecided` escalates
 `CensusEscalated`. The side is read by handing both faces' `Face::sense`
 bits to `geom_brep::classify_material_pairing` after `classify_dihedral`
 establishes the smooth precondition; the census is otherwise
@@ -477,8 +482,10 @@ and refuses a face whose spiric or spline edge it cannot clear, so no
 cell spans the face's boundary on a decided reading.
 
 **`EdgeFacePierce` stays categorical.** A transverse dive is
-interpenetration until a C6 vocabulary exists; the recourse is
-separating the bodies or making the crossing a boolean's working state.
+interpenetration, and no declaration backs it. Inside one body the
+recourse is separating the solids or making the crossing a boolean's
+working state; at rest between two copies it is interference evidence,
+reported as ASSEMBLY A5's interference finding.
 
 **The `interior_witness` schedule.** A flush seat's trims share a
 boundary, so the region walk refuses `TouchingBoundary`; the witness rung
@@ -504,7 +511,8 @@ left).
 
 ## Open
 
-- The `EdgeFacePierce` arm (issue 973) waits for the C6 interference era.
+- Inside one body the `EdgeFacePierce` arm (issue 973) refuses typed;
+  no declaration admits it (C6).
 - The declared-cusp wedge-0/2π arm is defined, unbuilt (941).
 - Sphere, cone and torus cross-description declared pairs refuse
   `ChartDivergence`; the C9 exclusion ring for same-solid distinct-key

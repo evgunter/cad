@@ -2,12 +2,13 @@
 id: point-in-solid-mints-outside-its-period-and-nappe-rows
 kind: unit
 title: point_in_solid's wall junction, wall trim, latitude and root-count arms mint INVALID by hand (mints C13-C18)
-status: open
+status: dispatched
 opened: 2026-10-10
 priority: P1
 cost: M
 parent: topo-mints-indeterminates-outside-the-funnel
 refs: [classification-invariant-family-types-bug-only-states-against-d9-row-4, period-headroom-margin-has-no-shared-home, cone-nappe-is-decided-in-five-places]
+branch: cleave/point-in-solid-mints
 ---
 
 Unit 3 of `topo-mints-indeterminates-outside-the-funnel`'s re-scope

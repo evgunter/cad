@@ -1210,7 +1210,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "DeclareSiteNotAnOperand",
             NodeErrorKind::DeclareSiteNotAnOperand {
-                at: RecipeNodeId::new(0, tagged(3)),
+                at: editor_core::VarId::new(0, tagged(3)),
             },
         ),
         row(
@@ -1609,7 +1609,29 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             R::SliverSector {
                 vertex,
                 face,
-                diag: diag(),
+                reading: topo::SectorReading::Escalated(diag()),
+            },
+        ),
+        (
+            "SliverSector/GrazeAgainstNeighbours",
+            R::SliverSector {
+                vertex,
+                face,
+                reading: topo::SectorReading::GrazeAgainstNeighbours {
+                    margin: geom_core::MarginDiag::value(-3.0e-8),
+                },
+            },
+        ),
+        (
+            "SliverSector/SmoothEdgeDisagrees",
+            R::SliverSector {
+                vertex,
+                face,
+                reading: topo::SectorReading::SmoothEdgeDisagrees(topo::TangencyReadings {
+                    tangent: geom_core::MarginDiag::value(3.0e-10),
+                    clear: geom_core::MarginDiag::value(3.0e-8),
+                    band: band(),
+                }),
             },
         ),
         (
@@ -1619,6 +1641,50 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         (
             "UnderflowedSectorChord",
             R::UnderflowedSectorChord { vertex, face },
+        ),
+        (
+            "SectionGermsEscalated(Line)",
+            R::SectionGermsEscalated {
+                vertex,
+                reading: topo::SectionGermReading::Line,
+                diag: diag(),
+            },
+        ),
+        (
+            "SectionGermsEscalated(Order)",
+            R::SectionGermsEscalated {
+                vertex,
+                reading: topo::SectionGermReading::Order,
+                diag: diag(),
+            },
+        ),
+        (
+            "SectionGermsUnordered(NoLine)",
+            R::SectionGermsUnordered {
+                vertex,
+                fault: topo::SectionGermFault::NoLine,
+            },
+        ),
+        (
+            "SectionGermsUnordered(Coincident)",
+            R::SectionGermsUnordered {
+                vertex,
+                fault: topo::SectionGermFault::Coincident,
+            },
+        ),
+        (
+            "SectionGermsUnordered(Alternation)",
+            R::SectionGermsUnordered {
+                vertex,
+                fault: topo::SectionGermFault::Alternation,
+            },
+        ),
+        (
+            "SectionGermsUnordered(Crossing)",
+            R::SectionGermsUnordered {
+                vertex,
+                fault: topo::SectionGermFault::Crossing,
+            },
         ),
         ("ConsecutiveOnSectors", R::ConsecutiveOnSectors { vertex }),
         ("StaleVertex", R::StaleVertex { vertex }),
@@ -1637,7 +1703,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             R::CrossingInsertion {
                 edge,
                 endpoints: (vertex, vertex),
-                source: euler(),
+                source: Box::new(euler()),
             },
         ),
         ("Euler", R::Euler(euler())),
@@ -2006,7 +2072,12 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         ),
         (
             "surface-residual",
-            escalated(CertCheck::Surface1Residual, in_band),
+            escalated(
+                CertCheck::SurfaceResidual {
+                    surface: topo::SurfaceKey::default(),
+                },
+                in_band,
+            ),
             geom_core::KERNEL_LIMIT_RECOURSE,
         ),
     ]
@@ -2687,7 +2758,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             "Op",
             E::Op {
                 site: "strut mev",
-                source: euler(),
+                source: Box::new(euler()),
             },
         ),
     ]
@@ -3482,7 +3553,8 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "UnionFoldStep",
             NodeErrorKind::UnionFoldStep {
-                member: RecipeNodeId::new(0, tagged(2)),
+                member: 2,
+                read: editor_core::VarId::new(0, tagged(2)),
                 refusal: Box::new(NodeErrorKind::Boolean(topo::BooleanError::Escalated {
                     decision: topo::BooleanDecision::Coincidence(
                         topo::Coincide::Carriers,

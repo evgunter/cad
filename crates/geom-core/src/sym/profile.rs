@@ -384,10 +384,10 @@ pub struct SymProfile {
     /// (a plain form is a syntactic normal form of a syntactic id), and
     /// this set is the instrument for the HIT RATE, not for soundness.
     ///
-    /// On every document in the tree today every set is EMPTY, because
-    /// no drive mints an opaque at all: `Sym::opaque`'s one caller is
-    /// the unnamed `AxisScalar::axis`, and a drive binds its axes
-    /// through `axis_named`.
+    /// A drive binds its axes through `axis_named`, never the unnamed
+    /// `AxisScalar::axis`, so what fills a set is `Real::from_computed`:
+    /// one opaque per numerical output a construction re-enters (a
+    /// projection's sweep samples and Newton iterates, for one).
     pub opaque_ids: Vec<BTreeSet<u128>>,
     /// **The decision read's cost** ([`ReadProfile`]).
     pub read: ReadProfile,

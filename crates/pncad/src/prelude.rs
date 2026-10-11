@@ -27,11 +27,6 @@
 //! 6. **Measure** — mass properties.
 //! 7. **Tessellate and export** — mesh, STL, STEP.
 //! 8. **Or drive the document layer** — `Doc`, `DocEdit`, `evaluate`.
-//!
-//! `BooleanOp` is ONE type: the kernel operation, which the recipe
-//! node carries directly. The prelude and `pncad::document` name the
-//! same enum, so which one a caller imports it through cannot change
-//! what it means.
 
 // --- 1. Numbers and frames ------------------------------------
 pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
@@ -500,10 +495,12 @@ pub use topo::{
 //
 // - `CensusContact` is `UndeclaredContact`'s: which coincidence the
 //   census found. The arms are not one fact — `EdgeFacePierce` is
-//   interpenetration and categorically undeclarable until the C6 era,
-//   while `EdgeEdgeOverlap` is certifiable through the D3
-//   reconstruction TODAY. A caller that cannot tell them apart cannot
-//   tell "declare this" from "you cannot declare this".
+//   interpenetration and undeclarable, while `EdgeEdgeOverlap` is
+//   certifiable through the D3 reconstruction. A caller that cannot
+//   tell them apart cannot tell "declare this" from "you cannot
+//   declare this". `CrossingSideVerdict` is `EdgeEdgeCross`'s `side`,
+//   carried with it: a same-side crossing is interpenetration, an
+//   opposite-side one a contact, so it is that arm's discriminant.
 // - `StaleDeclaration` is `StaleContactDeclaration`'s: which record
 //   lost its witness, so which record to withdraw.
 // - `RingContact` is `RingMeetsOuter`'s: vertex-on-vertex,
@@ -554,8 +551,9 @@ pub use topo::{
 // one on this surface: `validate*` is the one door that reports many
 // refusals at once, and `failure_count` says so.
 pub use topo::{
-    CensusContact, CensusSubject, RingContact, RingPairContact, StaleDeclaration, ValidationError,
-    validate, validate_closed, validate_geometric, validate_pseudomanifold,
+    CensusContact, CensusSubject, CrossingSideVerdict, RingContact, RingPairContact,
+    StaleDeclaration, ValidationError, validate, validate_closed, validate_geometric,
+    validate_pseudomanifold,
 };
 
 // --- 6. Mass properties ---------------------------------------

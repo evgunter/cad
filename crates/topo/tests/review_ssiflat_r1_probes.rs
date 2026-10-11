@@ -37,14 +37,13 @@ use crate::fixture::arc_chain;
 
 /// The interval lane's measured `ssi_hull_sup` bound for this fixture
 /// (the arc's rung-3 chain against the sphere and the tilted plane;
-/// `review_ssiflat_r2_probes` reads the same number off its own
-/// escalations). Probe 3 uses it as a STRICT ceiling for
-/// the f64 lane's own bound; probe 1 uses it to pick the arm.
+/// the first hull limb 2 reads, before it subdivides). Probe 3 uses it
+/// as a STRICT ceiling for the f64 lane's own bound.
 /// **Re-measured when the C9 ring became a newtype over
 /// `interval-transcendentals`' `DInterval`**
 /// (`1.799_393_940_644_834_8e-12` before): the backend pads only where
 /// an operation is inexact, so the bound is tighter. Probe 3's
-/// strict-ceiling claim and probe 1's arm selection are unmoved.
+/// strict-ceiling claim is unmoved.
 const HULL_SUP_AT_INTERVAL: f64 = 1.016_430_181_835_071_8e-12;
 
 fn sphere<T: Real>() -> Surface<T> {
@@ -85,7 +84,14 @@ fn drive_ssi_door<T>() -> Result<SsiCertificate<T>, SsiError>
 where
     T: geom_core::Decide + geom_core::Bounds + geom_core::CertifiedEnclosure,
 {
-    let band = Band::linear(Tol::witness()).unwrap();
+    drive_ssi_door_at(Band::linear(Tol::witness()).unwrap())
+}
+
+/// [`drive_ssi_door`] at `band`.
+fn drive_ssi_door_at<T>(band: Band) -> Result<SsiCertificate<T>, SsiError>
+where
+    T: geom_core::Decide + geom_core::Bounds + geom_core::CertifiedEnclosure,
+{
     let (f0, f1) = ARC;
     let carrier = arc_chain::chain(&general_circle::<T>(), f0, f1);
     let ctl = carrier.control();
@@ -202,32 +208,27 @@ mod interval_lane {
     use super::*;
 
     /// Probe 1: the escalation is legible. Drive the SSI door at the
-    /// interval scalar; when ε sits under the hull bound the door
-    /// escalates, and its Display must carry the real enclosure's BOTH
-    /// endpoints and never the string "NaN".
+    /// interval scalar at a band whose zero sits under the floor the
+    /// interval arithmetic sets under limb 2's subdivided bound (about
+    /// 3.9e-13 m, `review_ssiflat_r2_probes`' probe 2), so the door
+    /// escalates at every process ε and whatever limb 2's budget: its
+    /// Display must carry the real enclosure's BOTH endpoints and never
+    /// the string "NaN".
     #[test]
     fn an_interval_escalation_is_legible_in_the_doors_display() {
-        let outcome = drive_ssi_door::<Interval>();
-        let eps = Tol::witness().eps();
-        if eps >= HULL_SUP_AT_INTERVAL {
-            // DEFINITE arm: the door certifies; nothing to read.
-            outcome.expect("at or above the hull bound the route certifies");
-            return;
-        }
-        // Under one K-th of the hull bound the margin clears the escalate
-        // threshold and the door refuses definitely; this probe is about
-        // an escalation's display, so it applies where one happens.
-        let err = outcome.expect_err("below the hull bound the door refuses");
-        if eps * Tol::witness().k() <= HULL_SUP_AT_INTERVAL {
-            assert!(
-                !matches!(err, SsiError::CertificateEscalated { .. }),
-                "below the escalate threshold the refusal must be definite: {err:?}"
-            );
-            return;
-        }
+        let err = drive_ssi_door_at::<Interval>(Band::new(1e-13, 1e-12).unwrap())
+            .expect_err("under the arithmetic's floor the door refuses");
+        let SsiError::CertificateEscalated { ref cause, .. } = err else {
+            panic!("the refusal must be the escalation: {err:?}");
+        };
+        let geom_core::ErrorTextReading::Enclosure { lo, hi } =
+            cause.margin.diagnostic_f64_for_error_text()
+        else {
+            panic!("the escalation must carry its enclosure: {err:?}");
+        };
         assert!(format!("{err:?}").contains("ssi_hull_sup"), "{err:?}");
         let text = err.to_string();
-        assert!(text.contains("too close to call"), "{text}");
+        assert!(text.contains(" is undecided: "), "{text}");
         assert!(
             text.contains("enclosure ["),
             "the margin must render as an enclosure, not a value or a hole: {text}"
@@ -236,10 +237,15 @@ mod interval_lane {
             text.contains("ambiguity band ("),
             "an escalation must render the band it was judged against: {text}"
         );
-        assert_eq!(
-            text.matches("1.0164301818350718e-12").count(),
-            2,
-            "both enclosure endpoints must be visible: {text}"
+        let (lo_shown, hi_shown) = (format!("{lo:e}"), format!("{hi:e}"));
+        let shown = if lo_shown == hi_shown {
+            text.matches(&lo_shown).count() >= 2
+        } else {
+            text.contains(&lo_shown) && text.contains(&hi_shown)
+        };
+        assert!(
+            shown,
+            "both enclosure endpoints must be visible: [{lo_shown}, {hi_shown}] in {text}"
         );
         assert!(
             !text.contains("NaN"),

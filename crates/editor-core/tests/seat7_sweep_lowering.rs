@@ -332,14 +332,25 @@ fn both_sweeps_evaluate_in_one_document() {
 /// RE-BLESSED, `kitchen_sink` only, when a revolve's turned vertex came
 /// to turn its offset from the axis: 8 of its points moved by at most 2
 /// ulps (`m10_p_fence`'s header has the dump), and no name table did.
+///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`), re-taken on the tree holding every
+/// change above: the digest feeds each edge's description `Debug`,
+/// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
+/// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
+/// pins and `m5_pr8_bvh_diff` held.
+///
+/// RE-BLESSED, `cut_cylinder` only, when a split's section face came to
+/// take its chart axis as its first chord projected into the plane: the
+/// tilted section's `u_ref` moved by one ulp in `z`, and nothing else did.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x3fb1_d208_1d37_5a93),
-        ("corner_table", 0xdb95_b8fc_06b7_a993),
-        ("cut_cylinder", 0x4318_92f9_c696_0fd1),
-        ("boss_union", 0x05b4_17a8_c844_6429),
-        ("kitchen_sink", 0x00a8_c564_60a9_8611),
+        ("die", 0xa61c_0c7e_53e4_ef7f),
+        ("corner_table", 0x3a0c_c743_4ba5_7aed),
+        ("cut_cylinder", 0xa6c1_1622_9a6f_5245),
+        ("boss_union", 0x95b5_a63f_f861_7235),
+        ("kitchen_sink", 0xe9f2_08e8_5449_a003),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -875,10 +886,8 @@ fn one_declared_radius_pinches_at_the_germ_as_its_kernel_twin_does() {
     let (doc, b) = spin(doc, b, [0.0, 1.0, 0.0], PHI);
     let (doc, union) = insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );

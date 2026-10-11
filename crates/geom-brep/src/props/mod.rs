@@ -225,6 +225,7 @@
 mod curved;
 mod loop_area;
 pub mod quad;
+pub mod spiric;
 
 use geom::Curve3;
 use geom_core::spline::SpanLocate;
@@ -383,10 +384,11 @@ pub enum PropsError {
     /// and never will in this lane: the `Nurbs` placeholder, and a
     /// `Curve3::Spiric` boundary edge on a plane (the oval's area is an
     /// elliptic integral) or on a cylinder, cone or sphere (a spiric
-    /// lies on none). The spiric's frontier is the props quadrature
-    /// lane for a spiric-bounded face — the spiric unit's props PR;
-    /// the variant carries no `what`, so the frontier is named here
-    /// and at each raising site.
+    /// lies on none). A spiric-bounded face is measured by the
+    /// quadrature lane instead ([`spiric`]), which `topo`'s face walk
+    /// routes it to by carrier kind; this lane's refusal is what a walk
+    /// holding no quadrature lane reads. The variant carries no `what`,
+    /// so the frontier is named here and at each raising site.
     Unimplemented,
     /// The boundary shape is outside the M2 iso-rectangle inventory,
     /// a stored-data consistency residual of an inventory premise is
@@ -451,6 +453,20 @@ pub enum PropsError {
     /// its radial flux term — read off the bit — would measure the
     /// complement of the face.
     SenseContradicted,
+    /// **A hole is wound the same way as its face** (`props_ring_winding`):
+    /// a ring's signed area has the sign of the face's whole, where a
+    /// hole's boundary is traversed opposite to the region it is cut
+    /// from. Its area would be ADDED to the face's. Stored data that is
+    /// wrong, whichever lane reads it: the closed forms' and the
+    /// cylinder quadrature's one decision (`curved::require_holes_wound_against`).
+    RingWoundWithFace,
+    /// **A loop's stored chart images are a period apart at a junction**
+    /// (`props_quad_junction_period`): one edge's image starts a whole
+    /// turn of the azimuth from where the edge before it ends, so the
+    /// loop closes in space but not on the chart, and no Green form over
+    /// the chart reads it. Stored data that is wrong: a boundary's images
+    /// on one face are minted in one branch of its chart.
+    ChartPeriodJump,
     /// A boundary edge's traversed **arc** leaves one branch of the
     /// chart, though its CARRIER is a certified iso curve: the arc's
     /// stored parameter span contains a chart singularity in its
@@ -722,6 +738,18 @@ impl core::fmt::Display for PropsError {
                 f,
                 "a sphere face's orientation sense contradicts the side its boundary encodes, \
                  so the face is inside-out. {KERNEL_OR_FILE_DEFECT_ENDING}"
+            ),
+            Self::RingWoundWithFace => write!(
+                f,
+                "a hole in a face is traversed the same way as the face's own boundary, so \
+                 its area would be added to the face's rather than taken from it. \
+                 {KERNEL_OR_FILE_DEFECT_ENDING}"
+            ),
+            Self::ChartPeriodJump => write!(
+                f,
+                "a face's stored boundary images on its surface's chart do not meet: one \
+                 edge's image starts a whole turn around the surface from where the edge \
+                 before it ends. {KERNEL_OR_FILE_DEFECT_ENDING}"
             ),
             Self::NappeSpanning => write!(
                 f,
@@ -1021,6 +1049,8 @@ mod tests {
                 what: "props_sphere_loop_cusp",
             },
             PropsError::SenseContradicted,
+            PropsError::RingWoundWithFace,
+            PropsError::ChartPeriodJump,
             PropsError::NappeSpanning,
             PropsError::NotOneChartBranch {
                 edge: 0,
@@ -1045,7 +1075,7 @@ mod tests {
             "state", "widen", "loosen", "report", "re-cut", "re-mint", "lie",
         ];
         let arms = props_error_arms();
-        assert_eq!(arms.len(), 11, "an arm was added without a row here");
+        assert_eq!(arms.len(), 13, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             assert_eq!(

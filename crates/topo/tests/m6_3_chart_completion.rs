@@ -24,7 +24,9 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, EnvelopeStatement, Pcurve, PcurveCache};
+use geom_brep::{
+    EdgeCurveSpec, EdgeDescriptionSpec, EnvelopeStatement, Pcurve, PcurveCache, SurfacePair,
+};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Real, Vec3};
 use topo::Body;
@@ -109,8 +111,7 @@ where
             p1,
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1: sph_key,
-                    s2: pl_key,
+                    pair: SurfacePair::new(sph_key, pl_key),
                     witness: carrier.eval(mid),
                 },
                 carrier: carrier.clone(),

@@ -3,8 +3,8 @@
 //! wall is a meridian arc about a centre OFF the axis), the klein elbow
 //! (a disc swept a quarter turn about an axis off its centre), and the
 //! tour's sectioned vessel with the cavity the axial door carves in it
-//! (a partial revolve whose rims mint as spirics); and the one reader
-//! of the door the elbow's hollow stops at ([`props_door`]).
+//! (a partial revolve whose rims mint as spirics); and the volume
+//! oracle their hollows are measured against ([`assert_hollow_volume`]).
 //!
 //! A row that hollows one of these and a row that asks `point_in_solid`
 //! of it are about each other only while they build THE SAME BODY
@@ -31,10 +31,11 @@ use profile::path::{Open, Start};
 use profile::{ArcSweep, Center, Profile, ProfileLoop, SketchPlane};
 use sweep::test_support::revolved_about_y;
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::{Body, FaceKey, ShellError};
+use topo::Body;
 
 use super::bulge;
 use super::charts::hollow_moves;
+use super::oracles::simpson;
 
 /// **The barrel bulged about a centre OFF the axis.** The same two
 /// junction stations and the same `5/64` meridian radius as the tour's
@@ -174,23 +175,172 @@ pub fn vessel_cavity(t: f64) -> (Body<f64>, Body<f64>) {
     (quarter, cavity)
 }
 
-/// **The door the klein elbow's hollow stops at**: tier 3's check 7
-/// refusing the assembled thin solid because one face's volume flux
-/// is not computable — the face and the props refusal, or `None` for
-/// any other refusal. A spiric-bounded cap's loop area is an elliptic
-/// integral (`Unimplemented`), the sectioned vessel's door too.
-pub fn props_door(e: &ShellError<f64>) -> Option<(FaceKey, geom_brep::PropsError)> {
-    let ShellError::NotValid { errors } = e else {
-        return None;
-    };
-    let [
-        topo::ValidationError::VolumeUncomputable {
-            source: topo::MassPropsError::Face { face, source },
-            ..
+/// **The turn a cut revolve keeps at radius `ρ`.** A partial revolve
+/// of turn `theta` whose `caps` meridian caps (0, 1 or 2) have moved `t`
+/// inward along their normals keeps, at radius `ρ` from the axis, the
+/// azimuth window `θ − caps·asin(t/ρ)` (each moved cap is a plane
+/// parallel to the axis at stand-off `t`, which a circle of radius `ρ`
+/// meets at `asin(t/ρ)` from its old meridian), and nothing where that
+/// closes.
+fn kept_turn(theta: f64, t: f64, caps: f64, rho: f64) -> f64 {
+    if rho <= t {
+        return if caps == 0.0 { theta } else { 0.0 };
+    }
+    (theta - caps * (t / rho).asin()).max(0.0)
+}
+
+/// `∫ ρ·(θ − caps·asin(t/ρ)) dρ` in closed form,
+/// `θρ²/2 − caps·(ρ²·asin(t/ρ) + t·√(ρ² − t²))/2`, and the radius
+/// `t/sin(θ/caps)` below which the window is closed.
+fn cut_moment(theta: f64, t: f64, caps: f64, rho: f64) -> f64 {
+    theta * rho * rho / 2.0
+        - caps * (rho * rho * (t / rho).asin() + t * (rho * rho - t * t).sqrt()) / 2.0
+}
+
+/// **The volume of a disc's cut revolve**: the disc of radius `a`
+/// centred `rho_c` from the axis, revolved `theta` with `caps` caps
+/// moved `t` inward — `∬ ρ·kept_turn dA`, by `ρ = ρ_c + a·cos φ` (the
+/// chord at `ρ` is `2a·sin φ`, so the integrand is smooth; adaptive
+/// Simpson, cross-checked against a 50-digit quadrature by
+/// `scripts/spiric-quadrature-references.py`).
+pub fn disc_cut_volume(theta: f64, t: f64, caps: f64, rho_c: f64, a: f64) -> f64 {
+    simpson(
+        &|phi| {
+            let rho = rho_c + a * phi.cos();
+            2.0 * a * a * phi.sin().powi(2) * rho * kept_turn(theta, t, caps, rho)
         },
-    ] = &errors[..]
-    else {
-        return None;
-    };
-    Some((*face, source.clone()))
+        0.0,
+        core::f64::consts::PI,
+    )
+}
+
+/// **The volume of a strip's cut revolve**: the region
+/// `lo ≤ ρ ≤ hi`, `floor(ρ) ≤ y ≤ top`, revolved `theta` with `caps`
+/// caps moved `t` inward (adaptive Simpson; the integrand is smooth on
+/// the strip).
+pub fn strip_cut_volume(
+    theta: f64,
+    t: f64,
+    caps: f64,
+    (lo, hi): (f64, f64),
+    top: f64,
+    floor: impl Fn(f64) -> f64,
+) -> f64 {
+    simpson(
+        &|rho| rho * kept_turn(theta, t, caps, rho) * (top - floor(rho)),
+        lo,
+        hi,
+    )
+}
+
+/// **The sectioned vessel's hollow volume at wall `t`** — the quarter
+/// turn of [`vessel_quarter`]'s meridian less its cavity: the meridian
+/// inset by `t` along every edge but the axis (the moved faces meet in
+/// mitres at the two reflex shoulders), revolved with both caps moved
+/// `t` inward. Each height's inner integral is [`cut_moment`]'s closed
+/// form; Simpson in the height over each smooth piece.
+pub fn vessel_hollow_volume(t: f64) -> f64 {
+    let theta = core::f64::consts::FRAC_PI_2;
+    let u = 1.0 / 64.0;
+    let (r_foot, r_neck, y_foot, y_shoulder, y_mouth) =
+        (5.0 * u, 7.0 * u, 4.0 * u, 12.0 * u, 24.0 * u);
+    // The band: the circle of radius `b` about `(a, c)`, outer side.
+    let (a, b, c) = (6.0 * u, 5.0 * u, 8.0 * u);
+    let band = |rad: f64| move |y: f64| a + (rad * rad - (y - c).powi(2)).sqrt();
+    let solid = |rho: f64| theta * rho * rho / 2.0;
+    let outer = solid(r_foot) * y_foot
+        + simpson(&|y| solid(band(b)(y)), y_foot, y_shoulder)
+        + solid(r_neck) * (y_mouth - y_shoulder);
+    let rho_0 = t / (theta / 2.0).sin();
+    let cut = |rho: f64| cut_moment(theta, t, 2.0, rho) - cut_moment(theta, t, 2.0, rho_0);
+    let cavity = cut(r_foot - t) * y_foot
+        + simpson(&|y| cut(band(b - t)(y)), y_foot + t, y_shoulder - t)
+        + cut(r_neck - t) * (y_mouth - y_shoulder);
+    outer - cavity
+}
+
+/// **The hollow's certified volume holds `want`.** Its bracket
+/// `volume ± volume_pad` must contain the oracle to `1e-10` of it (the
+/// oracles' stated tolerance), and the pad must sit at the quadrature's
+/// reporting level: each face converges once its flux width over three
+/// times its area is under `1024·ε`, so the summed volume half-width is
+/// under `512·ε` times the surface area — a pad that converged to
+/// something worth reporting, not merely to something sound.
+///
+/// Every row's measured midpoint sits 1–2% of its pad below the oracle.
+/// The oracles agree with 50-digit references to `2e-15`
+/// (`scripts/spiric-quadrature-references.py`), so the offset is the
+/// enclosure's own: each piece's remainder reads the hull of `g₄` over
+/// the piece, which is not centred on `g₄`'s mean value there, and the
+/// bracket's midpoint inherits that lean, well inside the bracket.
+pub fn assert_hollow_volume(label: &str, hollow: &Body<f64>, want: f64) {
+    let tol = Tol::witness();
+    let props = topo::mass_properties(hollow, tol)
+        .unwrap_or_else(|e| panic!("{label}: the hollow measures, got {e:?}"));
+    println!(
+        "[measured] {label}: volume {} ± {}, oracle {want}",
+        props.volume, props.volume_pad
+    );
+    assert!(
+        (props.volume - want).abs() <= props.volume_pad + 1e-10 * want.abs(),
+        "{label}: volume {} ± {} misses the oracle {want}",
+        props.volume,
+        props.volume_pad
+    );
+    let reporting = 512.0 * tol.eps() * props.surface_area;
+    assert!(
+        props.volume_pad > 0.0 && props.volume_pad <= reporting,
+        "{label}: a spiric face is a quadrature, and its pad {} is under the reporting \
+         level {reporting}",
+        props.volume_pad
+    );
+}
+
+/// **The wall area of a disc's cut revolve**: the torus tube of radius
+/// `a` about the spine radius `rho_c`, revolved `theta` with `caps` caps
+/// moved `t` inward — `∫ a·ρ(v)·kept_turn(ρ(v)) dv`, `ρ = ρ_c + a·cos v`.
+pub fn disc_cut_wall_area(theta: f64, t: f64, caps: f64, rho_c: f64, a: f64) -> f64 {
+    simpson(
+        &|v| {
+            let rho = rho_c + a * v.cos();
+            a * rho * kept_turn(theta, t, caps, rho)
+        },
+        0.0,
+        core::f64::consts::TAU,
+    )
+}
+
+/// **One moved cap's area**: the plane at stand-off `t` from the axis
+/// cuts the disc's tube (radius `a` about `rho_c`) in an oval of chord
+/// `√((ρ_c + w)² − t²) − √((ρ_c − w)² − t²)` at height `z`,
+/// `w = √(a² − z²)` — by `z = a·sin φ`. At `t = 0` it is the disc's `πa²`.
+pub fn cut_cap_area(t: f64, rho_c: f64, a: f64) -> f64 {
+    simpson(
+        &|phi| {
+            let w = a * phi.cos();
+            let chord = ((rho_c + w).powi(2) - t * t).sqrt() - ((rho_c - w).powi(2) - t * t).sqrt();
+            chord * a * phi.cos()
+        },
+        -core::f64::consts::FRAC_PI_2,
+        core::f64::consts::FRAC_PI_2,
+    )
+}
+
+/// **The hollow's certified surface area holds `want`**: its bracket
+/// `surface_area ± area_pad` contains the oracle to `1e-10` of it, so a
+/// wall area wrong by more than the pad — the spiric lane's `G` channel
+/// — reaches `mass_properties` and goes red.
+pub fn assert_hollow_area(label: &str, hollow: &Body<f64>, want: f64) {
+    let props = topo::mass_properties(hollow, Tol::witness())
+        .unwrap_or_else(|e| panic!("{label}: the hollow measures, got {e:?}"));
+    println!(
+        "[measured] {label}: surface area {} ± {}, oracle {want}",
+        props.surface_area, props.area_pad
+    );
+    assert!(
+        (props.surface_area - want).abs() <= props.area_pad + 1e-10 * want,
+        "{label}: surface area {} ± {} misses the oracle {want}",
+        props.surface_area,
+        props.area_pad
+    );
 }

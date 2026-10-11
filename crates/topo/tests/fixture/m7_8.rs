@@ -64,7 +64,10 @@ where
             .unwrap();
         let p1 = *body.get_point(body.get_vertex(end).unwrap().point).unwrap();
         let witness = p0.lerp(p1, T::from_f64(0.5));
-        let description = geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness };
+        let description = geom_brep::EdgeDescriptionSpec::Intersection {
+            pair: geom_brep::SurfacePair::new(s1, s2),
+            witness,
+        };
         if s1 != wall && s2 != wall {
             let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
             spec.description = description;

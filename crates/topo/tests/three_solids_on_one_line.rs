@@ -234,7 +234,7 @@ fn none(_: &[usize]) -> Option<&'static str> {
 fn fold(
     members: &[AtRestBody<f64>],
     order: &[usize],
-) -> Result<BooleanBody<f64>, (usize, BooleanError)> {
+) -> Result<BooleanBody<f64>, (usize, Box<BooleanError>)> {
     let mut body = members[order[0]].clone();
     let mut last = None;
     for (k, &i) in order.iter().enumerate().skip(1) {
@@ -244,7 +244,7 @@ fn fold(
                 last = Some(r);
             }
             Ok(BooleanResult::Empty) => panic!("step {k} of {order:?} is empty"),
-            Err(e) => return Err((k, e)),
+            Err(e) => return Err((k, Box::new(e))),
         }
     }
     Ok(last.expect("a fold of two or more members"))
@@ -377,7 +377,7 @@ fn every_order(
             (v - volume).abs() < slack,
             "{what}: volume {v}, closed form {volume}"
         );
-        assert_eq!(corners_disjoint(body), Ok(()), "{what}: corners");
+        assert_eq!(corners_disjoint(body, t()), Ok(()), "{what}: corners");
         if plate {
             let at_c = body
                 .vertices()
@@ -692,12 +692,12 @@ fn fold_from(
     order: &[usize],
     from: usize,
     mut body: AtRestBody<f64>,
-) -> Result<AtRestBody<f64>, (usize, BooleanError)> {
+) -> Result<AtRestBody<f64>, (usize, Box<BooleanError>)> {
     for (k, &i) in order.iter().enumerate().skip(from) {
         match union(&body, &members[i], t()) {
             Ok(BooleanResult::Body(r)) => body = r.body,
             Ok(BooleanResult::Empty) => panic!("step {k} of {order:?} is empty"),
-            Err(e) => return Err((k, e)),
+            Err(e) => return Err((k, Box::new(e))),
         }
     }
     Ok(body)
@@ -925,7 +925,7 @@ fn pierces_a_weld_leaves_apart_build_one_body_in_every_member_order() {
                 .unwrap_or_else(|(s, e)| panic!("{what}: step {s} refused: {e:?}"));
             let body = &r.body;
             assert_eq!(validate_geometric(body, t()), Ok(()), "{what}: tier 3");
-            assert_eq!(corners_disjoint(body), Ok(()), "{what}: corners");
+            assert_eq!(corners_disjoint(body, t()), Ok(()), "{what}: corners");
             let v = topo::mass_properties(body, t()).unwrap().volume;
             assert!(
                 (v - volume).abs() < slack,

@@ -69,6 +69,8 @@ mod a_ring_on_a_cone_face;
 mod a_ring_on_a_sphere_face;
 #[path = "a_ruling_lying_on_a_wall.rs"]
 mod a_ruling_lying_on_a_wall;
+#[path = "a_swaying_loft_corner_meters.rs"]
+mod a_swaying_loft_corner_meters;
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
 #[path = "a_tube_ending_on_a_ball.rs"]
@@ -778,6 +780,8 @@ mod mate7a_r1_probes;
 mod mate7a_r2_probes;
 #[path = "mate7a_torus_rest.rs"]
 mod mate7a_torus_rest;
+#[path = "near_tangent_pierce_poses.rs"]
+mod near_tangent_pierce_poses;
 #[path = "pi_seam_and_kiss_through_the_boolean.rs"]
 mod pi_seam_and_kiss_through_the_boolean;
 #[path = "pierce_tangent_off_face.rs"]
