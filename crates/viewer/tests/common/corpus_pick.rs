@@ -372,7 +372,7 @@ pub fn over_every_landing(mut sweep: impl FnMut(&str, &str, &PickIndex, &Evaluat
         let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
         let doc = loaded.snapshot;
         let (node, slot, expr) = ring_bump(&doc);
-        let mut session = DocSession::inline(doc, tol);
+        let mut session = crate::common::inline_without_door(doc, tol);
         session.pump();
         landed("gallery_ring", "open", &session);
         let outcome = session.perform(set_slot(session.committed_doc(), node, slot, &expr));
@@ -390,7 +390,7 @@ pub fn over_every_landing(mut sweep: impl FnMut(&str, &str, &PickIndex, &Evaluat
         else {
             continue;
         };
-        let mut session = DocSession::inline(doc.doc.clone(), tol);
+        let mut session = crate::common::inline_without_door(doc.doc.clone(), tol);
         session.pump();
         if session.evaluation().is_none() {
             continue;

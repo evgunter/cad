@@ -749,6 +749,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
                     },
                 }],
                 skipped: Vec::new(),
+                pending: Vec::new(),
             })),
             frame::Subject::Document,
             "so do the advisory checks",
@@ -1286,6 +1287,7 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
             document: DocumentId(1),
             findings: Vec::new(),
             skipped: Vec::new(),
+            pending: Vec::new(),
         })),
         None,
         "checked and fine is not a finding — the rule that lived in a \
@@ -1296,6 +1298,7 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
             document: DocumentId(1),
             findings: Vec::new(),
             skipped: vec![CheckId::Connectedness],
+            pending: Vec::new(),
         })),
         None,
         "and a SKIPPED check does not light it either: not checked and \
@@ -1595,6 +1598,7 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
             },
         }],
         skipped: Vec::new(),
+        pending: Vec::new(),
     };
     let badge = frame::checks_badge(Some(&report)).expect("a finding badges");
     assert_eq!(badge.affordance(), frame::Affordance::Opens);
