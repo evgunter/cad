@@ -948,3 +948,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - the nextest slow set: took the union.
 
   My first union split one of main's entries, and I fixed it in a follow-up commit; the slow-set line is now main's 111 entries plus our 4. I then started topo and sweep `--profile ci`, plus the touched rows at three ε.
+- 2026-10-11 09:38 — **PR 4614 (U-T1) merged.**
+  - Verified after merging main twice (conflicts: topo re-exports and the nextest slow set; the slow set is now resolved as main's file plus our additions): topo `--profile ci` 2815/2815 (main's apex row is fixed now), sweep `--profile ci` 2506/2506, touched rows at three ε (topo 265, sweep 98), gates, clippy and fmt.
+  - **The dual-review log is now one file per row** (PR 4645, protocol `24b76fff0e`): `docs/dual-review-log/rows/PR-<n>.md`, with front matter (`arm`, `letter`, `tallied`, `major`, `excluded`, `miss`) and no `dr:`, numbered on main by a workflow. `scripts/dual-review-log.py lint` must pass. U-T1's row is `PR-4614.md`: holdout, M, 0 tallied, major true, fair but flagged.
+  - **Rule 9 changed** (Ev, PR 4645): a short readout at EVERY M-tier miss, and a full readout only on Ev's request.
+  - **U-T2 dispatched**: arm byte 197, mod 3 = 2, **SEQUENTIAL**. Cloud session `session_01JR92wrXBUcEr5tPZdSTMkK`, branch `germ/plane-torus-join-dispatch`.
