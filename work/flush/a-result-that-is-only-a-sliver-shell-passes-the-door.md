@@ -2,13 +2,14 @@
 id: a-result-that-is-only-a-sliver-shell-passes-the-door
 kind: issue
 title: A result that is only a sliver shell passes the door: check 7 exempts its in-band volume sign and check 10 never reads a one-shell solid
-status: review
+status: closed
 opened: 2026-10-09
 priority: P0
 cost: M
 refs: [4415]
 branch: flush/sliver-only-result-refuses
 pr: 4636
+closed: 2026-10-11
 ---
 
 
@@ -121,3 +122,15 @@ band while each shell decides. It still ships:
   10's existing path for the one landing found. It holds on main too.
 - `a_thin_walled_hollow_ships_while_a_slab_as_thin_refuses` pins
   today's hollow.
+
+## Closed
+
+PR 4636. The boolean door now refuses a solid whose only shell check 7
+certified wholly in band, `Escalated { ShellRole }`, through the same
+`escalated` helper as check 10's findings. Its tests:
+- `a_result_that_is_only_a_sliver_refuses_in_band`, the row's repro;
+- `a_slab_thinner_than_two_bands_refuses_and_a_thicker_one_builds`.
+
+Both are red on main. The review's MINOR-2 is now its own row,
+`a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses` (design).
+The dual scalar, which runs no at-rest gate, reads no slivers.
