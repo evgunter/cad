@@ -78,7 +78,10 @@ no different elsewhere
 (`refined-sign-and-limb-two-subdivide-halve-by-two-loops`), so the
 premise above that each cut compounds its width does not hold:
 de Casteljau at `½` is convex, and its rounding scales with the
-half's own coefficients. `a_sign_at_the_rows_floor_reads_on_halves_of_halves`
+half's own coefficients. Near a zero of `h` those are small where the
+segment's are not, so a half cut from the segment's own row carries
+the whole row's rounding and reads no sign on a margin a few ulps of
+the segment wide. `a_sign_at_the_rows_floor_reads_on_halves_of_halves`
 pins a row only the halves of halves decide.
 
 **The drivers keep two loops**, for the reasons that row gives; the

@@ -298,11 +298,7 @@ pub(crate) struct SignBudget;
 /// its sign with `h` (the weights are positive), so each piece's `h`
 /// coefficients are read. A piece whose hull straddles zero is halved
 /// ([`sub_segment`]), spending one of `budget`, and its halves are read.
-/// Each half is cut from the row it halves: a cut's rounding scales
-/// with the coefficients it combines, and near a zero of `h` a half's
-/// are small where its segment's are not, so a half cut from the
-/// segment's own row reads no sign on a margin a few ulps of the
-/// segment wide.
+/// Each half is cut from the row it halves.
 ///
 /// - `Some`: every piece reads one-signed, all of one sign.
 /// - `None` (in band): two pieces read opposite signs, a hull is
@@ -814,8 +810,8 @@ mod tests {
 
     /// **A sign a few ulps of the row clear of zero reads on halves of
     /// halves.** `(a, −b, c)` with `b² < a·c` in exact arithmetic, so `h`
-    /// is positive with its least value near `9e−18`, about `2⁻⁵⁴` of the
-    /// row, and mirrored. Red under each half cut from the piece's own
+    /// is positive with its least value near `9.4e−18`, about `2⁻⁵⁵·⁵` of
+    /// the `0.49` row, and mirrored. Red under each half cut from the piece's own
     /// row rather than from the half it halves: the halves about the
     /// minimum then carry the whole row's rounding, and read `None`.
     #[test]
