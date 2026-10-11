@@ -2533,7 +2533,6 @@ pub fn attribution_tag(attribution: &Attribution) -> &'static str {
             relation: Relation::Declined,
             ..
         } => "carried_declined",
-        Attribution::Unattributed => "unattributed",
     }
 }
 

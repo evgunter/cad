@@ -402,19 +402,23 @@ const SPLIT_FINS: i64 = 160;
 /// its own subject and the gather was inside the figure. The subject
 /// door separated them, and this is what re-takes them:
 ///
-/// - `gather_ms` — [`product_recorded`] alone, from nothing.
+/// - `gather_ms` — [`product_recorded`] alone, from nothing. It
+///   includes the tier-3' census since the gather runs it
+///   (`an-unattributed-contact-at-rest-is-a-finding`), so the series
+///   steps up there by the census's passes.
 /// - `checks_ms` — the registry over a subject already in hand.
 /// - `whole_ms` — the wrapper, which is the two together and is what
 ///   the old single figure measured.
-/// - `census_ms` — the tier-3' census over the SAME aggregate, the
-///   term this resident exists instead of: the assembly gate
-///   (`gate_at_rest_declared`) over the product's kept tier-3 verdict,
-///   which is the census alone. Entries before the change that kept
-///   the verdict (`gather/assemble-single-local-battery`) timed the
-///   local battery plus the census, so the series steps down there by
-///   the battery's share. Fewer reps than the others ([`CENSUS_REPS`])
-///   because it is the slowest term, and it REFUSES on this document
-///   (the fins meet the base), so it is the cost of a refusing run.
+/// - `census_ms` — one pass of the tier-3' census over the SAME
+///   aggregate and its records (`gate_at_rest_declared` over the
+///   product's kept tier-3 verdict, which is the census alone): the
+///   term this resident exists instead of, and the unit of what the
+///   gather now pays. Entries before the change that kept the verdict
+///   (`gather/assemble-single-local-battery`) timed the local battery
+///   plus the census, so the series steps down there by the battery's
+///   share. Fewer reps than the others ([`CENSUS_REPS`]) because it is
+///   the slowest term, and it returns findings on this document (the
+///   fins overlap the base), so it is the cost of a finding run.
 struct Split {
     solids: usize,
     faces: usize,

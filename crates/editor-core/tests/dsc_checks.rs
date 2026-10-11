@@ -492,6 +492,18 @@ fn two_roots(cx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     (doc, a, b)
 }
 
+/// The report's separation findings: two placed copies that meet are
+/// also the census's rows, which the `unproven-coincidence` check
+/// reports beside them.
+fn separation(report: &editor_core::ChecksReport) -> Vec<CheckFinding> {
+    report
+        .findings
+        .iter()
+        .filter(|f| f.check == CheckId::Separation)
+        .cloned()
+        .collect()
+}
+
 #[test]
 fn overlapping_roots_are_one_finding_naming_both() {
     // Concentric: the two roots are the same cube twice over, which is
@@ -500,7 +512,7 @@ fn overlapping_roots_are_one_finding_naming_both() {
     let report = checks(&doc, &ChecksConfig::default());
     assert_eq!(report.skipped, vec![CheckId::ChartCoherence]);
     assert_eq!(
-        report.findings,
+        separation(&report),
         vec![CheckFinding {
             check: CheckId::Separation,
             subject: editor_core::FindingSubject::Output {
@@ -554,7 +566,7 @@ fn touching_roots_are_reported_as_uncertified_not_as_overlapping() {
     let (doc, a, b) = two_roots(1.0);
     let report = checks(&doc, &ChecksConfig::default());
     assert_eq!(
-        report.findings,
+        separation(&report),
         vec![CheckFinding {
             check: CheckId::Separation,
             subject: editor_core::FindingSubject::Output {
@@ -615,7 +627,7 @@ fn separation_off_is_visibly_skipped_and_independent() {
         report.skipped,
         vec![CheckId::ChartCoherence, CheckId::Separation]
     );
-    assert_eq!(report.findings, Vec::new());
+    assert_eq!(separation(&report), Vec::new());
 
     // The other direction: turning connectedness off leaves the
     // separation resident running. Before this resident existed the
@@ -752,7 +764,7 @@ fn separation_cannot_refuse_because_it_ships_no_waiver() {
     let (doc, _, _) = two_roots(0.0);
     let cfg = ChecksConfig::default();
     let report = checks(&doc, &cfg);
-    assert_eq!(report.findings.len(), 1);
+    assert_eq!(separation(&report).len(), 1);
     assert!(
         enforce_checks(&report, &cfg).is_ok(),
         "a finding from a waiver-less resident never gates"

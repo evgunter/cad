@@ -201,10 +201,14 @@ mod r2_mate3_probes;
 mod r2_mesh1_donut_probes;
 #[path = "rehome_rings_lune.rs"]
 mod rehome_rings_lune;
+#[path = "review_4704_flush_round_oracle.rs"]
+mod review_4704_flush_round_oracle;
 #[path = "review_r2_vv_probes.rs"]
 mod review_r2_vv_probes;
 #[path = "review_sixx_r2_probes.rs"]
 mod review_sixx_r2_probes;
+#[path = "saddle_wall_offset_fit.rs"]
+mod saddle_wall_offset_fit;
 #[path = "scaffolding_on_a_blend_support_face_does_not_finish.rs"]
 mod scaffolding_on_a_blend_support_face_does_not_finish;
 #[path = "sf2a_r1.rs"]
@@ -496,6 +500,8 @@ mod reach_wall_chord_rows;
 mod readback_doors;
 #[path = "recourse_roster.rs"]
 mod recourse_roster;
+#[path = "review_4704_r1_probes.rs"]
+mod review_4704_r1_probes;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
 #[path = "review_arms2_r1_probes.rs"]

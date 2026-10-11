@@ -1167,7 +1167,9 @@ fn transport_curve<T: Decide>(
     })
 }
 
-/// The chart normal at the centre of a NURBS surface's own domain.
+/// The chart normal at the centre of a NURBS surface's own domain: a
+/// sample point the read chose, entered as the constant it is (a held
+/// midpoint would only widen the parameter at an enclosure scalar).
 fn mid_domain_normal<T: Decide>(s: &NurbsSurface<T>) -> Option<Vec3<T>> {
     let (u0, u1) = s.knots_u().domain();
     let (v0, v1) = s.knots_v().domain();
@@ -2993,10 +2995,7 @@ fn derive_edge<T: Decide>(
     // it, so it spans that domain until `read_ends` reads its feet. A
     // closed form keeps the old span, as `read_ends` reads it.
     let (t0, t1) = match (&carrier, &refused) {
-        (Curve3::Nurbs(spline), None) => {
-            let (lo, hi) = spline.domain();
-            (T::from_f64(lo), T::from_f64(hi))
-        }
+        (Curve3::Nurbs(spline), None) => spline.knot_values().domain(),
         _ => (t0, t1),
     };
     let witness = carrier.mid_point(t0, t1);
@@ -3602,7 +3601,9 @@ fn gap_within_eps<T: Decide>(gap: T, tol: Tol, band: Band) -> Result<bool, Repla
 
 /// The parameter of `point`'s foot on the spline `carrier`, nearest
 /// `seed`, in `T` and as the lane measured it: Newton's `f64`, so it
-/// enters as a computed value.
+/// enters as a computed value, except where the domain clamp stopped it
+/// at an end, where it is the carrier's held end knot (the value
+/// `corner_of_root`'s short root enters too).
 fn carrier_foot<T: Decide>(
     lane: geom_brep::NurbsLane<T>,
     carrier: &NurbsCurve3<T>,
@@ -3610,7 +3611,15 @@ fn carrier_foot<T: Decide>(
     seed: T,
 ) -> Result<(T, f64), geom::ProjectionInconclusive> {
     let foot = lane.carrier_foot(carrier, point, seed)?;
-    Ok((T::from_computed(foot.t), foot.t))
+    let ((lo, hi), (held_lo, held_hi)) = (carrier.domain(), carrier.knot_values().domain());
+    let at = if foot.t == lo {
+        held_lo
+    } else if foot.t == hi {
+        held_hi
+    } else {
+        T::from_computed(foot.t)
+    };
+    Ok((at, foot.t))
 }
 
 /// **A corner's root along the spline carrier of `edge`**, nearest
@@ -3641,11 +3650,20 @@ fn spline_corner_root<T: Decide>(
     tol: Tol,
 ) -> Result<Result<T, crate::offset_derive::CornerVerdict<T>>, ReplaceFaceError<T>> {
     let root = lane.root(surface, spline, seed, extent, band);
-    corner_of_root(root, (vertex, edge, derived), d, band, tol)
+    corner_of_root(
+        root,
+        (vertex, edge, derived),
+        d,
+        band,
+        tol,
+        spline.knot_values(),
+    )
 }
 
 /// [`spline_corner_root`]'s reading of the lane's verdict. The lane
-/// measures in `f64`, so its root and its gap enter as computed values.
+/// measures in `f64`, so its root and its gap enter as computed values;
+/// a short root stops at a domain end, which is the carrier's own held
+/// end knot (`held`; a value no breakpoint carries enters as computed).
 #[allow(clippy::type_complexity)]
 fn corner_of_root<T: Decide>(
     root: Result<crate::offset_derive::SplineRoot, crate::offset_derive::CornerVerdict<T>>,
@@ -3653,7 +3671,9 @@ fn corner_of_root<T: Decide>(
     d: T,
     band: Band,
     tol: Tol,
+    held: &geom_core::spline::Knots<T>,
 ) -> Result<Result<T, crate::offset_derive::CornerVerdict<T>>, ReplaceFaceError<T>> {
+    let held_end = |v: f64| held.value_at(v).unwrap_or_else(|| T::from_computed(v));
     use crate::offset_derive::SplineRoot;
     match root {
         Ok(SplineRoot::At(t)) => Ok(Ok(T::from_computed(t))),
@@ -3661,7 +3681,7 @@ fn corner_of_root<T: Decide>(
             end,
             near_gap,
             near: true,
-        }) if gap_within_eps(T::from_computed(near_gap), tol, band)? => Ok(Ok(T::from_f64(end))),
+        }) if gap_within_eps(T::from_computed(near_gap), tol, band)? => Ok(Ok(held_end(end))),
         Ok(SplineRoot::Short {
             near_gap,
             near: true,
@@ -4095,8 +4115,7 @@ fn read_ends<T: Decide>(
                 edge,
                 scalar: T::NAME,
             })?;
-            let (lo, hi) = spline.domain();
-            let (lo, hi) = seeds.unwrap_or((T::from_f64(lo), T::from_f64(hi)));
+            let (lo, hi) = seeds.unwrap_or_else(|| spline.knot_values().domain());
             let foot = |p, seed| {
                 carrier_foot(lane, spline, p, seed)
                     .map(|(t, _)| t)
@@ -5050,7 +5069,15 @@ mod from_computed_rows {
             S::from_f64(0.1),
             band(),
             Tol::witness(),
+            &unit_knots(),
         )
+    }
+
+    /// The unit segment's knots, constants: a short root's end `1.0`
+    /// is its held end.
+    fn unit_knots() -> geom_core::spline::Knots<S> {
+        geom_core::spline::Knots::from(KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap())
+            .lift(S::from_f64)
     }
 
     /// The lane's root enters as a computed value: a root the lane
@@ -5065,6 +5092,47 @@ mod from_computed_rows {
             found,
             Revalued {
                 kept: 0,
+                opaque: 1,
+                laundered: 0,
+            }
+        );
+    }
+
+    /// A short root's end is the carrier's held end knot, read off its
+    /// `Knots` as `spline_corner_root` hands them over: with the end
+    /// knot a variable, the corner re-values with it to
+    /// the bits the `p1` build computes (`kept`), where the `f64` end
+    /// entered as a constant would launder it. The ε decision on the
+    /// near gap reads the lane's measured gap, a computed value
+    /// (`opaque`).
+    #[test]
+    fn a_short_roots_end_is_the_held_end_knot() {
+        let found = revalued([1.0, 1.0 + 1.0e-3], |p, end_knot| {
+            let two = core::num::NonZeroUsize::new(2).unwrap();
+            let held =
+                geom_core::spline::Knots::new(vec![(S::from_f64(0.0), two), (end_knot, two)], 1)
+                    .unwrap();
+            let root = SplineRoot::Short {
+                end: p,
+                near_gap: 0.0,
+                near: true,
+            };
+            let corner = corner_of_root(
+                Ok(root),
+                (VertexKey::default(), EdgeKey::default(), false),
+                S::from_f64(0.1),
+                band(),
+                Tol::witness(),
+                &held,
+            )
+            .unwrap()
+            .unwrap();
+            vec![corner]
+        });
+        assert_eq!(
+            found,
+            Revalued {
+                kept: 1,
                 opaque: 1,
                 laundered: 0,
             }
@@ -5144,6 +5212,45 @@ mod from_computed_rows {
             Revalued {
                 kept: 0,
                 opaque: 1,
+                laundered: 0,
+            }
+        );
+    }
+
+    /// A foot the domain clamp stops at an end is the carrier's held end
+    /// knot: with the segment's upper end knot a variable and the point
+    /// past that end, the foot re-values with the knot (`kept`) rather
+    /// than entering as the lane's computed `f64` (`opaque`).
+    #[test]
+    fn a_clamped_carrier_foot_is_the_held_end_knot() {
+        let found = revalued([1.0, 1.0 + 1.0e-3], |_, end_knot| {
+            let two = core::num::NonZeroUsize::new(2).unwrap();
+            let knots =
+                geom_core::spline::Knots::new(vec![(S::from_f64(0.0), two), (end_knot, two)], 1)
+                    .unwrap();
+            let segment = NurbsCurve3::new(
+                knots,
+                [Point3::new(-1.0, 0.0, 0.0), Point3::origin()]
+                    .map(|p| p.map(S::from_f64))
+                    .to_vec(),
+                vec![geom_core::Real::one(); 2],
+            )
+            .unwrap();
+            let point = Point3::new(S::from_f64(5.0), S::from_f64(0.125), S::zero());
+            let (t, _) = carrier_foot(
+                geom_brep::NurbsLane::certified(),
+                &segment,
+                point,
+                S::from_f64(0.5),
+            )
+            .unwrap();
+            vec![t]
+        });
+        assert_eq!(
+            found,
+            Revalued {
+                kept: 1,
+                opaque: 0,
                 laundered: 0,
             }
         );

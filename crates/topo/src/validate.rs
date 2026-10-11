@@ -1663,7 +1663,7 @@ pub enum ValidationError {
         /// whose two faces share one carrier by key.
         margin: Option<geom_core::MarginDiag>,
     },
-    /// Tier 3′: a declared contact record has no geometric witness —
+    /// Tier 3′: a contact record has no geometric witness —
     /// the named entities do not coincide (or no longer resolve).
     /// Silent tolerance of unconfirmed declarations is forbidden
     /// (F1/F2(iii), the other direction of the certification diff).
@@ -1671,8 +1671,8 @@ pub enum ValidationError {
         /// The unconfirmed declaration.
         declaration: StaleDeclaration,
     },
-    /// Tier 3′ (C4): a declared contact meets DEFINITE counter-evidence
-    /// — the declaration is a lie where it meets the geometry.
+    /// Tier 3′ (C4): a contact record meets DEFINITE counter-evidence
+    /// — the record is a lie where it meets the geometry.
     ///
     /// Distinct from [`Self::StaleContactDeclaration`], which is the
     /// *absence* of a witness: this is the presence of a
@@ -1747,7 +1747,7 @@ pub enum ValidationError {
     /// chart-overlap lane, so a census arm that needs one could not
     /// examine this face pair — a fact about the door, not about the
     /// geometry. Two arms raise it: the conformal face-pair sweep on an
-    /// undeclared candidate, and the declared-record confirm pass
+    /// unrecorded candidate, and the record confirm pass
     /// (`confirm_curve_and_patch_records`' Door 2) on a declared patch.
     ///
     /// The `_structural` doors ([`validate_pseudomanifold_structural`],
@@ -2298,7 +2298,7 @@ impl fmt::Display for CensusContact {
     }
 }
 
-/// A declared contact the census could not confirm (tier 3′).
+/// A contact record the census could not confirm (tier 3′).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg_attr(
@@ -2960,17 +2960,14 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, Cow<'sta
             };
             return (why, m.ending(Reading::AtRest).into());
         }
-        O::BudgetExhausted {
-            last_round: geom_brep::LastRound::Improved,
-            ..
+        O::SampleCapReached { .. } => (DRIFT, "Recourse: split the face"),
+        O::SeedOverCap { .. } => (
+            "its fitted surface has more knot spans than the fit's sample limit can seed",
+            "Recourse: split the face",
+        ),
+        O::RefinementStalled { .. } | O::BoundNotFinite { best: Some(_), .. } => {
+            (DRIFT, geom_core::KERNEL_LIMIT_RECOURSE)
         }
-        | O::SampleCapReached { .. } => (DRIFT, "Recourse: split the face"),
-        O::BudgetExhausted {
-            last_round: geom_brep::LastRound::DidNotImprove,
-            ..
-        }
-        | O::RefinementStalled { .. }
-        | O::BoundNotFinite { best: Some(_), .. } => (DRIFT, geom_core::KERNEL_LIMIT_RECOURSE),
         O::BoundNotFinite { best: None, .. } => (
             "the fitted surface's error cannot be bounded at this offset distance",
             "Recourse: use an offset distance of larger magnitude",
@@ -3503,7 +3500,7 @@ fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
             crate::contact::CONTACT_RECOURSE_MARKED,
         ),
         ContactRefusal::Undeclared { .. } => (
-            "the faces touch with no declared contact behind them",
+            "the faces touch with no contact record behind them",
             crate::contact::CONTACT_RECOURSE_MARKED,
         ),
         ContactRefusal::NotCertifiable { .. } => (
@@ -8937,7 +8934,7 @@ pub fn validate_pseudomanifold<
 /// chart-region candidate and backs no crossing by a declared pair**:
 /// the pass hands the census no region door, so its two chart-region
 /// arms refuse rather than examine — the conformal face-pair arm on
-/// every same-key opposed-sense curved pair, and the declared-record
+/// every same-key opposed-sense curved pair, and the record
 /// confirm arm on every patch record whose pair passes Door 1 — each
 /// as [`ValidationError::CensusLaneUnsupported`] naming the pair; and
 /// the crossing rung's backing consult answers `false`, so an in-plane
@@ -15971,13 +15968,13 @@ mod offset_fit_door_rows {
     }
 
     /// The checks window ends each refinement refusal in its routed
-    /// sentence: a loop still improving when its budget or sample cap
-    /// ran out names splitting the face and no loosening at all, and a
+    /// sentence: a loop still improving when its sample cap ran out
+    /// names splitting the face and no loosening at all, and a
     /// loop that stopped improving names loosening as the last resort,
     /// whole, with nothing after it.
     #[test]
     fn a_refinement_refusal_ends_in_its_routed_sentence() {
-        use geom_brep::{BestBound, LastRound, OffsetFitError};
+        use geom_brep::{BestBound, OffsetFitError};
         let best = BestBound {
             bound: 1.5e-9,
             grid: (4, 5),
@@ -15989,31 +15986,19 @@ mod offset_fit_door_rows {
             }
             .to_string()
         };
-        let budget = |last_round| OffsetFitError::BudgetExhausted {
-            budget: 8,
-            grid: (5, 5),
+        let split = [says(OffsetFitError::SampleCapReached {
+            cap: 64,
+            rounds: 3,
+            grid: (64, 5),
             achieved: 2e-9,
             tolerance: 1e-9,
-            last_round,
             best,
-        };
-        let split = [
-            says(budget(LastRound::Improved)),
-            says(OffsetFitError::SampleCapReached {
-                cap: 64,
-                rounds: 3,
-                grid: (64, 5),
-                achieved: 2e-9,
-                tolerance: 1e-9,
-                best,
-            }),
-        ];
+        })];
         for msg in split {
             assert!(msg.ends_with("Recourse: split the face"), "{msg}");
             assert!(!msg.contains("loosen"), "{msg}");
         }
         let last_resort = [
-            says(budget(LastRound::DidNotImprove)),
             says(OffsetFitError::RefinementStalled {
                 rounds: 3,
                 grid: (5, 5),
