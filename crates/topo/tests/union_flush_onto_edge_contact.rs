@@ -1266,16 +1266,23 @@ const PIT: [[f64; 3]; 3] = [[1.0, 0.6, -0.3], [0.6, 1.0, -0.3], [1.0, 1.0, 0.5]]
 /// whole. Each spike's dangling null edge hangs at the pit's tip.
 /// Every op, in both operand orders, builds at the volume clipping
 /// each prism to each box gives ([`clipped_volume`]), and the result
-/// passes 3′ with `y`'s records carried.
-fn pit_holding_spikes(spikes: &[([[f64; 3]; 3], f64)], tol: Tol) {
+/// passes 3′ with `y`'s records carried, holding `records[k]` records in
+/// [`against_the_cube`]'s `k`-th op: a contact and its record both absent
+/// would pass 3′ where the census cannot see it.
+fn pit_holding_spikes(spikes: &[([[f64; 3]; 3], f64)], records: [usize; 6], tol: Tol) {
     for spike_first in [false, true] {
-        pit_holding_spikes_built(spikes, spike_first, tol);
+        pit_holding_spikes_built(spikes, spike_first, records, tol);
     }
 }
 
 /// [`pit_holding_spikes`] with each spike's union taken spike first or
 /// the holed block first.
-fn pit_holding_spikes_built(spikes: &[([[f64; 3]; 3], f64)], spike_first: bool, tol: Tol) {
+fn pit_holding_spikes_built(
+    spikes: &[([[f64; 3]; 3], f64)],
+    spike_first: bool,
+    records: [usize; 6],
+    tol: Tol,
+) {
     let pit = corner_prism(PIT, 3.0, tol);
     let block = finished(
         "block",
@@ -1325,7 +1332,8 @@ fn pit_holding_spikes_built(spikes: &[([[f64; 3]; 3], f64)], spike_first: bool, 
         1 + spikes.len(),
         "the pit's apex and each spike's corner"
     );
-    for (op, got) in against_the_cube(&y.body, &carried_rows(&y.contacts), tol) {
+    let ops = against_the_cube(&y.body, &carried_rows(&y.contacts), tol);
+    for ((op, got), records) in ops.into_iter().zip(records) {
         let want = match op {
             "y ∪ cube" | "cube ∪ y" => y_volume + 1.0 - common,
             "y ∖ cube" => y_volume - common,
@@ -1343,6 +1351,12 @@ fn pit_holding_spikes_built(spikes: &[([[f64; 3]; 3], f64)], spike_first: bool, 
         );
         let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
         assert!(verdict.is_ok(), "{op}: 3′ {:?}", verdict.err());
+        assert_eq!(
+            out.contacts.len(),
+            records,
+            "{op}: records {:?}",
+            out.contacts
+        );
     }
 }
 
@@ -1350,7 +1364,8 @@ fn pit_holding_spikes_built(spikes: &[([[f64; 3]; 3], f64)], spike_first: bool, 
 /// `0.5·(r₀ + r₂)` and `0.5·(r₁ + r₂)` rest on the cube's faces x = 1
 /// and y = 1, inside the pit, on a part of each face the section
 /// divides off: every op carries the rest on the piece that holds it,
-/// so ∖ keeps it and ∩ drops it with the piece. Red as the first row: the pit's dangling null
+/// so `cube ∖ y` keeps both (its two v-f records) and `cube ∩ y` drops
+/// them with the piece. Red as the first row: the pit's dangling null
 /// edge held the spike's cuts, and every op refused
 /// `SharedVertexCrossings`. Red if the spike's strut hangs at the cube's
 /// corner beside the pit's: the corner would be the In end of one and
@@ -1358,7 +1373,7 @@ fn pit_holding_spikes_built(spikes: &[([[f64; 3]; 3], f64)], spike_first: bool, 
 #[test]
 fn a_dangling_null_edge_holding_another_pairs_cut_builds_in_every_op() {
     let spike = [[1.0, 0.8, -0.1], [0.8, 1.0, -0.1], [1.0, 1.0, 0.2]];
-    pit_holding_spikes(&[(spike, 0.5)], Tol::witness());
+    pit_holding_spikes(&[(spike, 0.5)], [0, 1, 1, 0, 2, 1], Tol::witness());
 }
 
 /// **Two spikes in the pit**, side by side ([`pit_holding_spikes`]), in
@@ -1376,7 +1391,7 @@ fn a_dangling_null_edge_holding_two_pairs_cuts_builds_in_every_op() {
         0.4,
     );
     for spikes in [[one, two], [two, one]] {
-        pit_holding_spikes(&spikes, Tol::witness());
+        pit_holding_spikes(&spikes, [0, 3, 3, 0, 0, 3], Tol::witness());
     }
 }
 

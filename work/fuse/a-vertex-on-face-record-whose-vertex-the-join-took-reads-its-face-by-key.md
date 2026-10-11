@@ -29,3 +29,14 @@ piece drops it.
 The point of the joined vertex, kept with its substitution row (or
 read from the operand clone before the join), so `holder` can answer
 for it; a pose where a joined vertex rested on a divided face.
+
+## A vertex the merge killed (2026-10-11, PR 4650's review r1)
+
+The same holds where the record's vertex is no longer a vertex because
+`merge_coplanar_faces` killed it: `Descendants::absorb_merge` substitutes
+the killed vertex with the group's kept face, so the vertex end of the
+row `live()`s to a `Cell::Face`, and `carry_rows`' vertex-on-face loop
+reads the record's own face by key (the non-vertex arm beside
+`Descendants::holder`). A divided face then reads its key piece whatever
+piece the killed vertex's point lay on. Owed alongside the joined vertex:
+the killed vertex's point kept with its substitution row.

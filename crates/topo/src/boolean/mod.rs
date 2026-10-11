@@ -161,8 +161,11 @@ pub use contain::{
 };
 // Crate-internal: tier 3's check 9 decides two whole-circle loops
 // against each other (its contact arm 4) on the same loop
-// classification this module's own walk dispatches on.
-pub(crate) use contain::{driver_face_stale, loop_circle};
+// classification this module's own walk dispatches on, and the census
+// places a record's point in its face through the boolean's own read.
+pub(crate) use contain::{
+    CurvedPlacement, PlacementError, driver_face_stale, face_placement, loop_circle,
+};
 pub use discard::{DiscardRow, HeldEdge, lineage_root};
 // Crate-internal: tier 3's check 11 reads every vertex through the
 // join's own predicate.
@@ -2722,6 +2725,18 @@ pub enum BooleanError {
         /// wants a parameter inverse).
         closed: bool,
     },
+    /// **A rest the op carries could not be placed on the pieces of the
+    /// face it divided.** A vertex-on-face record's face was divided by
+    /// the section, and the record lands on the piece whose interior
+    /// holds its vertex (`ops::Descendants::holder`); no piece read
+    /// `In`, and this piece's read failed, so the rest may be on it.
+    RestPieceUnread {
+        /// The piece, in result keys.
+        face: FaceKey,
+        /// The containment door's refusal; `None` where the curved
+        /// chart trim gives no verdict for this face.
+        refusal: Option<ContainError>,
+    },
     /// The A/B lockstep invariant failed during joining, finishing, or
     /// the combine door (a kernel bug or corrupt reduction, loudly).
     JoinDesync {
@@ -3011,6 +3026,8 @@ pub enum BooleanErrorKind {
     JoinUndecided,
     /// [`BooleanError::JoinCarrierUnsupported`].
     JoinCarrierUnsupported,
+    /// [`BooleanError::RestPieceUnread`].
+    RestPieceUnread,
     /// [`BooleanError::JoinDesync`].
     JoinDesync,
     /// [`BooleanError::TornComponent`].
@@ -3229,6 +3246,7 @@ impl BooleanError {
             Self::Join(_) => BooleanErrorKind::Join,
             Self::JoinUndecided(_) => BooleanErrorKind::JoinUndecided,
             Self::JoinCarrierUnsupported { .. } => BooleanErrorKind::JoinCarrierUnsupported,
+            Self::RestPieceUnread { .. } => BooleanErrorKind::RestPieceUnread,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
             Self::TornComponent { .. } => BooleanErrorKind::TornComponent,
             Self::ShellWitnessExhausted { .. } => BooleanErrorKind::ShellWitnessExhausted,
@@ -3782,6 +3800,19 @@ impl core::fmt::Display for BooleanError {
                 crate::chord_join::UnderBoolean(e)
             ),
             Self::JoinUndecided(e) => write!(f, "{e}"),
+            Self::RestPieceUnread { face, refusal } => {
+                let preamble = format_args!(
+                    "the Boolean cannot tell which piece of a face it divided holds a vertex \
+                     resting on that face: it cannot read whether piece {face:?} holds it"
+                );
+                match refusal {
+                    Some(e) => write!(f, "{preamble} ({e})"),
+                    None => write!(
+                        f,
+                        "{preamble} (the containment door does not read this curved face's trim)"
+                    ),
+                }
+            }
             Self::JoinCarrierUnsupported {
                 edge,
                 carrier,
@@ -6962,6 +6993,7 @@ mod tests {
                 BooleanErrorKind::Join => "Join",
                 BooleanErrorKind::JoinUndecided => "JoinUndecided",
                 BooleanErrorKind::JoinCarrierUnsupported => "JoinCarrierUnsupported",
+                BooleanErrorKind::RestPieceUnread => "RestPieceUnread",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
                 BooleanErrorKind::TornComponent => "TornComponent",
                 BooleanErrorKind::ShellWitnessExhausted => "ShellWitnessExhausted",

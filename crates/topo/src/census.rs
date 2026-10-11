@@ -6434,7 +6434,7 @@ fn confirm_face_pair<T: Decide>(
     };
     let q = carrier.eval((t0 + t1) * T::from_f64(0.5));
     for face in [a, b] {
-        match face_holds(body, geo, face, q, band, errors) {
+        match face_holds(body, face, q, band, "pm_census_confirm_ff", errors) {
             Some(Some(FaceContainment::In)) => {}
             Some(Some(_)) => {
                 errors.push(stale);
@@ -6457,25 +6457,30 @@ fn confirm_face_pair<T: Decide>(
     }
 }
 
-/// Where `face` holds `q`, a point on its carrier: through the planar
-/// containment door for a planar face and the curved one otherwise.
-/// `Some(None)` where the curved door leaves the point unread; `None`
-/// where a decision escalated (pushed).
+/// Where `face` holds `q`, a point on its carrier: the boolean's own
+/// placement ([`crate::boolean::face_placement`]), a point decided off a
+/// planar face's plane read `Out`. `Some(None)` where the curved door
+/// leaves the point unread; `None` where a decision escalated or the door
+/// refused (pushed).
 fn face_holds<T: Decide>(
     body: &Body<T>,
-    geo: &Geo<T>,
     face: FaceKey,
     q: Point3<T>,
     band: Band,
+    on_plane: &'static str,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<FaceContainment>> {
-    match planar_face(geo, face) {
-        Some(f) => contain(body, f, q, band, errors).map(Some),
-        None => read_containment(
-            face,
-            crate::boolean::curved_face_containment(body, face, q, band),
-            errors,
-        ),
+    use crate::boolean::{CurvedPlacement, PlacementError};
+    match crate::boolean::face_placement(body, face, q, band, on_plane) {
+        Ok(CurvedPlacement::OffCarrier) => Some(Some(FaceContainment::Out)),
+        Ok(CurvedPlacement::Trim(at)) => Some(at),
+        Err(PlacementError::OnPlane(cause)) => {
+            errors.push(ValidationError::CensusEscalated { cause });
+            None
+        }
+        Err(PlacementError::Door(e)) => {
+            read_containment(face, Err::<(), _>(e), errors).map(|()| None)
+        }
     }
 }
 
@@ -6511,50 +6516,25 @@ fn confirm_vertex_on_face<T: Decide>(
         errors.push(stale);
         return;
     }
-    let Some(f) = geo.faces.iter().find(|f| f.key == face) else {
-        if !geo.curved_faces.contains(&face) {
-            errors.push(stale);
-            return;
-        }
+    if planar_face(geo, face).is_none() && !geo.curved_faces.contains(&face) {
+        errors.push(stale);
+        return;
+    }
+    match face_holds(body, face, q, band, "pm_census_confirm_vf", errors) {
+        Some(Some(FaceContainment::In)) => {}
+        Some(Some(_)) => errors.push(stale),
         // `None` is the door's remainder, not a refusal: no
         // `ContainError` stands behind it to carry, so it is named the
         // way the census names a configuration outside its lanes.
-        match read_containment(
-            face,
-            crate::boolean::curved_face_containment(body, face, q, band),
-            errors,
-        ) {
-            Some(Some(FaceContainment::In)) => {}
-            Some(Some(_)) => errors.push(stale),
-            Some(None) => errors.push(ValidationError::CensusUnsupported {
-                subject: CensusSubject::Entity(EntityId::Face(face)),
-                cause: CensusUnsupportedCause::ContactLane(
-                    crate::contact::ContactRefusal::NotCertifiable {
-                        what: "a vertex-on-face record on a curved face whose trim \
-                               the containment door does not read",
-                    },
-                ),
-            }),
-            None => {}
-        }
-        return;
-    };
-    match signed_is_zero(
-        "pm_census_confirm_vf",
-        Margin::of((q - f.origin).dot(f.normal)),
-        band,
-        errors,
-    ) {
-        Some(true) => {}
-        Some(false) => {
-            errors.push(stale);
-            return;
-        }
-        None => return,
-    }
-    match contain(body, f, q, band, errors) {
-        Some(FaceContainment::In) => {}
-        Some(_) => errors.push(stale),
+        Some(None) => errors.push(ValidationError::CensusUnsupported {
+            subject: CensusSubject::Entity(EntityId::Face(face)),
+            cause: CensusUnsupportedCause::ContactLane(
+                crate::contact::ContactRefusal::NotCertifiable {
+                    what: "a vertex-on-face record on a curved face whose trim \
+                           the containment door does not read",
+                },
+            ),
+        }),
         None => {}
     }
 }

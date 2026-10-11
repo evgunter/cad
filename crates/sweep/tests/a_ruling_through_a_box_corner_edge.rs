@@ -78,6 +78,15 @@ impl Axis {
             Self::Z => [(0.0, 2.0), (0.0, 2.0)],
         }
     }
+
+    /// The world point at frame coordinates `(u, v)` and `w` along.
+    fn world(self, u: f64, v: f64, w: f64) -> (f64, f64, f64) {
+        match self {
+            Self::X => (w, u, v),
+            Self::Y => (v, w, u),
+            Self::Z => (u, v, w),
+        }
+    }
 }
 
 /// The cylinder along `axis` whose wall holds the box edge at `(u, v)`
@@ -143,6 +152,11 @@ fn checked(what: &str, r: Result<BooleanResult<f64>, BooleanError>, vf: usize) -
         })
         .collect();
     assert_eq!(rests.len(), vf, "{what}: v-f records {rests:?}");
+    // `w ∖ b`'s corner edge lies in the near wall piece, and D1 owes an
+    // edge-face record for it beside its ends' rests; none is minted until
+    // the census can confirm one (the named gap
+    // `work/fuse/a-line-edge-in-a-curved-faces-interior-is-recorded-at-its-ends-only.md`),
+    // so this count moves when it lands.
     assert_eq!(
         bb.contacts.len(),
         vf,
@@ -254,5 +268,52 @@ fn a_prism_edge_along_a_cone_ruling_refuses_at_the_crossing_layer() {
             "cone: {op}: {:?}",
             r.map(|r| r.body().is_some())
         );
+    }
+}
+
+/// The post at the box edge `(u, v)` along `axis` (`(su, sv)` into the
+/// box): `u − 0.3·su` to `u + 0.1·su` across, `v + sv·[0.25, 0.35]`, over
+/// the middle third along the axis. Fused to the box, it leaves the box
+/// through the face at `u` and crosses the near wall piece, so that
+/// piece carries a ring.
+fn post(axis: Axis, (u, v): (f64, f64), (su, sv): (f64, f64)) -> AtRestBody<f64> {
+    let l = axis.length();
+    let a = axis.world(u - 0.3 * su, v + 0.25 * sv, l / 3.0);
+    let b = axis.world(u + 0.1 * su, v + 0.35 * sv, 2.0 * l / 3.0);
+    let span = |p: f64, q: f64| (p.min(q), p.max(q));
+    finished(
+        "the post",
+        brick(span(a.0, b.0), span(a.1, b.1), span(a.2, b.2), tol()),
+        tol(),
+    )
+}
+
+/// **A post through the near wall piece** (the review r1 pose): wall
+/// `∖` (box `∪` post), the post fused to the box and crossing the wall
+/// beside the ruling, at each of the box's twelve edges. The section of
+/// the post divides the wall again, and the rests at the corner edge's
+/// ends still land on the piece that holds them: two v-f records, tier 3′
+/// against them, each face holding its vertex. The post's section loop
+/// leaves no curved piece with a ring (the join bridges it into the
+/// piece's boundary), so every piece's trim reads.
+#[test]
+fn a_post_through_the_near_wall_piece_keeps_the_rests_on_their_piece() {
+    let t = tol();
+    let the_box = the_box();
+    let sign = |at: f64, (lo, _): (f64, f64)| if at == lo { 1.0 } else { -1.0 };
+    for axis in [Axis::X, Axis::Y, Axis::Z] {
+        let [ru, rv] = axis.across();
+        for u in [ru.0, ru.1] {
+            for v in [rv.0, rv.1] {
+                let s = (sign(u, ru), sign(v, rv));
+                let w = wall_through(axis, (u, v), s);
+                let what = format!("{axis:?} edge at ({u}, {v}): w ∖ (box ∪ post)");
+                let b = match topo::union(&the_box, &post(axis, (u, v), s), t) {
+                    Ok(BooleanResult::Body(bb)) => bb.body,
+                    other => panic!("{what}: box ∪ post builds: {other:?}"),
+                };
+                checked(&what, topo::subtract(&w, &b, t), 2);
+            }
+        }
     }
 }

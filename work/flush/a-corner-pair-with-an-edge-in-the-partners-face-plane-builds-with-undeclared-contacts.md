@@ -66,8 +66,9 @@ E does not reach this. The coincidence is an EDGE lying in the partner's face pl
 
 ## Measured (2026-10-11, PR 4650)
 
-`corner_pairs_battery` with the plain outcome lines, sorted and diffed
-whole (23730 lines each), on main's merge base `8c8f3b4c` and on
+`corner_pairs_battery`'s outcome lines, sorted and diffed whole
+(16380 lines each, beside `join1_delta_arc_battery`'s 7350, which were
+diffed in the same pass), on main's merge base `8c8f3b4c` and on
 `flush/corner-ruling-tier3`: exactly 287 lines move, all from
 `t3p=false` to `OK SOUND`, by pair w300-w270 107, w343-w330 93,
 w350-w200 87 (this row's counts), and no other line moves. On PR 4604's

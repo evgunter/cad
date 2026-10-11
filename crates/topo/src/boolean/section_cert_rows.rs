@@ -1536,18 +1536,14 @@ fn an_off_carrier_witness_places_nowhere() {
         (-1.0, 1.0),
         Tol::witness(),
     );
-    let surface = body
-        .get_surface(body.get_face(wall).unwrap().surface)
-        .unwrap()
-        .clone();
     assert_eq!(
-        ops::place_witness(&body, wall, &surface, p(0.0, 1.5, 0.0), band()),
+        ops::place_witness(&body, wall, p(0.0, 1.5, 0.0), band()),
         None,
         "0.5 off the unit wall"
     );
     // On the carrier and outside the half-wall's window: a real `Out`.
     assert_eq!(
-        ops::place_witness(&body, wall, &surface, p(0.0, -1.0, 0.0), band()),
+        ops::place_witness(&body, wall, p(0.0, -1.0, 0.0), band()),
         Some(FaceContainment::Out)
     );
 }
