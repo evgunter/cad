@@ -81,6 +81,8 @@ mod chart_box_span;
 
 #[path = "axis_rows_read_as_one_sum.rs"]
 mod axis_rows_read_as_one_sum;
+#[path = "computed_values_enter_as_unknowns.rs"]
+mod computed_values_enter_as_unknowns;
 #[path = "curved_torus_arc_residual.rs"]
 mod curved_torus_arc_residual;
 #[path = "cylinder_green_conditioning.rs"]
@@ -125,8 +127,12 @@ mod offb_r1_probes;
 mod onb_wall_frame_interval;
 #[path = "pcurve_frame_premise_rows.rs"]
 mod pcurve_frame_premise_rows;
+#[path = "pn_apex_point_reach.rs"]
+mod pn_apex_point_reach;
 #[path = "props_cone_apex_cap.rs"]
 mod props_cone_apex_cap;
+#[path = "props_cone_ring.rs"]
+mod props_cone_ring;
 #[path = "props_sphere_circle_loop.rs"]
 mod props_sphere_circle_loop;
 #[path = "props_sphere_pole_side.rs"]
@@ -220,6 +226,8 @@ mod rim_dim_scale_twins;
 mod s58_iso_rectangle;
 #[path = "s81_one_rim_level_rule.rs"]
 mod s81_one_rim_level_rule;
+#[path = "sketch_segment_restriction.rs"]
+mod sketch_segment_restriction;
 #[path = "span_meter_dim_twins.rs"]
 mod span_meter_dim_twins;
 #[path = "ssi_limb3_one_arc.rs"]

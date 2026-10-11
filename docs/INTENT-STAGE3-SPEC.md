@@ -102,7 +102,7 @@ Each intermediate state is a whole representation:
 
 **Pose variables** (`var.rs`). A pose is only defined (FORK-S3P), by `VarDef::Pose(PoseDef)`:
 
-- **Read off geometry.** `Plane { face: Face }` (a face reads as a plane: its carrier's plane with its outward normal); `Axis { of: Face | Edge }` (a carrier's axis or an edge's line); `Point { of: Face | Edge }` (a carrier's centre). No definition reads a carrier's reference direction, so DM1's `FaceFrame` and its spin have no successor.
+- **Read off geometry.** `Plane { face: Face }` (a face reads as a plane: its carrier's plane with its outward normal); `Axis { of: Face | Edge }` (a carrier's axis or an edge's line); `Point { of: Face | Edge | Vertex }` (a carrier's centre, or a vertex's point). No definition reads a carrier's reference direction, so DM1's `FaceFrame` and its spin have no successor.
 - **`InFrame { frame, coords }`**: a pose written by coordinates over scalar variables in a frame the definition reads. That frame is itself a definition (a construction over poses read off geometry), so `InFrame` never starts from nothing. A tolerance on a datum's position is a tolerance on these scalars (VR8 unchanged).
 - **The named constructions** (FORK-1b), each refusing its degenerate case typed at evaluation, never an automatic join: `Through { axis, point } → Frame` refuses a point on the axis; `Meet { a: Plane, b: Plane } → Axis` refuses parallel planes; the rest wait for a reader (Q1).
 - **`Flip { pose }`**: the opposite sense of a `Direction`, `Axis`, `Plane` or `Frame`. It is an involution the door normalises to one side, and it has no `Point` arm (FORK-S3M).

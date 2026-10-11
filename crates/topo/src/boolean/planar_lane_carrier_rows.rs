@@ -29,7 +29,7 @@ use crate::euler::{FaceSurface, MefSite, MevSite};
 use crate::test_support_fixtures::brick;
 use crate::{Body, FaceKey};
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::{Point3, Tol, Vec3};
 
 /// The Bézier arc's control net, peak height `h`.
@@ -177,8 +177,7 @@ fn spiric_cap() -> (Body<f64>, crate::EdgeKey) {
             p1,
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1: torus,
-                    s2: plane,
+                    pair: SurfacePair::new(torus, plane),
                     witness: spiric.eval(0.0),
                 },
                 carrier: spiric,
@@ -246,7 +245,7 @@ fn sweep_a(
         &crate::boolean::separating::OperandAxes::new(crate::boolean::boxes::axis_key),
         Tol::witness(),
     )?;
-    Ok((x, acc.finish()))
+    Ok((x, acc.finish().0))
 }
 
 /// The arc's closed form at `t`.
@@ -353,7 +352,6 @@ fn an_arc_crossing_a_cylinder_wall_refuses() {
     cyl_wall_sheet(
         &mut b,
         CylFrame::canonical(1.0),
-        None,
         (0.0, core::f64::consts::PI),
         (-1.0, 1.0),
         Tol::witness(),
@@ -402,7 +400,6 @@ fn a_spiric_crossing_a_cylinder_wall_refuses() {
     cyl_wall_sheet(
         &mut b,
         CylFrame::canonical(2.5),
-        None,
         (0.0, core::f64::consts::PI),
         (-2.0, 2.0),
         Tol::witness(),

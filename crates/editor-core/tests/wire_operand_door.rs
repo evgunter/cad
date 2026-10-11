@@ -39,8 +39,8 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    AssertionDir, Datum, DocEdit, EditError, EvalOptions, Formula, Node, NodeErrorKind, PartSelect,
-    PatternKind, ProfileDoc, RecipeNodeId, SlotKind, TubeWindow, VarKind,
+    Datum, DocEdit, EditError, EvalOptions, Formula, Node, NodeErrorKind, PartSelect, PatternKind,
+    ProfileDoc, RecipeNodeId, SlotKind, TubeWindow, VarKind,
 };
 use fixture::{ang, desc, insert, len, on_frame_keeping, scl, square};
 use geom_core::Tol;
@@ -174,9 +174,8 @@ fn wired() -> (
         "body_operand over a plane datum (Shell)",
         Owes::EditDoor(VarKind::Plane, SlotKind::Is(VarKind::Body)),
         Node::Shell {
-            target: plane.into(),
             thickness: len(0.1),
-            open: vec![],
+            open: editor_core::Operand::select(plane, vec![]),
         },
         plane,
     );
@@ -186,9 +185,8 @@ fn wired() -> (
         "body_operand over instances (Shell of a pattern)",
         Owes::EditDoor(VarKind::Bodies, SlotKind::Is(VarKind::Body)),
         Node::Shell {
-            target: pattern.into(),
             thickness: len(0.1),
-            open: vec![],
+            open: editor_core::Operand::select(pattern, vec![]),
         },
         pattern,
     );
@@ -271,18 +269,6 @@ fn wired() -> (
             minor_radius: len(0.5),
         },
         profile,
-    );
-    doc = add(
-        doc,
-        &mut rows,
-        "wire_assertion's measure operand — behind the edit door",
-        Owes::EditDoor(VarKind::Plane, SlotKind::Measured),
-        Node::Assertion {
-            measure: plane.into(),
-            bound: len(1.0),
-            dir: AssertionDir::AtMost,
-        },
-        plane,
     );
     doc = add(
         doc,
@@ -444,7 +430,7 @@ fn every_operand_refusal_names_the_phrase_asked_for_and_the_family_found() {
     // door that answers a constant.
     assert_eq!(phrases.len(), 1, "the document-reachable row");
     assert_eq!(families.len(), 1);
-    assert_eq!(doors.len(), 16, "the rows the edit door refuses");
+    assert_eq!(doors.len(), 15, "the rows the edit door refuses");
     let mut found: Vec<VarKind> = doors.iter().map(|d| d.0).collect();
     found.sort_unstable_by_key(|k| format!("{k:?}"));
     found.dedup();

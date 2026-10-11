@@ -470,6 +470,14 @@ BOUNDS_ALLOWLIST=(
   # which has no certified enclosure (`real.rs`'s entry).
   'crates/topo/src/boolean/carrier_touch.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/mod.rs 5 2026-07-29 (M5 PR 8), the driver amendment'
+  # glue.rs's three are the glue door's box sweep, the amendment's
+  # funnel shape: `overlapping_pairs` builds each face's certified box
+  # (`boxes::face_box`) and walks the box-overlapping cross pairs, and
+  # its two readers carry the bound to call it: `decided_declarations`,
+  # which hands each pair to the carrier ladder, and `coaxial_rows`,
+  # which decides the cylinder × sphere pairs' coaxial frame. None
+  # reads a bracket of its own beyond the box builders'.
+  'crates/topo/src/boolean/glue.rs 3 2026-07-29 (M5 PR 8), the driver amendment'
   # ops.rs's no-crossings extent checks and its crossings-path guard
   # are one driver seam: each reads the certified face boxes the sweep
   # built and decides on them, the amendment's funnel shape. The
@@ -592,7 +600,14 @@ BOUNDS_ALLOWLIST=(
   # the function is reached only through `QuadLane::certified`'s second
   # field, the same door `cut_face_rounds` is, so it is never formed at
   # a dual.
-  'crates/topo/src/props/quad_lane.rs 15 M5 PR 11, the certified-quadrature plumbing'
+  # 15 -> 16: `spiric_face` assembles a spiric-bounded plane cap or
+  # torus wall for `geom_brep::props::spiric`, lifting the face's loops,
+  # lifted images and envelopes through `Interval::from_certified`
+  # (`Decide + CertifiedBounds`). It is reached only from
+  # `cut_face_rounds`, under `QuadLane::certified`'s first field, so it
+  # is the same plumbing at the same door and is never formed at a
+  # dual; it reads no bracket of `T` itself.
+  'crates/topo/src/props/quad_lane.rs 16 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   # 15 -> 17: `chain_turns` is predicate 4's loop moved out of
   # `run_battery_for` whole (its junction-end pick the one bracket read,

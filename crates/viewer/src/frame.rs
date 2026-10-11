@@ -21,10 +21,9 @@
 //! the types decide which, not the caller — and [`frame_status`]'s
 //! ranking over a frame's news. **The toolbar
 //! badge for the landed product** ([`product_badge`]) and the rest of
-//! the badge family beside it. **The draft and the offers a refused
-//! batch leaves behind** ([`retype_draft`], [`creation_offer`],
-//! [`declare_offer`]), **and the one a failed instance makes**
-//! ([`version_offer`]).
+//! the badge family beside it. **The draft and the offer a refused
+//! batch leaves behind** ([`retype_draft`], [`creation_offer`]), **and
+//! the one a failed instance makes** ([`version_offer`]).
 //! **What a folded event stream amounts to** ([`folded_moved`],
 //! [`fold_status`]), **what a frame says about work outstanding**
 //! ([`progress`]), and **where a file dialog opens** ([`dialog_dir`]).
@@ -250,8 +249,8 @@ use crate::scene::FittedDelta;
 use crate::scene::SceneError;
 use crate::seats::SeatEvent;
 use crate::session::{
-    AtRestBadge, DeclareOffer, EdgeSelection, FaceSelection, OpOutcome, Outstanding, Refusal,
-    Selection, SessionOp, VersionOffer,
+    AtRestBadge, EdgeSelection, FaceSelection, OpOutcome, Outstanding, Refusal, Selection,
+    SessionOp, VersionOffer,
 };
 use crate::tools::ToolNotice;
 use crate::vocab::{partial_mirror, vocabulary};
@@ -1501,15 +1500,15 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
 ///
 /// - A stranded appearance key's `AppearanceLoss` is evaluation's
 ///   report to the API, and nothing in this viewer draws it.
-/// - A stranded payload name is retold only where its CARRIER fails on
-///   it, and this door cannot know that it will. Any carrier poisoned
+/// - A stranded payload or selected name is retold only where its
+///   CARRIER fails on it, and this door cannot know that it will. Any carrier poisoned
 ///   by an upstream failure has a row that names the ancestor, not the
 ///   strand; and the carrier's
 ///   kind and its evaluation are not in the row. Where the retelling
 ///   cannot be shown, the answer is `Never` ([`Retold`]'s burden).
 pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
     let retold = match row {
-        Maintenance::Strand { .. } => Retold::Never,
+        Maintenance::Strand { .. } | Maintenance::StrandedSelection { .. } => Retold::Never,
         // The reading node's own row refuses `UnresolvedRead` at the
         // next evaluation, before any poison from upstream, naming the
         // operand.
@@ -2225,7 +2224,10 @@ pub fn tool_news(text: impl Into<String>, retold: Retold) -> Message {
 /// `None`, passed through; that doc says when.
 ///
 /// A certified assembly is [`Tone::Advisory`]: the verdict is good
-/// news and there is nothing to act on. A refusal is
+/// news and there is nothing to act on, unless it reports a loud
+/// overlap between copies, which only the reader can answer and which
+/// then leads the badge. A
+/// refusal is
 /// [`Tone::Actionable`] — it is the gate declining to certify the
 /// product on screen, and the reader is the only one who can answer
 /// it.
@@ -2235,11 +2237,35 @@ pub fn tool_news(text: impl Into<String>, retold: Retold) -> Message {
 /// badge naming itself.
 pub fn at_rest_badge(at_rest: Option<&AtRestBadge>) -> Option<Badge> {
     Some(match at_rest? {
-        AtRestBadge::Certified { minted } => Badge::read(
-            Subject::Document,
-            format!("at rest: certified ({minted} declaration(s))"),
-            Tone::Advisory,
-        ),
+        AtRestBadge::Certified {
+            minted,
+            loud,
+            quiet,
+        } => {
+            // A loud overlap leads: it is what the reader acts on, and
+            // "certified" before it would read as nothing to do.
+            let (text, tone) = match (loud, quiet) {
+                (0, 0) => (
+                    format!("at rest: certified ({minted} declaration(s))"),
+                    Tone::Advisory,
+                ),
+                (0, quiet) => (
+                    format!(
+                        "at rest: certified ({minted} declaration(s), interference: 0 loud, \
+                         {quiet} quiet)"
+                    ),
+                    Tone::Advisory,
+                ),
+                (loud, quiet) => (
+                    format!(
+                        "at rest: interference: {loud} loud, {quiet} quiet \
+                         ({minted} declaration(s) certified)"
+                    ),
+                    Tone::Actionable,
+                ),
+            };
+            Badge::read(Subject::Document, text, tone)
+        }
         AtRestBadge::Refused { message } => Badge::read(
             Subject::Document,
             format!("at rest: {message}"),
@@ -2304,33 +2330,43 @@ pub struct CheckRow {
 }
 
 /// An unproven coincidence's cells as the selections that show them,
-/// each with its button's label.
-fn coincidence_cells(finding: &CheckFinding, by: Speaker<'_>) -> Vec<(String, Selection)> {
+/// each with its button's label. A cell named at an operand READ shows
+/// as the node defining that read in `landed`; a read `landed` holds no
+/// node for has no node to select and is left out.
+fn coincidence_cells(
+    finding: &CheckFinding,
+    by: Speaker<'_>,
+    landed: &Doc<ProfileProgram>,
+) -> Vec<(String, Selection)> {
     let CheckEvidence::UnprovenCoincidence { row, .. } = &finding.evidence else {
         return Vec::new();
     };
     row.cells
         .iter()
-        .map(|cell| match cell {
+        .filter_map(|cell| match cell {
             NamedCell::Entity { input, name } => {
+                let node = landed.operation_of(*input)?;
                 let select = match name.kind {
                     EntityKind::Face => Selection::Face(FaceSelection {
                         name: name.clone(),
-                        node: *input,
+                        node,
                         body: 0,
                     }),
                     EntityKind::Edge => Selection::Edge(EdgeSelection {
                         name: name.clone(),
-                        node: *input,
+                        node,
                         body: 0,
                     }),
-                    EntityKind::Vertex | EntityKind::Body => Selection::Node(*input),
+                    EntityKind::Vertex | EntityKind::Body => Selection::Node(node),
                 };
-                (by.name(name).to_string(), select)
+                Some((by.name(name).to_string(), select))
             }
-            NamedCell::Tool { input } => (by.node(*input).to_string(), Selection::Node(*input)),
+            NamedCell::Tool { input } => {
+                let node = landed.operation_of(*input)?;
+                Some((by.node(node).to_string(), Selection::Node(node)))
+            }
             NamedCell::Piece { profile, .. } => {
-                (by.node(*profile).to_string(), Selection::Node(*profile))
+                Some((by.node(*profile).to_string(), Selection::Node(*profile)))
             }
         })
         .collect()
@@ -2359,7 +2395,7 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
                 node,
                 button: by.node(node).to_string(),
                 sentence: Said(finding, by).to_string(),
-                cells: coincidence_cells(finding, by),
+                cells: coincidence_cells(finding, by, landed),
             }
         })
         .collect()
@@ -2967,47 +3003,6 @@ pub fn creation_offer(refusal: Option<&Refusal>) -> Option<VarName> {
         | ParseError::UnknownFunction { .. }
         | ParseError::WrongArity { .. }
         | ParseError::Dimension { .. } => None,
-    }
-}
-
-/// **The declare offer a refused batch leaves behind** — the offer a
-/// boolean's undeclared-contact refusal makes
-/// ([`crate::session::RefusedBoolean::offer`]), for the frame loop to
-/// hold for the boolean tool the way it holds [`creation_offer`]'s name
-/// for the add-variable form. `None` for every other refusal and for a
-/// clean batch.
-///
-/// The two offers go stale differently, and each says how where it is
-/// shown: a name to create stands until the name field moves past it,
-/// while a declaration is sited in one document, so it stands only at
-/// the generation it was refused at ([`DeclareOffer::is_for`]).
-pub fn declare_offer(refusal: Option<&Refusal>) -> Option<DeclareOffer> {
-    match refusal? {
-        Refusal::Contact(refused) => refused.offer(),
-        Refusal::DrivenByExpression { .. }
-        | Refusal::NoSuchSlot { .. }
-        | Refusal::NoSuchVariable(_)
-        | Refusal::VariableIsDefined(_)
-        | Refusal::NotOffered(_)
-        | Refusal::OfferIsNamed(_)
-        | Refusal::ConstantRefused { .. }
-        | Refusal::EmptyName
-        | Refusal::WrongNodeKind { .. }
-        | Refusal::Duplicate(_)
-        | Refusal::Edit(_)
-        | Refusal::Dimension(_)
-        | Refusal::Parse(_)
-        | Refusal::NoGesture
-        | Refusal::GestureInFlight
-        | Refusal::WrongGesture
-        | Refusal::Io(_)
-        | Refusal::NothingToDo { .. }
-        | Refusal::Display(_)
-        | Refusal::SlotUnit(_)
-        | Refusal::NoDocumentDirectory
-        | Refusal::Workspace(_)
-        | Refusal::SelfInstance { .. }
-        | Refusal::ProfileEditStale { .. } => None,
     }
 }
 

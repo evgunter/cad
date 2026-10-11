@@ -59,6 +59,8 @@ mod revolve_common;
 mod a_move_through_a_neighbour_inverts_the_body;
 #[path = "a_plane_across_a_one_face_wall.rs"]
 mod a_plane_across_a_one_face_wall;
+#[path = "a_plane_moved_to_a_cone_apex.rs"]
+mod a_plane_moved_to_a_cone_apex;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
 #[path = "a_ring_on_a_cone_face.rs"]
@@ -67,6 +69,8 @@ mod a_ring_on_a_cone_face;
 mod a_ring_on_a_sphere_face;
 #[path = "a_ruling_lying_on_a_wall.rs"]
 mod a_ruling_lying_on_a_wall;
+#[path = "a_swaying_loft_corner_meters.rs"]
+mod a_swaying_loft_corner_meters;
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
 #[path = "a_tube_ending_on_a_ball.rs"]
@@ -231,6 +235,8 @@ mod torax_interval;
 mod transform_nurbs_walls;
 #[path = "trim_3_chart_bound_bodies.rs"]
 mod trim_3_chart_bound_bodies;
+#[path = "tube_rim_touch_rows.rs"]
+mod tube_rim_touch_rows;
 #[path = "unjoined_operand_at_a_dual.rs"]
 mod unjoined_operand_at_a_dual;
 #[path = "verbs_offc_consumer.rs"]
@@ -304,6 +310,8 @@ mod blend_operand_gate;
 mod blend_seam_split_rim;
 #[path = "blend_tworims.rs"]
 mod blend_tworims;
+#[path = "blend_value_decided_rows.rs"]
+mod blend_value_decided_rows;
 #[path = "bool5r1_probes.rs"]
 mod bool5r1_probes;
 #[path = "cert5_offgrid_knot_rational.rs"]
@@ -584,13 +592,13 @@ mod s393_start_frame_door;
 mod s49_census_jurisdiction;
 #[path = "seam_vertex_sites.rs"]
 mod seam_vertex_sites;
+#[path = "shell_general_door.rs"]
+mod shell_general_door;
 #[path = "strut_cover_on_cylinder_pairs.rs"]
 mod strut_cover_on_cylinder_pairs;
 
 #[path = "run_walls_built.rs"]
 mod run_walls_built;
-#[path = "seat6_germ_channel.rs"]
-mod seat6_germ_channel;
 #[path = "split_across_a_revolve_seam.rs"]
 mod split_across_a_revolve_seam;
 #[path = "split_along_a_face_plane.rs"]
@@ -722,6 +730,8 @@ mod germ_coplanar_conic;
 mod germ_interior_oval;
 #[path = "germ_interior_saddle.rs"]
 mod germ_interior_saddle;
+#[path = "germ_radial_hole.rs"]
+mod germ_radial_hole;
 #[path = "germ_sphere_no_crossings.rs"]
 mod germ_sphere_no_crossings;
 #[path = "germ_tilted_rod.rs"]

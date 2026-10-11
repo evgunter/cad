@@ -91,7 +91,7 @@ use core::ops::ControlFlow;
 use crate::enters::LeverEscalation;
 use geom::Surface;
 use geom_core::k_stats::{Magnitude, NonzeroSign};
-use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign};
+use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign};
 
 use crate::implicit::{curvature_lever_arm, implicit_gradient, implicit_outward_normal};
 use crate::recourse::{AtZero, SizedDecision, SizedPass, StoredDefinite};
@@ -218,6 +218,27 @@ pub(crate) fn decide_reported<T: Decide>(
     geom_core::k_stats::decide_reported(name, margin, band)
 }
 
+/// The crate's **magnitude door**
+/// ([`geom_core::k_stats::decide_magnitude`]): for a margin that is
+/// nonnegative by construction, whose two signs are both verdicts.
+pub(crate) fn decide_magnitude<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<Magnitude, Indeterminate> {
+    geom_core::k_stats::decide_magnitude(name, margin, band)
+}
+
+/// [`decide_magnitude`], keeping the reporting margin it decided on
+/// ([`geom_core::k_stats::decide_magnitude_reported`]).
+pub(crate) fn decide_magnitude_reported<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(Magnitude, MarginDiag), Indeterminate> {
+    geom_core::k_stats::decide_magnitude_reported(name, margin, band)
+}
+
 /// The crate's **collapsed-arm gate**, the same wrapper one door over
 /// ([`geom_core::k_stats::decide_positive`]): for a predicate whose
 /// question is only validly posed through a definitely-positive margin
@@ -245,15 +266,14 @@ pub(crate) fn decide_nonzero<T: Decide>(
     geom_core::k_stats::decide_nonzero(name, margin, band)
 }
 
-/// The crate's **magnitude door**
-/// ([`geom_core::k_stats::decide_magnitude`]): for a margin that is
-/// nonnegative by construction, whose two signs are both verdicts.
-pub(crate) fn decide_magnitude<T: Decide>(
+/// [`decide_nonzero`], keeping the reporting margin the passing sign was
+/// decided on ([`geom_core::k_stats::decide_nonzero_reported`]).
+pub(crate) fn decide_nonzero_reported<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
-) -> Result<Magnitude, Indeterminate> {
-    geom_core::k_stats::decide_magnitude(name, margin, band)
+) -> Result<(NonzeroSign, MarginDiag), Indeterminate> {
+    geom_core::k_stats::decide_nonzero_reported(name, margin, band)
 }
 
 /// **`dihedral_wedge`** — classifies the wedge between `s1` and `s2` at
@@ -856,23 +876,22 @@ pub enum MustCarryRefusal {
 
 impl MustCarryVerdict {
     /// The one mapping from the verdict to what the join stores:
-    /// jet-determinate ⇒ the intrinsic `TangentIntersection { s1, s2,
+    /// jet-determinate ⇒ the intrinsic `TangentIntersection { pair,
     /// witness }`, under-determined ⇒ conventional, in-band and
-    /// transverse ⇒ a typed refusal. `s1`/`s2` are the keys of the
-    /// surfaces [`must_carry_over_edge`] was asked about, in its order.
+    /// transverse ⇒ a typed refusal. `pair` names the surfaces
+    /// [`must_carry_over_edge`] was asked about.
     ///
     /// # Errors
     ///
     /// [`MustCarryRefusal`] on an in-band or transverse verdict.
     pub fn description<T: Real>(
         self,
-        s1: crate::SurfaceKey,
-        s2: crate::SurfaceKey,
+        pair: crate::SurfacePair,
         witness: Point3<T>,
     ) -> Result<MustCarryDescription<T>, MustCarryRefusal> {
         match self {
             Self::JetDeterminate => Ok(MustCarryDescription::Intrinsic(
-                crate::EdgeDescriptionSpec::TangentIntersection { s1, s2, witness },
+                crate::EdgeDescriptionSpec::TangentIntersection { pair, witness },
             )),
             Self::UnderDetermined => Ok(MustCarryDescription::Conventional),
             Self::InBand(source) => Err(MustCarryRefusal::InBand(source)),
@@ -1399,23 +1418,24 @@ mod tests {
 
     /// The one verdict-to-description mapping every smooth-join caller
     /// stores by: each verdict lands on its own answer, and the
-    /// intrinsic one names the pair in the order the rule was asked.
+    /// intrinsic one names the pair the rule was asked about.
     #[test]
     fn must_carry_description_maps_each_verdict() {
         let mut keys = slotmap::SlotMap::<crate::SurfaceKey, ()>::with_key();
         let (a, b) = (keys.insert(()), keys.insert(()));
+        let pair = crate::SurfacePair::new(a, b);
         let witness = Point3::new(1.0, 2.0, 3.0);
-        match MustCarryVerdict::JetDeterminate.description(a, b, witness) {
+        match MustCarryVerdict::JetDeterminate.description(pair, witness) {
             Ok(MustCarryDescription::Intrinsic(
-                crate::EdgeDescriptionSpec::TangentIntersection { s1, s2, witness: w },
-            )) => assert!(
-                s1 == a && s2 == b && w.distance(witness) == 0.0,
-                "{s1:?} {s2:?} {w:?}"
-            ),
+                crate::EdgeDescriptionSpec::TangentIntersection {
+                    pair: got,
+                    witness: w,
+                },
+            )) => assert!(got == pair && w.distance(witness) == 0.0, "{got:?} {w:?}"),
             other => panic!("jet-determinate must be the intrinsic tangency: {other:?}"),
         }
         assert!(matches!(
-            MustCarryVerdict::UnderDetermined.description(a, b, witness),
+            MustCarryVerdict::UnderDetermined.description(pair, witness),
             Ok(MustCarryDescription::Conventional)
         ));
         let source = MustCarryEscalation::SecondOrder(Indeterminate {
@@ -1425,11 +1445,11 @@ mod tests {
             terminal_sliver: false,
         });
         assert!(matches!(
-            MustCarryVerdict::InBand(source).description(a, b, witness),
+            MustCarryVerdict::InBand(source).description(pair, witness),
             Err(MustCarryRefusal::InBand(s)) if s == source
         ));
         assert!(matches!(
-            MustCarryVerdict::Transverse.description(a, b, witness),
+            MustCarryVerdict::Transverse.description(pair, witness),
             Err(MustCarryRefusal::Refuted)
         ));
     }

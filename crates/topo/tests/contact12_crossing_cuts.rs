@@ -92,10 +92,13 @@ fn the_bare_lap_seat_reports_each_stretch_inside_its_face() {
 fn the_declared_lap_seat_certifies() {
     let (body, cap, underside) = lap_seat();
     let records = ContactRecords {
-        patches: vec![PatchContact {
-            face_a: cap,
-            face_b: underside,
-        }],
+        patches: vec![topo::Cited::new(
+            PatchContact {
+                face_a: cap,
+                face_b: underside,
+            },
+            topo::Cites::decided(0),
+        )],
         ..ContactRecords::default()
     };
     let found = errors(&body, &records);

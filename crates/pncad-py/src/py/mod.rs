@@ -112,11 +112,10 @@ pyo3::create_exception!(
      operator check is not the library's only dimension check, and \
      the document layer's own refusal type reaches Python under \
      DOOR names rather than one type name: `LiteralError` from \
-     literal construction, from the measurement constructors and from \
-     the recorded-program lift; `ParseError` with `variant == \
+     literal construction and from the recorded-program lift; `ParseError` with `variant == \
      \"dimension\"` from `Doc.parse_formula`; `EditError` from \
      `Doc.apply`; and `PersistError` with `variant == \"dimension\"` \
-     from `load`. Six doors, four classes — the roster with each \
+     from `load`. Five doors, four classes — the roster with each \
      one's attribute is on `ErrorClass::DIMENSION_DOORS` in \
      `crate::errors`. Each carries the failing check's own tag, so \
      which check refused is branchable at every one."
@@ -147,12 +146,11 @@ pyo3::create_exception!(
      Not `QuantityOpMismatch`: that one is the quantity boundary's \
      operator check, a different type. The expression layer's refusal \
      type has dimension-mismatch arms too, and it reaches Python at \
-     six doors under four class names — the roster is on \
+     five doors under four class names — the roster is on \
      `ErrorClass::DIMENSION_DOORS` in `crate::errors`. THIS class is \
-     three of those six: literal construction, the measurement \
-     arithmetic constructors, and the recorded-program lift (which \
-     spells its tag `variant` rather than `kind` — filed, not \
-     decided)."
+     two of those five: literal construction, and the recorded-program \
+     lift (which spells its tag `variant` rather than `kind` — filed, \
+     not decided)."
 );
 pyo3::create_exception!(
     pncad,
@@ -550,21 +548,6 @@ pyo3::create_exception!(
 );
 pyo3::create_exception!(
     pncad,
-    MeasureNodeFault,
-    PncadError,
-    "`Node.measure` was handed an expression that reads a reference \
-     the node does not carry. Carries `variant` (the stable tag), \
-     `verb` (which primitive reads it), `index` (the out-of-range \
-     one) and `refs` (how many the node carries).\n\n\
-     The kernel's own `Node::measure` decides this — the one \
-     construction door, running the check the edit door and the load \
-     door's re-check both run — so a measure Python accepts is one a \
-     document accepts. Raised EARLY, at the node rather than at the \
-     edit: the same fault reaches `EditError` as `measure_malformed` \
-     when a document is loaded or edited another way."
-);
-pyo3::create_exception!(
-    pncad,
     MeasureUnavailableAt,
     PncadError,
     "A measure whose answer is an ENCLOSURE, read at a build whose \
@@ -766,7 +749,6 @@ fn raise_typed(
         ErrorClass::Enforce => CheckRefusal::new_err(message),
         ErrorClass::Distribution => DistributionFault::new_err(message),
         ErrorClass::Measure => MeasureUnavailable::new_err(message),
-        ErrorClass::MeasureNode => MeasureNodeFault::new_err(message),
         ErrorClass::MeasureUnavailableAt => MeasureUnavailableAt::new_err(message),
         ErrorClass::AnalysisPolicy => AnalysisPolicyError::new_err(message),
         ErrorClass::Mc => McRefusal::new_err(message),
@@ -874,7 +856,6 @@ fn class_discriminant(class: ErrorClass) -> Option<ClassDiscriminant> {
         | ErrorClass::Enforce
         | ErrorClass::Distribution
         | ErrorClass::Measure
-        | ErrorClass::MeasureNode
         | ErrorClass::MeasureUnavailableAt
         | ErrorClass::AnalysisPolicy
         | ErrorClass::Mc
@@ -941,7 +922,6 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("CheckRefusal", py.get_type::<CheckRefusal>())?;
     m.add("DistributionFault", py.get_type::<DistributionFault>())?;
     m.add("MeasureUnavailable", py.get_type::<MeasureUnavailable>())?;
-    m.add("MeasureNodeFault", py.get_type::<MeasureNodeFault>())?;
     m.add(
         "MeasureUnavailableAt",
         py.get_type::<MeasureUnavailableAt>(),

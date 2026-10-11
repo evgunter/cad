@@ -1336,3 +1336,68 @@ Ev said go.
 - **Next cut planned** (2026-10-09): unit 15 is the moved fit's corners (P2, H, dual), dispatched after #4404. Unit 16 is the tilted read's three P3 gaps (`shell/tilted-read-gaps`; M-tier, rule-1 byte 178, sequential). The wall seam waits for a designer pair after 15.
 - **Unit 13 merged** (PR 4404, DR-126): a fitted face's section with a plane is its fit's. C5 routes plane × `Approx` over the fit; the edge stores `Intersection { plane, approx }` with the plane always first; certify reads the fit through `spline_chart()`. Each rim's verdict is pinned behind the seams. Dual review: no MAJOR, fair pair. The row renumbered twice (DR-122, then DR-124) as other programs merged while CI ran. A curved-fit certify row is in the slow set under the ≥ 1 s rule. Filed: the corner gap (P2), QUAD's trimmed-fit volume rule (P3), HONE's stale composition citation (P4).
 - **Unit 15 dispatched** (2026-10-09): the moved fit's corners (`shell/fitted-corners`, H, dual review).
+- **Unit 16 review 1** (PR 4467, sequential, head fd80908701): REJECT, one MAJOR (executed). The arc refinement ignores half-edge orientation, so a minus-oriented spline or spiric arc's cut has holes, and `walls_cross` reads a 0.06 m overlap as clear. Reachable on the bowl sector's caps, right there only by distance. Fix pass sent (orientation; minus-orientation rows; the speed ball intersected with the hull ball). A second Opus review is owed on the fixed head.
+- **Unit 16 review 2** (PR 4467, head 1b400e68f4): APPROVE-WITH-FIXES, no MAJOR. Review 1's MAJOR is confirmed fixed. The reviewer could not build an adjacent-wall crossing through `shell` (105 shapes). Final pass sent: a symmetric Zero contact (the verdict depended on argument order), pins for the weight term and the hull ball, the over-coverage claim corrected, the interval enclosure, and the shared spiric ball. The orchestrator checks the delta and merges; no third review.
+- **Unit 16 merged** (PR 4467, DR-133, M-tier sequential): the tilted read now accepts a Zero touch only at a shared vertex, reads edge-adjacent pairs less their joints, and refines spline and spiric edges on their carrier with the window run the way the half-edge runs. A contact on `L` is read from either side. Review 1 REJECT: one MAJOR, a minus-oriented arc read a 0.06 m overlap as clear. Fixed; review 2 APPROVE-WITH-FIXES with no MAJOR. Filed: `clearance-footprint-reads-an-arc-as-its-whole-carrier-ball` (P3). Note: the row was not quite the last commit; the lane's work-note commit landed after it, concurrently.
+- **Unit 15 dual review dispatched** (2026-10-10 06:4xZ, PR 4472, frozen head 7b5120d42e, CI green): a concurrent Opus pair on one identical brief. Blinding byte 53. Each lane has its own worktree, target and log directory, so the shared-log glimpse from DR-126 cannot recur.
+- **Wall-seam designer pair dispatched** (2026-10-10): `a-wall-seam-between-two-fits-has-no-section`, one Opus and one Fable on the same problem statement. Byte 242, committed to `analysis/design-fork/shell-wall-seam`. They run alongside unit 15's review, because the seam needs design before it can be priced.
+- **Filed** `a-saddle-walls-offset-fit-stalls-short-of-the-default-eps` (P3, M, measure first). This is unit (e) of the wall-seam cut.
+- **Unit 15 dual review** (PR 4472, head 7b5120d42e, byte 53: A = R2, B = R1).
+  - R1: APPROVE-WITH-FIXES with 1 MAJOR. `incident_edges` levers a derived section's root decision by `extent_of` read at the old edge's parameters, extrapolated on the new domain. The value was measured (an arm 2–4.5× the chord) and the orchestrator verified the path at head.
+  - R2: APPROVE-WITH-FIXES with no MAJOR. A held non-plane surface at a corner now refuses `CornerSection` (the lane's `Unsupported`) where the corner used to build. Traced only; the orchestrator verified the path.
+  - Bilateral: the ε-end rule's doc scope, the seed taken from the domain end, the triplicated agreement predicate, and weak rows.
+  - Rule 3: each lane saw the other's process listing, but no findings, so the pair is fair. The next brief says to poll by own PID only.
+  - Ruling: fix the MAJOR, R2's MINOR and the ε-boundary row, plus the doc and style items, in one pass.
+- **Wall-seam fork to Ev** (2026-10-10, fork-log row 106): `a-wall-seam-between-two-fits-has-no-section`.
+  - The designer pair agrees on the final state, recorded in the item's `## Designed`:
+    - the crease seam is a fit × fit section;
+    - `shell` moves every chart through one general simultaneous door;
+    - the iso-row arm narrows;
+    - curved clearance is promoted to a gate;
+    - D2 does not change now.
+  - They split on one question, now an `[ev]` PR: whether the NURBS × NURBS arm is a seeded operation, with C5 rows stating seeded or complete, or one complete arm. It took three rounds: round 1 crossed over, round 2 returned both to their first positions, and round 3 held.
+  - Unit cut, pending the ruling:
+    - (a) narrow the iso-row arm (M; independent of the ruling);
+    - (b) the general simultaneous door (H; can precede the arm against plane + fit pairs);
+    - (c) the NURBS × NURBS arm, whose scope is set by the ruling;
+    - (d) curved clearance as a gate;
+    - (e) the saddle fit's reach at the default ε (measure first; no item yet).
+- **Wall-seam fork ruled** (PR 4515, 2026-10-10). Ev chose B: one complete NURBS × NURBS arm, built as a `Section` handle with `branch_at(seed)` and `all()`. `shell` asks only `branch_at`; the boolean asks `all()`.
+  - Before the ruling, Ev asked whether B could avoid computing work it throws away. Both designers answered yes. A's lazy variant always ran the proof.
+  - The ruling is recorded in the item's `## Decided`, and `needs_ev` is cleared.
+  - Unit (c), the arm, is scoped by it. Units (a), the iso-row narrowing, and (b), the general door, are unaffected.
+- **Filed** `shell-moves-every-chart-of-a-solid-through-one-simultaneous-door` (P2, H). It is unit (b) of the wall-seam cut, the door half of PR 4515's designed state.
+- **Unit 15 merged** (PR 4472, DR-138, H tier, concurrent pair). A moved fitted face bounded by planes now solves its corners: the held planes are rooted along the derived plane × fit sections (route 1).
+  - The review's MAJOR is fixed: a derived section levers its roots at its own domain's extent.
+  - A lane verdict on a derived section contributes no root.
+  - One `gap_within_eps` helper holds the single ε read.
+  - The orchestrator merged main twice before merging; the second merge kept both test modules in `replace_face.rs`.
+  - Filed from the unit: SSIEDGE one-arc on a window edge, QUAD sub-range trim image, SHELL iso-row u-moving image.
+- **Units 17 and 18 dispatched** (2026-10-10 09:37–09:41Z).
+  - Unit 17: narrow the iso-row arm. Session `session_01RZJC9khmQTn8f8veyfg6rH`, branch `shell/iso-row-narrow`, M tier; rule-1 byte 37 (mod 3 = 1) puts it in the sequential arm.
+  - Unit 18: the general simultaneous door. Session `session_01De5VWXHkEBqhmCXCzNUivh`, branch `shell/general-door`, H tier, dual review.
+  - Both specs are in the dispatch prompts, as `## Decided` sections the lanes copy into their items.
+- **Filed** `intent/the-plate-verdict-pin-holds-only-at-the-default-eps` (P4, E), found by unit 17's differential: the tour's plate pin is ε-dependent.
+- **Unit 17 review 1** (PR 4525, sequential arm, head 533bfea562): APPROVE-WITH-FIXES, no MAJOR, so there is no review 2.
+  - F1, MINOR, executed: `normal_in_plane_along` accepts steps that point opposite ways along m, so `holds_the_move` can answer true for a nearly singular net whose moved row lies 0.1 off the plane. It is made must-fix.
+  - Docs, the wrap row's reflection guard, and the domain assumption go into the same pass.
+- **Unit 17's DR row became DR-145.** NURBS's PR 4518 took DR-144 first, and that row was the 20th M-tier unit, so the full readout under rule 9 is the NURBS orchestrator's to raise. Unit 17 is the 21st.
+  - Main also carried a stale duplicate tally line, left by DR-143's commit; the DR-145 commit removes it.
+- **Unit 18 dual review** (PR 4524, head 610099b473; byte 0, so A = R1 and B = R2). Both reviewers said APPROVE-WITH-FIXES, and both raised the same MAJOR, each executed.
+  - The MAJOR: a G1 (plane × cylinder) corner refuses `Escalated{MarginDiag(Invalid)}` from a NaN. Newton runs with g·d = 0 before the graze check, where base refused honestly `EdgeSection Tangent`. Repros: a stadium prism, a filleted box, and a box with every edge rounded.
+  - Bilateral MINORs: the collapse payload reads the first mover's d, and the curved-cap row has no z check.
+  - R1's unilateral MINOR: G1 transport is unused at a whole-solid corner, and a tangent candidate is fatal even when a transversal one exists.
+  - Tally: 0, since the MAJOR is bilateral. The pair counts as fair: no glimpse was disclosed, and the brief forbade system-wide process listings.
+  - Ruling: fix both MAJORs' root and the MINORs, plus the docs and style items, in one pass. The pre-existing unnamed collapse refusal is filed rather than fixed.
+- **Unit 17 merged** (PR 4525, DR-145, M tier, sequential arm).
+  - `plan_edge`'s iso-row arm extracts a moved fit's row only for a self-shared image, or beside a neighbour that `holds_the_move`. The new Nurbs/Approx × Plane arm requires steps along the normal, one-way, with equal weights.
+  - Every other iso image takes the section route, so both seams of a lofted wall now refuse alike.
+  - The arm reads the image's own row, reflected through 0 when the edge runs against it, and the wrap flag travels.
+  - The orchestrator merged main twice; the row was renumbered DR-144 → DR-145, and a stale duplicate tally line was removed.
+- **Unit 18 merged** (PR 4524, DR-148, H tier, concurrent pair). `topo::offset_surfaces_together` is the general simultaneous door: every non-planar, non-axial solid moves all its charts at once. Edges are transported where both offset actions agree, and are otherwise sections of the two moved surfaces; corners are rooted with every surface moved. `shell`'s PerChart arm is retired.
+  - The review's bilateral MAJOR is fixed: a G1 corner escalated a NaN. The graze is now decided before every Newton step, grazing candidates root nothing, and fully transported corners take their transports. The stadium prism and the one- and twelve-fillet boxes now build at their closed forms.
+  - Filed `a-move-past-a-fitted-solids-reach-refuses-op-not-the-collapse` (P3).
+  - The orchestrator merged main once, a union of the slow-set line.
+  - Next per the plan: unit 19, the NURBS × NURBS arm (`Section` handle, `branch_at`/`all()`), as ruled in PR 4515.
+- **Unit 19 dispatched** (2026-10-10 20:28Z): the NURBS × NURBS section arm, as ruled in PR 4515 (a `Section` handle with `branch_at` and `all()`). Session `session_01CdW9zFCmnxvk8MaZHdoV5w`, branch `shell/nurbs-nurbs-section`, H tier, dual review.
+- 2026-10-11 — Seam note from ENCL (PR 4538, merged): C2 limb 2 (`ssi_hull_sup`, `ssi_hull_sup_chart`) now subdivides its Bernstein composite before refusing. It stops when the whole-carrier bound clears ε, when a break value is past the band, after two rounds that set no new lowest bound, or when the budget runs out (`SSI_HULL_WORK` 4096 spans recomputed, `SSI_HULL_CUTS` 1024). It reads the limb on the lowest round's hull. Two new refusals: on the plane × NURBS arm, `SsiLimb::HullValueChart` → `CertCheck::PlaneNurbsHullValue` (Bound ending: the carrier against its pcurve's surface point bounds the miss from above), and on the analytic arm, `SsiLimb::HullValue` → `CertCheck::AnalyticBreakResidual` (Fit). Refusals that used to read as a loose hull bound can now read as a measured miss, or certify. (ENCL orchestrator) For shell: `sweep/tests/shell_general_door.rs` `a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold` now accepts either limb-2 refusal at ε<1e-7. At 1e-9 the rim refuses on its break value (`HullValueChart`, ~4.4e-7 m).

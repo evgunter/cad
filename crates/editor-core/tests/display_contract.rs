@@ -18,12 +18,12 @@ use editor_core::mate::SurfaceKind;
 use editor_core::{
     AssemblyError, CapEnd, CarriedRefusal, Clash, ContactClass, DeclareError, Diagnosis, Dimension,
     DimensionError, DocRef, DocumentId, EditError, EntityKind, EvalError, FreeValue, HitTestError,
-    InterrogateError, Lever, LeverRefusal, Maintenance, MateFault, MateSide, MeasureNodeFault,
-    MeshPickError, MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError,
-    ParseError, PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId,
-    RecordedProgramError, RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, Route,
-    SelectRefusal, SlotId, SnapshotError, StableName, StepArg, StepId, StepIdFault,
-    StepSegmentsError, UnnamedEntity, VarName,
+    InterrogateError, Lever, LeverRefusal, Maintenance, MateFault, MateSide, MeshPickError,
+    MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError, ParseError,
+    PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId, RecordedProgramError,
+    RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, Route, SelectRefusal,
+    SlotId, SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError,
+    UnnamedEntity, VarName,
 };
 use editor_core::{ListFault, Mispaired, NameLookupError, NodeStanding, SpokenName, SpokenNode};
 use geom_core::BandError;
@@ -157,8 +157,8 @@ fn stable_name_display_is_its_role_of_its_feature() {
 }
 
 /// **A flush pair one boolean carried says two different faces**, each
-/// by its role and its feature, and the one the boolean's B brought in
-/// by its join; the sentence meets the refusal standard.
+/// by its role and its feature and by the read the boolean carried it
+/// in through; the sentence meets the refusal standard.
 #[test]
 fn a_pair_in_band_says_two_faces_of_one_node_apart() {
     use editor_core::NameRef;
@@ -167,15 +167,18 @@ fn a_pair_in_band_says_two_faces_of_one_node_apart() {
         node: RecipeNodeId::new(0, tagged(node)),
         path: vec![RoleSeg::Cap(end)],
     };
-    let carried = |seg: fn(NameRef) -> RoleSeg, inner| StableName {
+    let carried = |read: u64, inner| StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId::new(0, tagged(9)),
-        path: vec![seg(NameRef::new(inner))],
+        path: vec![RoleSeg::From {
+            read: editor_core::VarId::new(0, tagged(read)),
+            of: NameRef::new(inner),
+        }],
     };
     let refusal = SelectRefusal::PairInBand {
         pair: Box::new((
-            carried(RoleSeg::FromA, operand(2, CapEnd::End)),
-            carried(RoleSeg::FromB, operand(5, CapEnd::Start)),
+            carried(2, operand(2, CapEnd::End)),
+            carried(5, operand(5, CapEnd::Start)),
         )),
         at: (
             RecipeNodeId::new(0, tagged(9)),
@@ -187,8 +190,9 @@ fn a_pair_in_band_says_two_faces_of_one_node_apart() {
     let shown = refusal.to_string();
     assert!(
         shown.starts_with(
-            "select: the end cap of node 000000000002 and the start cap of node \
-             000000000005, through operand B of node 000000000009 may coincide (margin "
+            "select: the end cap of node 000000000002, through read 000000000002 at node \
+             000000000009 and the start cap of node 000000000005, through read \
+             000000000005 at node 000000000009 may coincide (margin "
         ),
         "{shown}"
     );
@@ -935,14 +939,10 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
     assert_f6(
         &EditError::AssertionDimension {
             node: held(5, "Assertion"),
-            measure: held(4, "Measure"),
             measured: Dimension::Length,
             bound: Dimension::Angle,
         },
-        &[
-            "bounds Measure 000000000004, which measures a length",
-            "with an angle expression",
-        ],
+        &["bounds a length value", "with an angle expression"],
         &dumps,
     );
     assert_f6(
@@ -1077,20 +1077,22 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
     assert_f6(
         &SnapshotError::AssertionBound {
             node: held(5, "Assertion"),
-            measure: held(4, "Measure"),
             measured: Dimension::Length,
             bound: Dimension::Angle,
         },
-        &["bounds Measure 000000000004, which measures a length, with an angle expression"],
+        &["bounds a length value with an angle expression"],
         &dumps,
     );
     assert_f6(
-        &SnapshotError::AssertionTarget {
-            node: held(5, "Assertion"),
-            measure: held(4, "Extrude"),
-            bound: Dimension::Count,
+        &SnapshotError::ObservedRead {
+            node: held(5, "Extrude"),
+            slot: editor_core::SlotId::Distance,
+            var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
         },
-        &["carries a count bound", "which is not a measure"],
+        &[
+            "slot distance reads",
+            "a measured value, which only an assertion reads",
+        ],
         &dumps,
     );
 }
@@ -1104,7 +1106,8 @@ test_utils::f6_variants! {
         OperandUnminted,
         SlotVarKind,
         ReadsWorldCopy,
-        MeasuresWorldCopy,
+        SelectionShape,
+        SelectionBody,
         ReadCycle,
         WitnessSite,
         WitnessOnMissingNode,
@@ -1131,14 +1134,13 @@ test_utils::f6_variants! {
         PlacementNonRigid,
         MateAlignment,
         PlacementRule,
-        MeasureRefs,
         InputList,
-        DuplicateInput,
-        AssertionTarget,
         AssertionBound,
+        ObservedRead,
         MetadataUnversioned,
         StepIds,
         MintLogOrder,
+        NameReadNotMinted,
         NameStepNotMinted,
         DeclaredNameNotUpstream,
     ];
@@ -1178,8 +1180,8 @@ fn a_node_refusal_names_its_slot_by_its_label() {
 /// `Debug` dump.
 ///
 /// The payload-carrying arms forward their payload's own `Display`
-/// (`PlacementRuleFault`, `MeasureNodeFault`,
-/// `InputFault`, `MetaVersionError`) rather than restating it, and the
+/// (`PlacementRuleFault`, `InputFault`, `MetaVersionError`) rather
+/// than restating it, and the
 /// two placement-frame arms forward the frame rule's clause — so each
 /// case below asks for the payload's words, which is what proves the
 /// forwarding happened.
@@ -1230,17 +1232,30 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         (
             SnapshotError::ReadsWorldCopy {
                 node: node(),
-                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::A),
+                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::From),
                 placement: absent(9),
             },
-            vec!["reads the world copy", "construction never reads the world"],
+            vec!["reads the world copy", "no construction reads"],
         ),
         (
-            SnapshotError::MeasuresWorldCopy {
-                node: node(),
-                placement: absent(9),
+            SnapshotError::SelectionShape {
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
+                fault: editor_core::SelectionFault::Repeated { first: 0, again: 1 },
             },
-            vec!["is sited at", "only the product and export read"],
+            vec!["is not a selection a door writes", "name 1 repeats name 0"],
+        ),
+        (
+            SnapshotError::SelectionBody {
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
+                fault: editor_core::SelectionBodyFault::Kind {
+                    body: Box::new(editor_core::SpokenVar::new(
+                        editor_core::VarId::new(0, 8),
+                        None,
+                    )),
+                    found: editor_core::VarKind::Profile,
+                },
+            },
+            vec!["selects in", "which is a profile, not a body"],
         ),
         (
             SnapshotError::ReadCycle { at: absent(9) },
@@ -1555,52 +1570,27 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec!["Pattern 000000000005: ", "placement list is empty"],
         ),
         (
-            SnapshotError::MeasureRefs {
-                node: held(5, "Measure"),
-                fault: MeasureNodeFault::RefIndexOutOfRange {
-                    verb: "distance",
-                    index: 3,
-                    refs: 2,
-                },
-            },
-            vec!["Measure 000000000005: ", "reads reference 3"],
-        ),
-        (
             SnapshotError::InputList {
                 node: held(5, "Union"),
-                fault: ListFault::TooFew { found: 1 },
+                fault: ListFault::IndexedFamily,
             },
-            vec!["Union 000000000005: a list input takes two or more entries"],
-        ),
-        (
-            SnapshotError::DuplicateInput {
-                node: held(5, "Union"),
-                input: held(9, "Revolve"),
-            },
-            vec!["Union 000000000005: Revolve 000000000009 is taken as an input twice"],
-        ),
-        (
-            SnapshotError::AssertionTarget {
-                node: held(5, "Assertion"),
-                measure: held(4, "Measure"),
-                bound: Dimension::Count,
-            },
-            vec![
-                "Assertion 000000000005 carries a count bound against Measure 000000000004",
-                "which is not a measure",
-            ],
+            vec!["Union 000000000005: the family argument carries an index"],
         ),
         (
             SnapshotError::AssertionBound {
                 node: held(5, "Assertion"),
-                measure: held(4, "Measure"),
                 measured: Dimension::Length,
                 bound: Dimension::Angle,
             },
-            vec![
-                "Assertion 000000000005 bounds Measure 000000000004, which measures a length,",
-                "with an angle expression",
-            ],
+            vec!["Assertion 000000000005 bounds a length value with an angle expression"],
+        ),
+        (
+            SnapshotError::ObservedRead {
+                node: held(5, "Extrude"),
+                slot: editor_core::SlotId::Distance,
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
+            },
+            vec!["Extrude 000000000005's slot distance reads"],
         ),
         (
             SnapshotError::MetadataUnversioned {
@@ -1640,6 +1630,32 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 "does not count up from one at step 000000000006",
                 "which no mint writes",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+            ],
+        ),
+        (
+            SnapshotError::NameReadNotMinted {
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId::new(0, tagged(5)),
+                        path: vec![RoleSeg::From {
+                            read: editor_core::VarId::new(0, tagged(9)),
+                            of: StableName {
+                                kind: EntityKind::Face,
+                                node: RecipeNodeId::new(0, tagged(4)),
+                                path: vec![RoleSeg::Cap(editor_core::CapEnd::End)],
+                            }
+                            .into(),
+                        }],
+                    },
+                    node(),
+                ),
+                read: editor_core::VarId::new(0, tagged(9)),
+            },
+            vec![
+                "carries the read",
+                "mint log does not hold",
+                "never minted it",
             ],
         ),
         (
@@ -1943,8 +1959,8 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
     let member_wall = StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId::new(0, tagged(8)),
-        path: vec![RoleSeg::FromMember {
-            member: RecipeNodeId::new(0, tagged(7)),
+        path: vec![RoleSeg::From {
+            read: editor_core::VarId::new(0, tagged(7)),
             of: NameRef::new(wall(2)),
         }],
     };
@@ -1962,9 +1978,12 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
                 gone: vec![],
                 new: vec![member_wall],
             },
+            // By tag the carry says the read the member's wall came in
+            // through and the node that carried it; what that node made
+            // of it is the document's to say.
             "the parent has new seams with the side wall over the profile step \
-             000000000002 of node 000000000006, joined at node 000000000008 from node \
-             000000000007",
+             000000000002 of node 000000000006, through read 000000000007 at node \
+             000000000008",
         ),
         (
             GroupCutters::Read {
@@ -2926,7 +2945,7 @@ fn naming_error_display_names_its_content_not_its_struct() {
         ),
         (
             NamingError::MemberEdgeTied {
-                member: RecipeNodeId::new(0, tagged(37)),
+                member: editor_core::VarId::new(0, tagged(37)),
                 edge: Box::new(StableName {
                     kind: EntityKind::Edge,
                     node: RecipeNodeId::new(0, tagged(37)),
@@ -2937,7 +2956,8 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 }),
             },
             vec![
-                "member node 000000000025",
+                // By tag a member read is said by its whole id.
+                "member read 000000000025's edge",
                 "a tie stands where one edge is needed",
             ],
         ),
@@ -3071,6 +3091,7 @@ test_utils::f6_variants! {
     const MAINTENANCE: Maintenance = [
         OffsetCleared,
         Strand,
+        StrandedSelection,
         StrandedAppearance,
         StrandedRead,
         LabelDropped,
@@ -3117,6 +3138,19 @@ fn maintenance_display_says_what_the_edit_did() {
                 // name went.
                 "this edit deleted Extrude 000000000007, which minted the name",
                 "resolves to nothing until it is rebound",
+            ],
+        ),
+        (
+            Maintenance::StrandedSelection {
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
+                readers: vec![held(5, "Datum frame (on face)")],
+                name: spoken_face_name(),
+                took: editor_core::Took::Piece,
+            },
+            vec![
+                "Datum frame (on face) 000000000005 selects the end cap of Extrude 000000000007",
+                "this edit kept a step it names but no longer draws that piece",
+                "so Datum frame (on face) 000000000005 refuses until the name is rebound",
             ],
         ),
         (
@@ -3677,29 +3711,21 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
         (
             EditError::AssertionDimension {
                 node: held(5, "Assertion"),
-                measure: held(4, "Measure"),
                 measured: Dimension::Length,
                 bound: Dimension::Angle,
             },
-            vec![held(5, "Assertion"), held(4, "Measure")],
+            vec![held(5, "Assertion")],
         ),
         (
-            EditError::AssertionTarget {
-                node: held(5, "Assertion"),
-                measure: held(4, "Extrude"),
+            EditError::ConstructionReadsObserved {
+                node: held(5, "Extrude"),
+                slot: editor_core::SlotId::Distance,
+                var: Box::new(editor_core::SpokenVar::new(
+                    editor_core::VarId::new(0, 7),
+                    None,
+                )),
             },
-            vec![held(5, "Assertion"), held(4, "Extrude")],
-        ),
-        (
-            EditError::MeasureMalformed {
-                node: held(4, "Measure"),
-                fault: MeasureNodeFault::RefIndexOutOfRange {
-                    verb: "min_clearance",
-                    index: 2,
-                    refs: 2,
-                },
-            },
-            vec![held(4, "Measure")],
+            vec![held(5, "Extrude")],
         ),
         (
             EditError::PayloadUnknownVarName {
@@ -3818,7 +3844,7 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
                     },
                     held(4, "Extrude"),
                 ),
-                site: held(4, "Extrude"),
+                site: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(4)), None),
             },
             vec![held(6, "Union"), held(4, "Extrude")],
         ),

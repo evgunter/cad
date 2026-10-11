@@ -7,8 +7,7 @@ declares unrepresentable, plus the typed-quantity boundary.
 
 from pncad import (
     MeasurePrimitive,
-    MeasureExpr,
-    AssertionDir,
+    AssertionRelation,
     AnalysisPolicy,
     analyzed_box,
     McConfig,
@@ -145,6 +144,11 @@ solid: NodeId = doc.insert(
 # `Length` or a `WrittenLength` at a length slot. A bare float is
 # dimensionless, so it is not a length.
 Node.extrude(solid, 1.0)  # ty: error
+
+# An index reads one member of a family, which is a body: no seat but a
+# body seat takes one, and an index is a count.
+Node.extrude(solid[0], Formula.length_in(1, m))  # ty: error
+solid[0.5]  # ty: error
 
 # A fillet selection is NAMES — the text a materializer answered with,
 # never node ids.
@@ -616,30 +620,27 @@ WrittenLength.canonical_in(0.025, mm)  # ty: error
 # A DIRECTION IS NOT A BOUND, and a bound is not a direction. The two
 # sit side by side on `Node.assertion` and the types are what keep the
 # order from being a thing to remember.
-Node.assertion(solid, doc.parse_formula("1 m"), AssertionDir.AtLeast)  # ty: error
-Node.assertion(solid, AssertionDir.AtLeast, AssertionDir.AtMost)  # ty: error
+_value = doc.output(solid)
+assert _value is not None
+Node.assertion(_value, doc.parse_formula("1 m"), AssertionRelation.AtLeast)  # ty: error
+Node.assertion(_value, AssertionRelation.AtLeast, AssertionRelation.AtMost)  # ty: error
 
-# A MEASURE IS NOT A NODE. The expression is a value the node is built
-# FROM; handing it where an id belongs confuses the two halves the
-# measurement vocabulary keeps apart.
-_span = MeasureExpr.primitive(MeasurePrimitive.distance(0, 1))
-Node.assertion(_span, AssertionDir.AtLeast, doc.parse_formula("1 m"))  # ty: error
-doc.insert(MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)))  # ty: error
-
-# A PRIMITIVE IS NOT AN EXPRESSION either: the leaf has to be lifted
-# through `MeasureExpr.primitive`, which is where the dimension is
-# read off the verb.
-MeasureExpr.add(MeasurePrimitive.distance(0, 1), _span)  # ty: error
+# A PRIMITIVE IS NOT A VALUE. It is what a measure is built FROM;
+# handing it where the value it measures belongs confuses the two
+# halves the measurement vocabulary keeps apart.
+_span = MeasurePrimitive.distance((solid, "a face"), (solid, "another"))
+Node.assertion(_span, AssertionRelation.AtLeast, doc.parse_formula("1 m"))  # ty: error
+doc.insert(_span)  # ty: error
 
 # A reference is a PAIR — the name alone does not say where its
 # carrier is read, which is the half that makes a measure report
 # placed geometry.
-Node.measure(_span, ["a face", "another"])  # ty: error
+MeasurePrimitive.distance("a face", "another")  # ty: error
 
 # The bound takes the expression door and not the quantity one: a
 # typed length cannot be an angle bound, and the whole point of the
-# `Formula` seat is that the dimension is the measure's.
-Node.assertion(solid, AssertionDir.AtLeast, 1 * mm)  # ty: error
+# `Formula` seat is that the dimension is the value's.
+Node.assertion(_value, AssertionRelation.AtLeast, 1 * mm)  # ty: error
 
 # The verb vocabulary is a frozen value: a primitive is restated by
 # building a new one, never by editing one in place.
@@ -738,10 +739,12 @@ for _placed in _import.instances:
 
 # A role-name door mints a name from a NODE and a profile `Piece`. A
 # name is not a node, a piece is not an index nor its text, the piece
-# is not optional, and the end vocabulary is closed: `MeridianEnd` names a
+# is not optional, `carried`'s read is a `Var` and not a node, and the end vocabulary is closed: `MeridianEnd` names a
 # revolve's ends and a `CapEnd` is an extrude's.
 _names_doc = Doc()
 _names_node: NodeId = _names_doc.sketch_frame()
+_names_read = _names_doc.output(_names_node, 0)
+assert _names_read is not None
 _piece: Piece = _names_doc.pieces(_names_node)[0][0]
 _text: str = str(_piece)
 _from_text: str = band(_names_node, _text)  # ty: error
@@ -750,5 +753,6 @@ _from_a_name: str = band(_minted, _piece)  # ty: error
 _from_an_index: str = band(_names_node, 0)  # ty: error
 _the_piece_is_not_optional: str = band(_names_node)  # ty: error
 _wrong_vocabulary: str = meridian_vertex(CapEnd.End, _names_node, _piece)  # ty: error
-_a_node_is_not_a_name: str = carried(_names_node, _names_node)  # ty: error
-_a_name_is_not_a_node: str = carried(_minted, _minted)  # ty: error
+_a_node_is_not_a_name: str = carried(_names_node, _names_read, _names_node)  # ty: error
+_a_name_is_not_a_node: str = carried(_minted, _names_read, _minted)  # ty: error
+_a_node_is_not_a_read: str = carried(_names_node, _names_node, _minted)  # ty: error

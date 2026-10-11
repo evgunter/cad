@@ -19,7 +19,7 @@ use pncad::prelude::StableName;
 /// live world placement.
 pub fn placed_var(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> Option<VarId> {
     match doc.node(placement)? {
-        Node::PlaceInWorld { body, .. } => Some(*body),
+        Node::PlaceInWorld { body, .. } => Some(body.read),
         _ => None,
     }
 }
@@ -127,6 +127,7 @@ pub fn placements_of_read(doc: &Doc<ProfileProgram>, read: &Operand) -> Vec<Reci
         Operand::Output { node, port } => doc.output(*node, *port),
         Operand::Var(var) => Some(*var),
         Operand::Name(name) => doc.var_named(name.as_str()),
+        Operand::Select { .. } => None,
     };
     var.map(|var| placements_of_var(doc, var))
         .unwrap_or_default()

@@ -6,9 +6,8 @@ status: open
 opened: 2026-10-02
 priority: P1
 cost: M
-design: true
 refs: [3790]
-blocked_on: [coincidences-are-recorded-at-one-door]
+rides_with: at-rest-records-are-unordered-cell-pairs
 ---
 
 
@@ -37,3 +36,24 @@ blocked on JOIN-1, but cheapest once its cell type exists.
 ## Parked on the D10 hold (2026-10-08)
 
 It changes the shape of the `CurveContact` record, which the one recording door replaces. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)
+
+## Re-parked on B2 (2026-10-10)
+
+Its trigger, stage 4 B (`coincidences-are-recorded-at-one-door`, PR
+4354), fired, but B left `ContactRecords` as it was (the S4-B ruling,
+option (b)); the record this row is about is rewritten by B2
+(`contact-records-cite-their-decision`, live on
+`intent/s4-b2-records-cite`), which makes every row cite its
+`Coincidence` across ~99 files. Building on the record's shape while
+B2 rewrites it would collide and be built twice. Re-read it against
+B2's merged record. (CONTACTHOLD orchestrator)
+
+## Ruled (Ev, PR 4547, 2026-10-10)
+
+The at-rest record is an unordered pair of the body's own cells plus
+its citations, in one list a citation addresses by position. It stores
+no operand label, no granularity and no witness, and every pair whose
+interiors meet is recorded (a straight edge in a plane included).
+Fork log row 108; D1 and C3 state it. What's left is the build. The
+boolean's reduction keeps its operand-tagged working set and drops the
+tags at carry. (CONTACTHOLD orchestrator)

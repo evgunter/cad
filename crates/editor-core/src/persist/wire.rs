@@ -1,8 +1,8 @@
 //! **What the document types cannot say for themselves.** Everything
 //! else in the recipe derives serde where it is declared; four things
-//! cannot, and this module is exactly those four.
+//! cannot, and this module is exactly those.
 //!
-//! # Two expression languages that must NOT deserialize field-by-field
+//! # The expression language, which must NOT deserialize field-by-field
 //!
 //! - [`Expr`] persists as a plain AST tree and is REBUILT through the
 //!   dimension-checking smart constructors on load — a corrupt or
@@ -12,10 +12,6 @@
 //!   prose — how a typed value leaves a `Deserialize` impl at all
 //!   is [`super::refusal`]'s subject. The cached
 //!   dimension is deliberately not persisted: it re-derives.
-//! - [`MeasureExpr`] is the same rule over the leaves the measurement
-//!   language adds, and a SEPARATE wire form for the reason the type is
-//!   separate: a shared one would make a primitive leaf representable
-//!   in a slot expression.
 //!
 //! # One FIELD that must not, inside a type that otherwise does
 //!
@@ -29,7 +25,7 @@
 //! `profile::ProfileLoop`. The wire rebuilds the PROGRAM only; loops
 //! exist through the replay driver at evaluation and nowhere else
 //! (serde is transport, the driver is the door — LIB-SWITCH §4h).
-//! Unlike the two expression languages above, then, this rebuild
+//! Unlike the expression language above, then, this rebuild
 //! TRUSTS the program's structure — only its slot expressions pass a
 //! constructor — and what re-checks it is the load door's snapshot
 //! program walk in `persist::check`, which refuses the lattice class
@@ -58,10 +54,8 @@ use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::doc::VarName;
-use crate::expr::{AuthoredLeaf, Dimension, DimensionError, Expr, ExprKind, Slot};
+use crate::expr::{AuthoredLeaf, Dimension, DimensionError, Expr, ExprKind};
 use crate::formula::Formula;
-use crate::measure::{MeasureExpr, MeasureKind, MeasurePrimitive};
-use crate::var::VarId;
 
 use super::nesting::Child;
 
@@ -220,54 +214,7 @@ macro_rules! wire_tree {
                 })
             }
         }
-
-        impl Wired for $form {
-            type Wire = $wire;
-            fn to_wire(&self, _dim: Dimension) -> $wire {
-                $wire::from(self)
-            }
-            fn rebuild_leaf(wire: &$wire) -> Result<(Self, Dimension), DimensionError> {
-                let leaf = wire.rebuild()?;
-                let dim = leaf.dim();
-                Ok((leaf, dim))
-            }
-        }
     };
-}
-
-/// **A persisted slot form and its wire vocabulary**: what a tree
-/// generic over its form ([`MeasureExpr`]) persists its value leaves
-/// as. A leaf is written with the dimension the tree reads it at, and
-/// rebuilt with the dimension it holds: an expression holds its own,
-/// and a stored slot, a bare variable id, holds the one written beside
-/// it.
-pub(crate) trait Wired: Sized {
-    /// The form's wire value.
-    type Wire: Serialize + for<'de> Deserialize<'de>;
-    /// The wire value of a leaf read at `dim`.
-    fn to_wire(&self, dim: Dimension) -> Self::Wire;
-    /// The leaf a wire value rebuilds, through its form's checking
-    /// constructors, and its dimension.
-    fn rebuild_leaf(wire: &Self::Wire) -> Result<(Self, Dimension), DimensionError>;
-}
-
-/// **A stored value leaf on the wire**: the variable, and the
-/// dimension the measure reads it at.
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct WireVarLeaf {
-    var: VarId,
-    dim: Dimension,
-}
-
-impl Wired for VarId {
-    type Wire = WireVarLeaf;
-    fn to_wire(&self, dim: Dimension) -> WireVarLeaf {
-        WireVarLeaf { var: *self, dim }
-    }
-    fn rebuild_leaf(wire: &WireVarLeaf) -> Result<(Self, Dimension), DimensionError> {
-        Ok((wire.var, wire.dim))
-    }
 }
 
 wire_tree! {
@@ -452,98 +399,3 @@ pub(crate) fn present<'de, D: Deserializer<'de>, T: serde::Deserialize<'de>>(
 ) -> Result<Option<T>, D::Error> {
     Option::deserialize(de)
 }
-
-/// The persisted MEASUREMENT expression (ERROR-DESIGN E3): the same
-/// arithmetic the document expression has, over the two leaves this
-/// language adds.
-///
-/// A separate wire enum rather than a grown [`WireExpr`], for the same
-/// reason [`MeasureExpr`] is a separate type: a primitive leaf is
-/// meaningless in a slot expression, and a shared wire form would make
-/// one representable there — a file could then carry a `distance` leaf
-/// in an extrude's distance, and the refusal would have to be invented
-/// at every rebuild site instead of being unrepresentable.
-#[derive(Debug, Serialize, Deserialize)]
-pub(crate) enum WireMeasureExpr<W> {
-    /// A closed-form measurement leaf.
-    Primitive(MeasurePrimitive),
-    /// An ordinary document expression leaf, in the measure's form.
-    Value(Box<W>),
-    /// Same-dimension addition.
-    Add(Child<WireMeasureExpr<W>>, Child<WireMeasureExpr<W>>),
-    /// Same-dimension subtraction.
-    Sub(Child<WireMeasureExpr<W>>, Child<WireMeasureExpr<W>>),
-    /// Negation.
-    Neg(Child<WireMeasureExpr<W>>),
-    /// Product (at least one Scalar operand).
-    Mul(Child<WireMeasureExpr<W>>, Child<WireMeasureExpr<W>>),
-    /// Quotient (Scalar divisor).
-    Div(Child<WireMeasureExpr<W>>, Child<WireMeasureExpr<W>>),
-    /// Same-dimension minimum.
-    Min(Child<WireMeasureExpr<W>>, Child<WireMeasureExpr<W>>),
-    /// Same-dimension maximum.
-    Max(Child<WireMeasureExpr<W>>, Child<WireMeasureExpr<W>>),
-}
-
-impl<S: Slot + Wired> From<&MeasureExpr<S>> for WireMeasureExpr<S::Wire> {
-    fn from(e: &MeasureExpr<S>) -> Self {
-        let b = |x: &MeasureExpr<S>| Child::new(WireMeasureExpr::from(x));
-        match e.kind() {
-            MeasureKind::Primitive(p) => WireMeasureExpr::Primitive(*p),
-            MeasureKind::Value(v) => WireMeasureExpr::Value(Box::new(v.to_wire(e.dim()))),
-            MeasureKind::Add(x, y) => WireMeasureExpr::Add(b(x), b(y)),
-            MeasureKind::Sub(x, y) => WireMeasureExpr::Sub(b(x), b(y)),
-            MeasureKind::Neg(x) => WireMeasureExpr::Neg(b(x)),
-            MeasureKind::Mul(x, y) => WireMeasureExpr::Mul(b(x), b(y)),
-            MeasureKind::Div(x, y) => WireMeasureExpr::Div(b(x), b(y)),
-            MeasureKind::Min(x, y) => WireMeasureExpr::Min(b(x), b(y)),
-            MeasureKind::Max(x, y) => WireMeasureExpr::Max(b(x), b(y)),
-        }
-    }
-}
-
-impl<W> WireMeasureExpr<W> {
-    /// Rebuilds through the DIMENSION-CHECKING constructors — the load
-    /// door is the construction door, so a file cannot carry a tree the
-    /// authoring API refuses.
-    fn rebuild<S: Slot + Wired<Wire = W>>(&self) -> Result<MeasureExpr<S>, DimensionError> {
-        let b = |x: &WireMeasureExpr<W>| x.rebuild();
-        match self {
-            WireMeasureExpr::Primitive(p) => Ok(MeasureExpr::primitive(*p)),
-            WireMeasureExpr::Value(v) => {
-                let (leaf, dim) = S::rebuild_leaf(v)?;
-                Ok(MeasureExpr::value_at(leaf, dim))
-            }
-            WireMeasureExpr::Add(x, y) => MeasureExpr::add(b(x)?, b(y)?),
-            WireMeasureExpr::Sub(x, y) => MeasureExpr::sub(b(x)?, b(y)?),
-            WireMeasureExpr::Neg(x) => MeasureExpr::neg(b(x)?),
-            WireMeasureExpr::Mul(x, y) => MeasureExpr::mul(b(x)?, b(y)?),
-            WireMeasureExpr::Div(x, y) => MeasureExpr::div(b(x)?, b(y)?),
-            WireMeasureExpr::Min(x, y) => MeasureExpr::min(b(x)?, b(y)?),
-            WireMeasureExpr::Max(x, y) => MeasureExpr::max(b(x)?, b(y)?),
-        }
-    }
-}
-
-/// The measure's serde, one text for each slot form.
-macro_rules! measure_serde {
-    ($($form:ty),*) => {$(
-        impl Serialize for MeasureExpr<$form> {
-            fn serialize<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
-                WireMeasureExpr::from(self).serialize(ser)
-            }
-        }
-
-        impl<'de> Deserialize<'de> for MeasureExpr<$form> {
-            fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
-                let wire = WireMeasureExpr::<<$form as Wired>::Wire>::deserialize(de)?;
-                wire.rebuild().map_err(|e| {
-                    super::refusal::record(&e);
-                    D::Error::custom(format!("ill-dimensioned measure expression refused: {e}"))
-                })
-            }
-        }
-    )*};
-}
-
-measure_serde!(VarId, Expr, Formula);

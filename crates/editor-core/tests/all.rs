@@ -118,6 +118,12 @@ mod coincidence_door;
 mod declared_pairs_payload;
 #[path = "display_contract.rs"]
 mod display_contract;
+#[path = "dm3_indexed_read.rs"]
+mod dm3_indexed_read;
+#[path = "dm4_migration_one_shot.rs"]
+mod dm4_migration_one_shot;
+#[path = "dm4_reads_key_booleans.rs"]
+mod dm4_reads_key_booleans;
 #[path = "dm7_delete_strands.rs"]
 mod dm7_delete_strands;
 #[path = "docm1_face_frame.rs"]
@@ -218,6 +224,8 @@ mod resolve_group_membership;
 mod resolve_piece_ladder;
 #[path = "resolve_upstream_scope.rs"]
 mod resolve_upstream_scope;
+#[path = "revalue_corpus.rs"]
+mod revalue_corpus;
 #[path = "rv_dm7_probes.rs"]
 mod rv_dm7_probes;
 
@@ -592,8 +600,6 @@ mod rv_onepred3_probes;
 mod scalar_frame_r1_probes;
 #[path = "seat4_verb_lowering.rs"]
 mod seat4_verb_lowering;
-#[path = "seat6_param_source.rs"]
-mod seat6_param_source;
 #[path = "seat7_sweep_lowering.rs"]
 mod seat7_sweep_lowering;
 #[path = "seat8_split_lowering.rs"]
@@ -749,6 +755,8 @@ mod emit_union_borders;
 mod emit_union_flush_names;
 #[path = "emit_union_rim_piece_ranks.rs"]
 mod emit_union_rim_piece_ranks;
+#[path = "glue_on_zero_rows.rs"]
+mod glue_on_zero_rows;
 #[path = "intent_literals_a_definitions.rs"]
 mod intent_literals_a_definitions;
 #[path = "intent_literals_b_door.rs"]
@@ -765,9 +773,21 @@ mod intent_s2_a_outputs;
 mod intent_s2_b_reads;
 #[path = "intent_s2_c_world.rs"]
 mod intent_s2_c_world;
+#[path = "intent_s2_d_measure.rs"]
+mod intent_s2_d_measure;
+#[path = "intent_s2_e_select.rs"]
+mod intent_s2_e_select;
+#[path = "intent_s5_a_relation.rs"]
+mod intent_s5_a_relation;
+#[path = "intent_s5_b_interference.rs"]
+mod intent_s5_b_interference;
 #[path = "intent_vars_2_table.rs"]
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]
 mod intent_vars_3_readers;
+#[path = "review_s5b_r2_probes.rs"]
+mod review_s5b_r2_probes;
 #[path = "run_wall_offers.rs"]
 mod run_wall_offers;
+#[path = "union_member_orders_decide_alike.rs"]
+mod union_member_orders_decide_alike;

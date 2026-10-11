@@ -751,9 +751,11 @@ impl Margin<f64> {
     /// in certified `f64` enclosure arithmetic and lifted so every lane
     /// records identically). Dimension-preserving, **not** a
     /// construction door — the door was chosen when the `Margin<f64>`
-    /// was built.
+    /// was built. The value is a computed one, so it enters through
+    /// [`crate::Real::from_computed`]: at `Sym` it is an unknown, never
+    /// a constant a symbolic `Zero` could be proved over.
     pub fn lift<T: crate::real::Real>(self) -> Margin<T> {
-        Margin(T::from_f64(self.0))
+        Margin(T::from_computed(self.0))
     }
 
     /// Door: [`Margin::over_lever`]'s dimensional argument, for a
@@ -1071,9 +1073,10 @@ enum Placement {
 pub enum MarginKind {
     /// What `f64` classification saw: a point margin.
     Value,
-    /// What interval classification saw: an enclosure. When it rides an
-    /// [`Indeterminate`], the enclosure straddles a decision boundary or
-    /// lies inside the ambiguity band. Q1's subdivision driver responds
+    /// An enclosure: what interval classification saw, or the hull of two
+    /// sound bounds on one quantity ([`crate::k_stats::straddle`]). When
+    /// it rides an [`Indeterminate`], the enclosure straddles a decision
+    /// boundary or lies inside the ambiguity band. Q1's subdivision driver responds
     /// by splitting the parameter box and re-evaluating at a tighter
     /// enclosure — with one **terminal** case: an enclosure lying wholly
     /// inside one open sliver band (`zero`, `escalate`), or its mirror on
@@ -1154,6 +1157,15 @@ pub enum SizedPass {
 }
 
 impl SizedPass {
+    /// Whether a verdict of `sign` passes this decision.
+    pub(crate) fn admits(self, sign: Sign) -> bool {
+        match sign {
+            Sign::Zero => self.passes_zero(),
+            Sign::Positive => !matches!(self, Self::Negative),
+            Sign::Negative => !matches!(self, Self::Positive | Self::NonNegative),
+        }
+    }
+
     /// Whether a zero verdict passes this decision.
     #[must_use]
     pub fn passes_zero(self) -> bool {
@@ -1289,6 +1301,11 @@ impl FileCoincidence {
     /// the miss may be the kernel's own, so the sentence keeps the
     /// kernel-bug note.
     ///
+    /// A certified bound on the miss ([`MissReading::Bound`]) places the
+    /// miss nowhere but below it, so only a bound wholly within ε_in has
+    /// words here, naming the bound, whatever made the sides; any other
+    /// bound ends in `otherwise`.
+    ///
     /// The comparison picks the words and nothing else; only a sentence
     /// leaves, and its production callers are counted with
     /// `sized_recourse`'s by `scripts/gates/reporting-margin-door.sh`.
@@ -1300,12 +1317,26 @@ impl FileCoincidence {
         otherwise: &str,
     ) -> String {
         let eps_in = self.eps_in;
+        let stopgap = format!(
+            "Recourse: re-export the file more precisely, or, as a stopgap, set the tolerance to \
+             ε_in = {eps_in:e} m"
+        );
         let within = match miss {
             MissReading::Banded(margin, band) => match margin.magnitudes() {
                 Some((near, _)) if near > band.zero => margin.within(eps_in),
                 _ => None,
             },
             MissReading::Definite(margin) => margin.within(eps_in),
+            MissReading::Bound(bound) => {
+                return match bound.within(eps_in) {
+                    Some(Within::Wholly) => format!(
+                        "The certificate's bound on this miss lies within the file's declared \
+                         coincidence distance ε_in = {eps_in:e} m. {stopgap}; this refusal may \
+                         indicate a kernel bug worth reporting"
+                    ),
+                    Some(Within::Partly) | None => otherwise.to_owned(),
+                };
+            }
         };
         let Some(within) = within else {
             return otherwise.to_owned();
@@ -1317,10 +1348,6 @@ impl FileCoincidence {
         let head = format!(
             "This miss lies beyond the tolerance and {lies} the file's declared coincidence \
              distance ε_in = {eps_in:e} m"
-        );
-        let stopgap = format!(
-            "Recourse: re-export the file more precisely, or, as a stopgap, set the tolerance to \
-             ε_in = {eps_in:e} m"
         );
         match (source, within) {
             (MissSource::File, Within::Wholly) => {
@@ -1356,6 +1383,10 @@ pub enum MissReading {
     Banded(MarginDiag, Band),
     /// Decided past the band, so beyond ε by the verdict.
     Definite(MarginDiag),
+    /// A certified upper bound on the miss, on any arm: the miss lies
+    /// at or below its farther end, and nowhere the bound says more
+    /// precisely.
+    Bound(MarginDiag),
 }
 
 /// What made the two sides a residual compares: whether its miss is the
@@ -1423,6 +1454,39 @@ impl MarginDiag {
             Reading::Enclosure { lo, hi, .. } => Reading::Enclosure { lo, hi, tag },
             Reading::Invalid => Reading::Invalid,
         })
+    }
+
+    /// **The enclosure of two readings of one quantity**: from the lower
+    /// of their lower ends to the higher of their upper ends, untagged.
+    /// `None` where either was poisoned, which bounds nothing.
+    pub(crate) fn hull(self, other: Self) -> Option<Self> {
+        let ends = |m: Self| match m.0 {
+            Reading::Value(v, _) => Some((v, v)),
+            Reading::Enclosure { lo, hi, .. } => Some((lo, hi)),
+            Reading::Invalid => None,
+        };
+        let ((lo0, hi0), (lo1, hi1)) = (ends(self)?, ends(other)?);
+        Some(Self::enclosure(lo0.min(lo1), hi0.max(hi1)))
+    }
+
+    /// Whether `sign` is a verdict classification can have reached on this
+    /// reading against `band`: a definite sign on a reading past the band
+    /// on that side, and `Zero` on one not past it — within the zero band,
+    /// or, under the test-only staged-ceiling dial, the in-band reading it
+    /// passes as `Zero` (`k_stats`' `IDENTITY_PASS`). Never a poisoned
+    /// reading.
+    pub(crate) fn admits_verdict(self, sign: Sign, band: Band) -> bool {
+        let past = self.placement(band) == Placement::Past;
+        let positive = match self.0 {
+            Reading::Value(m, _) => m > 0.0,
+            Reading::Enclosure { lo, .. } => lo > 0.0,
+            Reading::Invalid => return false,
+        };
+        match sign {
+            Sign::Zero => !past,
+            Sign::Positive => past && positive,
+            Sign::Negative => past && !positive,
+        }
     }
 
     /// The sign the classifier decided, where this reading is a gate's

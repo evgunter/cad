@@ -124,8 +124,13 @@ impl<T: Real> Affine3<T> {
     }
 
     /// The rotation by `angle` radians (right-hand rule) about the axis
-    /// through `point` with direction `axis` — revolve's constructor
-    /// (the M0 watchlist item, landing with its first consumer).
+    /// through `point` with direction `axis`, as a map: the placement a
+    /// turn composes into another placement (`rotation · place`), or
+    /// applies to a whole body. A single turned point is
+    /// [`Self::rotate_point_about_axis`], by W1
+    /// (`crates/geom-core/README.md`): this map's translation levers an
+    /// angle's width by the anchor's distance from the coordinate
+    /// origin, where the point's spelling levers it by the radius.
     ///
     /// Semantically `T(q) ∘ R ∘ T(−q)` for `q` the displacement of
     /// `point` from the coordinate origin; computed directly as
@@ -135,33 +140,62 @@ impl<T: Real> Affine3<T> {
     /// the scalar's business, and it differs: all-NaN at `f64`, entire
     /// `[−∞, ∞]` at `Interval`. Either way nothing the map produces is
     /// ever a certified finite value) and `translation = (I − R)·q`,
-    /// one application of
-    /// the anchor operator ([`Mat3::identity_minus_rotation_about`]) to
-    /// the anchor displacement, in exactly that order (D9). Fixed
-    /// points: the axis line, up to rounding.
+    /// one application of the anchor operator
+    /// ([`Mat3::identity_minus_rotation_about`]) to the anchor
+    /// displacement, in exactly that order (D9). Fixed points: the axis
+    /// line, up to rounding.
     ///
-    /// **The anchor is mentioned once.** The equivalent `q − R·q` is
-    /// the same point over the reals, but it subtracts and re-adds the
-    /// anchor, and interval arithmetic cannot cancel a repeated
-    /// operand: at `T = Interval` that spelling returns the identity
-    /// map (`angle = 0`) carrying `2·width(point)` of translation,
-    /// which `transform_point` then adds to every point the map
-    /// touches. Here the factors that vanish with the angle multiply
-    /// the anchor instead: `≈ θ·width(q)` near zero, and at `angle = 0`
-    /// exactly zero at `f64`. At `Interval` "exactly zero" is not
-    /// available — the backend's `sin` at the exact point `0` encloses
-    /// `[−2e-323, 2e-323]`, so the operator carries subnormal dust that
-    /// no spelling here can remove. That dust still *multiplies* the
-    /// anchor, so the residue is proportional to the anchor's own scale
-    /// (`|q| + width(q)`, ~2.6e-322 for a metre-scale anchor) rather
-    /// than to `width(q)` alone — small, but not independent of the
-    /// operand, and not a constant.
+    /// **Inside the map the anchor is mentioned once.** The equivalent
+    /// translation `q − R·q` subtracts and re-adds the anchor, and
+    /// interval arithmetic cannot cancel a repeated operand: at
+    /// `T = Interval` it returns the identity map (`angle = 0`)
+    /// carrying `2·width(point)` of translation, which every point the
+    /// map touches would then pay. Here the factors that vanish with
+    /// the angle multiply the anchor instead: `≈ θ·width(q)` near zero,
+    /// and at `angle = 0` exactly zero at `f64`. At `Interval` "exactly
+    /// zero" is not available — the backend's `sin` at the exact point
+    /// `0` encloses `[−2e-323, 2e-323]`, so the operator carries
+    /// subnormal dust proportional to the anchor's own scale
+    /// (`|q| + width(q)`, ~2.6e-322 for a metre-scale anchor).
     pub fn rotation_about_axis(point: Point3<T>, axis: Vec3<T>, angle: T) -> Self {
         let q = point - Point3::origin();
         Self::from_parts(
             Mat3::rotation_about(axis, angle),
             Mat3::identity_minus_rotation_about(axis, angle) * q,
         )
+    }
+
+    /// The point `p` turned by `angle` radians (right-hand rule) about
+    /// the axis through `point` with direction `axis`, spelled
+    /// `q + R·(p − q)`: the offset from the axis is turned, then the
+    /// axis point added back, in exactly that order (D9). `R` is
+    /// [`Mat3::rotation_about`], same axis normalization and poison.
+    ///
+    /// This is the spelling of a single turned point, chosen by W1
+    /// (`crates/geom-core/README.md`): the angle's width reaches the
+    /// answer times the radius `|p − q|`, where
+    /// `rotation_about_axis(..).transform_point(p)`, `R·p + (I − R)·q`,
+    /// levers it by the coordinates `|p| + |q|`. On an axis through the
+    /// coordinate origin the two are equal.
+    ///
+    /// What it gives up is the turned point's independence from the
+    /// axis point's width: `q` is mentioned twice. At `Interval`, with
+    /// `p` exact and `q` a box `w` wide in each coordinate, the offset
+    /// `p − q` is `w` wide in each coordinate; row `i` of `R` turns it
+    /// into a box `Σⱼ|Rᵢⱼ|·w` wide, and adding `q` back adds `w`. So
+    /// coordinate `i` of the answer is `(1 + Σⱼ|Rᵢⱼ|)·w` wide, plus
+    /// the rotation's own enclosure times the radius. `R`'s rows are
+    /// unit vectors, so `Σⱼ|Rᵢⱼ| ≤ √3`, and the bound is `(1 + √3)·w`.
+    /// It is `2·w` at the zero turn, where `R` is the identity, and up
+    /// to `(1 + √2)·w` about a coordinate axis, where a row's third
+    /// entry is zero.
+    pub fn rotate_point_about_axis(
+        point: Point3<T>,
+        axis: Vec3<T>,
+        angle: T,
+        p: Point3<T>,
+    ) -> Point3<T> {
+        point + Mat3::rotation_about(axis, angle) * (p - point)
     }
 
     /// Applies the map to a point: `linear·p + translation`, where `p`'s

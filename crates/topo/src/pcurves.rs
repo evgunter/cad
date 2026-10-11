@@ -1039,7 +1039,7 @@ fn half_edge_carrier<T: Decide>(
 /// It is read from the edge's **intensional description**, not from the
 /// topology, and that is the D2 answer rather than a convenience: the
 /// description is what is authoritative about which two surfaces the
-/// locus belongs to (`EdgeDescription::Intersection { s1, s2 }` names them
+/// locus belongs to (`EdgeDescription::Intersection { pair, .. }` names them
 /// by key), while "the face across the edge" is a derived fact that a
 /// mid-construction body, a spur edge or a seam can perfectly well have
 /// wrong. Re-read from the body at rest, never stored with the cache,
@@ -1052,17 +1052,10 @@ fn half_edge_carrier<T: Decide>(
 #[track_caller]
 fn mate_surface<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> Option<Surface<T>> {
     let curve = half_edge_curve(body, half_edge).ok()?;
-    let geom_brep::EdgeDescription::Intersection { s1, s2, .. } = *curve.description() else {
+    let geom_brep::EdgeDescription::Intersection { pair, .. } = *curve.description() else {
         return None;
     };
-    let own = half_edge_face(body, half_edge).1.surface;
-    let other = if own == s1 {
-        s2
-    } else if own == s2 {
-        s1
-    } else {
-        return None;
-    };
+    let other = pair.other(half_edge_face(body, half_edge).1.surface)?;
     let surface = body.get_surface(other).unwrap_or_else(|| {
         dangling_link(
             EntityId::Edge(edge_record(body, half_edge).0),
@@ -1101,6 +1094,34 @@ fn half_edge_description<T: Decide>(
     half_edge: HalfEdgeKey,
 ) -> Result<geom_brep::EdgeDescription<T>, PcurveMintError> {
     Ok(half_edge_curve(body, half_edge)?.description().clone())
+}
+
+/// Which ways a carrier over `carrier` can run a chart row over `row`
+/// in the row's own spline space — the relation the seam certificate
+/// reads, per direction: forward on the same knots, run back on an
+/// exact reflection of them ([`KnotVector::is_reflection_of`]). A row
+/// candidate is offered only in a direction this admits.
+///
+/// [`KnotVector::is_reflection_of`]: geom_core::spline::KnotVector::is_reflection_of
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct RowSpace {
+    forward: bool,
+    backward: bool,
+}
+
+impl RowSpace {
+    fn of(carrier: &geom_core::spline::KnotVector, row: &geom_core::spline::KnotVector) -> Self {
+        RowSpace {
+            forward: carrier.degree() == row.degree() && carrier.knots() == row.knots(),
+            backward: row.is_reflection_of(carrier),
+        }
+    }
+
+    /// Whether a carrier whose `u` rises (`rising`) or falls along it
+    /// is in this space.
+    fn admits(self, rising: bool) -> bool {
+        if rising { self.forward } else { self.backward }
+    }
 }
 
 /// The uniform clamped degree-1 knot vector on `[0, 1]` with `spans`
@@ -1485,18 +1506,16 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                 })
             });
             // A cap–wall rim stated intrinsically traverses a boundary
-            // ROW, `u` moving — offered only to a carrier in the row's
-            // own spline space (the row class compares control nets),
-            // run either way.
-            let ku = wall.knots_u();
-            let (a, b) = ku.domain();
-            let mirrored: Vec<f64> = ku.knots().iter().rev().map(|k| a + b - k).collect();
-            let row_space = spline.knots().degree() == ku.degree()
-                && (spline.knots().knots() == ku.knots()
-                    || spline.knots().knots() == &mirrored[..]);
-            let row_ys: &[T] = if row_space { &[cv0, cv1] } else { &[] };
-            let rows = row_ys.iter().copied().flat_map(|y| {
-                [(cu0, cu1), (cu1, cu0)].map(|(u_at_t0, u_at_t1)| {
+            // ROW, `u` moving — offered only in a direction whose
+            // carrier is in the row's own spline space (`RowSpace`:
+            // the row class compares control nets over it).
+            let row_space = RowSpace::of(spline.knots(), wall.knots_u());
+            let directions: Vec<(T, T)> = [(true, (cu0, cu1)), (false, (cu1, cu0))]
+                .into_iter()
+                .filter_map(|(rising, ends)| row_space.admits(rising).then_some(ends))
+                .collect();
+            let rows = [cv0, cv1].into_iter().flat_map(|y| {
+                directions.iter().map(move |&(u_at_t0, u_at_t1)| {
                     let slope = (u_at_t1 - u_at_t0) / span;
                     Pcurve::IsoLine {
                         p0: Point2::new(u_at_t0 - slope * t0, y),
@@ -1545,11 +1564,12 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             // carrier's two end feet measure, offered to the same
             // metre-valued probe. ----
             if deferred.is_none()
-                && row_space
+                && (row_space.forward || row_space.backward)
                 && let (Some(f0), Some(f1)) = (
                     derive_chart_foot(carrier.eval(t0), surface, half_edge)?,
                     derive_chart_foot(carrier.eval(t1), surface, half_edge)?,
                 )
+                && row_space.admits(f1.x > f0.x)
             {
                 let (u0, u1) = (T::from_f64(f0.x), T::from_f64(f1.x));
                 let slope = (u1 - u0) / span;
@@ -5171,6 +5191,13 @@ pub(crate) mod staleness_posture {
                 "the axial spelling of `offset_planes_together`, with the same re-mint",
             ),
             (
+                "offset_surfaces_together",
+                Maintains,
+                "runs `replace_faces_offset`'s body over every moving chart, which re-mints \
+                 the clone whole-body before adopting it; with nothing moving it adopts a \
+                 joined clone, whose join re-mints where it moved rows",
+            ),
+            (
                 "replace_face_offset",
                 Maintains,
                 "the one-face spelling of `replace_faces_offset`, which re-mints the clone \
@@ -5515,25 +5542,6 @@ pub(crate) mod staleness_posture {
                  certified description does",
             ),
             ("set_face_sense", Neither, "writes one `bool`"),
-            ("set_surface_source", Neither, "GeomSource metadata"),
-            ("set_curve_source", Neither, "GeomSource metadata"),
-            ("set_point_source", Neither, "GeomSource metadata"),
-            ("clear_geom_sources", Neither, "GeomSource metadata"),
-            (
-                "mark_imported",
-                Neither,
-                "origin metadata beside the GeomSource maps (`crate::GeomOrigin`)",
-            ),
-            (
-                "set_surface_field_source",
-                Neither,
-                "ParamSource metadata: a per-field side record beside the surface",
-            ),
-            (
-                "set_surface_axis_source",
-                Neither,
-                "axis-channel metadata: a per-component side record beside the surface",
-            ),
             (
                 "begin_surgery",
                 Neither,
@@ -6283,7 +6291,7 @@ mod pole_slit_tests {
     use core::f64::consts::{FRAC_PI_2, PI};
 
     use geom::{Curve3, Surface};
-    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
     use geom_core::{Band, Point3, Tol, Vec3};
 
     use crate::{Body, FaceKey, FaceSurface, LoopBoundary, MefSite, MevSite};
@@ -6326,8 +6334,7 @@ mod pole_slit_tests {
         });
         let rim = |t0: f64, t1: f64| EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: sphere,
-                s2: rim_plane,
+                pair: SurfacePair::new(sphere, rim_plane),
                 witness: at(0.5 * (t0 + t1), v0),
             },
             carrier: Curve3::Circle {
@@ -6388,8 +6395,7 @@ mod pole_slit_tests {
             at(0.0, FRAC_PI_2),
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1: sphere,
-                    s2: meridian_plane,
+                    pair: SurfacePair::new(sphere, meridian_plane),
                     witness: at(PI, 0.5 * (v0 + FRAC_PI_2)),
                 },
                 carrier: Curve3::Circle {
@@ -7061,7 +7067,7 @@ mod turn_miss {
         let band = Band::linear(tol).unwrap();
         let mut body = Body::<f64>::new();
         let frame = CylFrame::canonical(1.0);
-        let face = cyl_wall_sheet(&mut body, frame, None, (0.2, 1.4), (0.0, 1.0), tol);
+        let face = cyl_wall_sheet(&mut body, frame, (0.2, 1.4), (0.0, 1.0), tol);
         let outer = body.get_face(face).unwrap().outer;
         let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
             panic!("the wall is bounded by a cycle")
@@ -7263,5 +7269,82 @@ mod villarceau_joint_tests {
             }
         }
         assert_eq!(cases, 96);
+    }
+}
+
+#[cfg(test)]
+mod row_space_tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::RowSpace;
+    use geom_core::spline::KnotVector;
+
+    fn kv(knots: &[f64]) -> KnotVector {
+        KnotVector::clamped(knots.to_vec(), 1).unwrap()
+    }
+
+    /// The row run back is any EXACT reflection of the row: on
+    /// `[0.1, 0.3]` the knots `0.25` and `0.15` sum to `0.1 + 0.3` in ℝ
+    /// while `fl(0.1 + 0.3 − 0.25)` is not `0.15`; on `[0, 1]`,
+    /// `fl(1 − 0.1)` is `0.9` while `0.1 + 0.9` is not 1; the reflection
+    /// through 0, `−k`, never rounds, while one about 0.7 rebuilt as
+    /// `fl(0.7 − k)` does. Forward is the row's own knots and nothing
+    /// else: a row symmetric only in decimal is not run back on them.
+    #[test]
+    fn each_direction_admits_its_own_relation() {
+        let row = kv(&[0.1, 0.1, 0.25, 0.3, 0.3]);
+        let only_back = RowSpace {
+            forward: false,
+            backward: true,
+        };
+        assert_eq!(
+            RowSpace::of(&kv(&[0.1, 0.1, 0.15, 0.3, 0.3]), &row),
+            only_back,
+            "an exact mirror the rounded reflection misses runs the row back"
+        );
+        assert_eq!(
+            RowSpace::of(&row.negated(), &row),
+            only_back,
+            "the row reflected through 0, which rounds nowhere, runs it back"
+        );
+        let about_0_7: Vec<f64> = row.knots().iter().rev().map(|k| 0.7 - k).collect();
+        assert_eq!(
+            RowSpace::of(&kv(&about_0_7), &row),
+            RowSpace {
+                forward: false,
+                backward: false
+            },
+            "a reflection about 0.7 that holds only after rounding is refused"
+        );
+        assert_eq!(
+            RowSpace::of(
+                &kv(&[0.0, 0.0, 0.9, 1.0, 1.0]),
+                &kv(&[0.0, 0.0, 0.1, 1.0, 1.0])
+            ),
+            RowSpace {
+                forward: false,
+                backward: false
+            },
+            "a vector the rounded reflection reproduces, a 2Sum residual off the exact \
+             one, is in neither direction"
+        );
+        let decimal = kv(&[0.1, 0.1, 0.2, 0.3, 0.3]);
+        assert_eq!(
+            RowSpace::of(&decimal, &decimal),
+            RowSpace {
+                forward: true,
+                backward: false
+            },
+            "a row symmetric only in decimal runs forward on its own knots, not back"
+        );
+        let dyadic = kv(&[0.0, 0.0, 0.5, 1.0, 1.0]);
+        assert_eq!(
+            RowSpace::of(&dyadic, &dyadic),
+            RowSpace {
+                forward: true,
+                backward: true
+            },
+            "an exactly symmetric row runs either way on its own knots"
+        );
     }
 }

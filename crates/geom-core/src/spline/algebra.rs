@@ -379,10 +379,11 @@ impl CurvePlan {
 /// [`CurvePlan::apply_certified`]'s docs.
 ///
 /// **Precondition: `lo`, `u` and `hi` are exact `f64` knots with
-/// `lo < u < hi`.** Both callers insert `u` strictly inside the span
-/// `[U_j, U_{j+p}]` of the vector they plan against (`insert_once`'s
-/// band, `insert_once_ring`'s window), so `Δ > 0` and neither quotient
-/// refuses.
+/// `lo ≤ u ≤ hi` and `lo < hi`.** The insertions place `u` strictly
+/// inside the span `[U_j, U_{j+p}]` of the vector they plan against
+/// (`insert_once`'s band, `insert_once_ring`'s window); `compose`'s
+/// `sub_segment` runs de Casteljau steps at a cut `u ∈ [lo, hi]` of a
+/// Bézier segment `[lo, hi]`. So `Δ > 0` and neither quotient refuses.
 ///
 /// **Why the hull meet is sound.** `α` and `β` round outward
 /// INDEPENDENTLY, so `α_hi + β_hi > 1` and `β·x + α·y` alone reaches a

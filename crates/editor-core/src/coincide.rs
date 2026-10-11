@@ -40,6 +40,19 @@ use crate::names::{
 };
 use crate::node::{Node, RecipeNodeId};
 
+/// **What a contact record's positional input is**: the input a
+/// [`topo::Backing::Carried`] names by its position, as the value that
+/// holds the record publishes it ([`crate::eval::NodeValue::cited_inputs`]).
+/// A carried citation names that input's record, which cites its own
+/// backing, so a chain of them ends at a row a node decided.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CitedInput {
+    /// An operand the node reads, by its read.
+    Read(crate::VarId),
+    /// The part an instance places: its product's records.
+    Part(crate::ident::DocRef),
+}
+
 /// **One coincidence an operation decided from values**, its cells
 /// named in the tables of the inputs the decision read.
 #[derive(Clone, Debug, PartialEq)]
@@ -60,19 +73,19 @@ pub struct NamedCoincidence {
 /// One cell of a [`NamedCoincidence`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum NamedCell {
-    /// An entity of an input body of the deciding node, by its name in
-    /// that input's table (its output body 0).
+    /// An entity of an input body of the deciding node, by the read it
+    /// entered through and its name in that read's table.
     Entity {
-        /// The input node whose table names it.
-        input: RecipeNodeId,
+        /// The read the deciding node took the entity in through.
+        input: crate::VarId,
         /// Its name there.
         name: StableName,
     },
-    /// The plane the deciding node cuts with: its tool input, a datum
+    /// The plane the deciding node cuts with: its tool read, a datum
     /// rather than a cell of any body.
     Tool {
-        /// The tool node.
-        input: RecipeNodeId,
+        /// The tool read.
+        input: crate::VarId,
     },
     /// A piece of the deciding profile itself: a junction's two
     /// segments, each named by the piece it is (`names/README.md`, "N1,
@@ -145,13 +158,15 @@ pub enum Unwalked {
     /// does not place (`names::attribute`), or the name has none.
     Unclassified(RecipeNodeId),
     /// A carried segment at this node, whose kind does not carry it
-    /// (a `FromA` at a node that is not a boolean, say).
+    /// (an `Instance` at a node that is not a pattern, say).
     Misplaced(RecipeNodeId),
     /// The document holds no node by this id.
     Absent(RecipeNodeId),
     /// This node's operand reads a variable no live operation defines
     /// (D10: a delete leaves its readers unresolved).
     Unresolved(RecipeNodeId),
+    /// The read the cell entered through is no live operation's output.
+    Unread(crate::VarId),
 }
 
 impl fmt::Display for Unwalked {
@@ -174,6 +189,10 @@ impl fmt::Display for Unwalked {
             Self::Unresolved(node) => write!(
                 f,
                 "its read passes {node}, whose operand reads what no live operation defines"
+            ),
+            Self::Unread(read) => write!(
+                f,
+                "the read it entered through, {read}, is no live operation's output"
             ),
         }
     }
@@ -249,16 +268,29 @@ pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
         topo::Relation::EqualAngles => "makes an equal angle at its turn with",
         topo::Relation::Tangent { aligned: true } => "continues tangent into",
         topo::Relation::Tangent { aligned: false } => "turns back tangent into",
+        topo::Relation::TangentContact { seam: false } => "touches tangentially against",
+        topo::Relation::TangentContact { seam: true } => "continues tangentially into",
+        topo::Relation::Coaxial => "shares an axis with",
+        topo::Relation::CoRuled => "is ruled along one direction with",
     }
 }
 
 /// A decision site in words.
 pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
     match site {
-        topo::DecisionSite::PlaneLadder => "a declared pair of planes read as one",
-        topo::DecisionSite::CarrierLadder => "a declared pair of carriers read as one",
+        topo::DecisionSite::PlaneLadder => "a pair of planes its margins read as one",
+        topo::DecisionSite::CarrierLadder => "a pair of carriers its margins read as one",
+        topo::DecisionSite::TangentWitness => "a tangency verified along its locus",
+        topo::DecisionSite::CoaxialSphere => "a sphere's centre read on a cylinder's axis",
         topo::DecisionSite::SplitOn => "a split's on-plane verdict where its pieces touch",
         topo::DecisionSite::BatteryTurn => "a blend's isosceles turn",
+        topo::DecisionSite::BatteryJoint => "a blend chain's joint read as tangent",
+        topo::DecisionSite::BatterySupportAxis => {
+            "a blend's two supports read as sharing the axis its band is minted on"
+        }
+        topo::DecisionSite::VertexFusion => "a vertex its margin read on another operand's cell",
+        topo::DecisionSite::CensusAtRest => "two placed faces the at-rest census read as one",
+        topo::DecisionSite::ImportAnchor => "two imported vertices an anchor read as one",
         topo::DecisionSite::ProfileJunction => "a profile junction no constructor made",
     }
 }
@@ -269,7 +301,10 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
 pub fn prove<P>(doc: &crate::doc::Doc<P>, row: &NamedCoincidence) -> Proof {
     let constructions = row.cells.each_ref().map(|cell| match cell {
         NamedCell::Entity { input, name } => construction(doc, *input, name),
-        NamedCell::Tool { input } => datum(doc, *input, Vec::new()),
+        NamedCell::Tool { input } => doc
+            .operation_of(*input)
+            .ok_or(Unwalked::Unread(*input))
+            .and_then(|at| datum(doc, at, Vec::new())),
         NamedCell::Piece { profile, piece } => Ok(Construction {
             origin: Origin::Piece(*profile, *piece),
             placed: Vec::new(),
@@ -293,29 +328,32 @@ pub fn prove<P>(doc: &crate::doc::Doc<P>, row: &NamedCoincidence) -> Proof {
 /// outermost segment there. A minted role ends the walk, except a
 /// split's section face, which lies on the split's tool and continues
 /// there ([`Origin::Datum`]). A carried segment names the entity in the
-/// input that segment says, where the walk continues.
+/// read that segment says — a `From`'s own read, an `Instance`'s
+/// pattern input, a one-body operation's target — where the walk
+/// continues.
 ///
 /// # Errors
 ///
 /// [`Unwalked`], naming the node the walk stopped at.
 pub fn construction<P>(
     doc: &crate::doc::Doc<P>,
-    read: RecipeNodeId,
+    read: crate::VarId,
     name: &StableName,
 ) -> Result<Construction, Unwalked> {
     use crate::names::attribute::{SegOrigin, origin};
     let node = |at: RecipeNodeId| doc.node(at).ok_or(Unwalked::Absent(at));
     let mut placed = Vec::new();
-    let (mut at, mut name) = (read, name.clone());
+    let (mut read, mut name) = (read, name.clone());
+    let mut at = doc.operation_of(read).ok_or(Unwalked::Unread(read))?;
     loop {
         while at != name.node {
-            let read = match node(at)? {
+            read = match node(at)? {
                 Node::Transform { input, .. } => {
                     placed.push(Placed::Transform(at));
                     *input
                 }
                 Node::Part { of, .. } => *of,
-                Node::Split { target, .. } => *target,
+                Node::Split { target, .. } => target.read,
                 _ => return Err(Unwalked::Through(at)),
             };
             at = operation(doc, at, read)?;
@@ -343,12 +381,13 @@ pub fn construction<P>(
             SegOrigin::Unclassified => return Err(Unwalked::Unclassified(at)),
             SegOrigin::Carried(of, _) => of.clone(),
         };
-        at = carried_input(doc, seg, node(at)?, at, &mut placed)?;
+        read = carried_read(seg, node(at)?, at, &mut placed)?;
+        at = operation(doc, at, read)?;
         name = of;
     }
 }
 
-/// **The operation `at`'s operand `read` reads** (D10).
+/// **The operation defining the read `read`** that `at` takes (D10).
 ///
 /// # Errors
 ///
@@ -358,60 +397,47 @@ fn operation<P>(
     at: RecipeNodeId,
     read: crate::VarId,
 ) -> Result<RecipeNodeId, Unwalked> {
-    doc.operation_of(read).ok_or(Unwalked::Unresolved(at))
+    doc.read_operation(read).ok_or(Unwalked::Unresolved(at))
 }
 
-/// **The input a carried segment at `at` names its entity in**, by the
-/// segment and the node together. A placing segment (`Instance`) adds
-/// its placement.
+/// **The read a carried segment at `at` names its entity in**, by the
+/// segment and the node together: a `From`'s own read; a placing
+/// segment (`Instance`) adds its placement.
 ///
 /// # Errors
 ///
-/// [`Unwalked::Misplaced`] for a segment `at`'s kind does not carry,
-/// [`Unwalked::Unresolved`] for an operand no live operation defines.
-fn carried_input<P>(
-    doc: &crate::doc::Doc<P>,
+/// [`Unwalked::Misplaced`] for a segment `at`'s kind does not carry.
+fn carried_read<P>(
     seg: &RoleSeg,
     node: &Node<P>,
     at: RecipeNodeId,
     placed: &mut Vec<Placed>,
-) -> Result<RecipeNodeId, Unwalked> {
+) -> Result<crate::VarId, Unwalked> {
     let misplaced = Unwalked::Misplaced(at);
     match (seg, node) {
-        (RoleSeg::FromA(_), Node::Boolean { a, .. }) => operation(doc, at, *a),
-        (RoleSeg::FromB(_), Node::Boolean { b, .. }) => operation(doc, at, *b),
-        (RoleSeg::FromA(_) | RoleSeg::FromB(_), _) => Err(misplaced),
-        (RoleSeg::FromMember { member, .. }, Node::Union { .. }) => Ok(*member),
-        (RoleSeg::FromMember { .. }, _) => Err(misplaced),
+        (RoleSeg::From { read, .. }, _) => Ok(*read),
         (
             RoleSeg::Instance { i, .. },
             Node::Pattern { input, .. } | Node::PlacedUnion { input, .. },
         ) => {
             placed.push(Placed::Instance(at, *i));
-            operation(doc, at, *input)
+            Ok(*input)
         }
         (RoleSeg::Instance { .. }, _) => Err(misplaced),
-        // Every other carried segment is a one-body operation's, carried
-        // from its one target.
-        (
-            _,
-            Node::Fillet { target, .. }
-            | Node::Chamfer { target, .. }
-            | Node::Shell { target, .. }
-            | Node::Split { target, .. },
-        ) => operation(doc, at, *target),
+        // Every other carried segment is a split's, carried from its
+        // target.
+        (_, Node::Split { target, .. }) => Ok(target.read),
         _ => Err(misplaced),
     }
 }
 
-/// **The construction of the datum `read` reaches**: the walk through
+/// **The construction of the datum `at` defines**: the walk through
 /// the transforms that place it, to the node that defines the plane.
 fn datum<P>(
     doc: &crate::doc::Doc<P>,
-    read: RecipeNodeId,
+    mut at: RecipeNodeId,
     mut placed: Vec<Placed>,
 ) -> Result<Construction, Unwalked> {
-    let mut at = read;
     loop {
         match doc.node(at).ok_or(Unwalked::Absent(at))? {
             Node::Transform { input, .. } => {
@@ -428,16 +454,53 @@ fn datum<P>(
     }
 }
 
-/// The deciding node's inputs a row's cells are keyed in: the node
+/// The deciding node's inputs a row's cells are keyed in: the read
 /// and table each [`topo::Operand`] names, and the node's tool, if it
 /// cuts with one.
 pub(crate) struct RowInputs<'a> {
-    /// Operand A's node and table (a one-body operation's input).
-    pub a: (RecipeNodeId, &'a NameTable),
+    /// Operand A's read and table (a one-body operation's input).
+    pub a: (crate::VarId, &'a NameTable),
     /// Operand B's, for an operation that reads two bodies.
-    pub b: Option<(RecipeNodeId, &'a NameTable)>,
-    /// The tool node, for an operation that cuts with one.
-    pub tool: Option<RecipeNodeId>,
+    pub b: Option<(crate::VarId, &'a NameTable)>,
+    /// The tool read, for an operation that cuts with one.
+    pub tool: Option<crate::VarId>,
+}
+
+/// **The rows `records` cite, published**: each row of `rows` a record
+/// cites ([`topo::Backing::Decided`]), named in `inputs` and appended to
+/// `published` in decision order, and the records renumbered onto the
+/// published rows. For a node whose records come from a step whose rows
+/// it does not publish whole (an n-ary union's last fold step).
+///
+/// # Errors
+///
+/// As [`name_rows`].
+pub(crate) fn publish_cited(
+    records: &topo::ContactRecords,
+    rows: &[topo::Coincidence],
+    inputs: &RowInputs<'_>,
+    published: &mut Vec<NamedCoincidence>,
+) -> Result<topo::ContactRecords, NamingError> {
+    let used = records.decided();
+    let cited: Vec<topo::Coincidence> = used
+        .iter()
+        .map(|&k| {
+            rows.get(k as usize).copied().ok_or(NamingError::Emission {
+                what: "a contact record cites a row its step did not decide",
+            })
+        })
+        .collect::<Result<_, _>>()?;
+    let base = published.len();
+    published.extend(name_rows(&cited, inputs)?);
+    Ok(records
+        .clone()
+        .renumbered(|k| {
+            let rank = used
+                .binary_search(&k)
+                .unwrap_or_else(|_| unreachable!("every decided citation is in `used`"));
+            Some(u32::try_from(base + rank).unwrap_or(u32::MAX))
+        })
+        .unwrap_or_else(|_| unreachable!("every decided citation renumbers")))
 }
 
 /// **The kernel's rows, named**: each cell by its name in the input
@@ -460,6 +523,7 @@ pub(crate) fn name_rows(
                 .tool
                 .map(|input| NamedCell::Tool { input })
                 .ok_or_else(unnamed),
+            topo::RowCell::Result { .. } => Err(unnamed()),
             topo::RowCell::Input { input, cell } => {
                 let (node, table) = match input {
                     topo::Operand::A => Some(inputs.a),

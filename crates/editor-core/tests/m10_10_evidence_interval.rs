@@ -595,7 +595,7 @@ fn m10_10_the_stackup_hulls_under_both_rule_sets() {
     let fit = crate::m10_4_r2_probes_interval::fit(Some(crate::m10_4_r2_probes_interval::uniform(
         -half, half,
     )));
-    let docs: [(&str, &ProfileDoc, editor_core::RecipeNodeId, f64); 2] = [
+    let docs: [(&str, &ProfileDoc, editor_core::VarId, f64); 2] = [
         ("two_hole_plate eps/8", &plate.0, plate.1, 4.0 * half),
         ("bore_pin_fit eps/8", &fit.0, fit.1, 2.0 * half),
     ];

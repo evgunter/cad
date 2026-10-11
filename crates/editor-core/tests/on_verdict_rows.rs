@@ -1,18 +1,19 @@
 //! **One body lying on another, through the public API**: the shapes
 //! whose operands carry a closed surface lying wholly on the other
 //! operand's, answered by the kernel's whole-shell `On` verdict
-//! (`topo::boolean::shell_witness`), and the twin no recipe or
-//! declaration makes one, which still refuses.
+//! (`topo::boolean::shell_witness`), and a twin, which answers alike
+//! declared or not.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{Recorder, ang, len, scl};
 use editor_core::ExtrudeSide;
+use topo::BooleanOp;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, EntityKind, EvalOptions, Evaluation, Formula, Node,
-    NodeError, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, RecipeNodeId,
-    RoleSeg, StableName, ValuePayload, declared_pairs, evaluate, find_flush_candidates,
+    BooleanValue, CancelToken, EntityKind, EvalOptions, Evaluation, Formula, Node, NodeError,
+    NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg,
+    StableName, ValuePayload, declared_pairs, evaluate, find_flush_candidates,
 };
 use geom_core::Tol;
 use topo::{BooleanResultKind, mass_properties};
@@ -50,13 +51,33 @@ fn block(
     })
 }
 
+/// The document's node for the kernel verb `op` over `a` and `b`: a
+/// two-member union or intersect, or `a` cut by `b`.
+fn boolean_node(
+    op: BooleanOp,
+    a: RecipeNodeId,
+    b: RecipeNodeId,
+    declare: Vec<editor_core::DeclaredPair>,
+) -> editor_core::AuthoredNode {
+    match op {
+        BooleanOp::Union => Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            declare,
+        },
+        BooleanOp::Intersect => Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            declare,
+        },
+        BooleanOp::Subtract => Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
+            declare,
+        },
+    }
+}
+
 fn boolean(r: &mut Recorder, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> RecipeNodeId {
-    r.insert(Node::Boolean {
-        op,
-        a: a.into(),
-        b: b.into(),
-        declare: Vec::new(),
-    })
+    r.insert(boolean_node(op, a, b, Vec::new()))
 }
 
 /// The answer a boolean node holds: `None` for the typed empty result,
@@ -138,7 +159,7 @@ fn two_parts_of_one_copy_answer_under_every_op() {
     let (p, q) = two_parts_of_one_copy(&mut r);
     let nodes: Vec<RecipeNodeId> = OPS.iter().map(|&op| boolean(&mut r, op, p, q)).collect();
     let union = r.insert(Node::Union {
-        members: vec![p.into(), q.into()],
+        members: editor_core::Bodies::Spelled(vec![p.into(), q.into()]),
         declare: Vec::new(),
     });
     let ev = eval(&r.doc);
@@ -161,13 +182,13 @@ fn two_parts_of_one_copy_answer_under_every_op() {
     );
 }
 
-/// **The kept `On` shell is named as the boolean names A's surviving
-/// faces**: the result is A's copy (`OperandA`), so the emitter mints
-/// each of its faces as `FromA(<the A seat's name>)` under the boolean
-/// node, exactly the six faces of the copy, and no `FromB` name: B's
-/// is dropped whole.
+/// **The kept `On` shell is named from both seats**: the two parts
+/// hold one body, so every face of the result is held by both members,
+/// and the union names each as the `Merged` of the two seats' names,
+/// each carried in through its own read — exactly the six faces of the
+/// half, and no face under one seat's name alone.
 #[test]
-fn the_kept_copy_is_named_from_the_a_seat() {
+fn the_kept_copy_is_named_from_both_seats() {
     let mut r = Recorder::new();
     let (p, q) = two_parts_of_one_copy(&mut r);
     let joined = boolean(&mut r, BooleanOp::Union, p, q);
@@ -182,13 +203,30 @@ fn the_kept_copy_is_named_from_the_a_seat() {
             .collect()
     };
     let seat = faces(p);
-    assert_eq!(seat.len(), 6, "the copy has six faces: {seat:?}");
+    assert_eq!(seat.len(), 6, "the half has six faces: {seat:?}");
+    assert_eq!(faces(q), seat, "the two seats name the half alike");
+    let (p_read, q_read) = (
+        crate::fixture::out(&r.doc, p),
+        crate::fixture::out(&r.doc, q),
+    );
+    let carried = |read, n: &StableName| StableName {
+        kind: EntityKind::Face,
+        node: joined,
+        path: vec![RoleSeg::From {
+            read,
+            of: n.clone().into(),
+        }],
+    };
     let mut want: Vec<StableName> = seat
-        .into_iter()
-        .map(|n| StableName {
-            kind: EntityKind::Face,
-            node: joined,
-            path: vec![RoleSeg::FromA(n.into())],
+        .iter()
+        .map(|n| {
+            let mut both = vec![carried(p_read, n), carried(q_read, n)];
+            both.sort();
+            StableName {
+                kind: EntityKind::Face,
+                node: joined,
+                path: vec![RoleSeg::Merged(both)],
+            }
         })
         .collect();
     want.sort();
@@ -196,7 +234,7 @@ fn the_kept_copy_is_named_from_the_a_seat() {
     got.sort();
     assert_eq!(
         got, want,
-        "the union's face names are FromA of the A seat's"
+        "the union's face names are the merges of the two seats' names"
     );
 }
 
@@ -311,12 +349,13 @@ fn a_union_with_an_inner_member_against_the_outer() {
     assert_answers(&eval(&r.doc), &rows);
 }
 
-/// **Two placements of one block, all six face pairs declared**: the
-/// declarations settle each face with its twin, so the shells are one.
-/// Undeclared, the same pair refuses `UndeclaredCoincidence`, as do two
-/// independent identical extrudes: value equality never makes one face.
+/// **A twin answers alike declared or not**: two placements of one
+/// block, and two independent identical extrudes, lie face on face; the
+/// margins decide each face pair one carrier, so every op answers
+/// undeclared, and the placements with all six face pairs declared
+/// build the undeclared bodies bit for bit.
 #[test]
-fn a_declared_twin_answers_and_an_undeclared_one_refuses() {
+fn a_twin_answers_alike_declared_or_not() {
     let mut r = Recorder::new();
     let x = block(&mut r, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let place = |r: &mut Recorder| {
@@ -341,38 +380,44 @@ fn a_declared_twin_answers_and_an_undeclared_one_refuses() {
             ]
         })
         .collect();
+    let want = |op: BooleanOp| (op != BooleanOp::Subtract).then_some((1.0, 1));
     let ev = eval(&r.doc);
-    for (label, id) in &undeclared {
-        assert!(
-            matches!(
-                error_of(&ev, *id),
-                NodeErrorKind::UndeclaredCoincidence { .. }
-            ),
-            "{label}: {:?}",
-            error_of(&ev, *id)
-        );
-    }
-
-    let findings = find_flush_candidates(&ev, s, t, Tol::witness()).unwrap();
-    assert_eq!(findings.len(), 6, "one finding per face pair: {findings:?}");
-    let pairs = declared_pairs(&findings);
-    let rows: Vec<Row> = OPS
+    let undeclared_rows: Vec<Row> = OPS
         .iter()
-        .map(|&op| {
-            let id = r.insert(Node::Boolean {
-                op,
-                a: s.into(),
-                b: t.into(),
-                declare: pairs.clone(),
-            });
-            (
-                format!("S {op:?} T, declared"),
-                id,
-                (op != BooleanOp::Subtract).then_some((1.0, 1)),
-            )
+        .zip(undeclared.chunks(3))
+        .flat_map(|(&op, ids)| {
+            ids.iter()
+                .map(move |(label, id)| (label.clone(), *id, want(op)))
+                .collect::<Vec<_>>()
         })
         .collect();
-    assert_answers(&eval(&r.doc), &rows);
+    assert_answers(&ev, &undeclared_rows);
+
+    let findings = find_flush_candidates(&ev, &r.doc, s, t, Tol::witness()).unwrap();
+    assert_eq!(findings.len(), 6, "one finding per face pair: {findings:?}");
+    let pairs = declared_pairs(&findings);
+    let declared: Vec<(BooleanOp, RecipeNodeId)> = OPS
+        .iter()
+        .map(|&op| {
+            let id = r.insert(boolean_node(op, s, t, pairs.clone()));
+            (op, id)
+        })
+        .collect();
+    let ev = eval(&r.doc);
+    for ((op, id), (label, bare)) in declared.iter().zip(undeclared.iter().step_by(3)) {
+        assert_eq!(
+            answer(&ev, *id).map(|(v, n, _)| (v, n)),
+            answer(&ev, *bare).map(|(v, n, _)| (v, n)),
+            "S {op:?} T declared answers as {label}"
+        );
+        if *op != BooleanOp::Subtract {
+            assert_eq!(
+                format!("{:?}", crate::corpus::body_of(&ev, *id)),
+                format!("{:?}", crate::corpus::body_of(&ev, *bare)),
+                "S {op:?} T declared is {label}'s body"
+            );
+        }
+    }
 }
 
 /// **A surface the coincidences cover one way only refuses**: X against

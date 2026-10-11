@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-06
 priority: P3
 cost: M
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -46,3 +45,7 @@ listed description is certified today.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: Ev held its details for the refactor; they turn on declared chart images, canonical carrier forms and the rest.rs zip kills, which stage 4 settles. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E does not build the restater. Stage 4 A deletes `boolean/rest.rs`'s `zip_folded`. `zip_seam`'s kills and the merge's kill stay on `kef_minting` (`crates/topo/src/boolean/zip.rs:720`, `crates/topo/src/euler_kill.rs:1690`), and the restater's plug point is unchanged (`crates/topo/src/attach.rs:851`, `vouch_described_move`). E deletes the provenance rungs (`GeomSource`), so a moved edge's description no longer carries a source a restater would read. The open details (a tangent chart edge's kind, a declared chart image on a transverse pair, D2's authority rule) are not touched by E, and the outline stands for a designer pass.

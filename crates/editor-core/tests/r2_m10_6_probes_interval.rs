@@ -59,10 +59,10 @@ use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_v
 use editor_core::mc::{McConfig, monte_carlo};
 use editor_core::report::{Dials, report_key};
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, EntityKind,
-    EvalOptions, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, StableName, UnitSym, ValuePayload,
-    VarName, evaluate,
+    AssertionRelation, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, EntityKind,
+    EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ProfileDoc,
+    ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, StableName, UnitSym, ValuePayload, VarName,
+    evaluate,
 };
 use geom_core::{Bounds, Tol};
 
@@ -182,28 +182,26 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
         },
     ));
     // The two facing walls of the unit square: their distance is 1.0.
-    let measure = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 1)),
-                ),
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 3)),
-                ),
-            ],
-        )
-        .expect("both indices in range"),
+    let measured = r.measure(
+        &[MeasurePrimitive::Distance { a: 0, b: 1 }],
+        &[
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 1)),
+            ),
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 3)),
+            ),
+        ],
     );
+    let (_measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
-        measure: measure.into(),
+        value: fixture::read_var(&r.doc, measure_value),
         // The bound IS the measured value, so no enclosure separates
         // them: E10's third state at every leaf.
         bound: len(1.0),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     (r.doc, assertion)
 }
@@ -427,20 +425,18 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         distance: len(2.0),
         side: ExtrudeSide::Along,
     });
-    let measure = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
-            vec![
-                SitedRef::new(c, bname(c)),
-                SitedRef::new(block, bname(block)),
-            ],
-        )
-        .expect("both indices in range"),
+    let measured = r.measure(
+        &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
+        &[
+            SitedRef::new(c, bname(c)),
+            SitedRef::new(block, bname(block)),
+        ],
     );
+    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
-        measure: measure.into(),
+        value: fixture::read_var(&r.doc, measure_value),
         bound: len(bound),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     (r.doc, measure, assertion)
 }

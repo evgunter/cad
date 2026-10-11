@@ -57,7 +57,7 @@
 //! that boundary, so the ladder cannot name it; the coincidence ladder
 //! can. This answer reads reduction records — the face pairs the
 //! reduction SETTLED one carrier (`BooleanReduction`'s `coincident`:
-//! shared recipe source, or a verified declaration) — and never values,
+//! the verified declarations) — and never values,
 //! nor how many witnesses read `OnBoundary`. The shell is `On` a shell
 //! of the other operand when every face of each is in a settled pair
 //! with a face of the other, the pairs agree on orientation

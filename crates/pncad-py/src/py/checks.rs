@@ -333,7 +333,12 @@ impl ChecksConfig {
 /// every accessor here silently answers `None` about.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct CheckEvidence(pub(crate) d::CheckEvidence);
+pub(crate) struct CheckEvidence(
+    pub(crate) d::CheckEvidence,
+    /// The document the checks ran over, which names a coincidence's
+    /// cells.
+    Arc<d::ProfileDoc>,
+);
 
 #[pymethods]
 impl CheckEvidence {
@@ -460,17 +465,22 @@ impl CheckEvidence {
 
     /// What an unproven coincidence decided between its two cells, on
     /// `unproven_coincidence` alone: `same_oriented`, `same_opposite`,
-    /// `on_carrier`, `equal_angles`, `tangent` or `cusp`. A
-    /// `profile_junction` row is `tangent` or `cusp` between two
-    /// carriers and `same_oriented` where its pieces continue one.
+    /// `on_carrier`, `equal_angles`, `tangent`, `cusp`,
+    /// `tangent_contact`, `seam`, `coaxial` or `co_ruled`. A
+    /// `profile_junction` row is `tangent` or `cusp` between two carriers
+    /// and `same_oriented` where its pieces continue one; a
+    /// `tangent_witness` row is `tangent_contact` (outward sides opposed)
+    /// or `seam` (one face carried on into the other).
     #[getter]
     fn relation(&self) -> Option<&'static str> {
         self.payload().relation
     }
 
     /// Where that coincidence was decided, on `unproven_coincidence`
-    /// alone: `plane_ladder`, `carrier_ladder`, `split_on`,
-    /// `battery_turn` or `profile_junction`.
+    /// alone: `plane_ladder`, `carrier_ladder`, `tangent_witness`,
+    /// `coaxial_sphere`, `split_on`, `battery_turn`, `battery_joint`,
+    /// `battery_support_axis`, `profile_junction`, `vertex_fusion`,
+    /// `census_at_rest` or `import_anchor`.
     #[getter]
     fn site(&self) -> Option<&'static str> {
         self.payload().site
@@ -492,6 +502,7 @@ impl CheckEvidence {
                     residual: (**residual).clone(),
                     recourse: *recourse,
                 },
+                &self.1,
             )
             .map(Some),
             _ => Ok(None),
@@ -584,7 +595,7 @@ impl CheckFinding {
     /// What was found.
     #[getter]
     fn evidence(&self) -> CheckEvidence {
-        CheckEvidence(self.finding.evidence.clone())
+        CheckEvidence(self.finding.evidence.clone(), Arc::clone(&self.doc))
     }
 
     /// The finding as the library renders one: its subject, then the

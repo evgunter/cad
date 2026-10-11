@@ -2,9 +2,8 @@
 //! (`crates/editor-core/REFERENCES.md` DM3): a read of a split's port,
 //! and `Node::Part` over a pattern's copies. Acceptance rows A1–A6, the
 //! split-stamping row the stop clause's amendment asks for, and the
-//! `Dual64` pin of the relaxed same-source assertions on the exact
-//! corpus document. The Interval-lane rows (A7) are
-//! `docm2_part_interval`.
+//! `Dual64` pin of the exact corpus document. The Interval-lane rows
+//! (A7) are `docm2_part_interval`.
 //!
 //! The oracle for "the half IS the half" is the kernel's own door fed
 //! the body read straight off the split's or the pattern's value: a
@@ -22,10 +21,10 @@ use crate::corpus;
 use crate::fixture::{Recorder, ang, len, scl};
 
 use editor_core::{
-    BooleanOp, CancelToken, Datum, Denotation, DocEdit, EditError, EntityKey, EntityKind, Entry,
-    EvalOptions, Evaluation, Formula, Node, NodeError, NodeErrorKind, NodeResult, Operand,
-    PartSelect, PatternKind, ProfileDoc, RecipeNodeId, ResolveError, RoleSeg, SlotId, SplitHalf,
-    SplitSide, StableName, ValuePayload, all_edges, apply, denotation, evaluate, product,
+    CancelToken, Datum, Denotation, DocEdit, EditError, EntityKey, EntityKind, Entry, EvalOptions,
+    Evaluation, Formula, Node, NodeError, NodeErrorKind, NodeResult, Operand, PartSelect,
+    PatternKind, ProfileDoc, RecipeNodeId, ResolveError, RoleSeg, SlotId, SplitHalf, SplitSide,
+    StableName, ValuePayload, all_edges, apply, denotation, evaluate, product,
 };
 use geom_core::{Affine3, Dual, Mat3, Tol, Vec3};
 use topo::{Body, BooleanResult, mass_properties, transform_rigid};
@@ -265,10 +264,8 @@ fn a1_the_half_is_the_half_through_a_transform_a_boolean_and_a_fillet() {
         // the memo, only the new nodes compute.
         let selection = edges_of_body(&first, split, h.output_body());
         assert!(!selection.is_empty(), "the half has edges");
-        let joined = r.insert(Node::Boolean {
-            op: BooleanOp::Union,
-            a: port(split, h),
-            b: other.into(),
+        let joined = r.insert(Node::Union {
+            members: editor_core::Bodies::Spelled(vec![port(split, h).into(), other.into()]),
             declare: Vec::new(),
         });
         let rounded = r.insert(Node::fillet(port(split, h), len(RADIUS), selection.clone()));
@@ -331,10 +328,8 @@ fn a2_the_instance_is_the_instance() {
     let p0 = part(&mut r, pat, instance(0));
     let p1 = part(&mut r, pat, instance(1));
     let p2 = part(&mut r, pat, instance(2));
-    let joined = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: p1.into(),
-        b: p2.into(),
+    let joined = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![p1.into(), p2.into()]),
         declare: Vec::new(),
     });
     let ev = eval(&r.doc);
@@ -434,7 +429,7 @@ fn a3_names_pass_through_and_only_the_selected_bodys() {
         );
     }
     match error_of(&ev, stray) {
-        NodeErrorKind::BlendSelectionResolve { error, .. } => assert!(
+        NodeErrorKind::SelectResolve { error, .. } => assert!(
             matches!(**error, ResolveError::Vanished { .. }),
             "the N5 arm the situation warrants: {error}"
         ),
@@ -477,7 +472,7 @@ fn a3_names_pass_through_and_only_the_selected_bodys() {
     let rounded = r.insert(Node::fillet(p1, len(RADIUS), vec![other_instance]));
     let ev = eval(&r.doc);
     match error_of(&ev, rounded) {
-        NodeErrorKind::BlendSelectionResolve { error, .. } => assert!(
+        NodeErrorKind::SelectResolve { error, .. } => assert!(
             matches!(**error, ResolveError::Vanished { .. }),
             "the N5 arm the situation warrants: {error}"
         ),
@@ -731,13 +726,12 @@ fn a7_the_product_of_a_lone_placed_half_is_that_half() {
     assert_eq!(bits(&body), bits(&side));
 }
 
-/// **The split-stamping row** (the stop clause's amendment, item 1):
-/// a boolean of the two halves of one split succeeds at f64, and the
-/// two section planes carry DISTINCT sources — their descriptions are
-/// opposed bit for bit, so one source over both would violate the
-/// same-source theorem and, at rung 1, read two opposed planes as one.
+/// **The two section planes of one split face away from each other**,
+/// and a boolean of the two halves succeeds at f64: their descriptions
+/// are opposed bit for bit, so a reader taking them for one plane would
+/// rejoin the halves along a face that is not there.
 #[test]
-fn the_two_section_planes_of_one_split_carry_distinct_sources() {
+fn the_two_section_planes_of_one_split_face_away_from_each_other() {
     let cd = corpus::part_select::document();
     let ev = eval(&cd.doc);
     assert!(
@@ -752,27 +746,24 @@ fn the_two_section_planes_of_one_split_carry_distinct_sources() {
         .find(|id| matches!(cd.doc.node(**id), Some(Node::Split { .. })))
         .expect("the split");
     let (above, below) = sides(&ev, split);
-    let section = |b: &Body<f64>| {
-        let minted: Vec<_> = b
-            .surfaces()
-            .filter_map(|(k, s)| {
-                b.surface_source(k)
-                    .filter(|src| src.node == split.0.digest())
-                    .map(|src| (src.clone(), s.clone()))
-            })
-            .collect();
-        assert_eq!(minted.len(), 1, "one section plane per half");
-        minted.into_iter().next().unwrap()
+    // Each half's section face, by its name among that half's rows.
+    let section = |side: SplitHalf, body: &Body<f64>| {
+        let name = corpus::part_select::section_face(split, side);
+        let table = &ev.value(split).expect("the split evaluates").name_table;
+        let face = match table.lookup(&name) {
+            Some(Entry::Unique(e)) if e.body == side.output_body() => match e.key {
+                EntityKey::Face(k) => k,
+                other => panic!("{name} is not a face: {other:?}"),
+            },
+            other => panic!("{name} does not resolve in its half: {other:?}"),
+        };
+        let surface = body.get_face(face).expect("a live face").surface;
+        body.get_surface(surface).expect("a live carrier").clone()
     };
-    let (src_a, plane_a) = section(&above);
-    let (src_b, plane_b) = section(&below);
-    assert!(
-        !src_a.same_base(&src_b),
-        "distinct sources: {src_a:?} / {src_b:?}"
-    );
-    let (topo::Surface::Plane { normal: na, .. }, topo::Surface::Plane { normal: nb, .. }) =
-        (plane_a, plane_b)
-    else {
+    let (topo::Surface::Plane { normal: na, .. }, topo::Surface::Plane { normal: nb, .. }) = (
+        section(SplitHalf::Above, &above),
+        section(SplitHalf::Below, &below),
+    ) else {
         panic!("planes")
     };
     assert_eq!(
@@ -783,8 +774,8 @@ fn the_two_section_planes_of_one_split_carry_distinct_sources() {
 }
 
 /// **The `Dual64` pin** (the amendment, item 2): the exact corpus
-/// document — whose union rejoins two pieces carrying one pass-through
-/// source — evaluates green at a scalar with no bit channel. The value
+/// document — whose union rejoins the two halves of one split —
+/// evaluates green at a scalar with no bit channel. The value
 /// channel equalling f64's is `m10_di_dual_corpus`'s row; this one
 /// names the document.
 #[test]
@@ -834,10 +825,9 @@ fn u_cutter_tie(r: &mut Recorder) -> RecipeNodeId {
         1.0,
         2.0,
     );
-    r.insert(Node::Boolean {
-        op: BooleanOp::Subtract,
-        a: a.into(),
-        b: b.into(),
+    r.insert(Node::Subtract {
+        from: a.into(),
+        tool: b.into(),
         declare: Vec::new(),
     })
 }
@@ -917,57 +907,6 @@ fn a_tie_the_split_separates_is_unique_through_each_port() {
             "{name} stays tied on the split"
         );
     }
-}
-
-/// **A side naming a tie both halves hold is sided by neither.** The
-/// U-cutter tie the split separates is one name, `Unique` in each
-/// half's rows; a pair declared across the two halves names both
-/// halves at the split's one site, so a side naming that tie is held
-/// by both operands' tables and refuses typed rather than being read
-/// in the first.
-#[test]
-fn a_side_naming_a_tie_both_halves_hold_refuses() {
-    let mut r = Recorder::new();
-    let sub = u_cutter_tie(&mut r);
-    let tool = r.insert(Node::Datum(Datum::Plane {
-        origin: [len(0.0), len(2.0), len(0.0)],
-        normal: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
-    let split = r.insert(Node::Split {
-        target: sub.into(),
-        tool: tool.into(),
-    });
-    let ev = eval(&r.doc);
-    let (tied, _) = ties(&ev, split)
-        .into_iter()
-        .find(|(name, c)| {
-            name.kind == EntityKind::Face
-                && c.iter()
-                    .map(|e| e.body)
-                    .collect::<std::collections::BTreeSet<u32>>()
-                    .len()
-                    > 1
-        })
-        .expect("the premise: a face tie straddling the two halves");
-    let section = corpus::part_select::section_face(split, SplitHalf::Below);
-    let joined = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: editor_core::Operand::output(split, SplitHalf::Above.port()),
-        b: editor_core::Operand::output(split, SplitHalf::Below.port()),
-        declare: editor_core::declare_rest(vec![(
-            editor_core::SitedRef::new(split, tied),
-            editor_core::SitedRef::new(split, section),
-        )]),
-    });
-    let ev = eval(&r.doc);
-    assert!(
-        matches!(
-            error_of(&ev, joined),
-            NodeErrorKind::DeclareSiteNotAnOperand { at } if *at == split
-        ),
-        "{:?}",
-        error_of(&ev, joined)
-    );
 }
 
 /// **The contrast: a pattern of a tied master.** The pattern wraps the

@@ -17,9 +17,11 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::Bodies;
 use pncad::document::ExtrudeSide;
+use viewer::session::BooleanSpec;
 
-use pncad::document::{BooleanOp, CancelToken, EvalOptions, NodeResult, evaluate};
+use pncad::document::{CancelToken, EvalOptions, NodeResult, evaluate};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use viewer::frame::Tone;
@@ -426,9 +428,7 @@ fn a_boolean_over_a_refused_groups_instances_points_at_the_mate() {
     let boolean = common::session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: bench.post_a.into(),
-            b: bench.shelf_i.into(),
+            spec: BooleanSpec::Union(vec![bench.post_a.into(), bench.shelf_i.into()]),
             declare: Vec::new(),
         },
     );
@@ -524,9 +524,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
     let boolean = common::session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: bench.post_a.into(),
-            b: bench.shelf_i.into(),
+            spec: BooleanSpec::Union(vec![bench.post_a.into(), bench.shelf_i.into()]),
             declare: Vec::new(),
         },
     );
@@ -781,12 +779,6 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
             ".usable(",
             "`readout_of` is asked only of a row `rows` has read `Ok`: it picks which payload \
              to show, never whether the row stands",
-        ),
-        (
-            "tree.rs",
-            ".usable(",
-            "`asserted` reads the dimension of a measure its assertion's verdict already \
-             compared, so the measure stands `Ok` by construction",
         ),
         (
             "features.rs",
@@ -1370,10 +1362,8 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     let (doc, far) = block(&doc, 0.1);
     let (doc, apart) = common::inserted(
         &doc,
-        Node::Boolean {
-            op: BooleanOp::Intersect,
-            a: near.into(),
-            b: far.into(),
+        Node::Intersect {
+            members: Bodies::Spelled(vec![near.into(), far.into()]),
             declare: Vec::new(),
         },
         tol,
@@ -1457,10 +1447,9 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     // body, and a split whose tool plane cuts the block in two.
     let (doc, kept) = common::inserted(
         &doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: near.into(),
-            b: far.into(),
+        Node::Subtract {
+            from: near.into(),
+            tool: far.into(),
             declare: Vec::new(),
         },
         tol,

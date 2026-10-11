@@ -26,9 +26,8 @@
 //! instantiated sub-assembly) arrives as several solids of the product
 //! in its own solid order: that door is the N-solid one. Nothing is
 //! fused and no seam is implied; provenance rides through
-//! verbatim, so a pattern instance's `GeomSource::placed(node, i)`
-//! survives into the product, and the `Instance(i)` names the pattern
-//! minted keep addressing it through the evaluation's own name tables
+//! verbatim, and the `Instance(i)` names a pattern minted keep
+//! addressing its instances through the evaluation's own name tables
 //! (the gather writes no table of the evaluation's — it builds one
 //! aggregate table of its own, and the per-node tables it reads are
 //! untouched).
@@ -58,8 +57,8 @@
 //! compares one solid against another and solids that OVERLAP pass THIS
 //! call undetected — inter-solid interference is not among its checks.
 //! It is not local in what it REPORTS (`attribute_at_rest`). Undeclared
-//! cross-instance contact is A5's hard error and interference fits are
-//! C6's recorded-gate-skips territory; both are decided by the tier-3′
+//! cross-instance contact is A5's hard error and an overlap between
+//! copies is A5's interference finding; both are decided by the tier-3′
 //! door ([`topo::validate_pseudomanifold`]), which the ASSEMBLY gate
 //! runs over this gather's output ([`crate::assemble`]) and which this
 //! function does not. The aggregate gate's verdict rides on the
@@ -695,9 +694,8 @@ thread_local! {
 /// call, refusals included, since a refused gather is still a gather
 /// paid for.
 ///
-/// `cfg(debug_assertions)`-gated, the shape `topo::source`'s bit
-/// witnesses use. **That is not the same as "absent from a release
-/// build" here**: this workspace's `[profile.release]` sets
+/// `cfg(debug_assertions)`-gated. **That is not the same as "absent
+/// from a release build" here**: this workspace's `[profile.release]` sets
 /// `debug-assertions = true` deliberately (and says so, and says it
 /// comes out before publish), so every build this repo produces today
 /// carries the counter and the increment. What the gate buys is that
@@ -769,8 +767,22 @@ pub struct Product<T: Decide> {
     /// Its stable names, re-keyed onto the aggregate ([`product_named`]).
     pub names: NameTable,
     /// Its declared contacts, re-keyed onto the aggregate through the
-    /// graft's own descendant map.
+    /// graft's own descendant map. A source's record cites that source's
+    /// record ([`Self::cited_inputs`]); a record a mate minted cites the
+    /// at-rest census's row of [`Self::coincidences`].
     pub contacts: ContactRecords,
+    /// **The at-rest census's decisions the mates' records cite**
+    /// ([`topo::DecisionSite::CensusAtRest`]), in mint order, each cell
+    /// named as the mate's reference reads it. The
+    /// `unproven-coincidence` check reads them ([`crate::checks`]).
+    pub coincidences: Vec<crate::assembly::AtRestRow>,
+    /// The product's inputs a carried record cites, by position: the
+    /// gathered sources, in gather order.
+    pub cited_inputs: Vec<crate::coincide::CitedInput>,
+    /// The census's findings for the mated pairs it refused to read as
+    /// one carrier: those mates minted no record, and the at-rest gate
+    /// raises these beside its own ([`crate::assemble_gathered`]).
+    pub refused_at_rest: Vec<ValidationError>,
     /// Which placement contributed each of the aggregate's solids, in
     /// gather order (`crate::checks`'s separation resident is the
     /// consumer: it turns a kernel finding about two solid keys into a
@@ -780,6 +792,16 @@ pub struct Product<T: Decide> {
     /// and contact carries are — never re-derived by looking at the
     /// gathered geometry.
     pub solid_copies: Vec<SolidOrigin>,
+    /// Every copy the gather grafted, in gather order: its placed body
+    /// and the bridge from that body's arena to the aggregate's. The
+    /// at-rest gate intersects two of them to localize an interference
+    /// between them ([`crate::checks::at_rest`]).
+    pub copies: Vec<GatheredCopy<T>>,
+    /// The holding assertions over a `Gap` between faces of two of
+    /// `copies`, whose admitted values are all negative: the only
+    /// assertions that can quiet an interference
+    /// ([`crate::checks::at_rest::GapAssertion`]).
+    pub gap_assertions: Vec<crate::checks::at_rest::GapAssertion>,
     /// One row per mate of THIS document whose declaration the gather
     /// minted into `contacts`, in document order.
     ///
@@ -821,6 +843,23 @@ pub struct Product<T: Decide> {
     /// Empty on a space's own gather, and on a document every group of
     /// which is placed.
     pub spaces: Vec<OwnSpace<T>>,
+}
+
+/// **One copy as the gather grafted it** ([`Product::copies`]).
+#[derive(Debug, Clone)]
+pub struct GatheredCopy<T: Decide> {
+    /// The placement that defines it.
+    pub node: RecipeNodeId,
+    /// The placement's output variable: the copy as a selection reads
+    /// it.
+    pub var: crate::VarId,
+    /// The output-body index within the placement's value, which is
+    /// also its name rows' index.
+    pub output: u32,
+    /// The placed body.
+    pub body: Arc<Body<T>>,
+    /// The bridge from `body`'s arena to the aggregate's.
+    pub keys: Arc<topo::GraftKeys>,
 }
 
 /// **One unplaced group's own space, gathered by itself** (A9,
@@ -969,7 +1008,7 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     let placements = doc.placements();
     for &placement in &placements {
         if let Some(crate::node::Node::PlaceInWorld { body, .. }) = doc.node(placement)
-            && doc.operation_of(*body).is_none()
+            && doc.operation_of(body.read).is_none()
         {
             return Err(ProductError::StrandedPlacement { placement });
         }
@@ -1019,7 +1058,7 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // over the source however many solids it spans, so the carries
     // below are the same code for N as for 1.
     let mut aggregate = Body::new();
-    let mut grafted: Vec<(&Source<T>, topo::GraftKeys)> = Vec::with_capacity(sources.len());
+    let mut grafted: Vec<(&Source<T>, Arc<topo::GraftKeys>)> = Vec::with_capacity(sources.len());
     for source in &sources {
         let (node, _, body, _, _, _) = source;
         // An empty source contributes nothing; the graft door refuses a
@@ -1034,7 +1073,7 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
                     source: Box::new(source),
                 }
             })?;
-        grafted.push((source, keys));
+        grafted.push((source, Arc::new(keys)));
     }
 
     // The at-rest gate, ONCE, on the aggregate — before any name is
@@ -1058,22 +1097,48 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // bridge its graft minted: the source's name rows, its contact
     // records, and the declarations below it.
     let mut names = NameTable::new();
-    let mut contacts = ContactRecords::default();
+    let mut at_rest = crate::assembly::AtRestRows::default();
+    let mut cited_inputs: Vec<crate::coincide::CitedInput> = Vec::new();
     let mut solid_copies: Vec<SolidOrigin> = Vec::new();
     let mut carried: Vec<crate::assembly::CarriedDeclaration> = Vec::new();
     let mut carried_unminted: Vec<crate::assembly::CarriedRefusal> = Vec::new();
     let mut tie_rows = CarriedRows::default();
-    for ((node, ix, _, table, records, rows), keys) in &grafted {
+    let mut copies: Vec<GatheredCopy<T>> = Vec::with_capacity(grafted.len());
+    for ((node, ix, body, table, records, rows), keys) in &grafted {
         solid_copies.extend(keys.solids().iter().map(|&solid| SolidOrigin {
             node: *node,
             output: *ix,
             solid,
         }));
+        copies.push(GatheredCopy {
+            node: *node,
+            var: doc
+                .output(*node, 0)
+                .unwrap_or_else(|| unreachable!("{node:?} is a placement, which defines one copy")),
+            output: *ix,
+            body: Arc::clone(body),
+            keys: Arc::clone(keys),
+        });
         carry_names(&mut tie_rows, table, *node, *ix, keys);
-        carry_contacts(&mut contacts, records, keys)
+        // Each source's records cite the placement's list, by the
+        // source's position among the product's inputs, which names the
+        // placement's `body` read: the copy's records are the body's, in
+        // its order.
+        let Some(crate::node::Node::PlaceInWorld { body: read, .. }) = doc.node(*node) else {
+            unreachable!("a product source is a placement's copy")
+        };
+        let input = u32::try_from(cited_inputs.len()).unwrap_or(u32::MAX);
+        cited_inputs.push(crate::coincide::CitedInput::Read(read.read));
+        carry_contacts(&mut at_rest.contacts, &records.carried_from(input), keys)
             .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
         carry_declarations(&mut carried, &rows.minted, keys)
             .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
+        for finding in &rows.refused {
+            at_rest.refused.push(
+                carry_finding(finding, keys)
+                    .map_err(|what| ProductError::ContactLineage { node: *node, what })?,
+            );
+        }
         // A refusal names no entity — it is a mate that produced NO
         // record — so it carries with nothing to re-key.
         carried_unminted.extend(rows.unminted.iter().cloned());
@@ -1105,7 +1170,21 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // the FINISHED name table, and the aggregate's own at-rest verdict
     // is about geometry, so a product that is not a body at all
     // refuses before any mate is read.
-    let (minted, unminted) = crate::assembly::mint(doc, evaluation, &names, &mut contacts, space);
+    let (minted, unminted) = crate::assembly::mint(
+        doc,
+        evaluation,
+        (&names, &aggregate),
+        &mut at_rest,
+        space,
+        geom_core::Band::linear(tol),
+    );
+    let crate::assembly::AtRestRows {
+        contacts,
+        coincidences,
+        refused: refused_at_rest,
+    } = at_rest;
+    let gap_assertions =
+        crate::checks::at_rest::gap_assertions(doc, evaluation, &aggregate, &names, &copies, tol);
     let spaces = match space {
         crate::mate::Space::World => own_spaces(doc, evaluation, tol),
         crate::mate::Space::Own { .. } => Vec::new(),
@@ -1115,7 +1194,12 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         body: aggregate,
         names,
         contacts,
+        coincidences,
+        cited_inputs,
+        refused_at_rest,
         solid_copies,
+        copies,
+        gap_assertions,
         minted,
         unminted,
         carried,
@@ -1265,6 +1349,46 @@ fn carry_declarations(
         });
     }
     Ok(())
+}
+
+/// Re-keys one at-rest census finding a document below raised for a
+/// mated pair it refused ([`crate::Product::refused_at_rest`]) onto the
+/// aggregate, as [`carry_declarations`] re-keys the pair's declaration.
+/// Only the census's refusals of a pair reach here, and they name
+/// faces or nothing.
+fn carry_finding(
+    finding: &ValidationError,
+    keys: &topo::GraftKeys,
+) -> Result<ValidationError, &'static str> {
+    let face = |f| keys.face(f).ok_or("face");
+    Ok(match finding {
+        ValidationError::ContactContradicted {
+            declaration,
+            witness,
+            margin,
+            steer,
+        } => ValidationError::ContactContradicted {
+            declaration: topo::DeclaredContact {
+                a: face(declaration.a)?,
+                b: face(declaration.b)?,
+                ..*declaration
+            },
+            witness: witness.clone(),
+            margin: *margin,
+            steer: *steer,
+        },
+        ValidationError::CensusUnsupported {
+            subject: topo::CensusSubject::FacePair(a, b),
+            cause,
+        } => ValidationError::CensusUnsupported {
+            subject: topo::CensusSubject::FacePair(face(*a)?, face(*b)?),
+            cause: cause.clone(),
+        },
+        other @ (ValidationError::CensusEscalated { .. } | ValidationError::Band { .. }) => {
+            other.clone()
+        }
+        _ => return Err("an at-rest finding the census does not raise for a pair"),
+    })
 }
 
 /// Re-keys one grafted body's name rows onto the aggregate: the same

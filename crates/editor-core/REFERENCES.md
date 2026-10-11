@@ -20,24 +20,32 @@ The recipe admits three reference shapes, and every node is built from them:
 - **A frozen `StableName`**: `{ kind, node, path }` (N1, `names/role.rs`),
   stored at authoring and resolved at evaluation through a name table under
   the N5 ladder — `NodeGone`, then `Ambiguous`, then `Vanished` — never
-  silently shrunk (`eval/wire.rs`, `ladder` and `resolve_selection`).
-  Carriers: `Fillet`/`Chamfer` selections, `Shell` open lists, a
-  `Datum::FaceFrame`'s face, a `Union`'s, `Intersect`'s or `Subtract`'s
-  declared pairs, `Mate` heads, `Measure` refs, an `InstantiatePart`'s interface crossings'
-  `outer`s (a crossing's `inner` is not a name of this document; the list's
-  arm says why). The list has two homes, this clause and
+  silently shrunk (`eval/wire.rs`, `ladder` and `select`). Two kinds of
+  carrier hold them. A **selection** is a definition, `Select { body,
+  names }` (`var.rs`, `Select`): its body read is a DAG edge, its names
+  are frozen, and it defines a set (`Faces`, `Edges`) or a singleton
+  (`Face`, `Edge`, `Vertex`) that a node reads like any variable — a
+  `Fillet`'s or `Chamfer`'s edges, a `Shell`'s open faces, a
+  `Datum::FaceFrame`'s face, a `Measure`'s refs. The N5 ladder runs in the
+  selection's evaluation and nowhere else for these. A **payload** is a
+  name a node holds itself: a `Union`'s, `Intersect`'s or `Subtract`'s
+  declared pairs, `Mate` heads, an `InstantiatePart`'s interface crossings'
+  `outer`s (a crossing's `inner` is not a name of this document; the
+  list's arm says why). The payload list has two homes, this clause and
   `Node::payload_names`' own doc; every other site points at the latter
   rather than restating it. A name is not a DAG edge, and two doors refuse
-  on one: `InsertNode`'s liveness check, and `split`'s
+  on one: `InsertNode`'s liveness check (the selection's door,
+  `mint_selection`, runs the same check on its names), and `split`'s
   `PartNameReachesRemainder` precondition, which refuses a cut whose taken
-  node carries a name reaching the kept remainder (a declared pair's, a
-  `Mate` head's, an instance's crossing `outer`). A later delete strands a
-  name (N5) and says so (DM7).
+  node carries a name reaching the kept remainder (a selection's, a
+  declared pair's, a `Mate` head's, an instance's crossing `outer`). A
+  later delete strands a name (N5) and says so (DM7).
 - **An `Expr` literal** in a slot, bit-pinned (D7).
 
 Two precedents these clauses extend. `SitedRef { at, name }` (`node.rs`)
 pairs a DAG edge with a frozen name: `at` says which evaluated value to read,
-`name` says which entity. `Datum::AxisInPlane { frame, .. }` (`node.rs`) is
+`name` says which entity. A selection is the same pairing as a definition,
+its `body` the `at`. `Datum::AxisInPlane { frame, .. }` (`node.rs`) is
 the one datum with a DAG input: its meaning comes from another node, which
 does not make the check cheaper but makes the error unrepresentable.
 
@@ -49,12 +57,13 @@ nine `Expr`s and no reference, orthonormalized at evaluation (`node.rs`).
 
 ## DM1 — A derived frame is a datum carrying a face name
 
-`Datum::FaceFrame { at: RecipeNodeId, face: StableName, spin: Expr }` is a
-`Datum::Frame` whose pose is computed at evaluation from a named face. `at`
-is a DAG edge to the body node whose value the face is read out of; `face` is
-a frozen face name resolved through that value's name table under the N5
-ladder; `spin` is the authored rotation of sketch +x about the normal. It is
-the `SitedRef` shape applied to a datum. The frame it yields has its origin
+`Datum::FaceFrame { face: S::Read, spin: S }` is a `Datum::Frame` whose
+pose is computed at evaluation from a named face. `face` reads a `Face`
+selection: its body read is the DAG edge to the body whose value the face is
+read out of, and its one name is a frozen face name resolved through that
+value's name table under the N5 ladder; `spin` is the authored rotation of
+sketch +x about the normal. It is the `SitedRef` shape applied to a datum,
+held as a definition the frame reads. The frame it yields has its origin
 at the carrier's origin projected to the face's plane (the carrier's own
 distinguished point, `readback.rs` rule 2), its normal along the face's
 outward normal (DM1a), and sketch +x along the carrier's u-reference rotated
@@ -66,9 +75,11 @@ by `spin`.
   where it sits. A derived frame is a DAG input: the face's body is upstream,
   the frame moves when the face moves, and it participates in the memo and
   content key like every node.
-- **The failure mode is the fillet's.** A face name that stops resolving
-  fails the frame typed and poisons the sketch above it, exactly as a
-  fillet's selection does (`BlendSelectionResolve`); the repair is `Rebind`.
+- **The failure mode is the fillet's.** The frame reads its face through a
+  `Face` selection, as a fillet reads its edges through an `Edges` one, so a
+  face name that stops resolving fails the frame typed and poisons the
+  sketch above it with the same refusal (`SelectResolve`); the repair is
+  `Rebind` on the selection's body.
   It is the first datum with an N5 failure mode, and that is the honest
   behaviour.
 - **DM1a — the read-back grows a sense, it does not fold one in.**
@@ -122,8 +133,8 @@ is stored. `select_where` filters on `SurfaceKind` exactly
 
 A `Split` defines two `Body` outputs, `above` and `below` (the port index is
 `SplitHalf::output_body`'s), read like any other output: a read of a port
-is that half, its body and its rows of the split's table. One member of a family (D10, Repetition) is read as
-`xs[i]`, or `xs[i, j]` for a family keyed by two indices: a read of the
+is that half, its body and its rows of the split's table. One member of a
+family (D10, Repetition) is read as `xs[i]`, or `xs[i, j]` for a family keyed by two indices: a read of the
 family at one `Count` expression per index (VR4); an index outside the
 range leaves the reader unresolved and typed at evaluation, never
 re-pointed. `xs[i]` is not a variable: it is the read a per-`k` reader
@@ -140,6 +151,13 @@ name is scoped by the variable that holds its body (N1), so a split half's names
 and a selection of `split.above` states its body once. A body seat
 reading a whole family, a profile or a split as a whole refuses by kind at
 the door (`SlotVarKind`).
+
+*Built: the indexed read at every body seat, rank one, FORK-DM4 unit 1
+(PR 4527). Every family a node defines is one flat list, so `xs[i, j]`
+waits on a family keyed by two indices
+(`work/intent/an-indexed-read-of-rank-two-has-no-family.md`). Until stage
+3 G, `Part { select: Instance }` stands beside it, a second way to pick a
+member; new authoring writes `xs[i]`.*
 
 ## DM4 — Flat operators before splice: union and intersect are lists, subtract a pair
 
@@ -369,7 +387,9 @@ refusal menu of `docs/SELECT-DESIGN.md` §3d keeps its two arms for every
 member-space declaration channel, DOCM-7 (PR 2028), sited at the members
 (#2795) and made the node's own payload (#3587); the flat `Merged` mint and
 the look-through, DOCM-8 (PR 2073); the typed refusal past the merges,
-ruled on PR 2677; the pairwise contact rule (#3200, built in PR 3213).*
+ruled on PR 2677; the pairwise contact rule (#3200, built in PR 3213); the
+three nodes over one `Bodies` argument, keyed by the read, FORK-DM4 unit 1
+(PR 4527).*
 
 ## DM5 — A read repeated is answered by the operation
 
@@ -397,8 +417,9 @@ refusing the repeat keeps a syntactic refusal beside a semantic admission
 of the identical geometry, and collapsing the list as a set rewrites what
 the author wrote and is a second rule beside the glue two variables get.
 
-*The refusal this clause replaces (`EditError::DuplicateInput`, the load
-validator's arm) was built in DOCM-3 (PR 1803).*
+*Built: FORK-DM4 unit 1 (PR 4527). The refusal this clause replaces
+(`EditError::DuplicateInput`, the load validator's arm) was built in DOCM-3
+(PR 1803).*
 
 ## DM6 — No edit infers a re-point
 

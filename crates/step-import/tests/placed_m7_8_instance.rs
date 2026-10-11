@@ -4,6 +4,7 @@
 //! re-mints through the plain edge doors and the cap offset after it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::test_support::upper;
 use geom_core::{Point3, Tol};
 use step_import::{ImportOptions, StepImport, import_step};
 use topo::test_support as tc;
@@ -71,8 +72,7 @@ fn m7_8_cube() -> topo::Body<f64> {
             edge_key,
             geom_brep::EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
-                    s1,
-                    s2,
+                    pair: geom_brep::SurfacePair::new(s1, s2),
                     witness: if (p0.x - p1.x).abs() > 0.5 {
                         Point3::new(0.5, 0.5 * BOW, p0.z)
                     } else {
@@ -177,13 +177,12 @@ fn offsets_beside_the_wall(body: &topo::Body<f64>, count: usize) {
                         error:
                             geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
                                 limb: geom_brep::SsiLimb::OnLocus,
-                                value,
-                                ..
+                                margin,
                             }),
                         ..
                     },
                 ..
-            }) => assert!((value - 0.25).abs() < 1e-9, "the gap: {value}"),
+            }) => assert!((upper(margin) - 0.25).abs() < 1e-9, "the gap: {margin}"),
             other => panic!("cap {cap:?} outward: {:?}", other.map(|_| ())),
         }
     }

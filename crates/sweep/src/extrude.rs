@@ -99,8 +99,8 @@ use core::fmt;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
-    DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, NewellError, classify_dihedral,
-    newell_plane,
+    DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, NewellError,
+    SurfacePair, classify_dihedral, newell_plane,
 };
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
@@ -692,12 +692,13 @@ fn extruded_strut_spec<T: Real>(
     w_norm: T,
 ) -> EdgeCurveSpec<T> {
     EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(MappedCurve::ExtrudedPoint {
-            point,
-            place,
-            vec: w,
-            range: geom_brep::SweepRange::whole(),
-        }),
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+            MappedSource::ExtrudedPoint {
+                point,
+                place,
+                vec: w,
+            },
+        )),
         carrier: strut_carrier(q_bottom, w),
         param_start: T::zero(),
         param_end: w_norm,
@@ -1227,8 +1228,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                 // re-describe through the certified setter.
                 let spec = EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
-                        s1: k_prev,
-                        s2: k_next,
+                        pair: SurfacePair::new(k_prev, k_next),
                         witness: mid,
                     },
                     carrier: strut_carrier(qs[j], w),
@@ -1270,16 +1270,17 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                         ExtrudeError::SmoothJoinRefuted { edge: strut.edge }
                     }
                 };
+                let (pair, [sa, sb]) = SurfacePair::sorted(k_prev, &s_prev, k_next, &s_next);
                 match geom_brep::must_carry_over_edge(
-                    &s_prev,
-                    &s_next,
+                    sa,
+                    sb,
                     &carrier,
                     T::zero(),
                     w_norm,
                     w_norm,
                     band,
                 )
-                .description(k_prev, k_next, mid)
+                .description(pair, mid)
                 .map_err(refused)?
                 {
                     geom_brep::MustCarryDescription::Intrinsic(description) => {
@@ -1425,12 +1426,13 @@ fn sweep_full_turn<T: Decide + topo::AtRestPolicy>(
     let far = q + w;
     let back = Vec3::zero() - w;
     let strut = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(MappedCurve::ExtrudedPoint {
-            point: seg.chord.a,
-            place: top_place,
-            vec: back,
-            range: geom_brep::SweepRange::whole(),
-        }),
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+            MappedSource::ExtrudedPoint {
+                point: seg.chord.a,
+                place: top_place,
+                vec: back,
+            },
+        )),
         carrier: strut_carrier(far, back),
         param_start: T::zero(),
         param_end: w_norm,
@@ -1611,8 +1613,7 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
         Ok(DihedralClass::Transverse) => {
             let spec = EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1: cap,
-                    s2: wall,
+                    pair: SurfacePair::new(cap, wall),
                     witness,
                 },
                 carrier,
@@ -1656,8 +1657,9 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
                 }
                 geom_brep::MustCarryRefusal::Refuted => ExtrudeError::SmoothJoinRefuted { edge },
             };
-            match geom_brep::must_carry_over_edge(&s_cap, &s_wall, &carrier, t0, t1, extent, band)
-                .description(cap, wall, witness)
+            let (pair, [sa, sb]) = SurfacePair::sorted(cap, &s_cap, wall, &s_wall);
+            match geom_brep::must_carry_over_edge(sa, sb, &carrier, t0, t1, extent, band)
+                .description(pair, witness)
                 .map_err(refused)?
             {
                 geom_brep::MustCarryDescription::Intrinsic(description) => {

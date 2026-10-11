@@ -30,7 +30,7 @@
 //! cannot hold two types.
 //!
 //! A NESTED REFUSAL is not flattened: `ProfileProgramRefused`,
-//! `MeasureMalformed`, `Dimension`, `InvalidDistribution`,
+//! `Dimension`, `InvalidDistribution`,
 //! `PlacementAxis` and `MetaUnversioned` each hold another error type,
 //! `inner_variant` names its arm, and the fields inside it belong to
 //! that type's own door.
@@ -65,8 +65,8 @@ pub struct EditPayload<'a> {
     /// The node the refusal is ABOUT — the edit's target, the node
     /// being written, the node on the cycle.
     pub node: Option<RecipeNodeId>,
-    /// A node the subject NAMES: an operand that does not resolve, an
-    /// input reached twice, the measure an assertion constrains.
+    /// A node the subject NAMES: an operand that does not resolve, the
+    /// measure an assertion constrains.
     pub input: Option<RecipeNodeId>,
     /// The named expression slot the refusal is about
     /// ([`crate::tags::slot_id_tag`]).
@@ -88,17 +88,16 @@ pub struct EditPayload<'a> {
     pub from_kind: Option<EntityKind>,
     /// A rebind's TARGET entity kind.
     pub to_kind: Option<EntityKind>,
-    /// How many entries a short list would have had.
+    /// A count the refusal names: the nodes a definition expands to.
     pub count: Option<usize>,
-    /// The position a DESIGNATION fault is reported at. The VARIANT
-    /// decides which position it is: `RepeatedDesignation`'s first
-    /// occurrence of a repeated entry, or `SelectionNotCanonical`'s
-    /// entry that does not sort strictly before the one after it.
-    /// Both are one index into one payload list, so they share the
-    /// attribute rather than minting a second word for it.
+    /// The position a selection's shape fault is reported at. The
+    /// fault decides which position it is: a repeated face's first
+    /// occurrence, or the edge that does not sort strictly before the
+    /// one after it. Both are one index into one list, so they share
+    /// the attribute rather than minting a second word for it.
     pub first: Option<usize>,
     /// The position at which a repeat is named AGAIN — carried only by
-    /// `RepeatedDesignation`, the one fault that names two entries.
+    /// a repeated face, the one fault that names two entries.
     pub again: Option<usize>,
     /// A refused scalar the door names in its own right — a
     /// tolerance's ε.
@@ -291,6 +290,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::SetMembersOnNonList { node }
+        | EditError::LoftSectionsSpelled { node }
         | EditError::SetDeclareOnNonDeclaring { node }
         | EditError::SetProgramOnNonProfile { node }
         | EditError::SetExtrudeSideOnNonExtrude { node }
@@ -313,17 +313,11 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // The nested refusals: `inner_variant` names the arm and the
         // fields inside it stay on that type's own door.
         EditError::ProfileProgramRefused { node, refusal: _ }
-        | EditError::MeasureMalformed { node, fault: _ }
         | EditError::StepIdsRefused { node, fault: _ } => EditPayload {
             node: Some(node.id()),
             ..none
         },
         EditError::UnresolvedInput { input } => EditPayload {
-            input: Some(input.id()),
-            ..none
-        },
-        EditError::DuplicateInput { node, input } => EditPayload {
-            node: Some(node.id()),
             input: Some(input.id()),
             ..none
         },
@@ -340,47 +334,40 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             input: Some(other.id()),
             ..none
         },
-        // An assertion's `measure` IS the node it reads, so it takes
-        // the `input` role rather than a fourth node attribute.
-        EditError::AssertionTarget { node, measure } => EditPayload {
-            node: Some(node.id()),
-            input: Some(measure.id()),
-            ..none
-        },
         EditError::AssertionDimension {
             node,
-            measure,
             measured,
             bound,
         } => EditPayload {
             node: Some(node.id()),
-            input: Some(measure.id()),
             expected: Some(dim(*measured)),
             found: Some(dim(*bound)),
             ..none
         },
-        EditError::RepeatedDesignation { node, first, again } => EditPayload {
+        // One position for an edge set, not two: its canonical form
+        // breaks between an entry and its successor, so the successor's
+        // index is the entry's plus one and publishing it would be
+        // arithmetic dressed as data.
+        EditError::SelectionShape { node, slot, fault } => {
+            use pncad::document::SelectionFault as F;
+            let (first, again, count) = match fault {
+                F::Repeated { first, again } => (Some(*first), Some(*again), None),
+                F::NotCanonical { at } => (Some(*at), None, None),
+                F::Singleton { count } => (None, None, Some(*count)),
+                F::NotASelection { .. } | F::Seat { .. } | F::OtherBody => (None, None, None),
+            };
+            EditPayload {
+                node: Some(node.id()),
+                slot: Some(slot_id_tag(slot)),
+                index: operand_index(slot),
+                first,
+                again,
+                count,
+                ..none
+            }
+        }
+        EditError::IndexedRead { node, .. } => EditPayload {
             node: Some(node.id()),
-            first: Some(*first),
-            again: Some(*again),
-            ..none
-        },
-        // One position, not two: a selection's canonical form breaks
-        // between an entry and its successor, so the successor's index
-        // is the entry's plus one and publishing it would be arithmetic
-        // dressed as data. `again` staying `None` is what tells a
-        // reader which of the two designation faults this is, beside
-        // the variant word itself.
-        EditError::SelectionNotCanonical { node, at } => EditPayload {
-            node: Some(node.id()),
-            first: Some(*at),
-            ..none
-        },
-        // `found` here is a COUNT, not a dimension, so it takes the
-        // `count` attribute: one attribute never carries two types.
-        EditError::TooFewMembers { node, found } => EditPayload {
-            node: Some(node.id()),
-            count: Some(*found),
             ..none
         },
         // An operand's slot rides `slot` in the slot vocabulary, its
@@ -405,10 +392,6 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
                 ..none
             }
         }
-        EditError::MeasuresWorldCopy { placement } => EditPayload {
-            node: Some(placement.id()),
-            ..none
-        },
         EditError::ReadsWorldCopy { node, slot, .. } => EditPayload {
             node: Some(node.id()),
             slot: Some(slot_id_tag(slot)),
@@ -477,6 +460,13 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             index: operand_index(slot),
             expected: Some(slot_kind_tag(*expected)),
             found: Some(var_kind_tag(*found)),
+            ..none
+        },
+        EditError::ConstructionReadsObserved { node, slot, var } => EditPayload {
+            node: Some(node.id()),
+            param: var.name(),
+            slot: Some(slot_id_tag(slot)),
+            index: operand_index(slot),
             ..none
         },
         EditError::ContinuousVarCannotBeCount { var }
@@ -603,11 +593,13 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // (the `ProductError` arm's precedent, same refusal one door
         // over).
         EditError::EvaluationOfAnotherDocument { .. } => none,
-        // The declaring node, the side's name, and the node the side
-        // is read at, which is not one of the node's operands.
+        // The declaring node, the side's name, and the read the side
+        // is sited at, which is not one of the node's operand reads: a
+        // read crosses as `param`, by the name the document holds for
+        // it, as every refusal naming a variable does.
         EditError::DeclaredSiteNotAnOperand { node, name, site } => EditPayload {
             node: Some(node.id()),
-            input: Some(site.id()),
+            param: site.name(),
             name: Some(name.name()),
             ..none
         },

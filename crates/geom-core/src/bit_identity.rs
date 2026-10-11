@@ -7,14 +7,10 @@
 //!
 //! # What this is, and is not
 //!
-//! This is an **identity channel, not a comparison door**: through M3
-//! it powered the *declared* rung of the round-8 coincidence ladder
-//! (bit-equal descriptions arising from shared recipe data decided
-//! coincidence exactly). Since M4 PR 5 that rung is a
-//! `topo::GeomSource` lookup and NO production coincidence path
-//! consults this channel (see the retirement note below) — what
-//! remains is exact-representation plumbing (content-key hashing)
-//! and the debug assertion behind the source lookup. It never orders
+//! This is an **identity channel, not a comparison door**: NO
+//! production coincidence path consults it (see the retirement note
+//! below) — a coincidence is its margin's to decide (D10), and what
+//! remains is exact-representation plumbing. It never orders
 //! values, never bands, and is deliberately NOT part of the
 //! [`Real`](crate::Real) trait surface — evaluation code stays
 //! comparison-free.
@@ -26,28 +22,22 @@
 //!   step fails if the punning idioms appear anywhere else in crate
 //!   sources (allowlist: this file, plus `interval.rs` which defines
 //!   `Interval::repr_bits` over its own storage).
-//! - **Retirement LANDED (M4 PR 5, NAMING-DESIGN N6)**: production
-//!   bit-identity coincidence checking is GONE — the declared rung is
-//!   a `topo::GeomSource` lookup (two descriptions share a recipe
-//!   source), and the bit compare survives exactly as N6 promised: a
-//!   `cfg(debug_assertions)` assertion behind the lookup
-//!   (`topo::source`, the "records agree with bits" check). The CI
+//! - **Retired from production coincidence (NAMING-DESIGN N6)**: no
+//!   production path checks coincidence through this channel. The CI
 //!   tripwires stay armed with an EMPTY production-consumer
 //!   allowlist; the remaining allowlisted files are non-consumers
-//!   (scalar plumbing / the debug assertion).
+//!   (scalar plumbing).
 //!
 //! A scalar type without an arm below (e.g. `Dual`, which no `Body`
-//! instantiates) yields `None`: no bit channel ⇒ declared coincidence
-//! cannot be certified ⇒ callers must take the conservative branch
-//! (never-equal), which is the ladder's safe direction.
+//! instantiates) yields `None`: no bit channel, so a caller takes the
+//! conservative branch (never-equal).
 
 /// The bit-faithful identity of one scalar: `f64` ⇒ `(to_bits, 0, 0)`;
 /// `Probe` ⇒ its inner `f64`'s bits; the interval scalar ⇒ its
 /// `(inf_bits, sup_bits, decoration)` triple (`Interval::repr_bits`,
 /// which — unlike `Bounds` — keeps NaI and empty apart). NaN payloads
 /// are distinguished (the PR 1 exploit is unrepresentable here);
-/// bit-identical NaNs still compare equal — a declared coincidence of
-/// garbage, refused downstream by tier 3, never laundered here.
+/// bit-identical NaNs still compare equal.
 pub type ScalarBits = (u64, u64, u64);
 
 /// The identity of `x`, if its concrete type has a bit channel.

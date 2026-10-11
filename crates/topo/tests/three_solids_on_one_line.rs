@@ -234,7 +234,7 @@ fn none(_: &[usize]) -> Option<&'static str> {
 fn fold(
     members: &[AtRestBody<f64>],
     order: &[usize],
-) -> Result<BooleanBody<f64>, (usize, BooleanError)> {
+) -> Result<BooleanBody<f64>, (usize, Box<BooleanError>)> {
     let mut body = members[order[0]].clone();
     let mut last = None;
     for (k, &i) in order.iter().enumerate().skip(1) {
@@ -244,7 +244,7 @@ fn fold(
                 last = Some(r);
             }
             Ok(BooleanResult::Empty) => panic!("step {k} of {order:?} is empty"),
-            Err(e) => return Err((k, e)),
+            Err(e) => return Err((k, Box::new(e))),
         }
     }
     Ok(last.expect("a fold of two or more members"))
@@ -648,11 +648,12 @@ fn escalates(e: &BooleanError) -> bool {
     )
 }
 
-/// **Three prisms over 60° sectors refuse their flush continuation in
+/// **Three prisms over 60° sectors glue their flush continuation in
 /// every member order**: each lateral face lies in the plane of
-/// another's, touching it along the line, and nothing declares it.
+/// another's, touching it along the line, and its margins decide it
+/// (D10), undeclared.
 #[test]
-fn three_prisms_flush_along_one_line_refuse_undeclared_in_every_member_order() {
+fn three_prisms_flush_along_one_line_build_undeclared_in_every_member_order() {
     let prisms = [
         Prism::on_line(0.0, 60.0, (0.5, 2.0)),
         Prism::on_line(120.0, 180.0, (0.47, 1.7)),
@@ -662,10 +663,8 @@ fn three_prisms_flush_along_one_line_refuse_undeclared_in_every_member_order() {
     let mut members = vec![finished("the plate", p, t())];
     members.extend(prisms.iter().map(Prism::body));
     for order in orders(members.len()) {
-        match fold(&members, &order) {
-            Err((_, BooleanError::UndeclaredCoincidence { .. })) => {}
-            Err((k, e)) => panic!("60° sectors, member order {order:?}: step {k} refused {e:?}"),
-            Ok(_) => panic!("60° sectors, member order {order:?}: built"),
+        if let Err((k, e)) = fold(&members, &order) {
+            panic!("60° sectors, member order {order:?}: step {k} refused {e:?}");
         }
     }
 }
@@ -693,12 +692,12 @@ fn fold_from(
     order: &[usize],
     from: usize,
     mut body: AtRestBody<f64>,
-) -> Result<AtRestBody<f64>, (usize, BooleanError)> {
+) -> Result<AtRestBody<f64>, (usize, Box<BooleanError>)> {
     for (k, &i) in order.iter().enumerate().skip(from) {
         match union(&body, &members[i], t()) {
             Ok(BooleanResult::Body(r)) => body = r.body,
             Ok(BooleanResult::Empty) => panic!("step {k} of {order:?} is empty"),
-            Err(e) => return Err((k, e)),
+            Err(e) => return Err((k, Box::new(e))),
         }
     }
     Ok(body)
@@ -783,9 +782,7 @@ fn a_declaration_at_the_contact_line_serves_the_undeclared_body_or_refuses() {
 /// builds the undeclared fold's body.
 #[test]
 fn carrying_each_steps_records_serves_the_same_body() {
-    use topo::{
-        BooleanDeclarations, CarriedContacts, CarriedVf, CarriedVv, ContactClass, union_with,
-    };
+    use topo::{BooleanDeclarations, CarriedContacts, ContactClass, union_with};
     let eps = t().eps();
     for (label, prisms) in [
         ("three", three()),
@@ -811,17 +808,7 @@ fn carrying_each_steps_records_serves_the_same_body() {
                         other => panic!("{what}: step {k}: {other:?}"),
                     };
                     let c = &r.contacts;
-                    carried = CarriedContacts {
-                        vv: c.vv.iter().map(|&pair| CarriedVv { pair, class }).collect(),
-                        vf: c
-                            .a_on_b
-                            .iter()
-                            .chain(&c.b_on_a)
-                            .map(|&rest| CarriedVf { rest, class })
-                            .collect(),
-                        ve: c.ve.clone(),
-                        ee: c.ee.clone(),
-                    };
+                    carried = c.carried(class);
                     body = r.body;
                 }
                 assert!(shape(&body) == undeclared, "{what}: another body");

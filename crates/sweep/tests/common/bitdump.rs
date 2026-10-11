@@ -12,7 +12,8 @@
 //! **Deliberately not absorbed**, and the whole of it:
 //! `offd_r1_probes`' `dump`, which is the body's whole `Debug`, compared
 //! for equality between two builds in one run rather than diffed as a
-//! file.
+//! file; and [`super::outcomes`], a boolean's whole outcome compared
+//! the same way.
 
 use std::fmt::Write as _;
 

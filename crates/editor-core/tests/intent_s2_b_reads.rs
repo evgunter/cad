@@ -9,7 +9,7 @@
 use crate::fixture::{self, insert, len, on_frame_keeping, scl, xform};
 use crate::wire::up_to_ids;
 use editor_core::{
-    Dimension, DocEdit, EditError, Maintenance, Node, NodeErrorKind, Operand, OperandSlot,
+    Dimension, DocEdit, EditError, Formula, Maintenance, Node, NodeErrorKind, Operand, OperandSlot,
     PatternKind, ProfileDoc, RecipeNodeId, SlotId, SlotKind, Took, VarKind, apply, load, save,
 };
 use geom_core::Tol;
@@ -63,10 +63,11 @@ fn a_read_of_the_wrong_kind_refuses_at_the_door() {
     let refusal = refused(
         &doc,
         DocEdit::InsertNode {
-            node: Box::new(Node::Boolean {
-                op: editor_core::BooleanOp::Union,
-                a: Operand::Var(read),
-                b: extrude.into(),
+            node: Box::new(Node::Union {
+                members: editor_core::Bodies::Spelled(vec![
+                    Operand::Var(read).into(),
+                    extrude.into(),
+                ]),
                 declare: Vec::new(),
             }),
             fresh: Vec::new(),
@@ -76,7 +77,7 @@ fn a_read_of_the_wrong_kind_refuses_at_the_door() {
         matches!(
             &refusal,
             EditError::SlotVarKind {
-                slot: SlotId::Operand(OperandSlot::A),
+                slot: SlotId::Operand(OperandSlot::Member(0)),
                 found: VarKind::Profile,
                 expected: SlotKind::Is(VarKind::Body),
                 var,
@@ -92,9 +93,9 @@ fn a_read_of_the_wrong_kind_refuses_at_the_door() {
 }
 
 /// **(B, test 5) A delete leaves a typed reader.** Deleting the extrude
-/// under a fillet is accepted and reports the fillet's `target` read
-/// stranded, beside the strands of the names the extrude minted; the
-/// fillet then refuses `UnresolvedRead` at its target. The stranded
+/// under a fillet is accepted and reports the fillet's selection's body
+/// read stranded, beside the strands of the names the extrude minted;
+/// the fillet then refuses `UnresolvedRead` at its selection. The stranded
 /// document saves and loads as itself, and the stranded reader deletes.
 #[test]
 fn a_delete_leaves_its_reader_unresolved_and_typed() {
@@ -118,18 +119,19 @@ fn a_delete_leaves_its_reader_unresolved_and_typed() {
         .collect();
     assert_eq!(
         reads,
-        vec![(fillet, OperandSlot::Target, target)],
+        vec![(fillet, OperandSlot::Selection, target)],
         "one stranded read"
     );
     let names: Vec<_> = deleted
         .maintenance
         .iter()
         .filter_map(|row| match row {
-            Maintenance::Strand {
-                node,
+            Maintenance::StrandedSelection {
+                readers,
                 name,
                 took: Took::Node,
-            } => Some((node.id(), name.name().clone())),
+                ..
+            } => Some((readers[0].id(), name.name().clone())),
             _ => None,
         })
         .collect();
@@ -151,7 +153,7 @@ fn a_delete_leaves_its_reader_unresolved_and_typed() {
     assert!(
         matches!(
             ev.node_error(fillet).map(|e| &e.kind),
-            Some(NodeErrorKind::UnresolvedRead { slot: OperandSlot::Target, var }) if *var == target
+            Some(NodeErrorKind::UnresolvedRead { slot: OperandSlot::Selection, var }) if *var == target
         ),
         "{:?}",
         ev.node_error(fillet)
@@ -186,7 +188,7 @@ fn a_forward_member_saves_loads_and_cascades() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![a.into(), b.into()],
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
@@ -195,7 +197,7 @@ fn a_forward_member_saves_loads_and_cascades() {
         &doc,
         DocEdit::SetMembers {
             node: union,
-            members: vec![a.into(), b.into(), c.into()],
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into(), c.into()]),
         },
     )
     .doc;
@@ -268,25 +270,33 @@ fn the_slot_door_re_points_an_operand_and_reports_what_it_strands() {
     );
 
     // A name the re-point takes out of reach: a fillet of `a` selecting
-    // one of `a`'s edges, re-pointed at `b`, reports the edge stranded
-    // by reach and is written.
+    // one of `a`'s edges, re-pointed at the selection of that edge in
+    // `b`, reports the edge stranded by reach and is written.
     let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
     let edge = editor_core::all_edges(&ev, a)
         .into_iter()
         .next()
         .expect("a block has edges");
     let (filleted, fillet) = insert(doc.clone(), Node::fillet(a, len(0.1), vec![edge.clone()]));
-    let re_pointed = applied(&filleted, set(fillet, OperandSlot::Target, b.into()));
+    let re_pointed = applied(
+        &filleted,
+        set(
+            fillet,
+            OperandSlot::Selection,
+            editor_core::Operand::select(b, vec![edge.clone()]),
+        ),
+    );
     assert_eq!(
         re_pointed
             .maintenance
             .iter()
             .filter_map(|row| match row {
-                Maintenance::Strand {
-                    node,
+                Maintenance::StrandedSelection {
+                    readers,
                     name,
                     took: Took::Reach,
-                } => Some((node.id(), name.name().clone())),
+                    ..
+                } => Some((readers[0].id(), name.name().clone())),
                 _ => None,
             })
             .collect::<Vec<_>>(),
@@ -303,7 +313,7 @@ fn the_slot_door_re_points_an_operand_and_reports_what_it_strands() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![a.into(), b.into()],
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
@@ -315,12 +325,13 @@ fn the_slot_door_re_points_an_operand_and_reports_what_it_strands() {
         ),
         "a union re-pointed at its own reader would cycle"
     );
-    assert!(
-        matches!(
-            refused(&doc, set(union, OperandSlot::Member(1), a.into())),
-            EditError::DuplicateInput { .. }
-        ),
-        "DM5: a member read twice"
+    // A member read twice glues: `Union[a, a]` is `a` (FORK-DM4).
+    let glued = applied(&doc, set(union, OperandSlot::Member(1), a.into())).doc;
+    let ev = fixture::run(&glued, &editor_core::EvalOptions::default());
+    assert_eq!(
+        volume(&ev, union),
+        volume(&ev, a),
+        "a member read twice is that member's body"
     );
 
     // A placer's output kind is fixed at minting: a transform of a body
@@ -465,19 +476,18 @@ fn the_slot_door_takes_a_formula_or_a_read_by_the_slots_kind() {
     ));
 }
 
-/// **A read of a split's port is that half** (FORK-1): a boolean over
+/// **A read of a split's port is that half** (FORK-1): a union over
 /// the split's first port builds the union of the upper half and a
 /// block clear of it, its volume the half's and the block's, and every
-/// name it carries from the split is one of the upper half's rows.
+/// name it carries in through the port is one of the upper half's rows.
 #[test]
 fn a_split_port_read_is_its_half() {
     let (doc, split, far) = split_block("s2b-split-port");
+    let port = Operand::output(split, editor_core::SplitHalf::Above.port());
     let (doc, by_port) = insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: Operand::output(split, editor_core::SplitHalf::Above.port()),
-            b: far.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![port.into(), far.into()]),
             declare: Vec::new(),
         },
     );
@@ -497,21 +507,25 @@ fn a_split_port_read_is_its_half() {
         })
         .map(|(n, _)| n.clone())
         .collect();
+    let port_read = doc
+        .output(split, editor_core::SplitHalf::Above.port())
+        .expect("the split's above port");
     let carried: Vec<editor_core::StableName> = ev
         .value(by_port)
         .expect("the union")
         .name_table
         .iter()
         .filter_map(|(n, _)| match n.path.first() {
-            Some(editor_core::RoleSeg::FromA(inner)) => Some(editor_core::StableName::clone(inner)),
+            Some(editor_core::RoleSeg::From { read, of }) if *read == port_read => {
+                Some(editor_core::StableName::clone(of))
+            }
             _ => None,
         })
-        .filter(|n| n.node == split)
         .collect();
     assert!(!carried.is_empty(), "the union carries the half's names");
     assert!(
         carried.iter().all(|n| above_rows.contains(n)),
-        "every name from the split is an upper-half row: {carried:?}"
+        "every name carried through the port is an upper-half row: {carried:?}"
     );
 }
 
@@ -534,7 +548,7 @@ fn the_comparator_reads_reads_as_inputs_and_catches_a_re_pointed_one() {
     let (doc, _) = insert(
         doc,
         Node::Union {
-            members: vec![a.into(), b.into()],
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
@@ -555,8 +569,8 @@ fn the_comparator_reads_reads_as_inputs_and_catches_a_re_pointed_one() {
         .expect("nodes")
         .values_mut()
     {
-        if let Some(members) = node.get_mut("Union").and_then(|u| u.get_mut("members")) {
-            for member in members.as_array_mut().expect("a list") {
+        if let Some(members) = spelled_members(node) {
+            for member in members {
                 if member.as_str() == Some(out_b.as_str()) {
                     *member = serde_json::json!(out_a);
                 }
@@ -576,10 +590,11 @@ fn the_comparator_catches_a_read_re_pointed_from_one_port_to_another() {
     let (doc, split, far) = split_block("s2b-comparator-port");
     let (doc, _) = insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: Operand::output(split, 0),
-            b: far.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![
+                Operand::output(split, 0).into(),
+                far.into(),
+            ]),
             declare: Vec::new(),
         },
     );
@@ -596,7 +611,7 @@ fn the_comparator_catches_a_read_re_pointed_from_one_port_to_another() {
         .expect("nodes")
         .values_mut()
     {
-        if let Some(a) = node.get_mut("Boolean").and_then(|b| b.get_mut("a"))
+        if let Some(a) = spelled_members(node).and_then(|members| members.first_mut())
             && a.as_str() == Some(above.as_str())
         {
             *a = serde_json::json!(below);
@@ -605,10 +620,7 @@ fn the_comparator_catches_a_read_re_pointed_from_one_port_to_another() {
     assert_ne!(mutant, new, "the mutant re-points the read");
     let err = up_to_ids::same_up_to_ids(&as_inputs, &up_to_ids::reads_as_inputs(&mutant))
         .expect_err("a read re-pointed above to below is not the same document");
-    assert!(
-        err.contains("Boolean"),
-        "the mismatch is at the boolean: {err}"
-    );
+    assert!(err.contains("Union"), "the mismatch is at the union: {err}");
 }
 
 /// **(B, test 4, one shot) Every re-blessed document is the pre-B one
@@ -668,35 +680,40 @@ fn every_re_blessed_document_is_the_pre_b_one_up_to_ids() {
     println!("the families document: equal up to ids, reads as inputs");
 }
 
-/// **The slot door asks every check the insert door does** (DM6; review
-/// B's M1): an assertion over a length measure, re-pointed at an angle
-/// measure, refuses `AssertionDimension` at the slot door as the insert
-/// door refuses the same node — and so does saving the log that would
-/// carry it, which replays through that door. The two doors call one
-/// function of a written node, so neither admits what the other refuses.
+/// **No door re-points an assertion's value across dimensions** (DM6;
+/// review B's M1): the insert door refuses an assertion whose angle
+/// value meets a length bound `AssertionDimension`. The value is
+/// payload (D), so no slot addresses it, and the definition it reads is
+/// the one way it re-points. That door refuses the same re-point: a
+/// definition's kind is fixed (`VarKindFixed`). The log that would carry
+/// it does not save, because it replays through that door.
 #[test]
-fn the_slot_door_refuses_an_assertion_re_pointed_across_dimensions() {
+fn the_definition_door_refuses_an_assertion_re_pointed_across_dimensions() {
     let mut r = fixture::Recorder::new();
-    let m_len = r.insert(Node::Measure {
-        expr: editor_core::MeasureExpr::value(len(1.0)),
-        refs: Vec::new(),
+    r.push(DocEdit::DeclareVar {
+        name: editor_core::VarName::from_static("x"),
+        def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(Dimension::Length, 0.5)),
     });
-    let m_ang = r.insert(Node::Measure {
-        expr: editor_core::MeasureExpr::value(fixture::ang(0.5)),
-        refs: Vec::new(),
-    });
+    let measure = r.measure_of_translation("x");
+    let out = r
+        .doc
+        .output(measure, 0)
+        .expect("a measure defines its value");
+    let measured = Formula::var(out, Dimension::Length);
+    let as_angle = Formula::atan2(measured.clone(), len(1.0)).unwrap();
+    let web = r.define("web", measured);
     let assertion = r.insert(Node::Assertion {
-        measure: m_len.into(),
+        value: Formula::var(web, Dimension::Length),
         bound: len(0.5),
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     });
     let by_insert = refused(
         &r.doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure: m_ang.into(),
+                value: as_angle.clone(),
                 bound: len(0.5),
-                dir: editor_core::AssertionDir::AtLeast,
+                relation: editor_core::AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },
@@ -712,24 +729,30 @@ fn the_slot_door_refuses_an_assertion_re_pointed_across_dimensions() {
         ),
         "{by_insert:?}"
     );
-    let edit = DocEdit::SetParam {
-        node: assertion,
-        slot: SlotId::Operand(OperandSlot::Measure),
-        value: Operand::Node(m_ang).into(),
+    let edit = DocEdit::DefineVar {
+        var: web.into(),
+        def: editor_core::VarDecl::Defined(as_angle),
         fresh: Vec::new(),
     };
-    let by_slot = refused(&r.doc, edit.clone());
+    let by_definition = refused(&r.doc, edit.clone());
     assert!(
         matches!(
-            &by_slot,
-            EditError::AssertionDimension {
-                node,
-                measured: Dimension::Angle,
-                bound: Dimension::Length,
-                ..
-            } if node.id() == assertion
+            &by_definition,
+            EditError::VarKindFixed {
+                var,
+                kind: VarKind::Length,
+                offered: VarKind::Angle,
+            } if var.id() == web
         ),
-        "the slot door refuses what the insert door refuses: {by_slot:?}"
+        "the definition door refuses the re-point: {by_definition:?}"
+    );
+    assert_eq!(
+        r.doc.node(assertion).and_then(|n| match n {
+            Node::Assertion { value, .. } => Some(*value),
+            _ => None,
+        }),
+        Some(web),
+        "and the assertion still reads the length"
     );
     let mut log = r.edits.clone();
     log.push(edit);
@@ -740,7 +763,7 @@ fn the_slot_door_refuses_an_assertion_re_pointed_across_dimensions() {
             Tol::witness()
         )
         .is_err(),
-        "a log carrying the re-point does not save"
+        "a log carrying the re-definition does not save"
     );
 }
 
@@ -764,6 +787,13 @@ fn split_block(name: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let (doc, _, far) = block(doc, 5.0);
     (doc, split, far)
+}
+
+/// The volume of `id`'s body in `ev`.
+fn volume(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
+    topo::mass_properties(crate::corpus::body_of(ev, id), Tol::witness())
+        .expect("mass properties")
+        .volume
 }
 
 /// A body's vertex bits, sorted: what a stale body differs in.
@@ -793,10 +823,11 @@ fn a_port_re_point_keys_apart_and_the_memo_serves_no_stale_half() {
     let (doc, split, far) = split_block("s2b-port-key");
     let (doc, boolean) = insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: Operand::output(split, 0),
-            b: far.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![
+                Operand::output(split, 0).into(),
+                far.into(),
+            ]),
             declare: Vec::new(),
         },
     );
@@ -807,7 +838,7 @@ fn a_port_re_point_keys_apart_and_the_memo_serves_no_stale_half() {
         &doc,
         DocEdit::SetParam {
             node: boolean,
-            slot: SlotId::Operand(OperandSlot::A),
+            slot: SlotId::Operand(OperandSlot::Member(0)),
             value: Operand::output(split, 1).into(),
             fresh: Vec::new(),
         },
@@ -836,44 +867,72 @@ fn a_port_re_point_keys_apart_and_the_memo_serves_no_stale_half() {
 
 /// **DM5 is over variables** (spec §3; the orchestrator's ruling on the
 /// lane's seventh call): a split's two halves are two variables, so a
-/// union of both is admitted, and so is a pattern of a revolve's body
-/// about the revolve's own axis port (FORK-1b). One variable at two
-/// seats still refuses.
+/// union of both is admitted and builds the whole block, and so is a
+/// pattern of a revolve's body about the revolve's own axis port
+/// (FORK-1b). One variable at two seats glues (FORK-DM4): it is that
+/// variable's body.
 #[test]
 fn dm5_is_over_the_variables_read() {
     let (doc, split, _) = split_block("s2b-dm5-vars");
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![Operand::output(split, 0), Operand::output(split, 1)],
+            members: editor_core::Bodies::Spelled(vec![
+                Operand::output(split, 0).into(),
+                Operand::output(split, 1).into(),
+            ]),
             declare: Vec::new(),
         },
     );
-    // Admitted, the union cannot name two members read out of one
-    // operation (DM4 keys a member by its operation), and says so
-    // rather than joining one half to itself.
-    let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
-    assert!(
-        matches!(
-            ev.node_error(union).map(|e| &e.kind),
-            Some(NodeErrorKind::MembersShareAnOperation { operation, members: (0, 1) })
-                if *operation == split
-        ),
-        "{:?}",
-        ev.node_error(union)
+    // Admitted, the union keys each member by its read (DM4), so two
+    // halves of one operation are two members: their union is the
+    // block. The section is a contact, so it is declared.
+    let (above, below) = (
+        crate::corpus::part_select::section_face(split, editor_core::SplitHalf::Above),
+        crate::corpus::part_select::section_face(split, editor_core::SplitHalf::Below),
     );
+    let halves = (
+        doc.output(split, 0).expect("above"),
+        doc.output(split, 1).expect("below"),
+    );
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::SetDeclare {
+            node: union,
+            pairs: editor_core::declare_rest(vec![(
+                editor_core::SitedRef::new(halves.0, above),
+                editor_core::SitedRef::new(halves.1, below),
+            )]),
+        },
+    );
+    let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
+    assert!(ev.value(union).is_some(), "{:?}", ev.node_error(union));
     assert!(
-        matches!(
-            fixture::insert_refused(
-                &doc,
-                Node::Union {
-                    members: vec![Operand::output(split, 0), Operand::output(split, 0)],
-                    declare: Vec::new(),
-                },
-            ),
-            EditError::DuplicateInput { .. }
-        ),
-        "one half twice is one variable read twice"
+        (volume(&ev, union) - 1.0).abs() < 1e-12,
+        "the union of the two halves is the whole block"
+    );
+    let (doc, twice) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![
+                Operand::output(split, 0).into(),
+                Operand::output(split, 0).into(),
+            ]),
+            declare: Vec::new(),
+        },
+    );
+    let (doc, once) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![Operand::output(split, 0).into()]),
+            declare: Vec::new(),
+        },
+    );
+    let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
+    assert_eq!(
+        volume(&ev, twice),
+        volume(&ev, once),
+        "one half twice is that half"
     );
 
     let (doc, plane, profile) = on_frame_keeping(
@@ -906,23 +965,21 @@ fn dm5_is_over_the_variables_read() {
 }
 
 /// **Each of a split's two halves is read as itself, and a pair
-/// declared across them is sided by the half that holds each name.**
-/// Both halves are read at the split's one site. Undeclared, the pair
-/// boolean of them refuses the rest contact across the section; under
-/// a declared rest named in either order it is the whole block, where
-/// one projection per node read one half twice. A side naming what
-/// neither half holds — a wall of the block the cut renamed in both —
-/// refuses as a site no operand's table answers. A union of the two
-/// refuses before any of that: it keys each member by the operation it
-/// reads (DM4).
+/// declared across them is sited at each half's read.** The two halves
+/// are two reads of one split, so two members in either order (DM4).
+/// Under a declared rest named in either order their union is the whole
+/// block; undeclared, it glues the rest the margins decide and is that
+/// same block. A side naming what its half does not hold — a wall of the
+/// block the cut renamed in both — refuses as a name its site's table
+/// does not answer.
 #[test]
-fn a_pair_declared_across_one_splits_halves_is_sided_by_table() {
+fn a_pair_declared_across_one_splits_halves_is_sited_by_read() {
     let (doc, split, _) = split_block("s2b-split-siding");
     let before = fixture::run(&doc, &editor_core::EvalOptions::default());
     let target = doc
         .operation_of(doc.output(split, 0).expect("the upper half"))
         .and_then(|_| match doc.node(split) {
-            Some(Node::Split { target, .. }) => doc.operation_of(*target),
+            Some(Node::Split { target, .. }) => doc.operation_of(target.read),
             _ => None,
         })
         .expect("the split's target");
@@ -934,45 +991,51 @@ fn a_pair_declared_across_one_splits_halves_is_sided_by_table() {
         .find(|name| name.kind == editor_core::EntityKind::Face && cut.lookup(name).is_none())
         .expect("a wall the cut renamed");
     let section = |side| crate::corpus::part_select::section_face(split, side);
-    let half = |h: editor_core::SplitHalf| Operand::output(split, h.port());
-    let pair = |first, second| {
+    let half = |h: editor_core::SplitHalf| Operand::output(split, h.port()).into();
+    let read = |h: editor_core::SplitHalf| doc.output(split, h.port()).expect("a half's read");
+    let pair = |(h0, first), (h1, second)| {
         editor_core::declare_rest(vec![(
-            editor_core::SitedRef::new(split, first),
-            editor_core::SitedRef::new(split, second),
+            editor_core::SitedRef::new(read(h0), first),
+            editor_core::SitedRef::new(read(h1), second),
         )])
     };
+    let (up, down) = (editor_core::SplitHalf::Above, editor_core::SplitHalf::Below);
     let (above, below) = (
         section(editor_core::SplitHalf::Above),
         section(editor_core::SplitHalf::Below),
     );
-    let boolean = |declare| Node::Boolean {
-        op: editor_core::BooleanOp::Union,
-        a: half(editor_core::SplitHalf::Above),
-        b: half(editor_core::SplitHalf::Below),
+    let union = |declare| Node::Union {
+        members: editor_core::Bodies::Spelled(vec![
+            half(editor_core::SplitHalf::Above),
+            half(editor_core::SplitHalf::Below),
+        ]),
         declare,
     };
-    let union = |declare| Node::Union {
-        members: vec![
+    let reversed = |declare| Node::Union {
+        members: editor_core::Bodies::Spelled(vec![
             half(editor_core::SplitHalf::Below),
             half(editor_core::SplitHalf::Above),
-        ],
+        ]),
         declare,
     };
-    let (doc, undeclared) = insert(doc, boolean(Vec::new()));
-    let (doc, joined) = insert(doc, boolean(pair(below.clone(), above.clone())));
-    let (doc, flipped) = insert(doc, boolean(pair(above.clone(), below.clone())));
-    let (doc, fused) = insert(doc, union(pair(above.clone(), below)));
-    let (doc, stray_boolean) = insert(doc, boolean(pair(above, wall)));
+    let joined_pairs = pair((down, below.clone()), (up, above.clone()));
+    let flipped_pairs = pair((up, above.clone()), (down, below.clone()));
+    let fused_pairs = pair((up, above.clone()), (down, below));
+    let stray_pairs = pair((up, above), (down, wall));
+    let (doc, undeclared) = insert(doc, union(Vec::new()));
+    let (doc, joined) = insert(doc, union(joined_pairs));
+    let (doc, flipped) = insert(doc, union(flipped_pairs));
+    let (doc, fused) = insert(doc, reversed(fused_pairs));
+    let (doc, stray_union) = insert(doc, union(stray_pairs));
     let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
-    assert!(
-        matches!(
-            ev.node_error(undeclared).map(|e| &e.kind),
-            Some(NodeErrorKind::UndeclaredCoincidence { .. })
-        ),
-        "{:?}",
-        ev.node_error(undeclared)
+    // Undeclared, the two section faces are one plane by margin, so the
+    // pair glues them as the declared `Rest` they are (D10).
+    assert_eq!(
+        format!("{:?}", crate::corpus::body_of(&ev, undeclared)),
+        format!("{:?}", crate::corpus::body_of(&ev, joined)),
+        "the undeclared union is the declared one"
     );
-    for id in [joined, flipped] {
+    for id in [joined, flipped, fused] {
         assert!(ev.value(id).is_some(), "{:?}", ev.node_error(id));
         let body = crate::corpus::body_of(&ev, id);
         let volume = topo::mass_properties(body, Tol::witness())
@@ -980,25 +1043,16 @@ fn a_pair_declared_across_one_splits_halves_is_sided_by_table() {
             .volume;
         assert!(
             (volume - 1.0).abs() < 1e-12,
-            "the pair boolean of the two halves is the whole block: {volume}"
+            "the union of the two halves is the whole block: {volume}"
         );
     }
     assert!(
         matches!(
-            ev.node_error(fused).map(|e| &e.kind),
-            Some(NodeErrorKind::MembersShareAnOperation { operation, members: (0, 1) })
-                if *operation == split
+            ev.node_error(stray_union).map(|e| &e.kind),
+            Some(NodeErrorKind::DeclareResolve { .. })
         ),
         "{:?}",
-        ev.node_error(fused)
-    );
-    assert!(
-        matches!(
-            ev.node_error(stray_boolean).map(|e| &e.kind),
-            Some(NodeErrorKind::DeclareSiteNotAnOperand { at }) if *at == split
-        ),
-        "{:?}",
-        ev.node_error(stray_boolean)
+        ev.node_error(stray_union)
     );
 }
 
@@ -1116,14 +1170,14 @@ pub(crate) fn families_document() -> ProfileDoc {
     let (doc, _) = insert(
         doc,
         Node::Union {
-            members: vec![
+            members: editor_core::Bodies::Spelled(vec![
                 middle.into(),
-                Operand::output(split, editor_core::SplitHalf::Above.port()),
-                Operand::output(split, editor_core::SplitHalf::Below.port()),
+                Operand::output(split, editor_core::SplitHalf::Above.port()).into(),
+                Operand::output(split, editor_core::SplitHalf::Below.port()).into(),
                 moved.into(),
                 rounded.into(),
                 instance.into(),
-            ],
+            ]),
             declare: Vec::new(),
         },
     );
@@ -1150,12 +1204,21 @@ fn union_under_a_transform() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeN
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![a.into(), b.into()],
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
     let (doc, moved) = insert(doc, xform(union, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0], 0.0));
     (doc, b, union, moved)
+}
+
+/// The spelled member list of a saved node, when it is a union that
+/// spells one: `{"Union": {"members": {"Spelled": [..]}}}` on the wire.
+fn spelled_members(node: &mut serde_json::Value) -> Option<&mut Vec<serde_json::Value>> {
+    node.get_mut("Union")?
+        .get_mut("members")?
+        .get_mut("Spelled")?
+        .as_array_mut()
 }
 
 /// `text` with every union member reading `from` reading `to` instead.
@@ -1166,8 +1229,8 @@ fn member_re_read(text: &str, from: &str, to: &str) -> String {
             .expect("nodes")
             .values_mut()
         {
-            if let Some(members) = node.get_mut("Union").and_then(|u| u.get_mut("members")) {
-                for member in members.as_array_mut().expect("a list") {
+            if let Some(members) = spelled_members(node) {
+                for member in members {
                     if member.as_str() == Some(from) {
                         *member = serde_json::json!(to);
                     }
@@ -1228,13 +1291,13 @@ fn a_file_reading_an_unminted_variable_refuses_operand_unminted() {
     );
 }
 
-/// **A measure whose site is deleted refuses typed, and its dead site
-/// is no edge** (review A's MINOR-1): the delete of a block a measure
-/// reads names at is accepted, `Doc::upstream` sets the dead site aside
-/// — so no walk over the relation (the roots, the cascade, the mate
-/// solve's components) meets an id no node is — and evaluation refuses
-/// the measure `UnresolvedSite` at that site rather than a missing
-/// input. The stranded document saves and loads as itself.
+/// **A measure whose body is deleted refuses typed, and its dead read
+/// is no edge**: the delete of a block a measure's selection reads is
+/// accepted, `Doc::upstream` sets the dead read aside — so no walk over
+/// the relation (the cascade, the mate solve's components) meets an id
+/// no node is — and evaluation refuses the measure `UnresolvedRead` at
+/// that reference rather than a missing input. The stranded document
+/// saves and loads as itself.
 #[test]
 fn a_measure_whose_site_is_deleted_refuses_typed_and_keeps_no_dead_edge() {
     let doc = ProfileDoc::empty_derived("s2b-dead-site", Tol::witness());
@@ -1247,19 +1310,13 @@ fn a_measure_whose_site_is_deleted_refuses_typed_and_keeps_no_dead_edge() {
             .next()
             .expect("a block has faces")
     };
-    let (doc, measure) = insert(
-        doc,
-        Node::measure(
-            editor_core::MeasureExpr::primitive(editor_core::MeasurePrimitive::Distance {
-                a: 0,
-                b: 1,
-            }),
-            vec![
-                editor_core::SitedRef::new(a, face(a)),
-                editor_core::SitedRef::new(b, face(b)),
-            ],
-        )
-        .expect("both indices address a reference"),
+    let (doc, measure) = fixture::measure_node(
+        &doc,
+        editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            editor_core::SitedRef::new(a, face(a)),
+            editor_core::SitedRef::new(b, face(b)),
+        ],
     );
     assert_eq!(
         doc.upstream(measure),
@@ -1280,7 +1337,10 @@ fn a_measure_whose_site_is_deleted_refuses_typed_and_keeps_no_dead_edge() {
     assert!(
         matches!(
             ev.node_error(measure).map(|e| &e.kind),
-            Some(NodeErrorKind::UnresolvedSite { at }) if *at == b
+            Some(NodeErrorKind::UnresolvedRead {
+                slot: editor_core::OperandSlot::Measured(_, 1),
+                ..
+            })
         ),
         "{:?}",
         ev.node_error(measure)

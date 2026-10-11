@@ -29,9 +29,9 @@
 
 use pncad::document::ExtrudeSide;
 use pncad::document::{
-    AssertionDir, BooleanOp, CancelToken, Dimension, Distribution, DocEdit, DocumentId,
-    EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
+    AssertionRelation, CancelToken, Dimension, Distribution, DocEdit, DocumentId, EvalOptions,
+    Evaluation, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc, ProfileProgram,
+    RecipeNodeId, RefusingReach, SitedRef, VarId, VarName, apply, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::AuthoredNode;
@@ -128,8 +128,10 @@ fn declare(
 pub struct Plate {
     /// The document itself.
     pub doc: ProfileDoc,
-    /// The web `Measure` node — `distance(wall_a, wall_b) − r_a − r_b`.
-    pub measure: RecipeNodeId,
+    /// The web, `distance(wall_a, wall_b) − r_a − r_b`: the variable
+    /// the assertion reads, defined over the distance measure's output
+    /// and the two radii.
+    pub web: VarId,
     /// The `Assertion` over it. Read by [`crate::tolerance`].
     pub assertion: RecipeNodeId,
     /// The two hole extrudes, in the order their centres run along
@@ -275,7 +277,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
         evaluate(doc, None, &CancelToken::new(), &EvalOptions::default(), tol)
     };
     let subtract = |doc: &mut ProfileDoc, a: RecipeNodeId, b: RecipeNodeId| {
-        let found = find_flush_candidates(&eval_here(doc), a, b, tol)
+        let found = find_flush_candidates(&eval_here(doc), doc, a, b, tol)
             .expect("the hole's caps are definite flush pairs");
         // The inspection: the hole's two caps, each continuing the
         // blank's cap it lies in.
@@ -289,32 +291,28 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
         );
         insert(
             doc,
-            Node::Boolean {
-                op: BooleanOp::Subtract,
-                a: a.into(),
-                b: b.into(),
+            Node::Subtract {
+                from: a.into(),
+                tool: b.into(),
                 declare: declared_pairs(&found),
             },
             tol,
         )
     };
     // Where each bore wall is read, and the name that picks it there.
-    // On the cut part a name records its lineage operand by operand,
-    // so "the faces hole a cut" is spelled through both cuts: the
-    // second's A side, then the first's B side.
+    // On the cut part a name records its lineage read by read, so "the
+    // faces hole a cut" is spelled through both cuts: the second's
+    // `from` read, then the first's `tool` read.
     let face = || NamePat::of_kind(EntityKind::Face);
-    let from = |side: SegTag, inner: NamePat| face().seg(SegPat::tag(side).of([inner]));
+    let from = |inner: NamePat| face().seg(SegPat::tag(SegTag::From).of([inner]));
     let (placed, sites) = if cut {
         let drilled = subtract(&mut doc, blank, hole_a);
         let part = subtract(&mut doc, drilled, hole_b);
         (
             part,
             [
-                (
-                    part,
-                    from(SegTag::FromA, from(SegTag::FromB, face().node(hole_a))),
-                ),
-                (part, from(SegTag::FromB, face().node(hole_b))),
+                (part, from(from(face().node(hole_a)))),
+                (part, from(face().node(hole_b))),
             ],
         )
     } else {
@@ -349,35 +347,38 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
     // two parallel cylinder faces is their AXIS distance (the closed
     // form's own contract), so the subtraction of the radii is the
     // author's arithmetic and not a hidden convention.
-    let radius_of = |n: &'static str| MeasureExpr::value(param(n));
-    let web = MeasureExpr::sub(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("Length + Length"),
-    )
-    .expect("Length − Length");
     // The two references are read BEFORE the insert borrows the
     // document mutably — the borrow checker's way of saying that a
     // measure's references are resolved against a document that
     // already exists, which is exactly the E3 contract.
     let [site_a, site_b] = sites;
-    let refs = vec![wall(site_a), wall(site_b)];
-    let measure = insert(
-        &mut doc,
-        Node::measure(web, refs).expect("both indices in range"),
-        tol,
-    );
+    let primitive = MeasurePrimitive::Distance {
+        a: wall(site_a),
+        b: wall(site_b),
+    };
+    let measure = insert(&mut doc, Node::measure(&primitive), tol);
+    let distance = doc.output(measure, 0).expect("a measure defines its value");
+    let web = Formula::sub(
+        Formula::var(distance, Dimension::Length),
+        Formula::add(param("hole_a_r"), param("hole_b_r")).expect("Length + Length"),
+    )
+    .expect("Length − Length");
     let assertion = insert(
         &mut doc,
         Node::Assertion {
-            measure: measure.into(),
+            value: web,
             bound: len(bound),
-            dir: AssertionDir::AtLeast,
+            relation: AssertionRelation::AtLeast,
         },
         tol,
     );
+    let Some(Node::Assertion { value: web, .. }) = doc.node(assertion) else {
+        unreachable!("the assertion was inserted one line above")
+    };
+    let web = *web;
     Plate {
         doc,
-        measure,
+        web,
         assertion,
         holes: [hole_a, hole_b],
     }

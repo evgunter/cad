@@ -49,11 +49,18 @@ fn frame_on(doc: ProfileDoc, at: RecipeNodeId, face: StableName) -> (ProfileDoc,
     insert(
         doc,
         Node::Datum(editor_core::Datum::FaceFrame {
-            at: at.into(),
-            face,
+            face: editor_core::Operand::select(at, vec![face]),
             spin: ang(0.0),
         }),
     )
+}
+
+/// The selection a face frame reads.
+fn face_of(doc: &ProfileDoc, frame: RecipeNodeId) -> editor_core::VarId {
+    match doc.node(frame) {
+        Some(Node::Datum(editor_core::Datum::FaceFrame { face, .. })) => *face,
+        other => panic!("a face frame, got {other:?}"),
+    }
 }
 
 /// **A strand survives only while its carrier still holds the stranded
@@ -71,8 +78,9 @@ fn a_strand_a_later_rebind_repairs_is_not_reported() {
     let (alone, _, _) = net_of(&doc, vec![DocEdit::DeleteNode { id: victim }]);
     assert_eq!(
         alone,
-        vec![Maintenance::Strand {
-            node: doc.spoken(carrier),
+        vec![Maintenance::StrandedSelection {
+            var: doc.spoken_var(face_of(&doc, carrier)),
+            readers: vec![doc.spoken(carrier)],
             name: doc.spoken_name(&named),
             took: editor_core::Took::Node
         }]
@@ -82,6 +90,7 @@ fn a_strand_a_later_rebind_repairs_is_not_reported() {
         vec![
             DocEdit::DeleteNode { id: victim },
             DocEdit::Rebind {
+                body: doc.output(kept, 0),
                 from: named,
                 to: fname(kept, wall(&doc, kept, 0)),
             },
@@ -169,7 +178,7 @@ fn a_declared_strand_a_later_set_declare_clears_is_not_reported() {
         &doc,
         DocEdit::SetMembers {
             node: union,
-            members: vec![a.into(), c.into()],
+            members: editor_core::Bodies::Spelled(vec![a.into(), c.into()]),
         },
     )
     .doc;
@@ -215,12 +224,12 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
         &doc,
         DocEdit::SetMembers {
             node: union,
-            members: vec![a.into(), c.into()],
+            members: editor_core::Bodies::Spelled(vec![a.into(), c.into()]),
         },
     )
     .doc;
     let other = Node::Union {
-        members: vec![a.into(), c.into()],
+        members: editor_core::Bodies::Spelled(vec![a.into(), c.into()]),
         declare: Vec::new(),
     };
 
@@ -312,7 +321,7 @@ fn a_refusal_ends_the_action_even_when_the_caller_goes_on() {
     let (doc, c) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
     let delete_b = DocEdit::DeleteNode { id: b };
     let union = Node::Union {
-        members: vec![b.into(), c.into()],
+        members: editor_core::Bodies::Spelled(vec![b.into(), c.into()]),
         declare: Vec::new(),
     };
 

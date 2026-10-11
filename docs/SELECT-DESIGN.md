@@ -31,7 +31,7 @@ exact-vs-decided reframing signed off.
   is this design's charter for §4.
 - **C4** (CONTACT-DESIGN): declarations are recipe data by stable
   name, verified never trusted, per-class tables, four typed
-  failures. A `Node::Boolean`'s and a `Node::Union`'s own `declare`
+  failures. A union's, an intersect's and a subtract's own `declare`
   payload (`Vec<DeclaredPair>`, settable on a live node by
   `DocEdit::SetDeclare`) is SHIPPED.
 - **The #256/#250 precedent**: degenerate coincidence has NO absorb
@@ -425,8 +425,9 @@ sketcher/tree design time):
 
 **The one-type rule.** A GUI selection is the SAME
 value as a recipe reference: `Vec<StableName>` — the exact type the
-structural materializer returns, `Node::Fillet`'s selection stores,
-and declared pairs are built from. G3's "selection feeds the
+structural materializer returns, a selection definition stores (the
+`names` of the `Select { body, names }` a fillet reads), and declared
+pairs are built from. G3's "selection feeds the
 existing edit doors" is this rule stated from the GUI side: click →
 ID-buffer hit → key→name inversion (U7's doors) → `StableName`,
 and from that point the GUI is indistinguishable from a library

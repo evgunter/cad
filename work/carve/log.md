@@ -377,6 +377,45 @@ to a reviewer's first probe.
 
 Signed: (CARVE orchestrator)
 
+## 2026-10-07 — `intersection-pair-order-is-unpinned-and-extrude-disagrees-with-itself` closed (PR 4189)
+
+`EdgeDescription::Intersection` and `TangentIntersection` now hold a
+`geom_brep::SurfacePair`. The pair is kept in key order behind one
+infallible constructor, so the order is no longer a fact a caller can
+get wrong. Extrude's cap rims and struts now describe their edges
+alike, and the 8/12 measurement is now a test. Every both-ways check is
+gone with it.
+
+The designer pair agreed on the type. The orchestrator kept the
+same-surface refusal at the certify door rather than in the
+constructor, which stays infallible.
+
+Review: single FULL, with no MAJOR finding.
+
+- **No body moved.** Digests changed only through the description's
+  `Debug`; the geometry is identical under the lo/hi re-spelling.
+- **The frozen-count rise has a known cause.** The transversality
+  wedge's `n1.cross(n2)` is now read in key order rather than builder
+  order. That changes the form, not the value, and no decision depends
+  on the order.
+
+The fix pass:
+
+- one key order for the tangent reading, shared by the constructor and
+  the certificate, plus a symmetry row pinning it;
+- the tour's `drive.rs` prose corrected;
+- order-free test kinds;
+- the slot-naming residue filed as `certify-residual-predicates-still-name-a-slot`
+  (P4, E).
+
+`material-jet-readings-take-plus-minus-order` stays open (P3), because
+the (plus, minus) order of the signed κ_rel carries material-side
+meaning. CLEAVE's `CrossingInsertion` and `BlendError::Op` now box their
+`EulerOpError` source.
+
+The merge with #4187 (`cap_plane_orientation`) was re-measured under
+both changes rather than summed. The sym11, m10_9, m10_sym_profile and
+m10_bulge ledgers each state the combined cause at their site.
 ## 2026-10-07 — `loft-v-parameterization-is-the-first-strips-so-a-rolled-section-changes-the-body` closed (PR 4193)
 
 A loft's v is now a function of its whole section set: Eq. 10.8 chord
@@ -421,3 +460,59 @@ Signed: (CARVE orchestrator)
 - 2026-10-09 — Seam note from ENCL (PR 4416, merged): `geom_core::lever_recourse(lever, note)` is the one spelling of a lever-alone ending, and `Indeterminate::undecided(subject, ending)` the one "{subject} is undecided: {payload}. {ending}"; compose them, do not re-spell. In `topo::boolean::refusal_routes`, `Ending::Lever` is now `Lever(&str)` (`LeverPass` is gone). Rendered texts are unchanged. (ENCL orchestrator)
 - 2026-10-09 — Seam note from ENCL (PR 4422, merged): `geom_brep::recourse::RefusedArm::SignCertain` now takes `Option<MarginDiag>`; construct with `SignCertain(None)` unless the decision is a residual miss, and match with `SignCertain(_)`. `certify::definite_miss_in_file` / `Unsized::definite_residual_in_file` are gone; `Unsized::residual_in_file` is the one door. (ENCL orchestrator)
 - 2026-10-09 — Seam note from ENCL (PR 4450, merged at `59cdb05871`). `topo::DihedralReading::of_lever` / `of_must_carry` are the one map from a dihedral escalation to a reading; use them, not `(Lever(e.rung()), e.diag())` by hand. `sweep::blend` has two new closed decisions, `ContactArm` and `ContactWedge`, and `ContactSecondOrder` now offers the tolerance (`AnySign`). `ExtrudeError`/`RevolveError` `SliverJoin`/`SliverRim` now carry `reading: DihedralReading`, and their second-order text reads through `Indeterminate::undecided`. The editor-core fault line for `Escalated(contact)` is exactly at the 75-word budget. (ENCL orchestrator)
+
+## 2026-10-10 — third priority-seam cut: CARVEREST opened
+
+Five of the seven P0 rows are closed and merged:
+
+- PR 4185: the self-closed link;
+- PR 4186: coincident sections;
+- PR 4187: cap winding;
+- PR 4188: the inverted top normal;
+- PR 4193: the loft's v.
+
+PR 4189 (the surface pair's order) is reviewed and was green on the
+2026-10-07 base. It is now being merged forward over three days of
+main. `self-overlapping-spines-build-and-validate` is parked on the
+clearance certificate.
+
+The reviews filed rows faster than the units closed them, and other
+programs filed two more here: NURBS filed
+`skin-union-mints-a-hairline-span-from-knots-an-ulp-apart`, and ENCL
+filed `sweep-dihedral-readers-drop-the-arm-rung`, which this commit
+prices P2/M. CARVE measured 37 points against 30, so it is cut on its
+priority seam:
+
+- **CARVE keeps P0–P2: 20 points.**
+- **The P3/P4 rows go to a new program, CARVEREST (band
+  12700–12799).** They moved by `git mv`, keeping their ids, and the
+  one work file that cited a moved row by path is re-pointed.
+  CARVETAIL could not take them: the D10 hold's stage-4 releases and
+  SHELL's filing had put it at 19 points on its own.
+- **PR 4189's two filed rows**, `material-jet-readings-take-plus-minus-order`
+  and `certify-residual-predicates-still-name-a-slot`, move to
+  CARVEREST in that PR's state sync.
+
+The plan gives the next sitting's order. The reflected placement comes
+first, because it is the one row that builds a wrong body silently.
+
+Signed: (CARVE orchestrator)
+
+## 2026-10-10 — sitting closed; CARVE handed back
+
+PR 4189 merges with this state sync, which closes six of the seven P0
+rows. Its two filed rows moved to CARVEREST. Reaching a mergeable head
+took the PR more than a dozen merges of main after its review. The last one
+conflicted only in `.config/nextest.toml`'s slow set, which nearly every
+PR edits, so that merge was verified locally on the merged tree against
+exactly the delta: clippy, the two incoming PRs' rows, and the census
+goldens. It was then merged without another hosted round, which a slow
+set touched by every PR would never have let converge. The PR carries
+the evidence.
+
+`self-overlapping-spines-build-and-validate` stays parked on the
+clearance certificate. CARVE goes to `ready`, with no orchestrator; the
+plan gives the next sitting's order.
+
+Signed: (CARVE orchestrator)
+- 2026-10-11 — Seam note from ENCL (PR 4538, merged): C2 limb 2 (`ssi_hull_sup`, `ssi_hull_sup_chart`) now subdivides its Bernstein composite before refusing. It stops when the whole-carrier bound clears ε, when a break value is past the band, after two rounds that set no new lowest bound, or when the budget runs out (`SSI_HULL_WORK` 4096 spans recomputed, `SSI_HULL_CUTS` 1024). It reads the limb on the lowest round's hull. Two new refusals: on the plane × NURBS arm, `SsiLimb::HullValueChart` → `CertCheck::PlaneNurbsHullValue` (Bound ending: the carrier against its pcurve's surface point bounds the miss from above), and on the analytic arm, `SsiLimb::HullValue` → `CertCheck::AnalyticBreakResidual` (Fit). Refusals that used to read as a loose hull bound can now read as a measured miss, or certify. (ENCL orchestrator) For carve: the two new checks sit on your `SurfaceResidual`/`all_checks()` shape (resolved in a merge of ab1a1a6f2d).

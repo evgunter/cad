@@ -12,7 +12,7 @@ use crate::corpus::eval;
 use crate::fixture::{Recorder, ang, axis_in_plane, frame, len};
 use editor_core::ExtrudeSide;
 
-use editor_core::{BooleanOp, LoopProgram, Node, NodeResult, ProfileProgram};
+use editor_core::{LoopProgram, Node, NodeResult, ProfileProgram};
 
 /// A cone frustum (a full revolve about `y`) unioned with a block that
 /// straddles its slanted wall: the block's faces along the axis cut the
@@ -47,10 +47,11 @@ fn cone_block_union_refusal() -> String {
         distance: len(0.5),
         side: ExtrudeSide::Along,
     });
-    let union = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: editor_core::Operand::output(cone, 0),
-        b: block.into(),
+    let union = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![
+            editor_core::Operand::output(cone, 0).into(),
+            block.into(),
+        ]),
         declare: Vec::new(),
     });
     let ev = eval::<f64>(&r.doc);
@@ -150,11 +151,11 @@ const A_TOLERANCE_PASSES: &[&str] = &["SpheresMeet (touching, nested within the 
 /// Every rewritten arm, rendered the way the viewer renders a failed node.
 fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
     use geom::SurfaceKind;
-    use geom_brep::{MaterialWedge, RadiusEvidence};
+    use geom_brep::MaterialWedge;
     use geom_core::{Band, Indeterminate, MarginDiag, Tol};
     use topo::{
         BooleanError, BooleanOp, ContactClass, DeclaredContact, EdgeKey, FaceKey, LoopKey, Operand,
-        PlaneRelation, PointInSolidError, SectorRead, SolidKey, VertexKey,
+        PointInSolidError, SectorRead, SolidKey, VertexKey,
     };
 
     let band = Band::linear(Tol::witness()).expect("the witness band");
@@ -347,7 +348,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::CoplanarNeighbours {
                 operand: Operand::B,
                 faces: [face, face],
-                offset: topo::NeighbourOffset::Undecided(diag),
+                offset: diag,
             },
         ),
         (
@@ -395,7 +396,15 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::GermFrameCylinderPinch {
                 a_face: face,
                 b_face: face,
-                evidence: RadiusEvidence::None,
+                equal_radii: false,
+            },
+        ),
+        (
+            "GermFrameCylinderPinch (equal radii)",
+            BooleanError::GermFrameCylinderPinch {
+                a_face: face,
+                b_face: face,
+                equal_radii: true,
             },
         ),
         (
@@ -526,14 +535,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                     topo::DeclarationRead::Spent(topo::BooleanCoincidence::TANGENT),
                 ),
                 diag: in_band,
-            },
-        ),
-        (
-            "UndeclaredCoincidence",
-            BooleanError::UndeclaredCoincidence {
-                diag,
-                pair: [(Operand::A, face), (Operand::B, face)],
-                relation: PlaneRelation::SameOpposite,
             },
         ),
         (

@@ -187,10 +187,10 @@ mod n2r1_probes;
 pub mod null;
 pub mod offset_axial;
 pub mod offset_derive;
+pub mod offset_general;
 pub mod offset_nappe;
 pub(crate) mod offset_restate;
 pub mod offset_together;
-pub mod param_source;
 pub mod pcurves;
 pub mod pieces;
 pub(crate) mod policy_lane;
@@ -235,7 +235,6 @@ pub mod separation;
 #[cfg(test)]
 pub(crate) mod seqgen;
 pub mod shell;
-pub mod source;
 pub mod split;
 pub mod splitting;
 pub(crate) mod stands;
@@ -815,22 +814,22 @@ pub use body::Body;
 pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
     BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
-    CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, Cell,
-    Coincide, CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, ContactRecords,
-    ContainDecision, ContainError, Contradiction, CurveContact, DeclarationRead, DiscardRow,
-    EdgeJoin, EdgePieceClass, EeContact, FaceContainment, FacePairDeclaration, Fusions, HeldEdge,
-    JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided, LeverArm, NeighbourOffset,
+    CarriedContacts, CarriedRecord, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError,
+    CarrierRelation, Cell, Coincide, CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent,
+    ContactRecords, ContainDecision, ContainError, Contradiction, CurveContact, DeclarationRead,
+    DiscardRow, EdgeJoin, EdgePieceClass, EeContact, FaceContainment, FacePairDeclaration, Fusions,
+    HeldEdge, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided, LeverArm,
     NullEdgePairRecord, Operand, OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread,
     PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation,
     PlaneRung, PointInSolidError, SectorRead, SectorRung, SelfCheck, Settling, ShellOrientation,
     SideCode, SolidContainment, SolidFaces, SphereQuestion, SweepStrategy, SweepTrace,
-    TorusConvention, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
-    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, boolean_reduce_declared,
-    carrier_eq, contfp, curved_face_containment, decision_words, face_carrier, flush_pair_relation,
-    insert_void, insert_voids, intersect, intersect_with, is_conventional_vertex, join_covers,
-    joinable_vertices, joined_edge, lineage_root, oriented_plane_eq, point_in_solid,
-    point_in_solid_faces, point_in_solid_of, subtract, subtract_with, tangent_pair_relation, union,
-    union_with,
+    TorusConvention, VeContact, Verdicts, VfContact, VoidContainment, VoidEvidence,
+    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce,
+    boolean_reduce_declared, carrier_eq, contfp, curved_face_containment, decision_words,
+    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect, intersect_with,
+    is_conventional_vertex, join_covers, joinable_vertices, joined_edge, lineage_root,
+    oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, subtract,
+    subtract_with, tangent_pair_relation, union, union_with,
 };
 pub use joint::{Deck, JointElement};
 pub use surgery::Surgery;
@@ -846,7 +845,7 @@ pub use chord_join::face_azimuth_window_traces;
 // The census's idealized/realized pair (its `Candidates`): the
 // vocabulary always, the door on the boolean sweep's terms.
 pub use attach::Rechart;
-pub use census::{CensusStrategy, CensusTrace, SweepPairs};
+pub use census::{CensusStrategy, CensusTrace, SweepPairs, census_rest_decision};
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
 pub use contact::{
@@ -878,12 +877,14 @@ pub use coherence::{
     CoherenceCondition, CoherenceFinding, CoherenceReport, StructureRead, Unexaminable, Unexamined,
     examine_chart_coherence, gap_is_noise,
 };
-pub use coincidence::{Coincidence, DecisionSite, Discharge, Relation, RowCell};
+pub use coincidence::{
+    Backing, Cited, Cites, Coincidence, DecisionSite, Discharge, Relation, RowCell,
+};
 pub use geom::Curve3;
 pub use geom::Surface;
 pub use geom_brep::{
     CertifyError, ChartCurve, ChartWindow, EdgeAuthority, EdgeCurve, EdgeCurveSpec,
-    EdgeDescription, EdgeDescriptionSpec, Pcurve, PcurveCache, PcurveCertifyError,
+    EdgeDescription, EdgeDescriptionSpec, Pcurve, PcurveCache, PcurveCertifyError, SurfacePair,
 };
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
 pub use instance::{
@@ -896,6 +897,7 @@ pub use merge_faces::{
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use offset_axial::{is_axial, offset_charts_together};
 pub use offset_derive::{CornerVerdict, SectionLane, SectionVerdict};
+pub use offset_general::offset_surfaces_together;
 pub use offset_nappe::{Nappe, face_nappe, group_nappe};
 pub use offset_together::{ChartMove, offset_planes_together};
 pub use pcurves::{
@@ -912,42 +914,41 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
 pub use face_boxes::{FaceBox, FaceBoxes};
-pub use param_source::{ParamAttachError, ParamSource, SurfaceField, field_source_evidence};
 pub use pieces::PieceSortError;
 pub use query::{
     CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimBreak, RimError, SEL_DATUM_DISTANCE,
     SurfaceKind, SurfaceKindSet,
 };
 pub use readback::{EdgeSide, EdgeSides, EulerCounts, EulerParityError, Pose, ReadbackError};
-#[cfg(any(feature = "test-support", feature = "sweep-testing"))]
-#[doc(hidden)]
-pub use replace_face::offset_edge_plans_for_tests;
 pub use replace_face::{
     OffsetOutcome, ReplaceFaceError, replace_face_offset, replace_faces_offset,
+};
+#[cfg(any(feature = "test-support", feature = "sweep-testing"))]
+#[doc(hidden)]
+pub use replace_face::{
+    offset_corner_arms_for_tests, offset_edge_plans_for_tests, offset_edge_specs_for_tests,
 };
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
 pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
-};
-pub use source::{
-    AxisAttachError, AxisPlacement, AxisRecord, AxisSource, GeomOrigin, GeomSource, Or,
-    SourceAttachError, SourceExpr,
 };
 pub use split::SplitEdgeCreated;
 pub use splitting::{
     ConicCrossingsCase, ConicRootFault, CrossingDecision, Escalation, KnifeEdge, KnifeEdgeSite,
     LoopContainment, LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide,
     PointInLoopError, Section, SectionEdge, SectionError, SectionPolygon, SectionRegion,
-    SectorEntry, SectorEntryKind, SplitError, SplitFinishError, SplitJoinError, SplitPart,
-    SplitPlane, SplitReduceError, SplitReduction, SplitResult, Uncrossable, UncrossableCarrier,
-    classify_neighborhood, plane_section, point_in_loop, split, split_reduce, vertex_sides,
+    SectorEntry, SectorEntryKind, SectorReading, SplitError, SplitFinishError, SplitJoinError,
+    SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult, TangencyReadings,
+    Uncrossable, UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split,
+    split_reduce, vertex_sides,
 };
 pub use transform::{TransformError, check_rigid, not_rigid_reading, transform_rigid};
 pub use validate::{
-    AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark, RingContact,
-    RingPairContact, StaleDeclaration, Unfinished, ValidationError, WedgeCheck, contact_marks,
-    contact_marks_structural, validate, validate_closed, validate_geometric,
-    validate_geometric_certificate, validate_geometric_certificate_structural,
-    validate_geometric_structural, validate_pseudomanifold, validate_pseudomanifold_certificate,
+    AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
+    CrossingSideVerdict, RingContact, RingPairContact, StaleDeclaration, Unfinished,
+    ValidationError, WedgeCheck, contact_marks, contact_marks_structural, validate,
+    validate_closed, validate_geometric, validate_geometric_certificate,
+    validate_geometric_certificate_structural, validate_geometric_structural,
+    validate_pseudomanifold, validate_pseudomanifold_certificate,
     validate_pseudomanifold_certificate_structural, validate_pseudomanifold_structural,
 };

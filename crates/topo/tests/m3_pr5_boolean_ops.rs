@@ -338,7 +338,7 @@ fn corner_kiss_operands() {
     );
     assert_props(&body.body, 2.0, 12.0);
     assert_eq!(body.contacts.vv.len(), 1);
-    let c = body.contacts.vv[0];
+    let c = body.contacts.vv[0].record;
     assert!(body.body.get_vertex(c.a).is_some());
     assert!(body.body.get_vertex(c.b).is_some());
     // The kiss point is one position, two distinct vertices (3′
@@ -499,32 +499,28 @@ pub(crate) fn partition_and_complement(name: &str, a: &AtRestBody<f64>, b: &AtRe
 }
 
 // ---------------------------------------------------------------
-// F7 merge output stage: the declared rung must actually fire on
-// shared-recipe coplanar walls (stacked bricks whose wall planes are
-// the SAME literal Surface value on both operands). The default
-// Newell construction (independent centroids ⇒ bit-different planes)
-// pins the no-numeric-rung side: nothing merges without declaration.
+// F7 merge output stage: the merge fires on the coplanar walls of
+// stacked bricks whose margins decide them one plane, declared or not
+// (D10): the two unions are one body.
 // ---------------------------------------------------------------
 
 #[test]
-fn merge_ladder_fires_only_on_declared_planes() {
+fn merge_ladder_fires_declared_or_not() {
     // Full-overlap stacked bricks: the whole seam runs ALONG existing
-    // operand edges (boundary-on-boundary coincidence). UNDECLARED,
-    // the coincidence ladder refuses — no numeric rung, nothing
-    // merges without declaration. DECLARED, the union builds, and the
-    // declared-rung merge census holds (F7): the
-    // four declared same-plane side pairs merge, leaving exactly the
-    // (0..2)²×(0..4) brick's six maximal faces.
+    // operand edges (boundary-on-boundary coincidence). Declared or
+    // not, the union builds, and the merge census holds (F7): the four
+    // same-plane side pairs merge, leaving exactly the (0..2)²×(0..4)
+    // brick's six maximal faces — one body either way.
     let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0));
-    let undeclared = union(&a, &b, Tol::witness());
-    assert!(
-        undeclared.is_err(),
-        "the undeclared stacked-full union must keep refusing typed \
-         (coincidence is declared, never value-inferred)"
-    );
+    let undeclared = union(&a, &b, Tol::witness()).expect("the undeclared stack glues");
     let r = run(union_with, &a, &b);
     let body = body_of(&r);
+    assert_eq!(
+        format!("{:?}", body_of(&undeclared).body),
+        format!("{:?}", body.body),
+        "declared and undeclared are one body"
+    );
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     assert_eq!(body.body.faces().count(), 6, "declared-rung merge census");
     assert_props(&body.body, 16.0, 40.0);

@@ -10,8 +10,8 @@ use core::f64::consts::PI;
 
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanOp, EntityKey, Entry, EvalOptions, NameRef, NameTable, Node, NodeResult, ProfileDoc,
-    RecipeNodeId, RoleSeg, StableName,
+    EntityKey, Entry, EvalOptions, NameRef, NameTable, Node, NodeResult, ProfileDoc, RecipeNodeId,
+    RoleSeg, StableName,
 };
 
 use crate::corpus;
@@ -47,10 +47,8 @@ fn two_boxes(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let (doc, b) = unit_box(doc, 2.0);
     fixture::insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     )
@@ -136,7 +134,14 @@ fn blend_one_box(
         .into_iter()
         .map(|(n, k)| {
             (
-                fixture::minted(n.kind, blended, RoleSeg::FromTarget(NameRef::new(n))),
+                fixture::minted(
+                    n.kind,
+                    blended,
+                    RoleSeg::From {
+                        read: fixture::out(&doc, union),
+                        of: NameRef::new(n),
+                    },
+                ),
                 k,
             )
         })
@@ -159,9 +164,8 @@ fn one_box_of_a_disjoint_union_fillets_by_name_and_the_other_keeps_its_names() {
     blend_one_box(
         "one_box_of_two_fillet",
         |target, selection| Node::Fillet {
-            target: target.into(),
             radius: len(R),
-            selection,
+            selection: editor_core::Operand::select(target, selection),
         },
         rounded + 1.0,
     );
@@ -175,9 +179,8 @@ fn one_box_of_a_disjoint_union_chamfers_by_name_and_the_other_keeps_its_names() 
     blend_one_box(
         "one_box_of_two_chamfer",
         |target, selection| Node::Chamfer {
-            target: target.into(),
             distance: len(R),
-            selection,
+            selection: editor_core::Operand::select(target, selection),
         },
         chamfered + 1.0,
     );

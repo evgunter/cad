@@ -8,10 +8,12 @@ the guide's own executed blocks.
 
 from pncad import (
     Var,
+    IndexedRead,
     MeasurePrimitive,
     Placement,
-    MeasureExpr,
-    AssertionDir,
+    Measured,
+    Measurement,
+    AssertionRelation,
     Advisory,
     AnalysisPolicy,
     AnalyzedBox,
@@ -32,7 +34,6 @@ from pncad import (
     Bulge,
     ClosedLoop,
     BooleanCoincidence,
-    BooleanOp,
     CancelToken,
     CapEnd,
     Center,
@@ -195,7 +196,7 @@ disc = circle((0 * mm, 0 * mm), 10 * mm)
 doc = Doc()
 plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded, plane=doc.sketch_frame())), Formula.length_in(8, mm)))
 hole = doc.insert(Node.extrude(doc.insert(Node.profile(disc, plane=doc.sketch_frame(elevation=Formula.length_in(-1, mm)))), Formula.length_in(10, mm)))
-lightened = doc.insert(Node.boolean(BooleanOp.Subtract, plate, hole))
+lightened = doc.insert(Node.subtract(plate, hole))
 volume: float = evaluate(doc).value(lightened).body().mass_properties().volume
 
 # The plane vocabulary: a named cyclic frame, and the general rigid
@@ -496,7 +497,7 @@ first_rung: FlushRung = findings[0].rung
 opaque_a: str = findings[0].a
 opaque_b: str = findings[0].b
 glued: NodeId = doc.insert(
-    Node.boolean(BooleanOp.Union, plate, lightened, declare=findings)
+    Node.union([plate, lightened], declare=findings)
 )
 fused_declared: Node = Node.union([plate, lightened], declare=findings)
 declared_one: None = doc.declare(glued, findings[0])
@@ -543,6 +544,18 @@ count_bound: DocEdit = DocEdit.bind_count_param(fin_group, VarName("fins"))
 family: NodeId = doc.insert(Node.pattern(plate, Formula.count(5), stepped))
 by_index: PartSelect = PartSelect.instance(Formula.count(2))
 one_copy: NodeId = doc.insert(Node.part(family, by_index))
+# A union or an intersect takes a list of operands or ONE family read
+# whole; a subtract names its two operands, `from_` (`from` is a
+# keyword) and `tool`.
+whole_family: Node = Node.union(family)
+common: Node = Node.intersect([plate, one_copy], declare=[])
+named_cut: Node = Node.subtract(from_=plate, tool=hole)
+# One member of a family is `family[i]`, taken at every body seat: in a
+# spelled list, at a subtract's seats, at a split's target.
+members: IndexedRead = family[2]
+spelled_family: Node = Node.union([family[0], family[1], family[2]])
+member_cut: Node = Node.subtract(from_=family[1], tool=hole)
+member_split: Node = Node.split(family[1], cutter)
 cut: NodeId = doc.insert(Node.split(plate, spin_axis))
 upper_half: Var | None = doc.output(cut, 0)
 # The index is a STRUCTURAL slot of its own, so it has a door of its
@@ -858,27 +871,30 @@ spun: FreeVar = FreeVar.written_angle(turned)
 symbol: str | None = declared.unit
 table: dict[VarName, FreeVar] = doc.params
 
-# Authoring a measurement. The verb vocabulary is a value class, the
-# expression is checked as it is built, and the node takes the
-# reference list its primitives index — each entry a node and a name,
-# the pair `Node.mate` already takes each of its two sides as.
-reach: MeasurePrimitive = MeasurePrimitive.distance(0, 1)
+# Authoring a measurement. The verb vocabulary is a value class over
+# its two references — each a node and a name, the pair `Node.mate`
+# already takes each of its two sides as — and its arithmetic is an
+# ordinary formula over the measures' outputs.
+reach: MeasurePrimitive = MeasurePrimitive.distance((upright, cap_name), (upright, cap_name))
 which_verb: str = reach.verb
-which_pair: tuple[int, int] = reach.refs
-span: MeasureExpr = MeasureExpr.primitive(reach)
-pad: MeasureExpr = MeasureExpr.value(doc.parse_formula("bore_r"))
-web: MeasureExpr = MeasureExpr.sub(span, MeasureExpr.add(pad, pad))
-measured_kind: str = web.dimension
-leaves: list[MeasurePrimitive] = web.primitives
-sink: NodeId = doc.insert(
-    Node.measure(web, [(upright, cap_name), (upright, cap_name)])
-)
-# The bound is an EXPRESSION, because its dimension is the measure's
-# and a slot address cannot fix it.
+which_pair: tuple[tuple[NodeId, str], tuple[NodeId, str]] = reach.refs
+measured_kind: str = reach.dimension
+recorded: Measured = doc.measure([reach])
+spans: list[NodeId] = recorded.measures
+spanned: list[Var] = recorded.outputs
+lone: NodeId = doc.insert(Node.measure(reach))
+# The bound is an EXPRESSION, because its dimension is the value's and
+# a slot address cannot fix it.
 requirement: NodeId = doc.insert(
-    Node.assertion(sink, AssertionDir.AtLeast, doc.parse_formula("0.5 mm"))
+    Node.assertion(recorded.outputs[0], AssertionRelation.AtLeast, doc.parse_formula("0.5 mm"))
 )
-which_way: str = AssertionDir.AtMost.symbol
+read_back: Measurement = evaluate(doc).reading(recorded.outputs[0])
+which_way: str = AssertionRelation.AtMost.symbol
+equality: NodeId = doc.insert(
+    Node.assertion(
+        recorded.outputs[0], relation=AssertionRelation.Equal, bound=doc.parse_formula("0.5 mm")
+    )
+)
 
 # The two words a refusal carries, typed. Both are OPTIONAL strings and
 # the stub says so: `kind` is which door refused, `inner_kind` the arm
@@ -1076,7 +1092,9 @@ minted_half: str = band_pi(_revolved, _pieces[0][0])
 minted_rim: str = band_rim(_revolved, _second)
 minted_rim_half: str = band_rim_pi(_revolved, _second)
 minted_vertex: str = meridian_vertex(MeridianEnd.Seam, _revolved, _second)
-minted_survivor: str = carried(_revolved, minted_band)
+_revolved_read = _names_doc.output(_revolved, 0)
+assert _revolved_read is not None
+minted_survivor: str = carried(_revolved, _revolved_read, minted_band)
 _blended: NodeId = _names_doc.insert(
     Node.fillet(_revolved, Formula.length_in(0.1, m), [minted_rim])
 )

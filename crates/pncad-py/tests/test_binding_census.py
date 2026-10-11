@@ -125,8 +125,8 @@ What `BOUND_AS` claims: a Python caller can do the thing the curated
 Rust name does, at that spelling. What it does NOT claim: the same
 signature, the same receiver, or the same layer. Python's surface is
 document-layer-first, so the kernel's direct body operations arrive as
-recipe-node constructors (`union` and its two siblings are one
-`Node.boolean` taking a `BooleanOp`), and a mapping is a pointer to the
+recipe-node constructors (`union`, `intersect` and `subtract` are
+`Node.union`, `Node.intersect` and `Node.subtract`), and a mapping is a pointer to the
 door, not an assertion that the two are interchangeable. Semantics are
 not checked at all: nothing here verifies that Python's `Frame` is the
 `Frame` the façade curates. That is `ty`'s and the corpus tests' job.
@@ -553,9 +553,8 @@ def audit_gap_ids():
 #:   Python speaks the document layer (the stub says so in its first
 #:   paragraph), so `extrude`, `revolve`, `loft_body`, `fillet_edges`
 #:   and `transform_rigid` arrive as `Node.*`, and the three Boolean
-#:   verbs plus their `_with` siblings arrive as ONE `Node.boolean`
-#:   taking a `BooleanOp` — the arm split moved from the verb to an
-#:   argument.
+#:   verbs plus their `_with` siblings arrive as `Node.union`,
+#:   `Node.intersect` and `Node.subtract`.
 #: - **A type became the door that reads it.** `DatumValue` is what
 #:   `Value.datum` answers, and `geom_core::UnitVec3` — the witness
 #:   that makes a datum's normal unit, so that an unnormalized one has
@@ -589,6 +588,23 @@ def audit_gap_ids():
 #:   next one.)
 BOUND_AS = {
     "CM": "cm",
+    # An interference finding's copies and site, flattened: a copy is
+    # its placement's variable beside its member index, and the overlap
+    # is the bounding faces or, where the kernel could not bound it, the
+    # tag saying why.
+    "CopyRef": ("InterferenceFinding.a", "InterferenceFinding.a_member"),
+    "Overlap": ("InterferenceFinding.faces", "InterferenceFinding.unlocalized"),
+    "Unlocalized": "InterferenceFinding.unlocalized",
+    # The measure builder records one action and answers what it
+    # recorded: Python's `Doc.measure` is the builder and takes the
+    # outcome up in place, answering its `Measured`.
+    "measure": "Doc.measure",
+    "MeasureOutcome": "Doc.measure",
+    # A measured value outside an assertion is read through
+    # `Evaluation.reading`, which raises the refusal and the typed
+    # absence rather than answering them.
+    "Observed": "Evaluation.reading",
+    "ObservedRefusal": "Evaluation.reading",
     # The coincidence door's row and its verdict (D10) cross as ONE
     # value, `Coincidence`: its cells as `(node, name)` pairs, the
     # door's proof as `rung` (`None` unproven) beside `residual`.
@@ -965,6 +981,12 @@ BOUND_AS = {
     # `StepIdFault` is what `EditError::StepIdsRefused` carries, and
     # its arms cross at the carrier's second word.
     "StepIdFault": "EditError.inner_variant",
+    # Which primitive a measure is, without its references: Python reads
+    # it as the primitive's verb word.
+    "MeasureVerb": "MeasurePrimitive.verb",
+    # `SelectionFault` is what `EditError::SelectionShape` carries, and
+    # its arms cross at the carrier's second word.
+    "SelectionFault": "EditError.inner_variant",
     # The authored-step doors. `StepHandleRefusal` crosses as its own
     # class under the door's name, its arms at `variant`; `keep_grid`
     # is the lowering `DocEdit.set_program` runs on its `keep` dicts;
@@ -1179,6 +1201,7 @@ BOUND_AS = {
     # attribute is the contract, and a caller reads it the day a door
     # produces one.
     "CensusContact": "ValidationFinding.contact_kind",
+    "CrossingSideVerdict": "ValidationFinding.crossing_side",
     "CensusSubject": "ValidationFinding.subject_kind",
     "RingContact": "ValidationFinding.ring_contact_kind",
     # `ring_meets_ring`'s, the same words for the same shapes between
@@ -1304,7 +1327,8 @@ BOUND_AS = {
     # `InputFault` (DM5) is the same shape one door further: the rule
     # is stated once on the node and rendered by three doors, and the
     # two a Python caller can reach are edit doors, so it crosses as
-    # `EditError.variant` — `duplicate_input` and `too_few_members`.
+    # `EditError.variant` — `repeated_designation` and
+    # `selection_not_canonical`.
     # The third renderer is the load validator's `SnapshotError`, which
     # this façade does not carry at all.
     # The edit door's PAYLOAD, projected at LIB-DOORS-1. `SlotId` is
@@ -1362,15 +1386,15 @@ BOUND_AS = {
     "declare_all": "Doc.declare_all",
     # A finding's pair and class become a declared pair at the
     # `declare=` seat; the list is the argument, not a value of its own.
-    "declared_pairs": "Node.boolean",
+    "declared_pairs": "Node.union",
     "extrude": "Node.extrude",
     "chamfer_edges": "Node.chamfer",
     "tube_along_arc": "Node.tube",
     "tube_along_arc_hollow": "Node.hollow_tube",
     "fillet_edges": "Node.fillet",
     "find_flush_candidates": "Evaluation.find_flush_candidates",
-    "intersect": "Node.boolean",
-    "intersect_with": "Node.boolean",
+    "intersect": "Node.intersect",
+    "intersect_with": "Node.intersect",
     "loft_body": "Node.loft",
     "mass_properties": "Body.mass_properties",
     # The façade's lattice-backed loop door and the document layer's
@@ -1387,12 +1411,12 @@ BOUND_AS = {
     "select": "Evaluation.select",
     "select_where": "Evaluation.select_where",
     "step_string": "Evaluation.step_string",
-    "subtract": "Node.boolean",
+    "subtract": "Node.subtract",
     "tessellate": "Body.tessellate",
-    "subtract_with": "Node.boolean",
+    "subtract_with": "Node.subtract",
     "transform_rigid": "Node.transform",
-    "union": "Node.boolean",
-    "union_with": "Node.boolean",
+    "union": "Node.union",
+    "union_with": "Node.union",
     "validate": "Body.validate",
     "validate_closed": "Body.validate_closed",
     "validate_geometric": "Body.validate_geometric",
@@ -2270,6 +2294,15 @@ NOT_BOUND = {
     # `output_signature` and its sentence, and the subgroup family is
     # the value-free name of a `Subgroup.variant` Python already reads.
     "OutputFault": SHAPE,
+    # A selection's definition and its two refusals' faults: Python
+    # authors a selection through the node that reads it (`Node.fillet`
+    # takes the names) and repairs one through `DocEdit.rebind` with
+    # `body=`; an edit door's shape refusal crosses as
+    # `EditError.inner_variant` (the row in `BOUND_AS`), and a load's as
+    # `PersistError.inner_variant` `selection_shape` / `selection_body`
+    # and its sentence.
+    "Select": SHAPE,
+    "SelectionBodyFault": SHAPE,
     "OutputPort": SHAPE,
     "PortKind": SHAPE,
     # An operand's address and what it admits: Python names a refused
@@ -2277,6 +2310,17 @@ NOT_BOUND = {
     # carry, and writes one as a `NodeId` or a `Var` argument.
     "SlotKind": SHAPE,
     "OperandSlot": SHAPE,
+    # A union's or an intersect's members argument: Python writes it as
+    # a sequence of operands or as one family read (`Node.union`'s
+    # `members`), and the kernel's two arms are those two shapes.
+    "Bodies": SHAPE,
+    # A read at a body seat: Python writes a plain one as a `NodeId` or
+    # a `Var` and an indexed one as `op[i]` (`IndexedRead`).
+    "BodyRead": SHAPE,
+    # The kernel's operator choice: Python picks the node instead —
+    # `Node.union`, `Node.intersect`, `Node.subtract` — so there is no
+    # operator value to pass.
+    "BooleanOp": SHAPE,
     # What the slot door writes: Python hands `DocEdit.set_param` a
     # formula, a value, a `Var` or a `NodeId`, and the slot's word says
     # which the kernel lowers it to.
@@ -2759,6 +2803,14 @@ NOT_BOUND = {
     # `CheckEvidence.variant`.
     "ChartCoherenceLane": INTERIOR,
     "ContactRecords": INTERIOR,
+    # What a contact record cites (D1 (ii)): its `ContactRecords`
+    # carrier is interior, so the citation rides behind the same door.
+    # `CitedInput` names the inputs a `NodeValue`'s and a `Product`'s
+    # records cite, both interior.
+    "Backing": INTERIOR,
+    "Cited": INTERIOR,
+    "Cites": INTERIOR,
+    "CitedInput": INTERIOR,
     # The contact vocabulary's fourth quarter, curated beside the
     # three that were already here. `INTERIOR` by the carrier rule,
     # measured one rung DOWN from where its carrier now crosses: it is
@@ -2905,13 +2957,11 @@ NOT_BOUND = {
     # or `None`.
     "PlacerRow": INTERIOR,
     # The entity door's answer: what a name turned out to denote, on the
-    # four refusals that test an `EntityKey`'s kind
-    # (`shell_open_kind`, `face_frame_kind`, the two blend selection
-    # kinds, `measure_selection_kind`). Carried in Rust because a Rust
-    # consumer can match those variants and would otherwise be unable
-    # to NAME the field's type; interior here because Python never
-    # holds one. Those refusals cross as a tag word plus the prose the
-    # kind is already rendered into — `an edge`, `a vertex` — so a
+    # refusal that tests an `EntityKey`'s kind (`select_kind`). Carried
+    # in Rust because a Rust consumer can match that variant and would
+    # otherwise be unable to NAME the field's type; interior here
+    # because Python never holds one. The refusal crosses as a tag word
+    # plus the prose the kind is already rendered into — `an edge`, `a vertex` — so a
     # Python caller reads the answer in the message and branches on the
     # tag. Its field is private to the door that mints it, so a bound
     # constructor could not exist even if a caller wanted one.
@@ -3090,6 +3140,9 @@ NOT_BOUND = {
     # Python reads the verdict (`AssemblyError` with `variant ==
     # "own_space"`), never the spaces themselves.
     "OwnSpace": INTERIOR,
+    # One of a product's at-rest decisions, interior with its `Product`:
+    # Python reads them as the unproven-coincidence lint's findings.
+    "AtRestRow": INTERIOR,
     "own_spaces": INTERIOR,
     "Subject": INTERIOR,
     "assemble_gathered": INTERIOR,
@@ -3276,10 +3329,13 @@ NOT_BOUND = {
     #
     #   - FIVE leave the roster ENTIRELY under rule 1, because
     #     `pncad.pyi` declares each top-level at the same spelling:
-    #     `MeasureExpr`, `MeasurePrimitive` and `AssertionDir` as the
+    #     `MeasureExpr`, `MeasurePrimitive` and `AssertionRelation` as the
     #     authoring vocabulary, and `MeasureNodeFault` and
     #     `MeasureUnavailableAt` as exception classes keeping their
-    #     Rust types' own names.
+    #     Rust types' own names. (INTENT stage 2 PR D retires
+    #     `MeasureExpr` and `MeasureNodeFault`: a measure holds one
+    #     primitive over its own references, and its arithmetic is a
+    #     formula.)
     #   - TWO stay here and are RETAGGED `SHAPE` — `SitedRef` and
     #     `MinClearanceRefusal`, each argued at its own entry above.
     #     Neither is a debt any more and neither is reach: one is a
@@ -3543,6 +3599,9 @@ NOT_BOUND = {
 #: reach what that member is about, at that spelling. Not the same shape, not
 #: the same receiver, and nothing about semantics.
 MEMBERS_BOUND_AS = {
+    # --- an interference finding's overlap and quieting assertion ---
+    "InterferenceFinding::overlap": ("InterferenceFinding.faces", "InterferenceFinding.unlocalized"),
+    "InterferenceFinding::quiet": "InterferenceFinding.quiet_by",
     # --- a one-of subject spelled as its arms' attributes ---------
     # A finding is about one root output or one node; Python reads the
     # subject as three attributes, `None` for the arm it is not.
@@ -3623,12 +3682,13 @@ MEMBERS_BOUND_AS = {
     # So the arm is bound, tagged and readable, and no Python program
     # can make one appear. Filed as
     # `work/lib/stranded-appearance-is-bound-but-unreachable-from-python.md`.
-    # `Maintenance::Strand` has no such gap: `Node.fillet` takes a name
-    # selection and `DocEdit.delete_node` is bound.
+    # `Maintenance::StrandedSelection` has no such gap: `Node.fillet`
+    # takes a name selection and `DocEdit.delete_node` is bound.
     "Maintenance::OffsetCleared": "Maintenance.variant",
     "Maintenance::Strand": "Maintenance.variant",
     "Maintenance::StrandedRead": "Maintenance.variant",
     "Maintenance::StrandedAppearance": "Maintenance.variant",
+    "Maintenance::StrandedSelection": "Maintenance.variant",
     "Maintenance::LabelDropped": "Maintenance.variant",
     "Maintenance::AnonymousVarRemoved": "Maintenance.variant",
     "DistributionFault::NonFinite": "DistributionFault.variant",
@@ -3638,29 +3698,26 @@ MEMBERS_BOUND_AS = {
     "EditError::ProfileProgramRefused": "EditError.variant",
     "EditError::UnresolvedInput": "EditError.variant",
     "EditError::WouldCycle": "EditError.variant",
-    "EditError::DuplicateInput": "EditError.variant",
-    "EditError::RepeatedDesignation": "EditError.variant",
-    "EditError::SelectionNotCanonical": "EditError.variant",
+    "EditError::SelectionShape": "EditError.variant",
+    "EditError::IndexedRead": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
+    "EditError::LoftSectionsSpelled": "EditError.variant",
     "EditError::SetDeclareOnNonDeclaring": "EditError.variant",
     "EditError::SetProgramOnNonProfile": "EditError.variant",
     "EditError::SetExtrudeSideOnNonExtrude": "EditError.variant",
     "EditError::StepIdsRefused": "EditError.variant",
     "EditError::NameStepNeverMinted": "EditError.variant",
-    "EditError::TooFewMembers": "EditError.variant",
     "EditError::OperandUnresolved": "EditError.variant",
     "EditError::AmbiguousOutput": "EditError.variant",
     "EditError::DefinesNothing": "EditError.variant",
     "EditError::ReadsWorldCopy": "EditError.variant",
-    "EditError::MeasuresWorldCopy": "EditError.variant",
     "EditError::UnknownSlot": "EditError.variant",
     "EditError::SlotDimensionMismatch": "EditError.variant",
     "EditError::StructuralSlotNeedsStructuralEdit": "EditError.variant",
     "EditError::NotStructuralSlot": "EditError.variant",
     "EditError::PayloadUnknownVarName": "EditError.variant",
     "EditError::PayloadVarKind": "EditError.variant",
-    "EditError::MeasureMalformed": "EditError.variant",
-    "EditError::AssertionTarget": "EditError.variant",
+    "EditError::ConstructionReadsObserved": "EditError.variant",
     "EditError::AssertionDimension": "EditError.variant",
     "EditError::SlotUnknownVarName": "EditError.variant",
     "EditError::SlotVarKind": "EditError.variant",
@@ -3776,6 +3833,7 @@ MEMBERS_BOUND_AS = {
     "InlineError::InstanceBodyNameReferenced": "InlineError.variant",
     "InlineError::ForeignInstanceName": "InlineError.variant",
     "InlineError::StrandedPartName": "InlineError.variant",
+    "InlineError::StrandedPartRead": "InlineError.variant",
     "InlineError::NameOnDroppedStep": "InlineError.variant",
     "InlineError::Edit": "InlineError.variant",
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
@@ -3796,7 +3854,6 @@ MEMBERS_BOUND_AS = {
     "MateFault::Unleverable": "MateFault.variant",
     "MateFault::OffsetDisagrees": "MateFault.variant",
     "MateFault::OffsetUnchecked": "MateFault.variant",
-    "MeasureNodeFault::RefIndexOutOfRange": "MeasureNodeFault.variant",
     "MeasureUnavailableAt::NeedsEnclosure": "MeasureUnavailableAt.variant",
     "NodePickError::Standing": "NodePickError.variant",
     "NodePickError::NotABody": "NodePickError.variant",
@@ -3892,6 +3949,7 @@ MEMBERS_BOUND_AS = {
     "SelectRefusal::NotADatum": "SelectRefusal.reason",
     "SelectRefusal::DatumHasNoValue": "SelectRefusal.reason",
     "SelectRefusal::NodeHasNoValue": "SelectRefusal.reason",
+    "SelectRefusal::NodeHasNoOutput": "SelectRefusal.reason",
     "SelectRefusal::NotALength": "SelectRefusal.reason",
     "SelectRefusal::PairInBand": "SelectRefusal.reason",
     "SelectRefusal::BadValue": "SelectRefusal.reason",
@@ -4137,6 +4195,8 @@ MEMBERS_BOUND_AS = {
     "Evaluation::document": "Doc.id",
     "Evaluation::prior_refused": "Evaluation.reused",
     "Evaluation::nodes": "Evaluation.value",
+    # The run's variable bindings are what `reading` evaluates over.
+    "Evaluation::env": "Evaluation.reading",
     "Evaluation::outcome": "Evaluation.canceled",
     # The detector's finding: its pair crosses as two NAMES, its class
     # as the word, its evidence as the rung that carried it.
@@ -4269,6 +4329,10 @@ MEMBERS_NOT_BOUND = {
     # into the finding's `str()` — the flattened-payload bullet at the
     # door that renders rather than raises.
     "AtRestFinding::error": SHAPE,
+    # The census's verdicts on the pair are the kernel's own story, read
+    # through `ValidationFinding` where a body is validated; the finding
+    # names its copies and site, which is what a caller acts on.
+    "InterferenceFinding::evidence": SHAPE,
     # The replay structure is the lattice's own bookkeeping; no Python
     # value is ever one.
     "ClosedLoop::structure": INTERIOR,

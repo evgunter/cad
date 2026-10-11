@@ -71,6 +71,7 @@ use crate::node::{RecipeNodeId, SlotId};
 pub(crate) type ShellEmitter<T> = fn(
     RecipeNodeId,
     RecipeNodeId,
+    crate::VarId,
     &NameTable,
     &Body<T>,
     &ShellNaming,
@@ -458,8 +459,9 @@ fn fold_iso_row_error<T: Real>(
     match error {
         // Either end is interior to the domain; the infimum is the one
         // reported.
-        I::Interior { u, domain } => I::Interior {
-            u: end(u, Infimum),
+        I::Interior { axis, at, domain } => I::Interior {
+            axis,
+            at: end(at, Infimum),
             domain,
         },
         I::Structure { source } => I::Structure { source },

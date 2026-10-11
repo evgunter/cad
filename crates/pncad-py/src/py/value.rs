@@ -28,7 +28,10 @@ use pyo3::types::{PyFloat, PyString};
 
 use crate::errors::{ErrorClass, EvalReason, ValidationRefusal, measurement_dimension_tag};
 use crate::py::quantity::Length;
-use crate::py::{doc::NodeId, typed_err};
+use crate::py::{
+    doc::{NodeId, Var},
+    typed_err,
+};
 use crate::tags::{
     export_error_tag, node_error_tag, node_inner_kind_tag, normalization_kind_tag,
     promoted_curve_kind_tag, promoted_kind_tag, step_import_error_tag,
@@ -58,10 +61,10 @@ fn inner_kind(py: Python<'_>, kind: &d::NodeErrorKind) -> Py<PyAny> {
 /// any future one, because no raise of this class can be written
 /// without naming a variant of the enum.
 ///
-/// `kind`, `inner_kind`, `through`, `finding` and `document` are ALWAYS
-/// present on the exception — `None` where the reason has no failing
-/// kind, no arm under that kind, no poisoning ancestor, no refusal-menu
-/// payload, or the node is the evaluated document's own — so
+/// `kind`, `inner_kind`, `through` and `document` are ALWAYS present on
+/// the exception — `None` where the reason has no failing kind, no arm
+/// under that kind, no poisoning ancestor, or the node is the evaluated
+/// document's own — so
 /// stub-guided code can read them without an `AttributeError` trap — a
 /// stub that over-promises is worse than one that says `None`.
 fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node: NodeId) -> PyErr {
@@ -80,7 +83,6 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node
             ("kind", py.None().into_any()),
             ("inner_kind", py.None().into_any()),
             ("through", py.None().into_any()),
-            ("finding", py.None().into_any()),
             ("document", py.None().into_any()),
         ],
     )
@@ -137,21 +139,6 @@ pub(crate) fn refused(
         },
         None => py.None().into_any(),
     };
-    // The refusal MENU: an undeclared-contact
-    // refusal carries its candidate declaration as a typed
-    // `FlushFinding` on the exception — the same value shape
-    // `Evaluation.find_flush_candidates` answers with, ready for
-    // `Node.boolean`'s `declare=` or `Doc.declare`. `None` on every
-    // other kind.
-    let finding = match kind {
-        d::NodeErrorKind::UndeclaredCoincidence { finding, .. } => {
-            match super::flush::FlushFinding((**finding).clone()).into_pyobject(py) {
-                Ok(bound) => bound.unbind().into_any(),
-                Err(failed) => return failed,
-            }
-        }
-        _ => py.None().into_any(),
-    };
     typed_err(
         py,
         ErrorClass::Evaluation(EvalReason::Standing(d::NodeStanding::Failed {
@@ -168,7 +155,6 @@ pub(crate) fn refused(
             ),
             ("inner_kind", inner_kind(py, kind)),
             ("through", py.None().into_any()),
-            ("finding", finding),
             ("document", document),
         ],
     )
@@ -267,7 +253,6 @@ fn poisoning(
     let mut fields: Vec<(&str, Py<PyAny>)> = vec![
         ("node", node_obj),
         ("through", through_obj),
-        ("finding", py.None().into_any()),
         ("document", py.None().into_any()),
     ];
     // The node never ran, so the standing's sentence is followed by
@@ -702,6 +687,9 @@ impl Body {
 ///   (`"vertex_on_face"`, `"edge_edge_cross"`, …). The branch that
 ///   matters: an `"edge_face_pierce"` is interpenetration and cannot
 ///   be declared, while an `"edge_edge_overlap"` can be.
+/// * `crossing_side` — an `"edge_edge_cross"`'s side verdict:
+///   `"same_side"` is interpenetration, `"opposite_sides"` a contact,
+///   `"undecided"` neither; `None` on every other finding.
 /// * `stale_kind` — which contact record the census could not confirm
 ///   (`"vertex_vertex"`, `"vertex_on_face"`, `"vertex_on_edge"`,
 ///   `"edge_edge"`, `"curve_locus"`, `"patch"`). A record a declaration
@@ -750,6 +738,12 @@ impl ValidationFinding {
         self.0.contact_kind
     }
 
+    /// An in-plane crossing's side verdict.
+    #[getter]
+    fn crossing_side(&self) -> Option<&'static str> {
+        self.0.crossing_side
+    }
+
     /// Which declared record lost its witness.
     #[getter]
     fn stale_kind(&self) -> Option<&'static str> {
@@ -771,12 +765,13 @@ impl ValidationFinding {
         }
         format!(
             "ValidationFinding(variant='{}', subject_kind={}, \
-             entity_kind={}, contact_kind={}, stale_kind={}, \
-             ring_contact_kind={})",
+             entity_kind={}, contact_kind={}, crossing_side={}, \
+             stale_kind={}, ring_contact_kind={})",
             self.0.variant,
             word(self.0.subject_kind),
             word(self.0.entity_kind),
             word(self.0.contact_kind),
+            word(self.0.crossing_side),
             word(self.0.stale_kind),
             word(self.0.ring_contact_kind)
         )
@@ -897,7 +892,7 @@ impl Measurement {
 ///
 /// `measured` and `bound` are present for a decided verdict and `None`
 /// for an undecided one. Reading a verdict changes nothing: a failing
-/// assertion gates no build and moves no product (E10 v1).
+/// assertion gates no build and moves no product (D10).
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Verdict {
     /// `"Holds"`, `"Violated"` or `"Unevaluated"`.
@@ -947,13 +942,13 @@ fn names(py: Python<'_>, found: Vec<pncad::prelude::StableName>) -> PyResult<Vec
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Value {
     payload: d::ValuePayload<f64>,
-    /// The value's OWN declared-contact channel (ASM-R2b D-1): what
+    /// The value's OWN contact-record channel (ASM-R2b D-1): what
     /// `instantiate` carried in from a part. A boolean's records ride
     /// its payload instead, and the two homes reconcile at
     /// [`Value::declared_body`] — deliberately the same reconciliation
     /// `editor_core::product::sources_of` makes, because a Python
     /// caller reading a body off a value and the gather reading the
-    /// same body must not disagree about what was declared over it.
+    /// same body must not disagree about the contacts it carries.
     contacts: Arc<topo::ContactRecords>,
     node: NodeId,
 }
@@ -1269,6 +1264,61 @@ impl Evaluation {
 
 #[pymethods]
 impl Evaluation {
+    /// **A scalar's value in this evaluation, measured values bound**
+    /// (D10): a variable — a measure's output, or a definition over
+    /// outputs — or a formula, such as `Doc.measure`'s `value`. The
+    /// one reader of an observed value outside an assertion.
+    ///
+    /// A measure under it that did not land raises as `value` of that
+    /// measure does (`EvaluationError`, `MeasureUnavailableAt` for a
+    /// `min_clearance` at this point scalar); an evaluation over the
+    /// bound values that refuses raises `ExprError`.
+    fn reading(&self, py: Python<'_>, value: super::doc::Evaluand) -> PyResult<Measurement> {
+        let formula = match value {
+            super::doc::Evaluand::Formula(formula) => self
+                .doc
+                .resolve(&formula.0)
+                .map_err(|fault| super::expr::lower_fault_err(py, &fault))?,
+            super::doc::Evaluand::Var(var) => {
+                let Some(dim) = self.doc.var(var.0).and_then(|held| held.kind().dimension()) else {
+                    return Err(super::expr::eval_err(
+                        py,
+                        &d::EvalError::UnresolvedVar { var: var.0 },
+                        Some(&self.doc),
+                    ));
+                };
+                d::Formula::var(var.0, dim)
+            }
+        };
+        let dim = formula.dim();
+        match self.inner.reading_formula(&self.doc, &formula) {
+            Ok(d::Observed::Value(value)) => Ok(Measurement {
+                dimension: measurement_dimension_tag(dim),
+                value,
+                length: (dim == d::Dimension::Length)
+                    .then(|| Length(pncad::quantity::Length::from_meters(value))),
+            }),
+            Ok(d::Observed::Unavailable(reason)) => {
+                Err(super::measure::measure_unavailable_at_err(py, &reason))
+            }
+            Err(d::ObservedRefusal::Measure(standing)) => {
+                let node = NodeId(standing.node());
+                match self.value(py, &node) {
+                    Err(raised) => Err(raised),
+                    Ok(_) => Err(eval_err(
+                        py,
+                        standing.to_string(),
+                        EvalReason::Standing(standing),
+                        node,
+                    )),
+                }
+            }
+            Err(d::ObservedRefusal::Expr(err)) => {
+                Err(super::expr::eval_err(py, &err, Some(&self.doc)))
+            }
+        }
+    }
+
     /// The node's successful value.
     ///
     /// A node that produced NO value raises under its standing, with
@@ -1349,7 +1399,7 @@ impl Evaluation {
         value
             .coincidences
             .iter()
-            .map(|row| Coincidence::new(py, row, &d::coincide::prove(&self.doc, row)))
+            .map(|row| Coincidence::new(py, row, &d::coincide::prove(&self.doc, row), &self.doc))
             .collect()
     }
 
@@ -1682,8 +1732,9 @@ impl Evaluation {
     ///
     /// Findings come back in canonical order and are only ever
     /// DEFINITE values — inspect them, then hand the inspected
-    /// findings to `Node.boolean`'s `declare=`, or to `Doc.declare` /
-    /// `Doc.declare_all` on the live boolean or union.
+    /// findings to `Node.union`'s, `Node.intersect`'s or
+    /// `Node.subtract`'s `declare=`, or to `Doc.declare` /
+    /// `Doc.declare_all` on the live node.
     /// Detection and declaration are separate doors ON PURPOSE (the
     /// ruled no-fusion boundary).
     ///
@@ -1706,7 +1757,7 @@ impl Evaluation {
         b: &NodeId,
     ) -> PyResult<Vec<super::flush::FlushFinding>> {
         let tol = Tol::witness();
-        match pncad::select::find_flush_candidates(&self.inner, a.0, b.0, tol) {
+        match pncad::select::find_flush_candidates(&self.inner, &self.doc, a.0, b.0, tol) {
             Ok(findings) => Ok(findings
                 .into_iter()
                 .map(super::flush::FlushFinding)
@@ -2313,6 +2364,8 @@ pub(crate) fn import_step(
             // examination, and `None` means NOT ASKED — which is the
             // one thing an empty report would not say.
             coherence: _,
+            // Empty by construction: the options declare no anchor.
+            coincidences: _,
         }) => Ok(ImportReport {
             body: Body::plain(Arc::new(body)),
             enclosure: enclosure.map(MassProperties::from),
@@ -2576,12 +2629,13 @@ pub(crate) fn evaluate(
 /// **One coincidence a node decided from values** (D10), with what the
 /// coincidence door decided about it.
 ///
-/// Its two cells cross as `(node, name)` pairs: the input node whose
-/// table names the cell and the name there, the same opaque text the
-/// materializers answer with; a tool cell (the plane a split cuts with)
-/// has no name and crosses as `(node, None)`, and a profile's own piece
-/// crosses as `(profile, piece)`, the piece's text as a step's pieces
-/// spell it. `rung` names the door's
+/// Its two cells cross as pairs: an entity cell as `(read, name)`,
+/// the `Var` the deciding node took the entity in through, whose table
+/// names it, and the name there, the same opaque text the materializers
+/// answer with; a tool cell (the plane a split cuts with) has no name
+/// and crosses as `(read, None)`; and a profile's own piece crosses as
+/// `(profile, piece)`, the profile's `NodeId` and the piece's text as a
+/// step's pieces spell it. `rung` names the door's
 /// rung that proved the row structural, `None` where none did, and then
 /// `residual` says what separates the two constructions, or why a
 /// cell's could not be read (`coincide::Unwalked`, said by its sentence
@@ -2590,7 +2644,7 @@ pub(crate) fn evaluate(
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Coincidence {
-    cells: Vec<(NodeId, Option<String>)>,
+    cells: Vec<(Cell, Option<String>)>,
     relation: &'static str,
     site: &'static str,
     rung: Option<&'static str>,
@@ -2603,18 +2657,21 @@ impl Coincidence {
         py: Python<'_>,
         row: &d::NamedCoincidence,
         proof: &d::Proof,
+        doc: &d::ProfileDoc,
     ) -> PyResult<Self> {
         let cells = row
             .cells
             .iter()
             .map(|cell| match cell {
-                d::NamedCell::Entity { input, name } => {
-                    Ok((NodeId(*input), Some(super::doc::name_text(py, name)?)))
-                }
-                d::NamedCell::Tool { input } => Ok((NodeId(*input), None)),
-                d::NamedCell::Piece { profile, piece } => {
-                    Ok((NodeId(*profile), Some(super::doc::piece_text(piece)?)))
-                }
+                d::NamedCell::Entity { input, name } => Ok((
+                    Cell::Read(Var::of(doc, *input)),
+                    Some(super::doc::name_text(py, name)?),
+                )),
+                d::NamedCell::Tool { input } => Ok((Cell::Read(Var::of(doc, *input)), None)),
+                d::NamedCell::Piece { profile, piece } => Ok((
+                    Cell::Node(NodeId(*profile)),
+                    Some(super::doc::piece_text(piece)?),
+                )),
             })
             .collect::<PyResult<_>>()?;
         let (rung, residual) = match proof {
@@ -2631,26 +2688,42 @@ impl Coincidence {
     }
 }
 
+/// One cell of a [`Coincidence`] as it crosses: the read an entity or
+/// a tool plane came in through, or the profile node a piece is of.
+#[derive(Clone, IntoPyObject)]
+pub(crate) enum Cell {
+    /// The read whose table names the cell.
+    Read(Var),
+    /// The profile whose piece the cell is.
+    Node(NodeId),
+}
+
 #[pymethods]
 impl Coincidence {
-    /// The two cells decided one, as `(input node, name)` pairs; a
-    /// tool cell's name is `None`.
+    /// The two cells decided one: `(read, name)` for an entity, the
+    /// `Var` whose table names it; `(read, None)` for a tool plane;
+    /// `(profile, piece)` for a profile's own piece.
     #[getter]
-    fn cells(&self) -> Vec<(NodeId, Option<String>)> {
+    fn cells(&self) -> Vec<(Cell, Option<String>)> {
         self.cells.clone()
     }
 
     /// What was decided between them: `same_oriented`,
-    /// `same_opposite`, `on_carrier`, `equal_angles`, `tangent` or
-    /// `cusp`. A `profile_junction` row is `tangent` or `cusp` between
-    /// two carriers and `same_oriented` where its pieces continue one.
+    /// `same_opposite`, `on_carrier`, `equal_angles`, `tangent`, `cusp`,
+    /// `tangent_contact`, `seam`, `coaxial` or `co_ruled`. A
+    /// `profile_junction` row is `tangent` or `cusp` between two carriers
+    /// and `same_oriented` where its pieces continue one; a
+    /// `tangent_witness` row is `tangent_contact` (outward sides opposed)
+    /// or `seam` (one face carried on into the other).
     #[getter]
     fn relation(&self) -> &'static str {
         self.relation
     }
 
     /// Where it was decided: `plane_ladder`, `carrier_ladder`,
-    /// `split_on`, `battery_turn` or `profile_junction`.
+    /// `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn`,
+    /// `battery_joint`, `battery_support_axis`, `profile_junction`,
+    /// `vertex_fusion`, `census_at_rest` or `import_anchor`.
     #[getter]
     fn site(&self) -> &'static str {
         self.site

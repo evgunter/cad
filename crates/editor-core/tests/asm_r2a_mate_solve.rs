@@ -1328,6 +1328,7 @@ fn row6f_rebind_repairs_a_mate_head_that_is_the_only_reference() {
     let applied = doc
         .apply(
             &DocEdit::Rebind {
+                body: None,
                 from: in_part(ids[1], body, CapEnd::Start),
                 to: in_part(ids[2], body, CapEnd::Start),
             },
@@ -1383,15 +1384,23 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
     // name onto. The member list then drops the second instance — a
     // re-point that reports the name out of reach, never refuses it — so
     // the delete leaves the name stranded and no read.
+    let (read0, read2) = (
+        crate::fixture::out(&doc, ids[0]),
+        crate::fixture::out(&doc, ids[2]),
+    );
     let (doc, union_id) = mint(
         doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Union {
-                members: vec![ids[0].into(), ids[1].into(), ids[2].into()],
+                members: editor_core::Bodies::Spelled(vec![
+                    ids[0].into(),
+                    ids[1].into(),
+                    ids[2].into(),
+                ]),
                 declare: vec![(
                     (
-                        SitedRef::new(ids[2], in_part(ids[1], body, CapEnd::Start)),
-                        SitedRef::new(ids[0], in_part(ids[0], body, CapEnd::Start)),
+                        SitedRef::new(read2, in_part(ids[1], body, CapEnd::Start)),
+                        SitedRef::new(read0, in_part(ids[0], body, CapEnd::Start)),
                     ),
                     BooleanCoincidence::REST,
                 )],
@@ -1403,13 +1412,14 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
         doc,
         DocEdit::SetMembers {
             node: union_id,
-            members: vec![ids[0].into(), ids[2].into()],
+            members: editor_core::Bodies::Spelled(vec![ids[0].into(), ids[2].into()]),
         },
     );
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: ids[1] });
     let applied = doc
         .apply(
             &DocEdit::Rebind {
+                body: None,
                 from: in_part(ids[1], body, CapEnd::Start),
                 to: in_part(ids[2], body, CapEnd::Start),
             },
@@ -1426,7 +1436,7 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
         "the declaration's NAME was rewritten"
     );
     assert_eq!(
-        pairs[0].0.0.at, ids[2],
+        pairs[0].0.0.at, read2,
         "and its site was not — a site is an authored fact, not a repair target"
     );
     assert_eq!(

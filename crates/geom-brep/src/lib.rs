@@ -100,11 +100,12 @@ pub use dihedral::{
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
-    PlaneNurbsLimbs, PlaneNurbsRefusal, analytic_rung3, is_analytic, plane_nurbs_limbs,
+    PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb, analytic_rung3, is_analytic, plane_nurbs_limbs,
 };
 pub use enters::{
-    EntersMaterial, LeverEscalation, LeverRung, OutwardNormal, ReferenceNormal, WallBend,
-    WallBendError, bends_into_material, enters_material, enters_material_order2,
+    EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
+    ParallelSense, ReferenceNormal, WallBend, WallBendError, bends_into_material, enters_material,
+    enters_material_order2, normal_alignment,
 };
 pub use extent::{ExtentBall, Reach};
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
@@ -123,17 +124,17 @@ pub use implicit::{
     min_radius_of_curvature, min_radius_of_curvature_toward, rounding_charge,
 };
 pub use intersect::{
-    CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection,
-    OutsideConic, PairRoute, ParallelAxes, PlaneConeSection, PlaneCylinderSection,
-    PlaneSphereSection, PlaneTorusSection, RadiusEvidence, Rung, SectionError, SectionRadius,
-    SphereSphereSection, cone_cylinder_section, cylinder_axes_coplanar, cylinder_axes_parallel,
-    cylinder_cylinder_section, cylinder_sphere_section, parallel_axes_at, plane_cone_section,
-    plane_cylinder_section, plane_sphere_section, plane_torus_section, route, route_pose,
+    ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, OutsideConic, PairRoute,
+    ParallelAxes, PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection,
+    Rung, SectionError, SectionRadius, SphereSphereSection, cone_cylinder_section,
+    cylinder_axes_coplanar, cylinder_axes_parallel, cylinder_cylinder_section,
+    cylinder_sphere_section, parallel_axes_at, plane_cone_section, plane_cylinder_section,
+    plane_cylinder_section_read, plane_sphere_section, plane_torus_section, route, route_pose,
     sphere_sphere_section,
 };
-pub use keys::{CurveKey, PointKey, SurfaceKey};
+pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{TangentLocus, TangentLocusError, tangent_locus};
-pub use mapped::{MappedCurve, SketchSegment, SweepRange};
+pub use mapped::{MappedCurve, MappedSource, SketchSegment, SubRange};
 pub use newell::{NewellError, newell_plane};
 pub use nurbs_iso::{
     IsoRowError, boundary_iso_u, boundary_iso_v, interior_iso_u, iso_boundary_row, reversed_column,

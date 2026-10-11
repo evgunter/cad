@@ -14,9 +14,10 @@
     clippy::float_cmp
 )]
 
+use super::search_kit::band;
 use super::section_cert_rows::{
-    IN, OUT, Shape, Step, at, band, classify, cone_at, cone_sheet, cylinder, on_both, p, plane,
-    shape, sphere, tangent, unit_cone, v, witness,
+    IN, OUT, Shape, Step, at, classify, cone_at, cone_sheet, cylinder, on_both, p, plane, shape,
+    sphere, tangent, unit_cone, v, witness,
 };
 use super::*;
 use crate::boolean::ops;
@@ -24,7 +25,7 @@ use crate::test_support_fixtures::brick;
 use crate::{Body, FaceKey, FaceSurface, MefSite, MevSite};
 use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_4, PI, TAU};
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::{Point3, Tol, Vec3};
 
 /// The classification with the cone as `F`, after checking that the
@@ -406,8 +407,7 @@ fn cone_rim(
     let rim_plane = body.add_surface(plane(p(0.0, 0.0, z), normal));
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1: cone,
-            s2: rim_plane,
+            pair: SurfacePair::new(cone, rim_plane),
             witness: p(-z, 0.0, z),
         },
         carrier: Curve3::Circle {

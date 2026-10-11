@@ -101,16 +101,15 @@ pub use editor_core::{
 // the cost of the button and builds the sequence behind it from this.
 pub use editor_core::cascade_delete_order;
 
-// Node vocabulary. `BooleanOp` is the KERNEL's, which the recipe node
-// carries directly; it is re-exported here so document-layer code can
-// spell the whole node vocabulary through one module. `CountMismatch`
+// Node vocabulary. A union or intersect takes one `Bodies` argument (a
+// family read, or spelled reads); a subtract is binary. `CountMismatch`
 // rides with `PlacementRuleFault`: it is what that fault and
 // `EditError::PlacementRuleMismatch` carry. An operand field is an
 // `Operand` read, written at an `OperandSlot` (a `SlotId::Operand`)
 // that admits a `SlotKind`; `DocEdit::SetParam` writes a `SlotValue`.
 pub use editor_core::{
-    Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault, ListFault,
-    MeasureNodeFault, MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind,
+    Axis3, Bodies, BodyRead, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault,
+    ListFault, MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind,
     PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SlotId, SlotKind, TubeWindow, VectorSlot,
     declare_continuation, declare_rest,
 };
@@ -133,10 +132,13 @@ pub use editor_core::{Label, LabelFault};
 pub use editor_core::{Placement, Step};
 
 // The measurement vocabulary (ERROR-DESIGN E3/E10, CONTACT-DESIGN C5).
-// `MeasureExpr` + `MeasurePrimitive` are what a `Node::Measure` is
-// built from, so a caller who cannot spell them cannot author one at
-// all; `AssertionDir` is a field of `Node::Assertion` for the same
-// reason. `AssertionVerdict` and `UnevaluatedReason` are the READING
+// A `Node::Measure` holds one `MeasurePrimitive`; the builder (`measure`,
+// `Recording::measure`) records one measure per primitive and answers
+// their outputs as `Measured` (in a `MeasureOutcome`). A caller who
+// cannot spell them cannot author one at all; `AssertionRelation` is a field
+// of `Node::Assertion` for the same reason. `Observed` and
+// `ObservedRefusal` are what `Evaluation::reading` answers a measured
+// value with. `AssertionVerdict` and `UnevaluatedReason` are the READING
 // half — the payload an evaluated assertion carries — and E10's whole
 // point is that a verdict is consumed by reports. `ASSERT_BOUND` is
 // the funnel site name, carried like `SEL_DATUM_DISTANCE` so a
@@ -157,8 +159,9 @@ pub use editor_core::{Placement, Step};
 // is what a caller who read a name out of a file has to handle.
 pub use editor_core::clearance::{CellBudget, ClearanceRefusal, SelectionRefusal};
 pub use editor_core::{
-    ASSERT_BOUND, AssertionDir, AssertionVerdict, FaceName, MeasureExpr, MeasurePrimitive,
-    MeasureUnavailableAt, NotAFaceName, SitedFace, SitedRef, UnevaluatedReason,
+    ASSERT_BOUND, AssertionRelation, AssertionVerdict, FaceName, MeasureOutcome, MeasurePrimitive,
+    MeasureUnavailableAt, MeasureVerb, Measured, NotAFaceName, Observed, ObservedRefusal,
+    SitedFace, SitedRef, UnevaluatedReason, measure,
 };
 
 // Expressions and their text door.
@@ -252,8 +255,8 @@ pub use editor_core::expr::{EvalError, eval, eval_count, eval_var, eval_var_coun
 // refusal's count can read what it was measured against.
 pub use editor_core::{
     DEFINITION_NODE_BOUND, DisplayUnitRefusal, DistributionRefusal, FreeValue, FreeVar, FreshEntry,
-    UnitSym, Var, VarDecl, VarDef, VarId, VarKind, VarName, VarNameFault, VarNameReason, VarRef,
-    WrittenDef,
+    Select, SelectionFault, UnitSym, Var, VarDecl, VarDef, VarId, VarKind, VarName, VarNameFault,
+    VarNameReason, VarRef, WrittenDef,
 };
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the
@@ -338,7 +341,7 @@ pub use editor_core::{
 // version constant to carry either.
 pub use editor_core::{
     Loaded, NonFiniteSite, OutputFault, PersistError, ProgramFault, REGENERATE_RECOURSE,
-    SnapshotError, load, save,
+    SelectionBodyFault, SnapshotError, load, save,
 };
 
 // A refusal's two renderings: under its stage word (`Display`), and as
@@ -371,10 +374,11 @@ pub use editor_core::ContentBits;
 // `product` is the whole-document gather of those copies. `OwnSpace`
 // is one unplaced group's own space, which a `Product` carries beside
 // the world for the at-rest gate to check, and `own_spaces` gathers
-// every one.
+// every one. `AtRestRow` is one of the product's at-rest decisions,
+// the mate it is decided for beside the census's row.
 pub use editor_core::{
-    OwnSpace, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal, SourceFinding,
-    own_spaces, product, product_recorded,
+    AtRestRow, OwnSpace, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal,
+    SourceFinding, own_spaces, product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:
@@ -497,10 +501,15 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission, table_gap
 // `NoAtRestRecord` row ends on, carried for the reason `UNDER_RECOURSE`
 // is: a caller asserting that a refusal reaches its recourse must not
 // do it by re-typing the sentence.
+// An overlap between two copies' material is not a refusal but an
+// `InterferenceFinding` on `Assembly::interference` (D10): its copies
+// (`CopyRef`), its `Overlap` (the bounding faces as `FaceSite`s, or
+// `Unlocalized` with why), and the assertion that quiets it, if any.
 pub use editor_core::{
     Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
-    CarriedRefusal, CarriedUnplaced, MintRefusal, MintedDeclaration, NO_AT_REST_RECORD_RECOURSE,
-    RefusedRef, Relation, Route, assemble, assemble_gathered,
+    CarriedRefusal, CarriedUnplaced, CopyRef, FaceSite, InterferenceFinding, MintRefusal,
+    MintedDeclaration, NO_AT_REST_RECORD_RECOURSE, Overlap, RefusedRef, Relation, Route,
+    Unlocalized, assemble, assemble_gathered,
 };
 
 // Split and inline: the first-class
@@ -560,7 +569,7 @@ pub use editor_core::{
 // the door is a module so its `Recourse` keeps its name. A cell on a
 // profile piece names it by `select`'s `ProfileEdgeRef`, curated there.
 pub use editor_core::coincide;
-pub use editor_core::{NamedCell, NamedCoincidence, Proof, Residual, Rung};
+pub use editor_core::{CitedInput, NamedCell, NamedCoincidence, Proof, Residual, Rung};
 /// The shell door's typed refusal, which two `CheckEvidence` arms
 /// carry — by the payload rule this list states at `VerbKind`.
 ///

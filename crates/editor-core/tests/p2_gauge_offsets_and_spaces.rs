@@ -718,14 +718,12 @@ fn a_measure_reused_across_an_offset_clear_refuses_across_spaces() {
         top,
         Some(Placement::literal(&Frame::translation([0.0, 0.0, 1.0]))),
     );
-    let measure = Node::measure(
-        editor_core::MeasureExpr::primitive(editor_core::MeasurePrimitive::Distance { a: 0, b: 1 }),
-        vec![
-            editor_core::SitedRef::at_mint(p.base_cap(base)),
-            editor_core::SitedRef::at_mint(p.top_cap(top)),
-        ],
-    )
-    .unwrap();
+    let measure = Node::Measure {
+        primitive: editor_core::MeasurePrimitive::Distance {
+            a: editor_core::SitedRef::at_mint(p.base_cap(base)).into(),
+            b: editor_core::SitedRef::at_mint(p.top_cap(top)).into(),
+        },
+    };
     let (doc, m) = insert(doc, measure);
     let ev = run(&doc, &o);
     assert!(ev.value(m).is_some());
@@ -1389,7 +1387,7 @@ fn the_flush_detector_refuses_an_unplaced_group_against_the_world() {
     let unplaced = set_offset(doc.clone(), top, None);
     let ev = run(&unplaced, &o);
     assert!(ev.unplaced.contains_key(&top) && !ev.unplaced.contains_key(&base));
-    match editor_core::find_flush_candidates(&ev, base, top, Tol::witness()) {
+    match editor_core::find_flush_candidates(&ev, &unplaced, base, top, Tol::witness()) {
         Err(editor_core::SelectRefusal::AcrossSpaces { group, cause }) => {
             assert_eq!((group, cause), (top, editor_core::Unplaced::NoOffset));
         }
@@ -1397,7 +1395,7 @@ fn the_flush_detector_refuses_an_unplaced_group_against_the_world() {
     }
     // Placed at the world origin, the same pair is flush.
     let ev = run(&doc, &o);
-    let found = editor_core::find_flush_candidates(&ev, base, top, Tol::witness())
+    let found = editor_core::find_flush_candidates(&ev, &doc, base, top, Tol::witness())
         .expect("one space decides");
     assert!(!found.is_empty(), "the placed pair is flush");
 }

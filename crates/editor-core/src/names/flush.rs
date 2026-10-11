@@ -148,9 +148,7 @@ pub use topo::{CONTACT_RECOURSE, ContactRefusal, ContactVerdict, DeclaredContact
 /// [`ContactClass`] is: the evidence a finding carries is the verify
 /// door's own verdict, that door is the kernel's, and a second
 /// spelling of its verdict at this layer is exactly the twin the
-/// anti-twin rule forbids. For a tied name whose candidates decided
-/// through different rungs, the weaker claim
-/// ([`FlushRung::DecidedCoincident`]) is what this door records.
+/// anti-twin rule forbids.
 pub use topo::flush::{FlushEvidence, FlushRung};
 
 /// One flush finding at the DOCUMENT seat: "this cross-body face
@@ -172,7 +170,7 @@ pub use topo::flush::{FlushEvidence, FlushRung};
 /// through, and a carried same-operand finding sites both sides at
 /// the one operand that holds them, which no caller downstream could
 /// have recovered from the names alone.
-pub type FlushFinding = topo::flush::FlushFinding<(SitedRef, SitedRef)>;
+pub type FlushFinding = topo::flush::FlushFinding<(SitedRef<crate::VarId>, SitedRef<crate::VarId>)>;
 
 // ---------------------------------------------------------------
 // (a) Detect.
@@ -201,8 +199,9 @@ pub type FlushFinding = topo::flush::FlushFinding<(SitedRef, SitedRef)>;
 /// entry that does not resolve into its node's payload,
 /// [`SelectRefusal::Band`], carrying the band constructor's own
 /// diagnostic, if the ambient tolerance yields no usable band.
-pub fn find_flush_candidates<T: Decide>(
+pub fn find_flush_candidates<T: Decide, P>(
     ev: &Evaluation<T>,
+    doc: &crate::Doc<P>,
     a: RecipeNodeId,
     b: RecipeNodeId,
     tol: Tol,
@@ -216,11 +215,22 @@ pub fn find_flush_candidates<T: Decide>(
     let fa = face_candidates(va)?;
     let fb = face_candidates(vb)?;
     let mut out = Vec::new();
-    for (na, ca) in &fa {
-        for (nb, cb) in &fb {
-            // The query's two nodes ARE the sites: a name from
-            // `a`'s table is read at `a`, one from `b`'s at `b`.
-            if let Some(finding) = pair_verdict((a, na), ca, (b, nb), cb, band)? {
+    // A name is sited at the read of the output holding its body: the
+    // port of that body where the node has one per body (a split's
+    // halves), else the node's one output.
+    let read = |node: RecipeNodeId, body: u32| {
+        u8::try_from(body)
+            .ok()
+            .and_then(|port| doc.output(node, port))
+            .or_else(|| doc.output(node, 0))
+            .ok_or(SelectRefusal::NodeHasNoOutput { node })
+    };
+    for (na, ca, ka) in &fa {
+        for (nb, cb, kb) in &fb {
+            // The query's two nodes ARE the sites: a name from `a`'s
+            // table is read at `a`'s output, one from `b`'s at `b`'s.
+            let (at_a, at_b) = (read(a, *ka)?, read(b, *kb)?);
+            if let Some(finding) = pair_verdict((a, b), (at_a, na), ca, (at_b, nb), cb, band)? {
                 out.push(finding);
             }
         }
@@ -230,8 +240,9 @@ pub fn find_flush_candidates<T: Decide>(
 }
 
 /// One side's candidates: each FACE name with the `(body, key)`
-/// candidates it resolves to in this evaluation.
-type FaceCandidates<'v, T> = Vec<(StableName, Vec<(&'v Body<T>, FaceKey)>)>;
+/// candidates it resolves to in this evaluation, and the index of the
+/// body its first candidate lies in.
+type FaceCandidates<'v, T> = Vec<(StableName, Vec<(&'v Body<T>, FaceKey)>, u32)>;
 
 /// Every FACE name of one node's value with its resolved candidate
 /// keys — `Unique` gives one candidate, `Tied` all of them (GS-Q4:
@@ -268,7 +279,7 @@ fn face_candidates<T: Decide>(v: &NodeValue<T>) -> Result<FaceCandidates<'_, T>,
             };
             cands.push((body, f));
         }
-        out.push((name.clone(), cands));
+        out.push((name.clone(), cands, refs.first().map_or(0, |e| e.body)));
     }
     Ok(out)
 }
@@ -277,14 +288,14 @@ fn face_candidates<T: Decide>(v: &NodeValue<T>) -> Result<FaceCandidates<'_, T>,
 /// all combinations flush (with one relation) ⇒ a finding; none ⇒
 /// no finding; mixed ⇒ `TiedDisagrees` naming the tied side.
 fn pair_verdict<T: Decide>(
-    (at_a, na): (RecipeNodeId, &StableName),
+    nodes: (RecipeNodeId, RecipeNodeId),
+    (at_a, na): (crate::VarId, &StableName),
     ca: &[(&Body<T>, FaceKey)],
-    (at_b, nb): (RecipeNodeId, &StableName),
+    (at_b, nb): (crate::VarId, &StableName),
     cb: &[(&Body<T>, FaceKey)],
     band: Band,
 ) -> Result<Option<FlushFinding>, SelectRefusal> {
     let mut relation: Option<PlaneRelation> = None;
-    let mut all_shared_source = true;
     let mut matched = 0usize;
     let total = ca.len() * cb.len();
     for &(ba, fa) in ca {
@@ -293,18 +304,13 @@ fn pair_verdict<T: Decide>(
                 let source = undecided.diag();
                 SelectRefusal::PairInBand {
                     pair: Box::new((na.clone(), nb.clone())),
-                    at: (at_a, at_b),
+                    at: nodes,
                     predicate: source.predicate.unwrap_or("carrier_pair_relation"),
                     source,
                 }
             })?;
-            if let Some(FlushEvidence {
-                relation: rel,
-                rung,
-            }) = verdict
-            {
+            if let Some(FlushEvidence { relation: rel, .. }) = verdict {
                 matched += 1;
-                all_shared_source &= rung == FlushRung::SharedSource;
                 match relation {
                     None => relation = Some(rel),
                     // Tied candidates flush with OPPOSITE orientations:
@@ -331,11 +337,7 @@ fn pair_verdict<T: Decide>(
             ),
             FlushEvidence {
                 relation,
-                rung: if all_shared_source {
-                    FlushRung::SharedSource
-                } else {
-                    FlushRung::DecidedCoincident
-                },
+                rung: FlushRung::DecidedCoincident,
             },
         )
         .map(Some)

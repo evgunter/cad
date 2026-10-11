@@ -22,14 +22,18 @@
 
 use crate::common;
 use pncad::document::AuthoredNode;
+use pncad::document::Bodies;
 use pncad::document::ExtrudeSide;
+use pncad::topo::BooleanOp;
 use test_utils::refusal::tagged;
+use viewer::session::BooleanSpec;
 
 use common::{ang, body_volume, len, len2, len3, near, scl2, scl3, session_insert, shape};
+use pncad::document::BooleanValue;
 use pncad::document::SplitSide;
 use pncad::document::{
-    Axis3, BooleanOp, Datum, Dimension, DimensionError, Doc, DocEdit, EditError, Expr, Formula,
-    LoopProgram, Node, NodeError, NodeErrorKind, NodeResult, NodeStanding, OperandSlot, PartSelect,
+    Axis3, Datum, Dimension, DimensionError, Doc, DocEdit, EditError, Expr, Formula, LoopProgram,
+    Node, NodeError, NodeErrorKind, NodeResult, NodeStanding, Operand, OperandSlot, PartSelect,
     PatternKind, ProfileProgram, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
@@ -120,17 +124,14 @@ fn a_two_body_union_authors_evaluates_saves_and_reloads() {
     let union = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+            spec: BooleanSpec::Union(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
     // An op declaring nothing authors an empty declaration.
     assert!(matches!(
         session.committed_doc().node(union),
-        Some(Node::Boolean {
-            op: BooleanOp::Union,
+        Some(Node::Union {
             declare,
             ..
         }) if declare.is_empty()
@@ -166,6 +167,70 @@ fn a_two_body_union_authors_evaluates_saves_and_reloads() {
     );
 }
 
+/// **Three picks, one union**: the boolean tool fed three body picks
+/// through the selection stream commits ONE union node spelling all
+/// three members, in pick order, each as the read of the body picked —
+/// and it is the arithmetic union of the three.
+#[test]
+fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
+    let tol = Tol::witness();
+    let (mut session, a, b) = two_boxes(tol);
+    // A third block well clear of both.
+    let raw_c = common::xy_box_in(&mut session, B);
+    let c = session_insert(
+        &mut session,
+        SessionOp::AddTransform {
+            input: raw_c.into(),
+            translation: len3([0.0, 0.05, 0.0]),
+            rotation_axis: scl3([0.0, 0.0, 1.0]),
+            rotation_angle: ang(0.0),
+        },
+    );
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Boolean);
+    let picks: Vec<_> = [a, b, c]
+        .into_iter()
+        .map(|node| SessionOp::Select(Selection::Node(node)))
+        .collect();
+    assert!(
+        tools.feed(session.committed_doc(), &picks).is_empty(),
+        "every pick landed"
+    );
+    let tool = tools.boolean().expect("the boolean tool is open");
+    assert_eq!(
+        tool.operation(),
+        BooleanOp::Union,
+        "the tool opens on union"
+    );
+    let op = tool.op().expect("three members are held");
+    assert!(tools.commits_open_tool(&op), "the union is the tool's edit");
+    let steps = session.history().len();
+    let union = session_insert(&mut session, op);
+    assert_eq!(session.history().len(), steps + 1, "one action, one step");
+    let doc = session.committed_doc();
+    let Some(Node::Union {
+        members: Bodies::Spelled(members),
+        declare,
+    }) = doc.node(union)
+    else {
+        panic!("one union node: {:?}", doc.node(union));
+    };
+    assert_eq!(
+        members.iter().map(|m| Some(m.read)).collect::<Vec<_>>(),
+        [a, b, c].map(|n| doc.output(n, 0)),
+        "three spelled members, the picks' reads in pick order"
+    );
+    assert!(declare.is_empty(), "nothing declared: {declare:?}");
+    assert_eq!(
+        common::world(doc),
+        [union],
+        "the union takes all three members' place in the world"
+    );
+    let va = A[0] * A[1] * A[2];
+    let vb = B[0] * B[1] * B[2];
+    assert_volume(&mut session, union, va + 2.0 * vb - OVERLAP, tol);
+}
+
 /// **Nothing places as a side effect, and the combine gesture takes its
 /// operands' place in the world** (spec §9 row 9, the viewer's half).
 ///
@@ -186,9 +251,7 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
         panic!("two placements: {:?}", before.placements());
     };
     let outcome = session.perform(SessionOp::AddBoolean {
-        op: BooleanOp::Union,
-        a: a.into(),
-        b: b.into(),
+        spec: BooleanSpec::Union(vec![a.into(), b.into()]),
         declare: Vec::new(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -246,9 +309,7 @@ fn a_combine_takes_the_placement_of_the_operand_the_world_places() {
     let union = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+            spec: BooleanSpec::Union(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
@@ -323,18 +384,20 @@ fn subtraction_is_not_commutative_in_the_authored_order() {
     let a_minus_b = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Subtract,
-            a: a.into(),
-            b: b.into(),
+            spec: BooleanSpec::Subtract {
+                from: a.into(),
+                tool: b.into(),
+            },
             declare: Vec::new(),
         },
     );
     let b_minus_a = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Subtract,
-            a: b.into(),
-            b: a.into(),
+            spec: BooleanSpec::Subtract {
+                from: b.into(),
+                tool: a.into(),
+            },
             declare: Vec::new(),
         },
     );
@@ -352,19 +415,18 @@ fn subtraction_is_not_commutative_in_the_authored_order() {
     let meet = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Intersect,
-            a: a.into(),
-            b: b.into(),
+            spec: BooleanSpec::Intersect(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
     assert_volume(&mut session, meet, OVERLAP, tol);
 }
 
-/// Both operand seats want a body, and the two seats want DIFFERENT
-/// nodes.
+/// Every operand wants a body, and a body may be listed twice: a
+/// repeated read GLUES, so `A ∪ A` is `A` and `A ∖ A` the typed empty
+/// body — documents the door commits like any other.
 #[test]
-fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
+fn the_boolean_door_refuses_a_non_body_operand_and_glues_a_repeated_body() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let a = common::xy_box_in(&mut session, A);
@@ -389,13 +451,18 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
         },
     );
     // A profile, a datum and an id the document never held are each
-    // "not a body" at either seat.
+    // "not a body" at any operand.
     for wrong in [profile, plane, RecipeNodeId::new(0, tagged(999))] {
-        for (x, y) in [(wrong, a), (a, wrong)] {
+        for spec in [
+            BooleanSpec::Union(vec![wrong.into(), a.into()]),
+            BooleanSpec::Intersect(vec![a.into(), a.into(), wrong.into()]),
+            BooleanSpec::Subtract {
+                from: a.into(),
+                tool: wrong.into(),
+            },
+        ] {
             let refused = session.perform(SessionOp::AddBoolean {
-                op: BooleanOp::Union,
-                a: x.into(),
-                b: y.into(),
+                spec,
                 declare: Vec::new(),
             });
             assert!(
@@ -409,61 +476,34 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
             );
         }
     }
-    // One body in both seats: the EDIT DOOR refuses it, as it refuses
-    // any node reached twice through one node's edges. Layer 3 does
-    // not pre-check it — the rule is `Node::input_fault`'s and is the
-    // same rule for a split or a list.
-    let refused = session.perform(SessionOp::AddBoolean {
-        op: BooleanOp::Subtract,
-        a: a.into(),
-        b: a.into(),
-        declare: Vec::new(),
-    });
-    let Some(Refusal::Edit(ref error)) = refused.refusal else {
-        panic!(
-            "expected the edit door's refusal, got {:?}",
-            refused.refusal
-        )
-    };
-    assert!(
-        matches!(&**error, EditError::DuplicateInput { input, .. } if input.id() == a),
-        "{error:?}"
+    // One body listed twice: accepted, and glued.
+    let va = A[0] * A[1] * A[2];
+    let doubled = session_insert(
+        &mut session,
+        SessionOp::AddBoolean {
+            spec: BooleanSpec::Union(vec![a.into(), a.into()]),
+            declare: Vec::new(),
+        },
     );
-    // **The WHOLE sentence, deliberately.** This is what a person reads
-    // when they pick one body into both seats, and it is the sentence
-    // that replaced a layer-3 arm — so the row pins it exactly rather
-    // than sampling substrings out of it. Two things substring
-    // assertions let through and this does not: an id the reader cannot
-    // act on (`DuplicateInput` also carries the id `InsertNode` WOULD
-    // have minted, which does not exist and never will if the edit is
-    // refused), and a rule with no action beside it.
-    assert_eq!(
-        refused.refusal.as_ref().expect("refused").to_string(),
-        format!(
-            "the edit was refused: the node this edit writes would be invalid: \
-             Extrude {} is taken as an input twice — a node's inputs are pairwise \
-             distinct. Recourse: replace one of the two with a different node",
-            test_utils::refusal::tag(a.0.digest())
-        )
+    assert_volume(&mut session, doubled, va, tol);
+    let nothing = session_insert(
+        &mut session,
+        SessionOp::AddBoolean {
+            spec: BooleanSpec::Subtract {
+                from: a.into(),
+                tool: a.into(),
+            },
+            declare: Vec::new(),
+        },
     );
-    // And the kind gate speaks FIRST: two profiles in both seats is
-    // reported as "that is not a body", the fact a user can act on.
-    let refused = session.perform(SessionOp::AddBoolean {
-        op: BooleanOp::Subtract,
-        a: profile.into(),
-        b: profile.into(),
-        declare: Vec::new(),
-    });
+    session.pump();
+    let eval = session.evaluation().expect("the inline seam landed");
     assert!(
         matches!(
-            refused.refusal,
-            Some(Refusal::WrongNodeKind {
-                wanted: NodeKindWanted::Body,
-                ..
-            })
+            eval.value(nothing).map(|v| &v.payload),
+            Some(ValuePayload::Boolean(BooleanValue::Empty))
         ),
-        "{:?}",
-        refused.refusal
+        "A ∖ A is the typed empty body"
     );
 }
 
@@ -573,9 +613,7 @@ fn several_bodies_are_not_one_body_at_a_seat() {
     for wrong in [split, pattern] {
         for op in [
             SessionOp::AddBoolean {
-                op: BooleanOp::Union,
-                a: wrong.into(),
-                b: body.into(),
+                spec: BooleanSpec::Union(vec![wrong.into(), body.into()]),
                 declare: Vec::new(),
             },
             SessionOp::AddTransform {
@@ -816,9 +854,7 @@ fn the_fused_door_mints_one_body_a_boolean_seat_takes() {
     let union = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: part.into(),
-            b: fused.into(),
+            spec: BooleanSpec::Union(vec![part.into(), fused.into()]),
             declare: Vec::new(),
         },
     );
@@ -1093,9 +1129,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
     );
     for op in [
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: body.into(),
-            b: other.into(),
+            spec: BooleanSpec::Union(vec![body.into(), other.into()]),
             declare: Vec::new(),
         },
         SessionOp::AddSplit {
@@ -1145,19 +1179,18 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
     assert!(session.perform(SessionOp::CancelGesture).refusal.is_none());
 
     // The SEAT refusals record nothing either — a wrong-kind pick at
-    // any of the four doors, and the boolean's two-operands-are-one
-    // arm.
+    // any of the doors, a union member and a subtraction's tool among
+    // them.
     for op in [
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: plane.into(),
-            b: body.into(),
+            spec: BooleanSpec::Union(vec![plane.into(), body.into()]),
             declare: Vec::new(),
         },
         SessionOp::AddBoolean {
-            op: BooleanOp::Subtract,
-            a: body.into(),
-            b: body.into(),
+            spec: BooleanSpec::Subtract {
+                from: body.into(),
+                tool: plane.into(),
+            },
             declare: Vec::new(),
         },
         SessionOp::AddSplit {
@@ -1286,39 +1319,47 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     let tol = Tol::witness();
     let (mut session, a, b) = two_boxes(tol);
 
+    // A union holds members in pick order, refuses typed until one is
+    // held, and commits whatever it holds from one member on.
     let mut boolean = BooleanTool::new();
     assert!(matches!(
-        boolean.op(BooleanOp::Union),
-        Err(SeatError::Empty {
-            seat: Seat::OperandA
-        })
+        boolean.op(),
+        Err(SeatError::Empty { seat: Seat::Member })
     ));
     boolean.pick(session.committed_doc(), a);
     assert!(matches!(
-        boolean.op(BooleanOp::Union),
-        Err(SeatError::Empty {
-            seat: Seat::OperandB
-        })
+        boolean.op(),
+        Ok(SessionOp::AddBoolean { spec: BooleanSpec::Union(members), .. }) if members == [Operand::from(a)]
     ));
     boolean.pick(session.committed_doc(), b);
-    assert_eq!((boolean.a(), boolean.b()), (Some(a), Some(b)));
-    // A third pick replaces the SECOND seat: the first pick is the
-    // one a subtraction keeps, and it stays where it was put.
     boolean.pick(session.committed_doc(), a);
-    assert_eq!((boolean.a(), boolean.b()), (Some(a), Some(a)));
+    assert_eq!(boolean.picks(), [a, b, a], "every pick appends");
+
+    // The subtraction's two seats: the first is the body KEPT, and a
+    // further pick replaces the SECOND, so the kept body stays where it
+    // was put. Changing the operation re-seats the first two members.
+    boolean.set_operation(BooleanOp::Subtract);
+    assert_eq!(
+        boolean.picks(),
+        [a, b],
+        "re-seated from the first two members"
+    );
+    boolean.pick(session.committed_doc(), a);
+    assert_eq!(boolean.picks(), [a, a]);
     boolean.pick(session.committed_doc(), b);
     assert!(matches!(
-        boolean.op(BooleanOp::Subtract),
+        boolean.op(),
         Ok(SessionOp::AddBoolean {
-            op: BooleanOp::Subtract,
-            a: first,
-            b: second,
+            spec: BooleanSpec::Subtract {
+                from: first,
+                tool: second,
+            },
             declare,
-        }) if first == a.into() && second == b.into() && declare.is_empty()
+        }) if first == Operand::from(a) && second == Operand::from(b) && declare.is_empty()
     ));
 
-    // Deleting the SECOND operand's node empties that seat and leaves
-    // the first where it is — no promotion between roles.
+    // Deleting the REMOVED body's node empties that seat and leaves
+    // the kept one where it is — no promotion between roles.
     assert!(
         session
             .perform(SessionOp::DeleteNode { node: b })
@@ -1330,17 +1371,23 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
         matches!(
             events.as_slice(),
             [SeatEvent::PickLost {
-                seat: Seat::OperandB,
+                seat: Seat::SubtractTool,
                 node
             }] if node.id() == b
         ),
         "{events:?}"
     );
-    assert_eq!((boolean.a(), boolean.b()), (Some(a), None));
+    assert_eq!(boolean.picks(), [a]);
+    assert!(matches!(
+        boolean.op(),
+        Err(SeatError::Empty {
+            seat: Seat::SubtractTool
+        })
+    ));
     // The next pick refills the empty seat rather than displacing the
     // held one.
     boolean.pick(session.committed_doc(), a);
-    assert_eq!((boolean.a(), boolean.b()), (Some(a), Some(a)));
+    assert_eq!(boolean.picks(), [a, a]);
 
     let mut split = SplitTool::new();
     split.pick(session.committed_doc(), a);
@@ -1594,10 +1641,17 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
                 axis: filled(Seat::RevolveAxis),
                 angle: ang(core::f64::consts::TAU),
             },
-            Seat::OperandA | Seat::OperandB => SessionOp::AddBoolean {
-                op: BooleanOp::Union,
-                a: filled(Seat::OperandA).into(),
-                b: filled(Seat::OperandB).into(),
+            // A member beside one filled correctly, so the refusal is
+            // about the member under test.
+            Seat::Member => SessionOp::AddBoolean {
+                spec: BooleanSpec::Union(vec![body.into(), (filled(Seat::Member)).into()]),
+                declare: Vec::new(),
+            },
+            Seat::SubtractFrom | Seat::SubtractTool => SessionOp::AddBoolean {
+                spec: BooleanSpec::Subtract {
+                    from: (filled(Seat::SubtractFrom)).into(),
+                    tool: (filled(Seat::SubtractTool)).into(),
+                },
                 declare: Vec::new(),
             },
             Seat::SplitTarget | Seat::SplitPlane => SessionOp::AddSplit {
@@ -1705,9 +1759,9 @@ fn a_second_body_re_targets_the_split_rather_than_displacing_its_plane() {
 }
 
 /// The routing is NARROW: a pick both seats admit follows the plain
-/// rule, so the boolean's operands still fill in order and a third
+/// rule, so a subtraction's operands still fill in order and a third
 /// pick still replaces the second — which is what makes `A ∖ B`'s
-/// first operand stay where it was put.
+/// kept body stay where it was put.
 ///
 /// The other half of the same narrowness: a pick NEITHER seat admits
 /// is not steered anywhere. It lands where the plain rule puts it and
@@ -1719,12 +1773,13 @@ fn a_pick_both_seats_admit_and_a_pick_neither_does_follow_the_plain_rule() {
     let doc = session.committed_doc();
 
     let mut boolean = BooleanTool::new();
+    boolean.set_operation(BooleanOp::Subtract);
     boolean.pick(doc, a);
     boolean.pick(doc, b);
     boolean.pick(doc, a);
     assert_eq!(
-        (boolean.a(), boolean.b()),
-        (Some(a), Some(a)),
+        boolean.picks(),
+        [a, a],
         "two body seats: the third pick replaces the second, as before",
     );
 
@@ -1803,7 +1858,7 @@ fn the_open_tool_consumes_the_selection_stream() {
         "every pick landed"
     );
     let boolean = tools.boolean().expect("the boolean tool is open");
-    assert_eq!((boolean.a(), boolean.b()), (Some(a), Some(b)));
+    assert_eq!(boolean.picks(), [a, b]);
 
     // Opening another tool starts it EMPTY — the picks belonged to
     // the tool that held them.
@@ -1851,13 +1906,14 @@ fn the_open_tool_consumes_the_selection_stream() {
 fn the_seat_line_names_the_roles() {
     let doc = Doc::empty_derived("seat-line", Tol::witness());
     let mut boolean = BooleanTool::new();
-    assert_eq!(seat_line(boolean.seats(), &doc), "no picks yet");
+    boolean.set_operation(BooleanOp::Subtract);
+    assert_eq!(boolean.line(&doc), "no picks yet");
     boolean.pick(&doc, RecipeNodeId::new(0, tagged(3)));
     // The empty document holds neither pick, so each is spoken by its
     // tag alone.
     assert_eq!(
-        seat_line(boolean.seats(), &doc),
-        "first operand: node 000000000003; second operand: —"
+        boolean.line(&doc),
+        "body kept: node 000000000003; body removed: —"
     );
     let mut transform = TransformTool::new();
     transform.pick(&doc, RecipeNodeId::new(0, tagged(7)));
@@ -1877,9 +1933,10 @@ fn the_seat_line_names_the_roles() {
 fn a_lost_picks_notice_names_the_node_as_the_seat_line_does() {
     let doc = Doc::empty_derived("seat-drop", Tol::witness());
     let mut boolean = BooleanTool::new();
+    boolean.set_operation(BooleanOp::Subtract);
     boolean.pick(&doc, RecipeNodeId::new(0, tagged(3)));
     boolean.pick(&doc, RecipeNodeId::new(0, tagged(4)));
-    let line = seat_line(boolean.seats(), &doc);
+    let line = boolean.line(&doc);
     let events = boolean.reconcile(&doc);
     assert_eq!(events.len(), 2, "neither node is in the empty document");
     for event in &events {
@@ -1898,11 +1955,11 @@ fn a_lost_picks_notice_names_the_node_as_the_seat_line_does() {
     }
     assert_eq!(
         SeatEvent::PickLost {
-            seat: Seat::OperandB,
+            seat: Seat::SubtractTool,
             node: viewer::test_support::spoken(RecipeNodeId::new(0, tagged(4)), None),
         }
         .to_string(),
-        "the second operand pick (node 000000000004) is no longer in the document; the tool \
+        "the body removed pick (node 000000000004) is no longer in the document; the tool \
          dropped it"
     );
 }
@@ -1916,9 +1973,10 @@ fn a_tool_closes_on_its_own_committed_edit() {
         (
             ToolKind::Boolean,
             SessionOp::AddBoolean {
-                op: BooleanOp::Union,
-                a: (RecipeNodeId::new(0, tagged(1))).into(),
-                b: (RecipeNodeId::new(0, tagged(2))).into(),
+                spec: BooleanSpec::Union(vec![
+                    (RecipeNodeId::new(0, tagged(1))).into(),
+                    (RecipeNodeId::new(0, tagged(2))).into(),
+                ]),
                 declare: Vec::new(),
             },
         ),
@@ -2082,10 +2140,9 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
     );
     doc = next;
     // A SECOND independently minted body, stood clear of the first,
-    // for the n-ary union candidate. Standing clear is the load-bearing
-    // part: two members that MEET refuse the undeclared contact rather
-    // than answering this row's question. They need not be
-    // independently minted — a union keys its names on the member EDGE,
+    // for the n-ary union candidate, so the union's members share no
+    // contact and the row asks only the seat's question. They need not
+    // be independently minted — a union keys its names on the member EDGE,
     // so a body and a placement of it are two members and name fine
     // (`docm3_union::two_placements_of_one_prototype_are_two_members`);
     // two extrudes are simply the clearest thing to stand apart.
@@ -2187,26 +2244,31 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
             },
         ),
         (
-            "boolean",
-            Node::Boolean {
-                op: BooleanOp::Union,
-                a: body.into(),
-                b: other.into(),
+            "subtract",
+            Node::Subtract {
+                from: body.into(),
+                tool: other.into(),
                 declare: Vec::new(),
             },
         ),
         // The n-ary union at its minimal size. Its two members are
         // `body` and the SECOND extrude rather than `other` because
-        // those two stand CLEAR of each other, and a union whose
-        // members meet refuses the undeclared contact before the seat's
-        // question is reached. `other` is a placement of `body`, which
+        // those two stand CLEAR of each other, so the candidate asks
+        // only the seat's question. `other` is a placement of `body`, which
         // a union names perfectly well — the member edge tells the two
         // apart even though a transform passes names through — but it
         // sits where `body` is.
         (
             "union",
             Node::Union {
-                members: vec![body.into(), body_b.into()],
+                members: Bodies::Spelled(vec![body.into(), body_b.into()]),
+                declare: Vec::new(),
+            },
+        ),
+        (
+            "intersect",
+            Node::Intersect {
+                members: Bodies::Spelled(vec![body.into(), body_b.into()]),
                 declare: Vec::new(),
             },
         ),
@@ -3038,7 +3100,7 @@ fn a_viewport_pick_seats_the_drawn_body_in_every_body_seat() {
         tools.open(kind);
         let _ = tools.feed(doc, &[SessionOp::Select(picked.clone())]);
         let held = match kind {
-            ToolKind::Boolean => tools.boolean().and_then(|t| t.a()),
+            ToolKind::Boolean => tools.boolean().and_then(|t| t.picks().first().copied()),
             ToolKind::Split => tools.split().and_then(|t| t.target()),
             ToolKind::Transform => tools.transform().and_then(|t| t.input()),
             ToolKind::Pattern => tools.pattern().and_then(|t| t.input()),
@@ -3422,62 +3484,13 @@ fn a_duplicate_is_not_measured_off_a_picture_older_than_the_document() {
     );
 }
 
-// ---------------------------------------------------------------
-// AUTH-9: the contact the boolean door refuses, past the panel.
-// ---------------------------------------------------------------
-
-/// **A boolean poisoned by an upstream contact refusal commits, and
-/// offers nothing**: the finding it would carry is sited at the
-/// UPSTREAM union's operands, so declaring it here would declare
-/// nothing about this node. The upstream union is written straight into
-/// the document, the one way a refusing union reaches it. Red if the
-/// door lifts the ancestor's refusal into an offer.
+/// **A union across two flush contacts lands as one action.** The
+/// block has a channel cut across its top, so its top is TWO faces, and
+/// a boss bridging the channel rests on both. The union declares
+/// nothing and commits one step. Red if it refuses, or lands anything
+/// but the channelled block plus the boss.
 #[test]
-fn a_boolean_poisoned_by_an_upstream_contact_commits_and_offers_nothing() {
-    let tol = Tol::witness();
-    let (doc, block, boss) = common::boss_on_block("poisoned-union", tol);
-    let (doc, upstream) = common::inserted(
-        &doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: block.into(),
-            b: boss.into(),
-            declare: Vec::new(),
-        },
-        tol,
-    );
-    let mut session = DocSession::inline(doc, tol);
-    let union = session_insert(
-        &mut session,
-        SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: upstream.into(),
-            b: boss.into(),
-            declare: Vec::new(),
-        },
-    );
-    session.pump();
-    let rows = tree::rows(
-        session.committed_doc(),
-        session.evaluation(),
-        &viewer::parts::PartFiles::default(),
-    );
-    assert!(
-        matches!(common::status_of(&rows, union), RowStatus::Poisoned { through, .. } if through == upstream),
-        "the premise: the new union is poisoned through the upstream one"
-    );
-}
-
-/// **Two flush contacts are offered one refusal at a time, and land
-/// together.** The block has a channel cut across its top, so its top
-/// is TWO faces, and a boss bridging the channel rests on both. The
-/// first refusal offers one pair; accepting it is refused again with
-/// that pair kept and the second added, and nothing is committed until
-/// both are declared. Red if the second offer drops the first pair, or
-/// if accepting both lands anything but one union declaring both that
-/// is the channelled block plus the boss.
-#[test]
-fn a_second_contact_is_offered_with_the_first_and_both_land_as_one_action() {
+fn a_union_across_two_flush_contacts_lands_as_one_action() {
     const CHANNEL: [f64; 3] = [0.01, 0.04, 0.01];
     const CHANNEL_DROP: f64 = 0.005;
     const BOSS: [f64; 3] = [0.03, 0.01, 0.004];
@@ -3499,9 +3512,10 @@ fn a_second_contact_is_offered_with_the_first_and_both_land_as_one_action() {
     let channelled = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Subtract,
-            a: block.into(),
-            b: channel.into(),
+            spec: BooleanSpec::Subtract {
+                from: block.into(),
+                tool: channel.into(),
+            },
             declare: Vec::new(),
         },
     );
@@ -3530,49 +3544,16 @@ fn a_second_contact_is_offered_with_the_first_and_both_land_as_one_action() {
     let (_, boss) = common::box_in(&mut session, frame, BOSS);
     session.pump();
 
-    let before = session.committed_doc().clone();
     let steps = session.history().len();
-    let offer_of = |refusal: Option<Refusal>| {
-        let refusal = refusal.expect("the union refuses");
-        viewer::frame::declare_offer(Some(&refusal))
-            .unwrap_or_else(|| panic!("an offer from the refusal: {refusal}"))
-    };
-    let first = offer_of(
-        session
-            .perform(SessionOp::AddBoolean {
-                op: BooleanOp::Union,
-                a: channelled.into(),
-                b: boss.into(),
-                declare: Vec::new(),
-            })
-            .refusal,
-    );
-    assert_eq!(first.findings().len(), 1, "{:?}", first.findings());
-    let second = offer_of(session.perform(first.accept()).refusal);
-    assert!(
-        session.committed_doc().bit_eq(&before),
-        "a refused acceptance commits nothing"
-    );
-    let [kept, added] = second.findings() else {
-        panic!("the first pair and the second: {:?}", second.findings());
-    };
-    assert_eq!(
-        kept,
-        &first.findings()[0],
-        "the first pair is still declared"
-    );
-    assert_ne!(kept.pair, added.pair, "and the second is another pair");
-
-    let outcome = session.perform(second.accept());
+    let outcome = session.perform(SessionOp::AddBoolean {
+        spec: BooleanSpec::Union(vec![channelled.into(), boss.into()]),
+        declare: Vec::new(),
+    });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let [union] = outcome.minted[..] else {
         panic!("one union: {:?}", outcome.minted);
     };
     assert_eq!(session.history().len(), steps + 1, "one action, one step");
-    assert!(matches!(
-        session.committed_doc().node(union),
-        Some(Node::Boolean { declare, .. }) if declare.len() == 2
-    ));
     let [width, depth, height] = common::BOSS_BLOCK;
     let cut = CHANNEL[0] * depth * (height - CHANNEL_DROP);
     let want = width * depth * height - cut + BOSS[0] * BOSS[1] * BOSS[2];

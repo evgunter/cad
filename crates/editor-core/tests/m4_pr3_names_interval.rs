@@ -13,8 +13,8 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, CancelToken, Datum, Entry, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId,
-    SplitHalf, evaluate,
+    CancelToken, Datum, Entry, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, SplitHalf,
+    evaluate,
 };
 use fixture::{declare_x_offset_flush, insert, len, on_frame, scl, wall};
 use geom_core::Interval;
@@ -55,10 +55,8 @@ fn corpus() -> ProfileDoc {
     let decl_u = declare_x_offset_flush(&doc, a, b);
     let (doc, _union) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: decl_u,
         },
     );
@@ -81,10 +79,9 @@ fn corpus() -> ProfileDoc {
     let _ = wall; // shared helper import parity with the f64 lane
     let (doc, _sub) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: c.into(),
-            b: slot.into(),
+        Node::Subtract {
+            from: c.into(),
+            tool: slot.into(),
             declare: Vec::new(),
         },
     );
@@ -130,10 +127,9 @@ fn corpus() -> ProfileDoc {
     );
     let (doc, cut) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: e.into(),
-            b: u.into(),
+        Node::Subtract {
+            from: e.into(),
+            tool: u.into(),
             declare: Vec::new(),
         },
     );

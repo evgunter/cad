@@ -28,11 +28,10 @@
 //!   that pose does reach the join.
 //! - **The join has no frame for the pair.** A germ-pair frame is one
 //!   conic's centre and axis, and a self-crossing ellipse pair is not
-//!   one conic. The dispatch reads WHICH of the two shapes the locus
-//!   has off the lowered parameter-identity channel — `Declared` for
-//!   the equal-radius pinch, `None` for the open question — but
-//!   neither answer yields one conic, so it has no frame to hand over
-//!   either way. It refuses typed at a door that names the pinch. Walking the section across
+//!   one conic. The dispatch decides by margin WHICH of the two shapes
+//!   the locus has — radii equal, the pinch, or unequal, the general
+//!   quartic — but neither answer yields one conic, so it has no frame
+//!   to hand over either way. It refuses typed at a door that names the pinch. Walking the section across
 //!   a pinch is a chord lane this tree does not have — the plane-side
 //!   `BoolPlanar` chord and the plane-carrying `Split` context are
 //!   both premised on one member of the pair being a PLANE — and that
@@ -45,6 +44,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::outcomes::outcome;
 use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 
@@ -243,9 +243,8 @@ fn every_pose_of_the_family_answers_typed_and_pose_independently() {
 /// cylinder pairs at large.
 ///
 /// - Unequal radii: the axes still intersect, so the frame dispatch
-///   names the pinch door, but with no radius evidence (`None`): the
-///   door names neither shape behind those axes and the locus, a space
-///   quartic, routes the general rung.
+///   names the pinch door with the radii decided unequal: the locus, a
+///   space quartic, routes the general rung.
 /// - Skew axes: the locus is a space quartic, canal territory; the
 ///   general rung has not retired, and the dispatch has no arm
 ///   (`GermFrameUnsupported`). Its verdict on this pose is pinned at
@@ -254,10 +253,12 @@ fn every_pose_of_the_family_answers_typed_and_pose_independently() {
 ///   (`boolean::join`).
 /// - Parallel equal radii: the crossing events are a rim CIRCLE against
 ///   a wall, certified by the circle × cylinder root lane; at one height
-///   the two pairs of cap discs then overlap in their planes, an
-///   undeclared coincidence, which stops the pose before any join.
+///   the two pairs of cap discs then overlap in their planes, one plane
+///   each by margin, which the boolean glues: the union builds at its
+///   closed form, the body the flush detector's declarations build
+///   (D10), in both poses.
 #[test]
-fn the_fenced_poses_keep_their_own_doors() {
+fn the_fenced_poses_keep_their_own_outcomes() {
     let a = cyl(1.0, 2.0);
 
     let unequal = spin(&cyl(0.6, 2.0), Vec3::new(1.0, 0.0, 0.0), PI / 2.0);
@@ -266,11 +267,11 @@ fn the_fenced_poses_keep_their_own_doors() {
         matches!(
             e,
             BooleanError::GermFrameCylinderPinch {
-                evidence: geom_brep::RadiusEvidence::None,
+                equal_radii: false,
                 ..
             }
         ),
-        "unequal radii: the pinch door on the axis relation alone, got {e:?}"
+        "unequal radii: the pinch door, the radii decided unequal, got {e:?}"
     );
     assert_same_door(
         &e,
@@ -303,13 +304,7 @@ fn the_fenced_poses_keep_their_own_doors() {
     assert_same_door(&e, &union_err(&repose(&a), &repose(&skew)), "skew axes");
 
     // Parallel axes, walls definitely crossing: the rim circle row,
-    // whose cap discs are coplanar.
-    fn short_of_the_join_at_the_caps(name: &str, e: &BooleanError) {
-        assert!(
-            matches!(e, BooleanError::UndeclaredCoincidence { .. }),
-            "{name}: expected the cap discs' undeclared coincidence, got {e:?}"
-        );
-    }
+    // whose cap discs are coplanar and glue.
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(1.2, 0.0), 1.0, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -2.0)));
@@ -323,16 +318,34 @@ fn the_fenced_poses_keep_their_own_doors() {
     )
     .unwrap()
     .body;
-    let e = union_err(&a, &parallel);
-    short_of_the_join_at_the_caps("parallel-equal-r", &e);
-    assert_same_door(
-        &e,
-        &union_err(&repose(&a), &repose(&parallel)),
-        "parallel-equal-r",
-    );
+    // The overlap of two unit discs whose centres are 1.2 apart, four
+    // high.
+    let lens = 2.0 * 0.6_f64.acos() - 0.6 * (4.0_f64 - 1.44).sqrt();
+    let want = 4.0 * (2.0 * PI - lens);
+    for (pose, a, b) in [
+        ("direct", a.clone(), parallel.clone()),
+        ("re-posed", repose(&a), repose(&parallel)),
+    ] {
+        let (a, b) = (finished("operand A", a, tol), finished("operand B", b, tol));
+        let found = topo::flush::find_flush_candidates(&a, &b, tol).unwrap();
+        let declared = topo::union_with(&a, &b, &topo::flush::declare_all(&found), tol);
+        let Ok(topo::BooleanResult::Body(bb)) = &declared else {
+            panic!("parallel-equal-r, {pose}: the declared union builds: {declared:?}");
+        };
+        let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
+        assert!(
+            (v - want).abs() < 1e-9,
+            "parallel-equal-r, {pose}: {v} vs the closed form {want}"
+        );
+        assert_eq!(
+            outcome(&topo::union(&a, &b, tol)),
+            outcome(&declared),
+            "parallel-equal-r, {pose}: undeclared is the declared union"
+        );
+    }
 }
 
-/// **`same_door` matches an undeclared coincidence arm for arm.** A
+/// **`same_door` matches an unglued coincidence arm for arm.** A
 /// margin just inside the zero band and one just past it into the
 /// ambiguity band lie closer than a band-width, yet one was decided
 /// zero and the other refused in band: two doors. Two margins inside
@@ -340,18 +353,17 @@ fn the_fenced_poses_keep_their_own_doors() {
 #[test]
 fn same_door_tells_a_decided_zero_from_a_coincidence_in_band() {
     let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
-    let refusal = |m: f64| BooleanError::UndeclaredCoincidence {
+    let refusal = |m: f64| BooleanError::Escalated {
+        decision: topo::BooleanDecision::Coincidence(
+            topo::Coincide::Carriers,
+            topo::DeclarationRead::Moot,
+        ),
         diag: geom_core::Indeterminate {
             margin: geom_core::MarginDiag::value(m * band.zero()),
             band,
-            predicate: Some("bool_plane_offset"),
+            predicate: Some("carrier_unglued_coincidence"),
             terminal_sliver: false,
         },
-        pair: [
-            (topo::Operand::A, topo::FaceKey::default()),
-            (topo::Operand::B, topo::FaceKey::default()),
-        ],
-        relation: topo::PlaneRelation::SameOpposite,
     };
     assert!(
         !same_door(&refusal(0.9), &refusal(1.1)),

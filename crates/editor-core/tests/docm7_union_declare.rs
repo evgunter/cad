@@ -11,12 +11,12 @@ use editor_core::ExtrudeSide;
 use crate::corpus::body_of;
 use crate::wire::doctored;
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, CapEnd, DocEdit, EditError, EntityKind, Entry,
-    EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId,
-    ResolveError, RoleSeg, SitedRef, StableName, ValuePayload, evaluate,
+    BooleanValue, CancelToken, CapEnd, DocEdit, EditError, EntityKind, Entry, EvalOptions,
+    Evaluation, Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, ResolveError, RoleSeg,
+    SitedRef, StableName, ValuePayload, VarId, evaluate,
 };
 use fixture::{ang, fname, insert, len, on_frame, scl, step, table, wall};
-pub(crate) use fixture::{flush_pairs, member_face};
+pub(crate) use fixture::{built_bits, flush_pairs, member_face};
 use geom_core::Tol;
 
 /// Evaluates, and holds every table the run produced to the N3
@@ -83,14 +83,6 @@ fn placed(doc: ProfileDoc, input: RecipeNodeId, dx: f64) -> (ProfileDoc, RecipeN
     )
 }
 
-/// A node's contact records, read out of its boolean value.
-fn contacts_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> topo::ContactRecords {
-    match &ev.value(id).expect("the node evaluated").payload {
-        ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) => (**contacts).clone(),
-        other => panic!("expected a boolean body, got {other:?}"),
-    }
-}
-
 /// The tier-3′ verdict on a boolean node's value, over its own records.
 pub(crate) fn census_of(
     ev: &Evaluation<f64>,
@@ -116,9 +108,9 @@ pub(crate) fn census_of(
 pub(crate) fn declared_union(
     doc: ProfileDoc,
     members: &[RecipeNodeId],
-    pairs: Vec<(SitedRef, SitedRef)>,
+    pairs: Vec<(SitedRef<VarId>, SitedRef<VarId>)>,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let face = |s: &SitedRef| s.name.kind == editor_core::EntityKind::Face;
+    let face = |s: &SitedRef<VarId>| s.name.kind == editor_core::EntityKind::Face;
     let pairs = pairs
         .into_iter()
         .map(|p| {
@@ -138,7 +130,7 @@ pub(crate) fn declared_union(
 pub(crate) fn declared_union_classed(
     doc: ProfileDoc,
     members: &[RecipeNodeId],
-    pairs: Vec<((SitedRef, SitedRef), editor_core::BooleanCoincidence)>,
+    pairs: Vec<editor_core::DeclaredPair>,
 ) -> (ProfileDoc, RecipeNodeId) {
     crate::fixture::union_over(doc, members, pairs)
 }
@@ -147,39 +139,36 @@ pub(crate) fn declared_union_classed(
 // A1 — the motivating case fuses.
 // ---------------------------------------------------------------------
 
-/// **Two flush placements of ONE prototype fuse when the contact is
-/// declared, and refuse naming both members when it is not.**
+/// **Two flush placements of ONE prototype fuse, declared or not, into
+/// one body.**
 ///
-/// This is DOCM-3's reviewer probe. Undeclared, the fold refuses the
-/// contact exactly as a pair boolean's operands would; declared in
-/// member space, the same document is one body of the fused volume.
+/// This is DOCM-3's reviewer probe. The margins decide the flush walls
+/// one carrier, so the fold glues them whether the contact is declared
+/// or not; declared in member space, the same document is the same
+/// body bit for bit.
 #[test]
-fn a_union_of_two_flush_placements_of_one_prototype_fuses_when_declared() {
+fn a_union_of_two_flush_placements_of_one_prototype_fuses_declared_or_not() {
     let doc = ProfileDoc::empty_derived("docm7_placements", Tol::witness());
     let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, m1) = placed(doc, proto, 0.0);
     let (doc, m2) = placed(doc, proto, 0.5);
-    // Undeclared: the refusal, naming both members.
     let (bare, plain) = insert(
         doc.clone(),
         Node::Union {
-            members: vec![m1.into(), m2.into()],
+            members: editor_core::Bodies::Spelled(vec![m1.into(), m2.into()]),
             declare: Vec::new(),
         },
     );
-    let ev = run(&bare);
-    let Some(NodeErrorKind::UndeclaredCoincidence { finding, .. }) = failure(&ev, plain) else {
-        panic!(
-            "expected the undeclared contact, got {:?}",
-            failure(&ev, plain)
-        );
-    };
-    let named: Vec<RecipeNodeId> = vec![finding.pair.0.at, finding.pair.1.at];
+    let undeclared = run(&bare);
     assert!(
-        named.contains(&m1) && named.contains(&m2),
-        "the refusal names both members: {named:?}"
+        failure(&undeclared, plain).is_none(),
+        "the undeclared union refused: {:?}",
+        failure(&undeclared, plain)
     );
-    // Declared at the members: the same two placements fuse.
+    let volume = topo::mass_properties(body_of(&undeclared, plain), Tol::witness())
+        .expect("the fused body has mass")
+        .volume;
+    assert_eq!(volume, 1.5, "the fused volume is the two blocks' union");
     let pairs = flush_pairs(&doc, (m1, proto), (m2, proto));
     let (doc, union) = declared_union(doc, &[m1, m2], pairs);
     let ev = run(&doc);
@@ -188,10 +177,11 @@ fn a_union_of_two_flush_placements_of_one_prototype_fuses_when_declared() {
         "the declared union refused: {:?}",
         failure(&ev, union)
     );
-    let volume = topo::mass_properties(body_of(&ev, union), Tol::witness())
-        .expect("the fused body has mass")
-        .volume;
-    assert_eq!(volume, 1.5, "the fused volume is the two blocks' union");
+    assert_eq!(
+        built_bits(&ev, union),
+        built_bits(&undeclared, plain),
+        "the declared union is the undeclared one's body"
+    );
 }
 
 /// **The pair boolean declares between two placements of one
@@ -214,10 +204,8 @@ fn the_pair_boolean_declares_between_two_placements_of_one_prototype() {
     let decl = editor_core::declare_continuation(flush_pairs(&doc, (m1, proto), (m2, proto)));
     let (doc, pair) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: m1.into(),
-            b: m2.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![m1.into(), m2.into()]),
             declare: decl,
         },
     );
@@ -247,14 +235,13 @@ fn a_site_that_is_neither_operand_refuses() {
     let (doc, m2) = placed(doc, proto, 0.5);
     // Sited at the PROTOTYPE, whose table holds the name — but which
     // is neither operand of the boolean below.
+    let proto_read = fixture::out(&doc, proto);
     let decl = editor_core::declare_continuation(vec![(
-        SitedRef::new(proto, fname(proto, wall(&doc, proto, 0))),
-        SitedRef::new(m2, fname(proto, wall(&doc, proto, 0))),
+        SitedRef::new(proto_read, fname(proto, wall(&doc, proto, 0))),
+        SitedRef::new(fixture::out(&doc, m2), fname(proto, wall(&doc, proto, 0))),
     )]);
-    let boolean = |declare| Node::Boolean {
-        op: BooleanOp::Union,
-        a: m1.into(),
-        b: m2.into(),
+    let boolean = |declare| Node::Union {
+        members: editor_core::Bodies::Spelled(vec![m1.into(), m2.into()]),
         declare,
     };
     let inserted = doc.apply(
@@ -280,7 +267,7 @@ fn a_site_that_is_neither_operand_refuses() {
             matches!(
                 &refused,
                 EditError::DeclaredSiteNotAnOperand { name, site, .. }
-                    if site.id() == proto && name.name().node == proto
+                    if site.id() == proto_read && name.name().node == proto
             ),
             "{door}: expected the site refusal at the prototype, got {refused:?}"
         );
@@ -316,7 +303,7 @@ fn a_union_site_dropped_by_set_members_strands_and_loads() {
         doc,
         DocEdit::SetMembers {
             node: union,
-            members: vec![m1.into(), m2.into()],
+            members: editor_core::Bodies::Spelled(vec![m1.into(), m2.into()]),
         },
     );
     let stranded = run(&doc);
@@ -347,13 +334,10 @@ fn a_union_site_dropped_by_set_members_strands_and_loads() {
 ///
 /// **Description-level equality is the CEILING here**, and the
 /// comparison says so: it sorts the two bodies' descriptions and
-/// compares those, rather than asking for bit identity. Two bodies
-/// minted by two different nodes cannot be bit-identical — every
-/// minted description carries its own `GeomSource.node` (D1), which is
-/// the union's in one and the boolean's in the other — so a `bit_eq`
-/// between them would be measuring the node ids and failing on them.
-/// What is comparable is what the two verbs computed, and that is what
-/// is compared.
+/// compares those, rather than asking for bit identity: a `bit_eq`
+/// between bodies two different nodes built would also measure the
+/// order each built its arenas in. What is comparable is what the two
+/// verbs computed, and that is what is compared.
 #[test]
 fn a_declared_union_is_the_pair_booleans_body() {
     let doc = ProfileDoc::empty_derived("docm7_pair_eq", Tol::witness());
@@ -362,10 +346,8 @@ fn a_declared_union_is_the_pair_booleans_body() {
     let decl = fixture::declare_x_offset_flush(&doc, a, b);
     let (doc, pair) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: decl,
         },
     );
@@ -400,7 +382,7 @@ fn a_declared_union_is_the_pair_booleans_body() {
 /// constituents are the member-keyed names the author declared — the
 /// arm `collapse` carries for exactly this, unreachable before the
 /// channel existed. Every other face keeps the one-wrapper
-/// `FromMember` name it would have had, built here by hand rather than
+/// `From` name it would have had, built here by hand rather than
 /// read back from the table, so the row states the name instead of
 /// echoing it.
 #[test]
@@ -449,16 +431,14 @@ fn a_declaration_mints_merged_rows_and_renames_nothing_else() {
     }
     // The four flush rims along x are each joined into one edge across
     // both members, named for the set of the two members' rims.
-    let joined: Vec<Vec<RecipeNodeId>> = t
+    let joined: Vec<Vec<VarId>> = t
         .iter()
         .filter(|(n, _)| n.kind == EntityKind::Edge)
         .filter_map(|(n, _)| match n.path.as_slice() {
             [RoleSeg::Merged(set)] => Some(
                 set.iter()
                     .map(|c| match c.path.as_slice() {
-                        [RoleSeg::FromMember { member, of }] if of.kind == EntityKind::Edge => {
-                            *member
-                        }
+                        [RoleSeg::From { read, of }] if of.kind == EntityKind::Edge => *read,
                         _ => panic!("a joined edge's constituent is a member edge: {c}"),
                     })
                     .collect(),
@@ -466,15 +446,15 @@ fn a_declaration_mints_merged_rows_and_renames_nothing_else() {
             _ => None,
         })
         .collect();
-    let mut both = vec![m1, m2];
+    let mut both = vec![fixture::out(&doc, m1), fixture::out(&doc, m2)];
     both.sort();
     assert_eq!(joined, vec![both; 4], "four joined rims: {joined:?}");
-    // The x-extreme walls are untouched: one `FromMember` wrapper over
+    // The x-extreme walls are untouched: one `From` wrapper over
     // the prototype's own name, exactly as an undeclared fold gives.
     for (member, seg) in [(m1, 3u32), (m2, 1u32)] {
         let name = member_face(
             union,
-            member,
+            fixture::out(&doc, member),
             fname(
                 proto,
                 RoleSeg::Lateral(crate::fixture::piece(&doc, union, 0, seg as usize).into()),
@@ -594,9 +574,9 @@ fn a_declared_name_that_denotes_nothing_refuses() {
     // A name the member's table does not carry — a wall the block
     // does not have: the site routes, the lookup finds nothing.
     let named2 = vec![(
-        SitedRef::new(a, fname(a, wall(&doc, a, 0))),
+        SitedRef::new(fixture::out(&doc, a), fname(a, wall(&doc, a, 0))),
         SitedRef::new(
-            b,
+            fixture::out(&doc, b),
             fname(
                 b,
                 RoleSeg::Lateral(crate::fixture::no_piece_of(&doc).into()),
@@ -631,7 +611,7 @@ fn a_declared_member_removed_by_set_members_refuses() {
         doc,
         DocEdit::SetMembers {
             node: union,
-            members: vec![a.into(), far.into()],
+            members: editor_core::Bodies::Spelled(vec![a.into(), far.into()]),
         },
     );
     let ev = run(&doc);
@@ -731,17 +711,23 @@ fn the_insert_door_and_set_declare_refuse_a_name_or_site_that_is_not_live() {
     let (live, union) = insert(
         doc.clone(),
         Node::Union {
-            members: vec![a.into(), b.into()],
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
-    // An id no node has yet: the one the next insert would mint.
+    // An id no node has yet: the one the next insert would mint, and
+    // a read no document here holds — the output of a block only a
+    // later document has.
     let future = fixture::next_mint(&live);
+    let future_read = {
+        let (later, late) = block(live.clone(), (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
+        fixture::out(&later, late)
+    };
     let attempts = |pairs: Vec<editor_core::DeclaredPair>| {
         let inserted = doc.apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Union {
-                    members: vec![a.into(), b.into()],
+                    members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
                     declare: pairs.clone(),
                 }),
                 fresh: Vec::new(),
@@ -757,31 +743,31 @@ fn the_insert_door_and_set_declare_refuse_a_name_or_site_that_is_not_live() {
         [("insert", inserted), ("SetDeclare", set)]
     };
     for (door, refused) in attempts(editor_core::declare_continuation(vec![(
-        SitedRef::new(a, fname(future, wall(&doc, a, 0))),
-        SitedRef::new(b, fname(b, wall(&doc, b, 0))),
+        SitedRef::new(fixture::out(&doc, a), fname(future, wall(&doc, a, 0))),
+        SitedRef::new(fixture::out(&doc, b), fname(b, wall(&doc, b, 0))),
     )])) {
         assert!(
             matches!(refused, Err(EditError::DeclareNamesMissingNode { .. })),
             "{door}: expected the payload-name door's refusal, got {refused:?}"
         );
     }
-    // The read-site door, on EACH side in turn. A door that yielded
-    // only the first site of a pair would pass the first of these and
-    // admit the second.
+    // The site door, on EACH side in turn: a read no node defines is
+    // no operand. A door that yielded only the first site of a pair
+    // would pass the first of these and admit the second.
     for sides in [
         (
-            SitedRef::new(future, fname(a, wall(&doc, a, 0))),
-            SitedRef::new(b, fname(b, wall(&doc, b, 0))),
+            SitedRef::new(future_read, fname(a, wall(&doc, a, 0))),
+            SitedRef::new(fixture::out(&doc, b), fname(b, wall(&doc, b, 0))),
         ),
         (
-            SitedRef::new(a, fname(a, wall(&doc, a, 0))),
-            SitedRef::new(future, fname(b, wall(&doc, b, 0))),
+            SitedRef::new(fixture::out(&doc, a), fname(a, wall(&doc, a, 0))),
+            SitedRef::new(future_read, fname(b, wall(&doc, b, 0))),
         ),
     ] {
         for (door, refused) in attempts(editor_core::declare_continuation(vec![sides.clone()])) {
             assert!(
-                matches!(&refused, Err(EditError::ReadSiteMissingNode { at }) if at.id() == future),
-                "{door}: expected the read-site door's refusal, got {refused:?}"
+                matches!(&refused, Err(EditError::DeclaredSiteNotAnOperand { site, .. }) if site.id() == future_read),
+                "{door}: expected the site door's refusal, got {refused:?}"
             );
         }
     }
@@ -791,18 +777,21 @@ fn the_insert_door_and_set_declare_refuse_a_name_or_site_that_is_not_live() {
     let (live, union) = insert(
         doc.clone(),
         Node::Union {
-            members: vec![a.into(), b.into()],
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
     let off_member = editor_core::declare_continuation(vec![(
-        SitedRef::new(a, fname(a, wall(&doc, a, 0))),
-        SitedRef::new(spare, fname(spare, wall(&doc, spare, 0))),
+        SitedRef::new(fixture::out(&doc, a), fname(a, wall(&doc, a, 0))),
+        SitedRef::new(
+            fixture::out(&doc, spare),
+            fname(spare, wall(&doc, spare, 0)),
+        ),
     )]);
     let inserted = doc.apply(
         &DocEdit::InsertNode {
             node: Box::new(Node::Union {
-                members: vec![a.into(), b.into()],
+                members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
                 declare: off_member.clone(),
             }),
             fresh: Vec::new(),
@@ -820,7 +809,7 @@ fn the_insert_door_and_set_declare_refuse_a_name_or_site_that_is_not_live() {
     );
     for (door, refused) in [("insert", inserted), ("SetDeclare", set)] {
         assert!(
-            matches!(&refused, Err(EditError::DeclaredSiteNotAnOperand { site, .. }) if site.id() == spare),
+            matches!(&refused, Err(EditError::DeclaredSiteNotAnOperand { site, .. }) if site.id() == fixture::out(&doc, spare)),
             "{door}: expected the site-is-an-operand refusal, got {refused:?}"
         );
     }
@@ -842,8 +831,8 @@ fn the_insert_door_and_set_declare_refuse_a_name_or_site_that_is_not_live() {
             &DocEdit::SetDeclare {
                 node: union,
                 pairs: editor_core::declare_continuation(vec![(
-                    SitedRef::new(a, fname(a, wall(&doc, a, 0))),
-                    SitedRef::new(b, name.clone()),
+                    SitedRef::new(fixture::out(&doc, a), fname(a, wall(&doc, a, 0))),
+                    SitedRef::new(fixture::out(&doc, b), name.clone()),
                 )]),
             },
             Tol::witness(),
@@ -859,13 +848,13 @@ fn the_insert_door_and_set_declare_refuse_a_name_or_site_that_is_not_live() {
     // no member holds its wall. The read relation decides, not the
     // order (D10), at the insert door and at `SetDeclare` alike.
     let beside = editor_core::declare_continuation(vec![(
-        SitedRef::new(a, fname(a, wall(&doc, a, 0))),
-        SitedRef::new(b, fname(spare, wall(&doc, spare, 0))),
+        SitedRef::new(fixture::out(&doc, a), fname(a, wall(&doc, a, 0))),
+        SitedRef::new(fixture::out(&doc, b), fname(spare, wall(&doc, spare, 0))),
     )]);
     let inserted = doc.apply(
         &DocEdit::InsertNode {
             node: Box::new(Node::Union {
-                members: vec![a.into(), b.into()],
+                members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
                 declare: beside.clone(),
             }),
             fresh: Vec::new(),
@@ -926,53 +915,57 @@ fn set_declare_refuses_a_node_that_declares_nothing_and_a_dead_id() {
     );
 }
 
-/// **An undeclared union is declared in place**: its refusal carries
-/// the candidate pair, `SetDeclare` on the live union with every pair
-/// it refused builds it, and an empty list clears the declaration
-/// back to the refusal. The accepted edit mints nothing.
+/// **A live union is declared in place**: `SetDeclare` with every pair
+/// the detector finds between its members mints nothing and keeps the
+/// node, the declared union is the undeclared one's body, and an empty
+/// list clears the declaration back to that same body.
 #[test]
-fn set_declare_on_a_live_union_answers_its_refusal() {
+fn set_declare_on_a_live_union_edits_it_in_place() {
     let doc = ProfileDoc::empty_derived("docm7_set_declare", Tol::witness());
     let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, m1) = placed(doc, proto, 0.0);
     let (doc, m2) = placed(doc, proto, 0.5);
-    let (mut doc, union) = insert(
+    let (doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![m1.into(), m2.into()],
+            members: editor_core::Bodies::Spelled(vec![m1.into(), m2.into()]),
             declare: Vec::new(),
         },
     );
     let order = doc.ids().to_vec();
-    let mut pairs = Vec::new();
-    loop {
-        let ev = run(&doc);
-        match failure(&ev, union) {
-            None => break,
-            Some(NodeErrorKind::UndeclaredCoincidence { finding, .. }) => {
-                pairs.push((finding.pair.clone(), finding.class));
-                assert!(pairs.len() <= 8, "{pairs:?}");
-            }
-            other => panic!("the refusal a caller can act on, got {other:?}"),
-        }
-        let applied = doc
-            .apply(
-                &DocEdit::SetDeclare {
-                    node: union,
-                    pairs: pairs.clone(),
-                },
-                Tol::witness(),
-                &editor_core::RefusingReach,
-            )
-            .expect("the refused pairs declare");
-        assert_eq!(applied.record.minted, None, "a declaration mints nothing");
-        doc = applied.doc;
-    }
+    let undeclared = run(&doc);
+    assert!(
+        failure(&undeclared, union).is_none(),
+        "the undeclared union refused: {:?}",
+        failure(&undeclared, union)
+    );
+    let pairs = fixture::findings_declared(&undeclared, &doc, &[m1, m2]);
+    assert!(!pairs.is_empty(), "the flush placements have findings");
+    let applied = doc
+        .apply(
+            &DocEdit::SetDeclare { node: union, pairs },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("the found pairs declare");
+    assert_eq!(applied.record.minted, None, "a declaration mints nothing");
+    let doc = applied.doc;
     assert_eq!(doc.ids(), &order[..], "the union was edited in place");
-    let volume = topo::mass_properties(body_of(&run(&doc), union), Tol::witness())
+    let declared = run(&doc);
+    assert!(
+        failure(&declared, union).is_none(),
+        "the declared union refused: {:?}",
+        failure(&declared, union)
+    );
+    let volume = topo::mass_properties(body_of(&declared, union), Tol::witness())
         .expect("the fused body has mass")
         .volume;
     assert_eq!(volume, 1.5, "the fused volume is the two blocks' union");
+    assert_eq!(
+        built_bits(&declared, union),
+        built_bits(&undeclared, union),
+        "the declared union is the undeclared one's body"
+    );
     let (cleared, _) = step(
         doc,
         DocEdit::SetDeclare {
@@ -980,12 +973,10 @@ fn set_declare_on_a_live_union_answers_its_refusal() {
             pairs: Vec::new(),
         },
     );
-    assert!(
-        matches!(
-            failure(&run(&cleared), union),
-            Some(NodeErrorKind::UndeclaredCoincidence { .. })
-        ),
-        "an empty list clears the declaration"
+    assert_eq!(
+        built_bits(&run(&cleared), union),
+        built_bits(&undeclared, union),
+        "an empty list clears the declaration back to the undeclared body"
     );
 }
 
@@ -1010,7 +1001,7 @@ fn a_declaration_recomputes_the_union_alone() {
     let (bare, _) = insert(
         base.clone(),
         Node::Union {
-            members: vec![a.into(), b.into()],
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
@@ -1022,8 +1013,8 @@ fn a_declaration_recomputes_the_union_alone() {
         base,
         &[a, b],
         vec![(
-            SitedRef::new(a, fname(a, wall(&bare, a, 0))),
-            SitedRef::new(b, fname(b, wall(&bare, b, 2))),
+            SitedRef::new(fixture::out(&bare, a), fname(a, wall(&bare, a, 0))),
+            SitedRef::new(fixture::out(&bare, b), fname(b, wall(&bare, b, 2))),
         )],
     );
     let ev = evaluate::<f64>(
@@ -1073,118 +1064,45 @@ fn a_declared_union_replays_bit_identically() {
 // The carried record.
 // ---------------------------------------------------------------------
 
-/// **Two names in ONE member are that member's carried contact, fed at
-/// that member's own step** — the pair chain's rule, on a member.
+/// **Two names in ONE member that its own operation records no contact
+/// between back nothing**: a declared same-operand pair is a contact the
+/// operand carries in, citing the operand's record of it (D1 (ii)), and
+/// this member records none, so a two-member union — the pair — refuses
+/// it typed. At a fold step of three members or more a same-operand pair
+/// refuses whatever the member records: the step's records are not cited
+/// from the union, so the pair has nothing to cite there.
 ///
-/// A Vertex–Face pair inside one member is a carried 3′ contact. As
-/// operand B of the LAST step it reaches the union's value exactly as
-/// the pair boolean's does; as member 0 of a two-step fold it is fed at
-/// step 1, where member 0 is operand A, and does not reach the value —
-/// a contact fed at a step before the last is consumed there, which is
-/// what the pair chain does with it too.
+/// The claim is the member's own end-cap vertex on its own start cap,
+/// which nothing decided: red if either node builds, which is a touch
+/// shipped without a decision.
 #[test]
-fn a_same_member_declared_pair_is_a_carried_record_at_its_step() {
+fn a_same_member_declared_pair_with_no_record_refuses_at_every_door() {
     let doc = ProfileDoc::empty_derived("docm7_carried", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, far) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, far2) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
     let vertex = fixture::cap_vertex(a, CapEnd::End, crate::fixture::vpiece(&doc, a, 0, 0));
     let face = fname(a, RoleSeg::Cap(CapEnd::Start));
-    // Two entities of ONE member, sited there: the same pair reads as
-    // that member's carried contact wherever the member sits.
     let carried = vec![(
-        SitedRef::new(a, vertex.clone()),
-        SitedRef::new(a, face.clone()),
+        SitedRef::new(fixture::out(&doc, a), vertex.clone()),
+        SitedRef::new(fixture::out(&doc, a), face.clone()),
     )];
-    // The pair boolean's reading of the same claim, for reference.
-    let pdecl = editor_core::declare_rest(carried.clone());
-    let (doc, pair) = insert(
-        doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: far.into(),
-            b: a.into(),
-            declare: pdecl.clone(),
-        },
-    );
-    // Member `a` as operand B of the LAST step.
-    let (doc, last) = declared_union(doc, &[far, a], carried.clone());
-    // Member `a` as member 0 of a two-step fold: fed at the first step,
-    // where it is operand A.
+    // Member `a` as the pair's second member, and as member 0 of a
+    // two-step fold.
+    let (doc, pair) = declared_union(doc, &[far, a], carried.clone());
     let (doc, first) = declared_union(doc, &[a, far, far2], carried);
     let ev = run(&doc);
-    for id in [pair, last, first] {
-        assert!(failure(&ev, id).is_none(), "{id:?}: {:?}", failure(&ev, id));
-    }
-    assert_eq!(
-        contacts_of(&ev, pair).b_on_a.len(),
-        1,
-        "the pair boolean carries the claim"
-    );
-    assert_eq!(
-        contacts_of(&ev, last).b_on_a.len(),
-        1,
-        "the union fed it as operand B's carried record at the last step"
-    );
-    // Fed at the FIRST step and consumed there: the value's records
-    // are the LAST step's, which is exactly what the pair chain this
-    // fold replaces publishes. Asserted against that chain rather
-    // than against zero, so the row says what the record IS.
-    let (doc, chain0) = insert(
-        doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: far.into(),
-            declare: pdecl,
-        },
-    );
-    let (doc, chain1) = insert(
-        doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: chain0.into(),
-            b: far2.into(),
-            declare: Vec::new(),
-        },
-    );
-    let ev = run(&doc);
-    assert!(failure(&ev, chain1).is_none(), "{:?}", failure(&ev, chain1));
-    // The claim is the member's own end-cap vertex on its own start cap,
-    // which its geometry does not confirm: every value that carries the
-    // record ships it unconfirmed, and tier 3′ refuses it there; the
-    // door gates at tier 3 only (the census is parked,
-    // `work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
-    // Pinned as it stands
-    // (`work/fuse/a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms.md`);
-    // red when the record is confirmed or refused where it is fed.
-    for (what, id, carries) in [
-        ("pair", pair, true),
-        ("last", last, true),
-        ("first", first, false),
-        ("chain0", chain0, true),
-        ("chain1", chain1, false),
-    ] {
-        match census_of(&ev, id) {
-            Ok(()) => assert!(!carries, "{what}: carries the record and passes 3′"),
-            Err(errors) => assert!(
-                carries
-                    && matches!(
-                        errors.as_slice(),
-                        [topo::ValidationError::StaleContactDeclaration {
-                            declaration: topo::StaleDeclaration::VertexOnFace { .. }
-                        }]
-                    ),
-                "{what}: 3′ refuses the unconfirmed vertex-on-face record only: {errors:?}"
+    for (what, id, at_union_step) in [("pair", pair, false), ("first", first, true)] {
+        assert!(
+            matches!(
+                failure(&ev, id),
+                Some(&NodeErrorKind::DeclaredContactUnbacked { reference: 0, at_union_step: u })
+                    if u == at_union_step
             ),
-        }
+            "{what}: {:?}",
+            failure(&ev, id)
+        );
     }
-    let (fold, chain) = (contacts_of(&ev, first), contacts_of(&ev, chain1));
-    assert_eq!(
-        (fold.b_on_a.len(), fold.a_on_b.len()),
-        (chain.b_on_a.len(), chain.a_on_b.len()),
-        "the fold publishes the last step's records, as the chain does"
-    );
 }
 
 // ---------------------------------------------------------------------
@@ -1213,7 +1131,10 @@ fn a_declared_unions_document_replays_in_document_order() {
     };
     assert!(!declare.is_empty(), "the union carries its declaration");
     for r in declare.iter().flat_map(|((x, y), _)| [x, y]) {
-        assert!(positions(r.at) < positions(union), "a site points forward");
+        assert!(
+            positions(doc.operation_of(r.at).expect("a site is a live read")) < positions(union),
+            "a site points forward"
+        );
         assert!(
             positions(r.name.node) < positions(union),
             "a name points forward"
@@ -1263,68 +1184,61 @@ fn a_declared_unions_document_replays_in_document_order() {
 // The refusal against a row the fold minted.
 // ---------------------------------------------------------------------
 
-/// **A union's undeclared contact against what the fold merges is
-/// refused between two MEMBERS, and declaring each refusal verbatim
-/// fuses the document.**
+/// **A member resting flush under a wall the fold merges fuses,
+/// declared or not, into one body.**
 ///
 /// Two placements of one prototype are declared flush, so their y=0
 /// walls fuse into one `Merged` row; a third block rests flush under
 /// that merged wall, undeclared. Contact is judged pairwise before the
-/// fold (DM4), so the refusal names a face of `m3` and a face of one
-/// placement, never the merged row, and carries no merged set. Each
-/// placement touches `m3`, so there are two refusals to answer; with
-/// both declared, each resolves to the merged row through the
-/// look-through at `m3`'s step.
+/// fold (DM4): the detector finds a resting pair between `m3` and each
+/// placement, and declaring every finding — each resolving to the
+/// merged row through the look-through at `m3`'s step — builds the
+/// undeclared union's body bit for bit.
 #[test]
-fn a_union_refusal_against_a_merged_wall_names_two_members() {
+fn a_member_flush_under_a_merged_wall_fuses_declared_or_not() {
     let doc = ProfileDoc::empty_derived("rv_r2_merged_refusal", Tol::witness());
     let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, m1) = placed(doc, proto, 0.0);
     let (doc, m2) = placed(doc, proto, 0.5);
     // Flush under the merged y=0 wall (x 0..1.5 once m1 and m2 fuse).
     let (doc, m3) = block(doc, (0.0, 1.5), (-1.0, 0.0), 0.0, 1.0);
-    let mut pairs: Vec<_> = flush_pairs(&doc, (m1, proto), (m2, proto))
+    let placements: Vec<_> = flush_pairs(&doc, (m1, proto), (m2, proto))
         .into_iter()
         .map(|p| (p, editor_core::BooleanCoincidence::Continuation))
         .collect();
-    let mut refused = Vec::new();
-    loop {
-        let (docx, union) = declared_union_classed(doc.clone(), &[m1, m2, m3], pairs.clone());
-        let ev = run(&docx);
-        match failure(&ev, union) {
-            None => break,
-            Some(NodeErrorKind::UndeclaredCoincidence {
-                finding, merged, ..
-            }) => {
-                assert!(
-                    merged.0.is_empty() && merged.1.is_empty(),
-                    "a pairwise refusal carries no merged set: {merged:?}"
-                );
-                refused.push((finding.pair.0.at, finding.pair.1.at, finding.class));
-                assert!(refused.len() <= 8, "{refused:?}");
-                pairs.push((finding.pair.clone(), finding.class));
-            }
-            other => panic!("the refusal a caller can act on, got {other:?}"),
-        }
-    }
-    // Each pair is spelled lower id first, and refused in id order. The
-    // two contacts are the y = 0 rests; `m3`'s caps and end walls carry
-    // on flush from the placements' and are refused as continuations.
-    let by_id = |x: RecipeNodeId, y: RecipeNodeId| (x.min(y), x.max(y));
-    let contacts: Vec<_> = refused
-        .iter()
-        .filter(|r| r.2 == editor_core::BooleanCoincidence::REST)
-        .map(|&(x, y, _)| (x, y))
-        .collect();
-    let mut want = vec![by_id(m1, m3), by_id(m2, m3)];
-    want.sort();
-    assert_eq!(contacts, want, "{refused:?}");
+    let (bare, union) = declared_union_classed(doc.clone(), &[m1, m2, m3], placements.clone());
+    let undeclared = run(&bare);
     assert!(
-        refused
-            .iter()
-            .all(|r| r.2 == editor_core::BooleanCoincidence::REST
-                || r.2 == editor_core::BooleanCoincidence::Continuation),
-        "{refused:?}"
+        failure(&undeclared, union).is_none(),
+        "the union with m3 undeclared refused: {:?}",
+        failure(&undeclared, union)
+    );
+    let volume = topo::mass_properties(body_of(&undeclared, union), Tol::witness())
+        .expect("the fused body has mass")
+        .volume;
+    assert_eq!(volume, 3.0, "the placements' 1.5 and m3's 1.5");
+    let mut pairs = placements;
+    for m in [m1, m2] {
+        let found = fixture::findings_declared(&undeclared, &bare, &[m, m3]);
+        assert!(
+            found
+                .iter()
+                .any(|(_, class)| *class == editor_core::BooleanCoincidence::REST),
+            "{m:?} rests on m3 at y = 0: {found:?}"
+        );
+        pairs.extend(found);
+    }
+    let (doc, full) = declared_union_classed(doc, &[m1, m2, m3], pairs);
+    let declared = run(&doc);
+    assert!(
+        failure(&declared, full).is_none(),
+        "the fully declared union refused: {:?}",
+        failure(&declared, full)
+    );
+    assert_eq!(
+        built_bits(&declared, full),
+        built_bits(&undeclared, union),
+        "the declared union is the undeclared one's body"
     );
 }
 
@@ -1340,7 +1254,8 @@ fn a_pass_through_operand_is_the_site_and_the_minting_node_is_not() {
     let (doc, m1) = placed(doc, proto, 0.0);
     let (doc, m2) = placed(doc, proto, 0.5);
     let boolean = |(a_at, b_at): (RecipeNodeId, RecipeNodeId)| {
-        let pairs: Vec<(SitedRef, SitedRef)> = [
+        let (a_at, b_at) = (fixture::out(&doc, a_at), fixture::out(&doc, b_at));
+        let pairs: Vec<(SitedRef<VarId>, SitedRef<VarId>)> = [
             wall(&doc, proto, 0),
             wall(&doc, proto, 2),
             RoleSeg::Cap(CapEnd::Start),
@@ -1354,10 +1269,8 @@ fn a_pass_through_operand_is_the_site_and_the_minting_node_is_not() {
             )
         })
         .collect();
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: m1.into(),
-            b: m2.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![m1.into(), m2.into()]),
             declare: editor_core::declare_continuation(pairs),
         }
     };
@@ -1372,7 +1285,8 @@ fn a_pass_through_operand_is_the_site_and_the_minting_node_is_not() {
     assert!(
         matches!(
             &refused,
-            Err(EditError::DeclaredSiteNotAnOperand { site, .. }) if site.id() == proto
+            Err(EditError::DeclaredSiteNotAnOperand { site, .. })
+                if site.id() == fixture::out(&doc, proto)
         ),
         "expected the site refusal at the minting node, got {refused:?}"
     );
@@ -1397,13 +1311,13 @@ fn a_name_the_site_does_not_carry_refuses_vanished_under_node_gone() {
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, spare) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
     let decl = editor_core::declare_continuation(vec![(
-        SitedRef::new(a, fname(a, wall(&doc, a, 0))),
-        SitedRef::new(b, fname(spare, wall(&doc, spare, 0))),
+        SitedRef::new(fixture::out(&doc, a), fname(a, wall(&doc, a, 0))),
+        SitedRef::new(fixture::out(&doc, b), fname(spare, wall(&doc, spare, 0))),
     )]);
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![a.into(), b.into(), spare.into()],
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into(), spare.into()]),
             declare: decl,
         },
     );
@@ -1421,7 +1335,7 @@ fn a_name_the_site_does_not_carry_refuses_vanished_under_node_gone() {
         doc,
         DocEdit::SetMembers {
             node: union,
-            members: vec![a.into(), b.into()],
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: spare });
@@ -1451,7 +1365,7 @@ fn a_deleted_site_refuses_at_the_next_evaluation() {
         doc,
         DocEdit::SetMembers {
             node: union,
-            members: vec![a.into(), far.into()],
+            members: editor_core::Bodies::Spelled(vec![a.into(), far.into()]),
         },
     );
     let ev = run(&doc);
@@ -1493,6 +1407,7 @@ fn rebind_moves_the_name_and_leaves_the_site() {
     let applied = doc
         .apply(
             &DocEdit::Rebind {
+                body: None,
                 from: from.clone(),
                 to: to.clone(),
             },
@@ -1508,7 +1423,11 @@ fn rebind_moves_the_name_and_leaves_the_site() {
         .flat_map(|((x, y), _)| [x, y])
         .find(|r| r.name == to)
         .expect("the name moved");
-    assert_eq!(moved.at, a, "the site stayed where it was authored");
+    assert_eq!(
+        moved.at,
+        fixture::out(&doc, a),
+        "the site stayed where it was authored"
+    );
     let ev = run(&applied.doc);
     assert!(
         matches!(
@@ -1536,15 +1455,13 @@ fn a_name_the_other_operand_carries_is_not_read_at_its_site() {
     // Both sides name entities of `b`; the first is SITED at `a`,
     // whose table does not carry it.
     let decl = editor_core::declare_rest(vec![(
-        SitedRef::new(a, fname(b, wall(&doc, b, 0))),
-        SitedRef::new(b, fname(b, wall(&doc, b, 2))),
+        SitedRef::new(fixture::out(&doc, a), fname(b, wall(&doc, b, 0))),
+        SitedRef::new(fixture::out(&doc, b), fname(b, wall(&doc, b, 2))),
     )]);
     let (doc, pair) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: decl,
         },
     );
@@ -1580,11 +1497,19 @@ fn a_declaration_adds_no_inputs() {
         vec![a, b],
         "a declaration's sides are references, not reads"
     );
-    // And the sites are what `payload_read_sites` answers with — the
-    // reading edges, which is the other half of the same fact.
-    let sites: Vec<RecipeNodeId> = node.payload_read_sites();
+    // And the sites are the members' READS — what the union reads at,
+    // which is the other half of the same fact.
+    let sites: Vec<VarId> = node
+        .declared_pairs()
+        .iter()
+        .flat_map(|((x, y), _)| [x.at, y.at])
+        .collect();
     assert_eq!(sites.len(), 8, "two sites per pair, four pairs");
-    assert!(sites.iter().all(|at| *at == a || *at == b), "{sites:?}");
+    let (a_read, b_read) = (fixture::out(&doc, a), fixture::out(&doc, b));
+    assert!(
+        sites.iter().all(|at| *at == a_read || *at == b_read),
+        "{sites:?}"
+    );
 }
 
 /// The union's entities on the corner two L-placed blocks share: the
@@ -1621,7 +1546,12 @@ fn shared_corner(ev: &Evaluation<f64>, union: RecipeNodeId) -> Vec<StableName> {
 
 /// The flush families two L-placed blocks share — the y = 0 wall, the
 /// x = 2 wall and both caps — as a declared pair list.
-fn corner_pairs(doc: &ProfileDoc, a: RecipeNodeId, b: RecipeNodeId) -> Vec<(SitedRef, SitedRef)> {
+fn corner_pairs(
+    doc: &ProfileDoc,
+    a: RecipeNodeId,
+    b: RecipeNodeId,
+) -> Vec<(SitedRef<VarId>, SitedRef<VarId>)> {
+    let (a_read, b_read) = (fixture::out(doc, a), fixture::out(doc, b));
     let families = |ext| {
         [
             wall(doc, ext, 0),
@@ -1633,7 +1563,12 @@ fn corner_pairs(doc: &ProfileDoc, a: RecipeNodeId, b: RecipeNodeId) -> Vec<(Site
     families(a)
         .into_iter()
         .zip(families(b))
-        .map(|(x, y)| (SitedRef::new(a, fname(a, x)), SitedRef::new(b, fname(b, y))))
+        .map(|(x, y)| {
+            (
+                SitedRef::new(a_read, fname(a, x)),
+                SitedRef::new(b_read, fname(b, y)),
+            )
+        })
         .collect()
 }
 
@@ -1698,7 +1633,8 @@ fn redrawing_another_member_never_takes_a_held_flush_stretch() {
                 3,
                 "{case}: the corner edge and its two ends: {held:?}"
             );
-            let senior = |name: &StableName| matches!(name.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == a);
+            let a_read = fixture::out(&doc, a);
+            let senior = |name: &StableName| matches!(name.path.first(), Some(RoleSeg::From { read, .. }) if *read == a_read);
             assert!(
                 held.iter().all(senior),
                 "{case}: the corner is named through the senior block: {held:?}"
@@ -1715,7 +1651,9 @@ fn redrawing_another_member_never_takes_a_held_flush_stretch() {
                 doc,
                 DocEdit::SetMembers {
                     node: union,
-                    members: listed(a, redrawn).into_iter().map(Into::into).collect(),
+                    members: editor_core::Bodies::Spelled(
+                        listed(a, redrawn).into_iter().map(Into::into).collect(),
+                    ),
                 },
             );
             let pairs = corner_pairs(&doc, a, redrawn);
@@ -1739,4 +1677,129 @@ fn redrawing_another_member_never_takes_a_held_flush_stretch() {
             );
         }
     }
+}
+
+// ---------------------------------------------------------------------
+// What a record cites.
+// ---------------------------------------------------------------------
+
+/// The one vertex-pair record of `id`'s boolean value, and the row of
+/// the node's own coincidences it cites.
+fn kiss_record(ev: &Evaluation<f64>, id: RecipeNodeId) -> editor_core::NamedCoincidence {
+    let value = ev.value(id).expect("the node evaluated");
+    let ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) = &value.payload else {
+        panic!("a boolean body: {:?}", value.payload);
+    };
+    let [record] = contacts.vv.as_slice() else {
+        panic!("one vertex pair: {contacts:?}");
+    };
+    let cited: Vec<topo::Backing> = record.cites.iter().collect();
+    let [topo::Backing::Decided(k)] = cited[..] else {
+        panic!("one decision of the node's own: {cited:?}");
+    };
+    value
+        .coincidences
+        .get(k as usize)
+        .unwrap_or_else(|| panic!("row {k} of {:?}", value.coincidences))
+        .clone()
+}
+
+/// **A corner kiss's record cites the vertex identity its node
+/// decided, and the node names its inputs by their reads**: two blocks
+/// meeting at one corner, joined as a pair (a two-member union) and as
+/// the last step of a union with a third block apart. Each node's one
+/// record cites a `VertexFusion` row of its own, naming the two members'
+/// corners; the pair's records cite its inputs as its two member reads.
+/// Red if a node publishes records citing rows it does not hold (a
+/// union's last fold step's rows unpublished).
+#[test]
+fn a_kiss_record_cites_its_vertex_fusion_row_at_the_pair_and_the_union() {
+    let doc = ProfileDoc::empty_derived("docm7_kiss_cites", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 1.0);
+    let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, pair) = declared_union(doc, &[a, b], Vec::new());
+    let (doc, union) = declared_union(doc, &[far, a, b], Vec::new());
+    let ev = run(&doc);
+    for (what, id) in [("pair", pair), ("union", union)] {
+        let row = kiss_record(&ev, id);
+        assert_eq!(row.site, topo::DecisionSite::VertexFusion, "{what}");
+        assert!(
+            row.cells
+                .iter()
+                .all(|c| matches!(c, editor_core::NamedCell::Entity { .. })),
+            "{what}: {row:?}"
+        );
+    }
+    let pair_value = ev.value(pair).expect("the pair evaluated");
+    let pair_row = kiss_record(&ev, pair);
+    let (read_a, read_b) = (fixture::out(&doc, a), fixture::out(&doc, b));
+    let mut inputs: Vec<VarId> = pair_row
+        .cells
+        .iter()
+        .filter_map(|c| match c {
+            editor_core::NamedCell::Entity { input, .. } => Some(*input),
+            _ => None,
+        })
+        .collect();
+    inputs.sort();
+    let mut want = vec![read_a, read_b];
+    want.sort();
+    assert_eq!(inputs, want, "the row names one corner of each member");
+    assert_eq!(
+        pair_value.cited_inputs.as_ref(),
+        [
+            editor_core::CitedInput::Read(read_a),
+            editor_core::CitedInput::Read(read_b)
+        ],
+        "the pair cites its inputs by its reads"
+    );
+}
+
+/// **A declared same-operand pair the operand records cites that
+/// record by read**: the corpus's `kiss_carry` declares again the
+/// vertex pair its kiss operand records. The node's record of it cites
+/// `Carried { input, record }`, and `input` is the operand's read. Red
+/// if the carried record cites a decision of this node's, or names its
+/// operand by anything but the read.
+#[test]
+fn a_declared_carried_pair_cites_its_operands_record_by_read() {
+    let doc = crate::corpus::documents()
+        .into_iter()
+        .find(|d| d.name == "kiss_carry")
+        .expect("the corpus holds kiss_carry")
+        .doc;
+    let ev: Evaluation<f64> = crate::corpus::eval(&doc);
+    let mut cited = 0;
+    for id in doc.ids() {
+        let Some(Node::Union {
+            members: editor_core::Bodies::Spelled(members),
+            declare,
+        }) = doc.node(id)
+        else {
+            continue;
+        };
+        if declare.is_empty() || members.len() != 2 {
+            continue;
+        }
+        let value = ev.value(id).expect("the declaring boolean evaluates");
+        let ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) = &value.payload else {
+            panic!("a boolean body");
+        };
+        for cites in contacts.cites() {
+            for backing in cites.iter() {
+                let topo::Backing::Carried { input, .. } = backing else {
+                    continue;
+                };
+                let read = members[input as usize].read;
+                assert_eq!(
+                    value.cited_inputs[input as usize],
+                    editor_core::CitedInput::Read(read),
+                    "the carried citation names its operand by read"
+                );
+                cited += 1;
+            }
+        }
+    }
+    assert!(cited > 0, "kiss_carry carries a declared pair in");
 }

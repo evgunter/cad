@@ -43,7 +43,7 @@ fn fold(
     order: [usize; 3],
     carry: bool,
     tol: Tol,
-) -> Result<Vec<BooleanBody<f64>>, (usize, BooleanError)> {
+) -> Result<Vec<BooleanBody<f64>>, (usize, Box<BooleanError>)> {
     let mut steps: Vec<BooleanBody<f64>> = Vec::new();
     for (step, &next) in order[1..].iter().enumerate() {
         let acc = steps.last().map_or(&bodies[order[0]], |s| &s.body);
@@ -51,7 +51,7 @@ fn fold(
         if carry && let Some(prev) = steps.last() {
             decls.carried_a = carried_rows(&prev.contacts);
         }
-        match union_with(acc, &bodies[next], &decls, tol).map_err(|e| (step + 1, e))? {
+        match union_with(acc, &bodies[next], &decls, tol).map_err(|e| (step + 1, Box::new(e)))? {
             BooleanResult::Body(out) => steps.push(out),
             BooleanResult::Empty => panic!("a union of two bricks came back empty"),
         }
@@ -120,10 +120,8 @@ fn carried_records_certify_every_order_of_the_fold() {
 /// `(vertex, edge)` and edge-edge rows a join leaves.
 fn carried_rows(records: &topo::ContactRecords) -> topo::CarriedContacts {
     topo::CarriedContacts {
-        vv: rest_rows(records),
-        ve: records.ve.clone(),
-        ee: records.ee.clone(),
-        ..topo::CarriedContacts::default()
+        vf: Vec::new(),
+        ..records.carried(ContactClass::Rest)
     }
 }
 
@@ -235,14 +233,7 @@ fn quarter_pinch(
 }
 
 fn rest_rows(records: &topo::ContactRecords) -> Vec<CarriedVv> {
-    records
-        .vv
-        .iter()
-        .map(|&pair| CarriedVv {
-            pair,
-            class: ContactClass::Rest,
-        })
-        .collect()
+    records.carried(ContactClass::Rest).vv
 }
 
 /// The unit-radius wedge from `d0` to `d1` degrees (counterclockwise,

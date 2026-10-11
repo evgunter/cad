@@ -37,10 +37,12 @@ impl VarId {
 /// **What a variable holds** (VR3; D10's types), fixed at minting: a
 /// new kind is a new variable.
 ///
-/// The scalars are read by expressions at their dimension. The poses
-/// and the shapes are reference kinds: no expression reads one, none
-/// has a free arm, a unit or a distribution, and only an operation
-/// defines one ([`VarDef::Output`]).
+/// The scalars are read by expressions at their dimension. The poses,
+/// the shapes and the selections are reference kinds: no expression
+/// reads one, and none has a free arm, a unit or a distribution. Only an
+/// operation defines a pose or a shape ([`VarDef::Output`]); a
+/// selection is defined by naming entities of one body
+/// ([`VarDef::Select`]).
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
@@ -69,6 +71,16 @@ pub enum VarKind {
     Bodies,
     /// A profile.
     Profile,
+    /// One face of a body ([`VarDef::Select`]).
+    Face,
+    /// One edge of a body ([`VarDef::Select`]).
+    Edge,
+    /// One vertex of a body ([`VarDef::Select`]): a measure's point.
+    Vertex,
+    /// A set of faces of one body ([`VarDef::Select`]).
+    Faces,
+    /// A set of edges of one body ([`VarDef::Select`]).
+    Edges,
 }
 
 impl VarKind {
@@ -88,8 +100,39 @@ impl VarKind {
             | Self::Frame
             | Self::Body
             | Self::Bodies
-            | Self::Profile => return None,
+            | Self::Profile
+            | Self::Face
+            | Self::Edge
+            | Self::Vertex
+            | Self::Faces
+            | Self::Edges => return None,
         })
+    }
+
+    /// **The entity kind a selection of this kind names**, and whether
+    /// it is a set: `None` for a kind that is not a selection.
+    #[must_use]
+    pub fn selection(self) -> Option<(crate::names::EntityKind, bool)> {
+        use crate::names::EntityKind;
+        match self {
+            Self::Face => Some((EntityKind::Face, false)),
+            Self::Edge => Some((EntityKind::Edge, false)),
+            Self::Vertex => Some((EntityKind::Vertex, false)),
+            Self::Faces => Some((EntityKind::Face, true)),
+            Self::Edges => Some((EntityKind::Edge, true)),
+            Self::Length
+            | Self::Angle
+            | Self::Scalar
+            | Self::Count
+            | Self::Point
+            | Self::Direction
+            | Self::Axis
+            | Self::Plane
+            | Self::Frame
+            | Self::Body
+            | Self::Bodies
+            | Self::Profile => None,
+        }
     }
 
     /// **A pose kind's symmetry** (D10, A11 (1)): the family of the
@@ -113,7 +156,12 @@ impl VarKind {
             | Self::Count
             | Self::Body
             | Self::Bodies
-            | Self::Profile => None,
+            | Self::Profile
+            | Self::Face
+            | Self::Edge
+            | Self::Vertex
+            | Self::Faces
+            | Self::Edges => None,
         }
     }
 }
@@ -144,6 +192,11 @@ impl core::fmt::Display for VarKind {
                 Self::Body => "body",
                 Self::Bodies => "list of bodies",
                 Self::Profile => "profile",
+                Self::Face => "face",
+                Self::Edge => "edge",
+                Self::Vertex => "vertex",
+                Self::Faces => "set of faces",
+                Self::Edges => "set of edges",
                 Self::Length | Self::Angle | Self::Scalar | Self::Count => {
                     unreachable!("a scalar kind reads at a dimension")
                 }
@@ -178,6 +231,153 @@ pub enum VarDef {
         /// Its port, the index into its signature.
         port: u8,
     },
+    /// **A selection** (D10): entities of the body `body` reads, named
+    /// by `StableName`. The kind is the variable's (a `Face`, an
+    /// `Edge`, or a set of either); a singleton holds one name.
+    Select(Select),
+}
+
+/// **What a selection names** ([`VarDef::Select`]): one body read, and
+/// the names of its entities, frozen at authoring and resolved through
+/// that body's name table under the N5 ladder at evaluation, the one
+/// place a name in a slot is resolved.
+///
+/// The names are stored in the order the kind reads them: an `Edges`
+/// set sorted and deduplicated, so two selections of the same edges are
+/// equal; a `Faces` set in designation order, first occurrence kept
+/// (a shell's rim inherits its first designated face, so the order is
+/// authored data); a singleton holds exactly one.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Select {
+    /// The body the names are read in.
+    pub body: VarId,
+    /// The entities, by name.
+    pub names: Vec<crate::names::StableName>,
+}
+
+impl Select {
+    /// **Why `names` is not a stored selection of `kind`**, or `None`:
+    /// a kind that is not a selection, a singleton not holding exactly
+    /// one name, or a set out of its stored order ([`Select`]). What
+    /// each name denotes is evaluation's to check, where the name
+    /// resolves (`NodeErrorKind::SelectKind`).
+    #[must_use]
+    pub fn fault(kind: VarKind, names: &[crate::names::StableName]) -> Option<SelectionFault> {
+        let Some((entity, set)) = kind.selection() else {
+            return Some(SelectionFault::NotASelection { kind });
+        };
+        if !set && names.len() != 1 {
+            return Some(SelectionFault::Singleton { count: names.len() });
+        }
+        if entity == crate::names::EntityKind::Edge {
+            names
+                .windows(2)
+                .position(|w| w[0] >= w[1])
+                .map(|at| SelectionFault::NotCanonical { at })
+        } else {
+            names.iter().enumerate().find_map(|(again, name)| {
+                names[..again]
+                    .iter()
+                    .position(|n| n == name)
+                    .map(|first| SelectionFault::Repeated { first, again })
+            })
+        }
+    }
+
+    /// `names` in the stored order of a `kind` selection
+    /// ([`Select`]): sorted and deduplicated for edges, first
+    /// occurrence kept for faces.
+    #[must_use]
+    pub fn canonical(
+        kind: VarKind,
+        mut names: Vec<crate::names::StableName>,
+    ) -> Vec<crate::names::StableName> {
+        if kind
+            .selection()
+            .is_some_and(|(e, _)| e == crate::names::EntityKind::Edge)
+        {
+            names.sort();
+            names.dedup();
+        } else {
+            let mut kept: Vec<crate::names::StableName> = Vec::with_capacity(names.len());
+            for n in names {
+                if !kept.contains(&n) {
+                    kept.push(n);
+                }
+            }
+            names = kept;
+        }
+        names
+    }
+}
+
+/// **Why a list of names is not a stored selection** ([`Select::fault`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SelectionFault {
+    /// The kind is not a selection kind.
+    NotASelection {
+        /// The kind.
+        kind: VarKind,
+    },
+    /// The seat reads no selection of this entity kind (a blend reads
+    /// edges, a shell faces; a whole body is read as the body).
+    ///
+    /// This arm and [`Self::OtherBody`] are the edit door's, which
+    /// knows the seat and the read; [`Select::fault`] answers the
+    /// rest, of a stored selection's form.
+    Seat {
+        /// The entity kind the names name.
+        entity: crate::names::EntityKind,
+    },
+    /// A singleton holding other than one name.
+    Singleton {
+        /// How many it holds.
+        count: usize,
+    },
+    /// An edge set not strictly increasing at `at`: a swap or a repeat
+    /// (sorted and deduplicated is one rule).
+    NotCanonical {
+        /// The first index of the out-of-order pair.
+        at: usize,
+    },
+    /// A face set naming one face twice.
+    Repeated {
+        /// The first occurrence.
+        first: usize,
+        /// The repeat.
+        again: usize,
+    },
+    /// A whole body named at a measure seat whose read is not that
+    /// body: the name's node is neither the read's operation nor
+    /// upstream of it.
+    OtherBody,
+}
+
+impl core::fmt::Display for SelectionFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NotASelection { kind } => write!(f, "a {kind} is not a selection"),
+            Self::Seat { entity } => {
+                write!(
+                    f,
+                    "the seat reads no selection of {} {}",
+                    entity.article(),
+                    entity.noun()
+                )
+            }
+            Self::Singleton { count } => {
+                write!(f, "a selection of one entity holds {count} names")
+            }
+            Self::OtherBody => f.write_str("the body named is not the body read"),
+            Self::NotCanonical { at } => write!(
+                f,
+                "the edges are not sorted and deduplicated (names {at} and {} are out of order)",
+                at + 1
+            ),
+            Self::Repeated { first, again } => write!(f, "name {again} repeats name {first}"),
+        }
+    }
 }
 
 impl VarDef {
@@ -188,7 +388,7 @@ impl VarDef {
         match self {
             Self::Free(free) => Some(VarKind::from(free.dim())),
             Self::Defined(expr) => Some(VarKind::from(expr.dim())),
-            Self::Output { .. } => None,
+            Self::Output { .. } | Self::Select(_) => None,
         }
     }
 
@@ -197,7 +397,7 @@ impl VarDef {
     pub fn free(&self) -> Option<&FreeVar> {
         match self {
             Self::Free(free) => Some(free),
-            Self::Defined(_) | Self::Output { .. } => None,
+            Self::Defined(_) | Self::Output { .. } | Self::Select(_) => None,
         }
     }
 
@@ -206,7 +406,16 @@ impl VarDef {
     pub fn defined(&self) -> Option<&Expr> {
         match self {
             Self::Defined(expr) => Some(expr),
-            Self::Free(_) | Self::Output { .. } => None,
+            Self::Free(_) | Self::Output { .. } | Self::Select(_) => None,
+        }
+    }
+
+    /// The selection, when the definition is one.
+    #[must_use]
+    pub fn select(&self) -> Option<&Select> {
+        match self {
+            Self::Select(select) => Some(select),
+            Self::Free(_) | Self::Defined(_) | Self::Output { .. } => None,
         }
     }
 
@@ -215,7 +424,7 @@ impl VarDef {
     pub fn output(&self) -> Option<(crate::RecipeNodeId, u8)> {
         match *self {
             Self::Output { node, port } => Some((node, port)),
-            Self::Free(_) | Self::Defined(_) => None,
+            Self::Free(_) | Self::Defined(_) | Self::Select(_) => None,
         }
     }
 
@@ -225,8 +434,10 @@ impl VarDef {
         match (self, other) {
             (Self::Free(a), Self::Free(b)) => a.bit_eq(b),
             (Self::Defined(a), Self::Defined(b)) => a.bit_eq(b),
-            (Self::Output { .. }, Self::Output { .. }) => self == other,
-            (Self::Free(_) | Self::Defined(_) | Self::Output { .. }, _) => false,
+            (Self::Output { .. }, Self::Output { .. }) | (Self::Select(_), Self::Select(_)) => {
+                self == other
+            }
+            (Self::Free(_) | Self::Defined(_) | Self::Output { .. } | Self::Select(_), _) => false,
         }
     }
 }
@@ -241,6 +452,8 @@ pub enum WrittenDef {
     Free(FreeVar),
     /// A variable defined by an expression over other variables.
     Defined(Expr),
+    /// A selection of the stated kind.
+    Select(VarKind, Select),
 }
 
 impl WrittenDef {
@@ -250,6 +463,7 @@ impl WrittenDef {
         match self {
             Self::Free(free) => VarKind::from(free.dim()),
             Self::Defined(expr) => VarKind::from(expr.dim()),
+            Self::Select(kind, _) => *kind,
         }
     }
 }
@@ -259,6 +473,7 @@ impl From<WrittenDef> for VarDef {
         match def {
             WrittenDef::Free(free) => Self::Free(free),
             WrittenDef::Defined(expr) => Self::Defined(expr),
+            WrittenDef::Select(_, select) => Self::Select(select),
         }
     }
 }
@@ -344,13 +559,14 @@ impl From<FreeVar> for VarDecl {
 
 impl VarDecl {
     /// A stored definition re-authored: what the door stored, which
-    /// lowers to itself. `None` for an output, which no edit declares.
+    /// lowers to itself. `None` for an output, which no edit declares,
+    /// and a selection, which a seat authors.
     #[must_use]
     pub fn authored(def: VarDef) -> Option<Self> {
         match def {
             VarDef::Free(free) => Some(Self::Free(free)),
             VarDef::Defined(expr) => Some(Self::Defined(crate::Formula::from(expr))),
-            VarDef::Output { .. } => None,
+            VarDef::Output { .. } | VarDef::Select(_) => None,
         }
     }
 }
@@ -402,6 +618,15 @@ impl Var {
     #[must_use]
     pub fn free(&self) -> Option<&FreeVar> {
         self.def.free()
+    }
+
+    /// The selection, writable, when the definition is one: its kind
+    /// stays.
+    pub(crate) fn select_mut(&mut self) -> Option<&mut Select> {
+        match &mut self.def {
+            VarDef::Select(select) => Some(select),
+            VarDef::Free(_) | VarDef::Defined(_) | VarDef::Output { .. } => None,
+        }
     }
 
     /// Whether the stored kind is the definition's, which a file can

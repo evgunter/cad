@@ -28,6 +28,8 @@ pub mod real;
 pub mod running;
 pub mod spline;
 pub mod sym;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 pub mod tolerance;
 
 pub use arc::Arc2;
@@ -52,7 +54,7 @@ pub use predicate::{
 };
 pub use readable::Readable;
 pub use real::{
-    Bounds, CertifiedBounds, CertifiedEnclosure, Real, Witness, is_finite_length,
+    Bounds, CertifiedBounds, CertifiedEnclosure, Real, Witness, is_exact_zero, is_finite_length,
     is_underflowed_length, is_zero_length,
 };
 pub use running::{Rounded, UNIT_ROUNDOFF};

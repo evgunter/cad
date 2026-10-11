@@ -12,7 +12,7 @@
 //!   elevation and knot refinement are exact), so the carrier stays
 //!   the `Curve3::Line`/`Circle` it was minted as, verbatim, and
 //!   certifies today. Its DESCRIPTION still moves: minted through the
-//!   scaffolding door as `MappedCurve::PlacedSegment` (the cap plane
+//!   scaffolding door as `MappedSource::PlacedSegment` (the cap plane
 //!   is fitted through the rim, so it does not exist yet), it is
 //!   re-stated as an image in the cap's own chart once the plane does
 //!   ([`crate::swept::describe_face_rim_at_rest`] — D3's transience
@@ -792,21 +792,22 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
             if n == 1 && profile::is_full_turn(&bloops[li]) {
                 // A one-segment loop's strut is its wall's wrap edge in
                 // `u` (D1: a closed spline net's boundary column wraps
-                // `u`), run top to bottom as the turn laid it.
-                let carrier = geom_brep::reversed_column(&carrier)
-                    .map_err(|source| LoftError::SeamStructure { source })?;
+                // `u`), run top to bottom as the turn laid it — on the
+                // reflected parameter `t ∈ [−1, 0]`, `v = −t`, the one
+                // reflection of the column that is exact.
+                let carrier = geom_brep::reversed_column(&carrier);
                 let spec = EdgeCurveSpec {
                     description: EdgeDescriptionSpec::wrap_iso(
                         wall_key,
                         T::zero(),
                         T::one(),
                         T::zero(),
+                        -T::one(),
                         T::zero(),
-                        T::one(),
                     ),
                     carrier: Curve3::Nurbs(Arc::new(carrier)),
-                    param_start: T::zero(),
-                    param_end: T::one(),
+                    param_start: -T::one(),
+                    param_end: T::zero(),
                 };
                 body.set_edge_curve(seams[j], spec, tol)?;
                 continue;

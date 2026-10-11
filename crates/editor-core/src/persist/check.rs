@@ -46,7 +46,7 @@ use crate::node::SlotId;
 use crate::node::{AssertionBoundFault, Node, RecipeNodeId};
 use crate::placement::{FrameFault, FrameSite};
 use crate::program::{ProfileDoc, ProfileProgram, ProgramRefusal};
-use crate::resolve::derivation_nodes;
+use crate::resolve::{derivation_nodes, derivation_reads};
 use crate::spoken::SpokenVar;
 use crate::spoken::{SpokenName, SpokenNode};
 use crate::var::{VarId, VarKind, VarRef};
@@ -184,6 +184,11 @@ pub(crate) enum Walk {
     /// signature and that port's kind, no port has two rows, and every
     /// live node has a row for each of its ports. Snapshot only.
     OutputSignature,
+    /// [`first_selection_fault`] over the variable table (D10): every
+    /// selection is of a selection kind, holds its names in that kind's
+    /// stored form, and reads a body variable the mint holds, which, when
+    /// live, is a `Body` no world placement defines. Snapshot only.
+    Selection,
     /// [`first_definition_read_fault`] over every defined variable's
     /// definition: it holds no name leaf, and every variable it reads
     /// is one the mint log holds, read at its kind when live — the
@@ -191,6 +196,12 @@ pub(crate) enum Walk {
     /// definition reading a deleted variable is legal, as a slot's
     /// reader is (VR7). Snapshot only.
     DefinitionRead,
+    /// [`Doc::observed_read_fault`](crate::Doc) over every construction's
+    /// slots (D10): none reads an observed variable — a measure's
+    /// output, or a definition reading one, directly or through
+    /// another — which only an assertion reads. The edit door's
+    /// `ConstructionReadsObserved`, asked of a file. Snapshot only.
+    ObservedRead,
     /// [`first_definition_cycle`] over the variable table (VR3): no
     /// definition reads its own variable back, and no variable's
     /// expansion outgrows [`crate::edit::DEFINITION_NODE_BOUND`].
@@ -252,13 +263,15 @@ impl Walk {
     /// Every walk, in the order [`validate_document`] runs them —
     /// which it runs them BY, so this is the order rather than a
     /// description of it.
-    pub(crate) const ORDER: [Walk; 13] = [
+    pub(crate) const ORDER: [Walk; 15] = [
         Walk::NonFinite,
         Walk::Distribution,
         Walk::DisplayUnit,
         Walk::Vars,
         Walk::OutputSignature,
+        Walk::Selection,
         Walk::DefinitionRead,
+        Walk::ObservedRead,
         Walk::DefinitionCycle,
         Walk::SlotRead,
         Walk::PayloadRead,
@@ -300,9 +313,17 @@ impl Walk {
             Walk::OutputSignature => {
                 first_output_fault(snapshot).map(super::PersistError::Snapshot)
             }
+            Walk::Selection => first_selection_fault(snapshot).map(super::PersistError::Snapshot),
             Walk::DefinitionRead => {
                 first_definition_read_fault(snapshot).map(super::PersistError::Snapshot)
             }
+            Walk::ObservedRead => snapshot.observed_read_fault().map(|(node, slot, var)| {
+                super::PersistError::Snapshot(SnapshotError::ObservedRead {
+                    node: snapshot.spoken(node),
+                    slot,
+                    var: snapshot.spoken_var(var),
+                })
+            }),
             Walk::DefinitionCycle => {
                 first_definition_cycle(snapshot).map(super::PersistError::Snapshot)
             }
@@ -578,6 +599,46 @@ fn first_output_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
 /// the mint log, then the names — each on a live variable, none held
 /// twice. The names are walked by id, so the pair a twice-held name
 /// reports is the two lowest ids holding it.
+/// The first selection, in id order, no door could have written
+/// ([`Walk::Selection`]).
+fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
+    snapshot.vars.iter().find_map(|(&id, var)| {
+        let select = var.def().select()?;
+        let spoken = || snapshot.spoken_var(id);
+        if let Some(fault) = crate::var::Select::fault(var.kind(), &select.names) {
+            return Some(SnapshotError::SelectionShape {
+                var: spoken(),
+                fault,
+            });
+        }
+        let body = match snapshot.var(select.body) {
+            None if snapshot.mint.has_var(select.body) => return None,
+            None => SelectionBodyFault::Unminted { body: select.body },
+            Some(held) => {
+                // The body read observes; each seat reading the
+                // selection is asked of the copy in the operand walk.
+                match snapshot.read_fault(
+                    held,
+                    crate::SlotKind::Is(crate::VarKind::Body),
+                    crate::doc::Reader::Observes,
+                )? {
+                    crate::doc::ReadFault::Kind { found } => SelectionBodyFault::Kind {
+                        body: Box::new(snapshot.spoken_var(select.body)),
+                        found,
+                    },
+                    crate::doc::ReadFault::WorldCopy { .. } => {
+                        unreachable!("an observing read admits a world copy")
+                    }
+                }
+            }
+        };
+        Some(SnapshotError::SelectionBody {
+            var: spoken(),
+            fault: body,
+        })
+    })
+}
+
 fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     // The mint log first, since `has_var` below asks it: its ordinals
     // count up from one, the only log a mint writes. The structural walk asks
@@ -698,26 +759,29 @@ fn first_slot_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotId,
 /// keeping its output's shape is [`Walk::OutputSignature`]'s.
 fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     snapshot.nodes.iter().find_map(|(&id, node)| {
-        node.operand_rows()
-            .into_iter()
-            .find_map(|(slot, var)| {
-                if !snapshot.has_minted_var(var) {
-                    return Some(SnapshotError::OperandUnminted {
-                        node: snapshot.spoken(id),
-                        slot,
-                        var: snapshot.spoken_var(var),
-                    });
-                }
-                // A minted read no live operation defines is a strand the
-                // file keeps (DM7), the reader's refusal at evaluation.
-                let held = snapshot.var(var)?;
-                Some(match snapshot.read_fault(held, slot.kind())? {
+        node.operand_rows().into_iter().find_map(|(slot, var)| {
+            if !snapshot.has_minted_var(var) {
+                return Some(SnapshotError::OperandUnminted {
+                    node: snapshot.spoken(id),
+                    slot,
+                    var: snapshot.spoken_var(var),
+                });
+            }
+            // A minted read no live operation defines is a strand the
+            // file keeps (DM7), the reader's refusal at evaluation.
+            let held = snapshot.var(var)?;
+            Some(
+                match snapshot.read_fault(
+                    held,
+                    node.seat_kind(slot),
+                    crate::doc::Reader::of(node.seat_kind(slot)),
+                )? {
                     crate::doc::ReadFault::Kind { found } => SnapshotError::SlotVarKind {
                         node: snapshot.spoken(id),
                         slot: SlotId::Operand(slot),
                         var: Box::new(snapshot.spoken_var(var)),
                         found,
-                        expected: slot.kind(),
+                        expected: node.seat_kind(slot),
                     },
                     crate::doc::ReadFault::WorldCopy { placement } => {
                         SnapshotError::ReadsWorldCopy {
@@ -726,18 +790,9 @@ fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                             placement: snapshot.spoken(placement),
                         }
                     }
-                })
-            })
-            .or_else(|| {
-                let placement = node
-                    .measure_sites()
-                    .into_iter()
-                    .find_map(|at| crate::edit::world_copy_site(snapshot, at))?;
-                Some(SnapshotError::MeasuresWorldCopy {
-                    node: snapshot.spoken(id),
-                    placement: snapshot.spoken(placement),
-                })
-            })
+                },
+            )
+        })
     })
 }
 
@@ -1040,6 +1095,24 @@ pub enum OutputFault {
     },
 }
 
+/// **Why a selection's body read is one no door writes**
+/// ([`SnapshotError::SelectionBody`]).
+#[derive(Debug, Clone, PartialEq)]
+pub enum SelectionBodyFault {
+    /// The mint log never minted it.
+    Unminted {
+        /// The body read.
+        body: VarId,
+    },
+    /// A live variable of another kind than `Body`.
+    Kind {
+        /// The body read.
+        body: Box<SpokenVar>,
+        /// Its kind.
+        found: crate::VarKind,
+    },
+}
+
 /// A structural invariant violation in a parsed snapshot (load door).
 ///
 /// Every node and name it holds is spoken from the document being
@@ -1078,6 +1151,16 @@ pub enum SnapshotError {
         /// The first entry whose ordinal is not its place in the log.
         entry: crate::Minted,
     },
+    /// A name the document holds carries a read
+    /// ([`crate::names::RoleSeg::From`]) its mint log does not hold as a
+    /// variable's — one the document never minted, such as a union
+    /// fold's own sentinel. A deleted variable's read is legal.
+    NameReadNotMinted {
+        /// The name.
+        name: SpokenName,
+        /// The read it carries.
+        read: VarId,
+    },
     /// A name the document holds spells a profile step its mint log
     /// does not hold — one the document never minted.
     NameStepNotMinted {
@@ -1109,6 +1192,21 @@ pub enum SnapshotError {
         /// The read.
         var: SpokenVar,
     },
+    /// A selection whose names are not in a stored form of its kind —
+    /// the edit doors' [`crate::EditError::SelectionShape`].
+    SelectionShape {
+        /// The selection.
+        var: SpokenVar,
+        /// Why.
+        fault: crate::var::SelectionFault,
+    },
+    /// A selection whose body read no door could have written.
+    SelectionBody {
+        /// The selection.
+        var: SpokenVar,
+        /// Why.
+        fault: SelectionBodyFault,
+    },
     /// An operand reads a world placement's copy — the edit doors'
     /// [`crate::EditError::ReadsWorldCopy`].
     ReadsWorldCopy {
@@ -1117,14 +1215,6 @@ pub enum SnapshotError {
         /// The slot.
         slot: SlotId,
         /// The placement whose copy it reads.
-        placement: SpokenNode,
-    },
-    /// A measure is sited at a world placement — the edit doors'
-    /// [`crate::EditError::MeasuresWorldCopy`].
-    MeasuresWorldCopy {
-        /// The measure.
-        node: SpokenNode,
-        /// The placement it is sited at.
         placement: SpokenNode,
     },
     /// The nodes' reads close a loop ([`crate::Doc::upstream`]): no edit
@@ -1367,16 +1457,6 @@ pub enum SnapshotError {
         /// bound.
         nodes: usize,
     },
-    /// A measure node whose expression reads a reference the node does
-    /// not carry (E3). The expression indexes the reference list
-    /// positionally, so this is a corrupt file, not a stale reference:
-    /// `Rebind` cannot repair an index.
-    MeasureRefs {
-        /// The offending node.
-        node: SpokenNode,
-        /// What is wrong with it.
-        fault: crate::node::MeasureNodeFault,
-    },
     /// A node whose structural content is invalid (DM5): inputs that
     /// are not pairwise distinct, a LIST input holding fewer than two
     /// entries, or a name designation outside the canonical form its
@@ -1387,48 +1467,31 @@ pub enum SnapshotError {
     InputList {
         /// The offending node.
         node: SpokenNode,
-        /// What is wrong with it. A repeated input is
-        /// [`SnapshotError::DuplicateInput`], not a list fault.
+        /// What is wrong with it.
         fault: crate::node::ListFault,
     },
-    /// A node reaching one input twice (DM5) — [`Node::input_fault`]'s
-    /// `Duplicate` answer, named apart from
-    /// [`SnapshotError::InputList`] as the edit door names it
-    /// (`EditError::DuplicateInput`), because the input it repeats is a
-    /// node this door speaks.
-    DuplicateInput {
-        /// The node whose input list repeats.
-        node: SpokenNode,
-        /// The input it reaches twice.
-        input: SpokenNode,
-    },
-    /// An assertion whose reference is not a measure at all (E10):
-    /// there is no measured dimension for the bound to agree with. The
-    /// edit door refuses it, so a file carrying one is data the edit
-    /// door would never have produced.
-    AssertionTarget {
-        /// The offending assertion.
-        node: SpokenNode,
-        /// What it references.
-        measure: SpokenNode,
-        /// The bound's dimension.
-        bound: crate::expr::Dimension,
-    },
     /// An assertion whose bound is dimensioned differently from the
-    /// measure it constrains (E10) — the assertion compares two
-    /// different quantities. Its own arm rather than
-    /// [`SnapshotError::AssertionTarget`]: a reader should not have to
-    /// decode an absent dimension to tell a missing measure from a
-    /// mismatched one, and the repairs differ.
+    /// value it bounds (E10) — the assertion compares two different
+    /// quantities.
     AssertionBound {
         /// The offending assertion.
         node: SpokenNode,
-        /// The measure it constrains.
-        measure: SpokenNode,
-        /// What that measure yields.
+        /// The value's dimension.
         measured: crate::expr::Dimension,
         /// The bound's dimension.
         bound: crate::expr::Dimension,
+    },
+    /// A construction whose slot reads an observed variable (D10): a
+    /// measure's output, or a definition reading one. Only an assertion
+    /// reads one, and the edit door refuses the rest
+    /// (`EditError::ConstructionReadsObserved`).
+    ObservedRead {
+        /// The reading node.
+        node: SpokenNode,
+        /// Its slot.
+        slot: crate::node::SlotId,
+        /// The variable the slot reads.
+        var: crate::SpokenVar,
     },
     /// An appearance metadata value violating the D7 producer
     /// convention (map with an integer `"v"`).
@@ -1488,7 +1551,7 @@ fn frame_refusal(
 
 // The document layer's prose for a corrupt snapshot: each arm states
 // WHAT is wrong and WHERE, and forwards the payload's own `Display`
-// wherever the payload has one (`RootFault`, `PlacementRuleFault`,
+// wherever the payload has one (`PlacementRuleFault`,
 // `MetaVersionError`) — a site that re-states a payload it holds
 // invents a second vocabulary for a refusal that already has one. A
 // node or a name renders through its spoken `Display` (`SpokenNode`,
@@ -1506,6 +1569,11 @@ impl core::fmt::Display for SnapshotError {
                 "the mint's log does not count up from one at {entry} — its ordinal is not its \
                  place in the log (a repeat, a step down or a gap), which no mint writes. {}",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
+            Self::NameReadNotMinted { name, read } => write!(
+                f,
+                "{name} carries the read {read}, which the document's mint log does not hold \
+                 as a variable's — the document never minted it",
             ),
             Self::NameStepNotMinted { name, step } => write!(
                 f,
@@ -1527,28 +1595,38 @@ impl core::fmt::Display for SnapshotError {
                  was a read. {}",
                 crate::sentence::Recourse(super::REGENERATE_RECOURSE)
             ),
-            Self::MeasuresWorldCopy { node, placement } => write!(
-                f,
-                "{node} is sited at {placement}, whose copy only the product and export read"
-            ),
+            Self::SelectionShape { var, fault } => {
+                write!(f, "{var} is not a selection a door writes: {fault}")
+            }
+            Self::SelectionBody { var, fault } => match fault {
+                SelectionBodyFault::Unminted { body } => write!(
+                    f,
+                    "{var} selects in {body}, which the document's mint log does not hold as a \
+                     variable. {}",
+                    crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+                ),
+                SelectionBodyFault::Kind { body, found } => {
+                    write!(
+                        f,
+                        "{var} selects in {body}, which is {} {found}, not a body",
+                        crate::sentence::article(&found.to_string())
+                    )
+                }
+            },
             Self::ReadsWorldCopy {
                 node,
                 slot,
                 placement,
             } => write!(
                 f,
-                "{node}'s {slot} reads the world copy {placement} makes, and construction never \
-                 reads the world"
+                "{node}'s {slot} reads the world copy {placement} makes, which no construction \
+                 reads: only the product, export and a measure do"
             ),
             Self::ReadCycle { at } => write!(
                 f,
                 "the nodes' reads close a loop through {at} — no edit writes one. {}",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
-            Self::DuplicateInput { node, input } => {
-                write!(f, "{node}: ")?;
-                crate::node::duplicate_input(f, input)
-            }
             Self::WitnessSite { node } => {
                 write!(f, "a witness is attached to {node}, which bears no sketch")
             }
@@ -1729,28 +1807,21 @@ impl core::fmt::Display for SnapshotError {
                  declared {declared}",
                 referenced.article()
             ),
-            Self::MeasureRefs { node, fault } => write!(f, "{node}: {fault}"),
             Self::InputList { node, fault } => write!(f, "{node}: {fault}"),
             Self::AssertionBound {
                 node,
-                measure,
                 measured,
                 bound,
             } => write!(
                 f,
-                "{node} bounds {measure}, which measures {} {measured}, with {} {bound} \
-                 expression",
+                "{node} bounds {} {measured} value with {} {bound} expression",
                 measured.article(),
                 bound.article()
             ),
-            Self::AssertionTarget {
-                node,
-                measure,
-                bound,
-            } => write!(
+            Self::ObservedRead { node, slot, var } => write!(
                 f,
-                "{node} carries {} {bound} bound against {measure}, which is not a measure",
-                bound.article(),
+                "{node}'s slot {} reads {var}, a measured value, which only an assertion reads",
+                slot.label()
             ),
             Self::MetadataUnversioned { name, key, error } => write!(
                 f,
@@ -1810,12 +1881,6 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     }
     for (&id, node) in &doc.nodes {
         check_id(id)?;
-        // A measure's sites are names read at a node, which a delete
-        // strands; what only a file can be wrong about is an id the
-        // document never minted.
-        for at in node.measure_sites() {
-            check_id(at)?;
-        }
         // Every node a reference is READ AT that is not also an
         // input (`Node::payload_read_sites` — a mate's two operands):
         // an id the mint log does not hold inside an operand is as corrupt as
@@ -1874,57 +1939,20 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
         // log replays through the doors and is covered by them; the
         // snapshot beside it is not, so the rule is asked here, of the
         // same function, in this door's vocabulary.
-        //
-        // That covers the name designations too — a shell's `open`, a
-        // blend's `selection`. A payload has ONE canonical form, held by
-        // every door that admits a node, so the question is asked in one
-        // place and this door only names the answer.
         if let Some(fault) = node.input_fault() {
-            return Err(match fault.list_fault() {
-                Err(input) => SnapshotError::DuplicateInput {
-                    node: doc.spoken(id),
-                    input: doc
-                        .defined_by(input)
-                        .map_or_else(|| SpokenNode::absent(id), |(at, _)| doc.spoken(at)),
-                },
-                Ok(fault) => SnapshotError::InputList {
-                    node: doc.spoken(id),
-                    fault,
-                },
-            });
-        }
-        // The measurement vocabulary's two structural re-checks, for
-        // the same reason the placement rule has one: a saved file is
-        // DATA, and both of these are refused at the edit door.
-        if let Some(fault) = node.measure_fault() {
-            return Err(SnapshotError::MeasureRefs {
+            return Err(SnapshotError::InputList {
                 node: doc.spoken(id),
-                fault,
+                fault: fault.list_fault(),
             });
         }
-        // An assertion's bound against the measure it constrains
-        // (E10), by the same `Node::assertion_bound_fault` the edit
-        // door asks: the predicate needs the DOCUMENT, so it takes one,
-        // and this door only names its two answers.
-        if let Some(fault) = node.assertion_bound_fault(doc) {
-            return Err(match fault {
-                AssertionBoundFault::TargetNotMeasure { measure, bound } => {
-                    SnapshotError::AssertionTarget {
-                        node: doc.spoken(id),
-                        measure: doc.spoken(measure),
-                        bound,
-                    }
-                }
-                AssertionBoundFault::DimensionMismatch {
-                    measure,
-                    measured,
-                    bound,
-                } => SnapshotError::AssertionBound {
-                    node: doc.spoken(id),
-                    measure: doc.spoken(measure),
-                    measured,
-                    bound,
-                },
+        // An assertion's bound against its value (E10), by the same
+        // `Node::assertion_bound_fault` the edit door asks: a saved
+        // file is DATA.
+        if let Some(AssertionBoundFault { measured, bound }) = node.assertion_bound_fault(doc) {
+            return Err(SnapshotError::AssertionBound {
+                node: doc.spoken(id),
+                measured,
+                bound,
             });
         }
         // ASM-R2a D-1: a mate's alignment is authored numbers a
@@ -1953,6 +1981,18 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     for carrier in doc.name_carriers() {
         for n in derivation_nodes(carrier.name()) {
             check_id(n)?;
+        }
+        // And every read it carries, against the mint log: the entity
+        // derives from that input, and a read is an id no embedded name
+        // states.
+        if let Some(read) = derivation_reads(carrier.name())
+            .into_iter()
+            .find(|r| !doc.mint.has_var(*r))
+        {
+            return Err(SnapshotError::NameReadNotMinted {
+                name: doc.spoken_name(carrier.name()),
+                read,
+            });
         }
         // And every profile step it spells, against the mint log: a
         // step a `SetProgram` dropped stays in it.
@@ -2172,7 +2212,9 @@ mod tests {
             DisplayUnit,
             Vars,
             OutputSignature,
+            Selection,
             DefinitionRead,
+            ObservedRead,
             DefinitionCycle,
             SlotRead,
             PayloadRead,
@@ -2194,7 +2236,9 @@ mod tests {
             Walk::NonFinite | Walk::Distribution | Walk::DisplayUnit | Walk::Program => false,
             Walk::Vars
             | Walk::OutputSignature
+            | Walk::Selection
             | Walk::DefinitionRead
+            | Walk::ObservedRead
             | Walk::DefinitionCycle
             | Walk::SlotRead
             | Walk::PayloadRead
@@ -2213,11 +2257,13 @@ mod tests {
             NodeNotMinted,
             StepIds,
             MintLogOrder,
+            NameReadNotMinted,
             NameStepNotMinted,
             DeclaredNameNotUpstream,
             OperandUnminted,
             ReadsWorldCopy,
-            MeasuresWorldCopy,
+            SelectionShape,
+            SelectionBody,
             ReadCycle,
             WitnessSite,
             WitnessOnMissingNode,
@@ -2234,6 +2280,7 @@ mod tests {
             SharedVarNeedsName,
             DefinitionReadsUnmintedVar,
             DefinitionVarKind,
+            ObservedRead,
             DefinitionCycle,
             DefinitionTooLarge,
             EpsilonInvalid,
@@ -2244,10 +2291,7 @@ mod tests {
             PlacementNonRigid,
             MateAlignment,
             PlacementRule,
-            MeasureRefs,
             InputList,
-            DuplicateInput,
-            AssertionTarget,
             AssertionBound,
             MetadataUnversioned,
         ];
@@ -2268,6 +2312,9 @@ mod tests {
             | SnapshotError::NameOnMissingVar { .. }
             | SnapshotError::VarNameTwice { .. } => Walk::Vars,
             SnapshotError::OutputSignature { .. } => Walk::OutputSignature,
+            SnapshotError::SelectionShape { .. } | SnapshotError::SelectionBody { .. } => {
+                Walk::Selection
+            }
             // An operand's kind is the operand walk's; the expression
             // walks raise the rest, and the slot walk runs first.
             SnapshotError::SlotVarKind {
@@ -2278,20 +2325,22 @@ mod tests {
                 Walk::SlotRead
             }
             SnapshotError::PayloadVarKind { .. } => Walk::PayloadRead,
-            SnapshotError::OperandUnminted { .. }
-            | SnapshotError::ReadsWorldCopy { .. }
-            | SnapshotError::MeasuresWorldCopy { .. } => Walk::OperandRead,
+            SnapshotError::OperandUnminted { .. } | SnapshotError::ReadsWorldCopy { .. } => {
+                Walk::OperandRead
+            }
             SnapshotError::AnonymousVarUnread { .. } | SnapshotError::SharedVarNeedsName { .. } => {
                 Walk::UnnamedReader
             }
             SnapshotError::DefinitionReadsUnmintedVar { .. }
             | SnapshotError::DefinitionVarKind { .. } => Walk::DefinitionRead,
+            SnapshotError::ObservedRead { .. } => Walk::ObservedRead,
             SnapshotError::DefinitionCycle { .. } | SnapshotError::DefinitionTooLarge { .. } => {
                 Walk::DefinitionCycle
             }
             // `validate_snapshot`, which is where the rest live.
             SnapshotError::NodeNotMinted { .. }
             | SnapshotError::StepIds { .. }
+            | SnapshotError::NameReadNotMinted { .. }
             | SnapshotError::NameStepNotMinted { .. }
             | SnapshotError::DeclaredNameNotUpstream { .. }
             | SnapshotError::ReadCycle { .. }
@@ -2306,10 +2355,7 @@ mod tests {
             | SnapshotError::PlacementNonRigid { .. }
             | SnapshotError::MateAlignment { .. }
             | SnapshotError::PlacementRule { .. }
-            | SnapshotError::MeasureRefs { .. }
             | SnapshotError::InputList { .. }
-            | SnapshotError::DuplicateInput { .. }
-            | SnapshotError::AssertionTarget { .. }
             | SnapshotError::AssertionBound { .. }
             | SnapshotError::MetadataUnversioned { .. } => Walk::Snapshot,
         }
@@ -2356,6 +2402,10 @@ mod tests {
             SnapshotError::MintLogOrder {
                 entry: crate::Minted::Step(crate::node::StepId::new(0, 3)),
             },
+            SnapshotError::NameReadNotMinted {
+                name: crate::SpokenName::absent(face()),
+                read: crate::VarId::new(0, 9),
+            },
             SnapshotError::NameStepNotMinted {
                 name: crate::SpokenName::absent(face()),
                 step: crate::node::StepId::new(0, 9),
@@ -2378,12 +2428,18 @@ mod tests {
             },
             SnapshotError::ReadsWorldCopy {
                 node: node(),
-                slot: SlotId::Operand(crate::OperandSlot::A),
+                slot: SlotId::Operand(crate::OperandSlot::From),
                 placement: node(),
             },
-            SnapshotError::MeasuresWorldCopy {
-                node: node(),
-                placement: node(),
+            SnapshotError::SelectionShape {
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+                fault: crate::var::SelectionFault::Singleton { count: 2 },
+            },
+            SnapshotError::SelectionBody {
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+                fault: super::SelectionBodyFault::Unminted {
+                    body: crate::VarId::new(0, 8),
+                },
             },
             SnapshotError::ReadCycle { at: at(9) },
             SnapshotError::WitnessSite { node: node() },
@@ -2485,32 +2541,19 @@ mod tests {
                 node: node(),
                 fault: crate::node::PlacementRuleFault::NoPlacements,
             },
-            SnapshotError::MeasureRefs {
-                node: node(),
-                fault: crate::node::MeasureNodeFault::RefIndexOutOfRange {
-                    verb: "distance",
-                    index: 3,
-                    refs: 2,
-                },
-            },
             SnapshotError::InputList {
                 node: node(),
-                fault: crate::node::ListFault::TooFew { found: 1 },
-            },
-            SnapshotError::DuplicateInput {
-                node: node(),
-                input: at(9),
-            },
-            SnapshotError::AssertionTarget {
-                node: node(),
-                measure: at(4),
-                bound: Dimension::Count,
+                fault: crate::node::ListFault::IndexedFamily,
             },
             SnapshotError::AssertionBound {
                 node: node(),
-                measure: at(4),
                 measured: Dimension::Length,
                 bound: Dimension::Angle,
+            },
+            SnapshotError::ObservedRead {
+                node: node(),
+                slot: crate::node::SlotId::Distance,
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
             },
             SnapshotError::MetadataUnversioned {
                 name: crate::SpokenName::absent(face()),

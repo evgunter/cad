@@ -67,8 +67,6 @@ mod probe_support;
 mod analytic_rung3_at_rest;
 #[path = "at_rest_pcurve_rows.rs"]
 mod at_rest_pcurve_rows;
-#[path = "axis_source_rows.rs"]
-mod axis_source_rows;
 #[path = "bool4_material_containment.rs"]
 mod bool4_material_containment;
 #[path = "bool4r1_probes.rs"]
@@ -117,8 +115,6 @@ mod cube_doors_agree;
 mod display_contract;
 #[path = "euler_site_pcurve_rows.rs"]
 mod euler_site_pcurve_rows;
-#[path = "geom_origin_rows.rs"]
-mod geom_origin_rows;
 #[path = "geometric_cube.rs"]
 mod geometric_cube;
 #[path = "graft_disjoint.rs"]
@@ -223,6 +219,8 @@ mod r1_mate8_probes;
 mod r2_probes;
 #[path = "readback_sense_kind.rs"]
 mod readback_sense_kind;
+#[path = "records_cite_their_decision.rs"]
+mod records_cite_their_decision;
 #[path = "result_gate_sites.rs"]
 mod result_gate_sites;
 #[path = "review_cleave_farplane.rs"]
@@ -358,6 +356,10 @@ mod lane2_r2_probes;
 #[path = "replace_face_band_probes.rs"]
 mod replace_face_band_probes;
 
+#[path = "a_corner_flat_at_its_short_bounds.rs"]
+mod a_corner_flat_at_its_short_bounds;
+#[path = "a_meridian_witness_contradicts_only_off_its_locus.rs"]
+mod a_meridian_witness_contradicts_only_off_its_locus;
 #[path = "a_vertex_read_again_classes_every_edge.rs"]
 mod a_vertex_read_again_classes_every_edge;
 #[path = "a_vertex_read_by_two_sector_passes.rs"]

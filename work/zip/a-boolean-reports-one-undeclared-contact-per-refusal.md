@@ -2,11 +2,11 @@
 id: a-boolean-reports-one-undeclared-contact-per-refusal
 kind: issue
 title: A boolean reports one undeclared contact per refusal, so n flush contacts cost the author n declare round trips
-status: parked
+status: closed
+closed: 2026-10-09
 opened: 2026-09-30
 priority: P3
 cost: M
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -27,3 +27,7 @@ This row is on declared-contact ground, so it waits on `d10-one-way-to-say-inten
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: UndeclaredCoincidence refusals retire at stage 4 and become unproven-coincidence findings, so the one-pair-per-refusal shape goes with them. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (2026-10-09, INTENT stage 4 E (`intent/s4-e-glue-on-zero`))
+
+`BooleanError::UndeclaredCoincidence` is deleted. A flush contact decided Zero now glues undeclared: the boolean declares every such pair at its entry (`crates/topo/src/boolean/glue.rs:40`, `:72`–`:78`). A union with n flush contacts therefore builds in one evaluation, and nothing is left to declare. AUTH-9's two-contact row is now `a_union_across_two_flush_contacts_lands_as_one_action` (`crates/viewer/tests/combine_ops.rs:3327`): the union lands as one action, and the refusal it accumulated across is gone.

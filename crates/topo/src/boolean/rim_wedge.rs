@@ -101,8 +101,8 @@ pub(crate) enum RimRouting {
 /// separation. What differs is the subject. `carrier_eq` is a ladder
 /// over SURFACE carriers — its inventory is plane, sphere, cylinder,
 /// torus, its verdict is a material-side relation (`SameOriented` /
-/// `SameOpposite` / `Distinct`), and its rungs consult recipe sources
-/// and declared intent. A rim is a CURVE, it has no material side, and
+/// `SameOpposite` / `Distinct`), and its rungs consult declared
+/// intent. A rim is a CURVE, it has no material side, and
 /// no declaration is being verified here: the question is only "are
 /// these two boundary edges the same circle". Consuming the ladder
 /// would mean giving it a curve-carrier variant with no orientation and
@@ -142,11 +142,11 @@ pub(crate) fn shared_rim<T: Decide>(
     b: &Body<T>,
     fb: FaceKey,
     band: Band,
-) -> Result<Option<Rim<T>>, Indeterminate> {
+) -> Result<Option<(Rim<T>, geom_core::MarginDiag)>, Indeterminate> {
     for ra in face_boundary_circles(a, fa) {
         for rb in face_boundary_circles(b, fb) {
-            if same_circle(ra, rb, band)? {
-                return Ok(Some(ra));
+            if let Some(margin) = same_circle(ra, rb, band)? {
+                return Ok(Some((ra, margin)));
             }
         }
     }
@@ -158,7 +158,14 @@ pub(crate) fn shared_rim<T: Decide>(
 /// non-rim pair definitely and cheaply, so ordering them ahead of the
 /// angular row keeps the sliver band from being consulted at all on
 /// pairs that are not candidates. [`shared_rim`]'s docs carry the rest.
-fn same_circle<T: Decide>(ra: Rim<T>, rb: Rim<T>, band: Band) -> Result<bool, Indeterminate> {
+/// The circles' one margin, where every datum decides Zero: the
+/// radius row's.
+fn same_circle<T: Decide>(
+    ra: Rim<T>,
+    rb: Rim<T>,
+    band: Band,
+) -> Result<Option<geom_core::MarginDiag>, Indeterminate> {
+    let mut first = None;
     for (name, margin) in [
         ("rim_circle_radius", Margin::of(ra.radius - rb.radius)),
         ("rim_circle_center", Margin::norm3(ra.center - rb.center)),
@@ -167,12 +174,17 @@ fn same_circle<T: Decide>(ra: Rim<T>, rb: Rim<T>, band: Band) -> Result<bool, In
             Margin::levered(ra.axis.cross(rb.axis).norm(), ra.radius + rb.radius),
         ),
     ] {
-        match crate::validate::decide(name, margin, band)? {
-            geom_core::Sign::Zero => {}
-            geom_core::Sign::Positive | geom_core::Sign::Negative => return Ok(false),
+        match crate::validate::decide_reported(name, margin, band)? {
+            geom_core::Decided {
+                sign: geom_core::Sign::Zero,
+                margin,
+            } => {
+                first = first.or(Some(margin));
+            }
+            geom_core::Decided { .. } => return Ok(None),
         }
     }
-    Ok(true)
+    Ok(first)
 }
 
 /// The curve two declared faces are tangent along: a shared rim circle,
@@ -835,7 +847,8 @@ fn rides<T: Decide>(
             },
             rim,
             band,
-        ),
+        )
+        .map(|one| one.is_some()),
         (Locus::Line { origin, dir }, geom::Curve3::Line { .. }) => {
             let (t0, t1) = curve.params();
             for p in [curve.carrier().eval(t0), curve.carrier().eval(t1)] {

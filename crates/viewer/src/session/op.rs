@@ -16,8 +16,8 @@
 use std::path::PathBuf;
 
 use pncad::document::{
-    Alignment, BooleanOp, DocEdit, DocumentId, Formula, Frame, FreeVar, Label, LoopProgram,
-    Maintenance, Operand, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId, VarId, VarName,
+    Alignment, DocEdit, DocumentId, Formula, Frame, FreeVar, Label, LoopProgram, Maintenance,
+    Operand, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId, VarId, VarName,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
@@ -610,47 +610,36 @@ pub enum SessionOp {
         /// turn.
         angle: Formula,
     },
-    /// Insert one regularized boolean of two existing bodies — the
-    /// boolean tool's one committed action (GAUTH-4).
+    /// Insert one boolean of existing bodies — the boolean tool's one
+    /// committed action (GAUTH-4).
+    ///
+    /// **The spec is the node's shape** ([`super::BooleanSpec`]): a
+    /// union or an intersect of a list of members, any count, or a
+    /// subtraction of exactly two operands whose order is data — `from`
+    /// is kept and `tool` removed. Any operand's non-body pick refuses
+    /// [`Refusal::WrongNodeKind`] at this layer. A node listed twice is
+    /// not refused: a repeated read glues, so it is a document like any
+    /// other.
     ///
     /// **The result takes the operands' place in the world** (A10, Ev's
     /// residue 1): the placements of the first operand the world
-    /// places, in seat order, are re-pointed to the boolean through the
-    /// slot door, and the other operand's placements are deleted, in
-    /// the same action — so `a ∘ b` with both placed leaves the world
-    /// `[result]`, and one undo restores `[a, b]`. Operands nothing
-    /// places place nothing.
-    ///
-    /// **The operand order is data**: `Subtract` keeps `a` and removes
-    /// `b`, so the two seats are not interchangeable and the form says
-    /// which pick is which. Either seat's non-body pick refuses
-    /// [`Refusal::WrongNodeKind`] at this layer; one node in BOTH
-    /// seats is refused by the edit door, as
-    /// `EditError::DuplicateInput` — the pairwise-distinct rule is a
-    /// fact about any node's inputs, not about booleans, so it is
-    /// stated once where every node kind reaches it.
+    /// places, in the spec's order, are re-pointed to the boolean
+    /// through the slot door, and every other operand's placements are
+    /// deleted, in the same action — so a combine of placed bodies
+    /// leaves the world `[result]`, and one undo restores them. A
+    /// repeated operand counts once; operands nothing places place
+    /// nothing.
     ///
     /// **The findings become the boolean's own declared pairs**: an
     /// empty `declare` authors an undeclared boolean, and a non-empty
     /// one a boolean carrying exactly those findings' pairs — one
-    /// insert, one undo. The door evaluates
-    /// the boolean before recording it, and one that refuses an
-    /// undeclared contact of its own is not committed:
-    /// [`Refusal::Contact`] carries the kernel's finding back, and its
-    /// offer is this op again with that finding added. The door
-    /// declares what it is handed and guesses nothing; that the boolean
-    /// tool hands it only pairs a refusal reported and the author
-    /// accepted is the tool's gesture, not a property of the findings'
-    /// type.
+    /// insert, one undo. The door declares what it is handed and
+    /// guesses nothing.
     AddBoolean {
-        /// The operation — the KERNEL's enum, which the recipe node
-        /// carries unconverted.
-        op: BooleanOp,
-        /// The first operand: the body a subtraction keeps.
-        a: Operand,
-        /// The second operand: the body a subtraction removes.
-        b: Operand,
-        /// The contacts declared, in the refusals' own finding shape.
+        /// The operation and its operands.
+        spec: super::BooleanSpec,
+        /// The contacts declared, in the refusals' own finding shape,
+        /// each sited at the operand READS it names.
         declare: Vec<FlushFinding>,
     },
     /// Insert one split of an existing body by an existing datum
@@ -762,7 +751,7 @@ pub enum SessionOp {
     /// that is the freeze rule rather than an omission. Whether a name
     /// still resolves through the target's table is evaluation's
     /// question, answered typed on the node's own badge
-    /// (`NodeErrorKind::BlendSelectionResolve`, and
+    /// (`NodeErrorKind::SelectResolve`, and
     /// `BlendSelectionEmpty` for an empty set) — a door that
     /// pre-screened it would be a second authority on the same fact,
     /// and would refuse to author the node whose refusal is the honest

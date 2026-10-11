@@ -106,16 +106,17 @@ pub use appearance::{
     Attr, AttrKind, AttrSet, Rgba8,
 };
 pub use assembly::{
-    Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
-    CarriedRefusal, CarriedUnplaced, MintRefusal, MintedDeclaration, RefusedRef, Relation, Route,
-    assemble, assemble_gathered,
+    Assembly, AssemblyError, AtRestFinding, AtRestRow, Attribution, CarriedDeclaration,
+    CarriedDeclarations, CarriedRefusal, CarriedUnplaced, MintRefusal, MintedDeclaration,
+    RefusedRef, Relation, Route, assemble, assemble_gathered,
 };
+pub use checks::at_rest::{CopyRef, FaceSite, InterferenceFinding, Overlap, Unlocalized};
 pub use checks::{
     Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
     ChecksConfig, ChecksError, ChecksReport, FindingSubject, Severity, Subject, enforce_checks,
     run_checks, run_checks_on, subject_body,
 };
-pub use coincide::{NamedCell, NamedCoincidence, Proof, Residual, Rung};
+pub use coincide::{CitedInput, NamedCell, NamedCoincidence, Proof, Residual, Rung};
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
 pub use doc::{
@@ -128,9 +129,10 @@ pub use drive::{
 };
 pub use edit::{
     Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, Maintenance,
-    MaintenanceNet, Recorded, Recording, RegaugeThenMateOutcome, SlotValue, Took, apply,
-    apply_replayed, cascade_delete_order, regauge_then_mate,
+    MaintenanceNet, MeasureOutcome, Measured, Recorded, Recording, RegaugeThenMateOutcome,
+    SlotValue, Took, apply, apply_replayed, cascade_delete_order, measure, regauge_then_mate,
 };
+pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
     Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
     ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch, EvalOptions, EvalOutcome,
@@ -167,12 +169,12 @@ pub use mate::{
     reading_edges, relative_freedom_components, root_of, solve_document, table_gap,
 };
 pub use mc::{
-    DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport,
+    DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport, McValue,
     monte_carlo, sample_offsets,
 };
 pub use measure::{
-    ASSERT_BOUND, AssertionDir, AssertionVerdict, Certified, MeasureExpr, MeasurePrimitive,
-    MeasureUnavailableAt, MinClearanceLane, MinClearanceOperand, UnevaluatedReason,
+    ASSERT_BOUND, AssertionRelation, AssertionVerdict, Certified, MeasurePrimitive,
+    MeasureUnavailableAt, MeasureVerb, MinClearanceLane, MinClearanceOperand, UnevaluatedReason,
     WINDOW_TIGHTENING,
 };
 pub use meta::{MetaError, MetaInt, MetaValue, MetaVersionError, from_value, to_value};
@@ -192,19 +194,19 @@ pub use names::{
     vertex_position,
 };
 pub use node::{
-    AuthoredNode, Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault,
-    InterfaceCrossing, InterfaceRecord, ListFault, MeasureNodeFault, Node, OutputPort, PartSelect,
-    PatternKind, PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId,
-    StepArg, StepId, TubeWindow, VectorSlot, declare_continuation, declare_rest,
+    AuthoredNode, Axis3, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault,
+    InterfaceCrossing, InterfaceRecord, ListFault, Node, OutputPort, PartSelect, PatternKind,
+    PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId, StepArg,
+    StepId, TubeWindow, VectorSlot, declare_continuation, declare_rest,
 };
-pub use operand::{Operand, OperandSlot, SlotKind};
+pub use operand::{Bodies, BodyRead, Operand, OperandSlot, SlotKind};
 pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{
     Loaded, PersistError, REGENERATE_RECOURSE, canonical_bytes, content_pin, header_document_id,
     load, save,
 };
-pub use persist::{NonFiniteSite, OutputFault, ProgramFault, SnapshotError};
+pub use persist::{NonFiniteSite, OutputFault, ProgramFault, SelectionBodyFault, SnapshotError};
 pub use placement::{AxisRefusal, Frame, FrameFault, FrameSite, Placement, Step};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
@@ -232,9 +234,9 @@ pub use resolve::{
     NodeVerdictDelta, PredicateDivergence, RecipeEditRef, Resolution, ResolutionFailure,
     ResolveError, ResolveIndeterminate, Resolved, RunCtx, RunStatus, TieWitness, Tombstone,
     UnnamedEntity, UpstreamCause, VerdictFlip, appearance_rebind_suggestions, apply_with_names,
-    body_name, derivation_nodes, diff_verdicts, edge_name, enrich_appearance_loss,
-    enrich_appearance_loss_with_prior, entity_name, face_name, rebind_suggestions, resolve,
-    resolve_with_prior, vertex_name,
+    body_name, derivation_nodes, derivation_reads, diff_verdicts, edge_name,
+    enrich_appearance_loss, enrich_appearance_loss_with_prior, entity_name, face_name,
+    rebind_suggestions, resolve, resolve_with_prior, vertex_name,
 };
 pub use resolve::{
     NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictRow,
@@ -243,7 +245,9 @@ pub use resolve::{
 pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
-pub use var::{FreshEntry, Var, VarDecl, VarDef, VarId, VarKind, VarRef, WrittenDef};
+pub use var::{
+    FreshEntry, Select, SelectionFault, Var, VarDecl, VarDef, VarId, VarKind, VarRef, WrittenDef,
+};
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray
 // vocabulary re-exported from `bvh` so a layer-3 consumer needs no
 // direct bvh dependency.

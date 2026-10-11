@@ -10,8 +10,8 @@ use editor_core::ExtrudeSide;
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use editor_core::{
-    BooleanOp, CancelToken, Datum, EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult,
-    PatternKind, ProfileDoc, ValuePayload, evaluate,
+    CancelToken, Datum, EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult, PatternKind,
+    ProfileDoc, ValuePayload, evaluate,
 };
 use fixture::{ang, insert, len, on_frame, on_frame_keeping, scl};
 use geom_core::Tol;
@@ -241,10 +241,8 @@ fn linear_pattern_evaluates_instances_as_data() {
     let (doc2, other) = unit_cube(doc.clone(), 10.0, 10.0);
     let refusal = crate::fixture::insert_refused(
         &doc2,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: pat.into(),
-            b: other.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![pat.into(), other.into()]),
             declare: Vec::new(),
         },
     );
@@ -443,10 +441,8 @@ fn typed_refusal_doors() {
     let (doc, second) = unit_cube(doc, 5.0, 5.0);
     let refusal = crate::fixture::insert_refused(
         &doc,
-        Node::Boolean {
-            op: BooleanOp::Intersect,
-            a: split_node.into(),
-            b: second.into(),
+        Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![split_node.into(), second.into()]),
             declare: Vec::new(),
         },
     );
@@ -942,34 +938,35 @@ fn a_non_finite_pattern_direction_mints_nothing_at_the_interval_scalar() {
 }
 
 /// **A boolean's declared pairs are its own payload, and `SetDeclare`
-/// replaces them on the live node.** Undeclared, the flush contacts are
-/// refused; the same boolean with the pairs set fuses. A node that
-/// declares no contacts refuses the edit at the door.
+/// replaces them on the live node.** Undeclared, the flush contacts
+/// glue; the same boolean with the pairs set builds the same body. A
+/// node that declares no contacts refuses the edit at the door.
 #[test]
-fn set_declare_on_a_live_boolean_fuses_its_flush_contacts() {
+fn set_declare_on_a_live_boolean_builds_its_undeclared_body() {
     let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
     let (doc, a) = unit_cube(doc, 0.0, 0.0);
     let (doc, b) = unit_cube(doc, 0.5, 0.0); // overlapping, flush y/z planes
     let pairs = fixture::declare_x_offset_flush(&doc, a, b);
     let (doc, boolean) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
     let undeclared = run(&doc);
-    assert!(
-        matches!(
-            undeclared.nodes.get(&boolean),
-            Some(NodeResult::Failed(e))
-                if matches!(e.kind, NodeErrorKind::UndeclaredCoincidence { .. })
-        ),
-        "the flush contacts are refused while undeclared, got {:?}",
-        undeclared.nodes.get(&boolean)
-    );
+    let ValuePayload::Boolean(editor_core::BooleanValue::Body { body: bare, .. }) = &undeclared
+        .value(boolean)
+        .unwrap_or_else(|| {
+            panic!(
+                "the flush contacts glue undeclared, got {:?}",
+                undeclared.nodes.get(&boolean)
+            )
+        })
+        .payload
+    else {
+        panic!("expected boolean body");
+    };
 
     let declared = doc
         .apply(
@@ -982,7 +979,7 @@ fn set_declare_on_a_live_boolean_fuses_its_flush_contacts() {
         )
         .expect("a live boolean takes a declared-pair list");
     assert_eq!(declared.record.minted, None, "the edit mints nothing");
-    let Some(Node::Boolean { declare, .. }) = declared.doc.node(boolean) else {
+    let Some(Node::Union { declare, .. }) = declared.doc.node(boolean) else {
         panic!("the boolean is live under its own id");
     };
     assert_eq!(declare, &pairs, "the list is the one set");
@@ -993,6 +990,11 @@ fn set_declare_on_a_live_boolean_fuses_its_flush_contacts() {
         panic!("expected boolean body");
     };
     assert_eq!(mass_properties(body, Tol::witness()).unwrap().volume, 1.5); // dyadic union
+    assert_eq!(
+        format!("{body:?}"),
+        format!("{bare:?}"),
+        "the declared boolean is the undeclared one's body"
+    );
 
     let refused = doc.apply(
         &editor_core::DocEdit::SetDeclare { node: a, pairs },

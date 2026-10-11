@@ -12,9 +12,9 @@
 use crate::docm7_union_declare::block;
 use crate::fixture;
 use editor_core::{
-    BooleanOp, Dimension, Distribution, DocEdit, DocumentId, EditError, Formula, FreeVar, Node,
-    PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SplitError, UnitSym, UpstreamCause,
-    VarKind, VarName, apply,
+    Dimension, Distribution, DocEdit, DocumentId, EditError, Formula, FreeVar, Node, PatternKind,
+    ProfileDoc, ProfileProgram, RecipeNodeId, SplitError, UnitSym, UpstreamCause, VarKind, VarName,
+    apply,
 };
 use fixture::{fname, insert, len, run, scl, step, wall};
 use geom_core::{Sign, Tol};
@@ -192,18 +192,19 @@ fn forward_selection() -> (ProfileDoc, editor_core::StableName, editor_core::Sta
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {
-            target: a.into(),
             radius: len(0.1),
-            selection: vec![fname(b, wb.clone())],
+            selection: editor_core::Operand::select(a, vec![fname(b, wb.clone())]),
         },
     );
     let doc = crate::fixture::place(doc, fillet).0;
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let wc = wall(&doc, c, 0);
     let (from, to) = (fname(b, wb), fname(c, wc));
+    let body = doc.output(a, 0);
     let (doc, _) = step(
         doc,
         DocEdit::Rebind {
+            body,
             from: from.clone(),
             to: to.clone(),
         },
@@ -246,9 +247,11 @@ fn a_split_that_cannot_rebuild_a_forward_reference_names_the_rebind_that_gets_th
             && text.matches("Recourse:").count() == 1,
         "the split's own recourse, once, and not the insert door's: {text}"
     );
+    let body = crate::fixture::body_selecting(&doc, &forward);
     let (back_doc, _) = step(
         doc,
         DocEdit::Rebind {
+            body,
             from: forward,
             to: back,
         },
@@ -354,10 +357,9 @@ fn every_predicate_a_subtract_logs_has_words_or_a_reason() {
     let (doc, m) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, _cut) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: a.into(),
-            b: m.into(),
+        Node::Subtract {
+            from: a.into(),
+            tool: m.into(),
             declare: Vec::new(),
         },
     );

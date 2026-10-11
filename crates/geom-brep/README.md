@@ -46,7 +46,7 @@ escalated typed refusal, never a raw comparison.
 
 **C1 — Intersection loci live on a three-rung ladder.** The *carrier*
 of an `Intersection` edge (the 3-D curve cached against the intensional
-description `{s1, s2, witness}`) is, by surface-kind pair and most exact
+description `{pair, witness}`) is, by surface-kind pair and most exact
 first: rung 1, closed-form `Line`/`Circle`; rung 2, the exact conic
 `Curve3::Ellipse` (tilted plane×cylinder, tilted plane×cone,
 equal-radius cylinder×cylinder)
@@ -65,8 +65,9 @@ centre are what dispatch consumes). There is no polyline rung.
 **C2 — A fitted carrier's certificate has three limbs, all mandatory.**
 (1) On-locus residual at the fixed `CERT_SAMPLES` schedule: `|f(C(t))|`
 in metres for an analytic operand (`implicit.rs`); for a NURBS operand
-`|C(t) − S(u*,v*)|` at a certified foot point whose orthogonality
-residual is banded too, so a bad projection cannot launder a bad cache.
+`|C(t) − S(u*,v*)|` at the projected foot point; any point of the
+surface bounds the distance from above, so a foot is owed no limb of
+its own.
 (2) Sup-norm honesty between samples, by control-coefficient hull bounds
 in certification arithmetic (C9): `geom_core::spline::compose` composes
 the implicit form with the carrier (converted to metres by a constant
@@ -80,7 +81,22 @@ search's limbs do not yet, which is why their rung-3 arms are
 unretired), and `compose::tensor` encloses
 `S(P(t)) − C(t)` as one composite for a NURBS operand so the
 cancellation that is the whole content of the claim survives into the
-bound. (3) The uniqueness tube: over a chain of boxes of certified radius
+bound. Where the bound does not clear the band, the composite's
+uncleared spans are halved round by round under a budget
+(`SSI_HULL_WORK` spans recomputed over the rounds, `SSI_HULL_CUTS`
+breaks added), each piece cut from its Bézier segment's own row so no
+cut compounds another's width: the limb passes once the bound clears;
+refuses on the composite's certified value at a break where that lies
+past the band's zero, since no bound over a span holding the break can
+clear (against an analytic operand that value is limb 1's residual, a
+measured miss; against a NURBS one it is the bound's own quantity at a
+point, a bound on the miss); and refuses on the lowest bound any round
+reached where the budget is spent, or two rounds in a row leave that
+lowest bound where it was, first — so a first composite already over
+`SSI_HULL_WORK` spans is never subdivided and refuses on its first
+hull, a later round whose bound is NaN stops on the lowest certified
+bound before it rather than escalating, and a round that only equals
+the lowest bound counts as not lowering it. (3) The uniqueness tube: over a chain of boxes of certified radius
 around the carrier, the enclosure of `(∇f₁ × ∇f₂)·e` excludes zero, so
 by a mean-value argument each slice holds at most one solution, and each
 connected piece of the solution set in a box ends on the box's boundary
@@ -135,12 +151,14 @@ picks.** `CertCheck` carries a `Display` on its declaring row, written
 as an exhaustive match so a check the taxonomy gains has no word until
 someone writes one, and `CertifyError`'s three check-naming arms render
 through it. Each word is the phrase a person would write ("the
-out-of-halfplane component"), not the variant identifier: these rows are
+between-samples sag bound"), not the variant identifier: these rows are
 not doors anyone calls, so the identifier buys a reader nothing that the
 typed field does not already give a program, and every neighbouring arm
 of the same `Display` is English prose. The word also carries the KIND
-of quantity the check meters, because the sentence cannot — five of the
-fifteen checks that reach the definite arm meter no residual. The
+of quantity the check meters, because the sentence cannot: not every
+check that reaches the definite arm meters a residual (a sup bound,
+`CertCheck::bounds_a_miss`; a parallelism defect), and the exhaustive
+match is where each one's kind is written. The
 censuses beside the taxonomy hold the words apart and hold each away
 from its identifier: two checks saying one phrase makes a refusal
 ambiguous about what it refused, and a phrase that IS the identifier is
@@ -186,7 +204,7 @@ midpoint, the state Newton started from: in the band the surfaces are
 near tangent there (`SsiError::TransversalityBand`), undecided the
 decision escalates (`SsiError::Escalated` on `ssi_transversality`), and
 either is the refusal, with the clearer angle's lever; clear of it, the
-gap is one refinement cannot halve. Where the refused margin stops
+gap is one refinement cannot halve. Where the refused residual stops
 falling over two consecutive rounds (two definite margins, the later no
 smaller, or two in the band, whatever their values), limb 3 is asked
 once of the carrier, and its refusal stands: a carrier across two
@@ -202,9 +220,9 @@ further, the certificate's refusal stands, naming where refinement
 stopped (gaps whose half falls in the band, midpoints that did not
 settle, midpoints that settled outside the domain) and the limb and
 margin each earlier round refused (`SsiError::RefinementExhausted`). At
-the wall, a margin that stopped falling over the last two rounds ends
-in the tolerance as the arithmetic's floor; one still falling ends as
-the curvature-held march's does.
+the wall, a refused residual that stopped falling over the last two
+rounds ends in the tolerance as the arithmetic's floor; one still
+falling ends as the curvature-held march's does.
 Before any march, the
 plane × NURBS lane decides its own domain boundary, the wall's knot
 rectangle, against the plane, one side at a time
@@ -485,8 +503,8 @@ Within-pair degeneracies are trileans run before any rung (axis
 parallelism at derived angular thresholds, centre/axis distances against
 radii): definitely generic goes to the arm's rung, exactly degenerate to
 the closed form, in-band to `SectionError::Escalated`. Equal cylinder
-radii are structural or declared (`RadiusEvidence`), never inferred from
-values. Tangential outcomes (`TangentLine`, `TangentPoint`) are
+radii, and a sphere's centre on a cylinder's axis, are decided by their
+margins like every other coincidence (D10). Tangential outcomes (`TangentLine`, `TangentPoint`) are
 classification data, refused as carriers. `SurfaceKind::Approx` is its
 own kind, and as an intersection operand it is its fit: `(Plane,
 Approx)` and `(Approx, Plane)` route to the plane×NURBS arm over
@@ -512,14 +530,17 @@ coefficient are `f64` structure (`geom_core::spline`); control points are
 the only generically typed data; the fitting loops (`curves/fit.rs`)
 take `f64` points. The certificate re-evaluates against the pinned
 structure at any `Real`, so the interval lane proves what the f64 lane
-chose. No topology-determining predicate reads knot counts, spans or
+chose. A refinement made inside a certificate chooses nothing: its
+refined weights are generally not `f64`, so it is held only as
+homogeneous enclosures `(w·P, w)`, and the projective knot algebra has
+no meaning at the certification scalar. No topology-determining predicate reads knot counts, spans or
 fitted coefficients except through named certified margins; the name
 table is a function of recipe structure and verdicts only.
 
 ### Tangency
 
 **C7 — `TangentIntersection` and second-order sector classification.**
-`EdgeDescription::TangentIntersection { s1, s2, witness }` mirrors
+`EdgeDescription::TangentIntersection { pair, witness }` mirrors
 `Intersection` one differential order up. Its jet (`tangent.rs`,
 `TangentJet { sin_theta, kappa_rel }`) is certified per sample: surface
 coincidence within ε, normal parallelism within the derived angle at
@@ -624,7 +645,7 @@ weights enforced at construction (the convex-hull property every hull
 bound stands on); evaluation and derivatives generic over `Real` by de
 Boor in fixed order. Algorithms: knot insertion, refinement, removal and
 degree elevation on curves and surfaces (`split_at` is insertion to full
-multiplicity), point projection with certified orthogonality residuals,
+multiplicity), point projection with certified residuals,
 and the fitting stack (interpolation, column-wise collocation for
 skinning, the bounded approximation loop). Lofts and sweeps
 (`crates/sweep`) are *definitional* surfaces: the produced NURBS is the
@@ -651,10 +672,18 @@ harmonic pcurve boundaries, polynomial and rational patch flux; a cone
 face needs none, its flux `apex·VA` and area `|axis·VA|/sin α` closed in
 the boundary's vector area; rational
 pcurve channels refuse `QuadratureUnsupported`; exhaustion is
-`QuadratureBudget`, never a silent Gaussian. A sphere face whose
+`QuadratureBudget`, never a silent Gaussian. A plane cap or torus wall
+bounded by a `Curve3::Spiric` takes `props/spiric.rs`: the cap's vector
+area and the wall's chart Green form along the spiric are elliptic
+integrals in the torus minor angle, enclosed by a fifth-order Taylor
+rule whose only non-ring operation is `√`, on the same schedule. A sphere face whose
 boundary circles are tilted against its chart has no conic or spline
 trim and is on the closed-form lane, measured by Gauss–Bonnet over its
-circle arcs (`props/curved.rs`, `sphere_circle_loop`). (8) In-house SVD and
+circle arcs (`props/curved.rs`, `sphere_circle_loop`). A chart
+singularity inside a face is a vertex of it, so a sphere face lies on
+the side of its loop that holds no chart pole. The closed-form lane and
+tier 3 read that side to cross-check the face's sense bit, and refuse a
+contradiction, wherever at least one pole lies off the loop. (8) In-house SVD and
 least-squares solvers with fixed elimination order
 (`geom-core/src/linalg`). (9) The curvo audit is `docs/CURVO-AUDIT.md`
 (it has no SSI); the stance is DESIGN.md Q5.
@@ -766,35 +795,50 @@ definition, boolean-family; its execution never runs the crossing
 pipeline. An open shell is unrepresentable by construction (every edge
 has exactly two half-edges; D1 is manifold-first), and shell does not
 need one. *Sealed* (`topo::shell`): one clone with every boundary face
-moved to its inward offset (all-planar bodies through
-`offset_planes_together`, which solves each corner against all moved
-planes at once; planes meeting revolved walls through
-`offset_charts_together`; anything else chart by chart through
-`replace_faces_offset`, which derives each edge between a moved and a
-held surface as their section and each moved corner as a root of the
-surfaces meeting it), then inserted through the shared void-insertion
-door `boolean::voids::insert_void` with the construction's own
-d-vs-reach margins carried as `VoidContainment::Carried` evidence; the
-door never derives containment. The result is a two-shell solid, and the
-invariant this preserves is that every cavity is born through that one
-door (three producers: boolean subtraction, shell, the full revolve of a
-holed profile). *Opened* (`shell_open`): the sealed construction, then
-each designated chart's cavity counterpart offset back outward onto it
-and the pair reduced by rim surgery (`canonicalize_chart`, `kfmrh`) to
-one annular rim face. Nothing opens; the result is closed, the
-designated shell's thin solid is single-shell (a hollow operand's other
-thin solids keep their two), and the invariant is closure, not genus
-(one opening is a cup, genus 0). Refusals: a wall past a curved face's reach at O1's floor,
-inverted cavity walls at edge re-attachment. A fitted face's edge with a
-plane is their section over the fit (C5), and a row of its fit beside
-an analytic face is extracted from the new fit; its other boundary
-refuses: `Approx` against anything but a plane (`NeighborPairUnroutable`,
-naming `Approx`); by `FittedBoundaryUnsupported`, a row of the fit
-shared with a spline or another fitted face, a curve on the fit that
-does not run along its rows, a scaffold edge, and a seam the face shares
-with itself; a section outside the fit's window (the section's own
-verdict); and a scalar with no fit or section lane
-(`ApproxLaneUnsupported`, `NurbsLaneUnsupported`).
+moved to its inward offset, every chart of a solid at once (all-planar
+solids through `offset_planes_together`, which solves each corner
+against all moved planes; planes meeting revolved walls through
+`offset_charts_together`; anything else through
+`offset_surfaces_together`, which derives each edge as the section of
+its two moved surfaces, transporting it only where both sides' offset
+actions agree on it, and each corner as a root of the moved surfaces
+meeting it; the first two are its closed forms, and
+`replace_faces_offset` is its one-chart spelling), then inserted
+through the shared void-insertion door `boolean::voids::insert_void`
+with the construction's own d-vs-reach margins carried as
+`VoidContainment::Carried` evidence; the door never derives
+containment. The result is a two-shell solid, and the invariant this
+preserves is that every cavity is born through that one door (three
+producers: boolean subtraction, shell, the full revolve of a holed
+profile). *Opened* (`shell_open`): the sealed construction, then each
+designated chart's cavity counterpart offset back outward onto it and
+the pair reduced by rim surgery (`canonicalize_chart`, `kfmrh`) to one
+annular rim face. Nothing opens; the result is closed, the designated
+shell's thin solid is single-shell (a hollow operand's other thin
+solids keep their two), and the invariant is closure, not genus (one
+opening is a cup, genus 0). Refusals: a wall past a curved face's reach
+at O1's floor, inverted cavity walls at edge re-attachment. A fitted
+face's edge with a plane is their section over the fit (C5), and a row
+of its fit whose sides both move with it — a seam the face shares with
+itself, or a plane along whose normal every cross-row step of the old
+net's two rows at that end runs, all one way, the two rows' weights
+equal (which puts the fit's normal in the plane along the row; a plane
+containing it otherwise takes the section) — is extracted from the new
+fit, at the row its iso image names. Its corners are the planes' roots
+along those edges, a section's sought from its end at the corner; the
+fit itself is not rooted, and a corner no root of which lies on a moved
+fit refuses (`CornerSection`, naming the corner's vertex and an edge of
+the fit meeting it). Its other boundary refuses: `Approx` against
+anything but a plane, a row of the fit beside a spline or another
+fitted face, and a seam between two moved fits, included
+(`NeighborPairUnroutable`, naming `Approx`); by
+`FittedBoundaryUnsupported`, a curve on the fit that is no line of its
+chart, or a line along a seam the face shares with itself that holds
+neither parameter fixed, a scaffold edge, and a seam the face shares
+with itself not described as an image on its own chart; a section
+outside the fit's window (the section's own verdict); and a scalar with
+no fit or section lane (`ApproxLaneUnsupported`,
+`NurbsLaneUnsupported`).
 
 **O5 — The validator re-derives per face, as it does per edge.** Tier 3
 never trusts a stored certificate: `validate.rs` re-runs the O3

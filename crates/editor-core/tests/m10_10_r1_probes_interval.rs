@@ -29,8 +29,8 @@ use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
     Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName,
+    MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName,
     select_where,
 };
 use geom_core::sym::report::ShapeOutcome;
@@ -166,12 +166,13 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
         };
         vec![wall(seg), wall(bore)]
     };
-    let web = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
-    let measure = r.insert(Node::measure(web, refs).expect("both indices in range"));
+    let web = MeasurePrimitive::Distance { a: 0, b: 1 };
+    let measured = r.measure(&[web], &refs);
+    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
-        measure: measure.into(),
+        value: crate::fixture::read_var(&r.doc, measure_value),
         bound: len(0.25e-3),
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     });
     (r.doc, measure, assertion)
 }
@@ -216,7 +217,14 @@ fn r1_the_segment_bosss_real_study_end_to_end() {
                     v.decisions()
                 );
                 let stack = editor_core::stackup::stackup(
-                    &doc, measure, &analyzed, &v, None, false, None, tol,
+                    &doc,
+                    crate::fixture::output(&doc, measure),
+                    &analyzed,
+                    &v,
+                    None,
+                    false,
+                    None,
+                    tol,
                 );
                 match &stack {
                     Ok(rep) => println!(

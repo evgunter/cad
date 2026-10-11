@@ -36,7 +36,7 @@ use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use editor_core::{
-    Attr, AttrKind, Axis3, BooleanOp, BranchCertification, Datum, Dimension, Distribution, DocEdit,
+    Attr, AttrKind, Axis3, BranchCertification, Datum, Dimension, Distribution, DocEdit,
     EntityKind, ExprPath, Formula, FreeValue, FreeVar, MetaValue, Node, PatternKind, Rgba8,
     RoleSeg, SlotId, StableName, UnitSym, VarName, WitnessDatum,
 };
@@ -148,10 +148,8 @@ pub fn document() -> CorpusDoc {
         side: ExtrudeSide::Along,
     });
     let declare = declare_x_offset_flush(&r.doc, block_a, block_b);
-    let union = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: block_a.into(),
-        b: block_b.into(),
+    let union = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![block_a.into(), block_b.into()]),
         declare,
     });
 
@@ -331,6 +329,7 @@ pub fn document() -> CorpusDoc {
         attr: Attr::Color(Rgba8::opaque(20, 90, 160)),
     });
     r.push(DocEdit::Rebind {
+        body: None,
         from: a_body,
         to: b_body,
     });

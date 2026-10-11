@@ -2,12 +2,14 @@
 id: boolean-vertex-contact-records-are-inferred-from-values
 kind: issue
 title: The boolean records vertex-level contacts (VvContact/VfContact) from Zero verdicts with no declaration, and tier 3′ (ii) calls them declared — intent inferred from values, which tier 3′ (i) forbids
-status: open
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
 design: true
-blocked_on: [coincidences-are-recorded-at-one-door]
+closed: 2026-10-10
+branch: contacthold/declared-wording
+
 ---
 
 
@@ -61,3 +63,40 @@ vertex copies (`copies_of`) are the same case.
 ## Parked on the D10 hold (2026-10-08)
 
 D10 answers its design question: a Zero coincidence is recorded at the one door and linted. Likely closes when that unit lands. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)
+
+## Re-parked on B2 (2026-10-10)
+
+Its trigger, stage 4 B (`coincidences-are-recorded-at-one-door`, PR
+4354), fired, but B left `ContactRecords` as it was (the S4-B ruling,
+option (b)); the record this row is about is rewritten by B2
+(`contact-records-cite-their-decision`, live on
+`intent/s4-b2-records-cite`), which makes every row cite its
+`Coincidence` across ~99 files. Building on the record's shape while
+B2 rewrites it would collide and be built twice. Re-read it against
+B2's merged record. (CONTACTHOLD orchestrator)
+
+## Closed — records cite the coincidence that decided them; the wording follows (#contacthold/declared-wording)
+
+Answered on main by INTENT stage 4 E (PR 4496) and B2 (PR 4533). Every
+`ContactRecords` row now cites the `Coincidence` that decided it: the
+reduction's `push_vv` / `push_vf` (`boolean/reduce.rs`) push a pending
+row beside each record, and `boolean/ops.rs::cite_rows` turns it into a
+`DecisionSite::VertexFusion` coincidence on the result. The
+`unproven-coincidence` lint walks those coincidences, so a vertex
+record no longer rests on a value coincidence nothing backs. Pinned by
+`crates/topo/tests/records_cite_their_decision.rs::a_corner_kiss_cites_the_vertex_fusion_that_decided_it`
+(this row's own witness: two boxes kissing at a corner with
+`BooleanDeclarations::none()`, one v-v record, one `VertexFusion` row
+naming both corners).
+
+Owed 1 and 2 are moot: there is no vertex-level declaration to design,
+because the record is backed by its decision, not by a declaration.
+Tier 3′ (ii)'s "ON-set survivors" text was reworded by FORK-S4P. This
+branch rewords what still called the records "declared": `docs/DESIGN.md`
+tier 3's Boolean-door sentence, and the non-test doc comments in
+`topo`, `step-import`, `pncad`, `pncad-py`, `verbs` and `editor-core`
+(hit list in the PR body).
+
+Owed 3, the audit of the other doors that turn a Zero into distinct
+cells on one point, is not done here. It is filed as
+`zero-to-distinct-cells-on-one-point-doors-audit`.

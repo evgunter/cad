@@ -5,10 +5,9 @@
 //! read the lane on its own, over every frame. The plane
 //! split admits a cone face and re-homes through the same
 //! [`super::ChordJoiner`], but nothing it is handed carries a ring on one:
-//! a body at rest cannot (its volume refuses
-//! `MassPropsError::RingOnCurvedFace`), and a plane's section of a cone
-//! goes round the axis, so it reaches the face's seam rather than
-//! landing as a ring. So these rows build the lane's input on a cone
+//! a plane's section of a cone goes round the axis, so it reaches the
+//! face's seam rather than landing as a ring. So these rows build the
+//! lane's input on a cone
 //! sheet: a face of the cone
 //! between two rims and two rulings, a ring of it whose run is an
 //! island's boundary less one edge, and that edge as the closing chord.
@@ -43,8 +42,7 @@ fn edge_spec(body: &mut Body<f64>, surface: SurfaceKey, e: &IslandEdge) -> EdgeC
     };
     EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
-            s1: surface,
-            s2,
+            pair: geom_brep::SurfacePair::new(surface, s2),
             witness: carrier.mid_point(t0, t1),
         },
         carrier,

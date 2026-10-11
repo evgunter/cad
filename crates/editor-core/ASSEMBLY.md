@@ -301,7 +301,12 @@ re-evaluation, which re-verifies crossings (A4).
 (`product::product_recorded`), mints every solved mate's declaration as
 a `MintedDeclaration` (declaring mates mint like determining ones), and
 runs the scalar's at-rest policy, `topo::validate_pseudomanifold`'s
-verdict, over body plus records. The gather's own tier-3 verdict rides
+verdict, over body plus records. A mate places and never checks (D10):
+its record cites the at-rest census's decision that its two faces rest
+on one carrier (`topo::census_rest_decision`, a `CensusAtRest` row on
+the product, which the `unproven-coincidence` check reads), and a pair
+the census refuses mints no record, its finding raised by the gate
+beside the census's own. The gather's own tier-3 verdict rides
 on the product's body (`topo::AtRestBody`), so the gate runs tier 3′'s
 census over it rather than the local battery a second time. The gate
 runs no predicate of its own; kernel findings come back as
@@ -316,8 +321,8 @@ a multi-solid tier-3 body.
 where the mate reads it, in its operand's table, and carries it up the
 operand's consumers to the product's roots, each consumer spelling it as
 it carries it (`names::lift`, exhaustive over node kinds: a `Part` and a
-split's target carry it verbatim, a union as its member's name, a pair
-boolean as `FromA`/`FromB`, a fillet, chamfer or shell as `FromTarget`;
+split's target carry it verbatim, and a union, intersect,
+subtract, fillet, chamfer or shell as `From` the read it came in through;
 a transform, pattern or placed union places it again). Where the operand
 is a root, or reaches one through `Part` selections and split targets
 alone, the lift is the identity. Exactly one product face reached is the
@@ -372,11 +377,40 @@ such row in gather order, before this document's own unminted rows and
 before the at-rest gate: an outer assembly is unusable while an inner
 part's contact is unverified.
 
-*Interference.* An interference fit (one instance's material containing
-a vertex of another's) is decided by the census's material test and
-refused typed (`ValidationError::InstanceInterference`). The recorded
-gate-skips that `crates/topo/README.md`'s C6 declares are not
-implemented.
+*Interference.* An overlap of two copies' material is a finding of its
+own, never a refusal (D10; `checks::at_rest`). The census decides that
+two copies interfere: a vertex of one strictly inside the other's
+material (`ValidationError::InstanceInterference`), an edge piercing a
+face (`CensusContact::EdgeFacePierce`), or an in-plane crossing whose
+side test reads `SameSide`. The gate takes those verdicts out of its
+refusal, with every `CensusUndecidable` the census left on the same
+pair of copies, and intersects the two copies. Each connected solid of
+the intersection is one `InterferenceFinding` on
+`Assembly::interference`, named by the faces of both copies that bound
+it. An intersection the kernel cannot form leaves one
+`Overlap::Unlocalized` finding for the pair, which is loud and which
+nothing quiets; so does a decided overlap at an analysis scalar, which
+has no localizing lane (`LocalizeLane`: `f64` builds bodies). A pair the
+census decided nothing about is refused as before.
+
+A finding is quiet when a holding assertion reads a `Gap`'s output
+directly over an opposed pair of faces of the two copies, admits only
+negative values (`≤ b` or `= b`, `b` decided negative), and its two
+faces bound the overlap, and the overlap lies between their carriers.
+The last is the kernel's own boolean: the
+region past each asserted carrier, away from its copy's material, is
+built as a solid (a box past a plane, the solid cylinder inside a bore,
+the tube outside a pin) and intersected with the overlap, which lies
+between when neither intersection keeps any of it. A containment check
+that refuses leaves the finding `Unlocalized`. A quiet finding carries
+no verdict nothing checked: every `CensusUndecidable` on the pair must
+be a face pair bounding the quieted overlap, so an undecided pair
+beside it (a pin pressed into one bore and slipped into another) keeps
+it loud. Every other overlap is loud. Between two solids of one copy an overlap stays the kernel's
+typed error. The partition takes interference verdicts only: a press
+fit whose pin is flush with its plate also touches at the coplanar
+caps, an undeclared contact the census refuses, so that document
+refuses before any finding is reported.
 
 ## Mirror
 
@@ -526,7 +560,7 @@ read.
 down to a live `InstantiatePart`, through any number of `Transform`s and
 `Part` instance selections, any number of `Pattern` levels (each of
 which the name qualifies `Instance`) and any number of `Union`s (each of
-which the name qualifies `FromMember`, naming the member the walk
+which the name qualifies `From`, naming the member read the walk
 continues at). The member's frame is the composed offset of every node
 that walk passed, evaluated as that node is evaluated, on that
 instance's pose, so mates never solve for a pattern's or transform's

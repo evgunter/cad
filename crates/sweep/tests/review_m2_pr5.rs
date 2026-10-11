@@ -874,15 +874,14 @@ fn survives_start_point_witness_on_full_rim_is_refused() {
     let rim = t.rims[0][0].unwrap();
     let e = t.body.get_edge(rim).unwrap();
     let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-    let EdgeDescription::Intersection { s1, s2, .. } = *c.description() else {
+    let EdgeDescription::Intersection { pair, .. } = *c.description() else {
         panic!("intersection rim");
     };
     let (carrier, (t0, t1)) = (c.carrier().clone(), c.params());
     let start = carrier.eval(t0);
     let forged = geom_brep::EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1,
-            s2,
+            pair,
             witness: start,
         },
         carrier,
@@ -1108,14 +1107,15 @@ fn survives_near_full_period_rim_span_escalates() {
     let radius = 1.0;
     let span = TAU - 3.0 * eps() / radius;
     let spec = geom_brep::EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::RevolvedPoint {
-            point: Point2::new(1.0, 0.0),
-            place: geom_core::Affine3::identity(),
-            axis_origin: center,
-            axis_dir: Vec3::new(0.0, 1.0, 0.0),
-            angle: span,
-            range: geom_brep::SweepRange::whole(),
-        }),
+        description: EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::whole(
+            geom_brep::MappedSource::RevolvedPoint {
+                point: Point2::new(1.0, 0.0),
+                place: geom_core::Affine3::identity(),
+                axis_origin: center,
+                axis_dir: Vec3::new(0.0, 1.0, 0.0),
+                angle: span,
+            },
+        )),
         carrier: Curve3::Circle {
             center,
             axis: Vec3::new(0.0, 1.0, 0.0),

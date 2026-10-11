@@ -20,8 +20,7 @@ use crate::common;
 
 use geom_core::{Point3, Tol};
 use topo::{
-    Body, BooleanDecision, BooleanError, LoopBoundary, MergeCoplanarError, NeighbourOffset,
-    Operand, PlaneRung,
+    Body, BooleanDecision, BooleanError, LoopBoundary, MergeCoplanarError, Operand, PlaneRung,
 };
 
 /// The brick `[0, 4s]² × [0, s]`, its top face and the first half-edge
@@ -157,13 +156,14 @@ fn circle_at_rest(
 /// brick's height), the body finished and united with a far brick
 /// through the public door. Levered at the circle's extent, the gate
 /// decides they face the same way and lie on one plane, and refuses
-/// them as coplanar neighbours with a decided zero offset; levered at
-/// the chord, it would leave the orientation undecided at margin 0.
+/// the operand as not maximal across the circle (a pair the merge
+/// glues); levered at the chord, it would leave the orientation
+/// undecided at margin 0.
 #[test]
-fn a_disc_on_its_hosts_plane_refuses_as_coplanar_neighbours() {
+fn a_disc_on_its_hosts_plane_refuses_as_not_maximal() {
     for s in [1e-3, 1.0, 1e3] {
-        let (body, top, disc) = disc_in_top(s, s);
-        let (rested, _) = circle_at_rest(&body, top, s, s);
+        let (body, top, _) = disc_in_top(s, s);
+        let (rested, circle) = circle_at_rest(&body, top, s, s);
         let tol = Tol::witness();
         let far = common::brick::<f64>((10.0 * s, 11.0 * s), (0.0, s), (0.0, s), tol);
         let err = topo::union(
@@ -172,12 +172,7 @@ fn a_disc_on_its_hosts_plane_refuses_as_coplanar_neighbours() {
             tol,
         )
         .expect_err("the gate refuses the operand");
-        let BooleanError::CoplanarNeighbours {
-            operand,
-            mut faces,
-            offset: NeighbourOffset::Zero(_),
-        } = err
-        else {
+        let BooleanError::NonMaximalFaces { operand, edge } = err else {
             panic!("at scale {s}, the gate decides the pair coplanar: {err:?}\n{err}");
         };
         assert_eq!(
@@ -185,13 +180,7 @@ fn a_disc_on_its_hosts_plane_refuses_as_coplanar_neighbours() {
             Operand::A,
             "at scale {s}, the disc is the first operand's"
         );
-        faces.sort();
-        let mut want = [top, disc];
-        want.sort();
-        assert_eq!(
-            faces, want,
-            "at scale {s}, the refusal names the top and the disc"
-        );
+        assert_eq!(edge, circle, "at scale {s}, the refusal names the circle");
     }
 }
 

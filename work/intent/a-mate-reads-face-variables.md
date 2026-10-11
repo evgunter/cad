@@ -2,12 +2,12 @@
 id: a-mate-reads-face-variables
 kind: issue
 title: D10 stage 2 PR F: a mate's sides read Face variables; A12's reading edges, the mates-are-not-edges carve-out and A5's minting lift through consumers retire
-status: parked
+status: dispatched
 opened: 2026-10-07
 priority: P0
 cost: H
-blocked_on: [select-defines-face-and-edge-variables]
 refs: [split-and-inline-over-a-mate-read-at-a-union-are-unmeasured]
+branch: intent/s2-f-mate-faces
 ---
 
 INTENT stage 2, PR F. Spec: `docs/INTENT-STAGE2-SPEC.md` §7.

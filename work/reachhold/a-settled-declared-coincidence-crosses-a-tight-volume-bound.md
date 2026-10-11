@@ -2,12 +2,11 @@
 id: a-settled-declared-coincidence-crosses-a-tight-volume-bound
 kind: issue
 title: A declared coincidence the door settles inside the band moves a correct result past a tight volume bound, and the backstop refuses it ResultVolumeImplausible
-status: parked
+status: open
 opened: 2026-10-02
 priority: P2
 cost: H
 design: true
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -152,3 +151,7 @@ keeps, not an in-band one. Both member orders refuse
 6.971041462457901. The same offsets outward (`R + k·zero`) build in both
 orders. Pinned by
 `a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders`.
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E widens the class rather than redefining it away. A pair decided Zero now glues undeclared too (`crates/topo/src/boolean/glue.rs:40`), so the residue no longer needs a declaration. A Zero glue moves the result by up to the zero band times the glued face's area. TANG's curved instance, which is inside the zero band, still refuses at the backstop's tight bound in both orders (`crates/sweep/tests/pi_seam_and_kiss_through_the_boolean.rs:916`, `k ∈ {−¼, −½}`). The in-band half goes with F: until `declared-pairs-retire`, a declared pair's rung still bridges an in-band margin. The design question stands: the forgiveness must be local to the glued face.

@@ -367,9 +367,8 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
 
 /// `ValidationError::UndeclaredContact`'s payload. The branch that
 /// matters is not "a census contact happened" but WHICH: an
-/// `EdgeFacePierce` is interpenetration and categorically undeclarable
-/// until the C6 era, while an `EdgeEdgeOverlap` is certifiable through
-/// the D3 reconstruction today. Same refusal, opposite advice.
+/// `EdgeFacePierce` is interpenetration and undeclarable, while an
+/// `EdgeEdgeOverlap` is certifiable through the D3 reconstruction. Same refusal, opposite advice.
 fn census_contact_is_matchable(contact: CensusContact) -> bool {
     match contact {
         CensusContact::VertexVertex { a, b } => {
@@ -1376,6 +1375,7 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         curve_promotions,
         instances,
         coherence,
+        coincidences,
     } = imported
     else {
         panic!("the box re-imports as a solid, not a wireframe");
@@ -1395,6 +1395,13 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     // empty report; `topo`'s own door draws the same line about the
     // two lists inside a report it did produce.
     named::<Option<CoherenceReport>>(coherence.clone());
+    // The anchors' decisions: none, since the default import declares
+    // no anchor.
+    named::<Vec<pncad::document::coincidence::Coincidence>>(coincidences.clone());
+    assert!(
+        coincidences.is_empty(),
+        "the default import declares no anchor"
+    );
     assert!(
         coherence.is_none(),
         "the default import asked for no chart-coherence examination"
@@ -1505,11 +1512,8 @@ fn a_boolean_result_validates_at_tier_3_prime() {
 
     // The post is strictly interior in x and y and pokes out of the
     // base's top, so the two bodies genuinely interpenetrate and NO
-    // pair of faces is coincident. That matters: the kernel never
-    // infers coincidence from values, so two boxes merely TOUCHING on
-    // a shared plane refuse with `UndeclaredCoincidence` until the
-    // author declares the contact. (Declared-contact unions are the
-    // corpus's own subject; this test wants the plain seamed path.)
+    // pair of faces is coincident: this test wants the plain seamed
+    // path, not a glued contact.
     let base = slab((0.0, 3.0), (0.0, 2.0), (0.0, 1.0)); // 6.0
     let post = slab((0.5, 1.5), (0.5, 1.5), (0.5, 2.0)); // 1.5, of which 0.5 is inside
 
@@ -2157,7 +2161,7 @@ fn box_doc(
 /// one placing door, `DocEdit::place` — returning the placement's id.
 fn place(
     doc: pncad::document::ProfileDoc,
-    body: impl Into<pncad::document::Operand>,
+    body: impl Into<pncad::document::BodyRead<pncad::document::Formula>>,
 ) -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
     let applied = pncad::document::apply(
         &doc,
@@ -2181,7 +2185,7 @@ fn placement_of(
         .find(|&placement| {
             matches!(
                 doc.node(placement),
-                Some(pncad::document::Node::PlaceInWorld { body, .. }) if Some(*body) == output
+                Some(pncad::document::Node::PlaceInWorld { body, .. }) if Some(body.read) == output
             )
         })
         .expect("the node is placed")
@@ -2572,8 +2576,17 @@ fn the_export_door_refuses_typed_not_vaguely() {
     use pncad::document::{Node, NodeStanding, RecipeNodeId};
     use pncad::export::ExportError;
     let (doc, profile_node, first_box) = box_doc("all");
-    // A failing Boolean (undeclared coincidence) and its downstream.
-    let (doc, plane) = insert(doc, xy_frame());
+    // A failing Boolean and its downstream: the second box's floor
+    // stands 2ε off the first's, inside the ambiguity band at every ε.
+    let sliver = 2.0 * pncad::geom_core::Tol::witness().eps();
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(pncad::document::Datum::Frame {
+            origin: [len(0.0), len(0.0), len(sliver)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    );
     let (doc, second_profile) = insert(doc, square(plane, 1.0));
     let (doc, second_box) = insert(
         doc,
@@ -2585,19 +2598,16 @@ fn the_export_door_refuses_typed_not_vaguely() {
     );
     let (doc, cut) = insert(
         doc,
-        Node::Boolean {
-            op: pncad::document::BooleanOp::Subtract,
-            a: first_box.into(),
-            b: second_box.into(),
+        Node::Subtract {
+            from: first_box.into(),
+            tool: second_box.into(),
             declare: Vec::new(),
         },
     );
     let (doc, downstream) = insert(
         doc,
-        Node::Boolean {
-            op: pncad::document::BooleanOp::Union,
-            a: cut.into(),
-            b: first_box.into(),
+        Node::Union {
+            members: pncad::document::Bodies::Spelled(vec![cut.into(), first_box.into()]),
             declare: Vec::new(),
         },
     );
@@ -2666,7 +2676,7 @@ fn expr_literal_refusals_are_matchable_through_the_facade() {
 /// §3.2 pinned with a `compile_fail` doctest (now flipped to the same
 /// authoring as a passing one).
 fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
-    use pncad::document::{BooleanOp, FreeVar, VarName};
+    use pncad::document::{FreeVar, VarName};
     let hole = |cx: f64, cy: f64| LoopProgram::Circle {
         centre: [len(cx), len(cy)],
         radius: Formula::named(VarName::from_static("hole_r"), Dimension::Length),
@@ -2740,10 +2750,8 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     );
     let (doc, solid) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: plate.into(),
-            b: tab.into(),
+        Node::Union {
+            members: pncad::document::Bodies::Spelled(vec![plate.into(), tab.into()]),
             declare: Vec::new(),
         },
     );
@@ -2795,31 +2803,28 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         let first = found.remove(0);
         vec![first, last]
     };
+    // Read AT the plate extrude the walls were selected from —
+    // nothing places this geometry, so the reading site is that node,
+    // spelled explicitly rather than assumed.
+    let [a, b]: [pncad::document::SitedRef; 2] = walls
+        .into_iter()
+        .map(|name| pncad::document::SitedRef::new(plate, name))
+        .collect::<Vec<_>>()
+        .try_into()
+        .expect("two walls");
     let (doc, measure) = insert(
         doc,
-        Node::measure(
-            pncad::document::MeasureExpr::primitive(pncad::document::MeasurePrimitive::Distance {
-                a: 0,
-                b: 1,
-            }),
-            // Read AT the plate extrude the walls were selected from —
-            // nothing places this geometry, so the reading site is that
-            // node, spelled explicitly rather than assumed.
-            walls
-                .into_iter()
-                .map(|name| pncad::document::SitedRef::new(plate, name))
-                .collect(),
-        )
-        .expect("both indices address a reference"),
+        Node::measure(&pncad::document::MeasurePrimitive::Distance { a, b }),
     );
+    let value = doc.output(measure, 0).expect("a measure defines its value");
     // A distance is a magnitude, so `>= 0` holds for any selection —
     // the verdict is about the READ door, not about the geometry.
     let (doc, _) = insert(
         doc,
         Node::Assertion {
-            measure: measure.into(),
+            value: pncad::document::Formula::var(value, pncad::document::Dimension::Length),
             bound: len(0.0),
-            dir: pncad::document::AssertionDir::AtLeast,
+            relation: pncad::document::AssertionRelation::AtLeast,
         },
     );
     (doc, solid)
@@ -3625,7 +3630,7 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
         .placements()
         .into_iter()
         .map(|placement| match doc.node(placement) {
-            Some(pncad::document::Node::PlaceInWorld { body, .. }) => Some(*body),
+            Some(pncad::document::Node::PlaceInWorld { body, .. }) => Some(body.read),
             _ => None,
         })
         .collect();
@@ -4908,7 +4913,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 96] = [
+const NOT_CARRIED: [&str; 97] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4987,6 +4992,7 @@ const NOT_CARRIED: [&str; 96] = [
     "body_name",
     "certified_range",
     "derivation_nodes",
+    "derivation_reads",
     "diff_summaries",
     "diff_verdicts",
     "enrich_appearance_loss",

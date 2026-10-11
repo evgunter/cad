@@ -21,8 +21,8 @@ use editor_core::ExtrudeSide;
 use editor_core::stackup::{Chamber, SensitivityOutcome, sensitivities};
 use editor_core::{
     CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram,
-    MeasureExpr, MeasurePrimitive, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef,
-    UnitSym, ValuePayload, VarName, evaluate,
+    MeasurePrimitive, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, UnitSym,
+    ValuePayload, VarName, evaluate,
 };
 use geom_core::Tol;
 
@@ -126,13 +126,8 @@ fn filleted_cube() -> (ProfileDoc, RecipeNodeId) {
         vertex_at(&ev, blank, [R0, R0, D0]),
         vertex_at(&ev, blank, [1.0 - R0, 1.0 - R0, 0.0]),
     ];
-    let m = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            refs,
-        )
-        .expect("indices in range"),
-    );
+    let m_measured = r.measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs);
+    let (m, _m_value) = (m_measured.measures[0], m_measured.outputs[0]);
     (r.doc, m)
 }
 
@@ -159,8 +154,16 @@ fn measured(doc: &ProfileDoc, measure: RecipeNodeId, param: &'static str, value:
 #[test]
 fn a_fillet_radius_sensitivity_matches_finite_differences_of_the_f64_build() {
     let (doc, measure) = filleted_cube();
-    let entries = sensitivities(&doc, measure, None, None, false, None, Tol::witness())
-        .expect("the driver runs");
+    let entries = sensitivities(
+        &doc,
+        crate::fixture::output(&doc, measure),
+        None,
+        None,
+        false,
+        None,
+        Tol::witness(),
+    )
+    .expect("the driver runs");
     let m0 = (2.0 * (1.0 - 2.0 * R0).powi(2) + D0 * D0).sqrt();
     assert_eq!(
         measured(&doc, measure, "radius", R0),

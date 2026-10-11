@@ -7,10 +7,11 @@ use std::collections::BTreeMap;
 
 use eframe::egui;
 use pncad::document::{
-    AxisSense, BooleanOp, Doc, DocumentId, MatePrimitive, ProfileProgram, RecipeNodeId, Said,
-    Speaker, SpokenNode,
+    AxisSense, Doc, DocumentId, MatePrimitive, ProfileProgram, RecipeNodeId, Said, Speaker,
+    SpokenNode,
 };
 use pncad::select::SplitHalf;
+use pncad::topo::BooleanOp;
 
 use crate::app::ViewerBehavior;
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
@@ -21,15 +22,14 @@ use crate::forms::{
     PatternKindChoice, ShapeKind, UNIT_DRAG_SPEED, boolean_op_label, split_half_label,
 };
 use crate::frame::{self, Tone};
-use crate::generation::Generation;
 use crate::matetool::{MateChoice, MateToolState, admitted_classes};
 use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::{Notation, render_number};
-use crate::seats::{Seats, seat_line};
+use crate::seats::{Seat, Seats, seat_line};
 use crate::session::{
-    Creation, DeclareOffer, FaceFrameFault, FaceSelection, ProfilePlane, Refusal, Selection,
-    SessionOp, Standing, face_frame_seat_drawn,
+    Creation, FaceFrameFault, FaceSelection, ProfilePlane, Selection, SessionOp, Standing,
+    face_frame_seat_drawn,
 };
 use crate::sketch;
 use crate::theme::Theme;
@@ -122,10 +122,25 @@ pub(crate) fn seats_row(
     theme: &Theme,
 ) -> Option<(usize, SplitHalf)> {
     crate::widgets::message_toned(ui, seat_line(seats, doc), theme, Tone::Advisory);
+    half_rows(
+        ui,
+        (0..2)
+            .filter(|&i| seats.awaits_half(i))
+            .map(|i| (i, seats.role(i).name().to_owned())),
+    )
+}
+
+/// **One row per pick still waiting for its half**, each offering the
+/// two: `waiting` names the pick's index and how the panel calls it,
+/// and the answer is the pick and the half a click chose.
+pub(crate) fn half_rows(
+    ui: &mut egui::Ui,
+    waiting: impl IntoIterator<Item = (usize, String)>,
+) -> Option<(usize, SplitHalf)> {
     let mut chosen = None;
-    for i in (0..2).filter(|&i| seats.awaits_half(i)) {
+    for (i, said) in waiting {
         ui.horizontal(|ui| {
-            ui.label(format!("{}: read the", seats.role(i).name()));
+            ui.label(format!("{said}: read the"));
             // One button per half the KERNEL has, in its order: the row
             // offers the vocabulary, never a copy of it.
             for half in SplitHalf::ALL {
@@ -139,48 +154,32 @@ pub(crate) fn seats_row(
     chosen
 }
 
-/// **The offer to declare a refused contact, in the boolean tool** —
-/// its question, one line per pair accepting it declares, and the two
-/// answers: `Declare` queues [`DeclareOffer::accept`], `Decline` drops
-/// the offer and queues nothing.
-///
-/// Drawn only while the offer stands ([`DeclareOffer::is_for`]); one
-/// an edit, the picks or the operation moved past is dropped unshown. A
-/// free function over the `Ui` so a headless row can click it
-/// (`crate::pane::headless`).
-pub(crate) fn declare_offer_rows(
-    ui: &mut egui::Ui,
-    held: &mut Option<DeclareOffer>,
-    (now, op, tool): (Generation, BooleanOp, BooleanTool),
-    doc: &Doc<ProfileProgram>,
-    ops: &mut Vec<SessionOp>,
-    theme: &Theme,
-) {
-    let Some(offer) = held.as_ref() else {
-        return;
-    };
-    if !offer.is_for(now, op, tool.seats().read(0), tool.seats().read(1)) {
-        *held = None;
-        return;
-    }
-    crate::widgets::message_toned(ui, Refusal::declare_question(offer), theme, Tone::Advisory);
-    for finding in offer.findings() {
-        crate::widgets::message_toned(
-            ui,
-            Refusal::declare_pair_wording(doc, finding),
-            theme,
-            Tone::Advisory,
-        );
-    }
-    let mut declined = false;
-    ui.horizontal(|ui| {
-        if ui.button(DeclareOffer::ACCEPT_LABEL).clicked() {
-            ops.push(offer.accept());
-        }
-        declined = ui.button(DeclareOffer::DECLINE_LABEL).clicked();
-    });
-    if declined {
-        *held = None;
+/// **The boolean tool's picks still waiting for a half**, each called
+/// as its panel line calls it: a member by its place in the list, a
+/// subtraction's seat by its role.
+pub(crate) fn boolean_waiting(tool: &BooleanTool) -> Vec<(usize, String)> {
+    tool.awaiting_half()
+        .into_iter()
+        .map(|i| {
+            let said = match tool.operation() {
+                BooleanOp::Subtract => [Seat::SubtractFrom, Seat::SubtractTool][i]
+                    .name()
+                    .to_owned(),
+                BooleanOp::Union | BooleanOp::Intersect => {
+                    format!("{} {}", Seat::Member.name(), i + 1)
+                }
+            };
+            (i, said)
+        })
+        .collect()
+}
+
+/// **What the boolean tool asks for under `op`**: any number of bodies
+/// for union and intersect, the two seats in order for subtract.
+pub(crate) fn boolean_prompt(op: BooleanOp) -> &'static str {
+    match op {
+        BooleanOp::Union | BooleanOp::Intersect => "pick the bodies, one or more, then commit",
+        BooleanOp::Subtract => "pick the body to keep, then the body to remove",
     }
 }
 
@@ -1351,12 +1350,14 @@ impl ViewerBehavior<'_> {
         });
     }
 
-    /// The boolean tool's panel: activation, the two held picks named
-    /// by ROLE, the operation choice, and the one committed edit.
+    /// The boolean tool's panel: activation, the operation choice, the
+    /// held picks — a member list for union and intersect, the two seats
+    /// named by ROLE for subtract — and the one committed edit.
     ///
-    /// The role naming is the point of the panel: `subtract` removes
-    /// the second pick from the first, so a user who cannot see which
-    /// is which cannot author the operation they mean.
+    /// The role naming is the point of the subtract panel: it removes
+    /// one pick from the other, so a user who cannot see which is which
+    /// cannot author the operation they mean. A union or an intersect
+    /// commits whatever members are held, one or more.
     pub(crate) fn boolean_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.boolean() else {
             if ui.button(ToolKind::Boolean.button()).clicked() {
@@ -1364,40 +1365,47 @@ impl ViewerBehavior<'_> {
             }
             return;
         };
-        crate::widgets::message(
-            ui,
-            ToolKind::Boolean.says(&"pick the first body, then the second"),
-        );
-        if let Some((seat, half)) = seats_row(ui, tool.seats(), self.session.doc(), &self.theme) {
-            self.tools.choose_half(seat, half);
-        }
+        let mut op = tool.operation();
         ui.horizontal(|ui| {
             ui.label("operation");
             // One button per operation the KERNEL has, in its order:
             // the form offers the vocabulary, never a copy of it.
-            for &op in BooleanOp::ALL {
-                ui.radio_value(&mut self.drafts.boolean_op, op, boolean_op_label(op));
+            for &choice in BooleanOp::ALL {
+                ui.radio_value(&mut op, choice, boolean_op_label(choice));
             }
         });
-        if self.drafts.boolean_op == BooleanOp::Subtract {
-            crate::widgets::message_toned(
-                ui,
-                "subtract removes the second pick from the first",
-                &self.theme,
-                Tone::Advisory,
-            );
+        if op != tool.operation()
+            && let Some(open) = self.tools.boolean_mut()
+        {
+            open.set_operation(op);
         }
-        self.tool_commit_row(ui, ToolKind::Boolean, |drafts, _| {
-            Ok(tool.op(drafts.boolean_op)?)
-        });
-        declare_offer_rows(
+        let Some(tool) = self.tools.boolean() else {
+            return;
+        };
+        crate::widgets::message(
             ui,
-            &mut self.drafts.declare_offer,
-            (self.session.generation(), self.drafts.boolean_op, tool),
-            self.session.doc(),
-            self.ops,
-            &self.theme,
+            ToolKind::Boolean.says(&boolean_prompt(tool.operation())),
         );
+        crate::widgets::message_toned(
+            ui,
+            tool.line(self.session.doc()),
+            &self.theme,
+            Tone::Advisory,
+        );
+        if let Some((pick, half)) = half_rows(ui, boolean_waiting(&tool)) {
+            self.tools.choose_half(pick, half);
+        }
+        let Some(tool) = self.tools.boolean() else {
+            return;
+        };
+        if ui
+            .add_enabled(!tool.is_empty(), egui::Button::new("Clear picks"))
+            .clicked()
+            && let Some(open) = self.tools.boolean_mut()
+        {
+            open.clear();
+        }
+        self.tool_commit_row(ui, ToolKind::Boolean, |_, _| Ok(tool.op()?));
     }
 
     /// The split tool's panel: a body pick, a datum-plane pick, and
@@ -1780,13 +1788,18 @@ impl ViewerBehavior<'_> {
     /// **The kind noun of the node a tool's commit creates** —
     /// `node_kind_noun`'s word, which its proposed label counts by. The
     /// pattern and blend tools create one of two kinds, by the choice
-    /// their form holds; the duplicate tool's last node is a
+    /// their form holds, and the boolean tool one of three, by the
+    /// operation it holds; the duplicate tool's last node is a
     /// projection, and its label lands there.
     fn tool_noun(&self, kind: ToolKind) -> &'static str {
         match kind {
             ToolKind::Mate => MATE_NOUN,
             ToolKind::Revolve => "Revolve",
-            ToolKind::Boolean => "Boolean",
+            ToolKind::Boolean => match self.tools.boolean().map(|tool| tool.operation()) {
+                Some(BooleanOp::Union) | None => "Union",
+                Some(BooleanOp::Intersect) => "Intersect",
+                Some(BooleanOp::Subtract) => "Subtract",
+            },
             ToolKind::Split => "Split",
             ToolKind::Transform => "Transform",
             ToolKind::Pattern => match self.drafts.pattern_output {
@@ -1941,11 +1954,13 @@ mod tests {
         part_selector_rows, profile_plane_row, seats_row,
     };
     use crate::combine::BooleanTool;
+    use crate::frame::Tone;
     use crate::matetool::MateToolState;
     use crate::pane::headless::{painted_after_clicking, painted_text, painted_while_hovering};
     use crate::session::FaceSelection;
     use crate::theme::Theme;
     use pncad::select::SplitHalf;
+    use pncad::topo::BooleanOp;
 
     /// A face pick on the body of `node`.
     fn face_on(node: u64) -> FaceSelection {
@@ -1986,28 +2001,39 @@ mod tests {
         );
     }
 
-    /// **A seated panel's picks, painted in its tool's role order**:
-    /// the boolean's first pick is the operand a subtraction KEEPS,
-    /// and the line says so before the second is picked.
+    /// **The boolean panel's picks, painted**: a union's members in
+    /// pick order, any number of them; a subtraction's two seats by
+    /// role, the body KEPT named before the second is picked.
     #[test]
-    fn the_boolean_panel_says_which_operand_each_pick_is() {
+    fn the_boolean_panel_lists_members_and_names_subtracts_seats() {
         let doc = Doc::<ProfileProgram>::empty_derived("seats-row", Tol::witness());
+        let node = |n| RecipeNodeId::new(0, test_utils::refusal::tagged(n));
         let mut tool = BooleanTool::new();
         let painted = |tool: &BooleanTool| {
             painted_text(|ui| {
-                seats_row(ui, tool.seats(), &doc, &Theme::DEFAULT);
+                crate::widgets::message_toned(ui, tool.line(&doc), &Theme::DEFAULT, Tone::Advisory);
             })
         };
         assert_eq!(painted(&tool), "no picks yet");
-        tool.pick(&doc, RecipeNodeId::new(0, test_utils::refusal::tagged(3)));
+        for n in [3, 5, 7] {
+            tool.pick(&doc, node(n));
+        }
         assert_eq!(
             painted(&tool),
-            "first operand: node 000000000003; second operand: —"
+            "member 1: node 000000000003; member 2: node 000000000005; \
+             member 3: node 000000000007"
         );
-        tool.pick(&doc, RecipeNodeId::new(0, test_utils::refusal::tagged(5)));
+        let mut subtract = BooleanTool::new();
+        subtract.set_operation(BooleanOp::Subtract);
+        subtract.pick(&doc, node(3));
         assert_eq!(
-            painted(&tool),
-            "first operand: node 000000000003; second operand: node 000000000005"
+            painted(&subtract),
+            "body kept: node 000000000003; body removed: —"
+        );
+        subtract.pick(&doc, node(5));
+        assert_eq!(
+            painted(&subtract),
+            "body kept: node 000000000003; body removed: node 000000000005"
         );
     }
 
@@ -2675,249 +2701,6 @@ mod tone_tests {
             find(&painted, "choose a shape to add").ink,
             Some(voices.weak)
         );
-    }
-}
-
-/// **The declared union, driven through the boolean panel**: the
-/// flush boss-on-a-face union from its refusal to one undo, and the
-/// panel's two other answers. Each row performs the op the panel
-/// QUEUED, so what is asserted is what a click reaches. The rows that
-/// never touch the panel are `tests/combine_ops.rs`'s.
-#[cfg(test)]
-mod declared_union {
-    // Panicking is a test's failure mechanism (workspace lint note).
-    #![allow(clippy::expect_used)]
-    #![allow(clippy::panic)]
-
-    use pncad::document::{BooleanOp, Node, RecipeNodeId};
-    use pncad::geom_core::Tol;
-    use pncad::prelude::{CapEnd, RoleSeg};
-    use pncad::select::{BooleanCoincidence, ContactClass};
-
-    use super::declare_offer_rows;
-    use crate::combine::BooleanTool;
-    use crate::frame;
-    use crate::pane::headless::{painted_after_clicking, painted_text};
-    use crate::session::{DeclareOffer, DocSession, ProfilePlane, Refusal, SessionOp};
-    use crate::test_support::{
-        boss_on_block, boss_on_block_union_volume, evaluated_insert, evaluated_volume,
-    };
-    use crate::theme::Theme;
-    use crate::tree;
-
-    /// The boss scene in a session, landed.
-    fn scene(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
-        let (doc, block, boss) = boss_on_block("declared-union", tol);
-        let mut session = DocSession::inline(doc, tol);
-        session.pump();
-        (session, block, boss)
-    }
-
-    /// The boolean tool holding `a` then `b`.
-    fn holding(session: &DocSession, a: RecipeNodeId, b: RecipeNodeId) -> BooleanTool {
-        let mut tool = BooleanTool::new();
-        tool.pick(session.committed_doc(), a);
-        tool.pick(session.committed_doc(), b);
-        tool
-    }
-
-    /// The union the tool holds, performed: its refusal and the offer
-    /// the frame loop reads off it.
-    fn refused_union(session: &mut DocSession, tool: &BooleanTool) -> (Refusal, DeclareOffer) {
-        let op = tool.op(BooleanOp::Union).expect("both operands are picked");
-        let refusal = session.perform(op).refusal.expect("the union refuses");
-        let offer = frame::declare_offer(Some(&refusal))
-            .unwrap_or_else(|| panic!("an offer from the refusal: {refusal}"));
-        (refusal, offer)
-    }
-
-    /// **The panel over `offer`** at the session's generation, with
-    /// the tool open on `op`, after clicking `click` if one is given:
-    /// what it painted, the offer it leaves held, and the ops it queued.
-    fn panel(
-        session: &DocSession,
-        offer: DeclareOffer,
-        (op, tool): (BooleanOp, &BooleanTool),
-        click: Option<&str>,
-    ) -> (String, Option<DeclareOffer>, Vec<SessionOp>) {
-        let mut held = Some(offer);
-        let mut ops = Vec::new();
-        let draw = |ui: &mut eframe::egui::Ui| {
-            declare_offer_rows(
-                ui,
-                &mut held,
-                (session.generation(), op, tool.clone()),
-                session.doc(),
-                &mut ops,
-                &Theme::DEFAULT,
-            );
-        };
-        let painted = match click {
-            Some(target) => painted_after_clicking(target, draw),
-            None => painted_text(draw),
-        };
-        (painted, held, ops)
-    }
-
-    /// **Refusal → offer → Declare → one undo**, as the panel drives
-    /// it. Red if the flush union commits instead of refusing; if the
-    /// status line says anything but the kernel's own sentence; if the
-    /// offer is not the kernel's pair at the two picks, `Rest` as found;
-    /// if the panel paints anything else; if Declare queues anything but
-    /// the offer; if accepting lands other than one union carrying the
-    /// pair in one history step; if the union is not block
-    /// plus boss; or if one undo does not return the document the union
-    /// was refused on.
-    #[test]
-    fn a_flush_union_is_declared_through_its_refusals_offer_as_one_undo() {
-        let tol = Tol::witness();
-        let (mut session, block, boss) = scene(tol);
-        let before = session.committed_doc().clone();
-        let steps = session.history().len();
-        let tool = holding(&session, block, boss);
-
-        let (refusal, offer) = refused_union(&mut session, &tool);
-        let plain = Node::Boolean {
-            op: BooleanOp::Union,
-            a: block.into(),
-            b: boss.into(),
-            declare: Vec::new(),
-        };
-        let (eval, union) = evaluated_insert(&before, plain, tol);
-        let kernel = tree::own_error(union, &eval).expect("the plain union fails");
-        assert_eq!(
-            refusal.to_string(),
-            kernel.kind.to_string(),
-            "the status line says the kernel's refusal, whole"
-        );
-        assert!(
-            session.committed_doc().bit_eq(&before),
-            "a refused union commits nothing"
-        );
-        assert_eq!(session.history().len(), steps, "and records no step");
-        let [finding] = offer.findings() else {
-            panic!("one refusal reports one pair: {:?}", offer.findings());
-        };
-        assert_eq!(
-            (finding.pair.0.at, finding.pair.1.at),
-            (block, boss),
-            "each side is sited at the operand that holds it"
-        );
-        assert_eq!(
-            (&finding.pair.0.name.path, &finding.pair.1.name.path),
-            (
-                &vec![RoleSeg::Cap(CapEnd::End)],
-                &vec![RoleSeg::Cap(CapEnd::Start)]
-            ),
-            "the block's top cap against the boss's bottom cap"
-        );
-        assert_eq!(finding.class, BooleanCoincidence::REST);
-
-        let op = (BooleanOp::Union, &tool);
-        let (painted, _, _) = panel(&session, offer.clone(), op, None);
-        assert_eq!(
-            painted,
-            format!(
-                "declare this contact and commit the boolean?\n\
-                 a face of Extrude {} against a face of Extrude {} — {} contact\n\
-                 Declare\nDecline",
-                test_utils::refusal::tag(block.0.digest()),
-                test_utils::refusal::tag(boss.0.digest()),
-                ContactClass::Rest.name()
-            )
-        );
-
-        let (_, held, ops) = panel(
-            &session,
-            offer.clone(),
-            op,
-            Some(DeclareOffer::ACCEPT_LABEL),
-        );
-        assert_eq!(
-            held.as_ref(),
-            Some(&offer),
-            "accepting leaves the offer to the landing"
-        );
-        let [accept] = <[SessionOp; 1]>::try_from(ops).expect("Declare queues one op");
-        let outcome = session.perform(accept);
-        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        let [union] = outcome.minted[..] else {
-            panic!("one union: {:?}", outcome.minted);
-        };
-        assert_eq!(session.history().len(), steps + 1, "one action, one step");
-        let doc = session.committed_doc();
-        assert!(matches!(
-            doc.node(union),
-            Some(Node::Boolean { op: BooleanOp::Union, a, b, declare })
-                if (Some(*a), Some(*b)) == (doc.output(block, 0), doc.output(boss, 0))
-                    && declare[..] == [(finding.pair.clone(), BooleanCoincidence::REST)]
-        ));
-        session.pump();
-        let got = evaluated_volume(session.evaluation().expect("landed"), union, tol);
-        let want = boss_on_block_union_volume();
-        assert!(
-            ((got - want) / want).abs() < 1e-9,
-            "the union is block plus boss: {got} vs {want}"
-        );
-
-        let undone = session.perform(SessionOp::Undo);
-        assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
-        assert!(
-            session.committed_doc().bit_eq(&before),
-            "one undo takes the declared union"
-        );
-    }
-
-    /// **Declining changes nothing.** Red if Decline queues an op or
-    /// leaves the offer held.
-    #[test]
-    fn declining_the_offer_drops_it_and_queues_nothing() {
-        let tol = Tol::witness();
-        let (mut session, block, boss) = scene(tol);
-        let tool = holding(&session, block, boss);
-        let (_, offer) = refused_union(&mut session, &tool);
-        let (_, held, ops) = panel(
-            &session,
-            offer,
-            (BooleanOp::Union, &tool),
-            Some(DeclareOffer::DECLINE_LABEL),
-        );
-        assert_eq!(held, None, "the offer is dropped");
-        assert!(ops.is_empty(), "and nothing is queued: {ops:?}");
-    }
-
-    /// **An offer is dropped unshown once the picks, the operation or
-    /// the document move past it**: its pairs are sited at operands the
-    /// tool no longer holds, it would commit an operation nobody chose,
-    /// or it was found on a document a commit would no longer edit. Red
-    /// if the panel draws any of the three, or keeps it.
-    #[test]
-    fn an_offer_the_picks_the_op_or_an_edit_moved_past_is_dropped_unshown() {
-        let tol = Tol::witness();
-        let (mut session, block, boss) = scene(tol);
-        let tool = holding(&session, block, boss);
-        let (_, offer) = refused_union(&mut session, &tool);
-        let (painted, held, _) = panel(&session, offer.clone(), (BooleanOp::Union, &tool), None);
-        assert!(!painted.is_empty(), "the premise: a live offer is drawn");
-        assert!(held.is_some(), "and kept");
-
-        let swapped = holding(&session, boss, block);
-        for (what, op) in [
-            ("other picks", (BooleanOp::Union, &swapped)),
-            ("another operation", (BooleanOp::Subtract, &tool)),
-        ] {
-            let (painted, held, _) = panel(&session, offer.clone(), op, None);
-            assert_eq!(painted, "", "{what}: nothing is drawn");
-            assert_eq!(held, None, "{what}: the offer is dropped");
-        }
-
-        let edited = session.perform(SessionOp::AddDatum {
-            datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
-        });
-        assert!(edited.refusal.is_none(), "{:?}", edited.refusal);
-        let (painted, held, _) = panel(&session, offer, (BooleanOp::Union, &tool), None);
-        assert_eq!(painted, "", "an edit since: nothing is drawn");
-        assert_eq!(held, None, "an edit since: the offer is dropped");
     }
 }
 

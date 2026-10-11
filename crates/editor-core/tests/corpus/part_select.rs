@@ -26,8 +26,8 @@
 
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanOp, Dimension, DocEdit, EntityKind, Formula, FreeVar, Node, PartSelect, PatternKind,
-    RecipeNodeId, RoleSeg, SitedRef, SlotId, SplitHalf, StableName, UnitSym, VarName,
+    Dimension, DocEdit, EntityKind, Formula, FreeVar, Node, PartSelect, PatternKind, RecipeNodeId,
+    RoleSeg, SitedRef, SlotId, SplitHalf, StableName, UnitSym, VarName,
 };
 
 use crate::fixture::{ang, desc, len, scl, xy_frame};
@@ -99,17 +99,29 @@ pub fn document() -> CorpusDoc {
         target: cube.into(),
         tool: tool.into(),
     });
+    let half = |r: &Recorder, side: SplitHalf| {
+        r.doc
+            .output(split, side.port())
+            .expect("a split defines a port per half")
+    };
     // The two halves rest on each other across the section — a
     // declared contact, named through the split's own vocabulary
     // because each read of a half carries the split's names verbatim.
     let rest = editor_core::declare_rest(vec![(
-        SitedRef::new(split, section_face(split, SplitHalf::Above)),
-        SitedRef::new(split, section_face(split, SplitHalf::Below)),
+        SitedRef::new(
+            half(&r, SplitHalf::Above),
+            section_face(split, SplitHalf::Above),
+        ),
+        SitedRef::new(
+            half(&r, SplitHalf::Below),
+            section_face(split, SplitHalf::Below),
+        ),
     )]);
-    let whole = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: editor_core::Operand::output(split, SplitHalf::Above.port()),
-        b: editor_core::Operand::output(split, SplitHalf::Below.port()),
+    let whole = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![
+            half(&r, SplitHalf::Above).into(),
+            half(&r, SplitHalf::Below).into(),
+        ]),
         declare: rest,
     });
 

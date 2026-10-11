@@ -7,14 +7,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::docm7_union_declare::{block, failure, run};
-use crate::fixture::{ang, fname, insert, len, len2, on_frame, scl, table};
+use crate::fixture::{ang, fname, insert, len, len2, on_frame, out, scl, table};
 
 use editor_core::{
-    Advisory, BooleanCoincidence, BooleanOp, CapEnd, CheckEvidence, CheckId, ChecksConfig, Datum,
-    EntityKey, EntityKind, Entry, Evaluation, FindingSubject, Formula, LoopProgram, NamedCell,
-    NamedCoincidence, Node, Operand, PartSelect, ProfileDoc, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, Proof, RecipeNodeId, RoleSeg, Rung, Severity, SitedRef, SplitHalf,
-    StableName, ValuePayload, coincide, spoken_by,
+    Advisory, BooleanCoincidence, CapEnd, CheckEvidence, CheckId, ChecksConfig, Datum, EntityKey,
+    EntityKind, Entry, Evaluation, FindingSubject, Formula, LoopProgram, NamedCell,
+    NamedCoincidence, Node, PartSelect, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, Proof, RecipeNodeId, RoleSeg, Rung, Severity, SitedRef, SplitHalf, StableName,
+    ValuePayload, VarId, coincide, spoken_by,
 };
 use geom_core::{MarginDiag, Point3, Tol};
 use topo::{DecisionSite, Relation};
@@ -46,7 +46,13 @@ fn rows(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
         .to_vec()
 }
 
-fn entity(input: RecipeNodeId, name: &StableName) -> NamedCell {
+/// The variable `split`'s port for `half` defines.
+fn port(doc: &ProfileDoc, split: RecipeNodeId, half: SplitHalf) -> VarId {
+    doc.output(split, half.port())
+        .expect("a split defines a port per half")
+}
+
+fn entity(input: VarId, name: &StableName) -> NamedCell {
     NamedCell::Entity {
         input,
         name: name.clone(),
@@ -66,16 +72,15 @@ fn a_declared_rest_is_one_unproven_row_named_by_its_operands() {
     let (doc, plate) = block(doc, (0.5, 1.5), (0.5, 1.5), 1.0, 0.5);
     let top = fname(base, RoleSeg::Cap(CapEnd::End));
     let bottom = fname(plate, RoleSeg::Cap(CapEnd::Start));
+    let (base_read, plate_read) = (out(&doc, base), out(&doc, plate));
     let (doc, union) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: base.into(),
-            b: plate.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![base.into(), plate.into()]),
             declare: vec![(
                 (
-                    SitedRef::at_mint(top.clone()),
-                    SitedRef::at_mint(bottom.clone()),
+                    SitedRef::new(base_read, top.clone()),
+                    SitedRef::new(plate_read, bottom.clone()),
                 ),
                 BooleanCoincidence::REST,
             )],
@@ -87,7 +92,10 @@ fn a_declared_rest_is_one_unproven_row_named_by_its_operands() {
     let row = &got[0];
     assert_eq!(
         row.cells,
-        [entity(base, &top), entity(plate, &bottom)],
+        [
+            entity(out(&doc, base), &top),
+            entity(out(&doc, plate), &bottom)
+        ],
         "the cells are the operands' own cap names"
     );
     assert_eq!(
@@ -100,7 +108,7 @@ fn a_declared_rest_is_one_unproven_row_named_by_its_operands() {
         "the declared reading's own margin, never a synthetic one"
     );
     let Proof::Unproven { residual, .. } = coincide::prove(&doc, row) else {
-        panic!("the same-source rung proves a declared glue of two extrudes")
+        panic!("the same-construction rung proves a declared glue of two extrudes")
     };
     assert!(
         matches!(&residual.constructions, [Ok(a), Ok(b)] if a.origin != b.origin),
@@ -197,11 +205,9 @@ fn face_of(
 /// the walk sees the transform although it adds no name segment — and
 /// stays unproven.
 ///
-/// The kernel settles a same-source pair like these walls by its own
-/// structural rung before any margin (stage 4 spec §14 Q1), so no
-/// production row reaches the door over them, and the row is built
-/// here over the scene's real cells. The production row that does is
-/// the section caps' ([`a_reunited_splits_section_caps_are_one_construction`]).
+/// The row is built here over the scene's real cells; the production
+/// rows over a split's walls and caps are the reunion's
+/// ([`a_reunited_splits_section_caps_are_one_construction`]).
 #[test]
 fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
     let doc = ProfileDoc::empty_derived("coincide-same-source", Tol::witness());
@@ -240,9 +246,13 @@ fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
         margin: MarginDiag::value(0.0),
         discharge: topo::Discharge::Numeric,
     };
+    let (above, below) = (
+        port(&doc, split, SplitHalf::Above),
+        port(&doc, split, SplitHalf::Below),
+    );
     let halves = row([
-        entity(split, &wall(SplitHalf::Above, 0.75)),
-        entity(split, &wall(SplitHalf::Below, 0.25)),
+        entity(above, &wall(SplitHalf::Above, 0.75)),
+        entity(below, &wall(SplitHalf::Below, 0.25)),
     ]);
     assert_eq!(
         coincide::prove(&doc, &halves),
@@ -251,8 +261,8 @@ fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
     );
     let unplaced = face_on(&ev, the_box, [0.0, 0.5, 0.5], [-1.0, 0.0, 0.0]);
     let across = row([
-        entity(the_box, &unplaced),
-        entity(split, &wall(SplitHalf::Above, 0.75)),
+        entity(out(&doc, the_box), &unplaced),
+        entity(above, &wall(SplitHalf::Above, 0.75)),
     ]);
     assert!(
         matches!(coincide::prove(&doc, &across), Proof::Unproven { .. }),
@@ -286,12 +296,12 @@ fn a_unions_rows_follow_its_member_order() {
                 (Relation::SameOriented, DecisionSite::PlaneLadder)
             );
             let input = |c: &NamedCell| match c {
-                NamedCell::Entity { input, name } if name.node == *input => *input,
+                NamedCell::Entity { input, name } if out(&doc, name.node) == *input => *input,
                 other => panic!("{members:?}: a cell is a member's own face: {other:?}"),
             };
             assert_eq!(
                 row.cells.each_ref().map(input),
-                members,
+                members.map(|m| out(&doc, m)),
                 "{members:?}: the listed-first member's cell first"
             );
         }
@@ -351,8 +361,8 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
         discharge: topo::Discharge::Numeric,
     };
     let one = row([
-        entity(first, &top_at(first, 3.5)),
-        entity(again, &top_at(again, 3.5)),
+        entity(out(&doc, first), &top_at(first, 3.5)),
+        entity(out(&doc, again), &top_at(again, 3.5)),
     ]);
     assert_eq!(
         coincide::prove(&doc, &one),
@@ -360,8 +370,8 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
         "one instance read twice"
     );
     let two = row([
-        entity(first, &top_at(first, 3.5)),
-        entity(second, &top_at(second, 6.5)),
+        entity(out(&doc, first), &top_at(first, 3.5)),
+        entity(out(&doc, second), &top_at(second, 6.5)),
     ]);
     let Proof::Unproven { residual, .. } = coincide::prove(&doc, &two) else {
         panic!("two instances are two placements")
@@ -436,7 +446,9 @@ fn a_filleted_box_records_one_unproven_turn_per_corner() {
                 panic!("a turn's cells are edges: {cell:?}")
             };
             assert!(
-                *input == the_box && edges.contains(name) && name.kind == EntityKind::Edge,
+                *input == out(&doc, the_box)
+                    && edges.contains(name)
+                    && name.kind == EntityKind::Edge,
                 "{cell:?} is a requested rim edge of the box"
             );
         }
@@ -577,26 +589,26 @@ fn a_reunited_splits_section_caps_are_one_construction() {
         "the premise: each cap is a section face of the split, {above_cap:?}, {below_cap:?}"
     );
     let wall = |half, z| half_face_on(&ev, split, half, [0.0, 0.5, z], [-1.0, 0.0, 0.0]);
-    // Both halves are read at the split's site; each name is sided by
-    // the half whose rows hold it.
+    let (above_read, below_read) = (
+        port(&doc, split, SplitHalf::Above),
+        port(&doc, split, SplitHalf::Below),
+    );
     let (doc, union) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: Operand::output(split, SplitHalf::Above.port()),
-            b: Operand::output(split, SplitHalf::Below.port()),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![above_read.into(), below_read.into()]),
             declare: vec![
                 (
                     (
-                        SitedRef::new(split, above_cap.clone()),
-                        SitedRef::new(split, below_cap.clone()),
+                        SitedRef::new(above_read, above_cap.clone()),
+                        SitedRef::new(below_read, below_cap.clone()),
                     ),
                     BooleanCoincidence::REST,
                 ),
                 (
                     (
-                        SitedRef::new(split, wall(SplitHalf::Above, 0.75)),
-                        SitedRef::new(split, wall(SplitHalf::Below, 0.25)),
+                        SitedRef::new(above_read, wall(SplitHalf::Above, 0.75)),
+                        SitedRef::new(below_read, wall(SplitHalf::Below, 0.25)),
                     ),
                     BooleanCoincidence::Continuation,
                 ),
@@ -606,7 +618,10 @@ fn a_reunited_splits_section_caps_are_one_construction() {
     let ev = run(&doc);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     let got = rows(&ev, union);
-    let caps = [entity(split, &above_cap), entity(split, &below_cap)];
+    let caps = [
+        entity(above_read, &above_cap),
+        entity(below_read, &below_cap),
+    ];
     let row = got
         .iter()
         .find(|r| r.cells == caps)
@@ -653,52 +668,52 @@ fn a_reunited_splits_section_caps_are_one_construction() {
 /// Two unit blocks `gap` apart along x, their flush caps and y-walls
 /// declared continuations, joined by `op`: the boolean's own rows and
 /// its node.
-fn apart(op: BooleanOp, id: &str) -> (ProfileDoc, Evaluation<f64>, RecipeNodeId, usize) {
+fn apart(subtract: bool, id: &str) -> (ProfileDoc, Evaluation<f64>, RecipeNodeId, usize) {
     let doc = ProfileDoc::empty_derived(id, Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
     let pairs = crate::fixture::flush_pairs(&doc, (a, a), (b, b));
     let n = pairs.len();
-    let (doc, node) = insert(
-        doc,
-        Node::Boolean {
-            op,
-            a: a.into(),
-            b: b.into(),
-            declare: pairs
-                .into_iter()
-                .map(|p| (p, BooleanCoincidence::Continuation))
-                .collect(),
-        },
-    );
+    let declare = pairs
+        .into_iter()
+        .map(|p| (p, BooleanCoincidence::Continuation))
+        .collect();
+    let boolean = if subtract {
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
+            declare,
+        }
+    } else {
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            declare,
+        }
+    };
+    let (doc, node) = insert(doc, boolean);
     let ev = run(&doc);
     assert!(failure(&ev, node).is_none(), "{:?}", failure(&ev, node));
     (doc, ev, node, n)
 }
 
-/// **The containment fallback carries the declaration door's rows.**
-/// Two blocks apart, their flush faces declared: the union's boundaries
-/// never cross, so it is the fallback's assembly, and the subtraction's
-/// is operand A whole (the single-operand finish). Each records one row
-/// per declared pair all the same: the declaration door decided them
-/// before the fallback was chosen.
+/// **A declared pair whose faces never meet records no row, through
+/// the containment fallback too.** Two blocks apart, their flush faces
+/// declared: the union's boundaries never cross, so it is the
+/// fallback's assembly, and the subtraction's is operand A whole (the
+/// single-operand finish). The declaration door verified each pair one
+/// carrier, but no face of one block meets a face of the other, so the
+/// glue took no effect and the result records no row (D1).
 #[test]
-fn the_fallbacks_carry_the_declared_rows() {
-    for (op, id) in [
-        (BooleanOp::Union, "coincide-apart-union"),
-        (BooleanOp::Subtract, "coincide-apart-subtract"),
+fn the_fallbacks_record_no_row_for_faces_that_never_meet() {
+    for (op, subtract, id) in [
+        ("union", false, "coincide-apart-union"),
+        ("subtract", true, "coincide-apart-subtract"),
     ] {
-        let (doc, ev, node, n) = apart(op, id);
+        let (doc, ev, node, n) = apart(subtract, id);
         assert!(n > 0, "the premise: flush faces to declare");
         let got = rows(&ev, node);
-        assert_eq!(got.len(), n, "{op:?}: one row per declared pair: {got:?}");
-        assert!(
-            got.iter().all(
-                |r| r.relation == Relation::SameOriented && r.site == DecisionSite::PlaneLadder
-            ),
-            "{op:?}: {got:?}"
-        );
-        assert_eq!(unproven(&doc, &ev).len(), n, "{op:?}: two extrudes' faces");
+        assert!(got.is_empty(), "{op:?}: no row for faces apart: {got:?}");
+        assert!(unproven(&doc, &ev).is_empty(), "{op:?}");
     }
 }
 
@@ -840,4 +855,169 @@ fn a_profile_junction_decided_on_one_carrier_is_one_same_oriented_row() {
             && said.contains("a profile junction no constructor made"),
         "{said}"
     );
+}
+
+/// The names of `node`'s edges with both ends at height `z`.
+fn rim_named(ev: &Evaluation<f64>, node: RecipeNodeId, z: f64) -> Vec<StableName> {
+    let body = match &ev.value(node).expect("the node evaluated").payload {
+        ValuePayload::Body(b) => b.clone(),
+        other => panic!("expected a body, got {other:?}"),
+    };
+    let height = |v| body.get_point(body.get_vertex(v).unwrap().point).unwrap().z;
+    let mut rim: Vec<StableName> = table(ev, node)
+        .iter()
+        .filter_map(|(n, entry)| match entry {
+            Entry::Unique(r) => match r.key {
+                EntityKey::Edge(e) => {
+                    let he = body.get_edge(e).unwrap().he_plus;
+                    let ends = [
+                        body.get_half_edge(he).unwrap().start,
+                        body.half_edge_end(he).unwrap(),
+                    ];
+                    ends.iter()
+                        .all(|&v| (height(v) - z).abs() < 1e-12)
+                        .then(|| n.clone())
+                }
+                _ => None,
+            },
+            Entry::Tied(_) => None,
+        })
+        .collect();
+    rim.sort();
+    rim
+}
+
+/// **A blend's tangent joints and coaxial supports leave the battery**.
+/// A disc (a circle profile extruded) filleted along its top rim: the
+/// fillet holds one `Coaxial` row per rim link, decided at
+/// `BatterySupportAxis` over the cap and the wall, and one
+/// `Tangent { aligned: true }` row per junction, decided at
+/// `BatteryJoint` over the two rim edges meeting there, each named by
+/// the disc's own names. The cap and the wall are two constructions,
+/// so each coaxiality is unproven.
+///
+/// Red if either decision stops being recorded, or is not carried to
+/// the fillet's value.
+#[test]
+fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
+    let doc = ProfileDoc::empty_derived("coincide-disc", Tol::witness());
+    let (doc, p) = profile_of(
+        doc,
+        LoopProgram::Circle {
+            centre: len2([0.0, 0.0]),
+            radius: len(1.0),
+        },
+    );
+    let (doc, disc) = insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(1.0),
+            side: editor_core::ExtrudeSide::Along,
+        },
+    );
+    let ev = run(&doc);
+    let rim = rim_named(&ev, disc, 1.0);
+    let (doc, fillet) = insert(doc, Node::fillet(disc, len(0.1), rim.clone()));
+    let ev = run(&doc);
+    let got = rows(&ev, fillet);
+    assert_eq!(rim.len(), 2, "the circle's rim is two arcs");
+    assert_eq!(got.len(), 4, "two supports, two joints: {got:?}");
+    let (axes, joints) = got.split_at(2);
+    for row in axes {
+        assert_eq!(
+            (row.relation, row.site),
+            (Relation::Coaxial, DecisionSite::BatterySupportAxis)
+        );
+        let kinds = row.cells.each_ref().map(|cell| match cell {
+            NamedCell::Entity { input, name } if Some(*input) == doc.output(disc, 0) => name.kind,
+            cell => panic!("a support is a face of the disc: {cell:?}"),
+        });
+        assert_eq!(kinds, [EntityKind::Face; 2], "{row:?}");
+    }
+    for row in joints {
+        assert_eq!(
+            (row.relation, row.site),
+            (
+                Relation::Tangent { aligned: true },
+                DecisionSite::BatteryJoint
+            )
+        );
+        let names = row.cells.each_ref().map(|cell| match cell {
+            NamedCell::Entity { input, name } if Some(*input) == doc.output(disc, 0) => name,
+            cell => panic!("a joint's cells are edges of the disc: {cell:?}"),
+        });
+        assert!(
+            names[0] != names[1] && names.iter().all(|n| rim.contains(n)),
+            "a joint names the disc's two rim edges: {row:?}"
+        );
+    }
+    assert!(
+        got.iter()
+            .all(|row| matches!(coincide::prove(&doc, row), Proof::Unproven { .. }))
+    );
+    let findings = unproven(&doc, &ev);
+    assert_eq!(findings.len(), 4, "{findings:?}");
+    let said: Vec<String> = findings.iter().map(|f| spoken_by(f, &doc)).collect();
+    assert!(
+        said.iter().any(|s| s.contains("shares an axis with")),
+        "{said:?}"
+    );
+    assert!(
+        said.iter()
+            .any(|s| s.contains("a blend chain's joint read as tangent")),
+        "{said:?}"
+    );
+}
+
+/// **A union records a vertex touch once, as a pair does.** Two blocks
+/// kissing at a corner: their two-member union — the pair — holds one
+/// `VertexFusion` row, cited by its one record. Folded into a union with
+/// a third block apart, the pairwise judgement decides the same touch,
+/// but its records are not the union's, so only the fold step's row,
+/// which the union's record cites, is published: the union's rows and
+/// findings are the pair's, the vertex touch once.
+#[test]
+fn a_union_records_a_vertex_touch_once() {
+    let doc = ProfileDoc::empty_derived("coincide-union-kiss", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 2.0);
+    let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, pair) = crate::docm7_union_declare::declared_union(doc, &[a, b], Vec::new());
+    // The kiss is the last step's, so its record is the union's.
+    let (doc, union) = crate::docm7_union_declare::declared_union(doc, &[far, a, b], Vec::new());
+    let ev = run(&doc);
+    let mut all = Vec::new();
+    for (what, node) in [("pair", pair), ("union", union)] {
+        let got = rows(&ev, node);
+        let fusions = got
+            .iter()
+            .filter(|r| r.site == DecisionSite::VertexFusion)
+            .count();
+        assert_eq!(
+            fusions, 1,
+            "{what}: one vertex row for the one kiss: {got:#?}"
+        );
+        let value = ev.value(node).expect("evaluated");
+        let ValuePayload::Boolean(editor_core::BooleanValue::Body { contacts, .. }) =
+            &value.payload
+        else {
+            panic!("{what}: a boolean body")
+        };
+        assert_eq!(
+            contacts.rows().count(),
+            1,
+            "{what}: one record: {contacts:?}"
+        );
+        all.push(got.len());
+    }
+    assert_eq!(all[0], all[1], "the union's rows are the pair's");
+    let findings = unproven(&doc, &ev);
+    let at = |node| {
+        findings
+            .iter()
+            .filter(|f| matches!(f.subject, FindingSubject::Node(n) if n == node))
+            .count()
+    };
+    assert_eq!(at(pair), at(union), "{findings:#?}");
 }

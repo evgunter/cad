@@ -42,8 +42,8 @@ is the board and `work/README.md` its contract.
 | `docs/DRAFT-DESIGN.md` | Ratified (#908); unbuilt | Draft DR1–DR6: plane walls only at v1, a certified re-geom pass, the pull-direction selector as a SELECT-DESIGN amendment, survivor naming |
 | `docs/SELECT-DESIGN.md` | Ratified | Selection: filters, heterogeneous sets, vanishing entities; the contact-site recourse (§3d) |
 | `docs/VARIABLES-DESIGN.md` | Settled under D10 (designer pair, converged); built (stage 1) | Variables, VARIABLES-DESIGN VR1–VR9: minted identity with a separate unique optional name, a slot holds a `VarId`, `Expr` holds no float (rationals and `turn`), `Formula` authored and lowered at the edit door, lifecycle, id-keyed tokens and analysis seeds |
-| `docs/AXIS-DECLARATION-DESIGN.md` | Ratified (Ev, 2026-09-12, #2404); unbuilt | Axis-flavoured declarations (coaxial, structural-parallel) have no identity channel: `ParamSource` carries stored scalar fields only. Axis-shaped declarations invalidated structurally by placement-chain comparison, so no numerical check decides whether a rotation happened; absence of provenance refuses |
-| `crates/verbs/README.md` | Ratified (#1388; S3 corrected #1983, VS-Q4 revised #1870); SEAT closed, walk ratified #1997 | The kernel query seat, one verb vocabulary, lowered parameter identity, VERB-SEAT-DESIGN S1–S4, V1–V4, P1–P3: §1 query doors at `topo`; §2 the per-verb kernel `Verb` declaration; §3 the opaque per-field `ParamSource` channel |
+| `docs/AXIS-DECLARATION-DESIGN.md` | Ratified (Ev, 2026-09-12, #2404); unbuilt | Retired by D10 (header): coaxiality is one `Axis` read twice, or a margin decided Zero and recorded. The body keeps the conversation that ratified the channel |
+| `crates/verbs/README.md` | Ratified (#1388; S3 corrected #1983, VS-Q4 revised #1870); SEAT closed, walk ratified #1997 | The kernel query seat, one verb vocabulary, lowered parameter identity, VERB-SEAT-DESIGN S1–S4, V1–V4, P1–P3: §1 query doors at `topo`; §2 the per-verb kernel `Verb` declaration; §3 the parameter→field flow |
 | `docs/MATE-7-TANGENCY-DESIGN.md` | Ratified | Torus×torus rim tangency; the kissing arm banks on it |
 | `crates/editor-core/REFERENCES.md` | Ratified (in-chat 2026-09-04; DM4 amended 2026-09-06; DM7–DM8 on the `[ev]` PR of 2026-09-16); DOCM closed 2026-09-13, EDIT its successor until 2026-10-02, then RECIPE (`docs/doc-ledger/edit-leaves-the-tracker.md`) | What a recipe reference may be, DM1–DM8: `Datum::FaceFrame`, the carrier-kind read, `Node::Part`, the n-ary `Node::Union` with `DocEdit::SetMembers`, all built (DOCM-1…DOCM-8) |
 | `crates/editor-core/IDENTITY.md` | Ratified (in-chat 2026-09-04); DOCM closed 2026-09-13 | A held value names the world it came from, DI1–DI5: history-branch validity of node ids, the memo as a pure function of the document, `Evaluation` carries its document's identity, forking is its own act |
@@ -294,7 +294,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    census must find no coincidence at all. Every door that returns or
    consumes one pays that gate once, at the door that built it.
    The Boolean door's result meets tier 3 without the census: its
-   declared contacts ride beside it (`BooleanBody::contacts`), and the
+   contact records, each citing the coincidence that backs it, ride
+   beside it (`BooleanBody::contacts`), and the
    census over them is parked on CONTACT's cross-solid curved lane
    (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
    Construction state (tier 1, or tier 2 without geometric
@@ -344,25 +345,32 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    - A contact record is a pair of cells, one from each touching
      shell (or each side of a shell's pinch, whose two sides touch
      within one shell), whose interiors meet, plus its backing: a
-     coincidence an op decided Zero, recorded (D10). Records carry
-     three granularities: vertex (`VvContact`, `VeContact`,
-     `VfContact`: a vertex on a vertex, on an edge's interior, on a
-     face's interior); edge (`EeContact`: two edges whose interiors
-     meet, crossing or overlapping); and face (`CurveContact`,
-     `PatchContact`; CONTACT-DESIGN C3), whose rungs back a subordinate
-     vertex event. Edge-on-face and coincident-edge *segments* are
-     certified by reconstruction from their bounding vertex records
+     coincidence an op decided Zero, recorded (D10). The record is
+     that pair and nothing else: an unordered pair of the body's own
+     cells, in canonical order, in one list a citation addresses by
+     position. It carries no operand label, no stored granularity and
+     no witness. Its kind (vertex–vertex, vertex–edge, vertex–face,
+     edge–edge, edge–face, face–face) is the two cells' dimensions, and
+     whether it touches at a point, along a curve or over a patch is
+     read from the two cells' geometry by the census (CONTACT-DESIGN
+     C3), whose rungs back a subordinate vertex event. An operation's
+     own working vocabulary (the boolean's operand-tagged cells) stays
+     inside it and is dropped at its carry. Every pair whose interiors
+     meet is recorded, an edge lying in a face or along an edge
+     included; only how the census confirms a record depends on its
+     geometry. A straight edge in a plane, or two collinear lines, is
+     confirmed by reconstruction from its bounding vertex records
      (between two backed bounds, two lines sharing two points are one
      line; a missing bounding record is an unbacked contact, never
-     inferred); a crossing of two edge interiors has no bound, and its
-     edge-edge record backs it. An op that replaces a cell rewrites
+     inferred), a curved one as a curve touch; a crossing of two edge
+     interiors has no bound, and its edge-edge record backs it. An op that replaces a cell rewrites
      every record naming it onto the replacement, by substitution; an
      edge split moves a `(vertex, edge)` record onto the piece the
      vertex rests on, and an `(edge, edge)` record onto every pair of
      pieces whose interiors still meet, by the split's own lineage.
-   - **Certification strength equals its skeleton**: a `CurveContact`
-     is certified at its jet samples plus hull bounds, a `PatchContact`
-     by definitely-positive region overlap in the shared chart, a
+   - **Certification strength equals its skeleton**: a curve touch is
+     certified at its jet samples plus hull bounds, a patch by
+     definitely-positive region overlap in the shared chart, a
      vertex-granularity area contact via its corner/segment records.
      Nested-shell pure containment (a void, zero coincidences) is
      census-invisible and certifies — the voids story below, not a
@@ -665,11 +673,12 @@ residual bound against the described locus (D4). The type is
 
 ```text
 EdgeDescription =
-  | Intersection        { s1, s2, witness }  -- transverse surface–surface
+  | Intersection        { pair, witness }    -- transverse surface–surface
                                              -- intersection: the connected
                                              -- component of S₁∩S₂ selected by
-                                             -- the witness (also the marching seed)
-  | TangentIntersection { s1, s2, witness }  -- tangential contact locus; same
+                                             -- the witness (also the marching seed);
+                                             -- `pair` is the set {S₁, S₂}, unordered
+  | TangentIntersection { pair, witness }    -- tangential contact locus; same
                                              -- shape, margin one order up
   | Chart(ChartCurve)                        -- a curve the surface UNDER-determines:
                                              -- (surface, Pcurve) with a `wrap` flag
@@ -981,7 +990,7 @@ convention, adopted directly. Pipeline:
    bodies.
 2. **Edge adoption**: verify the imported curve lies within ε of the
    intersection of its adjacent surfaces with adequate transversality
-   margin, then rebuild it as `Intersection { s1, s2, witness }` — the
+   margin, then rebuild it as `Intersection { pair, witness }` — the
    imported curve demoted to witness + initial cache. Seams and
    tangency loci are recognized likewise.
 3. **Healing**: where no description is satisfied within ε, repair
@@ -1250,7 +1259,7 @@ variable whose type suits the slot. The types are the scalars (`Length`,
 `Angle`, `Scalar`, `Count`), the discrete kinds (a side, a half, a
 sense) and the poses (`Point`, `Direction`, `Axis`, `Plane`, `Frame`),
 which are only defined: read off a body's geometry (a face's plane, a
-carrier's axis or centre), by coordinates over scalar variables in a
+carrier's axis or centre, a vertex's point), by coordinates over scalar variables in a
 frame the definition reads, by a construction over other poses, as a
 pose of a copy, or as an output of an operation, so no pose is free,
 none is defined from nothing, and no construction reads one; the shapes
@@ -1259,8 +1268,10 @@ and `Profile`), which only an operation defines, a `Profile` being 2-D
 shape whose numbers are read only against each other, and a sweep
 reading a profile and, at most, a direction in the profile's own axes
 (an extrude's slant, held to one side of the profile's plane) or a 2-D
-axis line (a revolve's), never a frame; and the selections of a shape
-(`Face`, `Edge`, and their sets `Faces`, `Edges`). A variable is
+axis line (a revolve's), never a frame; and the selections of a shape:
+one cell of a body (`Face`, `Edge`, `Vertex`), or the set of them a
+reader takes (`Faces`, `Edges`; a set kind exists only for a slot that
+reads one). A variable is
 **free** — a value, its written unit (D6) and optionally a distribution
 — or **defined**, by an `Expr` over other variables, by a selection of a
 `Body` variable, or as an output of an operation. A dimensioned literal stands nowhere, neither in a slot
@@ -1281,7 +1292,7 @@ forgets in-plane motion, an axis slide and spin along itself; and the kinds are 
 slot holds its own kind; a finer value is read through its projection,
 and an incidence between poses (an axis in a plane, a point on an axis)
 is a construction over one variable, never a check between two. A face
-reads as a plane; no reader takes a carrier's reference direction. A 2-D
+reads as a plane and a vertex as a point; no reader takes a carrier's reference direction. A 2-D
 value (a profile's step, a revolve's axis line) lives in the node that
 holds its frame, as scalar slots, and is never a variable of a 2-D kind;
 its lift to a 3-D pose is how it leaves.
@@ -1310,8 +1321,8 @@ several positions is one body placed several times, each placement a
 copy. A pattern
 is a placement whose reads reach an index (FORK-PAT): one copy per
 value, the index entering as a value or through a mate's target. A document with nothing related to its world has
-an empty product. A `Face` or `Edge`
-variable, or a set of them, is a selection of a `Body` variable by
+an empty product. A `Face`, `Edge`
+or `Vertex` variable, or a set of them, is a selection of a `Body` variable by
 `StableName`: a definition, not a node, stating its body once, and the
 N5 resolution ladder lives there. A selection authored at two sites is
 two variables (the GUI offers the existing one), and a repair is

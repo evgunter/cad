@@ -70,7 +70,7 @@
 use std::sync::Arc;
 
 use geom_core::Decide;
-use topo::{AtRestPolicy, ContactRecords, FaceKey, PatchContact, ValidationError};
+use topo::{ContactRecords, FaceKey, PatchContact, ValidationError};
 
 use crate::doc::Doc;
 use crate::eval::{Evaluation, ValuePayload};
@@ -337,10 +337,15 @@ impl core::fmt::Display for CarriedRefusal {
 ///
 /// Bundled because the two travel together and are filled at ONE site
 /// — the instantiate op — and are empty on every other op.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct CarriedDeclarations {
     /// The declarations, in the inner documents' own order.
     pub minted: Vec<CarriedDeclaration>,
+    /// The at-rest census's findings for the mated pairs the documents
+    /// below refused to read as one carrier, which minted no record:
+    /// keyed in the same arena as the records, so the gate that raises
+    /// them names faces of this body ([`crate::Product::refused_at_rest`]).
+    pub refused: Vec<ValidationError>,
     /// The refusals, in the inner documents' own order.
     pub unminted: Vec<CarriedRefusal>,
     /// The unplaced groups below, in the inner documents' own order.
@@ -473,6 +478,11 @@ pub struct Assembly<T: Decide> {
     /// declarations too, and without these rows a certified assembly
     /// could not say which inner mates its verdict answered for.
     pub carried: Vec<CarriedDeclaration>,
+    /// Every overlap between two copies' material, in the world and in
+    /// each unplaced group's own space, in the census's order (D10):
+    /// reported, quiet or loud, and never a refusal
+    /// ([`crate::checks::at_rest`]).
+    pub interference: Vec<crate::checks::at_rest::InterferenceFinding>,
 }
 
 /// Why a mate reference did not resolve to a product face.
@@ -955,10 +965,10 @@ pub enum AssemblyError {
     ///
     /// Today that is the whole declared direction. The census's patch
     /// certifier gates on STRUCTURAL chart identity — a shared
-    /// `SurfaceKey` within one body, or the same `GeomSource` across
-    /// bodies — which two instances of a part satisfy by neither half,
-    /// so a declared cross-instance pair ends here whatever its
-    /// geometry. Closing that is a cross-instance chart rung in the
+    /// `SurfaceKey` within one body, or two descriptions that read
+    /// bit-identical — which two placed instances of a part satisfy by
+    /// neither half, so a declared cross-instance pair ends here
+    /// whatever its geometry. Closing that is a cross-instance chart rung in the
     /// census, not work this layer can do; the day it lands,
     /// [`assemble`] returns `Ok` for these documents and every arm
     /// matching here goes dead.
@@ -1168,7 +1178,7 @@ impl core::error::Error for AssemblyError {}
 /// so: a document whose mates declare a cross-instance contact
 /// refuses [`AssemblyError::Uncertified`], which a caller must match
 /// separately from the verdicts against their own document.
-pub fn assemble<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
+pub fn assemble<P: crate::ProfilePayload, T: crate::checks::at_rest::LocalizeLane>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     tol: Tol,
@@ -1185,7 +1195,11 @@ pub fn assemble<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
                 refusal.kind(),
                 crate::ProductErrorKind::Unplaced | crate::ProductErrorKind::EmptyProduct
             ) {
-                gate_spaces(crate::product::own_spaces(doc, evaluation, tol), tol)?;
+                gate_spaces(
+                    crate::product::own_spaces(doc, evaluation, tol),
+                    tol,
+                    &mut Vec::new(),
+                )?;
             }
             Err(AssemblyError::Product(Box::new(refusal)))
         }
@@ -1196,13 +1210,14 @@ pub fn assemble<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
 /// against nothing outside it (A11 (2)): the gate over each
 /// [`crate::OwnSpace`] in turn, a space whose roots denote no body
 /// holding nothing to check.
-fn gate_spaces<T: Decide + AtRestPolicy>(
+fn gate_spaces<T: crate::checks::at_rest::LocalizeLane>(
     spaces: Vec<crate::OwnSpace<T>>,
     tol: Tol,
+    interference: &mut Vec<crate::checks::at_rest::InterferenceFinding>,
 ) -> Result<(), AssemblyError> {
     for space in spaces {
         match space.gather {
-            Ok(product) => verdict(&product, tol)?,
+            Ok(product) => interference.extend(verdict(&product, tol)?),
             Err(refusal) if refusal.kind().means_no_body() => {}
             Err(refusal) => {
                 return Err(AssemblyError::Space {
@@ -1243,11 +1258,11 @@ fn gate_spaces<T: Decide + AtRestPolicy>(
 /// wrapper's arm: a mate reference that names no product face, a class
 /// with no at-rest record ([`crate::mate::class_admission`]), and the
 /// kernel's tier-3' findings attributed back to their mates.
-pub fn assemble_gathered<T: Decide + AtRestPolicy>(
+pub fn assemble_gathered<T: crate::checks::at_rest::LocalizeLane>(
     product: Product<T>,
     tol: Tol,
 ) -> Result<Assembly<T>, AssemblyError> {
-    verdict(&product, tol)?;
+    let mut interference = verdict(&product, tol)?;
     let Product {
         body,
         names,
@@ -1257,20 +1272,24 @@ pub fn assemble_gathered<T: Decide + AtRestPolicy>(
         spaces,
         ..
     } = product;
-    gate_spaces(spaces, tol)?;
+    gate_spaces(spaces, tol, &mut interference)?;
     Ok(Assembly {
         body: body.into_body(),
         names,
         contacts,
         minted,
         carried,
+        interference,
     })
 }
 
 /// **The gate's verdict over one gathered space** — the world, or one
 /// unplaced group's own ([`gate_spaces`]): the one copy of the gate's
 /// checks, their attributions and their refusal order.
-fn verdict<T: Decide + AtRestPolicy>(product: &Product<T>, tol: Tol) -> Result<(), AssemblyError> {
+fn verdict<T: crate::checks::at_rest::LocalizeLane>(
+    product: &Product<T>,
+    tol: Tol,
+) -> Result<Vec<crate::checks::at_rest::InterferenceFinding>, AssemblyError> {
     // Inner mint health, before this document's own: an outer assembly
     // is unusable while an inner part is broken, and the file the
     // author must open is the inner one. Verification still runs once
@@ -1294,9 +1313,22 @@ fn verdict<T: Decide + AtRestPolicy>(product: &Product<T>, tol: Tol) -> Result<(
             refusals: product.unminted.clone(),
         });
     }
-    let Err(errors) = T::gate_at_rest_declared(&product.body, &product.contacts, tol) else {
-        return Ok(());
-    };
+    // The gate's findings over the records, then the census's findings
+    // for the mated pairs it refused at the mint, which minted no
+    // record: the gate's own order, as when it read those pairs itself.
+    let mut errors = T::gate_at_rest_declared(&product.body, &product.contacts, tol)
+        .err()
+        .unwrap_or_default();
+    errors.extend(product.refused_at_rest.iter().cloned());
+    if errors.is_empty() {
+        return Ok(Vec::new());
+    }
+    // An overlap between two copies is a finding, never a refusal
+    // (D10); what is left is refused as it always was.
+    let (interference, errors) = crate::checks::at_rest::partition(product, errors, tol);
+    if errors.is_empty() {
+        return Ok(interference);
+    }
     let findings: Vec<AtRestFinding> = errors
         .into_iter()
         .map(|error| AtRestFinding {
@@ -1350,9 +1382,10 @@ fn verdict<T: Decide + AtRestPolicy>(product: &Product<T>, tol: Tol) -> Result<(
 pub(crate) fn mint<P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
-    names: &NameTable,
-    contacts: &mut ContactRecords,
+    (names, body): (&NameTable, &topo::Body<T>),
+    at_rest: &mut AtRestRows,
     space: crate::mate::Space,
+    band: Result<geom_core::Band, geom_core::BandError>,
 ) -> (Vec<MintedDeclaration>, Vec<MintRefusal>) {
     let mut minted = Vec::new();
     let mut unminted = Vec::new();
@@ -1412,13 +1445,24 @@ pub(crate) fn mint<P: crate::ProfilePayload, T: Decide>(
             // `CurveContact`. A same-instance mate is refused
             // `SelfMate` at the solve door, so a live mate reaching
             // here names two faces of two different instances.
+            //
+            // The mate places and never checks (D10): the record cites
+            // the at-rest census's decision that the two faces rest on
+            // one carrier, and where the census refuses that, the mate
+            // mints no record and the refusal is the census's finding.
             ClassAdmission::Mints => {
                 debug_assert!(
                     face_a != face_b,
                     "a live mate's two references resolved to one face: \
                      the solve door's `SelfMate` refusal was bypassed"
                 );
-                contacts.patches.push(PatchContact { face_a, face_b });
+                // Each side's cell is named at its instance's read: an
+                // instance defines its body's variable at insert.
+                let read = |r: &crate::node::SitedFace| {
+                    doc.output(r.at, 0)
+                        .unwrap_or_else(|| unreachable!("an instance defines its output"))
+                };
+                at_rest.decide(id, body, (a, face_a, read(a)), (b, face_b, read(b)), band);
             }
             other => {
                 unminted.push(MintRefusal::NoAtRestRecord {
@@ -1438,6 +1482,71 @@ pub(crate) fn mint<P: crate::ProfilePayload, T: Decide>(
         });
     }
     (minted, unminted)
+}
+
+/// **One at-rest census decision a mate's record cites**, with the mate
+/// whose pair it decided ([`crate::Product::coincidences`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct AtRestRow {
+    /// The mate whose two faces the census read as one carrier.
+    pub mate: RecipeNodeId,
+    /// The decision, each cell named as the mate's reference reads it.
+    pub row: crate::coincide::NamedCoincidence,
+}
+
+/// **What the mint door writes at rest**: the records, the at-rest
+/// census's rows they cite, and the census's findings for the pairs it
+/// refused, which mint no record ([`mint`]).
+#[derive(Debug, Default)]
+pub(crate) struct AtRestRows {
+    /// The records, the gathered ones and the minted ones.
+    pub(crate) contacts: ContactRecords,
+    /// The census's rows, in mint order; a minted record cites its own.
+    pub(crate) coincidences: Vec<AtRestRow>,
+    /// The census's findings for the pairs it refused.
+    pub(crate) refused: Vec<ValidationError>,
+}
+
+impl AtRestRows {
+    /// The census's decision of one mated pair: a row and a record
+    /// citing it, or the census's finding.
+    fn decide<T: Decide>(
+        &mut self,
+        mate: RecipeNodeId,
+        body: &topo::Body<T>,
+        (a, face_a, read_a): (&SitedFace, FaceKey, crate::VarId),
+        (b, face_b, read_b): (&SitedFace, FaceKey, crate::VarId),
+        band: Result<geom_core::Band, geom_core::BandError>,
+    ) {
+        let decided = match band {
+            Ok(band) => topo::census_rest_decision(body, face_a, face_b, band),
+            Err(error) => Err(ValidationError::Band { error }),
+        };
+        match decided {
+            Ok(row) => {
+                let cell = |r: &SitedFace, input| crate::coincide::NamedCell::Entity {
+                    input,
+                    name: (*r.name).clone(),
+                };
+                let k = u32::try_from(self.coincidences.len()).unwrap_or(u32::MAX);
+                self.coincidences.push(AtRestRow {
+                    mate,
+                    row: crate::coincide::NamedCoincidence {
+                        cells: [cell(a, read_a), cell(b, read_b)],
+                        relation: row.relation,
+                        site: row.site,
+                        margin: row.margin,
+                        discharge: row.discharge,
+                    },
+                });
+                self.contacts.patches.push(topo::Cited::new(
+                    PatchContact { face_a, face_b },
+                    topo::Cites::decided(k),
+                ));
+            }
+            Err(finding) => self.refused.push(finding),
+        }
+    }
 }
 
 /// One mate reference → the product face it names, `None` where no
@@ -1552,8 +1661,16 @@ fn resolve_face<P: crate::ProfilePayload, T: Decide>(
             let Some(consumer_node) = doc.node(consumer) else {
                 continue;
             };
-            let defined_by = |var| doc.defined_by(var).map(|(at, _)| at);
-            for step in crate::names::lift(consumer, consumer_node, node, &name, &defined_by) {
+            let defined_by = |var| doc.read_operation(var);
+            let selected_body = |var| doc.selection(var).map_or(var, |select| select.body);
+            for step in crate::names::lift(
+                consumer,
+                consumer_node,
+                node,
+                &name,
+                &defined_by,
+                &selected_body,
+            ) {
                 match step {
                     crate::names::Lift::Spelled(carried) if spells(consumer, &carried) => {
                         frontier.push_back((consumer, carried));
@@ -1779,7 +1896,9 @@ fn attribute(
         // over face keys can match. `InstanceInterference` is that
         // arm's decided verdict — two solids and a vertex, a statement
         // about placement that no contact record makes and no mate
-        // answers for (recorded gate-skips do not exist).
+        // answers for. Between two copies the gate takes it out first
+        // (`checks::at_rest::partition`), so what reaches here is an
+        // overlap inside one copy's body.
         ValidationError::UndeclaredContact { .. }
         | ValidationError::StaleContactDeclaration {
             declaration:

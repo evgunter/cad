@@ -933,14 +933,14 @@
 //! Two greps over `crates/` and `demos/` — one for the names handed to a
 //! funnel door, one for identity/gap-shaped string literals — and their
 //! union minus the bare filter words and the test-harness names. **106
-//! names** at M10-7, **105** since one retired. The rule is written out in
-//! `work/sym/symbolic-tier-census.md`, which also carries the full
+//! names** at M10-7, **104** since two retired. The rule is written out in
+//! `work/tier/symbolic-tier-census.md`, which also carries the full
 //! table: one row per name, with its bucket, its evidence and its site.
 //! Only the counts and the two families that matter are here.
 //!
 //! | bucket | count |
 //! | --- | --- |
-//! | IMPLICIT (S-CERT's frontier) | 4 |
+//! | IMPLICIT (S-CERT's frontier) | 3 |
 //! | NOT A PREDICATE | 8 |
 //! | EXPLICIT | 93 |
 //!
@@ -949,15 +949,16 @@
 //! one states its own. The difference is filter width, not new
 //! predicates.
 //!
-//! **IMPLICIT — 4**, and this is the census's load-bearing claim:
+//! **IMPLICIT — 3**, and this is the census's load-bearing claim:
 //! `ssi_on_locus` and `ssi_on_locus_foot` (a marched intersection
-//! point's residual and the foot of its projection),
-//! `plane_nurbs_on_locus` (a chart-image foot) and
-//! `offset_corner_on_surface` (an offset corner found by a root
-//! solve) — EXACTLY the four S-CERT's frontier item already names, at
-//! either filter width. A quantity found by iteration has no expression
-//! in the parameters, so no normal form reaches it and its residual
-//! widens with the box whatever this tier does.
+//! point's residual and the foot of its projection, the plane × NURBS
+//! lane's chart-image foot among them) and `offset_corner_on_surface`
+//! (an offset corner found by a root solve) — EXACTLY the quantities
+//! S-CERT's frontier item
+//! (`work/tier/param-box-certification-of-implicit-quantities.md`)
+//! names, at either filter width. A quantity found by iteration has no
+//! expression in the parameters, so no normal form reaches it and its
+//! residual widens with the box whatever this tier does.
 //!
 //! **NOT A PREDICATE — 8.** Seven are `pncad-py` TAG strings for error
 //! and enum variants; `carrier_kind` is a diagnostic name on an
@@ -1070,6 +1071,10 @@ mod rational;
 /// stayed numeric, what blocked it.
 #[path = "sym/report.rs"]
 pub mod report;
+/// The re-valuation instrument: a decision's DAG evaluated at another
+/// parameter point, against the build there (test-only).
+#[cfg(feature = "sym-revalue-testing")]
+pub mod revalue;
 /// Rule G: the canonical square root — the one door every `Sqrt` atom
 /// is minted through, and the `D ≥ 0` side condition its quotient
 /// split rests on.
@@ -5031,6 +5036,10 @@ impl<T: Real> Real for Sym<T> {
         Self::nullary(T::from_f64(x), SymOp::Lit, x.to_bits())
     }
 
+    fn from_computed(x: f64) -> Self {
+        Self::opaque(T::from_computed(x))
+    }
+
     fn zero() -> Self {
         // The same node a `from_f64(0.0)` mints, so the two spellings
         // of the additive identity share one id.
@@ -5261,6 +5270,19 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 /// Everything else is `T::sign_within` verbatim.
 impl<T: Decide> Decide for Sym<T> {
     fn sign_within(self, band: Band) -> Result<Decided, Indeterminate> {
+        #[cfg(feature = "sym-revalue-testing")]
+        let noted = revalue::note(self.node, self.value);
+        let decided = self.decide_sign(band);
+        #[cfg(feature = "sym-revalue-testing")]
+        revalue::settle(noted, &decided);
+        decided
+    }
+}
+
+impl<T: Decide> Sym<T> {
+    /// [`Decide::sign_within`]'s body, apart so the re-valuation hook
+    /// can read the outcome it returns.
+    fn decide_sign(self, band: Band) -> Result<Decided, Indeterminate> {
         // Where this decision's own K sample will land, read before the
         // base scalar records it (`k_stats::sink_mark`).
         #[cfg(feature = "probe")]

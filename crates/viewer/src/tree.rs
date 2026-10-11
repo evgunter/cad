@@ -164,8 +164,9 @@
 //! Depth is the number of BRANCHES a node sits under, not the length
 //! of its input chain. A node continues the line of its PRIMARY input
 //! — the first entry of `Doc::upstream`, which is the operand the
-//! kernel accumulates into: a boolean's `a`, a fillet's `target`, a
-//! transform's `input`. Every other input is a branch that indents:
+//! kernel accumulates into: a boolean's `a`, the body a fillet's
+//! selection reads, a transform's `input`. Every other input is a
+//! branch that indents:
 //!
 //! ```text
 //! depth(n) = 0                                     if n has no inputs
@@ -183,8 +184,8 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    AssertionDir, AssertionVerdict, BooleanValue, CarriedIn, Datum, Dimension, Doc, Evaluation,
-    Expr, Formula, Label, MateFault, MateRole, MeasureUnavailableAt, Node, NodeError,
+    AssertionRelation, AssertionVerdict, BooleanValue, CarriedIn, Datum, Dimension, Doc,
+    Evaluation, Expr, Formula, Label, MateFault, MateRole, MeasureUnavailableAt, Node, NodeError,
     NodeErrorKind, NodeResult, NodeStanding, ProfileProgram, RecipeNodeId, SplitSide, SpokenNode,
     ValuePayload, VarId, node_kind_noun,
 };
@@ -458,16 +459,18 @@ pub(crate) fn split_half_label(half: SplitHalf) -> &'static str {
 /// **An assertion's verdict, as its row says it**: the kernel's
 /// verdict with both numbers carried as the measure's own value is
 /// ([`Computed`], in the measure's dimension, spelled when drawn), the
-/// side of the bound the measure must fall on, and which measure that
-/// is.
+/// relation it states to the bound, and which measure that is.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Asserted {
     /// The landed verdict.
     pub verdict: AssertionVerdict<Computed>,
-    /// Which side of the bound the measure must fall on.
-    pub dir: AssertionDir,
-    /// The measure node the assertion constrains.
-    pub measure: SpokenNode,
+    /// How the value must relate to the bound.
+    pub relation: AssertionRelation,
+    /// The measure under the value the assertion bounds — the
+    /// `min_clearance` one when there is one, since that is the measure
+    /// a point scalar cannot answer — or `None` for a value no measure
+    /// is under.
+    pub measure: Option<SpokenNode>,
 }
 
 // `AssertionVerdict` derives `PartialEq` alone, for its scalar's sake;
@@ -497,7 +500,7 @@ impl Asserted {
             | AssertionVerdict::Violated { measured, bound } => Some(format!(
                 "{} {} {}",
                 measured.spelled(notation),
-                self.dir.symbol(),
+                self.relation.symbol(),
                 bound.spelled(notation)
             )),
             AssertionVerdict::Unevaluated { .. } => None,
@@ -619,10 +622,15 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
                 (None, None) => "origin driven".to_owned(),
             })
         }
-        Node::Datum(Datum::FaceFrame { at, .. }) => Some(match doc.defined_by(*at) {
-            Some((body, _)) => format!("on {}'s face", doc.spoken(body)),
-            None => "on a face of a deleted body".to_owned(),
-        }),
+        Node::Datum(Datum::FaceFrame { face, .. }) => Some(
+            match doc
+                .selection(*face)
+                .and_then(|selection| doc.defined_by(selection.body))
+            {
+                Some((body, _)) => format!("on {}'s face", doc.spoken(body)),
+                None => "on a face of a deleted body".to_owned(),
+            },
+        ),
         Node::Datum(
             Datum::Plane { .. }
             | Datum::Axis { .. }
@@ -640,8 +648,9 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
         | Node::Chamfer { .. }
         | Node::Shell { .. }
         | Node::Split { .. }
-        | Node::Boolean { .. }
+        | Node::Subtract { .. }
         | Node::Union { .. }
+        | Node::Intersect { .. }
         | Node::Transform { .. }
         | Node::Pattern { .. }
         | Node::Part { .. }
@@ -837,8 +846,9 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
         | Node::Chamfer { .. }
         | Node::Shell { .. }
         | Node::Split { .. }
-        | Node::Boolean { .. }
+        | Node::Subtract { .. }
         | Node::Union { .. }
+        | Node::Intersect { .. }
         | Node::Transform { .. }
         | Node::Pattern { .. }
         | Node::Part { .. }
@@ -869,9 +879,7 @@ fn readout_of(
             dimension: *dim,
         })),
         ValuePayload::MeasureUnavailable { reason, .. } => Some(Readout::Unavailable(*reason)),
-        ValuePayload::Assertion(verdict) => {
-            Some(Readout::Asserted(asserted(doc, node, verdict, evaluation)))
-        }
+        ValuePayload::Assertion(verdict) => Some(Readout::Asserted(asserted(doc, node, verdict))),
         ValuePayload::Boolean(BooleanValue::Empty) => Some(Readout::Empty(Emptiness::Whole)),
         ValuePayload::Split { above, below } => match (above, below) {
             (SplitSide::Empty, SplitSide::Empty) => Some(Readout::Empty(Emptiness::Whole)),
@@ -893,35 +901,46 @@ fn readout_of(
     }
 }
 
-/// **An assertion's verdict, its numbers carried in its measure's
-/// dimension.** A verdict carries numbers only when its measure
-/// evaluated to a value, so the dimension is that value's.
+/// **An assertion's verdict, its numbers carried in its value's
+/// dimension.** The value is a scalar variable, and its kind's
+/// dimension is the one both numbers are in.
 fn asserted(
     doc: &Doc<ProfileProgram>,
     node: &Node<ProfileProgram>,
     verdict: &AssertionVerdict<f64>,
-    evaluation: &Evaluation<f64>,
 ) -> Asserted {
-    let Node::Assertion { measure, dir, .. } = node else {
+    let Node::Assertion {
+        value, relation, ..
+    } = node
+    else {
         unreachable!("only an assertion node evaluates to a verdict")
     };
-    let Some((measure, _)) = doc.defined_by(*measure) else {
-        unreachable!("an assertion with a verdict reads a live measure")
+    let dim = || match doc.var(*value).and_then(|var| var.kind().dimension()) {
+        Some(dim) => dim,
+        None => unreachable!("an assertion's value is a scalar variable the document holds"),
     };
-    let dim = || match evaluation.usable(measure).ok().map(|value| &value.payload) {
-        Some(ValuePayload::Measure { dim, .. }) => *dim,
-        other => unreachable!(
-            "a verdict with numbers compared a measured value, yet its measure holds {:?}",
-            other.map(ValuePayload::kind_name)
-        ),
-    };
+    let measures: Vec<RecipeNodeId> = doc
+        .observed_outputs(*value)
+        .into_iter()
+        .filter_map(|output| doc.operation_of(output))
+        .collect();
+    let clearance = measures.iter().copied().find(|&measure| {
+        matches!(
+            doc.node(measure),
+            Some(Node::Measure {
+                primitive: editor_core::MeasurePrimitive::MinClearance { .. }
+            })
+        )
+    });
     Asserted {
         verdict: verdict.clone().map(|number| Computed {
             canonical: number,
             dimension: dim(),
         }),
-        dir: *dir,
-        measure: doc.spoken(measure),
+        relation: *relation,
+        measure: clearance
+            .or_else(|| measures.first().copied())
+            .map(|measure| doc.spoken(measure)),
     }
 }
 
@@ -1180,12 +1199,9 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // An operand reads an output its operation no longer defines:
         // the repair is a re-point at the reading node itself.
         | NodeErrorKind::UnresolvedRead { .. }
-        // A measure's deleted site: the repair is at the measure.
-        | NodeErrorKind::UnresolvedSite { .. }
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::ProductOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }
-        | NodeErrorKind::MembersShareAnOperation { .. }
         | NodeErrorKind::InstanceOutOfRange { .. }
         | NodeErrorKind::AxisInDifferentPlane { .. } => None,
         // Names an id no live node holds, so there is no row to go to.
@@ -1216,17 +1232,13 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // no row of this tree is.
         NodeErrorKind::Part { .. }
         | NodeErrorKind::DeclareResolve { .. }
-        | NodeErrorKind::UndeclaredCoincidence { .. }
-        | NodeErrorKind::UndeclarableContact { .. }
-        | NodeErrorKind::BlendSelectionResolve { .. }
-        | NodeErrorKind::BlendSelectionKind { .. }
-        | NodeErrorKind::ShellOpenResolve { .. }
-        | NodeErrorKind::ShellOpenKind { .. }
-        | NodeErrorKind::FaceFrameResolve { .. }
-        | NodeErrorKind::FaceFrameKind { .. }
-        | NodeErrorKind::MeasureRefResolve { .. }
+        | NodeErrorKind::SelectResolve { .. }
+        | NodeErrorKind::SelectKind { .. }
         | NodeErrorKind::MeasureRefUnreadable { .. }
         | NodeErrorKind::Naming(_) => None,
+        // The member names the step that refused, not the node to
+        // repair: the refusal is the union's.
+        NodeErrorKind::UnionFoldStep { .. } => None,
         // Name no node beside the failing one.
         NodeErrorKind::Expr { .. }
         | NodeErrorKind::Profile(_)
@@ -1262,8 +1274,8 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::PlacementsUncertified { .. }
         | NodeErrorKind::PlacementRule(_)
         | NodeErrorKind::UnschedulableCycle
-        | NodeErrorKind::ParamSourceAttach(_)
         | NodeErrorKind::DeclareUnsupportedPair { .. }
+        | NodeErrorKind::DeclaredContactUnbacked { .. }
         | NodeErrorKind::BlendSelectionEmpty { .. }
         | NodeErrorKind::Shell(_)
         | NodeErrorKind::ShellLaneUnsupported { .. }
@@ -1273,9 +1285,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::MeasureNonFinite { .. }
         | NodeErrorKind::MeasureNotParallel { .. }
         | NodeErrorKind::MeasureUnsupported(_)
-        | NodeErrorKind::MeasureMalformed(_)
         | NodeErrorKind::PayloadExpr { .. }
-        | NodeErrorKind::MeasureSelectionKind { .. }
         | NodeErrorKind::MeasureClearanceRefused(_)
         | NodeErrorKind::AssertionDimension { .. } => None,
     }

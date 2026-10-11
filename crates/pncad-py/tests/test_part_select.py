@@ -23,7 +23,6 @@ moving it recomputes the Part and nothing upstream
 import unittest
 
 from pncad import (
-    BooleanOp,
     Doc,
     DocEdit,
     FreeVar,
@@ -174,24 +173,24 @@ class TestTheHalfIsItsPort(unittest.TestCase):
 
         The two halves REST on each other across the section, which is
         a declared contact — detected through `find_flush_candidates`
-        over the split itself, whose value holds both halves, and
-        declared on the union. Both sides are sited at the split, and
-        each is read in the half whose table holds it.
+        and declared on the union, the same protocol any touching union
+        goes through. That the detector finds the pair AT ALL across
+        the two halves is itself the pass-through claim: the faces it
+        matches are the split's, carried verbatim.
+
+        The inventory says the same thing a second way. Five findings:
+        ONE `SameOpposite` — the section, where the halves face each
+        other — and four `SameOriented`, the box's four walls, each cut
+        into two coplanar pieces facing the same way out. Only the
+        first is a rest contact to declare.
         """
-        doc = Doc()
-        split = split_at(doc, box(doc))
+        doc, _, above, below = self.build()
         ev = evaluate(doc)
-        findings = ev.find_flush_candidates(split, split)
+        findings = ev.find_flush_candidates(above, below)
+        self.assertEqual(len(findings), 5)
         section = [f for f in findings if f.relation == PlaneRelation.SameOpposite]
-        self.assertTrue(section, "the section face pair")
-        whole = doc.insert(
-            Node.boolean(
-                BooleanOp.Union,
-                doc.output(split, 0),
-                doc.output(split, 1),
-                declare=section[:1],
-            )
-        )
+        self.assertEqual(len(section), 1, "the one section face pair")
+        whole = doc.insert(Node.union([above, below], declare=section))
         mass = mass_of(evaluate(doc), whole)
         self.assertEqual(mass.volume, 2.0 * 2.0 * 1.0)
         self.assertEqual(mass.surface_area, 2 * 2.0 * 2.0 + 4 * 2.0 * 1.0)
