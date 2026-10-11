@@ -980,6 +980,8 @@ fn plane_cylinder_ruled_read<T: Decide>(
     let hinge = o - n * gap_signed;
     let cos = (T::one() - c.powi(2)).max(T::zero()).sqrt();
     let lever = reach.hinge_lever(o, -(gap_signed * c)) + reach.turn_lever(hinge, (n, a), c, cos);
+    // A tangent line's Zero is one only with this one, so its margin
+    // stands for both.
     let parallel = decide_reported("pc_axis_plane_parallel", Margin::levered(c, lever), band)?;
     if parallel.sign != Sign::Zero {
         return Ok((parallel, None));
@@ -1014,7 +1016,7 @@ fn plane_cylinder_ruled_read<T: Decide>(
         (Sign::Zero, gap) => RuledSection::TangentLine {
             origin: o - n * gap_signed,
             dir: a,
-            gap,
+            gap: gap.jointly(parallel.margin),
         },
         (Sign::Negative, _) => RuledSection::Empty,
     };
@@ -1581,7 +1583,21 @@ pub fn cylinder_axes_parallel<T: Decide>(
     line2: (Point3<T>, Vec3<T>),
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    decide(
+    cylinder_axes_parallel_reported(reach, line1, line2, band).map(|d| d.sign)
+}
+
+/// [`cylinder_axes_parallel`], keeping the reading it decided on.
+///
+/// # Errors
+///
+/// As [`cylinder_axes_parallel`].
+pub fn cylinder_axes_parallel_reported<T: Decide>(
+    reach: &Reach<T>,
+    line1: (Point3<T>, Vec3<T>),
+    line2: (Point3<T>, Vec3<T>),
+    band: Band,
+) -> Result<Decided, Indeterminate> {
+    decide_reported(
         "cc_axes_parallel",
         Margin::levered(
             line1.1.cross(line2.1).norm(),
