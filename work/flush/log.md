@@ -222,6 +222,16 @@ the new census. The track's load is 31/32, back under budget.
   measured after 4650 merges.
 — (FLUSH orchestrator)
 
+## 2026-10-11 — the curved shared pinch closes (PR 4698)
+
+- **Tier:** the orchestrator's read. The PR adds a pin suite, an ignored
+  battery and tracker evidence, with no kernel code.
+- **Merged over main's two slow-set reds** (the NURBS row; GERM's plates
+  row), after the lane merged F in. F moved none of the three pinned
+  answers.
+- **The pin flips pose by pose** as RESTREAD's at-infinity row,
+  RESTREAD's cross-solid census row and TESS's thin-arc row land.
+- **The `JoinDesync` residue** joins step 4 as a P2 row.
 ## 2026-10-11 — the corner ruling merges (PR 4650)
 
 - **Dual review recorded** (`docs/dual-review-log/rows/PR-4650.md`): holdout pair, M, 0 tallied, no M-tier miss. The fix pass took all twelve adjudicated items.
@@ -231,3 +241,39 @@ the new census. The track's load is 31/32, back under budget.
 - **Merged over main's inherited red:** `mass_props_are_thread_count_invariant`, the NURBS row. The plates red no longer fires on this head.
 - **Next:** the pinch cluster, which waited for this merge, is dispatched.
 — (FLUSH orchestrator)
+
+## 2026-10-11 — wave 4: the apex-edge P0 and the pinch cluster
+
+- **Dispatched:**
+  - `flush/apex-edge-in-face-plane`: the P0 residue of the corner pair. A planar apex edge lies in the partner's face, and nothing records it.
+  - `flush/pinch-cluster`: the pre-zip weld (H), the seams and the hole weld. The lane prices the curved-notch `JoinDesync` row and takes it only if it is the same ground.
+- **Why the pinch cluster waited:** PR 4650 carries the welds' fragments in `Descendants`, which is the ground the H row's records stand on.
+- **Wedge (PR 4709):** the lane finds the refusal is D10's: the glue door reads the pair in the sliver band over its consumed extent.
+  - Building these poses would change C2/D10. D10 already settles that a pair in band refuses, so this is not a new fork, and the orchestrator does not open one.
+  - **Alternative not taken:** reading the pair over the moving face alone, which would make these poses build.
+  - **Review:** single FULL. The PR closes a P1 as a correct refusal, so its claims must be re-measured.
+— (FLUSH orchestrator)
+
+## 2026-10-11 — the wedge closes as D10's refusal (PR 4709)
+
+- **Tier:** single FULL. The PR closes a P1 as a correct refusal, so its claims had to be re-measured.
+- **The review:** APPROVE-WITH-FIXES with three MINORs, all taken.
+  - The refusal site is `vtxfac`'s coplanar lump, not `recl`. F's earlier seam note named the wrong site, and the correction is on INTENT's log.
+  - The sweep's blind spot was misstated; it is now restated.
+  - The row conflicted with main.
+- **Not a fork:** D10 Booleans ("refuses what falls in the sliver band") and the D1 thesis ("fail loudly rather than guess") settle it.
+- **Alternative ruled out:** a standing union that keeps the block's description would hold no in-band pair. The clauses above rule it out.
+- **INTENT's sibling family:** INTENT's in-band glue-verdict row now carries it. Every k = 0.5 pose refuses `Coincidence(Carriers)` on a residue margin of 1e-16 to 1e-26, so neither "exact Zero" nor "the smaller offer" picks a useful offer there.
+— (FLUSH orchestrator)
+
+## 2026-10-11 — six glue rows arrive from INTENT's split
+
+INTENT split into successors (Ev approved the division in chat, 2026-10-11). Six topo boolean glue rows moved here by `git mv`, keeping ids and bodies, because FLUSH's charter is declared contact at the join:
+- `a-face-pair-row-only-where-its-decision-shaped-the-result`
+- `a-covered-arc-lying-on-a-carrier-places-its-ends-with-no-margin`
+- `an-in-band-glue-verdict-is-refused-as-the-corner-arms-unglued-coincidence` (the in-band sibling family above)
+- `boolean-given-pairs-glue-unmeasured-for-any-rust-caller`
+- `the-glue-door-re-witnesses-a-declared-tangent-pair`
+- `kept-boundary-undecided-has-no-live-fixture`
+
+None waits on an INTENT stage. A row that turns out to need one moves back. — (INTENT orchestrator)

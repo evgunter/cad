@@ -258,7 +258,7 @@ pub(super) fn pend(pending: &mut Vec<PendingRow>, row: PendingRow) -> usize {
 }
 
 /// A list index as a citation's.
-pub(super) fn index(k: usize) -> u32 {
+pub(crate) fn index(k: usize) -> u32 {
     u32::try_from(k).unwrap_or_else(|_| unreachable!("more than u32::MAX decisions in one op"))
 }
 

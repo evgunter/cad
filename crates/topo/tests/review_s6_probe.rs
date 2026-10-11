@@ -22,7 +22,7 @@ use topo::{BooleanOp, ContactRecords, ValidationError, boolean_reduce, validate_
 /// meaningful there and meaningless at a contact.
 fn recourse_for(e: &ValidationError) -> &'static str {
     match e {
-        ValidationError::UndeclaredContact { .. } => topo::CONTACT_RECOURSE,
+        ValidationError::UnrecordedContact { .. } => topo::CONTACT_RECOURSE,
         ValidationError::ContactContradicted { .. } => topo::CONTRADICTION_RECOURSE,
         _ => COINCIDENCE_RECOURSE,
     }
@@ -107,7 +107,7 @@ fn probe_census_pair_e2e() {
         for e in scenario(delta) {
             let msg = e.to_string();
             match e {
-                ValidationError::UndeclaredContact { .. } => {
+                ValidationError::UnrecordedContact { .. } => {
                     saw_contact = true;
                     eprintln!("[probe] census definite (delta={delta}):\n  {msg}\n");
                     assert_unified(&msg, recourse_for(&e));
@@ -132,6 +132,6 @@ fn probe_census_pair_e2e() {
             }
         }
     }
-    assert!(saw_contact, "fixtures never hit UndeclaredContact");
+    assert!(saw_contact, "fixtures never hit UnrecordedContact");
     assert!(saw_escalated, "fixtures never hit CensusEscalated");
 }

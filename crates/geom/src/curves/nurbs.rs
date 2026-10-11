@@ -1388,9 +1388,9 @@ macro_rules! nurbs_curve {
             /// - `sup|w′| ≤ max_i |q_i|` over the weight spline's own
             ///   derivative coefficients `q_i = (w_{i+1} − w_i)·p/(u_{i+p+1} − u_{i+1})`,
             ///   formed in [`rational_span_bound`](Self::rational_span_bound)
-            ///   from the refined weights with the knot difference taken in
-            ///   `T` (`knot_difference`), so at `Interval` it is an
-            ///   enclosure rather than an `f64` rounding.
+            ///   from the refined weights with the difference of the held
+            ///   knots taken in `T`, so at `Interval` it is an enclosure
+            ///   rather than an `f64` rounding.
             ///
             /// **The denominator is `w_max`, not `w_min`.** `w` itself
             /// is a convex combination of the active weights, so

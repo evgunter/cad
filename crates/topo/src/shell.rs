@@ -905,6 +905,27 @@ pub struct Shelled<T: Real> {
     pub naming: ShellNaming,
 }
 
+impl<T: Real> Shelled<T> {
+    /// `records`, the operand's, carried onto the thin solid: the outer
+    /// walls keep their operand keys, so each cell is itself or the edge
+    /// the closing join made of it, and a cell the construction retired
+    /// ([`ShellNaming::dead`]) is refused
+    /// ([`crate::ContactRecords::carried_through`]). The cavity twins are
+    /// new cells and no operand record names one.
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::ContactRecords::carried_through`].
+    pub fn carry_contacts(
+        &self,
+        records: &crate::boolean::ContactRecords,
+    ) -> Result<crate::boolean::ContactRecords, crate::boolean::CarryRefusal> {
+        records.carried_through(0, &self.body, |c| {
+            Some(crate::boolean::joined_cell(&self.naming.edge_joins, c))
+        })
+    }
+}
+
 /// Mint-time naming facts of one shell (source keys ← the operand,
 /// result keys ← the returned body). Rows are written as the doors
 /// act, in the deterministic order the construction visits entities
@@ -4294,28 +4315,30 @@ impl<T: Decide> ArcPiece<T> {
 /// and `w` is at least the least weight. Hence
 /// `|C′| ≤ (max |A′ coefficient| + d · max |w′ coefficient|) / min w`.
 /// A coefficient over an empty knot span is skipped: its basis
-/// function's derivative is zero.
+/// function's derivative is zero. The skip reads the knots' structure;
+/// every factor is formed in the scalar over the held knots and
+/// weights.
 fn spline_speed<T: Real>(spline: &geom::NurbsCurve3<T>) -> T {
-    let (control, weights) = (spline.control(), spline.weight_channel());
-    let (knots, p) = (spline.knots().knots(), spline.degree());
+    let (control, weights) = (spline.control(), spline.weights());
+    let held = spline.knot_values();
+    let (knots, values, p) = (held.structure().knots(), held.values(), spline.degree());
     let c = control[0];
     let reach = control
         .iter()
         .fold(T::zero(), |r, q| r.max((*q - c).norm()));
-    let least = weights.iter().copied().fold(f64::INFINITY, f64::min);
-    let (mut point_rate, mut weight_rate) = (T::zero(), 0.0_f64);
+    let least = weights[1..].iter().fold(weights[0], |m, w| m.min(*w));
+    let (mut point_rate, mut weight_rate) = (T::zero(), T::zero());
     for i in 0..control.len().saturating_sub(1) {
-        let du = knots[i + p + 1] - knots[i + 1];
-        if du == 0.0 {
+        if knots[i + p + 1] - knots[i + 1] == 0.0 {
             continue;
         }
-        let k = p as f64 / du;
-        let step = (control[i + 1] - c) * T::from_f64(weights[i + 1])
-            - (control[i] - c) * T::from_f64(weights[i]);
-        point_rate = point_rate.max(step.norm() * T::from_f64(k));
+        #[allow(clippy::cast_precision_loss)]
+        let k = T::from_f64(p as f64) / (values[i + p + 1] - values[i + 1]);
+        let step = (control[i + 1] - c) * weights[i + 1] - (control[i] - c) * weights[i];
+        point_rate = point_rate.max(step.norm() * k);
         weight_rate = weight_rate.max((weights[i + 1] - weights[i]).abs() * k);
     }
-    (point_rate + reach * T::from_f64(weight_rate)) / T::from_f64(least)
+    (point_rate + reach * weight_rate) / least
 }
 
 impl<T: Decide> MovedWall<T> {
@@ -5634,5 +5657,68 @@ mod tests {
             shell_open(&finished("the brick", body, tol), 0.1, &[stale], tol),
             Err(ShellError::OpenFaceStale { face }) if face == stale
         ));
+    }
+
+    /// **The speed bound reads the held knots and weights.** A cubic
+    /// with an interior breakpoint held as the variable re-values its
+    /// bound with it (`kept`), and so does one with a held weight; with
+    /// the knot or weight read off the `f64` channel the bound would
+    /// launder it.
+    #[test]
+    fn the_speed_bound_carries_a_held_knot_and_weight() {
+        use crate::revalue_pin::{Revalued, S, revalued};
+        use core::num::NonZeroUsize;
+        let m = |n| NonZeroUsize::new(n).unwrap();
+        let control = |c: f64| {
+            [(0.0, 0.0), (1.0, 2.0), (2.0, -1.0), (3.0, 1.0), (4.0, 0.0)]
+                .map(|(x, y)| geom_core::Point3::new(S::from_f64(x), S::from_f64(y * c), S::zero()))
+                .to_vec()
+        };
+        let knot = revalued([0.4, 0.4 + 1.0e-3], |_, k| {
+            let knots = geom_core::spline::Knots::new(
+                vec![
+                    (S::from_f64(0.0), m(4)),
+                    (k, m(1)),
+                    (S::from_f64(1.0), m(4)),
+                ],
+                3,
+            )
+            .unwrap();
+            let c = geom::NurbsCurve3::new(knots, control(1.0), vec![S::one(); 5]).unwrap();
+            vec![spline_speed(&c)]
+        });
+        assert_eq!(
+            knot,
+            Revalued {
+                kept: 1,
+                opaque: 0,
+                laundered: 0,
+            },
+            "a held breakpoint"
+        );
+        let weight = revalued([0.6, 0.6 + 1.0e-3], |_, w| {
+            let kv = geom_core::spline::KnotVector::clamped(
+                vec![0.0, 0.0, 0.0, 0.0, 0.4, 1.0, 1.0, 1.0, 1.0],
+                3,
+            )
+            .unwrap();
+            let one = S::one();
+            let c = geom::NurbsCurve3::new(
+                geom_core::spline::Knots::from(kv).lift(S::from_f64),
+                control(1.0),
+                vec![one, one, w, one, one],
+            )
+            .unwrap();
+            vec![spline_speed(&c)]
+        });
+        assert_eq!(
+            weight,
+            Revalued {
+                kept: 1,
+                opaque: 0,
+                laundered: 0,
+            },
+            "a held weight"
+        );
     }
 }

@@ -3,11 +3,27 @@
 //! plane `d` rad off one of the corner's edges ([`NtPrism::near_normal`],
 //! JOIN's census poses bit for bit), every op in both orders against the
 //! clipping oracle. The poses are where the near-tangent census
-//! (`examples/near_tangent_census_probe.rs`) measured each of three
-//! classification sites refusing `ClassificationInvariant` on valid
-//! input, at ε = 1e-9, 1e-6 and 1e-12: a static fixture, so each row's
-//! own poses are in the list whichever row runs it.
+//! (`examples/near_tangent_census_probe.rs`), on its sixteenths and off
+//! them, measured a classification site refusing
+//! `ClassificationInvariant` on valid input, at ε = 1e-9, 1e-6 and
+//! 1e-12: a static fixture, so each row's own poses are in the list
+//! whichever row runs it.
 //!
+//! - **A crossing along an edge folded onto a flanker the search never
+//!   paired** (`boolean/recl.rs` `resolve_edge_sector`): the wedge's face
+//!   holds the cube's edge, and the cube face beside it lies `d` rad off
+//!   that face. The fold rule puts the crossing on that nearly coplanar
+//!   flanker, whose pair with the wedge's face `pair_search` reads off the
+//!   two planes' common line, which swings off the edge by the edge's
+//!   in-band offset over `d`. The record is that pair as its codes read it.
+//! - **A crossing recorded on the reference's other twin**
+//!   (`resolve_bisector_graze`, `resolve_edge_sector`): the ray lies
+//!   along a bisector of each solid, and the record names the twin past
+//!   the bisector from the start-holder.
+//! - **A reference read after an earlier germ rewrote it**
+//!   (`find_ref_sector`): one record carries both solids' edges On, on
+//!   rays a definite angle apart, and the first event's germ rewrites
+//!   both On codes. The reference is read off the codes as first read.
 //! - **An unglued corner pair read one carrier at the corner and apart
 //!   at the origin** (`boolean/recl.rs` `require_same`,
 //!   `boolean/vtxfac.rs`' coplanar lump). The pair is read about the
@@ -20,11 +36,12 @@
 //! - **A section edge read in band of a face it bounds**
 //!   (`boolean/ops.rs` `describe_edges`): the cube's near face lies
 //!   `d` rad off the prism's vertical edge, so at `|d| = ε` the edge's
-//!   far vertex lies on the zero band's edge. A run whose section chord
-//!   starts at that vertex certifies it as the chord's own origin, in
-//!   the zero band, and builds; a run whose chord ends there certifies
-//!   `carrier(t₁)`, one rounding off the vertex and just in band, and
-//!   refuses typed as the input's ([`EDGE_ON_FACES`]), never a desync.
+//!   far vertex lies on the zero band's edge. Certification reads the
+//!   section chord's carrier, its ends included: a run whose chord starts
+//!   at that vertex reads it as the chord's own origin, in the zero band,
+//!   and builds; a run whose chord ends there reads `carrier(t₁)`, one
+//!   rounding off the vertex and just in band, and refuses typed as the
+//!   input's ([`EDGE_ON_FACES`]), never a desync.
 //!
 //! [`NtPrism::near_normal`]: crate::common::differential::NtPrism::near_normal
 
@@ -38,93 +55,87 @@ use crate::common::differential::{nt_cube, nt_prisms};
 /// `(prism, edge, sixteenths, tilt)`: the census's `"{prism} nt e{edge}
 /// a{sixteenths} d{tilt}"`, each beside the site it refused at and the
 /// ε row: `germ` the pierce germ, `coplanar` the coplanar lump, `recl`
-/// the ON sector pair, `describe` the minted edges' description.
-const POSES: [(&str, usize, u32, f64); 32] = [
-    ("Lbot", 0, 12, -1e-9),    // germ, ε = 1e-9
-    ("Lmirror", 0, 12, -1e-9), // germ, ε = 1e-9
-    ("Ltop", 0, 12, -1e-9),    // germ, ε = 1e-9
-    ("convex", 0, 3, 1e-5),    // coplanar, ε = 1e-9
-    ("w345", 1, 4, 1e-5),      // coplanar, ε = 1e-9
-    ("w60", 1, 4, 1e-5),       // coplanar, ε = 1e-9
-    ("convex", 0, 11, -1e-6),  // recl, ε = 1e-9
-    ("w345", 1, 11, -1e-5),    // recl, ε = 1e-9
-    ("w60", 1, 11, -1e-5),     // recl, ε = 1e-9
-    ("Lbot", 0, 12, -1e-6),    // germ, ε = 1e-6
-    ("Lmirror", 1, 0, -1e-6),  // germ, ε = 1e-6
-    ("Ltop", 0, 12, -1e-6),    // germ, ε = 1e-6
-    ("convex", 0, 3, 1e-4),    // coplanar, ε = 1e-6
-    ("w60", 1, 4, 1e-4),       // coplanar, ε = 1e-6
-    ("convex", 0, 11, -1e-4),  // recl, ε = 1e-6
-    ("w345", 1, 11, 1e-4),     // recl, ε = 1e-6
-    ("w60", 1, 11, -1e-4),     // recl, ε = 1e-6
-    ("asym", 2, 1, 1e-7),      // germ, ε = 1e-12
-    ("convex", 0, 10, -1e-7),  // germ, ε = 1e-12
-    ("notch307", 2, 1, 1e-7),  // germ, ε = 1e-12
-    ("convex", 0, 3, 1e-7),    // coplanar, ε = 1e-12
-    ("w345", 1, 4, 1e-7),      // coplanar, ε = 1e-12
-    ("w60", 1, 4, 1e-7),       // coplanar, ε = 1e-12
-    ("convex", 0, 11, -1e-7),  // recl, ε = 1e-12
-    ("w345", 1, 11, 1e-7),     // recl, ε = 1e-12
-    ("w60", 1, 11, -1e-7),     // recl, ε = 1e-12
-    ("convex", 0, 4, 1e-5),    // recl, ε = 1e-9
-    ("Ltop", 0, 12, 1e-9),     // germ, ε = 1e-9
-    ("Ltop", 2, 13, -1e-9),    // describe, ε = 1e-9
-    ("Lbot", 2, 9, 1e-9),      // describe, ε = 1e-9
-    ("Lmirror", 2, 9, -1e-9),  // describe, ε = 1e-9
-    ("asym", 2, 13, -1e-9),    // describe, ε = 1e-9
+/// the ON sector pair, `describe` the minted edges' description, `edge`
+/// the edge-sector crossing, `twin` the reference's other twin,
+/// `reference` the reference read after a germ, `shipped` contact
+/// records the result's geometry no longer confirmed.
+const POSES: [(&str, usize, f64, f64); 55] = [
+    ("Lbot", 0, 12.0, -1e-9),    // germ, ε = 1e-9
+    ("Lmirror", 0, 12.0, -1e-9), // germ, ε = 1e-9
+    ("Ltop", 0, 12.0, -1e-9),    // germ, ε = 1e-9
+    ("convex", 0, 3.0, 1e-5),    // coplanar, ε = 1e-9
+    ("w345", 1, 4.0, 1e-5),      // coplanar, ε = 1e-9
+    ("w60", 1, 4.0, 1e-5),       // coplanar, ε = 1e-9
+    ("convex", 0, 11.0, -1e-6),  // recl, ε = 1e-9
+    ("w345", 1, 11.0, -1e-5),    // recl, ε = 1e-9
+    ("w60", 1, 11.0, -1e-5),     // recl, ε = 1e-9
+    ("Lbot", 0, 12.0, -1e-6),    // germ, ε = 1e-6
+    ("Lmirror", 1, 0.0, -1e-6),  // germ, ε = 1e-6
+    ("Ltop", 0, 12.0, -1e-6),    // germ, ε = 1e-6
+    ("convex", 0, 3.0, 1e-4),    // coplanar, ε = 1e-6
+    ("w60", 1, 4.0, 1e-4),       // coplanar, ε = 1e-6
+    ("convex", 0, 11.0, -1e-4),  // recl, ε = 1e-6
+    ("w345", 1, 11.0, 1e-4),     // recl, ε = 1e-6
+    ("w60", 1, 11.0, -1e-4),     // recl, ε = 1e-6
+    ("asym", 2, 1.0, 1e-7),      // germ, ε = 1e-12
+    ("convex", 0, 10.0, -1e-7),  // germ, ε = 1e-12
+    ("notch307", 2, 1.0, 1e-7),  // germ, ε = 1e-12
+    ("convex", 0, 3.0, 1e-7),    // coplanar, ε = 1e-12
+    ("w345", 1, 4.0, 1e-7),      // coplanar, ε = 1e-12
+    ("w60", 1, 4.0, 1e-7),       // coplanar, ε = 1e-12
+    ("convex", 0, 11.0, -1e-7),  // recl, ε = 1e-12
+    ("w345", 1, 11.0, 1e-7),     // recl, ε = 1e-12
+    ("w60", 1, 11.0, -1e-7),     // recl, ε = 1e-12
+    ("convex", 0, 4.0, 1e-5),    // recl, ε = 1e-9
+    ("Ltop", 0, 12.0, 1e-9),     // germ, ε = 1e-9
+    ("Ltop", 2, 13.0, -1e-9),    // describe, ε = 1e-9
+    ("Lbot", 2, 9.0, 1e-9),      // describe, ε = 1e-9
+    ("Lmirror", 2, 9.0, -1e-9),  // describe, ε = 1e-9
+    ("asym", 2, 13.0, -1e-9),    // describe, ε = 1e-9
+    ("w345", 1, 12.0, 1e-7),     // edge, ε = 1e-12
+    ("w345", 1, 12.0, 1e-8),     // edge, ε = 1e-12
+    ("w345", 1, 12.0, 1e-9),     // edge, ε = 1e-12
+    ("w345", 1, 3.0, -1e-7),     // edge, ε = 1e-12
+    ("w345", 1, 3.0, -1e-8),     // edge, ε = 1e-12
+    ("w345", 1, 3.0, -1e-9),     // edge, ε = 1e-12
+    ("w345", 1, 11.0, -1e-7),    // edge, ε = 1e-12
+    ("w345", 1, 11.0, -1e-8),    // edge, ε = 1e-12
+    ("w345", 1, 11.0, -1e-9),    // edge, ε = 1e-12
+    ("w345", 1, 3.7, 1e-7),      // twin, ε = 1e-6
+    ("w345", 1, 3.7, -1e-7),     // twin, ε = 1e-6
+    ("w345", 1, 3.8, 1e-7),      // twin, ε = 1e-6
+    ("w345", 1, 3.8, -1e-7),     // twin, ε = 1e-6
+    ("w345", 1, 11.7, 1e-7),     // edge, ε = 1e-6
+    ("w345", 1, 11.7, -1e-7),    // twin, ε = 1e-6
+    ("w345", 1, 11.8, 1e-7),     // twin, ε = 1e-6
+    ("w345", 1, 11.8, -1e-7),    // twin, ε = 1e-6
+    ("vee300", 0, 11.75, -1e-7), // reference, ε = 1e-9 and 1e-12
+    ("vee300", 0, 11.75, -2e-8), // reference, ε = 1e-12
+    ("vee300", 0, 11.75, -2e-9), // reference, ε = 1e-12
+    ("w345", 1, 13.0, 1e-8),     // shipped, ε = 1e-12
+    ("w345", 1, 13.0, 1e-9),     // shipped, ε = 1e-12
+    ("w345", 1, 14.0, 1e-8),     // shipped, ε = 1e-12
 ];
 
-/// `(prism, edge, sixteenths, tilt, run)` at ε = 1e-12: the runs that
-/// build their closed form and ship a definite tier-3′ finding, each
+/// `(ε, prism, edge, sixteenths, tilt, run)`: the runs that build their
+/// closed form at that ε row and ship a definite tier-3′ finding, each
 /// pinned at what it ships (the findings' `Debug`, in order). They are
 /// FUSE's class (`work/fuse/a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms.md`),
 /// which the door does not see until it runs the census over its result
 /// (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`):
 /// either landing turns these red, to be re-pinned.
-const SHIPS_A_FINDING: [Shipped; 4] = [
+const SHIPS_A_FINDING: [Shipped; 1] = [
+    // The far end of the prism's edge `e1`, 2 m out, lies within ε of the
+    // cube's face, where the cube's edge crosses the prism's top edge.
     (
+        1e-6,
         "w345",
         1,
-        13,
-        1e-8,
-        "prism ∩ cube",
+        3.8,
+        1e-7,
+        "prism ∪ cube",
         &[
-            "StaleContactDeclaration { declaration: VertexOnFace { vertex: VertexKey(2v1), face: FaceKey(19v7) } }",
-            "StaleContactDeclaration { declaration: VertexOnFace { vertex: VertexKey(9v1), face: FaceKey(19v7) } }",
-        ],
-    ),
-    (
-        "w345",
-        1,
-        13,
-        1e-9,
-        "prism ∩ cube",
-        &[
-            "StaleContactDeclaration { declaration: VertexOnFace { vertex: VertexKey(2v1), face: FaceKey(19v9) } }",
-            "StaleContactDeclaration { declaration: VertexOnFace { vertex: VertexKey(9v1), face: FaceKey(19v9) } }",
-        ],
-    ),
-    (
-        "w345",
-        1,
-        14,
-        1e-8,
-        "cube ∩ prism",
-        &[
-            "StaleContactDeclaration { declaration: VertexOnFace { vertex: VertexKey(23v3), face: FaceKey(6v1) } }",
-            "StaleContactDeclaration { declaration: VertexOnFace { vertex: VertexKey(17v3), face: FaceKey(6v1) } }",
-        ],
-    ),
-    (
-        "w345",
-        1,
-        14,
-        1e-8,
-        "cube ∖ prism",
-        &[
-            r#"UndeclaredContact { contact: VertexOnFace { vertex: VertexKey(16v3), face: FaceKey(8v1) }, witness: "(2.0, 0.0, 1.0)" }"#,
-            r#"UndeclaredContact { contact: VertexOnFace { vertex: VertexKey(22v3), face: FaceKey(8v1) }, witness: "(2.0, 0.0, 0.0)" }"#,
-            r#"UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(20v7), face: FaceKey(8v1) }, witness: "(2.0, 0.0, 0.5)" }"#,
+            r#"UnrecordedContact { contact: EdgeEdgeCross { a: EdgeKey(16v1), b: EdgeKey(31v3), side: None }, witness: "(2.0, 1.018657088811564e-5, 1.0)", margin: Some(MarginDiag(Value(2.1931706656334435e-15, None, ZeroWord(0)))) }"#,
         ],
     ),
 ];
@@ -132,50 +143,64 @@ const SHIPS_A_FINDING: [Shipped; 4] = [
 /// The census's poses where only the pierce germ refused on main and
 /// every run builds sound at all three ε rows: a germ signed against its
 /// transition refuses them or ships them wrong.
-const GERM_WITNESSES: [(&str, usize, u32, f64); 5] = [
-    ("Lbot", 0, 12, -1e-9),
-    ("Lmirror", 0, 12, -1e-9),
-    ("Ltop", 0, 12, -1e-9),
-    ("Ltop", 0, 12, 1e-9),
-    ("Lbot", 0, 12, -1e-6),
+const GERM_WITNESSES: [(&str, usize, f64, f64); 5] = [
+    ("Lbot", 0, 12.0, -1e-9),
+    ("Lmirror", 0, 12.0, -1e-9),
+    ("Ltop", 0, 12.0, -1e-9),
+    ("Ltop", 0, 12.0, 1e-9),
+    ("Lbot", 0, 12.0, -1e-6),
+];
+
+/// `(ε, prism, edge, sixteenths, tilt, built)`: poses whose crossing is
+/// recorded on a flanker or twin `pair_search` never paired, or on the
+/// reference's other twin, with how many of the six runs build at that
+/// ε row. A germ left off its record refuses them, and one recorded
+/// with codes read off another pair ships them wrong.
+const EDGE_WITNESSES: [(f64, &str, usize, f64, f64, usize); 4] = [
+    (1e-12, "w345", 1, 12.0, 1e-7, 6),
+    (1e-12, "w345", 1, 12.0, 1e-8, 6),
+    // The rest refuse typed: `pc ∪` `RechartUnvouched` at both, and the
+    // `cp` runs at `d = 1e-7` an escalated carrier pair.
+    (1e-6, "w345", 1, 11.7, 1e-7, 2),
+    (1e-6, "w345", 1, 11.7, -1e-7, 5),
 ];
 
 /// The census's poses whose section edge across the prism's bottom or
 /// top face meets the far vertex of its vertical edge, `|d|` m off the
 /// cube's near face: on the zero band's edge at ε = 1e-9. Which runs
-/// refuse depends on the chord's orientation: where it runs from the
-/// pierce to the vertex, the end sample `carrier(t₁)` lands one
+/// refuse depends on the chord's orientation, because certification
+/// bounds the chord's carrier and not its vertices: where it runs from
+/// the pierce to the vertex, the end sample `carrier(t₁)` lands one
 /// rounding off the vertex, ~5e-17 m past the band's edge, and refuses
 /// in band; where it runs from the vertex, the vertex is its origin,
-/// read in the zero band, and the run builds
-/// (`work/cleave/a-chords-end-sample-reads-carrier-t1-not-its-vertex.md`).
+/// read in the zero band, and the run builds.
 /// `(prism, edge, sixteenths, tilt, runs refusing in band at ε = 1e-9)`.
-const EDGE_ON_FACES: [(&str, usize, u32, f64, [&str; 3]); 4] = [
+const EDGE_ON_FACES: [(&str, usize, f64, f64, [&str; 3]); 4] = [
     (
         "Ltop",
         2,
-        13,
+        13.0,
         -1e-9,
         ["prism ∪ cube", "prism ∖ cube", "cube ∩ prism"],
     ),
     (
         "Lbot",
         2,
-        9,
+        9.0,
         1e-9,
         ["prism ∩ cube", "cube ∪ prism", "cube ∖ prism"],
     ),
     (
         "Lmirror",
         2,
-        9,
+        9.0,
         -1e-9,
         ["prism ∪ cube", "prism ∖ cube", "cube ∩ prism"],
     ),
     (
         "asym",
         2,
-        13,
+        13.0,
         -1e-9,
         ["prism ∪ cube", "prism ∖ cube", "cube ∩ prism"],
     ),
@@ -183,9 +208,10 @@ const EDGE_ON_FACES: [(&str, usize, u32, f64, [&str; 3]); 4] = [
 
 /// A pose, one of its runs, and the findings that run ships.
 type Shipped = (
+    f64,
     &'static str,
     usize,
-    u32,
+    f64,
     f64,
     &'static str,
     &'static [&'static str],
@@ -200,10 +226,10 @@ type Run = (&'static str, Result<BooleanResult<f64>, BooleanError>, f64);
 /// harness reads one (`topo::test_support::offer_key`). A built body is
 /// wrong off its closed form by more than ε over its area, or failing
 /// tier 3′ on more than an in-band census escalation, unless it ships
-/// what [`SHIPS_A_FINDING`] pins at ε = 1e-12. An empty result is wrong
+/// what [`SHIPS_A_FINDING`] pins at its ε row. An empty result is wrong
 /// where the closed form is more than a sliver ε thick over the
 /// operands' faces.
-fn check_pose((name, edge, a, d): (&str, usize, u32, f64), tol: Tol) -> (Vec<String>, usize) {
+fn check_pose((name, edge, a, d): (&str, usize, f64, f64), tol: Tol) -> (Vec<String>, usize) {
     let prisms = nt_prisms();
     let pr = prisms
         .iter()
@@ -216,7 +242,6 @@ fn check_pose((name, edge, a, d): (&str, usize, u32, f64), tol: Tol) -> (Vec<Str
     let (va, vb, common) = (props.volume, 64.0, pr.overlap(m));
     // The cube's six faces of side 4.
     let faces = props.surface_area + 96.0;
-    let at_1e12 = (tol.eps() - 1e-12).abs() < 1e-24;
     let runs: [Run; 6] = [
         (
             "prism ∪ cube",
@@ -246,8 +271,9 @@ fn check_pose((name, edge, a, d): (&str, usize, u32, f64), tol: Tol) -> (Vec<Str
         let tag = format!("{name} nt e{edge} a{a} d{d:e}, {op}");
         let pinned = SHIPS_A_FINDING
             .iter()
-            .find(|&&(n, e, aa, dd, o, _)| (n, e, aa, dd, o) == (name, edge, a, d, op))
-            .filter(|_| at_1e12)
+            .find(|&&(eps, n, e, aa, dd, o, _)| {
+                (n, e, aa, dd, o) == (name, edge, a, d, op) && (tol.eps() - eps).abs() <= eps * 1e-9
+            })
             .map(|&(.., findings)| findings);
         let bb = match &r {
             Err(e) => {
@@ -299,7 +325,7 @@ fn check_pose((name, edge, a, d): (&str, usize, u32, f64), tol: Tol) -> (Vec<Str
 fn near_tangent_pierce_poses_build_their_closed_form_or_refuse_typed() {
     let tol = Tol::witness();
     let mut poses = POSES.to_vec();
-    for &(n, e, a, d, ..) in &SHIPS_A_FINDING {
+    for &(_, n, e, a, d, ..) in &SHIPS_A_FINDING {
         if !poses.contains(&(n, e, a, d)) {
             poses.push((n, e, a, d));
         }
@@ -324,6 +350,27 @@ fn the_pierce_germs_witnesses_build_every_run() {
         assert!(
             wrong.is_empty() && built == 6,
             "{pose:?}: {built} of 6 built:\n{}",
+            wrong.join("\n")
+        );
+    }
+}
+
+#[test]
+fn the_edge_and_twin_witnesses_build() {
+    let tol = Tol::witness();
+    let row: Vec<_> = EDGE_WITNESSES
+        .iter()
+        .filter(|w| (tol.eps() - w.0).abs() <= w.0 * 1e-9)
+        .collect();
+    if row.is_empty() {
+        println!("SKIPPED at this ε: the edge and twin witnesses are poses of ε = 1e-6 and 1e-12");
+        return;
+    }
+    for &&(_, name, edge, a, d, want) in &row {
+        let (wrong, built) = check_pose((name, edge, a, d), tol);
+        assert!(
+            wrong.is_empty() && built >= want,
+            "{name} nt e{edge} a{a} d{d:e}: {built} of 6 built, {want} wanted:\n{}",
             wrong.join("\n")
         );
     }
