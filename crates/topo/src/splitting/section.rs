@@ -212,10 +212,11 @@ impl<T: Real> core::fmt::Display for SectionError<T> {
                 diag: Some(diag), ..
             } => write!(
                 f,
-                "whether a polygon of the section is an outline or a hole is too close to \
-                 call ({}). Recourse: {}",
-                diag.payload(),
-                super::SPLIT_COINCIDENCE_RECOURSE
+                "{}",
+                diag.undecided(
+                    "whether a polygon of the section is an outline or a hole",
+                    diag.ending(super::SPLIT_COINCIDENCE_RECOURSE),
+                )
             ),
             Self::WindingUndecided { diag: None, .. } => write!(
                 f,

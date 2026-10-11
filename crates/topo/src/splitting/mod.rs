@@ -692,8 +692,13 @@ impl core::fmt::Display for SplitReduceError {
                 .fmt(f),
             Self::SliverSector { reading, .. } => write!(
                 f,
-                "which side of the split plane a face leaves a vertex on is too close to \
-                 call ({reading}). {}",
+                concat!(
+                    geom_core::undecided!(
+                        "which side of the split plane a face leaves a vertex on"
+                    ),
+                    ": {}. {}"
+                ),
+                reading,
                 reading.ending()
             ),
             Self::SectionGermsEscalated { reading, diag, .. } => match reading {

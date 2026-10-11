@@ -308,13 +308,12 @@ impl core::fmt::Display for SplitFinishError {
             Self::Corrupt => write!(f, "the finish traversal failed (corrupt body)"),
             Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
             Self::Band(e) => write!(f, "{e}"),
-            Self::DescribeEscalated { diag, .. } => write!(
-                f,
-                "the angle between two faces along the cut is too close to call ({}). \
-                 Recourse: {}",
-                diag.payload(),
-                super::SPLIT_COINCIDENCE_RECOURSE
-            ),
+            Self::DescribeEscalated { diag, .. } => diag
+                .undecided(
+                    "the angle between two faces along the cut",
+                    diag.ending(super::SPLIT_COINCIDENCE_RECOURSE),
+                )
+                .fmt(f),
             Self::DescribeSideEscalated { diag, .. } => diag
                 .undecided(
                     geom_brep::MATERIAL_PAIRING_CLAUSE,
@@ -324,13 +323,13 @@ impl core::fmt::Display for SplitFinishError {
                     ),
                 )
                 .fmt(f),
-            Self::DescribeBendEscalated { diag, .. } => write!(
-                f,
-                "whether two faces touching along the cut curve apart there or share their \
-                 curvature is too close to call ({}). Recourse: {}",
-                diag.payload(),
-                super::SPLIT_COINCIDENCE_RECOURSE
-            ),
+            Self::DescribeBendEscalated { diag, .. } => diag
+                .undecided(
+                    "whether two faces touching along the cut curve apart there or share their \
+                     curvature",
+                    diag.ending(super::SPLIT_COINCIDENCE_RECOURSE),
+                )
+                .fmt(f),
             Self::SmoothJoinRefuted { .. } => write!(
                 f,
                 "two faces along the cut meet smoothly at the middle of their shared edge \
@@ -340,13 +339,12 @@ impl core::fmt::Display for SplitFinishError {
             ),
             Self::SectionWindingUndecided {
                 diag: Some(diag), ..
-            } => write!(
-                f,
-                "which side of a cut face is material is too close to call ({}). \
-                 Recourse: {}",
-                diag.payload(),
-                super::SPLIT_COINCIDENCE_RECOURSE
-            ),
+            } => diag
+                .undecided(
+                    "which side of a cut face is material",
+                    diag.ending(super::SPLIT_COINCIDENCE_RECOURSE),
+                )
+                .fmt(f),
             Self::SectionWindingUndecided { diag: None, .. } => write!(
                 f,
                 "which side of a cut face is material cannot be read: its outline \

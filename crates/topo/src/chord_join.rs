@@ -420,15 +420,13 @@ impl SplitJoinError {
         match self {
             Self::OrderEscalated { diag } => write!(
                 f,
-                "{} is too close to call ({}). Recourse: {recourse}",
-                order_decision(diag.predicate),
-                diag.payload()
+                "{}",
+                diag.undecided(order_decision(diag.predicate), diag.ending(recourse))
             ),
             Self::Escalated { diag, .. } => write!(
                 f,
-                "where a section runs across a face is too close to call ({}). Recourse: \
-                 {recourse}",
-                diag.payload()
+                "{}",
+                diag.undecided("where a section runs across a face", diag.ending(recourse))
             ),
             Self::DegenerateSection { .. } => write!(
                 f,
@@ -437,15 +435,17 @@ impl SplitJoinError {
             Self::RingHoming(e) => match e {
                 crate::splitting::PointInLoopError::Escalated { diag, .. } => write!(
                     f,
-                    "which piece a hole loop falls in is too close to call ({}). Recourse: \
-                     {recourse}",
-                    diag.payload()
+                    "{}",
+                    diag.undecided("which piece holds a hole loop", diag.ending(recourse))
                 ),
                 // The rays are the walk's own, so the levers are its, under
                 // a split and a Boolean alike.
                 crate::splitting::PointInLoopError::RayExhausted { .. } => write!(
                     f,
-                    "which piece holds a hole loop is undecided: {}",
+                    concat!(
+                        geom_core::undecided!("which piece holds a hole loop"),
+                        ": {}"
+                    ),
                     crate::ray_walk::NoRaySettled
                 ),
                 crate::splitting::PointInLoopError::CorruptLoop { .. } => {

@@ -892,9 +892,11 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             // own lever is the geometry alone.
             Self::Escalated { source } => write!(
                 f,
-                "whether the offset face and its edges land where they should is too close to \
-                 call: {}",
-                source.under(NO_DECLARATION_RECOURSE)
+                "{}",
+                source.undecided(
+                    "whether the offset face and its edges land where they should",
+                    source.ending(NO_DECLARATION_RECOURSE),
+                )
             ),
             Self::Op {
                 edge: Some(_),

@@ -734,9 +734,11 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
             // wall and the geometry.
             Self::Escalated { source } => write!(
                 f,
-                "whether the thin solid's walls and rims stay clear of each other is too close \
-                 to call: {}",
-                source.under("change the wall thickness, or move the geometry")
+                "{}",
+                source.undecided(
+                    "whether the thin solid's walls and rims stay clear of each other",
+                    source.ending("change the wall thickness, or move the geometry"),
+                )
             ),
             // Every gate before the closing mint accepted the body, so
             // its refusal (in `Debug`) is the kernel's.
