@@ -83,7 +83,9 @@ Both answered yes. This item is the document half, after the skin unit.
 - **Acceptance:** the two pins above, a nonzero `Dual` wall derivative
   and an `Interval` enclosure of the family. Also: a loft on a face
   frame evaluates at `Interval`, `Dual` and `Sym`, and the f64 build is
-  bit-identical.
+  bit-identical. The `Interval` enclosure pin waits on
+  `the-skin-at-interval-encloses-the-nominal-skin`; the `Dual` pin
+  does not.
 - `a-loft-takes-its-placements-as-f64` dissolves here: the loft has no
   placement input to take as f64.
 
