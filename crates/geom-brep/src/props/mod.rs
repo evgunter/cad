@@ -133,6 +133,7 @@ use crate::recourse::{Reading, RefusedArm, SizedDecision, StoredDefinite, Unsize
 pub use curved::{
     MaterialSign, boundary_material_sign, boundary_material_sign_loops, cone_face_closed_form,
     curved_face, curved_face_loops, require_iso_rectangle, require_one_chart_branch,
+    sphere_region_material_sign, sphere_region_tiling_side,
 };
 pub use loop_area::loop_vector_area;
 

@@ -5282,6 +5282,105 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
     }
 }
 
+/// PROTOTYPE: the side of the region `face` forms with the faces on its
+/// surface entity reachable across shared edges.
+fn seam_region_sign<T: Decide>(
+    body: &Body<T>,
+    start: FaceKey,
+    surface: &Surface<T>,
+    band: Band,
+) -> Option<Result<geom_brep::props::MaterialSign, geom_brep::props::PropsError>> {
+    let carrier = body.faces.get(start)?.surface;
+    let loops_of = |f: FaceKey| {
+        let face = body.faces.get(f)?;
+        Some(
+            core::iter::once(face.outer)
+                .chain(face.rings.iter().copied())
+                .collect::<Vec<_>>(),
+        )
+    };
+    let mut members = vec![start];
+    let mut i = 0;
+    while i < members.len() {
+        for lk in loops_of(members[i])? {
+            let (_, hes) = crate::props::loop_edges(body, lk).ok()?;
+            for h in hes {
+                let other = body.face_of_half_edge(body.mate(h)?)?;
+                if body.faces.get(other)?.surface == carrier && !members.contains(&other) {
+                    members.push(other);
+                }
+            }
+        }
+        i += 1;
+    }
+    let inside = |h| {
+        body.mate(h)
+            .and_then(|m| body.face_of_half_edge(m))
+            .is_some_and(|f| members.contains(&f))
+    };
+    let mut member_loops = Vec::new();
+    let mut per_member = Vec::new();
+    let mut open = Vec::new();
+    for &f in &members {
+        let mut mine = Vec::new();
+        for lk in loops_of(f)? {
+            let (edges, hes) = crate::props::loop_edges(body, lk).ok()?;
+            member_loops.push(edges.clone());
+            mine.push(edges);
+            open.extend(hes.into_iter().filter(|&h| !inside(h)));
+        }
+        per_member.push(mine);
+    }
+    let mut boundary = Vec::new();
+    while let Some(&first) = open.first() {
+        let mut run = Vec::new();
+        let mut h = first;
+        loop {
+            run.push(h);
+            open.retain(|&x| x != h);
+            let mut n = body.half_edges.get(h)?.next;
+            let mut guard = 0;
+            while inside(n) {
+                n = body.half_edges.get(body.mate(n)?)?.next;
+                guard += 1;
+                if guard > 64 {
+                    return None;
+                }
+            }
+            if n == first {
+                break;
+            }
+            if !open.contains(&n) {
+                return None;
+            }
+            h = n;
+        }
+        boundary.push(crate::props::run_edges(body, &run).ok()?);
+    }
+    let boundary: Vec<&[geom_brep::props::LoopEdge<T>]> =
+        boundary.iter().map(Vec::as_slice).collect();
+    let member_loops: Vec<&[geom_brep::props::LoopEdge<T>]> =
+        member_loops.iter().map(Vec::as_slice).collect();
+    if std::env::var("SEAM_VARIANT").as_deref() == Ok("tiling") {
+        let pm: Vec<Vec<&[geom_brep::props::LoopEdge<T>]>> = per_member
+            .iter()
+            .map(|m| m.iter().map(Vec::as_slice).collect())
+            .collect();
+        let pm: Vec<&[&[geom_brep::props::LoopEdge<T>]]> = pm.iter().map(Vec::as_slice).collect();
+        let r = geom_brep::props::sphere_region_tiling_side(surface, &boundary, &pm, band);
+        if std::env::var("SEAM_DEBUG").is_ok() {
+            eprintln!("TILING members {} boundary {:?} -> {r:?}", members.len(), boundary.iter().map(|b| b.len()).collect::<Vec<_>>());
+        }
+        return Some(r);
+    }
+    Some(geom_brep::props::sphere_region_material_sign(
+        surface,
+        &boundary,
+        &member_loops,
+        band,
+    ))
+}
+
 /// **Where `body` holds material wound negative, read as tier 3 reads
 /// it**, at the lane `quad` gives: check 7's
 /// [`ValidationError::NegativeVolume`] verdicts, a solid at a time; then,
@@ -7183,7 +7282,14 @@ pub(crate) fn tier3_local_checks_marked<
             // encoding to cross-check the stored bit against: a sphere
             // face with both poles on its loop, the residual above.
             // An ANSWER, not a refusal.
-            Ok(geom_brep::props::MaterialSign::Unencoded) => {}
+            Ok(geom_brep::props::MaterialSign::Unencoded) => {
+                if let Some(Ok(geom_brep::props::MaterialSign::Encoded(side))) =
+                    seam_region_sign(body, face_key, surface, band)
+                    && (side == Sign::Positive) != face.sense
+                {
+                    errors.push(ValidationError::CurvedSenseInverted { face: face_key });
+                }
+            }
             // A REFUSED derivation is exempt here, never a
             // disagreement (the posture above, and the contract on
             // `boundary_material_sign` itself). It is not a discard:

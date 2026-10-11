@@ -3130,6 +3130,125 @@ fn pole_free_side<T: Decide>(
     Ok(reading.map_or(MaterialSign::Unencoded, MaterialSign::Encoded))
 }
 
+/// **The side of a seam-joined region of one sphere's faces**, read off
+/// the region's own boundary `boundary` (the edges of `members` that no
+/// other member shares, chained into loops) with `members` the faces'
+/// own outer loops.
+///
+/// A face whose loop holds both chart poles encodes no side alone
+/// ([`pole_free_side`]), but the region does wherever its boundary
+/// does: with holes, by the sign of its Gauss–Bonnet area; with one
+/// loop, by each pole off that loop. A pole on some member's loop and
+/// off the boundary lies on an edge interior to the region, so the
+/// region is the side of the boundary that holds it; a pole on no
+/// member's loop is inside no member (a chart singularity inside a face
+/// is a vertex of it), so the region is the side that does not.
+/// `Unencoded` when the boundary is empty (the region is a whole
+/// sphere, whose side is the shell's orientation) or carries both poles.
+///
+/// # Errors
+///
+/// As [`boundary_material_sign_loops`]; a non-sphere surface refuses
+/// [`PropsError::NotIsoRectangle`].
+pub fn sphere_region_material_sign<T: Decide>(
+    surface: &Surface<T>,
+    boundary: &[&[LoopEdge<T>]],
+    members: &[&[LoopEdge<T>]],
+    band: Band,
+) -> Result<MaterialSign, PropsError> {
+    let Surface::Sphere {
+        center,
+        radius,
+        axis,
+        ..
+    } = *surface
+    else {
+        return Err(PropsError::NotIsoRectangle {
+            what: "sphere_region_material_sign called on a non-sphere surface",
+        });
+    };
+    let gauss = sphere_loops(center, radius, boundary, band)?;
+    let [one] = gauss.as_slice() else {
+        return if gauss.is_empty() {
+            Ok(MaterialSign::Unencoded)
+        } else {
+            side_of_sphere_loops(center, radius, axis, &gauss, band)
+        };
+    };
+    let members = sphere_loops(center, radius, members, band)?;
+    let up = axis / axis.norm();
+    let mut reading: Option<Sign> = None;
+    for pole in [up, -up] {
+        let side = match pole_side(center, radius, pole, one, band) {
+            Ok(Some(side)) => {
+                let mut interior = false;
+                for m in &members {
+                    if pole_side(center, radius, pole, m, band)?.is_none() {
+                        interior = true;
+                    }
+                }
+                Some(if interior { side.flip() } else { side })
+            }
+            Ok(None) | Err(PropsError::Escalated { .. }) => None,
+            Err(other) => return Err(other),
+        };
+        match (reading, side) {
+            (Some(a), Some(b)) if a != b => return Ok(MaterialSign::Unencoded),
+            (None, side) => reading = side,
+            _ => {}
+        }
+    }
+    Ok(reading.map_or(MaterialSign::Unencoded, MaterialSign::Encoded))
+}
+
+/// PROTOTYPE: the tiling reading — the side under which the members'
+/// areas sum to the region's.
+pub fn sphere_region_tiling_side<T: Decide>(
+    surface: &Surface<T>,
+    boundary: &[&[LoopEdge<T>]],
+    members: &[&[&[LoopEdge<T>]]],
+    band: Band,
+) -> Result<MaterialSign, PropsError> {
+    let Surface::Sphere { center, radius, .. } = *surface else {
+        return Err(PropsError::NotIsoRectangle { what: "tiling on non-sphere" });
+    };
+    let region = sphere_loops(center, radius, boundary, band)?;
+    if region.is_empty() || members.len() < 2 {
+        return Ok(MaterialSign::Unencoded);
+    }
+    let members = members
+        .iter()
+        .map(|m| sphere_loops(center, radius, m, band))
+        .collect::<Result<Vec<_>, _>>()?;
+    let area = |loops: &[SphereLoop<T>], left: bool| {
+        loops
+            .iter()
+            .fold(T::tau() + T::tau(), |s, l| s - solid_angle(center, l, !left))
+    };
+    let mut found = None;
+    for (left, side) in [(true, Sign::Positive), (false, Sign::Negative)] {
+        let gap = members
+            .iter()
+            .fold(-area(&region, left), |s, m| s + area(m, left));
+        if std::env::var("SEAM_DEBUG").is_ok() {
+            eprintln!("  gap left={left} {:?} region {:?} members {:?}", gap, area(&region, left), members.iter().map(|m| (m.len(), area(m, left))).collect::<Vec<_>>());
+        }
+        if classify(
+            "props_sphere_region_tiling",
+            Margin::levered(gap * radius * radius, radius),
+            band,
+            PropsCheck::Inventory,
+        )? == Sign::Zero
+        {
+            if found.is_some() {
+                return Ok(MaterialSign::Unencoded);
+            }
+            found = Some(side);
+        }
+    }
+    Ok(found.map_or(MaterialSign::Unencoded, MaterialSign::Encoded))
+}
+
 /// **Which side of the loop the pole in direction `pole` lies on**:
 /// `Some(Positive)` when it is right of the loop under the chart
 /// normal (so the pole-free side is the left one), `Some(Negative)`
