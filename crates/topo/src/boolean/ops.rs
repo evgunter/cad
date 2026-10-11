@@ -686,7 +686,11 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut seam_edges = Vec::new();
     let mut desc = Descendants::welded(&fin.weld_merges_a, &fin.weld_merges_b)
         .with_copies(copies)
-        .with_along(along);
+        .with_along(along)
+        .with_fragments([
+            [connected.a_fragments.as_slice(), &fin.weld_fragments_a].concat(),
+            [connected.b_fragments.as_slice(), &fin.weld_fragments_b].concat(),
+        ]);
     // A vertex several seams meet is fused by the first: each later zip
     // reads the correspondence through the fusions made.
     let mut vertex_map = fin.vertex_map.clone();
@@ -724,6 +728,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         &ledger,
         [&KeyView::Direct, &KeyView::Graft(&fin.graft)],
         &desc,
+        band,
     )?;
     // Curved results carry certified per-half-edge pcurves at rest
     // (M5 PR 9, the PR 6 contract): re-derive the whole cache set on
@@ -2679,6 +2684,13 @@ pub(super) struct Descendants {
     /// so where the op drops `edge`, the chord holds its interior.
     /// Read only where `edge` left the result.
     along: [Vec<(EdgeKey, EdgeKey)>; 2],
+    /// Each operand's face divisions, `(new face, divided-from face)` in
+    /// its clone keys, read before its key view: the join's chord-mef
+    /// fragments and the pinch welds'. A division keeps the divided
+    /// face's key on one piece, whichever piece that is, so a record
+    /// naming the face is read through all of its pieces
+    /// ([`Self::holder`]).
+    fragments: [Vec<(FaceKey, FaceKey)>; 2],
     /// Every other substitution, dead cell → the cell that holds its
     /// interior now, result keys: a zipped ring edge → its seam edge, a
     /// cell the merge swallowed → the kept face, a joined vertex or
@@ -2717,6 +2729,12 @@ impl Descendants {
     /// operand's own edges ([`Self::along`]).
     pub(super) fn with_along(self, along: [Vec<(EdgeKey, EdgeKey)>; 2]) -> Self {
         Self { along, ..self }
+    }
+
+    /// The map that also reads each operand's face divisions
+    /// ([`Self::fragments`]).
+    pub(super) fn with_fragments(self, fragments: [Vec<(FaceKey, FaceKey)>; 2]) -> Self {
+        Self { fragments, ..self }
     }
 
     /// `v` and every vertex null edges join it to, transitively, in
@@ -2860,6 +2878,85 @@ impl Descendants {
         Ok(held)
     }
 
+    /// Operand `side`'s face `face` as a vertex-on-face record reads it,
+    /// `vertex` the record's vertex in result keys: the live piece of
+    /// the face that holds the vertex. A face no division touched is
+    /// [`Self::live`]'s read. A division keeps the key on one piece,
+    /// which need not be the one the vertex rests on, so each live piece
+    /// of a divided face (it and every fragment divided from it,
+    /// transitively, each through [`Self::live`]) is asked as the census
+    /// confirms the record: the piece the vertex bounds (the record is
+    /// then structure), else the one whose region holds it. `None` where
+    /// no live piece holds it: the part of the face it rested on left
+    /// the result. A piece the containment door cannot read leaves the
+    /// record on the face's own live piece, where the census's confirm
+    /// reads it through the same door.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::live`]; [`BooleanError::Escalated`] where a piece's
+    /// containment margin is in band; [`BooleanError::JoinDesync`] where
+    /// two pieces of one face both hold the vertex.
+    fn holder<T: Decide>(
+        &self,
+        body: &Body<T>,
+        side: Operand,
+        view: &KeyView<'_>,
+        face: FaceKey,
+        vertex: VertexKey,
+        band: Band,
+    ) -> Result<Option<Cell>, BooleanError> {
+        let desync = |what| BooleanError::JoinDesync { what };
+        let own = self.live(body, side, view, Cell::Face(face))?;
+        let rows = &self.fragments[usize::from(side == Operand::B)];
+        let mut family = vec![face];
+        let mut i = 0;
+        while let Some(&at) = family.get(i) {
+            for &(new, _) in rows.iter().filter(|&&(_, from)| from == at) {
+                if !family.contains(&new) {
+                    family.push(new);
+                }
+            }
+            i += 1;
+        }
+        if family.len() == 1 {
+            return Ok(own);
+        }
+        let mut pieces = Vec::new();
+        for f in family {
+            if let Some(Cell::Face(p)) = self.live(body, side, view, Cell::Face(f))?
+                && !pieces.contains(&p)
+            {
+                pieces.push(p);
+            }
+        }
+        if let Some(&p) = pieces.iter().find(|&&p| bounds(body, p, vertex)) {
+            return Ok(Some(Cell::Face(p)));
+        }
+        let q = body
+            .get_vertex(vertex)
+            .and_then(|d| body.get_point(d.point))
+            .copied()
+            .ok_or_else(|| desync("a recorded vertex has no point"))?;
+        let (mut held, mut unread) = (None, false);
+        for p in pieces {
+            match piece_holds(body, p, q, band)? {
+                Some(true) => {
+                    if held.replace(p).is_some() {
+                        return Err(desync("two pieces of one divided face hold a recorded vertex"));
+                    }
+                }
+                Some(false) => {}
+                None => unread = true,
+            }
+        }
+        Ok(match held {
+            Some(p) => Some(Cell::Face(p)),
+            None if unread => own,
+            None => None,
+        })
+    }
+
     /// [`Self::live`] without the chord rows.
     fn chained<T: Real>(
         &self,
@@ -2904,6 +3001,37 @@ impl Descendants {
         Err(BooleanError::JoinDesync {
             what: "a cell's substitution rows are cyclic",
         })
+    }
+}
+
+/// Whether `face` holds `q`, a point on its carrier, in its region or on
+/// its boundary: `contfp` on a plane, the chart trim on a curved face,
+/// as the census confirms a vertex-on-face record. `None` where the door
+/// gives no verdict.
+///
+/// # Errors
+///
+/// [`BooleanError::Escalated`] (`SelfCheck(CarriedLineage)`) on a
+/// margin in band.
+fn piece_holds<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    q: Point3<T>,
+    band: Band,
+) -> Result<Option<bool>, BooleanError> {
+    let f = proven(&body.faces, face, EntityId::Face);
+    let read = match *body.face_surface_linked(face, f) {
+        geom::Surface::Plane { normal, .. } => contfp(body, face, normal, q, band).map(Some),
+        _ => super::contain::curved_face_containment(body, face, q, band),
+    };
+    match read {
+        Ok(at) => Ok(at.map(|at| at != FaceContainment::Out)),
+        Err(ContainError::Escalated { diag, .. }) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::SelfCheck(SelfCheck::CarriedLineage),
+            diag,
+        }),
+        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
+        Err(_) => Ok(None),
     }
 }
 
@@ -3319,11 +3447,12 @@ type End = (Operand, Cell);
 /// handed a `(vertex, edge)` or edge-edge record, which it never mints;
 /// [`BooleanError::ClassificationInvariant`] on a surviving record no
 /// decision backs.
-pub(super) fn carry<T: Real>(
+pub(super) fn carry<T: Decide>(
     body: &Body<T>,
     ledger: &Ledger,
     views: [&KeyView<'_>; 2],
     desc: &Descendants,
+    band: Band,
 ) -> Result<(ContactRecords, Vec<crate::Coincidence>), BooleanError> {
     let discovered = &ledger.discovered;
     if !discovered.ve.is_empty() || !discovered.ee.is_empty() {
@@ -3332,7 +3461,7 @@ pub(super) fn carry<T: Real>(
         });
     }
     let [a, b] = &ledger.carried;
-    let records = carry_rows(body, discovered, [a, b], views, desc, false)?;
+    let records = carry_rows(body, discovered, [a, b], views, desc, false, band)?;
     cite_rows(records, ledger)
 }
 
@@ -3421,10 +3550,11 @@ pub(super) fn input_cell((input, cell): End, splits: &[super::EdgeSplit]) -> cra
 ///
 /// As [`carry`].
 #[cfg(test)]
-pub(super) fn carry_in_place<T: Real>(
+pub(super) fn carry_in_place<T: Decide>(
     body: &Body<T>,
     records: &ContactRecords,
     desc: &Descendants,
+    band: Band,
 ) -> Result<ContactRecords, BooleanError> {
     let none = Rows::default();
     carry_rows(
@@ -3434,6 +3564,7 @@ pub(super) fn carry_in_place<T: Real>(
         [&KeyView::Direct, &KeyView::Direct],
         desc,
         true,
+        band,
     )
 }
 
@@ -3580,13 +3711,14 @@ mod chain_rows {
 
 /// The door's one body, over records in two arenas (`one_arena`
 /// false, the operands') or one.
-fn carry_rows<T: Real>(
+fn carry_rows<T: Decide>(
     body: &Body<T>,
     discovered: &ContactRecords,
     carried: [&Rows; 2],
     views: [&KeyView<'_>; 2],
     desc: &Descendants,
     one_arena: bool,
+    band: Band,
 ) -> Result<ContactRecords, BooleanError> {
     let sides = [Operand::A, Operand::B];
     let view = |side: Operand| views[usize::from(side == Operand::B)];
@@ -3739,10 +3871,14 @@ fn carry_rows<T: Real>(
         if view(vs).vertex(v).is_some_and(|k| desc.fused.contains(&k)) {
             continue;
         }
-        if let (Some(x), Some(y)) = (
-            desc.live(body, vs, view(vs), Cell::Vertex(v))?,
-            desc.live(body, fs, view(fs), Cell::Face(f))?,
-        ) {
+        let Some(x) = desc.live(body, vs, view(vs), Cell::Vertex(v))? else {
+            continue;
+        };
+        let y = match x {
+            Cell::Vertex(k) => desc.holder(body, fs, view(fs), f, k, band)?,
+            _ => desc.live(body, fs, view(fs), Cell::Face(f))?,
+        };
+        if let Some(y) = y {
             record(body, &mut out, (vs, x), (fs, y), cites.clone())?;
         }
     }
@@ -5673,6 +5809,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 &ledger,
                 [&KeyView::Direct, &KeyView::Graft(&graft)],
                 &desc,
+                band,
             )?;
             let body = gate(body, band, tol)?;
             let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
@@ -5734,7 +5871,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         _ => (KeyView::Absent, KeyView::Direct),
     };
     let ledger = ledger(red, decls, band)?;
-    let (contacts, coincidences) = carry(&body, &ledger, [&a_view, &b_view], &desc)?;
+    let (contacts, coincidences) = carry(&body, &ledger, [&a_view, &b_view], &desc, band)?;
     let body = gate(body, band, tol)?;
     let naming = match kind {
         BooleanResultKind::OperandA => BooleanNaming {
@@ -5827,18 +5964,18 @@ mod tests {
         }
     }
     /// The door over discovered records alone.
-    fn found<T: geom_core::Real>(
+    fn found<T: geom_core::Decide>(
         body: &crate::Body<T>,
         contacts: &crate::boolean::ContactRecords,
         views: [&super::KeyView<'_>; 2],
         desc: &super::Descendants,
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::BooleanError> {
         let none = super::Rows::default();
-        super::carry_rows(body, contacts, [&none, &none], views, desc, false)
+        super::carry_rows(body, contacts, [&none, &none], views, desc, false, band())
     }
 
     /// The door over carried records alone.
-    fn carried_in<T: geom_core::Real>(
+    fn carried_in<T: geom_core::Decide>(
         body: &crate::Body<T>,
         decls: &crate::boolean::BooleanDeclarations,
         views: [&super::KeyView<'_>; 2],
@@ -5854,6 +5991,7 @@ mod tests {
             views,
             desc,
             false,
+            band(),
         )
     }
 
@@ -7106,7 +7244,7 @@ mod tests {
                 ..ContactRecords::default()
             };
             assert_eq!(
-                super::carry_in_place(&body, &on_edge, &desc)
+                super::carry_in_place(&body, &on_edge, &desc, band())
                     .unwrap()
                     .a_on_b,
                 vec![VfContact {
