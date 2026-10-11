@@ -1777,8 +1777,8 @@ mod tests {
     /// and two ties, 0–1 and 0–2, each with its margin; 1–2 joins
     /// nothing new and ties nothing. Red if a class compares only with
     /// its lead and records every Zero (three ties), or groups across
-    /// faces. Two pierces of one face a band apart (5e-9, inside the
-    /// band's 1e-9 to 1e-8) escalate `VertexOnVertex`.
+    /// faces. Two pierces of one face a band apart (halfway between the
+    /// band's zero and its escalation) escalate `VertexOnVertex`.
     #[test]
     fn ring_groups_close_transitively_and_escalate_in_band() {
         let mut vertices: slotmap::SlotMap<VertexKey, ()> = slotmap::SlotMap::with_key();
@@ -1801,7 +1801,9 @@ mod tests {
             vec![(0, 1), (0, 2)],
             "the spanning ties"
         );
-        let near = [plan_at(v[0], f, 0.0), plan_at(v[5], f, 5e-9)];
+        // Halfway into the band, at whichever tolerance row runs.
+        let gap = 0.5 * (band.zero() + band.escalate());
+        let near = [plan_at(v[0], f, 0.0), plan_at(v[5], f, gap)];
         let refs: Vec<&RingPlan<f64>> = near.iter().collect();
         assert!(
             matches!(
