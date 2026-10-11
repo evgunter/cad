@@ -2170,24 +2170,16 @@ impl Indeterminate {
     }
 }
 
-/// The escalation's sentence under [`COINCIDENCE_RECOURSE`], except
-/// where the margin was decided past the band: that sign is certain,
-/// and the geometry is the one lever ([`COINCIDENCE_RECOURSE`]).
+/// The escalation's sentence under [`COINCIDENCE_RECOURSE`].
 impl fmt::Display for Indeterminate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let levers = if self.margin.placement(self.band) == Placement::Past {
-            COINCIDENCE_RECOURSE
-        } else {
-            COINCIDENCE_RECOURSE
-        };
-        write!(f, "{}", self.under(levers))
+        write!(f, "{}", self.under(COINCIDENCE_RECOURSE))
     }
 }
 
 /// An [`Indeterminate`] rendered with its margin kind's own advice and
-/// the LEVERS the door supplies in place of [`COINCIDENCE_RECOURSE`] —
-/// for a door that takes no declaration
-/// ([`COINCIDENCE_RECOURSE`]). The ending itself, label and valued
+/// the LEVERS the door supplies in place of [`COINCIDENCE_RECOURSE`].
+/// The ending itself, label and valued
 /// tolerance arm, is [`Indeterminate::ending`]'s; the bare
 /// [`Indeterminate`] Display is this view under
 /// [`COINCIDENCE_RECOURSE`].
