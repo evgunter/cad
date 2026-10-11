@@ -1,0 +1,5 @@
+fork: a-same-side-tangent-touch-refuses-at-every-op ([ev] PR 4723)
+dispatched: 2026-10-11
+byte: 60
+mapping: A=opus B=fable
+note: committed late (after the PR opened); the byte and mapping were recorded in the orchestrator notes at dispatch
