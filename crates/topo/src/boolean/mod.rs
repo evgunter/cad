@@ -154,6 +154,7 @@ pub use carrier_eq::{
 pub use contain::{
     CONTAINMENT_RAISED, ContainDecision, ContainError, FaceContainment, contfp,
     curved_face_containment, placement_ending, placement_lever, placement_subject,
+    unnamed_placement_ending,
 };
 // Crate-internal: tier 3's check 9 decides two whole-circle loops
 // against each other (its contact arm 4) on the same loop
@@ -185,8 +186,8 @@ pub use zip::take_shared_points;
 // arm in one function, shared by verify-at-use and the detector's
 // candidate-generation mode BY CONSTRUCTION.
 pub use carrier_pair::{
-    PairFace, PairUnread, carrier_pair_relation, carrier_pair_verdict, face_carrier,
-    flush_pair_relation,
+    PairFace, PairUnread, carrier_pair_decided, carrier_pair_relation, carrier_pair_verdict,
+    face_carrier, flush_pair_relation,
 };
 pub(crate) use contact_verify::rest_pair_reading;
 pub use contact_verify::{contact_pair_verdict, tangent_pair_relation};
@@ -5354,7 +5355,7 @@ fn tangent_row(
         },
         site: crate::DecisionSite::TangentWitness,
         margin,
-        discharge: crate::Discharge::Numeric,
+        discharge: crate::Discharge::of(margin),
     }
 }
 
@@ -5396,7 +5397,7 @@ fn verify_one_carrier_declaration<T: Decide>(
             relation,
             site: declared_site(a, fa, b, fb),
             margin,
-            discharge: crate::Discharge::Numeric,
+            discharge: crate::Discharge::of(margin),
         }))
     };
     match outcome {

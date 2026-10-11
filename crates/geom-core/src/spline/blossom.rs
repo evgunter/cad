@@ -199,6 +199,45 @@ pub fn restrict_bernstein(
     Ok(pyramid(row, (a, b), |_, _, u| u))
 }
 
+/// The Bernstein row on `[a, b]` of the Bézier segment whose row on
+/// `[s0, s1]` is `row`: [`SpanRow::restrict`] on
+/// [`KnotVector::bezier`]`(p, (s0, s1))` at the exact cut ends, so
+/// coefficient `k` is the segment's blossom at `(a^(p−k), b^k)`, `p`
+/// steps of [`Certification::between`] deep from the segment's own row
+/// wherever the cut falls. The whole segment comes back as it came, and
+/// a constant (one coefficient) is its own restriction.
+///
+/// A cut out of order comes back refused, every coefficient of it: an
+/// end outside the segment, a reversed cut (sound, blossoms being
+/// symmetric, and refused by contract), an empty or unbounded segment,
+/// a cut that is not a number. An empty row comes back empty.
+///
+/// [`KnotVector::bezier`]: super::KnotVector::bezier
+// The negated guard refuses a NaN cut, where `a < s0` would pass it.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
+#[must_use]
+pub fn restrict_segment(
+    row: &[Interval],
+    (s0, s1): (f64, f64),
+    (a, b): (f64, f64),
+) -> Vec<Interval> {
+    if row.is_empty() || !(s0 <= a && a <= b && b <= s1 && s0 < s1) {
+        return vec![Interval::refused(); row.len()];
+    }
+    if row.len() == 1 || (a == s0 && b == s1) {
+        return row.to_vec();
+    }
+    super::KnotVector::bezier(row.len() - 1, (s0, s1))
+        .ok()
+        .and_then(|kv| {
+            kv.span_at(s0)?
+                .with_window(row)?
+                .restrict((Interval::point(a), Interval::point(b)))
+                .ok()
+        })
+        .unwrap_or_else(|| vec![Interval::refused(); row.len()])
+}
+
 /// `u` met with the closure `[lo, hi]` (module docs' argument contract):
 /// a refusal flows on, a certified argument with no point there refuses.
 fn admit(u: Interval, index: usize, (lo, hi): (f64, f64)) -> Result<Interval, BlossomError> {
@@ -410,5 +449,55 @@ mod tests {
             short.len() == 3 && short.iter().all(|c| c.is_nan()),
             "{short:?}"
         );
+    }
+
+    /// **A cut out of order refuses its row** (carried from `compose`'s
+    /// `sub_segment` row when the segment cut moved onto the door).
+    /// Outside the segment the cut is no restriction of it; a reversed
+    /// cut inside it is refused by contract. Red under the guard
+    /// removed: the reversed cut comes back certified.
+    #[test]
+    fn a_segment_cut_out_of_order_refuses_its_row() {
+        let row: Vec<Interval> = [1.0, -2.0, 3.0].map(Interval::point).to_vec();
+        for (seg, cut) in [
+            ((0.0, 1.0), (0.5, 0.25)),
+            ((0.0, 1.0), (-0.5, 0.5)),
+            ((0.0, 1.0), (0.5, 1.5)),
+            ((1.0, 1.0), (1.0, 1.0)),
+            ((0.0, 1.0), (f64::NAN, 0.5)),
+        ] {
+            let got = restrict_segment(&row, seg, cut);
+            assert_eq!(got.len(), row.len(), "{seg:?} {cut:?}");
+            assert!(
+                got.iter().all(|c| !c.is_certified()),
+                "{seg:?} cut at {cut:?} came back certified: {got:?}"
+            );
+        }
+        assert!(
+            restrict_segment(&[], (0.0, 1.0), (0.25, 0.5)).is_empty(),
+            "an empty row cut inside its segment comes back empty"
+        );
+        let point = restrict_segment(&row, (0.0, 1.0), (0.25, 0.25));
+        assert!(
+            point.iter().all(|c| c.is_certified()),
+            "a point cut inside the segment reads: {point:?}"
+        );
+        let whole = restrict_segment(&row, (2.0, 6.0), (2.0, 6.0));
+        assert!(
+            whole
+                .iter()
+                .zip(&row)
+                .all(|(x, y)| x.lo().to_bits() == y.lo().to_bits()
+                    && x.hi().to_bits() == y.hi().to_bits()),
+            "the whole segment comes back as it came: {whole:?}"
+        );
+        // The segment's restriction is the [0, 1] row's at the mapped
+        // ratios, which are exact here.
+        let on_segment = restrict_segment(&row, (2.0, 6.0), (3.0, 5.0));
+        let on_unit =
+            restrict_bernstein(&row, (Interval::point(0.25), Interval::point(0.75))).unwrap();
+        for (x, y) in on_segment.iter().zip(&on_unit) {
+            assert!(x.lo() <= y.hi() && y.lo() <= x.hi(), "{x:?} vs {y:?}");
+        }
     }
 }

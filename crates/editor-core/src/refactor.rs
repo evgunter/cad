@@ -1881,6 +1881,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::UnresolvedInput { .. }
             | EditError::WouldCycle { .. }
             | EditError::SelectionShape { .. }
+            | EditError::PoseShape { .. }
             | EditError::IndexedRead { .. }
             | EditError::SetMembersOnNonList { .. }
             | EditError::SetDeclareOnNonDeclaring { .. }
@@ -2305,20 +2306,6 @@ fn remap_node(
         })
     };
     Ok(match node {
-        // **An in-plane axis is not a leaf**: its frame is an input,
-        // and a clone would carry the OTHER document's node number
-        // across the cut — exactly the trap the profile's plane hit
-        // one rung down, where this arm cloned because a profile
-        // referenced nothing.
-        Node::Datum(crate::Datum::AxisInPlane {
-            frame: plane,
-            origin,
-            direction,
-        }) => Node::Datum(crate::Datum::AxisInPlane {
-            frame: rd(crate::OperandSlot::Frame, *plane)?,
-            origin: *origin,
-            direction: *direction,
-        }),
         // A derived frame is not a leaf either: its face is a read,
         // which crosses the cut or the remap misses loudly.
         Node::Datum(crate::Datum::FaceFrame { face, spin }) => {
@@ -2357,11 +2344,13 @@ fn remap_node(
         },
         Node::Revolve {
             profile,
-            axis,
+            axis_origin,
+            axis_direction,
             angle,
         } => Node::Revolve {
             profile: rd(crate::OperandSlot::Profile, *profile)?,
-            axis: rd(crate::OperandSlot::Axis, *axis)?,
+            axis_origin: *axis_origin,
+            axis_direction: *axis_direction,
             angle: *angle,
         },
         // The two tube kinds remap the same way — one frame read, every
@@ -2647,6 +2636,10 @@ impl<'s> VarCarry<'s> {
             VarDef::Select(_) => {
                 unreachable!("a selection crosses with its reader, minted by the target's insert")
             }
+            VarDef::Pose(_) => unreachable!(
+                "the carry declares variables slots read, and no slot reads a pose: a pose \
+                 read crosses no cut (its reader's remap misses, `RemapMiss::Read`)"
+            ),
         }
     }
 

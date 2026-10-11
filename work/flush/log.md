@@ -73,3 +73,29 @@ honestly at dispatch.
   is dispatched once F and 4598 have merged. The curved pinch row waits
   with it: its open question is the curved census, which 4604 extends.
   — (FLUSH orchestrator)
+
+## 2026-10-11 — reader's closes merge (PR 4635)
+
+Tier: the orchestrator's read. The diff is two pins and tracker edits,
+no kernel code; the reflex pin goes red under a `strut_order` mutant.
+Three rows close, 10 points:
+- the reflex corner (H): 0 `SeamOrientation` in 1152 declared lines,
+  and 1071 SOUND / 81 EMPTY plain;
+- the declared-flush wedge: never `JoinDesync` either way;
+- the one-order declared intersect: every nesting is SOUND plain.
+
+**A finding that is a class, not an instance, and crosses into
+INTENT.** On main a declaration moves a body. The door-backstop wedge,
+flush on a block top with its face 1.74e-10 off the block's plane (Zero
+against a ±1e-9 band), builds declared and refuses every op plain.
+`carrier_eq_reading` reads an undeclared pair's planes over an
+`ExtentBall` of radius `s1.span()`, where the tilt reads `Distinct`;
+the declared spelling reads over the consumed face extent. INTENT F's
+premise, that a declaration already moves no body (so F is bit-equal
+to E), is false for this fixture, and F deletes the fixture. Filed as
+`a-wedge-flush-on-a-block-top-refuses-every-op-undeclared-though-its-face-reads-zero`
+(P1, M), on this slate because its fix is the plain door's carrier
+read. A seam note on INTENT's log and a comment on PR 4641 ask F to
+keep the fixture through the plain booleans (or name the row), so the
+regression stays visible.
+— (FLUSH orchestrator)

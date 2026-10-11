@@ -43,6 +43,17 @@ Then route `bezier_on` through it, and the other two where their
 schedules fit. `TensorNet::refine_u`/`refine_v` are the tensor
 bookkeeping a surface consumer would reuse.
 
+## Evidence (2026-10-11, `encl/one-halving-driver`)
+
+The Bézier-row case of the restriction exists and is public:
+`geom_core::spline::sub_segment` cuts a segment's row on `[s0, s1]` to
+`[a, b]` in the convex form with the hull meet, and `ssi::section`
+reads it in place of its own copy. A span's piece reaches it once the
+span is a Bézier segment (knots at full multiplicity), which is what
+`bezier_on` would otherwise blossom by de Boor. A further copy of the
+cut, `props::quad::bezier_bisect`, is filed on QUAD's slate
+(`trim-monotone-ladder-bisects-with-its-own-lerp-de-casteljau`).
+
 ## Closed
 
 `CoeffWindow::blossom(args)` is the one certified primitive
@@ -53,8 +64,10 @@ the span's closure (an argument wholly outside refuses typed,
 Bernstein row on `[a, b]`; a bare Bernstein row mints
 `KnotVector::bezier(p, (s0, s1))`. `compose`'s Bézier decomposition is
 `restrict` per span and piece, and `insert_once_ring` and `sub_segment`
-are retired. Routed through it: `ssi/enclose::bezier_on`,
-`ssi/section::sub_piece`, `props/quad`'s `bezier_bisect`, and
+are retired; the segment cut ENCL made public as `sub_segment`
+(`encl/one-halving-driver`) is `blossom::restrict_segment`, the same
+restriction on `KnotVector::bezier(p, (s0, s1))`. Routed through it: `ssi/enclose::bezier_on`,
+`ssi/section`'s piece cuts and sign bisection (`restrict_segment`), `props/quad`'s `bezier_bisect`, and
 `pcurve_cache/projected::piece_controls` through
 `SpanLocate::restrict_window`. `props/quad`'s `de_boor` is not: routed,
 it broke step-import's native/import bit identity by one ulp, filed as
