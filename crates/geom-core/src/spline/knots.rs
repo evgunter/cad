@@ -9,8 +9,10 @@ use crate::readable::Readable;
 use crate::real::Real;
 use core::num::NonZeroUsize;
 
-/// `hi − lo` for two stored `f64` knots, the difference taken in `T`:
-/// each knot lifted, then subtracted at the scalar. At `Interval` that is
+/// `hi − lo` for two `f64` knots of a bare [`KnotVector`] (one that
+/// holds no values in a scalar; a carrier's held knots are subtracted
+/// in their own scalar), the difference taken in `T`: each knot
+/// lifted, then subtracted at the scalar. At `Interval` that is
 /// an outward enclosure of the exact difference, which
 /// `T::from_f64(hi - lo)` is not when the `f64` subtraction rounds (two
 /// knots more than a factor of two apart, Sterbenz's lemma failing); at
