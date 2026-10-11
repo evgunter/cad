@@ -241,3 +241,15 @@ the new census. The track's load is 31/32, back under budget.
 - **Merged over main's inherited red:** `mass_props_are_thread_count_invariant`, the NURBS row. The plates red no longer fires on this head.
 - **Next:** the pinch cluster, which waited for this merge, is dispatched.
 — (FLUSH orchestrator)
+
+## 2026-10-11 — wave 4: the apex-edge P0 and the pinch cluster
+
+- **Dispatched:**
+  - `flush/apex-edge-in-face-plane`: the P0 residue of the corner pair. A planar apex edge lies in the partner's face, and nothing records it.
+  - `flush/pinch-cluster`: the pre-zip weld (H), the seams and the hole weld. The lane prices the curved-notch `JoinDesync` row and takes it only if it is the same ground.
+- **Why the pinch cluster waited:** PR 4650 carries the welds' fragments in `Descendants`, which is the ground the H row's records stand on.
+- **Wedge (PR 4709):** the lane finds the refusal is D10's: the glue door reads the pair in the sliver band over its consumed extent.
+  - Building these poses would change C2/D10. D10 already settles that a pair in band refuses, so this is not a new fork, and the orchestrator does not open one.
+  - **Alternative not taken:** reading the pair over the moving face alone, which would make these poses build.
+  - **Review:** single FULL. The PR closes a P1 as a correct refusal, so its claims must be re-measured.
+— (FLUSH orchestrator)
