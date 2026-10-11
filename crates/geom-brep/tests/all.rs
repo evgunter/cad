@@ -236,6 +236,8 @@ mod span_meter_dim_twins;
 mod ssi_limb3_one_arc;
 #[path = "stored_span_winding_bound.rs"]
 mod stored_span_winding_bound;
+#[path = "review_4680_probes.rs"]
+mod review_4680_probes;
 
 test_utils::every_suite_file_is_aggregated!();
 
