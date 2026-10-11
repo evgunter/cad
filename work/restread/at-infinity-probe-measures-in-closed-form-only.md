@@ -226,3 +226,17 @@ exactly through `topo::mass_properties` (`πr²·1.4` and `πr²·0.3`), and
 the rod's axis point at `t = 0.7` for `c ∖ h` at every spin. Pinned by
 `the_rod_short_of_the_inner_equator_answers_every_op`, which admits that
 refusal on the trimmed pieces' outside probes only.
+
+## A third fixture: a slab-cut plug as an operand (CLEAVE, 2026-10-11)
+
+Measured on main at `0a700cf7ac`, ε = 1e-9. Take the plug that the slab
+`[−3, 3] × [−1, 1] × [0, 1]` cuts from a radius-0.25 rod tilted π/3
+toward +x (`crates/sweep/tests/continuation_pose.rs`, `plug_and_hole`).
+The plug, its holed slab, and every result that holds the plug's
+ellipse-trimmed wall all refuse `Containment(VolumeUncertified)` when
+united with the far brick `[50, 51]³` (`sweep::test_support::assert_legal_operand`).
+The results that refuse are the plug ∪ a disjoint brick, and plug ∖
+that brick. The brick ∖ plug result is accepted. The refusal is the
+same at all 13 poses of that suite. Each body measures at its closed
+form through `topo::mass_properties`. The suite's apart pin does not
+assert legality for this reason.

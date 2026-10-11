@@ -960,6 +960,20 @@ pub(crate) mod phrase {
 }
 
 impl<T: Decide> ValuePayload<T> {
+    /// **The body at output `index`**: a one-body value's at 0, a
+    /// split's half at its port ([`crate::SplitHalf::output_body`]), a
+    /// family's member at its place. The one answer to "which body does
+    /// a read of this output hold".
+    ///
+    /// # Errors
+    ///
+    /// [`crate::InterrogateError::NoSuchBody`] for an index the value
+    /// has no body at (an empty half among them),
+    /// [`crate::InterrogateError::NoBodies`] for a value that holds none.
+    pub fn output_body(&self, index: u32) -> Result<&Body<T>, crate::InterrogateError> {
+        crate::names::interrogate::output_body(self, index)
+    }
+
     /// The payload family, for typed operand mismatches: the `family`
     /// word the value lands in.
     pub fn kind_name(&self) -> &'static str {
@@ -1671,7 +1685,7 @@ pub enum NodeErrorKind {
         /// The validator's findings, each naming its entity.
         errors: Vec<topo::ValidationError>,
     },
-    /// A [`crate::Node::Part`] selected a split half that holds no
+    /// A read of a split's port found its half holding no
     /// material — the tool plane missed the target on that side. Its
     /// own arm rather than [`NodeErrorKind::EmptyOperand`]: that
     /// one's prose is a boolean's, and what is empty here is a side
@@ -5307,14 +5321,9 @@ where
         // and one spin slot against nine slots), and a shared tag
         // would let a memo entry for one serve the other's geometry.
         Node::Datum(Datum::FaceFrame { .. }) => 32,
-        // The projection node: two tags, as `Pattern`'s rule kinds are
-        // two. A half and an index are different payloads read off
-        // different value kinds, and a memo entry for one must never
-        // serve the other.
-        Node::Part { select, .. } => match select {
-            PartSelect::SplitHalf(_) => 33,
-            PartSelect::Instance(_) => 34,
-        },
+        // The projection node. 33 is retired with the split-half
+        // selection it tagged, and not reused.
+        Node::Part { .. } => 34,
         // The shell's tag is the seat's, read off the verb vocabulary
         // as the blends' are. A shell and its target of the same slot
         // values are different bodies, so they must not share a key. A
@@ -5752,17 +5761,6 @@ where
                 feed_stable_name(&mut h, name);
             }
         }
-        // The HALF is recipe payload outside the slots: two Parts of
-        // the two halves of one split share a tag, an upstream key and
-        // no slot at all, and differ in exactly this — so it feeds as
-        // a tag, or a memo hit would serve one half's body for the
-        // other. The INDEX is a slot and rides the resolved-slot
-        // stream below like every slot; `of` is an input edge and is
-        // carried by the upstream keys.
-        Node::Part { of: _, select } => match select {
-            PartSelect::SplitHalf(half) => h.write_tag(split_half_tag(*half)),
-            PartSelect::Instance(_) => {}
-        },
         // An extrude's SIDE is recipe payload outside its slots: two
         // extrudes of one profile by one depth share a tag, an upstream
         // key and every slot value, and differ in exactly which side of
@@ -5813,7 +5811,12 @@ where
             stations: _,
             v_degree: _,
         }
-        | Node::Split { target: _, tool: _ } => {}
+        | Node::Split { target: _, tool: _ }
+        // The index is a slot, fed with the resolved slots below.
+        | Node::Part {
+            of: _,
+            select: PartSelect::Instance(_),
+        } => {}
         // The chain's shape (`feed_placement_shape` says why).
         Node::Transform {
             input: _,
@@ -6491,10 +6494,6 @@ impl<'a> SegFeed<'a> {
     }
 }
 
-/// A split half's key tag — ONE spelling, read by the role-segment
-/// feed (every split segment carries a half) and by the projection
-/// node's payload feed (a `Part` of a half carries the half itself);
-/// `split_half_tags_are_injective` checks it over `SplitHalf::ALL`.
 /// The content-key tag of an extrude's side — the ONE place its key
 /// identity is chosen, checked injective over [`ExtrudeSide::ALL`] by
 /// `extrude_side_tags_are_injective`.
@@ -6516,6 +6515,9 @@ fn sense_tag(sense: crate::names::Sense) -> u8 {
     }
 }
 
+/// A split half's key tag — ONE spelling, read by the role-segment
+/// feed (every split segment carries a half);
+/// `split_half_tags_are_injective` checks it over `SplitHalf::ALL`.
 fn split_half_tag(half: crate::names::SplitHalf) -> u8 {
     use crate::names::SplitHalf;
     match half {
