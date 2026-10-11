@@ -57,7 +57,7 @@ fn pinch() -> (BooleanBody<f64>, Vec<CarriedVv>) {
     };
     let wedge = prism(&[(0.0, 0.0, 0.0), at(75.0), at(105.0)], 0.0);
     let decls = topo::test_support::flush_declarations(&block, &wedge, tol());
-    let Ok(BooleanResult::Body(pinch)) = topo::union_with(&block, &wedge, &decls, tol()) else {
+    let Ok(BooleanResult::Body(pinch)) = topo::union(&block, &wedge, tol()) else {
         panic!("the wedge folds into the notch");
     };
     let rows = pinch.contacts.carried(ContactClass::Rest).vv;
@@ -111,7 +111,7 @@ fn a_pinch_apex_meeting_one_vertex_builds_in_either_order() {
             matches!(join, Ok(None)),
             "pinch first: {pinch_first}: the join connects: {join:?}"
         );
-        let Ok(BooleanResult::Body(bb)) = topo::union_with(a, b, &decls, tol()) else {
+        let Ok(BooleanResult::Body(bb)) = topo::union(a, b, tol()) else {
             panic!("pinch first: {pinch_first}: the union builds");
         };
         let got = vol(&bb.body);

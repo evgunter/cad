@@ -96,13 +96,13 @@ fn a_hexagon_unions_a_box_on_its_corner_edge_soundly() {
     let d = declare_all(&find_flush_candidates(&hex, &b, tol()).unwrap());
     assert_sound(
         "hex ∪ box, declared",
-        topo::union_with(&hex, &b, &d, tol()),
+        topo::union(&hex, &b, tol()),
         va + vb - vi,
     );
     let d = declare_all(&find_flush_candidates(&b, &hex, tol()).unwrap());
     assert_sound(
         "box ∪ hex, declared",
-        topo::union_with(&b, &hex, &d, tol()),
+        topo::union(&b, &hex, tol()),
         va + vb - vi,
     );
     // Undeclared, the `y = −0.5` faces are one carrier by margin, so the
@@ -112,7 +112,7 @@ fn a_hexagon_unions_a_box_on_its_corner_edge_soundly() {
         let d = declare_all(&find_flush_candidates(x, y, tol()).unwrap());
         assert_eq!(
             outcome(&topo::union(x, y, tol())),
-            outcome(&topo::union_with(x, y, &d, tol())),
+            outcome(&topo::union(x, y, tol())),
             "{what}: undeclared is the declared union"
         );
     }
@@ -120,12 +120,12 @@ fn a_hexagon_unions_a_box_on_its_corner_edge_soundly() {
     let d = declare_all(&find_flush_candidates(&hex, &b, tol()).unwrap());
     assert_sound(
         "hex ∖ box, declared",
-        topo::subtract_with(&hex, &b, &d, tol()),
+        topo::subtract(&hex, &b, tol()),
         va - vi,
     );
     assert_sound(
         "hex ∩ box, declared",
-        topo::intersect_with(&hex, &b, &d, tol()),
+        topo::intersect(&hex, &b, tol()),
         vi,
     );
 }
@@ -147,7 +147,7 @@ fn the_multi_spike_corner_meet_passes_tier_3() {
         tol(),
     );
     let decl = declare_all(&find_flush_candidates(&a, &b, tol()).unwrap());
-    let ab = match topo::intersect_with(&a, &b, &decl, tol()).unwrap() {
+    let ab = match topo::intersect(&a, &b, tol()).unwrap() {
         BooleanResult::Body(bb) => bb.body,
         BooleanResult::Empty => panic!("nonempty"),
     };
@@ -158,7 +158,7 @@ fn the_multi_spike_corner_meet_passes_tier_3() {
     let decl = declare_all(&find_flush_candidates(&ab, &c, tol()).unwrap());
     assert_sound(
         "AB ∩ C at the shared corner",
-        topo::intersect_with(&ab, &c, &decl, tol()),
+        topo::intersect(&ab, &c, tol()),
         0.5,
     );
 }

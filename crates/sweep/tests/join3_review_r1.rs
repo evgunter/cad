@@ -145,9 +145,9 @@ fn ops(tag: &str, t: Body<f64>, vt: f64, ov: f64) {
                     Ok(found) => {
                         let d = declare_all(&found);
                         let res = match op {
-                            "U" => topo::union_with(l, r, &d, tol()),
-                            "S" => topo::subtract_with(l, r, &d, tol()),
-                            _ => topo::intersect_with(l, r, &d, tol()),
+                            "U" => topo::union(l, r, tol()),
+                            "S" => topo::subtract(l, r, tol()),
+                            _ => topo::intersect(l, r, tol()),
                         };
                         verdict(res, want)
                     }

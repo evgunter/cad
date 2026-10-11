@@ -50,7 +50,7 @@ fn probe_misaligned_azimuth_split_unions() {
         "the join homes the pierce rings at the peg's ruling azimuth and connects, got {join:?}"
     );
     let bb = boolean_body(
-        topo::union_with(&c, &p, &decls, Tol::witness()).expect("the misaligned mate unions"),
+        topo::union(&c, &p, Tol::witness()).expect("the misaligned mate unions"),
     );
     let pi = core::f64::consts::PI;
     let want = pi * (1.5f64.powi(2) - 0.5f64.powi(2)) + pi * 0.5f64.powi(2) * 2.0;
@@ -85,7 +85,7 @@ fn probe_out_by_height_reports_its_outcome() {
     let c = finished("the collar", collar(), Tol::witness());
     let p = finished("the peg", peg_at(0.0, 1.5, 1.0), Tol::witness());
     let decls = wall_decls(&c, &p);
-    let out = topo::union_with(&c, &p, &decls, Tol::witness());
+    let out = topo::union(&c, &p, Tol::witness());
     match out {
         Err(e) => println!("PROBE2 REFUSED: {e:?}"),
         Ok(BooleanResult::Empty) => println!("PROBE2 EMPTY"),
@@ -119,7 +119,7 @@ fn probe_out_by_height_reports_its_outcome() {
 fn probe_undeclared_misaligned_reports_its_outcome() {
     let c = finished("the collar", collar(), Tol::witness());
     let p = finished("the peg", peg_at(60.0, 0.5, 2.0), Tol::witness());
-    let out = topo::union_with(&c, &p, &BooleanDeclarations::none(), Tol::witness());
+    let out = topo::union(&c, &p, Tol::witness());
     match out {
         Err(e) => println!("PROBE3 REFUSED: {e:?}"),
         Ok(BooleanResult::Empty) => println!("PROBE3 EMPTY"),
@@ -134,7 +134,7 @@ fn probe_undeclared_misaligned_reports_its_outcome() {
 fn probe_undeclared_aligned_reports_its_outcome() {
     let c = finished("the collar", collar(), Tol::witness());
     let p = finished("the peg", peg_at(0.0, 0.5, 2.0), Tol::witness());
-    let out = topo::union_with(&c, &p, &BooleanDeclarations::none(), Tol::witness());
+    let out = topo::union(&c, &p, Tol::witness());
     match out {
         Err(e) => println!("PROBE4 REFUSED: {e:?}"),
         Ok(BooleanResult::Empty) => println!("PROBE4 EMPTY"),
@@ -159,7 +159,7 @@ fn probe_reports_actual_additivity_ulps() {
         let c = finished("the collar", collar(), Tol::witness());
         let p = finished("the peg", peg_at(0.0, 0.5, 2.0), Tol::witness());
         let d = wall_decls(&c, &p);
-        if let Ok(BooleanResult::Body(bb)) = topo::union_with(&c, &p, &d, Tol::witness()) {
+        if let Ok(BooleanResult::Body(bb)) = topo::union(&c, &p, Tol::witness()) {
             let (v, vc, vp) = (volume(&bb.body), volume(&c), volume(&p));
             println!(
                 "PROBE5 partial: {:.3} ULP (v={v:.17e} sum={:.17e})",
@@ -175,7 +175,7 @@ fn probe_reports_actual_additivity_ulps() {
         let c = finished("the collar", collar(), Tol::witness());
         let p = finished("the peg", peg_at(0.0, 1.0, 1.0), Tol::witness());
         let d = wall_decls(&c, &p);
-        if let Ok(BooleanResult::Body(bb)) = topo::union_with(&c, &p, &d, Tol::witness()) {
+        if let Ok(BooleanResult::Body(bb)) = topo::union(&c, &p, Tol::witness()) {
             let (v, vc, vp) = (volume(&bb.body), volume(&c), volume(&p));
             println!(
                 "PROBE5 full: {:.3} ULP (v={v:.17e} sum={:.17e})",

@@ -143,7 +143,7 @@ fn cylinder_unions_glue_their_coincidences_and_steinmetz_refuses_at_the_pierce()
         );
         let found = topo::flush::find_flush_candidates(&a, &b, tol).unwrap();
         assert!(!found.is_empty(), "{name}: the pair has a flush finding");
-        let declared = topo::union_with(&a, &b, &topo::flush::declare_all(&found), tol);
+        let declared = topo::union(&a, &b, tol);
         let Ok(topo::BooleanResult::Body(bb)) = &declared else {
             panic!("{name}: the declared union builds: {declared:?}");
         };

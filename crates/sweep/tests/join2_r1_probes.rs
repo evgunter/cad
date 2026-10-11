@@ -105,7 +105,7 @@ fn run(label: &str, p: &Body<f64>, q: &Body<f64>) -> Vec<String> {
         out.push(format!(
             "{label} {order} U {} [{join}]",
             outcome(
-                topo::union_with(&fin(a), &fin(b), &dab, tol()),
+                topo::union(&fin(a), &fin(b), tol()),
                 va + vb,
                 tol()
             )
@@ -113,7 +113,7 @@ fn run(label: &str, p: &Body<f64>, q: &Body<f64>) -> Vec<String> {
         out.push(format!(
             "{label} {order} S_ab {}",
             outcome(
-                topo::subtract_with(&fin(a), &fin(b), &dab, tol()),
+                topo::subtract(&fin(a), &fin(b), tol()),
                 va,
                 tol()
             )
@@ -121,7 +121,7 @@ fn run(label: &str, p: &Body<f64>, q: &Body<f64>) -> Vec<String> {
         out.push(format!(
             "{label} {order} S_ba {}",
             outcome(
-                topo::subtract_with(&fin(b), &fin(a), &dba, tol()),
+                topo::subtract(&fin(b), &fin(a), tol()),
                 vb,
                 tol()
             )
@@ -129,7 +129,7 @@ fn run(label: &str, p: &Body<f64>, q: &Body<f64>) -> Vec<String> {
         out.push(format!(
             "{label} {order} I {}",
             outcome(
-                topo::intersect_with(&fin(a), &fin(b), &dab, tol()),
+                topo::intersect(&fin(a), &fin(b), tol()),
                 0.0,
                 tol()
             )
@@ -474,7 +474,7 @@ fn unions_through_ring_vertices_and_like_far_ends_build_sound() {
         };
         let d = topo::test_support::flush_declarations(a, b, tol());
         let line = outcome(
-            topo::union_with(&fin(a), &fin(b), &d, tol()),
+            topo::union(&fin(a), &fin(b), tol()),
             vol(a) + vol(b),
             tol(),
         );

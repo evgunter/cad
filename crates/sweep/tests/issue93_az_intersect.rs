@@ -280,7 +280,7 @@ fn az_coupled_flush_declared_and_undeclared_are_one_exact_body() {
         6,
         "A's two feet × Z's two y=0 bar ends + A's apex × Z's two y=2.5 bar ends"
     );
-    let declared = match topo::intersect_with(&a, &z_flush, &decls, Tol::witness()) {
+    let declared = match topo::intersect(&a, &z_flush, Tol::witness()) {
         Ok(BooleanResult::Body(bb)) => {
             check_success(&bb, 2_562_165.0 / 950_272.0, "declared coupled-flush A×Z");
             bb

@@ -101,9 +101,9 @@ fn run_with(
         &finished("operand B", b.clone(), tol),
     );
     let out = match op {
-        BooleanOp::Union => topo::union_with(a, b, decls, tol),
-        BooleanOp::Intersect => topo::intersect_with(a, b, decls, tol),
-        BooleanOp::Subtract => topo::subtract_with(a, b, decls, tol),
+        BooleanOp::Union => topo::union(a, b, tol),
+        BooleanOp::Intersect => topo::intersect(a, b, tol),
+        BooleanOp::Subtract => topo::subtract(a, b, tol),
     }?;
     Ok(out
         .body()

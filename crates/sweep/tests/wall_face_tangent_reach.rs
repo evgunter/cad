@@ -20,8 +20,8 @@ use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanDeclarations, BooleanResult, FacePairDeclaration};
 use topo::{
-    AtRestPolicy, Body, BooleanError, ContactClass, FaceKey, Operand, intersect_with,
-    subtract_with, union_with,
+    AtRestPolicy, Body, BooleanError, ContactClass, FaceKey, Operand, intersect,
+    subtract, union,
 };
 
 type Loop = Vec<((f64, f64), f64)>;
@@ -115,7 +115,7 @@ fn the_declared_rest<T: geom_core::Decide + geom_core::Bounds + AtRestPolicy>(
         finished("the plate", plate::<T>(), tol),
         finished("the rod", rod::<T>(), tol),
     );
-    match union_with(&a, &b, &decls, tol) {
+    match union(&a, &b, tol) {
         Err(BooleanError::TangentSlitArmUnbuilt {
             declaration,
             interior,
@@ -131,7 +131,7 @@ fn the_declared_rest<T: geom_core::Decide + geom_core::Bounds + AtRestPolicy>(
         }
         other => panic!("union: TangentSlitArmUnbuilt, got {:?}", other.map(|_| ())),
     }
-    match subtract_with(&a, &b, &decls, tol) {
+    match subtract(&a, &b, tol) {
         Ok(BooleanResult::Body(r)) => {
             let (lo, hi) = volume(&r.body);
             assert!(
@@ -143,7 +143,7 @@ fn the_declared_rest<T: geom_core::Decide + geom_core::Bounds + AtRestPolicy>(
     }
     assert!(
         matches!(
-            intersect_with(&a, &b, &decls, tol),
+            intersect(&a, &b, tol),
             Ok(BooleanResult::Empty)
         ),
         "intersect: empty"

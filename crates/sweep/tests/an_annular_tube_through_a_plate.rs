@@ -339,9 +339,9 @@ fn a_plug_flush_in_a_bore_is_sided_by_its_caps() {
         ] {
             let d = topo::test_support::flush_declarations(x, y, tol());
             let row = format!("the plug over z ∈ {z:?}, {order}");
-            let meet = outcome(topo::intersect_with(x, y, &d, tol()), 0.0, tol());
+            let meet = outcome(topo::intersect(x, y, tol()), 0.0, tol());
             assert_eq!(meet, "EMPTY ok", "{row}: ∩");
-            let less = outcome(topo::subtract_with(x, y, &d, tol()), vx, tol());
+            let less = outcome(topo::subtract(x, y, tol()), vx, tol());
             assert!(less.starts_with("OK SOUND"), "{row}: ∖ {less}");
         }
     }

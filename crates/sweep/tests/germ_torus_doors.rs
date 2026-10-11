@@ -184,7 +184,7 @@ fn declarations(
 fn t2(handle: Handle) -> Result<topo::BooleanResult<f64>, BooleanError> {
     let (a, b) = (half(1.0, handle), half(-1.0, handle));
     let decls = declarations(&a, &b, Some(BooleanCoincidence::Continuation));
-    topo::union_with(&a, &b, &decls, Tol::witness())
+    topo::union(&a, &b, Tol::witness())
 }
 
 // -------------------------------------------------------------------
@@ -227,7 +227,7 @@ fn the_half_dumbbell_is_a_valid_torus_waisted_solid_as_built() {
         let out = m.merge_coplanar_faces(Tol::witness()).unwrap();
         assert!(out.groups.is_empty(), "no planar wall is split: {out:?}");
     }
-    let r = topo::union_with(&a, &b, &declarations(&a, &b, None), Tol::witness());
+    let r = topo::union(&a, &b, Tol::witness());
     assert!(
         !matches!(r, Err(BooleanError::NonMaximalFaces { .. })),
         "F7 does not answer on the halves as built: {r:?}"
@@ -250,17 +250,16 @@ fn the_half_dumbbell_is_a_valid_torus_waisted_solid_as_built() {
 #[test]
 fn the_operand_gate_admits_the_torus_and_the_undeclared_pair_glues() {
     let (a, b) = (half(1.0, Handle::Torus), half(-1.0, Handle::Torus));
-    let built = topo::union_with(
+    let built = topo::union(
         &a,
         &b,
-        &declarations(&a, &b, Some(BooleanCoincidence::Continuation)),
         Tol::witness(),
     );
     assert!(
         !matches!(built, Err(BooleanError::CurvedPairUnsupported { .. })),
         "the gate must admit the torus: {built:?}"
     );
-    let undeclared = topo::union_with(&a, &b, &declarations(&a, &b, None), Tol::witness());
+    let undeclared = topo::union(&a, &b, Tol::witness());
     assert_eq!(
         outcome(&undeclared),
         outcome(&built),
@@ -275,7 +274,7 @@ fn the_operand_gate_admits_the_torus_and_the_undeclared_pair_glues() {
 fn a_tangent_declared_torus_pair_is_refused_before_the_gate() {
     let (a, b) = (half(1.0, Handle::Torus), half(-1.0, Handle::Torus));
     let decls = declarations(&a, &b, Some(BooleanCoincidence::TANGENT));
-    let err = topo::union_with(&a, &b, &decls, Tol::witness())
+    let err = topo::union(&a, &b, Tol::witness())
         .expect_err("a Tangent claim on one carrier is false");
     let BooleanError::ContactContradicted { declaration, .. } = err else {
         panic!("the declaration door must refuse the Tangent torus pair: {err:?}");
@@ -823,7 +822,7 @@ fn a_near_perpendicular_bar_through_the_tube_never_comes_back_disjoint() {
     let floor = 100.0 * Tol::witness().get().eps;
     for w in [1e-6, 1e-3].into_iter().filter(|&w| w > floor) {
         let b = finished("the bar", framed_bar(o, d, -4.6, -0.1, w), Tol::witness());
-        if let Ok(r) = topo::union_with(&donut(), &b, &BooleanDeclarations::none(), Tol::witness())
+        if let Ok(r) = topo::union(&donut(), &b, Tol::witness())
         {
             panic!(
                 "a bar through the tube is not disjoint (w = {w}): {:?}",

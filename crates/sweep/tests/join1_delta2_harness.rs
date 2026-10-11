@@ -312,9 +312,9 @@ fn d2_arc_battery() {
                                 (None, "U") => topo::union(&a, &b, tol()),
                                 (None, "S") => topo::subtract(&a, &b, tol()),
                                 (None, _) => topo::intersect(&a, &b, tol()),
-                                (Some(dd), "U") => topo::union_with(&a, &b, dd, tol()),
-                                (Some(dd), "S") => topo::subtract_with(&a, &b, dd, tol()),
-                                (Some(dd), _) => topo::intersect_with(&a, &b, dd, tol()),
+                                (Some(dd), "U") => topo::union(&a, &b, tol()),
+                                (Some(dd), "S") => topo::subtract(&a, &b, tol()),
+                                (Some(dd), _) => topo::intersect(&a, &b, tol()),
                             };
                             println!(
                                 "ARC {na} {nb} d={d:?} zb={zb:?} decl={decl} {op} => {}",
@@ -377,9 +377,9 @@ fn d2_brick_battery() {
                                 (None, "U") => topo::union(l, r, tol()),
                                 (None, "S") => topo::subtract(l, r, tol()),
                                 (None, _) => topo::intersect(l, r, tol()),
-                                (Some(dd), "U") => topo::union_with(l, r, dd, tol()),
-                                (Some(dd), "S") => topo::subtract_with(l, r, dd, tol()),
-                                (Some(dd), _) => topo::intersect_with(l, r, dd, tol()),
+                                (Some(dd), "U") => topo::union(l, r, tol()),
+                                (Some(dd), "S") => topo::subtract(l, r, tol()),
+                                (Some(dd), _) => topo::intersect(l, r, tol()),
                             };
                             println!(
                                 "BRICK x={x:?} y={y:?} z={z:?} decl={decl} {order} {op} => {}",

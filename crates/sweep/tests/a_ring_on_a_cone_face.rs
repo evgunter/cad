@@ -253,7 +253,7 @@ fn a_box_edge_through_a_cone_wall_crosses_it_at_the_rings_corners() {
                 };
                 let vc = core::f64::consts::PI * R * R * height() / 3.0;
                 // ∪ keeps the lune as a ring on the cone face.
-                let union = topo::union_with(a, b, &none, tol);
+                let union = topo::union(a, b, tol);
                 solid_truth::assert_is_but(
                     &format!("{label}, {order}, ∪"),
                     &union,
@@ -263,7 +263,7 @@ fn a_box_edge_through_a_cone_wall_crosses_it_at_the_rings_corners() {
                     &points,
                     ring_partial,
                 );
-                let inter = topo::intersect_with(a, b, &none, tol);
+                let inter = topo::intersect(a, b, tol);
                 let vi = solid_truth::assert_is_but(
                     &format!("{label}, {order}, ∩"),
                     &inter,
@@ -273,7 +273,7 @@ fn a_box_edge_through_a_cone_wall_crosses_it_at_the_rings_corners() {
                     &points,
                     partial,
                 );
-                let diff = topo::subtract_with(a, b, &none, tol);
+                let diff = topo::subtract(a, b, tol);
                 if cone_first {
                     // The cone less the box keeps the ring too.
                     solid_truth::assert_is_but(
@@ -417,9 +417,9 @@ fn a_ringed_cone_faces_sense_flip_fails_tier_3() {
     let (tol, none) = (Tol::witness(), BooleanDeclarations::none());
     let (c, x) = (cone(Affine3::identity()), wedge(0.6, Affine3::identity()));
     for (op, r) in [
-        ("cone ∪ box", topo::union_with(&c, &x, &none, tol)),
-        ("box ∪ cone", topo::union_with(&x, &c, &none, tol)),
-        ("cone ∖ box", topo::subtract_with(&c, &x, &none, tol)),
+        ("cone ∪ box", topo::union(&c, &x, tol)),
+        ("box ∪ cone", topo::union(&x, &c, tol)),
+        ("cone ∖ box", topo::subtract(&c, &x, tol)),
     ] {
         let mut body = r.unwrap().body().unwrap().body.clone().into_body();
         let ringed: Vec<_> = body

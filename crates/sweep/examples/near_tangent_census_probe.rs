@@ -532,9 +532,9 @@ fn run_all(
     let dumping = std::env::var("NT_DUMP").is_ok();
     for (order, x, y, vx) in [("pc", prism, cube, va), ("cp", cube, prism, vb)] {
         let ops: [(&str, Op, f64); 3] = [
-            ("U", topo::union_with, va + vb - common),
-            ("I", topo::intersect_with, common),
-            ("S", topo::subtract_with, vx - common),
+            ("U", topo::union, va + vb - common),
+            ("I", topo::intersect, common),
+            ("S", topo::subtract, vx - common),
         ];
         for (op, f, want) in ops {
             let r = f(x, y, &decls, tol());

@@ -343,8 +343,8 @@ fn a_face_through_two_vertices_on_one_point_tessellates() {
             (&other, &prism)
         };
         let run = match op {
-            "U" => topo::union_with(x, y, &decls, tol()),
-            _ => topo::subtract_with(x, y, &decls, tol()),
+            "U" => topo::union(x, y, tol()),
+            _ => topo::subtract(x, y, tol()),
         };
         // At ε 1e-6 these poses read a margin in band ([`REFUSES_AT_1E6`]).
         if tol().eps() == 1e-6

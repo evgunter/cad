@@ -105,7 +105,7 @@ fn a_declared_half_rod_stack_unions_at_every_seam_turn() {
             (1, 4),
             "{label}: the mating disc and four wall continuations"
         );
-        let bb = builds(label, topo::union_with(&a, &b, &d, tol()), 2.0 * PI);
+        let bb = builds(label, topo::union(&a, &b, tol()), 2.0 * PI);
         assert_eq!(bb.body.faces().count(), 6, "{label}: faces");
         assert!(
             matches!(
@@ -134,9 +134,9 @@ fn a_declared_half_rod_stack_keeps_its_intersect_and_subtract_refusals() {
         let (a, b) = (rod(0.0, 0.0), rod(1.0, theta));
         let (ab, ba) = (declared(&a, &b), declared(&b, &a));
         for (op, out) in [
-            ("A ∩ B", topo::intersect_with(&a, &b, &ab, tol())),
-            ("A ∖ B", topo::subtract_with(&a, &b, &ab, tol())),
-            ("B ∖ A", topo::subtract_with(&b, &a, &ba, tol())),
+            ("A ∩ B", topo::intersect(&a, &b, tol())),
+            ("A ∖ B", topo::subtract(&a, &b, tol())),
+            ("B ∖ A", topo::subtract(&b, &a, tol())),
         ] {
             assert!(
                 matches!(out, Err(BooleanError::FallbackExtentUnsupported { .. })),
@@ -154,14 +154,14 @@ fn a_half_rod_stack_takes_a_third_rod() {
         let (a, b) = (rod(0.0, 0.0), rod(1.0, theta));
         let stack = builds(
             label,
-            topo::union_with(&a, &b, &declared(&a, &b), tol()),
+            topo::union(&a, &b, tol()),
             2.0 * PI,
         )
         .body;
         let c = rod(2.0, 0.0);
         builds(
             &format!("{label}, third rod"),
-            topo::union_with(&stack, &c, &declared(&stack, &c), tol()),
+            topo::union(&stack, &c, tol()),
             3.0 * PI,
         );
     }
@@ -176,7 +176,7 @@ fn an_undeclared_half_rod_stack_is_the_declared_union_at_every_seam_turn() {
     for (label, theta) in POSES {
         let (a, b) = (rod(0.0, 0.0), rod(1.0, theta));
         let all = declared(&a, &b);
-        let want = builds(label, topo::union_with(&a, &b, &all, tol()), 2.0 * PI);
+        let want = builds(label, topo::union(&a, &b, tol()), 2.0 * PI);
         let mut mate = all.clone();
         mate.coincident_faces
             .retain(|f| f.class == BooleanCoincidence::REST);
@@ -186,7 +186,7 @@ fn an_undeclared_half_rod_stack_is_the_declared_union_at_every_seam_turn() {
         ] {
             let got = builds(
                 &format!("{label}, {what}"),
-                topo::union_with(&a, &b, &d, tol()),
+                topo::union(&a, &b, tol()),
                 2.0 * PI,
             );
             assert_eq!(

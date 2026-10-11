@@ -195,7 +195,7 @@ fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
     let (decls, pairs) = weld_declarations(&s, &a);
     assert_eq!(pairs, 1, "exactly one coplanar cross cap pair at the fork");
 
-    let err = topo::union_with(&s, &a, &decls, Tol::witness())
+    let err = topo::union(&s, &a, Tol::witness())
         .expect_err("the stem glue still refuses, two doors further on");
     // **Wall 1 is no longer the crossing layer's.** The circle × torus
     // root lane (`topo::boolean::circle_torus`) certifies that each
@@ -426,7 +426,7 @@ fn p2_the_g1_chain_price_is_the_measured_195_rows() {
         }
     }
     let bracket = geom_core::k_stats::Bracket::open();
-    let err = topo::union_with(&seg_a, &seg_b, &decls, Tol::witness())
+    let err = topo::union(&seg_a, &seg_b, Tol::witness())
         .expect_err("the chain refuses at the routing");
     let log = bracket.finish().verdicts;
     // A `Tangent` claim on the seam is contradicted by the rim routing.
@@ -504,7 +504,7 @@ fn p3_a_false_cross_kind_declaration_cannot_cover_the_wall1_pair() {
             .coincident_faces
             .push(FacePairDeclaration::rest(wall, far_cap.0));
     }
-    let err = topo::union_with(&s, &a, &decls, Tol::witness())
+    let err = topo::union(&s, &a, Tol::witness())
         .expect_err("a torus-against-plane Rest declaration is a false statement");
     match err {
         BooleanError::ContactContradicted { margin, .. } => {
@@ -568,7 +568,7 @@ fn p4_a_definitely_different_rim_radius_keeps_the_class_refusal() {
                 .push(FacePairDeclaration::new(fa, fb, ContactClass::Tangent));
         }
     }
-    let err = topo::union_with(&seg_a, &seg_b, &decls, Tol::witness())
+    let err = topo::union(&seg_a, &seg_b, Tol::witness())
         .expect_err("no shared rim, no routing");
     assert!(
         matches!(

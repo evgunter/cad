@@ -150,7 +150,7 @@ fn accepted_against_torus(
 fn the_lily_stem_glue_is_past_the_circle_torus_pairs() {
     let (s, a) = (stem(), arch());
     let (decls, _) = weld_declarations(&s, &a);
-    let err = topo::union_with(&s, &a, &decls, Tol::witness())
+    let err = topo::union(&s, &a, Tol::witness())
         .expect_err("the stem glue still refuses, in the join");
     let BooleanError::CurvedBooleanUnsupported {
         operand: topo::Operand::B,
@@ -528,9 +528,9 @@ fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
     );
     let none = topo::BooleanDeclarations::none();
     for (op, x, y) in [("A ∪ B", &a, &b), ("B ∪ A", &b, &a)] {
-        let r = topo::union_with(x, y, &none, tol);
+        let r = topo::union(x, y, tol);
         let d = topo::flush::declare_all(&topo::flush::find_flush_candidates(x, y, tol).unwrap());
-        let dr = topo::union_with(x, y, &d, tol);
+        let dr = topo::union(x, y, tol);
         assert_eq!(
             d.coincident_faces.len(),
             1,

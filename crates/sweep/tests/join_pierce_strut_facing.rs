@@ -219,11 +219,11 @@ fn assert_pose(pose: &str, m: [f64; 3]) {
         ("cube-prism", &cube, &prism, vb, &pb, &pa),
     ] {
         let ops: [(&str, Op, f64, Cones); 3] = [
-            ("union", topo::union_with, va + vb - shared, Cones::Union),
-            ("intersect", topo::intersect_with, shared, Cones::Intersect),
+            ("union", topo::union, va + vb - shared, Cones::Union),
+            ("intersect", topo::intersect, shared, Cones::Intersect),
             (
                 "subtract",
-                topo::subtract_with,
+                topo::subtract,
                 vx - shared,
                 Cones::Subtract,
             ),
@@ -313,7 +313,7 @@ fn a_pinch_keeps_one_vertex_per_cone() {
     let cube = finished("the cube", cube_beyond(TWO_RUNS[0]));
     let decls = BooleanDeclarations::default();
     for (order, x, y) in [("prism-cube", &prism, &cube), ("cube-prism", &cube, &prism)] {
-        let Ok(BooleanResult::Body(bb)) = topo::intersect_with(x, y, &decls, tol()) else {
+        let Ok(BooleanResult::Body(bb)) = topo::intersect(x, y, tol()) else {
             panic!("{order}: the intersection did not build");
         };
         let body = &bb.body;

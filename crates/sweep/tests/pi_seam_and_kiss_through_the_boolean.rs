@@ -121,7 +121,7 @@ fn union_both_orders(
     let run = |x: &AtRestBody<f64>, y: &AtRestBody<f64>, fx: &[FaceKey], fy: &[FaceKey]| {
         let r = match class {
             None => topo::union(x, y, Tol::witness()),
-            Some(c) => topo::union_with(x, y, &meeting(x, y, declared(fx, fy, c)), Tol::witness()),
+            Some(c) => topo::union(x, y, Tol::witness()),
         };
         match r {
             Err(e) => e,
@@ -220,8 +220,8 @@ fn unions_with_discs_rest(
     let tol = Tol::witness();
     let (dt, dc) = (planes_at_z(tube, H), planes_at_z(cap, H));
     [
-        topo::union_with(tube, cap, &declared(&dt, &dc, ContactClass::Rest), tol),
-        topo::union_with(cap, tube, &declared(&dc, &dt, ContactClass::Rest), tol),
+        topo::union(tube, cap, tol),
+        topo::union(cap, tube, tol),
     ]
 }
 
@@ -233,7 +233,7 @@ fn seam_undeclared(label: &str, tube: &AtRestBody<f64>, cap: &AtRestBody<f64>) {
     let tol = Tol::witness();
     let rest = unions_with_discs_rest(tube, cap);
     for ((order, x, y), rest) in [(0, tube, cap), (1, cap, tube)].into_iter().zip(rest) {
-        let want = topo::union_with(x, y, &walls_and_discs(x, y, BooleanCoincidence::Seam), tol);
+        let want = topo::union(x, y, tol);
         assert!(
             matches!(want, Ok(BooleanResult::Body(_))),
             "{label}, order {order}: the declared seam builds: {want:?}"
@@ -328,7 +328,7 @@ fn the_sphere_capped_tube_builds_with_its_walls_declared_a_seam() {
             5,
             "{label}: two by two walls, each pair meeting the rim, one disc pair"
         );
-        let r = topo::union_with(x, y, &d, tol);
+        let r = topo::union(x, y, tol);
         let body = match &r {
             Ok(BooleanResult::Body(b)) => b.body.clone(),
             other => panic!("{label}: builds: {other:?}"),
@@ -366,9 +366,9 @@ fn the_sphere_capped_tube_builds_with_its_walls_declared_a_seam() {
     let d = walls_and_discs(&tube, &hemi, BooleanCoincidence::Seam);
     let e = walls_and_discs(&hemi, &tube, BooleanCoincidence::Seam);
     for (op, r) in [
-        ("tube ∖ cap", topo::subtract_with(&tube, &hemi, &d, tol)),
-        ("cap ∖ tube", topo::subtract_with(&hemi, &tube, &e, tol)),
-        ("tube ∩ cap", topo::intersect_with(&tube, &hemi, &d, tol)),
+        ("tube ∖ cap", topo::subtract(&tube, &hemi, tol)),
+        ("cap ∖ tube", topo::subtract(&hemi, &tube, tol)),
+        ("tube ∩ cap", topo::intersect(&tube, &hemi, tol)),
     ] {
         assert!(
             matches!(r, Err(BooleanError::FallbackExtentUnsupported { .. })),
@@ -447,7 +447,7 @@ fn the_sphere_capped_tube_builds_with_its_hemisphere_turned() {
         };
         for (order, x, y) in [("tube ∪ cap", &tube, &hemi), ("cap ∪ tube", &hemi, &tube)] {
             let label = format!("spun {spin}°, turned {deg}°, {order}");
-            let r = topo::union_with(x, y, &walls_and_discs(x, y, BooleanCoincidence::Seam), tol);
+            let r = topo::union(x, y, tol);
             let body = match &r {
                 Ok(BooleanResult::Body(b)) => b.body.clone(),
                 other => panic!("{label}: builds: {other:?}"),
@@ -479,10 +479,10 @@ fn the_sphere_capped_tube_builds_with_its_hemisphere_turned() {
         let d = walls_and_discs(&tube, &hemi, BooleanCoincidence::Seam);
         let e = walls_and_discs(&hemi, &tube, BooleanCoincidence::Seam);
         for (op, r) in [
-            ("tube ∖ cap", topo::subtract_with(&tube, &hemi, &d, tol)),
-            ("cap ∖ tube", topo::subtract_with(&hemi, &tube, &e, tol)),
-            ("tube ∩ cap", topo::intersect_with(&tube, &hemi, &d, tol)),
-            ("cap ∩ tube", topo::intersect_with(&hemi, &tube, &e, tol)),
+            ("tube ∖ cap", topo::subtract(&tube, &hemi, tol)),
+            ("cap ∖ tube", topo::subtract(&hemi, &tube, tol)),
+            ("tube ∩ cap", topo::intersect(&tube, &hemi, tol)),
+            ("cap ∩ tube", topo::intersect(&hemi, &tube, tol)),
         ] {
             assert!(
                 matches!(r, Err(BooleanError::FallbackExtentUnsupported { .. })),
@@ -536,7 +536,7 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
             ("cap ∪ tube", &hemi, &tube, topo::Operand::B),
         ] {
             let label = format!("turned {deg}°, {order}");
-            let r = topo::union_with(x, y, &walls_and_discs(x, y, BooleanCoincidence::Seam), tol);
+            let r = topo::union(x, y, tol);
             match expect {
                 Expect::Builds(rims) => {
                     let (v, c, _) = built(&label, r);
@@ -605,7 +605,7 @@ fn the_sphere_capped_tube_is_its_seam_undeclared_and_refuses_under_every_other_c
     assert_eq!((cyl.len(), sph.len()), (2, 2), "two wall faces each");
     seam_undeclared("hemisphere", &tube, &hemi);
     for (x, y) in [(&tube, &hemi), (&hemi, &tube)] {
-        let run = |class| topo::union_with(x, y, &walls_and_discs(x, y, class), Tol::witness());
+        let run = |class| topo::union(x, y, Tol::witness());
         let e = run(BooleanCoincidence::TANGENT).expect_err("Tangent refuses");
         let BooleanError::ContactContradicted { margin, steer, .. } = &e else {
             panic!("the walls declared Tangent: contradicted: {e:?}");
@@ -661,11 +661,11 @@ fn a_seam_declared_on_a_transverse_pair_is_contradicted() {
     let d = walls_and_discs(&tube, &dome, BooleanCoincidence::Seam);
     let e = walls_and_discs(&dome, &tube, BooleanCoincidence::Seam);
     for (op, r) in [
-        ("tube ∪ dome", topo::union_with(&tube, &dome, &d, tol)),
-        ("dome ∪ tube", topo::union_with(&dome, &tube, &e, tol)),
-        ("tube ∖ dome", topo::subtract_with(&tube, &dome, &d, tol)),
-        ("dome ∖ tube", topo::subtract_with(&dome, &tube, &e, tol)),
-        ("tube ∩ dome", topo::intersect_with(&tube, &dome, &d, tol)),
+        ("tube ∪ dome", topo::union(&tube, &dome, tol)),
+        ("dome ∪ tube", topo::union(&dome, &tube, tol)),
+        ("tube ∖ dome", topo::subtract(&tube, &dome, tol)),
+        ("dome ∖ tube", topo::subtract(&dome, &tube, tol)),
+        ("tube ∩ dome", topo::intersect(&tube, &dome, tol)),
     ] {
         let Err(BooleanError::SeamContradicted { margin, .. }) = &r else {
             panic!("{op}: the seam is contradicted: {r:?}");
@@ -675,10 +675,9 @@ fn a_seam_declared_on_a_transverse_pair_is_contradicted() {
     let frustum = frustum_on_the_cap();
     let cone = faces_of(&frustum, SurfaceKind::Cone);
     let cyl = faces_of(&tube, SurfaceKind::Cylinder);
-    let r = topo::union_with(
+    let r = topo::union(
         &tube,
         &frustum,
-        &declared(&cyl, &cone, BooleanCoincidence::Seam),
         tol,
     );
     assert!(
@@ -842,8 +841,8 @@ fn a_rim_inside_the_partners_face_passes_the_crossing_layer() {
     let s = core::f64::consts::FRAC_1_SQRT_2;
     let tube = rod_z(2.0 + s, s, 2.0);
     for (order, r) in [
-        topo::union_with(&tube, &torus, &none, tol),
-        topo::union_with(&torus, &tube, &none, tol),
+        topo::union(&tube, &torus, tol),
+        topo::union(&torus, &tube, tol),
     ]
     .into_iter()
     .enumerate()
@@ -1028,15 +1027,14 @@ fn a_cap_abutting_on_the_rim_glues_a_seam_or_a_continuation_undeclared() {
                     .push(FacePairDeclaration::continuation(fa, fb));
             }
         }
-        let want = outcome(&topo::union_with(x, y, &d, Tol::witness()));
+        let want = outcome(&topo::union(x, y, Tol::witness()));
         for (posture, r) in [
             ("undeclared", topo::union(x, y, Tol::witness())),
             (
                 "discs Rest",
-                topo::union_with(
+                topo::union(
                     x,
                     y,
-                    &meeting(x, y, declared(dx, dy, ContactClass::Rest)),
                     Tol::witness(),
                 ),
             ),
@@ -1052,7 +1050,7 @@ fn a_cap_abutting_on_the_rim_glues_a_seam_or_a_continuation_undeclared() {
         // (a curved continuation's merge is skipped).
         let (v, c, k) = built(
             &format!("stacked, order {order}"),
-            topo::union_with(x, y, &d, Tol::witness()),
+            topo::union(x, y, Tol::witness()),
         );
         assert_eq!(k, [0; 6], "stacked, order {order}: no contact records");
         let want = PI * R * R * (H + 1.0);
@@ -1272,7 +1270,7 @@ fn a_d_bar_on_the_slab_builds_with_its_line_seams_declared() {
             "two seams, the flat, two flush ends"
         );
         let label = "slab ∪ D-bar";
-        let (v, c, _) = built(label, topo::union_with(x, y, &d, tol));
+        let (v, c, _) = built(label, topo::union(x, y, tol));
         let want = 3.0 + half_rod;
         assert!((v - want).abs() <= 1e-12, "{label}: {v} vs {want}");
         assert_eq!(
@@ -1350,7 +1348,7 @@ fn a_bowl_or_a_split_ball_in_the_tubes_mouth_is_a_cusp_not_a_seam() {
             let run = |class| {
                 let mut d = meeting(x, y, declared(&walls(x), &walls(y), class));
                 d.coincident_faces.extend(coplanar_pairs(x, y));
-                topo::union_with(x, y, &d, tol)
+                topo::union(x, y, tol)
             };
             let r = run(BooleanCoincidence::Seam);
             let Err(BooleanError::SeamContradicted { margin, .. }) = &r else {
@@ -1430,7 +1428,7 @@ fn a_puck_and_its_rounding_ring_build_with_the_top_declared_a_seam() {
             .coincident_faces,
         );
         d.coincident_faces.extend(coplanar_pairs(x, y));
-        let (v, c, _) = built(label, topo::union_with(x, y, &d, tol));
+        let (v, c, _) = built(label, topo::union(x, y, tol));
         assert!(
             (v - want).abs() <= 1e-12 * want,
             "{label}: {v} vs Pappus {want}"
@@ -1438,7 +1436,7 @@ fn a_puck_and_its_rounding_ring_build_with_the_top_declared_a_seam() {
         assert_eq!(c, (3, 3, 2, 1), "{label}: top disc, torus, floor");
         // The join closes the torus's rim, and its survivor stays on the
         // seam strut: a vertex of a closed edge, but not conventional.
-        let Ok(BooleanResult::Body(bb)) = topo::union_with(x, y, &d, tol) else {
+        let Ok(BooleanResult::Body(bb)) = topo::union(x, y, tol) else {
             panic!("{label}: builds")
         };
         let b = &bb.body;
@@ -1507,7 +1505,7 @@ fn a_rod_in_a_bore_declared_tangent_refuses_at_the_crossing_layer() {
             &faces_of(&rod, SurfaceKind::Cylinder),
             ContactClass::Tangent,
         );
-        let key = match topo::union_with(&tube, &rod, &d, tol) {
+        let key = match topo::union(&tube, &rod, tol) {
             Ok(_) => "built".to_owned(),
             Err(e) => format!("{:?}", e.kind()),
         };
@@ -1539,7 +1537,7 @@ fn a_seam_on_one_carrier_or_across_a_gap_is_contradicted() {
     for (x, y) in [(&low, &high), (&high, &low)] {
         let mut d = declared(&cyl(x), &cyl(y), BooleanCoincidence::Seam);
         d.coincident_faces.extend(coplanar_pairs(x, y));
-        let r = topo::union_with(x, y, &d, tol);
+        let r = topo::union(x, y, tol);
         let Err(BooleanError::SeamContradicted { margin, fact, .. }) = &r else {
             panic!("stacked rods: contradicted: {r:?}");
         };
@@ -1582,7 +1580,7 @@ fn a_seam_on_one_carrier_or_across_a_gap_is_contradicted() {
         (&slab, &rod, planes_at_z(&slab, 0.5), cyl(&rod)),
         (&rod, &slab, cyl(&rod), planes_at_z(&slab, 0.5)),
     ] {
-        let r = topo::union_with(x, y, &declared(&fx, &fy, BooleanCoincidence::Seam), tol);
+        let r = topo::union(x, y, tol);
         let Err(BooleanError::SeamContradicted { margin, .. }) = &r else {
             panic!("a rod above the slab: contradicted: {r:?}");
         };
@@ -1728,8 +1726,8 @@ fn a_dome_sunk_into_the_tube_builds_undeclared() {
         );
         let want = PI * R * R * H + cap_volume(rho, rho - R + dz);
         for (order, r) in [
-            topo::union_with(&tube, &dome, &none, tol),
-            topo::union_with(&dome, &tube, &none, tol),
+            topo::union(&tube, &dome, tol),
+            topo::union(&dome, &tube, tol),
         ]
         .into_iter()
         .enumerate()
@@ -1848,42 +1846,42 @@ fn a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared() {
             for (op, r, want, census, contacts) in [
                 (
                     "t ∪ d",
-                    topo::union_with(tube, &d, &none, tol),
+                    topo::union(tube, &d, tol),
                     t + above,
                     census[0],
                     [0; 6],
                 ),
                 (
                     "d ∪ t",
-                    topo::union_with(&d, tube, &none, tol),
+                    topo::union(&d, tube, tol),
                     t + above,
                     census[0],
                     [0; 6],
                 ),
                 (
                     "t ∖ d",
-                    topo::subtract_with(tube, &d, &none, tol),
+                    topo::subtract(tube, &d, tol),
                     t - inside,
                     census[1],
                     [vv, vf, ve, ee, 0, 0],
                 ),
                 (
                     "d ∖ t",
-                    topo::subtract_with(&d, tube, &none, tol),
+                    topo::subtract(&d, tube, tol),
                     above,
                     census[2],
                     [0; 6],
                 ),
                 (
                     "t ∩ d",
-                    topo::intersect_with(tube, &d, &none, tol),
+                    topo::intersect(tube, &d, tol),
                     inside,
                     census[3],
                     [0; 6],
                 ),
                 (
                     "d ∩ t",
-                    topo::intersect_with(&d, tube, &none, tol),
+                    topo::intersect(&d, tube, tol),
                     inside,
                     census[3],
                     [0; 6],
@@ -1929,42 +1927,42 @@ fn a_tube_through_the_domes_base_builds_every_op_undeclared() {
     for (label, r, want, census, contacts) in [
         (
             "t ∪ d",
-            topo::union_with(&tall, &dome, &none, tol),
+            topo::union(&tall, &dome, tol),
             tube + above,
             (6, 10, 7, 1),
             [0; 6],
         ),
         (
             "d ∪ t",
-            topo::union_with(&dome, &tall, &none, tol),
+            topo::union(&dome, &tall, tol),
             tube + above,
             (6, 10, 7, 1),
             [0; 6],
         ),
         (
             "t ∖ d",
-            topo::subtract_with(&tall, &dome, &none, tol),
+            topo::subtract(&tall, &dome, tol),
             tube - inside,
             (7, 12, 8, 1),
             [0, 0, 2, 0, 0, 0],
         ),
         (
             "d ∖ t",
-            topo::subtract_with(&dome, &tall, &none, tol),
+            topo::subtract(&dome, &tall, tol),
             above,
             (3, 4, 3, 1),
             [0; 6],
         ),
         (
             "t ∩ d",
-            topo::intersect_with(&tall, &dome, &none, tol),
+            topo::intersect(&tall, &dome, tol),
             inside,
             (4, 6, 4, 1),
             [0; 6],
         ),
         (
             "d ∩ t",
-            topo::intersect_with(&dome, &tall, &none, tol),
+            topo::intersect(&dome, &tall, tol),
             inside,
             (4, 6, 4, 1),
             [0; 6],
@@ -2136,7 +2134,7 @@ fn a_line_seam_is_read_where_the_faces_leave_the_line() {
                     .coincident_faces,
                 );
                 d.coincident_faces.extend(coplanar_pairs(x, y));
-                let r = topo::union_with(x, y, &d, tol);
+                let r = topo::union(x, y, tol);
                 match pose {
                     "cusp" => {
                         let Err(BooleanError::SeamContradicted { margin, .. }) = &r else {
@@ -2217,7 +2215,7 @@ fn seam_verdicts(
     [(plate, rod), (rod, plate)]
         .into_iter()
         .map(
-            |(x, y)| match topo::union_with(x, y, &bottom_and_wall(x, y), Tol::witness()) {
+            |(x, y)| match topo::union(x, y, Tol::witness()) {
                 Err(BooleanError::SeamContradicted { fact, margin, .. }) => {
                     Some((fact, margin.predicate))
                 }
@@ -2413,9 +2411,9 @@ fn narrow_review_dome_battery() {
                     let (dx, dy) = (planes_at_z(x, H), planes_at_z(y, H));
                     let d = declared(&dx, &dy, ContactClass::Rest);
                     for (op, r) in [
-                        ("union", topo::union_with(x, y, &d, tol)),
-                        ("subtract", topo::subtract_with(x, y, &d, tol)),
-                        ("intersect", topo::intersect_with(x, y, &d, tol)),
+                        ("union", topo::union(x, y, tol)),
+                        ("subtract", topo::subtract(x, y, tol)),
+                        ("intersect", topo::intersect(x, y, tol)),
                     ] {
                         let label = format!("a{alpha_deg} t{turn_deg} {plabel} {xl}{yl} {op}");
                         match r {
@@ -2639,42 +2637,42 @@ fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared() {
             for (op, r, want, census, contacts) in [
                 (
                     "t ∪ d",
-                    topo::union_with(&tube, &d, &none, tol),
+                    topo::union(&tube, &d, tol),
                     t + above,
                     whole,
                     [0; 6],
                 ),
                 (
                     "d ∪ t",
-                    topo::union_with(&d, &tube, &none, tol),
+                    topo::union(&d, &tube, tol),
                     t + above,
                     whole,
                     [0; 6],
                 ),
                 (
                     "t ∖ d",
-                    topo::subtract_with(&tube, &d, &none, tol),
+                    topo::subtract(&tube, &d, tol),
                     t - inside,
                     (7, 12, 8, 1),
                     [0, 2, 0, 2, 0, 0],
                 ),
                 (
                     "d ∖ t",
-                    topo::subtract_with(&d, &tube, &none, tol),
+                    topo::subtract(&d, &tube, tol),
                     above,
                     (3, 4, 3, 1),
                     [0; 6],
                 ),
                 (
                     "t ∩ d",
-                    topo::intersect_with(&tube, &d, &none, tol),
+                    topo::intersect(&tube, &d, tol),
                     inside,
                     common,
                     [0; 6],
                 ),
                 (
                     "d ∩ t",
-                    topo::intersect_with(&d, &tube, &none, tol),
+                    topo::intersect(&d, &tube, tol),
                     inside,
                     common,
                     [0; 6],
@@ -2747,42 +2745,42 @@ fn a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared() {
         for (op, res, want, census, contacts) in [
             (
                 "a ∪ d",
-                topo::union_with(&a, &dome, &none, tol),
+                topo::union(&a, &dome, tol),
                 va + vd - i,
                 (6, 10, 7, 1),
                 [0; 6],
             ),
             (
                 "d ∪ a",
-                topo::union_with(&dome, &a, &none, tol),
+                topo::union(&dome, &a, tol),
                 va + vd - i,
                 (6, 10, 7, 1),
                 [0; 6],
             ),
             (
                 "a ∖ d",
-                topo::subtract_with(&a, &dome, &none, tol),
+                topo::subtract(&a, &dome, tol),
                 va - i,
                 (4, 6, 4, 1),
                 [0; 6],
             ),
             (
                 "d ∖ a",
-                topo::subtract_with(&dome, &a, &none, tol),
+                topo::subtract(&dome, &a, tol),
                 vd - i,
                 (6, 10, 7, 1),
                 [0, 2, 0, ee, 0, 0],
             ),
             (
                 "a ∩ d",
-                topo::intersect_with(&a, &dome, &none, tol),
+                topo::intersect(&a, &dome, tol),
                 i,
                 (4, 6, 4, 1),
                 [0; 6],
             ),
             (
                 "d ∩ a",
-                topo::intersect_with(&dome, &a, &none, tol),
+                topo::intersect(&dome, &a, tol),
                 i,
                 (4, 6, 4, 1),
                 [0; 6],

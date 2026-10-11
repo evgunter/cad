@@ -96,12 +96,12 @@ fn pose(theta_a: f64, theta_b: f64, phi_b: f64) -> Pose {
 fn run(p: &Pose, op: &str) -> Result<BooleanResult<f64>, BooleanError> {
     let (a, b, (dab, dba), t) = (&p.a, &p.b, &p.d, tol());
     match op {
-        "I_ab" => topo::intersect_with(&fin(a), &fin(b), dab, t),
-        "I_ba" => topo::intersect_with(&fin(b), &fin(a), dba, t),
-        "U_ab" => topo::union_with(&fin(a), &fin(b), dab, t),
-        "U_ba" => topo::union_with(&fin(b), &fin(a), dba, t),
-        "S_ab" => topo::subtract_with(&fin(a), &fin(b), dab, t),
-        _ => topo::subtract_with(&fin(b), &fin(a), dba, t),
+        "I_ab" => topo::intersect(&fin(a), &fin(b), t),
+        "I_ba" => topo::intersect(&fin(b), &fin(a), t),
+        "U_ab" => topo::union(&fin(a), &fin(b), t),
+        "U_ba" => topo::union(&fin(b), &fin(a), t),
+        "S_ab" => topo::subtract(&fin(a), &fin(b), t),
+        _ => topo::subtract(&fin(b), &fin(a), t),
     }
 }
 

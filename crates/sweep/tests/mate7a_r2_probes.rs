@@ -93,7 +93,7 @@ fn r2_an_in_band_rim_identification_escalates_rather_than_reading_as_no_rim() {
     let perturbed = full_torus(RING + 2.0 * TUBE + in_band_offset);
 
     let d_exact = decls(&a, &exact, ContactClass::Tangent);
-    let e_exact = topo::union_with(&a, &exact, &d_exact, Tol::witness()).expect_err("refuses");
+    let e_exact = topo::union(&a, &exact, Tol::witness()).expect_err("refuses");
     println!("[r2] exact kiss: {e_exact:?}");
     assert!(
         matches!(e_exact, BooleanError::RimCuspArmUnbuilt { .. }),
@@ -101,7 +101,7 @@ fn r2_an_in_band_rim_identification_escalates_rather_than_reading_as_no_rim() {
     );
 
     let d_pert = decls(&a, &perturbed, ContactClass::Tangent);
-    let e_pert = topo::union_with(&a, &perturbed, &d_pert, Tol::witness()).expect_err("refuses");
+    let e_pert = topo::union(&a, &perturbed, Tol::witness()).expect_err("refuses");
     println!("[r2] in-band-perturbed kiss: {e_pert:?}");
     match e_pert {
         BooleanError::Escalated { diag, .. } => assert_eq!(
@@ -129,7 +129,7 @@ fn r2_recount_the_routing_price_from_the_verdict_log() {
     let b = full_torus(RING + 2.0 * TUBE);
     let d = decls(&a, &b, ContactClass::Tangent);
     let bracket = geom_core::k_stats::Bracket::open();
-    let err = topo::union_with(&a, &b, &d, Tol::witness()).expect_err("refuses");
+    let err = topo::union(&a, &b, Tol::witness()).expect_err("refuses");
     let log = bracket.finish().verdicts;
     let mut by: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
     for v in &log {
@@ -161,7 +161,7 @@ fn r2_a_definitely_absent_rim_keeps_the_bare_class_refusal() {
     let a = full_torus(RING);
     let far = full_torus(RING + 1.0);
     let d = decls(&a, &far, ContactClass::Tangent);
-    let e = topo::union_with(&a, &far, &d, Tol::witness()).expect_err("refuses");
+    let e = topo::union(&a, &far, Tol::witness()).expect_err("refuses");
     println!("[r2] definitely-apart pair: {e:?}");
     assert!(
         matches!(

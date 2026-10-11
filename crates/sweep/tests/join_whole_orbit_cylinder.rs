@@ -11,7 +11,7 @@
 use geom_core::{Point2, Tol};
 use sweep::test_support::{cylinder_of_arcs_at, finished};
 use topo::flush::{declare_all, find_flush_candidates};
-use topo::{BooleanResult, intersect_with, mass_properties, subtract_with, union_with};
+use topo::{BooleanResult, intersect, mass_properties, subtract, union};
 
 #[test]
 fn a_cylinder_cap_over_a_merged_rim_vertex_answers_every_op() {
@@ -21,7 +21,7 @@ fn a_cylinder_cap_over_a_merged_rim_vertex_answers_every_op() {
     let d = topo::test_support::brick((1.2, 2.2), (0.0, 1.0), (0.0, 1.0), tol);
     let d = finished("brick D", d, tol);
     let decls = declare_all(&find_flush_candidates(&c, &d, tol).unwrap());
-    let BooleanResult::Body(bar) = union_with(&c, &d, &decls, tol).unwrap() else {
+    let BooleanResult::Body(bar) = union(&c, &d, tol).unwrap() else {
         panic!("the bar is not empty");
     };
     let bar = bar.body;
@@ -36,9 +36,9 @@ fn a_cylinder_cap_over_a_merged_rim_vertex_answers_every_op() {
         let decls = declare_all(&find_flush_candidates(&bar, &cyl, tol).unwrap());
         let half = core::f64::consts::PI * r * r / 2.0;
         for (name, op, want) in [
-            ("∪", union_with as fn(_, _, _, _) -> _, 1.7 + half),
-            ("∩", intersect_with, half),
-            ("∖", subtract_with, 1.7 - half),
+            ("∪", union as fn(_, _, _, _) -> _, 1.7 + half),
+            ("∩", intersect, half),
+            ("∖", subtract, 1.7 - half),
         ] {
             let label = format!("bar {name} cylinder(n {n}, r {r}, x {cx})");
             let BooleanResult::Body(bb) =

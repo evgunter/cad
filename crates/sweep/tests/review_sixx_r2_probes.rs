@@ -389,9 +389,9 @@ fn pose_lines(a: &Shape, other: &Other, f: [V3; 3], what: &str) -> Vec<String> {
     let mut out = Vec::new();
     for (order, x, y, vx) in [("ab", &ab, &bb, va), ("ba", &bb, &ab, vb)] {
         let ops: [(&str, Op, f64); 3] = [
-            ("U", topo::union_with, va + vb - common),
-            ("I", topo::intersect_with, common),
-            ("S", topo::subtract_with, vx - common),
+            ("U", topo::union, va + vb - common),
+            ("I", topo::intersect, common),
+            ("S", topo::subtract, vx - common),
         ];
         for (op, run, want) in ops {
             let tag = format!("{} {bname} {what} n={n} {order} {op}", a.name);
@@ -612,7 +612,7 @@ fn review_sixx_pinch() {
     let bodies: Vec<AtRestBody<f64>> = ws.iter().map(|w| w.body(IDENT, v)).collect();
     let decl = fixtures::flush_declarations(&bodies[0], &bodies[1], tol());
     let BooleanResult::Body(pinch) =
-        topo::union_with(&bodies[0], &bodies[1], &decl, tol()).expect("the pinch builds")
+        topo::union(&bodies[0], &bodies[1], tol()).expect("the pinch builds")
     else {
         panic!("empty pinch");
     };
@@ -663,12 +663,12 @@ fn review_sixx_pinch() {
             &BooleanDeclarations,
             f64,
         ); 6] = [
-            ("pc U", topo::union_with, p, &cube, &ab, va + vb - common),
-            ("pc I", topo::intersect_with, p, &cube, &ab, common),
-            ("pc S", topo::subtract_with, p, &cube, &ab, va - common),
-            ("cp U", topo::union_with, &cube, p, &ba, va + vb - common),
-            ("cp I", topo::intersect_with, &cube, p, &ba, common),
-            ("cp S", topo::subtract_with, &cube, p, &ba, vb - common),
+            ("pc U", topo::union, p, &cube, &ab, va + vb - common),
+            ("pc I", topo::intersect, p, &cube, &ab, common),
+            ("pc S", topo::subtract, p, &cube, &ab, va - common),
+            ("cp U", topo::union, &cube, p, &ba, va + vb - common),
+            ("cp I", topo::intersect, &cube, p, &ba, common),
+            ("cp S", topo::subtract, &cube, p, &ba, vb - common),
         ];
         for (tag, run, x, y, d, want) in runs {
             if std::env::var("SX_THREADS").is_ok_and(|t| t == "1") {

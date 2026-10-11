@@ -99,12 +99,12 @@ fn six(
 ) -> [(&'static str, Result<BooleanResult<f64>, BooleanError>); 6] {
     let (tol, none) = (Tol::witness(), BooleanDeclarations::none());
     [
-        ("t ∪ b", topo::union_with(t, b, &none, tol)),
-        ("b ∪ t", topo::union_with(b, t, &none, tol)),
-        ("t ∖ b", topo::subtract_with(t, b, &none, tol)),
-        ("b ∖ t", topo::subtract_with(b, t, &none, tol)),
-        ("t ∩ b", topo::intersect_with(t, b, &none, tol)),
-        ("b ∩ t", topo::intersect_with(b, t, &none, tol)),
+        ("t ∪ b", topo::union(t, b, tol)),
+        ("b ∪ t", topo::union(b, t, tol)),
+        ("t ∖ b", topo::subtract(t, b, tol)),
+        ("b ∖ t", topo::subtract(b, t, tol)),
+        ("t ∩ b", topo::intersect(t, b, tol)),
+        ("b ∩ t", topo::intersect(b, t, tol)),
     ]
 }
 
@@ -423,12 +423,12 @@ fn a_ruling_whose_face_shares_the_walls_carrier_is_the_declared_continuation() {
     );
     let (tb, bt) = (continued(&t, &b), continued(&b, &t));
     let declared = [
-        topo::union_with(&t, &b, &tb, tol),
-        topo::union_with(&b, &t, &bt, tol),
-        topo::subtract_with(&t, &b, &tb, tol),
-        topo::subtract_with(&b, &t, &bt, tol),
-        topo::intersect_with(&t, &b, &tb, tol),
-        topo::intersect_with(&b, &t, &bt, tol),
+        topo::union(&t, &b, tol),
+        topo::union(&b, &t, tol),
+        topo::subtract(&t, &b, tol),
+        topo::subtract(&b, &t, tol),
+        topo::intersect(&t, &b, tol),
+        topo::intersect(&b, &t, tol),
     ];
     for ((op, r), want) in six(&t, &b).into_iter().zip(declared) {
         assert_eq!(
@@ -459,12 +459,12 @@ fn a_declared_continuation_on_a_wall_bounded_by_an_ellipse_keeps_the_door() {
     let (tr, rt) = (continued(&t, &r), continued(&r, &t));
     let (a, b) = (topo::Operand::A, topo::Operand::B);
     for (op, res, rod_is) in [
-        ("t ∪ r", topo::union_with(&t, &r, &tr, tol), b),
-        ("r ∪ t", topo::union_with(&r, &t, &rt, tol), a),
-        ("t ∖ r", topo::subtract_with(&t, &r, &tr, tol), b),
-        ("r ∖ t", topo::subtract_with(&r, &t, &rt, tol), a),
-        ("t ∩ r", topo::intersect_with(&t, &r, &tr, tol), b),
-        ("r ∩ t", topo::intersect_with(&r, &t, &rt, tol), a),
+        ("t ∪ r", topo::union(&t, &r, tol), b),
+        ("r ∪ t", topo::union(&r, &t, tol), a),
+        ("t ∖ r", topo::subtract(&t, &r, tol), b),
+        ("r ∖ t", topo::subtract(&r, &t, tol), a),
+        ("t ∩ r", topo::intersect(&t, &r, tol), b),
+        ("r ∩ t", topo::intersect(&r, &t, tol), a),
     ] {
         let Err(BooleanError::CurvedPierceUnsupported { operand, face, .. }) = res else {
             panic!("{op}: the crossing layer's door: {res:?}");

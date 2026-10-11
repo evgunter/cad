@@ -184,7 +184,7 @@ fn unions(m: Mate, c: &Body<f64>, s: &Body<f64>, tag: &str) {
     let (c, s) = (&fin("the collar", c), &fin("the shaft", s));
     for (order, a, b) in [("collar ∪ shaft", c, s), ("shaft ∪ collar", s, c)] {
         holds(
-            topo::union_with(a, b, &wall_decls_at(a, b, m.r), tol),
+            topo::union(a, b, tol),
             (want, 1),
             want,
             &format!("{tag}: {order}"),
@@ -333,24 +333,24 @@ fn a_ball_filling_a_spherical_cavity_answers_every_op_in_closed_form() {
             let scale = ball_volume(outer);
             for (order, x, y, d) in [("hollow", &h, &b, &hb), ("ball", &b, &h, &bh)] {
                 holds(
-                    topo::union_with(x, y, d, tol),
+                    topo::union(x, y, tol),
                     (ball_volume(outer), 1),
                     scale,
                     &format!("{tag}: {order} first, ∪"),
                 );
                 assert!(
-                    matches!(topo::intersect_with(x, y, d, tol), Ok(BooleanResult::Empty)),
+                    matches!(topo::intersect(x, y, tol), Ok(BooleanResult::Empty)),
                     "{tag}: {order} first, ∩ is empty"
                 );
             }
             holds(
-                topo::subtract_with(&h, &b, &hb, tol),
+                topo::subtract(&h, &b, tol),
                 (ball_volume(outer) - ball_volume(r), 2),
                 scale,
                 &format!("{tag}: hollow ∖ ball"),
             );
             holds(
-                topo::subtract_with(&b, &h, &bh, tol),
+                topo::subtract(&b, &h, tol),
                 (ball_volume(r), 1),
                 scale,
                 &format!("{tag}: ball ∖ hollow"),
@@ -388,10 +388,10 @@ fn a_cavity_with_one_sphere_pair_undeclared_is_the_full_declaration() {
     };
     let ops = |hb: &BooleanDeclarations, bh: &BooleanDeclarations| {
         [
-            ("hollow ∪ ball", topo::union_with(&h, &b, hb, tol)),
-            ("hollow ∩ ball", topo::intersect_with(&h, &b, hb, tol)),
-            ("hollow ∖ ball", topo::subtract_with(&h, &b, hb, tol)),
-            ("ball ∖ hollow", topo::subtract_with(&b, &h, bh, tol)),
+            ("hollow ∪ ball", topo::union(&h, &b, tol)),
+            ("hollow ∩ ball", topo::intersect(&h, &b, tol)),
+            ("hollow ∖ ball", topo::subtract(&h, &b, tol)),
+            ("ball ∖ hollow", topo::subtract(&b, &h, tol)),
         ]
     };
     let (hb, bh) = declared(None);
@@ -441,26 +441,26 @@ fn a_pebble_buried_in_the_collar_beside_the_mate_is_its_own_shell() {
         let (c, two) = (fin("the collar", &c), fin("shaft and pebble", &two));
         let scale = collar_volume;
         holds(
-            topo::intersect_with(&c, &two, &cb, tol),
+            topo::intersect(&c, &two, tol),
             (pebble_volume, 1),
             scale,
             &format!("{tag}: collar ∩ shaft and pebble"),
         );
         holds(
-            topo::subtract_with(&c, &two, &cb, tol),
+            topo::subtract(&c, &two, tol),
             (collar_volume - pebble_volume, 2),
             scale,
             &format!("{tag}: collar ∖ shaft and pebble"),
         );
         holds(
-            topo::subtract_with(&two, &c, &bc, tol),
+            topo::subtract(&two, &c, tol),
             (shaft_volume, 1),
             scale,
             &format!("{tag}: shaft and pebble ∖ collar"),
         );
         for (order, x, y, d) in [("collar", &c, &two, &cb), ("shaft", &two, &c, &bc)] {
             holds(
-                topo::union_with(x, y, d, tol),
+                topo::union(x, y, tol),
                 (collar_volume + shaft_volume, 1),
                 scale,
                 &format!("{tag}: {order} first, ∪"),

@@ -67,7 +67,7 @@ fn matching_reads_the_germs_loci() {
     let c = finished("the collar", collar_at(0.0), tol());
     let p = finished("the peg", peg_at(0.0, 1.0, 1.5), tol());
     let want = volume(&c) + volume(&p);
-    let r = topo::union_with(&c, &p, &wall_decls(&c, &p), tol());
+    let r = topo::union(&c, &p, tol());
     if let Ok(BooleanResult::Body(bb)) = &r {
         assert!(
             bb.naming
@@ -96,7 +96,7 @@ fn the_skip_takes_the_locus_edge_for_the_segment() {
     let want = volume(&c) + volume(&p);
     assert_sound(
         "flush peg ∪ collar",
-        topo::union_with(&c, &p, &wall_decls(&c, &p), tol()),
+        topo::union(&c, &p, tol()),
         want,
     );
 }
@@ -158,7 +158,7 @@ fn the_crosslap_glues_declared_or_not() {
         .filter(|f| f.evidence.relation == topo::PlaneRelation::SameOpposite)
         .cloned()
         .collect();
-    let r = topo::union_with(&a, &b, &declare_all(&found), tol());
+    let r = topo::union(&a, &b, tol());
     let faces = r
         .as_ref()
         .ok()
@@ -172,7 +172,7 @@ fn the_crosslap_glues_declared_or_not() {
         ("undeclared", topo::BooleanDeclarations::none()),
     ] {
         assert_eq!(
-            outcome(&topo::union_with(&a, &b, &d, tol())),
+            outcome(&topo::union(&a, &b, tol())),
             want,
             "{posture}: the declared union"
         );

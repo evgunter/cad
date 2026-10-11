@@ -620,7 +620,7 @@ fn a_union_of_flush_cubes_is_a_box_that_fillets_edge_by_edge() {
                 face_on(&cb, side),
             ));
     }
-    let r = topo::union_with(&ca, &cb, &decls, t).expect("flush cubes union");
+    let r = topo::union(&ca, &cb, t).expect("flush cubes union");
     let body = &r.body().expect("non-empty").body;
     assert_eq!(body.faces().count(), 6, "the merged box has six faces");
     let req: Vec<_> = body.edges().map(|(k, _)| k).collect();

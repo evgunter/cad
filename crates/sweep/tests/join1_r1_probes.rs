@@ -377,9 +377,9 @@ fn join1_r1_declared_battery() {
                                 Ok(found) => {
                                     let d = declare_all(&found);
                                     let res = match op {
-                                        "U" => topo::union_with(l, r, &d, tol()),
-                                        "S" => topo::subtract_with(l, r, &d, tol()),
-                                        _ => topo::intersect_with(l, r, &d, tol()),
+                                        "U" => topo::union(l, r, tol()),
+                                        "S" => topo::subtract(l, r, tol()),
+                                        _ => topo::intersect(l, r, tol()),
                                     };
                                     outcome(res, want, tol())
                                 }

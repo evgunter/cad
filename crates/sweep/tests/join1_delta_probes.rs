@@ -244,9 +244,9 @@ fn join1_delta_arc_battery() {
                                 (None, "U") => topo::union(&a, &b, tol()),
                                 (None, "S") => topo::subtract(&a, &b, tol()),
                                 (None, _) => topo::intersect(&a, &b, tol()),
-                                (Some(dd), "U") => topo::union_with(&a, &b, dd, tol()),
-                                (Some(dd), "S") => topo::subtract_with(&a, &b, dd, tol()),
-                                (Some(dd), _) => topo::intersect_with(&a, &b, dd, tol()),
+                                (Some(dd), "U") => topo::union(&a, &b, tol()),
+                                (Some(dd), "S") => topo::subtract(&a, &b, tol()),
+                                (Some(dd), _) => topo::intersect(&a, &b, tol()),
                             };
                             println!(
                                 "ARC {na} {nb} d={d:?} zb={zb:?} decl={decl} {op} => {}",
@@ -309,9 +309,9 @@ fn join1_delta_brick_battery() {
                                 (None, "U") => topo::union(l, r, tol()),
                                 (None, "S") => topo::subtract(l, r, tol()),
                                 (None, _) => topo::intersect(l, r, tol()),
-                                (Some(dd), "U") => topo::union_with(l, r, dd, tol()),
-                                (Some(dd), "S") => topo::subtract_with(l, r, dd, tol()),
-                                (Some(dd), _) => topo::intersect_with(l, r, dd, tol()),
+                                (Some(dd), "U") => topo::union(l, r, tol()),
+                                (Some(dd), "S") => topo::subtract(l, r, tol()),
+                                (Some(dd), _) => topo::intersect(l, r, tol()),
                             };
                             println!(
                                 "BRICK x={x:?} y={y:?} z={z:?} decl={decl} {order} {op} => {}",
@@ -341,7 +341,7 @@ fn overlapping_lens_prisms_declared_union_builds() {
     let b = zprism(&lens, (0.0, 0.0), (-1.0, 1.0));
     let want = chord_area(&lens, None) * 3.0;
     let d = declare_all(&find_flush_candidates(&a, &b, tol()).unwrap());
-    let r = topo::union_with(&a, &b, &d, tol());
+    let r = topo::union(&a, &b, tol());
     if let Err(e) = &r {
         println!("[lens] {e:?}");
     }
@@ -351,7 +351,7 @@ fn overlapping_lens_prisms_declared_union_builds() {
         line.starts_with("OK SOUND") && line.contains(" samekey=0 ") && line.ends_with(" zero=0"),
         "{line}"
     );
-    let r = topo::union_with(&a, &b, &d, tol()).unwrap();
+    let r = topo::union(&a, &b, tol()).unwrap();
     sweep::test_support::assert_legal_operand("lens ∪", &r.body().unwrap().body, tol());
 }
 
@@ -387,10 +387,10 @@ fn the_declared_seam_body_is_an_operand() {
     let d = topo::flush::declare_all(&topo::flush::find_flush_candidates(&a, &b, tol()).unwrap());
     assert_eq!(
         crate::common::outcomes::outcome(&topo::union(&a, &b, tol())),
-        crate::common::outcomes::outcome(&topo::union_with(&a, &b, &d, tol())),
+        crate::common::outcomes::outcome(&topo::union(&a, &b, tol())),
         "undeclared is the declared union"
     );
-    let r = match topo::union_with(&a, &b, &d, tol()).unwrap() {
+    let r = match topo::union(&a, &b, tol()).unwrap() {
         topo::BooleanResult::Body(bb) => bb,
         topo::BooleanResult::Empty => panic!("empty"),
     };
@@ -445,7 +445,7 @@ fn the_peg_collar_unions_are_operands() {
     for (what, h) in [("proud", 1.5), ("flush", 1.0)] {
         let c = finished("the collar", collar_at(0.0), tol());
         let p = finished("the peg", peg_at(0.0, 1.0, h), tol());
-        let r = match topo::union_with(&c, &p, &wall_decls(&c, &p), tol()).unwrap() {
+        let r = match topo::union(&c, &p, tol()).unwrap() {
             topo::BooleanResult::Body(bb) => bb,
             topo::BooleanResult::Empty => panic!("empty"),
         };

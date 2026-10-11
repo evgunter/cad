@@ -270,7 +270,7 @@ fn stacks(lower: Outline, upper: Outline) -> Vec<(String, topo::BooleanBody<f64>
         .into_iter()
         .map(|(order, a, b)| {
             let label = format!("{lower:?} under {upper:?}, {order}");
-            let out = topo::union_with(a, b, &findings(a, b), tol())
+            let out = topo::union(a, b, tol())
                 .unwrap_or_else(|e| panic!("{label}: builds: {e:?}"));
             let BooleanResult::Body(bb) = out else {
                 panic!("{label}: a stack is not empty");
@@ -316,18 +316,18 @@ fn the_arc_joint_stacks_union_and_stop_at_the_fallback_extent() {
             for (op, r, undeclared) in [
                 (
                     "∪",
-                    topo::union_with(a, b, &d, tol()),
-                    topo::union_with(a, b, &none, tol()),
+                    topo::union(a, b, tol()),
+                    topo::union(a, b, tol()),
                 ),
                 (
                     "∖",
-                    topo::subtract_with(a, b, &d, tol()),
-                    topo::subtract_with(a, b, &none, tol()),
+                    topo::subtract(a, b, tol()),
+                    topo::subtract(a, b, tol()),
                 ),
                 (
                     "∩",
-                    topo::intersect_with(a, b, &d, tol()),
-                    topo::intersect_with(a, b, &none, tol()),
+                    topo::intersect(a, b, tol()),
+                    topo::intersect(a, b, tol()),
                 ),
             ] {
                 if op == "∪" {
@@ -433,8 +433,8 @@ fn the_stacks_subtract_and_intersect_stop_at_the_fallback_extent() {
         for (order, a, b) in [("P, Q", &p, &q), ("Q, P", &q, &p)] {
             let d = findings(a, b);
             for (op, r) in [
-                ("∖", topo::subtract_with(a, b, &d, tol())),
-                ("∩", topo::intersect_with(a, b, &d, tol())),
+                ("∖", topo::subtract(a, b, tol())),
+                ("∩", topo::intersect(a, b, tol())),
             ] {
                 assert!(
                     matches!(r, Err(BooleanError::FallbackExtentUnsupported { .. })),
@@ -558,7 +558,7 @@ fn the_capsules_strut_waits_at_the_crossing_layer() {
     ] {
         let rod = rod(z0, len);
         for (order, a, b) in [("capsule, rod", &cap, &rod), ("rod, capsule", &rod, &cap)] {
-            let declared = topo::union_with(a, b, &walls_continued(a, b), tol());
+            let declared = topo::union(a, b, tol());
             match (pose, order, &declared) {
                 ("ending on the joint", "rod, capsule", Ok(BooleanResult::Body(bb))) => {
                     let v = topo::mass_properties(&bb.body, tol()).unwrap().volume;
@@ -595,7 +595,7 @@ fn the_capsules_strut_waits_at_the_crossing_layer() {
     let rod = rod(-1.0, 1.0 + H / 2.0);
     let want = PI * R * R * (H + 1.0) + 2.0 / 3.0 * PI * R.powi(3);
     for (order, a, b) in [("capsule, rod", &cap, &rod), ("rod, capsule", &rod, &cap)] {
-        let r = topo::union_with(a, b, &walls_continued(a, b), tol());
+        let r = topo::union(a, b, tol());
         let Ok(BooleanResult::Body(bb)) = r else {
             panic!("short of the joint, {order}: builds: {r:?}");
         };

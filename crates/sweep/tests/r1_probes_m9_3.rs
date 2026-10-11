@@ -125,7 +125,7 @@ fn probe_two_peg_oracle_rederivation() {
     let vp = mass_properties(&p, Tol::witness()).unwrap().volume;
     let vq = mass_properties(&q, Tol::witness()).unwrap().volume;
     let decls = declarations(&p, &q, false, false);
-    let body = body_of(topo::union_with(&p, &q, &decls, Tol::witness()).unwrap());
+    let body = body_of(topo::union(&p, &q, Tol::witness()).unwrap());
     let v = mass_properties(&body, Tol::witness()).unwrap().volume;
     eprintln!(
         "vp = {vp:.17e}, vq = {vq:.17e}, vp+vq = {:.17e}, v = {v:.17e}",
@@ -147,7 +147,7 @@ fn probe_peg_offset_definite_contradicts() {
     let p = plate_with_pegs(2.0, 4.0 + off, 0.5);
     let q = plate_with_bores();
     let decls = declarations(&p, &q, false, false);
-    let err = topo::union_with(&p, &q, &decls, Tol::witness())
+    let err = topo::union(&p, &q, Tol::witness())
         .expect_err("a definitely-offset peg declared Rest must not union");
     assert!(
         matches!(
@@ -171,7 +171,7 @@ fn probe_peg_offset_one_ulp_characterized() {
     let vp = mass_properties(&p, Tol::witness()).unwrap().volume;
     let vq = mass_properties(&q, Tol::witness()).unwrap().volume;
     let decls = declarations(&p, &q, false, false);
-    match topo::union_with(&p, &q, &decls, Tol::witness()) {
+    match topo::union(&p, &q, Tol::witness()) {
         Ok(out) => {
             let body = body_of(out);
             let v = mass_properties(&body, Tol::witness()).unwrap().volume;
@@ -212,16 +212,14 @@ fn probe_missing_declared_group_is_the_full_declaration() {
     let p = plate_with_pegs(2.0, 4.0, 0.5);
     let q = plate_with_bores();
     assert_eq!(
-        outcome(&topo::union_with(
+        outcome(&topo::union(
             &p,
             &q,
-            &declarations(&p, &q, true, false),
             Tol::witness()
         )),
-        outcome(&topo::union_with(
+        outcome(&topo::union(
             &p,
             &q,
-            &declarations(&p, &q, false, false),
             Tol::witness()
         )),
         "the undeclared second peg is the declared one"
@@ -237,7 +235,7 @@ fn probe_cross_wired_declaration_contradicts() {
     let p = plate_with_pegs(2.0, 4.0, 0.5);
     let q = plate_with_bores();
     let decls = declarations(&p, &q, false, true);
-    let err = topo::union_with(&p, &q, &decls, Tol::witness())
+    let err = topo::union(&p, &q, Tol::witness())
         .expect_err("cross-wired wall declarations must not union");
     assert!(
         matches!(err, BooleanError::ContactContradicted { .. }),
@@ -263,7 +261,7 @@ fn probe_tangent_on_conformal_walls_contradicts() {
             }
         }
     }
-    let err = topo::union_with(&p, &q, &decls, Tol::witness())
+    let err = topo::union(&p, &q, Tol::witness())
         .expect_err("a conformal pair declared Tangent must contradict");
     assert!(
         matches!(err, BooleanError::ContactContradicted { .. }),
@@ -300,7 +298,7 @@ fn probe_partial_engagement_never_silent() {
                 .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
         }
     }
-    match topo::union_with(&p, &q, &decls, Tol::witness()) {
+    match topo::union(&p, &q, Tol::witness()) {
         Ok(out) => {
             let body = body_of(out);
             let v = mass_properties(&body, Tol::witness()).unwrap().volume;
@@ -386,10 +384,9 @@ fn probe_two_ring_patch_unions_exactly() {
     let top = holed_plate(1.0, 2.0, &holes);
     let vb = mass_properties(&bot, Tol::witness()).unwrap().volume;
     let vt = mass_properties(&top, Tol::witness()).unwrap().volume;
-    let out = topo::union_with(
+    let out = topo::union(
         &bot,
         &top,
-        &flush_rest_decls(&bot, &top, 1.0),
         Tol::witness(),
     )
     .expect("the two-ring patch union runs");
@@ -410,10 +407,9 @@ fn probe_ring_count_mismatch_never_silent() {
     let top = holed_plate(1.0, 2.0, &[(1.0, 1.0)]);
     let vb = mass_properties(&bot, Tol::witness()).unwrap().volume;
     let vt = mass_properties(&top, Tol::witness()).unwrap().volume;
-    match topo::union_with(
+    match topo::union(
         &bot,
         &top,
-        &flush_rest_decls(&bot, &top, 1.0),
         Tol::witness(),
     ) {
         Ok(out) => {
@@ -533,7 +529,7 @@ fn probe_tube_chain_additivity_error_measured() {
         plane_face(&b, 1.0, false),
         ContactClass::Tangent,
     ));
-    let body = body_of(topo::union_with(&a, &b, &decls, Tol::witness()).unwrap());
+    let body = body_of(topo::union(&a, &b, Tol::witness()).unwrap());
     let v = mass_properties(&body, Tol::witness()).unwrap().volume;
     eprintln!(
         "tube-chain: va = {va:.17e}, vb = {vb:.17e}, v = {v:.17e}, err = {:.3e}",
@@ -572,13 +568,13 @@ fn probe_rim_wall_pair_undeclared_is_the_declared_union() {
         one_cyl_face(&b),
         ContactClass::Tangent,
     ));
-    let want = topo::union_with(&a, &b, &full, Tol::witness());
+    let want = topo::union(&a, &b, Tol::witness());
     assert!(
         matches!(want, Ok(BooleanResult::Body(_))),
         "the fully declared union builds: {want:?}"
     );
     assert_eq!(
-        outcome(&topo::union_with(&a, &b, &decls, Tol::witness())),
+        outcome(&topo::union(&a, &b, Tol::witness())),
         outcome(&want),
         "the undeclared wall pair is the declared one"
     );

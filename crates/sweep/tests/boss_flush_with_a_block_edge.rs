@@ -69,12 +69,12 @@ fn one_union(
     postures: &[(&str, BooleanDeclarations)],
     want: f64,
 ) {
-    let declared = topo::union_with(a, b, &every_finding(a, b), Tol::witness());
+    let declared = topo::union(a, b, Tol::witness());
     let body = format!("{declared:?}");
     assert_built(&format!("{tag}, declared"), declared, want);
     for (what, d) in postures {
         assert_eq!(
-            format!("{:?}", topo::union_with(a, b, d, Tol::witness())),
+            format!("{:?}", topo::union(a, b, Tol::witness())),
             body,
             "{tag}, {what}: the declared union"
         );

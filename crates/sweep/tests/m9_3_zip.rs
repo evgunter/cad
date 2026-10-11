@@ -120,7 +120,7 @@ fn two_peg_plate_union_is_exactly_additive() {
     let vq = mass_properties(&q, Tol::witness()).unwrap().volume;
     let decls = declarations(&p, &q);
     let out =
-        topo::union_with(&p, &q, &decls, Tol::witness()).expect("the two-peg kernel path unions");
+        topo::union(&p, &q, Tol::witness()).expect("the two-peg kernel path unions");
     let BooleanResult::Body(bb) = out else {
         panic!("a two-peg union cannot be empty");
     };
@@ -275,7 +275,7 @@ fn kissing_rounds_rim_unions_and_carries_the_tangent_intersection() {
         ContactClass::Tangent,
     ));
     let out =
-        topo::union_with(&a, &b, &decls, Tol::witness()).expect("the kissing-rounds union runs");
+        topo::union(&a, &b, Tol::witness()).expect("the kissing-rounds union runs");
     let BooleanResult::Body(bb) = out else {
         panic!("a kissing-rounds union cannot be empty");
     };
@@ -461,7 +461,7 @@ fn a_tangent_curved_sector_on_a_face_lumps_whole() {
         cyl_face(&b),
         ContactClass::Tangent,
     ));
-    let diff = topo::subtract_with(&a, &b, &decls, Tol::witness())
+    let diff = topo::subtract(&a, &b, Tol::witness())
         .expect("the declared tangent sector lumps and the difference runs");
     let BooleanResult::Body(diff) = diff else {
         panic!("the slab minus a body resting on it is the slab, not empty");
@@ -471,7 +471,7 @@ fn a_tangent_curved_sector_on_a_face_lumps_whole() {
         (v - va).abs() <= 4.0 * va * f64::EPSILON,
         "the slab minus the round is the slab: {v} vs {va}"
     );
-    let meet = topo::intersect_with(&a, &b, &decls, Tol::witness())
+    let meet = topo::intersect(&a, &b, Tol::witness())
         .expect("the declared tangent sector lumps and the intersection runs");
     assert!(
         matches!(meet, BooleanResult::Empty),
@@ -484,13 +484,13 @@ fn a_tangent_curved_sector_on_a_face_lumps_whole() {
         for (op, got, want) in [
             (
                 "A ∖ B",
-                topo::subtract_with(&a, &b, d, Tol::witness()),
-                topo::subtract_with(&a, &b, &decls, Tol::witness()),
+                topo::subtract(&a, &b, Tol::witness()),
+                topo::subtract(&a, &b, Tol::witness()),
             ),
             (
                 "A ∩ B",
-                topo::intersect_with(&a, &b, d, Tol::witness()),
-                topo::intersect_with(&a, &b, &decls, Tol::witness()),
+                topo::intersect(&a, &b, Tol::witness()),
+                topo::intersect(&a, &b, Tol::witness()),
             ),
         ] {
             assert_eq!(

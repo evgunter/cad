@@ -232,7 +232,7 @@ fn peg_in_socket_union_holds(
     p: &AtRestBody<f64>,
     decls: &BooleanDeclarations,
 ) {
-    let r = topo::union_with(s, p, decls, Tol::witness())
+    let r = topo::union(s, p, Tol::witness())
         .unwrap_or_else(|e| panic!("the peg-in-socket union builds: {e:?}"));
     let bb = r.body().expect("a union of two solids is not empty");
     assert_eq!(topo::validate_closed(&bb.body), Ok(()), "tier 2");
@@ -318,7 +318,7 @@ fn a_contradicted_torus_rest_declaration_refuses_loudly() {
                 .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
         }
     }
-    let err = topo::union_with(&s, &thin, &decls, Tol::witness())
+    let err = topo::union(&s, &thin, Tol::witness())
         .expect_err("a thin peg declared Rest against a wider bore must contradict");
     match err {
         BooleanError::ContactContradicted { margin, .. } => {
@@ -348,7 +348,7 @@ fn an_undeclared_torus_pair_passes_the_gate_and_is_the_declared_rest() {
     let (s, p) = (socket(), segment_a());
     let walls = wall_declarations(&s, &p, TUBE, ContactClass::Rest);
     peg_in_socket_union_holds(&s, &p, &walls);
-    let want = outcome(&topo::union_with(&s, &p, &walls, Tol::witness()));
+    let want = outcome(&topo::union(&s, &p, Tol::witness()));
     for (posture, d) in [
         (
             "the end caps declared",
@@ -357,7 +357,7 @@ fn an_undeclared_torus_pair_passes_the_gate_and_is_the_declared_rest() {
         ("undeclared", BooleanDeclarations::none()),
     ] {
         assert_eq!(
-            outcome(&topo::union_with(&s, &p, &d, Tol::witness())),
+            outcome(&topo::union(&s, &p, Tol::witness())),
             want,
             "{posture}: the declared union"
         );
@@ -385,7 +385,7 @@ fn a_fully_covered_torus_pair_reaches_past_the_operand_gate() {
         "a full torus must carry nothing but wall faces, or the covering below is partial"
     );
     let decls = wall_declarations(&a, &b, TUBE, topo::BooleanCoincidence::Continuation);
-    let declared = topo::union_with(&a, &b, &decls, Tol::witness());
+    let declared = topo::union(&a, &b, Tol::witness());
     assert_eq!(
         outcome(&topo::union(&a, &b, Tol::witness())),
         outcome(&declared),
@@ -441,7 +441,7 @@ fn a_partly_covered_torus_pair_is_no_longer_a_gate_question() {
 fn the_admitted_torus_lane_stops_at_the_section_pass() {
     let (a, b) = (full_torus(RING), full_torus(RING));
     let decls = wall_declarations(&a, &b, TUBE, topo::BooleanCoincidence::Continuation);
-    let err = topo::union_with(&a, &b, &decls, Tol::witness())
+    let err = topo::union(&a, &b, Tol::witness())
         .expect_err("a coincident torus pair still has no classification verdict");
     let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
         panic!(
@@ -473,7 +473,7 @@ fn the_admitted_torus_lane_stops_at_the_section_pass() {
 fn the_g1_tube_chain_rim_routes_to_the_smooth_seam() {
     let (a, b) = (segment_a(), segment_b());
     let decls = wall_declarations(&a, &b, TUBE, ContactClass::Tangent);
-    let err = topo::union_with(&a, &b, &decls, Tol::witness())
+    let err = topo::union(&a, &b, Tol::witness())
         .expect_err("a G1 rim is no Tangent contact");
     assert!(
         is_tangent_on_a_seam(&err),
@@ -510,7 +510,7 @@ fn the_g1_tube_chain_refuses_before_the_rim_routing_when_not_declared_tangent() 
             "undeclared: the crossing layer's refusal: {err:?}"
         );
         let decls = wall_declarations(x, y, TUBE, ContactClass::Rest);
-        let err = topo::union_with(x, y, &decls, Tol::witness()).expect_err("Rest refuses");
+        let err = topo::union(x, y, Tol::witness()).expect_err("Rest refuses");
         let BooleanError::ContactContradicted { margin, .. } = &err else {
             panic!("declared Rest: contradicted: {err:?}");
         };
@@ -532,7 +532,7 @@ fn the_g1_tube_chain_refuses_before_the_rim_routing_when_not_declared_tangent() 
 fn a_kissing_torus_rim_routes_to_the_unbuilt_cusp_family() {
     let (a, b) = kissing_pair();
     let decls = wall_declarations(&a, &b, TUBE, ContactClass::Tangent);
-    let err = topo::union_with(&a, &b, &decls, Tol::witness())
+    let err = topo::union(&a, &b, Tol::witness())
         .expect_err("the cusp family is defined and unbuilt");
     match err {
         BooleanError::RimCuspArmUnbuilt { wedge, .. } => {
@@ -566,12 +566,12 @@ fn the_two_arms_are_decided_by_the_rim_and_not_by_the_kind() {
     let chain = {
         let (a, b) = (segment_a(), segment_b());
         let d = wall_declarations(&a, &b, TUBE, ContactClass::Tangent);
-        topo::union_with(&a, &b, &d, Tol::witness()).expect_err("chain refuses")
+        topo::union(&a, &b, Tol::witness()).expect_err("chain refuses")
     };
     let kiss = {
         let (a, b) = kissing_pair();
         let d = wall_declarations(&a, &b, TUBE, ContactClass::Tangent);
-        topo::union_with(&a, &b, &d, Tol::witness()).expect_err("kiss refuses")
+        topo::union(&a, &b, Tol::witness()).expect_err("kiss refuses")
     };
     // The two arms are DIFFERENT VARIANTS, which is the sharper form
     // of the same claim: the routing did not merely fill one payload
@@ -617,7 +617,7 @@ fn a_torus_pair_with_no_shared_rim_keeps_the_class_refusal() {
     .body;
     let b = finished("the distant elbow", b, Tol::witness());
     let decls = wall_declarations(&a, &b, TUBE, ContactClass::Tangent);
-    let err = topo::union_with(&a, &b, &decls, Tol::witness())
+    let err = topo::union(&a, &b, Tol::witness())
         .expect_err("a Tangent declaration outside the witness lane is refused");
     assert!(
         matches!(
@@ -833,7 +833,7 @@ fn a_cone_face_still_cannot_be_declared_at_all() {
         torus_faces(&other, TUBE)[0],
         ContactClass::Rest,
     ));
-    let err = topo::union_with(&cone, &other, &decls, Tol::witness())
+    let err = topo::union(&cone, &other, Tol::witness())
         .expect_err("a cone face cannot be declared");
     match err {
         BooleanError::InvalidInput { what, .. } => {
@@ -885,7 +885,7 @@ fn the_chain_fixture_is_g1_with_one_shared_rim() {
         shared, 1,
         "exactly one cap plane is shared between the segments"
     );
-    match topo::union_with(&a, &b, &BooleanDeclarations::none(), Tol::witness()) {
+    match topo::union(&a, &b, Tol::witness()) {
         Ok(BooleanResult::Body(_) | BooleanResult::Empty) => {
             panic!("an undeclared torus chain must not silently succeed")
         }
@@ -966,7 +966,7 @@ fn the_g1_tube_chain_declared_a_seam_escalates_at_the_witness_lane() {
         let discs = junction_discs(x, y);
         assert_eq!(discs.len(), 1, "one junction disc pair");
         decls.coincident_faces.extend(discs);
-        let err = topo::union_with(x, y, &decls, Tol::witness())
+        let err = topo::union(x, y, Tol::witness())
             .expect_err("the witness lane cannot bound the meridian's spans");
         let BooleanError::Escalated { diag, .. } = &err else {
             panic!("the declaration door escalates: {err:?}");
@@ -1008,7 +1008,7 @@ fn a_seam_declared_on_the_kissing_torus_pair_is_contradicted() {
                 ));
             }
         }
-        let err = topo::union_with(x, y, &decls, Tol::witness()).expect_err("contradicted");
+        let err = topo::union(x, y, Tol::witness()).expect_err("contradicted");
         let BooleanError::SeamContradicted { margin, .. } = &err else {
             panic!("the seam is contradicted: {err:?}");
         };

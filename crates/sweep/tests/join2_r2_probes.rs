@@ -84,23 +84,23 @@ fn battery(label: &str, a: &Body<f64>, b: &Body<f64>, va: f64, vb: f64, disjoint
         println!(
             "R2P {label} {order} union {} | {path}",
             outcome(
-                topo::union_with(&fin(x), &fin(y), &d, tol()),
+                topo::union(&fin(x), &fin(y), tol()),
                 vx + vy,
                 tol()
             )
         );
         println!(
             "R2P {label} {order} sub {}",
-            outcome(topo::subtract_with(&fin(x), &fin(y), &d, tol()), vx, tol())
+            outcome(topo::subtract(&fin(x), &fin(y), tol()), vx, tol())
         );
         println!(
             "R2P {label} {order} rsub {}",
-            outcome(topo::subtract_with(&fin(y), &fin(x), &d2, tol()), vy, tol())
+            outcome(topo::subtract(&fin(y), &fin(x), tol()), vy, tol())
         );
         println!(
             "R2P {label} {order} meet {}",
             outcome(
-                topo::intersect_with(&fin(x), &fin(y), &d, tol()),
+                topo::intersect(&fin(x), &fin(y), tol()),
                 0.0,
                 tol()
             )
@@ -411,7 +411,7 @@ fn builds_paired(label: &str, x: &Body<f64>, y: &Body<f64>, want: f64) {
         matches!(join, Ok(None)),
         "{label}: the join connects every germ, got {join:?}"
     );
-    let line = outcome(topo::union_with(&fin(x), &fin(y), &d, tol()), want, tol());
+    let line = outcome(topo::union(&fin(x), &fin(y), tol()), want, tol());
     assert!(line.starts_with("OK SOUND"), "{label}: {line}");
 }
 
@@ -494,7 +494,7 @@ fn a_tangent_site_union_joins_every_joinable_vertex_it_leaves() {
             matches!(join, Ok(None)),
             "{order}: the join connects the tangent site: {join:?}"
         );
-        let got = topo::union_with(&fin(x), &fin(y), &d, tol());
+        let got = topo::union(&fin(x), &fin(y), tol());
         let Ok(topo::BooleanResult::Body(out)) = got else {
             unreachable!("{order}: the union builds: {got:?}");
         };

@@ -210,16 +210,16 @@ fn r2_a_box_with_on_carrier_rulings_builds_every_op_undeclared() {
     let whole = Some((pipe, (4, 6, 4, 1), [0, 0]));
     let common = Some((boxed, (6, 12, 8, 1), [0, 0]));
     for (op, r, want) in [
-        ("p ∪ b", topo::union_with(&p, &b, &none, tol), whole),
-        ("b ∪ p", topo::union_with(&b, &p, &none, tol), whole),
+        ("p ∪ b", topo::union(&p, &b, tol), whole),
+        ("b ∪ p", topo::union(&b, &p, tol), whole),
         (
             "p ∖ b",
-            topo::subtract_with(&p, &b, &none, tol),
+            topo::subtract(&p, &b, tol),
             Some((pipe - boxed, (10, 18, 12, 2), [0, 8])),
         ),
-        ("b ∖ p", topo::subtract_with(&b, &p, &none, tol), None),
-        ("p ∩ b", topo::intersect_with(&p, &b, &none, tol), common),
-        ("b ∩ p", topo::intersect_with(&b, &p, &none, tol), common),
+        ("b ∖ p", topo::subtract(&b, &p, tol), None),
+        ("p ∩ b", topo::intersect(&p, &b, tol), common),
+        ("b ∩ p", topo::intersect(&b, &p, tol), common),
     ] {
         let bb = match (r, want) {
             (Ok(topo::BooleanResult::Empty), None) => continue,

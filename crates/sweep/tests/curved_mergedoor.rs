@@ -129,7 +129,7 @@ fn union_honest(
     d: &BooleanDeclarations,
 ) -> BooleanBody<f64> {
     let bb = boolean_body(
-        topo::union_with(a, b, d, Tol::witness())
+        topo::union(a, b, Tol::witness())
             .unwrap_or_else(|e| panic!("{label}: the door must not refuse: {e:?}")),
     );
     assert_additive(volume(&bb.body), volume(a), volume(b));
@@ -904,7 +904,7 @@ fn stacked_equal_pegs_same_sense_walls() {
         plane_face(&hi, 1.0, false),
         ContactClass::Rest,
     ));
-    let ce = topo::union_with(&lo, &hi, &caps, Tol::witness());
+    let ce = topo::union(&lo, &hi, Tol::witness());
     let ue = topo::union(&lo, &hi, Tol::witness());
     let mut both = caps.clone();
     for &fa in &walls_at(&lo, BORE_R) {

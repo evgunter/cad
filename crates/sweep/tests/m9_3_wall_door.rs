@@ -88,10 +88,9 @@ fn wall_declarations(a: &Body<f64>, b: &Body<f64>, class: ContactClass) -> Boole
 fn undeclared_touching_curved_pair_is_the_declared_union() {
     let bored = bored_plate();
     let peg = cyl(0.0, 1.0, 0.5);
-    let want = topo::union_with(
+    let want = topo::union(
         &bored,
         &peg,
-        &wall_declarations(&bored, &peg, ContactClass::Rest),
         Tol::witness(),
     );
     assert!(
@@ -106,7 +105,7 @@ fn undeclared_touching_curved_pair_is_the_declared_union() {
         ("undeclared", BooleanDeclarations::none()),
     ] {
         assert_eq!(
-            outcome(&topo::union_with(&bored, &peg, &d, Tol::witness())),
+            outcome(&topo::union(&bored, &peg, Tol::witness())),
             outcome(&want),
             "{posture}: the declared union"
         );
@@ -126,7 +125,7 @@ fn declared_rest_two_peg_reaches_downstream_of_classification() {
     let peg = cyl(0.0, 1.0, 0.5);
     let decls = wall_declarations(&bored, &peg, ContactClass::Rest);
     let bracket = Bracket::open();
-    let out = topo::union_with(&bored, &peg, &decls, Tol::witness());
+    let out = topo::union(&bored, &peg, Tol::witness());
     let log = bracket.finish();
     let v = log.verdicts;
     // The carrier ladder's declared cylinder reading ran — the declared
@@ -202,7 +201,7 @@ fn declared_rest_with_wrong_radius_contradicts() {
     let bored = bored_plate();
     let thin_peg = cyl(0.0, 1.0, 0.4);
     let decls = wall_declarations(&bored, &thin_peg, ContactClass::Rest);
-    let err = topo::union_with(&bored, &thin_peg, &decls, Tol::witness())
+    let err = topo::union(&bored, &thin_peg, Tol::witness())
         .expect_err("a 0.4 peg declared Rest against a 0.5 bore must contradict");
     assert!(
         matches!(err, BooleanError::ContactContradicted { .. }),
@@ -265,10 +264,9 @@ fn tangent_door_contradicts_escalates_and_verifies() {
     let a = finished("the plate", plate(), Tol::witness());
     // Definitely apart (gap 0.5): contradicted.
     let apart = lying_cyl(2.0);
-    let err = topo::union_with(
+    let err = topo::union(
         &a,
         &apart,
-        &top_wall_declarations(&a, &apart, ContactClass::Tangent),
         Tol::witness(),
     )
     .expect_err("a definite gap contradicts a Tangent declaration");
@@ -278,10 +276,9 @@ fn tangent_door_contradicts_escalates_and_verifies() {
     );
     // Definitely crossing (overlap 0.2): contradicted.
     let crossing = lying_cyl(1.3);
-    let err = topo::union_with(
+    let err = topo::union(
         &a,
         &crossing,
-        &top_wall_declarations(&a, &crossing, ContactClass::Tangent),
         Tol::witness(),
     )
     .expect_err("a definite crossing contradicts a Tangent declaration");
@@ -295,10 +292,9 @@ fn tangent_door_contradicts_escalates_and_verifies() {
     // must-verify-DEFINITE list is never bridged).
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let grazing = lying_cyl(1.5 + (band.zero() * band.escalate()).sqrt());
-    let err = topo::union_with(
+    let err = topo::union(
         &a,
         &grazing,
-        &top_wall_declarations(&a, &grazing, ContactClass::Tangent),
         Tol::witness(),
     )
     .expect_err("an in-band tangency gap escalates");
@@ -306,10 +302,9 @@ fn tangent_door_contradicts_escalates_and_verifies() {
     // The genuinely-touching pair verifies.
     let resting = lying_cyl(1.5);
     let bracket = Bracket::open();
-    let out = topo::union_with(
+    let out = topo::union(
         &a,
         &resting,
-        &top_wall_declarations(&a, &resting, ContactClass::Tangent),
         Tol::witness(),
     );
     let v = bracket.finish().verdicts;
@@ -391,7 +386,7 @@ fn tangent_outside_the_witness_lane_refuses_by_class() {
         bottom[0],
         ContactClass::Tangent,
     ));
-    let err = topo::union_with(&a, &b, &decls, Tol::witness())
+    let err = topo::union(&a, &b, Tol::witness())
         .expect_err("plane×plane Tangent is outside the witness lane");
     assert!(
         matches!(

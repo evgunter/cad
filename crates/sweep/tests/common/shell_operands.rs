@@ -277,10 +277,9 @@ pub fn lipped_block(foot: f64, brim: f64, rise: f64) -> Body<f64> {
         ],
         ..topo::BooleanDeclarations::none()
     };
-    topo::union_with(
+    topo::union(
         &finished("the block", base, tol),
         &finished("the lip", lip, tol),
-        &declared,
         tol,
     )
     .unwrap_or_else(|e| panic!("the lip unites with the block: {e:?}"))

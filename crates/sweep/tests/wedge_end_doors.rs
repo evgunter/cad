@@ -368,7 +368,7 @@ fn a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op() {
     }
     assert_eq!(
         crate::common::outcomes::outcome(&topo::union(&left, &right, tol())),
-        crate::common::outcomes::outcome(&topo::union_with(&left, &right, &kiss, tol())),
+        crate::common::outcomes::outcome(&topo::union(&left, &right, tol())),
         "external kiss, union: undeclared is the declared outcome"
     );
     for (name, got, want) in rows {

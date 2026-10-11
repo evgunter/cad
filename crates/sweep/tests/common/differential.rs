@@ -359,9 +359,9 @@ pub fn reflex_pose(profile: &str, rot: f64, sx: f64, sy: f64, tol: Tol) -> Refle
 /// One of [`REFLEX_OPS`] on a pose.
 pub fn reflex_run(p: &ReflexPose, op: &str, tol: Tol) -> Result<BooleanResult<f64>, BooleanError> {
     match op {
-        "I" => topo::intersect_with(&p.a, &p.b, &p.d, tol),
-        "U" => topo::union_with(&p.a, &p.b, &p.d, tol),
-        "S_ab" => topo::subtract_with(&p.a, &p.b, &p.d, tol),
-        _ => topo::subtract_with(&p.b, &p.a, &p.d, tol),
+        "I" => topo::intersect(&p.a, &p.b, tol),
+        "U" => topo::union(&p.a, &p.b, tol),
+        "S_ab" => topo::subtract(&p.a, &p.b, tol),
+        _ => topo::subtract(&p.b, &p.a, tol),
     }
 }

@@ -137,7 +137,7 @@ fn a_reflex_union_at_a_tangent_site_never_ships_the_overlap_twice() {
         for (order, x, y) in [("a ∪ b′", &p.a, &b), ("b′ ∪ a", &b, &p.a)] {
             let what = format!("{profile} ({sx}, {sy}) {order}");
             let d = flush_declarations(x, y, tol());
-            match topo::union_with(x, y, &d, tol()) {
+            match topo::union(x, y, tol()) {
                 Err(BooleanError::Join(_)) => {}
                 Err(e) => panic!("{what}: refused, but not by the join: {e:?}"),
                 built => {
@@ -165,7 +165,7 @@ fn a_tangent_sites_controls_build_sound() {
             let d = flush_declarations(x, y, tol());
             assert!(!join_refuses(x, y, &d), "{what}: the join connects");
             assert!(
-                never_twice(&what, topo::union_with(x, y, &d, tol()), want, p.want[0]),
+                never_twice(&what, topo::union(x, y, tol()), want, p.want[0]),
                 "{what}: refused"
             );
         }
@@ -215,7 +215,7 @@ fn a_box_dipping_into_a_plate_at_a_tangent_site_never_ships_the_overlap_twice() 
                 !control || !join_refuses(p, q, &d),
                 "{what}: the control's join connects"
             );
-            let built = never_twice(&what, topo::union_with(p, q, &d, t), want, overlap);
+            let built = never_twice(&what, topo::union(p, q, t), want, overlap);
             assert!(built, "{what}: refused");
         }
     }
@@ -234,7 +234,7 @@ fn both_orders(
     for (order, x, y) in [("p ∪ q", p, q), ("q ∪ p", q, p)] {
         let what = format!("{what}, {order}");
         let d = flush_declarations(x, y, tol());
-        if never_twice(&what, topo::union_with(x, y, &d, tol()), want, overlap) {
+        if never_twice(&what, topo::union(x, y, tol()), want, overlap) {
             built += 1;
         }
     }
@@ -301,7 +301,7 @@ fn rounded_at(at: (f64, f64, f64), w: f64, h: f64, r: f64, height: f64) -> AtRes
 }
 
 fn declared_union(p: &AtRestBody<f64>, q: &AtRestBody<f64>) -> AtRestBody<f64> {
-    match topo::union_with(p, q, &flush_declarations(p, q, tol()), tol()) {
+    match topo::union(p, q, tol()) {
         Ok(BooleanResult::Body(bb)) => bb.body,
         other => panic!("an operand's own union: {other:?}"),
     }
@@ -471,7 +471,7 @@ fn a_line_kiss_beside_a_tangent_site_ships_its_contact_undeclared() {
         for (order, x, y) in [("a ∪ b′", &p.a, &b), ("b′ ∪ a", &b, &p.a)] {
             let what = format!("{profile} ({sx}, {sy}) {order}");
             let d = flush_declarations(x, y, tol());
-            let bb = match topo::union_with(x, y, &d, tol()) {
+            let bb = match topo::union(x, y, tol()) {
                 Ok(BooleanResult::Body(bb)) => bb,
                 other => panic!("{what}: the kiss does not build: {other:?}"),
             };

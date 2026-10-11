@@ -707,7 +707,7 @@ fn the_parallel_cylinder_union_builds_and_a_box_edge_is_cut_off() {
     };
     let (a, b) = (cyl(0.0), cyl(0.6));
     let d = topo::flush::declare_all(&topo::flush::find_flush_candidates(&a, &b, tol()).unwrap());
-    let declared = topo::union_with(&a, &b, &d, tol());
+    let declared = topo::union(&a, &b, tol());
     let undeclared = topo::union(&a, &b, tol());
     assert_eq!(d.coincident_faces.len(), 2, "the two cap-disc pairs");
     let Ok(topo::BooleanResult::Body(bb)) = &declared else {

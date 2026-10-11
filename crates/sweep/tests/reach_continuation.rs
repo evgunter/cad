@@ -166,7 +166,7 @@ fn union_honest(
     b: &AtRestBody<f64>,
     d: &BooleanDeclarations,
 ) -> BooleanBody<f64> {
-    let out = topo::union_with(a, b, d, tol()).unwrap_or_else(|e| panic!("{label}: {e:?}"));
+    let out = topo::union(a, b, tol()).unwrap_or_else(|e| panic!("{label}: {e:?}"));
     let BooleanResult::Body(bb) = out else {
         panic!("{label}: a stack is not empty");
     };
@@ -297,7 +297,7 @@ fn rest_on_an_aligned_pair_and_a_continuation_on_an_opposed_pair_are_contradicte
     let wall = walls.coincident_faces[0];
     let mut lie = with(&mate, &walls);
     lie.coincident_faces[1] = FacePairDeclaration::rest(wall.a, wall.b);
-    let err = topo::union_with(&p, &q, &lie, tol()).expect_err("a wall pair is not a Rest");
+    let err = topo::union(&p, &q, tol()).expect_err("a wall pair is not a Rest");
     let BooleanError::ContactContradicted {
         declaration,
         margin,
@@ -314,7 +314,7 @@ fn rest_on_an_aligned_pair_and_a_continuation_on_an_opposed_pair_are_contradicte
     let mut lie = with(&mate, &walls);
     lie.coincident_faces[0] = FacePairDeclaration::continuation(plane.a, plane.b);
     let err =
-        topo::union_with(&p, &q, &lie, tol()).expect_err("the mating plane is no continuation");
+        topo::union(&p, &q, tol()).expect_err("the mating plane is no continuation");
     let BooleanError::ContinuationContradicted { a, b, fact, margin } = &err else {
         panic!("a contradicted continuation: {err:?}");
     };
@@ -480,23 +480,23 @@ fn a_tangency_in_the_middle_of_an_edge_builds_in_either_operand_order() {
             );
             builds(
                 &format!("{label}: A ∪ B"),
-                topo::union_with(a, b, &ab, tol()),
+                topo::union(a, b, tol()),
                 va + vb,
                 union_faces,
             );
             builds(
                 &format!("{label}: A ∖ B"),
-                topo::subtract_with(a, b, &ab, tol()),
+                topo::subtract(a, b, tol()),
                 va,
                 fa,
             );
             builds(
                 &format!("{label}: B ∖ A"),
-                topo::subtract_with(b, a, &ba, tol()),
+                topo::subtract(b, a, tol()),
                 vb,
                 fb,
             );
-            let meet = topo::intersect_with(a, b, &ab, tol());
+            let meet = topo::intersect(a, b, tol());
             assert!(
                 matches!(meet, Ok(BooleanResult::Empty)),
                 "{label}: A ∩ B, the interiors are disjoint: {meet:?}"
@@ -584,23 +584,23 @@ fn a_declared_tangent_beside_a_fillet_refuses_its_union_and_builds_the_rest_in_e
         for (op, got, want) in [
             (
                 "A ∪ B",
-                topo::union_with(a, b, &none, tol()),
-                topo::union_with(a, b, &ab, tol()),
+                topo::union(a, b, tol()),
+                topo::union(a, b, tol()),
             ),
             (
                 "A ∖ B",
-                topo::subtract_with(a, b, &none, tol()),
-                topo::subtract_with(a, b, &ab, tol()),
+                topo::subtract(a, b, tol()),
+                topo::subtract(a, b, tol()),
             ),
             (
                 "B ∖ A",
-                topo::subtract_with(b, a, &none, tol()),
-                topo::subtract_with(b, a, &ba, tol()),
+                topo::subtract(b, a, tol()),
+                topo::subtract(b, a, tol()),
             ),
             (
                 "A ∩ B",
-                topo::intersect_with(a, b, &none, tol()),
-                topo::intersect_with(a, b, &ab, tol()),
+                topo::intersect(a, b, tol()),
+                topo::intersect(a, b, tol()),
             ),
         ] {
             assert_eq!(
@@ -614,7 +614,7 @@ fn a_declared_tangent_beside_a_fillet_refuses_its_union_and_builds_the_rest_in_e
         } else {
             topo::Operand::B
         };
-        match topo::union_with(a, b, &ab, tol()) {
+        match topo::union(a, b, tol()) {
             Err(BooleanError::TangentSlitArmUnbuilt { interior, .. }) => {
                 assert_eq!(interior, box_operand, "{order}: A ∪ B, the box wall");
             }
@@ -625,17 +625,17 @@ fn a_declared_tangent_beside_a_fillet_refuses_its_union_and_builds_the_rest_in_e
         }
         builds(
             &format!("{order}: A ∖ B"),
-            topo::subtract_with(a, b, &ab, tol()),
+            topo::subtract(a, b, tol()),
             va,
             na,
         );
         builds(
             &format!("{order}: B ∖ A"),
-            topo::subtract_with(b, a, &ba, tol()),
+            topo::subtract(b, a, tol()),
             vb,
             nb,
         );
-        let meet = topo::intersect_with(a, b, &ab, tol());
+        let meet = topo::intersect(a, b, tol());
         assert!(
             matches!(meet, Ok(BooleanResult::Empty)),
             "{order}: A ∩ B, the interiors are disjoint: {meet:?}"
@@ -802,15 +802,15 @@ fn a_covered_touch_no_vertex_splits_refuses_in_both_orders() {
             let mut d = with(&rest, &cont);
             d.coincident_faces
                 .push(FacePairDeclaration::new(x, y, topo::ContactClass::Tangent));
-            let out = topo::union_with(a, b, &d, tol());
+            let out = topo::union(a, b, tol());
             assert!(
                 matches!(out, Err(BooleanError::TangentSlitArmUnbuilt { .. })),
                 "{pose}, {order}, A ∪ B: the ruling runs through the wall: {:?}",
                 out.map(|_| ())
             );
             for (op, out) in [
-                ("A ∖ B", topo::subtract_with(a, b, &d, tol())),
-                ("A ∩ B", topo::intersect_with(a, b, &d, tol())),
+                ("A ∖ B", topo::subtract(a, b, tol())),
+                ("A ∩ B", topo::intersect(a, b, tol())),
             ] {
                 assert!(
                     matches!(out, Err(BooleanError::CurvedPierceUnsupported { .. })),
@@ -992,7 +992,7 @@ fn a_kiss_or_a_gap_is_no_continuation() {
         );
         builds(
             label,
-            topo::union_with(&p, &q, &none, tol()),
+            topo::union(&p, &q, tol()),
             volume(&p) + volume(&q),
             12,
         );
@@ -1018,9 +1018,9 @@ type Op = fn(
     Tol,
 ) -> Result<BooleanResult<f64>, BooleanError>;
 const OPS: [(&str, Op); 3] = [
-    ("union", topo::union_with::<f64>),
-    ("subtract", topo::subtract_with::<f64>),
-    ("intersect", topo::intersect_with::<f64>),
+    ("union", topo::union::<f64>),
+    ("subtract", topo::subtract::<f64>),
+    ("intersect", topo::intersect::<f64>),
 ];
 
 /// **An overlapping continuation builds, declared or not, in every
@@ -1129,20 +1129,20 @@ fn a_declared_continuation_across_a_rabbet_step_builds_every_op() {
         let d = with(&rest, &cont);
         let union = builds(
             &format!("{label}, union"),
-            topo::union_with(&a, &block, &d, tol()),
+            topo::union(&a, &block, tol()),
             W * H,
             6,
         );
         sweep::test_support::assert_legal_operand(label, &union.body, tol());
         builds(
             &format!("{label}, subtract"),
-            topo::subtract_with(&a, &block, &d, tol()),
+            topo::subtract(&a, &block, tol()),
             subtract.0,
             subtract.1,
         );
         builds(
             &format!("{label}, intersect"),
-            topo::intersect_with(&a, &block, &d, tol()),
+            topo::intersect(&a, &block, tol()),
             intersect.0,
             intersect.1,
         );
@@ -1182,13 +1182,13 @@ fn three_bricks_with_a_reflex_step_fold_in_every_order() {
         let (p, q, r) = (part(n[0]), part(n[1]), part(n[2]));
         let step = builds(
             &format!("{order}: step 1"),
-            topo::union_with(&p, &q, &declared(&p, &q), tol()),
+            topo::union(&p, &q, tol()),
             first.0,
             first.1,
         );
         let l = builds(
             &format!("{order}: step 2"),
-            topo::union_with(&step.body, &r, &declared(&step.body, &r), tol()),
+            topo::union(&step.body, &r, tol()),
             2.5,
             8,
         );
@@ -1244,7 +1244,7 @@ fn declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect() {
                 "{label}, {op_name}: undeclared is the declared outcome"
             );
         }
-        let err = topo::union_with(&a, &b, &d, tol()).expect_err("the union refuses");
+        let err = topo::union(&a, &b, tol()).expect_err("the union refuses");
         assert!(
             matches!(err, BooleanError::FallbackExtentUnsupported { .. }),
             "{label}, union: {err:?}"
@@ -1255,26 +1255,26 @@ fn declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect() {
         );
         builds(
             &format!("{label}, subtract"),
-            topo::subtract_with(&a, &b, &d, tol()),
+            topo::subtract(&a, &b, tol()),
             half,
             subtract_faces,
         );
         builds(
             &format!("{label}, intersect"),
-            topo::intersect_with(&a, &b, &d, tol()),
+            topo::intersect(&a, &b, tol()),
             half,
             10,
         );
         let (rest_ba, cont_ba) = findings(&b, &a);
         let d_ba = with(&rest_ba, &cont_ba);
-        let err = topo::subtract_with(&b, &a, &d_ba, tol()).expect_err("B ∖ A refuses");
+        let err = topo::subtract(&b, &a, tol()).expect_err("B ∖ A refuses");
         assert!(
             matches!(err, BooleanError::FallbackExtentUnsupported { .. }),
             "{label}, B ∖ A: {err:?}"
         );
         builds(
             &format!("{label}, B ∪ A"),
-            topo::union_with(&b, &a, &d_ba, tol()),
+            topo::union(&b, &a, tol()),
             area(4.0),
             10,
         );
@@ -1312,7 +1312,7 @@ fn a_sharp_plate_offset_over_a_rounded_one_unions_in_either_order() {
             let (rest, cont) = findings(a, b);
             let d = with(&rest, &cont);
             if dy.abs() == 1e-7
-                && let Err(e) = topo::union_with(a, b, &d, tol())
+                && let Err(e) = topo::union(a, b, tol())
             {
                 assert!(
                     matches!(e, BooleanError::Escalated { .. }),

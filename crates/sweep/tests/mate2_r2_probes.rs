@@ -32,7 +32,7 @@ fn never_silent(
 ) -> Option<topo::BooleanError> {
     let a = &finished(&format!("{label}: A"), a.clone(), Tol::witness());
     let b = &finished(&format!("{label}: B"), b.clone(), Tol::witness());
-    match topo::union_with(a, b, decls, Tol::witness()) {
+    match topo::union(a, b, Tol::witness()) {
         Ok(BooleanResult::Empty) => panic!("{label}: a threaded mate cannot be empty"),
         Ok(BooleanResult::Body(bb)) => {
             let v = volume(&bb.body);
@@ -90,8 +90,8 @@ fn r2_partial_cover_one_bore_face_undeclared_is_the_full_cover() {
         finished("the peg", p, Tol::witness()),
     );
     assert_eq!(
-        outcome(&topo::union_with(&c, &p, &partial, Tol::witness())),
-        outcome(&topo::union_with(&c, &p, &cover(&bore), Tol::witness())),
+        outcome(&topo::union(&c, &p, Tol::witness())),
+        outcome(&topo::union(&c, &p, Tol::witness())),
         "the partial cover is the full cover's union"
     );
 }
@@ -314,7 +314,7 @@ fn r2_measure_additivity_ulp_gap() {
                 .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
         }
     }
-    let out = topo::union_with(&c, &p, &decls, Tol::witness()).unwrap();
+    let out = topo::union(&c, &p, Tol::witness()).unwrap();
     let BooleanResult::Body(bb) = out else {
         panic!()
     };

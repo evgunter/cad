@@ -179,17 +179,17 @@ fn assert_six(
         (
             "a ∪ b",
             va + vb - shared,
-            topo::union_with(a, b, &none, tol),
+            topo::union(a, b, tol),
         ),
         (
             "b ∪ a",
             va + vb - shared,
-            topo::union_with(b, a, &none, tol),
+            topo::union(b, a, tol),
         ),
-        ("a ∖ b", va - shared, topo::subtract_with(a, b, &none, tol)),
-        ("b ∖ a", vb - shared, topo::subtract_with(b, a, &none, tol)),
-        ("a ∩ b", shared, topo::intersect_with(a, b, &none, tol)),
-        ("b ∩ a", shared, topo::intersect_with(b, a, &none, tol)),
+        ("a ∖ b", va - shared, topo::subtract(a, b, tol)),
+        ("b ∖ a", vb - shared, topo::subtract(b, a, tol)),
+        ("a ∩ b", shared, topo::intersect(a, b, tol)),
+        ("b ∩ a", shared, topo::intersect(b, a, tol)),
     ];
     for ((op, volume, out), want) in ops.into_iter().zip(wants) {
         check(&format!("{pose}, {op}"), out, (volume, va + vb), want);
@@ -599,8 +599,8 @@ fn a_large_ball_near_external_tangency_is_pinned() {
         )
     };
     for (op, out) in [
-        ("a ∪ b", topo::union_with(&a, &b, &none, tol)),
-        ("b ∪ a", topo::union_with(&b, &a, &none, tol)),
+        ("a ∪ b", topo::union(&a, &b, tol)),
+        ("b ∪ a", topo::union(&b, &a, tol)),
     ] {
         check(
             &format!("r 50, {op}"),
@@ -611,19 +611,19 @@ fn a_large_ball_near_external_tangency_is_pinned() {
     }
     check(
         "r 50, a ∖ b",
-        topo::subtract_with(&a, &b, &none, tol),
+        topo::subtract(&a, &b, tol),
         (va - shared, va + vb),
         Draws,
     );
     check(
         "r 50, b ∖ a",
-        topo::subtract_with(&b, &a, &none, tol),
+        topo::subtract(&b, &a, tol),
         (vb - shared, va + vb),
         Draws,
     );
     for (op, out) in [
-        ("a ∩ b", topo::intersect_with(&a, &b, &none, tol)),
-        ("b ∩ a", topo::intersect_with(&b, &a, &none, tol)),
+        ("a ∩ b", topo::intersect(&a, &b, tol)),
+        ("b ∩ a", topo::intersect(&b, &a, tol)),
     ] {
         let line = outcome(out, shared, tol);
         assert!(

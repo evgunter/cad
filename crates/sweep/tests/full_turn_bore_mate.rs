@@ -105,7 +105,7 @@ fn unions_both_ways(c: &AtRestBody<f64>, p: &AtRestBody<f64>, h: f64, tag: &str)
     for (order, a, b) in [("collar ∪ shaft", c, p), ("shaft ∪ collar", p, c)] {
         let tag = format!("{tag}, {order}");
         let decls = wall_decls(a, b);
-        let bb = match topo::union_with(a, b, &decls, tol) {
+        let bb = match topo::union(a, b, tol) {
             Ok(BooleanResult::Body(bb)) => bb,
             other => panic!("{tag}: the mate does not union: {:?}", other.err()),
         };
@@ -228,7 +228,7 @@ fn the_joins_union_records_each_declared_rest_at_the_carrier_ladder() {
             3,
             "{order}: the bore against three wall thirds"
         );
-        let bb = match topo::union_with(a, b, &decls, tol) {
+        let bb = match topo::union(a, b, tol) {
             Ok(BooleanResult::Body(bb)) => bb,
             other => panic!("{order}: the mate does not union: {:?}", other.err()),
         };

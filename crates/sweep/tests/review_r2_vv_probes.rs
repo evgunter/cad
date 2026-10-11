@@ -203,9 +203,9 @@ fn roof_cross(union: bool) -> Option<Shape> {
     let (w1, w2) = (finished("roof x", w1), finished("roof y", w2));
     let d = BooleanDeclarations::default();
     let r = if union {
-        topo::union_with(&w1, &w2, &d, tol())
+        topo::union(&w1, &w2, tol())
     } else {
-        topo::intersect_with(&w1, &w2, &d, tol())
+        topo::intersect(&w1, &w2, tol())
     };
     let body = match r {
         Ok(r) => r.body()?.body.clone(),
@@ -302,9 +302,9 @@ fn pose_lines(s: &Shape, place: &str, f: [V3; 3], what: &str) -> Vec<String> {
     let mut out = Vec::new();
     for (order, x, y, vx) in [("sc", &s.body, &cube, va), ("cs", &cube, &s.body, vb)] {
         let ops: [(&str, Op, f64); 3] = [
-            ("U", topo::union_with, va + vb - common),
-            ("I", topo::intersect_with, common),
-            ("S", topo::subtract_with, vx - common),
+            ("U", topo::union, va + vb - common),
+            ("I", topo::intersect, common),
+            ("S", topo::subtract, vx - common),
         ];
         for (op, run, want) in ops {
             let tag = format!("{} {place} {what} {order} {op}", s.name);

@@ -104,17 +104,17 @@ fn assert_six(
         (
             "a ∪ b",
             va + vb - shared,
-            topo::union_with(a, b, &none, tol),
+            topo::union(a, b, tol),
         ),
         (
             "b ∪ a",
             va + vb - shared,
-            topo::union_with(b, a, &none, tol),
+            topo::union(b, a, tol),
         ),
-        ("a ∖ b", va - shared, topo::subtract_with(a, b, &none, tol)),
-        ("b ∖ a", vb - shared, topo::subtract_with(b, a, &none, tol)),
-        ("a ∩ b", shared, topo::intersect_with(a, b, &none, tol)),
-        ("b ∩ a", shared, topo::intersect_with(b, a, &none, tol)),
+        ("a ∖ b", va - shared, topo::subtract(a, b, tol)),
+        ("b ∖ a", vb - shared, topo::subtract(b, a, tol)),
+        ("a ∩ b", shared, topo::intersect(a, b, tol)),
+        ("b ∩ a", shared, topo::intersect(b, a, tol)),
     ];
     for ((op, volume, out), want) in ops.into_iter().zip(wants) {
         let label = format!("{pose}, {op}");
@@ -329,12 +329,12 @@ fn a_ring_inside_a_sphere_island_moves_and_stops_at_the_role_read() {
     let ball = ball_y(0.5, Vec3::new(0.3, 2.0, 1.2));
     let none = BooleanDeclarations::none();
     for (op, out) in [
-        ("a ∪ b", topo::union_with(&slab, &ball, &none, tol)),
-        ("b ∪ a", topo::union_with(&ball, &slab, &none, tol)),
-        ("a ∖ b", topo::subtract_with(&slab, &ball, &none, tol)),
-        ("b ∖ a", topo::subtract_with(&ball, &slab, &none, tol)),
-        ("a ∩ b", topo::intersect_with(&slab, &ball, &none, tol)),
-        ("b ∩ a", topo::intersect_with(&ball, &slab, &none, tol)),
+        ("a ∪ b", topo::union(&slab, &ball, tol)),
+        ("b ∪ a", topo::union(&ball, &slab, tol)),
+        ("a ∖ b", topo::subtract(&slab, &ball, tol)),
+        ("b ∖ a", topo::subtract(&ball, &slab, tol)),
+        ("a ∩ b", topo::intersect(&slab, &ball, tol)),
+        ("b ∩ a", topo::intersect(&ball, &slab, tol)),
     ] {
         assert!(
             matches!(
@@ -514,12 +514,12 @@ fn a_path_escalating_at_a_graze_hands_the_winding_to_the_next() {
         // ring is read — on main too.
         let none = BooleanDeclarations::none();
         for (op, got) in [
-            ("a ∪ b", topo::union_with(&a, &b, &none, tol)),
-            ("b ∪ a", topo::union_with(&b, &a, &none, tol)),
-            ("a ∖ b", topo::subtract_with(&a, &b, &none, tol)),
-            ("b ∖ a", topo::subtract_with(&b, &a, &none, tol)),
-            ("a ∩ b", topo::intersect_with(&a, &b, &none, tol)),
-            ("b ∩ a", topo::intersect_with(&b, &a, &none, tol)),
+            ("a ∪ b", topo::union(&a, &b, tol)),
+            ("b ∪ a", topo::union(&b, &a, tol)),
+            ("a ∖ b", topo::subtract(&a, &b, tol)),
+            ("b ∖ a", topo::subtract(&b, &a, tol)),
+            ("a ∩ b", topo::intersect(&a, &b, tol)),
+            ("b ∩ a", topo::intersect(&b, &a, tol)),
         ] {
             let err = got.err().map(|e| format!("{e:?}"));
             assert!(

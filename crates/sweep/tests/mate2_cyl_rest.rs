@@ -51,7 +51,7 @@ fn threaded_collar_partial_engagement_unions() {
     let p = finished("the peg", peg(0.5, 2.0), Tol::witness());
     let decls = wall_decls(&c, &p);
     assert_eq!(decls.coincident_faces.len(), 9, "3 bore faces against 3");
-    let out = topo::union_with(&c, &p, &decls, Tol::witness());
+    let out = topo::union(&c, &p, Tol::witness());
     println!("partial engagement: {:?}", out.as_ref().err());
     let bb = boolean_body(out.expect("the cylindrical Rest unions"));
     let body = bb.body;
@@ -81,7 +81,7 @@ fn threaded_collar_full_engagement_unions() {
     let c = finished("the collar", collar(), Tol::witness());
     let p = finished("the peg", peg(1.0, 1.0), Tol::witness());
     let decls = wall_decls(&c, &p);
-    let out = topo::union_with(&c, &p, &decls, Tol::witness());
+    let out = topo::union(&c, &p, Tol::witness());
     println!("full engagement: {:?}", out.as_ref().err());
     let body = body_of(out.expect("full engagement unions"));
     assert_additive(volume(&body), volume(&c), volume(&p));
@@ -135,7 +135,7 @@ fn seated_collar_with_a_planar_rest_unions() {
         plane_face(&seated, 1.0, true),
         ContactClass::Rest,
     ));
-    let out = topo::union_with(&c, &seated, &decls, Tol::witness());
+    let out = topo::union(&c, &seated, Tol::witness());
     println!("control (planar Rest present): {:?}", out.as_ref().err());
     let body = body_of(out.expect("the control mate unions"));
     assert_additive(volume(&body), volume(&c), volume(&seated));
