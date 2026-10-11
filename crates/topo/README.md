@@ -428,10 +428,12 @@ cylinder arm is built (C3); sphere, cone and torus keep the typed
 divergence, with that shape recorded at the refusal site.
 
 **Attribution at the assembly layer.** Each live `Rest` mate is minted as
-a face–face record (a patch). Findings attribute to mates as Declined, Unattributed
-or Refuted (`StaleContactDeclaration`); all-Declined is the `Uncertified`
-frontier, and any Unattributed is a hard `AtRest` error
-(`crates/editor-core/ASSEMBLY.md`).
+a face–face record (a patch). Findings attribute to mates as Declined
+or Refuted (`StaleContactDeclaration`), or to no mate; all-Declined is
+the `Uncertified` frontier, and any other is a hard `AtRest` error
+(`crates/editor-core/ASSEMBLY.md`). A touch between two copies that no
+mate relates is no finding there: the gather's census records it
+(`record_at_rest`).
 
 ## Crossing backability (MATE-4B-CROSSING)
 

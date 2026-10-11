@@ -637,8 +637,8 @@ the declarations its own producer minted for it, so
 `body.validate_pseudomanifold()` certifies against those and the
 choice above is already made. An `assemble`d at-rest body arrives
 with its mates' records and passes over its seats; `product`, which
-gathers the same solids and declares nothing, reports every seat as
-an undeclared contact.
+gathers the same solids and carries no records, reports every seat
+as a contact no record backs.
 
 ```
 use pncad::prelude::*;

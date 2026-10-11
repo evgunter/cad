@@ -397,15 +397,26 @@ pub(crate) fn partition<T: LocalizeLane>(
     // reach of each other — rides the pair's findings as evidence: often
     // the same overlap, but not always (a pin pressed into one bore and
     // slipped into another), so a quiet finding requires each such
-    // verdict to lie on its own overlap (`covered`). A pair the census
-    // decided nothing about stays refused as it left it.
+    // verdict to lie on its own overlap (`covered`). So does a touch
+    // between them, which the census records for no interfering pair
+    // (`topo::record_at_rest`), and which keeps the finding loud. A pair
+    // the census decided nothing about stays refused as it left it.
+    let pair_of = |x: SolidKey, y: SolidKey| {
+        let (x, y) = (*copy_of.get(&x)?, *copy_of.get(&y)?);
+        (x != y).then_some((x.min(y), x.max(y)))
+    };
     let undecided_pair = |error: &ValidationError| match error {
         ValidationError::CensusUndecidable { a, b, .. } => {
-            let (x, y) = (
-                *copy_of.get(&solid_of(&product.body, *a)?)?,
-                *copy_of.get(&solid_of(&product.body, *b)?)?,
-            );
-            (x != y).then_some((x.min(y), x.max(y)))
+            pair_of(solid_of(&product.body, *a)?, solid_of(&product.body, *b)?)
+        }
+        touch @ ValidationError::UnrecordedContact { .. } => {
+            let [x, y] = topo::census_contact_row(touch)?
+                .cells
+                .map(|cell| match cell {
+                    topo::RowCell::Result { cell } => cell_solid(&product.body, cell),
+                    topo::RowCell::Input { .. } | topo::RowCell::Tool => None,
+                });
+            pair_of(x?, y?)
         }
         _ => None,
     };
@@ -580,6 +591,9 @@ fn localize(
                 .into_iter()
                 .all(|f| component.sources.iter().any(|(_, s)| s == f)),
             ValidationError::CensusUndecidable { .. } => false,
+            // A touch between the two copies is no part of the overlap
+            // an assertion bounds, and no assertion speaks for it here.
+            ValidationError::UnrecordedContact { .. } => topo::census_contact_row(error).is_none(),
             _ => true,
         })
     };

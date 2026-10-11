@@ -96,7 +96,7 @@
 //! / [`census_traces_planted`]. It is read at three sites, and `None`
 //! is the same typed non-answer at each, at whatever scalar the pass
 //! runs: the conformal face-pair arm ([`sweep_conformal_patches`]) and
-//! the declared-record confirm arm ([`confirm_curve_and_patch_records`],
+//! the record confirm arm ([`confirm_curve_and_patch_records`],
 //! its Door 2) each push [`ValidationError::CensusLaneUnsupported`]
 //! naming the pair instead of examining it, and the region-confined
 //! rungs' backing consult ([`pair_region_verified`], for a crossing and
@@ -795,7 +795,7 @@ fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
     );
     sweep_conformal_patches(body, &geo, &declared, band, region, &mut errors);
     sweep_cross_solid_backstop(body, &geo, &declared, band, tol, &cands, trace, &mut errors);
-    confirm_declarations(body, &geo, contacts, band, region, &mut errors);
+    confirm_records(body, &geo, contacts, band, region, &mut errors);
     errors
 }
 
@@ -849,7 +849,7 @@ impl Declared {
                     out.ee.insert((b, a));
                 }
                 // An edge–face record backs no event: its confirm pass
-                // refuses it ([`confirm_declarations`]).
+                // refuses it ([`confirm_records`]).
                 ContactKind::EdgeFace(..) => {}
                 ContactKind::FaceFace(a, b) => {
                     out.faces.insert((a, b));
@@ -1074,7 +1074,7 @@ fn pair_holds_edges<T: Decide>(
 /// and that asymmetry (loud doors at the confirm pass, a silent
 /// `false` here) is argued rather than accidental: every pair this
 /// rung consults comes out of `Declared::faces`, which is built from
-/// exactly the records [`confirm_declarations`] walks, so the same
+/// exactly the records [`confirm_records`] walks, so the same
 /// doors run on the same pair once per validation with full typed
 /// reporting there; a second report from inside a backing consult
 /// would duplicate every refusal once per crossing the pair is asked
@@ -3684,8 +3684,8 @@ impl Undecided {
                  or move them until their bounding boxes no longer overlap"
             }
             Self::DeclaredFacePair => {
-                "a declared contact between their faces touches only at corners the check \
-                 cannot yet place. There is no way through yet for this declared contact"
+                "a contact record between their faces touches only at corners the check \
+                 cannot yet place. There is no way through yet for this record"
             }
             Self::AllOn => {
                 "every corner of one lies on the other's boundary, so the corners cannot \
@@ -6223,7 +6223,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
 /// The confirmation direction of the certification diff: every
 /// declaration must have a geometric witness — dead keys, equal keys,
 /// and coincidence-free records are stale, typed.
-fn confirm_declarations<T: Decide>(
+fn confirm_records<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     contacts: &ContactRecords,

@@ -22,10 +22,13 @@
 //!   the contacts channel instead of dying at the seam. Construction
 //!   composes.
 //! - **Verification (D-3)**: the minted set goes through the kernel's
-//!   own tier-3′ door, [`topo::validate_pseudomanifold`]. Declared
-//!   contacts certify through the per-class doors; undeclared ones are
-//!   the hard error — F1's scan-to-bless ban, now executing ACROSS the
-//!   document seam exactly as it does within it.
+//!   own tier-3′ door, [`topo::validate_pseudomanifold`], run once by
+//!   the gather. Declared contacts certify through the per-class
+//!   doors; a touch between two copies that no record backs is
+//!   recorded as a row of the product and a record citing it
+//!   ([`topo::record_at_rest`]), which the `unproven-coincidence`
+//!   check reads (D1 (iii), D10), and one inside a copy is that copy's
+//!   defect.
 //!
 //! # What this module does NOT do
 //!
@@ -909,7 +912,7 @@ pub enum AssemblyError {
     /// because it is a distinct fact, and a caller matching this enum
     /// must say which of the two they mean.
     ///
-    /// Nothing was refuted and nothing was undeclared: every finding
+    /// Nothing was refuted and nothing went unrecorded: every finding
     /// is the census DECLINING to certify a PAIR that a declaration
     /// names ([`Relation::Declined`]) — which is what [`attribute`]
     /// establishes, exactly — so the assembly is unrefuted and

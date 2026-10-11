@@ -21,9 +21,9 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions,
-    Formula, MateFrame, MatePrimitive, MateRole, Node, PartSelect, PatternKind, ProfileDoc,
-    RecipeNodeId, SitedFace, SplitError, StableName, member_of,
+    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions, Formula,
+    MateFrame, MatePrimitive, MateRole, Node, PartSelect, PatternKind, ProfileDoc, RecipeNodeId,
+    SitedFace, SplitError, StableName, member_of,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
