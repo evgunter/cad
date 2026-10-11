@@ -1,0 +1,5 @@
+fork: symbolic-door-budget (INTENT, the-symbolic-door-s-budget-and-the-theorem-cache Q1)
+drawn: 2026-10-11T05:33Z, od -An -tu1 -N1 /dev/urandom
+byte: 172 (even)
+mapping: A = Opus designer, B = Fable designer
+protocol: 26db1af89e
