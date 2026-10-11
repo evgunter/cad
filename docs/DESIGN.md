@@ -276,8 +276,10 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    a pole or apex), **prefer-intrinsic enforcement** (D2) and the
    **positive-volume orientation invariant** (exact-B-rep signed volume
    definitely-negative ⇒ invalid; margin V/A_total, a length; zero and
-   escalated exempt — an orientation probe, not a thinness gate, so
-   ε-tightening never flips valid→invalid). Laminae live here, not at
+   escalated exempt — at rest an orientation probe, not a thinness
+   gate, so ε-tightening never flips valid→invalid; a boolean's door
+   reads a solid's only shell certified in band as the in-band shell
+   it is, D10's Booleans clause). Laminae live here, not at
    tier 2: two faces glued along their whole shared boundary is a
    two-hemisphere ball's incidence structure, so a zero-volume lamina
    is a geometric defect, not a topological one. Global

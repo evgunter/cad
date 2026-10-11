@@ -4919,6 +4919,18 @@ pub fn validate_geometric_certificate<
     body: &Body<T>,
     tol: Tol,
 ) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
+    validate_geometric_kept(body, tol).map(|(certificate, _)| certificate)
+}
+
+/// [`validate_geometric_certificate`], with the one-shell solids its
+/// check 7 passed as slivers, each its solid's only shell
+/// ([`InBandShell`]).
+fn validate_geometric_kept<
+    T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
+>(
+    body: &Body<T>,
+    tol: Tol,
+) -> Result<(crate::props::SignCertificate<'_, T>, Vec<InBandShell>), Vec<ValidationError>> {
     // The structural phase runs WITH check 2's plane x NURBS lane
     // injected, which is what keeps this composed door re-deriving the
     // M7-8 certificate class at rest; the public structural door,
@@ -5096,17 +5108,17 @@ fn validate_geometric_certified<
 >(
     body: &Body<T>,
     tol: Tol,
-) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
+) -> Result<(crate::props::SignCertificate<'_, T>, Vec<InBandShell>), Vec<ValidationError>> {
     let band = match Band::linear(tol) {
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
     let quad = Some(CertifiedLanes::<T>::held().quad);
-    let certificate = plus_v_by_sign(body, band, tol, quad)?;
+    let kept = plus_v_by_sign(body, band, tol, quad)?;
     // Check 10, behind a clean check 7 (`shell_winding_errors`).
     let errors = shell_winding_errors(body, band, tol, quad);
     if errors.is_empty() {
-        Ok(certificate)
+        Ok(kept)
     } else {
         Err(errors)
     }
@@ -5153,19 +5165,20 @@ fn validate_geometric_certified<
 /// partition the face arena, which [`crate::SignCertificate::assembled`]
 /// asserts — and `Err` is check 7's verdicts, never empty (it is built
 /// only when one was pushed). There is no state where the check came
-/// back clean without a certificate to hand on.
+/// back clean without a certificate to hand on. Beside it, `Ok` lists
+/// the shells it passed as slivers, each its solid's only one
+/// ([`InBandShell`]).
 fn plus_v_by_sign<'b, T: geom_core::Decide>(
     body: &'b Body<T>,
     band: Band,
     tol: Tol,
     quad: Option<crate::props::QuadLane<T>>,
-) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
+) -> Result<(crate::props::SignCertificate<'b, T>, Vec<InBandShell>), Vec<ValidationError>> {
     let mut errors = Vec::new();
     let mut parts = Vec::new();
+    let mut slivers = Vec::new();
     for (solid, faces) in check7_subjects(body) {
-        // Whether the last round's sign was unresolved rather than in
-        // band ([`crate::props::Certified::Unresolved`]).
-        let unresolved = core::cell::Cell::new(false);
+        let last = core::cell::Cell::new(OpenRound::AboutTheBody(None));
         match crate::props::sign_walk(
             body,
             &faces,
@@ -5173,10 +5186,22 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
             tol,
             quad,
             quad,
-            |round| plus_v_round(round.certify(PLUS_V, PLUS_V_EXACT), &unresolved),
-            |refusal| plus_v_at_target(refusal, unresolved.get()),
+            |round| plus_v_round(round.certify(PLUS_V, PLUS_V_EXACT), &last),
+            |refusal| plus_v_at_target(refusal, last.get()),
         ) {
             Ok((verdict, certificate)) => {
+                if let (PlusVVerdict::Sliver(sliver), Some([shell])) = (
+                    &verdict,
+                    body.solids
+                        .get(solid)
+                        .map(|record| record.shells.as_slice()),
+                ) {
+                    slivers.push(InBandShell {
+                        solid,
+                        shell: *shell,
+                        sliver: *sliver,
+                    });
+                }
                 errors.extend(plus_v_errors(solid, &verdict));
                 parts.push(certificate);
             }
@@ -5184,8 +5209,9 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
         }
     }
     if errors.is_empty() {
-        Ok(crate::props::SignCertificate::assembled(
-            body, band, tol, quad, parts,
+        Ok((
+            crate::props::SignCertificate::assembled(body, band, tol, quad, parts),
+            slivers,
         ))
     } else {
         Err(errors)
@@ -5508,6 +5534,40 @@ pub(crate) enum PlusVVerdict {
     /// measure about the body), so the straddle is not known to be the
     /// body's own rounding.
     Unresolved,
+    /// The certified reading lies wholly inside one sliver band: the
+    /// invariant exempts it and the solid passes, a sliver at this
+    /// tolerance. A boolean may not return it ([`InBandShell`]).
+    Sliver(crate::props::CertifiedSliver),
+}
+
+/// **How check 7's last open round left the sign**, for
+/// [`plus_v_at_target`] to read once the schedule runs out.
+#[derive(Clone, Copy, Debug)]
+enum OpenRound {
+    /// Taken about the body ([`Certified::Open`]): in band, or straddling
+    /// zero by the body's own rounding; with the certified sliver where
+    /// the reading lies wholly in band.
+    AboutTheBody(Option<crate::props::CertifiedSliver>),
+    /// Straddling zero at a face's world-origin width.
+    Unresolved,
+}
+
+/// **A shell certified wholly in band**, which a boolean's result may
+/// not hold (D10, Booleans): check 10's role read of a shell of a
+/// solid of several ([`ValidationError::ShellRoleUndecided`]), or check
+/// 7's of a solid's only shell ([`AtRestBody::slivers`]), which the
+/// at-rest invariant passes. A solid of several shells whose total is
+/// in band while each shell's role decides is neither, and nothing
+/// refuses it
+/// (`work/flush/a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses.md`).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct InBandShell {
+    /// Its solid.
+    pub(crate) solid: SolidKey,
+    /// The shell.
+    pub(crate) shell: crate::entity::ShellKey,
+    /// The certified reading of its `V/A`.
+    pub(crate) sliver: crate::props::CertifiedSliver,
 }
 
 /// Check 7's names: the bracket's high end under `positive_volume`, the
@@ -5534,40 +5594,40 @@ pub(crate) fn plus_v_read<T: geom_core::Decide>(
 
 /// **What a round that decided nothing means once there is nothing
 /// left to refine** — the sign-level walk's `last_word`, handed the
-/// outstanding target refusal and whether the last round's sign was
-/// unresolved. Undecided with the schedule run out is not a pass when
+/// outstanding target refusal and how the last round left the sign. Undecided with the schedule run out is not a pass when
 /// the quadrature still owes a refusal: it never produced an enclosure
 /// tight enough to decide, and the body is exactly as unvalidatable as
 /// the reporting door says it is. Nor is it a pass when the enclosure
 /// kept a face's world-origin width: a straddle there may be
 /// that width and not the body, and is escalated. A sign in band or
 /// straddling zero by the body's own rounding is what the invariant
-/// exempts.
+/// exempts; one certified wholly in band is a sliver.
 fn plus_v_at_target(
     refusal: Option<crate::props::MassPropsError>,
-    unresolved: bool,
+    last: OpenRound,
 ) -> PlusVVerdict {
-    match (refusal, unresolved) {
+    match (refusal, last) {
         (Some(source), _) => PlusVVerdict::Uncomputable(source),
-        (None, true) => PlusVVerdict::Unresolved,
-        (None, false) => PlusVVerdict::Pass,
+        (None, OpenRound::Unresolved) => PlusVVerdict::Unresolved,
+        (None, OpenRound::AboutTheBody(Some(sliver))) => PlusVVerdict::Sliver(sliver),
+        (None, OpenRound::AboutTheBody(None)) => PlusVVerdict::Pass,
     }
 }
 
 /// **Check 7's reading of one round** ([`plus_v_by_sign`]'s `settle`):
-/// a certified role decides; an open round decides nothing, and
-/// `unresolved` records whether it was in band or unresolved, for
-/// [`plus_v_at_target`] to read once the schedule runs out.
-fn plus_v_round(certified: Certified, unresolved: &core::cell::Cell<bool>) -> Option<PlusVVerdict> {
+/// a certified role decides; an open round decides nothing, and `last`
+/// records how it left the sign, for [`plus_v_at_target`] to read once
+/// the schedule runs out.
+fn plus_v_round(certified: Certified, last: &core::cell::Cell<OpenRound>) -> Option<PlusVVerdict> {
     match certified {
         Certified::Role(crate::props::ShellRole::Outer) => Some(PlusVVerdict::Pass),
         Certified::Role(crate::props::ShellRole::Void) => Some(PlusVVerdict::Refuse),
-        Certified::Open(_) => {
-            unresolved.set(false);
+        Certified::Open(unread) => {
+            last.set(OpenRound::AboutTheBody(unread.sliver()));
             None
         }
         Certified::Unresolved(_) => {
-            unresolved.set(true);
+            last.set(OpenRound::Unresolved);
             None
         }
         Certified::Refused(source) => Some(PlusVVerdict::Uncomputable(source)),
@@ -5577,7 +5637,7 @@ fn plus_v_round(certified: Certified, unresolved: &core::cell::Cell<bool>) -> Op
 /// Check 7's verdict as the tier's error vector.
 fn plus_v_errors(solid: SolidKey, verdict: &PlusVVerdict) -> Vec<ValidationError> {
     match verdict {
-        PlusVVerdict::Pass => Vec::new(),
+        PlusVVerdict::Pass | PlusVVerdict::Sliver(_) => Vec::new(),
         PlusVVerdict::Refuse => vec![ValidationError::NegativeVolume { solid }],
         PlusVVerdict::Uncomputable(source) => vec![ValidationError::VolumeUncomputable {
             solid,
@@ -7130,7 +7190,7 @@ pub(crate) fn tier3_local_checks_marked<
         // through, so the two tiers cannot disagree on it at one lane.
         if let PlusVCheck::Through(quad) = plus_v {
             match plus_v_by_sign(body, band, tol, quad) {
-                Ok(derived) => certificate = Some(derived),
+                Ok((derived, _)) => certificate = Some(derived),
                 Err(verdicts) => errors.extend(verdicts),
             }
         }
@@ -8964,6 +9024,8 @@ pub fn validate_pseudomanifold_certificate_structural<
 pub struct AtRestBody<T: Real> {
     body: Body<T>,
     outcome: AtRestOutcome,
+    /// The one-shell solids check 7 passed as slivers.
+    slivers: Vec<InBandShell>,
 }
 
 impl<T: Real> AtRestBody<T> {
@@ -8978,10 +9040,11 @@ impl<T: Real> AtRestBody<T> {
     where
         T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
     {
-        validate_geometric(&body, tol)?;
+        let slivers = validate_geometric_kept(&body, tol)?.1;
         Ok(Self {
             body,
             outcome: AtRestOutcome::Validated,
+            slivers,
         })
     }
 
@@ -8992,7 +9055,16 @@ impl<T: Real> AtRestBody<T> {
         Self {
             body,
             outcome: AtRestOutcome::NotRunAtThisScalar,
+            slivers: Vec::new(),
         }
+    }
+
+    /// The shells the gate passed as slivers, each its solid's only
+    /// shell: check 7 certified each one's volume sign wholly in band,
+    /// which the invariant exempts at rest. Empty where the gate did
+    /// not run.
+    pub(crate) fn slivers(&self) -> &[InBandShell] {
+        &self.slivers
     }
 
     /// What the gate said: [`AtRestOutcome::Validated`] exactly when
@@ -10149,12 +10221,12 @@ mod tests {
         };
         let solid = SolidKey::default();
         let at_target = |certified| {
-            let unresolved = core::cell::Cell::new(false);
+            let last = core::cell::Cell::new(OpenRound::AboutTheBody(None));
             assert!(
-                plus_v_round(certified, &unresolved).is_none(),
+                plus_v_round(certified, &last).is_none(),
                 "an open round decides nothing"
             );
-            plus_v_errors(solid, &plus_v_at_target(None, unresolved.get()))
+            plus_v_errors(solid, &plus_v_at_target(None, last.get()))
         };
         assert_eq!(at_target(Certified::Open(unread())), Vec::new(), "in band");
         assert_eq!(
