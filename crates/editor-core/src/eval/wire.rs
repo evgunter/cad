@@ -88,6 +88,8 @@ pub(crate) struct OpOut<T: Decide> {
     /// What each input a carried record cites is
     /// (`NodeValue::cited_inputs`).
     pub cited_inputs: Arc<[crate::coincide::CitedInput]>,
+    /// A placement's solved motion (`NodeValue::motion`).
+    pub motion: Option<Affine3<T>>,
 }
 
 impl<T: Decide> OpOut<T> {
@@ -102,7 +104,13 @@ impl<T: Decide> OpOut<T> {
             parts: 1,
             coincidences: Arc::new([]),
             cited_inputs: Arc::new([]),
+            motion: None,
         }
+    }
+
+    /// This output, a placement's, sitting at `motion`.
+    fn moved(self, motion: Option<Affine3<T>>) -> Self {
+        Self { motion, ..self }
     }
 
     /// This output, its records' carried citations naming `inputs` by
@@ -409,7 +417,7 @@ where
                 })
                 .collect::<Result<Vec<_>, NodeErrorKind>>()?;
             let map = placement_map(id, env.poses);
-            wire_place(id, &reads, map.as_ref(), tol)
+            wire_place(id, &reads, map.as_ref(), tol).map(|out| out.moved(map))
         }
         // The world DENOTES NO BODY and defines no variable.
         Node::World => Ok(OpOut::plain(ValuePayload::World, names::empty())),
@@ -470,7 +478,7 @@ where
                 return Err(NodeErrorKind::Mate(Box::new(fault.clone())));
             }
             let map = placement_map(id, env.poses);
-            wire_instantiate_part(id, doc_ref, interface, map, env, tol)
+            wire_instantiate_part(id, doc_ref, interface, map, env, tol).map(|out| out.moved(map))
         }
     }
 }
@@ -618,6 +626,7 @@ where
         // The part's own rows are its document's, read there.
         coincidences: Arc::new([]),
         cited_inputs: Arc::new([crate::coincide::CitedInput::Part(*doc_ref)]),
+        motion: None,
     })
 }
 

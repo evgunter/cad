@@ -219,6 +219,17 @@ pub enum PoseDef<R = crate::VarId, S = crate::VarId> {
         /// How far, along the normal.
         by: S,
     },
+    /// **A pose of a copied shape as the copy carries it** (FORK-S3M):
+    /// `pose`, read off a shape a placement copies, moved by the motion
+    /// that placement's bundle solved to, keyed by the placement whose
+    /// copies `copy` reads. Its kind is its pose's.
+    Carried {
+        /// The placement's copies, a `Body` or `Bodies` read of a
+        /// placement's output.
+        copy: R,
+        /// The pose carried.
+        pose: R,
+    },
     /// **A coarser pose of a finer one**: a frame's xy-plane, z-axis or
     /// origin, or a plane's or an axis's direction.
     Project {
@@ -294,6 +305,8 @@ pub enum PoseRead {
     Pose,
     /// [`PoseDef::Standoff`]'s plane.
     Plane,
+    /// The copies a [`PoseDef::Carried`] pose is carried by.
+    Copy,
 }
 
 impl PoseRead {
@@ -310,6 +323,7 @@ impl PoseRead {
             Self::B => "second plane",
             Self::Pose => "pose",
             Self::Plane => "plane",
+            Self::Copy => "copy",
         }
     }
 }
@@ -373,6 +387,8 @@ pub enum PoseAdmits {
     Sensed,
     /// A frame, a plane or an axis: what has a coarser projection.
     Projected,
+    /// Any pose: what a copy carries.
+    Carried,
 }
 
 impl PoseAdmits {
@@ -385,6 +401,7 @@ impl PoseAdmits {
             Self::Centre => &[K::Face, K::Edge, K::Vertex],
             Self::Sensed => &[K::Direction, K::Axis, K::Plane, K::Frame],
             Self::Projected => &[K::Frame, K::Plane, K::Axis],
+            Self::Carried => &[K::Point, K::Direction, K::Axis, K::Plane, K::Frame],
         }
     }
 }
@@ -435,6 +452,12 @@ pub enum PoseFault {
     },
     /// The definition reaches itself through the poses it reads.
     Cycle,
+    /// A carried pose's copy is no placement's output: only a
+    /// placement's copies carry a pose.
+    NotACopy {
+        /// The variable read as the copy.
+        var: crate::VarId,
+    },
 }
 
 impl core::fmt::Display for PoseFault {
@@ -474,6 +497,10 @@ impl core::fmt::Display for PoseFault {
                 crate::sentence::article(&defined.to_string())
             ),
             Self::Cycle => f.write_str("it reaches itself through the poses it reads"),
+            Self::NotACopy { var } => write!(
+                f,
+                "it carries its pose by {var}, which is no placement's copies"
+            ),
             Self::Projection { from, to } => write!(
                 f,
                 "{} {from} has no {to} to project to (a frame projects to its plane, axis or \
@@ -496,8 +523,8 @@ pub fn projects(from: crate::VarKind, to: crate::VarKind) -> bool {
 }
 
 impl<R, S> PoseDef<R, S> {
-    /// **The kind this definition defines**, `None` for a flip, whose
-    /// kind is its read's.
+    /// **The kind this definition defines**, `None` for a flip and a
+    /// carried pose, whose kind is their pose read's.
     #[must_use]
     pub fn kind(&self) -> Option<crate::VarKind> {
         use crate::VarKind as K;
@@ -508,7 +535,7 @@ impl<R, S> PoseDef<R, S> {
             Self::Through { .. } => K::Frame,
             Self::InFrame { coords, .. } => coords.kind(),
             Self::Project { to, .. } => *to,
-            Self::Flip { .. } => return None,
+            Self::Flip { .. } | Self::Carried { .. } => return None,
         })
     }
 
@@ -532,6 +559,10 @@ impl<R, S> PoseDef<R, S> {
             ],
             Self::Flip { pose } => vec![(PoseRead::Pose, pose, Pose(PoseAdmits::Sensed))],
             Self::Standoff { plane, .. } => vec![(PoseRead::Plane, plane, Is(K::Plane))],
+            Self::Carried { copy, pose } => vec![
+                (PoseRead::Copy, copy, crate::SlotKind::Placeable),
+                (PoseRead::Pose, pose, Pose(PoseAdmits::Carried)),
+            ],
             Self::Project { of, .. } => vec![(PoseRead::Of, of, Pose(PoseAdmits::Projected))],
         }
     }
@@ -548,6 +579,7 @@ impl<R, S> PoseDef<R, S> {
             | Self::Through { .. }
             | Self::Meet { .. }
             | Self::Flip { .. }
+            | Self::Carried { .. }
             | Self::Project { .. } => Vec::new(),
         }
     }
@@ -592,6 +624,10 @@ impl<R, S> PoseDef<R, S> {
             Self::Standoff { plane, by } => PoseDef::Standoff {
                 plane: read(PoseRead::Plane, plane)?,
                 by: scalar(PoseSlot::By, by)?,
+            },
+            Self::Carried { copy, pose } => PoseDef::Carried {
+                copy: read(PoseRead::Copy, copy)?,
+                pose: read(PoseRead::Pose, pose)?,
             },
             Self::Project { of, to } => PoseDef::Project {
                 of: read(PoseRead::Of, of)?,

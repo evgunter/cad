@@ -655,6 +655,26 @@ fn first_pose_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 }
                 _ => {}
             },
+            PoseDef::Carried { copy, pose } => {
+                if snapshot.var(*copy).is_some()
+                    && !matches!(
+                        snapshot
+                            .operation_of(*copy)
+                            .and_then(|at| snapshot.node(at)),
+                        Some(crate::Node::Place { .. } | crate::Node::InstantiatePart { .. })
+                    )
+                {
+                    return Some(PoseFault::NotACopy { var: *copy });
+                }
+                if let Some(held) = snapshot.var(*pose)
+                    && held.kind() != kind
+                {
+                    return Some(PoseFault::Kind {
+                        stored: kind,
+                        defined: held.kind(),
+                    });
+                }
+            }
             PoseDef::Project { of, to } => {
                 if let Some(held) = snapshot.var(*of)
                     && !crate::pose::projects(held.kind(), *to)
@@ -714,7 +734,13 @@ fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 // body read observes; each seat reading the selection
                 // is asked of the copy in the operand walk.
                 let narrow = crate::SlotKind::Is(crate::VarKind::Body);
-                let expected = if snapshot.nodes.values().any(|node| {
+                let instance = matches!(
+                    snapshot
+                        .operation_of(select.body)
+                        .and_then(|at| snapshot.node(at)),
+                    Some(crate::Node::InstantiatePart { .. })
+                );
+                let expected = if !instance && snapshot.nodes.values().any(|node| {
                     node.operand_rows().into_iter().any(|(slot, read)| {
                         read == id
                             && crate::edit::selection_body_kind(crate::SlotId::Operand(slot))

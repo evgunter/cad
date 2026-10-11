@@ -124,6 +124,9 @@ impl core::fmt::Display for Operand {
                     "{} {kind} defined here",
                     crate::sentence::article(&kind.to_string())
                 ),
+                None if matches!(def.as_ref(), crate::pose::PoseDef::Carried { .. }) => {
+                    f.write_str("a carried pose defined here")
+                }
                 None => f.write_str("a flipped pose defined here"),
             },
         }

@@ -608,6 +608,11 @@ pub struct NodeValue<T: Decide> {
     /// refuses ([`NodeErrorKind::ProductOperand`]); a reader of its
     /// geometry (a datum's face frame) reads it as it is.
     pub parts: usize,
+    /// **A placement's solved motion** (D10): where its copies sit
+    /// relative to the shapes they copy, `None` for the bit-exact
+    /// identity and for every value that is no placement's. A carried
+    /// pose reads it ([`crate::pose::PoseDef::Carried`]).
+    pub motion: Option<geom_core::Affine3<T>>,
     /// The node's verdict log (M4 PR 4, N5): every definite predicate
     /// decision made evaluating the node — those made before its
     /// content key (a profile's f64 precompute: the plane read, the
@@ -4440,6 +4445,7 @@ where
                 coincidences: out.coincidences,
                 cited_inputs: out.cited_inputs,
                 parts: out.parts,
+                motion: out.motion,
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
                 witness: WitnessSlot {},
@@ -4649,6 +4655,7 @@ mod tag {
             FLIP = 7,
             STANDOFF = 8,
             PROJECT = 9,
+            CARRIED = 10,
         }
         /// A pose kind, as a projection's target or in-frame
         /// coordinates' shape.

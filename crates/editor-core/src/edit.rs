@@ -1246,7 +1246,7 @@ fn lower_read<P: crate::ProfilePayload>(
             spoken,
             slot,
             body,
-            selection_body_kind(slot),
+            selection_body_admits(doc, slot, body),
             Reader::Observes,
             unresolved,
         )?;
@@ -1339,21 +1339,51 @@ fn mint_pose<P: crate::ProfilePayload>(
             }
             *to
         }
+        // A copy carries the pose: what it reads as the copy is a
+        // placement's copies.
+        PoseDef::Carried { copy, pose } => {
+            if !matches!(
+                doc.operation_of(*copy).and_then(|at| doc.node(at)),
+                Some(Node::Place { .. } | Node::InstantiatePart { .. })
+            ) {
+                return Err(shape(PoseFault::NotACopy { var: *copy }));
+            }
+            doc.var(*pose)
+                .map(Var::kind)
+                .unwrap_or_else(|| unreachable!("a lowered read is live"))
+        }
         other => other
             .kind()
-            .unwrap_or_else(|| unreachable!("every arm but a flip states its kind")),
+            .unwrap_or_else(|| unreachable!("every arm but a flip and a carried pose states its kind")),
     };
     mint_anonymous(doc, WrittenDef::Pose(kind, stored))
 }
 
 /// **What a selection authored at `slot` may be read in**: a `Body`, or
 /// at a mate side a `Bodies` too — a pattern's copies, the name's
-/// `Instance(i)` saying which one, as the member walk reads it.
+/// `Instance(i)` saying which one, as the member walk reads it. An
+/// instance's copies are admitted at every seat
+/// ([`selection_body_admits`]).
 pub(crate) fn selection_body_kind(slot: SlotId) -> crate::SlotKind {
     match slot {
         SlotId::Operand(crate::OperandSlot::Side { .. }) => crate::SlotKind::Placeable,
         _ => crate::SlotKind::Is(VarKind::Body),
     }
+}
+
+/// **What a selection authored at `slot` may be read in, given its
+/// body `body`**: [`selection_body_kind`], and an instance's copies at
+/// any seat, whose faces a selection names by the part-local name path
+/// as it named the instance's body (whether a selection holds a read of
+/// one copy is stage G's question).
+pub(crate) fn selection_body_admits<P>(doc: &Doc<P>, slot: SlotId, body: VarId) -> crate::SlotKind {
+    if matches!(
+        doc.operation_of(body).and_then(|at| doc.node(at)),
+        Some(Node::InstantiatePart { .. })
+    ) {
+        return crate::SlotKind::Placeable;
+    }
+    selection_body_kind(slot)
 }
 
 /// **A selection authored at a seat, minted** (D10): the body read
@@ -1372,14 +1402,33 @@ fn mint_selection<P: crate::ProfilePayload>(
     // The selection's body read observes, and may name a world copy:
     // every seat reading the selection is then asked whether it may
     // read that copy (`Doc::read_fault`).
-    let body = lower_read(
+    let body = match lower_read(
         doc,
         spoken,
         slot,
         body,
         selection_body_kind(slot),
         Reader::Observes,
-    )?;
+    ) {
+        Ok(read) => read,
+        // An instance's copies are read at any seat
+        // (`selection_body_admits`).
+        Err(narrow) => {
+            let wide = lower_read(
+                doc,
+                spoken,
+                slot,
+                body,
+                crate::SlotKind::Placeable,
+                Reader::Observes,
+            )
+            .map_err(|_| narrow.clone())?;
+            if selection_body_admits(doc, slot, wide) != crate::SlotKind::Placeable {
+                return Err(narrow);
+            }
+            wide
+        }
+    };
     let shape = |fault| EditError::SelectionShape {
         node: spoken(),
         slot,
@@ -1525,12 +1574,14 @@ pub fn selection_into<P>(
 #[allow(clippy::expect_used)]
 pub fn pose_into<P>(doc: &mut Doc<P>, def: crate::pose::PoseDef) -> VarId {
     let kind = def.kind().unwrap_or_else(|| {
-        let crate::pose::PoseDef::Flip { pose } = &def else {
-            unreachable!("every arm but a flip states its kind")
+        let (crate::pose::PoseDef::Flip { pose } | crate::pose::PoseDef::Carried { pose, .. }) =
+            &def
+        else {
+            unreachable!("every arm but a flip and a carried pose states its kind")
         };
         doc.var(*pose)
             .map(Var::kind)
-            .expect("a flip reads a live pose")
+            .expect("a flip or a carried pose reads a live pose")
     });
     let def = WrittenDef::Pose(kind, def);
     let id = doc.mint.declare_anonymous(&def);
@@ -6284,10 +6335,14 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     id: SpokenNode::absent(*id),
                 });
             }
+            // The world is minted with the document and outlives every
+            // edit (D10).
+            if *id == RecipeNodeId::WORLD {
+                return Err(EditError::WorldIsUndeletable {
+                    node: doc.spoken(*id),
+                });
+            }
             *reported = remove_node(doc, new, *id);
-            // A gauge's references are kept, dangling (A11 (2)): the
-            // group it unplaced names it as the cause, and a
-            // `SetGauge` re-places it.
             EditRecord {
                 minted: None,
                 minted_constraints: Vec::new(),

@@ -37,6 +37,46 @@ use crate::{OperandSlot, VarKind as K};
 /// under.
 const POSE_DIRECTION_ROLE: &str = "pose direction";
 
+/// The role word a carried pose's direction is normalized under, once
+/// its copy's motion has turned it.
+const CARRIED_DIRECTION_ROLE: &str = "carried pose direction";
+
+/// **`value` as a copy at `motion` carries it** ([`PoseDef::Carried`]):
+/// its points mapped, its directions turned and normalized again.
+fn carried<T: Decide>(
+    value: PoseValue<T>,
+    motion: &geom_core::Affine3<T>,
+    b: geom_core::Band,
+) -> Result<PoseValue<T>, NodeErrorKind> {
+    let turn = |dir: UnitVec3<T>| {
+        datum_unit(motion.transform_vec(dir.get()), CARRIED_DIRECTION_ROLE, b)
+            .map_err(DirectionRefusal::node_error)
+    };
+    Ok(match value {
+        PoseValue::Point { position } => PoseValue::Point {
+            position: motion.transform_point(position),
+        },
+        PoseValue::Direction { dir } => PoseValue::Direction { dir: turn(dir)? },
+        PoseValue::Axis { origin, dir } => PoseValue::Axis {
+            origin: motion.transform_point(origin),
+            dir: turn(dir)?,
+        },
+        PoseValue::Plane { origin, normal } => PoseValue::Plane {
+            origin: motion.transform_point(origin),
+            normal: turn(normal)?,
+        },
+        PoseValue::Frame(f) => PoseValue::Frame(
+            frame_axes(
+                motion.transform_point(f.origin()),
+                motion.transform_vec(f.u().get()),
+                motion.transform_vec(f.v().get()),
+                b,
+            )
+            .map_err(DirectionRefusal::node_error)?,
+        ),
+    })
+}
+
 /// **The pose `var` the node reads at `slot`, evaluated** at the lane
 /// scalar: an operation's pose output read off its value, or a pose
 /// definition bound here. Its symmetry is its kind's (the door asserts
@@ -243,6 +283,17 @@ fn definition<T: Decide>(
             PoseValue::Plane {
                 origin: origin + normal.get() * by,
                 normal,
+            }
+        }
+        // The pose moved by the motion its copy's placement solved to:
+        // a rigid map, so a direction stays unit up to the direction
+        // door's own decision, which normalizes it again.
+        PoseDef::Carried { copy, pose: read } => {
+            let placement = super::super::read_at(doc, slot, *copy)?;
+            let value = pose(*read)?;
+            match value_of(results, placement)?.motion {
+                None => value,
+                Some(motion) => carried(value, &motion, b)?,
             }
         }
         PoseDef::Project { of, to } => match (pose(*of)?, *to) {
@@ -513,6 +564,7 @@ fn walk<T: Decide>(
                 PoseDef::Flip { .. } => arm::FLIP,
                 PoseDef::Standoff { .. } => arm::STANDOFF,
                 PoseDef::Project { .. } => arm::PROJECT,
+                PoseDef::Carried { .. } => arm::CARRIED,
             }));
             match def {
                 PoseDef::Project { to, .. } => out.push(PoseWord::Tag(kind_word(*to))),
