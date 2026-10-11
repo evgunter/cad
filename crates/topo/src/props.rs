@@ -212,8 +212,8 @@ pub enum MassPropsError {
     /// a cylinder wall (its closed form and its quadrature both read
     /// every loop: `geom_brep::props::curved_face_loops`,
     /// `geom_brep::props::quad::cylinder_cut_face`), nor a torus wall
-    /// bounded by rims and rulings. A boolean pierce leaves a ring in the
-    /// wall it pierces.
+    /// bounded by rims and rulings, nor a sphere face bounded by
+    /// circles. A boolean pierce leaves a ring in the wall it pierces.
     RingOnCurvedFace {
         /// The offending face.
         face: FaceKey,
@@ -247,9 +247,10 @@ impl fmt::Display for MassPropsError {
             Self::RingOnCurvedFace { .. } => write!(
                 f,
                 "the kernel cannot yet measure the volume of a curved face with a hole, \
-                 other than a cone wall, a cylinder wall, or a torus wall bounded by \
-                 circles about its axis and its own meridians. Recourse: move the cut so \
-                 it crosses the face's edge instead of closing inside the face"
+                 other than a cone wall, a cylinder wall, a sphere face bounded by \
+                 circles, or a torus wall bounded by circles about its axis and its own \
+                 meridians. Recourse: move the cut so it crosses the face's edge instead of \
+                 closing inside the face"
             ),
             Self::Corrupt { what } => write!(
                 f,
@@ -2513,9 +2514,8 @@ fn edges_of<T: Decide>(loops: &[FlatLoop<T>]) -> Vec<Vec<LoopEdge<T>>> {
 }
 
 /// **A face's closed form**, at whatever scalar its geometry is read
-/// at: a plane, a cylinder, a torus and a cone over every loop, a
-/// sphere over its outer loop and its sense (a ring there is refused
-/// before this is reached, `RingOnCurvedFace`). The face walk runs it
+/// at, over every loop: a plane, a cylinder, a torus, a cone, and a
+/// sphere (which also reads its sense). The face walk runs it
 /// at the walk's scalar, and [`QuadLane`]'s `closed_form` at the
 /// interval scalar over the same geometry lifted.
 fn closed_form_of<U: Decide>(
@@ -2589,13 +2589,14 @@ fn face_flux<T: Decide>(
             // loop's vector area, whatever trims it), the cylinder's
             // closed form and quadrature alike (each a Green form summed
             // over every loop), and the torus's closed form over rims
-            // and rulings, and the spiric lane every loop of a
+            // and rulings, the sphere's over circles (Gauss–Bonnet over
+            // every loop), and the spiric lane every loop of a
             // spiric-bounded plane. No other kind reads one.
             let reads_rings = match surface {
                 // A plane reaches this arm only bounded by a spiric, and
                 // the spiric lane reads every loop of its face.
                 Surface::Cone { .. } | Surface::Cylinder { .. } | Surface::Plane { .. } => true,
-                Surface::Torus { .. } => !trimmed,
+                Surface::Torus { .. } | Surface::Sphere { .. } => !trimmed,
                 _ => false,
             };
             if loops.len() > 1 && !reads_rings {
