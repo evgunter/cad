@@ -157,13 +157,14 @@ the solve folds, and the contact declaration the gate mints.
 Each side is TWO things. `a` and `b` are instance-qualified entity
 names — the text `Evaluation.select` answers with when you query it on
 an instantiate node, so no name is ever composed by hand. `a_at` and
-`b_at` are the **operands**: the nodes those names are read at, which
-is to say the geometry the mate is talking about. They are the
+`b_at` are the nodes those names are read at, which is to say the
+geometry the mate is talking about: each side is a read of a face of
+that body, exactly as any other node reads a variable. They are the
 instances themselves in the plain case. They diverge the moment
 something PLACES an instance — a `Node.transform` moves a body and
 mints no name of its own, so the name alone cannot tell a mate on the
-instance from a mate on the transformed instance, and the operand is
-what does. The solve walks from the operand down to the minting
+instance from a mate on the transformed instance, and the body read
+is what does. The solve walks from the body read down to the minting
 instance and composes the map of everything it passes.
 
 ```python
@@ -196,7 +197,7 @@ from pncad import (
     evaluate,
     root_of,
     m,
-    reading_edges,
+    relative_freedom_components,
 )
 
 POST_SECTION, POST_HEIGHT = 0.12, 0.5
@@ -314,13 +315,11 @@ assert all(root_of(stand, n) == post_a for n in (post_a, shelf_i, post_b))
 assert stand.offset(shelf_i) is None and stand.offset(post_b) is None
 assert stand.offset(post_a) is not None
 
-# A mate's references are NOT recipe edges, and inserting one places
-# nothing. What couples the graph is the reading edges, recomputed
-# every time by walking from each reference's OPERAND down to the
-# instance that minted its name, and never stored.
-assert set(reading_edges(stand)) == {
-    (mate_a, post_a), (mate_a, shelf_i), (mate_b, shelf_i), (mate_b, post_b),
-}
+# A mate's sides are reads, like any other node's, and inserting one
+# places nothing. Its reads are what couple the graph: both mates and
+# all three instances are one relatively-free component.
+(component,) = [c for c in relative_freedom_components(stand) if mate_a in c]
+assert {post_a, shelf_i, post_b, mate_a, mate_b} <= set(component)
 
 # The world says what this document IS: its product is every copy a
 # world placement defines, in the placements' document order. No insert
