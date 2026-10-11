@@ -368,6 +368,71 @@ fn ring_fusion_recorded(ev: &Evaluation<f64>, id: RecipeNodeId, o: &Outcome, wha
     );
 }
 
+/// Asserts node `id`'s result holds one overlap of two edges along the
+/// blocks' contact line x = 1.5, y = 1, and that its end away from the
+/// pinch is backed: the two edges end at one vertex there, or one ends
+/// on the other's interior and a vertex-on-edge record names that vertex
+/// and edge. The end at the pinch is the pair [`ring_fusion_recorded`]
+/// reads.
+fn far_end_backed(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str) {
+    let body = body_of(ev, id);
+    let none = ContactRecords::default();
+    let contacts = match &ev.value(id).expect("the node evaluated").payload {
+        ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) => &**contacts,
+        _ => &none,
+    };
+    let z = |v: topo::VertexKey| {
+        body.vertex_points()
+            .find(|&(k, _)| k == v)
+            .map(|(_, p)| p)
+            .expect("a vertex of the body")
+    };
+    let on_line = |v| {
+        let p = z(v);
+        (p.x - 1.5).abs() < 1e-9 && (p.y - 1.0).abs() < 1e-9
+    };
+    let line: Vec<(topo::EdgeKey, [topo::VertexKey; 2])> = body
+        .edges()
+        .filter_map(|(e, d)| {
+            let ends = [
+                body.get_half_edge(d.he_plus)?.start,
+                body.get_half_edge(d.he_minus)?.start,
+            ];
+            (ends[0] != ends[1] && ends.iter().all(|&v| on_line(v))).then_some((e, ends))
+        })
+        .collect();
+    let span = |ends: [topo::VertexKey; 2]| {
+        let (a, b) = (z(ends[0]).z, z(ends[1]).z);
+        (a.min(b), a.max(b))
+    };
+    let mut overlaps = Vec::new();
+    for (i, &(e1, ends1)) in line.iter().enumerate() {
+        for &(e2, ends2) in &line[i + 1..] {
+            let ((lo1, hi1), (lo2, hi2)) = (span(ends1), span(ends2));
+            if hi1.min(hi2) - lo1.max(lo2) > 1e-9 {
+                overlaps.push(((e1, ends1), (e2, ends2), lo1.max(lo2), hi1.min(hi2)));
+            }
+        }
+    }
+    let [((e1, ends1), (e2, ends2), lo, hi)] = overlaps[..] else {
+        panic!("{what}: one overlap along the contact line: {overlaps:?}")
+    };
+    let far = if (hi - 1.0).abs() < 1e-9 { lo } else { hi };
+    let at = |ends: [topo::VertexKey; 2]| ends.into_iter().find(|&v| (z(v).z - far).abs() < 1e-9);
+    match (at(ends1), at(ends2)) {
+        (Some(v), Some(w)) => assert_eq!(v, w, "{what}: the overlap's far end is one vertex"),
+        (Some(v), None) => assert!(
+            contacts.vertex_edge().any(|r| r == (v, e2)),
+            "{what}: a vertex-on-edge record backs the overlap's far end"
+        ),
+        (None, Some(w)) => assert!(
+            contacts.vertex_edge().any(|r| r == (w, e1)),
+            "{what}: a vertex-on-edge record backs the overlap's far end"
+        ),
+        (None, None) => panic!("{what}: neither edge ends at the overlap's far end"),
+    }
+}
+
 /// Every order of `0..n`.
 fn orders(n: usize) -> Vec<Vec<usize>> {
     if n == 0 {
@@ -570,6 +635,7 @@ fn the_plate_against_the_joined_blocks_builds_in_every_op() {
     let o = checked(&ev, footprints, "plate ∩ blocks", NOTCHES);
     assert_eq!(o.verdict, Ok(()), "plate ∩ blocks: 3′");
     ring_fusion_recorded(&ev, footprints, &o, "plate ∩ blocks");
+    far_end_backed(&ev, footprints, "plate ∩ blocks");
     assert_eq!(o.manifold, Ok(()), "plate ∩ blocks: check_mesh");
     let s = o.shape;
     assert_eq!(
@@ -677,6 +743,7 @@ fn a_slab_holding_the_contact_is_one_vertex_only_on_one_fragment() {
         assert_eq!(o.verdict, Ok(()), "{what}: 3′");
         if pinch == 2 {
             ring_fusion_recorded(&ev, id, &o, what);
+            far_end_backed(&ev, id, what);
         }
         if op == BooleanOp::Intersect {
             // Two L-prisms touching along the contact line, which runs

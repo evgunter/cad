@@ -64,3 +64,27 @@ X ∪ plate and plate ∪ X. The witnesses are renamed
 fresh value decision of the op's. It is not backed by the carried
 record's lineage through the clip, which is what "Owed" asks for. The
 row stays open on that.
+
+**What backs the edge-edge overlap the pins used to refuse** (traced
+2026-10-11 on PR 4728's head, release). Each of the four results holds
+one overlap of the two blocks' edges along x = 1.5, y = 1. The census
+accepts it end by end.
+- **The pinch end (z = 1):** two vertices on one point key, which the
+  census reads as structural. Beside them is the ring's vertex-vertex
+  record, citing its `VertexFusion` row.
+- **The far end, through lineage:**
+  - `plate ∖ X`: both edges end at one vertex.
+  - `plate ∩ blocks`: one edge ends on the other's interior at z 0.5.
+    The vertex-on-edge record there cites `Carried { input: 1 }`, the
+    blocks' union's record, which that union decided (`VertexFusion`,
+    `OnCarrier`).
+  - `X ∪ plate` and `plate ∪ X`: the same at z 2.0, carried from `X`,
+    which carried it from the blocks' union, which decided it.
+
+So the overlap's far end is backed by the carried record's lineage
+through the clip, and its pinch end is backed by the ring's one key with
+a fresh fusion row beside it. What "Owed" asks for is now the pinch end
+alone: a record of the pinch's two kept vertices from the carried record's lineage,
+rather than from the ring's value decision. The pins assert both ends
+(`ring_fusion_recorded`, `far_end_backed`).
+
