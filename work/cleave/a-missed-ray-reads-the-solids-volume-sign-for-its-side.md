@@ -2,10 +2,11 @@
 id: a-missed-ray-reads-the-solids-volume-sign-for-its-side
 kind: issue
 title: A containment ray that misses the body takes its side from the solid's volume sign (margin V/A), so a definite thin body refuses as a disjoint operand
-status: open
+status: dispatched
 opened: 2026-10-11
 priority: P1
 cost: M
+branch: cleave/missed-ray-side
 ---
 
 

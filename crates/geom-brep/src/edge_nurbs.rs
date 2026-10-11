@@ -1413,9 +1413,11 @@ fn normal_angle_sine<T: Real>(plane_normal: Vec3<T>, wall_normal: Vec3<T>) -> T 
 /// are the interpolation's unit weights, a constant of its form, and
 /// enter through `from_f64`. The rescale is the only step that can
 /// refuse (the lift carries a validated curve's net verbatim), so the
-/// `Result` is the knot door's alone. (The domain ends are the
-/// carrier's stored `f64` domain, entered with the knots;
-/// `stored-carrier-data`, owed to this item's unit 3.)
+/// `Result` is the knot door's alone. The image's end knots are the
+/// carrier's `f64` domain ends and enter with the rest of the knots as
+/// unknowns: sound, but not the carrier's held ends, so an identity
+/// between the image's end and the carrier's does not discharge
+/// (`work/intent/an-edges-parameter-ends-enter-a-carrier-piece-as-constants.md`).
 ///
 /// The knot map's own rounding is not a soundness question — the image
 /// is evidence that limb 2 bounds, not a certified quantity (module
