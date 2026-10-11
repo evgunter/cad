@@ -844,7 +844,7 @@ pub use boolean::{
     PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation,
     PlaneRung, PointInSolidError, ReductionContacts, RekeyRefusal, SectorRead, SectorRung,
     SelfCheck, Settling, ShellOrientation, SideCode, SolidContainment, SolidFaces, SphereQuestion,
-    SweepStrategy, SweepTrace, TorusConvention, VeContact, VfContact, VoidContainment,
+    SpiricLoops, SweepStrategy, SweepTrace, TorusConvention, VeContact, VfContact, VoidContainment,
     VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with,
     boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words, face_carrier,
     flush_pair_relation, insert_void, insert_voids, intersect, is_conventional_vertex, join_covers,

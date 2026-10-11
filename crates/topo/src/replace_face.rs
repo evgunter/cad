@@ -1227,11 +1227,9 @@ pub(crate) fn translate_curve<T: Real>(
             minor_radius: *minor_radius,
             offset: *offset,
         },
-        Curve3::Nurbs(n) => Curve3::Nurbs(Arc::new(NurbsCurve3::new(
-            n.knots().clone(),
-            n.control().iter().map(|p| *p + delta).collect(),
-            n.weights().to_vec(),
-        )?)),
+        // A translation is affine: the net's image, knots and weights
+        // as they are held.
+        Curve3::Nurbs(n) => Curve3::Nurbs(Arc::new(n.map_points(|p| p + delta))),
     })
 }
 
@@ -1255,11 +1253,9 @@ fn homothety<T: Real>(
             radius: *radius * k,
             u_ref: *u_ref,
         },
-        Curve3::Nurbs(n) => Curve3::Nurbs(Arc::new(NurbsCurve3::new(
-            n.knots().clone(),
-            n.control().iter().map(|p| map(*p)).collect(),
-            n.weights().to_vec(),
-        )?)),
+        // A homothety is affine: the net's image, knots and weights as
+        // they are held.
+        Curve3::Nurbs(n) => Curve3::Nurbs(Arc::new(n.map_points(map))),
         // A line, an ellipse or a spiric does not lie on a sphere, so
         // a carrier of any of those kinds is not a curve this map was
         // derived for.
@@ -4518,7 +4514,12 @@ mod pose_reach_rows {
             let kv =
                 geom_core::spline::KnotVector::clamped(knots, 1).expect("a clamped knot vector");
             Curve3::Nurbs(std::sync::Arc::new(
-                geom::NurbsCurve3::new(kv, control, weights).expect("a degree-1 net"),
+                geom::NurbsCurve3::new(
+                    geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
+                    control,
+                    weights,
+                )
+                .expect("a degree-1 net"),
             ))
         };
         let edges = [
@@ -4812,9 +4813,9 @@ mod spline_corner {
     fn segment() -> NurbsCurve3<f64> {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         NurbsCurve3::new(
-            kv,
+            geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
             vec![Point3::new(-1.0, 0.0, 0.0), Point3::origin()],
-            vec![1.0; 2],
+            vec![geom_core::Real::one(); 2],
         )
         .unwrap()
     }
@@ -5101,11 +5102,11 @@ mod from_computed_rows {
         let found = revalued([-0.25, -0.25 + 1.0e-3], |_, x| {
             let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
             let segment = NurbsCurve3::new(
-                kv,
+                geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
                 [Point3::new(-1.0, 0.0, 0.0), Point3::origin()]
                     .map(|p| p.map(S::from_f64))
                     .to_vec(),
-                vec![1.0; 2],
+                vec![geom_core::Real::one(); 2],
             )
             .unwrap();
             let point = Point3::new(x, S::from_f64(0.125), S::zero());

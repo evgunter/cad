@@ -77,9 +77,9 @@ fn axis_planes() -> (Surface<Probe>, Surface<Probe>) {
 fn axis_segment(length: f64, domain: f64) -> Curve3<Probe> {
     let k = KnotVector::clamped(vec![0.0, 0.0, domain, domain], 1).expect("carrier knots");
     let n = NurbsCurve3::new(
-        k,
+        geom_core::spline::Knots::from(k).lift(geom_core::Real::from_f64),
         vec![p(0.0, 0.0, 0.0), p(0.0, 0.0, length)],
-        vec![1.0, 1.0],
+        vec![Probe(1.0); 2],
     )
     .expect("the carrier builds");
     Curve3::Nurbs(std::sync::Arc::new(n))

@@ -148,6 +148,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                                "is the facade crate's row and owes the CUR3 property "
                                "row plus a Python word"),
     "BandField": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
+    # `BooleanError::GermSectionSpiric`'s loops: `WedgeCheck`'s shape,
+    # argued beside the declaration.
+    "SpiricLoops": ("argued", "non-carriage with its falsifier, beside the declaration "
+                    "in crates/topo/src/boolean/mod.rs"),
     # `BooleanError::Escalated`'s and `DeclarationContradicted`'s closed
     # decision types. The row also holds the two types nested one rung
     # further down (`SectorRung`, `CrossingDecision`), which this sweep

@@ -32,9 +32,9 @@
 //! this fixture never reaches it (no line edge of one half meets a
 //! torus face of the other), so its rows run on a donut and a bar. The
 //! donut's pierces go on to the pierce lane's outward normal, which
-//! has a torus arm too, and then to the join's germ frame, which has no
-//! torus × plane arm; the sweep traces, which stop before that, are
-//! what those rows read.
+//! has a torus arm too, then through the join's germ frame to its
+//! germ-pair dispatch, which has no torus arm; the sweep traces, which
+//! stop before that, are what those rows read.
 //!
 //! Past every torus door the union builds, as the same dumbbell with a
 //! CYLINDER handle does — the control row says so: the joint's seam
@@ -45,6 +45,7 @@
 
 use crate::common::operands::{bar, framed_bar};
 use crate::common::revert_ops::subtract_both_orders_and_intersect;
+use crate::germ_plane_torus_frame::{TorusDoor, torus_door};
 use crate::revolve_common;
 use sweep::ExtrudeSide;
 
@@ -417,8 +418,8 @@ fn a_segment_through_the_tube_is_pierced_at_both_quartic_roots() {
 /// event there. Nothing lands on the outer face — a chord recorded
 /// against it would be an incidence that does not exist.
 ///
-/// What the union meets next is the join's germ-frame dispatch, which
-/// has no torus × plane section arm.
+/// What the union meets next, past the join's germ frame, is the
+/// germ-pair dispatch, which has no torus arm.
 #[test]
 fn a_chord_across_the_hole_is_pierced_not_passed() {
     let d = donut();
@@ -456,18 +457,10 @@ fn a_chord_across_the_hole_is_pierced_not_passed() {
         inner.iter().copied().collect(),
         "every event lands on the inner face; the chords record nothing on the outer one"
     );
-    let err =
-        topo::union(&d, &b, Tol::witness()).expect_err("the germ frame has no torus × plane arm");
-    assert!(
-        matches!(
-            err,
-            BooleanError::GermFrameUnsupported {
-                a_kind: geom::SurfaceKind::Torus,
-                b_kind: geom::SurfaceKind::Plane,
-                ..
-            }
-        ),
-        "past the chord, the union stops at the germ frame: {err:?}"
+    assert_eq!(
+        torus_door(topo::BooleanOp::Union, &d, &b),
+        Ok(TorusDoor::Dispatch),
+        "past the chord and the germ frame, the union stops at the dispatch"
     );
 }
 
@@ -1129,10 +1122,11 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
 /// revert roster, a subtract or an intersect over the fixtures above
 /// reaches the same doors as their unions:
 ///
-/// - a bar through the tube (near-perpendicular, belly, chord across
-///   the hole) stops at the join's germ frame, which has no torus ×
-///   plane arm, or at the crossing layer's pierce door where the run's
-///   band puts the near-perpendicular root there;
+/// - the near-perpendicular bar's tilted faces cut general spiric
+///   quartics, refused at the join's germ frame, or it stops at the
+///   crossing layer's pierce door where the run's band puts its root
+///   there; the belly bar and the chord across the hole pass the frame
+///   and stop at the germ-pair dispatch, which has no torus arm;
 /// - the slab's face-interior oval is a certified interior loop
 ///   (R-loop), and so is the bite a cylinder grazing the outer equator
 ///   takes out of the tube (its axis square to the torus's, its trace
@@ -1162,20 +1156,39 @@ fn subtract_and_intersect_refuse_where_union_does() {
         1e-3,
     );
     let near = finished("the near-perpendicular bar", near, Tol::witness());
-    for (name, b) in [
-        ("near-perpendicular bar", near),
-        ("belly bar", bar((-0.05, 0.05), (0.25, 0.35), (1.0, 3.0))),
+    // Whether the bar passes the germ frame: then it stops at the
+    // germ-pair dispatch; otherwise its faces cut general spiric
+    // quartics, or its root falls to the pierce door.
+    for (name, b, passes) in [
+        ("near-perpendicular bar", near, false),
+        (
+            "belly bar",
+            bar((-0.05, 0.05), (0.25, 0.35), (1.0, 3.0)),
+            true,
+        ),
         (
             "chord across the hole",
             bar((-0.1, 0.1), (-0.1, 0.1), (-2.0, 2.0)),
+            true,
         ),
     ] {
+        if passes {
+            use topo::BooleanOp::{Intersect, Subtract};
+            for (op, door) in [
+                ("A ∖ B", torus_door(Subtract, &d, &b)),
+                ("B ∖ A", torus_door(Subtract, &b, &d)),
+                ("A ∩ B", torus_door(Intersect, &d, &b)),
+            ] {
+                assert_eq!(door, Ok(TorusDoor::Dispatch), "{name}, {op}");
+            }
+            continue;
+        }
         for (op, r) in subtract_both_orders_and_intersect(&d, &b) {
             let err = r.expect_err(op);
             assert!(
                 matches!(
                     err,
-                    BooleanError::GermFrameUnsupported { .. }
+                    BooleanError::GermSectionSpiric { .. }
                         | BooleanError::CurvedPierceUnsupported { .. }
                 ),
                 "{name}, {op}: {err:?}"

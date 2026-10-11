@@ -2081,7 +2081,10 @@ fn torus_iso(
 /// **One face of the ring torus `(R, r)` bounded by iso arcs through
 /// the chart corners**, in order ([`chain_sheet`]): the torus face a
 /// boolean mints where parallels and meridians cut the tube.
-fn torus_sheet(ring: (f64, f64), corners: &[(f64, f64)]) -> (Body<f64>, FaceKey) {
+pub(in crate::boolean) fn torus_sheet(
+    ring: (f64, f64),
+    corners: &[(f64, f64)],
+) -> (Body<f64>, FaceKey) {
     chain_sheet(
         torus(p(0.0, 0.0, 0.0), ring.0, ring.1),
         torus_at(ring, corners[0]),
