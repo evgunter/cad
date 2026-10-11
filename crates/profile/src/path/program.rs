@@ -2879,6 +2879,22 @@ impl<T: Real> ConstructedLoop<T> {
     pub fn into_loop(self) -> ProfileLoop<T> {
         self.loop_
     }
+
+    /// The same loop at another scalar, its provenance kept:
+    /// [`ProfileLoop::map_scalar`] over the loop, and the same
+    /// constructed joints. The facts the lattice verified are about the
+    /// values `f` is handed, so `f` is a lift that keeps them: the
+    /// value channel read across (`T` to `f64`, for an `f64`
+    /// structure pass), or an `f64` construction entered at a lane
+    /// scalar as the computed values it is
+    /// ([`Real::from_computed`](geom_core::Real::from_computed)).
+    #[must_use]
+    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> ConstructedLoop<U> {
+        ConstructedLoop {
+            loop_: self.loop_.map_scalar(f),
+            joints: self.joints.clone(),
+        }
+    }
 }
 
 /// **The fixture door for a constructed loop**: a table read as if the

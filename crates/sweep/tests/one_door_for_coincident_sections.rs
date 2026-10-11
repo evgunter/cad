@@ -12,7 +12,7 @@
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;
 use geom_core::spline::KnotVector;
-use geom_core::{Affine3, Interval, Point2, Point3, RANGE_RECOURSE, Tol, Vec3};
+use geom_core::{Affine3, Interval, Point2, Point3, RANGE_RECOURSE, Real, Tol, Vec3};
 use profile::RawLoop;
 use sweep::test_support::{loft_prism_sections, stacked_at};
 use sweep::{
@@ -183,7 +183,10 @@ fn a_sweep_whose_two_stations_coincide_refuses_at_the_fold() {
         Err(LoftError::DegenerateStacking { slab: 0 }) => {}
         other => panic!("f64: expected DegenerateStacking at slab 0, got {other:?}"),
     }
-    match sweep_body::<Interval>(&profile, place, &path, 2, 1, tol) {
+    // The start frame is computed, so it enters the lane as computed.
+    let lane_profile = &sweep::test_support::lift_sections::<Interval>(&[profile.clone()])[0];
+    let lane_place = place.map(Interval::from_computed);
+    match sweep_body::<Interval>(lane_profile, lane_place, &path, 2, 1, tol) {
         Err(LoftError::DegenerateStacking { slab: 0 }) => {}
         other => panic!("Interval: expected DegenerateStacking at slab 0, got {other:?}"),
     }

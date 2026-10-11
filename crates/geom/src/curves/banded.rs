@@ -64,17 +64,38 @@
 //! subtracted as it stands, which carries that value's NaN payload the
 //! way the dense sum does. The solution is then bit-identical to the
 //! dense solve's, NaN payloads included.
+//!
+//! # At a generic scalar
+//!
+//! [`factor`] and [`BandedLu::solve`] run at any [`SpanLocate`] scalar
+//! (the skin's solve in its sections' scalar, `sweep::skin`), with
+//! every decision read off the value channel ([`channel`]): the band's
+//! shape is the `first` indices, which are structure, and a pivot or
+//! factor entry refuses when its value channel is zero or not finite.
+//! The arithmetic is the `f64` solve's, operation for operation, so at
+//! `f64` it is that solve bit for bit, and the dropped terms the
+//! substitutions summarise enter as the constants they are (`±0`, and
+//! the `0 · v` against a non-finite value). At a scalar whose value
+//! channel is bit for bit the `f64` computation (`Dual<f64>`, `Probe`,
+//! `Sym<f64>`) every refusal is the `f64` solve's.
 
 use geom_core::linalg::lsq::LsqError;
+use geom_core::spline::SpanLocate;
+
+/// The value channel every decision here reads: `x`'s one `f64`, or
+/// NaN where it has none (poison, a wide enclosure).
+fn channel<T: SpanLocate>(x: T) -> f64 {
+    x.point_value().unwrap_or(f64::NAN)
+}
 
 /// A factored collocation matrix ([`factor`]); `L` below the diagonal
 /// (unit diagonal implied) and `U` on and above it, row `i`'s window at
 /// `i * width ..`, column `j` at offset `j − first[i]`.
 #[derive(Clone, Debug)]
-pub(crate) struct BandedLu {
+pub(crate) struct BandedLu<T = f64> {
     first: Vec<usize>,
     width: usize,
-    lu: Vec<f64>,
+    lu: Vec<T>,
 }
 
 /// Factor the collocation matrix whose row `i` is `rows[i]`, standing in
@@ -95,7 +116,10 @@ pub(crate) struct BandedLu {
 // Explicit index loops on purpose: the association order is the
 // contract.
 #[allow(clippy::needless_range_loop)]
-pub(crate) fn factor(first: &[usize], rows: &[Vec<f64>]) -> Result<BandedLu, LsqError> {
+pub(crate) fn factor<T: SpanLocate>(
+    first: &[usize],
+    rows: &[Vec<T>],
+) -> Result<BandedLu<T>, LsqError> {
     let Some(width) = rows.first().map(Vec::len).filter(|w| *w > 0) else {
         return Err(LsqError::Empty);
     };
@@ -121,7 +145,7 @@ pub(crate) fn factor(first: &[usize], rows: &[Vec<f64>]) -> Result<BandedLu, Lsq
             return Err(LsqError::BandShape { row: i });
         }
     }
-    let mut lu: Vec<f64> = rows.iter().flatten().copied().collect();
+    let mut lu: Vec<T> = rows.iter().flatten().copied().collect();
     for i in 0..n {
         let f = first[i];
         if i < f || i >= f + width {
@@ -137,15 +161,15 @@ pub(crate) fn factor(first: &[usize], rows: &[Vec<f64>]) -> Result<BandedLu, Lsq
             let mut s = lu[row + q - f];
             for t in f..q {
                 if q < first[t] + width {
-                    s -= lu[row + t - f] * lu[t * width + q - first[t]];
+                    s = s - lu[row + t - f] * lu[t * width + q - first[t]];
                 }
             }
             let pivot = lu[q * width + q - first[q]];
             let l = s / pivot;
-            if !l.is_finite() {
+            if !channel(l).is_finite() {
                 return Err(LsqError::LsqDegenerate {
                     pivot_index: q,
-                    pivot,
+                    pivot: channel(pivot),
                 });
             }
             lu[row + q - f] = l;
@@ -154,18 +178,18 @@ pub(crate) fn factor(first: &[usize], rows: &[Vec<f64>]) -> Result<BandedLu, Lsq
             let mut s = lu[row + j - f];
             for t in f..i {
                 if j < first[t] + width {
-                    s -= lu[row + t - f] * lu[t * width + j - first[t]];
+                    s = s - lu[row + t - f] * lu[t * width + j - first[t]];
                 }
             }
-            if !s.is_finite() {
+            if !channel(s).is_finite() {
                 return Err(LsqError::LsqDegenerate {
                     pivot_index: i,
-                    pivot: s,
+                    pivot: channel(s),
                 });
             }
             lu[row + j - f] = s;
         }
-        let pivot = lu[row + i - f];
+        let pivot = channel(lu[row + i - f]);
         if pivot == 0.0 {
             return Err(LsqError::LsqDegenerate {
                 pivot_index: i,
@@ -180,7 +204,7 @@ pub(crate) fn factor(first: &[usize], rows: &[Vec<f64>]) -> Result<BandedLu, Lsq
     })
 }
 
-impl BandedLu {
+impl<T: SpanLocate> BandedLu<T> {
     /// Solve `A·x = b` per right-hand-side column; `b` is `n × k`, the
     /// result `n × k`. Forward substitution sums ascending, back
     /// substitution descending, as the dense solve does, with whose
@@ -193,7 +217,7 @@ impl BandedLu {
     /// refuses them.
     // Explicit index loops on purpose — see `factor`.
     #[allow(clippy::needless_range_loop)]
-    pub(crate) fn solve(&self, b: &[Vec<f64>]) -> Result<Vec<Vec<f64>>, LsqError> {
+    pub(crate) fn solve(&self, b: &[Vec<T>]) -> Result<Vec<Vec<T>>, LsqError> {
         let n = self.first.len();
         let w = self.width;
         if b.len() != n {
@@ -216,7 +240,7 @@ impl BandedLu {
             }
         }
         let at = |i: usize, j: usize| self.lu[i * w + j - self.first[i]];
-        let mut x: Vec<Vec<f64>> = b.to_vec();
+        let mut x: Vec<Vec<T>> = b.to_vec();
         for c in 0..k {
             // `L[i][q]` for `q < first[i]` is `+0.0 / U[q][q]`: a zero
             // carrying the pivot's sign. The dense sum subtracts it
@@ -229,22 +253,22 @@ impl BandedLu {
                 let f = self.first[i];
                 while dropped < f {
                     let y = x[dropped][c];
-                    let l = 0.0f64.copysign(at(dropped, dropped));
-                    if !y.is_finite() {
+                    let l = 0.0f64.copysign(channel(at(dropped, dropped)));
+                    if !channel(y).is_finite() {
                         poison = poison.or(Some((l, y)));
-                    } else if (l * y).is_sign_negative() {
+                    } else if (l * channel(y)).is_sign_negative() {
                         flips = true;
                     }
                     dropped += 1;
                 }
                 let mut s = x[i][c];
                 if let Some((l, y)) = poison {
-                    s -= l * y;
+                    s = s - T::from_f64(l) * y;
                 } else if flips {
-                    s -= -0.0;
+                    s = s - T::from_f64(-0.0);
                 }
                 for q in f..i {
-                    s -= at(i, q) * x[q][c];
+                    s = s - at(i, q) * x[q][c];
                 }
                 x[i][c] = s;
             }
@@ -258,20 +282,20 @@ impl BandedLu {
                 while kept > end {
                     kept -= 1;
                     let v = x[kept][c];
-                    if !v.is_finite() {
+                    if !channel(v).is_finite() {
                         poison = Some(v);
-                    } else if v.is_sign_negative() {
+                    } else if channel(v).is_sign_negative() {
                         flips = true;
                     }
                 }
                 let mut s = x[i][c];
                 for q in (i + 1)..end {
-                    s -= at(i, q) * x[q][c];
+                    s = s - at(i, q) * x[q][c];
                 }
                 if let Some(v) = poison {
-                    s -= 0.0 * v;
+                    s = s - T::from_f64(0.0) * v;
                 } else if flips {
-                    s -= -0.0;
+                    s = s - T::from_f64(-0.0);
                 }
                 x[i][c] = s / at(i, i);
             }

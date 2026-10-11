@@ -59,18 +59,24 @@
 //!
 //! # Scalar posture (C6)
 //!
-//! Structure — the skinned walls' knots, control bits, weights, and
-//! the section chains — is selected at `f64` ([`fn@crate::skin`]'s
-//! contract) and lifted exactly into the requested scalar, so every
-//! lane builds the SAME body and the interval lane encloses the very
-//! geometry the `f64` lane defines. The section chains are the
-//! profile's own lift. The walls' control points, knots and weights
-//! and the section placements are computed values, so they enter
-//! through `from_computed` (an unknown each at `Sym`;
-//! `work/intent/the-skin-computes-its-values-in-t.md` owes computing
-//! them in `T`), each lifted once and shared by every reader: a placement by
-//! the stacking fold and the assembly, a seam column by both walls
-//! that end on it.
+//! The sections and placements arrive in the body's scalar `T`.
+//! Structure — each section's canonical form, the skin's degrees,
+//! multiplicities and parameter order — is selected once, at `f64`, on
+//! their value channel, so every lane builds the SAME body. The values
+//! then depend on which side of the projective partition `T` is on
+//! ([`fn@build`]):
+//!
+//! - at `f64`, `Probe`, and `Dual` and `Sym` over them, the sections
+//!   are validated at `T` along the `f64` record and the walls are
+//!   skinned in `T` ([`fn@crate::skin`]), so a wall, a cap and the
+//!   stacking fold's margins are the functions of the sections'
+//!   variables the sections are;
+//! - at `Interval`, and the wrappers over it, the `f64` skin of the
+//!   sections' value channel is the definition, and the body encloses
+//!   it: the walls' control points, knots and weights are lifted
+//!   through `from_computed`, a seam column both walls end on lifted
+//!   once and shared, and the caps are the `f64` canonical form lifted
+//!   onto the caller's placements.
 
 use core::fmt;
 use std::sync::Arc;
@@ -78,18 +84,18 @@ use std::sync::Arc;
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
-use geom_core::spline::SplineError;
+use geom_core::spline::{ProjectiveScalar, ProjectiveSplit, SplineError};
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3,
 };
-use profile::{SketchPlane, ValidatedProfile};
+use profile::{CanonicalStructure, SketchPlane, ValidatedProfile};
 use topo::{
     Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated, MevSite,
     PcurveMintError, ShellKey, SolidKey,
 };
 
 use crate::skin::{
-    LoftGeometry, Section, SectionLoop, SkinError, skin_validated, sweep_places, validate_loft,
+    Section, SectionLoop, SkinError, skin_validated, sweep_places, validate_guided, validate_loft,
 };
 use crate::swept::{
     CapEnd, CapPlaneError, SweptSeg, cap_plane, cap_points, describe_face_rim_at_rest,
@@ -312,46 +318,12 @@ impl From<EulerOpError> for LoftError {
     }
 }
 
-/// One end section as a profile at `T`: **the canonical form
-/// [`loft_geometry`](crate::loft_geometry) decided, lifted** ([`ValidatedProfile::lift_onto`])
-/// — the same shape the rest of this assembly has, where the walls are
-/// `f64` surfaces carried to `T` by `map_scalar`.
-///
-/// The section was validated once, at the geometry door, and that
-/// verdict is what the walls were skinned from
-/// ([`LoftGeometry::canonical`]). Deciding the canonical form again
-/// here — loop roles, traversal sense, the start vertex, each
-/// segment's classification, each declared joint's tangency — would
-/// make the caps a SECOND canonicalization of the same data, agreeing
-/// with the walls' by determinism rather than by construction; and at
-/// the evaluation scalar it would decide over an exact embedding of
-/// the data the first verdict was made on, which at a certified scalar
-/// can only agree or escalate, never disagree. Reading the decided
-/// form makes the caps the walls' own sections.
-///
-/// The gate a section that would not extrude meets is
-/// [`loft_geometry`](crate::loft_geometry)'s, which refuses it
-/// [`SkinError::SectionProfile`] before any of this runs.
-fn end_profile<T: Real>(
-    canonical: &ValidatedProfile<f64>,
-    place: Affine3<T>,
-) -> ValidatedProfile<T> {
-    canonical.clone().lift_onto(SketchPlane::new(place))
-}
-
-/// A section placement at `T`. It reaches this door as `f64`, composed
-/// by `sweep_places` or read out of a caller's own scalar, so it is a
-/// computed value; an identity placement's zeros and ones are unknowns
-/// too, because the `f64` cannot say which entries were not computed.
-fn lift_place<T: Real>(place: &Affine3<f64>) -> Affine3<T> {
-    place.map(T::from_computed)
-}
-
-/// One loop's skinned walls at `T`. Their control nets are computed
-/// values ([`Real::from_computed`]), and wall `j`'s `u = 1` column is
+/// One loop's skinned walls, lifted from `f64` to the enclosure scalar
+/// `T` ([`LoftBuild::enclosure`]): the `f64` skin is the definition
+/// there, so its net, knots and weights enter as the computed values
+/// they are ([`Real::from_computed`]), and wall `j`'s `u = 1` column is
 /// wall `j + 1 mod n`'s `u = 0` column (the seam both walls end on), so
-/// a column the two nets hold bit for bit is lifted once and shared:
-/// at `Sym` the seam is one set of unknowns on both sides of it.
+/// a column the two nets hold bit for bit is lifted once and shared.
 ///
 /// # Errors
 ///
@@ -413,10 +385,9 @@ fn world<T: Real>(place: &Affine3<T>, p: geom_core::Point2<T>) -> Point3<T> {
 /// here without an outer loop is a corrupt [`LoftGeometry`], not an
 /// input fault.
 fn outer_world<T: Real>(
-    canonical: &ValidatedProfile<f64>,
+    profile: &ValidatedProfile<T>,
     place: Affine3<T>,
 ) -> Option<Vec<Point3<T>>> {
-    let profile: ValidatedProfile<T> = end_profile(canonical, place);
     let outer = profile.loops().first()?;
     Some(
         swept_segments(outer, false)
@@ -463,7 +434,7 @@ fn outer_world<T: Real>(
 /// a loopless section never leaves profile validation.
 fn stacking_fold<T: Decide>(
     places: &[Affine3<T>],
-    canonical: &[ValidatedProfile<f64>],
+    canonical: &[ValidatedProfile<T>],
     band: Band,
 ) -> Result<(), LoftError> {
     if places.len() < 2 || places.len() != canonical.len() {
@@ -511,26 +482,123 @@ fn stacking_fold<T: Decide>(
 /// The shared engine of [`loft_body`] and [`sweep_body`]: validate the
 /// sections, decide the stacking fold, skin, assemble — in that order.
 ///
+/// The sections' structure is decided once, on their value channel at
+/// `f64` ([`validate_loft`]): the canonical form, its record, and every
+/// count the skin checks. What happens at `T` then depends on which
+/// side of the projective partition `T` is on
+/// ([`SpanLocate::split_projective`](geom_core::spline::SpanLocate::split_projective)), which [`LoftBuild`]'s two halves
+/// state.
+///
 /// The fold runs BEFORE the skin because it is the one decision about
 /// whether two adjacent sections are apart, banded under the run's
 /// tolerance; a pair it accepts is definitely apart, and a pair it
 /// refuses (down to exact coincidence) never reaches the skin's
 /// parameterization.
-fn build<T: Decide + topo::AtRestPolicy>(
-    sections: &[Section<impl SectionLoop>],
-    places: &[Affine3<f64>],
+fn build<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>>(
+    sections: &[Section<L>],
+    places: &[Affine3<T>],
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
-    let canonical = validate_loft(sections, places, v_degree, tol).map_err(LoftError::Skin)?;
-    let lifted: Vec<Affine3<T>> = places.iter().map(lift_place).collect();
-    stacking_fold(
-        &lifted,
-        &canonical,
-        Band::linear(tol).map_err(LoftError::Band)?,
-    )?;
-    let geometry = skin_validated(canonical, places, v_degree).map_err(LoftError::Skin)?;
-    assemble(&lifted, &geometry, tol)
+    let channel = |x: T| x.point_value().unwrap_or(f64::NAN);
+    let channel_sections: Vec<Section<L::Channel>> = sections
+        .iter()
+        .map(|s| s.iter().map(SectionLoop::channel).collect())
+        .collect();
+    let channel_places: Vec<Affine3<f64>> = places.iter().map(|p| p.map(channel)).collect();
+    let (canonical, structures) = validate_loft(&channel_sections, &channel_places, v_degree, tol)
+        .map_err(LoftError::Skin)?;
+    T::split_projective(LoftBuild {
+        sections,
+        places,
+        channel_places: &channel_places,
+        canonical,
+        structures,
+        v_degree,
+        tol,
+    })
+}
+
+/// [`build`]'s two halves, after the sections' structure is decided.
+struct LoftBuild<'a, T: Real, L> {
+    sections: &'a [Section<L>],
+    places: &'a [Affine3<T>],
+    channel_places: &'a [Affine3<f64>],
+    canonical: Vec<ValidatedProfile<f64>>,
+    structures: Vec<CanonicalStructure>,
+    v_degree: usize,
+    tol: Tol,
+}
+
+impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for LoftBuild<'_, T, L> {
+    type Out = Result<Lofted<T>, LoftError>;
+
+    /// **The loft in `T`.** Each section is validated at `T` along its
+    /// `f64` record ([`validate_guided`]), so its canonical form is the
+    /// one decided and its values are the caller's; the fold, the skin
+    /// ([`skin_validated`]: the section curves, their compatibility,
+    /// the parameters and the solve) and the caps all read those, so a
+    /// section or placement value that is a function of the variables
+    /// gives walls and caps that are functions of them.
+    fn projective(self) -> Self::Out
+    where
+        T: ProjectiveScalar,
+    {
+        let band = Band::linear(self.tol).map_err(LoftError::Band)?;
+        let canonical = validate_guided(self.sections, self.places, &self.structures, self.tol)
+            .map_err(LoftError::Skin)?;
+        stacking_fold(self.places, &canonical, band)?;
+        let geometry =
+            skin_validated(canonical, self.places, self.v_degree).map_err(LoftError::Skin)?;
+        let params = geometry
+            .section_params
+            .iter()
+            .map(|u| u.point_value().unwrap_or(f64::NAN))
+            .collect();
+        assemble(
+            self.places,
+            &geometry.walls,
+            &geometry.canonical,
+            params,
+            self.tol,
+        )
+    }
+
+    /// **The loft at an enclosure scalar**: the `f64` loft its sections'
+    /// value channel describes, enclosed. The knot algebra the skin
+    /// runs does not typecheck at an enclosure scalar
+    /// ([`ProjectiveScalar`]), and the averaged knots a solve there
+    /// would form are no single points, which a carrier's knots must be
+    /// ([`geom_core::spline::Knots::new`]). So the skin is the `f64`
+    /// one, the walls are lifted ([`lift_loop_walls`]), and the caps
+    /// and the fold read the `f64` canonical form lifted onto the
+    /// caller's placements ([`ValidatedProfile::lift_onto`]). A section
+    /// whose values are wider than a point refuses at the `f64`
+    /// validation, whose value channel is then NaN.
+    fn enclosure(self) -> Self::Out {
+        let band = Band::linear(self.tol).map_err(LoftError::Band)?;
+        let lifted: Vec<ValidatedProfile<T>> = self
+            .canonical
+            .iter()
+            .zip(self.places)
+            .map(|(c, place)| c.clone().lift_onto(SketchPlane::new(*place)))
+            .collect();
+        stacking_fold(self.places, &lifted, band)?;
+        let geometry = skin_validated(self.canonical, self.channel_places, self.v_degree)
+            .map_err(LoftError::Skin)?;
+        let walls = geometry
+            .walls
+            .iter()
+            .map(|w| lift_loop_walls(w))
+            .collect::<Result<Vec<_>, _>>()?;
+        assemble(
+            self.places,
+            &walls,
+            &lifted,
+            geometry.section_params,
+            self.tol,
+        )
+    }
 }
 
 /// Assembles the loft BODY from its skinned geometry (module docs),
@@ -541,21 +609,21 @@ fn build<T: Decide + topo::AtRestPolicy>(
 /// [`LoftError`] — every door named on the enum.
 fn assemble<T: Decide + topo::AtRestPolicy>(
     places: &[Affine3<T>],
-    geometry: &LoftGeometry,
+    walls_t: &[Vec<Arc<NurbsSurface<T>>>],
+    canonical: &[ValidatedProfile<T>],
+    section_params: Vec<f64>,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
     let band = Band::linear(tol).map_err(LoftError::Band)?;
-    let (Some(can_bottom), Some(can_top), Some(place_bottom), Some(place_top)) = (
-        geometry.canonical.first(),
-        geometry.canonical.last(),
+    let (Some(bottom_profile), Some(top_profile), Some(place_bottom), Some(place_top)) = (
+        canonical.first(),
+        canonical.last(),
         places.first(),
         places.last(),
     ) else {
         return Err(LoftError::SectionStructure);
     };
     let (bplace, tplace) = (*place_bottom, *place_top);
-    let bottom_profile: ValidatedProfile<T> = end_profile(can_bottom, bplace);
-    let top_profile: ValidatedProfile<T> = end_profile(can_top, tplace);
     let n_bottom = bplace.linear.c2;
     let n_top = tplace.linear.c2;
 
@@ -571,13 +639,13 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
         .map(|lp| swept_segments(lp, false))
         .collect();
     if places.len() < 2
-        || places.len() != geometry.canonical.len()
+        || places.len() != canonical.len()
         || bloops.len() != tloops.len()
-        || bloops.len() != geometry.walls.len()
+        || bloops.len() != walls_t.len()
         || bloops
             .iter()
             .zip(&tloops)
-            .zip(&geometry.walls)
+            .zip(walls_t)
             .any(|((b, t), w)| b.len() != t.len() || b.len() != w.len())
     {
         return Err(LoftError::SectionStructure);
@@ -590,14 +658,6 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
         .iter()
         .map(|segs| segs.iter().map(|s| world(&tplace, s.a)).collect())
         .collect();
-
-    // ---- Lifted walls, kept once: face surfaces AND seam carriers
-    // read the same lifted structure (D9 — one lift, shared bits). ----
-    let walls_t: Vec<Vec<Arc<NurbsSurface<T>>>> = geometry
-        .walls
-        .iter()
-        .map(|w| lift_loop_walls(w))
-        .collect::<Result<_, _>>()?;
 
     // ---- Phase 1: bottom lamina (the extrude shape: the seed face's
     // chain is minted at the BOTTOM vertices and survives as the TOP
@@ -908,7 +968,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
         bottom: bottom_face,
         side_faces,
         seam_edges,
-        section_params: geometry.section_params.clone(),
+        section_params,
     })
 }
 
@@ -948,8 +1008,8 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
 ///
 /// [`LoftError`] — every door named on the enum.
 pub fn loft_body<T: Decide + topo::AtRestPolicy>(
-    sections: &[Section<impl SectionLoop>],
-    places: &[Affine3<f64>],
+    sections: &[Section<impl SectionLoop<T>>],
+    places: &[Affine3<T>],
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
@@ -990,8 +1050,8 @@ pub fn loft_body<T: Decide + topo::AtRestPolicy>(
 /// [`SkinError::PathTangentReversal`] arriving through
 /// [`LoftError::Skin`].
 pub fn sweep_body<T: Decide + topo::AtRestPolicy>(
-    profile: &[impl SectionLoop],
-    place: Affine3<f64>,
+    profile: &[impl SectionLoop<T>],
+    place: Affine3<T>,
     path: &geom::NurbsCurve3<f64>,
     stations: usize,
     v_degree: usize,

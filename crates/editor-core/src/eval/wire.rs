@@ -3988,10 +3988,21 @@ fn wire_loft<T: Decide + topo::AtRestPolicy + geom_core::Bounds + super::Section
     let mut sections = Vec::with_capacity(profiles.len());
     let mut places = Vec::with_capacity(profiles.len());
     let mut pieces = Vec::with_capacity(profiles.len());
+    // A section reaches this door as `f64` (DM1c: `section_of` resolves
+    // it at the lane's nominal), so it enters the loft's scalar at the
+    // door as the computed values it is: an unknown each at `Sym`. The
+    // loft then computes in `T` from them
+    // (`work/intent/a-loft-is-the-nominal-surface-in-every-generic-lane.md`
+    // owes the document lane's sections in `T`).
     for pid in profiles {
         let (chain, place, named) = section_of::<T>(doc, results, *pid, lane, tol)?;
-        sections.push(chain);
-        places.push(place);
+        sections.push(
+            chain
+                .iter()
+                .map(|lp| lp.map_scalar(T::from_computed))
+                .collect::<sweep::Section<_>>(),
+        );
+        places.push(place.map(T::from_computed));
         pieces.push(named);
     }
     // Skin refusals keep their own node-error shape (the §2

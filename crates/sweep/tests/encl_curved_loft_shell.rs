@@ -350,9 +350,14 @@ fn a_dual_scalar_refuses_the_spline_seam_re_anchor_by_name() {
         .iter()
         .map(|z| geom_core::Affine3::translation(Vec3::new(0.0, 0.0, *z)))
         .collect::<Vec<_>>();
-    let body = sweep::loft_body::<Dual64>(&[square(), square()], &places, 1, Tol::witness())
-        .expect("the square prism lofts at a dual")
-        .body;
+    let body = sweep::loft_body::<Dual64>(
+        &sweep::test_support::lift_sections::<Dual64>(&[square(), square()]),
+        &sweep::test_support::lift_places::<Dual64>(&places),
+        1,
+        Tol::witness(),
+    )
+    .expect("the square prism lofts at a dual")
+    .body;
     let mut moved = body.clone();
     let cap = top_cap(&body);
     let Err(ReplaceFaceError::NurbsLaneUnsupported { scalar, .. }) = topo::replace_face_offset(
@@ -586,9 +591,14 @@ fn at_interval_the_prism_moves_by_the_shortcut_and_a_slanted_rim_refuses_by_name
         .map(|z| geom_core::Affine3::translation(Vec3::new(0.0, 0.0, *z)))
         .collect::<Vec<_>>();
     let loft = |turn: f64| {
-        sweep::loft_body::<Interval>(&[square(0.0), square(turn)], &places, 1, Tol::witness())
-            .expect("the loft builds at interval")
-            .body
+        sweep::loft_body::<Interval>(
+            &sweep::test_support::lift_sections::<Interval>(&[square(0.0), square(turn)]),
+            &sweep::test_support::lift_places::<Interval>(&places),
+            1,
+            Tol::witness(),
+        )
+        .expect("the loft builds at interval")
+        .body
     };
     let d = <Interval as Real>::from_f64(-THICKNESS);
     let prism = loft(0.0);
