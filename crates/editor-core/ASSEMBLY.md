@@ -293,20 +293,29 @@ re-evaluation, which re-verifies crossings (A4).
 ## Validity
 
 **A5 — The at-rest gate.** `assembly::assemble` gathers the product
-(`product::product_recorded`), mints every solved mate's declaration as
-a `MintedDeclaration` (declaring mates mint like determining ones), and
-runs the scalar's at-rest policy, `topo::validate_pseudomanifold`'s
-verdict, over body plus records. A mate places and never checks (D10):
+(`product::product_recorded`), which mints every solved mate's
+declaration as a `MintedDeclaration` (declaring mates mint like
+determining ones) and runs the scalar's at-rest policy,
+`topo::validate_pseudomanifold`'s census, over body plus records, once,
+keeping its findings on the product (`Product::census`); the gate reads
+them and runs no census of its own. A mate places and never checks (D10):
 its record cites the at-rest census's decision that its two faces rest
 on one carrier (`topo::census_rest_decision`, a `CensusAtRest` row on
 the product, which the `unproven-coincidence` check reads), and a pair
 the census refuses mints no record, its finding raised by the gate
 beside the census's own. The gather's own tier-3 verdict rides
-on the product's body (`topo::AtRestBody`), so the gate runs tier 3′'s
-census over it rather than the local battery a second time. The gate
+on the product's body (`topo::AtRestBody`), so the gate reads both
+verdicts rather than running either a second time. The gate
 runs no predicate of its own; kernel findings come back as
 `AtRestFinding`s attributed to the mate whose declaration they concern.
-Undeclared contact between instances is a hard error, never blessed.
+A touch between two copies that no record backs refuses nothing (D1
+(iii), D10): the gather's census records it (`topo::record_at_rest`,
+each copy its own group) as a `CensusAtRest` row of the product
+(`AtRestBy::Copies`) and a record citing it, which the census's next
+pass confirms, and the `unproven-coincidence` check reports each row
+the coincidence door does not prove. Such a record backs no mate, so it
+quiets no `Separation` finding. A touch inside one copy that no record
+backs is that copy's defect, and refuses.
 `AssemblyError::AtRest` is a verdict against the document;
 `AssemblyError::Uncertified` is the declared direction's frontier
 (every finding declined, none refuted). A disjoint assembly certifies as
@@ -345,10 +354,14 @@ gate.
 `Attribution::Carried`, naming that mate, that document and that route,
 in the same `Relation` (`refuted` or `declined`) the own-minted arms
 use; so a carried decline reaches `AssemblyError::Uncertified` under its
-own name. `Attribution::Unattributed` is a finding no declaration this
-document holds a row for answers for, its own or a part's. That is
-currently every declaration in the tree, because the only path a record
-can take without its row (a boolean over a source) is one no instance
+own name. A finding no declaration this document holds a row for
+answers for, its own or a part's, carries no attribution
+(`AtRestFinding::attribution` is `None`): a finding about no
+declaration at all (a structural defect, an overlap or a touch no
+record backs inside one copy, an unrecorded touch of a pair the census
+could not clear, a census that could not look), never a declaration
+that lost its row. Every declaration in the tree keeps its row,
+because the only path a record can take without its row (a boolean over a source) is one no instance
 carrying a declaration can reach: such an instance is a product of
 several parts, whose part count the placers and a sub-assembly that
 instantiates it carry through (`NodeValue::parts`), and every op that
@@ -394,8 +407,7 @@ beside it (a pin pressed into one bore and slipped into another) keeps
 it loud. Every other overlap is loud. Between two solids of one copy an overlap stays the kernel's
 typed error. The partition takes interference verdicts only: a press
 fit whose pin is flush with its plate also touches at the coplanar
-caps, an undeclared contact the census refuses, so that document
-refuses before any finding is reported.
+caps, which the gather records as rows of the two copies.
 
 ## Mirror
 

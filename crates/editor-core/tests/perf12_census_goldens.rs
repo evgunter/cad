@@ -1,9 +1,10 @@
 //! **The at-rest census verdict golden**: every registered corpus
 //! document and the heat sink driven to 10/40/160 fins, each gathered
-//! into its product and put through the tier-3′ door
-//! (`AtRestPolicy::gate_at_rest_declared`), with the WHOLE error vector
-//! — kinds, entities, order, witnesses — serialized and compared
-//! byte-exact against a committed golden per ε row.
+//! into its product, whose gather runs the tier-3′ census once
+//! (`Product::census`, `Product::coincidences`), with the WHOLE finding
+//! vector — kinds, entities, order, witnesses — and every at-rest row
+//! serialized and compared byte-exact against a committed golden per ε
+//! row.
 //!
 //! What it pins is the census's verdict as a function of the body: a
 //! change to WHICH pairs the sweeps examine (a candidate pre-filter)
@@ -28,7 +29,6 @@ use crate::corpus;
 use corpus::{documents, eval, failures};
 use editor_core::{DocEdit, ProfileDoc, VarName, apply, assemble, product_recorded};
 use geom_core::Tol;
-use topo::AtRestPolicy;
 
 /// The committed goldens, one per ε row `ci-filter.py` draws — keyed by
 /// `format!("{:e}", eps)`.
@@ -114,14 +114,20 @@ fn row(label: &str, doc: &ProfileDoc, out: &mut String) {
             out.push_str(&format!("assemble: Err({variant})\n"));
         }
     }
-    match <f64 as AtRestPolicy>::gate_at_rest_declared(&subject.body, &subject.contacts, tol) {
-        Ok(_) => out.push_str("census: Ok\n"),
-        Err(errors) => {
+    // The census as the gather ran it: its findings, then the rows it
+    // recorded (a mated pair's, and each contact between two copies).
+    match subject.census.as_slice() {
+        [] => out.push_str("census: Ok\n"),
+        errors => {
             out.push_str(&format!("census: {} findings\n", errors.len()));
-            for e in &errors {
+            for e in errors {
                 out.push_str(&format!("{e:?}\n"));
             }
         }
+    }
+    out.push_str(&format!("rows: {}\n", subject.coincidences.len()));
+    for r in &subject.coincidences {
+        out.push_str(&format!("{:?} {:?}\n", r.by, r.row));
     }
 }
 

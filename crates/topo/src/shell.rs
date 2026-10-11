@@ -907,24 +907,48 @@ pub struct Shelled<T: Real> {
     pub naming: ShellNaming,
 }
 
-impl<T: Real> Shelled<T> {
+impl<T: Decide> Shelled<T> {
     /// `records`, the operand's, carried onto the thin solid: the outer
     /// walls keep their operand keys, so each cell is itself or the edge
     /// the closing join made of it, and a cell the construction retired
-    /// ([`ShellNaming::dead`]) is refused
-    /// ([`crate::ContactRecords::carried_through`]). The cavity twins are
-    /// new cells and no operand record names one.
+    /// ([`ShellNaming::dead`]) is refused. The rim surgery divides cells
+    /// of a designated chart on the outer shell: a seam into its pieces
+    /// ([`RimNaming::seam_pieces`]), and the rim face into itself and
+    /// the region at each further boundary ([`RimNaming::holes`]); a
+    /// record on one lands on the pieces whose interiors still meet
+    /// ([`crate::ContactRecords::carried_through_pieces`], at `band`
+    /// through `region`). The cavity twins are new cells and no operand
+    /// record names one.
     ///
     /// # Errors
     ///
-    /// As [`crate::ContactRecords::carried_through`].
+    /// As [`crate::ContactRecords::carried_through_pieces`].
     pub fn carry_contacts(
         &self,
         records: &crate::boolean::ContactRecords,
+        band: Band,
+        region: Option<crate::RegionLane<T>>,
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::CarryRefusal> {
-        records.carried_through(0, &self.body, |c| {
-            Some(crate::boolean::joined_cell(&self.naming.edge_joins, c))
-        })
+        let rims = &self.naming.rims;
+        let divisions = crate::Divisions {
+            edges: rims
+                .iter()
+                .flat_map(|rim| rim.seam_pieces.iter().copied())
+                .collect(),
+            faces: rims
+                .iter()
+                .filter(|rim| rim.side == RimShell::Outer)
+                .flat_map(|rim| rim.holes.iter().map(|h| (h.face, rim.rim)))
+                .collect(),
+        };
+        records.carried_through_pieces(
+            0,
+            &self.body,
+            |c| Some(crate::boolean::joined_cell(&self.naming.edge_joins, c)),
+            &divisions,
+            band,
+            region,
+        )
     }
 }
 

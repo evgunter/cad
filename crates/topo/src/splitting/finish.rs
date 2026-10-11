@@ -129,7 +129,7 @@ pub struct SplitContacts {
     pub below: crate::boolean::ContactRecords,
 }
 
-impl<T: Real> SplitResult<T> {
+impl<T: Decide> SplitResult<T> {
     /// `records`, the operand's, carried onto each side that holds both of
     /// a record's cells, every record citing the operand's
     /// ([`crate::ContactRecords::carried_through`]). A side's survivors
@@ -139,14 +139,26 @@ impl<T: Real> SplitResult<T> {
     /// such a vertex lands on every side that holds both its cells (D1
     /// (ii)); and each cell is read through its side's joins.
     ///
+    /// A record on an edge the cut split (`SplitNaming::edge_pieces`) or
+    /// a face it divided (`SplitNaming::face_fragments`, the section
+    /// faces excluded) lands, on each side, on every pair of pieces whose
+    /// interiors still meet, as
+    /// [`crate::ContactRecords::carried_through_pieces`] places it, at
+    /// `band` through `region`; where no pair meets on either side it is
+    /// carried by key as any other.
+    ///
     /// # Errors
     ///
     /// [`CarryRefusal::Parted`] for a record whose cells the cut put on
-    /// different sides, and [`crate::ContactRecords::carried_through`]'s
-    /// refusals for one that lands on no side.
+    /// different sides, [`crate::ContactRecords::carried_through`]'s
+    /// refusals for one that lands on no side, and
+    /// [`CarryRefusal::Unread`] for a pair of pieces the census cannot
+    /// read.
     pub fn carry_contacts(
         &self,
         records: &crate::boolean::ContactRecords,
+        band: geom_core::Band,
+        region: Option<crate::RegionLane<T>>,
     ) -> Result<SplitContacts, CarryRefusal> {
         let sides: Vec<(PlaneSide, &Body<T>, Vec<crate::boolean::EdgeJoin>)> = [
             (PlaneSide::Above, self.above.body()),
@@ -164,44 +176,44 @@ impl<T: Real> SplitResult<T> {
             body.map(|b| (side, b, joins))
         })
         .collect();
+        let section = |f: FaceKey| self.naming.sections.iter().any(|&(s, _)| s == f);
+        let divisions = crate::Divisions {
+            edges: self.naming.edge_pieces.clone(),
+            faces: self
+                .naming
+                .face_fragments
+                .iter()
+                .copied()
+                .filter(|&(new, from)| !section(new) && !section(from))
+                .collect(),
+        };
+        let images: Vec<_> = sides
+            .iter()
+            .map(|(_, body, joins)| move |c: Cell| self.side_image(body, joins, c))
+            .collect();
+        let carried = records.carried_onto(
+            0,
+            &sides
+                .iter()
+                .zip(&images)
+                .map(|((_, body, _), image)| crate::boolean::records::Side { body, image })
+                .collect::<Vec<_>>(),
+            &divisions,
+            band,
+            region,
+        )?;
         let mut out = SplitContacts::default();
-        for k in 0..records.len() {
-            let mut refusals = Vec::new();
-            let mut landed = false;
-            for (side, body, joins) in &sides {
-                let image = |c: Cell| self.side_image(body, joins, c);
-                match records.carried_row(0, k, body, &image) {
-                    Ok(row) => {
-                        landed = true;
-                        match side {
-                            PlaneSide::Above => out.above.extend(row),
-                            _ => out.below.extend(row),
-                        }
-                    }
-                    Err(refusal) => refusals.push(refusal),
-                }
-            }
-            if !landed {
-                let record = crate::boolean::reduce::index(k);
-                let [x, y] = records.rows()[k].cells();
-                let held = |c: Cell| {
-                    sides
-                        .iter()
-                        .any(|(_, body, joins)| self.side_image(body, joins, c).is_some())
-                };
-                return Err(match (held(x), held(y)) {
-                    (true, true) => refusals
-                        .into_iter()
-                        .find(|r| matches!(r, CarryRefusal::Pair { .. }))
-                        .unwrap_or(CarryRefusal::Parted { record }),
-                    (false, _) => CarryRefusal::Unmapped { record, cell: x },
-                    (true, false) => CarryRefusal::Unmapped { record, cell: y },
-                });
+        for ((side, _, _), list) in sides.iter().zip(carried) {
+            match side {
+                PlaneSide::Above => out.above = list,
+                _ => out.below = list,
             }
         }
         Ok(out)
     }
+}
 
+impl<T: Real> SplitResult<T> {
     /// What the side `body`, ending with `joins`, made of operand cell
     /// `c`: the cell, or the one copy of it the cut minted there, read
     /// through the joins; `None` where the side holds neither, or more
@@ -248,6 +260,10 @@ pub struct SplitNaming {
     /// log). Section faces appear here too (they are minted by the
     /// same mefs); consumers exclude the keys listed in `sections`.
     pub face_fragments: Vec<(FaceKey, FaceKey)>,
+    /// Crossing-split piece rows: `(new edge, divided-from edge)` in
+    /// mint order, call-time keys ([`crate::Body::split_edge`] keeps the
+    /// divided edge's key on the piece from its start).
+    pub edge_pieces: Vec<(crate::entity::EdgeKey, crate::entity::EdgeKey)>,
     /// Null-edge vertex pairs `(copy, original)` from the reduction's
     /// F9 records, in record order: each coincident copy with the
     /// vertex it was minted at (the naming layer derives the copy's
@@ -541,6 +557,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     let mut naming = SplitNaming {
         sections: Vec::with_capacity(completed.len() * 2),
         face_fragments,
+        edge_pieces: red.edge_pieces,
         vertex_pairs: red
             .null_edges
             .iter()
