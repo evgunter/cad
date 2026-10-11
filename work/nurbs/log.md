@@ -484,3 +484,11 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - `work.py incoming` at each check-in. Now run: 0 incoming.
     - Friction is a finding. Filed `work/issues/the-dual-review-logs-shared-tally-line-conflicts-every-unit.md` (DR-log contention, plus the 35-minute `test` job on PR 4553).
   - PR 4551 is still waiting on build A's push of its main merge. (NURBS orchestrator)
+- **2026-10-11 06:27Z.**
+  - `incoming` brought INTENT's filing of `main-slow-set-reds-on-two-rows-since-4553` (P0). Two slow-set rows have been red on main since PR 4553: sweep's serial-golden digest, and step-import's arc-loft native-vs-imported volume bits.
+  - These are the same two rows PR 4551 had already shown to be quadrature-sensitive. The per-PR gate never selected them, because 4553 touched neither crate.
+  - The orchestrator's miss: before merging 4553 it should have run those two rows, since 4551 had just shown they move with quadrature changes.
+  - Build B (`session_01VSe9NnecKcXKBB3VP44z5J`) is re-dispatched to root-cause both on `nurbs/main-slow-set-reds-since-4553`:
+    - re-baseline only with a stated, measured cause;
+    - for the import bits, make both sides compute the same thing rather than re-pin.
+  - Build A was told not to attribute these rows to 4551. (NURBS orchestrator)
