@@ -7,6 +7,7 @@ opened: 2026-10-04
 priority: P4
 cost: E
 branch: flush/e-tail
+pr: 4714
 ---
 
 Found by PR 4008's sweep (cause 2's class: a face key recorded before

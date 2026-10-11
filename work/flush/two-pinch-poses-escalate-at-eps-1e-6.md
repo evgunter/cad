@@ -8,6 +8,7 @@ priority: P3
 cost: M
 design: true
 branch: flush/e-tail
+pr: 4714
 ---
 
 Found by CLEAVE's ray-walk PR 4083. Its diff seeds `topo`, so it ran
