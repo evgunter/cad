@@ -43,6 +43,8 @@ range, root-cause, and fix where the cause lies.
 
 ## Worked under GERM's row (2026-10-11)
 
+Bisected: PR 4604 (see GERM's row for the table and reading).
+
 The same red is `work/germ/main-reds-on-plates-at-the-exact-support-of-a-frustum-and-a-torus.md`,
 already dispatched by CLEAVE (`cleave/support-plates-main-red`). To avoid
 two bisects, CONTACTHOLD does not dispatch a second lane. If the bisect
