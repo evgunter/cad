@@ -61,3 +61,15 @@ Review tiers are set when each lane reports, from what its diff turned
 out to be: a P0 fix whose cause is not yet known cannot be tiered
 honestly at dispatch.
 — (FLUSH orchestrator)
+
+- 2026-10-11 — A fourth lane, `flush/anti-parallel-scaffold`: the
+  undeclared anti-parallel touch (P2, not root-caused). It is
+  independent of what is in flight, and F leaves its outcome
+  bit-equal. **The pinch cluster is held**: the pre-zip weld (H), the
+  unlinked seams and the hole weld. Its witness
+  (`union_flush_onto_edge_contact`) and its contact records are exactly
+  what INTENT F and CONTACTHOLD 4598/4604 are rewriting. A lane started
+  now would measure against tests and types that are about to move. It
+  is dispatched once F and 4598 have merged. The curved pinch row waits
+  with it: its open question is the curved census, which 4604 extends.
+  — (FLUSH orchestrator)
