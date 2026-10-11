@@ -587,47 +587,53 @@ pub fn reattach_certifies_at(body: &Body<f64>, edge: EdgeKey, eps: f64) -> bool 
 
 /// **A moved wall's seam with a held spline wall, its measured verdict.**
 /// The seam is the NURBS × NURBS section of the moved fit and the held
-/// wall, and the arm refuses it, `EdgeSection { Approx, Nurbs, Ssi(_) }`,
-/// with the reading that meets it first. Measured on `prism` and
+/// wall, and the arm refuses it, `EdgeSection { Approx, Nurbs, _ }`, the
+/// trace from the old seam's middle refused (`FromMiddle`) by the reading
+/// that meets it first, or no branch there. Measured on `prism` and
 /// `twisted_loft(0.3)` with one wall moved by `d = ±5e-10`:
 /// - inward (`d < 0`), at every ε: the section runs along the fit's side,
 ///   and the boundary pass does not resolve that face
 ///   (`PairBoundaryUnresolved`);
-/// - outward at ε ≤ 1e-9: the seed settles `d` outside the fit's window
-///   (`SeedOffDomain`);
+/// - outward at ε ≤ 1e-9: the old seam's middle settles onto the section
+///   outside the fit's window, so the moved fit no longer meets the held
+///   wall there (`NoBranch`);
 /// - outward at ε = 1e-6, where `d` is far inside ε: on the loft the
-///   boundary pass refuses as inward; on the prism the seed settles
+///   boundary pass refuses as inward; on the prism the middle settles
 ///   inside and the trace loses the section at the side, one seam with
 ///   no crossing to end at (`CrossingUnmatched`), the other by the
 ///   step-progress decision (`Escalated { StepProgress }`).
 pub fn assert_seam_verdict(name: &str, curved: bool, d: f64, e: &topo::ReplaceFaceError<f64>) {
     use geom_brep::{SsiError, TraceDecision};
+    use topo::SectionVerdict;
     let topo::ReplaceFaceError::EdgeSection {
         kind: geom::SurfaceKind::Approx,
         other_kind: geom::SurfaceKind::Nurbs,
-        verdict: topo::SectionVerdict::Ssi(ssi),
+        verdict,
         ..
     } = e
     else {
         panic!("{name}, d = {d:e}: expected the seam's section to refuse, got {e}");
     };
     let eps = Tol::witness().eps();
+    let traced = |want: &dyn Fn(&SsiError) -> bool| matches!(verdict, SectionVerdict::FromMiddle(ssi) if want(ssi));
     let ok = if d < 0.0 || (curved && eps > 1e-8) {
-        matches!(ssi, SsiError::PairBoundaryUnresolved { .. })
+        traced(&|ssi| matches!(ssi, SsiError::PairBoundaryUnresolved { .. }))
     } else if eps > 1e-8 {
-        matches!(
-            ssi,
-            SsiError::CrossingUnmatched { .. }
-                | SsiError::Escalated {
-                    decision: TraceDecision::StepProgress,
-                    ..
-                }
-        )
+        traced(&|ssi| {
+            matches!(
+                ssi,
+                SsiError::CrossingUnmatched { .. }
+                    | SsiError::Escalated {
+                        decision: TraceDecision::StepProgress,
+                        ..
+                    }
+            )
+        })
     } else {
-        matches!(ssi, SsiError::SeedOffDomain { .. })
+        matches!(verdict, SectionVerdict::NoBranch)
     };
     assert!(
         ok,
-        "{name}, d = {d:e}, ε = {eps:e}: the seam's verdict moved: {ssi:?}"
+        "{name}, d = {d:e}, ε = {eps:e}: the seam's verdict moved: {verdict:?}"
     );
 }

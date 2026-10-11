@@ -626,9 +626,16 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut finished = fin.body;
     let mut body = finished.begin_surgery();
     let mut seam_edges = Vec::new();
+    // Each operand's face divisions: the join's chord-mef rows, then the
+    // pinch welds'.
+    let fragments = [
+        [connected.a_fragments.as_slice(), &fin.weld_fragments_a].concat(),
+        [connected.b_fragments.as_slice(), &fin.weld_fragments_b].concat(),
+    ];
     let mut desc = Descendants::welded(&fin.weld_merges_a, &fin.weld_merges_b)
         .with_copies(copies)
-        .with_along(along);
+        .with_along(along)
+        .with_fragments(fragments.clone());
     // A vertex several seams meet is fused by the first: each later zip
     // reads the correspondence through the fusions made.
     let mut vertex_map = fin.vertex_map.clone();
@@ -666,6 +673,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         &ledger,
         [&KeyView::Direct, &KeyView::Graft(&fin.graft)],
         &desc,
+        band,
     )?;
     // Curved results carry certified per-half-edge pcurves at rest
     // (M5 PR 9, the PR 6 contract): re-derive the whole cache set on
@@ -679,6 +687,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     interior_loops?;
     T::gate_volume_backstop(op, a, b, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&fin.graft);
+    let [face_fragments_a, face_fragments_b] = fragments;
     let naming = BooleanNaming {
         a_keys: OperandKeys::Direct,
         b_keys: OperandKeys::Grafted,
@@ -691,8 +700,8 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         weld_merges_b: fin.weld_merges_b,
         merge_groups: merge_rows(&merged),
         merge_skipped: merged.skipped.clone(),
-        face_fragments_a: [connected.a_fragments, fin.weld_fragments_a].concat(),
-        face_fragments_b: [connected.b_fragments, fin.weld_fragments_b].concat(),
+        face_fragments_a,
+        face_fragments_b,
         reduction_contacts,
         discards: fin.discards,
         covered,
@@ -1088,40 +1097,24 @@ fn has_lone_vertex<T: Real>(body: &Body<T>, face: FaceKey) -> bool {
         .any(|(_, l)| matches!(l.boundary, LoopBoundary::Empty { .. }))
 }
 
-/// Places a witness point in one face: `contfp` on a plane, the chart
-/// trim on a curved face. A point definitely OFF the carrier is no
-/// verdict — the witness was built on the carrier, so that answer
-/// contradicts its construction rather than placing it. The trim reads
-/// the carrier itself; `contfp` places a point's projection, so the
-/// plane's carrier is decided here first.
+/// Places a witness point in one face ([`super::contain::face_placement`]).
+/// A point definitely OFF the carrier is no verdict: the witness was
+/// built on the carrier, so that answer contradicts its construction
+/// rather than placing it, and so does a margin from a plane in band.
 pub(crate) fn place_witness<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    surface: &geom::Surface<T>,
     p: Point3<T>,
     band: Band,
 ) -> Option<FaceContainment> {
-    match *surface {
-        geom::Surface::Plane { origin, normal, .. }
-            if decide(
-                "bool_section_witness_on_plane",
-                Margin::of((p - origin).dot(normal)),
-                band,
-            ) != Ok(Sign::Zero) =>
-        {
-            None
+    use super::contain::{CurvedPlacement, PlacementError};
+    match super::contain::face_placement(body, face, p, band, "bool_section_witness_on_plane") {
+        Ok(CurvedPlacement::Trim(at)) => at,
+        Ok(CurvedPlacement::OffCarrier) | Err(PlacementError::OnPlane(_)) => None,
+        Err(PlacementError::Door(ContainError::StaleFace(face))) => {
+            super::contain::driver_face_stale(face)
         }
-        geom::Surface::Plane { normal, .. } => match contfp(body, face, normal, p, band) {
-            Ok(at) => Some(at),
-            Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
-            Err(_) => None,
-        },
-        _ => match super::contain::curved_face_placement(body, face, p, band) {
-            Ok(super::contain::CurvedPlacement::Trim(v)) => v,
-            Ok(super::contain::CurvedPlacement::OffCarrier) => None,
-            Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
-            Err(_) => None,
-        },
+        Err(PlacementError::Door(_)) => None,
     }
 }
 
@@ -1216,8 +1209,8 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
         },
         |p| {
             [
-                place_witness(a, fa.face, &fa.surface, p, band),
-                place_witness(b, fb.face, &fb.surface, p, band),
+                place_witness(a, fa.face, p, band),
+                place_witness(b, fb.face, p, band),
             ]
         },
     )
@@ -2204,7 +2197,7 @@ fn describe_worklist<T: Real>(
         merged.skipped.iter().flat_map(|s| s.faces.iter().copied()),
     )
     .ok_or(BooleanError::JoinDesync {
-        what: join_desync_text(EdgeDescribeFailure::NotWalkable),
+        what: "description worklist edge not walkable",
     })?;
     worklist.extend(skipped.into_iter().map(|(_, edge)| edge));
     Ok(worklist)
@@ -2239,29 +2232,54 @@ pub(crate) fn boundary_edges<T: Real>(
     Some(edges)
 }
 
-/// The boolean's words for what the describer could not do: a join
-/// desync, as its own description pass has always raised it.
-const fn join_desync_text(failure: EdgeDescribeFailure) -> &'static str {
-    match failure {
-        EdgeDescribeFailure::NotWalkable => "description worklist edge not walkable",
-        EdgeDescribeFailure::Intersection => "minted-edge description failed certification",
-        EdgeDescribeFailure::Tangency => "tangent-seam description failed certification",
-        EdgeDescribeFailure::NoConventionalLane => {
-            "stale CURVED smooth-seam description (no conventional re-description lane exists \
-             for this carrier kind)"
-        }
-        EdgeDescribeFailure::Arc => "stale arc description failed re-certification",
-        EdgeDescribeFailure::Line => "stale in-plane description failed re-certification",
+/// The boolean's refusal for an edge its describer could not describe.
+/// An exact carrier read in band of one of its faces is the input's (D9
+/// row 1); every other failure is the kernel's.
+pub(super) fn of_describe(refusal: DescribeRefusal) -> BooleanError {
+    match refusal {
+        DescribeRefusal::Failed {
+            edge,
+            failure,
+            cause,
+            fitted,
+        } => BooleanError::EdgeUndescribed {
+            edge,
+            failure,
+            cause,
+            fitted,
+        },
+        DescribeRefusal::Undecided { reading, diag, .. } => seam_refusal(reading, diag),
+        DescribeRefusal::OffFace { diag, .. } => BooleanError::Escalated {
+            decision: BooleanDecision::EdgeOnFaces,
+            diag,
+        },
     }
 }
 
-/// The boolean's refusal for an edge its describer could not describe.
-pub(super) fn of_describe(refusal: DescribeRefusal) -> BooleanError {
-    match refusal {
-        DescribeRefusal::Failed { failure, .. } => BooleanError::JoinDesync {
-            what: join_desync_text(failure),
-        },
-        DescribeRefusal::Undecided { reading, diag, .. } => seam_refusal(reading, diag),
+/// The describer's refusal for `edge` when the attachment gate refuses
+/// its description on `carrier`. The carrier's own residual against one
+/// of its faces' surfaces read in band is [`DescribeRefusal::OffFace`]
+/// where the carrier is exact: its ends are vertices placed on those
+/// faces, so its miss is theirs. On a fitted carrier the miss may be the
+/// fit's, and it fails the edge as every other refusal does, carrying
+/// the gate's.
+fn of_attachment<T: Real>(
+    edge: crate::entity::EdgeKey,
+    failure: EdgeDescribeFailure,
+    carrier: &geom::Curve3<T>,
+    cause: crate::euler::EulerOpError,
+) -> DescribeRefusal {
+    let fitted = matches!(carrier, geom::Curve3::Nurbs(_));
+    match cause {
+        crate::euler::EulerOpError::Certification {
+            error:
+                geom_brep::CertifyError::Escalated {
+                    check: geom_brep::CertCheck::SurfaceResidual { .. },
+                    cause: diag,
+                    ..
+                },
+        } if !fitted => DescribeRefusal::off_face(edge, diag),
+        cause => DescribeRefusal::refused(edge, failure, cause, fitted),
     }
 }
 
@@ -2341,12 +2359,11 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
             .map_err(|(reading, diag)| DescribeRefusal::undecided(edge, reading, diag))?
         {
             geom_brep::DihedralClass::Transverse => {
-                body.set_edge_curve(
-                    edge,
-                    draft.into_spec(geom_brep::SurfacePair::new(s1, s2)),
-                    tol,
-                )
-                .map_err(|_| DescribeRefusal::failed(edge, EdgeDescribeFailure::Intersection))?;
+                let spec = draft.into_spec(geom_brep::SurfacePair::new(s1, s2));
+                let carrier = spec.carrier.clone();
+                body.set_edge_curve(edge, spec, tol).map_err(|e| {
+                    of_attachment(edge, EdgeDescribeFailure::Intersection, &carrier, e)
+                })?;
             }
             geom_brep::DihedralClass::Smooth => {
                 // F1 (the declared-merge SKIP lane): a SURVIVING
@@ -2409,8 +2426,8 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                         param_start: t0,
                         param_end: t1,
                     };
-                    body.set_edge_curve(edge, spec, tol).map_err(|_| {
-                        DescribeRefusal::failed(edge, EdgeDescribeFailure::Tangency)
+                    body.set_edge_curve(edge, spec, tol).map_err(|e| {
+                        of_attachment(edge, EdgeDescribeFailure::Tangency, c.carrier(), e)
                     })?;
                 } else if stale {
                     if curved {
@@ -2436,15 +2453,16 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                             ));
                         };
                         body.set_edge_curve(edge, spec.at_rest_in_chart(s1, false), tol)
-                            .map_err(|_| DescribeRefusal::failed(edge, EdgeDescribeFailure::Arc))?;
+                            .map_err(|e| {
+                                of_attachment(edge, EdgeDescribeFailure::Arc, c.carrier(), e)
+                            })?;
                     } else {
-                        body.set_edge_curve(
-                            edge,
-                            geom_brep::EdgeCurveSpec::line_between(p0, p1)
-                                .at_rest_in_chart(s1, false),
-                            tol,
-                        )
-                        .map_err(|_| DescribeRefusal::failed(edge, EdgeDescribeFailure::Line))?;
+                        let spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
+                        let carrier = spec.carrier.clone();
+                        body.set_edge_curve(edge, spec.at_rest_in_chart(s1, false), tol)
+                            .map_err(|e| {
+                                of_attachment(edge, EdgeDescribeFailure::Line, &carrier, e)
+                            })?;
                     }
                 }
             }
@@ -2624,6 +2642,13 @@ pub(super) struct Descendants {
     /// so where the op drops `edge`, the chord holds its interior.
     /// Read only where `edge` left the result.
     along: [Vec<(EdgeKey, EdgeKey)>; 2],
+    /// Each operand's face divisions, `(new face, divided-from face)` in
+    /// its clone keys, read before its key view: the join's chord-mef
+    /// fragments and the pinch welds'. A division keeps the divided
+    /// face's key on one piece, whichever piece that is, so a record
+    /// naming the face is read through all of its pieces
+    /// ([`Self::holder`]).
+    fragments: [Vec<(FaceKey, FaceKey)>; 2],
     /// Every other substitution, dead cell → the cell that holds its
     /// interior now, result keys: a zipped ring edge → its seam edge, a
     /// cell the merge swallowed → the kept face, a joined vertex or
@@ -2662,6 +2687,12 @@ impl Descendants {
     /// operand's own edges ([`Self::along`]).
     pub(super) fn with_along(self, along: [Vec<(EdgeKey, EdgeKey)>; 2]) -> Self {
         Self { along, ..self }
+    }
+
+    /// The map that also reads each operand's face divisions
+    /// ([`Self::fragments`]).
+    pub(super) fn with_fragments(self, fragments: [Vec<(FaceKey, FaceKey)>; 2]) -> Self {
+        Self { fragments, ..self }
     }
 
     /// `v` and every vertex null edges join it to, transitively, in
@@ -2805,6 +2836,82 @@ impl Descendants {
         Ok(held)
     }
 
+    /// Operand `side`'s face `face` as a vertex-on-face record reads it,
+    /// `vertex` the record's vertex in result keys: the live piece of
+    /// the face that holds the vertex. A face no division touched is
+    /// [`Self::live`]'s read. A division keeps the key on one piece,
+    /// which need not be the one the vertex rests on, so each live piece
+    /// of a divided face (its lineage through [`Self::fragments`], each
+    /// through [`Self::live`]) is placed ([`piece_holds`]): the piece the
+    /// vertex bounds (the record is then structure), else the one whose
+    /// interior holds it. `None` where every piece is read and none holds
+    /// it: the part of the face it rested on left the result, or the
+    /// vertex is on a piece's boundary.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::live`]; [`BooleanError::Escalated`] where a piece's
+    /// margin is in band; [`BooleanError::RestPieceUnread`] where no
+    /// piece holds the vertex and a piece could not be read, so the rest
+    /// may be on it; [`BooleanError::JoinDesync`] where two pieces of one
+    /// face both hold the vertex.
+    fn holder<T: Decide>(
+        &self,
+        body: &Body<T>,
+        side: Operand,
+        view: &KeyView<'_>,
+        face: FaceKey,
+        vertex: VertexKey,
+        band: Band,
+    ) -> Result<Option<Cell>, BooleanError> {
+        let desync = |what| BooleanError::JoinDesync { what };
+        let lineage =
+            super::fragments::Lineage::of(face, &self.fragments[usize::from(side == Operand::B)]);
+        if lineage.faces().nth(1).is_none() {
+            return self.live(body, side, view, Cell::Face(face));
+        }
+        let mut pieces = Vec::new();
+        for f in lineage.faces() {
+            if let Some(Cell::Face(p)) = self.live(body, side, view, Cell::Face(f))?
+                && !pieces.contains(&p)
+            {
+                pieces.push(p);
+            }
+        }
+        if let Some(&p) = pieces
+            .iter()
+            .find(|&&p| super::records::incident(body, [Cell::Vertex(vertex), Cell::Face(p)]))
+        {
+            return Ok(Some(Cell::Face(p)));
+        }
+        let q = body
+            .get_vertex(vertex)
+            .and_then(|d| body.get_point(d.point))
+            .copied()
+            .ok_or_else(|| desync("a recorded vertex has no point"))?;
+        let (mut held, mut unread) = (None, None);
+        for p in pieces {
+            match piece_holds(body, p, q, band)? {
+                PieceRead::In => {
+                    if held.replace(p).is_some() {
+                        return Err(desync(
+                            "two pieces of one divided face hold a recorded vertex",
+                        ));
+                    }
+                }
+                PieceRead::NotIn => {}
+                PieceRead::Unread(refusal) => {
+                    unread.get_or_insert(BooleanError::RestPieceUnread { face: p, refusal });
+                }
+            }
+        }
+        match (held, unread) {
+            (Some(p), _) => Ok(Some(Cell::Face(p))),
+            (None, Some(refused)) => Err(refused),
+            (None, None) => Ok(None),
+        }
+    }
+
     /// [`Self::live`] without the chord rows.
     fn chained<T: Real>(
         &self,
@@ -2849,6 +2956,66 @@ impl Descendants {
         Err(BooleanError::JoinDesync {
             what: "a cell's substitution rows are cyclic",
         })
+    }
+}
+
+/// What [`piece_holds`] read of one piece.
+#[derive(Debug)]
+enum PieceRead {
+    /// The point is strictly inside the piece.
+    In,
+    /// The point is off the piece's carrier, outside its region, or on
+    /// its boundary, where it meets an edge or vertex that a record of
+    /// its own names.
+    NotIn,
+    /// The read failed: the containment door's refusal, or `None` where
+    /// the curved chart trim gives no verdict.
+    Unread(Option<ContainError>),
+}
+
+/// Whether `face` holds `q` strictly inside it, placed as the census
+/// confirms a vertex-on-face record ([`super::contain::face_placement`]).
+///
+/// # Errors
+///
+/// [`BooleanError::Escalated`] (`SelfCheck(CarriedLineage)`) on a margin
+/// in band, the on-plane one or the door's.
+fn piece_holds<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    q: Point3<T>,
+    band: Band,
+) -> Result<PieceRead, BooleanError> {
+    use super::contain::{CurvedPlacement, PlacementError};
+    let in_band = |diag| BooleanError::Escalated {
+        decision: BooleanDecision::SelfCheck(SelfCheck::CarriedLineage),
+        diag,
+    };
+    match super::contain::face_placement(body, face, q, band, "bool_carry_vf_on_plane") {
+        Ok(CurvedPlacement::Trim(Some(FaceContainment::In))) => Ok(PieceRead::In),
+        Ok(
+            CurvedPlacement::OffCarrier
+            | CurvedPlacement::Trim(Some(
+                FaceContainment::Out | FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_),
+            )),
+        ) => Ok(PieceRead::NotIn),
+        Ok(CurvedPlacement::Trim(None)) => Ok(PieceRead::Unread(None)),
+        Err(
+            PlacementError::OnPlane(diag)
+            | PlacementError::Door(ContainError::Escalated { diag, .. }),
+        ) => Err(in_band(diag)),
+        Err(PlacementError::Door(ContainError::StaleFace(face))) => {
+            super::contain::driver_face_stale(face)
+        }
+        // Listed rather than wildcarded: a new door refusal is routed
+        // here deliberately.
+        Err(PlacementError::Door(
+            refusal @ (ContainError::RayExhausted
+            | ContainError::EmptyLoop(_)
+            | ContainError::LoopUnreadable(_)
+            | ContainError::Uncrossable(_)
+            | ContainError::Curved(_)),
+        )) => Ok(PieceRead::Unread(Some(refusal))),
     }
 }
 
@@ -3230,10 +3397,14 @@ fn tagged(d: &ReductionContacts) -> Vec<Tagged<'_>> {
 /// survivor, an absorbed face its kept face, a zipped ring edge its
 /// seam edge, a cell the merge swallowed the face it lies in, a joined
 /// vertex or edge the edge the join made, an edge the op dropped the
-/// chord the join minted along it ([`Descendants::live`]). A record is
-/// never re-derived from geometry, and leaves only where its cell left
-/// the result with no such row (a discarded fragment), or where its two
-/// cells became one or incident, which is structure ([`record`]).
+/// chord the join minted along it ([`Descendants::live`]); a face the
+/// op divided, the piece of it that holds the record's vertex
+/// ([`Descendants::holder`]). A record is never re-derived from
+/// geometry: a division only chooses among the recorded face's own
+/// pieces. It leaves only where its cell left the result with no such
+/// row (a discarded fragment), where its vertex rests on no live piece
+/// of the face it named or on a piece's boundary, or where its two cells
+/// became one or incident, which is structure ([`record`]).
 ///
 /// **Vertex records are carried as groups.** Records that share a
 /// vertex end, discovered and carried alike, are one group, closed
@@ -3249,8 +3420,8 @@ fn tagged(d: &ReductionContacts) -> Vec<Tagged<'_>> {
 ///
 /// **A vertex a zip fused** sits on the seam, on the boundary of the
 /// face a vertex-on-face record named: the substituted pair is an
-/// incidence, and it collapses as one, read off the fusion rather than
-/// the face, whose fragment holding the vertex has no lineage.
+/// incidence, and it collapses as one, read off the fusion: the zip's
+/// own divisions are in no row of [`Descendants::fragments`].
 ///
 /// **Every record cites the decisions that back it** (D1 (ii)). A
 /// record one input record became cites what that record cited; a pair
@@ -3271,11 +3442,12 @@ fn tagged(d: &ReductionContacts) -> Vec<Tagged<'_>> {
 /// substitution rows ([`Descendants::live`]);
 /// [`BooleanError::ClassificationInvariant`] on a surviving record no
 /// decision backs.
-pub(super) fn carry<T: Real>(
+pub(super) fn carry<T: Decide>(
     body: &Body<T>,
     ledger: &Ledger,
     views: [&KeyView<'_>; 2],
     desc: &Descendants,
+    band: Band,
 ) -> Result<(ContactRecords, Vec<crate::Coincidence>), BooleanError> {
     let [a, b] = &ledger.carried;
     let records = carry_rows(
@@ -3285,6 +3457,7 @@ pub(super) fn carry<T: Real>(
         views,
         desc,
         false,
+        band,
     )?;
     cite_rows(records, ledger)
 }
@@ -3374,10 +3547,11 @@ pub(super) fn input_cell((input, cell): End, splits: &[super::EdgeSplit]) -> cra
 ///
 /// As [`carry`].
 #[cfg(test)]
-pub(super) fn carry_in_place<T: Real>(
+pub(super) fn carry_in_place<T: Decide>(
     body: &Body<T>,
     records: &ContactRecords,
     desc: &Descendants,
+    band: Band,
 ) -> Result<ContactRecords, BooleanError> {
     let none = Rows::default();
     let rows: Vec<Tagged<'_>> = records
@@ -3395,6 +3569,7 @@ pub(super) fn carry_in_place<T: Real>(
         [&KeyView::Direct, &KeyView::Direct],
         desc,
         true,
+        band,
     )
 }
 
@@ -3541,13 +3716,14 @@ mod chain_rows {
 
 /// The door's one body, over records in two arenas (`one_arena`
 /// false, the operands') or one.
-fn carry_rows<T: Real>(
+fn carry_rows<T: Decide>(
     body: &Body<T>,
     discovered: &[Tagged<'_>],
     carried: [&Rows; 2],
     views: [&KeyView<'_>; 2],
     desc: &Descendants,
     one_arena: bool,
+    band: Band,
 ) -> Result<ContactRecords, BooleanError> {
     let sides = [Operand::A, Operand::B];
     let view = |side: Operand| views[usize::from(side == Operand::B)];
@@ -3689,10 +3865,14 @@ fn carry_rows<T: Real>(
         if view(vs).vertex(v).is_some_and(|k| desc.fused.contains(&k)) {
             continue;
         }
-        if let (Some(x), Some(y)) = (
-            desc.live(body, vs, view(vs), vc)?,
-            desc.live(body, fs, view(fs), fc)?,
-        ) {
+        let Some(x) = desc.live(body, vs, view(vs), vc)? else {
+            continue;
+        };
+        let y = match (x, fc) {
+            (Cell::Vertex(k), Cell::Face(f)) => desc.holder(body, fs, view(fs), f, k, band)?,
+            _ => desc.live(body, fs, view(fs), fc)?,
+        };
+        if let Some(y) = y {
             record(body, &mut out, (vs, x), (fs, y), cites.clone());
         }
     }
@@ -3917,6 +4097,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBandShell> {
         | V::CensusUnsupported { .. }
         | V::CensusLaneUnsupported { .. }
         | V::CensusUndecidable { .. }
+        | V::ArcEndOffCorner { .. }
         | V::InstanceInterference { .. } => None,
         // A certificate that failed or a lane that cannot run: the
         // kernel's.
@@ -5459,6 +5640,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 &ledger,
                 [&KeyView::Direct, &KeyView::Graft(&graft)],
                 &desc,
+                band,
             )?;
             let body = gate(body, band, tol)?;
             let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
@@ -5520,7 +5702,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         _ => (KeyView::Absent, KeyView::Direct),
     };
     let ledger = ledger(red, decls, band)?;
-    let (contacts, coincidences) = carry(&body, &ledger, [&a_view, &b_view], &desc)?;
+    let (contacts, coincidences) = carry(&body, &ledger, [&a_view, &b_view], &desc, band)?;
     let body = gate(body, band, tol)?;
     let naming = match kind {
         BooleanResultKind::OperandA => BooleanNaming {
@@ -5633,7 +5815,7 @@ mod tests {
         );
     }
     /// The door over discovered records alone.
-    fn found<T: geom_core::Real>(
+    fn found<T: geom_core::Decide>(
         body: &crate::Body<T>,
         contacts: &crate::boolean::ReductionContacts,
         views: [&super::KeyView<'_>; 2],
@@ -5641,11 +5823,11 @@ mod tests {
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::BooleanError> {
         let none = super::Rows::default();
         let rows = super::tagged(contacts);
-        super::carry_rows(body, &rows, [&none, &none], views, desc, false)
+        super::carry_rows(body, &rows, [&none, &none], views, desc, false, band())
     }
 
     /// The door over carried records alone.
-    fn carried_in<T: geom_core::Real>(
+    fn carried_in<T: geom_core::Decide>(
         body: &crate::Body<T>,
         decls: &crate::boolean::Glue,
         views: [&super::KeyView<'_>; 2],
@@ -5661,6 +5843,7 @@ mod tests {
             views,
             desc,
             false,
+            band(),
         )
     }
 
@@ -6893,7 +7076,7 @@ mod tests {
             .into_iter()
             .collect();
             assert_eq!(
-                super::carry_in_place(&body, &on_edge, &desc)
+                super::carry_in_place(&body, &on_edge, &desc, band())
                     .unwrap()
                     .kinds()
                     .collect::<Vec<_>>(),
@@ -7470,6 +7653,15 @@ mod tests {
             ),
             DescribeRefusal::undecided(strut, DihedralReading::Bend, diag),
         ];
+        let residual = crate::euler::EulerOpError::Certification {
+            error: geom_brep::CertifyError::ResidualExceeded {
+                check: geom_brep::CertCheck::SurfaceResidual {
+                    surface: crate::geometry::SurfaceKey::default(),
+                },
+                sample: 8,
+                margin: geom_core::MarginDiag::value(3.0 * band.escalate()),
+            },
+        };
         for failure in [
             EdgeDescribeFailure::NotWalkable,
             EdgeDescribeFailure::Intersection,
@@ -7479,17 +7671,188 @@ mod tests {
             EdgeDescribeFailure::Line,
         ] {
             every.push(DescribeRefusal::failed(strut, failure));
+            for fitted in [false, true] {
+                every.push(DescribeRefusal::refused(
+                    strut,
+                    failure,
+                    residual.clone(),
+                    fitted,
+                ));
+            }
         }
+        every.push(DescribeRefusal::off_face(strut, diag));
         for described in every {
             let worded = crate::merge_faces::MergeCoplanarError::of_kept_boundary(
                 &[(kept, strut)],
-                described,
+                described.clone(),
             );
             assert_eq!(
                 format!("{:?}", super::of_merge(worded)),
-                format!("{:?}", super::of_describe(described)),
+                format!("{:?}", super::of_describe(described.clone())),
                 "{described:?} passes through as the boolean's own"
             );
+        }
+    }
+
+    /// **An attachment refusal at the describe pass tells its own
+    /// story, the same at both doors.** An exact carrier's residual
+    /// against one of its faces read in band (the near-tangent census's
+    /// 12 witnesses, `sweep`'s `near_tangent_pierce_poses`) is the
+    /// input's, ending in the lever. The witness's residual, a definite
+    /// miss and any other refusal are the kernel's, ending in the defect
+    /// ending with the check, the sample and the miss and no arena key;
+    /// a fitted carrier's ends as the certification's table gives it.
+    #[test]
+    fn a_describe_refusal_carries_its_certification() {
+        use crate::euler::EulerOpError;
+        use crate::merge_faces::{EdgeDescribeFailure, MergeCoplanarError};
+        use geom_brep::{CertCheck, CertifyError};
+        use geom_core::{KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE, MarginDiag};
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let (edge, face, surface) = (
+            crate::entity::EdgeKey::default(),
+            crate::entity::FaceKey::default(),
+            crate::geometry::SurfaceKey::default(),
+        );
+        let line = geom::Curve3::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let fitted = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+                vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)],
+                vec![1.0, 1.0],
+            )
+            .unwrap(),
+        ));
+        let in_band = geom_core::Indeterminate {
+            margin: MarginDiag::value(band.zero() * (1.0 + 5e-8)),
+            band,
+            predicate: Some("carrier_on_surface_2"),
+            terminal_sliver: false,
+        };
+        let certification = |error| EulerOpError::Certification { error };
+        let escalated = |check| {
+            certification(CertifyError::Escalated {
+                check,
+                sample: 8,
+                cause: in_band,
+            })
+        };
+        let definite = certification(CertifyError::ResidualExceeded {
+            check: CertCheck::SurfaceResidual { surface },
+            sample: 8,
+            margin: MarginDiag::value(3e-8),
+        });
+        // Each door's text, the merge door's first.
+        let said = |carrier: &geom::Curve3<f64>, cause| {
+            let refusal =
+                super::of_attachment(edge, EdgeDescribeFailure::Intersection, carrier, cause);
+            let merged = MergeCoplanarError::of_kept_boundary(&[(face, edge)], refusal.clone());
+            let own = super::of_describe(refusal);
+            assert_eq!(
+                format!("{:?}", super::of_merge(merged.clone())),
+                format!("{own:?}"),
+                "the merge door's refusal comes back as the boolean's own"
+            );
+            (merged.to_string(), own)
+        };
+        let lever = "Recourse: move the geometry so each edge and vertex that meets a face lies \
+                     clearly on that face or clearly off it";
+
+        let (merged, err) = said(&line, escalated(CertCheck::SurfaceResidual { surface }));
+        assert!(
+            matches!(
+                err,
+                BooleanError::Escalated {
+                    decision: BooleanDecision::EdgeOnFaces,
+                    diag,
+                } if diag == in_band
+            ),
+            "an exact carrier read in band of its face is the edge's reading: {err:?}"
+        );
+        assert_eq!(
+            err.to_string(),
+            format!(
+                "whether an edge of the result lies on both faces it bounds is undecided: {}. \
+                 {lever}",
+                in_band.payload()
+            ),
+            "the Boolean: the decision's one sentence, ending in the lever alone"
+        );
+        assert_eq!(
+            merged,
+            format!(
+                "merge_coplanar_faces: re-describing kept face {face:?}'s boundary edge \
+                 {edge:?}, whether the edge lies on both faces it bounds is undecided: {}. \
+                 {lever}",
+                in_band.payload()
+            ),
+            "the merge door: the same reading and lever"
+        );
+
+        let undescribed = |payload: &str, ending: &str| {
+            (
+                format!(
+                    "merge_coplanar_faces: kept face {face:?}'s boundary edge {edge:?} cannot \
+                     be re-described against the two faces it now lies between: its two faces' \
+                     intersection does not certify on its curve ({payload}). The body is \
+                     untouched. {ending}"
+                ),
+                format!(
+                    "an edge of the result cannot be described against the two faces it lies \
+                     between: its two faces' intersection does not certify on its curve \
+                     ({payload}). {ending}"
+                ),
+            )
+        };
+        let witness_payload = format!(
+            "the witness point's residual against one of the edge's surfaces at sample 8 \
+             escalated: {}",
+            in_band.payload()
+        );
+        let miss_payload = "the residual against one of the edge's surfaces at sample 8 is \
+                            3e-8, definitely past the tolerance";
+        let surface_payload = format!(
+            "the residual against one of the edge's surfaces at sample 8 escalated: {}",
+            in_band.payload()
+        );
+        for (label, carrier, cause, payload, ending) in [
+            (
+                "the witness's residual, an exact construction",
+                &line,
+                escalated(CertCheck::WitnessSurfaceResidual { surface }),
+                witness_payload.as_str(),
+                KERNEL_DEFECT_ENDING,
+            ),
+            (
+                "a definite miss",
+                &line,
+                definite,
+                miss_payload,
+                KERNEL_DEFECT_ENDING,
+            ),
+            (
+                "a fitted carrier read in band, the fit's limit",
+                &fitted,
+                escalated(CertCheck::SurfaceResidual { surface }),
+                surface_payload.as_str(),
+                KERNEL_LIMIT_RECOURSE,
+            ),
+        ] {
+            let (merged, err) = said(carrier, cause);
+            let text = err.to_string();
+            assert!(
+                matches!(err, BooleanError::EdgeUndescribed { .. }),
+                "{label}: {err:?}"
+            );
+            assert_eq!(
+                (merged, text.clone()),
+                undescribed(payload, ending),
+                "{label}"
+            );
+            assert!(!text.contains("Key("), "{label}: no arena key: {text}");
         }
     }
 
@@ -7822,5 +8185,217 @@ mod from_computed_rows {
         });
         assert_eq!(found.laundered, 0, "{found:?}");
         assert_eq!(found.opaque, 2, "{found:?}");
+    }
+}
+
+/// **Rows for [`Descendants::holder`]'s arms**, each through
+/// [`carry_in_place`] on a 2×2×1 prism whose top face a diagonal chord
+/// divides, with the division logged as a fragment row. The record's
+/// vertex is a lone vertex ([`Body::mvfs`]) set where the row needs it,
+/// so it bounds no piece and only the placement decides.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod holder_rows {
+    use super::{Cell, Descendants, carry_in_place};
+    use crate::boolean::{
+        BooleanDecision, BooleanError, Contact, ContactKind, ContactRecords, SelfCheck,
+    };
+    use crate::entity::{FaceKey, VertexKey};
+    use crate::{Body, MefSite, MevSite};
+    use geom_core::{Band, Point3, Tol};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// The prism, its top face (the key piece, holding the corner
+    /// `(0, 2)`) and the piece the chord walls off (holding `(2, 0)`).
+    fn divided() -> (Body<f64>, FaceKey, FaceKey) {
+        let tol = Tol::witness();
+        let p = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
+            0.0,
+            1.0,
+            tol,
+        );
+        let mut body = p.body;
+        let corner = |body: &Body<f64>, x: f64, y: f64| {
+            let outer = body.get_face(p.top_face).unwrap().outer;
+            let crate::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary
+            else {
+                panic!("the top is a cycle")
+            };
+            body.loop_cycle(first)
+                .unwrap()
+                .into_iter()
+                .find(|&he| {
+                    let v = body.get_half_edge(he).unwrap().start;
+                    let q = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+                    (q.x, q.y) == (x, y)
+                })
+                .unwrap()
+        };
+        let (he1, he2) = (corner(&body, 0.0, 0.0), corner(&body, 2.0, 2.0));
+        let made = body.mef_chord(MefSite::Chords { he1, he2 }, tol).unwrap();
+        (body, p.top_face, made.face)
+    }
+
+    /// Whether `face` holds the top's point `(x, y)`.
+    fn holds(body: &Body<f64>, face: FaceKey, x: f64, y: f64) -> bool {
+        super::piece_holds(body, face, Point3::new(x, y, 1.0), band())
+            .is_ok_and(|r| matches!(r, super::PieceRead::In))
+    }
+
+    /// A lone vertex at `(x, y, z)`.
+    fn lone(body: &mut Body<f64>, x: f64, y: f64, z: f64) -> VertexKey {
+        body.mvfs(Point3::new(x, y, z), true).unwrap().vertex
+    }
+
+    /// `vertex` recorded resting on `top`, carried with `top`'s division
+    /// logged as `rows`.
+    fn carried(
+        body: &Body<f64>,
+        vertex: VertexKey,
+        top: FaceKey,
+        rows: Vec<(FaceKey, FaceKey)>,
+    ) -> Result<Vec<ContactKind>, BooleanError> {
+        let records: ContactRecords = [crate::Cited::new(
+            Contact::of(Cell::Vertex(vertex), Cell::Face(top)).unwrap(),
+            crate::Cites::decided(0),
+        )]
+        .into_iter()
+        .collect();
+        let desc = Descendants::default().with_fragments([rows.clone(), rows]);
+        carry_in_place(body, &records, &desc, band()).map(|r| r.kinds().collect())
+    }
+
+    /// A vertex inside the walled-off piece lands on it, not on the
+    /// key piece. Red when the record follows the key.
+    #[test]
+    fn an_interior_rest_lands_on_the_piece_that_holds_it() {
+        let (mut body, top, other) = divided();
+        let (x, y) = if holds(&body, other, 1.5, 0.5) {
+            (1.5, 0.5)
+        } else {
+            (0.5, 1.5)
+        };
+        assert!(
+            holds(&body, other, x, y),
+            "the fixture's walled-off piece holds ({x}, {y})"
+        );
+        let v = lone(&mut body, x, y, 1.0);
+        assert_eq!(
+            carried(&body, v, top, vec![(other, top)]).unwrap(),
+            [ContactKind::VertexFace(v, other)]
+        );
+    }
+
+    /// A vertex on the chord meets the edge both pieces share, and no
+    /// piece's interior: the record drops. Red when a piece's boundary
+    /// counts as holding (two pieces would hold it).
+    #[test]
+    fn a_rest_on_the_dividing_chord_drops() {
+        let (mut body, top, other) = divided();
+        let v = lone(&mut body, 1.0, 1.0, 1.0);
+        assert_eq!(carried(&body, v, top, vec![(other, top)]).unwrap(), []);
+    }
+
+    /// A vertex whose margin from the top's plane is in band escalates
+    /// as the carry's lineage check. Red when an in-band margin is read
+    /// as off the plane, or as on it.
+    #[test]
+    fn a_rest_in_band_of_the_plane_escalates() {
+        let (mut body, top, other) = divided();
+        let v = lone(&mut body, 1.5, 0.5, 1.0 + 3.0 * band().zero());
+        assert!(
+            matches!(
+                carried(&body, v, top, vec![(other, top)]),
+                Err(BooleanError::Escalated {
+                    decision: BooleanDecision::SelfCheck(SelfCheck::CarriedLineage),
+                    ..
+                })
+            ),
+            "{:?}",
+            carried(&body, v, top, vec![(other, top)])
+        );
+    }
+
+    /// Two lineage pieces that both hold the vertex are a corrupt
+    /// division: the top's own copy, grafted in as a second shell, is
+    /// logged as divided from it. Red when the second holder replaces
+    /// the first.
+    #[test]
+    fn two_pieces_holding_one_rest_refuse() {
+        let (mut body, top, _) = divided();
+        let copy = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
+            0.0,
+            1.0,
+            Tol::witness(),
+        );
+        let solid = body.solids().next().unwrap().0;
+        let graft = crate::boolean::combine::graft_solids_with(
+            &mut body,
+            &[solid],
+            &copy.body,
+            crate::boolean::combine::Bridge::RemapKeys,
+        )
+        .unwrap();
+        let twin = *graft.faces.get(copy.top_face).unwrap();
+        let (x, y) = if holds(&body, top, 0.5, 1.5) {
+            (0.5, 1.5)
+        } else {
+            (1.5, 0.5)
+        };
+        assert!(holds(&body, twin, x, y), "the twin holds ({x}, {y})");
+        let v = lone(&mut body, x, y, 1.0);
+        assert!(
+            matches!(
+                carried(&body, v, top, vec![(twin, top)]),
+                Err(BooleanError::JoinDesync { .. })
+            ),
+            "{:?}",
+            carried(&body, v, top, vec![(twin, top)])
+        );
+    }
+
+    /// A piece the containment door cannot read (a lone-vertex ring,
+    /// which bounds no region) may hold the rest, and none other does:
+    /// the op refuses, naming the piece. Red when an unread piece is
+    /// read as not holding (the rest drops) or falls back to the key.
+    #[test]
+    fn an_unreadable_piece_refuses() {
+        let tol = Tol::witness();
+        let (mut body, top, other) = divided();
+        let (x, y) = if holds(&body, other, 1.5, 0.5) {
+            (1.5, 0.5)
+        } else {
+            (0.5, 1.5)
+        };
+        // A strut from a corner of `other` into it, killed: its far end
+        // is stranded as a lone-vertex ring of `other`.
+        let outer = body.get_face(other).unwrap().outer;
+        let crate::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("the piece is a cycle")
+        };
+        let strut = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: first,
+                    he2: first,
+                },
+                Point3::new((x + 1.0) / 2.0, (y + 1.0) / 2.0, 1.0),
+                tol,
+            )
+            .unwrap();
+        body.kemr(strut.he_plus, strut.he_minus).unwrap();
+        let v = lone(&mut body, x, y, 1.0);
+        match carried(&body, v, top, vec![(other, top)]) {
+            Err(BooleanError::RestPieceUnread { face, refusal }) => {
+                assert_eq!(face, other, "the refusal names the unread piece");
+                assert!(refusal.is_some(), "the planar door's refusal is carried");
+            }
+            got => panic!("{got:?}"),
+        }
     }
 }
