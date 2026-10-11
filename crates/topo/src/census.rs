@@ -11808,6 +11808,69 @@ mod review_4604_r1 {
         assert!(names(&errors, wall, side), "{errors:?}");
     }
 
+    /// A straight edge's record backs nothing of its own (claim 1(a)):
+    /// the second brick's bottom edge lies in the first's top over
+    /// x in (0.5, 1), and its end (0.5, 0.25, 1) rests on that top's
+    /// interior. With the edge-face record alone that vertex's touch is
+    /// still undeclared. Red when the record backs its edge's end
+    /// vertices (a `conventional_vertices` that drops its filter is
+    /// green on every other topo row).
+    #[test]
+    fn a_straight_edge_face_record_backs_no_touch_at_its_ends() {
+        use crate::test_support_fixtures::brick;
+        let tol = Tol::witness();
+        let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let top = brick::<f64>((0.5, 1.5), (0.25, 0.75), (1.0, 2.0), tol);
+        crate::graft_disjoint_all_keyed(&mut body, &top).unwrap();
+        let at = |p: [f64; 3]| {
+            body.vertices()
+                .find(|(_, v)| {
+                    let q = body.get_point(v.point).unwrap();
+                    [q.x, q.y, q.z] == p
+                })
+                .map(|(k, _)| k)
+                .unwrap()
+        };
+        let (v0, v1) = (at([0.5, 0.25, 1.0]), at([1.5, 0.25, 1.0]));
+        let edge = body
+            .edges()
+            .find(|(_, e)| {
+                let ends = [e.he_plus, e.he_minus].map(|h| body.get_half_edge(h).unwrap().start);
+                ends == [v0, v1] || ends == [v1, v0]
+            })
+            .map(|(k, _)| k)
+            .unwrap();
+        let a_top = body
+            .faces()
+            .find(|(_, f)| match body.get_surface(f.surface) {
+                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                    normal.z.abs() > 0.5
+                        && (origin.z - 1.0).abs() < 1e-12
+                        && ((normal.z > 0.0) == f.sense)
+                }
+                _ => false,
+            })
+            .map(|(k, _)| k)
+            .unwrap();
+        let errors = census_and_certify(
+            &body,
+            &one(&body, Cell::Edge(edge), Cell::Face(a_top)),
+            band(),
+            tol,
+            None,
+        );
+        assert!(
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::UndeclaredContact {
+                    contact: CensusContact::VertexOnFace { vertex, face },
+                    ..
+                } if *vertex == v0 && *face == a_top
+            )),
+            "{errors:?}"
+        );
+    }
+
     /// Two cylinder sheets with crossing axes have no closed-form
     /// tangent locus: their face-face record is refused typed, naming
     /// the pair and the contact lane. Pins `confirm_face_pair`'s
