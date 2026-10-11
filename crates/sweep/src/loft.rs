@@ -298,14 +298,18 @@ impl fmt::Display for LoftError {
             Self::SectionNotAPoint { section } => write!(
                 f,
                 "section {section} is not a single point in every value, so the loft has no \
-                 section to select its structure on. Recourse: loft the section at a point; a \
-                 section over a range of values is not lofted yet"
+                 section to select its structure on. A range comes from a parameter box over \
+                 the section, or from rounding alone (an arc's sweep at an interval scalar). \
+                 Recourse: evaluate the loft at a point scalar; a section over a range of \
+                 values is not lofted yet"
             ),
             Self::PlacementNotAPoint { section } => write!(
                 f,
                 "section {section}'s placement is not a single point, so the loft has no \
-                 placement to select its structure on. Recourse: place the section at a \
-                 point; a placement over a range is not lofted yet"
+                 placement to select its structure on. A range comes from a parameter box \
+                 over the placement, or from rounding alone (a rotated or derived frame at an \
+                 interval scalar). Recourse: evaluate the loft at a point scalar; a placement \
+                 over a range is not lofted yet"
             ),
             Self::ReversedStacking { slab } => write!(
                 f,
