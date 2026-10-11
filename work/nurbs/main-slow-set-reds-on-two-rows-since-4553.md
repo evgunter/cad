@@ -7,6 +7,7 @@ opened: 2026-10-11
 priority: P0
 branch: nurbs/main-slow-set-reds-since-4553
 closed: 2026-10-11
+pr: 4684
 ---
 
 
