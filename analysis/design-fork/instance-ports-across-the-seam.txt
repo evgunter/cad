@@ -1,0 +1,4 @@
+fork: instance-ports-across-the-seam (INTENT stage 3 B, fork B3)
+drawn: 2026-10-11T21:08:34Z UTC
+byte: 3 (odd)
+mapping: A = Fable, B = Opus
