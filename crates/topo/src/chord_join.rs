@@ -596,25 +596,19 @@ fn section_reach<T: Decide>(
             let (below, above) = face_axial_range(body, face, p, *axis).map_err(unbounded)?;
             let round =
                 crate::splitting::rules::face_reach_round_from(body, face, p).map_err(unbounded)?;
-            (
-                None,
-                Some(WallReach {
-                    at: p,
-                    below,
-                    above,
-                    span: extent,
-                    round,
-                }),
-            )
+            SectionReach::Cylinder(WallReach {
+                at: p,
+                below,
+                above,
+                span: extent,
+                round,
+            })
         }
-        geom::Surface::Cone { .. } => (
-            Some(
-                crate::splitting::rules::cone_face_reach(body, face, p, (wall, within), band)
-                    .map_err(unbounded)?,
-            ),
-            None,
+        geom::Surface::Cone { .. } => SectionReach::Cone(
+            crate::splitting::rules::cone_face_reach(body, face, p, (wall, within), band)
+                .map_err(unbounded)?,
         ),
-        _ => (None, None),
+        _ => SectionReach::Unmeasured,
     })
 }
 
@@ -905,9 +899,16 @@ pub(crate) enum SectionCase<T: Real> {
     Tangent(geom::Curve3<T>),
 }
 
-/// What [`section_reach`] measured of a face: a cone wall's reach, or a
-/// cylinder wall's.
-pub(crate) type SectionReach<T> = (Option<geom_brep::Reach<T>>, Option<WallReach<T>>);
+/// What [`section_reach`] measured of a face, by its wall's kind.
+#[derive(Clone, Debug)]
+pub(crate) enum SectionReach<T: Real> {
+    /// A cone wall's face, as the plane×cone arm reads it.
+    Cone(geom_brep::Reach<T>),
+    /// A cylinder wall's face, as [`agreed_section`] reads it.
+    Cylinder(WallReach<T>),
+    /// Any other wall: the sphere lane reads no reach.
+    Unmeasured,
+}
 
 /// **A plane×cylinder wall face's reach from the one point it is read
 /// from**: how far it reaches either way along the cylinder's axis from
@@ -1008,7 +1009,7 @@ fn section_case<T: Decide>(
     band: Band,
     s1: &geom::Surface<T>,
     s2: &geom::Surface<T>,
-    (cone_reach, reach): SectionReach<T>,
+    reach: SectionReach<T>,
 ) -> Result<SectionCase<T>, SplitJoinError> {
     let invariant = |what: &'static str| SplitJoinError::SectionInvariant { face, what };
     // The pair normalization: exactly one member must be the plane the
@@ -1091,27 +1092,34 @@ fn section_case<T: Decide>(
     // axis-normal circle are conics to select an arc of; the apex lane's
     // generator pair is the ruling case, its tangent generator the
     // tangent one — the cylinder's parallel-axis lane, one kind over.
-    if let geom::Surface::Cone { .. } = wall {
-        let Some(cone_reach) = cone_reach else {
-            unreachable!("`section_reach` measures a cone wall's face, and this lane is its")
-        };
-        return match geom_brep::plane_cone_section(plane_s, wall, &cone_reach, band)
-            .map_err(table)?
-        {
-            geom_brep::PlaneConeSection::TiltedEllipse(c)
-            | geom_brep::PlaneConeSection::AxisNormalCircle(c) => conic(c),
-            geom_brep::PlaneConeSection::ApexLinePair { l1, l2 } => {
-                Ok(SectionCase::Straight([l1, l2]))
-            }
-            geom_brep::PlaneConeSection::ApexTangentLine(line) => Ok(SectionCase::Tangent(line)),
-            geom_brep::PlaneConeSection::ApexPoint(_) => Err(invariant(
-                "apex-point plane×cone classification under a minted chord — the plane \
+    // The reach names the wall it measured, and each arm refuses a wall
+    // of another kind as its own wrong lane.
+    let reach = match reach {
+        SectionReach::Cylinder(reach) => reach,
+        SectionReach::Unmeasured => {
+            return Err(invariant(
+                "a cone or cylinder wall's chord reached the section table with no reach \
+                 measured of its face",
+            ));
+        }
+        SectionReach::Cone(cone_reach) => {
+            return match geom_brep::plane_cone_section(plane_s, wall, &cone_reach, band)
+                .map_err(table)?
+            {
+                geom_brep::PlaneConeSection::TiltedEllipse(c)
+                | geom_brep::PlaneConeSection::AxisNormalCircle(c) => conic(c),
+                geom_brep::PlaneConeSection::ApexLinePair { l1, l2 } => {
+                    Ok(SectionCase::Straight([l1, l2]))
+                }
+                geom_brep::PlaneConeSection::ApexTangentLine(line) => {
+                    Ok(SectionCase::Tangent(line))
+                }
+                geom_brep::PlaneConeSection::ApexPoint(_) => Err(invariant(
+                    "apex-point plane×cone classification under a minted chord — the plane \
                  touches the cone at its apex alone",
-            )),
-        };
-    }
-    let Some(reach) = reach else {
-        unreachable!("`section_reach` measures a cylinder wall's reach, and this lane is its")
+                )),
+            };
+        }
     };
     let sec = agreed_section(plane_s, wall, reach, band).map_err(table)?;
     match sec {
@@ -1614,6 +1622,38 @@ pub(crate) fn face_azimuth_window<T: Decide>(
     band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
     Ok(face_azimuth_images(body, surface, face, band)?.and_then(|images| azimuth_hull(&images)))
+}
+
+/// The azimuth window of each cycle loop of `face` on `surface`'s chart,
+/// the outer loop and its rings alike: the hull of the loop's images,
+/// `None` for a walk with no charted edge. A lone-vertex loop winds
+/// nothing and is not listed.
+///
+/// # Errors
+///
+/// As [`face_azimuth_images`], for any loop.
+///
+/// # Panics
+///
+/// As [`face_azimuth_images`].
+pub(crate) fn face_loop_azimuth_windows<T: Decide>(
+    body: &Body<T>,
+    surface: &geom::Surface<T>,
+    face: FaceKey,
+    band: Band,
+) -> Result<Vec<Option<(T, T)>>, SplitJoinError> {
+    let data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
+    body.face_loops_linked(face, data)
+        .filter_map(|(_, l)| match l.boundary {
+            LoopBoundary::Cycle { first } => Some(first),
+            _ => None,
+        })
+        .map(|first| {
+            let halves = body.loop_walk(first).closed("loop", first);
+            run_azimuth_images(body, surface, face, &halves, band)
+                .map(|images| azimuth_hull(&images))
+        })
+        .collect()
 }
 
 /// [`face_azimuth_window`] on `face`'s own surface: the window every
@@ -4916,7 +4956,7 @@ mod section_case_pair_tests {
             span: 4.0,
             round: 4.0,
         };
-        (None, Some(reach))
+        SectionReach::Cylinder(reach)
     }
 
     fn plane() -> geom::Surface<f64> {
@@ -5757,5 +5797,67 @@ mod torn_hop_rows {
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| spec(b),
         );
+    }
+}
+
+/// [`section_reach`] on a cone wall: the window along the axis it hands
+/// the plane×cone arm holds every point the face consumes.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod cone_window_rows {
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use super::{SectionReach, section_reach};
+
+    /// **A cone wall's window holds its face, and no more where the face
+    /// is a patch.** Patches `u ∈ [0, u1] × z ∈ [z0, z1]` of the cone of
+    /// half-angle `1/2` about `z` from the origin
+    /// (`boxes::tests::cone_wall`), read from a corner: the window is
+    /// `[z0, z1]` to rounding under three quarters of a turn, and holds
+    /// the apex past it, where a boundary may enclose it. A window that
+    /// misses any of the face lets the arm serve a line pair over points
+    /// nearer the apex than it reads.
+    #[test]
+    fn a_cone_walls_window_holds_its_face() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let cone = geom::Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: 0.5,
+            u_ref: Vec3::unit_x(),
+        };
+        for (u1, (z0, z1)) in [
+            (1.0, (0.5, 1.0)),
+            (1.0, (0.01, 2.0)),
+            (4.0, (0.25, 0.75)),
+            (5.0, (0.25, 0.75)),
+        ] {
+            let label = format!("u ∈ [0, {u1}], z ∈ [{z0}, {z1}]");
+            let (body, face) = crate::boolean::boxes::tests::cone_wall(0.5, 0.0, u1, z0, z1);
+            for (at, _) in body.vertices() {
+                let SectionReach::Cone(reach) =
+                    section_reach(&body, at, face, (&cone, None), band).unwrap()
+                else {
+                    panic!("{label}: a cone wall's face is measured as one");
+                };
+                let (lo, hi) = reach.range_along(Point3::origin(), Vec3::unit_z());
+                assert!(
+                    lo <= z0 + 1e-12 && hi >= z1 - 1e-12,
+                    "{label}, from {at:?}: the window [{lo}, {hi}] misses some of the face"
+                );
+                if u1 < 1.5 * core::f64::consts::PI {
+                    assert!(
+                        lo >= z0 - 1e-12 && hi <= z1 + 1e-12,
+                        "{label}, from {at:?}: the window [{lo}, {hi}] reaches past the face"
+                    );
+                } else {
+                    assert!(
+                        lo <= 0.0,
+                        "{label}, from {at:?}: past three quarters of a turn the window \
+                         [{lo}, {hi}] holds the apex"
+                    );
+                }
+            }
+        }
     }
 }

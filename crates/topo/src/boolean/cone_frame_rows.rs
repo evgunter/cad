@@ -565,3 +565,46 @@ fn declared_equal_walls_meeting_at_a_sliver_escalate_the_circle_question() {
         );
     }
 }
+
+/// **The frame's cone face window holds the face.** [`frame_extent`] on
+/// patches `u ∈ [0, u1] × z ∈ [z0, z1]` of the cone of half-angle `1/2`
+/// about `z` from the origin (`boxes::tests::cone_wall`), read from a
+/// corner in both member orders: its [`FrameExtent::Cone`] window is
+/// `[z0, z1]` to rounding under three quarters of a turn, and holds the
+/// apex past it. A window that misses any of the face lets the frame
+/// serve a line pair over points nearer the apex than it reads.
+#[test]
+fn the_frames_cone_window_holds_its_face() {
+    let b = band();
+    let cone = geom::Surface::Cone {
+        apex: Point3::origin(),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        half_angle: 0.5,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let p = plane([0.0, 0.0, 0.6], Vec3::new(1.0, 0.0, 0.0));
+    for (u1, (z0, z1)) in [(1.0, (0.5, 1.0)), (1.0, (0.01, 2.0)), (5.0, (0.25, 0.75))] {
+        let (body, face) = crate::boolean::boxes::tests::cone_wall(0.5, 0.0, u1, z0, z1);
+        let at = body.vertex_points().next().map(|(_, q)| q).unwrap();
+        for (label, a, c) in [("plane, cone", &p, &cone), ("cone, plane", &cone, &p)] {
+            let label = format!("u ∈ [0, {u1}], z ∈ [{z0}, {z1}], {label}");
+            let extent = frame_extent((a, &body, face), (c, &body, face), at, None, b).unwrap();
+            let FrameExtent::Cone(reach) = extent else {
+                panic!("{label}: a plane×cone pair reads the cone face, got {extent:?}");
+            };
+            let (lo, hi) = reach.range_along(Point3::origin(), Vec3::new(0.0, 0.0, 1.0));
+            assert!(
+                lo <= z0 + 1e-12 && hi >= z1 - 1e-12,
+                "{label}: the window [{lo}, {hi}] misses some of the face"
+            );
+            if u1 < 1.5 * core::f64::consts::PI {
+                assert!(
+                    lo >= z0 - 1e-12 && hi <= z1 + 1e-12,
+                    "{label}: the window [{lo}, {hi}] reaches past the face"
+                );
+            } else {
+                assert!(lo <= 0.0, "{label}: the window [{lo}, {hi}] holds the apex");
+            }
+        }
+    }
+}

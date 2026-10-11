@@ -710,8 +710,8 @@ pub(crate) fn face_axial_range<T: Decide>(
 /// tip bounded by its rim alone), where its range is not its
 /// boundary's: the axis coordinate peaks on a smooth surface only at
 /// the boundary, and the apex is not smooth. So a face on a cone keeps
-/// its boundary's range only where its outer loop's azimuth window is
-/// decided narrower than three quarters of a turn: a boundary that
+/// its boundary's range only where every loop's azimuth window is
+/// decided narrower than three quarters of a turn: a boundary loop that
 /// encloses the apex winds a whole turn about the axis. Anywhere else
 /// (a wider window, an unread one, a refusal reading it) the range is
 /// widened to hold the apex. A face on any other surface keeps its
@@ -748,18 +748,23 @@ pub(crate) fn cone_axial_window<T: Decide>(
         return Ok((lo, hi));
     };
     let widened = (lo.min(T::zero()), hi.max(T::zero()));
-    Ok(
-        match crate::chord_join::face_azimuth_window(body, own, face, band) {
-            Ok(Some((from, to))) => {
-                let wide = to - from - T::from_f64(1.5 * core::f64::consts::PI);
-                (
-                    wide.select_le_zero(lo, widened.0),
-                    wide.select_le_zero(hi, widened.1),
-                )
-            }
-            Ok(None) | Err(_) => widened,
-        },
-    )
+    let quarters = T::from_f64(1.5 * core::f64::consts::PI);
+    // Every loop, not the outer alone: a file's designated outer bound
+    // can be a hole, and the loop enclosing the apex then a ring.
+    let wide = match crate::chord_join::face_loop_azimuth_windows(body, own, face, band) {
+        Ok(windows) => windows
+            .into_iter()
+            .try_fold(T::zero() - quarters, |wide, w| {
+                w.map(|(from, to)| wide.max(to - from - quarters))
+            }),
+        Err(_) => None,
+    };
+    Ok(wide.map_or(widened, |wide| {
+        (
+            wide.select_le_zero(lo, widened.0),
+            wide.select_le_zero(hi, widened.1),
+        )
+    }))
 }
 
 /// **A face as the plane×cone arm's reach** ([`geom_brep::Reach::Face`]),

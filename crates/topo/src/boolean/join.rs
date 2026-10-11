@@ -2067,10 +2067,10 @@ pub(super) fn frame_extent<T: Decide>(
             (body_a, face_a, *axis)
         }
         (geom::Surface::Plane { .. }, cone @ geom::Surface::Cone { .. }) => {
-            return cone_reach(body_b, face_b, at, cone, band);
+            return cone_reach((body_b, face_b), (body_a, face_a), at, cone, band);
         }
         (cone @ geom::Surface::Cone { .. }, geom::Surface::Plane { .. }) => {
-            return cone_reach(body_a, face_a, at, cone, band);
+            return cone_reach((body_a, face_a), (body_b, face_b), at, cone, band);
         }
         _ => return Ok(span.map_or(FrameExtent::Radii, FrameExtent::Span)),
     };
@@ -2090,30 +2090,41 @@ pub(super) fn frame_extent<T: Decide>(
 /// [`frame_extent`]'s refusal: a wall with no extent to lever at.
 const LONE_WALL: &str = "a germ wall's outer loop is a lone vertex";
 
-/// The window along a partner cone wall's axis its face `face` reaches
-/// over ([`cone_axial_window`](crate::splitting::rules::cone_axial_window)),
-/// which the planar side's section lies in; `None` off a cone, or for a
-/// face with no extent, where the planar face's own window stands alone.
+/// The window along a cone wall's axis that `face` reaches over
+/// ([`cone_axial_window`](crate::splitting::rules::cone_axial_window)):
+/// the partner's face, which the planar side's section lies in, or the
+/// planar face, which the frame's does. `None` off a cone.
 fn cone_window<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     wall: &geom::Surface<T>,
     band: Band,
 ) -> Option<(T, T)> {
-    matches!(wall, geom::Surface::Cone { .. })
-        .then(|| crate::splitting::rules::cone_axial_window(body, face, wall, band).ok())
-        .flatten()
+    if !matches!(wall, geom::Surface::Cone { .. }) {
+        return None;
+    }
+    match crate::splitting::rules::cone_axial_window(body, face, wall, band) {
+        Ok(window) => Some(window),
+        // A face whose outer loop is a lone vertex has no extent to
+        // narrow by; the reader's own face's window holds the section
+        // without it, and that face's own lone loop is refused where
+        // its reach is measured.
+        Err(crate::splitting::rules::UnboundedFace { .. }) => None,
+    }
 }
 
-/// [`frame_extent`]'s plane×cone arm: the cone face's reach from `at`.
+/// [`frame_extent`]'s plane×cone arm: the cone face's reach from `at`,
+/// its window narrowed to the plane face's, as the planar side's chord
+/// reads the same section ([`JoinLane::BoolPlanar`]).
 fn cone_reach<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
+    (body, face): (&Body<T>, FaceKey),
+    (plane_body, plane_face): (&Body<T>, FaceKey),
     at: geom_core::Point3<T>,
     cone: &geom::Surface<T>,
     band: Band,
 ) -> Result<FrameExtent<T>, &'static str> {
-    crate::splitting::rules::cone_face_reach(body, face, at, (cone, None), band)
+    let within = cone_window(plane_body, plane_face, cone, band);
+    crate::splitting::rules::cone_face_reach(body, face, at, (cone, within), band)
         .map(FrameExtent::Cone)
         .map_err(|_| LONE_WALL)
 }
