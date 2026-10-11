@@ -1005,6 +1005,12 @@ impl UvRect {
         UvWindow::new(self.u.0, self.u.1, self.v.0, self.v.1)
     }
 
+    /// Whether the chart point `(u, v)` lies in the rectangle, sides
+    /// included.
+    pub(crate) fn holds(self, (u, v): (f64, f64)) -> bool {
+        u >= self.u.0 && u <= self.u.1 && v >= self.v.0 && v <= self.v.1
+    }
+
     /// The wider side; `NaN` when either side is, so a NaN side fails
     /// the floor test rather than dropping out of it.
     fn width(self) -> f64 {

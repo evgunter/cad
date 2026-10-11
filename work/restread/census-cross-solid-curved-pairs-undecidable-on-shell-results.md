@@ -175,6 +175,34 @@ bore:
   `z ∈ [0.5, 2.5]`, and its `∩` with the plate (both orders) and its
   `∖` the plate.
 
+## 2026-10-11 — 542 boolean results at a curved corner pinch, after CONTACTHOLD (FLUSH)
+
+Same probe as the at-infinity row's 2026-10-11 section
+(`curved_notch_pinch`, main `6e3985cb7`, after CONTACTHOLD's PRs 4598
+and 4604): 542 built bodies fail tier 3′ with `CensusUndecidable`
+alone. Each has the oracle's volume, passes tier 2 and the
+certificate, and has no definite tier-3′ finding. That is the 461 of
+main `875e049a` plus 81 that refused at the boolean there
+(`ClassificationInvariant`, `SharedVertexCrossings`) and build now.
+CONTACTHOLD's rewrite moved none of the 461.
+
+Read on poses `9 4 4 ab S` and `0 0 0 ab I`: the result is two solids
+that meet only at the pinch point, one vertex per cone, and the one
+record is the vertex–vertex contact there. The undecidable pairs are
+the cross-solid backstop's (`census.rs`, `CurvedWithinReach`), between
+the faces through `v`: the bowed wall (`Cylinder`) against the other
+solid's planes, and the notch's arc-bounded caps (planar, not
+line-bounded, so not skipped to the exact sweeps) against them. These
+pairs touch at `v`, so no box gap or `backstop_apart` direction can
+separate them, and the backstop does not read a vertex–vertex record.
+This is the JOIN pinch class above ("the planar pinches pass: the
+census's `same_point` clears the shared point key"). A curved face at
+the pinch, or a planar face carrying an arc edge, does not clear.
+
+Pinned by `a_curved_notch_at_a_corner_pinch_builds_bodies_two_lanes_cannot_read_yet`
+(poses `0 0 0 ab I` and `9 4 4 ab S` undecidable, `0 0 0 ab U` one
+solid and clean): when this lane lands, flip those two expectations.
+
 ## Boolean results meet it too (FLUSH, 2026-10-11)
 
 `crates/sweep/tests/join3_r2_probes.rs` `j3r2_pocket_battery` reads 14

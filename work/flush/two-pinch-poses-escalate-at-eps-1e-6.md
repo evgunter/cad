@@ -7,6 +7,7 @@ opened: 2026-10-06
 priority: P3
 cost: M
 design: true
+branch: flush/e-tail
 ---
 
 Found by CLEAVE's ray-walk PR 4083. Its diff seeds `topo`, so it ran
