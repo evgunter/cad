@@ -70,3 +70,12 @@ digest move. Their decisions and shapes do not:
 |---|---|---|
 | `sym_arc_loft validate_geometric` | `sz=48 num=604 frozen=1244` | `sz=40 num=612 frozen=3732` |
 | `sym_thin_strip validate_geometric` | `sz=48 num=612 frozen=1268` | `sz=36 num=624 frozen=2792` |
+
+## Still red on main at `8b3ea728` (GERM, 2026-10-11)
+
+Reproduced on `origin/main` alone at `8b3ea728` (ε = 1e-9, four
+threads); PR 4743's CI (run 38174689541, job "test") printed the
+identical digest, all 13 lines. Against the committed table:
+`arc_loft_1e9eps` reads `v=4022487ed6a9d899 a=403995a3b53c3c57`, and the
+two sym rows now keep `sz=48 num=604` / `sz=48 num=612` and move only
+`frozen`: `sym_arc_loft` 1244 → 1060, `sym_thin_strip` 1268 → 1177.
