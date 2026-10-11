@@ -40,6 +40,7 @@ use crate::errors::ErrorClass;
 use crate::py::typed_err;
 use crate::tags::{
     assembly_error_tag, attribution_tag, mint_refusal_tag, product_error_tag, refused_ref_tag,
+    unlocalized_tag,
 };
 use pncad::document as d;
 use pncad::tolerance::Tol;
@@ -264,42 +265,18 @@ pub(crate) struct RefusedRef(d::RefusedRef, SpokenFrom);
 
 #[pymethods]
 impl RefusedRef {
-    /// The stable tag: `ref_vanished`, `ref_moved_above`,
-    /// `ref_ambiguous`.
+    /// The stable tag: `ref_ambiguous`.
     #[getter]
     fn variant(&self) -> &'static str {
         refused_ref_tag(&self.0)
     }
 
-    /// The operand the reference is read at, when a node above it
-    /// places the face again before the product holds it.
+    /// How many world copies answer. A mate declaration must name ONE
+    /// face, and a tie is never broken by picking.
     #[getter]
-    fn at(&self) -> Option<NodeId> {
+    fn width(&self) -> usize {
         match self.0 {
-            d::RefusedRef::MovedAbove { at, .. } => Some(NodeId(at)),
-            d::RefusedRef::Vanished { by: _ } | d::RefusedRef::Ambiguous { width: _ } => None,
-        }
-    }
-
-    /// The node above the operand that places the face again
-    /// (`ref_moved_above`), or that consumed it on its way to the
-    /// product (`ref_vanished`, when the operand spells the name).
-    #[getter]
-    fn by(&self) -> Option<NodeId> {
-        match self.0 {
-            d::RefusedRef::MovedAbove { by, .. } => Some(NodeId(by)),
-            d::RefusedRef::Vanished { by } => by.map(NodeId),
-            d::RefusedRef::Ambiguous { width: _ } => None,
-        }
-    }
-
-    /// How many faces answer. A mate declaration must name ONE face,
-    /// and a tie is never broken by picking.
-    #[getter]
-    fn width(&self) -> Option<usize> {
-        match self.0 {
-            d::RefusedRef::Ambiguous { width } => Some(width),
-            d::RefusedRef::Vanished { .. } | d::RefusedRef::MovedAbove { .. } => None,
+            d::RefusedRef::Ambiguous { width } => width,
         }
     }
 
@@ -470,8 +447,10 @@ impl AtRestFinding {
 }
 
 /// One mate whose declaration the gather could not mint: which mate,
-/// and why — a reference that named no product face (`why`), or a
-/// class that carries no kernel record at rest (`class_`).
+/// and why — a reference that named no one product face (`why`), a
+/// class that carries no kernel record at rest (`class_`), or a mate
+/// with no value in the evaluation (`mate_unevaluated`, whose sentence
+/// says why).
 ///
 /// A row of `AssemblyError.refusals`, which is the WHOLE list the
 /// gather recorded: a document with two broken mates answers with two
@@ -486,13 +465,14 @@ pub(crate) struct MintRefusal(d::MintRefusal, SpokenFrom);
 
 #[pymethods]
 impl MintRefusal {
-    /// The stable tag: `mate_reference_refused`, `no_at_rest_record`.
+    /// The stable tag: `mate_reference_refused`, `no_at_rest_record`,
+    /// `mate_unevaluated`.
     #[getter]
     fn variant(&self) -> &'static str {
         mint_refusal_tag(&self.0)
     }
 
-    /// The mate that did not mint. Both arms carry one.
+    /// The mate that did not mint. Every arm carries one.
     #[getter]
     fn mate(&self) -> NodeId {
         NodeId(self.0.mate())
@@ -504,7 +484,7 @@ impl MintRefusal {
     fn side(&self) -> Option<MateSide> {
         match &self.0 {
             d::MintRefusal::Reference { side, .. } => Some(MateSide::from_kernel(*side)),
-            d::MintRefusal::NoAtRestRecord { .. } => None,
+            d::MintRefusal::NoAtRestRecord { .. } | d::MintRefusal::Unevaluated { .. } => None,
         }
     }
 
@@ -513,7 +493,7 @@ impl MintRefusal {
     fn name(&self, py: Python<'_>) -> PyResult<Option<String>> {
         match &self.0 {
             d::MintRefusal::Reference { name, .. } => name_text(py, name).map(Some),
-            d::MintRefusal::NoAtRestRecord { .. } => Ok(None),
+            d::MintRefusal::NoAtRestRecord { .. } | d::MintRefusal::Unevaluated { .. } => Ok(None),
         }
     }
 
@@ -529,7 +509,7 @@ impl MintRefusal {
     fn why(&self) -> Option<RefusedRef> {
         match &self.0 {
             d::MintRefusal::Reference { why, .. } => Some(RefusedRef(why.clone(), self.1.clone())),
-            d::MintRefusal::NoAtRestRecord { .. } => None,
+            d::MintRefusal::NoAtRestRecord { .. } | d::MintRefusal::Unevaluated { .. } => None,
         }
     }
 
@@ -540,7 +520,7 @@ impl MintRefusal {
             d::MintRefusal::NoAtRestRecord { class, .. } => {
                 super::flush::contact_class(py, *class).map(Some)
             }
-            d::MintRefusal::Reference { .. } => Ok(None),
+            d::MintRefusal::Reference { .. } | d::MintRefusal::Unevaluated { .. } => Ok(None),
         }
     }
 
@@ -628,6 +608,155 @@ pub(crate) struct Assembly {
     names: Vec<String>,
     minted: Vec<MintedDeclaration>,
     carried: Vec<CarriedDeclaration>,
+    interference: Vec<InterferenceFinding>,
+}
+
+/// A face of a copy, as the copy's own name table spells it: the name
+/// a selection of the copy reads.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct FaceSite {
+    copy: Var,
+    member: u32,
+    face: String,
+}
+
+#[pymethods]
+impl FaceSite {
+    /// The copy: its placement's output variable.
+    #[getter]
+    fn copy(&self) -> Var {
+        self.copy
+    }
+
+    /// Which member of the placement's value the copy is (0 for a
+    /// placement of one body).
+    #[getter]
+    fn member(&self) -> u32 {
+        self.member
+    }
+
+    /// The face's name, as opaque text.
+    #[getter]
+    fn face(&self) -> String {
+        self.face.clone()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "FaceSite(copy=Var({}), member={}, face={})",
+            self.copy.0.full(),
+            self.member,
+            self.face
+        )
+    }
+}
+
+/// An overlap of two copies' material at rest: reported on
+/// `Assembly.interference`, never raised, and quiet only under a
+/// holding one-sided `gap` assertion at its site (`quiet_by`).
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct InterferenceFinding {
+    a: (Var, u32),
+    b: (Var, u32),
+    faces: Option<Vec<FaceSite>>,
+    unlocalized: Option<&'static str>,
+    quiet_by: Option<NodeId>,
+}
+
+impl InterferenceFinding {
+    fn of(py: Python<'_>, doc: &d::ProfileDoc, finding: &d::InterferenceFinding) -> PyResult<Self> {
+        let copy = |c: &d::CopyRef| (Var::of(doc, c.var), c.member);
+        let (faces, unlocalized) = match &finding.overlap {
+            d::Overlap::Bounded { faces } => (
+                Some(
+                    faces
+                        .iter()
+                        .map(|site| {
+                            Ok(FaceSite {
+                                copy: Var::of(doc, site.copy.var),
+                                member: site.copy.member,
+                                face: name_text(py, &site.face)?,
+                            })
+                        })
+                        .collect::<PyResult<Vec<_>>>()?,
+                ),
+                None,
+            ),
+            d::Overlap::Unlocalized(why) => (None, Some(unlocalized_tag(why))),
+        };
+        Ok(Self {
+            a: copy(&finding.a),
+            b: copy(&finding.b),
+            faces,
+            unlocalized,
+            quiet_by: finding.quiet.map(NodeId),
+        })
+    }
+}
+
+#[pymethods]
+impl InterferenceFinding {
+    /// The copy earlier in gather order: its placement's output
+    /// variable.
+    #[getter]
+    fn a(&self) -> Var {
+        self.a.0
+    }
+
+    /// Which member of `a`'s placement value it is.
+    #[getter]
+    fn a_member(&self) -> u32 {
+        self.a.1
+    }
+
+    /// The other copy.
+    #[getter]
+    fn b(&self) -> Var {
+        self.b.0
+    }
+
+    /// Which member of `b`'s placement value it is.
+    #[getter]
+    fn b_member(&self) -> u32 {
+        self.b.1
+    }
+
+    /// The faces of both copies bounding the overlap, or `None` when
+    /// the kernel could not bound it (`unlocalized` says why).
+    #[getter]
+    fn faces(&self) -> Option<Vec<FaceSite>> {
+        self.faces.clone()
+    }
+
+    /// Why the overlap has no site — `refused`, `invalid`, `empty`,
+    /// `unnamed`, `containment` or `lane` — or `None` when `faces` names it. An
+    /// unlocalized overlap is loud and nothing quiets it.
+    #[getter]
+    fn unlocalized(&self) -> Option<&'static str> {
+        self.unlocalized
+    }
+
+    /// The assertion that quiets it, or `None` when it is loud.
+    #[getter]
+    fn quiet_by(&self) -> Option<NodeId> {
+        self.quiet_by
+    }
+
+    /// Whether no assertion quiets it.
+    #[getter]
+    fn loud(&self) -> bool {
+        self.quiet_by.is_none()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "InterferenceFinding({}, {} face(s))",
+            if self.loud() { "loud" } else { "quiet" },
+            self.faces.as_ref().map_or(0, Vec::len)
+        )
+    }
 }
 
 /// One declaration a document BELOW this one authored, certified here
@@ -697,12 +826,21 @@ impl Assembly {
         self.carried.clone()
     }
 
+    /// Every overlap between two copies' material, quiet or loud, in
+    /// the census's order. An overlap is reported here and never
+    /// raised.
+    #[getter]
+    fn interference(&self) -> Vec<InterferenceFinding> {
+        self.interference.clone()
+    }
+
     fn __repr__(&self) -> String {
         format!(
-            "Assembly({} names, {} minted declaration(s), {} carried)",
+            "Assembly({} names, {} minted declaration(s), {} carried, {} interference)",
             self.names.len(),
             self.minted.len(),
-            self.carried.len()
+            self.carried.len(),
+            self.interference.len()
         )
     }
 }
@@ -873,6 +1011,12 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
         .iter()
         .map(|(name, _)| name_text(py, name))
         .collect::<PyResult<Vec<String>>>()?;
+    let read = evaluation.doc_shared();
+    let interference = assembly
+        .interference
+        .iter()
+        .map(|finding| InterferenceFinding::of(py, &read, finding))
+        .collect::<PyResult<Vec<_>>>()?;
     Ok(Assembly {
         // The at-rest body keeps the record set the gate certified it
         // against — the parts' own carried declarations (D-1) plus
@@ -888,12 +1032,15 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
             .into_iter()
             .map(CarriedDeclaration)
             .collect(),
+        interference,
     })
 }
 
 /// Register the gather and gate surface on the module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Assembly>()?;
+    m.add_class::<InterferenceFinding>()?;
+    m.add_class::<FaceSite>()?;
     m.add_class::<MintedDeclaration>()?;
     m.add_class::<CarriedDeclaration>()?;
     m.add_class::<Attribution>()?;

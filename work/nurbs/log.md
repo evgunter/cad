@@ -412,3 +412,91 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
 - 2026-10-10 18:21 — Ev ruled on **readout 4** (PR 4555): "the current pattern can continue, iirc 20 more majors or 2 more unilateral majors where the other side didn't catch the issue at all". That is rule 9 as it stands, so the protocol is unchanged.
   - The ruling is recorded in `docs/DUAL-REVIEW-LOG.md`, and the count restarts after DR-144; it stands at 1 (DR-145).
   - The row is closed, and PR 4555 is closed unmerged. (NURBS orchestrator)
+- 2026-10-10 18:50 — **PR 4553**'s sequential review returned NOT-MERGEABLE-AS-IS.
+  - **MAJOR, demonstrated:** route (a), dropping `localized`, moves `Interval` verdicts. On a steep-weight rational section extruded into a wall, 19 rulings certify 15 → 6 at ε 1e-12, and pads collapse to about 1e-4×. The PR's route measurement was `f64`-only.
+  - **The rest** of the review held: the seal; `apply_homogeneous` sound against exact rationals; route (b) for SSI; the speed meter on 430 curves; quad.
+  - **MINORs:**
+    - a rounded knot difference in `rational_span_bound`;
+    - the bound covers λ's scalar, not P's;
+    - the stated cause of the quarter turn's 1e-12 is wrong;
+    - `offset_fit` elevation (filed today);
+    - `apply_homogeneous` is a third certified step at `Interval`.
+  - **Next:** the fix pass takes route (b) for the wall too. Per the SEQUENTIAL arm, a second whole-unit Opus review follows. The reviewer confirmed `silent_fixed_predicates_scale_linearly` is red on main under `--all-features`; the lane files it. (NURBS orchestrator)
+- 2026-10-10 19:33 — **PR 4551's H pair** is in. Both reviews returned APPROVE-WITH-FIXES with no MAJOR, so the tally pre-note is 0. Blinded coding is dispatched (byte 104).
+  - **Soundness held:** about 1M exact-rational checks of `between`, and about 200k of `blossom`/`restrict`.
+  - **`frame_box_on` was a real defect on main:** an undersized plane-chart box fed `ChartEdge::Envelope { slack: 0 }`, then `certifies_outside`.
+  - **Bilateral:**
+    - the r1 row no longer guards the step form; all three mutants stay green at head;
+    - the 254-cut ceiling has zero margin;
+    - the cost is undisclosed: composite 2.5–3×, quadrature +19–34%, the SSI suite +19%, likely from the O(n²) window minting;
+    - duplicated doors, and tests that test copies of production code.
+  - The fix pass went to build A. (NURBS orchestrator)
+- 2026-10-10 20:46 — **PR 4540**'s fix pass passed its delta check:
+  - deterministic piece-coverage rows, with each dropped-piece mutant red;
+  - each join arm pinned;
+  - pieces as exact combinations of a depth-q row (W1);
+  - cost stated: an `Interval` loft build at 3.7–5.5× main;
+  - `chart_stretch_inf` filed on PCERT.
+
+  Its review row is DR-149, renumbered twice as GERM's and SHELL's rows landed first; it merges on green. Main's new `from_f64` allowlist gate needed seven stored-knot and stored-weight rows at the merge. I filed `the-speed-meter-runs-three-times-per-corner-carrier` (P3, E): memoise the meter per carrier rather than halve the splits.
+- **PR 4551's** blinded coding: tally 0, fair, matching the pre-note. Its fix pass and PR 4553's are both still running. (NURBS orchestrator)
+- **2026-10-10 22:10Z.**
+  - **PR 4540** merged (`24d342b44b`). Its review row became **DR-150**: INTENT's PR 4583 took DR-149 first. The readout toward-count now also counts INTENT's DR-149, an M-tier unit main's foot had left out, so it reads 4 (DR-145, DR-147, DR-149, DR-150).
+  - **PR 4590**, the tracker sync, merged.
+  - **PR 4553's second whole-unit review** (sequential arm, byte 182) is in: APPROVE-WITH-FIXES with no MAJOR.
+    - MAJOR-1 is confirmed fixed by execution: 8 wall families × 19 rulings × both scalars × 3 ε, with no lost verdict and pads ≥ 1. At 1e-12 Interval the head certifies 19/19 on d3/d2 against main's 15/15.
+    - Exact-rational containment: 170,601 checks, 0 misses.
+    - New:
+      - MINOR-A: the compile_fail rows also emit E0599;
+      - MINOR-B: the `ssi_hull_sup` Interval payload guard is no longer carried;
+      - MINOR-C: a stale `w′` doc;
+      - NOTE-A: `refined_net` has no positivity guard;
+      - NOTE-B: cost +4–20%, accepted;
+      - S1–S9.
+    - Fix pass sent to build B, with S8 not adopted.
+  - **PR 4551's** fix pass is pushed (`52ba7469…`); CI is pending before the delta check. (NURBS orchestrator)
+- **2026-10-11 02:30Z.**
+  - **PR 4553**'s second-review fix pass is checked against MINOR-A/B/C, NOTE-A and S1–S7, S9:
+    - one `RingRefinement` owns the refined knots and the extent guard;
+    - one `certainly_positive`/`dehomogenize` guard;
+    - one `spline::knot_difference`;
+    - `BlockRefusal` is typed;
+    - `CellGrid` stores `(w·P, w)`;
+    - a row reads limb 2's `Interval` margin as an enclosure.
+  - **PR 4553's main merges:**
+    - Main's PR 4596 extended the `from_f64` gate to geom-core, so the orchestrator listed seven sites (stored knots and weights; the plan's λ, sealed off `Interval`).
+    - Build B resolved ENCL's limb-2 subdivision onto the described carrier, cut in the ring at `cert_grid ∪ cuts`.
+    - Its review row was renumbered three times, DR-153 → DR-157 → DR-158, as INTENT and GERM rows landed. The toward-count now reads 8.
+  - **PR 4551**'s fix pass is accepted (`d968ee5031`). `props/quad::de_boor` ships unrouted: routed through the blossom, it moved step-import's arc-loft volume one ulp apart between native and imported against a bit-identity pin. That is not a soundness loss. Filed as `quad-de-boor-through-the-blossom-breaks-the-import-bit-identity`. 4551 merges main after 4553 lands, then takes its DR row.
+  - **Shared review log, not NURBS's:** FLUX's DR-149 and DR-150 and GERM's DR-157 sit below the ruling bullets instead of in the table, and DR-149 and DR-150 are each used twice. Reported to the user, not edited. (NURBS orchestrator)
+- 2026-10-11 — Seam note from ENCL (PR 4616, merged): a test-only accessor `PatchSpans::cell_coeffs` was added in `geom-core/src/spline/compose/patch.rs` (`cfg(any(test, feature = "test-support"))`) for offset_fit's red-on-main weight row. Its doc (and the `Cargo.toml` feature comment) says "one coefficient", but it returns the whole cell's coefficient slice; that wording is yours to fix or ours on the next touch. (ENCL orchestrator)
+- **2026-10-11 04:49Z.** **PR 4553 merged** (`98e620a195`). Its review row is **DR-158**, renumbered from DR-153 and DR-157 as INTENT's and GERM's rows landed first. The readout toward-count now reads 10.
+  - Main kept moving under the PR, so it took five more main merges:
+    - INTENT's knots-in-T (PR 4608): `SpanLocate` unions `point_value` with this PR's methods, and probe 5's band zero moved from 4.5e-15 to 4.8e-15 because limb 1 now reads about 4.77e-15.
+    - The CLEAVE apex row, red on main since PR 4609: PR 4631's re-pin ported verbatim, with one PR comment.
+    - The rest were review-log renumberings.
+  - The final merge resolved only the review log over a green head (`3c22917974`), so that tree is GitHub's own merge of the green head plus that text. A workspace check, the gates and lint ran on it before the merge.
+  - The user caught that one conflict sat unnoticed while I read silence as "CI running". Mergeability is now checked directly with `git merge-tree` against main rather than inferred.
+  - Build A is told to merge main into PR 4551 next. (NURBS orchestrator)
+- **2026-10-11 05:55Z.**
+  - Re-read the three prompts, `work/README.md` and `orchestration-model.md` after the compaction, per the new `CLAUDE.md` clause (PR 4643).
+  - Two standing rules had been dropped:
+    - `work.py incoming` at each check-in. Now run: 0 incoming.
+    - Friction is a finding. Filed `work/issues/the-dual-review-logs-shared-tally-line-conflicts-every-unit.md` (DR-log contention, plus the 35-minute `test` job on PR 4553).
+  - PR 4551 is still waiting on build A's push of its main merge. (NURBS orchestrator)
+- **2026-10-11 06:27Z.**
+  - `incoming` brought INTENT's filing of `main-slow-set-reds-on-two-rows-since-4553` (P0). Two slow-set rows have been red on main since PR 4553: sweep's serial-golden digest, and step-import's arc-loft native-vs-imported volume bits.
+  - These are the same two rows PR 4551 had already shown to be quadrature-sensitive. The per-PR gate never selected them, because 4553 touched neither crate.
+  - The orchestrator's miss: before merging 4553 it should have run those two rows, since 4551 had just shown they move with quadrature changes.
+  - Build B (`session_01VSe9NnecKcXKBB3VP44z5J`) is re-dispatched to root-cause both on `nurbs/main-slow-set-reds-since-4553`:
+    - re-baseline only with a stated, measured cause;
+    - for the import bits, make both sides compute the same thing rather than re-pin.
+  - Build A was told not to attribute these rows to 4551. (NURBS orchestrator)
+- **2026-10-11 07:12Z.**
+  - PR 4647 (merged by Ev) splits the dual-review log into one file per row, with numbers assigned on main and the foot computed. NURBS's contention issue is closed against it. 4551's row will be `rows/PR-4551.md`.
+  - Build A's main merge into 4551 (`11a6b7253a`) has the right `SpanLocate` union, and `knot_difference` is the only spelling.
+  - Its probe-5 commit re-aimed 4553's MINOR-B guard from limb 2 (`ssi_hull_sup`) to limb 1, because under the monotone step limb 2 now reads 3.13e-15, under limb 1's 4.77e-15. That re-opens MINOR-B: limb 1 is already pinned by r2 probe 2.
+  - Sent back: give `ssi_hull_sup`'s `Interval` payload a row that can still go red (a fixture where limb 2 leads, or a direct `hull_limb` row). Mutation red is to be shown by execution.
+  - Build B is working the P0 slow-set reds with a candidate walk-order fix. (NURBS orchestrator)
+- 2026-10-11 — Seam note from ENCL (PR 4653, merged): `geom_core::spline::compose::sub_segment` is now public and re-exported from `geom_core::spline`. It cuts a Bernstein row on [s0, s1] down to [a, b] through `convex_step`, as an outward enclosure. Its `p` argument is gone. It refuses (returns the refused row) for an empty row or segment, a NaN cut, a cut outside the segment, and a reversed cut, the last by contract. `geom_brep::ssi::section::sub_piece` is deleted, and section's `Pieces::over`, `slope_over` and `refined_sign` cut through it. `refined_sign` still halves the halves it reads (measured as tighter near a zero). (ENCL orchestrator)
+- 2026-10-11 — Note from ENCL: main is red on step-import `nurbs_import::arc_loft_natively_computes_its_rational_volume`. ENCL bisected it to NURBS #4553. The cause is a face-order dependence in `fold_runs` that #4553 exposed; #4553 itself is not wrong. Filed `work/exch/arc-loft-round-trip-volume-differs-by-face-order.md` (P1) with the mechanism and two repair shapes. (ENCL orchestrator)

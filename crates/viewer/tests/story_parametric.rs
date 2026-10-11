@@ -29,13 +29,14 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use viewer::session::BooleanSpec;
 
 use core::f64::consts::PI;
 
 use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
 use pncad::document::{
-    Axis3, BooleanOp, Dimension, Doc, DocEdit, EditError, FreeVar, ProfileProgram, RecipeNodeId,
-    SlotId, StepArg, VarName,
+    Axis3, Dimension, Doc, DocEdit, EditError, FreeVar, ProfileProgram, RecipeNodeId, SlotId,
+    StepArg, VarName,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::MM;
@@ -290,7 +291,7 @@ fn the_parametric_living_walk() {
     let tower_up = session_insert(
         &mut session,
         SessionOp::AddTransform {
-            input: tower,
+            input: tower.into(),
             // 0.025 deliberately equals `height - embed` today, so the
             // part is coherent before the drive lands; a literal that
             // stayed driving would be caught by the stage-9/11 ripples.
@@ -308,9 +309,7 @@ fn the_parametric_living_walk() {
     let hull = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: base,
-            b: tower_up,
+            spec: BooleanSpec::Union(vec![base.into(), tower_up.into()]),
             declare: Vec::new(),
         },
     );
@@ -365,7 +364,7 @@ fn the_parametric_living_walk() {
     let lamp_up = session_insert(
         &mut session,
         SessionOp::AddTransform {
-            input: lamp,
+            input: lamp.into(),
             // 0.08 deliberately equals `height * 3 - embed * 2` today
             // (coherent mid-build); a literal that stayed driving would
             // be caught by the stage-9/11 variable ripples.
@@ -383,9 +382,7 @@ fn the_parametric_living_walk() {
     let lighthouse = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: hull,
-            b: lamp_up,
+            spec: BooleanSpec::Union(vec![hull.into(), lamp_up.into()]),
             declare: Vec::new(),
         },
     );

@@ -2,10 +2,11 @@
 id: the-reflex-probes-run-b-minus-a-under-declarations-keyed-for-a-b
 kind: issue
 title: The reflex probes run b ∖ a under declarations keyed for (a, b), so every declared S_ba pose refuses at the declaration door
-status: open
+status: parked
 opened: 2026-10-06
 priority: P3
 cost: E
+blocked_on: [declared-pairs-retire]
 ---
 
 
@@ -35,3 +36,23 @@ the op refuses at the declaration door before anything is measured.
 So the batteries' "no wrong body" reading says nothing about `b ∖ a`
 at a flush-declared pose. The repair is `flush_declarations(&b, &a, tol)`
 for that op (a second field on `ReflexPose`, or the op building its own).
+
+## Parked on INTENT stage 4 F (2026-10-11)
+
+F (`declared-pairs-retire`, branch `intent/s4-f-declared-pairs-retire`)
+deletes `flush_declarations` from `reflex_pose` and runs every reflex
+op through the plain booleans, so no op carries a declaration keyed for
+the other order. When F merges this row closes on F's diff, unless F's
+lane closes it in its own PR.
+
+## Measured on main without declarations (`flush/readers-closes`, 2026-10-11)
+
+On main `19b704d92f`, release, the 288 `S_ba` runs of
+`join1_r1_reflex_battery`'s poses through the plain
+`topo::subtract(&p.b, &p.a, tol)` all come out `OK SOUND` or `EMPTY ok`.
+They differ from the declared run in exactly the 192 refusals above.
+INTENT stage 4 F (`intent/s4-f-declared-pairs-retire`) rewrites
+`reflex_run` onto the plain booleans and drops `ReflexPose::d`, which
+removes this row's subject. What would then be left is the
+`join_rc_probes` pins' `&REFLEX_OPS[..3]`, which skip `S_ba` only
+because of the keyed declarations.

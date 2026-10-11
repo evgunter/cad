@@ -45,8 +45,9 @@
 //! threshold, some 50k in all — found no wrong answer from the metered
 //! door, and a maximum root error of 4.8e-10 m on the parallel arm.
 //! That supports the premise at the poses it drew; it does not bound the
-//! amplification, and the ladder's in-band answers are a known gap
-//! (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`).
+//! amplification. The ladder's answers are not read: the subdivision
+//! answers ([`super::circle_roots`], "The half-angle ladder, and the
+//! subdivision that answers").
 //!
 //! **What the noise costs.** Measured when the ladder answered: against
 //! a torus `R = 1, r = 0.25` at the default band, grazing circles at
@@ -264,6 +265,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
                     "bool_circle_torus_coaxial_residual",
                     band,
                 )
+                .map(CircleRoots::from)
                 .map_err(escalated)
             }
             Ok(Sign::Positive) => parallel_axes_roots(
@@ -1513,7 +1515,6 @@ mod tests {
                     match got {
                         CircleRoots::Uncertain => {}
                         CircleRoots::OnSurface => panic!("{label}: not on the torus"),
-                        CircleRoots::CountDisagrees => panic!("{label}: counts disagree"),
                         CircleRoots::AtApex => panic!("{label}: a torus has no apex"),
                         CircleRoots::Miss => {
                             assert!(truth.is_empty(), "{label}: a certified miss on a dip");

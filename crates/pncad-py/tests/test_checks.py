@@ -41,7 +41,6 @@ import pncad
 from pncad import (
     Advisory,
     ArcSweep,
-    BooleanOp,
     Center,
     CheckId,
     CheckKind,
@@ -89,7 +88,7 @@ def disjoint_union():
     doc = Doc("checks-disjoint")
     a = slab(doc, 0.0, 1.0)
     b = slab(doc, 3.0, 4.0)
-    placed = doc.place(doc.insert(Node.boolean(BooleanOp.Union, a, b)))
+    placed = doc.place(doc.insert(Node.union([a, b])))
     return doc, placed, a
 
 
@@ -143,7 +142,7 @@ class TestTheConnectednessResident(unittest.TestCase):
         doc = Doc("checks-voided")
         outer = slab(doc, 0.0, 3.0, 0.0, 3.0, 0.0, 3.0)
         inner = slab(doc, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0)
-        doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
+        doc.insert(Node.subtract(outer, inner))
         self.assertEqual(run_checks(doc, evaluate(doc)).findings, [])
 
     def test_a_stated_expectation_is_the_acknowledgment(self):
@@ -354,7 +353,7 @@ class TestSubjectBody(unittest.TestCase):
         a = slab(sliver, 0.0, 1.0)
         # 2 nm apart: in band, so the union refuses and has no value.
         b = slab(sliver, 1.0 + 2e-9, 2.0)
-        failed = sliver.insert(Node.boolean(BooleanOp.Union, a, b))
+        failed = sliver.insert(Node.union([a, b]))
         self.assertIsNone(subject_body(evaluate(sliver), failed, 0))
 
 
@@ -446,7 +445,7 @@ class TestTheChecksCouldNotRun(unittest.TestCase):
         a = slab(doc, 0.0, 1.0)
         # 2 nm apart: in band, so the union refuses.
         b = slab(doc, 1.0 + 2e-9, 2.0)
-        root = doc.place(doc.insert(Node.boolean(BooleanOp.Union, a, b)))
+        root = doc.place(doc.insert(Node.union([a, b])))
         ev = evaluate(doc)
         with self.assertRaises(ChecksError) as caught:
             run_checks(doc, ev)
@@ -460,8 +459,9 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
     a block, unioned under the declared `Rest` the flush detector
     offers. The declaration is verified from values, so the union
     records one coincidence, and the door does not prove it: the two
-    caps are two constructions. The report's rows are the evaluation's
-    unproven rows, word for word."""
+    caps are two constructions, and the block's top and the plate's
+    floor are two variables typed to one value. The report's rows are
+    the evaluation's unproven rows, word for word."""
 
     def test_a_declared_rest_is_one_unproven_coincidence(self):
         doc = Doc()
@@ -469,7 +469,7 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         upper = slab(doc, 0.25, 0.75, 0.25, 0.75, 1.0, 1.5)
         findings = evaluate(doc).find_flush_candidates(lower, upper)
         glued = doc.insert(
-            Node.boolean(BooleanOp.Union, lower, upper, declare=findings)
+            Node.union([lower, upper], declare=findings)
         )
         ev = evaluate(doc)
         rows = ev.coincidences(glued)
@@ -477,8 +477,16 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         (row,) = rows
         self.assertEqual((row.relation, row.site), ("same_opposite", "plane_ladder"))
         self.assertIsNone(row.rung)
-        self.assertEqual(row.residual, "the two cells are two constructions")
-        self.assertEqual([node for node, _ in row.cells], [lower, upper])
+        self.assertEqual(
+            row.residual,
+            "the two cells are two constructions; unproven at the resident budget; "
+            "the full symbolic pass decides",
+        )
+        # Each cell is named in the table of the read it came in
+        # through: the two members' outputs.
+        self.assertEqual(
+            [read for read, _ in row.cells], [doc.output(lower, 0), doc.output(upper, 0)]
+        )
         self.assertTrue(all(name is not None for _, name in row.cells))
 
         cfg = ChecksConfig(
@@ -507,6 +515,26 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         self.assertEqual(
             [f for f in off.findings if f.check == CheckId.UnprovenCoincidence], []
         )
+
+        # The full pass replays the document with every variable a
+        # symbol, and says so of a row it does not prove.
+        full = (
+            "the two cells are two constructions; with every variable a symbol, "
+            "neither the carriers' verdict nor the deciding margin is shown "
+            "identically zero within the full pass's budget"
+        )
+        (row,) = ev.coincidences(glued, full_symbolic_pass=True)
+        self.assertIsNone(row.rung)
+        self.assertEqual(row.residual, full)
+        self.assertFalse(cfg.full_symbolic_pass)
+        cfg = ChecksConfig(
+            connectedness=Severity.Off,
+            separation=Advisory.Off,
+            full_symbolic_pass=True,
+        )
+        self.assertTrue(cfg.full_symbolic_pass)
+        (finding,) = run_checks(doc, ev, cfg).findings
+        self.assertEqual(finding.evidence.reason, full)
 
 
 if __name__ == "__main__":

@@ -58,6 +58,8 @@ pub mod description;
 pub mod dihedral;
 pub mod edge_nurbs;
 pub mod enters;
+#[cfg(test)]
+mod exact_q;
 pub mod extent;
 pub mod fitted_lane;
 #[cfg(test)]
@@ -100,11 +102,13 @@ pub use dihedral::{
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
-    PlaneNurbsLimbs, PlaneNurbsRefusal, analytic_rung3, is_analytic, plane_nurbs_limbs,
+    PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb, analytic_rung3, is_analytic, nurbs_pair_limbs,
+    plane_nurbs_limbs,
 };
 pub use enters::{
-    EntersMaterial, LeverEscalation, LeverRung, OutwardNormal, ReferenceNormal, WallBend,
-    WallBendError, bends_into_material, enters_material, enters_material_order2,
+    EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
+    ParallelSense, ReferenceNormal, WallBend, WallBendError, bends_into_material, enters_material,
+    enters_material_order2, normal_alignment,
 };
 pub use extent::{ExtentBall, Reach};
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
@@ -128,9 +132,10 @@ pub use intersect::{
     Rung, SectionError, SectionRadius, SphereSphereSection, cone_cylinder_section,
     cylinder_axes_coplanar, cylinder_axes_parallel, cylinder_cylinder_section,
     cylinder_sphere_section, parallel_axes_at, plane_cone_section, plane_cylinder_section,
-    plane_sphere_section, plane_torus_section, route, route_pose, sphere_sphere_section,
+    plane_cylinder_section_read, plane_sphere_section, plane_torus_section, route, route_pose,
+    sphere_sphere_section,
 };
-pub use keys::{CurveKey, PointKey, SurfaceKey};
+pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{TangentLocus, TangentLocusError, tangent_locus};
 pub use mapped::{MappedCurve, MappedSource, SketchSegment, SubRange};
 pub use newell::{NewellError, newell_plane};
@@ -162,10 +167,10 @@ pub use props::{
     require_one_chart_branch,
 };
 pub use ssi::{
-    BandVerdict, BoundaryPoint, BoundarySection, ChartAxis, ChartCorner, ChartEnd, ChartSide,
-    ChartSpeedRefusal, ChartedNurbs, DomainField, ExhaustLane, Exhaustiveness,
+    BandVerdict, BoundaryChart, BoundaryPoint, BoundarySection, ChartAxis, ChartCorner, ChartEnd,
+    ChartSide, ChartSpeedRefusal, ChartedNurbs, DomainField, ExhaustLane, Exhaustiveness,
     ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal, ReachBound, SSI_FIT_DEGREE,
-    SSI_FLOOR, SSI_MAX_STEPS, SectionRoot, SettlingRefusal, SsiBoundaryContact, SsiBranch,
+    SSI_FLOOR, SSI_MAX_STEPS, Section, SectionRoot, SettlingRefusal, SsiBoundaryContact, SsiBranch,
     SsiCertificate, SsiDomain, SsiError, SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault,
     StepperMode, TraceDecision, TubeDegeneracy, boundary_section, certify_rung3,
     cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi, trace_plane_nurbs_uncertified,

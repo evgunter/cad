@@ -247,6 +247,25 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
             cause: uncrossable(),
         },
         S::WallOutlineUnsupported { face },
+        S::JunctionSidesDisagree {
+            face,
+            sides: (MarginDiag::value(2e-9), MarginDiag::value(-1.6e-9)),
+            band: Band::new(1e-9, 1.5e-9).expect("a well-formed band"),
+        },
+        S::NarrowWindowUnread {
+            face,
+            diag: Indeterminate {
+                margin: MarginDiag::value(5e-10),
+                band: Band::new(1e-9, 1e-8).expect("a well-formed band"),
+                predicate: Some("bool_wall_trim"),
+                terminal_sliver: false,
+            },
+        },
+        S::RootCountDisagrees {
+            face,
+            certified: 2,
+            constructed: 4,
+        },
         S::NoSuchSolid {
             solid: SolidKey::default(),
         },
@@ -426,7 +445,7 @@ fn certify_errors() -> Vec<CertifyError> {
         },
         CertifyError::WindingExceeded,
         CertifyError::ResidualExceeded {
-            check: CertCheck::Surface1Residual,
+            check: CertCheck::SurfaceResidual { surface: key },
             sample: 4,
             margin: MarginDiag::value(3e-8),
         },
@@ -497,17 +516,17 @@ fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
     vec![
         A::Limb {
             operand: geom::SurfaceKind::Plane,
-            limb: geom_brep::SsiLimb::HullSup,
+            limb: geom_brep::Rung3Limb::HullSup,
             margin: MarginDiag::value(7.5e-5),
         },
         A::Escalated {
             operand: Some(geom::SurfaceKind::Cylinder),
-            limb: geom_brep::SsiLimb::HullSup,
+            limb: geom_brep::Rung3Limb::HullSup,
             cause: diag(),
         },
         A::Escalated {
             operand: None,
-            limb: geom_brep::SsiLimb::Tube,
+            limb: geom_brep::Rung3Limb::Tube,
             cause: diag(),
         },
         A::NoOffsetBound {
@@ -652,6 +671,8 @@ fn props_errors() -> Vec<PropsError> {
             what: "props_sphere_loop_closed",
         },
         PropsError::SenseContradicted,
+        PropsError::RingWoundWithFace,
+        PropsError::ChartPeriodJump,
         PropsError::NotOneChartBranch {
             edge: 2,
             what: "the edge crosses the seam",
@@ -831,13 +852,6 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             bound: 3e-6,
             tolerance: 1e-6,
         },
-        // The payload the elevation's own `check_weights` produces.
-        OffsetFitError::Elevation(geom_core::spline::KnotAlgebraError::Structure(
-            geom_core::spline::SplineError::NonPositiveWeight {
-                index: 3,
-                weight: 0.0,
-            },
-        )),
     ];
     // Every patch-bound note is its own sentence, and the enum is
     // fieldless, so its compiler-derived roster is the sample list.
@@ -856,7 +870,11 @@ fn census_contacts() -> Vec<CensusContact> {
         CensusContact::VertexOnFace { vertex, face },
         CensusContact::VertexOnEdge { vertex, edge },
         CensusContact::EdgeFacePierce { edge, face },
-        CensusContact::EdgeEdgeCross { a: edge, b: edge },
+        CensusContact::EdgeEdgeCross {
+            a: edge,
+            b: edge,
+            side: None,
+        },
         CensusContact::EdgeEdgeOverlap { a: edge, b: edge },
         CensusContact::EdgeFaceOverlap { edge, face },
         CensusContact::ConformalPatch {
@@ -888,10 +906,9 @@ fn stale_declarations() -> Vec<StaleDeclaration> {
             a: EdgeKey::default(),
             b: EdgeKey::default(),
         },
-        StaleDeclaration::CurveLocus {
-            face_a: face,
-            face_b: face,
-            witness: EdgeKey::default(),
+        StaleDeclaration::EdgeFace {
+            edge: EdgeKey::default(),
+            face,
         },
         StaleDeclaration::Patch {
             face_a: face,
@@ -1424,11 +1441,6 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             CensusContact::ConformalPatch { .. } => {
                 crate::census::CONFORMAL_REGION_WITNESS.to_owned()
             }
-            // The crossing arm's real shape: the position, then the side
-            // verdict after " — ", which the message does not render.
-            CensusContact::EdgeEdgeCross { .. } => {
-                "(0.4375, 0.5, 0.25) — side verdict: same-side".to_owned()
-            }
             _ => "(0.4375, 0.5, 0.25)".to_owned(),
         };
         s.push((
@@ -1442,21 +1454,13 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             ValidationError::StaleContactDeclaration { declaration },
         ));
     }
-    // Door 1's whole-surface verdict (a Rest record) and the curve
-    // record's witnessing edge (a Tangent record), each with and
-    // without the designed-clearance steer.
-    for (class, witness, predicate) in [
-        (
-            ContactClass::Rest,
-            crate::census::CARRIER_COMPARISON_WITNESS,
-            "carrier_sphere_radius",
-        ),
-        (
-            ContactClass::Tangent,
-            crate::census::CURVE_RECORD_WITNESS,
-            "contact_tangent_opposed",
-        ),
-    ] {
+    // Door 1's whole-surface verdict (a Rest record), with and without
+    // the designed-clearance steer.
+    for (class, witness, predicate) in [(
+        ContactClass::Rest,
+        crate::census::CARRIER_COMPARISON_WITNESS,
+        "carrier_sphere_radius",
+    )] {
         for steer in [None, Some(FIT_DEFERRAL)] {
             s.push((
                 format!(

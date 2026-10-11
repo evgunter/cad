@@ -94,10 +94,8 @@ fn kiss_part(label: &str) -> ProfileDoc {
     let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 1.0);
     let (doc, union) = insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
@@ -122,8 +120,8 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
 /// is z ∈ [0,1]); anything larger leaves a definite gap.
 fn rest_mate(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, seat: f64) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(in_part(a, body, CapEnd::End)),
-        b: crate::fixture::head(in_part(b, body, CapEnd::Start)),
+        a: crate::fixture::head(in_part(a, body, CapEnd::End)).into(),
+        b: crate::fixture::head(in_part(b, body, CapEnd::Start)).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),
@@ -146,8 +144,8 @@ fn rest_mate_at(
     origin: [f64; 3],
 ) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(in_part(a, body, CapEnd::End)),
-        b: crate::fixture::head(in_part(b, body, CapEnd::Start)),
+        a: crate::fixture::head(in_part(a, body, CapEnd::End)).into(),
+        b: crate::fixture::head(in_part(b, body, CapEnd::Start)).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame(origin, [0.0, 0.0, 1.0]),
@@ -280,16 +278,16 @@ fn row1_a_parts_declared_contacts_survive_instantiation() {
     let part_ev = run(&part, &EvalOptions::default());
     let part_product = product_recorded(&part, &part_ev, Tol::witness()).expect("the part gathers");
     assert_eq!(
-        part_product.contacts.vv.len(),
+        part_product.contacts.vertex_vertex().count(),
         1,
         "the kiss union records one v-v contact: {:?}",
         part_product.contacts
     );
     let part_pair = {
-        let c = part_product.contacts.vv[0].record;
+        let (a, b) = part_product.contacts.vertex_vertex().next().unwrap();
         (
-            names_of(&part_product.names, EntityKey::Vertex(c.a)),
-            names_of(&part_product.names, EntityKey::Vertex(c.b)),
+            names_of(&part_product.names, EntityKey::Vertex(a)),
+            names_of(&part_product.names, EntityKey::Vertex(b)),
         )
     };
 
@@ -303,15 +301,15 @@ fn row1_a_parts_declared_contacts_survive_instantiation() {
     let product = product_recorded(&doc, &ev, Tol::witness()).expect("the assembly gathers");
 
     assert_eq!(
-        product.contacts.vv.len(),
+        product.contacts.vertex_vertex().count(),
         1,
         "the record crossed the seam, exactly once: {:?}",
         product.contacts
     );
-    let c = product.contacts.vv[0].record;
+    let (a, b) = product.contacts.vertex_vertex().next().unwrap();
     let moved = (
-        names_of(&product.names, EntityKey::Vertex(c.a)).map(|n| unwrap_in_part(&n)),
-        names_of(&product.names, EntityKey::Vertex(c.b)).map(|n| unwrap_in_part(&n)),
+        names_of(&product.names, EntityKey::Vertex(a)).map(|n| unwrap_in_part(&n)),
+        names_of(&product.names, EntityKey::Vertex(b)).map(|n| unwrap_in_part(&n)),
     );
     assert_eq!(
         moved, part_pair,
@@ -328,8 +326,8 @@ fn row1_a_parts_declared_contacts_survive_instantiation() {
 /// type, no adapter (A3).
 ///
 /// Asserted POSITIVELY, on the record set itself: the uncertified arm
-/// hands back what the gate was given, so the `PatchContact` claim is
-/// pinned by the type of the thing in `patches`, not inferred from a
+/// hands back what the gate was given, so the face–face claim is
+/// pinned by the kind of the record itself, not inferred from a
 /// refusal's shape.
 #[test]
 fn row2_a_solved_rest_mate_mints_its_declaration() {
@@ -340,7 +338,7 @@ fn row2_a_solved_rest_mate_mints_its_declaration() {
     // into the evaluated body's contact record set), so the record is
     // already in the product the assembly door is handed.
     let product = product_recorded(&doc, &ev, Tol::witness()).expect("gathers");
-    assert_eq!(product.contacts.patches.len(), 1);
+    assert_eq!(product.contacts.face_face().count(), 1);
     assert_eq!(
         product.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),
         vec![mate]
@@ -349,14 +347,14 @@ fn row2_a_solved_rest_mate_mints_its_declaration() {
     let result = assemble(&doc, &ev, Tol::witness());
     let (contacts, residue) = gate_records(&result);
 
-    // The record: one, a `PatchContact`, keyed to the faces the
+    // The record: one, a face–face pair, keyed to the faces the
     // references resolved to.
     assert_eq!(
-        contacts.patches.len(),
+        contacts.face_face().count(),
         1,
         "one mate, one minted record: {contacts:?}"
     );
-    let record: topo::PatchContact = contacts.patches[0].record;
+    let record = contacts.face_face().next().unwrap();
 
     // RE-BLESSED at #1063: this pair CERTIFIES now, so the minting is
     // read off the gate's own `minted` row rather than out of a
@@ -381,9 +379,10 @@ fn row2_a_solved_rest_mate_mints_its_declaration() {
         ),
         "and both of its references"
     );
+    let (fa, fb) = declared.faces;
     assert_eq!(
-        (record.face_a, record.face_b),
-        declared.faces,
+        record,
+        (fa.min(fb), fa.max(fb)),
         "the record is keyed to the faces the references resolved to"
     );
 }
@@ -557,7 +556,7 @@ fn row3_b_the_declared_touching_pair_is_not_an_undeclared_contact() {
         .as_ref()
         .expect("the declared touching pair certifies");
     assert_eq!(
-        contacts.patches.len(),
+        contacts.face_face().count(),
         1,
         "and the certification is OF the minted record: {contacts:?}"
     );
@@ -685,9 +684,9 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
 // **A finding, pinned rather than papered over — SCOPED to mate
 // EDGES** (review MAJOR-2 corrected an earlier over-claim here).
 //
-// A4 speaks of "every mate EDGE crossing the cut", and an edge exists
-// only when BOTH of a mate's heads are live instances (A12: `head_of`
-// requires `Node::InstantiatePart`). For such a PROPER mate edge the
+// A4 speaks of "every mate EDGE crossing the cut": a mate that welds
+// two members, which it does only when BOTH of its sides land on live
+// instances. For such a PROPER mate edge the
 // crossing is unreachable, and that is verified in both directions
 // below: the mate joins its two instances into ONE placement group
 // (A11 rule 2, role-blind), and ASM-R2a's ratified precondition
@@ -971,9 +970,9 @@ fn row5_c_inline_dissolves_the_crossing_record() {
 /// cross a cut, so a mate with a DANGLING head contributes NO crossing
 /// record however its names fall across the cut.
 ///
-/// A12's reading edge exists only when BOTH heads are live instances
-/// (`head_of` requires an instantiate node). A mate naming
-/// non-instance geometry is therefore not an edge: it joins no
+/// A mate welds members only when BOTH its sides land on live
+/// instances. A mate naming non-instance geometry therefore welds
+/// nothing: it joins no
 /// placement group, its instance stays a singleton, and a cut of
 /// that instance alone IS a whole-group cut the precondition
 /// accepts — but the record it produces is empty. The ruling's reason
@@ -1005,7 +1004,8 @@ fn row5_d_a_dangling_head_mate_contributes_no_crossing() {
             kind: EntityKind::Face,
             node: local,
             path: vec![RoleSeg::Cap(CapEnd::Start)],
-        });
+        })
+        .into();
     }
     let (doc, mate) = crate::fixture::insert_mate_with_stranded_head(
         doc,
@@ -1015,7 +1015,7 @@ fn row5_d_a_dangling_head_mate_contributes_no_crossing() {
         body,
     );
 
-    // The instance is a singleton group (no reading edge), so a cut
+    // The instance is a singleton group (the mate welds nothing), so a cut
     // of it alone is whole-group and the precondition accepts.
     let out = split(
         &doc,
@@ -1642,17 +1642,19 @@ fn every_admitted_class_has_a_wire_spelling() {
 }
 
 /// INVARIANT: a mate reference that names no face of the product
-/// refuses typed — never resolved by picking, never widened.
+/// refuses typed — never resolved by picking, never widened. The name is
+/// resolved at the side's selection, so the mate itself refuses there,
+/// and the gate does not let a mate with no value pass silently.
 #[test]
 fn a_mate_reference_that_names_nothing_refuses_typed() {
     let (doc, ids, _, store, body) = stacked("asm-r2b-vanish", 1.0);
     let mut node = rest_mate(body, ids[0], ids[1], 1.0);
     if let Node::Mate { a, .. } = &mut node {
-        // The head keeps its KIND — it is a face name that answers to
-        // nothing, which is what `Vanished` is about — so the rewrite
-        // goes through the head's own constructor rather than reaching
-        // into it.
-        let mut name = (*a.name).clone();
+        // The side keeps its KIND — a face name that answers to
+        // nothing — so the rewrite goes through the side's own
+        // constructor rather than reaching into it.
+        let head = crate::fixture::authored_head(a);
+        let mut name = (*head.name).clone();
         name.path = vec![RoleSeg::InPart {
             of: StableName {
                 kind: EntityKind::Face,
@@ -1661,20 +1663,23 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
             }
             .into(),
         }];
-        *a = crate::fixture::head_at(a.at, name);
+        *a = crate::fixture::head_at(head.at, name).into();
     }
-    let (doc, _) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(node),
-            fresh: Vec::new(),
-        },
-    );
+    let (doc, mate) = insert(doc, node);
     let ev = run(&doc, &with_resolver(store));
+    assert!(
+        matches!(
+            ev.node_error(mate).map(|e| &e.kind),
+            Some(NodeErrorKind::SelectResolve { .. })
+        ),
+        "the side's selection refuses: {:?}",
+        ev.node_error(mate)
+    );
     match assemble(&doc, &ev, Tol::witness()) {
         Err(AssemblyError::Mint { refusals }) => match refusals.as_slice() {
-            [MintRefusal::Reference { why, .. }] => {
-                assert_eq!(*why, editor_core::RefusedRef::Vanished { by: None });
+            [MintRefusal::Unevaluated { mate: m, standing }] => {
+                assert_eq!(*m, mate);
+                assert_eq!(*standing, editor_core::NodeStanding::Failed { node: mate });
             }
             rows => panic!("one mate refused, so one row: {rows:?}"),
         },
@@ -1760,8 +1765,8 @@ fn flush_seat(label: &str) -> (ProfileDoc, RecipeNodeId, PartStore) {
         doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Mate {
-                a: crate::fixture::head(in_part(post_id, post_body, CapEnd::End)),
-                b: crate::fixture::head(in_part(shelf_id, shelf_body, CapEnd::Start)),
+                a: crate::fixture::head(in_part(post_id, post_body, CapEnd::End)).into(),
+                b: crate::fixture::head(in_part(shelf_id, shelf_body, CapEnd::Start)).into(),
                 class: ContactClass::Rest,
                 alignment: Alignment {
                     a: frame([0.0, 0.0, 0.5], [0.0, 0.0, 1.0]),
@@ -1799,7 +1804,7 @@ fn a_flush_seat_certifies_at_the_gate() {
     let result = assemble(&doc, &ev, Tol::witness());
     let (contacts, residue) = gate_records(&result);
     assert_eq!(
-        contacts.patches.len(),
+        contacts.face_face().count(),
         1,
         "the seat is declared once, at face granularity"
     );
@@ -2113,11 +2118,10 @@ fn two_solids_of_one_subject_are_skipped_by_the_guard_not_by_geometry() {
     // under test is the subject check and only the subject check.
     let contacts = &product.contacts;
     assert!(
-        contacts.vv.is_empty()
-            && contacts.a_on_b.is_empty()
-            && contacts.b_on_a.is_empty()
-            && contacts.curves.is_empty()
-            && contacts.patches.is_empty(),
+        contacts.vertex_vertex().next().is_none()
+            && contacts.vertex_face().next().is_none()
+            && contacts.edge_face().next().is_none()
+            && contacts.face_face().next().is_none(),
         "the gather discovers no contacts (F1), so nothing here is declared: {contacts:?}"
     );
 

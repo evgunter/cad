@@ -43,7 +43,7 @@ fn fold(
     order: [usize; 3],
     carry: bool,
     tol: Tol,
-) -> Result<Vec<BooleanBody<f64>>, (usize, BooleanError)> {
+) -> Result<Vec<BooleanBody<f64>>, (usize, Box<BooleanError>)> {
     let mut steps: Vec<BooleanBody<f64>> = Vec::new();
     for (step, &next) in order[1..].iter().enumerate() {
         let acc = steps.last().map_or(&bodies[order[0]], |s| &s.body);
@@ -51,7 +51,7 @@ fn fold(
         if carry && let Some(prev) = steps.last() {
             decls.carried_a = carried_rows(&prev.contacts);
         }
-        match union_with(acc, &bodies[next], &decls, tol).map_err(|e| (step + 1, e))? {
+        match union_with(acc, &bodies[next], &decls, tol).map_err(|e| (step + 1, Box::new(e)))? {
             BooleanResult::Body(out) => steps.push(out),
             BooleanResult::Empty => panic!("a union of two bricks came back empty"),
         }
@@ -224,7 +224,7 @@ fn quarter_pinch(
         panic!("a union of two bricks came back empty");
     };
     assert_eq!(
-        pinch.contacts.vv.len(),
+        pinch.contacts.vertex_vertex().count(),
         2,
         "the edge contact records a v-v row at each end"
     );
@@ -449,7 +449,7 @@ fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), shear: (f64
     let pinch = wedges[2..].iter().fold(two, |acc, next| fold(&acc, next));
     let n = spans.len();
     assert_eq!(
-        pinch.contacts.vv.len(),
+        pinch.contacts.vertex_vertex().count(),
         n * (n - 1),
         "{n} vertices at each end of the pinch line, a row per two"
     );

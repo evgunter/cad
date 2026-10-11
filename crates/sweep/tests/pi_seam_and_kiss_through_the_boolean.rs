@@ -1697,12 +1697,12 @@ fn built(label: &str, r: Result<BooleanResult<f64>, BooleanError>) -> Built {
         topo::mass_properties(b, tol).unwrap().volume,
         census(b),
         [
-            c.vv.len(),
-            c.a_on_b.len() + c.b_on_a.len(),
-            c.ve.len(),
-            c.ee.len(),
-            c.curves.len(),
-            c.patches.len(),
+            c.vertex_vertex().count(),
+            c.vertex_face().count(),
+            c.vertex_edge().count(),
+            c.edge_edge().count(),
+            c.edge_face().count(),
+            c.face_face().count(),
         ],
     )
 }
@@ -1898,7 +1898,7 @@ fn a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared() {
                 assert_eq!(c, census, "{label}: F, E, V, shells");
                 assert_eq!(
                     k, contacts,
-                    "{label}: [v-v, v-f, v-e, e-e, curve, patch] records"
+                    "{label}: [v-v, v-f, v-e, e-e, e-f, f-f] records"
                 );
             }
         }
@@ -1978,7 +1978,7 @@ fn a_tube_through_the_domes_base_builds_every_op_undeclared() {
         assert_eq!(c, census, "{label}: F, E, V, shells");
         assert_eq!(
             k, contacts,
-            "{label}: [v-v, v-f, v-e, e-e, curve, patch] records"
+            "{label}: [v-v, v-f, v-e, e-e, e-f, f-f] records"
         );
     }
 }
@@ -2695,7 +2695,7 @@ fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared() {
                 assert_eq!(c, census, "{label}: F, E, V, shells");
                 assert_eq!(
                     k, contacts,
-                    "{label}: [v-v, v-f, v-e, e-e, curve, patch] records"
+                    "{label}: [v-v, v-f, v-e, e-e, e-f, f-f] records"
                 );
             }
         }
@@ -2797,7 +2797,7 @@ fn a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared() {
             assert_eq!(c, census, "{label}: F, E, V, shells");
             assert_eq!(
                 k, contacts,
-                "{label}: [v-v, v-f, v-e, e-e, curve, patch] records"
+                "{label}: [v-v, v-f, v-e, e-e, e-f, f-f] records"
             );
         }
     }

@@ -9,16 +9,19 @@
 //!
 //! With chart `S(u, v) = o + û·r·cos u + v̂·r·sin u + â·v` the chart
 //! normal is radial and `dA = r du dv`, so for a face whose trim region
-//! is Ω (traversed by the loop with interior-left, outward normals):
+//! is Ω (bounded by its loops, the outer one and its rings, each
+//! traversed with the interior on its left about the outward normal):
 //!
 //! ```text
-//! A_s   = ∮ u dv           (signed UV area; A_s = s_f·|Ω|)
+//! A_s   = Σ_loops ∮ u dv   (signed UV area; A_s = s_f·|Ω|)
 //! area  = r·|A_s|
-//! flux  = ∮ p·n dA = r²·A_s + o·A⃗    (A⃗ the exact vector area)
+//! flux  = ∮ p·n dA = r²·A_s + o·A⃗    (A⃗ the exact vector area, summed over the loops)
 //! ```
 //!
-//! — the loop's own traversal sign carries `s_f`, so no separate
-//! orientation classification is needed. The boundary is the face's
+//! — the loops' own traversal signs carry `s_f`, a ring's opposite to
+//! its face's, so no separate orientation classification is needed;
+//! what is decided is that the stored loops say so (no junction a period
+//! off on the chart, every ring wound against its face). The boundary is the face's
 //! **pcurves** (PR 6 caches; C4's first hot consumer): per edge the
 //! contribution is `σ·∫ u(t)·v'(t) dt` over the stored carrier
 //! interval.
@@ -155,8 +158,8 @@ use geom_core::spline::algebra;
 use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{
-    CoeffWindow, KnotVector, Param, ParamRange, SplineCoeffs, SplineCoeffsBuf, TensorChannels,
-    last_at_or_below,
+    CoeffWindow, KnotVector, Param, ParamRange, RingRefinement, SplineCoeffs, SplineCoeffsBuf,
+    TensorChannels, last_at_or_below,
 };
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
@@ -164,10 +167,10 @@ use super::{PropsCheck, PropsError};
 use crate::offset_meters::mig;
 
 /// The initial piece count of the composite rule (round 0).
-const QUAD_INIT_PIECES: usize = 16;
+pub(super) const QUAD_INIT_PIECES: usize = 16;
 /// Refinement rounds before the typed budget refusal (pieces double
 /// per round: ≤ `16·2¹²` = 65536 pieces).
-const QUAD_MAX_ROUNDS: usize = 12;
+pub(super) const QUAD_MAX_ROUNDS: usize = 12;
 /// Convergence target as a multiple of ε, metered as the mean boundary
 /// displacement `width(flux)/(3·area)` (module docs: why not 1·ε).
 pub(super) const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
@@ -345,12 +348,21 @@ pub struct TrimEdgeQ {
     pub env: Interval,
 }
 
+impl TrimEdgeQ {
+    /// The integration limits every reading of the edge takes: the
+    /// midpoints of its parameter brackets, whose widths the
+    /// endpoint-bracket pad repays.
+    fn limits(&self) -> (f64, f64) {
+        (mid(self.t0), mid(self.t1))
+    }
+}
+
 // ---------------------------------------------------------------------
 // Transcendental-free trig enclosures (module docs)
 // ---------------------------------------------------------------------
 
 /// Shorthand: a point bracket.
-fn pt(x: f64) -> Interval {
+pub(super) fn pt(x: f64) -> Interval {
     Interval::point(x)
 }
 
@@ -404,7 +416,7 @@ fn sin_step(s: f64) -> Interval {
 /// enclosures are given. Intersecting with [−1, 1] after every
 /// compose keeps the propagated brackets from drifting past the
 /// circle (sound: the true values lie in both).
-fn rotate(c: Interval, s: Interval, ch: Interval, sh: Interval) -> (Interval, Interval) {
+pub(super) fn rotate(c: Interval, s: Interval, ch: Interval, sh: Interval) -> (Interval, Interval) {
     let clamp = |x: Interval| x.clamped_to(-1.0, 1.0);
     (clamp(c * ch - s * sh), clamp(s * ch + c * sh))
 }
@@ -418,7 +430,7 @@ fn rotate(c: Interval, s: Interval, ch: Interval, sh: Interval) -> (Interval, In
 /// full-period offset), NOT the exponential-in-|off| compounding a
 /// step-march would suffer. The composed rotation is applied to the
 /// base exactly once.
-fn trig_at(base: (Interval, Interval), off: f64) -> (Interval, Interval) {
+pub(super) fn trig_at(base: (Interval, Interval), off: f64) -> (Interval, Interval) {
     if off == 0.0 {
         return base;
     }
@@ -471,6 +483,25 @@ fn trig_over(base: (Interval, Interval), off: f64, d: f64) -> (Interval, Interva
     rotate(at.0, at.1, ch, sh)
 }
 
+/// `cos δ` over `|δ| ≤ h`: `[1 − h²/2, 1]`, the whole circle past
+/// `h = 1.5`. The `.max` is not the refusal-swallowing shape
+/// `Interval::clamped_to` exists for: `h` is a finite f64 by every
+/// caller's guard and the operands are `pt` of it with an exact
+/// nonzero divisor, so no refusal can arise.
+pub(super) fn spread_cos(h: f64) -> Interval {
+    if h <= 1.5 {
+        Interval::from_bounds((pt(1.0) - pt(h).sqr() / pt(2.0)).lo().max(-1.0), 1.0)
+    } else {
+        Interval::from_bounds(-1.0, 1.0)
+    }
+}
+
+/// `sin δ` over `|δ| ≤ h`: `[−h, h]`, clipped to the unit interval.
+pub(super) fn spread_sin(h: f64) -> Interval {
+    let b = h.min(1.0);
+    Interval::from_bounds(-b, b)
+}
+
 // ---------------------------------------------------------------------
 // Harmonic channels
 // ---------------------------------------------------------------------
@@ -502,7 +533,7 @@ impl HarmChan {
 /// resolution, plus the edge's two honesty pads (endpoint-bracket and
 /// map-residual — the latter needs `radius` for the metric length).
 fn harmonic_edge_integral(e: &TrimEdgeQ, pieces: usize, radius: Interval) -> Interval {
-    let (a, b) = (mid(e.t0), mid(e.t1));
+    let (a, b) = e.limits();
     let span = b - a;
     if !(span.is_finite() && span >= 0.0) || pieces == 0 {
         return Interval::refused();
@@ -527,16 +558,7 @@ fn harmonic_edge_integral(e: &TrimEdgeQ, pieces: usize, radius: Interval) -> Int
     // `trig_over` — the `.max`/`.min` here operate on refusal-free ring
     // arithmetic and are not the `clamped_to` hazard.
     let h2 = h * 0.5;
-    let spread_c = if h2 <= 1.5 {
-        Interval::from_bounds((pt(1.0) - pt(h2).sqr() / pt(2.0)).lo().max(-1.0), 1.0)
-    } else {
-        Interval::from_bounds(-1.0, 1.0)
-    };
-    let spread_s = if h2 <= 1.5 {
-        Interval::from_bounds(-h2.min(1.0), h2.min(1.0))
-    } else {
-        Interval::from_bounds(-1.0, 1.0)
-    };
+    let (spread_c, spread_s) = (spread_cos(h2), spread_sin(h2));
     for i in 0..pieces {
         #[allow(clippy::cast_precision_loss)]
         let p = a + span * (i as f64 / pieces as f64);
@@ -570,7 +592,7 @@ fn harmonic_edge_integral(e: &TrimEdgeQ, pieces: usize, radius: Interval) -> Int
 /// A certified upper bound on the edge's METRIC length (metres):
 /// `∫ √(r²u'² + v'²) dt ≤ (r·sup|u'| + sup|v'|)·span`.
 fn edge_metric_length(e: &TrimEdgeQ, radius: Interval) -> f64 {
-    let (a, b) = (mid(e.t0), mid(e.t1));
+    let (a, b) = e.limits();
     let span = b - a;
     let (c_all, s_all) = trig_over(e.trig0, 0.0, span);
     let t_all = Interval::from_bounds(a, b);
@@ -592,7 +614,7 @@ fn edge_metric_length(e: &TrimEdgeQ, radius: Interval) -> f64 {
 /// the `is_finite` tests, the margin classifiers, the gauges and the
 /// knot-collapse windows all refuse on it — so this is the one door
 /// that turns the decoration back into the value those readers expect.
-fn lo_or_refuse(x: Interval) -> f64 {
+pub(super) fn lo_or_refuse(x: Interval) -> f64 {
     if !x.is_certified() { f64::NAN } else { x.lo() }
 }
 
@@ -604,7 +626,7 @@ fn hi_or_refuse(x: Interval) -> f64 {
 /// Midpoint of a bracket (structure selection for integration limits;
 /// the bracket's width is repaid by the endpoint pad). A refused
 /// bracket has no midpoint, and says so.
-fn mid(x: Interval) -> f64 {
+pub(super) fn mid(x: Interval) -> f64 {
     if !x.is_certified() {
         return f64::NAN;
     }
@@ -612,7 +634,7 @@ fn mid(x: Interval) -> f64 {
 }
 
 /// Interval absolute value: `|x|` as an enclosure.
-trait AbsEnclosure {
+pub(super) trait AbsEnclosure {
     fn abs_enclosure(self) -> Interval;
 }
 
@@ -638,7 +660,7 @@ impl AbsEnclosure for Interval {
 /// Funnel wrapper (the `props_*` idiom of [`super::curved`]): margins
 /// are certification-substrate `f64` lengths lifted to the caller's
 /// scalar so every lane (f64 / Probe / Interval) records identically.
-fn classify_len<T: Decide>(
+pub(super) fn classify_len<T: Decide>(
     name: &'static str,
     margin: Margin<f64>,
     band: Band,
@@ -699,7 +721,10 @@ fn classify_len<T: Decide>(
 /// metering decision (module docs) and would have to be re-measured
 /// and re-ratified as one — the defect fixed here is the *unguarded
 /// division*, and only that.
-fn mean_boundary_displacement(flux: Interval, area: Interval) -> Result<f64, PropsError> {
+pub(super) fn mean_boundary_displacement(
+    flux: Interval,
+    area: Interval,
+) -> Result<f64, PropsError> {
     displacement_len(flux.width(), area)
 }
 
@@ -755,7 +780,7 @@ fn displacement_len(width: f64, area: Interval) -> Result<f64, PropsError> {
 /// last-round constant. What each lane keeps is what is genuinely
 /// its own: the after-round-0 budget exit, which reads a bound only
 /// that lane can compute.
-fn round_exit(
+pub(super) fn round_exit(
     round: usize,
     max_rounds: usize,
     window: RoundWindow,
@@ -781,25 +806,31 @@ fn round_exit(
 }
 
 /// The flux and area enclosures of a **cylinder** face with a curved
-/// trim loop (module docs: the Green form, the composite rule, the
-/// refinement funnel, the honesty pads).
+/// trim (module docs: the Green form, the composite rule, the
+/// refinement funnel, the honesty pads), over every loop of the face,
+/// the outer first: the Green form is a sum over edges, so a ring
+/// contributes its own `∮ u dv` with its own winding.
 ///
-/// `o_dot_va` is the caller's closed-form `o·A⃗` term bracketed;
-/// `eps` is the run's ε (the convergence target's scale).
+/// `o_dot_va` is the caller's closed-form `o·A⃗` term bracketed, `A⃗`
+/// summed over the same loops; `eps` is the run's ε (the convergence
+/// target's scale).
 ///
 /// # Errors
 ///
 /// [`PropsError`] — an escalated funnel decision, a degenerate face,
-/// or the typed [`PropsError::QuadratureBudget`] refusal when the
+/// a loop a period off on the chart ([`PropsError::ChartPeriodJump`]),
+/// a ring wound with its face at any round it returns
+/// ([`PropsError::RingWoundWithFace`]), or
+/// the typed [`PropsError::QuadratureBudget`] refusal when the
 /// enclosure will not tighten to target within the round budget.
 pub fn cylinder_cut_face<T: Decide>(
     radius: Interval,
     o_dot_va: Interval,
-    edges: &[TrimEdgeQ],
+    loops: &[&[TrimEdgeQ]],
     eps: f64,
     band: Band,
 ) -> Result<FaceCutBounds, PropsError> {
-    cylinder_cut_face_rounds::<T>(radius, o_dot_va, edges, eps, band, RoundWindow::SCHEDULE)?
+    cylinder_cut_face_rounds::<T>(radius, o_dot_va, loops, eps, band, RoundWindow::SCHEDULE)?
         .into_target()
 }
 
@@ -820,7 +851,7 @@ pub fn cylinder_cut_face<T: Decide>(
 pub fn cylinder_cut_face_rounds<T: Decide>(
     radius: Interval,
     o_dot_va: Interval,
-    edges: &[TrimEdgeQ],
+    loops: &[&[TrimEdgeQ]],
     eps: f64,
     band: Band,
     window: RoundWindow,
@@ -830,15 +861,21 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
         "a window resuming at round {} is past this lane's last round {QUAD_MAX_ROUNDS}",
         window.first
     );
+    require_no_period_jump::<T>(loops, radius, band)?;
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
     let first = window.first.min(QUAD_MAX_ROUNDS);
     let mut pieces = QUAD_INIT_PIECES << first;
     for round in first..=QUAD_MAX_ROUNDS {
-        // Signed UV area at this resolution: A_s = ∮ u dv.
-        let mut a_s = Interval::zero();
-        for e in edges {
-            a_s = a_s + harmonic_edge_integral(e, pieces, radius);
-        }
+        // Signed UV area at this resolution, per loop: A_s = Σ ∮ u dv.
+        let per_loop: Vec<Interval> = loops
+            .iter()
+            .map(|edges| {
+                edges.iter().fold(Interval::zero(), |a, e| {
+                    a + harmonic_edge_integral(e, pieces, radius)
+                })
+            })
+            .collect();
+        let a_s = per_loop.iter().fold(Interval::zero(), |a, &l| a + l);
         let area = (radius * a_s).abs_enclosure();
         let flux = radius.sqr() * a_s + o_dot_va;
         // Convergence: mean-boundary-displacement metering (module
@@ -857,7 +894,11 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
             // must be definitely positive, metered as the face's mean
             // width area/perimeter — a length (the closed-form lanes'
             // `props_face_extent` lever, quadrature-shaped).
-            let perim: f64 = edges.iter().map(|e| edge_metric_length(e, radius)).sum();
+            let perim: f64 = loops
+                .iter()
+                .flat_map(|edges| edges.iter())
+                .map(|e| edge_metric_length(e, radius))
+                .sum();
             match classify_len::<T>(
                 "props_quad_face_extent",
                 Margin::over_lever(lo_or_refuse(area), perim),
@@ -867,6 +908,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
             }
+            require_holes_wound_against(loops, &per_loop, a_s, radius, band)?;
             return Ok(RoundOutcome::Converged(FaceCutBounds { flux, area }));
         }
         if let Some(out) = round_exit(
@@ -876,11 +918,111 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
             FaceCutBounds { flux, area },
             (width_len, target_len),
         ) {
+            // An open enclosure is read too (a sign walk settles on
+            // one), and it encloses the face's flux only if its rings
+            // are holes.
+            require_holes_wound_against(loops, &per_loop, a_s, radius, band)?;
             return Ok(out);
         }
         pieces *= 2;
     }
     unreachable!("the round window is non-empty: `first` is clamped to the last round")
+}
+
+/// An edge's chart point `(u, v)` where its traversal starts (`end`
+/// false) or ends, at its [`TrimEdgeQ::limits`].
+fn chart_end(e: &TrimEdgeQ, end: bool) -> (Interval, Interval) {
+    let (a, b) = e.limits();
+    let (trig, t) = if end == e.forward {
+        (trig_at(e.trig0, b - a), b)
+    } else {
+        (e.trig0, a)
+    };
+    (
+        e.u.eval(trig.0, trig.1, pt(t)),
+        e.v.eval(trig.0, trig.1, pt(t)),
+    )
+}
+
+/// **No junction of a loop is a period off on the chart**
+/// (`props_quad_junction_period`, [`PropsError::ChartPeriodJump`]).
+///
+/// `∮ u dv` is Green's form for a closed curve of the chart, and the
+/// azimuth is periodic: an image stored a period off its neighbour, or
+/// a loop that winds the cylinder, closes in space and not on the
+/// chart, and its `∮ u dv` is not the region's area. Each edge's chart
+/// image ends where the next one's starts to within the stored
+/// geometry's tolerance, or a whole period away, `2πR` in the metric
+/// `R·|Δu| + |Δv|`; the gap is decided against half a period, so a jump
+/// is definite and a tolerance-scale gap is never near the margin. This
+/// is NOT a decision that the loop closes to tolerance: the closed
+/// forms decide that in space (`props_loop_closed`), on carriers whose
+/// ends meet at shared vertices, and the residue a tolerance-scale gap
+/// leaves in this lane's integral is
+/// `work/quad/cylinder-quadrature-integrates-loops-that-close-only-to-the-vertex-tolerance`.
+/// A loop with no period jump winds the cylinder zero times, so the
+/// face's loops do too.
+fn require_no_period_jump<T: Decide>(
+    loops: &[&[TrimEdgeQ]],
+    radius: Interval,
+    band: Band,
+) -> Result<(), PropsError> {
+    for edges in loops {
+        for (e, next) in edges.iter().zip(edges.iter().cycle().skip(1)) {
+            let (u1, v1) = chart_end(e, true);
+            let (u0, v0) = chart_end(next, false);
+            let gap = radius * (u1 - u0).abs_enclosure() + (v1 - v0).abs_enclosure();
+            if classify_len::<T>(
+                "props_quad_junction_period",
+                Margin::of(hi_or_refuse(gap - pt(core::f64::consts::PI) * radius)),
+                band,
+                PropsCheck::Inventory,
+            )? != Sign::Negative
+            {
+                return Err(PropsError::ChartPeriodJump);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// **Every ring winds against its face**, through the closed forms' own
+/// decision ([`super::curved::require_holes_wound_against`], the mean
+/// width `2·A/P` of the face's whole and of each ring, in m² over m) at
+/// the interval scalar: a ring definitely opposite to the whole passes,
+/// one definitely the same way refuses
+/// ([`PropsError::RingWoundWithFace`]), and an enclosure that straddles
+/// the band escalates rather than takes a side. A face with no ring
+/// decides nothing here.
+fn require_holes_wound_against(
+    loops: &[&[TrimEdgeQ]],
+    per_loop: &[Interval],
+    a_s: Interval,
+    radius: Interval,
+    band: Band,
+) -> Result<(), PropsError> {
+    if loops.len() < 2 {
+        return Ok(());
+    }
+    let length = |edges: &[TrimEdgeQ]| {
+        pt(edges
+            .iter()
+            .map(|e| edge_metric_length(e, radius))
+            .sum::<f64>())
+    };
+    let whole = (
+        radius * a_s,
+        loops
+            .iter()
+            .fold(Interval::zero(), |l, edges| l + length(edges)),
+    );
+    let holes: Vec<(Interval, Interval)> = loops
+        .iter()
+        .zip(per_loop)
+        .skip(1)
+        .map(|(edges, &ring)| (radius * ring, length(edges)))
+        .collect();
+    super::curved::require_holes_wound_against("props_chart_area_side", whole, &holes, band)
 }
 
 // ---------------------------------------------------------------------
@@ -1229,7 +1371,7 @@ const QUAD2_REFINE_SPANS: usize = 16;
 /// A ring-bracketed 3-vector (a control point, an enclosure).
 pub type RVec3 = [Interval; 3];
 
-fn rv_cross(a: RVec3, b: RVec3) -> RVec3 {
+pub(super) fn rv_cross(a: RVec3, b: RVec3) -> RVec3 {
     [
         a[1] * b[2] - a[2] * b[1],
         a[2] * b[0] - a[0] * b[2],
@@ -1237,7 +1379,7 @@ fn rv_cross(a: RVec3, b: RVec3) -> RVec3 {
     ]
 }
 
-fn rv_dot(a: RVec3, b: RVec3) -> Interval {
+pub(super) fn rv_dot(a: RVec3, b: RVec3) -> Interval {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 
@@ -2685,19 +2827,6 @@ fn area_midpoint_taylor<E>(
     Ok(widen(acc, boundary_defect))
 }
 
-/// Ring lerp `x + (y − x)·λ` (the plan applier's fixed association),
-/// componentwise — the rounding lands OUTWARD in the brackets, which
-/// is what makes a refined net a certified enclosure of the same
-/// patch rather than a re-approximation of it.
-fn ring_lerp(x: RVec3, y: RVec3, lambda: f64) -> RVec3 {
-    let l = pt(lambda);
-    [
-        x[0] + (y[0] - x[0]) * l,
-        x[1] + (y[1] - x[1]) * l,
-        x[2] + (y[2] - x[2]) * l,
-    ]
-}
-
 /// **Certified knot refinement of a bracketed tensor net**, one
 /// direction, to a FIXED span target (D9: the schedule is a constant,
 /// never data-dependent).
@@ -2723,11 +2852,6 @@ fn refine_dir(
     nv: usize,
     along_u: bool,
 ) -> Option<(KnotVector, Vec<RVec3>, usize)> {
-    let refused = [
-        Interval::refused(),
-        Interval::refused(),
-        Interval::refused(),
-    ];
     let count = kv.control_count();
     if count == 0 || nv == 0 {
         return None;
@@ -2746,41 +2870,28 @@ fn refine_dir(
     if malformed {
         return None;
     }
-    let other = if along_u { nv } else { net.len() / nv };
     let add = algebra::domain_grid_points(kv, QUAD2_REFINE_SPANS);
-    let plans = algebra::refine_plan_homogeneous(kv, &add).ok()?;
-    // Ascending-index fold over the plan chain, then over the lines of
-    // this direction (D9).
-    let mut cur_kv = kv.clone();
-    let mut cur: Vec<Vec<RVec3>> = (0..other)
-        .map(|j| {
-            (0..count)
-                .map(|i| {
-                    let idx = if along_u { i * nv + j } else { j * nv + i };
-                    net[idx]
-                })
-                .collect()
-        })
+    let refinement = RingRefinement::new(kv, &add).ok()?;
+    // Each coordinate a tensor net refined along this direction, per
+    // line in ascending index, through the insertion chain (D9).
+    let nu = net.len() / nv;
+    let [x, y, z] = core::array::from_fn(|c| {
+        let channel = TensorNet::from_flat(nu, nv, net.iter().map(|q| q[c]).collect());
+        if along_u {
+            channel.refine_u(&refinement)
+        } else {
+            channel.refine_v(&refinement)
+        }
+    });
+    let out = x
+        .as_flat()
+        .iter()
+        .zip(y.as_flat())
+        .zip(z.as_flat())
+        .map(|((x, y), z)| [*x, *y, *z])
         .collect();
-    for plan in &plans {
-        for line in &mut cur {
-            *line = plan.apply_points(line, refused, ring_lerp);
-        }
-        cur_kv = plan.knots().clone();
-    }
+    let cur_kv = refinement.knots().clone();
     let new_count = cur_kv.control_count();
-    let (rows, cols) = if along_u {
-        (new_count, other)
-    } else {
-        (other, new_count)
-    };
-    let mut out = vec![refused; rows * cols];
-    for (j, line) in cur.iter().enumerate() {
-        for (i, p) in line.iter().enumerate() {
-            let idx = if along_u { i * cols + j } else { j * cols + i };
-            out[idx] = *p;
-        }
-    }
     Some((cur_kv, out, new_count))
 }
 
@@ -4132,7 +4243,7 @@ fn vertex_slack(p: RPt2) -> f64 {
 ///
 /// The rounding lands OUTWARD in every bracket, so both halves are
 /// certified enclosures of the same arc rather than re-approximations
-/// of it — [`ring_lerp`]'s argument, one dimension down.
+/// of it.
 fn bezier_bisect(block: &[RPt2]) -> (Vec<RPt2>, Vec<RPt2>) {
     let half = pt(0.5);
     let lerp = |x: RPt2, y: RPt2| -> RPt2 { (x.0 + (y.0 - x.0) * half, x.1 + (y.1 - x.1) * half) };
@@ -4148,6 +4259,17 @@ fn bezier_bisect(block: &[RPt2]) -> (Vec<RPt2>, Vec<RPt2>) {
     (left, right)
 }
 
+/// Why [`bezier_blocks`] refused.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BlockRefusal {
+    /// A weight is not `1.0`: the blocks' hulls would not be the
+    /// polynomial convex-hull fact.
+    Rational,
+    /// A zero degree, a net and weights not one per control point, or
+    /// a refusing knot algebra.
+    Malformed,
+}
+
 /// **Bézier extraction of a bracketed image net** at its own knots and
 /// `m − 1` uniform cuts: every interior break is raised to
 /// multiplicity `degree`, so the refined polygon splits into per-span
@@ -4156,13 +4278,20 @@ fn bezier_bisect(block: &[RPt2]) -> (Vec<RPt2>, Vec<RPt2>) {
 /// convex-hull property). Knot insertion is exact in ℝ, so a block is
 /// a statement about the same arc.
 ///
-/// `None` when the knot algebra refuses (a malformed net) or the
-/// degree is zero — the caller then refuses typed.
-fn bezier_blocks(img: &TrimPiece, m: usize) -> Option<Vec<Vec<RPt2>>> {
+/// The net's weights must all be `1.0`: that makes each axis its own
+/// homogeneous channel below, and the blocks' hulls the polynomial
+/// convex-hull fact. A rational net refuses
+/// ([`BlockRefusal::Rational`]), as does a malformed one: a zero
+/// degree, a net and weights not one per control point, or a knot
+/// algebra that refuses ([`BlockRefusal::Malformed`]).
+fn bezier_blocks(img: &TrimPiece, m: usize) -> Result<Vec<Vec<RPt2>>, BlockRefusal> {
     let kv = &img.knots;
     let p = kv.degree();
     if p == 0 || img.control.len() != kv.control_count() || img.weights.len() != img.control.len() {
-        return None;
+        return Err(BlockRefusal::Malformed);
+    }
+    if img.weights.iter().any(|w| *w != 1.0) {
+        return Err(BlockRefusal::Rational);
     }
     let mut breaks: Vec<f64> = kv.interior_knots().map(|(k, _)| k).collect();
     // A uniform cut near a knot is dropped and the knot stands: the
@@ -4178,58 +4307,22 @@ fn bezier_blocks(img: &TrimPiece, m: usize) -> Option<Vec<Vec<RPt2>>> {
             add.push(*b);
         }
     }
-    let plans = geom_core::spline::algebra::refine_plan(kv, &img.weights, &add).ok()?;
-    let refused = (Interval::refused(), Interval::refused());
-    // [`ring_lerp`]'s association, two channels instead of three: the
-    // rounding of the ARITHMETIC lands outward in the brackets, which
-    // is what makes a refined bracket an enclosure. It is written out
-    // rather than shared because `ring_lerp` is `RVec3`'s and a chart
-    // image is 2-D; Track R's consolidation (#723) owns the pair.
-    let lerp = |x: RPt2, y: RPt2, l: f64| -> RPt2 {
-        let l = pt(l);
-        (x.0 + (y.0 - x.0) * l, x.1 + (y.1 - x.1) * l)
-    };
-    let mut ctl = img.control.clone();
-    for plan in &plans {
-        ctl = plan.apply_points(&ctl, refused, lerp);
-    }
+    // Unit weights make the chart net its own homogeneous form, so
+    // each axis refines as a channel in the certification ring.
+    let refinement = RingRefinement::new(kv, &add).map_err(|_| BlockRefusal::Malformed)?;
+    let cu: Vec<Interval> = img.control.iter().map(|q| q.0).collect();
+    let cv: Vec<Interval> = img.control.iter().map(|q| q.1).collect();
+    let ctl: Vec<RPt2> = refinement
+        .refine(&cu)
+        .into_iter()
+        .zip(refinement.refine(&cv))
+        .collect();
     if ctl.len() < p + 1 || !(ctl.len() - 1).is_multiple_of(p) {
-        return None;
+        return Err(BlockRefusal::Malformed);
     }
-    // **The λ itself is not enclosed, and this is what pays for it.**
-    // Knot insertion is exact in ℝ, and `apply_points`' arithmetic is
-    // outward-rounded — but its `λ` arrives as a ROUNDED `f64`
-    // (`spline::algebra`'s plan carries `f64` ratios), so each step's
-    // brackets enclose a combination at a perturbed λ rather than the
-    // exact refined net. A convex combination is 1-Lipschitz in the
-    // max norm, so the perturbation neither amplifies nor compounds:
-    // after `k` insertions it is at most `k·diam·ulp`, `diam` the
-    // original polygon's chart diameter. Every consumer of a block —
-    // the endpoint, the box, the variation, the monotone row — reads
-    // it through these brackets, so widening them here is the whole
-    // repair.
-    let (mut du, mut dv) = (Interval::zero(), Interval::zero());
-    for q in &img.control {
-        du = Interval::hull(du, q.0);
-        dv = Interval::hull(dv, q.1);
-    }
-    #[allow(clippy::cast_precision_loss)]
-    // NO ROW CAN SEE THIS TERM at `f64`: it is `k·diam·2⁻⁵²` against
-    // enclosures whose own width is the same order, so dropping it reds
-    // nothing. It is here because the soundness argument needs it — the
-    // clamped-end fact and the block hull are each claimed about the
-    // EXACT refined net — not because a fixture caught its absence.
-    let lam_pad = (add.len() as f64) * (du.width() + dv.width()) * f64::EPSILON;
-    if lam_pad > 0.0 {
-        for q in &mut ctl {
-            *q = (widen(q.0, lam_pad), widen(q.1, lam_pad));
-        }
-    }
-    Some(
-        (0..(ctl.len() - 1) / p)
-            .map(|k| ctl[k * p..=k * p + p].to_vec())
-            .collect(),
-    )
+    Ok((0..(ctl.len() - 1) / p)
+        .map(|k| ctl[k * p..=k * p + p].to_vec())
+        .collect())
 }
 
 /// The axis-aligned chart box of a bracketed control block — the
@@ -4460,20 +4553,18 @@ fn trim_cells<T: Decide>(
             });
             continue;
         };
-        if img.weights.iter().any(|w| *w != 1.0) {
-            return Err(PropsError::QuadratureUnsupported {
+        let blocks = bezier_blocks(img, m).map_err(|refusal| match refusal {
+            BlockRefusal::Rational => PropsError::QuadratureUnsupported {
                 what: "a RATIONAL General trim image reached the trimmed lane — the piece \
                        boxes and the monotonicity row are the polynomial convex-hull fact, \
                        and no shipped producer mints one (general_image_lane interpolates \
                        with unit weights)",
-            });
-        }
-        let Some(blocks) = bezier_blocks(img, m) else {
-            return Err(PropsError::QuadratureUnsupported {
+            },
+            BlockRefusal::Malformed => PropsError::QuadratureUnsupported {
                 what: "a General trim image whose knot algebra refused its Bézier \
                        extraction — a malformed stored net",
-            });
-        };
+            },
+        })?;
         // The traversal, not the storage: a half-edge walked backwards
         // presents its image's pieces in reverse and each piece's own
         // polygon reversed, so the polygon below is one closed walk.
@@ -5488,7 +5579,7 @@ mod tests {
         let edges = [rim, seam_up, top, seam_down];
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
         let eps = Tol::witness().get().eps;
-        let out = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &edges, eps, band)
+        let out = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&edges], eps, band)
             .expect("the band face converges");
         let exact = 2.0 * tau; // ∮ u dv = 4π
         assert!(
@@ -5537,24 +5628,154 @@ mod tests {
         );
     }
 
-    /// Whole-circle endpoint ignorance cannot converge: the engine
-    /// refuses typed at the budget, never returns a silently wide
-    /// bracket.
+    /// The chart rectangle `u ∈ [0, 2]`, `v ∈ [0, 1]`, counter-clockwise,
+    /// and the circle of radius `0.3` about `(1, 0.5)` as two half arcs,
+    /// clockwise when `hole`, the second arc's azimuth `shift` off.
+    fn ringed_rectangle(hole: bool, shift: f64) -> [Vec<TrimEdgeQ>; 2] {
+        let line = |u: HarmChan, v: HarmChan, span: f64, forward: bool| TrimEdgeQ {
+            u,
+            v,
+            t0: pt(0.0),
+            t1: pt(span),
+            forward,
+            trig0: (pt(1.0), pt(0.0)),
+            env: pt(0.0),
+        };
+        let outer = vec![
+            line(
+                chan(0.0, 0.0, 0.0, 1.0),
+                chan(0.0, 0.0, 0.0, 0.0),
+                2.0,
+                true,
+            ),
+            line(
+                chan(2.0, 0.0, 0.0, 0.0),
+                chan(0.0, 0.0, 0.0, 1.0),
+                1.0,
+                true,
+            ),
+            line(
+                chan(0.0, 0.0, 0.0, 1.0),
+                chan(1.0, 0.0, 0.0, 0.0),
+                2.0,
+                false,
+            ),
+            line(
+                chan(0.0, 0.0, 0.0, 0.0),
+                chan(0.0, 0.0, 0.0, 1.0),
+                1.0,
+                false,
+            ),
+        ];
+        let pi = core::f64::consts::PI;
+        let arc = |from: f64, du: f64, trig0: (Interval, Interval)| TrimEdgeQ {
+            u: chan(1.0 + du, 0.3, 0.0, 0.0),
+            v: chan(0.5, 0.0, 0.3, 0.0),
+            t0: pt(from),
+            t1: pt(from + pi),
+            forward: !hole,
+            trig0,
+            env: pt(0.0),
+        };
+        let mut ring = vec![
+            arc(0.0, 0.0, (pt(1.0), pt(0.0))),
+            arc(pi, shift, (pt(-1.0), pt(0.0))),
+        ];
+        if hole {
+            ring.reverse();
+        }
+        [outer, ring]
+    }
+
+    /// **A ring is a loop of its own.** The rectangle less the circle
+    /// measures `2 − 0.09π`, the ring's `∮ u dv` entering with its own
+    /// clockwise winding.
+    #[test]
+    fn a_ring_subtracts_its_own_area() {
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
+        let [outer, ring] = ringed_rectangle(true, 0.0);
+        let out = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&outer, &ring], eps, band)
+            .expect("the ringed rectangle converges");
+        let exact = 2.0 - 0.09 * core::f64::consts::PI;
+        assert!(
+            out.flux.lo() <= exact && exact <= out.flux.hi(),
+            "flux {:?} must bracket {exact}",
+            out.flux
+        );
+        assert!(
+            out.area.lo() <= exact && exact <= out.area.hi(),
+            "area {:?} must bracket {exact}",
+            out.area
+        );
+    }
+
+    /// **A ring wound with its face refuses** (`props_ring_winding`)
+    /// rather than adding its area to the face's — at every round a
+    /// window can return, not only at convergence: a sign walk settles on
+    /// an open round's enclosure, and a ring wound with its face puts the
+    /// face's true flux outside it.
+    #[test]
+    fn a_ring_wound_with_its_face_refuses_at_every_round() {
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
+        let [outer, ring] = ringed_rectangle(false, 0.0);
+        let loops: [&[TrimEdgeQ]; 2] = [&outer, &ring];
+        for round in 0..4 {
+            let got = cylinder_cut_face_rounds::<f64>(
+                pt(1.0),
+                Interval::zero(),
+                &loops,
+                eps,
+                band,
+                RoundWindow::at(round),
+            );
+            assert!(
+                matches!(got, Err(PropsError::RingWoundWithFace)),
+                "round {round}: {got:?}"
+            );
+        }
+        let got = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &loops, eps, band);
+        assert!(
+            matches!(got, Err(PropsError::RingWoundWithFace)),
+            "the whole schedule: {got:?}"
+        );
+    }
+
+    /// **A loop stored a period off on the chart refuses**
+    /// (`props_quad_junction_period`): the ring's second arc carried
+    /// `2π` along the azimuth closes in space, not on the chart.
+    #[test]
+    fn a_loop_a_period_off_on_the_chart_refuses() {
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
+        let [outer, ring] = ringed_rectangle(true, core::f64::consts::TAU);
+        let got = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&outer, &ring], eps, band);
+        assert!(
+            matches!(got, Err(PropsError::ChartPeriodJump)),
+            "got {got:?}"
+        );
+    }
+
+    /// Endpoint ignorance that no refinement narrows cannot converge:
+    /// the engine refuses typed at the budget, never returns a silently
+    /// wide bracket. The loop is the unit circle of the chart,
+    /// `(u, v) = (cos t, sin t)`, closed; its start bracket is a whole
+    /// radian wide.
     #[test]
     fn hopeless_endpoint_brackets_refuse_at_the_budget() {
-        let wide = Interval::from_bounds(-1.0, 1.0);
         let e = TrimEdgeQ {
-            u: chan(0.0, 0.0, 0.0, 1.0),
-            v: chan(2.0, 1.0, 0.0, 0.0),
-            t0: pt(0.0),
-            t1: pt(6.0),
+            u: chan(0.0, 1.0, 0.0, 0.0),
+            v: chan(0.0, 0.0, 1.0, 0.0),
+            t0: Interval::from_bounds(-0.5, 0.5),
+            t1: pt(core::f64::consts::TAU),
             forward: true,
-            trig0: (wide, wide),
+            trig0: (pt(1.0), pt(0.0)),
             env: pt(0.0),
         };
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
         let eps = Tol::witness().get().eps;
-        match cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[e], eps, band) {
+        match cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&[e]], eps, band) {
             Err(PropsError::QuadratureBudget { .. }) => {}
             other => panic!("expected the typed budget refusal, got {other:?}"),
         }
@@ -6162,9 +6383,9 @@ mod tests {
         };
         let face_c = vec![
             rim(true),
-            seam_c(tau, 3.0 + 0.8 * tau, true),
+            seam_c(tau, 3.4 + 0.8 * tau, true),
             skew_top,
-            seam_c(0.0, 3.0, false),
+            seam_c(0.0, 3.4, false),
         ];
         for (label, edges) in [("pinch", face_a), ("sliver", face_b), ("skew", face_c)] {
             // Independent truth: Σ σ·∫ u·v' dt, Kahan-summed.
@@ -6178,7 +6399,7 @@ mod tests {
             // target to ~1e-9 m while the sliver's ring-arithmetic floor
             // sits above it) the TYPED budget refusal is the correct answer — never a
             // silently wide bracket, never a silent skip.
-            match cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &edges, eps, band) {
+            match cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&edges], eps, band) {
                 Ok(out) => {
                     assert!(
                         out.flux.lo() <= truth && truth <= out.flux.hi(),
@@ -7076,13 +7297,17 @@ mod tests {
         // In-bracket: the two sides of one shared vertex are DIFFERENT
         // brackets, each containing the other's reading — which is the
         // shipped assembler's own case, two pcurves reading one vertex.
-        // Their midpoints differ by `d`, so the walk does not close
-        // exactly and the lane PAYS the gap rather than refusing it.
+        // Their midpoints differ by `0.375·d` along `u` (`1 − d/2` and
+        // `1 − 7d/8`), so the walk does not close exactly and the lane
+        // PAYS the gap rather than refusing it.
         let d = 1.0e-3;
         let mut rim = iso((1.0, 0.0), (1.0, 1.0));
         rim.b = (Interval::from_bounds(1.0 - d, 1.0), pt(1.0));
         let mut g = general(&[(1.0 - d, 1.0), (0.0, 0.0)], 0.0);
-        g.a = (Interval::from_bounds(1.0 - 2.0 * d, 1.0 - d), pt(1.0));
+        g.a = (
+            Interval::from_bounds(1.0 - 1.5 * d, 1.0 - 0.25 * d),
+            pt(1.0),
+        );
         g.piece.as_mut().unwrap().control[0] = g.a;
         let closed = vec![iso((0.0, 0.0), (1.0, 0.0)), rim, g];
         let b = bounds_of(
@@ -7332,6 +7557,29 @@ mod tests {
             assert!(u.lo() <= start && start <= u.hi(), "{u:?} vs {start}");
             assert!(u.hi() - u.lo() < 1e-12, "{u:?}");
         }
+    }
+
+    /// `bezier_blocks` holds its unit-weight invariant itself: an image
+    /// with a non-unit weight refuses as `Rational`, whoever calls it,
+    /// and a weight list of the wrong length as `Malformed`.
+    #[test]
+    fn bezier_blocks_refuses_a_rational_image_by_name() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let control: Vec<RPt2> = [0.0, 0.5, 1.0].iter().map(|t| (pt(*t), pt(0.0))).collect();
+        let img = |weights: Vec<f64>| TrimPiece {
+            knots: kv.clone(),
+            control: control.clone(),
+            weights,
+        };
+        assert_eq!(
+            bezier_blocks(&img(vec![1.0, 0.5, 1.0]), 4).err(),
+            Some(BlockRefusal::Rational)
+        );
+        assert_eq!(
+            bezier_blocks(&img(vec![1.0; 2]), 4).err(),
+            Some(BlockRefusal::Malformed)
+        );
+        assert!(bezier_blocks(&img(vec![1.0; 3]), 4).is_ok());
     }
 
     /// `bezier_blocks`' breaks are the DISTINCT interior knots: a

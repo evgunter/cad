@@ -1,12 +1,11 @@
 Datum 7:83082c92c7effe49
 Datum 7:0f17a16f17a0531f
 Datum 4:93b5e3dfca69288b
-Datum 5:75354f11efac3e39
 Datum 10:54a0180a83275575
 Datum 3:4b6146c817075cbd
 Profile 9:df48404b2d8b549d
 Extrude 2:284e57f4acab8bf3
-Revolve 2:04397dd29365abbb
+Revolve 6:bb009815e23bf328
 Tube 3:018e3a32dbe5340c
 Tube 5:331e67eae7c41204
 HollowTube 6:e54f711cb9afd6ea
@@ -16,8 +15,9 @@ Fillet 3:0e2ded6ce073357a
 Chamfer 3:5acb8221e82f6652
 Shell 3:f5f9ee44d7ae3357
 Split 1:363b3cf61ca9b8b1
-Boolean 1:f03474b3feed6d4e
-Union 1:ccd1186c5d3ffc93
+Subtract 1:5474c7e3e7c07536
+Union 1:f755409332e8f5cc
+Intersect 1:aca0938825d7ca12
 Transform 8:d6db91cbf9fbbd1d
 Transform 15:290e34a337ad0034
 Transform 1:ec3e03a281b7e37b
@@ -33,9 +33,8 @@ Pattern 2:49bc34b89b22839b
 PlacedUnion 2:e4ddac107275f47e
 PlacedUnion 1:150544a5320c3e58
 Part 2:1f8ee0d754d2e01e
-Part 1:e59557703615f3f8
 InstantiatePart 8:1e58c21bab8525f2
 Gauge 8:8169e9c9fbdcbd7e
-Mate 8:e09e8b68c2c657de
+Mate 10:665a3697b717434e
 Measure 3:c56a63f809c915d7
 Assertion 3:5e435f9e700dd9cf

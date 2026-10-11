@@ -83,6 +83,10 @@ mod boolean_discards;
 mod boolean_pinch_copies;
 #[path = "box_with_hole.rs"]
 mod box_with_hole;
+#[path = "carried_citations_past_index_zero.rs"]
+mod carried_citations_past_index_zero;
+#[path = "cell_pair_records.rs"]
+mod cell_pair_records;
 #[path = "census_g2_carrier.rs"]
 mod census_g2_carrier;
 #[path = "cone_apex_cap_body.rs"]
@@ -356,6 +360,10 @@ mod lane2_r2_probes;
 #[path = "replace_face_band_probes.rs"]
 mod replace_face_band_probes;
 
+#[path = "a_corner_flat_at_its_short_bounds.rs"]
+mod a_corner_flat_at_its_short_bounds;
+#[path = "a_meridian_witness_contradicts_only_off_its_locus.rs"]
+mod a_meridian_witness_contradicts_only_off_its_locus;
 #[path = "a_vertex_read_again_classes_every_edge.rs"]
 mod a_vertex_read_again_classes_every_edge;
 #[path = "a_vertex_read_by_two_sector_passes.rs"]
@@ -378,5 +386,7 @@ mod review_cleave_mint_doors;
 mod spline_reanchor_rows;
 #[path = "split_tangent_edge.rs"]
 mod split_tangent_edge;
+#[path = "split_through_an_apex.rs"]
+mod split_through_an_apex;
 #[path = "three_solids_on_one_line.rs"]
 mod three_solids_on_one_line;

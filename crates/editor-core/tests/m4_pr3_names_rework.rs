@@ -9,8 +9,8 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, CancelToken, Datum, EvalOptions, Evaluation, Node, NodeErrorClass, ProfileDoc,
-    RecipeNodeId, RoleSeg, evaluate,
+    CancelToken, Datum, EvalOptions, Evaluation, Node, NodeErrorClass, ProfileDoc, RecipeNodeId,
+    RoleSeg, evaluate,
 };
 use fixture::{insert, len, on_frame, scl};
 use geom_core::Tol;
@@ -61,10 +61,8 @@ fn union_cross_bar_names_totally() {
     let (doc, b) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.25, 0.5);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
@@ -85,10 +83,8 @@ fn union_cross_bar_swapped_names_totally() {
     let (doc, b) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
@@ -107,10 +103,9 @@ fn subtract_cross_bar_names_totally() {
     let (doc, b) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.25, 0.5);
     let (doc, s) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: a.into(),
-            b: b.into(),
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
             declare: Vec::new(),
         },
     );
@@ -129,10 +124,9 @@ fn subtract_block_from_bar_never_fails_in_naming() {
     let (doc, b) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, s) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: a.into(),
-            b: b.into(),
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
             declare: Vec::new(),
         },
     );
@@ -289,8 +283,8 @@ fn split_through_a_reflex_corner_names_its_copy_where_the_corner_stands() {
 // the instance index there. A split named alone is either of its two
 // bodies, so the door refuses it as a pattern's operand
 // (`AmbiguousOutput`), and a read of one port IS that half: the
-// pattern is a pattern of one body, named as the pattern of
-// `Part { SplitHalf }` is. A master whose single body holds several
+// pattern is a pattern of one body, each copy carrying the half's rows
+// and no row of the other half. A master whose single body holds several
 // SOLIDS was always admitted (`names::emit::pattern_tests`).
 
 #[test]
@@ -324,32 +318,34 @@ fn a_pattern_of_a_split_port_is_the_pattern_of_its_half() {
         matches!(&refusal, editor_core::EditError::AmbiguousOutput { input, .. } if input.id() == sp),
         "a split named alone is either half: {refusal:?}"
     );
-    let (doc, half) = insert(
-        doc,
-        Node::Part {
-            of: editor_core::Operand::output(sp, editor_core::SplitHalf::Above.port()),
-            select: editor_core::PartSelect::SplitHalf(editor_core::SplitHalf::Above),
-        },
-    );
     let (doc, by_port) = insert(
         doc,
-        pattern(editor_core::Operand::Output { node: sp, port: 0 }),
+        pattern(editor_core::Operand::output(
+            sp,
+            editor_core::SplitHalf::Above.port(),
+        )),
     );
-    let (doc, by_part) = insert(doc, pattern(half.into()));
     let ev = run(&doc);
-    let (port, part) = (
-        ev.value(by_port)
-            .unwrap_or_else(|| panic!("{:?}", ev.nodes.get(&by_port))),
-        ev.value(by_part).expect("the part spelling patterns"),
-    );
-    // Each pattern mints its own copies' names; read the port
-    // spelling's as the part spelling's, and the two are one.
-    let as_part = format!("{:?}", port.name_table)
-        .replace(&format!("{:?}", by_port.0), &format!("{:?}", by_part.0));
+    let copies = ev
+        .value(by_port)
+        .unwrap_or_else(|| panic!("{:?}", ev.nodes.get(&by_port)));
+    let rows = |body: u32| {
+        ev.value(sp)
+            .expect("the split")
+            .name_table
+            .iter()
+            .filter(|(_, entry)| match entry {
+                editor_core::Entry::Unique(e) => e.body == body,
+                editor_core::Entry::Tied(c) => c.iter().any(|e| e.body == body),
+            })
+            .count()
+    };
+    let above = rows(editor_core::SplitHalf::Above.output_body());
+    assert!(above > 0 && rows(editor_core::SplitHalf::Below.output_body()) > 0);
     assert_eq!(
-        as_part,
-        format!("{:?}", part.name_table),
-        "the port's copies are named as the half's"
+        copies.name_table.len(),
+        2 * above,
+        "each of the two copies carries the above half's rows, and no other"
     );
 }
 

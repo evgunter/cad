@@ -26,10 +26,10 @@ not the workspace's predicate-name roster** — that is
 `docs/K-REPORT.md` § *"The inventory method, restated"*, whose seven
 orphans are all outside these two crates by construction (`profile`
 ×2, `sweep` ×2, `demos/tour` ×3), a fact *about* this bound and not a
-hole in it. **(2) Not complete inside them.** Of **248** funnel-reaching
+hole in it. **(2) Not complete inside them.** Of **250** funnel-reaching
 names in the two crates the tables and their prose reach **225**, carry
-an individual `dim` verdict for **123**, and miss **23** entirely; the
-23 are listed under *Uncovered names* below the tables and are §D's
+an individual `dim` verdict for **123**, and miss **25** entirely; the
+25 are listed under *Uncovered names* below the tables and are §D's
 **D46**. The word *every* was this document's for a year and it was
 never true of the second bound; it is retired here rather than
 footnoted.
@@ -173,8 +173,8 @@ the call site*. In these two crates that is ten spellings — `decide`,
 `classify` / `classify_len` / `require_zero` / `require_extent` /
 `gap_is_zero` / `signed_is_zero` wrappers.
 
-**Names — the deliverable.** **248** distinct predicate names: **212**
-written as a literal at one of those spellings, and **36 carried** by a
+**Names — the deliverable.** **250** distinct predicate names: **212**
+written as a literal at one of those spellings, and **38 carried** by a
 module-private `const`, a struct field or a local table
 (`sector_shape.rs`'s three consts, `ray_walk::ParityRows` twice over,
 `transform.rs`'s two arrays, `carrier_eq.rs`'s margin tuples,
@@ -187,15 +187,15 @@ module-private `const`, a struct field or a local table
 | named only in prose, no `dim` column | 3 |
 | reached only through a family cell or slash-list | 99 |
 | **reached, on the most generous reading** | **225** |
-| **recorded nowhere, under any reading** | **23** |
+| **recorded nowhere, under any reading** | **25** |
 
 **Reach is not verdict, and the asymmetry runs one way.** The 99 family
 matches are a judgement: glosses like *"pm_census vv/ve/vf/ef gaps,
 spans, residuals"* and *"sphere/torus meridian checks"* were read as
 covering every name they plausibly reach, which is the reading most
-favourable to this document. So **225 is a ceiling on REACH**, **23 a
+favourable to this document. So **225 is a ceiling on REACH**, **25 a
 floor on the hole** — a stricter reader moves names out of the 99 and
-into the 23, and nothing can move one out of the 23, because those
+into the 25, and nothing can move one out of the 25, because those
 names appear nowhere above this section in any form. And **reach is not
 a dimensional verdict**: the number of names this document has actually
 dimensioned, one row and one `dim` cell each, is **123**. The other 102
@@ -230,7 +230,7 @@ convention and the site count is not.
 roster alone** (K-REPORT's framing; it reproduces here). A code scan
 misses names not written at a funnel site — the 36 carried ones, 15% of
 the roster. A corpus column misses names the corpus never exercises —
-**83** of the 248 do not appear in the committed M7 baseline at all
+**83** of the 248 measured then do not appear in the committed M7 baseline at all
 (`props_rim_interior_side`, `props_rim_only_extent` and
 `props_rim_only_closed` are new here and post-date it;
 `props_rim_dir_group`, which it does carry, is retired),
@@ -252,7 +252,7 @@ grep -rnE '\b(decide|decide_reported|decide_flagged|decide_invariant|decide_posi
 # behavioural half — what the committed baseline emitted
 zcat docs/k-report-data/m7-eps-1e-9.csv.gz | tail -n +2 | cut -d, -f2 | sort -u
 # coverage — compare against THIS FILE WITH ITS TWO SELF-DESCRIBING
-# SECTIONS REMOVED. `Uncovered names` lists the 23 and this section
+# SECTIONS REMOVED. `Uncovered names` lists the 25 and this section
 # names helpers that share spellings with predicates, so a re-derivation
 # that reads the whole file finds a hole of zero and calls it closed.
 sed -e '/^## Coverage of the two crates/,/^## geom-brep/d' \
@@ -268,26 +268,28 @@ file's own first paragraph. That residue is this table's standing cost,
 disclosed rather than discovered.
 
 **Twelve names carry the K vocabulary and never reach the funnel**, so
-they are correctly outside the 248 and a reader who greps for one
+they are correctly outside the 250 and a reader who greps for one
 should know why. They live only in an `Indeterminate.predicate`:
 - six through `predicate: Some("…")`: `carrier_kind`,
   `contact_tangent_independent`, `contact_rest_senses_opposed`,
   `contact_rest_ladder_invariant`, `transversality`, `validate_probe`;
-- five through `topo::invalid_margin::invalid`:
-  - `bool_contact_arc_straddle` and `point_in_arc_loop_conic_straddle`,
-    an ellipse's lower and upper bound on one distance straddling the
-    whole band;
-  - `point_in_arc_loop_boundary_disagreement`, the carrier walk meeting
-    on an edge a point its caller's pass placed off it;
-  - `pc_axis_plane_parallel_disagreement` and
-    `pc_parallel_gap_disagreement`, a plane×cylinder section on the
-    declared-tangency path served one class over a wall face's reach
-    read over each edge's span and another over it read round each
-    edge's whole turn (`chord_join::agreed_section`);
+- five as the name argument of a `k_stats::straddle` call, two decided
+  bounds on one quantity straddling the band:
+  - an ellipse's lower and upper bound on one distance, or on its span's
+    overlap, under each caller's conic rows: `bool_contact_arc_straddle`,
+    `point_in_arc_loop_conic_straddle`, `pm_census_ef_cross_arc_straddle`
+    and `bool_sphere_region_arc_straddle` (whose arcs are circles, whose
+    two bounds are one, so it is never raised);
+  - `pc_axis_plane_parallel_straddle`, a plane×cylinder section on the
+    declared-tangency path read in the rulings' lane over a wall face's
+    reach measured over each edge's span and in the conic lane over it
+    measured round each edge's whole turn (`chord_join::agreed_section`);
 - one, `plane_nurbs_transversality_reported`, as the name argument of a
-  `k_stats::gate_measured` call. That records the escalation on the
-  open frame but classifies nothing, so it is outside this table for
-  the same reason the other eleven are.
+  `k_stats::gate_measured` call.
+
+The two `k_stats` doors record the escalation on the open frame but
+classify nothing, so their names are outside this table for the same
+reason the other six are.
 None decides anything, none appears in the M7 baseline, and none has a
 comparand to dimension.
 
@@ -301,14 +303,14 @@ user, inside an `Indeterminate` claiming a predicate by that name had
 been posed and come back poisoned. The census now carries the door's
 own typed refusal instead, and the tag is gone from the tree.
 
-**Why no gate on 123 / 225 / 248 / 302 — the third answer to Q6.**
+**Why no gate on 123 / 225 / 250 / 302 — the third answer to Q6.**
 Not "it is guarded" and not "dating it is enough": a gate would have to
 fix the family-matching convention in code, and that convention is the
 judgement this section is careful to expose rather than freeze. A green
 gate would assert a reading, not a fact. What *is* mechanical is
 already elsewhere — `geom-core/tests/flagged_census.rs` pins the
 `decide_flagged` count, and the K sweep recomputes the emitted-name set
-on every merge. The 23 are scheduled as their own unit (§D's **D46**),
+on every merge. The 25 are scheduled as their own unit (§D's **D46**),
 which is what actually moves the number.
 
 ## geom-brep
@@ -328,7 +330,7 @@ which is what actually moves the number.
 | enters.rs:141 | tangent_sector_order2_arm | caller arm | m | OK |
 | enters.rs:153 | tangent_sector_order2 | normal curvature (1/m) × arm²/2 | m | OK |
 | enters.rs `bends_into_material` | wall_bend_order2_arm | caller arm | m | OK |
-| enters.rs `bends_into_material` | wall_bend_order2 | mean normal curvature (1/m), folded to the material side, × arm²/2; its one caller (`splitting/rules.rs` `wall_graze`) passes the face extent | m | FLAG F11 |
+| enters.rs `bends_into_material` | wall_bend_order2 | mean normal curvature (1/m), folded to the material side, × arm²/2; its one caller (`splitting/rules.rs` `apply_rule_a`) passes the face extent | m | FLAG F11 |
 | newell.rs:165 | newell_plane_residual | (p−centroid)·n̂ | m | OK |
 | certify.rs:849/858 | interval_span_forward/winding (Circle) | span × radius / (τ−span) × radius, through `Margin::metered` | m | OK. The radius IS the carrier's own parameter rate (`|dP/dθ| = r` exactly), the same number `pcurve_cache::param_rate` mints as an `InfSpeed` for a circle, so this crossing goes through the metric door like the Nurbs arm two rows down. Exact ⇒ inf, and both claims here are *definitely apart* (a forward span, headroom to one period), which is the inf side |
 | certify.rs:872/877 | interval_span_forward/winding (Ellipse) | span × min(\|major\|, \|minor\|), through `Margin::metered` | m | OK. `|dP/dθ| ≥ min(|a|, |b|)` (the semi-axes carry no order and no sign; `minor` in the ordinary order), so the smaller semi-axis magnitude is a certified LOWER bound on the ellipse's own parameter rate — an `InfSpeed`, the same mint `param_rate` and `splitting::classify` make for the same kind. Conservative in the direction a forward claim needs |
@@ -347,7 +349,7 @@ which is what actually moves the number.
 | intersect.rs:694 | ps_frame_seam | (sin−0.5)·r — deterministic frame tie-break, not a coincidence question | m | OK (note N5) |
 | intersect.rs:705 | ps_center_gap | r − center-plane distance | m | OK |
 | intersect.rs:834–882 | cc_* (radius eq, axes parallel, coaxial and its floor, gap and its floor, coplanar) | lengths / sin×extent / common-perpendicular; the coaxial distance and the gap each summed with the axes' sin×lever (`decide_across`) | m | OK |
-| intersect.rs:2207/2222/2267/2295 (`plane_cone_section`) | pn_apex_*, pn_axis_normal | m·unit; trig diff×extent, summed with the apex gap (`pn_apex_section` and its floor, `decide_across`); the apex gap levered by 1/\|D\|, the off-apex ellipse's farthest point from the apex (`pn_apex_point_reach`); sin×rim r | m | OK |
+| intersect.rs:2193/2208/2223/2274/2284 (`plane_cone_section`) | pn_apex_on_plane, pn_apex_section (and its floor), pn_apex_point_reach / pn_apex_pair_reach / pn_apex_tangent_reach, pn_axis_normal, pn_conic_type | m·unit, the apex gap (`pn_apex_on_plane`); trig diff×extent, summed with the apex gap (`pn_apex_section` and its floor, `decide_across`), and alone off the apex (`pn_conic_type`); the apex gap levered by 1/\|D\|, the off-apex ellipse's farthest point from the apex (`pn_apex_point_reach`) and where the hyperbola's far branch starts (`pn_apex_pair_reach`), and by 1/(sin α·s + cos α·\|c\|), where the section starts nearest the apex (`pn_apex_tangent_reach`); sin×rim r | m | OK |
 | intersect.rs:1480/1484/1498/1504/1535/1544 | pt_tube_guard / ring_torus_convention (read from `geom::ring_torus`, the convention's one home) / axis_in_plane / axis_plane_gap / axis_normal / cap_gap (and its floor) | r; R−r; sin×extent; the stand-off `n·q − n·c` (decided and minted from, one spelling; the tilt turns the meridian circles along the torus, so it is read alone); sin×R; r−station depth, summed with sin×R (`decide_across`) | m | OK — with the axis_in_plane lever CONDITION on record: just inside the Zero band the raw sine reaches ε/extent, so the minted meridian circles sit off their own PLANE by up to r·ε/extent (27ε measured at extent = 0.01; the torus residual stays machine-zero). Cannot bite with a real operand: extent ≥ R + r for any plane that reaches the torus, so the planarity error stays under ε |
 | intersect.rs:2026/2047/2053/2068/2093/2111 | coc_cylinder_radius / coc_aperture_sin / coc_aperture_cos / coc_axes_parallel / coc_coaxial / coc_coaxial_floor / coc_station_reach | R; sin α×extent; cos α×extent; sin×extent; the apex's distance from the cylinder's axis plus sin×extent, and less it for the floor (`decide_across`); extent − |R·cot α| (extent measured from the apex) | m | OK — the family prefix is `coc_`, not `cc_`: `cc_*` is cylinder×cylinder's glob two rows above and would over-match. `coc_station_reach` is the arm's ADMISSION criterion; the two aperture clauses are a division guard and a convention clause, not conditioning questions |
 | pcurve_cache.rs:1225/1233 | pcurve_chart_azimuth_affine / winding | (rad coeff)×radius | m | OK |
@@ -509,7 +511,9 @@ which is what actually moves the number.
 | boolean/reduce.rs (`boundary_meets_circle_only_at`) | bool_arc_plane_side | a vertex's signed height over the circle's plane, `(p − c) · â` with `â` unit; a conic's own plane offset from it (`ConicPlaneMeet::Parallel`) | m | OK |
 | boolean/sectors.rs (`runs_in`) | bool_germ_tie_plane | a point's signed height over a face's plane, `(p − o) · n̂` with `n̂` unit | m | OK |
 | boolean/sectors.rs:342–433 | bool_sector_within / bool_dir_* / bool_faces_parallel | sin/cos × sector arm (arm = shorter bounding chord, m; every caller passes unit dirs — verified); a pair `bool_faces_parallel` reads Zero is a near-coincidence and goes to the carrier ladder with every code On (its arm-setting bound reads On or in band) | m | OK |
+| boolean/sectors.rs (`wedge_classes`) | bool_corner_one_plane | the chord `\|n̂ − n̂′\|` between two faces' unit outward normals at the vertex × the farthest reach the reading classes (the classed edges' reaches and the corner's sectors' spans, m): how far apart the two planes stand there, opposed normals two apart; a Zero lets a bound On or in band of that plane vote nothing on the corner's convexity, and anything else reads the corner as a polygon cone | m | OK |
 | boolean/sectors.rs (`side_code`) | bool_chord_side / enters_material / bool_pierce_sector_side_curved | a LINE bound: its far vertex's signed distance from the plane through the base vertex (`sector_shape::plane_offset`); a curved bound: cos × its own extent; a bisector: cos × its sector's arm; the curvature charge: the bound's tangent RAY's least separation from the face past the sagitta, `slope·l − l²/lever` at `l = min(slope·lever/2, reach)`, where it peaks within the bound's own reach (a statement about the ray for every reach kind, not a point of a curved edge or a bisector) | m | FIXED (CONTACT-9; every bound was cos × the shorter sector arm, so a long line edge read On while its far end stood hundreds of bands off) |
+| boolean/sectors.rs (`conic_side`) | bool_conic_flat / bool_conic_bend / bool_conic_bend_side | a conic bound tied with a plane at first order: the whole edge's height bound `(|t̂·n̂| + |N̂·n̂|)·reach` (sine sum × the carrier's point-set radius from the vertex); the bend's certified lift less the first-order residue, `|N̂·n̂|·2·sin²(κ_min·l/2)/κ_min − |t̂·n̂|·l` at `l = min(extent, π/(2·κ_max))`; and its side, `½·(κ·n̂)·l²` (the sagitta door) | m | OK |
 | boolean/solid_contain.rs:438 | bool_wall_trim_period | (τ−width)·radius | m | OK |
 | boolean/solid_contain.rs:462 | bool_wall_trim (cone term) | (cosΔ−cos h)·radius — effective arm sin(h)·r, collapses for narrow windows | m | FLAG F8 |
 | boolean/solid_contain.rs (`wall_outline`) | bool_wall_iso_meridian / bool_wall_iso_rim / bool_wall_section_tilt | sin or cos of unit vectors × radius; radius and off-axis differences | m | OK |
@@ -564,6 +568,8 @@ which is what actually moves the number.
 | splitting/spiric_arc.rs (`SpiricArc::crossings`) | point_in_arc_loop_spiric_side / _turn / _advance (and point_in_arc_loop_reach) | `(P(v) − q)·n`, a piece end's offset from the ray line; `|s(v_b) − s(v_a)| − 2·A·h²` (A in m/rad², h in rad; `S` and `A` over the piece's own window, `geom::spiric_rate_bounds`); `(c − q)·d ∓ S·h`; the ball's in-plane clearance from the ray less `S·h` | m | OK (CLEAVE) |
 | splitting/containment.rs (`LoopEdge::contact`, the boundary pre-pass) | point_in_arc_loop_conic_on / point_in_arc_loop_conic_end / point_in_arc_loop_conic_trim | the same distances as `bool_contact_arc/_end/_trim`, under the carrier walk's own names (the `on` row is a distance, not the signed `ρ − 1`) | m | OK (CONTACT-4) |
 | splitting/neighborhood.rs:228–309 | split_conic_departure / split_bisector_side | tangent×extent projections; bisector·n̂ × arm | m | OK |
+| splitting/insert.rs (`section_chords`) | split_germ_line | `\|(\|ŵ·n̂\| û + \|û·n̂\| ŵ)\|`, the in-plane combination of a transition sector's unit bounds, levered by the shorter bound's reach (m): the sector meets the plane along a line. Not read where one bound lies in the plane (the germ is that bound) | m | OK (CLEAVE) |
+| splitting/insert.rs (`section_chords`) | split_germ_side / split_germ_order / split_germ_sense | `n̂·(ĝ₀ × ĝ)` and `n̂·(ĝ × ĥ)`, the sines between unit germs about the plane's normal, and `ĝ₀·ĝ` for a germ on the first germ's line, each levered by the shortest reach of the germs it reads (m): its distance at that reach from the other's line. A decided zero is two germs of different sectors on one line to the tolerance, refused (`SectionGermsUnordered { Coincident }`); the two germs either side of one in-plane entry are never read | m | OK (CLEAVE) |
 | splitting/order.rs:73 | split_join_frame_arm | sin(member, plane normal) × points' spread (the member's in-plane fraction) | m | FIXED (was dimensionless schedule norm) |
 | splitting/order.rs (`axis_plane`) | split_join_frame_axis | a component of the unit plane normal — the cosine between the normal and an axis — levered by the points' spread (`Margin::levered`), vs the EXACT bit-level band: whether it is exactly zero, which picks the exact axis frame for an axis plane | m | OK (CLEAVE; levered like `split_join_frame_arm`) |
 | splitting/order.rs (`lex_cmp`) | split_join_order_u/v | coordinate difference (m) vs the EXACT bit-level band (deliberate total-order device, documented) | m | OK (note N6) |
@@ -574,7 +580,7 @@ which is what actually moves the number.
 | splitting/join.rs (`conic_pairs`) | split_join_conic_heading | the sine `(n_plane × n_out)·Ĉ′` between the section's heading into the face and the conic's unit tangent, levered by the wall's `curvature_lever_arm` (the cylinder's or sphere's radius) (m): how far the section runs from tangent to the wall, and so which way along the conic enters the face | m | OK (CLEAVE) |
 | splitting/finish.rs (`line_clears_conic`) | split_nest_line_conic | a conic carrier's centre offset from a line less its amplitude across it, `|m·(c − p)| − √((m·a)² + (m·b)²)` (m) | m | OK (CLEAVE) |
 | splitting/finish.rs (`conics_clear`) | split_nest_conic_conic | in one conic's unit coordinates, `1 − |c′| − σ` or `|c′| − σ − 1` with `σ` the largest singular value of the other's semi-axis matrix, levered by the first's smaller semi-axis (m) | m | OK (CLEAVE) |
-| splitting/rules.rs:132/151/202 | split_sector_extent / coplanar / enters arm | extent; sin×extent | m | OK |
+| splitting/rules.rs (`apply_rule_a`; the coplanar read through `geom_brep::normal_alignment`) | split_sector_extent / coplanar / enters arm | extent; sin×extent, each face over its own face extent (D4 ¶1's parallelism arm). At a smooth edge in the plane the two faces read one tilt over two arms, so one can decide zero and the other past the band: `rules::wall_graze` refuses that as two decided readings that disagree (`SectorReading::SmoothEdgeDisagrees`), carrying both | m | OK |
 | splitting/rules.rs:179 | tangent_sector_osculation | κ(1/m) × face-extent²/2 | m | FLAG F11 |
 | chord_join.rs:1114 | split_tangent_chord_forward | dimensionless param diff × ‖dir‖ | m | OK (metered door; a line's ‖dir‖ is its exact speed and so an `InfSpeed`) |
 | chord_join.rs (`arc_leaving`) | chord_arc_leave_germ | a boolean germ's unit direction against the conic's unit tangent at the chord's start, `dir·Ĉ′(θ₁)` (the cosine between them), levered by the semi-major axis | m | OK (REACH) |
@@ -686,9 +692,9 @@ tolerances and step-size control in ssi (documented structure
 parameters), `props.rs` trig pad (ε/radius, an enclosure pad, not a
 decision), test fixtures.
 
-### Uncovered names (measured at `43e2998d`)
+### Uncovered names (measured at `43e2998d`; `contact_tangent_off_1`/`_2` added since)
 
-Twenty-three names reach the funnel from `geom-brep` or `topo` and
+Twenty-five names reach the funnel from `geom-brep` or `topo` and
 have **no row, no family cell and no mention** anywhere above this
 section. They are enumerated rather than audited: each wants its
 comparand read and a dimension verdict, which is a unit (§D's **D46**)
@@ -697,12 +703,12 @@ eight homes are files this document has never named at all —
 `edge_nurbs.rs`, `boolean/carrier_eq.rs`, `boolean/contact_verify.rs` —
 and the other five are named files whose rows predate these names.
 
-**Where the 23 verdicts land when D46 does them**: one row each in the
+**Where the 25 verdicts land when D46 does them**: one row each in the
 `## geom-brep` or `## topo` table above, with `site`, `predicate`,
 `comparand`, `dim` and `status` filled the way every other row is —
 plus a disposition entry in *Findings* for any that come back FLAG, and
 its `F`-number. A name leaves this section only by acquiring that row;
-the section is empty when the two counts above meet at 248.
+the section is empty when the two counts above meet at 250.
 
 | home | names |
 |---|---|
@@ -713,7 +719,7 @@ the section is empty when the two counts above meet at 248.
 | `topo/pcurves.rs` | `pcurve_chart_u_closed`, `pcurve_iso_arc_direction`, `pcurve_iso_seam_column` |
 | `topo/census.rs` | `pm_census_bound_end`, `pm_census_bound_vertex` |
 | `topo/boolean/carrier_eq.rs` | `carrier_sphere_center`, `carrier_sphere_radius`, `carrier_cyl_axis_parallel`, `carrier_cyl_axis_offset`, `carrier_cyl_radius` (a `[(&'static str, Margin<T>)]` table — carried, so no literal at the funnel site) |
-| `topo/boolean/contact_verify.rs` | `contact_tangent_on_1`, `contact_tangent_on_2`, `contact_tangent_opposed`, `contact_tangent_parallel`, `contact_tangent_second_order` |
+| `topo/boolean/contact_verify.rs` | `contact_tangent_on_1`, `contact_tangent_on_2`, `contact_tangent_off_1`, `contact_tangent_off_2`, `contact_tangent_opposed`, `contact_tangent_parallel`, `contact_tangent_second_order` |
 
 ## Findings (dispositions)
 
@@ -883,7 +889,7 @@ Flagged, NOT fixed here (dispositions):
   lane merged. Deferred on the arm question alone, which is a design
   input, not a conflict.)
 - **F11** `tangent_sector_osculation` (rules.rs `apply_rule_a`) and
-  `wall_bend_order2` (rules.rs `wall_graze`, through
+  `wall_bend_order2` (rules.rs `apply_rule_a`, through
   `geom_brep::bends_into_material`): sagitta model κ·L²/2 metered at
   the WHOLE-FACE extent, squared, and invalid for κ·L ≳ 1. The face
   extent is longer than the contact's own arm, so the margin is
@@ -915,11 +921,11 @@ Flagged, NOT fixed here (dispositions):
   
   This row proposed levering the sine at the profile's radial extent,
   kernel-side. What happened instead is that the QUESTION was deleted.
-  A revolve's axis is now a `Datum::AxisInPlane` — written in the
-  profile's own frame, in that frame's two coordinates — so it cannot
-  have an out-of-plane component to classify, and the only thing left
-  to decide is whether it is the same frame the profile is drawn on:
-  an equality of node ids, with no band and no scale. Both in-plane
+  A revolve's axis is now written on the revolve itself, in its
+  profile's own two coordinates (`Revolve`'s `axis_origin` and
+  `axis_direction`), so it cannot have an out-of-plane component to
+  classify and there is no second frame to compare: nothing is left to
+  decide, with no band and no scale. Both in-plane
   predicates went with it, this one and the metre-valued
   `revolve_axis_origin_in_plane` beside it.
   

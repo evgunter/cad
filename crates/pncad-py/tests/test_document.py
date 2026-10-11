@@ -12,7 +12,6 @@ import unittest
 
 import pncad
 from pncad import (
-    BooleanOp,
     Cmp,
     Distribution,
     Doc,
@@ -169,19 +168,19 @@ class TestNodeKindReadDoor(unittest.TestCase):
         self.assertEqual(doc.node_kind(profile), "profile")
         self.assertEqual(doc.node_kind(solid), "extrude")
 
-    def test_a_boolean_answers_a_word_per_operation(self):
+    def test_each_boolean_node_answers_its_own_word(self):
         doc = Doc()
         a = unit_box(doc, 2 * m, 2 * m, 2 * m)
         b = slab(doc, (1 * m, 3 * m), (1 * m, 3 * m), (1 * m, 3 * m))
-        # One payload shape, three kernel operations, three words —
-        # which is what lets a caller say "this recipe spends no
-        # subtract" without reading the saved text.
-        cut = doc.insert(Node.boolean(BooleanOp.Subtract, a, b))
-        fused = doc.insert(Node.boolean(BooleanOp.Union, a, b))
-        common = doc.insert(Node.boolean(BooleanOp.Intersect, a, b))
-        self.assertEqual(doc.node_kind(cut), "boolean_subtract")
-        self.assertEqual(doc.node_kind(fused), "boolean_union")
-        self.assertEqual(doc.node_kind(common), "boolean_intersect")
+        # Three nodes, three words — which is what lets a caller say
+        # "this recipe spends no subtract" without reading the saved
+        # text.
+        cut = doc.insert(Node.subtract(a, b))
+        fused = doc.insert(Node.union([a, b]))
+        common = doc.insert(Node.intersect([a, b]))
+        self.assertEqual(doc.node_kind(cut), "subtract")
+        self.assertEqual(doc.node_kind(fused), "union")
+        self.assertEqual(doc.node_kind(common), "intersect")
 
     def test_it_is_the_nodes_kind_and_not_its_values(self):
         doc = Doc()
@@ -342,7 +341,7 @@ class TestEvaluation(unittest.TestCase):
         doc = Doc()
         base = slab(doc, (0 * m, 3 * m), (0 * m, 2 * m), (0 * m, 1 * m))  # 6.0
         post = slab(doc, (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m), (0.5 * m, 2 * m))
-        fused = doc.insert(Node.boolean(BooleanOp.Union, base, post))
+        fused = doc.insert(Node.union([base, post]))
 
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(fused), "the union evaluated")
@@ -359,7 +358,7 @@ class TestEvaluation(unittest.TestCase):
         doc = Doc()
         outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
         inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
-        cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
+        cut = doc.insert(Node.subtract(outer, inner))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(cut))
         body = ev.value(cut).body()
@@ -374,7 +373,7 @@ class TestEvaluation(unittest.TestCase):
         tolerance's ambiguity band: a subtract that refuses."""
         outer = slab(doc, (0 * m, 2 * m), (0 * m, 2 * m), (0 * m, 2 * m))
         inner = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (2e-9 * m, 1 * m))
-        return doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner)), outer
+        return doc.insert(Node.subtract(outer, inner)), outer
 
     def test_a_sliver_carries_its_typed_refusal(self):
         # Fail-loud, visible from Python: a sliver is NOT silently
@@ -400,7 +399,7 @@ class TestEvaluation(unittest.TestCase):
     def test_a_poisoned_node_names_its_failed_ancestor(self):
         doc = Doc()
         cut, outer = self.a_sliver(doc)
-        downstream = doc.insert(Node.boolean(BooleanOp.Union, cut, outer))
+        downstream = doc.insert(Node.union([cut, outer]))
         doc.apply(DocEdit.set_label(cut, "pocket"))
         ev = evaluate(doc)
         with self.assertRaises(EvaluationError) as caught:
@@ -413,7 +412,7 @@ class TestEvaluation(unittest.TestCase):
         # The standing speaks each node as the evaluated document holds
         # it: kind, label and tag.
         self.assertIn(
-            f'Boolean {tag(downstream)} is poisoned by the failure at Boolean "pocket" '
+            f'Union {tag(downstream)} is poisoned by the failure at Subtract "pocket" '
             f"({tag(cut)})",
             str(caught.exception),
         )
@@ -451,10 +450,10 @@ class TestDetectDeclareDoors(unittest.TestCase):
                 )
                 if spelling == "node_boolean":
                     glued = doc.insert(
-                        Node.boolean(BooleanOp.Union, lower, upper, declare=findings)
+                        Node.union([lower, upper], declare=findings)
                     )
                 else:
-                    glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
+                    glued = doc.insert(Node.union([lower, upper]))
                     if spelling == "doc_declare":
                         self.assertIsNone(doc.declare(glued, findings[0]))
                     elif spelling == "doc_declare_all":
@@ -523,7 +522,7 @@ class TestDetectDeclareDoors(unittest.TestCase):
         # An empty declaration records no intent — refused, never set
         # (`no_findings`). Clearing is `DocEdit.set_declare(node, [])`.
         doc, lower, upper = self.stacked()
-        glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
+        glued = doc.insert(Node.union([lower, upper]))
         before = len(doc)
         with self.assertRaises(EditError) as caught:
             doc.declare_all(glued, [])
@@ -602,13 +601,13 @@ class TestDetectDeclareDoors(unittest.TestCase):
         outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
         # The pocket's floor 2 nm off the block's: in band, so it refuses.
         inner = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (2e-9 * m, 1 * m))
-        cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
+        cut = doc.insert(Node.subtract(outer, inner))
         doc.apply(DocEdit.set_label(cut, "pocket"))
         with self.assertRaises(SelectRefusal) as caught:
             evaluate(doc).find_flush_candidates(outer, cut)
         self.assertEqual(caught.exception.reason, "node_has_no_value")
         self.assertIn(
-            f'Boolean "pocket" ({tag(cut)}) failed, so it has no value',
+            f'Subtract "pocket" ({tag(cut)}) failed, so it has no value',
             str(caught.exception),
         )
 
@@ -1107,7 +1106,7 @@ class TestStepExport(unittest.TestCase):
         outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
         # The pocket's floor 2 nm off the block's: in band, so it refuses.
         inner = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (2e-9 * m, 1 * m))
-        cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
+        cut = doc.insert(Node.subtract(outer, inner))
         ev = evaluate(doc)
         with self.assertRaises(pncad.ExportError) as caught:
             ev.step_string(cut)
@@ -1257,48 +1256,34 @@ class TestSketchPlaneFrame(unittest.TestCase):
 
 
 class TestDatumReadback(unittest.TestCase):
-    """What a datum's numbers cross AS. A position carries `Length`
-    whichever frame it is written in; a direction is dimensionless and
-    crosses bare. `Datum.in_plane` is the field that holds both, so it
-    is where the rule is visible in one value."""
+    """What a datum's numbers cross AS. A position carries `Length`; a
+    direction is dimensionless and crosses bare. An axis holds both, so
+    it is where the rule is visible in one value."""
 
     def axis(self, x, y):
         doc = Doc()
-        frame = doc.sketch_frame()
-        node = doc.insert(Node.datum_axis_in_plane(frame, (
+        node = doc.insert(Node.datum_axis((
             Formula.literal(x),
             Formula.literal(y),
+            Formula.length_in(0, m),
         ), (
             Formula.literal(0.0),
             Formula.literal(1.0),
+            Formula.literal(0.0),
         )))
         return evaluate(doc).value(node).datum()
 
-    def test_the_in_plane_origin_reads_back_as_the_length_pair_it_was_written_as(self):
-        """The write door takes `tuple[Length, Length]`; the read door
-        answers the same. A frame-local coordinate changes the datum a
-        position is measured from, not its dimension — so what goes in
-        comes back out, equal and still typed."""
+    def test_the_origin_reads_back_as_the_lengths_it_was_written_as(self):
+        """The write door takes `Length`s; the read door answers the
+        same — so what goes in comes back out, equal and still typed."""
         datum = self.axis(0.25 * m, 0.5 * m)
-        origin, direction = datum.in_plane
-        self.assertIsInstance(origin[0], Length)
-        self.assertIsInstance(origin[1], Length)
-        self.assertEqual(origin, (0.25 * m, 0.5 * m))
-        # The second pair is a DIRECTION: dimensionless, and bare.
-        self.assertEqual(direction, (0.0, 1.0))
-        self.assertNotIsInstance(direction[0], Length)
-
-    def test_the_world_origin_of_the_same_axis_is_dimensioned_too(self):
-        """The sibling field, so the class is read as one convention
-        rather than two: both origins are positions and both carry
-        `Length`."""
-        datum = self.axis(0.25 * m, 0.5 * m)
-        self.assertEqual(datum.kind, "axis_in_plane")
+        self.assertEqual(datum.kind, "axis")
         for coordinate in datum.origin:
             self.assertIsInstance(coordinate, Length)
-        # The sketch frame is the world xy plane, so the two spellings
-        # of the same point agree coordinate for coordinate.
         self.assertEqual(datum.origin, (0.25 * m, 0.5 * m, 0 * m))
+        # The second triple is a DIRECTION: dimensionless, and bare.
+        self.assertEqual(datum.direction, (0.0, 1.0, 0.0))
+        self.assertNotIsInstance(datum.direction[0], Length)
 
 
 class TestDatumPointAndFrame(unittest.TestCase):
@@ -1324,7 +1309,6 @@ class TestDatumPointAndFrame(unittest.TestCase):
         # standing in for a direction a point does not have.
         self.assertIsNone(datum.direction)
         self.assertIsNone(datum.axes)
-        self.assertIsNone(datum.in_plane)
 
     def test_a_selection_measures_its_distance_to_a_point(self):
         """The downstream door: `GeomPred.datum_distance` is UNSIGNED
@@ -1369,7 +1353,6 @@ class TestDatumPointAndFrame(unittest.TestCase):
         datum = evaluate(doc).value(frame).datum()
         self.assertEqual(datum.kind, "frame")
         self.assertEqual(datum.origin, (0 * m, 0 * m, 1 * m))
-        self.assertIsNone(datum.in_plane)
         u, v = datum.axes
         # An axis is a DIRECTION: dimensionless, and bare.
         self.assertNotIsInstance(u[0], Length)
@@ -1476,16 +1459,16 @@ class TestDatumPointAndFrame(unittest.TestCase):
 
 
 class TestBooleanDeclareArgument(unittest.TestCase):
-    """`Node.boolean`'s `declare=` is the boolean's own declared-pair
-    list; left out, it is empty and the boolean is undeclared."""
+    """`Node.union`'s `declare=` is the node's own declared-pair
+    list; left out, it is empty and the node is undeclared."""
 
     def test_the_default_is_the_undeclared_lane(self):
         doc = Doc()
         a = unit_box(doc, 1 * m, 1 * m, 1 * m)
         b = slab(doc, (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m))
-        fused = doc.insert(Node.boolean(BooleanOp.Union, a, b))
+        fused = doc.insert(Node.union([a, b]))
         self.assertTrue(evaluate(doc).succeeded(fused))
-        explicit = doc.insert(Node.boolean(BooleanOp.Union, a, b, declare=[]))
+        explicit = doc.insert(Node.union([a, b], declare=[]))
         self.assertTrue(evaluate(doc).succeeded(explicit))
 
 
@@ -1518,16 +1501,12 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
         doc = Doc()
         frame = doc.sketch_frame()
         profile = self.square(doc, frame, x0)
-        axis = doc.insert(
-            Node.datum_axis_in_plane(frame, (
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-            ), (
-                Formula.literal(0.0),
-                Formula.literal(1.0),
-            ))
-        )
-        node = doc.insert(Node.revolve(profile, axis, Formula.literal(angle)))
+        node = doc.insert(Node.revolve(
+            profile,
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.literal(0.0), Formula.literal(1.0)),
+            Formula.literal(angle),
+        ))
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(node)
         return caught.exception

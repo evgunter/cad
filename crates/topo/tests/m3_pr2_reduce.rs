@@ -257,9 +257,11 @@ fn tangent_edge_aoa_goes_below() {
 /// Rule (b), touching-wedge fixture (the BOB mirror): the Λ tip edge is
 /// flanked BELOW-ON-BELOW with a wide ABOVE cap bisector — adjudicated
 /// **ABOVE** (book; the paper's BOB→BELOW would leave the two Below
-/// wedges pinned through it). Consequence: the tip edge is isolated
-/// into its own run (its halves move to Above copies) and the cap
-/// bisector run becomes a **dangling** null edge.
+/// wedges pinned through it). Consequence: the tip edge and the cap's
+/// span between the wedges are one piece above the plane, and each
+/// Below wedge a piece of its own, so the tip's null edges are a path:
+/// the tip keeps one wedge, an Above copy takes the tip edge and the
+/// cap, and a Below copy hung there the other wedge. No strut dangles.
 #[test]
 fn touching_wedge_bob_goes_above() {
     let fixture = prism::<f64>(MIRRORED, 1.0, Tol::witness());
@@ -281,8 +283,23 @@ fn touching_wedge_bob_goes_above() {
             .iter()
             .filter(|r| r.at_vertex == tip)
             .collect();
-        assert_eq!(at_tip.len(), 2);
-        assert_eq!(at_tip.iter().filter(|r| r.dangling).count(), 1);
+        assert_eq!(at_tip.len(), 1, "one null edge hangs at the tip");
+        let above = at_tip[0].attr.above_end;
+        assert_eq!(at_tip[0].attr.below_end, tip);
+        let at_above: Vec<_> = red
+            .null_edges
+            .iter()
+            .filter(|r| r.at_vertex == above)
+            .collect();
+        assert_eq!(at_above.len(), 1, "one hangs at the tip's Above copy");
+        assert_ne!(
+            at_above[0].attr.below_end, tip,
+            "the other wedge's own copy"
+        );
+        assert!(
+            !at_tip[0].dangling && !at_above[0].dangling,
+            "no strut dangles"
+        );
     }
     // The tip edge's halves left the original vertices for Above copies.
     let moved: Vec<_> = red
@@ -485,12 +502,13 @@ fn crossing_split_arrangement() {
 /// the dyadic fixture values, so every verdict is definite and the
 /// census matches the f64 lane exactly (Q1's replay promise). The
 /// rule-(b) discriminating fixture is exercised at Interval through the
-/// tip-vertex census (2 null edges, distinct copies), per the F4
-/// requirement.
+/// tip-vertex census, per the F4 requirement: two null edges at the V
+/// tip, distinct copies; one at the Λ tip, with the second hung at its
+/// copy ([`touching_wedge_bob_goes_above`]).
 #[test]
 fn interval_lane_notched_and_wedge() {
     use geom_core::Interval;
-    for (profile, tip_expected) in [(NOTCHED, 2usize), (MIRRORED, 2usize)] {
+    for (profile, tip_expected) in [(NOTCHED, 2usize), (MIRRORED, 1usize)] {
         let fx = prism::<Interval>(profile, 1.0, geom_core::Tol::witness());
         let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
         let red = split_reduce(&operand, &plane_y1::<Interval>(), Tol::witness()).unwrap();
@@ -510,17 +528,30 @@ fn interval_lane_notched_and_wedge() {
                 .filter(|r| r.at_vertex == tip)
                 .collect();
             assert_eq!(at_tip.len(), tip_expected);
-            assert_ne!(at_tip[0].attr.above_end, at_tip[1].attr.above_end);
+            let copies: Vec<_> = at_tip
+                .iter()
+                .map(|r| {
+                    if r.attr.above_end == tip {
+                        r.attr.below_end
+                    } else {
+                        r.attr.above_end
+                    }
+                })
+                .collect();
+            // Each tip's null edges, with those hung at its copies.
+            let hung = red
+                .null_edges
+                .iter()
+                .filter(|r| r.at_vertex == tip || copies.contains(&r.at_vertex))
+                .count();
+            assert_eq!(hung, 2, "two null edges at each tip");
+            if tip_expected == 2 {
+                assert_ne!(at_tip[0].attr.above_end, at_tip[1].attr.above_end);
+            }
         }
-        // Dangling census: none for the notch (tangent edge), one per
-        // Λ-tip vertex for the wedge.
-        let dangling = red.null_edges.iter().filter(|r| r.dangling).count();
-        let expected_dangling = if core::ptr::eq(profile, NOTCHED) {
-            0
-        } else {
-            2
-        };
-        assert_eq!(dangling, expected_dangling);
+        // No strut dangles: the notch's tip edge and the wedge's cap
+        // span each stand in a piece with real edges.
+        assert_eq!(red.null_edges.iter().filter(|r| r.dangling).count(), 0);
     }
 }
 

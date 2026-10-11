@@ -26,7 +26,7 @@ feeds a decision, every walk is bounded.
 | Chart-region overlap (Door 2) | `src/chart_region.rs` (`chart_region_overlap`, `declared_pair_overlap`, `world_carrier`, `cylinder_pair_overlap`, `interior_witness`), `src/chart.rs`, `src/chart_iso.rs`, `src/pcurves.rs` |
 | Chart-boundary description | `src/chart_bound.rs` (`ChartBound`, `ChartLoop`, `ChartEdge`, `assembled`, `metred`, `MetredBound::certifies_outside`, `MetredRect`), `src/pcurves.rs` (`chart_boundary`) |
 | Plane splitting | `src/splitting/` (`classify`, `neighborhood`, `rules`, `insert`, `order`, `join`, `finish`, `section`, `containment`), `src/chord_join.rs`, `src/ring_path.rs`, `src/null.rs` |
-| Booleans | `src/boolean/mod.rs` (reduction, classification, `ContactRecords`, `BooleanDeclarations`), `reduce.rs`, `vtxfac.rs`, `sectors.rs`, `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `ops.rs`, `carrier_pair.rs`, `combine.rs`, `voids.rs`, `boxes.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
+| Booleans | `src/boolean/mod.rs` (reduction, classification, `ReductionContacts`, `BooleanDeclarations`), `records.rs` (`ContactRecords`, `Contact`), `reduce.rs`, `vtxfac.rs`, `sectors.rs`, `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `ops.rs`, `carrier_pair.rs`, `combine.rs`, `voids.rs`, `boxes.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
 | Instances, separation | `src/instance.rs` (disjoint graft), `src/separation.rs` (certified no-touch), `src/transform.rs` (rigid placement) |
 | Shell and offset surgery | `src/shell.rs`, `src/replace_face.rs`, `src/offset_general.rs`, `src/offset_together.rs`, `src/offset_axial.rs`, `src/merge_faces.rs` — decisions in `crates/geom-brep/README.md` (OFFSET-DESIGN). `shell` and `shell_open` take a finished body (`AtRestBody`): their thickness is measured into the solid's material. `replace_face_offset`, `replace_faces_offset`, `offset_surfaces_together`, `offset_planes_together` and `offset_charts_together` take construction state (`Body`), tier 2 in and tier 2 out: their argument is a distance along each chart's stored normal, which no face's sense decides, and `shell` runs them over a clone mid-construction. Their result becomes finished only through `AtRestBody::validate`, where an inside-out result refuses `NegativeVolume`. A move that carries a face through its neighbours inverts the body too, and refuses there on the rings it leaves outside the moved face (`RingOutsideOuter`) |
 | Queries, flush detection, read-back | `src/query.rs` (the EXACT/DECIDED atoms and `rim_of`; `crates/verbs/README.md` S1), `src/flush.rs`, `src/readback.rs`, `src/props.rs` (mass properties, `AtRestPolicy`), `src/ray_walk.rs` |
@@ -212,8 +212,12 @@ Escalated, Undeclared, NotCertifiable}`).
   Contradicted by a consumed point (a face vertex, or the whole extent)
   definitely off the other carrier, by aligned senses, or by definite
   separation on the patch. Escalated between.
-- *`Tangent`.* Must verify: first-order tangency along the witnessed
-  locus, the locus on both surfaces within ε. Contradicted by definite
+- *`Tangent`.* Must verify: the two surfaces' separation along the
+  shared normal within ε at every sample (the touch), first-order
+  tangency along the witnessed locus, and the witness within ε of each
+  surface (C7's jet readings). Definite separation and definite
+  crossing are read on the separation; a witness off a surface is a bad
+  witness, not a gap. Contradicted by definite
   normal independence, definite crossing (as far as the sampled κ_rel
   sees it, C1), or definite separation. Bridged: in-band κ_rel
   *including exact zeros at isolated points* (a G1 tube chain's neutral
@@ -354,13 +358,18 @@ refuse by default, with an explicit opt-in subtracting closed-form
 overlap volumes; booleans are unchanged; STEP export drops the
 declaration.
 
-Not implemented: the variant lands with its first consumer. Until then
-the backstop's containment arm decides the nested-instance class by a
+Not implemented: the variant lands with its first consumer. The
+backstop's containment arm decides the nested-instance class by a
 material test — a nested placement sharing no material clears; an
-instance with a vertex inside another's material refuses typed
-(`ValidationError::InstanceInterference`) — and no declaration admits an
-interference. Invariant: an undeclared interference is always a typed
-error; no blanket "disable interference checking" exists.
+instance with a vertex inside another's material is
+`ValidationError::InstanceInterference` — and no declaration admits an
+interference. Between two copies at rest the editor's gate reads that
+verdict, a pierce and a same-side crossing as interference evidence
+(ASSEMBLY A5 *Interference.*), quieted by a one-sided `Gap` assertion at
+the overlap, not by a declaration. Invariant: inside one body an interference is always a
+typed error, and at rest between two copies it is always a finding
+(ASSEMBLY A5 *Interference.*), loud unless an assertion at its site
+quiets it; no blanket "disable interference checking" exists.
 
 **C7 — The join lane.** At the curved coplanar-lump sites (`vtxfac.rs`,
 `recl.rs`) a tangent pair the witness lane decides, declared or not (the
@@ -395,7 +404,7 @@ geometric; mate solving is not here).
 event to vertex-vertex before records exist; at rest nothing refines. So
 `sweep_vertex_edge`, the asymmetric arm of `ee_bound_backed` and the
 edge-on-face bounds read two backings: the event's own `(vertex, edge)`
-record (`VeContact`, which a join writes from the v-v record whose
+record (a vertex–edge pair, which a join writes from the v-v record whose
 vertex it joined away), and `Declared::ve_face_backed`, a declared face
 pair that holds the vertex on one boundary and names a face the edge
 bounds. With neither, the event is a defect
@@ -447,31 +456,37 @@ Confinement is by carrier, not incidence: nothing requires the crossing
 edges to bound the declared faces.
 
 **Three-valued side verdict** (`CrossingSideVerdict`). `OppositeSides`
-backs. `SameSide` refuses, naming the verdict; it is the hook for
-declared interpenetration, which C6 will consume as admission evidence,
-so no bool may stand there (the verdict reaches the refusal only as
-rendered witness text, not a typed field). `Undecided` escalates
+backs. `SameSide` refuses, naming the verdict in the refusal's typed
+`side` field; it is interpenetration evidence, which the assembly layer
+reads as an interference between two copies at rest, so no bool may
+stand there. `Undecided` escalates
 `CensusEscalated`. The side is read by handing both faces' `Face::sense`
 bits to `geom_brep::classify_material_pairing` after `classify_dihedral`
 establishes the smooth precondition; the census is otherwise
 sense-invariant.
 
 **Grandfathered rungs.** `vv_face_backed`, `vf_face_backed`,
-`ve_face_backed`, and the face-pair arms of `ee_bound_backed` and
-`ef_bound_backed` confine by structural incidence only, so they can back
-an event outside the pair's overlap region. Each migrates to the unified
-strength one at a time, measured. The edge-on-face lane cuts an edge
-at every boundary vertex on it and every place a boundary edge crosses
-it, each placed in metres along both (a crossing within the band of an
-arc's end is that end's vertex), and refuses a face whose spiric or
-spline edge it cannot clear, so no cell spans the face's boundary on a
-decided reading. `ef_bound_backed`'s migration is parked with the
-declared-pair machinery D10 retires
-(`work/contacthold/ef-bound-backed-migrates-to-region-confinement.md`).
+`ve_face_backed`, and the face-pair arms of `ee_bound_backed` confine by
+structural incidence only, so they can back an event outside the pair's
+overlap region. Each migrates to the unified strength one at a time,
+measured. `ef_bound_backed`'s face-pair arms hold the unified strength
+(`Declared::vf_face_backed_confined`): a declared pair incident to the
+bound backs it only where the pair passes Door 1 and Door 2 reaches
+`PositiveArea`. Incidence puts the bound in the closed intersection of
+the two regions, the licence the crossing rung reads; a curved pair
+answers nothing there.
+
+The edge-on-face lane cuts an edge at every boundary vertex on it and
+every place a boundary edge crosses it, each placed in metres along
+both (a crossing within the band of an arc's end is that end's vertex),
+and refuses a face whose spiric or spline edge it cannot clear, so no
+cell spans the face's boundary on a decided reading.
 
 **`EdgeFacePierce` stays categorical.** A transverse dive is
-interpenetration until a C6 vocabulary exists; the recourse is
-separating the bodies or making the crossing a boolean's working state.
+interpenetration, and no declaration backs it. Inside one body the
+recourse is separating the solids or making the crossing a boolean's
+working state; at rest between two copies it is interference evidence,
+reported as ASSEMBLY A5's interference finding.
 
 **The `interior_witness` schedule.** A flush seat's trims share a
 boundary, so the region walk refuses `TouchingBoundary`; the witness rung
@@ -497,9 +512,8 @@ left).
 
 ## Open
 
-- The `EdgeFacePierce` arm (issue 973) waits for the C6 interference era.
-- `ef_bound_backed`'s migration is parked
-  (`ef-bound-backed-migrates-to-region-confinement`, D10).
+- Inside one body the `EdgeFacePierce` arm (issue 973) refuses typed;
+  no declaration admits it (C6).
 - The declared-cusp wedge-0/2π arm is defined, unbuilt (941).
 - Sphere, cone and torus cross-description declared pairs refuse
   `ChartDivergence`; the C9 exclusion ring for same-solid distinct-key

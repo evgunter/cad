@@ -306,6 +306,15 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          through `lo_or_refuse`/`hi_or_refuse`/`mid`, which are the guarded ones",
     ),
     (
+        "crates/geom-brep/src/props/spiric.rs",
+        10,
+        9,
+        "the remaining 1 is `trig_range`'s half-width, safe by construction: it reads \
+         `pt` differences of two f64 ends the function has checked finite and ordered, \
+         so no operand can be refused. Every other read sits in a function that refuses \
+         a refused input by name (`trig_of`, `span_rates`, `composite`, `wall_chart`)",
+    ),
+    (
         "crates/geom-brep/src/ssi.rs",
         6,
         0,
@@ -326,7 +335,9 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          a direction (structure, not a bound) and whose norm the probe refuses unless \
          positive finite, and one is `probe_tube_analytic`'s midpoint of the box \
          chain's axis at each end, which selects the axis the end's slice is cut \
-         across (structure)",
+         across (structure), and two are `probe_tube_pair`'s reads of the two \
+         pcurves, their tangents (a direction the probe refuses unless positive \
+         finite) and their end states (where an end's slice is cut, structure)",
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
@@ -341,6 +352,17 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          refuses every term and offset by name before any is centred",
     ),
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
+    (
+        "crates/geom-brep/src/ssi/four.rs",
+        5,
+        4,
+        "the 4 that ask are the Krawczyk test's preconditioner midpoint, image, \
+         containment and miss reads, which refuse a piece unless every image row is \
+         certified. The 1 that does not ask is `mean_value_excludes`' column midpoints, \
+         which select an exclusion direction: any fixed direction is sound, and the form \
+         built along it is read only through `sign`, which refuses an uncertified \
+         enclosure by name",
+    ),
     (
         "crates/geom-brep/src/ssi/one_arc.rs",
         18,
@@ -377,6 +399,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
         "the reads that serve a door, each refusing first: `narrowed_to` (the one body of \
          `clamped_to` and `meet`), `width` and `mag`",
     ),
+    ("crates/geom-core/src/spline/algebra.rs", 1, 1, ""),
     ("crates/geom-core/src/spline/compose/tensor.rs", 4, 4, ""),
     (
         "crates/geom-core/src/sym/signed.rs",
@@ -388,9 +411,8 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          (`is_certified().then_some`), so every bracket read there certifies by \
          construction",
     ),
-    ("crates/geom/src/curves/nurbs.rs", 4, 4, ""),
     ("crates/geom/src/curves/second_derivative.rs", 1, 1, ""),
-    ("crates/topo/src/props/quad_lane.rs", 5, 5, ""),
+    ("crates/topo/src/props/quad_lane.rs", 7, 7, ""),
 ];
 
 /// The repo root: this crate's directory, two levels up.

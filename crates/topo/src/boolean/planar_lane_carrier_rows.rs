@@ -29,7 +29,7 @@ use crate::euler::{FaceSurface, MefSite, MevSite};
 use crate::test_support_fixtures::brick;
 use crate::{Body, FaceKey};
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::{Point3, Tol, Vec3};
 
 /// The Bézier arc's control net, peak height `h`.
@@ -177,8 +177,7 @@ fn spiric_cap() -> (Body<f64>, crate::EdgeKey) {
             p1,
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1: torus,
-                    s2: plane,
+                    pair: SurfacePair::new(torus, plane),
                     witness: spiric.eval(0.0),
                 },
                 carrier: spiric,
@@ -228,7 +227,7 @@ fn brick_face(x: (f64, f64), y: (f64, f64), n: Vec3<f64>) -> (Body<f64>, FaceKey
 fn sweep_a(
     a: &Body<f64>,
     b: &Body<f64>,
-) -> Result<(Body<f64>, crate::boolean::ContactRecords), BooleanError> {
+) -> Result<(Body<f64>, crate::boolean::ReductionContacts), BooleanError> {
     let (mut x, mut y) = (a.clone(), b.clone());
     let mut acc = super::ContactAcc::default();
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
@@ -262,7 +261,7 @@ fn bezier(mx: f64, h: f64, t: f64) -> (f64, f64) {
 /// spline's box is the whole space, a spiric's its whole-period box),
 /// and a carrier with no lane cannot be cleared of any face.
 fn assert_refused(
-    got: Result<(Body<f64>, crate::boolean::ContactRecords), BooleanError>,
+    got: Result<(Body<f64>, crate::boolean::ReductionContacts), BooleanError>,
     edge: crate::EdgeKey,
     b: &Body<f64>,
 ) {

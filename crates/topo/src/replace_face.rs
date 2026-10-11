@@ -219,7 +219,7 @@ use std::sync::Arc;
 
 use geom::SurfaceKind;
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, Nappe};
+use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, Nappe, SurfacePair};
 use geom_core::k_stats::decide;
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
@@ -1433,52 +1433,96 @@ pub fn offset_edge_specs_for_tests<T: Decide + crate::props::AtRestPolicy>(
         .collect()
 }
 
+/// **Each boundary edge's planned verdict** for moving the non-cone
+/// charts `moves` together, each its faces and its distance: the
+/// simultaneous door's mint and `plan_edge` over every chart's boundary,
+/// one entry per edge in the door's order, read as
+/// [`offset_edge_plans_for_tests`] reads one face's. A row about one
+/// edge of a solid moved whole reads it here rather than behind
+/// whichever edge or corner the door answers first.
+///
+/// # Panics
+///
+/// As [`offset_edge_plans_for_tests`], for any chart of `moves`.
 #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
-#[allow(clippy::panic, clippy::expect_used, clippy::type_complexity)]
+#[doc(hidden)]
+#[allow(clippy::type_complexity)]
+pub fn offset_charts_edge_plans_for_tests<T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    moves: &[(&[FaceKey], T)],
+    tol: Tol,
+) -> Vec<(
+    EdgeKey,
+    Result<Option<ReplaceFaceError<T>>, ReplaceFaceError<T>>,
+)> {
+    planned_charts(body, moves, tol)
+        .into_iter()
+        .map(|(edge, plan)| (edge, plan.map(|p| p.refused)))
+        .collect()
+}
+
+#[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
+#[allow(clippy::type_complexity)]
 fn planned_edges<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     face: FaceKey,
     d: T,
     tol: Tol,
 ) -> Vec<(EdgeKey, Result<EdgePlan<T>, ReplaceFaceError<T>>)> {
+    planned_charts(body, &[(&[face], d)], tol)
+}
+
+#[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
+#[allow(clippy::panic, clippy::expect_used, clippy::type_complexity)]
+fn planned_charts<T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    moves: &[(&[FaceKey], T)],
+    tol: Tol,
+) -> Vec<(EdgeKey, Result<EdgePlan<T>, ReplaceFaceError<T>>)> {
     let band = Band::linear(tol).expect("the witness band");
-    let face_data = body.get_face(face).expect("a live face");
-    let old_key = face_data.surface;
-    let old_surface = body.face_surface_linked(face, face_data).clone();
-    assert!(
-        !matches!(old_surface, Surface::Cone { .. }),
-        "a cone's nappe and apex window are the door's"
-    );
-    let new_surface = mint_offset(
-        face,
-        &old_surface,
-        d,
-        band,
-        tol,
-        <T as crate::props::AtRestPolicy>::offset_fit_lane(),
-    )
-    .unwrap_or_else(|e| panic!("the offset mints: {e}"));
-    let faces = [face];
-    let chart = MovedChart {
-        faces: &faces,
-        old_key,
-        shift: apex_shift(&old_surface, d),
-        old_surface,
-        new_surface,
-        nappe: Nappe::Opening,
-        d,
-    };
-    group_boundary(body, &faces)
-        .into_iter()
-        .map(|edge| {
-            let plan = plan_edge(
-                body,
-                edge,
-                core::slice::from_ref(&chart),
+    let charts: Vec<MovedChart<'_, T>> = moves
+        .iter()
+        .map(|&(faces, d)| {
+            let face = faces[0];
+            let face_data = body.get_face(face).expect("a live face");
+            let old_key = face_data.surface;
+            let old_surface = body.face_surface_linked(face, face_data).clone();
+            assert!(
+                !matches!(old_surface, Surface::Cone { .. }),
+                "a cone's nappe and apex window are the door's"
+            );
+            let new_surface = mint_offset(
+                face,
+                &old_surface,
+                d,
                 band,
                 tol,
-                T::section_lane(),
-            );
+                <T as crate::props::AtRestPolicy>::offset_fit_lane(),
+            )
+            .unwrap_or_else(|e| panic!("the offset mints: {e}"));
+            MovedChart {
+                faces,
+                old_key,
+                shift: apex_shift(&old_surface, d),
+                old_surface,
+                new_surface,
+                nappe: Nappe::Opening,
+                d,
+            }
+        })
+        .collect();
+    let mut boundary: Vec<EdgeKey> = Vec::new();
+    for chart in &charts {
+        for edge in group_boundary(body, chart.faces) {
+            if !boundary.contains(&edge) {
+                boundary.push(edge);
+            }
+        }
+    }
+    boundary
+        .into_iter()
+        .map(|edge| {
+            let plan = plan_edge(body, edge, &charts, band, tol, T::section_lane());
             (edge, plan)
         })
         .collect()
@@ -2570,28 +2614,19 @@ fn plan_edge<T: Decide>(
             wrap: false,
             declared: carried_declaration()?,
         },
-        EdgeDescription::Intersection { s1, s2, .. }
-        | EdgeDescription::TangentIntersection { s1, s2, .. }
-            if s1 == old_key || s2 == old_key =>
+        EdgeDescription::Intersection { pair, .. }
+        | EdgeDescription::TangentIntersection { pair, .. }
+            if let Some(other) = pair.other(old_key) =>
         {
-            let other = if s1 == old_key { s2 } else { s1 };
             neighbour_section(other)?;
-            let tangent = matches!(description, EdgeDescription::TangentIntersection { .. });
-            let (n1, n2) = if s1 == old_key {
-                (old_key, s2)
-            } else {
-                (s1, old_key)
-            };
-            if tangent {
+            if matches!(description, EdgeDescription::TangentIntersection { .. }) {
                 EdgeDescriptionSpec::TangentIntersection {
-                    s1: n1,
-                    s2: n2,
+                    pair,
                     witness: new_mid,
                 }
             } else {
                 EdgeDescriptionSpec::Intersection {
-                    s1: n1,
-                    s2: n2,
+                    pair,
                     witness: new_mid,
                 }
             }
@@ -2658,11 +2693,11 @@ fn plan_edge<T: Decide>(
             }
             crate::offset_restate::held_neighbour_image(old_key, c.surface, declared, new_mid)
         }
-        EdgeDescription::Intersection { s1, s2, witness } => {
-            EdgeDescriptionSpec::Intersection { s1, s2, witness }
+        EdgeDescription::Intersection { pair, witness } => {
+            EdgeDescriptionSpec::Intersection { pair, witness }
         }
-        EdgeDescription::TangentIntersection { s1, s2, witness } => {
-            EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+        EdgeDescription::TangentIntersection { pair, witness } => {
+            EdgeDescriptionSpec::TangentIntersection { pair, witness }
         }
     };
 
@@ -2908,17 +2943,23 @@ fn derive_edge<T: Decide>(
         }
         _ => None,
     };
-    let section = match plane_wall {
-        Some((plane, wall)) => {
-            let lane = section_lane.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
-                edge,
-                scalar: T::NAME,
-            })?;
-            lane.section(plane, wall, old, (t0, t1), extent, band)
-                .map_err(esc)?
-                .map(|c| Curve3::Nurbs(Arc::new(c)))
-        }
-        None => crate::offset_derive::section_closed(
+    let spline_pair = new_surface.spline_chart().zip(neighbour.spline_chart());
+    let lane = || {
+        section_lane.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
+            edge,
+            scalar: T::NAME,
+        })
+    };
+    let section = match (plane_wall, spline_pair) {
+        (Some((plane, wall)), _) => lane()?
+            .section(plane, wall, old, (t0, t1), extent, band)
+            .map_err(esc)?
+            .map(|c| Curve3::Nurbs(Arc::new(c))),
+        (None, Some((a, b))) => lane()?
+            .pair(a, b, old, (t0, t1), extent, band)
+            .map_err(esc)?
+            .map(|c| Curve3::Nurbs(Arc::new(c))),
+        (None, None) => crate::offset_derive::section_closed(
             new_surface,
             neighbour,
             old,
@@ -2931,15 +2972,6 @@ fn derive_edge<T: Decide>(
     let (carrier, refused) = match section {
         Ok(carrier) => (carrier, None),
         Err(verdict) => (old.clone(), Some(refused(verdict))),
-    };
-    // A section with a plane names the plane first, whichever seat
-    // either surface held before; any other pair keeps the neighbour's
-    // seat.
-    let (s1, s2) = match (plane_wall, description) {
-        (Some(_), _) if matches!(neighbour, Surface::Plane { .. }) => (other_key, old_key),
-        (Some(_), _) => (old_key, other_key),
-        (None, EdgeDescription::Intersection { s2, .. }) if *s2 == old_key => (other_key, old_key),
-        (None, _) => (old_key, other_key),
     };
     // A derived spline section is a new curve on its own domain, running
     // with the old carrier: the old edge's parameters name nothing on
@@ -2956,7 +2988,10 @@ fn derive_edge<T: Decide>(
     Ok(EdgePlan {
         edge,
         spec: EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Intersection { s1, s2, witness },
+            description: EdgeDescriptionSpec::Intersection {
+                pair: SurfacePair::new(old_key, other_key),
+                witness,
+            },
             carrier,
             param_start: t0,
             param_end: t1,
@@ -3162,17 +3197,13 @@ pub(crate) fn remap_description<T: Real>(
 ) -> EdgeDescriptionSpec<T> {
     let map = |k: SurfaceKey| if k == old { new } else { k };
     match description {
-        EdgeDescriptionSpec::Intersection { s1, s2, witness } => {
-            EdgeDescriptionSpec::Intersection {
-                s1: map(s1),
-                s2: map(s2),
-                witness,
-            }
-        }
-        EdgeDescriptionSpec::TangentIntersection { s1, s2, witness } => {
+        EdgeDescriptionSpec::Intersection { pair, witness } => EdgeDescriptionSpec::Intersection {
+            pair: pair.map(map),
+            witness,
+        },
+        EdgeDescriptionSpec::TangentIntersection { pair, witness } => {
             EdgeDescriptionSpec::TangentIntersection {
-                s1: map(s1),
-                s2: map(s2),
+                pair: pair.map(map),
                 witness,
             }
         }
@@ -3357,13 +3388,13 @@ fn plan_reanchors<T: Decide>(
                                     edge,
                                     scalar: T::NAME,
                                 })?;
-                            let foot =
-                                lane.carrier_foot(spline, point, t_old).map_err(|error| {
+                            let (t, at) =
+                                carrier_foot(lane, spline, point, t_old).map_err(|error| {
                                     ReplaceFaceError::ReanchorInconclusive { edge, error }
                                 })?;
                             let (lo, hi) = spline.domain();
-                            let clamped = foot.t == lo || foot.t == hi;
-                            (T::from_f64(foot.t), clamped.then_some(foot.t))
+                            let clamped = at == lo || at == hi;
+                            (t, clamped.then_some(at))
                         }
                         Curve3::Line { .. }
                         | Curve3::Circle { .. }
@@ -3468,17 +3499,11 @@ fn plan_reanchors<T: Decide>(
         // read at the new midpoint.
         let mid = carrier.mid_point(t0, t1);
         description = match description {
-            EdgeDescriptionSpec::Intersection { s1, s2, .. } => EdgeDescriptionSpec::Intersection {
-                s1,
-                s2,
-                witness: mid,
-            },
-            EdgeDescriptionSpec::TangentIntersection { s1, s2, .. } => {
-                EdgeDescriptionSpec::TangentIntersection {
-                    s1,
-                    s2,
-                    witness: mid,
-                }
+            EdgeDescriptionSpec::Intersection { pair, .. } => {
+                EdgeDescriptionSpec::Intersection { pair, witness: mid }
+            }
+            EdgeDescriptionSpec::TangentIntersection { pair, .. } => {
+                EdgeDescriptionSpec::TangentIntersection { pair, witness: mid }
             }
             other => other,
         };
@@ -3560,6 +3585,19 @@ fn gap_within_eps<T: Decide>(gap: T, tol: Tol, band: Band) -> Result<bool, Repla
     .map_err(|source| ReplaceFaceError::Escalated { source })
 }
 
+/// The parameter of `point`'s foot on the spline `carrier`, nearest
+/// `seed`, in `T` and as the lane measured it: Newton's `f64`, so it
+/// enters as a computed value.
+fn carrier_foot<T: Decide>(
+    lane: geom_brep::NurbsLane<T>,
+    carrier: &NurbsCurve3<T>,
+    point: Point3<T>,
+    seed: T,
+) -> Result<(T, f64), geom::ProjectionInconclusive> {
+    let foot = lane.carrier_foot(carrier, point, seed)?;
+    Ok((T::from_computed(foot.t), foot.t))
+}
+
 /// **A corner's root along the spline carrier of `edge`**, nearest
 /// `seed`: the lane's isolated root, or the carrier's near end where
 /// the surface lies past it within ε — ε is what a corner is held to on
@@ -3587,21 +3625,35 @@ fn spline_corner_root<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<Result<T, crate::offset_derive::CornerVerdict<T>>, ReplaceFaceError<T>> {
+    let root = lane.root(surface, spline, seed, extent, band);
+    corner_of_root(root, (vertex, edge, derived), d, band, tol)
+}
+
+/// [`spline_corner_root`]'s reading of the lane's verdict. The lane
+/// measures in `f64`, so its root and its gap enter as computed values.
+#[allow(clippy::type_complexity)]
+fn corner_of_root<T: Decide>(
+    root: Result<crate::offset_derive::SplineRoot, crate::offset_derive::CornerVerdict<T>>,
+    (vertex, edge, derived): (VertexKey, EdgeKey, bool),
+    d: T,
+    band: Band,
+    tol: Tol,
+) -> Result<Result<T, crate::offset_derive::CornerVerdict<T>>, ReplaceFaceError<T>> {
     use crate::offset_derive::SplineRoot;
-    match lane.root(surface, spline, seed, extent, band) {
-        Ok(SplineRoot::At(t)) => Ok(Ok(T::from_f64(t))),
+    match root {
+        Ok(SplineRoot::At(t)) => Ok(Ok(T::from_computed(t))),
         Ok(SplineRoot::Short {
             end,
             near_gap,
             near: true,
-        }) if gap_within_eps(T::from_f64(near_gap), tol, band)? => Ok(Ok(T::from_f64(end))),
+        }) if gap_within_eps(T::from_computed(near_gap), tol, band)? => Ok(Ok(T::from_f64(end))),
         Ok(SplineRoot::Short {
             near_gap,
             near: true,
             ..
         }) => Err(ReplaceFaceError::ReanchorPastCarrierEnd {
             edge,
-            gap: T::from_f64(near_gap),
+            gap: T::from_computed(near_gap),
         }),
         Ok(SplineRoot::Short { near: false, .. }) => {
             Err(ReplaceFaceError::ReanchorCollapse { edge, offset: d })
@@ -4031,8 +4083,8 @@ fn read_ends<T: Decide>(
             let (lo, hi) = spline.domain();
             let (lo, hi) = seeds.unwrap_or((T::from_f64(lo), T::from_f64(hi)));
             let foot = |p, seed| {
-                lane.carrier_foot(spline, p, seed)
-                    .map(|f| T::from_f64(f.t))
+                carrier_foot(lane, spline, p, seed)
+                    .map(|(t, _)| t)
                     .map_err(|error| ReplaceFaceError::ReanchorInconclusive { edge, error })
             };
             (foot(p_start, lo)?, foot(p_end, hi)?)
@@ -4681,7 +4733,7 @@ mod torn_body_rows {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod read_ends_rows {
     use geom::Curve3;
-    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
     use geom_core::{Band, Point3, Tol, Vec3};
 
     use super::{EdgePlan, ReplaceFaceError, read_ends};
@@ -4693,8 +4745,7 @@ mod read_ends_rows {
             edge: EdgeKey::default(),
             spec: EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1: SurfaceKey::default(),
-                    s2: SurfaceKey::default(),
+                    pair: SurfacePair::new(SurfaceKey::default(), SurfaceKey::default()),
                     witness: Point3::origin(),
                 },
                 carrier,
@@ -4952,5 +5003,129 @@ mod move_mapped_endpoint_rows {
         };
         assert_eq!((a.x, a.y, b.x, b.y), (0.5, -0.25, 4.0, 2.0));
         assert!(m.range.is_whole());
+    }
+}
+
+#[cfg(test)]
+mod from_computed_rows {
+    #![allow(clippy::unwrap_used, clippy::panic)]
+    use geom::NurbsCurve3;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Point3, Real, Tol};
+
+    use super::{ReplaceFaceError, carrier_foot, corner_of_root};
+    use crate::entity::{EdgeKey, VertexKey};
+    use crate::offset_derive::{CornerVerdict, SplineRoot};
+    use crate::revalue_pin::{Revalued, S, revalued};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// The corner a lane verdict reads as.
+    fn corner(root: SplineRoot) -> Result<Result<S, CornerVerdict<S>>, ReplaceFaceError<S>> {
+        corner_of_root(
+            Ok(root),
+            (VertexKey::default(), EdgeKey::default(), false),
+            S::from_f64(0.1),
+            band(),
+            Tol::witness(),
+        )
+    }
+
+    /// The lane's root enters as a computed value: a root the lane
+    /// measures where the parameter moves it does not re-value to the
+    /// root `p0` measured.
+    #[test]
+    fn the_lanes_root_enters_as_computed() {
+        let found = revalued([0.5, 0.5 + 1.0e-3], |p, _| {
+            vec![corner(SplineRoot::At(p)).unwrap().unwrap()]
+        });
+        assert_eq!(
+            found,
+            Revalued {
+                kept: 0,
+                opaque: 1,
+                laundered: 0,
+            }
+        );
+    }
+
+    /// A short root's near gap enters as a computed value, both where ε
+    /// takes the end (`offset_vertex_agreement` decides it) and where it
+    /// refuses with the gap.
+    #[test]
+    fn a_short_roots_gap_enters_as_computed() {
+        let short = |near_gap| SplineRoot::Short {
+            end: 1.0,
+            near_gap,
+            near: true,
+        };
+        let eps = band().zero();
+        let found = revalued([0.5 * eps, 0.5 * eps * (1.0 + 1.0e-3)], |p, _| {
+            let end = corner(short(p)).unwrap().unwrap();
+            assert_eq!(end.value, 1.0, "a gap within ε takes the end");
+            Vec::new()
+        });
+        assert_eq!(
+            found,
+            Revalued {
+                kept: 0,
+                opaque: 1,
+                laundered: 0,
+            },
+            "ε decides the gap as the lane measured it"
+        );
+        let past = 2.0 * (band().zero() + band().escalate());
+        let found = revalued([past, past * (1.0 + 1.0e-3)], |p, _| {
+            match corner(short(p)) {
+                Err(ReplaceFaceError::ReanchorPastCarrierEnd { gap, .. }) => vec![gap],
+                other => panic!("a gap past the band refuses with it, got {other:?}"),
+            }
+        });
+        assert_eq!(
+            found,
+            Revalued {
+                kept: 0,
+                opaque: 2,
+                laundered: 0,
+            },
+            "the decision and the refusal both carry the gap as the lane measured it"
+        );
+    }
+
+    /// A carrier foot enters as a computed value: the lane's foot of a
+    /// point the parameter moves along a spline segment at `Sym<f64>`
+    /// does not re-value to the parameter `p0` measured.
+    #[test]
+    fn a_carrier_foot_enters_as_computed() {
+        let found = revalued([-0.25, -0.25 + 1.0e-3], |_, x| {
+            let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+            let segment = NurbsCurve3::new(
+                kv,
+                [Point3::new(-1.0, 0.0, 0.0), Point3::origin()]
+                    .map(|p| p.map(S::from_f64))
+                    .to_vec(),
+                vec![1.0; 2],
+            )
+            .unwrap();
+            let point = Point3::new(x, S::from_f64(0.125), S::zero());
+            let (t, _) = carrier_foot(
+                geom_brep::NurbsLane::certified(),
+                &segment,
+                point,
+                S::from_f64(0.5),
+            )
+            .unwrap();
+            vec![t]
+        });
+        assert_eq!(
+            found,
+            Revalued {
+                kept: 0,
+                opaque: 1,
+                laundered: 0,
+            }
+        );
     }
 }

@@ -47,7 +47,7 @@ use editor_core::{
     RecipeNodeId, SlotId, StepArg, VarName, evaluate, persist,
 };
 use fixture::digest::digest;
-use fixture::{ang, axis_in_plane, frame, insert, len, scl, square, step, tol, xy_frame};
+use fixture::{ang, frame, insert, len, revolve_about, scl, square, step, tol, xy_frame};
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use topo::{Body, BooleanError, FaceKey};
 
@@ -174,12 +174,12 @@ fn both_sweeps() -> BothSweeps {
         loops: vec![LoopProgram::polygon(square(0.0, -2.0, 0.5)).unwrap()],
         ids: Vec::new(),
     }));
-    let axis = r.insert(axis_in_plane(rev_frame, (0.0, 0.0), (1.0, 0.0)));
-    let revolved = r.insert(Node::Revolve {
-        profile: rev_profile.into(),
-        axis: axis.into(),
-        angle: ang(PI / 2.0),
-    });
+    let revolved = r.insert(revolve_about(
+        rev_profile,
+        (0.0, 0.0),
+        (1.0, 0.0),
+        ang(PI / 2.0),
+    ));
     BothSweeps {
         snapshot,
         doc: r.doc,
@@ -332,14 +332,38 @@ fn both_sweeps_evaluate_in_one_document() {
 /// RE-BLESSED, `kitchen_sink` only, when a revolve's turned vertex came
 /// to turn its offset from the axis: 8 of its points moved by at most 2
 /// ulps (`m10_p_fence`'s header has the dump), and no name table did.
+///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`), re-taken on the tree holding every
+/// change above: the digest feeds each edge's description `Debug`,
+/// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
+/// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
+/// pins and `m5_pr8_bvh_diff` held.
+///
+/// RE-BLESSED, `cut_cylinder` only, when a split's section face came to
+/// take its chart axis as its first chord projected into the plane: the
+/// tilted section's `u_ref` moved by one ulp in `z`, and nothing else did.
+///
+/// RE-BLESSED, `kitchen_sink` only, for INTENT stage 3 A (a revolve's
+/// axis is a line on the node): its in-plane axis datum left, so every
+/// later node id re-mints and the name table with it. No outcome or
+/// point moved: the id-free fence with the pointless datum outcomes
+/// dropped is equal on the base tree and this one. Re-taken merged over
+/// FORK-DM4 unit 1 (PR 4527).
+///
+/// RE-BLESSED, `kitchen_sink` only, merging main's INTENT stage 3 A
+/// re-pin with the at-rest records' cell-pair shape: each moved it
+/// alone, and the merged tree is neither value. `m4_pr8_corpus`'s exact
+/// mass pins, `m5_pr8_bvh_diff` and `m10_p_fence`'s id-masked geometry
+/// held.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x3fb1_d208_1d37_5a93),
-        ("corner_table", 0xdb95_b8fc_06b7_a993),
-        ("cut_cylinder", 0x4318_92f9_c696_0fd1),
-        ("boss_union", 0x05b4_17a8_c844_6429),
-        ("kitchen_sink", 0x00a8_c564_60a9_8611),
+        ("die", 0x1fd3_ed56_8ade_6767),
+        ("corner_table", 0x291f_62a4_e9fb_3953),
+        ("cut_cylinder", 0xa6c1_1622_9a6f_5245),
+        ("boss_union", 0x1e5f_b4fd_e686_28d9),
+        ("kitchen_sink", 0x5447_b24c_1bdd_7c39),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -454,14 +478,9 @@ fn a_revolve_over_an_on_axis_edge_mints_no_wall_for_it() {
             ids: Vec::new(),
         }),
     );
-    let (doc, axis) = insert(doc, axis_in_plane(plane, (0.0, 0.0), (1.0, 0.0)));
     let (doc, solid) = insert(
         doc,
-        Node::Revolve {
-            profile: profile.into(),
-            axis: axis.into(),
-            angle: ang(2.0 * PI),
-        },
+        revolve_about(profile, (0.0, 0.0), (1.0, 0.0), ang(2.0 * PI)),
     );
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);
@@ -875,10 +894,8 @@ fn one_declared_radius_pinches_at_the_germ_as_its_kernel_twin_does() {
     let (doc, b) = spin(doc, b, [0.0, 1.0, 0.0], PHI);
     let (doc, union) = insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );

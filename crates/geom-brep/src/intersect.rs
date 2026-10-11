@@ -379,21 +379,37 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    extensions into the bound or poison — loud and typed, never \
                    silent",
         },
-        // ---- Nurbs × the rest: the universal general-rung route. ----
-        (Nurbs, Cylinder | Cone | Sphere | Torus | Nurbs)
-        | (Cylinder | Cone | Sphere | Torus, Nurbs) => PairRoute {
+        // ---- Rung 3, IMPLEMENTED: the ℝ⁴ trace on two charts, one
+        // complete operation read at a seed or whole. ----
+        (Nurbs, Nurbs) => PairRoute {
             rung: Rung::General,
-            implemented: false,
-            note: "a NURBS operand routes to the general rung with the ℝ⁴ \
-                   PARAMETRIC-PAIR trace shape; the general-rung marcher traces \
-                   it and the tensor-composite sup bound that certifies \
-                   plane×NURBS is the substrate these arms reuse. What is \
-                   missing is the rest of the CERTIFICATE: the analytic partner \
-                   needs its chart-form uniqueness tube (written for the plane), \
-                   and NURBS×NURBS needs both charts' tube plus its own \
-                   exhaustiveness/seeding story — arms retire one at a time, each \
-                   with its proof",
+            implemented: true,
+            note: "traced in ℝ⁴ on the PARAMETRIC PAIR (3×4 SVD) by \
+                   geom_brep::ssi::Section, one complete operation over the product \
+                   of the two knot rectangles: a boundary pass over every side of \
+                   both rectangles, branches traced between its crossings and from \
+                   the subdivision's seeds, each certified by both charts' \
+                   tensor-composite sup bounds and the TWO-CHART uniqueness tube, \
+                   and the accounting of every cell; a consumer reads the branch \
+                   through a seed (Section::branch_at) or all of them \
+                   (Section::all). A section touching or running along a side, or \
+                   through a corner, of either rectangle refuses at the boundary \
+                   pass — loud and typed, never silent",
         },
+        // ---- Nurbs × a curved analytic: the general-rung route. ----
+        (Nurbs, Cylinder | Cone | Sphere | Torus) | (Cylinder | Cone | Sphere | Torus, Nurbs) => {
+            PairRoute {
+                rung: Rung::General,
+                implemented: false,
+                note: "a NURBS operand routes to the general rung with the ℝ⁴ \
+                       PARAMETRIC-PAIR trace shape; the general-rung marcher traces \
+                       it and the tensor-composite sup bound that certifies \
+                       plane×NURBS is the substrate these arms reuse. What is \
+                       missing is the rest of the CERTIFICATE: the analytic partner \
+                       needs its chart-form uniqueness tube (written for the plane) \
+                       — arms retire one at a time, each with its proof",
+            }
+        }
         // ---- Approx: an intersection operand is its fit, as it is for
         // evaluation, boxes and pcurves. The fit's distance from its
         // description is the face's claim (O3, re-derived at rest by
@@ -441,8 +457,9 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 ///
 /// Every other implemented pair serves every pose: plane×plane,
 /// plane×cylinder, plane×sphere, sphere×sphere, and the general-rung
-/// arms that march (cylinder×sphere, and plane×NURBS with plane×Approx
-/// over its fit). An
+/// arms that march (cylinder×sphere, plane×NURBS with plane×Approx
+/// over its fit, and NURBS×NURBS with every Approx pairing over its
+/// fits). An
 /// unimplemented pair answers [`route`] unchanged. The match is
 /// exhaustive with no wildcard, as [`route`]'s is, so a kind added to
 /// the table is a compile-time visit here too.
@@ -509,15 +526,16 @@ pub fn route_pose<T: Decide>(
         (Plane, Plane | Cylinder | Sphere | Nurbs | Approx)
         | (Cylinder | Sphere | Nurbs | Approx, Plane)
         | (Sphere, Sphere | Cylinder)
-        | (Cylinder, Sphere) => Ok(()),
+        | (Cylinder, Sphere)
+        | (Nurbs | Approx, Nurbs | Approx) => Ok(()),
         // Unimplemented at the kind level: `route`'s answer stands.
         (Cylinder, Torus | Nurbs)
         | (Torus, Cylinder | Cone | Sphere | Torus | Nurbs)
         | (Cone, Cone | Sphere | Torus | Nurbs)
         | (Sphere, Cone | Torus | Nurbs)
-        | (Nurbs, Cylinder | Cone | Sphere | Torus | Nurbs)
-        | (Approx, Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
-        | (Cylinder | Cone | Sphere | Torus | Nurbs, Approx) => Ok(()),
+        | (Nurbs, Cylinder | Cone | Sphere | Torus)
+        | (Approx, Cylinder | Cone | Sphere | Torus)
+        | (Cylinder | Cone | Sphere | Torus, Approx) => Ok(()),
     };
     let refused = |note| {
         Ok(PairRoute {
@@ -869,17 +887,40 @@ pub fn plane_cylinder_section<T: Decide>(
     reach: &Reach<T>,
     band: Band,
 ) -> Result<PlaneCylinderSection<T>, SectionError> {
+    plane_cylinder_section_read(plane, cylinder, reach, band).map(|(section, _)| section)
+}
+
+/// [`plane_cylinder_section`], with `pc_axis_plane_parallel`'s verdict
+/// at `reach`: Zero on the rulings' lane, definite on the conic lane. It
+/// is the one row that reads the reach and parts the two lanes, for a
+/// caller that reads the section at two reaches bracketing what it
+/// consumes and must say what the two readings were where they part.
+///
+/// # Errors
+///
+/// As [`plane_cylinder_section`].
+pub fn plane_cylinder_section_read<T: Decide>(
+    plane: &Surface<T>,
+    cylinder: &Surface<T>,
+    reach: &Reach<T>,
+    band: Band,
+) -> Result<(PlaneCylinderSection<T>, Decided), SectionError> {
     let (pc, cyl_u) = plane_cylinder_data(plane, cylinder)?;
-    if let Some(ruled) = plane_cylinder_ruled(&pc, reach, band).map_err(SectionError::Escalated)? {
-        return Ok(match ruled {
-            RuledSection::ParallelLines { l1, l2 } => {
-                PlaneCylinderSection::ParallelLines { l1, l2 }
-            }
-            RuledSection::TangentLine { origin, dir, .. } => {
-                PlaneCylinderSection::TangentLine(Curve3::Line { origin, dir })
-            }
-            RuledSection::Empty => PlaneCylinderSection::Empty,
-        });
+    let (parallel, ruled) =
+        plane_cylinder_ruled_read(&pc, reach, band).map_err(SectionError::Escalated)?;
+    if let Some(ruled) = ruled {
+        return Ok((
+            match ruled {
+                RuledSection::ParallelLines { l1, l2 } => {
+                    PlaneCylinderSection::ParallelLines { l1, l2 }
+                }
+                RuledSection::TangentLine { origin, dir, .. } => {
+                    PlaneCylinderSection::TangentLine(Curve3::Line { origin, dir })
+                }
+                RuledSection::Empty => PlaneCylinderSection::Empty,
+            },
+            parallel,
+        ));
     }
     let PlaneCylinder { q, n, o, a, r } = pc;
     // Bounded cut: rim circle vs tilted ellipse.
@@ -888,24 +929,25 @@ pub fn plane_cylinder_section<T: Decide>(
     let sin_norm = sin_vec.norm();
     let t_star = (q - o).dot(n) / c;
     let center = o + a * t_star;
-    match decide("pc_rim_alignment", Margin::levered(sin_norm, r), band)
+    let section = match decide("pc_rim_alignment", Margin::levered(sin_norm, r), band)
         .map_err(SectionError::Escalated)?
     {
-        Sign::Zero => Ok(PlaneCylinderSection::Rim(Curve3::Circle {
+        Sign::Zero => PlaneCylinderSection::Rim(Curve3::Circle {
             center,
             axis: a,
             radius: r,
             u_ref: cyl_u,
-        })),
+        }),
         // The margin is a norm: Negative is unreachable; both
         // definite verdicts take the tilted lane.
         Sign::Positive | Sign::Negative => {
             let v_minor = sin_vec / sin_norm;
             let u_major = v_minor.cross(n);
             let e = Curve3::ellipse(center, n, r / c.abs(), r, u_major, band)?;
-            Ok(PlaneCylinderSection::TiltedEllipse(e))
+            PlaneCylinderSection::TiltedEllipse(e)
         }
-    }
+    };
+    Ok((section, parallel))
 }
 
 /// The axis-in-plane answers of [`plane_cylinder_section`]: its
@@ -937,6 +979,15 @@ pub(crate) fn plane_cylinder_ruled<T: Decide>(
     reach: &Reach<T>,
     band: Band,
 ) -> Result<Option<RuledSection<T>>, Indeterminate> {
+    plane_cylinder_ruled_read(pc, reach, band).map(|(_, ruled)| ruled)
+}
+
+/// [`plane_cylinder_ruled`], with `pc_axis_plane_parallel`'s verdict.
+fn plane_cylinder_ruled_read<T: Decide>(
+    pc: &PlaneCylinder<T>,
+    reach: &Reach<T>,
+    band: Band,
+) -> Result<(Decided, Option<RuledSection<T>>), Indeterminate> {
     let &PlaneCylinder { q, n, o, a, r } = pc;
     let o = reach.foot_on(o, a);
     let c = a.dot(n);
@@ -947,9 +998,11 @@ pub(crate) fn plane_cylinder_ruled<T: Decide>(
     let hinge = o - n * gap_signed;
     let cos = (T::one() - c.powi(2)).max(T::zero()).sqrt();
     let lever = reach.hinge_lever(o, -(gap_signed * c)) + reach.turn_lever(hinge, (n, a), c, cos);
-    match decide("pc_axis_plane_parallel", Margin::levered(c, lever), band)? {
-        Sign::Zero => {}
-        Sign::Positive | Sign::Negative => return Ok(None),
+    // A tangent line's Zero is one only with this one, so its margin
+    // stands for both.
+    let parallel = decide_reported("pc_axis_plane_parallel", Margin::levered(c, lever), band)?;
+    if parallel.sign != Sign::Zero {
+        return Ok((parallel, None));
     }
     // A consumed point of the ruling stands off the plane by the tilt
     // levered from the hinge, and the wall stands `r − |gap|` off the
@@ -981,11 +1034,11 @@ pub(crate) fn plane_cylinder_ruled<T: Decide>(
         (Sign::Zero, gap) => RuledSection::TangentLine {
             origin: o - n * gap_signed,
             dir: a,
-            gap,
+            gap: gap.jointly(parallel.margin),
         },
         (Sign::Negative, _) => RuledSection::Empty,
     };
-    Ok(Some(section))
+    Ok((parallel, Some(section)))
 }
 
 /// A plane×cylinder pair: the plane's origin `q` and unit normal `n`,
@@ -1548,7 +1601,21 @@ pub fn cylinder_axes_parallel<T: Decide>(
     line2: (Point3<T>, Vec3<T>),
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    decide(
+    cylinder_axes_parallel_reported(reach, line1, line2, band).map(|d| d.sign)
+}
+
+/// [`cylinder_axes_parallel`], keeping the reading it decided on.
+///
+/// # Errors
+///
+/// As [`cylinder_axes_parallel`].
+pub fn cylinder_axes_parallel_reported<T: Decide>(
+    reach: &Reach<T>,
+    line1: (Point3<T>, Vec3<T>),
+    line2: (Point3<T>, Vec3<T>),
+    band: Band,
+) -> Result<Decided, Indeterminate> {
+    decide_reported(
         "cc_axes_parallel",
         Margin::levered(
             line1.1.cross(line2.1).norm(),
@@ -1991,15 +2058,17 @@ pub fn cylinder_sphere_section<T: Decide>(
 /// outside the conic inventory (R1).
 #[derive(Clone, Debug)]
 pub enum PlaneConeSection<T: Real> {
-    /// Apex on the plane, plane cutting inside the cone: two generator
-    /// lines through the apex.
+    /// Apex on the plane, plane cutting inside the cone, and the real
+    /// plane's section starting within the zero band of the apex on both
+    /// nappes: two generator lines through the apex.
     ApexLinePair {
         /// The generator at azimuth `φ + δ`.
         l1: Curve3<T>,
         /// The generator at azimuth `φ − δ`.
         l2: Curve3<T>,
     },
-    /// Apex on the plane, plane tangent along one generator —
+    /// Apex on the plane, plane tangent along one generator, and the
+    /// real plane's section starting within the zero band of the apex —
     /// classification data, not a constructible edge (C7 / M5 PR 9).
     ApexTangentLine(Curve3<T>),
     /// Apex on the plane, plane through it clearing the cone, and the
@@ -2045,14 +2114,32 @@ pub enum PlaneConeSection<T: Real> {
 ///    discriminant, here at its degenerate column: positive exactly when
 ///    the plane dips inside the cone), read with step 1's apex gap
 ///    beside it ([`decide_across`]; `pn_apex_section_floor` decides the
-///    definite side): Positive ⇒
-///    [`PlaneConeSection::ApexLinePair`], Zero ⇒
-///    [`PlaneConeSection::ApexTangentLine`], Negative ⇒ step 2a.
+///    definite side): Positive ⇒ step 2b, Zero ⇒ step 2c, Negative ⇒
+///    step 2a.
 ///
-///    2a. `pn_apex_point_reach` — margin `|δ|/|D|` (δ the apex gap of
-///    step 1), the farthest the real plane's ellipse reaches from the
-///    apex: Zero ⇒ [`PlaneConeSection::ApexPoint`]; Positive ⇒ the
-///    ellipse is the section, steps 3–4.
+///    **Where the real plane's section lies from the apex.** A unit
+///    generator `g` meets the real plane `−δ/(g·n)` from the apex (δ
+///    the apex gap of step 1), on the nappe the sign names, and `g·n`
+///    runs over `[−D, M]` with `M = sin α·‖axis×normal‖ +
+///    cos α·|axis·normal|` (mirrored where `axis·normal < 0`). So where
+///    `D > 0` one nappe's section starts `|δ|/M` from the apex and the
+///    other's `|δ|/D`, with `D ≤ M`; where `D < 0` the section is an
+///    ellipse on one nappe, whose farthest point stands `|δ|/|D|` off.
+///    Each step below decides one of these distances as a magnitude,
+///    levered by `|δ|`: Zero serves the apex outcome, Positive leaves
+///    the section to steps 3–4.
+///
+///    2a. `pn_apex_point_reach` — margin `|δ|/|D|`, the farthest the
+///    ellipse reaches: Zero ⇒ [`PlaneConeSection::ApexPoint`].
+///
+///    2b. `pn_apex_pair_reach` — margin `|δ|/D`: the pair runs through
+///    the apex on both nappes, so it is bounded by the farther start.
+///    Zero ⇒ [`PlaneConeSection::ApexLinePair`].
+///
+///    2c. `pn_apex_tangent_reach` — margin `|δ|/M`: the tangent
+///    generator stands in for a touching whose clearing nappe may carry
+///    no section, so it is bounded by the nearer start. Zero ⇒
+///    [`PlaneConeSection::ApexTangentLine`].
 /// 3. `pn_axis_normal` — margin `‖axis×normal‖·arm`, arm the larger of
 ///    the would-be circle's radius `|δ/c|·tan α` (δ the apex's distance
 ///    from the plane, `c = axis·normal`) and `extent`, the reach over
@@ -2158,67 +2245,60 @@ pub fn plane_cone_section<T: Decide>(
             band,
         )
         .map_err(SectionError::Escalated)?;
-        match verdict {
-            Sign::Positive | Sign::Zero => {
-                let v_ref = a.cross(cone_u);
-                let (nu, nv) = (cone_u.dot(n), v_ref.dot(n));
-                let phi = nv.atan2(nu);
-                // Clamped acos argument (outward-rounding can push
-                // it a hair past ±1 at the tangency boundary —
-                // min/max are Real lattice ops, evaluation-legal).
-                let arg = ((T::zero() - cos_a * c) / (sin_a * s))
-                    .min(T::one())
-                    .max(T::zero() - T::one());
-                let delta = arg.acos();
-                let gen_at = |u: T| -> Curve3<T> {
-                    let (su, cu) = u.sin_cos();
-                    Curve3::Line {
-                        origin: apex,
-                        dir: a * cos_a + (cone_u * cu + v_ref * su) * sin_a,
-                    }
-                };
-                return if verdict == Sign::Zero {
-                    Ok(PlaneConeSection::ApexTangentLine(gen_at(phi + delta)))
-                } else {
-                    Ok(PlaneConeSection::ApexLinePair {
-                        l1: gen_at(phi + delta),
-                        l2: gen_at(phi - delta),
-                    })
-                };
+        // Where the real plane's section starts or reaches from the apex
+        // (step 2's doc): the apex outcome stands in for it only within
+        // the zero band.
+        let (name, slope) = match verdict {
+            Sign::Positive => ("pn_apex_pair_reach", discr),
+            Sign::Zero => ("pn_apex_tangent_reach", sin_a * s + cos_a * c.abs()),
+            Sign::Negative => ("pn_apex_point_reach", discr.abs()),
+        };
+        let reach = Margin::levered(T::one() / slope, apex_gap.abs());
+        if decide_magnitude(name, reach, band).map_err(SectionError::Escalated)? == Magnitude::Zero
+        {
+            if verdict == Sign::Negative {
+                return Ok(PlaneConeSection::ApexPoint(apex));
             }
-            // The plane through the apex clears the cone, but the real
-            // plane, `apex_gap` off it, cuts the ellipse the off-apex
-            // lane builds: on a generator `g` it lies `|δ|/|g·n|` from
-            // the apex, and `min |g·n| = cos α·|c| − sin α·s = −D`
-            // (`D` definitely negative here), so the section's farthest
-            // point stands `|δ|/|D|` from the apex and every other is
-            // nearer. The apex point stands in for that ellipse only
-            // where this reach is inside the zero band; past it, the
-            // ellipse is the section, built below.
-            Sign::Negative => {
-                let reach = Margin::levered(T::one() / discr.abs(), apex_gap.abs());
-                if decide_magnitude("pn_apex_point_reach", reach, band)
-                    .map_err(SectionError::Escalated)?
-                    == Magnitude::Zero
-                {
-                    return Ok(PlaneConeSection::ApexPoint(apex));
+            let v_ref = a.cross(cone_u);
+            let (nu, nv) = (cone_u.dot(n), v_ref.dot(n));
+            let phi = nv.atan2(nu);
+            // Clamped acos argument (outward-rounding can push
+            // it a hair past ±1 at the tangency boundary —
+            // min/max are Real lattice ops, evaluation-legal).
+            let arg = ((T::zero() - cos_a * c) / (sin_a * s))
+                .min(T::one())
+                .max(T::zero() - T::one());
+            let delta = arg.acos();
+            let gen_at = |u: T| -> Curve3<T> {
+                let (su, cu) = u.sin_cos();
+                Curve3::Line {
+                    origin: apex,
+                    dir: a * cos_a + (cone_u * cu + v_ref * su) * sin_a,
                 }
-            }
+            };
+            return Ok(if verdict == Sign::Zero {
+                PlaneConeSection::ApexTangentLine(gen_at(phi + delta))
+            } else {
+                PlaneConeSection::ApexLinePair {
+                    l1: gen_at(phi + delta),
+                    l2: gen_at(phi - delta),
+                }
+            });
         }
     }
-    // The section of a plane off the apex, or of one whose ellipse
-    // reaches past the band from it (step 2a): axis-normal circle,
-    // else the conic the tilt makes. A Zero here stands the circle in
-    // for the plane's true section, so the tilt's sine is levered
-    // at the longest reach over which that stand-in is read: the
-    // circle's own radius, and the extent the conic type is
-    // metered at. Tilting the plane by `s` about the circle's
-    // centre moves it by at most `s` times the reach, so a Zero
-    // at the larger of the two keeps every point the section is
-    // read at within the zero band. Both are read off the plane's
-    // NORMAL, never its stored origin: a plane along the axis
-    // (`s = 1`) reads definite at the extent wherever its origin
-    // sits, however close it passes the apex.
+    // The section of a plane off the apex, or of one whose section
+    // starts or reaches past the band from it (steps 2a–2c): the
+    // axis-normal circle, else the conic the tilt makes. A Zero here
+    // stands the circle in for the plane's true section, so the tilt's
+    // sine is levered at the longest reach over which that stand-in is
+    // read: the circle's own radius, and the extent the conic type is
+    // metered at. Tilting the plane by `s` about the circle's centre
+    // moves it by at most `s` times the reach, so a Zero at the larger
+    // of the two keeps every point the section is read at within the
+    // zero band. Both are read off the plane's NORMAL, never its stored
+    // origin: a plane along the axis (`s = 1`) reads definite at the
+    // extent wherever its origin sits, however close it passes the
+    // apex.
     //
     // The circle is built where the axis meets the plane, at
     // `t = −δ/c` from the apex (`c` is ±1 within the band here).

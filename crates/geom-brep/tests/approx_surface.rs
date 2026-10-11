@@ -486,7 +486,8 @@ fn a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map() {
 
 /// `Approx` is its own [`geom::SurfaceKind`] — not the kind its fit
 /// is — and the routing table routes each of its pairs as the fit's
-/// kind does: plane×Approx is the plane×NURBS arm, every other pair
+/// kind does: plane×Approx is the plane×NURBS arm, Approx beside a
+/// spline or a fit the NURBS×NURBS arm, and beside a curved analytic
 /// the unimplemented NURBS arm its fit would take.
 #[test]
 fn approx_is_its_own_kind_and_routes_as_its_fit() {
@@ -516,8 +517,11 @@ fn approx_is_its_own_kind_and_routes_as_its_fit() {
             );
             assert_eq!(
                 route(a, b).implemented,
-                other == SurfaceKind::Plane,
-                "{a:?} x {b:?}: only the plane pair is implemented"
+                matches!(
+                    other,
+                    SurfaceKind::Plane | SurfaceKind::Nurbs | SurfaceKind::Approx
+                ),
+                "{a:?} x {b:?}: the plane and spline pairs are implemented"
             );
         }
     }
@@ -542,7 +546,7 @@ fn approx_is_its_own_kind_and_routes_as_its_fit() {
 fn a_plane_section_of_a_curved_fit_certifies_as_the_fits() {
     use geom::Curve3;
     use geom_brep::keys::SurfaceKey;
-    use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
     use geom_core::spline::KnotVector;
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -583,7 +587,10 @@ fn a_plane_section_of_a_curved_fit_certifies_as_the_fits() {
         let s2 = arena.insert(wall);
         EdgeCurve::certify_via(
             EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Intersection { s1, s2, witness: m },
+                description: EdgeDescriptionSpec::Intersection {
+                    pair: SurfacePair::new(s1, s2),
+                    witness: m,
+                },
                 carrier: carrier.clone(),
                 param_start: t0,
                 param_end: t1,

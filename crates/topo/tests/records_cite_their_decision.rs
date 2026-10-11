@@ -70,7 +70,12 @@ fn a_corner_kiss_cites_the_vertex_fusion_that_decided_it() {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
     let b = box_of((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), "b");
     let r = union(&a, &b, &BooleanDeclarations::none());
-    assert_eq!(r.contacts.vv.len(), 1, "one record: {:?}", r.contacts);
+    assert_eq!(
+        r.contacts.vertex_vertex().count(),
+        1,
+        "one record: {:?}",
+        r.contacts
+    );
     let rows = cited_rows(&r);
     assert_eq!(rows.len(), 1, "one record, one citation set");
     let [row] = rows[0][..] else {
@@ -143,9 +148,9 @@ fn a_carried_record_cites_its_operands_record() {
         ..BooleanDeclarations::none()
     };
     let r = union(&kiss.body, &far, &decls);
-    assert_eq!(r.contacts.vv.len(), 1, "{:?}", r.contacts);
+    assert_eq!(r.contacts.vertex_vertex().count(), 1, "{:?}", r.contacts);
     assert_eq!(
-        r.contacts.vv[0].cites,
+        r.contacts.rows()[0].cites,
         topo::Cites::one(Backing::Carried {
             input: 0,
             record: 0,
@@ -336,8 +341,8 @@ fn a_carried_vertex_on_face_record_cites_its_operands_record() {
     let kiss = union(&a, &on_corner, &BooleanDeclarations::none());
     assert_eq!(
         (
-            kiss.contacts.a_on_b.len() + kiss.contacts.b_on_a.len(),
-            kiss.contacts.vv.len()
+            kiss.contacts.vertex_face().count(),
+            kiss.contacts.vertex_vertex().count()
         ),
         (1, 0),
         "one vertex-on-face record: {:?}",
@@ -345,8 +350,8 @@ fn a_carried_vertex_on_face_record_cites_its_operands_record() {
     );
     let k = kiss
         .contacts
-        .rows()
-        .position(|((x, y), _)| matches!((x, y), (Cell::Vertex(_), Cell::Face(_))))
+        .kinds()
+        .position(|k| matches!(k, topo::ContactKind::VertexFace(..)))
         .expect("the vertex-on-face record");
     let far = box_of((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), "far");
     let decls = BooleanDeclarations {
@@ -354,7 +359,7 @@ fn a_carried_vertex_on_face_record_cites_its_operands_record() {
         ..BooleanDeclarations::none()
     };
     let r = union(&kiss.body, &far, &decls);
-    let carried: Vec<_> = r.contacts.rows().map(|(_, cites)| cites.clone()).collect();
+    let carried: Vec<_> = r.contacts.cites().cloned().collect();
     assert_eq!(
         carried,
         [topo::Cites::one(Backing::Carried {

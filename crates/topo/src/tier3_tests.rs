@@ -1450,8 +1450,7 @@ fn dangling_description_is_a_tier1_error() {
     let mut spec =
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
-        s1: s_seed,
-        s2: s_plus,
+        pair: geom_brep::SurfacePair::new(s_seed, s_plus),
         witness: Point3::new(0.5, 0.0, 0.0),
     };
     // NB: coincident planes would fail transversality — so tilt the
@@ -1492,8 +1491,7 @@ fn description_references_keep_a_surface_alive() {
     let mut spec =
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
-        s1: s_seed,
-        s2: s_plus,
+        pair: geom_brep::SurfacePair::new(s_seed, s_plus),
         witness: Point3::new(0.5, 0.0, 0.0),
     };
     body.set_edge_curve(split.edge, spec, tol).unwrap();
@@ -1687,9 +1685,15 @@ fn edge_spec(body: &Body<f64>, edge: crate::entity::EdgeKey, kind: Carrier) -> E
     // The kissing edge is the one whose two faces are the two
     // cylinders; every other edge here is a definite corner.
     let description = if adjacent_are_the_two_cylinders(body, edge) {
-        geom_brep::EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+        geom_brep::EdgeDescriptionSpec::TangentIntersection {
+            pair: geom_brep::SurfacePair::new(s1, s2),
+            witness,
+        }
     } else {
-        geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness }
+        geom_brep::EdgeDescriptionSpec::Intersection {
+            pair: geom_brep::SurfacePair::new(s1, s2),
+            witness,
+        }
     };
     EdgeCurveSpec {
         description,
@@ -2088,8 +2092,9 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
 
 /// The 3′ pass judges a wedge end exactly as tier 3 does: the local
 /// battery reads no contact record, so a jet-determinate cusp passes
-/// 3′ with no records, and a curve record naming its edge — which the
-/// census certifies on the jet schedule — changes nothing about it.
+/// 3′ with no records, and a face–face record of the cusp's two walls
+/// is the census's to confirm, not the battery's: on two carriers the
+/// patch door contradicts it, and nothing about the cusp changes.
 #[test]
 fn the_pseudomanifold_gate_judges_a_cusp_as_tier_3_does() {
     let tol = Tol::witness();
@@ -2102,18 +2107,25 @@ fn the_pseudomanifold_gate_judges_a_cusp_as_tier_3_does() {
         ),
         Ok(())
     );
-    let mut records = crate::boolean::ContactRecords::default();
-    records.curves.push(crate::Cited::new(
-        crate::boolean::CurveContact {
-            face_a: p.face_side[0],
-            face_b: p.face_side[2],
-            witness: kiss_edge(&p),
-        },
+    let records: crate::boolean::ContactRecords = [crate::Cited::new(
+        crate::Contact::new(
+            &p.body,
+            crate::Cell::Face(p.face_side[0]),
+            crate::Cell::Face(p.face_side[2]),
+        )
+        .unwrap(),
         crate::Cites::decided(0),
-    ));
-    assert_eq!(
-        crate::validate::validate_pseudomanifold(&p.body, &records, tol),
-        Ok(())
+    )]
+    .into_iter()
+    .collect();
+    let errors = crate::validate::validate_pseudomanifold(&p.body, &records, tol)
+        .expect_err("the census reads the record");
+    assert!(
+        !errors.is_empty()
+            && errors
+                .iter()
+                .all(|e| matches!(e, ValidationError::ContactContradicted { .. })),
+        "only the record's own confirm refuses: {errors:?}"
     );
 }
 
@@ -3291,7 +3303,10 @@ fn half_disc(r: f64, h: f64, (cx, cy, z0): (f64, f64, f64), far: bool, tol: Tol)
         let (s1, s2) = adjacent_surfaces(&p.body, e);
         let witness = carrier.eval(0.5 * t1);
         let spec = EdgeCurveSpec {
-            description: geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness },
+            description: geom_brep::EdgeDescriptionSpec::Intersection {
+                pair: geom_brep::SurfacePair::new(s1, s2),
+                witness,
+            },
             carrier,
             param_start: 0.0,
             param_end: t1,
@@ -3300,6 +3315,162 @@ fn half_disc(r: f64, h: f64, (cx, cy, z0): (f64, f64, f64), far: bool, tol: Tol)
     }
     crate::pcurves::mint_pcurves(&mut p.body, tol).unwrap();
     p.body
+}
+
+/// **Reviewer probes (CONTACTHOLD census review): a line edge crossing
+/// or touching a coplanar conic rim never validates clean.** The
+/// census's edge passes never read a line × conic event
+/// (`census-edge-pass-reads-no-line-conic-crossing`, closed on the
+/// measurement that every verdict on such a configuration refuses).
+/// These rows are that measurement as a guard: each goes red the day
+/// one of these seats validates clean, which is the day the missing
+/// event costs soundness rather than vocabulary. The half-disc post is
+/// `half_disc(0.25, 0.5, (0.3, 0.2, 0.0))`: its cap is the half of the
+/// circle `|(x, y) - (0.3, 0.2)| = 0.25` on `+y`, at `z = 0.5`, so its
+/// rim's apex is `(0.3, 0.45, 0.5)`.
+mod line_conic_review {
+    use super::*;
+    use crate::FaceKey;
+    use crate::boolean::{Cell, Contact, ContactRecords};
+    use crate::test_support_fixtures::{
+        FaceGeometry, describe_as_intersections, prism_ops, prism_z,
+    };
+
+    const APEX: (f64, f64, f64) = (0.3, 0.45, 0.5);
+
+    fn post() -> (Body<f64>, FaceKey) {
+        let body = half_disc(0.25, 0.5, (0.3, 0.2, 0.0), false, Tol::witness());
+        let cap = body
+            .faces
+            .iter()
+            .find(|(_, f)| {
+                matches!(
+                    body.surfaces.get(f.surface),
+                    Some(Surface::Plane { normal, origin, .. })
+                        if normal.z == 1.0 && origin.z == 0.5
+                )
+            })
+            .map(|(k, _)| k)
+            .expect("the cap");
+        (body, cap)
+    }
+
+    /// The post beside a box `[x] × [y] × [z]`, with the cap and the
+    /// box's underside.
+    fn post_and_box(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> (Body<f64>, FaceKey, FaceKey) {
+        let (mut body, cap) = post();
+        let shelf: crate::test_support_fixtures::Prism<f64> = prism_z(
+            &[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)],
+            z.0,
+            z.1,
+            Tol::witness(),
+        );
+        let keys = crate::graft_disjoint_all_keyed(&mut body, &shelf.body).expect("a graft");
+        let under = keys.face(shelf.bottom_face).expect("the underside");
+        (body, cap, under)
+    }
+
+    fn patch(a: FaceKey, b: FaceKey) -> ContactRecords {
+        [crate::Cited::new(
+            Contact::of(Cell::Face(a), Cell::Face(b)).unwrap(),
+            crate::Cites::decided(0),
+        )]
+        .into_iter()
+        .collect()
+    }
+
+    fn validate(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
+        crate::validate::validate_pseudomanifold(body, records, Tol::witness())
+            .expect_err("a line × conic seat never validates clean")
+    }
+
+    /// The row's own seat: the shelf's `y = 0.30` underside edge crosses
+    /// the cap's rim twice, coplanar. Bare and with the (cap, underside)
+    /// patch, the overlap cell on the cap is a hard finding.
+    #[test]
+    fn a_shelf_edge_crossing_the_rim_in_plane_never_validates_clean() {
+        let (body, cap, under) = post_and_box((0.0, 0.9), (0.0, 0.30), (0.5, 0.54));
+        for records in [ContactRecords::default(), patch(cap, under)] {
+            let errors = validate(&body, &records);
+            assert!(
+                errors.iter().any(|e| matches!(
+                    e,
+                    ValidationError::UndeclaredContact {
+                        contact: crate::CensusContact::EdgeFaceOverlap { face, .. },
+                        ..
+                    } if *face == cap
+                )),
+                "the shelf edge's cell in the cap stays hard: {errors:?}"
+            );
+        }
+    }
+
+    /// The tangent case: the box's `y = 0.45` underside edge touches the
+    /// rim at its apex only, coplanar, so no cell lies in the cap and no
+    /// pass reads the touch. It refuses all the same (measured: the
+    /// backstop's `CurvedWithinReach` on the wall and the cap against the
+    /// box's faces; with the patch, Door 2's `NonPlanarTrim` as well).
+    #[test]
+    fn a_shelf_edge_tangent_to_the_rim_in_plane_never_validates_clean() {
+        let (body, cap, under) = post_and_box((0.0, 0.9), (APEX.1, 0.75), (0.5, 0.54));
+        for records in [ContactRecords::default(), patch(cap, under)] {
+            validate(&body, &records);
+        }
+    }
+
+    /// The tangent case beside the post rather than on it: a block whose
+    /// `y = 0.45` face is tangent to the wall along the ruling through
+    /// the apex and whose top is flush with the cap, so its top edge
+    /// touches the rim at the apex from outside. Measured: the backstop
+    /// refuses the wall and the two arc-bounded planar faces against the
+    /// block's faces.
+    #[test]
+    fn a_flush_block_tangent_to_the_wall_never_validates_clean() {
+        let (body, _, _) = post_and_box((0.0, 0.6), (APEX.1, 0.7), (0.0, 0.5));
+        validate(&body, &ContactRecords::default());
+    }
+
+    /// The transverse case: a wedge whose edge runs along `(0, 1, -1)`
+    /// through the apex touches the post there and nowhere else (above
+    /// the cap on one side of the apex, outside the wall on the other).
+    /// Pass 4 reads the touch as `OnEdge` of the cap and reports nothing,
+    /// pass 5 never sees the arc, and the cross-solid backstop is what
+    /// refuses.
+    #[test]
+    fn a_wedge_edge_touching_the_rim_transversally_never_validates_clean() {
+        let (mut body, cap) = post();
+        let s = std::f64::consts::FRAC_1_SQRT_2;
+        let (x0, y0, z0) = APEX;
+        let mut wedge = Body::<f64>::new();
+        // local (a, b, c) → apex + a·x̂ + b·(0, s, s) + c·(0, -s, s):
+        // a rotation, so the profile's winding carries over. The wedge's
+        // material is on b ≥ 0, its edge the line a = b = 0.
+        prism_ops(
+            &mut wedge,
+            &[(0.0, 0.0), (0.1, 0.1), (-0.1, 0.1)],
+            (-0.15, 0.15),
+            move |a, b, c| Point3::new(x0 + a, y0 + s * (b - c), z0 + s * (b + c)),
+            FaceGeometry::Certified,
+            Tol::witness(),
+        );
+        describe_as_intersections(&mut wedge, Tol::witness());
+        crate::graft_disjoint_all_keyed(&mut body, &wedge).expect("a graft");
+        let errors = validate(&body, &ContactRecords::default());
+        assert!(
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::CensusUndecidable { a, b, .. }
+                    if *a == crate::EntityId::Face(cap) || *b == crate::EntityId::Face(cap)
+            )),
+            "the backstop holds the cap against the wedge: {errors:?}"
+        );
+        assert!(
+            !errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+            "no census lane reads the touch itself: {errors:?}"
+        );
+    }
 }
 
 /// **A curved walk's sign is read off its exact volume too.** A 1 mm

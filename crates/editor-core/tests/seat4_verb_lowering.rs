@@ -239,12 +239,19 @@ fn both_blends_evaluate_in_one_document() {
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held untouched. Merged over stage 4 E, the two numbers were re-taken
 /// once more, where both changes meet.
+///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`), re-taken on the tree holding every
+/// change above: the digest feeds each edge's description `Debug`,
+/// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
+/// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
+/// pins and `m5_pr8_bvh_diff` held.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0xf0b2_cbd3_0d01_cb92u64),
-        ("die_chamfer", 0x1ab2_dc1c_301a_5a30),
+        ("die_fillet", 0xa2cc_a1d4_0619_11eau64),
+        ("die_chamfer", 0xe357_7e62_ae47_31f6),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -372,13 +379,26 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// each body's `Debug`. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
+///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`), re-taken on the tree holding every
+/// change above: the digest feeds each edge's description `Debug`,
+/// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
+/// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
+/// pins and `m5_pr8_bvh_diff` held.
+///
+/// RE-BLESSED, every row, for CONTACTHOLD's at-rest record (contact
+/// records are one list of unordered cell pairs): the digest feeds each
+/// value's `Debug`, and the records' `Debug` shape moved from seven
+/// per-kind lists to one list of canonical pairs. No outcome, count or
+/// point moved: every other row of these suites held.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x8c4a_a1e9_6791_d8b3u64),
-        ("heat_sink", 0x8dae_ba61_42a1_9b5a),
-        ("kiss_carry", 0x6855_2051_fce2_82cc),
+        ("crossing_slots", 0x14b0_b373_a5ef_2fc2u64),
+        ("heat_sink", 0x1118_b961_66a7_c4e6),
+        ("kiss_carry", 0x3cb3_44b9_f8f5_7d86),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -436,6 +456,13 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// and this digest feeds ids. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held untouched.
+///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`), re-taken on the tree holding every
+/// change above: the digest feeds each edge's description `Debug`,
+/// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
+/// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
+/// pins and `m5_pr8_bvh_diff` held.
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
@@ -463,10 +490,8 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
         distance: len(L),
         side: ExtrudeSide::Along,
     });
-    let boolean = r.insert(Node::Boolean {
-        op: editor_core::BooleanOp::Intersect,
-        a: a.into(),
-        b: b.into(),
+    let boolean = r.insert(Node::Intersect {
+        members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         declare: Vec::new(),
     });
     let ev = corpus::eval::<f64>(&r.doc);
@@ -482,7 +507,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xe40c4fd49ed9f9be,
+        got, 0xb842_ec1f_ddcf_bdf0,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

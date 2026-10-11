@@ -12,10 +12,9 @@ use crate::fixture::resolver::PartStore;
 use crate::fixture::value_channel::body_digest;
 use crate::fixture::{insert, len, on_frame, place, square};
 use editor_core::{
-    AssertionRelation, BooleanOp, CapEnd, ChecksConfig, DocEdit, DocumentId, EntityKind,
-    ExtrudeSide, InlineError, Maintenance, MeasurePrimitive, Node, NodeResult, ProductError,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, SplitError, StableName, product, product_named,
-    run_checks,
+    AssertionRelation, CapEnd, ChecksConfig, DocEdit, DocumentId, EntityKind, ExtrudeSide,
+    InlineError, Maintenance, MeasurePrimitive, Node, NodeResult, ProductError, ProfileDoc,
+    RecipeNodeId, RoleSeg, SitedRef, SplitError, StableName, product, product_named, run_checks,
 };
 use geom_core::Tol;
 
@@ -282,10 +281,8 @@ fn inserting_a_boolean_over_two_placed_blocks_places_nothing() {
     let placements = doc.placements();
     let (doc, fused) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
@@ -466,10 +463,8 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
     let (host, other) = block(host, 0.75);
     let (host, fused) = insert(
         host,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: instance.into(),
-            b: other.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![instance.into(), other.into()]),
             declare: Vec::new(),
         },
     );
@@ -480,12 +475,16 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
         Err(InlineError::Edit { error }) => panic!("inline refused an edit: {error}"),
         Err(other) => panic!("inline of a read instance succeeds: {other}"),
     };
-    let Some(Node::Boolean { a, .. }) = inlined.doc.node(fused) else {
-        panic!("the boolean stays")
+    let Some(Node::Union {
+        members: editor_core::Bodies::Spelled(members),
+        ..
+    }) = inlined.doc.node(fused)
+    else {
+        panic!("the union stays")
     };
     let read = inlined
         .doc
-        .operation_of(*a)
+        .operation_of(members[0].read)
         .expect("the boolean's read is live");
     assert!(
         matches!(inlined.doc.node(read), Some(Node::Extrude { .. })),
@@ -510,10 +509,8 @@ fn no_slot_reads_a_world_copy_at_the_door_or_at_load() {
     let copy = doc
         .output(placement, 0)
         .expect("the placement defines its copy");
-    let boolean = |a: editor_core::Operand| Node::Boolean {
-        op: BooleanOp::Union,
-        a,
-        b: b.into(),
+    let boolean = |a: editor_core::Operand| Node::Union {
+        members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         declare: Vec::new(),
     };
     let refused_naming_placement =
@@ -545,7 +542,7 @@ fn no_slot_reads_a_world_copy_at_the_door_or_at_load() {
         doc.apply(
             &DocEdit::SetParam {
                 node: fused,
-                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::A),
+                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Member(0)),
                 value: editor_core::SlotValue::Read(copy.into()),
                 fresh: Vec::new(),
             },
@@ -555,18 +552,21 @@ fn no_slot_reads_a_world_copy_at_the_door_or_at_load() {
         "SetParam",
     );
 
-    // The same read written into a file: the boolean's `a` swapped for
-    // the copy, on the wire.
+    // The same read written into a file: the union's first member
+    // swapped for the copy, on the wire.
     let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
-    let wire = |var| serde_json::to_string(&var).expect("an id serializes");
     let body_a = doc.output(a, 0).expect("the block's body");
-    let read = format!("\"a\": {}", wire(body_a));
-    assert_eq!(
-        text.matches(&read).count(),
-        1,
-        "the boolean's one read of the block"
-    );
-    let forged = text.replace(&read, &format!("\"a\": {}", wire(copy)));
+    let key = serde_json::to_value(fused).expect("an id serializes");
+    let key = key.as_str().expect("a node id is a string");
+    let forged = crate::wire::doctored(&text, |body| {
+        let member = &mut body["snapshot"]["nodes"][key]["Union"]["members"]["Spelled"][0];
+        assert_eq!(
+            *member,
+            serde_json::to_value(body_a).expect("an id serializes"),
+            "the union's first member is the block's body"
+        );
+        *member = serde_json::to_value(copy).expect("an id serializes");
+    });
     match editor_core::persist::load(&forged, Tol::witness()) {
         Err(error) => {
             let said = error.to_string();
@@ -630,7 +630,7 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
 
     let run = ev(&posed);
     let gathered = editor_core::product_recorded(&posed, &run, Tol::witness()).expect("gathers");
-    let [ref kiss] = gathered.contacts.vv[..] else {
+    let [kiss] = gathered.contacts.vertex_vertex().collect::<Vec<_>>()[..] else {
         panic!(
             "the copy carries the union's one v-v record: {:?}",
             gathered.contacts
@@ -646,7 +646,7 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
     };
     // A quarter turn about +z takes (1, 1, 1) to (−1, 1, 1).
     let want = [-1.0 + t[0], 1.0 + t[1], 1.0 + t[2]];
-    for got in [at(kiss.a), at(kiss.b)] {
+    for got in [at(kiss.0), at(kiss.1)] {
         assert!(
             got.iter().zip(want).all(|(g, w)| (g - w).abs() < 1e-9),
             "the kiss moved with the pose: {got:?} vs {want:?}"
@@ -685,10 +685,8 @@ fn inline_refuses_a_reader_of_an_instance_whose_part_places_at_a_pose() {
     let (host, other) = block(host, 0.75);
     let (host, fused) = insert(
         host,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: instance.into(),
-            b: other.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![instance.into(), other.into()]),
             declare: Vec::new(),
         },
     );
@@ -897,74 +895,72 @@ fn inline_keeps_both_copies_of_an_instance_placed_twice() {
     }
 }
 
-/// **No measure is sited at a world placement.** A distance between two
-/// copies' end caps, read at the placements, would move with the pose,
-/// which only the gather and export read: the edit door refuses it
-/// naming the placement, and a file holding such a site refuses at
-/// load. Measuring between placed copies is stage 3's to design.
+/// **A measure observes a copy; a construction never reads one.** A
+/// distance between two copies' end caps reads the copies' placed
+/// geometry (D10: a measure defines an observed variable, and
+/// construction never reads the world), so it is admitted at the edit
+/// door, measures the pose, and round-trips through a file. A shell
+/// whose open face is a selection of the same copy still refuses
+/// naming the placement: a construction seat reads the body.
 ///
-/// Red if the site is admitted: the review's probe measured `0.0` with
-/// the copy at `dz = 0` and `2.0` at `dz = 2`.
+/// Red if the measure seat refuses (the quieting `Gap` of an
+/// interference could never be written), if it reads the unplaced body
+/// (`0.0` rather than `2.0`), or if the construction seat admits the
+/// copy.
 #[test]
-fn no_measure_is_sited_at_a_world_placement_at_the_door_or_at_load() {
+fn a_measure_observes_a_world_copy_and_a_construction_does_not() {
+    use crate::fixture::{ang, scl};
     let doc = ProfileDoc::empty_derived("intent-c-measure-copy", Tol::witness());
     let (doc, a) = block(doc, 0.0);
-    let (doc, b) = block(doc, 3.0);
+    let (doc, b) = block(doc, 0.0);
     let (doc, p) = place(doc, a);
-    let (doc, q) = place(doc, b);
-    let measure = |sites: [(RecipeNodeId, StableName); 2]| {
-        let [a, b] = sites.map(|(at, name)| SitedRef::new(at, name).into());
-        Node::Measure {
-            primitive: MeasurePrimitive::Distance { a, b },
-        }
-    };
-    let at_copies = measure([
-        (p, cap(a, CapEnd::End).in_copy(p)),
-        (q, cap(b, CapEnd::End).in_copy(q)),
-    ]);
+    let raised: editor_core::Placement<editor_core::Formula> = editor_core::Step::Rigid {
+        translation: [0.0, 0.0, 2.0].map(len),
+        axis: [0.0, 0.0, 1.0].map(scl),
+        angle: ang(0.0),
+    }
+    .into();
+    let (doc, q) = crate::fixture::step(doc, DocEdit::place(b, Some(raised)));
+    let q = q.expect("the placement inserts");
+    let (doc, measure) = crate::fixture::measure_node(
+        &doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            SitedRef::new(p, cap(a, CapEnd::End).in_copy(p)),
+            SitedRef::new(q, cap(b, CapEnd::End).in_copy(q)),
+        ],
+    );
+    let out = crate::fixture::output(&doc, measure);
+    let distance = |doc: &ProfileDoc| crate::fixture::reading(doc, &ev(doc), out);
+    assert_eq!(
+        distance(&doc),
+        Some(2.0),
+        "the measure reads the copies where they are placed"
+    );
+    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let loaded = editor_core::persist::load(&text, Tol::witness())
+        .unwrap_or_else(|e| panic!("a measure of two copies loads: {e}"))
+        .doc;
+    assert_eq!(distance(&loaded), Some(2.0), "and reads them after a load");
+
     match doc.apply(
         &DocEdit::InsertNode {
-            node: Box::new(at_copies),
+            node: Box::new(Node::Shell {
+                thickness: len(0.1),
+                open: editor_core::Operand::select(
+                    editor_core::Operand::Node(p),
+                    vec![cap(a, CapEnd::End).in_copy(p)],
+                ),
+            }),
             fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
         Err(editor_core::EditError::ReadsWorldCopy { placement, .. }) => {
-            assert_eq!(placement.id(), p, "the refusal names the first placement");
+            assert_eq!(placement.id(), p, "the refusal names the placement");
         }
         Err(other) => panic!("refused otherwise: {other}"),
-        Ok(_) => panic!("a measure sited at a placement was admitted"),
-    }
-
-    // The same site on the wire: a measure at the bodies, its first
-    // site moved onto the placement.
-    let (doc, _) = insert(
-        doc,
-        measure([(a, cap(a, CapEnd::End)), (b, cap(b, CapEnd::End))]),
-    );
-    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
-    let wire = |id| serde_json::to_string(&id).expect("an id serializes");
-    let body_of = |node| doc.output(node, 0).expect("a body");
-    let select_at = text
-        .find("\"Select\"")
-        .expect("the measure's selection is on the wire");
-    let site = format!("\"body\": {}", wire(body_of(a)));
-    let offset = select_at + text[select_at..].find(&site).expect("its body read");
-    let forged = format!(
-        "{}\"body\": {}{}",
-        &text[..offset],
-        wire(body_of(p)),
-        &text[offset + site.len()..]
-    );
-    match editor_core::persist::load(&forged, Tol::witness()) {
-        Err(error) => {
-            let said = error.to_string();
-            assert!(
-                said.contains("which only the product and export read"),
-                "the load names the site: {said}"
-            );
-        }
-        Ok(_) => panic!("a file whose measure is sited at a placement loads"),
+        Ok(_) => panic!("a construction read a world copy"),
     }
 }

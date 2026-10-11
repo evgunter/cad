@@ -6,7 +6,7 @@
 //! the bar's four long edges: a long edge's last piece sits `k` cuts
 //! deep, and its ends are crossings of its line. Two chains build the
 //! trims: a boolean subtract of a block past each cut, and a Split by a
-//! plane at each cut with a Part keeping the inner half. Every trim's
+//! plane at each cut, the next cut reading the inner half. Every trim's
 //! table is read off one evaluation of the deepest chain.
 //!
 //! On each chain the longest name's serialized bytes grow at most
@@ -20,7 +20,7 @@
 
 use crate::fixture::{insert, len, on_frame, scl};
 use editor_core::{
-    BooleanOp, Datum, Evaluation, ExtrudeSide, Node, PartSelect, ProfileDoc, RecipeNodeId, Speaker,
+    Datum, Entry, Evaluation, ExtrudeSide, Node, Operand, ProfileDoc, RecipeNodeId, Speaker,
     SplitHalf,
 };
 use geom_core::Tol;
@@ -63,9 +63,12 @@ fn bar(label: &str) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
+/// One trim: the node whose table holds it, and its output body there.
+type Trim = (RecipeNodeId, u32);
+
 /// The bar trimmed `DEEPEST` times by subtracting a block past each cut:
 /// the document and each trim's node in order.
-fn boolean_chain() -> (ProfileDoc, Vec<RecipeNodeId>) {
+fn boolean_chain() -> (ProfileDoc, Vec<Trim>) {
     let (mut doc, mut body) = bar("trim-chain-boolean");
     let mut trims = Vec::with_capacity(DEEPEST);
     for i in 0..DEEPEST {
@@ -92,24 +95,24 @@ fn boolean_chain() -> (ProfileDoc, Vec<RecipeNodeId>) {
         );
         let (d, trimmed) = insert(
             d,
-            Node::Boolean {
-                op: BooleanOp::Subtract,
-                a: body.into(),
-                b: block.into(),
+            Node::Subtract {
+                from: body.into(),
+                tool: block.into(),
                 declare: Vec::new(),
             },
         );
         doc = d;
         body = trimmed;
-        trims.push(trimmed);
+        trims.push((trimmed, 0));
     }
     (doc, trims)
 }
 
-/// The bar trimmed `DEEPEST` times by a Split at each cut and a Part
-/// keeping the inner half: the document and each trim's Part in order.
-fn split_chain() -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (mut doc, mut body) = bar("trim-chain-split");
+/// The bar trimmed `DEEPEST` times by a Split at each cut, the next cut
+/// reading the inner half: the document and each trim's half in order.
+fn split_chain() -> (ProfileDoc, Vec<Trim>) {
+    let (mut doc, bar) = bar("trim-chain-split");
+    let mut body = Operand::from(bar);
     let mut trims = Vec::with_capacity(DEEPEST);
     for i in 0..DEEPEST {
         let (x, keep_below) = cut(i);
@@ -132,31 +135,28 @@ fn split_chain() -> (ProfileDoc, Vec<RecipeNodeId>) {
         } else {
             SplitHalf::Above
         };
-        let (d, part) = insert(
-            d,
-            Node::Part {
-                of: editor_core::Operand::output(split, half.port()),
-                select: PartSelect::SplitHalf(half),
-            },
-        );
         doc = d;
-        body = part;
-        trims.push(part);
+        body = Operand::output(split, half.port());
+        trims.push((split, half.output_body()));
     }
     (doc, trims)
 }
 
 /// Each trim's longest name, in spoken words (said in full from the
 /// document) and in serialized bytes, over every name its table holds.
-fn longest(doc: &ProfileDoc, ev: &Evaluation<f64>, trims: &[RecipeNodeId]) -> Vec<(usize, usize)> {
+fn longest(doc: &ProfileDoc, ev: &Evaluation<f64>, trims: &[Trim]) -> Vec<(usize, usize)> {
     let speaker = Speaker::of(doc);
     trims
         .iter()
-        .map(|&id| {
+        .map(|&(id, body)| {
             let value = ev.value(id).expect("every trim evaluates");
             value
                 .name_table
                 .iter()
+                .filter(|(_, entry)| match entry {
+                    Entry::Unique(e) => e.body == body,
+                    Entry::Tied(c) => c.iter().any(|e| e.body == body),
+                })
                 .fold((0, 0), |(words, bytes), (name, _)| {
                     let w = speaker.name(name).to_string().split_whitespace().count();
                     let b = serde_json::to_string(name)

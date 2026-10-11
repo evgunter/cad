@@ -5,14 +5,16 @@
 //! 1. **datum := the pierced face's TANGENT plane at the pierce
 //!    point**; classes are [`SideCode`]s with OUT/IN derived from the
 //!    F3 chain (a chord's class is its signed elevation off that plane
-//!    against the OUTWARD normal — `side_code`; 15.7's printed
-//!    `IN = +1` is never consulted).
+//!    against the OUTWARD normal — `sectors::pierce_side`; 15.7's
+//!    printed `IN = +1` is never consulted).
 //!
-//!    The datum is a DIRECTION, never an origin: `side_code`
-//!    (`sectors.rs`) takes `(dir, reach, OutwardNormal, lever, band)`
-//!    and the germ direction takes a cross product, so both are
-//!    first-order primitives (charged for the face's curvature through
-//!    `lever`) and generalize to a curved pierced face by substituting
+//!    The datum is a DIRECTION, never an origin: `pierce_side`
+//!    (`sectors.rs`) takes `(dir, reach, OutwardNormal, shape, lever,
+//!    band)` and the germ direction takes a cross product. Both are
+//!    first-order readings (charged for the face's curvature through
+//!    `lever`), except that a conic tied with a plane face is read by
+//!    its bend, one order down; and both generalize to a curved pierced
+//!    face by substituting
 //!    the per-point outward normal
 //!    ([`crate::face_normal::face_outward_normal_at`]). On a plane that
 //!    normal is the plane's own, so the planar lane's arithmetic is
@@ -74,11 +76,11 @@ use super::plane_eq::PlaneEqError;
 use super::reduce::face_plane;
 use std::collections::BTreeMap;
 
-use super::sectors::{BoolSector, PierceLever, build_sectors, side_code};
+use super::sectors::{BoolSector, PierceLever, build_sectors, pierce_side};
 use super::tables::{eq15_3_lump, lump_keeps_one};
 use super::{
-    BoolNullEdgeRecord, BooleanError, BooleanOp, ContactRecords, NullEdgePairRecord, Operand,
-    PairSite, PierceRingRecord, SectorRead, SideCode, VfContact,
+    BoolNullEdgeRecord, BooleanError, BooleanOp, NullEdgePairRecord, Operand, PairSite,
+    PierceRingRecord, ReductionContacts, SectorRead, SideCode, VfContact,
 };
 use super::{Coincide, Contradiction, DeclarationRead};
 use crate::body::{Body, WALKS_CLOSE};
@@ -100,7 +102,7 @@ use geom_core::Tol;
 /// several pairs and in no pierce is not returned, since the
 /// vertex-vertex passes read every pair before the first writes.
 pub(super) fn pierced_and_paired(
-    contacts: &ContactRecords,
+    contacts: &ReductionContacts,
 ) -> Result<BTreeMap<(Operand, VertexKey), SectorRead>, BooleanError> {
     let mut rereads = BTreeMap::new();
     for (operand, pierced) in [
@@ -134,10 +136,12 @@ pub(super) fn pierced_and_paired(
 }
 
 /// The pierced face's oriented datum at a pierce point: its outward
-/// normal and the lever its side verdicts charge ([`side_code`]).
+/// normal, its shape, and the lever its side verdicts charge
+/// ([`super::sectors::pierce_side`]).
 #[derive(Clone, Copy, Debug)]
 pub(super) struct PierceDatum<T: geom_core::Real> {
     pub normal: OutwardNormal<T>,
+    pub shape: super::sectors::FaceShape,
     pub lever: PierceLever<T>,
 }
 
@@ -159,7 +163,9 @@ pub(super) fn partner_side<T: Decide>(
     for s in partner {
         for (dir, reach) in [(s.start, s.start_reach), (s.end, s.end_reach)] {
             let lever = datum.lever.within(reach.length());
-            match side_code(dir, reach, datum.normal, lever, band) {
+            let code = pierce_side(dir, reach, datum.normal, datum.shape, lever, band)
+                .map(|read| read.code);
+            match code {
                 Ok(c @ (SideCode::In | SideCode::Out)) if side.is_none_or(|k| k == c) => {
                     side = Some(c);
                 }
@@ -390,6 +396,9 @@ struct Entry {
     he: HalfEdgeKey,
     is_edge: bool,
     class: SideCode,
+    /// The bound's first-order reading tied
+    /// ([`super::sectors::PierceSide::tied`]).
+    tied: bool,
     /// The class is Delta 2's lump, not this bound's own reading.
     lumped: bool,
 }
@@ -407,7 +416,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     contact: VfContact,
     op: BooleanOp,
     declared: &super::DeclaredPairs<T>,
-    contacts: &super::ContactRecords,
+    contacts: &super::ReductionContacts,
     reread: Option<SectorRead>,
     band: Band,
     tol: Tol,
@@ -463,12 +472,13 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         };
     // The pierced face's smallest radius of curvature within each
     // bound's reach — the lever the sector side verdicts charge their
-    // sagitta against (`side_code`'s argument), so it must bound the
+    // sagitta against (`pierce_side`'s argument), so it must bound the
     // tightest bend, not the chart's scale: on a fat torus those differ,
     // and on a cone the bend tightens toward the axis. A plane reports
     // `f64::MAX`, so its charge is vacuous and the planar lane's
     // verdicts are unmoved.
     let pierced_lever = PierceLever::of(pierced_surface, p);
+    let pierced_shape = super::sectors::FaceShape::of(pierced_surface);
     let sectors = build_sectors(piercing_body, piercing, vertex, band)?;
     let n = sectors.len();
 
@@ -479,18 +489,43 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // `face_outward_normal`) — In/Out here is a material verdict and
     // would read backwards off a chart normal on a reversed face,
     // which is why the primitive takes the typed one.
+    //
+    // A conic tied with a plane face whose bend reads no side
+    // (`BooleanDecision::ConicBend`) is held as its first-order `On`
+    // until the lumps have run: a tangent sector's lump reads its whole
+    // sector off the two carriers and overwrites the bound's reading,
+    // so the bend's refusal stands only for a bound no lump took.
     let mut entries = Vec::with_capacity(n);
+    let mut unread_bends = Vec::new();
     for s in &sectors {
+        let read = match pierce_side(
+            s.end,
+            s.end_reach,
+            n_pierced,
+            pierced_shape,
+            pierced_lever.within(s.end_reach.length()),
+            band,
+        ) {
+            Ok(read) => read,
+            Err(
+                refusal @ BooleanError::Escalated {
+                    decision: super::BooleanDecision::ConicBend,
+                    ..
+                },
+            ) => {
+                unread_bends.push((entries.len(), refusal));
+                super::sectors::PierceSide {
+                    code: SideCode::On,
+                    tied: true,
+                }
+            }
+            Err(e) => return Err(e),
+        };
         entries.push(Entry {
             he: s.he,
             is_edge: s.end_edge(),
-            class: side_code(
-                s.end,
-                s.end_reach,
-                n_pierced,
-                pierced_lever.within(s.end_reach.length()),
-                band,
-            )?,
+            class: read.code,
+            tied: read.tied,
             lumped: false,
         });
     }
@@ -500,17 +535,23 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // whose normal is `n_pierced` — the same vector `face_plane` hands
     // back on a planar face, so the planar lane's margin is unmoved.
     //
-    // Lumping overwrites both bounds' readings, so both must read On,
-    // each at its reach — a line bound at its far vertex, in metres; a
-    // bound read definitely off the plane decides the sector off it.
-    // Where both read On, the normals' parallelism at the arm proposes
-    // coplanarity. A tilt the bounds read On and the normals do not (in
+    // Lumping overwrites both bounds' readings, so both must tie at
+    // first order, each at its reach — a line bound at its far vertex,
+    // in metres; a bound read definitely off the plane decides the
+    // sector off it. A conic bound that ties may read its bend off the
+    // plane, and the lump's second order supersedes it.
+    // Where both read On, the normals' parallelism proposes coplanarity:
+    // at the sector's reach, the ball the carrier ladder reads an
+    // unglued pair over below; a glued pair's at the arm, its ladder
+    // reading over the glue's extent. A tilt the bounds
+    // read On and the normals do not (in
     // band, or decided off: a thin sector tilted about one bound rises
     // at its arm by more than at its other bound) leaves the question
     // undecided at this tolerance, and the margin that decides it is the
     // bounds' own: a smaller tolerance reads the steeper bound off the
     // plane and the sector with it.
     let read: Vec<SideCode> = entries.iter().map(|e| e.class).collect();
+    let tied: Vec<bool> = entries.iter().map(|e| e.tied).collect();
     let classes = entries
         .iter()
         .filter(|e| e.is_edge)
@@ -518,10 +559,18 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         .collect();
     let mut covered = Vec::new();
     for (k, s) in sectors.iter().enumerate() {
-        if read[k] != SideCode::On || read[(k + 1) % n] != SideCode::On {
+        if !tied[k] || !tied[(k + 1) % n] {
             continue;
         }
-        let m = Margin::levered(s.normal.vec().cross(n_pierced.vec()).norm(), s.arm);
+        let class = declared.class_of(piercing, s.face, pierced_op, contact.face);
+        let declared_one_carrier =
+            declared.declares_one_carrier(piercing, s.face, pierced_op, contact.face);
+        let lever = if declared_one_carrier {
+            s.arm
+        } else {
+            s.span()
+        };
+        let m = Margin::levered(s.normal.vec().cross(n_pierced.vec()).norm(), lever);
         let tilt = decide("bool_sector_coplanar", m, band);
         // The declaration is read before the tilt refuses: a declared
         // pair's lump takes an in-band residue (the carrier ladder's
@@ -532,7 +581,6 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // off is no coincidence a declaration settles: a declared pair's
         // claim is contradicted by it, and an undeclared pair's sector is
         // undecided on its bounds' margin with no declaration to offer.
-        let class = declared.class_of(piercing, s.face, pierced_op, contact.face);
         let decided_tilt = matches!(tilt, Ok(Sign::Positive | Sign::Negative));
         if let (true, Some(class)) = (decided_tilt, class) {
             let (a, b) = match piercing {
@@ -703,8 +751,6 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 kind,
             });
         };
-        let declared_one_carrier =
-            declared.declares_one_carrier(piercing, s.face, pierced_op, contact.face);
         // C8: a CURVED on-carrier sector is opened by a VERIFIED
         // declaration and by nothing else — undeclared touching keeps
         // this typed frontier refusal. The recourse is a declared
@@ -759,14 +805,12 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             declared: declared_one_carrier,
         };
         // A glued pair reads as the door read it at rest, over both
-        // faces; any other at the sector's arm.
+        // faces; any other over the sector about `p`, out to its
+        // farther bound's reach, where the tilt above read it coplanar.
         let extent = if declared_one_carrier {
             declared.consumed(piercing, s.face, pierced_op, contact.face)?
         } else {
-            super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(
-                geom_core::Point3::origin(),
-                s.arm,
-            ))
+            super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(p, s.span()))
         };
         let pair = (piercing, s.face, pierced_op, contact.face);
         let rel = match super::carrier_eq::carrier_eq_reading(
@@ -776,6 +820,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             &extent,
             band,
         ) {
+            // Unglued, the parallel rung reads the tilt above's margin,
+            // decided zero, and the offset is `p`'s standing off two
+            // planes it lies on.
             Ok((super::PlaneRelation::Distinct, ..)) => {
                 return Err(BooleanError::ClassificationInvariant {
                     what: "geometrically coplanar sector with definitely-distinct plane",
@@ -797,10 +844,10 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 ));
             }
             // In band, unreachable here: `bool_sector_coplanar` read
-            // this same margin (the two normals' cross, at `s.arm`)
-            // zero above for an unglued pair, and a glued pair's rung
-            // bridges it. The door is `recl`'s, which reaches it at
-            // another arm.
+            // this same margin (the two normals' cross, at the sector's
+            // reach) zero above for an unglued pair, and a glued pair's
+            // rung bridges it. The door is `recl`'s, which reaches it
+            // at another reach.
             Err(PlaneEqError::Escalated { rung, diag }) => {
                 return Err(BooleanError::plane_identity(
                     rung,
@@ -847,6 +894,10 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         entries[(k + 1) % n].lumped = true;
     }
 
+    if let Some((_, refusal)) = unread_bends.into_iter().find(|&(k, _)| !entries[k].lumped) {
+        return Err(refusal);
+    }
+
     // On-edge resolution (module docs; the deliberate divergence).
     for k in 0..n {
         if entries[k].class == SideCode::On && entries[(k + 1) % n].class == SideCode::On {
@@ -867,6 +918,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         classes,
         datum: PierceDatum {
             normal: n_pierced,
+            shape: pierced_shape,
             lever: pierced_lever,
         },
     };
@@ -891,7 +943,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // with the ring strut below).
     // Every run's germs are read before any run is minted: a mint moves
     // the orbit the germ loci are read from.
-    let germ_of = |t: usize| -> Result<Germ<T>, BooleanError> {
+    let germ_of = |t: usize, out: OutBound| -> Result<Germ<T>, BooleanError> {
         let s = &sectors[t];
         let own = super::sectors::germ_locus(
             super::sectors::GermSide {
@@ -908,15 +960,13 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             Operand::A => ((s.face, contact.face), (own, pierced)),
             Operand::B => ((contact.face, s.face), (pierced, own)),
         };
-        Ok((cells, pierce_germ_dir(s, n_pierced.vec(), band)?))
+        Ok((cells, pierce_germ_dir(s, n_pierced.vec(), out, band)?))
     };
     let run_germs = runs
         .iter()
-        .map(|run| {
-            Ok((
-                germ_of((run.0 + n - 1) % n)?,
-                germ_of((run.0 + run.1 - 1) % n)?,
-            ))
+        .map(|&run| {
+            let [(t0, o0), (t1, o1)] = run_transitions(run, n);
+            Ok((germ_of(t0, o0)?, germ_of(t1, o1)?))
         })
         .collect::<Result<Vec<_>, BooleanError>>()?;
     // The ring's struts (step 3, [`crate::null::ring_tree`]), read
@@ -925,11 +975,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         let germs: Vec<_> = runs
             .iter()
             .zip(&run_germs)
-            .flat_map(|(run, (s, e))| {
-                [
-                    (s.1, sectors[(run.0 + n - 1) % n].arm),
-                    (e.1, sectors[(run.0 + run.1 - 1) % n].arm),
-                ]
+            .flat_map(|(&run, (s, e))| {
+                let [(t0, _), (t1, _)] = run_transitions(run, n);
+                [(s.1, sectors[t0].arm), (e.1, sectors[t1].arm)]
             })
             .collect();
         let order = germ_order(&germs, n_pierced.vec(), band)?;
@@ -1227,11 +1275,14 @@ fn germ_order<T: Decide>(
 /// Delta 2's lumps.
 ///
 /// An edge entry's On is a real one for a LINE edge: its far vertex is
-/// within the band of the plane (`side_code`, `Reach::Chord`), so the
+/// within the band of the plane (`pierce_side`, `Reach::Chord`), so the
 /// edge lies in it to the tolerance and the resolution is ε-true of it.
-/// A curved edge's On is its departure's, to first order
-/// (`Reach::Extent`; the residue is
-/// `work/contacthold/boolean-conic-side-code-zero-is-first-order`).
+/// A conic edge's On against a plane is as real: its height bound over
+/// the whole arc reads within the band (`Reach::Conic`,
+/// `sectors::conic_side`); a tie whose bend reads no side is lumped or
+/// refuses before this runs. Against a curved face, and for a fitted
+/// edge's chord (`Reach::Extent`), it is a first-order tie
+/// (`work/contacthold/conic-ties-outside-the-vertex-on-face-pass-still-read-first-order.md`).
 ///
 /// A bisector entry's On is a direction's, levered at its sector's arm,
 /// and it is resolved only where its code changes no topology. Its two
@@ -1272,9 +1323,22 @@ fn resolve_on_entries(entries: &mut [Entry], band: Band) -> Result<(), BooleanEr
 
 /// The germ direction at a pierce-site transition: the unit
 /// intersection direction of the transition sector's face plane with
-/// the pierced face's TANGENT plane at the pierce point, signed to lie
-/// within the sector (grazes count — an on-edge germ IS a bound).
-/// Ambiguity refuses loudly.
+/// the pierced face's TANGENT plane at the pierce point, signed by which
+/// of the sector's bounds the Out run holds ([`OutBound`]).
+///
+/// **The sign is the transition's, not a second reading.** The sector
+/// sweeps CCW about its outward normal `n_s` from `start` to `end`, and
+/// its plane's directions on the pierced normal's side are the half-plane
+/// about `u`, the pierced normal's component in that plane. A quarter
+/// turn CCW carries `u` to `n_s × u = n_s × n_p`, so a sweep starting
+/// above the section line leaves that half-plane along `n_s × n_p`, and
+/// one starting below enters it along `−n_s × n_p`; a sweep under a
+/// full turn crosses the line once more only after passing its end. An
+/// Out start bound (above ≙ Out) and an In end bound give `n_s × n_p`,
+/// the reverse its negation. Where a bound read On folded into the In
+/// run, the line runs along that bound to within the band, and since a
+/// sector is convex (under a half turn) the ray this picks is the one
+/// along that bound, not its opposite: the germ the fold put there.
 ///
 /// **Why the tangent plane is the exact datum, not an approximation of
 /// one.** A germ direction is the initial direction of the curve along
@@ -1289,14 +1353,14 @@ fn resolve_on_entries(entries: &mut [Entry], band: Band) -> Result<(), BooleanEr
 /// same cross product on a curved carrier and gets the section's
 /// tangent rather than a chord.
 ///
-/// Sense-invariant given its sources (S10): the cross product names a
-/// LINE and `within` picks the ray, so neither normal's sign survives
-/// into the answer. Both arrive oriented already — `s.normal` from
+/// Both normals arrive outward already (S10) — `s.normal` from
 /// `sectors::sector_face`, `pierced_normal` from the one door
-/// ([`crate::face_normal`]) — and neither is multiplied again here.
+/// ([`crate::face_normal`]) — and the sign above reads them as such, so
+/// neither is multiplied again here.
 pub(super) fn pierce_germ_dir<T: Decide>(
     s: &super::sectors::BoolSector<T>,
     pierced_normal: geom_core::Vec3<T>,
+    out: OutBound,
     band: Band,
 ) -> Result<geom_core::Vec3<T>, BooleanError> {
     let int = s.normal.vec().cross(pierced_normal);
@@ -1329,16 +1393,41 @@ pub(super) fn pierce_germ_dir<T: Decide>(
         }
     }
     let d = int.normalize();
-    let moot = DeclarationRead::Moot;
-    let plus = super::sectors::within(s, d, false, moot, band)?;
-    let minus = super::sectors::within(s, -d, false, moot, band)?;
-    match (plus, minus) {
-        (true, false) => Ok(d),
-        (false, true) => Ok(-d),
-        _ => Err(BooleanError::ClassificationInvariant {
-            what: "pierce germ direction not uniquely within its sector",
-        }),
+    let germ = match out {
+        OutBound::Start => d,
+        OutBound::End => -d,
+    };
+    // D9 row 5: where membership singles out one ray it is this one.
+    // Calibrated on JOIN's near-tangent census at ε = 1e-9, 1e-6 and
+    // 1e-12: no disagreement over 855k such readings (PR 4581's review).
+    // Where a bound reads On, membership at the arm can read both rays
+    // out, which is no disagreement.
+    #[cfg(debug_assertions)]
+    {
+        let moot = DeclarationRead::Moot;
+        let member = |dir| super::sectors::within(s, dir, false, moot, band);
+        if let (Ok(along), Ok(against)) = (member(germ), member(-germ)) {
+            debug_assert!(
+                along || !against,
+                "the transition's germ {germ:?} ({out:?}) is outside the sector \
+                 {:?}→{:?} (normal {:?}) and its opposite inside, against {pierced_normal:?}",
+                s.start,
+                s.end,
+                s.normal.vec(),
+            );
+        }
     }
+    Ok(germ)
+}
+
+/// Which bound of a pierce transition sector the Out run holds: the
+/// other reads In.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum OutBound {
+    /// The sector's CCW-first bound: the sector precedes the run.
+    Start,
+    /// The sector's CCW-last bound: the sector closes the run.
+    End,
 }
 
 /// A pierce germ as a run reads it: `(A face, B face)` and
@@ -1368,6 +1457,17 @@ fn half_germ<T: geom_core::Real>(
 /// Maximal cyclic Out-runs `(start, len)` (PR 2's `above_runs` on
 /// [`SideCode`]; anchored at the first In entry; one-sided
 /// neighborhoods have none).
+/// A run's two transition sectors, of `n`: the one before its first
+/// Out bound, whose start that bound is, and the one holding its last
+/// as its end (entry `k` is sector `k`'s end, and sector `k`'s start is
+/// entry `k + 1`).
+fn run_transitions((first, len): (usize, usize), n: usize) -> [(usize, OutBound); 2] {
+    [
+        ((first + n - 1) % n, OutBound::Start),
+        ((first + len - 1) % n, OutBound::End),
+    ]
+}
+
 fn out_runs(entries: &[Entry]) -> Vec<(usize, usize)> {
     let n = entries.len();
     let Some(anchor) = entries.iter().position(|e| e.class == SideCode::In) else {
@@ -1416,7 +1516,7 @@ mod tests {
         let (f, g) = (FaceKey::from(key(4)), FaceKey::from(key(5)));
         let vf = |vertex, face| VfContact { vertex, face };
         let vv = |a, b| VvContact { a, b };
-        let read = |c: &ContactRecords| match pierced_and_paired(c) {
+        let read = |c: &ReductionContacts| match pierced_and_paired(c) {
             Err(BooleanError::VertexReadTwice {
                 operand,
                 vertex,
@@ -1428,7 +1528,7 @@ mod tests {
         let rows = [
             (
                 "pierced twice by A",
-                ContactRecords {
+                ReductionContacts {
                     a_on_b: vec![
                         crate::Cited::new(vf(v, f), crate::Cites::decided(0)),
                         crate::Cited::new(vf(w, f), crate::Cites::decided(0)),
@@ -1444,7 +1544,7 @@ mod tests {
             ),
             (
                 "pierced and paired, B",
-                ContactRecords {
+                ReductionContacts {
                     b_on_a: vec![crate::Cited::new(vf(w, f), crate::Cites::decided(0))],
                     vv: vec![
                         crate::Cited::new(vv(x, v), crate::Cites::decided(0)),
@@ -1457,7 +1557,7 @@ mod tests {
             ),
             (
                 "paired twice",
-                ContactRecords {
+                ReductionContacts {
                     vv: vec![
                         crate::Cited::new(vv(v, w), crate::Cites::decided(0)),
                         crate::Cited::new(vv(v, x), crate::Cites::decided(0)),
@@ -1469,7 +1569,7 @@ mod tests {
             ),
             (
                 "one key on each operand, pierced by A's and paired by B's",
-                ContactRecords {
+                ReductionContacts {
                     a_on_b: vec![crate::Cited::new(vf(v, f), crate::Cites::decided(0))],
                     vv: vec![crate::Cited::new(vv(w, v), crate::Cites::decided(0))],
                     ..Default::default()
@@ -1668,6 +1768,7 @@ mod tests {
             he: HalfEdgeKey::default(),
             is_edge,
             class,
+            tied: class == SideCode::On,
             lumped: false,
         }
     }
@@ -1698,6 +1799,61 @@ mod tests {
         assert_eq!(
             mixed[1].class, In,
             "a bisector between mixed bounds resolves"
+        );
+    }
+
+    /// **A touching partner's side reads its conic bound by its bend.**
+    /// The partner's corner lies in `y = 0` over the face `z = 0`: a line
+    /// edge up `+z`, and a unit arc leaving along `+x`, tangent to the
+    /// face, bending up. To first order the arc ties and the partner's
+    /// side is unread (`None`, which refuses); read by its bend it is
+    /// `Out`, as the line is, and the partner lies outside.
+    #[test]
+    fn a_touching_partner_reads_its_tangent_arc_by_its_bend() {
+        use super::super::sectors::{
+            Bend, BoolSector, FaceShape, NO_CURVATURE, PierceLever, Reach,
+        };
+        use geom_brep::OutwardNormal;
+        use geom_core::{Point3, Vec3};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (x, z) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let arc = geom::Curve3::Circle {
+            center: o + z,
+            axis: x.cross(z),
+            radius: 1.0,
+            u_ref: -z,
+        };
+        let span = core::f64::consts::FRAC_PI_2;
+        let extent = geom_brep::edge_extent(&arc, 0.0, span, 2f64.sqrt());
+        let bend = Bend::of(&arc, arc.deriv(0.0), arc.deriv2(0.0), span);
+        let partner = [BoolSector {
+            he: HalfEdgeKey::default(),
+            start: z,
+            end: x,
+            start_reach: Reach::Chord {
+                base: o,
+                far: o + z,
+            },
+            end_reach: Reach::Conic { extent, bend },
+            face: crate::entity::FaceKey::default(),
+            normal: OutwardNormal::from_chart(Vec3::new(0.0, -1.0, 0.0), true),
+            arm: 1.0,
+        }];
+        let datum = |shape| PierceDatum {
+            normal: OutwardNormal::from_chart(z, true),
+            shape,
+            lever: PierceLever::Everywhere(NO_CURVATURE()),
+        };
+        assert_eq!(
+            partner_side(&partner, datum(FaceShape::Plane), band),
+            Some(SideCode::Out),
+            "against a plane the arc reads its bend"
+        );
+        assert_eq!(
+            partner_side(&partner, datum(FaceShape::Curved), band),
+            None,
+            "to first order the arc ties"
         );
     }
 
@@ -1732,8 +1888,13 @@ mod tests {
             normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
             arm: 1.0,
         };
-        let err =
-            pierce_germ_dir(&s, Vec3::new(mid.sin(), 0.0, mid.cos()), band).expect_err("in band");
+        let err = pierce_germ_dir(
+            &s,
+            Vec3::new(mid.sin(), 0.0, mid.cos()),
+            OutBound::Start,
+            band,
+        )
+        .expect_err("in band");
         assert!(
             matches!(
                 err,
@@ -1751,6 +1912,174 @@ mod tests {
         assert!(
             !text.contains(KERNEL_DEFECT_ENDING) && text.contains("tighten the tolerance below"),
             "{text}"
+        );
+    }
+
+    /// **A pierce germ is the section line's ray its transition names,
+    /// a graze included.** Sectors of several openings on `z = 0`, from
+    /// `x̂` to the bound at `φ`, against pierced planes through a line
+    /// `ℓ` of `z = 0`, each tilted both ways. The bounds' codes are read
+    /// as the pierce reads them (`side_code` at the bound's reach, an On
+    /// folded into the In run), and the germ is `ℓ` in every case: the
+    /// line inside the sector, or the line just outside one bound by an
+    /// in-plane angle beyond the band at the sector's arm, whose bound
+    /// reads On at its reach: there both rays read outside the sector by
+    /// membership. A graze is a transition under one of its two tilts.
+    #[test]
+    fn a_pierce_germ_is_the_ray_its_transition_names() {
+        use super::super::sectors::{BoolSector, NO_CURVATURE, Reach, fold_on_bound, side_code};
+        use geom_brep::OutwardNormal;
+        use geom_core::{Point3, Vec3};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let o = Point3::new(0.3, -0.2, 0.7);
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let graze = 2.0 * band.escalate();
+        let flat = 0.25 * band.zero() / graze;
+        for phi in [20.0_f64, 90.0, 150.0, 178.0].map(f64::to_radians) {
+            let (start, end) = (
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(phi.cos(), phi.sin(), 0.0),
+            );
+            let chord = |d: Vec3<f64>| Reach::Chord {
+                base: o,
+                far: o + d,
+            };
+            let s = BoolSector {
+                he: HalfEdgeKey::default(),
+                start,
+                end,
+                start_reach: chord(start),
+                end_reach: chord(end),
+                face: crate::entity::FaceKey::default(),
+                normal: OutwardNormal::from_chart(z, true),
+                arm: 1.0,
+            };
+            // `(ψ, the tilt's cosine, a graze)`.
+            let lines = [
+                (0.5 * phi, 0.6, false),
+                (0.1 * phi, 0.3, false),
+                (0.9 * phi, 0.95, false),
+                (-graze, flat, true),
+                (phi + graze, flat, true),
+            ];
+            for (psi, cos_tilt, grazes) in lines {
+                let l = Vec3::new(psi.cos(), psi.sin(), 0.0);
+                let across = z.cross(l);
+                let mut transitions = 0;
+                for sense in [1.0, -1.0] {
+                    let n_p = across * (sense * cos_tilt) + z * (1.0 - cos_tilt * cos_tilt).sqrt();
+                    let code = |d| {
+                        let c = side_code(
+                            d,
+                            chord(d),
+                            OutwardNormal::from_chart(n_p, true),
+                            NO_CURVATURE(),
+                            band,
+                        )
+                        .unwrap();
+                        if c == On { fold_on_bound(Out, In) } else { c }
+                    };
+                    let label = format!("φ {phi:.3}, ψ {psi:e}, sense {sense}");
+                    // A graze the fold puts on the In side of an In
+                    // bound is no transition.
+                    let out = match (code(start), code(end)) {
+                        (Out, In) => OutBound::Start,
+                        (In, Out) => OutBound::End,
+                        _ => continue,
+                    };
+                    transitions += 1;
+                    let germ = pierce_germ_dir(&s, n_p, out, band).unwrap();
+                    assert!(
+                        (germ - l).norm() < 1e-12,
+                        "{label}: the germ {germ:?}, not {l:?}"
+                    );
+                }
+                let want = if grazes { 1 } else { 2 };
+                assert_eq!(transitions, want, "φ {phi:.3}, ψ {psi:e}: the transitions");
+            }
+        }
+    }
+
+    /// **A run's germs come from the sectors either side of it, signed
+    /// by the bound that run holds**, read off a real orbit: the L
+    /// prism's reflex top corner `(1, 1, 1)` (five sectors, the reflex
+    /// one bisected) against planes through it turned about every way.
+    /// For each Out run, [`run_transitions`] names a sector whose codes
+    /// are the transition it is given, and the germ that sector reads
+    /// lies inside it and its opposite does not.
+    #[test]
+    fn a_runs_germs_are_its_transition_sectors_rays() {
+        use super::super::sectors::{NO_CURVATURE, build_sectors, side_code, within};
+        use geom_brep::OutwardNormal;
+        use geom_core::{Point3, Vec3};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let profile = [
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (2.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 2.0),
+            (0.0, 2.0),
+        ];
+        let body = crate::test_support_fixtures::prism::<f64>(&profile, 1.0, tol).body;
+        let corner = Point3::new(1.0, 1.0, 1.0);
+        let (vertex, _) = body
+            .vertices()
+            .find(|(v, _)| (body.resolve_vertex_point(*v, Proven) - corner).norm() < 1e-12)
+            .expect("the reflex top corner");
+        let sectors = build_sectors(&body, Operand::A, vertex, band).unwrap();
+        let n = sectors.len();
+        let (mut runs_read, mut twin_runs) = (0, 0);
+        for az in (0..16).map(|k| 0.1 + f64::from(k) * std::f64::consts::TAU / 16.0) {
+            for el in [-1.2_f64, -0.5, 0.2, 0.7, 1.3] {
+                let n_p = Vec3::new(el.cos() * az.cos(), el.cos() * az.sin(), el.sin());
+                let label = format!("az {az:.3}, el {el}");
+                let outward = OutwardNormal::from_chart(n_p, true);
+                let mut entries: Vec<Entry> = sectors
+                    .iter()
+                    .map(|s| {
+                        let class =
+                            side_code(s.end, s.end_reach, outward, NO_CURVATURE(), band).unwrap();
+                        Entry {
+                            he: s.he,
+                            is_edge: s.end_edge(),
+                            class,
+                            tied: class == SideCode::On,
+                            lumped: false,
+                        }
+                    })
+                    .collect();
+                resolve_on_entries(&mut entries, band).unwrap();
+                let runs = out_runs(&entries);
+                twin_runs += usize::from(runs.len() == 2);
+                for run in runs {
+                    runs_read += 1;
+                    for (t, out) in run_transitions(run, n) {
+                        let (start, end) = (entries[(t + 1) % n].class, entries[t].class);
+                        let want = match out {
+                            OutBound::Start => (Out, In),
+                            OutBound::End => (In, Out),
+                        };
+                        assert_eq!(
+                            (start, end),
+                            want,
+                            "{label}, run {run:?}: sector {t}'s codes"
+                        );
+                        let s = &sectors[t];
+                        let germ = pierce_germ_dir(s, n_p, out, band).unwrap();
+                        let member = |d| within(s, d, false, DeclarationRead::Moot, band).unwrap();
+                        assert!(
+                            member(germ) && !member(-germ),
+                            "{label}, run {run:?}: sector {t}'s germ {germ:?} ({out:?})"
+                        );
+                    }
+                }
+            }
+        }
+        assert!(
+            runs_read >= 60 && twin_runs >= 4,
+            "{runs_read} runs, {twin_runs} pairs"
         );
     }
 
@@ -1933,7 +2262,7 @@ mod tests {
                 },
                 super::super::BooleanOp::Union,
                 &super::super::DeclaredPairs::default(),
-                &super::super::ContactRecords::default(),
+                &super::super::ReductionContacts::default(),
                 None,
                 band,
                 tol,

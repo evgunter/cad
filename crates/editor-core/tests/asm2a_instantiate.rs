@@ -148,10 +148,8 @@ fn boolean_part(label: &str) -> ProfileDoc {
     );
     let (doc, fused) = insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: plate.into(),
-            b: boss.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
             declare: Vec::new(),
         },
     );
@@ -1562,5 +1560,58 @@ fn r1_the_placement_frame_matches_the_transform_node_bit_for_bit() {
                 );
             }
         }
+    }
+}
+
+/// **The coincidence door's full pass says when a row stands on a
+/// part.** Two instances of a unit cube, the second a unit along `x`,
+/// glue on their touching walls; the door's replay with every variable
+/// a symbol resolves no part (a symbolic run crosses no part seam), so
+/// each row says that, rather than that the replay refused.
+#[test]
+fn the_doors_replay_names_a_row_on_a_part() {
+    let mut store = StubStore::default();
+    let doc_ref = store.insert(part("asm2a-door-part", 0.0, 1.0), Tol::witness());
+    let opts = with_resolver(store);
+    let (doc, ids) = assembly("asm2a-door-asm", &[doc_ref, doc_ref]);
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                1.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
+        },
+    );
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![ids[0].into(), ids[1].into()]),
+            declare: Vec::new(),
+        },
+    );
+    let ev = run(&doc, &opts);
+    let rows = ev
+        .value(union)
+        .expect("the union evaluates")
+        .coincidences
+        .to_vec();
+    assert!(!rows.is_empty(), "the touching walls are a row");
+    let proofs = editor_core::coincide::prove(
+        &doc,
+        &[(union, &rows[..])],
+        Tol::witness(),
+        editor_core::SymbolicPass::Full,
+    );
+    for proof in proofs.into_iter().flatten() {
+        assert!(
+            matches!(
+                &proof,
+                editor_core::Proof::Unproven { residual, .. }
+                    if residual.replay == editor_core::Unreplayed::ThroughAPart
+            ),
+            "{proof:?}"
+        );
     }
 }

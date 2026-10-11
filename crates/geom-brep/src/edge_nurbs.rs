@@ -76,7 +76,6 @@ use core::num::NonZeroUsize;
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::predicate::KERNEL_OR_FILE_DEFECT_ENDING;
-use geom_core::spline::algebra::domain_grid_points;
 use geom_core::spline::{KnotVector, KnotVectorIssue, SplineError};
 use geom_core::{
     Band, Bounds, Decide, Decided, Indeterminate, MarginDiag, Point2, Point3, Readable, Real, Sign,
@@ -85,6 +84,7 @@ use geom_core::{
 
 use crate::certify::{CERT_SAMPLES, CertCheck, recourse, schedule_fraction, schedule_param};
 use crate::recourse::{ReadAt, Refused, RefusedArm};
+use crate::ssi::enclose::CellGrid;
 use crate::ssi::{
     ChartSpeedRefusal, OneArcRefusal, PointLever, SsiError, SsiLimb, SsiOperand, SsiTube,
     certify_rung3,
@@ -285,9 +285,10 @@ impl CarrierDomainRefusal {
     ///
     /// # Panics
     ///
-    /// On a weight or count arm of [`SplineError`], which the door
-    /// never returns: it re-expresses the knots alone and carries the
-    /// validated net and weights over verbatim.
+    /// On a weight, count or held-breakpoint arm of [`SplineError`],
+    /// which the door never returns: it re-expresses an `f64` knot
+    /// vector alone and carries the validated net and weights over
+    /// verbatim.
     fn of(lo: f64, hi: f64, e: &SplineError) -> Self {
         let fault = match e {
             SplineError::DomainInvalid { .. } => CarrierDomainFault::Interval,
@@ -295,9 +296,11 @@ impl CarrierDomainRefusal {
             SplineError::NonPositiveWeight { .. }
             | SplineError::NonFiniteWeight { .. }
             | SplineError::ControlCountMismatch { .. }
-            | SplineError::WeightCountMismatch { .. } => unreachable!(
-                "the domain door re-expresses knots only, so it cannot refuse a weight or a \
-                 count: {e:?}"
+            | SplineError::WeightCountMismatch { .. }
+            | SplineError::KnotNotAPoint { .. }
+            | SplineError::KnotRunsNotIncreasing { .. } => unreachable!(
+                "the domain door re-expresses an f64 knot vector, so it cannot refuse a \
+                 weight, a count or a held breakpoint: {e:?}"
             ),
         };
         Self { lo, hi, fault }
@@ -399,8 +402,12 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             ),
             Self::TransversalityEscalated { sample, cause } => write!(
                 f,
-                "whether the plane and the NURBS wall cross at interior sample {sample} is too \
-                 close to call: {}",
+                concat!(
+                    "whether the plane and the NURBS wall cross at interior sample {}",
+                    geom_core::undecided!(),
+                    ": {}"
+                ),
+                sample,
                 cause.payload()
             ),
             Self::PcurveFit => write!(f, "{PCURVE_FIT_REFUSAL}. {KERNEL_OR_FILE_DEFECT_ENDING}"),
@@ -413,7 +420,13 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                      them",
                     limb.name()
                 ),
-                SsiLimb::OnLocus | SsiLimb::Tube => write!(
+                SsiLimb::HullValueChart => write!(
+                    f,
+                    "{} reads {margin:e} m against the run tolerance — the declared carrier \
+                     is off the surface point its description names",
+                    limb.name()
+                ),
+                SsiLimb::OnLocus | SsiLimb::HullValue | SsiLimb::Tube => write!(
                     f,
                     "{} measured {margin:e} m against the run tolerance — the declared carrier \
                      is not on both surfaces",
@@ -545,8 +558,12 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     // along one, has no chart a length in metres can cross into, and the
     // schedule below would only meet that as a foot point or a sine that
     // cannot be stated.
-    let localized = localized(wall);
-    let wall_op = SsiOperand::nurbs(&localized).map_err(refusal)?;
+    let grid = wall_grid(wall);
+    let wall_op = match &grid {
+        Some(g) => SsiOperand::nurbs_on(wall, g),
+        None => SsiOperand::nurbs(wall),
+    }
+    .map_err(refusal)?;
 
     // ---- The fixed schedule: foot points, and the normal angle. ----
     // The feet and the image are `chart_image`'s, which is also the
@@ -564,7 +581,8 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         if i == 0 || i == PXN_FIT_SAMPLES - 1 {
             return Ok(());
         }
-        let jet = wall.ders(T::from_f64(foot.x), T::from_f64(foot.y));
+        let (u, v) = measured_foot(foot);
+        let jet = wall.ders(u, v);
         let sin_theta = normal_angle_sine(normal, jet.du.cross(jet.dv));
         // The point arm, the plane's curvature being zero.
         let kappa = crate::shape_operator::max_principal_curvature(&jet);
@@ -609,6 +627,115 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         &wall_op,
         extent,
         band,
+    )
+    .map_err(refusal)?;
+    Ok(PlaneNurbsLimbs {
+        on_locus_max: cert.on_locus_max,
+        hull_sup: cert.hull_sup,
+        tube: cert.tube,
+        tube_transversality: cert.tube_transversality,
+        tube_boxes: cert.tube_boxes,
+        min_sin_theta: min_sin,
+    })
+}
+
+/// **The certified NURBS × NURBS derivation** — [`plane_nurbs_limbs`]
+/// for an edge between two spline charts, a described wall or a fit on
+/// either side: the carrier's chart image on EACH chart, from the same
+/// fixed schedule of foot points ([`chart_image`], the one producer of
+/// that image), the normal angle between the two charts at each
+/// interior sample's feet decided definitely transverse, and C2's
+/// certificate against both, its limb 3 the two-chart tube
+/// ([`crate::ssi::SsiTube::TwoChart`]).
+///
+/// The images are re-derived here, as the plane lane's is, so the
+/// limb-2 bound is this lane's own and need not reproduce the section's
+/// certificate bit for bit.
+///
+/// # Errors
+///
+/// [`PlaneNurbsRefusal`], whose vocabulary this lane shares: a foot that
+/// will not converge, an image that will not fit, a sample whose two
+/// charts are not definitely transverse, and a limb's refusal with its
+/// measured bound.
+pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
+    carrier: &NurbsCurve3<T>,
+    a: &NurbsSurface<T>,
+    b: &NurbsSurface<T>,
+    extent: T,
+    band: Band,
+) -> Result<PlaneNurbsLimbs<T>, PlaneNurbsRefusal> {
+    if a.is_placeholder() || b.is_placeholder() {
+        return Err(PlaneNurbsRefusal::Unsupported {
+            what: geom::PLACEHOLDER_SURFACE,
+        });
+    }
+    // Each chart localized on its own cell grid, as the plane lane's wall.
+    let (grid_a, grid_b) = (wall_grid(a), wall_grid(b));
+    let op_a = match &grid_a {
+        Some(g) => SsiOperand::nurbs_on(a, g),
+        None => SsiOperand::nurbs(a),
+    }
+    .map_err(refusal)?;
+    let op_b = match &grid_b {
+        Some(g) => SsiOperand::nurbs_on(b, g),
+        None => SsiOperand::nurbs(b),
+    }
+    .map_err(refusal)?;
+    let mut feet_a: Vec<Point2<f64>> = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
+    let pcurve_a = chart_image(carrier, a, |_, foot| {
+        feet_a.push(foot);
+        Ok(())
+    })?;
+    let mut min_sin = T::from_f64(f64::MAX);
+    let pcurve_b = chart_image(carrier, b, |i, foot| {
+        // Interior samples only, as the plane lane reads them.
+        if i == 0 || i == PXN_FIT_SAMPLES - 1 {
+            return Ok(());
+        }
+        let Some(fa) = feet_a.get(i as usize) else {
+            return Err(PlaneNurbsRefusal::PcurveFit);
+        };
+        let (ua, va) = measured_foot(*fa);
+        let (ub, vb) = measured_foot(foot);
+        let (ja, jb) = (a.ders(ua, va), b.ders(ub, vb));
+        let sin_theta = normal_angle_sine(ja.du.cross(ja.dv), jb.du.cross(jb.dv));
+        let kappa = crate::shape_operator::max_principal_curvature(&ja)
+            .max(crate::shape_operator::max_principal_curvature(&jb));
+        let (arm, reach) = crate::ssi::point_arm(kappa, extent);
+        let margin = geom_core::Margin::levered(sin_theta, arm);
+        match crate::dihedral::decide_reported("nurbs_pair_transversality", margin, band) {
+            Ok(decided) => {
+                if let Some(verdict) = Refused::of(decided, band) {
+                    return Err(PlaneNurbsRefusal::NotTransverse {
+                        sample: i,
+                        lever: PointLever::of(Bounds::lo(reach)),
+                        verdict,
+                    });
+                }
+            }
+            Err(cause) => {
+                return Err(PlaneNurbsRefusal::TransversalityEscalated { sample: i, cause });
+            }
+        }
+        min_sin = min_sin.min(sin_theta);
+        Ok(())
+    })?;
+    let min_sin =
+        geom_core::k_stats::gate_measured("nurbs_pair_transversality_reported", min_sin, band)
+            .map_err(PlaneNurbsRefusal::ReportedTransversalityPoisoned)?;
+    let cert = crate::ssi::certify::certify_branch(
+        carrier,
+        crate::ssi::certify::Lane::AtRest {
+            a: &op_a,
+            b: &op_b,
+            pcurve_a: Some(&pcurve_a),
+            pcurve_b: Some(&pcurve_b),
+        },
+        extent,
+        band,
+        crate::ssi::certify::Limbs::All,
+        &mut crate::ssi::certify::Refused::default(),
     )
     .map_err(refusal)?;
     Ok(PlaneNurbsLimbs {
@@ -685,14 +812,14 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             Ok(Decided { margin, .. }) => {
                 return Err(AnalyticRung3Refusal::Limb {
                     operand: kind,
-                    limb: SsiLimb::HullSup,
+                    limb: Rung3Limb::HullSup,
                     margin,
                 });
             }
             Err(cause) => {
                 return Err(AnalyticRung3Refusal::Escalated {
                     operand: Some(kind),
-                    limb: SsiLimb::HullSup,
+                    limb: Rung3Limb::HullSup,
                     cause,
                 });
             }
@@ -703,6 +830,7 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         crate::ssi::certify::Lane::AtRest {
             a: &SsiOperand::Analytic(s1),
             b: &SsiOperand::Analytic(s2),
+            pcurve_a: None,
             pcurve_b: None,
         },
         // The tube's extent, from the object being certified: the
@@ -790,6 +918,41 @@ fn edge_piece<T: Real>(
         ))
 }
 
+/// The limbs the analytic rung-3 certificate decides, so the ones its
+/// refusals can name: limb 2 on [`analytic_rung3`]'s own bound, and
+/// limb 3, which it asks the SSI certificate for alone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Rung3Limb {
+    /// Limb 2: the carrier's certified distance bound from an operand.
+    HullSup,
+    /// Limb 3: the uniqueness tube.
+    Tube,
+}
+
+impl Rung3Limb {
+    /// The limb's name, as [`SsiLimb::name`] gives the SSI limb this
+    /// one is (its check is not that limb's: [`Rung3Limb::check`]).
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::HullSup => SsiLimb::HullSup,
+            Self::Tube => SsiLimb::Tube,
+        }
+        .name()
+    }
+
+    /// The certification check a refusal of this limb is a refused arm
+    /// of: limb 2 here is the carrier's certified distance bound from an
+    /// analytic operand, not the plane × NURBS lane's.
+    #[must_use]
+    pub fn check(self) -> CertCheck {
+        match self {
+            Self::HullSup => CertCheck::AnalyticHull,
+            Self::Tube => SsiLimb::Tube.check(),
+        }
+    }
+}
+
 /// [`analytic_rung3`]'s typed refusal — the analytic pair's own
 /// vocabulary, closed, and carrying the measured number where one
 /// exists.
@@ -809,7 +972,7 @@ pub enum AnalyticRung3Refusal {
         /// The operand the bound is from.
         operand: geom::SurfaceKind,
         /// Which limb refused.
-        limb: SsiLimb,
+        limb: Rung3Limb,
         /// What the classifier saw of the certified bound, in metres,
         /// for error reporting only
         /// ([`MarginDiag`]): it rides [`AnalyticRung3Refusal::decision`]'s
@@ -821,7 +984,7 @@ pub enum AnalyticRung3Refusal {
         /// The operand whose distance escalated; `None` for the tube.
         operand: Option<geom::SurfaceKind>,
         /// Which limb.
-        limb: SsiLimb,
+        limb: Rung3Limb,
         /// The classifier's diagnostic.
         cause: Indeterminate,
     },
@@ -864,7 +1027,7 @@ impl AnalyticRung3Refusal {
         match e {
             crate::PcurveCertifyError::Escalated { cause, .. } => Self::Escalated {
                 operand: Some(operand),
-                limb: SsiLimb::HullSup,
+                limb: Rung3Limb::HullSup,
                 cause,
             },
             crate::PcurveCertifyError::SectorRefused { channel, .. } => Self::NoOffsetBound {
@@ -883,11 +1046,21 @@ impl AnalyticRung3Refusal {
         match e {
             SsiError::TubeStraddles { verdict, boxes } => Self::TubeStraddles { verdict, boxes },
             SsiError::TubeNotOneArc { rungs, cause } => Self::TubeNotOneArc { rungs, cause },
-            SsiError::CertificateEscalated { limb, cause } => Self::Escalated {
+            SsiError::CertificateEscalated {
+                limb: SsiLimb::Tube,
+                cause,
+            } => Self::Escalated {
                 operand: None,
-                limb,
+                limb: Rung3Limb::Tube,
                 cause,
             },
+            // `Limbs::Tube` asks no operand for limbs 1 and 2, so the
+            // only escalation `certify_branch` can return here is limb
+            // 3's own (`tube_transversality`).
+            SsiError::CertificateEscalated { limb, .. } => unreachable!(
+                "the tube-only certificate escalated on limb {}, which Limbs::Tube never asks",
+                limb.name()
+            ),
             SsiError::UnsupportedCertificate { what } => Self::Unsupported { what },
             _ => Self::Unsupported {
                 what: "the uniqueness tube refused for a reason outside this certificate's \
@@ -907,27 +1080,14 @@ impl AnalyticRung3Refusal {
         self.decision().map(|(check, arm)| recourse(check, arm, at))
     }
 
-    /// The certification check a refusal of `limb` is a refused arm of in
-    /// this certificate: its limb 2 is the carrier's certified distance
-    /// bound from an analytic operand, not the plane × NURBS lane's.
-    #[must_use]
-    pub fn check(limb: SsiLimb) -> CertCheck {
-        match limb {
-            SsiLimb::HullSup => CertCheck::AnalyticHull,
-            SsiLimb::OnLocus | SsiLimb::Tube => limb.check(),
-        }
-    }
-
     /// The decision this refusal is a refused arm of, and which arm.
     #[must_use]
     pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
         Some(match self {
             Self::Limb { limb, margin, .. } => {
-                (Self::check(*limb), RefusedArm::SignCertain(Some(*margin)))
+                (limb.check(), RefusedArm::SignCertain(Some(*margin)))
             }
-            Self::Escalated { limb, cause, .. } => {
-                (Self::check(*limb), RefusedArm::Undecided(cause))
-            }
+            Self::Escalated { limb, cause, .. } => (limb.check(), RefusedArm::Undecided(cause)),
             Self::TubeStraddles { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
             // The one-arc proof is the SSI door's own decision, and
             // `ending` reads it there.
@@ -1124,11 +1284,49 @@ where
     Ok(Point2::new(proj.u, proj.v))
 }
 
-/// How many knot spans per direction the wall is refined to before the
-/// hull and tube limbs run. A **structure** choice in C6's `f64` lane
-/// (never a decision), the surface-side twin of `ssi::certify`'s
-/// `SSI_CERT_SPANS` for the carrier.
+/// How many knot spans per direction the tube reads the wall's cells
+/// at ([`wall_grid`]). A **structure** choice (never a decision), the
+/// surface-side twin of `ssi::certify`'s `SSI_CERT_SPANS` for the
+/// carrier.
 pub const PXN_WALL_SPANS: usize = 16;
+
+/// The grid points [`wall_grid`] inserts along one of the wall's
+/// directions: the domain's [`PXN_WALL_SPANS`]ths
+/// (`domain_grid_points`), none for a direction already holding
+/// `PXN_WALL_SPANS + degree` control points.
+fn wall_breaks(kv: &KnotVector) -> Vec<f64> {
+    if kv.control_count() >= PXN_WALL_SPANS + kv.degree() {
+        return Vec::new();
+    }
+    geom_core::spline::algebra::domain_grid_points(kv, PXN_WALL_SPANS)
+}
+
+/// The cells the tube reads the wall at: its net refined to about
+/// [`PXN_WALL_SPANS`] spans per direction, in certification arithmetic
+/// ([`CellGrid`]).
+///
+/// The tube's chart readings (the minted chart speeds its pads divide
+/// the rung by, the transversality margin, the one-arc boxes) are hulls
+/// over span cells, and a wall with few spans reads them loose: on a
+/// rational wall whose weights run over decades, the whole-domain speed
+/// sup over its own cells reads up to a thousand times its sampled
+/// speed, and over sixteenths under sixteen times it
+/// (`tests/review_4553_pxn_probes.rs`). Knot insertion is exact in ℝ,
+/// so the grid describes the same wall; refined in the ring, it
+/// encloses that wall's refined net rather than a rounded neighbour's
+/// (C6).
+///
+/// `None`, and the wall's own cells, when neither direction takes a
+/// point or the refinement refuses: a coarser enclosure can only make
+/// the certificate harder to pass, never unsound. Limb 2's hull and the
+/// evaluations read the wall itself.
+fn wall_grid<T: geom_core::CertifiedBounds>(wall: &NurbsSurface<T>) -> Option<CellGrid> {
+    let (bu, bv) = (wall_breaks(wall.knots_u()), wall_breaks(wall.knots_v()));
+    if bu.is_empty() && bv.is_empty() {
+        return None;
+    }
+    CellGrid::refined(wall, &bu, &bv)
+}
 
 /// The chart image's own D9-fixed schedule: how many foot points the
 /// image is interpolated through.
@@ -1165,35 +1363,10 @@ pub const PXN_FIT_SAMPLES: u32 = 33;
 /// the algebraic route already banked with #264's envelope findings.
 pub const PXN_IMAGE_DEGREE: usize = 1;
 
-/// The wall refined to [`PXN_WALL_SPANS`] spans per direction before the
-/// hull and tube limbs run.
-///
-/// The hull limb's composite is hulled per span, so finer spans tighten
-/// it. The tube's chart readings (`NurbsBoxes::speed_sup` and the
-/// transversality margin) cut each span cell to the tube window and
-/// meet that with the whole cell's reading, so they localize below a
-/// span on their own. Whether the
-/// tube still gains anything from this refinement is unmeasured
-/// (`work/iso/pxn-wall-refinement-may-be-unneeded-for-the-tube.md`).
-/// Knot refinement is exact in ℝ (the surface's locus and
-/// parameterization are unchanged).
-///
-/// Already-fine patches are returned unchanged, and a refusing knot
-/// algebra falls back to the original — a coarser enclosure can only
-/// make the certificate harder to pass, never unsound.
-fn localized<T: Real>(wall: &NurbsSurface<T>) -> NurbsSurface<T> {
-    fn breaks(kv: &geom_core::spline::KnotVector) -> Vec<f64> {
-        if kv.control_count() >= PXN_WALL_SPANS + kv.degree() {
-            return Vec::new();
-        }
-        domain_grid_points(kv, PXN_WALL_SPANS)
-    }
-    let add_u = breaks(wall.knots_u());
-    let add_v = breaks(wall.knots_v());
-    let refined = wall.refine_knots_u(&add_u).unwrap_or_else(|_| wall.clone());
-    refined
-        .refine_knots_v(&add_v)
-        .unwrap_or_else(|_| refined.clone())
+/// A chart foot the projection measured, at the caller's scalar: two
+/// computed values, so at `Sym` two unknowns.
+fn measured_foot<T: Real>(foot: Point2<f64>) -> (T, T) {
+    (T::from_computed(foot.x), T::from_computed(foot.y))
 }
 
 /// `|n̂ × m̂|` — the sine of the angle between the plane's exact unit
@@ -1214,9 +1387,10 @@ fn normal_angle_sine<T: Real>(plane_normal: Vec3<T>, wall_normal: Vec3<T>) -> T 
 /// operations, in that order: the interpolation's clamped `0 → 1`
 /// knots onto `[t0, t1]` through the curve's own domain door (ends
 /// exact, interior affine, at `f64`), then the control net through
-/// `T::from_f64` as a structural lift. The rescale is the only step
-/// that can refuse — the lift carries a validated curve's net verbatim
-/// — so the `Result` is the knot door's alone.
+/// `T::from_computed`: the net is a fit to measured feet, so at `Sym`
+/// each coordinate is its own unknown, never a constant. The rescale
+/// is the only step that can refuse — the lift carries a validated
+/// curve's net verbatim — so the `Result` is the knot door's alone.
 ///
 /// The knot map's own rounding is not a soundness question — the image
 /// is evidence that limb 2 bounds, not a certified quantity (module
@@ -1226,7 +1400,7 @@ fn on_carrier_domain<T: Real>(
     t0: f64,
     t1: f64,
 ) -> Result<NurbsCurve2<T>, SplineError> {
-    Ok(image.on_domain(t0, t1)?.map_scalar(T::from_f64))
+    Ok(image.on_domain(t0, t1)?.map_scalar(T::from_computed))
 }
 
 /// The SSI refusal, in this lane's vocabulary.
@@ -1266,6 +1440,7 @@ mod tests {
     use geom_core::FileCoincidence;
     use geom_core::spline::KnotVector;
 
+    use crate::exact_q::Q;
     use crate::recourse::Reading;
 
     use super::*;
@@ -1363,6 +1538,38 @@ mod tests {
     /// The carrier interval the rows use: `0.3 + (0.9 − 0.3)` is an
     /// ulp above `0.9`, so a computed end would miss it.
     const CARRIER: (f64, f64) = (0.3, 0.9);
+
+    /// The fit's computed values enter as unknowns at `Sym`: a measured
+    /// foot's two coordinates, and every coordinate of the fitted
+    /// image's control net. A constant would re-value to its own bits.
+    #[test]
+    fn the_fit_enters_its_feet_and_its_net_as_computed_values() {
+        use geom_core::sym::revalue::revalue;
+        use geom_core::sym::with_session;
+        use geom_core::{Sym, SymBudget};
+        type S = Sym<f64>;
+        let budget = SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        let none = |_| None;
+        let ((foot, net), _) = with_session(budget, || {
+            let (u, v) = measured_foot::<S>(Point2::new(0.25, 0.75));
+            let (t0, t1) = CARRIER;
+            let lifted = on_carrier_domain::<S>(&image(), t0, t1).unwrap();
+            let net: Vec<_> = lifted
+                .control()
+                .iter()
+                .flat_map(|p| [revalue(p.x.node(), &none), revalue(p.y.node(), &none)])
+                .collect();
+            ((revalue(u.node(), &none), revalue(v.node(), &none)), net)
+        });
+        assert_eq!(foot, (None, None), "a measured foot's u and v are unknowns");
+        assert!(
+            net.iter().all(Option::is_none),
+            "the fitted net's coordinates are unknowns: {net:?}"
+        );
+    }
 
     /// The rescale is the rescale and the lift is the lift, at `f64`:
     /// the carrier-domain image's domain is `(t0, t1)` bit for bit,
@@ -1474,7 +1681,7 @@ mod tests {
         KnotVector::clamped(knots, 2).unwrap()
     }
 
-    fn wall(ku: KnotVector, kv: KnotVector) -> NurbsSurface<f64> {
+    fn grid_wall(ku: KnotVector, kv: KnotVector) -> NurbsSurface<f64> {
         let (nu, nv) = (ku.control_count(), kv.control_count());
         #[allow(clippy::cast_precision_loss)]
         let control = (0..nu * nv)
@@ -1488,21 +1695,22 @@ mod tests {
         (0..n).map(|j| f64::from(2 * j + 1) / 64.0).collect()
     }
 
-    /// `localized` inserts each direction's DOMAIN sixteenths, a grid
+    /// `wall_grid` inserts each direction's DOMAIN sixteenths, a grid
     /// point skipped up to and including `GRID_CLEARANCE` of the
     /// spacing (`2⁻¹²`) from a knot (`0.5`, and `1/16` beside a knot
     /// exactly `2⁻¹²` above it; a knot one ulp further than that above
     /// `3/8` leaves `3/8` standing), and leaves a direction with
     /// `PXN_WALL_SPANS + degree` control points alone while one with a
-    /// control point fewer takes the grid.
+    /// control point fewer takes the grid. A wall neither direction of
+    /// which takes a point reads its own cells.
     #[test]
-    fn localized_skips_a_grid_point_up_to_the_clearance_per_direction_with_its_cut_off() {
+    fn wall_grid_skips_a_grid_point_up_to_the_clearance_per_direction_with_its_cut_off() {
         let c = geom_core::spline::algebra::grid_clearance(0.0, 1.0, PXN_WALL_SPANS);
         let near = 0.0625 + c;
         let clear = (0.375 + c).next_up();
         let at = deg2(&odd64(15));
         assert_eq!(at.control_count(), PXN_WALL_SPANS + 2);
-        let out = localized(&wall(deg2(&[near, clear, 0.5]), at.clone()));
+        let out = wall_grid(&grid_wall(deg2(&[near, clear, 0.5]), at.clone())).unwrap();
         assert_eq!(
             out.knots_u().knots(),
             [
@@ -1513,21 +1721,22 @@ mod tests {
         assert_eq!(out.knots_v().knots(), at.knots());
         let below = deg2(&odd64(14));
         assert_eq!(below.control_count(), 17);
-        let out = localized(&wall(deg2(&[0.5]), below));
+        let out = wall_grid(&grid_wall(deg2(&[0.5]), below)).unwrap();
         assert_eq!(out.knots_v().control_count(), 17 + 15);
+        assert!(wall_grid(&grid_wall(at.clone(), at)).is_none());
     }
 
-    /// `localized`'s wall has no cliff at any distance of a stated knot
+    /// `wall_grid`'s net has no cliff at any distance of a stated knot
     /// from a grid point: a degree-1 ruled wall bent at every offset of
     /// [`crate::grid_offsets::knot_offsets`] from the first point of the
-    /// [`PXN_WALL_SPANS`] grid keeps every
-    /// span's `u` difference quotient within `1e-9` of the slope of the
-    /// leg it lies on. That quotient is the derivative net each cell of
-    /// the tube's chart readings is built from. It is read directly
-    /// because `NurbsBoxes::speed_sup` takes the largest cell and so
-    /// hides a hairline whose rounding happened to land low. A grid
-    /// point inserted at a gap `g` beside the bend divides the inserted
-    /// point's rounding by `g`.
+    /// [`PXN_WALL_SPANS`] grid keeps every span's `u` difference
+    /// quotient, as an enclosure, within `1e-9` of the slope of the leg
+    /// it lies on. That quotient is the derivative net each cell of the
+    /// tube's chart readings is built from. It is read directly because
+    /// `NurbsBoxes::speed_sup` takes the largest cell and so hides a
+    /// hairline whose rounding happened to land low. A grid point
+    /// inserted at a gap `g` beside the bend divides the inserted
+    /// point's width by `g`.
     #[test]
     fn the_wall_grid_derivative_net_has_no_cliff_at_any_knot_offset() {
         let (_, offsets) = crate::grid_offsets::knot_offsets(PXN_WALL_SPANS, 1);
@@ -1541,15 +1750,19 @@ mod tests {
                     .flat_map(|x| [Point3::new(x, 0.0, 0.0), Point3::new(x, 1.0, 0.0)])
                     .collect();
                 let wall = NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap();
-                let fine = localized(&wall);
+                let fine = wall_grid(&wall).unwrap();
                 let (knots, nv) = (fine.knots_u().knots(), fine.knots_v().control_count());
-                let x: Vec<f64> = fine.control().iter().step_by(nv).map(|p| p.x).collect();
+                let x: Vec<geom_core::Interval> =
+                    fine.points().iter().step_by(nv).map(|p| p[0]).collect();
                 // Degree 1: control `i` sits at knot `i + 1`.
                 let worst = (0..x.len() - 1)
                     .map(|i| {
                         let (a, b) = (knots[i + 1], knots[i + 2]);
                         let slope = if b <= k { 0.9 / k } else { 0.1 / (1.0 - k) };
-                        ((x[i + 1] - x[i]) / (b - a) - slope).abs()
+                        let q = (x[i + 1] - x[i])
+                            / (geom_core::Interval::from_certified(b)
+                                - geom_core::Interval::from_certified(a));
+                        (q.hi() - slope).abs().max((q.lo() - slope).abs())
                     })
                     .fold(0.0, |a: f64, e| if e.is_nan() || e > a { e } else { a });
                 (label, worst)
@@ -1567,70 +1780,97 @@ mod tests {
         }
     }
 
-    /// An exact rational: `n / d`, `d > 0`, for the oracle below.
-    #[derive(Clone, Debug)]
-    struct Q {
-        n: num_bigint::BigInt,
-        d: num_bigint::BigInt,
-    }
-
-    impl Q {
-        /// The exact value of a finite `f64` (`m · 2^e`).
-        fn of(x: f64) -> Self {
-            use num_bigint::BigInt;
-            let bits = x.to_bits();
-            let sign: i64 = if bits >> 63 == 1 { -1 } else { 1 };
-            let exp = i32::try_from((bits >> 52) & 0x7ff).unwrap();
-            let frac = i64::try_from(bits & ((1 << 52) - 1)).unwrap();
-            let (m, e) = if exp == 0 {
-                (frac, -1074)
-            } else {
-                (frac | (1 << 52), exp - 1075)
-            };
-            let m = BigInt::from(sign * m);
-            if e >= 0 {
-                Self {
-                    n: m << usize::try_from(e).unwrap(),
-                    d: BigInt::from(1),
+    /// **The wall grid encloses the exact refined net** of the described
+    /// wall. A rational wall on non-dyadic knots, controls and weights,
+    /// refined to the grid: every grid weight contains the exact refined
+    /// weight, and every grid point the exact quotient of the refined
+    /// homogeneous channels, both by Boehm's insertion in exact
+    /// rationals (`crate::exact_q`). A net refined at `f64` and lifted
+    /// into the ring holds thin rounded values, which miss the exact
+    /// ones wherever an insertion rounds: the row's contrast arm builds
+    /// that net (`refine_knots_u/v` at `f64`) and requires it to miss.
+    #[test]
+    fn the_wall_grid_encloses_the_exact_refined_net() {
+        use crate::exact_q::{refine_u, transposed};
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.3, 0.7, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let section = [(0.1, 0.2), (0.9, 1.3), (1.7, -0.6), (2.3, 0.7), (3.1, 0.1)];
+        let row_w = [1.0, 0.3, 2.7, 0.6, 1.1];
+        let mut control = Vec::new();
+        let mut weights = Vec::new();
+        for (i, &(x, y)) in section.iter().enumerate() {
+            for (z, s) in [(0.0, 1.0), (1.3, 0.7)] {
+                control.push(Point3::new(x, y, z));
+                weights.push(row_w[i] * s);
+            }
+        }
+        let wall =
+            NurbsSurface::new(ku.clone(), kv.clone(), control.clone(), weights.clone()).unwrap();
+        let grid = wall_grid(&wall).expect("both directions take the grid");
+        // The exact homogeneous channels `(w·x, w·y, w·z, w)`, row-major,
+        // refined along `u`, then along `v` through the transpose.
+        let net: Vec<[Q; 4]> = control
+            .iter()
+            .zip(&weights)
+            .map(|(p, &w)| {
+                let w = Q::of(w);
+                let [x, y, z] = [p.x, p.y, p.z].map(|c| w.mul(&Q::of(c)));
+                [x, y, z, w]
+            })
+            .collect();
+        let new = |old: &KnotVector, fine: &KnotVector| -> Vec<f64> {
+            let mut out = fine.knots().to_vec();
+            for k in old.knots() {
+                out.remove(out.iter().position(|x| x == k).unwrap());
+            }
+            out
+        };
+        let (bu, bv) = (new(&ku, grid.knots_u()), new(&kv, grid.knots_v()));
+        let (nu, nv) = (ku.control_count(), kv.control_count());
+        let (net, knots_u) = refine_u(&net, (nu, nv), (ku.knots(), 2), &bu);
+        let (nu, net) = (nu + bu.len(), transposed(&net, (nu + bu.len(), nv)));
+        let (net, knots_v) = refine_u(&net, (nv, nu), (kv.knots(), 1), &bv);
+        let net = transposed(&net, (nv + bv.len(), nu));
+        assert_eq!(knots_u, grid.knots_u().knots());
+        assert_eq!(knots_v, grid.knots_v().knots());
+        assert_eq!(net.len(), grid.points().len());
+        let misses = |pts: &[[geom_core::Interval; 3]], wts: &[geom_core::Interval]| {
+            let mut missed = Vec::new();
+            for (k, ((h, p), w)) in net.iter().zip(pts).zip(wts).enumerate() {
+                if !h[3].within(w.lo(), w.hi()) {
+                    missed.push(format!("weight {k}"));
                 }
-            } else {
-                Self {
-                    n: m,
-                    d: BigInt::from(1) << usize::try_from(-e).unwrap(),
+                for c in 0..3 {
+                    if !h[c].div(&h[3]).within(p[c].lo(), p[c].hi()) {
+                        missed.push(format!("point {k}.{c}"));
+                    }
                 }
             }
-        }
-        fn add(&self, o: &Self) -> Self {
-            Self {
-                n: &self.n * &o.d + &o.n * &self.d,
-                d: &self.d * &o.d,
-            }
-        }
-        fn sub(&self, o: &Self) -> Self {
-            Self {
-                n: &self.n * &o.d - &o.n * &self.d,
-                d: &self.d * &o.d,
-            }
-        }
-        fn mul(&self, o: &Self) -> Self {
-            Self {
-                n: &self.n * &o.n,
-                d: &self.d * &o.d,
-            }
-        }
-        fn div(&self, o: &Self) -> Self {
-            let (n, d) = (&self.n * &o.d, &self.d * &o.n);
-            if d.sign() == num_bigint::Sign::Minus {
-                Self { n: -n, d: -d }
-            } else {
-                Self { n, d }
-            }
-        }
-        /// `lo ≤ self ≤ hi`, exactly.
-        fn within(&self, lo: f64, hi: f64) -> bool {
-            let (lo, hi) = (Self::of(lo), Self::of(hi));
-            &lo.n * &self.d <= &self.n * &lo.d && &self.n * &hi.d <= &hi.n * &self.d
-        }
+            missed
+        };
+        let missed = misses(&grid.points(), &grid.weights());
+        assert!(
+            missed.is_empty(),
+            "the grid missed the exact net at {missed:?}"
+        );
+        // Contrast: the same refinement at `f64`, lifted thin.
+        let lifted = wall
+            .refine_knots_u(&bu)
+            .unwrap()
+            .refine_knots_v(&bv)
+            .unwrap();
+        let thin = |x: f64| geom_core::Interval::from_certified(x);
+        let pts: Vec<_> = lifted
+            .control()
+            .iter()
+            .map(|p| [p.x, p.y, p.z].map(thin))
+            .collect();
+        let wts: Vec<_> = lifted.weights().iter().map(|&w| thin(w)).collect();
+        assert!(
+            !misses(&pts, &wts).is_empty(),
+            "the f64-refined net must miss the exact one somewhere, or this row cannot tell \
+             the two apart"
+        );
     }
 
     /// The exact controls of a polynomial B-spline's restriction to
@@ -1665,9 +1905,7 @@ mod tests {
     /// controls and a non-unit constant weight, cut to a non-dyadic
     /// interval: at `Interval` every control of the piece contains the
     /// exact rational control of the true restriction, and the piece's
-    /// weights are the carrier's weight exactly. The same cut through an
-    /// `f64` insertion plan (`split_at`) misses the exact controls, which
-    /// is what this row tells apart.
+    /// weights are the carrier's weight exactly.
     #[test]
     fn the_tubes_piece_encloses_the_exact_restriction_at_interval() {
         use geom_core::{Bounds, Interval};
@@ -1706,10 +1944,5 @@ mod tests {
                 })
         };
         assert!(encloses(piece.control()), "{:?}", piece.control());
-        let planned = carrier.split_at(b).unwrap().0.split_at(a).unwrap().1;
-        assert!(
-            !encloses(planned.control()),
-            "an f64 insertion plan misses the exact restriction"
-        );
     }
 }

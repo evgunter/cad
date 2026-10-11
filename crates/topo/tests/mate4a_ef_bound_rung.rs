@@ -46,7 +46,7 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{Body, CensusContact, ContactRecords, FaceKey, PatchContact, ValidationError};
+use topo::{Body, CensusContact, ContactRecords, FaceKey, ValidationError};
 
 /// The overhang seat (issue 973's section (a), the review probe's
 /// fixture): the cap crosses the shelf's `y = 0.30` side edge at the
@@ -93,17 +93,11 @@ fn straddle_seat() -> (Body<f64>, FaceKey, FaceKey) {
     (seat.body, seat.post_top, seat.shelf_bottom)
 }
 
-fn declared(a: FaceKey, b: FaceKey) -> ContactRecords {
-    ContactRecords {
-        patches: vec![topo::Cited::new(
-            PatchContact {
-                face_a: a,
-                face_b: b,
-            },
-            topo::Cites::decided(0),
-        )],
-        ..ContactRecords::default()
-    }
+fn declared(body: &Body<f64>, a: FaceKey, b: FaceKey) -> ContactRecords {
+    topo::ContactRecords::from_iter(vec![topo::Cited::new(
+        topo::Contact::new(body, topo::Cell::Face(a), topo::Cell::Face(b)).unwrap(),
+        topo::Cites::decided(0),
+    )])
 }
 
 fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
@@ -144,7 +138,7 @@ fn count(cs: &[CensusContact], f: impl Fn(&CensusContact) -> bool) -> usize {
 #[test]
 fn the_declared_overhang_seat_keeps_no_hard_finding() {
     let (body, post_top, shelf_bottom, _) = overhang_seat();
-    let found = errors(&body, &declared(post_top, shelf_bottom));
+    let found = errors(&body, &declared(&body, post_top, shelf_bottom));
     assert!(
         undeclared(&found).is_empty(),
         "every finding of the declared overhang seat is answered: {found:?}"
@@ -182,24 +176,17 @@ fn the_bare_overhang_seat_still_refuses() {
 /// overlap stays a hard finding, and the census is exactly as loud as
 /// with no declaration at all.
 ///
-/// What this row does and does NOT say. It says the rung reads the
-/// declared pair's own incidence, so a pair incident to NEITHER the
-/// vertex's faces nor a face of the edge backs nothing. It does not say
-/// that only the resting pair backs this bound: `ve_face_backed` asks
-/// for a pair holding some face incident to the vertex against some
-/// face the edge bounds, and never names the face whose overlap is
-/// being certified — so pairs with no relation to the resting interface
-/// back the arm too, a declaration the confirm pass itself refutes
-/// included. That reach is the ratified region-unconfined strength
-/// working as ruled, not a leak, and
-/// `review_mate4a_r2_probes::r2_an_unrelated_declared_pair_backs_the_ef_bound`
-/// is where it is demonstrated rather than left to be inferred from
-/// this row's silence.
+/// The rung is region-confined: a declared pair backs a bound only
+/// where the bound lies in both faces' closed regions on their carriers
+/// and the pair's own overlap verifies, so a pair with no relation to
+/// the resting interface backs nothing —
+/// `review_mate4a_r2_probes::r2_an_unrelated_declared_pair_backs_no_ef_bound`
+/// is that row for a pair incident to the bound's entities.
 #[test]
 fn a_wrong_pair_backs_no_ef_bound() {
     let (body, post_top, _, shelf_top) = overhang_seat();
     let bare = undeclared(&errors(&body, &ContactRecords::default()));
-    let wrong = undeclared(&errors(&body, &declared(post_top, shelf_top)));
+    let wrong = undeclared(&errors(&body, &declared(&body, post_top, shelf_top)));
     assert_eq!(
         count(&wrong, |c| matches!(
             c,
@@ -231,7 +218,7 @@ fn a_wrong_pair_backs_no_ef_bound() {
 #[test]
 fn the_declared_straddle_seat_certifies() {
     let (body, post_top, shelf_bottom) = straddle_seat();
-    let found = errors(&body, &declared(post_top, shelf_bottom));
+    let found = errors(&body, &declared(&body, post_top, shelf_bottom));
     assert!(
         found.is_empty(),
         "the declared straddle seat's crossings are backed at the \
@@ -266,9 +253,9 @@ fn the_bare_straddle_seat_is_untouched() {
          UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(15v1), \
          face: FaceKey(1v1) }, witness: \"(0.44999999999999996, 0.3, 0.5)\" }, \
          UndeclaredContact { contact: EdgeEdgeCross { a: EdgeKey(10v1), \
-         b: EdgeKey(15v1) }, witness: \"(0.6, 0.3, 0.5)\" }, \
+         b: EdgeKey(15v1), side: None }, witness: \"(0.6, 0.3, 0.5)\" }, \
          UndeclaredContact { contact: EdgeEdgeCross { a: EdgeKey(12v1), \
-         b: EdgeKey(15v1) }, witness: \"(0.3, 0.3, 0.5)\" }]",
+         b: EdgeKey(15v1), side: None }, witness: \"(0.3, 0.3, 0.5)\" }]",
         "the bare straddle seat's whole census"
     );
 }

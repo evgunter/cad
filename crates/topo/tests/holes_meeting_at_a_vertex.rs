@@ -34,7 +34,8 @@ use crate::common;
 use common::meeting::{
     Hole, MEET, PLATE, Pose, apex_pyramid, arch, arch_cone, at, branching_cone, comb,
     corners_disjoint, ell_and_wedges, four_wedges, inner_rows, notch, notch_rows, orders,
-    posed_box, posed_prism, poses, shape, three_wedges, two_wedges, wedge, wedges_on_one_side,
+    posed_box, posed_prism, poses, pyramid_volumes, shape, three_wedges, two_wedges, wedge,
+    wedges_on_one_side,
 };
 use geom_core::{Point3, Tol};
 use topo::{AtRestBody, BooleanResult, union, validate_geometric, validate_pseudomanifold};
@@ -82,7 +83,7 @@ fn every_order(label: &str, holes: &[Hole], counts: [usize; 3]) {
             (v - volume).abs() < 1e-9,
             "{what}: volume {v}, closed form {volume}"
         );
-        assert_eq!(corners_disjoint(&body), Ok(()), "{what}: corners");
+        assert_eq!(corners_disjoint(&body, t()), Ok(()), "{what}: corners");
         let s = shape(&body);
         let at_c = body
             .vertices()
@@ -153,7 +154,7 @@ fn sound(what: &str, r: &topo::BooleanBody<f64>, want: f64, pose: &Pose) {
         (v - want).abs() < 1e-9,
         "{what}: volume {v}, expected {want}"
     );
-    assert_eq!(corners_disjoint(b), Ok(()), "{what}: corners");
+    assert_eq!(corners_disjoint(b, t()), Ok(()), "{what}: corners");
     let block = posed_box(
         "a block across the meeting point",
         [(1.21, 1.77), (0.68, 1.31), (0.86, 1.52)],
@@ -300,7 +301,7 @@ fn grid(k: usize) {
                         validate_pseudomanifold(&b, &r.contacts, t()).is_ok(),
                         "{label}: P − U, tier 3′"
                     );
-                    assert_eq!(corners_disjoint(&b), Ok(()), "{label}: P − U, corners");
+                    assert_eq!(corners_disjoint(&b, t()), Ok(()), "{label}: P − U, corners");
                     let v = volume(&b);
                     assert!(
                         (v - (6.0 - inside)).abs() < 1e-8,
@@ -386,35 +387,6 @@ fn probes(pose: &Pose) -> Vec<Point3<f64>> {
 
 /// The plate's volume.
 const PLATE_VOLUME: f64 = 6.0;
-
-/// The volume of [`apex_pyramid`] over `base`, and of its part below the
-/// top, in closed form: the base lies in the plane half a unit from the
-/// apex, so each is a sixth of the area its polygon bounds there, the
-/// part below the top over the polygon clipped to `z < 0`.
-fn pyramid_volumes(base: &[[f64; 3]]) -> (f64, f64) {
-    let area = |poly: &[(f64, f64)]| {
-        (0..poly.len())
-            .map(|i| {
-                let ((y0, z0), (y1, z1)) = (poly[i], poly[(i + 1) % poly.len()]);
-                y0 * z1 - y1 * z0
-            })
-            .sum::<f64>()
-            .abs()
-            / 2.0
-    };
-    let poly: Vec<(f64, f64)> = base.iter().map(|q| (q[1], q[2])).collect();
-    let mut below = Vec::new();
-    for i in 0..poly.len() {
-        let ((y0, z0), (y1, z1)) = (poly[i], poly[(i + 1) % poly.len()]);
-        if z0 < 0.0 {
-            below.push((y0, z0));
-        }
-        if (z0 < 0.0) != (z1 < 0.0) {
-            below.push((y0 + (y1 - y0) * z0 / (z0 - z1), 0.0));
-        }
-    }
-    (area(&poly) / 6.0, area(&below) / 6.0)
-}
 
 /// Whether `(y, z)` lies inside the polygon `poly` (even-odd).
 fn in_polygon(poly: &[(f64, f64)], (y, z): (f64, f64)) -> bool {

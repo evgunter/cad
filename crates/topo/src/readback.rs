@@ -458,43 +458,6 @@ pub fn edge_carrier_ref<T: Real>(
     Ok(geom.certified().ok_or(CarrierAbsence::NoCarrier)?.carrier())
 }
 
-/// **An edge's extent** — [`geom_brep::edge_extent`] over the edge's
-/// certified carrier, its parameter span and the chord between its two
-/// ends: a lower bound on the diameter of the point set the edge spans,
-/// and the length a decision levered across the edge reads. A closed
-/// edge's chord is 0; its extent is its carrier's span.
-///
-/// # Errors
-///
-/// The [`CarrierAbsence`] naming whichever came back empty: the edge,
-/// or its curve entry's certified carrier.
-///
-/// # Panics
-///
-/// Where a record on the way from the live edge to its ends or its
-/// curve entry does not resolve (D2 row 4).
-pub(crate) fn edge_extent<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<T, CarrierAbsence> {
-    let e = body.get_edge(edge).ok_or(CarrierAbsence::Dangling(edge))?;
-    let end = |he: HalfEdgeKey, field: &'static str| -> Point3<T> {
-        let start = crate::live::linked(
-            &body.half_edges,
-            he,
-            EntityId::HalfEdge,
-            EntityId::Edge(edge),
-            field,
-        )
-        .start;
-        body.linked_vertex_point(start, EntityId::HalfEdge(he), "start")
-    };
-    let chord = (end(e.he_minus, "he_minus") - end(e.he_plus, "he_plus")).norm();
-    let curve = body
-        .edge_curve_linked(edge, e)
-        .certified()
-        .ok_or(CarrierAbsence::NoCarrier)?;
-    let (t0, t1) = curve.params();
-    Ok(geom_brep::edge_extent(curve.carrier(), t0, t1, chord))
-}
-
 /// **An edge's carrier kind** — the [`CurveKind`] tag of the curve the
 /// edge's certified carrier IS, copied out.
 ///
