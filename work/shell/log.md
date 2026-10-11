@@ -1422,3 +1422,7 @@ Ev said go.
   - Unit 20, the saddle fit's reach: measure first.
   - Unit 21, the plane × NURBS door takes `branch_at`: M tier, byte 32, sequential. Session `session_01B4AEY8mN4g5xVdPeSiayBW`, branch `shell/plane-nurbs-branch-at`.
   - Unit 20 is session `session_019xfAWegsKDr6qfC43zBBpU`, branch `shell/saddle-fit-reach`.
+- **Unit 20 measured** (2026-10-11 08:43Z, draft PR 4672): the saddle wall's fit bound falls at the bicubic h⁴ rate with no floor (4.12e-9 → 3.85e-10 at 49×26 → 4.3e-12 at 171×88). Two constants stop it: the round budget, and the per-direction sample cap of 48.
+  - Ruled: the round budget no longer stops an Improved loop, and the cap becomes a total-sample cap (nu·nv ≤ 2304). The default ε then certifies, and 1e-12 refuses `SampleCapReached` typed.
+  - Provenance: the cap and its README phrase are agent text (ce235c86f1 VERBS-OFF-B; 1d242b4917 / 887f5e39d3), so the change is not Ev's.
+  - M tier: the review draw comes when the lane is green.
