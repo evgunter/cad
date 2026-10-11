@@ -7,6 +7,8 @@
 //! carrier holding its weights in `T` has to keep and one holding them
 //! in `f64` freezes.
 
+use core::num::NonZeroUsize;
+
 use geom_core::spline::{Knots, SpanLocate, SplineError};
 use geom_core::{Point2, Real};
 
@@ -24,13 +26,15 @@ pub struct HeldArc<T: Real> {
 }
 
 impl<T: SpanLocate> HeldArc<T> {
-    /// The arc of radius `r` from angle `0` to `θ`, in `m ≥ 1` equal
+    /// The arc of radius `r` from angle `0` to `θ`, in `m` equal
     /// sub-arcs.
     ///
     /// # Errors
     ///
-    /// [`Knots::new`]'s, for an `m` whose knots do not clamp.
-    pub fn new(r: T, theta: T, m: usize) -> Result<Self, SplineError> {
+    /// [`Knots::new`]'s: a `θ` too small for `k/m` to increase, or not
+    /// a point.
+    pub fn new(r: T, theta: T, m: NonZeroUsize) -> Result<Self, SplineError> {
+        let m = m.get();
         #[allow(clippy::cast_precision_loss)]
         let steps = T::from_f64(m as f64);
         let delta = theta / steps;
@@ -49,12 +53,16 @@ impl<T: SpanLocate> HeldArc<T> {
             control.push(at(base + delta, r));
             weights.push(T::one());
         }
-        let mut runs = vec![(T::zero(), 3)];
+        let (double, triple) = (
+            NonZeroUsize::MIN.saturating_add(1),
+            NonZeroUsize::MIN.saturating_add(2),
+        );
+        let mut runs = vec![(T::zero(), triple)];
         for k in 1..m {
             #[allow(clippy::cast_precision_loss)]
-            runs.push((T::from_f64(k as f64) / steps, 2));
+            runs.push((T::from_f64(k as f64) / steps, double));
         }
-        runs.push((T::one(), 3));
+        runs.push((T::one(), triple));
         Ok(Self {
             knots: Knots::new(runs, 2)?,
             control,
@@ -64,9 +72,12 @@ impl<T: SpanLocate> HeldArc<T> {
 
     /// The arc's point at `t ∈ [0, 1]`: `Σ Nᵢwᵢ Pᵢ / Σ Nᵢwᵢ` over the
     /// span `t` locates in, every factor read as held. `None` for a
-    /// poison `t`.
+    /// poison `t`, or an enclosure that straddles two spans.
     pub fn eval(&self, t: T) -> Option<Point2<T>> {
-        let (span, _) = self.knots.locate(t)?;
+        let (span, last) = self.knots.locate(t)?;
+        if span.span().index() != last.span().index() {
+            return None;
+        }
         let base = span.span().first_control();
         let row = geom_core::spline::basis::basis_funs_in(span, t);
         let (mut x, mut y, mut w) = (T::zero(), T::zero(), T::zero());
@@ -101,7 +112,7 @@ mod tests {
 
     #[test]
     fn the_arc_lies_on_its_circle_at_f64() {
-        let arc = HeldArc::new(2.0, 2.5, 3).unwrap();
+        let arc = HeldArc::new(2.0, 2.5, NonZeroUsize::new(3).unwrap()).unwrap();
         for t in [0.0, 0.1, 0.33, 0.5, 0.9, 1.0] {
             let p = arc.eval(t).unwrap();
             let rr = (p.x * p.x + p.y * p.y).sqrt();
@@ -124,7 +135,8 @@ mod tests {
         let (t0, t1) = (1.9, 2.6);
         let ((held, frozen), _) = with_session(budget(), || {
             let theta = S::param(ParamSymbol::new(THETA), t0);
-            let arc = HeldArc::new(S::from_f64(1.5), theta, 2).unwrap();
+            let arc =
+                HeldArc::new(S::from_f64(1.5), theta, NonZeroUsize::MIN.saturating_add(1)).unwrap();
             let t = S::from_f64(0.3);
             let held = arc.eval(t).unwrap();
             let frozen = HeldArc {
@@ -137,7 +149,10 @@ mod tests {
             let re = |p: Point2<S>| (revalue(p.x.node(), &env), revalue(p.y.node(), &env));
             (re(held), re(frozen))
         });
-        let want = HeldArc::new(1.5, t1, 2).unwrap().eval(0.3).unwrap();
+        let want = HeldArc::new(1.5, t1, NonZeroUsize::MIN.saturating_add(1))
+            .unwrap()
+            .eval(0.3)
+            .unwrap();
         let bits = |(x, y): (Option<f64>, Option<f64>)| (x.map(f64::to_bits), y.map(f64::to_bits));
         assert_eq!(
             bits(held),

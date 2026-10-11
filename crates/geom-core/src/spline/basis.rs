@@ -56,11 +56,16 @@ trait KnotRead<T> {
     /// Knot `i` in the scalar.
     fn at(&self, i: usize) -> T;
     /// `knot[hi] − knot[lo]` in the scalar.
-    fn gap(&self, hi: usize, lo: usize) -> T;
+    fn gap(&self, hi: usize, lo: usize) -> T
+    where
+        T: Real,
+    {
+        self.at(hi) - self.at(lo)
+    }
 }
 
 /// The `f64` knots lifted: each read is [`Real::from_f64`] of a stored
-/// knot, and a difference is taken between two lifted knots, in `T`.
+/// knot.
 struct Lifted<'a>(Span<'a>);
 
 impl<T: Real> KnotRead<T> for Lifted<'_> {
@@ -70,9 +75,6 @@ impl<T: Real> KnotRead<T> for Lifted<'_> {
     fn at(&self, i: usize) -> T {
         T::from_f64(self.0.knots().knots()[i])
     }
-    fn gap(&self, hi: usize, lo: usize) -> T {
-        KnotRead::<T>::at(self, hi) - KnotRead::<T>::at(self, lo)
-    }
 }
 
 impl<T: Real> KnotRead<T> for KnotSpan<'_, T> {
@@ -81,10 +83,6 @@ impl<T: Real> KnotRead<T> for KnotSpan<'_, T> {
     }
     fn at(&self, i: usize) -> T {
         self.values()[i]
-    }
-    fn gap(&self, hi: usize, lo: usize) -> T {
-        let v = self.values();
-        v[hi] - v[lo]
     }
 }
 
@@ -417,11 +415,18 @@ mod tests {
     /// vectors.
     #[test]
     fn a_held_knot_variable_moves_the_row() {
+        let nz = |n| core::num::NonZeroUsize::new(n).unwrap();
         let a = 0.8;
         let c = Dual64::constant;
-        let held =
-            crate::spline::Knots::new(vec![(c(0.0), 3), (Dual64::variable(a), 1), (c(2.0), 3)], 2)
-                .unwrap();
+        let held = crate::spline::Knots::new(
+            vec![
+                (c(0.0), nz(3)),
+                (Dual64::variable(a), nz(1)),
+                (c(2.0), nz(3)),
+            ],
+            2,
+        )
+        .unwrap();
         let t = c(1.2);
         let (span, _) = held.locate(t).expect("a numeric parameter");
         let row = basis_funs_in(span, t);

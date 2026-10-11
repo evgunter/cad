@@ -50,9 +50,10 @@ never reaches it. This unit's fix owes its own pin, as
 lines and arcs revolve to analytic carriers), so the pin is
 `geom::test_support::held_arc::HeldArc`. It is a rational arc built in
 `T` at `Sym<f64>` over a variable sweep `θ`, with weights `cos(Δ/2)`.
-It is carried through the NURBS carrier: its point re-values with `θ`,
-and `pcurve_cache.rs`'s arc-rim margin `w − cos(h/2)` is a symbolic
-Zero. Each half is red on the stored-`f64` weight. The skinned arc wall
+The pin owes two halves through the NURBS carrier, landed in u3 once
+u2's carriers hold their weights in `T`: the carrier's point re-values
+with `θ`, and `pcurve_cache.rs`'s arc-rim margin `w − cos(h/2)` is a
+symbolic Zero. Each half is red on the stored-`f64` weight. The skinned arc wall
 takes over as the door-level pin once `the-skin-computes-its-values-in-t`
 lands.
 

@@ -10,6 +10,8 @@
 //! a repeated knot is one quantity read as often as it repeats, and the
 //! span choice stays an `f64` read of the value channel.
 
+use core::num::NonZeroUsize;
+
 use super::knots::{KnotVector, Span, SplineError};
 use super::locate::SpanLocate;
 use crate::real::Real;
@@ -55,12 +57,14 @@ impl<T: SpanLocate> Knots<T> {
     ///   breakpoints that read as one number would merge into one run,
     ///   and the structure would no longer be the runs written;
     /// - otherwise [`KnotVector::clamped`]'s refusal (a zero degree, a
-    ///   multiplicity the clamped form does not admit).
-    pub fn new(runs: Vec<(T, usize)>, degree: usize) -> Result<Self, SplineError> {
+    ///   multiplicity the clamped form does not admit), which indexes
+    ///   the knots, not the runs.
+    pub fn new(runs: Vec<(T, NonZeroUsize)>, degree: usize) -> Result<Self, SplineError> {
         let mut read: Vec<f64> = Vec::new();
         let mut values: Vec<T> = Vec::new();
         let mut last: Option<f64> = None;
         for (index, (value, multiplicity)) in runs.into_iter().enumerate() {
+            let multiplicity = multiplicity.get();
             let v = value
                 .point_value()
                 .ok_or(SplineError::KnotNotAPoint { index })?;
@@ -89,14 +93,18 @@ impl<T: SpanLocate> Knots<T> {
     /// breakpoint, the structure carried over.
     ///
     /// `f` re-reads each value (a lift, `Real::from_computed`): the
-    /// mapped value's own point is the breakpoint's, and a map that
-    /// moves one is a caller's error the debug build refuses.
+    /// mapped value's own point is the breakpoint's.
+    ///
+    /// # Panics
+    ///
+    /// When `f` moves a breakpoint's point: the structure would no
+    /// longer be the values' value channel.
     #[must_use]
     pub fn map<U: SpanLocate>(&self, f: impl Fn(T) -> U) -> Knots<U> {
         let mut values = Vec::with_capacity(self.values.len());
         for (v, m) in self.structure.knot_runs() {
             let mapped = f(self.values[values.len()]);
-            debug_assert!(
+            assert!(
                 mapped.point_value().map(f64::to_bits) == Some(v.to_bits()),
                 "Knots::map moved breakpoint {v} to {:?}",
                 mapped.point_value()
@@ -183,9 +191,13 @@ mod tests {
     use crate::dual::Dual64;
     use crate::interval::Interval;
 
+    fn m(n: usize) -> NonZeroUsize {
+        NonZeroUsize::new(n).unwrap()
+    }
+
     #[test]
     fn the_structure_is_read_off_the_runs() {
-        let k = Knots::new(vec![(0.0, 3), (0.5, 1), (2.0, 3)], 2).unwrap();
+        let k = Knots::new(vec![(0.0, m(3)), (0.5, m(1)), (2.0, m(3))], 2).unwrap();
         assert_eq!(k.structure().knots(), k.values(), "the value channel");
         assert_eq!(k.structure().knots(), &[0.0, 0.0, 0.0, 0.5, 2.0, 2.0, 2.0]);
         let (first, last) = k.locate(1.0).expect("a numeric parameter");
@@ -198,11 +210,11 @@ mod tests {
     fn a_value_that_is_no_point_refuses_by_run() {
         let pt = |x: f64| Interval::from_bounds(x, x);
         let wide = Interval::from_bounds(0.25, 0.75);
-        match Knots::new(vec![(pt(0.0), 2), (wide, 1), (pt(1.0), 2)], 1) {
+        match Knots::new(vec![(pt(0.0), m(2)), (wide, m(1)), (pt(1.0), m(2))], 1) {
             Err(SplineError::KnotNotAPoint { index }) => assert_eq!(index, 1),
             other => panic!("a wide knot built a vector: {other:?}"),
         }
-        match Knots::new(vec![(0.0, 2), (f64::NAN, 1), (1.0, 2)], 1) {
+        match Knots::new(vec![(0.0, m(2)), (f64::NAN, m(1)), (1.0, m(2))], 1) {
             Err(SplineError::KnotNotAPoint { index }) => assert_eq!(index, 1),
             other => panic!("a NaN knot built a vector: {other:?}"),
         }
@@ -216,11 +228,14 @@ mod tests {
     fn equal_adjacent_runs_refuse_rather_than_merge() {
         let c = Dual64::constant;
         let (a, b) = (Dual64::variable(0.5), Dual64::new(0.5, -1.0));
-        match Knots::new(vec![(c(0.0), 2), (a, 1), (b, 1), (c(1.0), 2)], 1) {
+        match Knots::new(
+            vec![(c(0.0), m(2)), (a, m(1)), (b, m(1)), (c(1.0), m(2))],
+            1,
+        ) {
             Err(SplineError::KnotRunsNotIncreasing { index }) => assert_eq!(index, 2),
             other => panic!("two breakpoints at one value merged: {other:?}"),
         }
-        match Knots::new(vec![(0.0, 2), (0.6, 1), (0.4, 1), (1.0, 2)], 1) {
+        match Knots::new(vec![(0.0, m(2)), (0.6, m(1)), (0.4, m(1)), (1.0, m(2))], 1) {
             Err(SplineError::KnotRunsNotIncreasing { index }) => assert_eq!(index, 2),
             other => panic!("a decreasing run built a vector: {other:?}"),
         }
@@ -232,7 +247,11 @@ mod tests {
     fn a_run_is_one_quantity() {
         let c = Dual64::constant;
         let k = Knots::new(
-            vec![(c(0.0), 3), (Dual64::variable(0.4), 2), (c(1.0), 3)],
+            vec![
+                (c(0.0), m(3)),
+                (Dual64::variable(0.4), m(2)),
+                (c(1.0), m(3)),
+            ],
             2,
         )
         .unwrap();
@@ -256,10 +275,9 @@ mod tests {
     }
 
     #[test]
-    #[cfg(debug_assertions)]
     #[should_panic(expected = "Knots::map moved breakpoint")]
-    fn a_map_that_moves_a_value_refuses_in_debug() {
-        let k = Knots::new(vec![(0.0, 2), (1.0, 2)], 1).unwrap();
+    fn a_map_that_moves_a_value_refuses() {
+        let k = Knots::new(vec![(0.0, m(2)), (1.0, m(2))], 1).unwrap();
         let _ = k.map(|x| 3.0 * x);
     }
 }
