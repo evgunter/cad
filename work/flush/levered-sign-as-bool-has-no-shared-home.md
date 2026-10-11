@@ -2,10 +2,11 @@
 id: levered-sign-as-bool-has-no-shared-home
 kind: issue
 title: A levered sign read as a bool has no shared home across boolean/
-status: open
+status: dispatched
 opened: 2026-10-03
 priority: P4
 cost: E
+branch: flush/e-tail
 ---
 
 

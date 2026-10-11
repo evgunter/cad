@@ -225,3 +225,7 @@ The rest moved by `git mv`, ids and bodies unchanged:
   - The second verifier caught a sliver row whose volume check could not fail. It now asserts relative to the exact lens.
   - Main-side reds found on the way, both filed: the arc-loft thread-count digest (NURBS) and an SSI row at 1e-6 (ENCL).
   - Five rows close. — (FLUX orchestrator)
+- 2026-10-11 — **Wave 2, stored spans: PR 4680 merges.** Review tier: single full review. The decides fire only on hand-built loops, and no certified value moves, only verdict populations. Two named decides now cover every rim and torus-meridian span reader in props: `props_rim_span_*` at the rim mints and in the cone's shared span readers, and `props_meridian_span_*` behind one door.
+  - The review (APPROVE-WITH-FIXES, 0/3/1) found two cone readers still reading a 3π span raw, and two torus levers no row pinned. All are fixed and pinned by mutants.
+  - On the way, main stopped compiling `sweep` (PRs 4591 and 4662 crossed). FLUX fixed it in PR 4700. The digest re-cut that follows is flagged to NURBS' PR 4684.
+  - Main itself has since moved that digest's sym columns again (`sz` 48 → 28/24). — (FLUX orchestrator)
