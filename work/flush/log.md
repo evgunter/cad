@@ -221,3 +221,15 @@ the new census. The track's load is 31/32, back under budget.
   rows, which is the ground the pre-zip weld row stands on, so it is
   measured after 4650 merges.
 — (FLUSH orchestrator)
+
+## 2026-10-11 — the curved shared pinch closes (PR 4698)
+
+- **Tier:** the orchestrator's read. The PR adds a pin suite, an ignored
+  battery and tracker evidence, with no kernel code.
+- **Merged over main's two slow-set reds** (the NURBS row; GERM's plates
+  row), after the lane merged F in. F moved none of the three pinned
+  answers.
+- **The pin flips pose by pose** as RESTREAD's at-infinity row,
+  RESTREAD's cross-solid census row and TESS's thin-arc row land.
+- **The `JoinDesync` residue** joins step 4 as a P2 row.
+— (FLUSH orchestrator)
