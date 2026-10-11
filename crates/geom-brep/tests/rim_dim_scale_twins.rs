@@ -34,7 +34,7 @@ use crate::shared::point::{p3 as p, v3};
 use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::props::{LoopEdge, curved_face};
+use geom_brep::props::{LoopEdge, curved_face_loops};
 use geom_brep::require_iso_rectangle;
 use geom_core::Sign;
 use geom_core::k_stats::{self, Probe, SampleOutcome};
@@ -318,14 +318,75 @@ fn an_interior_rim_inside_the_band_is_one_level_and_outside_it_refuses() {
 // The cone flux lane's decides
 // ---------------------------------------------------------------------
 
+/// `cone_trunc`'s cone at `scale` metres per source unit, and a loop
+/// through the chart polygon `verts` — `(u, slant in source units)`,
+/// rectilinear: a step in `u` is a rim, a step in slant a generator,
+/// and a step along slant 0 is the apex, which carries no edge.
+fn cone_trunc_loop(scale: f64, verts: &[(f64, f64)]) -> Vec<LoopEdge<Probe>> {
+    let (sin_a, cos_a) = 0.5_f64.atan().sin_cos();
+    let n = verts.len();
+    let id = |i: usize| {
+        let i = i % n;
+        u32::try_from(if verts[i].1 == 0.0 { n } else { i }).expect("small")
+    };
+    let mut edges = Vec::new();
+    for i in 0..n {
+        let ((ua, va), (ub, vb)) = (verts[i], verts[(i + 1) % n]);
+        if va == vb && va == 0.0 {
+            continue;
+        }
+        let (va, vb) = (va * scale / cos_a, vb * scale / cos_a);
+        edges.push(if va == vb {
+            let (t0, t1, forward) = if ua < ub {
+                (ua, ub, true)
+            } else {
+                (ub, ua, false)
+            };
+            LoopEdge::hand_built(
+                Curve3::Circle {
+                    center: p(0.0, 0.0, va * cos_a),
+                    axis: v3(0.0, 0.0, 1.0),
+                    radius: Probe(va * sin_a),
+                    u_ref: v3(1.0, 0.0, 0.0),
+                },
+                Probe(t0),
+                Probe(t1),
+                forward,
+                id(i),
+                id(i + 1),
+            )
+        } else {
+            let (t0, t1, forward) = if va < vb {
+                (va, vb, true)
+            } else {
+                (vb, va, false)
+            };
+            LoopEdge::hand_built(
+                Curve3::Line {
+                    origin: p(0.0, 0.0, 0.0),
+                    dir: v3(ua.cos() * sin_a, ua.sin() * sin_a, cos_a),
+                },
+                Probe(t0),
+                Probe(t1),
+                forward,
+                id(i),
+                id(i + 1),
+            )
+        });
+    }
+    edges
+}
+
 /// **The cone's flux lane decides lengths, at mm scale as at metre
-/// scale.** `cone_interior_rim`'s L — `cone_trunc`'s proportions —
-/// measures through the vector-area form, which decides the nappe, the
-/// side, each end off the apex, each rim's sense, the winding and the
-/// loop's vertices apart. Every one of those it decides definitely is
-/// a point deviation, so it scales LINEARLY between the twins (an
-/// arm-multiplied comparand answers 1e6) and clears the run's
-/// escalation threshold at mm scale.
+/// scale.** `cone_trunc`'s cone carries the lane's decides on four
+/// faces between them: `cone_interior_rim`'s L (the nappe, the side,
+/// each end off the apex, each rim's sense, the winding, the loop's
+/// vertices apart), a sector through the apex (its sweep), a seamed
+/// wall with a split rim (the seam's two copies of a vertex a turn
+/// apart) and a wall with a hole (the outer loop's own side). Every
+/// one of those it decides definitely is a point deviation, so it
+/// scales LINEARLY between the twins (an arm-multiplied comparand
+/// answers 1e6) and clears the run's escalation threshold at mm scale.
 #[test]
 fn the_cone_flux_lane_decides_lengths_at_both_scales() {
     const LENGTHS: &[&str] = &[
@@ -335,30 +396,58 @@ fn the_cone_flux_lane_decides_lengths_at_both_scales() {
         "props_cone_arc_sense",
         "props_cone_loop_winding",
         "props_cone_loop_vertex",
+        "props_cone_apex_loop_sweep",
+        "props_cone_loop_vertex_sheet",
+        "props_cone_outer_side",
     ];
+    let surface = |scale: f64| cone_interior_rim(scale, 0.5).0;
+    let faces = |scale: f64| -> Vec<Vec<Vec<LoopEdge<Probe>>>> {
+        let tau = core::f64::consts::TAU;
+        vec![
+            vec![cone_interior_rim(scale, 0.5).1],
+            vec![cone_trunc_loop(
+                scale,
+                &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
+            )],
+            vec![cone_trunc_loop(
+                scale,
+                &[(0.0, 1.0), (2.0, 1.0), (tau, 1.0), (tau, 2.0), (0.0, 2.0)],
+            )],
+            vec![
+                cone_trunc_loop(scale, &[(0.0, 1.0), (2.0, 1.0), (2.0, 2.0), (0.0, 2.0)]),
+                cone_trunc_loop(scale, &[(0.5, 1.2), (0.5, 1.8), (1.5, 1.8), (1.5, 1.2)]),
+            ],
+        ]
+    };
     let run = |scale: f64| -> Vec<(&'static str, f64)> {
-        let (surface, edges) = cone_interior_rim(scale, 0.5);
-        k_stats::start_recording();
-        let got = curved_face(&surface, &edges, true, band());
-        let samples = k_stats::take_samples();
-        got.unwrap_or_else(|e| panic!("the L at {scale:e} measures: {e:?}"));
-        samples
-            .iter()
-            .filter(|s| LENGTHS.contains(&s.predicate))
-            .filter(|s| {
-                matches!(
-                    s.outcome,
-                    SampleOutcome::Definite(Sign::Positive | Sign::Negative)
-                )
-            })
-            .map(|s| (s.predicate, s.margin.abs()))
-            .collect()
+        let s = surface(scale);
+        let mut out = Vec::new();
+        for face in faces(scale) {
+            let loops: Vec<&[LoopEdge<Probe>]> = face.iter().map(Vec::as_slice).collect();
+            k_stats::start_recording();
+            let got = curved_face_loops(&s, &loops, true, band());
+            let samples = k_stats::take_samples();
+            got.unwrap_or_else(|e| panic!("a face at {scale:e} measures: {e:?}"));
+            out.extend(
+                samples
+                    .iter()
+                    .filter(|s| LENGTHS.contains(&s.predicate))
+                    .filter(|s| {
+                        matches!(
+                            s.outcome,
+                            SampleOutcome::Definite(Sign::Positive | Sign::Negative)
+                        )
+                    })
+                    .map(|s| (s.predicate, s.margin.abs())),
+            );
+        }
+        out
     };
     let (mm, m) = (run(1e-3), run(1.0));
     for name in LENGTHS {
         assert!(
             mm.iter().any(|(p, _)| p == name),
-            "{name} decides nothing definite on the L: {mm:?}"
+            "{name} decides nothing definite on these faces: {mm:?}"
         );
     }
     assert_eq!(

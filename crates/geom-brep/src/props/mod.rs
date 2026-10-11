@@ -354,9 +354,11 @@ pub enum PropsError {
         /// Which premise failed (the predicate's name).
         what: &'static str,
     },
-    /// **A face's holes cover more than its region** (`props_cone_holes_within`):
-    /// every ring is wound against the outer loop, but their areas sum
-    /// past the outer loop's, so the face's area would come out
+    /// **A face's holes cover more than its region**: every ring is
+    /// wound against the outer loop (`props_ring_winding` against
+    /// `props_cone_outer_side`), but their areas sum past the outer
+    /// loop's — the face's side (`props_cone_area_side`) is not the
+    /// outer loop's — so the face's area would come out
     /// negative. Holes that overlap each other or leave the region.
     HolesExceedFace,
     /// A one-loop sphere face's sense bit contradicts the side its

@@ -1693,6 +1693,26 @@ pub fn cone_face_closed_form<T: Decide>(
     loops: &[&[LoopEdge<T>]],
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
+    let read = cone_face_read(apex, axis, half_angle, loops, band)?;
+    Ok(FaceContribution {
+        flux: (apex - Point3::origin()).dot(read.va),
+        area: (axis.dot(read.va) / half_angle.sin()).abs(),
+    })
+}
+
+/// **A cone face's loops, read and decided to bound its region once** —
+/// the one reading the flux arm ([`cone_face_closed_form`]) and the
+/// material sign ([`cone_material_sign`]) share, so the side the gate
+/// answers is one the flux lane would measure: [`cone_loops`], then the
+/// outer loop's once-round bound, every loop's vertices apart, every
+/// ring a hole, and the holes inside the outer loop in sum.
+fn cone_face_read<T: Decide>(
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    half_angle: T,
+    loops: &[&[LoopEdge<T>]],
+    band: Band,
+) -> Result<ConeLoops<T>, PropsError> {
     let Some((&outer, rings)) = loops.split_first() else {
         return Err(PropsError::NotIsoRectangle {
             what: "curved face with an empty boundary",
@@ -1732,10 +1752,7 @@ pub fn cone_face_closed_form<T: Decide>(
         require_cone_loop_vertices_distinct(apex, axis, &wr, band)?;
     }
     require_cone_holes(&read, band)?;
-    Ok(FaceContribution {
-        flux: (apex - Point3::origin()).dot(read.va),
-        area: (axis.dot(read.va) / half_angle.sin()).abs(),
-    })
+    Ok(read)
 }
 
 /// A cone face's loops, read once for its flux and its side.
@@ -1861,6 +1878,13 @@ fn cone_loop_refusal(e: PropsError) -> PropsError {
 /// ([`cone_boundary`]) decides, under the same names: a line at the
 /// generator angle through the apex, a circle coaxial at the cone's
 /// radius for its height. An ellipse passes undecided ([`cone_loops`]).
+///
+/// Each meters a point's distance from the cone: a line's angle off the
+/// generator, `sin(β − α) = |dir × axis|·cos α − |dir·axis|·sin α`, over
+/// its span, and a rim's distance in its meridian plane,
+/// `r·cos α − |h|·sin α` with `h` the centre's axial height — neither
+/// divides by `sin α` or `cos α`, so neither is levered toward a needle
+/// or a near-flat cone.
 fn require_on_cone<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
@@ -1873,7 +1897,10 @@ fn require_on_cone<T: Decide>(
         Curve3::Line { dir, .. } => {
             require_zero(
                 "props_meridian_generator",
-                Margin::levered(dir.dot(axis).abs() - cos_a, e.t1 - e.t0),
+                Margin::levered(
+                    dir.cross(axis).norm() * cos_a - dir.dot(axis).abs() * sin_a,
+                    e.t1 - e.t0,
+                ),
                 band,
                 Premise::OnSurface,
             )?;
@@ -1901,10 +1928,9 @@ fn require_on_cone<T: Decide>(
                     what: "props_circle_axis_class",
                 });
             }
-            let v = (center - apex).dot(axis) / cos_a;
             require_zero(
                 "props_rim_fit",
-                Margin::of(r_c - v.abs() * sin_a),
+                Margin::of(r_c * cos_a - (center - apex).dot(axis).abs() * sin_a),
                 band,
                 Premise::OnSurface,
             )?;
@@ -1945,8 +1971,9 @@ fn cone_edge_length<T: Decide>(e: &LoopEdge<T>) -> Result<T, PropsError> {
     }
 }
 
-/// The material side a cone face's loops encode ([`cone_loops`]). No
-/// iso premise: a notched or trimmed face encodes its side as a
+/// The material side a cone face's loops encode, read by the flux
+/// lane's own decides ([`cone_face_read`]), so the side it answers is
+/// one the flux lane measures. No iso premise: a notched or trimmed face encodes its side as a
 /// rectangle does.
 fn cone_material_sign<T: Decide>(
     apex: Point3<T>,
@@ -1956,7 +1983,7 @@ fn cone_material_sign<T: Decide>(
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
     Ok(MaterialSign::Encoded(
-        cone_loops(apex, axis, half_angle, loops, band)?.side,
+        cone_face_read(apex, axis, half_angle, loops, band)?.side,
     ))
 }
 
@@ -2284,7 +2311,10 @@ fn cone_boundary<T: Decide>(
                 generators = true;
                 require_zero(
                     "props_meridian_generator",
-                    Margin::levered(dir.dot(axis).abs() - cos_a, e.t1 - e.t0),
+                    Margin::levered(
+                        dir.cross(axis).norm() * cos_a - dir.dot(axis).abs() * sin_a,
+                        e.t1 - e.t0,
+                    ),
                     band,
                     Premise::OnSurface,
                 )?;
@@ -2321,7 +2351,7 @@ fn cone_boundary<T: Decide>(
                 let v = (center - apex).dot(axis) / cos_a;
                 require_zero(
                     "props_rim_fit",
-                    Margin::of(r_c - v.abs() * sin_a),
+                    Margin::of(r_c * cos_a - (center - apex).dot(axis).abs() * sin_a),
                     band,
                     Premise::OnSurface,
                 )?;

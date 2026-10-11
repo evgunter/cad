@@ -694,3 +694,233 @@ fn a_wall_one_and_a_half_bands_wide_measures() {
         );
     }
 }
+
+/// The wall `[0, 1] × [v0, v1]` (chart-CCW) on the cone of half-angle
+/// `alpha` with apex `a` and axis along `k`, at scalar `T`.
+fn wall_on<T: geom_core::Real>(
+    alpha: f64,
+    a: [f64; 3],
+    k: [f64; 3],
+    v0: f64,
+    v1: f64,
+) -> (Surface<T>, Vec<LoopEdge<T>>) {
+    let unit = |x: [f64; 3]| {
+        let n = (x[0] * x[0] + x[1] * x[1] + x[2] * x[2]).sqrt();
+        [x[0] / n, x[1] / n, x[2] / n]
+    };
+    let k = unit(k);
+    let t = if k[0].abs() < 0.9 {
+        [1.0, 0.0, 0.0]
+    } else {
+        [0.0, 1.0, 0.0]
+    };
+    let tk = t[0] * k[0] + t[1] * k[1] + t[2] * k[2];
+    let e1 = unit([t[0] - tk * k[0], t[1] - tk * k[1], t[2] - tk * k[2]]);
+    let e2 = [
+        k[1] * e1[2] - k[2] * e1[1],
+        k[2] * e1[0] - k[0] * e1[2],
+        k[0] * e1[1] - k[1] * e1[0],
+    ];
+    let (s, c) = alpha.sin_cos();
+    let at = |x: [f64; 3], m: f64, d: [f64; 3]| [x[0] + m * d[0], x[1] + m * d[1], x[2] + m * d[2]];
+    let rim = |v: f64, u0: f64, u1: f64, i: u32, j: u32| {
+        let o = at(a, v * c, k);
+        topo::edge(
+            Curve3::Circle {
+                center: p3(o[0], o[1], o[2]),
+                axis: v3(k[0], k[1], k[2]),
+                radius: T::from_f64(v.abs() * s),
+                u_ref: v3(e1[0], e1[1], e1[2]),
+            },
+            u0,
+            u1,
+            i,
+            j,
+        )
+    };
+    let generator = |u: f64, t0: f64, t1: f64, i: u32, j: u32| {
+        let (su, cu) = u.sin_cos();
+        let d = at(at([0.0; 3], s * cu, e1), s * su, e2);
+        let d = at(d, c, k);
+        topo::edge(
+            Curve3::Line {
+                origin: p3(a[0], a[1], a[2]),
+                dir: v3(d[0], d[1], d[2]),
+            },
+            t0,
+            t1,
+            i,
+            j,
+        )
+    };
+    let surface = Surface::Cone {
+        apex: p3(a[0], a[1], a[2]),
+        axis: v3(k[0], k[1], k[2]),
+        half_angle: T::from_f64(alpha),
+        u_ref: v3(e1[0], e1[1], e1[2]),
+    };
+    let edges = vec![
+        rim(v0, 0.0, 1.0, 0, 1),
+        generator(1.0, v0, v1, 1, 2),
+        rim(v1, 1.0, 0.0, 2, 3),
+        generator(0.0, v1, v0, 3, 0),
+    ];
+    (surface, edges)
+}
+
+/// **A wall on a near-flat or near-needle cone measures**, at `f64` and
+/// at the interval scalar. The incidence decides meter a point's
+/// distance from the cone: a rim's is `r·cos α − |h|·sin α` in its
+/// meridian plane, and a line's angle off the generator is
+/// `|dir × axis|·cos α − |dir·axis|·sin α`. The slant-length spelling
+/// `r − |v|·sin α`, with `v = h/cos α`, overstated a rim's deviation
+/// by `1/cos α`. At `α = π/2 − 10⁻⁶` that read a rim stored to the
+/// last bit as 10⁻⁹ m off the cone and escalated every such face; the
+/// cosine-difference spelling of the line's angle understates it by
+/// `sin α` as `α → 0`.
+#[test]
+fn a_wall_on_a_near_flat_or_needle_cone_measures() {
+    use geom_core::{Bounds, Interval};
+    for (alpha, a, k, ax) in [
+        core::f64::consts::FRAC_PI_2 - 1e-6,
+        core::f64::consts::FRAC_PI_2 - 1e-3,
+        1e-3,
+        1e-6,
+    ]
+    .into_iter()
+    .flat_map(|alpha| {
+        [[0.2, -0.1, -1.0], [31.0, -17.0, 9.0]]
+            .into_iter()
+            .flat_map(move |a| [1e-3, 1.0, 1e3].map(move |k| (alpha, a, k)))
+    })
+    .flat_map(|(alpha, a, k)| {
+        [[0.0, 0.0, 1.0], [0.3, -0.4, 1.0], [1.0, 1.0, 0.1]].map(move |ax| (alpha, a, k, ax))
+    }) {
+        // A rim narrower than a thousand escalation bands sits within
+        // a few of the axis everywhere: that sliver refuses as it
+        // always has, and is not this row's subject.
+        if k * alpha.sin() < 1e3 * band().escalate() {
+            continue;
+        }
+        let (v0, v1) = (k, 2.0 * k);
+        let area = alpha.sin() * (v1 * v1 - v0 * v0) / 2.0;
+        let (surface, edges) = wall_on::<f64>(alpha, a, ax, v0, v1);
+        let got = curved_face_loops(&surface, &[&edges], true, band()).unwrap_or_else(|e| {
+            panic!("alpha {alpha} apex {a:?} axis {ax:?} scale {k}: f64 refused {e:?}")
+        });
+        // `axis·A⃗` rounds at the ulps of the points' reach times `k`,
+        // and the area divides it by `sin α`.
+        let reach = (a[0] * a[0] + a[1] * a[1] + a[2] * a[2]).sqrt() + 2.0 * k;
+        let tol = 1e-9 * area + 256.0 * f64::EPSILON * k * reach / alpha.sin();
+        assert!(
+            (got.area - area).abs() <= tol,
+            "alpha {alpha} apex {a:?} axis {ax:?} scale {k}: area {:e} against {area:e}",
+            got.area
+        );
+        // The interval reading of coordinates `|a| + 2k` across is no
+        // finer than their f64 rounding: past the run's zero, every
+        // incidence decide escalates on input rounding alone.
+        if 64.0 * f64::EPSILON * reach > band().zero() {
+            continue;
+        }
+        let (surface, edges) = wall_on::<Interval>(alpha, a, ax, v0, v1);
+        let got = curved_face_loops(&surface, &[&edges], true, band()).unwrap_or_else(|e| {
+            panic!("alpha {alpha} apex {a:?} axis {ax:?} scale {k}: interval refused {e:?}")
+        });
+        assert!(
+            got.area.lo() <= area * (1.0 + 1e-12) && area * (1.0 - 1e-12) <= got.area.hi(),
+            "alpha {alpha}: interval area {:?} misses {area:e}",
+            got.area
+        );
+    }
+}
+
+/// **The material sign refuses what the flux lane refuses**: the gate
+/// reads the same loops by the same decides ([`cone_face_read`]), so it
+/// answers no side for a loop the flux lane will not measure — past a
+/// turn through the apex, meeting itself at a vertex, or stated twice.
+#[test]
+fn the_material_sign_refuses_what_the_flux_lane_refuses() {
+    let eight = [
+        (0.0, 1.0),
+        (1.0, 1.0),
+        (1.0, 2.0),
+        (1.0, 3.0),
+        (2.0, 3.0),
+        (2.0, 2.0),
+        (1.0, 2.0),
+        (0.0, 2.0),
+    ];
+    let du = TAU + 0.1;
+    let mut twice = unit_wall();
+    twice.extend(unit_wall());
+    for (name, loops) in [
+        (
+            "a sector past a turn",
+            vec![chart_loop(&[
+                (0.0, 0.0),
+                (du, 0.0),
+                (du, 1.5),
+                (du / 2.0, 1.5),
+                (0.0, 1.5),
+            ])],
+        ),
+        ("the figure-eight", vec![chart_loop(&eight)]),
+        ("a wall stated twice", vec![twice]),
+        (
+            "a rim stated twice",
+            vec![vec![rim(1.5, 0.0, TAU, 0, 0), rim(1.5, 0.0, TAU, 0, 0)]],
+        ),
+    ] {
+        let flux = measure(&loops, true).err();
+        let gate = side(&loops).err();
+        assert!(
+            matches!(flux, Some(PropsError::ConeLoop { .. })),
+            "{name}: the flux lane refuses it: {flux:?}"
+        );
+        assert_eq!(gate, flux, "{name}: the gate refuses it alike");
+    }
+}
+
+/// **A rim off the axis, or tilted against it, is off the cone**, by the
+/// rim incidence's own names: the rim at slant 2 of [`unit_wall`] moved
+/// 0.05 m off the axis (`props_rim_center_on_axis`), and tipped 0.05 rad
+/// off it (`props_rim_axis_parallel`), each at the cone's radius for its
+/// height.
+#[test]
+fn a_rim_off_or_tilted_against_the_axis_refuses_as_incidence() {
+    let (s, c) = ALPHA.sin_cos();
+    let rim2 = |center: [f64; 3], axis: [f64; 3]| {
+        topo::edge(
+            Curve3::Circle {
+                center: p3(center[0], center[1], center[2]),
+                axis: v3(axis[0], axis[1], axis[2]),
+                radius: 2.0 * s,
+                u_ref: v3(1.0, 0.0, 0.0),
+            },
+            1.0,
+            0.0,
+            2,
+            3,
+        )
+    };
+    let h = APEX.2 + 2.0 * c;
+    let mut off = unit_wall();
+    off[2] = rim2([APEX.0 + 0.05, APEX.1, h], [0.0, 0.0, 1.0]);
+    refuses(
+        "a rim off the axis",
+        &[off],
+        &PropsError::OffSurface {
+            what: "props_rim_center_on_axis",
+        },
+    );
+    let mut tilted = unit_wall();
+    tilted[2] = rim2([APEX.0, APEX.1, h], [0.05_f64.sin(), 0.0, 0.05_f64.cos()]);
+    refuses(
+        "a rim tilted against the axis",
+        &[tilted],
+        &PropsError::OffSurface {
+            what: "props_rim_axis_parallel",
+        },
+    );
+}
