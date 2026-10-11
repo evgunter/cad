@@ -300,3 +300,49 @@ fn p7_section_face_tables_are_per_half() {
         ));
     }
 }
+
+/// P8: the two new paths no PR row reaches — a delete of the operation
+/// defining a key's body read strands it `Took::Body`, and a read whose
+/// operation is gone refuses `AppearanceBodyNotARead`.
+#[test]
+fn p8_took_body_and_body_not_a_read_fire() {
+    let (doc, ext, _, split) = step_split(1.0);
+    let riser = fixture::fname(ext, fixture::wall(&doc, ext, 3));
+    let above = doc.output(split, 0).unwrap();
+    let (painted, _) = fixture::step(
+        doc.clone(),
+        DocEdit::SetAppearance {
+            body: above,
+            name: riser.clone(),
+            attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(1, 2, 3)),
+        },
+    );
+    let applied = editor_core::apply(
+        &painted,
+        &DocEdit::DeleteNode { id: split },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("a delete strands, it does not refuse");
+    let said: Vec<String> = applied
+        .maintenance
+        .iter()
+        .map(|m| format!("{m:?}"))
+        .collect();
+    println!("P8 maintenance: {said:?}");
+    assert!(said.iter().any(|m| m.contains("StrandedAppearance") && m.contains("Body")));
+    let refused = editor_core::apply(
+        &applied.doc,
+        &DocEdit::SetAppearance {
+            body: above,
+            name: riser,
+            attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(1, 2, 3)),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    );
+    assert!(matches!(
+        refused,
+        Err(editor_core::EditError::AppearanceBodyNotARead { .. })
+    ));
+}
