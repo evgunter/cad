@@ -197,6 +197,8 @@ mod r2_mate3_probes;
 mod r2_mesh1_donut_probes;
 #[path = "rehome_rings_lune.rs"]
 mod rehome_rings_lune;
+#[path = "review_r1_ruling_post_probe.rs"]
+mod review_r1_ruling_post_probe;
 #[path = "review_r2_vv_probes.rs"]
 mod review_r2_vv_probes;
 #[path = "review_sixx_r2_probes.rs"]
