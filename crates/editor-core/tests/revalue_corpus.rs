@@ -59,7 +59,10 @@ enum Move {
     /// document holds by value (a kiss, a flush seat) holds at `p1` too.
     /// The census's fallback for a document whose branches
     /// [`Move::Apart`] moves, never a gating row's: on a document of
-    /// lengths it is a dilation, so a laundered quantity that depends
+    /// lengths it is a dilation — of every length but the profile's,
+    /// which the pinned lift holds at the nominal
+    /// (`work/intent/the-pinned-profile-lift-launders-at-sym.md`) — so a
+    /// laundered quantity that depends
     /// only on ratios of the variables (an angle, a unit normal's
     /// component, a fraction of a domain) does not move under it.
     InStep,
@@ -81,6 +84,9 @@ struct Found {
     opaque: usize,
     /// Predicates whose re-valued margin is not the `p1` build's.
     laundered: BTreeSet<&'static str>,
+    /// The same, after a decision the builds answered with different
+    /// signs: possibly two margins under one name ([`tally`]).
+    after_flip: BTreeSet<&'static str>,
     /// How the variables moved.
     mode: Option<Move>,
     /// Every predicate the `p0` build decided, with its count.
@@ -179,6 +185,68 @@ fn compare_prefix(doc: &ProfileDoc) -> Found {
     if a.compared >= b.compared { a } else { b }
 }
 
+/// How many decisions the two builds took by the same predicate.
+fn in_step(p0: &[Decision], p1: &[Decision]) -> usize {
+    p0.iter()
+        .zip(p1)
+        .take_while(|(a, b)| a.predicate == b.predicate)
+        .count()
+}
+
+/// Reads the first `common` decisions of the two builds into `found`:
+/// each `p0` margin re-valued at `p0` (`env0`, the drift self-check)
+/// and at `p1` (`env`) against the `p1` build's. A mismatch is a
+/// laundering, or, once an EARLIER decision was answered with another
+/// sign at `p1`, kept apart in `after_flip`: past a flip the builds may
+/// decide one predicate over two margins. A flip parts nothing itself.
+fn tally(
+    found: &mut Found,
+    p0: &[Decision],
+    p1: &[Decision],
+    common: usize,
+    env0: &dyn Fn(ParamSymbol) -> Option<f64>,
+    env: &dyn Fn(ParamSymbol) -> Option<f64>,
+) {
+    let mut flipped = None;
+    for (k, (a, b)) in p0.iter().zip(p1).take(common).enumerate() {
+        found.compared += 1;
+        *found.seen.entry(a.predicate).or_default() += 1;
+        let (v0, v1) = (a.value.expect("Sym<f64>"), b.value.expect("Sym<f64>"));
+        let same = |x: f64, y: f64| x.to_bits() == y.to_bits() || (x.is_nan() && y.is_nan());
+        if revalue(a.node, env0).is_some_and(|r| !same(r, v0)) {
+            found.drifted += 1;
+        }
+        match revalue(a.node, env) {
+            None => found.opaque += 1,
+            Some(r) => {
+                if !same(v0, v1) {
+                    found.moved += 1;
+                }
+                if !same(r, v1) {
+                    let after = flipped.is_some();
+                    if std::env::var_os("REVALUE_DETAIL").is_some() {
+                        eprintln!(
+                            "  {} #{} {}: p0 {v0:e}, re-valued {r:e}, p1 {v1:e}{}",
+                            if after { "after_flip" } else { "laundered" },
+                            k + 1,
+                            a.predicate,
+                            flipped.map_or(String::new(), |(f, p)| format!(" (flip #{f} {p})"))
+                        );
+                    }
+                    if after {
+                        found.after_flip.insert(a.predicate);
+                    } else {
+                        found.laundered.insert(a.predicate);
+                    }
+                }
+            }
+        }
+        if flipped.is_none() && a.sign != b.sign {
+            flipped = Some((k + 1, a.predicate));
+        }
+    }
+}
+
 /// `None` when the two builds did not take the same decisions, unless
 /// `prefix`, which compares the decisions before the first difference.
 fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
@@ -194,47 +262,27 @@ fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
     let p1 = session(|| build(doc, &options(&at_p1)));
     session(|| {
         let p0 = build(doc, &options(&at_p0));
-        let predicates = |d: &[Decision]| d.iter().map(|x| x.predicate).collect::<Vec<_>>();
-        let (n0, n1) = (predicates(&p0), predicates(&p1));
-        let common = n0.iter().zip(&n1).take_while(|(a, b)| a == b).count();
-        if n0 != n1 && !prefix {
+        let common = in_step(&p0, &p1);
+        let parts = common < p0.len().max(p1.len());
+        if parts && !prefix {
             return None;
         }
         let mut found = Found {
             mode: Some(mode),
-            parted: (n0 != n1)
-                .then(|| (common, n0.len(), n0.get(common).copied().unwrap_or("<end>"))),
+            parted: parts.then(|| {
+                let at = p0.get(common).map_or("<end>", |d| d.predicate);
+                (common, p0.len(), at)
+            }),
             ..Found::default()
         };
-        for (a, b) in p0.iter().zip(&p1).take(common) {
-            found.compared += 1;
-            *found.seen.entry(a.predicate).or_default() += 1;
-            let (v0, v1) = (a.value.expect("Sym<f64>"), b.value.expect("Sym<f64>"));
-            let same = |x: f64, y: f64| x.to_bits() == y.to_bits() || (x.is_nan() && y.is_nan());
-            if revalue(a.node, &|s| env0.get(&s).copied()).is_some_and(|r| !same(r, v0)) {
-                found.drifted += 1;
-            }
-            match revalue(a.node, &|s| env.get(&s).copied()) {
-                None => found.opaque += 1,
-                Some(r) if same(r, v1) => {
-                    if !same(v0, v1) {
-                        found.moved += 1;
-                    }
-                }
-                Some(r) => {
-                    if !same(v0, v1) {
-                        found.moved += 1;
-                    }
-                    if std::env::var_os("REVALUE_DETAIL").is_some() {
-                        eprintln!(
-                            "  laundered #{} {}: p0 {v0:e}, re-valued {r:e}, p1 {v1:e}",
-                            found.compared, a.predicate
-                        );
-                    }
-                    found.laundered.insert(a.predicate);
-                }
-            }
-        }
+        tally(
+            &mut found,
+            &p0,
+            &p1,
+            common,
+            &|s| env0.get(&s).copied(),
+            &|s| env.get(&s).copied(),
+        );
         Some(found)
     })
 }
@@ -273,6 +321,12 @@ fn holds(name: &str, mode: Move, floor: usize, owed: &[(&str, &str)]) {
         got, want,
         "{name}: the predicates whose margin re-values away from the p1 build (laundered: a \
          computed value re-entered as a constant) — {found:?}"
+    );
+    assert!(
+        found.after_flip.is_empty(),
+        "{name}: a margin re-values away from the p1 build after a decision the builds answered \
+         with different signs — a laundering, or two margins decided under one name; read which \
+         with REVALUE_DETAIL=1 ({found:?})"
     );
 }
 
@@ -340,13 +394,14 @@ fn revalue_census() {
             drifted,
             opaque,
             laundered,
+            after_flip,
             mode,
             seen,
             parted,
         } = &found;
         eprintln!(
             "{} ({:.1?}) {mode:?}: compared {compared}, moved {moved}, drifted {drifted}, opaque {opaque}, \
-             laundered {laundered:?}, parted {parted:?}",
+             laundered {laundered:?}, after_flip {after_flip:?}, parted {parted:?}",
             cd.name,
             t.elapsed()
         );
@@ -405,6 +460,84 @@ fn a_planted_laundering_is_seen_and_from_computed_is_opaque() {
         rows,
         [Some(false), Some(true), None],
         "laundered / kept in the scalar / from_computed, each re-valued at p1 against the p1 build"
+    );
+}
+
+/// A decision the two builds answer with different signs: a later
+/// mismatch is kept apart from the launderings, and a later match still
+/// counts. The branching build has the shape of `topo`'s volume
+/// backstop, whose exact-band violation read answers `Zero` on a margin
+/// that cancels exactly at `p0` and `Negative` on its rounding at `p1`,
+/// and whose next decision is `volume_backstop` either way, over two
+/// margins (`die`'s census candidate at decision #10548). The other
+/// build's split steers nothing, as `join.rs`'s `nearer` reads `Zero`
+/// and `Positive` alike.
+#[test]
+fn a_decision_answered_with_another_sign_keeps_what_follows_apart() {
+    use geom_core::Real;
+    use geom_core::predicate::{Band, Margin, Sign};
+    let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+    let w = ParamSymbol::new(9);
+    let decide =
+        |name: &'static str, m: Sym<f64>| geom_core::k_stats::decide(name, Margin::of(m), band);
+    let build = |d: f64, branches: bool, laundered_split: bool| {
+        let x = Sym::param(w, d);
+        record(|| {
+            let split = decide(
+                "revalue_split",
+                if laundered_split {
+                    x + (x - Sym::from_f64(x.value))
+                } else {
+                    x
+                },
+            );
+            let arm = if branches && !matches!(split, Ok(Sign::Zero)) {
+                x * Sym::from_f64(3.0)
+            } else {
+                x
+            };
+            let _ = decide("revalue_arm", arm);
+        })
+        .1
+    };
+    let tallied = |branches: bool, laundered_split: bool| {
+        let p1 = session(|| build(1.0e-6, branches, laundered_split));
+        session(|| {
+            let p0 = build(0.0, branches, laundered_split);
+            assert_ne!(
+                p0[0].sign, p1[0].sign,
+                "the split answers differently at p0 and p1"
+            );
+            let mut found = Found::default();
+            tally(
+                &mut found,
+                &p0,
+                &p1,
+                in_step(&p0, &p1),
+                &|s| (s == w).then_some(0.0),
+                &|s| (s == w).then_some(1.0e-6),
+            );
+            found
+        })
+    };
+    let branching = tallied(true, false);
+    assert!(
+        branching.laundered.is_empty() && branching.after_flip == BTreeSet::from(["revalue_arm"]),
+        "the arm after the split is two margins under one name: kept apart, never a laundering \
+         ({branching:?})"
+    );
+    let steering_nothing = tallied(false, false);
+    assert!(
+        steering_nothing.laundered.is_empty()
+            && steering_nothing.after_flip.is_empty()
+            && steering_nothing.moved == 2,
+        "a split that steers nothing leaves the arm paired and compared ({steering_nothing:?})"
+    );
+    let self_flip = tallied(false, true);
+    assert!(
+        self_flip.laundered == BTreeSet::from(["revalue_split"]),
+        "the decision that flips is itself paired: its own mismatch is a laundering, never \
+         after_flip ({self_flip:?})"
     );
 }
 

@@ -437,9 +437,7 @@ pub(super) fn polygon_face_about(
 pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     body: &Body<T>,
     surface: &Surface<T>,
-    outer: &[LoopEdge<T>],
-    rings: &[Vec<LoopEdge<T>>],
-    hes: &[HalfEdgeKey],
+    loops: &[super::FlatLoop<T>],
     band: Band,
     tol: Tol,
     window: RoundWindow,
@@ -454,18 +452,29 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     // widen this quadrature (the same deliberate omission the
     // mesh tolerance makes).
     if let Some(payload) = surface.spline_chart() {
+        // The patch lanes read one loop; the face walk refuses a ring on
+        // a spline face before this (`RingOnCurvedFace`), and this
+        // refuses it again rather than drop it.
+        let [(outer, hes)] = loops else {
+            return Err(PropsError::QuadratureUnsupported {
+                what: "a ring on a described spline face — the patch lanes read one loop",
+            });
+        };
         return nurbs_face(body, payload, outer, hes, band, tol, window, centre);
     }
     // A spiric bounds a plane cap or a torus wall and nothing else
     // (`Pcurve::Spiric` certifies on those two charts only); the face
     // walk routes a plane here only when a spiric is on its boundary.
+    let (outer, hes) = &loops[0];
     if matches!(surface, Surface::Plane { .. })
         || (matches!(surface, Surface::Torus { .. })
             && outer
                 .iter()
                 .any(|e| matches!(e.carrier, Curve3::Spiric { .. })))
     {
-        return spiric_face(body, surface, outer, rings, hes, band, tol, window, centre);
+        let rings: Vec<Vec<LoopEdge<T>>> =
+            loops[1..].iter().map(|(edges, _)| edges.clone()).collect();
+        return spiric_face(body, surface, outer, &rings, hes, band, tol, window, centre);
     }
     let Surface::Cylinder { origin, radius, .. } = surface else {
         return Err(PropsError::QuadratureUnsupported {
@@ -476,7 +485,10 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
         });
     };
     let eps = tol.eps();
-    let va = loop_vector_area(outer, *origin)?;
+    let mut va = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
+    for (edges, _) in loops {
+        va = va + loop_vector_area(edges, *origin)?;
+    }
     // The flux about the chart's own origin, `r²·A_s`, is where the
     // face is; only this term carries its position. Taken about a centre
     // it is `(origin − centre)·A⃗` in interval arithmetic, a lever the
@@ -499,49 +511,54 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
             (lift(*origin) - c).dot(va)
         }
     };
-    let mut edges = Vec::with_capacity(outer.len());
-    let lifted = crate::pcurves::lifted_images(body, hes);
-    for ((le, he), lifted) in outer.iter().zip(hes).zip(&lifted) {
-        let (Some(cache), Some(image)) = (body.pcurve(*he), lifted) else {
-            return Err(PropsError::QuadratureUnsupported {
-                what: "curved-cut face half-edge carries no stored pcurve cache — \
+    let mut trims = Vec::with_capacity(loops.len());
+    for (loop_edges, hes) in loops {
+        let mut edges = Vec::with_capacity(loop_edges.len());
+        let lifted = crate::pcurves::lifted_images(body, hes);
+        for ((le, he), lifted) in loop_edges.iter().zip(hes).zip(&lifted) {
+            let (Some(cache), Some(image)) = (body.pcurve(*he), lifted) else {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "curved-cut face half-edge carries no stored pcurve cache — \
                        caches mint in the split/boolean pipelines",
-            });
-        };
-        // The certified quadrature lane reads a chart image
-        // CHANNEL BY CHANNEL out of its harmonic form; a fitted,
-        // projected or focal-section image has none on an ANALYTIC
-        // chart's Green reduction, and refuses typed. A sphere's general
-        // circle mints a projected one at rest (an oblique fillet
-        // corner's octant); the props door refuses that face's spherical
-        // triangle before this lane is asked.
-        let Pcurve::Harmonic { p0, pa, pb, pl } = *image else {
-            return Err(PropsError::QuadratureUnsupported {
-                what: "curved-cut face half-edge carries a pcurve with no harmonic form on \
+                });
+            };
+            // The certified quadrature lane reads a chart image
+            // CHANNEL BY CHANNEL out of its harmonic form; a fitted,
+            // projected or focal-section image has none on an ANALYTIC
+            // chart's Green reduction, and refuses typed. A sphere's general
+            // circle mints a projected one at rest (an oblique fillet
+            // corner's octant); the props door refuses that face's spherical
+            // triangle before this lane is asked.
+            let Pcurve::Harmonic { p0, pa, pb, pl } = *image else {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "curved-cut face half-edge carries a pcurve with no harmonic form on \
                        an analytic chart (a FITTED or PROJECTED image, or a cone section's or \
                        Villarceau circle's focal section) — its Green-form boundary integral \
                        is not wired",
+                });
+            };
+            let (t0, t1) = cache.params();
+            // The interval-start vertex: traversal start when forward,
+            // traversal end when reversed (`he_plus` start either way).
+            let p_start = start_point(body, *he, le.forward)?;
+            let trig0 = trig_at_start(&le.carrier, p_start, eps)?;
+            edges.push(TrimEdgeQ {
+                u: chan(p0.x, pa.x, pb.x, pl.x)?,
+                v: chan(p0.y, pa.y, pb.y, pl.y)?,
+                t0: Interval::from_certified(t0),
+                t1: Interval::from_certified(t1),
+                forward: le.forward,
+                trig0,
+                env: Interval::from_certified(cache.certificate().envelope),
             });
-        };
-        let (t0, t1) = cache.params();
-        // The interval-start vertex: traversal start when forward,
-        // traversal end when reversed (`he_plus` start either way).
-        let p_start = start_point(body, *he, le.forward)?;
-        let trig0 = trig_at_start(&le.carrier, p_start, eps)?;
-        edges.push(TrimEdgeQ {
-            u: chan(p0.x, pa.x, pb.x, pl.x)?,
-            v: chan(p0.y, pa.y, pb.y, pl.y)?,
-            t0: Interval::from_certified(t0),
-            t1: Interval::from_certified(t1),
-            forward: le.forward,
-            trig0,
-            env: Interval::from_certified(cache.certificate().envelope),
-        });
+        }
+        trims.push(edges);
     }
+    let trims: Vec<&[TrimEdgeQ]> = trims.iter().map(Vec::as_slice).collect();
     quad::cylinder_cut_face_rounds::<T>(
         Interval::from_certified(*radius),
         o_dot_va,
-        &edges,
+        &trims,
         eps,
         band,
         window,
@@ -1435,8 +1452,8 @@ mod tests {
         use crate::body::Body;
         use crate::entity::{FaceKey, LoopBoundary};
         use crate::props::{
-            FaceRun, QuadLane, corner_of, decide_faces_serially, face_flux, face_loops, rederive,
-            reporting_hook, resolve_face, shell_polygons, vertex_rings,
+            FaceRun, QuadLane, corner_of, decide_faces_serially, face_flux, face_loops, flat_loops,
+            rederive, reporting_hook, resolve_face, shell_polygons, vertex_rings,
         };
 
         /// `m · 2^e`, exactly.
@@ -1538,8 +1555,8 @@ mod tests {
             let mut exact = Dyadic::of(0.0);
             for (key, _) in body.faces() {
                 let (face, surface) = resolve_face(body, key);
-                let loops = face_loops(body, face).unwrap();
-                let rings = vertex_rings(body, face, surface, &loops, lane)
+                let loops = flat_loops(body, face).unwrap();
+                let rings = vertex_rings(body, surface, &loops, lane)
                     .unwrap()
                     .expect("a planar face bounded by lines");
                 let f = super::super::polygon_face_about(&rings, centre).unwrap();
@@ -1692,7 +1709,9 @@ mod tests {
                 flux = flux + c.flux;
                 area = area + c.area;
                 polygon = polygon
-                    + match vertex_rings(&body, face, surface, &loops, lane).unwrap() {
+                    + match vertex_rings(&body, surface, &flat_loops(&body, face).unwrap(), lane)
+                        .unwrap()
+                    {
                         Some(rings) => {
                             super::super::polygon_face_about(&rings, centre)
                                 .unwrap()
