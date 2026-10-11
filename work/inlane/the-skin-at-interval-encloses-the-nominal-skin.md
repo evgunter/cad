@@ -4,7 +4,7 @@ kind: issue
 title: The skin at Interval encloses the nominal f64 skin: a section wider than a point refuses instead of enclosing its family
 status: open
 opened: 2026-10-11
-priority: P2
+priority: P1
 refs: [the-skin-computes-its-values-in-t, a-loft-is-the-nominal-surface-in-every-generic-lane]
 ---
 
