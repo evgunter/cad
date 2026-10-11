@@ -11,9 +11,10 @@
 //! The above body's section face carries **m = −n_SP**, the below
 //! body's **m = +n_SP** (derived at [`section_loops`]). Both faces
 //! carry the SAME split plane (same origin, same in-plane `u_ref`: the
-//! below loop's first chord, or for a loop of one corner — a whole
-//! section conic — the first axis of the run plane's normal basis) with
-//! opposite normals; the mirror test pins both signs bitwise.
+//! below loop's first chord projected into the plane, or for a loop of
+//! one corner — a whole section conic — the first axis of the run
+//! plane's normal basis) with opposite normals; the mirror test pins
+//! both signs bitwise.
 //!
 //! That is each face's CHART normal. Its sense is its loop's winding
 //! about it, the reading tier 3's check 6 makes: a section's outer

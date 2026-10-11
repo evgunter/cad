@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [a-mate-reads-face-variables, an-unattributed-contact-at-rest-is-a-finding]
+blocked_on: [an-unattributed-contact-at-rest-is-a-finding]
 refs: [intent-stage3-is-built, mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion]
 ---
 
