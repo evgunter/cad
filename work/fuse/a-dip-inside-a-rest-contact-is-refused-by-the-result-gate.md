@@ -151,9 +151,19 @@ them (`boolean::ops::carry_rows`). That is the remap half of
 "mint or remap", and the two rows share one fix site. The undeclared
 union is now the declared one, body and records alike.
 `rest_zip_admission.rs`'s
-`a_line_kiss_beside_a_tangent_site_ships_its_contact_undeclared` pins
+`a_line_kiss_beside_a_tangent_site_records_its_contact` pinned
 that.
 
 ## Re-homed at ZIP's close (2026-10-11)
 
 Moved from ZIP to FUSE: what is left is `boolean::ops::carry_rows` dropping the vertex-on-face records the reduction mints, which is the same fix site as FUSE's `a-kissing-convex-corner-result-ships-an-undeclared-vertex-on-face`.
+
+## 2026-10-11, the line kiss's records land (FLUSH, `flush/corner-ruling-tier3`)
+
+The dropped records were a vertex-on-face record whose face the section
+divided, chased by key to a piece that did not hold the vertex. FLUSH's
+`a-box-and-a-cylinder-through-its-corner-edge-intersect-past-tier-3-prime`
+fixes that in `carry_rows` (`Descendants::holder`), and shape 2's ten
+poses now pass tier 3′ in both orders; the pin is flipped and renamed
+`a_line_kiss_beside_a_tangent_site_records_its_contact`. Shape 1 (the
+dip) is untouched by that fix.
