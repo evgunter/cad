@@ -3124,7 +3124,13 @@ pub(super) fn ledger<T: Decide>(
                 .ok_or_else(|| desync("a ring tie's vertex does not resolve in its clone"))
         };
         if key(tie.a)? == key(tie.b)? {
+            if std::env::var_os("R2_RING_PROBE").is_some() {
+                eprintln!("R2TIE structural");
+            }
             continue;
+        }
+        if std::env::var_os("R2_RING_PROBE").is_some() {
+            eprintln!("R2TIE value pend={}", pending.len());
         }
         let fresh = decide_one(
             &mut pending,
@@ -3484,6 +3490,9 @@ fn cite_rows(
         .into_iter()
         .filter(|&k| ledger.pending[k as usize].margin.is_some())
         .collect();
+    if std::env::var_os("R2_RING_PROBE").is_some() {
+        eprintln!("R2CITE used={used:?}");
+    }
     let mut coincidences = ledger.recorded.clone();
     let base = coincidences.len();
     for &k in &used {

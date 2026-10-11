@@ -4606,8 +4606,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         let only: Vec<_> = plans.iter().map(|&(_, plan)| plan).collect();
         if std::env::var_os("R2_RING_PROBE").is_some() {
             eprintln!("R2PASS {operand:?} plans={}", only.len());
-            for group in vtxfac::ring_groups(&only, band)? {
+            let (probe_groups, probe_ties) = vtxfac::ring_groups(&only, band)?;
+            for group in probe_groups {
+                let in_group = probe_ties.iter().filter(|t| group.contains(&t.0)).count();
                 let members: Vec<_> = group.iter().map(|&k| plans[k].1).collect();
+                if members.len() > 1 {
+                    eprintln!("R2SPAN n={} ties={in_group}", members.len());
+                }
                 if members.len() > 1 && std::env::var_os("R2_RING_PROBE").is_some() {
                     let piercing_body = match operand {
                         Operand::A => &a,
