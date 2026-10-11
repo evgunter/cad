@@ -7,10 +7,11 @@ use std::collections::BTreeMap;
 
 use eframe::egui;
 use pncad::document::{
-    AxisSense, BooleanOp, Doc, DocumentId, MatePrimitive, ProfileProgram, RecipeNodeId, Said,
-    Speaker, SpokenNode,
+    AxisSense, Doc, DocumentId, MatePrimitive, ProfileProgram, RecipeNodeId, Said, Speaker,
+    SpokenNode,
 };
 use pncad::select::SplitHalf;
+use pncad::topo::BooleanOp;
 
 use crate::app::ViewerBehavior;
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
@@ -153,6 +154,15 @@ pub(crate) fn seats_row(
     theme: &Theme,
 ) {
     crate::widgets::message_toned(ui, seat_line(seats, doc), theme, Tone::Advisory);
+}
+
+/// **What the boolean tool asks for under `op`**: any number of bodies
+/// for union and intersect, the two seats in order for subtract.
+pub(crate) fn boolean_prompt(op: BooleanOp) -> &'static str {
+    match op {
+        BooleanOp::Union | BooleanOp::Intersect => "pick the bodies, one or more, then commit",
+        BooleanOp::Subtract => "pick the body to keep, then the body to remove",
+    }
 }
 
 /// **The mate tool's held picks, drawn** — [`MateToolState::line`],
@@ -1320,12 +1330,14 @@ impl ViewerBehavior<'_> {
         });
     }
 
-    /// The boolean tool's panel: activation, the two held picks named
-    /// by ROLE, the operation choice, and the one committed edit.
+    /// The boolean tool's panel: activation, the operation choice, the
+    /// held picks — a member list for union and intersect, the two seats
+    /// named by ROLE for subtract — and the one committed edit.
     ///
-    /// The role naming is the point of the panel: `subtract` removes
-    /// the second pick from the first, so a user who cannot see which
-    /// is which cannot author the operation they mean.
+    /// The role naming is the point of the subtract panel: it removes
+    /// one pick from the other, so a user who cannot see which is which
+    /// cannot author the operation they mean. A union or an intersect
+    /// commits whatever members are held, one or more.
     pub(crate) fn boolean_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.boolean() else {
             if ui.button(ToolKind::Boolean.button()).clicked() {
@@ -1333,30 +1345,41 @@ impl ViewerBehavior<'_> {
             }
             return;
         };
-        crate::widgets::message(
-            ui,
-            ToolKind::Boolean.says(&"pick the first body, then the second"),
-        );
-        seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
+        let mut op = tool.operation();
         ui.horizontal(|ui| {
             ui.label("operation");
             // One button per operation the KERNEL has, in its order:
             // the form offers the vocabulary, never a copy of it.
-            for &op in BooleanOp::ALL {
-                ui.radio_value(&mut self.drafts.boolean_op, op, boolean_op_label(op));
+            for &choice in BooleanOp::ALL {
+                ui.radio_value(&mut op, choice, boolean_op_label(choice));
             }
         });
-        if self.drafts.boolean_op == BooleanOp::Subtract {
-            crate::widgets::message_toned(
-                ui,
-                "subtract removes the second pick from the first",
-                &self.theme,
-                Tone::Advisory,
-            );
+        if op != tool.operation()
+            && let Some(open) = self.tools.boolean_mut()
+        {
+            open.set_operation(op);
         }
-        self.tool_commit_row(ui, ToolKind::Boolean, |drafts, _| {
-            Ok(tool.op(drafts.boolean_op)?)
-        });
+        let Some(tool) = self.tools.boolean() else {
+            return;
+        };
+        crate::widgets::message(
+            ui,
+            ToolKind::Boolean.says(&boolean_prompt(tool.operation())),
+        );
+        crate::widgets::message_toned(
+            ui,
+            tool.line(self.session.doc()),
+            &self.theme,
+            Tone::Advisory,
+        );
+        if ui
+            .add_enabled(!tool.is_empty(), egui::Button::new("Clear picks"))
+            .clicked()
+            && let Some(open) = self.tools.boolean_mut()
+        {
+            open.clear();
+        }
+        self.tool_commit_row(ui, ToolKind::Boolean, |_, _| Ok(tool.op()?));
     }
 
     /// The split tool's panel: a body pick, a datum-plane pick, and
@@ -1749,13 +1772,18 @@ impl ViewerBehavior<'_> {
     /// **The kind noun of the node a tool's commit creates** —
     /// `node_kind_noun`'s word, which its proposed label counts by. The
     /// pattern and blend tools create one of two kinds, by the choice
-    /// their form holds; the duplicate tool's last node is a
+    /// their form holds, and the boolean tool one of three, by the
+    /// operation it holds; the duplicate tool's last node is a
     /// projection, and its label lands there.
     fn tool_noun(&self, kind: ToolKind) -> &'static str {
         match kind {
             ToolKind::Mate => MATE_NOUN,
             ToolKind::Revolve => "Revolve",
-            ToolKind::Boolean => "Boolean",
+            ToolKind::Boolean => match self.tools.boolean().map(|tool| tool.operation()) {
+                Some(BooleanOp::Union) | None => "Union",
+                Some(BooleanOp::Intersect) => "Intersect",
+                Some(BooleanOp::Subtract) => "Subtract",
+            },
             ToolKind::Split => "Split",
             ToolKind::Transform => "Transform",
             ToolKind::Pattern => match self.drafts.pattern_output {
@@ -1908,14 +1936,16 @@ mod tests {
 
     use super::{
         NEW_XY_LABEL, ProfilePlane, clear_picks_button, duplicate_note, mate_picks_row,
-        part_selector_rows, profile_plane_row, seats_row,
+        part_selector_rows, profile_plane_row,
     };
     use crate::combine::BooleanTool;
     use crate::forms::PartSelectChoice;
+    use crate::frame::Tone;
     use crate::matetool::MateToolState;
     use crate::pane::headless::{painted_after_clicking, painted_text, painted_while_hovering};
     use crate::session::FaceSelection;
     use crate::theme::Theme;
+    use pncad::topo::BooleanOp;
 
     /// A face pick on the body of `node`.
     fn face_on(node: u64) -> FaceSelection {
@@ -1956,26 +1986,39 @@ mod tests {
         );
     }
 
-    /// **A seated panel's picks, painted in its tool's role order**:
-    /// the boolean's first pick is the operand a subtraction KEEPS,
-    /// and the line says so before the second is picked.
+    /// **The boolean panel's picks, painted**: a union's members in
+    /// pick order, any number of them; a subtraction's two seats by
+    /// role, the body KEPT named before the second is picked.
     #[test]
-    fn the_boolean_panel_says_which_operand_each_pick_is() {
+    fn the_boolean_panel_lists_members_and_names_subtracts_seats() {
         let doc = Doc::<ProfileProgram>::empty_derived("seats-row", Tol::witness());
+        let node = |n| RecipeNodeId::new(0, test_utils::refusal::tagged(n));
         let mut tool = BooleanTool::new();
         let painted = |tool: &BooleanTool| {
-            painted_text(|ui| seats_row(ui, tool.seats(), &doc, &Theme::DEFAULT))
+            painted_text(|ui| {
+                crate::widgets::message_toned(ui, tool.line(&doc), &Theme::DEFAULT, Tone::Advisory);
+            })
         };
         assert_eq!(painted(&tool), "no picks yet");
-        tool.pick(&doc, RecipeNodeId::new(0, test_utils::refusal::tagged(3)));
+        for n in [3, 5, 7] {
+            tool.pick(&doc, node(n));
+        }
         assert_eq!(
             painted(&tool),
-            "first operand: node 000000000003; second operand: —"
+            "member 1: node 000000000003; member 2: node 000000000005; \
+             member 3: node 000000000007"
         );
-        tool.pick(&doc, RecipeNodeId::new(0, test_utils::refusal::tagged(5)));
+        let mut subtract = BooleanTool::new();
+        subtract.set_operation(BooleanOp::Subtract);
+        subtract.pick(&doc, node(3));
         assert_eq!(
-            painted(&tool),
-            "first operand: node 000000000003; second operand: node 000000000005"
+            painted(&subtract),
+            "body kept: node 000000000003; body removed: —"
+        );
+        subtract.pick(&doc, node(5));
+        assert_eq!(
+            painted(&subtract),
+            "body kept: node 000000000003; body removed: node 000000000005"
         );
     }
 

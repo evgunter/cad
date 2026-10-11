@@ -26,10 +26,11 @@ The recipe admits three reference shapes, and every node is built from them:
   are frozen, and it defines a set (`Faces`, `Edges`) or a singleton
   (`Face`, `Edge`, `Vertex`) that a node reads like any variable — a
   `Fillet`'s or `Chamfer`'s edges, a `Shell`'s open faces, a
-  `Datum::FaceFrame`'s face, a `Measure`'s refs. The N5 ladder runs in the
+  `Datum::FaceFrame`'s face, a `Measure`'s refs, a `Mate`'s two sides. The
+  N5 ladder runs in the
   selection's evaluation and nowhere else for these. A **payload** is a
   name a node holds itself: a `Union`'s, `Intersect`'s or `Subtract`'s
-  declared pairs, `Mate` heads, an `InstantiatePart`'s interface crossings'
+  declared pairs and an `InstantiatePart`'s interface crossings'
   `outer`s (a crossing's `inner` is not a name of this document; the
   list's arm says why). The payload list has two homes, this clause and
   `Node::payload_names`' own doc; every other site points at the latter
@@ -38,7 +39,7 @@ The recipe admits three reference shapes, and every node is built from them:
   `mint_selection`, runs the same check on its names), and `split`'s
   `PartNameReachesRemainder` precondition, which refuses a cut whose taken
   node carries a name reaching the kept remainder (a selection's, a
-  declared pair's, a `Mate` head's, an instance's crossing `outer`). A
+  declared pair's, an instance's crossing `outer`). A
   later delete strands a name (N5) and says so (DM7).
 - **An `Expr` literal** in a slot, bit-pinned (D7).
 
@@ -151,6 +152,13 @@ name is scoped by the variable that holds its body (N1), so a split half's names
 and a selection of `split.above` states its body once. A body seat
 reading a whole family, a profile or a split as a whole refuses by kind at
 the door (`SlotVarKind`).
+
+*Built: the indexed read at every body seat, rank one, FORK-DM4 unit 1
+(PR 4527). Every family a node defines is one flat list, so `xs[i, j]`
+waits on a family keyed by two indices
+(`work/intent/an-indexed-read-of-rank-two-has-no-family.md`). Until stage
+3 G, `Part { select: Instance }` stands beside it, a second way to pick a
+member; new authoring writes `xs[i]`.*
 
 ## DM4 — Flat operators before splice: union and intersect are lists, subtract a pair
 
@@ -380,7 +388,9 @@ refusal menu of `docs/SELECT-DESIGN.md` §3d keeps its two arms for every
 member-space declaration channel, DOCM-7 (PR 2028), sited at the members
 (#2795) and made the node's own payload (#3587); the flat `Merged` mint and
 the look-through, DOCM-8 (PR 2073); the typed refusal past the merges,
-ruled on PR 2677; the pairwise contact rule (#3200, built in PR 3213).*
+ruled on PR 2677; the pairwise contact rule (#3200, built in PR 3213); the
+three nodes over one `Bodies` argument, keyed by the read, FORK-DM4 unit 1
+(PR 4527).*
 
 ## DM5 — A read repeated is answered by the operation
 
@@ -408,8 +418,9 @@ refusing the repeat keeps a syntactic refusal beside a semantic admission
 of the identical geometry, and collapsing the list as a set rewrites what
 the author wrote and is a second rule beside the glue two variables get.
 
-*The refusal this clause replaces (`EditError::DuplicateInput`, the load
-validator's arm) was built in DOCM-3 (PR 1803).*
+*Built: FORK-DM4 unit 1 (PR 4527). The refusal this clause replaces
+(`EditError::DuplicateInput`, the load validator's arm) was built in DOCM-3
+(PR 1803).*
 
 ## DM6 — No edit infers a re-point
 

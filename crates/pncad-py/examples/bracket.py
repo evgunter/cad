@@ -32,7 +32,7 @@ import math
 import os
 import tempfile
 
-from pncad import BooleanOp, Doc, Formula, Node, Open, Start, evaluate, import_step, mm
+from pncad import Doc, Formula, Node, Open, Start, evaluate, import_step, mm
 
 PLATE = (80, 40)  # mm
 # The plate's corner radius: the natural one for this plate. It was
@@ -100,11 +100,11 @@ def main():
     # A rounded base plate, and an upright web standing on it.
     base = rounded_plate(doc, PLATE[0], PLATE[1], CORNER, 8 * mm)
     web = slab(doc, (36 * mm, 44 * mm), (5 * mm, 35 * mm), (8 * mm, 34 * mm))
-    bracket = doc.insert(Node.boolean(BooleanOp.Union, base, web))
+    bracket = doc.insert(Node.union([base, web]))
 
     # A lightening pocket, entering from below and stopping inside.
     pocket = slab(doc, (8 * mm, 28 * mm), (10 * mm, 30 * mm), (0 * mm, 5 * mm))
-    lightened = doc.insert(Node.boolean(BooleanOp.Subtract, bracket, pocket))
+    lightened = doc.insert(Node.subtract(bracket, pocket))
 
     ev = evaluate(doc)
     print(f"document: {doc.node_count} nodes, tolerance {doc.epsilon}")

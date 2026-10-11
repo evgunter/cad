@@ -333,7 +333,12 @@ impl ChecksConfig {
 /// every accessor here silently answers `None` about.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct CheckEvidence(pub(crate) d::CheckEvidence);
+pub(crate) struct CheckEvidence(
+    pub(crate) d::CheckEvidence,
+    /// The document the checks ran over, which names a coincidence's
+    /// cells.
+    Arc<d::ProfileDoc>,
+);
 
 #[pymethods]
 impl CheckEvidence {
@@ -497,6 +502,7 @@ impl CheckEvidence {
                     residual: (**residual).clone(),
                     recourse: *recourse,
                 },
+                &self.1,
             )
             .map(Some),
             _ => Ok(None),
@@ -589,7 +595,7 @@ impl CheckFinding {
     /// What was found.
     #[getter]
     fn evidence(&self) -> CheckEvidence {
-        CheckEvidence(self.finding.evidence.clone())
+        CheckEvidence(self.finding.evidence.clone(), Arc::clone(&self.doc))
     }
 
     /// The finding as the library renders one: its subject, then the

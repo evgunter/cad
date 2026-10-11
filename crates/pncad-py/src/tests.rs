@@ -1642,6 +1642,12 @@ fn select_refusal_tags_are_stable() {
         "node_has_no_value"
     );
     assert_eq!(
+        select_refusal_tag(&SelectRefusal::NodeHasNoOutput {
+            node: RecipeNodeId::new(0, 0)
+        }),
+        "node_has_no_output"
+    );
+    assert_eq!(
         select_refusal_tag(&SelectRefusal::NotALength {
             dim: Dimension::Angle,
         }),
@@ -2407,7 +2413,6 @@ fn node_error_tags_are_the_published_words() {
         ProductOperand => "product_operand",
         UnfinishedOperand => "unfinished_operand",
         EmptyHalf => "empty_half",
-        MembersShareAnOperation => "members_share_an_operation",
         InstanceOutOfRange => "instance_out_of_range",
         DegenerateDirection => "degenerate_direction",
         NonFiniteDirection => "non_finite_direction",
@@ -2467,6 +2472,7 @@ fn node_error_tags_are_the_published_words() {
         MateBand => "mate_band",
         MateContradictory => "mate_contradictory",
         MateUnder => "mate_under",
+        MateSideUnresolved => "mate_side_unresolved",
         MateDanglingHead => "mate_dangling_head",
         MatePlacerRefused => "mate_placer_refused",
         MatePartSelectsAnotherCopy => "mate_part_selects_another_copy",
@@ -2774,9 +2780,12 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::DeclaredSiteNotAnOperand {
             node: sp(1),
             name: named(),
-            site: sp(2),
+            site: pncad::document::SpokenVar::new(
+                pncad::document::VarId(id(2).0),
+                Some(pncad::document::VarName::new("lid").expect("a var name")),
+            ),
         },
-        &["node", "input", "name"],
+        &["node", "param", "name"],
     );
     carries(
         &E::DeclaredNameNotUpstream {
@@ -2880,13 +2889,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(&E::UpdateOnNonInstance { node: sp(1) }, &["node"]);
     carries(&E::UnresolvedInput { input: sp(2) }, &["input"]);
-    carries(
-        &E::DuplicateInput {
-            node: sp(1),
-            input: sp(2),
-        },
-        &["node", "input"],
-    );
     // ---- operands ----
     use pncad::document::{Operand, OperandSlot, SlotKind, VarKind};
     carries(
@@ -2928,7 +2930,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::DefinesNothing {
             input: sp(2),
-            slot: SlotId::Operand(OperandSlot::B),
+            slot: SlotId::Operand(OperandSlot::Cut),
         },
         &["input", "slot"],
     );
@@ -2946,9 +2948,9 @@ fn every_edit_arm_projects_the_payload_it_carries() {
 
     // The two-node arms answer with the ids they were given, not with
     // the first id twice: the roles are what a caller acts on.
-    let twice = E::DuplicateInput {
+    let twice = E::GaugeNotLive {
         node: sp(4),
-        input: sp(9),
+        gauge: sp(9),
     };
     let payload = edit_payload(&twice);
     assert_eq!(payload.node, Some(id(4)));
@@ -3105,13 +3107,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
 
     // ---- the list-shape arms ----
     carries(
-        &E::TooFewMembers {
-            node: sp(1),
-            found: 1,
-        },
-        &["node", "count"],
-    );
-    carries(
         &E::SelectionShape {
             node: sp(1),
             slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Open),
@@ -3129,15 +3124,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         },
         &["node", "slot", "first"],
     );
-    // `found` on a short list is a COUNT and takes the `count`
-    // attribute, so it never lands where a dimension word would.
-    let short = E::TooFewMembers {
-        node: sp(1),
-        found: 1,
-    };
-    let payload = edit_payload(&short);
-    assert_eq!(payload.count, Some(1));
-    assert_eq!(payload.found, None);
 
     // ---- names, kinds and appearance ----
     for arm in [
@@ -3943,7 +3929,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     // An unproven coincidence: its two words and the residual's
     // sentence; the cells cross on the Python value, not the payload.
     let tool = pncad::document::NamedCell::Tool {
-        input: RecipeNodeId::new(0, 3),
+        input: pncad::document::VarId(RecipeNodeId::new(0, 3).0),
     };
     let unproven = E::UnprovenCoincidence {
         row: Box::new(pncad::document::NamedCoincidence {
@@ -4408,8 +4394,9 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
             // program's expression is reached by a loop index, a step
             // index and an argument role, a later placement step's by a
             // step index and a component, a mate offset's by a side, a
-            // step index and a component, and a list's entry by its
-            // position, none of which the word carries.
+            // step index and a component, a list's entry by its
+            // position, a mate's side by which side, and an indexed
+            // read's index by its seat, none of which the word carries.
             None => assert!(
                 matches!(
                     *word,
@@ -4418,7 +4405,9 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                         | "mate_frame_step"
                         | "section"
                         | "member"
+                        | "index"
                         | "measured"
+                        | "side"
                 ),
                 "`{word}` is a slot a caller can read off a refusal and cannot write back at"
             ),
@@ -5134,7 +5123,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "definition_var_kind",
             "delete_anonymous_var",
             "dimension",
-            "duplicate_input",
             "duplicate_witness_entry",
             "empty_placement_list",
             "empty_witness_bulk",
@@ -5148,9 +5136,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "gauge_not_live",
             "gauge_on_non_placed",
             "improper_placement",
+            "indexed_read",
             "invalid_distribution",
             "invalid_tolerance",
             "label_unchanged",
+            "loft_sections_spelled",
             "mate_refused",
             "meta_non_finite",
             "meta_not_set",
@@ -5200,7 +5190,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "slot_var_kind",
             "step_ids_refused",
             "structural_slot_needs_structural_edit",
-            "too_few_members",
             "unknown_node",
             "unknown_slot",
             "unknown_var",
@@ -5229,6 +5218,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "count_mismatch_tag",
             "distribution_fault_tag",
             "expr_dimension_error_tag",
+            "input_fault_tag",
             "mate_fault_tag",
             "meta_version_error_tag",
             "node_error_tag",
@@ -5402,6 +5392,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_dead_gauge",
             "placement_pose_crosses",
             "stranded_part_name",
+            "stranded_part_read",
             "unknown_node",
             "unplaceable_frame",
             "unplaced",
@@ -5409,6 +5400,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "var_name_conflict",
         ],
         delegates: &["resolve_fault_tag"],
+    },
+    TagEntry {
+        function: "input_fault_tag",
+        values: &["index_rank", "indexed_family"],
+        delegates: &[],
     },
     TagEntry {
         function: "interface_crossing_tag",
@@ -5524,7 +5520,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "mint_refusal_tag",
-        values: &["mate_reference_refused", "no_at_rest_record"],
+        values: &[
+            "mate_reference_refused",
+            "mate_unevaluated",
+            "no_at_rest_record",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5606,6 +5606,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_pose_out_of_range",
             "mate_poses_of_another_document",
             "mate_self",
+            "mate_side_unresolved",
             "mate_table_lacks",
             "mate_under",
             "mate_unleverable",
@@ -5614,7 +5615,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "measure_not_parallel",
             "measure_ref_unreadable",
             "measure_unsupported",
-            "members_share_an_operation",
             "missing_input",
             "missing_slot",
             "naming",
@@ -5739,21 +5739,23 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "operand_slot_tag",
         values: &[
-            "a",
             "axis",
-            "b",
             "body",
+            "cut",
             "face",
             "frame",
+            "from",
             "input",
             "measured",
             "member",
+            "members",
             "of",
             "open",
             "path",
             "profile",
             "section",
             "selection",
+            "side",
             "target",
             "tool",
         ],
@@ -5966,7 +5968,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "refused_ref_tag",
-        values: &["ref_ambiguous", "ref_moved_above", "ref_vanished"],
+        values: &["ref_ambiguous"],
         delegates: &[],
     },
     TagEntry {
@@ -6072,6 +6074,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "datum_has_no_value",
             "distinct_finding",
             "in_band",
+            "node_has_no_output",
             "node_has_no_value",
             "not_a_datum",
             "not_a_length",
@@ -6151,6 +6154,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "direction_y",
             "direction_z",
             "distance",
+            "index",
             "instance",
             "mate_frame_step",
             "normal_x",
@@ -6200,7 +6204,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "definition_reads_unminted_var",
             "definition_too_large",
             "definition_var_kind",
-            "duplicate_input",
             "epsilon_invalid",
             "gauge_cycle",
             "input_list",
@@ -6209,6 +6212,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "metadata_unversioned",
             "mint_log_order",
             "name_on_missing_var",
+            "name_read_not_minted",
             "name_step_not_minted",
             "node_not_minted",
             "not_a_gauge",
@@ -6254,7 +6258,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_outside_part_world",
             "name_straddles_cut",
             "no_material",
-            "operand_severed_from_mate",
             "part_edit",
             "part_id_collides",
             "part_name_reaches_remainder",
@@ -6672,9 +6675,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // them different is what made the three-door divergence in
     // `PersistError`'s `EditReplay` projection invisible.
     ("dimension", 3),
-    // One fact at two doors: `Node::input_fault`'s `Duplicate`, named
-    // by the edit door and the load door alike.
-    ("duplicate_input", 2),
     ("edge", 2),
     // One fact, as `circle_circle`.
     ("edge_along_edge", 2),
@@ -7927,8 +7927,8 @@ fn read_tag_table(source: &str) -> TagTable {
 ///
 /// **What it does NOT prove, which is the more interesting half.** An
 /// inventory pins the VOCABULARY, not the MAPPING. Swap two arms'
-/// literals — `WouldCycle` returns `"duplicate_input"` and
-/// `DuplicateInput` returns `"would_cycle"` — and this test is
+/// literals — `WouldCycle` returns `"unknown_node"` and
+/// `UnknownNode` returns `"would_cycle"` — and this test is
 /// perfectly green: the set of words the file speaks did not change,
 /// only which refusal says which. That failure is caught by the
 /// CONSTRUCTION pins (`readback_refusal_tags_are_stable` and its
@@ -10500,9 +10500,6 @@ fn the_errors_mint_reader_refuses_an_attribute_on_an_item_it_cannot_name() {
 /// reds by name.
 const NODE_KIND_ROSTER: &[&str] = &[
     "assertion",
-    "boolean_intersect",
-    "boolean_subtract",
-    "boolean_union",
     "chamfer",
     "datum",
     "extrude",
@@ -10510,6 +10507,7 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "gauge",
     "hollow_tube",
     "instantiate_part",
+    "intersect",
     "loft",
     "mate",
     "measure",
@@ -10521,6 +10519,7 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "revolve",
     "shell",
     "split",
+    "subtract",
     "sweep",
     "transform",
     "tube",

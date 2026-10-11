@@ -167,11 +167,12 @@ impl<T: Bounds> NurbsSurface<T> {
                     #[allow(clippy::cast_precision_loss)]
                     let fu = i as f64 / (PROJECT_SEEDS_PER_SPAN - 1) as f64;
                     let u = a0 + (a1 - a0) * fu;
+                    let tu = T::from_computed(u);
                     for j in 0..PROJECT_SEEDS_PER_SPAN {
                         #[allow(clippy::cast_precision_loss)]
                         let fv = j as f64 / (PROJECT_SEEDS_PER_SPAN - 1) as f64;
                         let v = b0 + (b1 - b0) * fv;
-                        let d = win.eval_in_span(T::from_f64(u), T::from_f64(v)) - p;
+                        let d = win.eval_in_span(tu, T::from_computed(v)) - p;
                         let d2 = mid(d.dot(d));
                         // Strict `<`: first minimum wins, NaN never does.
                         if d2 < best_d2 {
@@ -233,7 +234,7 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
             let Some(win) = self.window_at(u, v) else {
                 break;
             };
-            let j = win.ders_in_span(T::from_f64(u), T::from_f64(v));
+            let j = win.ders_in_span(T::from_computed(u), T::from_computed(v));
             let r = j.point - p;
             // The iteration reads structure through the brackets; the
             // T-valued jet above is what the accepted payload is built
@@ -274,12 +275,12 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
             iterations += 1;
             // Acceptance: parameter stagnation, measured in meters
             // through the chart (domain-edge feet land here).
-            let moved = j.du * T::from_f64(un - u) + j.dv * T::from_f64(vn - v);
+            let moved = j.du * T::from_computed(un - u) + j.dv * T::from_computed(vn - v);
             if mid(moved.norm()) <= PROJECT_EPS_POINT {
                 let Some(win) = self.window_at(un, vn) else {
                     break;
                 };
-                let jn = win.ders_in_span(T::from_f64(un), T::from_f64(vn));
+                let jn = win.ders_in_span(T::from_computed(un), T::from_computed(vn));
                 let r = jn.point - p;
                 let dist = r.norm();
                 if !mid(dist).is_nan() {

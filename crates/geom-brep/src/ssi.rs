@@ -71,9 +71,9 @@
 //! zero, the step rule's fit rung (`h_fit ∝ (ε/κ³)^¼`) unbinds and the
 //! realized deviation of the two independent fits can genuinely exceed
 //! ε (measured 3.8e-9 m at march-ε = 1e-9 on a gently inflected wall)
-//! — the certificate then refuses **in-band at `ssi_hull_sup_chart`**,
-//! which is the honest verdict about that carrier, not a bound
-//! artifact (the bound sits within ~1% of the dense-scan truth there).
+//! — the certificate then refuses that carrier at limb 2, which is
+//! the honest verdict about it, not a bound artifact (the bound sits
+//! within ~1% of the dense-scan truth there).
 //! That deviation is **phase-dependent and non-monotone in march-ε**,
 //! not a fixed cap (PR 7b review measurement: 4× tighter march-ε →
 //! 4.36× better, 16× → 16.92× better reaching 2.25e-10 m, 64× → only
@@ -913,7 +913,13 @@ impl core::fmt::Display for SsiError {
                      {margin:e} m, past the tolerance",
                     limb.name()
                 ),
-                SsiLimb::OnLocus | SsiLimb::Tube => write!(
+                SsiLimb::HullValueChart => write!(
+                    f,
+                    "ssi: the fitted carrier failed {} at {margin:e} m — the carrier is off \
+                     the surface point its pcurve names",
+                    limb.name()
+                ),
+                SsiLimb::OnLocus | SsiLimb::HullValue | SsiLimb::Tube => write!(
                     f,
                     "ssi: the fitted carrier failed {} at {margin:e} m — the cache is not \
                      within tolerance of the locus it claims",
@@ -1140,13 +1146,17 @@ impl core::fmt::Display for SsiError {
             ),
             Self::Escalated { decision, cause } => write!(
                 f,
-                "ssi: whether {} is too close to call: {}",
+                concat!("ssi: whether {}", geom_core::undecided!(), ": {}"),
                 decision.question(),
                 cause.payload()
             ),
             Self::CertificateEscalated { limb, cause } => write!(
                 f,
-                "ssi: whether the fitted carrier passes {} is too close to call: {}",
+                concat!(
+                    "ssi: whether the fitted carrier passes {}",
+                    geom_core::undecided!(),
+                    ": {}"
+                ),
                 limb.name(),
                 cause.payload()
             ),
@@ -3262,7 +3272,7 @@ mod ending_tests {
             let shown = error.to_string();
             assert!(
                 shown.starts_with("ssi: whether ")
-                    && shown.ends_with(&format!("too close to call: {}", in_band.payload()))
+                    && shown.ends_with(&format!(" is undecided: {}", in_band.payload()))
                     && !shown.contains("Recourse")
                     && !shown.contains("declare"),
                 "payload only: {shown}"
