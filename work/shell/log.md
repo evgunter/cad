@@ -1435,3 +1435,7 @@ Ev said go.
   - Termination and soundness held, and three mutations turned the rows red.
   - The orchestrator's ruling repeated the lane's "same worst-case work" claim, which is false in total (rounds repeat up to the cap). Corrected in the fix pass.
   - Also in the fix pass: the seed checked against the cap, a BoundNotFinite fixture row, the per-ε split pinned in encl, a slow-set row, doc rot in two open items, and filing the two-stop-rules duplication.
+- **Unit 21 merged** (2026-10-11 ~13:35Z): PR 4677 (6562aa3). The fix pass at 06c62ff was verified against the 8 points.
+  - `branch_at` answers a Region per Ev's letter: a Side region gives the wall's boundary row (`wall_row`, shared with `level_row`), and a Corner region refuses by name.
+  - The row file is `docs/dual-review-log/rows/PR-4677.md` (sequential, protocol `24b76fff0e`).
+  - Hosted `test` was red only on main's owned reds (GERM's support plates, NURBS's digest).
