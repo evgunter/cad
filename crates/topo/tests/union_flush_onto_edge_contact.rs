@@ -375,10 +375,14 @@ fn every_op_builds(
     [union, pinch_less, common, cutter_less]: [f64; 4],
     tol: Tol,
 ) {
-    let mut ab = BooleanInputs::default();
-    ab.records_a = carried.clone();
-    let mut ba = BooleanInputs::default();
-    ba.records_b = carried.clone();
+    let ab = BooleanInputs {
+        records_a: carried.clone(),
+        ..BooleanInputs::default()
+    };
+    let ba = BooleanInputs {
+        records_b: carried.clone(),
+        ..BooleanInputs::default()
+    };
     for (op, got, want) in topo::test_support::ops_under_test(|| {
         [
             ("pinch ∪ cutter", union_in(pinch, cutter, &ab, tol), union),
@@ -628,9 +632,11 @@ fn two_pinches_crossing_on_one_line_refuse_their_union_typed() {
         ("a, b", &pinch_a, &pinch_b, &carried_a, &carried_b),
         ("b, a", &pinch_b, &pinch_a, &carried_b, &carried_a),
     ] {
-        let mut decls = BooleanInputs::default();
-        decls.records_a.clone_from(ca);
-        decls.records_b.clone_from(cb);
+        let decls = BooleanInputs {
+            records_a: ca.clone(),
+            records_b: cb.clone(),
+            ..BooleanInputs::default()
+        };
         // At (0,0,1) the lower pinch's two vertices are its split edges'
         // and the upper pinch's are its corners; every pair crosses.
         // The refusal names A's vertex there and the two B vertices it
@@ -699,9 +705,11 @@ fn two_pinches_meeting_end_to_end_build_in_every_op() {
         ("low, high", &low, &high, &low_rows, &high_rows, low_volume),
         ("high, low", &high, &low, &high_rows, &low_rows, high_volume),
     ] {
-        let mut decls = BooleanInputs::default();
-        decls.records_a.clone_from(ca);
-        decls.records_b.clone_from(cb);
+        let decls = BooleanInputs {
+            records_a: ca.clone(),
+            records_b: cb.clone(),
+            ..BooleanInputs::default()
+        };
         let built = |op: &str, got: Result<BooleanResult<f64>, BooleanError>, want: f64| {
             let BooleanResult::Body(out) =
                 got.unwrap_or_else(|e| panic!("{name} {op} refused: {e:?}"))
@@ -864,12 +872,18 @@ fn a_pinch_line_through_a_face_keeps_its_records_at_the_new_end() {
         brick::<f64>((-0.5, 0.5), (-0.5, 0.5), (0.0, 1.0), tol),
         tol,
     );
-    let mut ab = BooleanInputs::default();
-    ab.records_a.clone_from(&carried);
-    let mut ba = BooleanInputs::default();
-    ba.records_b.clone_from(&carried);
-    let mut block_first = BooleanInputs::default();
-    block_first.records_b = carried;
+    let ab = BooleanInputs {
+        records_a: carried.clone(),
+        ..BooleanInputs::default()
+    };
+    let ba = BooleanInputs {
+        records_b: carried.clone(),
+        ..BooleanInputs::default()
+    };
+    let block_first = BooleanInputs {
+        records_b: carried,
+        ..BooleanInputs::default()
+    };
     let volume_of = |op: &str, got: Result<BooleanResult<f64>, BooleanError>| {
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
@@ -938,10 +952,14 @@ fn a_face_through_a_pinch_line_builds_in_every_op() {
         common::prism_z(&[(-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)], 0.0, 1.0, tol).body,
         tol,
     );
-    let mut ab = BooleanInputs::default();
-    ab.records_a.clone_from(&carried);
-    let mut ba = BooleanInputs::default();
-    ba.records_b.clone_from(&carried);
+    let ab = BooleanInputs {
+        records_a: carried.clone(),
+        ..BooleanInputs::default()
+    };
+    let ba = BooleanInputs {
+        records_b: carried.clone(),
+        ..BooleanInputs::default()
+    };
     // The same wall over z ∈ (0.75, 1.25) cuts the brick on its side
     // in two and leaves the other whole: the pinch survives below 0.75
     // with a new pair of vertices at its cut.
@@ -950,8 +968,10 @@ fn a_face_through_a_pinch_line_builds_in_every_op() {
         common::prism_z(&[(-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)], 0.75, 1.25, tol).body,
         tol,
     );
-    let mut cut = BooleanInputs::default();
-    cut.records_a = carried;
+    let cut = BooleanInputs {
+        records_a: carried,
+        ..BooleanInputs::default()
+    };
     // The prism holds the half x + y > 0 of the square, so it meets
     // the pinch in the brick on that side, z ∈ (0.5, 1): 0.5, and the
     // upper one over z ∈ (0.75, 1.25), 0.5 again.
@@ -1013,9 +1033,11 @@ fn a_four_row_remap_group_certifies_a_subtract_of_two_pinches() {
     let BooleanResult::Body(pinch_b) = union(&q2, &q4, tol).expect("a pinch builds") else {
         panic!("a union of two bricks came back empty");
     };
-    let mut decls = BooleanInputs::default();
-    decls.records_a = carried_a;
-    decls.records_b = carried_rows(&pinch_b.contacts);
+    let decls = BooleanInputs {
+        records_a: carried_a,
+        records_b: carried_rows(&pinch_b.contacts),
+        ..BooleanInputs::default()
+    };
     let BooleanResult::Body(out) =
         subtract_in(&pinch_a.body, &pinch_b.body, &decls, tol).expect("the subtract builds")
     else {
@@ -1150,10 +1172,14 @@ fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), tol: Tol) {
     ];
     let common: f64 = squares.iter().map(|q| area(&clip(&rect, q))).sum();
     let prism_volume = area(&profile);
-    let mut ab = BooleanInputs::default();
-    ab.records_a.clone_from(&carried);
-    let mut ba = BooleanInputs::default();
-    ba.records_b = carried;
+    let ab = BooleanInputs {
+        records_a: carried.clone(),
+        ..BooleanInputs::default()
+    };
+    let ba = BooleanInputs {
+        records_b: carried,
+        ..BooleanInputs::default()
+    };
     for (op, got, want) in topo::test_support::ops_under_test(|| {
         [
             (
