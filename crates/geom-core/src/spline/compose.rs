@@ -445,11 +445,11 @@ fn to_bezier_spans_extra(pair: SplineCoeffs<'_, Interval>, extra: &[f64]) -> Ber
         let row = &c[j * p..=j * p + p];
         let mut from = s0;
         while let Some(cut) = next_cut.next_if(|&cut| cut < s1) {
-            spans.push(sub_segment(row, p, (s0, s1), (from, cut)));
+            spans.push(sub_segment(row, (s0, s1), (from, cut)));
             breaks.push(cut);
             from = cut;
         }
-        spans.push(sub_segment(row, p, (s0, s1), (from, s1)));
+        spans.push(sub_segment(row, (s0, s1), (from, s1)));
         breaks.push(s1);
     }
     BernsteinSpans {
@@ -459,22 +459,30 @@ fn to_bezier_spans_extra(pair: SplineCoeffs<'_, Interval>, extra: &[f64]) -> Ber
     }
 }
 
-/// The Bernstein row on `[a, b]` of the degree-`p` Bézier segment
-/// `row` on `[s0, s1]`, with `s0 ≤ a < b ≤ s1`. Coefficient `i` is the
-/// segment's blossom at `(a^(p−i), b^i)`, evaluated by de Casteljau
-/// from the segment's own row — `p` levels of [`convex_step`], `p − i`
-/// at `a` and `i` at `b` — so no coefficient is more than `p`
-/// combinations deep, wherever the cut falls and however many cuts the
-/// segment takes. The whole segment comes back as it came.
-fn sub_segment(
-    row: &[Interval],
-    p: usize,
-    (s0, s1): (f64, f64),
-    (a, b): (f64, f64),
-) -> Vec<Interval> {
+/// **The Bernstein row on `[a, b]` of the Bézier segment `row` on
+/// `[s0, s1]`**, with `s0 ≤ a ≤ b ≤ s1` and `s0 < s1`, every one an
+/// exact `f64`. Coefficient `i` of the degree-`p` row is the segment's
+/// blossom at `(a^(p−i), b^i)`, evaluated by de Casteljau from the
+/// segment's own row — `p` levels of [`convex_step`], `p − i` at `a` and
+/// `i` at `b` — so no coefficient is more than `p` combinations deep,
+/// wherever the cut falls and however many cuts the segment takes. Each
+/// step forms its ratios from the exact cut and ends, so every
+/// coefficient encloses the exact restriction of every polynomial the
+/// row encloses. The whole segment comes back as it came.
+///
+/// Cut points outside that order, or not numbers, break
+/// [`convex_step`]'s precondition, and the row comes back refused.
+// The negated guard refuses a NaN cut, where `a < s0` would pass it.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
+#[must_use]
+pub fn sub_segment(row: &[Interval], (s0, s1): (f64, f64), (a, b): (f64, f64)) -> Vec<Interval> {
     if a == s0 && b == s1 {
         return row.to_vec();
     }
+    if !(s0 <= a && a <= b && b <= s1 && s0 < s1) {
+        return vec![Interval::refused(); row.len()];
+    }
+    let p = row.len().saturating_sub(1);
     (0..=p)
         .map(|i| {
             let mut r = row.to_vec();

@@ -41,6 +41,7 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::max_bound;
 use geom_core::k_stats::decide;
 use geom_core::spline::algebra::refine_plan_homogeneous;
+use geom_core::spline::sub_segment;
 use geom_core::{Band, Decide, Indeterminate, Interval, Margin, Point3, Sign, SupSpeed, Vec3};
 
 use super::SsiError;
@@ -238,9 +239,8 @@ impl Pieces {
         )
     }
 
-    /// Each piece overlapping `[a, b]`, with the overlap's ends as
-    /// fractions of the piece and the piece's span.
-    fn cuts(&self, a: f64, b: f64) -> Vec<(&Piece, Interval, Interval, Interval)> {
+    /// Each piece overlapping `[a, b]`, with the overlap.
+    fn cuts(&self, a: f64, b: f64) -> Vec<(&Piece, (f64, f64))> {
         let mut out = Vec::new();
         for piece in &self.pieces {
             let (k0, k1) = piece.0;
@@ -248,10 +248,7 @@ impl Pieces {
             if lo > hi || (lo == hi && a != b) {
                 continue;
             }
-            let span = Interval::point(k1) - Interval::point(k0);
-            let ra = (Interval::point(lo) - Interval::point(k0)) / span;
-            let rb = (Interval::point(hi) - Interval::point(k0)) / span;
-            out.push((piece, ra, rb, span));
+            out.push((piece, (lo, hi)));
         }
         out
     }
@@ -261,7 +258,7 @@ impl Pieces {
     fn over(&self, a: f64, b: f64) -> Vec<(Vec<Interval>, Vec<Interval>)> {
         self.cuts(a, b)
             .into_iter()
-            .map(|((_, hc, wc), ra, rb, _)| (sub_piece(hc, ra, rb), sub_piece(wc, ra, rb)))
+            .map(|((k, hc, wc), cut)| (sub_segment(hc, *k, cut), sub_segment(wc, *k, cut)))
             .collect()
     }
 
@@ -270,11 +267,12 @@ impl Pieces {
     fn slope_over(&self, a: f64, b: f64) -> Vec<Vec<Interval>> {
         self.cuts(a, b)
             .into_iter()
-            .map(|((_, hc, _), ra, rb, span)| {
+            .map(|(((k0, k1), hc, _), cut)| {
+                let span = Interval::point(*k1) - Interval::point(*k0);
                 #[allow(clippy::cast_precision_loss)]
                 let pf = Interval::point((hc.len() - 1) as f64);
                 let dh: Vec<Interval> = hc.windows(2).map(|c| pf * (c[1] - c[0]) / span).collect();
-                sub_piece(&dh, ra, rb)
+                sub_segment(&dh, (*k0, *k1), cut)
             })
             .collect()
     }
@@ -304,7 +302,7 @@ pub(crate) struct SignBudget;
 /// **The sign of `φ` over pieces, read on a refined hull.** `φ` shares
 /// its sign with `h` (the weights are positive), so each piece's `h`
 /// coefficients are read. A piece whose hull straddles zero is halved
-/// ([`sub_piece`]), spending one of `budget`, and its halves are read.
+/// ([`sub_segment`]), spending one of `budget`, and its halves are read.
 ///
 /// - `Some`: every piece reads one-signed, all of one sign.
 /// - `None` (in band): two pieces read opposite signs, a hull is
@@ -326,11 +324,6 @@ fn refined_sign(
         return Ok(None);
     }
     let mut found = signs.iter().find_map(|s| *s);
-    let (zero, half, one) = (
-        Interval::point(0.0),
-        Interval::point(0.5),
-        Interval::point(1.0),
-    );
     for (piece, read) in pieces.into_iter().zip(signs) {
         if read.is_some() {
             continue;
@@ -353,7 +346,10 @@ fn refined_sign(
                 return Err(SignBudget);
             }
             *budget -= 1;
-            let (left, right) = (sub_piece(&c, zero, half), sub_piece(&c, half, one));
+            let (left, right) = (
+                sub_segment(&c, (0.0, 1.0), (0.0, 0.5)),
+                sub_segment(&c, (0.0, 1.0), (0.5, 1.0)),
+            );
             if Certification::width(Interval::hull(hull(&left), hull(&right))) >= before {
                 return Ok(None);
             }
@@ -426,26 +422,6 @@ impl Stretch {
             budget,
         )
     }
-}
-
-/// The Bernstein coefficients of the polynomial with coefficients `c` on
-/// `[0, 1]`, restricted to `[ra, rb]`: coefficient `j` is the blossom at
-/// `p − j` copies of `ra` and `j` of `rb`. In interval arithmetic, so
-/// every coefficient encloses the exact one for every `ra`, `rb` in the
-/// enclosures given.
-fn sub_piece(c: &[Interval], ra: Interval, rb: Interval) -> Vec<Interval> {
-    let p = c.len().saturating_sub(1);
-    (0..=p)
-        .map(|j| {
-            let mut level = c.to_vec();
-            for k in 0..p {
-                let t = if k < p - j { ra } else { rb };
-                let s = Interval::point(1.0) - t;
-                level = level.windows(2).map(|w| s * w[0] + t * w[1]).collect();
-            }
-            level.first().copied().unwrap_or_else(Interval::refused)
-        })
-        .collect()
 }
 
 /// The hull of a coefficient list.
