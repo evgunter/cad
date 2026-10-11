@@ -106,8 +106,8 @@ fn rest_mate(a: StableName, b: StableName, seat: f64) -> AuthoredNode {
 /// a `Tangent` declaration, whose class mints no record at rest.
 fn classed_mate(a: StableName, b: StableName, seat: f64, class: ContactClass) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(a),
-        b: crate::fixture::head(b),
+        a: crate::fixture::head(a).into(),
+        b: crate::fixture::head(b).into(),
         class,
         alignment: Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),
@@ -671,8 +671,8 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
         "the bad reference is a ROW, not a stop"
     );
     assert!(
-        matches!(gathered.unminted[0], MintRefusal::Reference { .. }),
-        "recorded under the reference arm: {:?}",
+        matches!(gathered.unminted[0], MintRefusal::Unevaluated { .. }),
+        "recorded under the mate's own refusal: {:?}",
         gathered.unminted
     );
 }
@@ -806,7 +806,7 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
     );
     assert!(
         matches!(gathered.unminted[0], MintRefusal::NoAtRestRecord { .. })
-            && matches!(gathered.unminted[1], MintRefusal::Reference { .. }),
+            && matches!(gathered.unminted[1], MintRefusal::Unevaluated { .. }),
         "each under its own arm: {:?}",
         gathered.unminted
     );
@@ -822,7 +822,7 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
             );
             assert!(
                 matches!(refusals[0], MintRefusal::NoAtRestRecord { .. })
-                    && matches!(refusals[1], MintRefusal::Reference { .. }),
+                    && matches!(refusals[1], MintRefusal::Unevaluated { .. }),
                 "each still under its own arm: {refusals:?}"
             );
             let rendered = AssemblyError::Mint { refusals }.to_string();
