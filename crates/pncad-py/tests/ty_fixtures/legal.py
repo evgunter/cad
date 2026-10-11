@@ -752,7 +752,7 @@ except NodePickError as pick_refusal:
 # attribute is optional and the caller reads them after branching on
 # `status`, which is always a `str`.
 stored_name: str = seamed.all_faces(upright)[0]
-standing: Resolution = seamed.resolve(stored_name)
+standing: Resolution = seamed.resolve(upright, stored_name)
 state: str = standing.status
 which_arm: str | None = standing.variant
 carried_by: NodeId | None = standing.node

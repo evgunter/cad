@@ -322,7 +322,7 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
         )
         # The kind is the inner name's, never re-decided: a carried
         # face resolves as a face.
-        self.assertEqual(ev.resolve(carried(hollow, target, band(node, scene.piece(0, 0)))).status, "resolved")
+        self.assertEqual(ev.resolve(hollow, carried(hollow, target, band(node, scene.piece(0, 0)))).status, "resolved")
 
     def test_text_that_is_not_a_name_refuses_at_the_boundary(self):
         doc = Doc()

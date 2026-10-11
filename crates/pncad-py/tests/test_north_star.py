@@ -4708,16 +4708,19 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # The split vocabulary is reachable from Python over the cut,
         # which is what "names end to end" means here: the emitter is
         # TOTAL, not merely non-refusing.
+        # A split's halves are two reads, each its own table: a count
+        # over the cut sums its halves.
+        halves = (doc.output(cut, 0), doc.output(cut, 1))
+
         def count(kind, tag):
-            return len(
-                ev.select(cut, Selector.of(NamePat.of_kind(kind).seg(SegPat.tag(tag))))
-            )
+            sel = Selector.of(NamePat.of_kind(kind).seg(SegPat.tag(tag)))
+            return sum(len(ev.select(h, sel)) for h in halves)
 
         self.assertEqual(count(EntityKind.Body, SegTag.SplitBody), 2)
         self.assertEqual(count(EntityKind.Face, SegTag.SectionFace), 14)
         def pieces(kind, tag):
             pat = NamePat.of_kind(kind).path([SegPat.tag(tag), SegPat.tag(SegTag.Fragment)])
-            return len(ev.select(cut, Selector.of(pat)))
+            return sum(len(ev.select(h, Selector.of(pat))) for h in halves)
 
         # A section line that re-enters one operand face cuts several
         # chords of it, each named by its ends.

@@ -2297,6 +2297,10 @@ NOT_BOUND = {
     # `output_signature` and its sentence, and the subgroup family is
     # the value-free name of a `Subgroup.variant` Python already reads.
     "OutputFault": SHAPE,
+    # A split's half: Python reads a half by its port
+    # (`Doc.output(split, 0 | 1)`), and that read is the half's own name
+    # table, so the half is never a separate argument.
+    "SplitHalf": SHAPE,
     # A selection's definition and its two refusals' faults: Python
     # authors a selection through the node that reads it (`Node.fillet`
     # takes the names) and repairs one through `DocEdit.rebind` with

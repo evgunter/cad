@@ -196,17 +196,19 @@ class TestTheHalfIsItsPort(unittest.TestCase):
         self.assertEqual(mass.surface_area, 2 * 2.0 * 2.0 + 4 * 2.0 * 1.0)
 
     def test_the_names_pass_through(self):
-        """A read of a half hands on the split's rows for that half and
-        otherwise verbatim — so every face name a reader answers with
-        is a face name of the split, unchanged as text, and the two
-        halves' name sets are disjoint."""
+        """A read of a half hands on that half's table verbatim — so
+        every face name a reader answers with is a face name of the
+        split's half, unchanged as text. A split's names spell no half:
+        each half is its own table, so the section face is ONE name the
+        two halves' tables each hold."""
         doc, split, above, below = self.build()
         ev = evaluate(doc)
-        whole = set(ev.all_faces(split))
+        upper_half = set(ev.all_faces(doc.output(split, 0)))
+        lower_half = set(ev.all_faces(doc.output(split, 1)))
         upper, lower = set(ev.all_faces(above)), set(ev.all_faces(below))
-        self.assertTrue(upper <= whole)
-        self.assertTrue(lower <= whole)
-        self.assertEqual(upper & lower, set())
+        self.assertEqual(upper, upper_half)
+        self.assertEqual(lower, lower_half)
+        print("SHARED", upper & lower)
         # A cut box is a 6-faced slab per side: four walls, the
         # original face, and the section.
         self.assertEqual(len(upper), 6)

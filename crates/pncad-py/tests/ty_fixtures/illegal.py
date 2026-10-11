@@ -427,13 +427,12 @@ evaluate(doc).pick_face([solid], Ray((0 * m, 0 * m, 1 * m), (0.0, 0.0, -1.0)))  
 maybe_hit = evaluate(doc).pick_face([], Ray((0 * m, 0 * m, 1 * m), (0.0, 0.0, -1.0)))
 hit_name: str = maybe_hit.name  # ty: error
 
-# `resolve` is EVALUATION-wide: it takes a name and nothing else. The
-# node-scoped door is `denotation`, and handing this one a node is the
-# confusion between the two the docstrings exist to prevent.
-evaluate(doc).resolve(solid, "a face")  # ty: error
+# `resolve` reads a name in the variable holding its body: the read
+# comes first and is never optional, so a name alone is refused.
+evaluate(doc).resolve("a face")  # ty: error
 
 # A name crosses as opaque TEXT, never as the `NodeId` that minted it.
-evaluate(doc).resolve(solid)  # ty: error
+evaluate(doc).resolve(solid, solid)  # ty: error
 
 # The verdict is a value, and its location attributes are OPTIONAL
 # because two of the three states have no location. Binding one to a
