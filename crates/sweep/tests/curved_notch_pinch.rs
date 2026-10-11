@@ -9,7 +9,17 @@
 //! `cargo test -p sweep --release --test all curved_notch_pinch --
 //! --ignored --nocapture`
 
-use super::*;
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use topo::{AtRestBody, Body, BooleanError, BooleanResult, mass_properties};
+
+use crate::common::pinch_cones::{
+    Op as Cones, Plane, cone_finding, faces_through_two_vertices_at, vertices_at,
+};
+use crate::join_pierce_runs_sweep::{
+    Run, SIDE, convex_volume, cube_at, cube_planes_at, direction, finished, frame, notch343,
+    polygon_prism, tag_cones, tol,
+};
 
 type Ps = Vec<Vec<([f64; 3], f64)>>;
 

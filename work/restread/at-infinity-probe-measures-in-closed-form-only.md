@@ -243,7 +243,7 @@ assert legality for this reason.
 
 ## 2026-10-11 — 1 023 boolean results at a curved corner pinch (FLUSH)
 
-`sweep` `join_pierce_runs_sweep::curved_pinch::curved_notch_pinch`
+`sweep` `curved_notch_pinch::curved_notch_pinch`
 (ignored, release; `notch343` with one face bowed into a cylinder arc,
 against a two-cube corner pinch, 84 directions × 3 turns, every op in
 both orders, plain booleans) on main `6e3985cb7`: 1 023 of 1 497

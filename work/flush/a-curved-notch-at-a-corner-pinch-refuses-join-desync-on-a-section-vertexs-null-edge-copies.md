@@ -15,7 +15,7 @@ refs: [4249]
 
 Found re-measuring PR 4249 review r1's curved-notch probe
 (`a-curved-face-at-a-shared-pinch-vertex-builds-bodies-the-census-and-the-reuse-check-refuse`).
-The probe is now `sweep` `join_pierce_runs_sweep::curved_pinch::curved_notch_pinch`
+The probe is now `sweep` `curved_notch_pinch::curved_notch_pinch`
 (ignored, release): `notch343` with its face `v → (2, 1.15)` bowed
 into an arc (bulge tan 2.5°), against the two-cube corner pinch of
 `pinch_runs_battery`, every op in both orders, plain booleans.

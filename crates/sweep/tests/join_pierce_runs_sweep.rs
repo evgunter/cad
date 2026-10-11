@@ -33,14 +33,14 @@ const PROFILE: [(f64, f64); 6] = [
     (0.0, 2.0),
 ];
 const V: [f64; 3] = [1.0, 1.0, 1.0];
-const SIDE: f64 = 4.0;
+pub(crate) const SIDE: f64 = 4.0;
 /// The prism as two boxes with disjoint interiors, `(lo, hi)`.
 const BOXES: [([f64; 3], [f64; 3]); 2] = [
     ([0.0, 0.0, 0.0], [2.0, 1.0, 1.0]),
     ([0.0, 1.0, 0.0], [1.0, 2.0, 1.0]),
 ];
 
-fn tol() -> Tol {
+pub(crate) fn tol() -> Tol {
     Tol::witness()
 }
 
@@ -81,7 +81,7 @@ pub(crate) fn frame(m: [f64; 3], psi: f64) -> [[f64; 3]; 3] {
 /// The cube `v + a·u + b·w + c·m`, `(a, b, c)` over `lo + [0, SIDE]³`:
 /// `lo = (−2, −2, 0)` puts `v` inside the near face, `(0, −2, 0)` on
 /// its edge along `w`, `(0, 0, 0)` at its corner.
-fn cube_at(v: [f64; 3], f: [[f64; 3]; 3], lo: [f64; 3]) -> Body<f64> {
+pub(crate) fn cube_at(v: [f64; 3], f: [[f64; 3]; 3], lo: [f64; 3]) -> Body<f64> {
     cube_sized(v, f, lo, SIDE)
 }
 
@@ -107,7 +107,7 @@ fn cube(f: [[f64; 3]; 3], lo: [f64; 3]) -> Body<f64> {
 }
 
 /// [`cube_at`]'s six half-spaces `n·x ≤ d`.
-fn cube_planes_at(v: [f64; 3], f: [[f64; 3]; 3], lo: [f64; 3]) -> Vec<([f64; 3], f64)> {
+pub(crate) fn cube_planes_at(v: [f64; 3], f: [[f64; 3]; 3], lo: [f64; 3]) -> Vec<([f64; 3], f64)> {
     cube_planes_sized(v, f, lo, SIDE)
 }
 
@@ -259,13 +259,13 @@ fn boxes_within(boxes: &[([f64; 3], [f64; 3])], planes: &[([f64; 3], f64)]) -> f
 }
 
 /// `body` as a boolean operand: the at-rest gate's finished body.
-fn finished(what: &str, body: Body<f64>) -> AtRestBody<f64> {
+pub(crate) fn finished(what: &str, body: Body<f64>) -> AtRestBody<f64> {
     AtRestBody::validate(body, tol())
         .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }
 
 /// One run of an op: its tag, its result and the oracle's volume.
-type Run = (String, Result<BooleanResult<f64>, BooleanError>, f64);
+pub(crate) type Run = (String, Result<BooleanResult<f64>, BooleanError>, f64);
 
 type Op = fn(
     &AtRestBody<f64>,
@@ -283,7 +283,7 @@ const PLACEMENTS: [(&str, [f64; 3], &[f64]); 3] = [
 ];
 
 /// The grid's direction `(i, j)`: 12 turns about z by 7 elevations.
-fn direction(i: u32, j: u32) -> [f64; 3] {
+pub(crate) fn direction(i: u32, j: u32) -> [f64; 3] {
     let theta = std::f64::consts::TAU * (f64::from(i) + 0.37) / 12.0;
     let phi = (f64::from(j) - 3.0) * 0.4 + 0.05;
     [theta.cos() * phi.cos(), theta.sin() * phi.cos(), phi.sin()]
@@ -346,7 +346,7 @@ fn box_pieces(boxes: &[([f64; 3], [f64; 3])]) -> Pieces {
 
 /// The operands and op a run's tag names, its last two words `"{order}
 /// {op}"`: `order` is `first` where `x` came first.
-fn tag_cones<'p>(
+pub(crate) fn tag_cones<'p>(
     tag: &str,
     first: &str,
     (x, y): (&'p [Vec<Plane>], &'p [Vec<Plane>]),
@@ -516,7 +516,7 @@ fn four_germ_vertex_pairs_build_every_op() {
 }
 
 /// A convex CCW polygon's prism over z ∈ [0, 1] as half-spaces `n·x ≤ d`.
-fn polygon_prism(poly: &[(f64, f64)]) -> Vec<([f64; 3], f64)> {
+pub(crate) fn polygon_prism(poly: &[(f64, f64)]) -> Vec<([f64; 3], f64)> {
     let mut planes: Vec<([f64; 3], f64)> = (0..poly.len())
         .map(|i| {
             let (p, q) = (poly[i], poly[(i + 1) % poly.len()]);
@@ -531,14 +531,14 @@ fn polygon_prism(poly: &[(f64, f64)]) -> Vec<([f64; 3], f64)> {
 
 /// A prism with a reflex top corner at `v`: its profile and the convex
 /// polygons whose prisms tile it, with disjoint interiors.
-struct Corner {
+pub(crate) struct Corner {
     profile: Vec<(f64, f64)>,
     pieces: Vec<Vec<(f64, f64)>>,
-    v: [f64; 3],
+    pub(crate) v: [f64; 3],
 }
 
 /// A 343° notch: corner `(1, 1, 1)`.
-fn notch343() -> Corner {
+pub(crate) fn notch343() -> Corner {
     Corner {
         profile: vec![
             (0.0, 0.0),
@@ -2771,6 +2771,3 @@ fn eight_crossings_with_a_pinched_cube_battery() {
         }
     }
 }
-
-#[path = "join_pierce_runs_sweep/curved_pinch.rs"]
-mod curved_pinch;

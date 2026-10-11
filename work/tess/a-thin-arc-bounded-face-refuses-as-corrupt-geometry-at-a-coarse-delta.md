@@ -76,7 +76,7 @@ three nested rings of width 1e-3, 9e-4 and 1e-4.
 
 ## 2026-10-11 — lens faces at a curved corner pinch (FLUSH)
 
-`sweep` `join_pierce_runs_sweep::curved_pinch::curved_notch_pinch`
+`sweep` `curved_notch_pinch::curved_notch_pinch`
 (ignored, release; a notch with one face bowed into an arc of bulge
 tan 2.5°, against a corner pinch, plain booleans) on main
 `6e3985cb7`: 37 of 1 497 bodies refuse `mesh::tessellate` at δ = 0.05.

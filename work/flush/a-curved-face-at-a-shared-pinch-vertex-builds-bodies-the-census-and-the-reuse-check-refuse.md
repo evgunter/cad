@@ -68,7 +68,7 @@ the curved census and `VolumeUncertified` lanes, the moved 98 alongside.
 ## Measured (2026-10-11, main `6e3985cb7`)
 
 The probe is ported as `sweep`
-`join_pierce_runs_sweep::curved_pinch::curved_notch_pinch` (ignored,
+`curved_notch_pinch::curved_notch_pinch` (ignored,
 release, plain booleans). It names each refusal by its variant. On
 `875e049a` it reproduces this row's numbers exactly (873 `OK BAD`, 461
 `CensusUndecidable`, 33 mesh refusals).
