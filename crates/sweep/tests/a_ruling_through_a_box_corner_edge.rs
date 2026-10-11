@@ -101,16 +101,16 @@ fn wall_through(axis: Axis, (u, v): (f64, f64), (su, sv): (f64, f64)) -> AtRestB
     finished("the wall", body, t)
 }
 
-/// Every op of the wall `w` and the box `b` in both orders, with the
-/// number of v-f records each owes: two for `w ∖ b`, none for the rest.
-fn six(
-    w: &AtRestBody<f64>,
-    b: &AtRestBody<f64>,
-) -> [(
+/// One op's label, its result, and the v-f records it owes.
+type Run = (
     &'static str,
     Result<BooleanResult<f64>, BooleanError>,
     usize,
-); 6] {
+);
+
+/// Every op of the wall `w` and the box `b` in both orders, with the
+/// number of v-f records each owes: two for `w ∖ b`, none for the rest.
+fn six(w: &AtRestBody<f64>, b: &AtRestBody<f64>) -> [Run; 6] {
     let t = tol();
     [
         ("w ∩ b", topo::intersect(w, b, t), 0),

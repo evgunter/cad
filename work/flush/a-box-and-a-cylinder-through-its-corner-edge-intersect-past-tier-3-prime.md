@@ -2,7 +2,8 @@
 id: a-box-and-a-cylinder-through-its-corner-edge-intersect-past-tier-3-prime
 kind: issue
 title: A box intersected with a cylinder whose wall passes through the box's corner edge builds at the right volume and fails tier 3′
-status: open
+status: review
+branch: flush/corner-ruling-tier3
 priority: P0
 cost: M
 opened: 2026-10-09
@@ -28,3 +29,39 @@ Review r1's `tube_on_ball_r1_family_line_edges`, the pose `"line/crossing faces"
 ## What the taker owes
 
 Find which contact or edge the census reads as non-manifold at the corner ruling (a line edge of the box lying in the wall, met by both box faces), and decide whether the body or the census is wrong.
+
+## Measured
+
+On main `19b704d9`, with the plain booleans (`sweep/tests/a_ruling_through_a_box_corner_edge.rs`):
+the census reads nothing as non-manifold or undeclared. Tier 3′ fails in
+both orders of `∩` on two `StaleContactDeclaration { VertexOnFace }`:
+the box's corner edge's two ends, recorded as resting on the wall face,
+against a wall face that holds neither (`curved_face_containment` reads
+both `Out`). `∪` and both `∖` pass tier 3′, but wall `∖` box is wrong
+the other way: its corner vertices lie `In` a live wall face and the
+result carries no record (the census cannot see it: same-solid curved
+pairs are the constructor's obligation, `census.rs` module docs).
+
+Across the corner ruling along each of the box's twelve edges (all six
+ops, 72 cases), 18 fail on main: six edges each fail `w ∩ b`, `b ∩ w`
+(stale) and `w ∖ b` (rests dropped). The other six edges pass by key
+order alone.
+
+The body is right; its records are wrong. The rest is decided at the
+reduction against the whole wall face. The section divides the face,
+the division keeps the face's key on one piece, and `carry` chased the
+record's face by key alone (`boolean::ops::carry_rows`, the
+vertex-on-face loop through `Descendants::live`). Where the key landed
+on a piece the vertex is not on, `∩` named that piece (stale) and
+wall `∖` box lost the record with the discarded key piece.
+
+## Fix
+
+`Descendants` holds each operand's face divisions (the join's chord-mef
+fragments and the pinch welds', in clone keys), and a vertex-on-face
+record reads its face through `Descendants::holder`: on a divided face,
+the live piece the vertex bounds, else the one whose region holds it,
+asked as the census confirms the record (`contfp`, or the chart trim);
+no holding piece drops the record. An undivided face reads as before.
+The cone sibling refuses `CurvedPierceUnsupported` before any record is
+carried: evidence added to ROOTS' `a-line-parallel-to-a-cone-generator-has-no-root-lane`.

@@ -2886,9 +2886,9 @@ impl Descendants {
     /// of a divided face (it and every fragment divided from it,
     /// transitively, each through [`Self::live`]) is asked as the census
     /// confirms the record: the piece the vertex bounds (the record is
-    /// then structure), else the one whose region holds it. `None` where
-    /// no live piece holds it: the part of the face it rested on left
-    /// the result. A piece the containment door cannot read leaves the
+    /// then structure), else the one whose interior holds it. `None`
+    /// where no live piece holds it: the part of the face it rested on
+    /// left the result, or the vertex is on a piece's boundary. A piece the containment door cannot read leaves the
     /// record on the face's own live piece, where the census's confirm
     /// reads it through the same door.
     ///
@@ -3006,10 +3006,11 @@ impl Descendants {
     }
 }
 
-/// Whether `face` holds `q`, a point on its carrier, in its region or on
-/// its boundary: `contfp` on a plane, the chart trim on a curved face,
-/// as the census confirms a vertex-on-face record. `None` where the door
-/// gives no verdict.
+/// Whether `face` holds `q`, a point on its carrier, strictly inside its
+/// region: `contfp` on a plane, the chart trim on a curved face, as the
+/// census confirms a vertex-on-face record. A point on the boundary is
+/// not held: it meets an edge or vertex there, which a record of its
+/// own names. `None` where the door gives no verdict.
 ///
 /// # Errors
 ///
@@ -3027,7 +3028,7 @@ fn piece_holds<T: Decide>(
         _ => super::contain::curved_face_containment(body, face, q, band),
     };
     match read {
-        Ok(at) => Ok(at.map(|at| at != FaceContainment::Out)),
+        Ok(at) => Ok(at.map(|at| at == FaceContainment::In)),
         Err(ContainError::Escalated { diag, .. }) => Err(BooleanError::Escalated {
             decision: BooleanDecision::SelfCheck(SelfCheck::CarriedLineage),
             diag,
@@ -3405,11 +3406,14 @@ type End = (Operand, Cell);
 /// survivor, an absorbed face its kept face, a zipped ring edge its
 /// seam edge, a cell the merge swallowed the face it lies in, a joined
 /// vertex or edge the edge the join made, an edge the op dropped the
-/// chord the join minted along it ([`Descendants::live`]). A record is
-/// never re-derived from geometry, and leaves only where its cell left
-/// the result with no such row (a discarded fragment), or where its two
-/// cells became one, incident, or a pair no record kind stores, which
-/// is structure ([`record`]).
+/// chord the join minted along it ([`Descendants::live`]); a face the
+/// op divided, the piece of it that holds the record's vertex
+/// ([`Descendants::holder`]). A record is never re-derived from
+/// geometry: a division only chooses among the recorded face's own
+/// pieces. It leaves only where its cell left the result with no such
+/// row (a discarded fragment), or where its two cells became one,
+/// incident, or a pair no record kind stores, which is structure
+/// ([`record`]).
 ///
 /// **Vertex records are carried as groups.** Records that share a
 /// vertex end, discovered and carried alike, are one group, closed
