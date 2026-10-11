@@ -663,13 +663,14 @@ fn holes_covering_more_than_the_face_refuse_by_name() {
     );
 }
 
-/// **A wall a few escalation bands wide measures**: its rims are arcs a
-/// few `K·ε` long, short enough that a turn decided on the arc's own
-/// length would escalate. A rim turns through its stored span, so no
-/// decide reads the arc's length.
+/// **A wall one and a half escalation bands wide measures**: its low
+/// rim is an arc `1.5·K·ε` long, short enough that a turn decided on a
+/// third of the arc's length would escalate, and its mean width still
+/// clears the band. A rim turns through its stored span, so no decide
+/// reads the arc's length.
 #[test]
-fn a_wall_a_few_bands_wide_measures() {
-    let du = 4.0 * band().escalate() / ALPHA.sin();
+fn a_wall_one_and_a_half_bands_wide_measures() {
+    let du = 1.5 * band().escalate() / ALPHA.sin();
     let face = Face {
         loops: vec![vec![(0.0, 1.0), (du, 1.0), (du, 2.0), (0.0, 2.0)]],
         rects: vec![((0.0, du), (1.0, 2.0), 1.0)],
