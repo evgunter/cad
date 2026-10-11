@@ -155,7 +155,7 @@
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
 
-use super::solid_contain::{QuarticRows, TorusRoots, depressed_quartic_roots};
+use super::solid_contain::{QuarticRows, depressed_quartic_roots};
 use super::{BooleanDecision, BooleanError};
 use crate::validate::decide;
 
@@ -182,31 +182,11 @@ pub(super) enum CircleRoots<T> {
         count: usize,
         thetas: [T; 2 * MAX_DEGREE],
     },
-    /// The quartic's constructed roots disagree in number with its
-    /// certified count ([`TorusRoots::CountDisagrees`]).
-    CountDisagrees,
     /// A root within the band of a cone's apex, where the surface has no
     /// tangent plane and its quadric form's gradient vanishes: no
     /// crossing there can be read, and the door refuses rather than
     /// answer.
     AtApex,
-}
-
-impl<T: geom_core::Real> From<TorusRoots<T>> for CircleRoots<T> {
-    /// The quartic ladder's answer in the doors' shape: it has no
-    /// on-surface case (no line lies on a torus).
-    fn from(roots: TorusRoots<T>) -> Self {
-        match roots {
-            TorusRoots::Certified { count, ts } => {
-                let mut thetas = [T::zero(); 2 * MAX_DEGREE];
-                thetas[..ts.len()].copy_from_slice(&ts);
-                Self::Certified { count, thetas }
-            }
-            TorusRoots::Miss => Self::Miss,
-            TorusRoots::Uncertain => Self::Uncertain,
-            TorusRoots::CountDisagrees => Self::CountDisagrees,
-        }
-    }
 }
 
 /// The most harmonics [`certified_subdivision`] reads: a conic against a
@@ -816,14 +796,45 @@ pub(super) fn constant_residual_roots<T: Decide>(
     spread: T,
     row: &'static str,
     band: Band,
-) -> Result<CircleRoots<T>, Indeterminate> {
+) -> Result<FirstHarmonicRoots<T>, Indeterminate> {
     let lo = decide(row, Margin::of(value - spread), band)?;
     let hi = decide(row, Margin::of(value + spread), band)?;
     Ok(match (lo, hi) {
-        (Sign::Positive, _) | (_, Sign::Negative) => CircleRoots::Miss,
-        (Sign::Zero, Sign::Zero) => CircleRoots::OnSurface,
-        _ => CircleRoots::Uncertain,
+        (Sign::Positive, _) | (_, Sign::Negative) => FirstHarmonicRoots::Miss,
+        (Sign::Zero, Sign::Zero) => FirstHarmonicRoots::OnSurface,
+        _ => FirstHarmonicRoots::Uncertain,
     })
+}
+
+/// What [`first_harmonic_roots`] and [`constant_residual_roots`] answer:
+/// [`CircleRoots`] without the arms only another door reaches — a first
+/// harmonic has at most two roots and no apex.
+#[derive(Debug, Clone, Copy)]
+pub(super) enum FirstHarmonicRoots<T> {
+    /// [`CircleRoots::OnSurface`].
+    OnSurface,
+    /// [`CircleRoots::Miss`].
+    Miss,
+    /// [`CircleRoots::Uncertain`].
+    Uncertain,
+    /// Two certified roots, each within `π` of the arc's midpoint
+    /// ([`CircleRoots::Certified`]).
+    Certified([T; 2]),
+}
+
+impl<T: geom_core::Real> From<FirstHarmonicRoots<T>> for CircleRoots<T> {
+    fn from(roots: FirstHarmonicRoots<T>) -> Self {
+        match roots {
+            FirstHarmonicRoots::OnSurface => Self::OnSurface,
+            FirstHarmonicRoots::Miss => Self::Miss,
+            FirstHarmonicRoots::Uncertain => Self::Uncertain,
+            FirstHarmonicRoots::Certified(ts) => {
+                let mut thetas = [T::zero(); 2 * MAX_DEGREE];
+                thetas[..2].copy_from_slice(&ts);
+                Self::Certified { count: 2, thetas }
+            }
+        }
+    }
 }
 
 /// A residual `c₀ + A₁ cos(θ − φ)` along a circle, `φ = atan2(sin_part, cos_part)`,
@@ -883,7 +894,7 @@ pub(super) fn first_harmonic_roots<T: Decide>(
     t1: T,
     rows: &FirstHarmonicRows,
     band: Band,
-) -> Result<CircleRoots<T>, BooleanError> {
+) -> Result<FirstHarmonicRoots<T>, BooleanError> {
     first_harmonic_roots_in_band(h, speed, t0, t1, rows, band).map_err(|diag| {
         BooleanError::Escalated {
             decision: rows.decision,
@@ -906,7 +917,7 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     t1: T,
     rows: &FirstHarmonicRows,
     band: Band,
-) -> Result<CircleRoots<T>, Indeterminate> {
+) -> Result<FirstHarmonicRoots<T>, Indeterminate> {
     let FirstHarmonic {
         lo: lo_value,
         hi: hi_value,
@@ -922,7 +933,7 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     let noise = lo_noise.max(hi_noise);
     match decide(rows.noise, Margin::of(noise), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
-        Ok(Sign::Positive) | Err(_) => return Ok(CircleRoots::Uncertain),
+        Ok(Sign::Positive) | Err(_) => return Ok(FirstHarmonicRoots::Uncertain),
     }
     let (c0, a1) = ((lo_value + hi_value) / two, (hi_value - lo_value) / two);
     if let Ok(Sign::Zero) = decide(rows.coaxial, Margin::of(a1), band) {
@@ -930,14 +941,14 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     }
     let lo = decide(rows.extreme, Margin::of(lo_value), band)?;
     if lo == Sign::Positive {
-        return Ok(CircleRoots::Miss);
+        return Ok(FirstHarmonicRoots::Miss);
     }
     let hi = decide(rows.extreme, Margin::of(hi_value), band)?;
     if hi == Sign::Negative {
-        return Ok(CircleRoots::Miss);
+        return Ok(FirstHarmonicRoots::Miss);
     }
     if (lo, hi) != (Sign::Negative, Sign::Positive) {
-        return Ok(CircleRoots::Uncertain);
+        return Ok(FirstHarmonicRoots::Uncertain);
     }
     // At either root `R = lo·(1 − cos ψ)/2 + hi·(1 + cos ψ)/2` with
     // `(1 + cos ψ)/2 = −lo/(hi − lo)`, so the extremes' errors move the
@@ -950,7 +961,7 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     let slack = speed * (at_root / slope + phase + rounding_charge(T::tau()));
     match decide(rows.root_slack, Margin::of(slack), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
-        Ok(Sign::Positive) | Err(_) => return Ok(CircleRoots::Uncertain),
+        Ok(Sign::Positive) | Err(_) => return Ok(FirstHarmonicRoots::Uncertain),
     }
     let phi = sin_part.atan2(cos_part);
     // The half-chord `acos(−c₀/A₁)`, measured from the extreme nearer
@@ -959,15 +970,10 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     let half_chord = (lo_value + hi_value).select_le_zero(past(hi_value), T::pi() - past(lo_value));
     let mid = (t0 + t1) / two;
     let near_mid = |raw: T| mid + (raw - mid).reduce_periodic_centred(T::tau());
-    Ok(CircleRoots::Certified {
-        count: 2,
-        thetas: {
-            let mut thetas = [T::zero(); 2 * MAX_DEGREE];
-            thetas[0] = near_mid(phi - half_chord);
-            thetas[1] = near_mid(phi + half_chord);
-            thetas
-        },
-    })
+    Ok(FirstHarmonicRoots::Certified([
+        near_mid(phi - half_chord),
+        near_mid(phi + half_chord),
+    ]))
 }
 
 #[cfg(test)]

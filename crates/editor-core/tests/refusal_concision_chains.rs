@@ -5052,6 +5052,29 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             PointInSolidError::WallOutlineUnsupported { face },
         ),
         (
+            "JunctionSidesDisagree",
+            PointInSolidError::JunctionSidesDisagree {
+                face,
+                sides: (
+                    geom_core::MarginDiag::value(2.0e-9),
+                    geom_core::MarginDiag::value(-1.6e-9),
+                ),
+                band: geom_core::Band::new(1e-9, 1.5e-9).unwrap(),
+            },
+        ),
+        (
+            "NarrowWindowUnread",
+            PointInSolidError::NarrowWindowUnread { face, diag: diag() },
+        ),
+        (
+            "RootCountDisagrees",
+            PointInSolidError::RootCountDisagrees {
+                face,
+                certified: 2,
+                constructed: 4,
+            },
+        ),
+        (
             "NoSuchSolid",
             PointInSolidError::NoSuchSolid {
                 solid: topo::SolidKey::default(),
