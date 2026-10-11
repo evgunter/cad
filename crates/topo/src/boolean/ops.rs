@@ -1224,6 +1224,28 @@ pub(crate) fn face_rows<T: Decide + Bounds>(
         .collect()
 }
 
+/// The section certificate's [`Reach`](super::section_cert::Reach) of
+/// two overlapping face boxes, which are `f64` hulls the face walk
+/// computed: the ball enters as computed values.
+fn overlap_reach<T: Real>(box_a: &bvh::Aabb, box_b: &bvh::Aabb) -> super::section_cert::Reach<T> {
+    let (lo, hi) = (
+        Vec3::new(
+            box_a.min_x.max(box_b.min_x),
+            box_a.min_y.max(box_b.min_y),
+            box_a.min_z.max(box_b.min_z),
+        ),
+        Vec3::new(
+            box_a.max_x.min(box_b.max_x),
+            box_a.max_y.min(box_b.max_y),
+            box_a.max_z.min(box_b.max_z),
+        ),
+    );
+    super::section_cert::Reach {
+        centre: Point3::origin() + ((lo + hi) * 0.5).map(T::from_computed),
+        radius: T::from_computed((hi - lo).norm() * 0.5),
+    }
+}
+
 /// **The section certificate's per-pair rule** for A's face `fa` (the
 /// section's `F`) against B's face `fb` (its `G`), whose boxes overlap:
 /// the pair's classified section and every component's witness, or the
@@ -1241,23 +1263,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     if has_lone_vertex(a, fa.face) || has_lone_vertex(b, fb.face) {
         return Err(Refusal::LoneVertex);
     }
-    let (box_a, box_b) = (&fa.bbox, &fb.bbox);
-    let (lo, hi) = (
-        Vec3::new(
-            box_a.min_x.max(box_b.min_x),
-            box_a.min_y.max(box_b.min_y),
-            box_a.min_z.max(box_b.min_z),
-        ),
-        Vec3::new(
-            box_a.max_x.min(box_b.max_x),
-            box_a.max_y.min(box_b.max_y),
-            box_a.max_z.min(box_b.max_z),
-        ),
-    );
-    let reach = super::section_cert::Reach {
-        centre: Point3::origin() + ((lo + hi) * 0.5).map(T::from_f64),
-        radius: T::from_f64((hi - lo).norm() * 0.5),
-    };
+    let reach = overlap_reach(&fa.bbox, &fb.bbox);
     let section = classify(&fa.surface, &fb.surface, reach, band);
     certify(
         &section,
@@ -2142,7 +2148,7 @@ fn bound_holds<'t, 'b, T: Decide>(
                 return Err(implausible());
             }
             open = true;
-            lo = T::from_f64(margin.lo());
+            lo = T::from_computed(margin.lo());
         }
         if open {
             // Every body, not the first that moves.
@@ -7839,5 +7845,96 @@ mod cut_holder_rows {
                 "{refusal:?} refuses with its own reason"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod from_computed_rows {
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
+    use geom_core::{Band, Point3, Real, SymBudget, Tol};
+
+    use super::{overlap_reach, volume_backstop};
+    use crate::Body;
+    use crate::boolean::BooleanOp;
+    use crate::props::QuadLane;
+    use crate::revalue_pin::{Revalued, S, revalued_at};
+    use crate::test_support_fixtures::{FaceGeometry, prism_ops};
+
+    /// The backstop's lower end takes the interval re-derivation as a
+    /// computed value: `volume_backstop_passes_a_closed_form_rounding_tie`
+    /// at `Sym<f64>`, the tier off so the walk's rounded sums read the
+    /// tie as violated and the interval margin is what leaves it open,
+    /// with every coordinate scaled by the parameter. The scale is a
+    /// power of two, so both builds round alike and take the same
+    /// decisions, and none re-values to the margin `p0` re-derived.
+    #[test]
+    fn the_backstop_takes_its_rederived_margin_as_computed() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let profile = [(0.1, 0.2), (1.3, 0.25), (1.1, 1.7), (0.05, 0.9)];
+        let mut turned = profile;
+        turned.rotate_left(3);
+        let off = SymBudget {
+            max_terms: 0,
+            max_degree: 0,
+        };
+        let found = revalued_at(off, [1.0, 2.0], |_, s| {
+            let prism = |corners: &[(f64, f64)]| {
+                let mut body = Body::<S>::new();
+                let at = |x: f64, y: f64, z: f64| Point3::new(x, y, z).map(|c| S::from_f64(c) * s);
+                prism_ops(
+                    &mut body,
+                    corners,
+                    (0.0, 0.7),
+                    at,
+                    FaceGeometry::Certified,
+                    tol,
+                );
+                body
+            };
+            let (low, high) = (prism(&profile), prism(&turned));
+            let got = volume_backstop(
+                BooleanOp::Intersect,
+                &low,
+                &low,
+                &high,
+                band,
+                tol,
+                QuadLane::certified(),
+            );
+            assert!(got.is_ok(), "the tie passes: {got:?}");
+            Vec::new()
+        });
+        assert_eq!(
+            found,
+            Revalued {
+                kept: 343,
+                opaque: 2,
+                laundered: 0,
+            },
+            "the two decisions the re-derived lower end feeds, and nothing else, are opaque"
+        );
+    }
+
+    /// The reach enters as computed values: built at `Sym<f64>` from two
+    /// boxes the face walk would measure from geometry the parameter
+    /// moves, neither its centre nor its radius re-values to the ball
+    /// `p0` measured.
+    #[test]
+    fn the_reach_takes_its_ball_as_computed() {
+        let found = crate::revalue_pin::revalued([1.0, 1.0 + 1.0e-3], |p, _| {
+            let cube = |lo: f64, hi: f64| bvh::Aabb {
+                min_x: lo,
+                min_y: lo,
+                min_z: lo,
+                max_x: hi,
+                max_y: hi,
+                max_z: hi,
+            };
+            let reach = overlap_reach::<S>(&cube(0.0, p), &cube(0.5 * p, 2.0 * p));
+            vec![reach.centre.x, reach.radius]
+        });
+        assert_eq!(found.laundered, 0, "{found:?}");
+        assert_eq!(found.opaque, 2, "{found:?}");
     }
 }

@@ -1915,7 +1915,7 @@ fn interior_witness<T: Decide + Bounds>(
     }
     // Stage 2: the pair's own arrangement.
     decomposition_witness(uv_a, uv_b, |x, y| {
-        strictly_inside_both(T::from_f64(x), T::from_f64(y))
+        strictly_inside_both(T::from_computed(x), T::from_computed(y))
     })
 }
 
@@ -5686,5 +5686,82 @@ mod r2_mate8_probes {
         });
         assert_eq!(found, WitnessOutcome::Declined);
         assert!(calls > 0, "the arrangement was actually walked");
+    }
+}
+
+#[cfg(test)]
+mod from_computed_rows {
+    #![allow(clippy::unwrap_used)]
+    use geom_core::{Band, Point3, Real, Tol};
+
+    use super::{ChartOverlap, declared_pair_overlap};
+    use crate::Body;
+    use crate::contact::ContactVerdict;
+    use crate::revalue_pin::{Revalued, S, revalued};
+    use crate::test_support_fixtures::{FaceGeometry, prism_ops};
+
+    /// The interior witness enters as computed values: the thin
+    /// overhang seat (`mate8_witness_schedule.rs`) at `Sym<f64>`, every
+    /// coordinate scaled by the parameter, its region walk refusing on
+    /// the touching boundary and the witness rung certifying a point its
+    /// `f64` decomposition chose. The scale is a power of two, so both
+    /// builds decompose alike, and no decision re-values to the point
+    /// `p0` chose.
+    #[test]
+    fn the_interior_witness_enters_as_computed() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let cap = [
+            (0.20, 0.20),
+            (0.40, 0.30),
+            (0.60, 0.42),
+            (0.70, 0.30),
+            (0.80, 0.42),
+            (0.85, 0.50),
+            (0.15, 0.50),
+            (0.25, 0.30),
+        ];
+        let shelf = [(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)];
+        let found = revalued([1.0, 2.0], |_, s| {
+            let at = |x: f64, y: f64, z: f64| Point3::new(x, y, z).map(|c| S::from_f64(c) * s);
+            let (mut post, mut over) = (Body::<S>::new(), Body::<S>::new());
+            let top = prism_ops(
+                &mut post,
+                &cap,
+                (0.0, 0.5),
+                at,
+                FaceGeometry::Certified,
+                tol,
+            )
+            .seed
+            .face;
+            let under = prism_ops(
+                &mut over,
+                &shelf,
+                (0.5, 0.54),
+                at,
+                FaceGeometry::Certified,
+                tol,
+            )
+            .bottom
+            .face;
+            let got =
+                declared_pair_overlap(&post, top, &over, under, ContactVerdict::Definite, band);
+            assert_eq!(
+                got,
+                Ok(ChartOverlap::PositiveArea),
+                "the witness rung certifies the seat"
+            );
+            Vec::new()
+        });
+        assert_eq!(
+            found,
+            Revalued {
+                kept: 1189,
+                opaque: 186,
+                laundered: 0,
+            },
+            "the decisions at the witness are opaque, and the rest re-value with the scale"
+        );
     }
 }
