@@ -217,12 +217,15 @@ fn a_structural_tube_refusal_reports_an_honest_typed_shape() {
 
 /// PROBE 5 (the `ssi_hull_sup` payload): at the interval scalar, limb
 /// 2's hull bound escalates with its margin as an ENCLOSURE, and the
-/// consumer-visible text carries both of its ends. The band sits between
-/// the two limbs' readings on the quarter turn: limb 1's worst sample
-/// reads `[0, 4.0e-15]`, under the band, and limb 2's bound
-/// `[5.0e-15, 5.0e-15]`, inside it, so limb 2 is the one that escalates.
-/// Red if the margin is flattened to one `f64` (a value has one end, and
-/// renders as one) or the escalation moves to another predicate.
+/// consumer-visible text renders it. The band sits between the two
+/// limbs' readings on the quarter turn: limb 1's worst sample reads
+/// `[0, 4.0e-15]`, under the band, and limb 2's first hull
+/// `[5.0e-15, 5.0e-15]`, inside it. Limb 2 subdivides its composite
+/// before it refuses, and its bound stays in the band (about 4.86e-15),
+/// so limb 2 is the one that escalates, carrying the subdivided bound:
+/// inside the band, and no higher than the first hull. Red if the margin
+/// is flattened to one `f64` (a value has one end, and renders as one)
+/// or the escalation moves to another predicate.
 #[test]
 fn the_interval_hull_bound_escalates_with_an_enclosure() {
     use geom_core::interval::Interval;
@@ -250,10 +253,11 @@ fn the_interval_hull_bound_escalates_with_an_enclosure() {
             cause.margin
         );
     };
-    assert_eq!(
-        (lo.to_bits(), hi.to_bits()),
-        (hull.lo().to_bits(), hull.hi().to_bits()),
-        "the escalation must carry the hull bound's own ends"
+    assert!(
+        band.zero() < lo && lo <= hi && hi <= hull.hi() && hi < band.escalate(),
+        "the escalation must carry limb 2's subdivided bound, in the band and under the first \
+         hull {:e}: [{lo:e}, {hi:e}]",
+        hull.hi()
     );
     let shown = err.to_string();
     assert!(
