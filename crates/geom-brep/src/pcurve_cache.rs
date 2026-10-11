@@ -6178,22 +6178,41 @@ fn run_fitted_checks<T: Decide>(
     ))
 }
 
-/// The arc-rim class' one decided margin: the chart column's held
-/// interior weight `w` (its second, the first sub-arc's; the pattern
-/// check has read every other as `1` or this one on the value channel)
-/// against `cos(h/2)` for the sub-arc angle `h = angle / spans` of the
-/// circle it claims to be. A column built over the same angle as the
-/// circle, in the scalar, is `w − w`: at `Sym` a symbolic Zero, which
-/// the weight held as an `f64` constant (`from_f64` of its value) is
-/// not. Poison for a column with fewer than two weights.
-fn arc_rim_weight_margin<T: SpanLocate>(column: &NurbsCurve3<T>, angle: T, spans: usize) -> T {
-    let Some(&w) = column.weights().get(1) else {
-        return T::from_f64(f64::NAN);
-    };
+/// The arc-rim class' sub-arc in the scalar, and its one decided
+/// margin: the ONE spelling of `h = angle / spans` and `cos(h/2)`, which
+/// both the margin and `Ĉ`'s tangent points read.
+struct ArcRimWeight<T> {
+    /// The sub-arc angle `h`.
+    h: T,
+    /// `cos(h/2)`, the rational-quadratic arc's interior weight.
+    cos_half: T,
+    /// The chart column's held interior weight `w` (its second, the
+    /// first sub-arc's; the pattern check has read every other as `1`
+    /// or this one on the value channel) less `cos(h/2)`. A column
+    /// built over the same angle as the circle, in the scalar, is
+    /// `w − w`: at `Sym` a symbolic Zero, which the weight held as an
+    /// `f64` constant (`from_f64` of its value) is not. Poison for a
+    /// column with fewer than two weights.
+    margin: T,
+}
+
+fn arc_rim_weight<T: SpanLocate>(
+    column: &NurbsCurve3<T>,
+    angle: T,
+    spans: usize,
+) -> ArcRimWeight<T> {
     #[allow(clippy::cast_precision_loss)]
     let h = angle / T::from_f64(spans as f64);
     let (_, cos_half) = (h * T::from_f64(0.5)).sin_cos();
-    w - cos_half
+    let margin = match column.weights().get(1) {
+        Some(&w) => w - cos_half,
+        None => T::from_f64(f64::NAN),
+    };
+    ArcRimWeight {
+        h,
+        cos_half,
+        margin,
+    }
 }
 
 /// **The ARC-RIM iso class** (M8-3) — certification of a
@@ -6421,8 +6440,10 @@ fn run_iso_arc_checks<T: Decide>(
             "an arc rim whose chart column weights are not the arc pattern",
         ));
     }
-    // The pattern is structure, read on the weights' value channel; the
-    // margin reads the column's held interior weight.
+    // The pattern is read on the weights' value channel. Its interior
+    // equalities `wᵢ = w₁` are value identities, decided here at the
+    // witness only (`work/intent/held-value-equalities-decided-on-the-value-channel.md`);
+    // the margin below reads the column's held `w₁`.
     let half_w = bw.get(1).copied().unwrap_or(f64::NAN);
     for (i, w) in bw.iter().enumerate() {
         let want = if i % 2 == 0 { 1.0 } else { half_w };
@@ -6434,15 +6455,14 @@ fn run_iso_arc_checks<T: Decide>(
         }
     }
     // --- The one decided margin: `w = cos(h/2)`. ---
-    #[allow(clippy::cast_precision_loss)]
-    let h = angle / T::from_f64(spans as f64);
-    let (_, cos_half) = (h * T::from_f64(0.5)).sin_cos();
+    let ArcRimWeight {
+        h,
+        cos_half,
+        margin,
+    } = arc_rim_weight(&b, angle, spans);
     match decide(
         "pcurve_iso_boundary",
-        Margin::metered(
-            arc_rim_weight_margin(&b, angle, spans),
-            InfSpeed::new(*radius),
-        ),
+        Margin::metered(margin, InfSpeed::new(*radius)),
         band,
     )
     .map_err(&esc)?
@@ -9998,7 +10018,7 @@ mod tests {
             )
             .unwrap();
             let theorem = |c: &NurbsCurve3<S>| {
-                let margin = arc_rim_weight_margin(c, theta, spans);
+                let margin = arc_rim_weight(c, theta, spans).margin;
                 let d = geom_core::k_stats::decide_reported(
                     "pcurve_iso_boundary",
                     Margin::metered(margin, InfSpeed::new(S::from_f64(1.5))),

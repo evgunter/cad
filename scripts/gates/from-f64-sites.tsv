@@ -24,7 +24,7 @@ crates/geom-brep/src/certify.rs	1	constant	schedule_param(domain.0, domain.1, i,
 crates/geom-brep/src/certify.rs	2	constant	schedule_fraction(i, CERT_SAMPLES)	a sample schedule's fraction
 crates/geom-brep/src/dihedral.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
 crates/geom-brep/src/edge_nurbs.rs	1	constant	*w	on_carrier_domain: the interpolation's unit weights, a constant of its form
-crates/geom-brep/src/edge_nurbs.rs	1	constant	<fn>	edge_piece: a piece end that is none of the carrier's breakpoints (which keep their held values): the f64 end of the edge's certified parameter enclosure
+crates/geom-brep/src/edge_nurbs.rs	1	constant	<fn>	edge_piece: a piece end that is none of the carrier's breakpoints (which keep their held values): the f64 end of the edge's certified parameter enclosure, the edge's own value read through its bracket (the edge end in T is topo's, u4)
 crates/geom-brep/src/extent.rs	1	constant	f64::from(k)	a sample index
 crates/geom-brep/src/extent.rs	1	constant	parts.len() as f64	a count
 crates/geom-brep/src/implicit.rs	1	constant	k as f64	a sample index
@@ -36,14 +36,14 @@ crates/geom-brep/src/pcurve_cache.rs	2	constant	k as f64	a chart-hat span index,
 crates/geom-brep/src/pcurve_cache.rs	1	constant	span.saturating_sub(degree) as f64	a span index
 crates/geom-brep/src/pcurve_cache.rs	2	constant	f64::from(k)	a decided whole-period count
 crates/geom-brep/src/pcurve_cache.rs	3	constant	p as f64	the degree: a derivative net's factor over the held knots, and the Greville average's count
-crates/geom-brep/src/pcurve_cache.rs	4	constant	spans as f64	a span count
+crates/geom-brep/src/pcurve_cache.rs	3	constant	spans as f64	a span count
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	0.5 * f64::from(m)	a quarter-turn count
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	a	a circle image's partition break on its unit piece parameter, a point the partition chose
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	b	a circle image's partition break on its unit piece parameter, a point the partition chose
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	nappe_sign(*nappe)	a cone nappe's sign, ±1
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	s0	a circle image's partition break on its unit piece parameter, a point the partition chose
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	s1	a circle image's partition break on its unit piece parameter, a point the partition chose
-crates/geom-brep/src/pcurve_cache/projected.rs	2	constant	v	a piece end that is none of the net's breakpoints (which keep their held values): a break the partition or the halving chose, or the f64 end of an edge's certified parameter enclosure
+crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	v	net_param: a parameter that is none of the net's breakpoints (which keep their held values): a partition or halving break the partition chose, or the f64 end of an edge's certified parameter enclosure (the edge's own value read through its bracket; the edge end in T is topo's, u4)
 crates/geom-brep/src/props/loop_area.rs	1	constant	*w	a Gauss weight
 crates/geom-brep/src/props/loop_area.rs	1	constant	*x	a Gauss node
 crates/geom-brep/src/ssi/certify.rs	1	constant	0.5 * (a + b)	a refined span's midpoint where the chain box's axis is read: a direction the certificate holds for whichever one it is handed

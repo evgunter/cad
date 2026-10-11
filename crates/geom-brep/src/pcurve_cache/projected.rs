@@ -228,11 +228,7 @@ impl<T: Real> FramedCarrier<T> {
     /// chose (a schedule point), entered as the constant it is.
     fn piece_span(&self, a: f64, b: f64) -> (T, T) {
         match self {
-            Self::Net(net) => {
-                let held = net.knot_values();
-                let at = |v: f64| held.value_at(v).unwrap_or_else(|| T::from_f64(v));
-                (at(a), at(b))
-            }
+            Self::Net(net) => (net_param(net, a), net_param(net, b)),
             Self::Circle { origin, span, .. } => (
                 *origin + *span * T::from_f64(a),
                 *origin + *span * T::from_f64(b),
@@ -440,6 +436,16 @@ fn rotate_box<T: Real>(m: i32, x: (T, T), y: (T, T)) -> ((T, T), (T, T)) {
     }
 }
 
+/// The net parameter `v` in the scalar: one of the net's breakpoints is
+/// that breakpoint's held value; any other is a point the caller
+/// chose (a partition or halving break, or the `f64` end of an edge's
+/// certified parameter enclosure), entered as the constant it is.
+fn net_param<T: Real>(net: &NurbsCurve3<T>, v: f64) -> T {
+    net.knot_values()
+        .value_at(v)
+        .unwrap_or_else(|| T::from_f64(v))
+}
+
 /// The control points and weights of a net's restriction to `piece`
 /// `= [a, b]`, a sub-interval of one of its knot spans: the blossom
 /// `B(a^{p−m}, b^m)`, `m = 0…p`, in homogeneous coordinates
@@ -463,10 +469,8 @@ pub(crate) fn piece_controls<T: Real>(
     let p = kv.degree();
     let (span, _) = kv.span_range(piece);
     let j = span.index();
-    let held = net.knot_values();
-    let knots = held.values();
-    let end = |v: f64| held.value_at(v).unwrap_or_else(|| T::from_f64(v));
-    let (a, b) = (end(a), end(b));
+    let knots = net.knot_values().values();
+    let (a, b) = (net_param(net, a), net_param(net, b));
     let base: Vec<(Vec3<T>, T)> = span
         .window()
         .map(|i| {
