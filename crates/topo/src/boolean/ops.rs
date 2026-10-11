@@ -3123,6 +3123,9 @@ pub(super) fn ledger<T: Decide>(
                 .map(|d| d.point)
                 .ok_or_else(|| desync("a ring tie's vertex does not resolve in its clone"))
         };
+        if std::env::var_os("RING_GROUP_PROBE").is_some() {
+            eprintln!("TIE_LEDGER same_key={}", key(tie.a)? == key(tie.b)?);
+        }
         if key(tie.a)? == key(tie.b)? {
             continue;
         }

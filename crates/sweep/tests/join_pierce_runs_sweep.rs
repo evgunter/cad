@@ -2891,3 +2891,130 @@ fn an_edge_in_the_partners_face_plane_records_its_rests_where_the_result_keeps_t
         .collect();
     assert!(bad.is_empty(), "every run SOUND:\n{}", bad.join("\n"));
 }
+
+/// Review probe (PR 4728 r1, confirmation round): every [`dbl_battery`]
+/// run that builds, with its vertices at `v`, how many point keys they
+/// sit on, and how many `VertexFusion` rows the result records.
+#[test]
+#[ignore = "review probe; run with --ignored --nocapture"]
+fn review_r1_dbl_fusion_rows() {
+    for (names, (a, b)) in [
+        ("asym asym", (asym(), asym())),
+        ("Ltop asym", (ltop(), asym())),
+    ] {
+        for seed in [15, 225, 268, 426, 2296, 2959] {
+            for fib in (0..600).step_by(10) {
+                let Ok(d) = dbl_pose((&a, &b), seed, fib) else {
+                    continue;
+                };
+                let runs = every_op(
+                    ["xy", "yx"],
+                    (&d.pinched, d.volume),
+                    (&d.cube, SIDE.powi(3)),
+                    d.common,
+                );
+                for (tag, r, _) in runs {
+                    let line = match r.as_ref().ok().and_then(BooleanResult::body) {
+                        Some(bb) => {
+                            let at = vertices_at(&bb.body, a.v);
+                            let keys: std::collections::BTreeSet<_> = at
+                                .iter()
+                                .filter_map(|&k| bb.body.get_vertex(k).map(|d| d.point))
+                                .collect();
+                            let fusions = bb
+                                .coincidences
+                                .iter()
+                                .filter(|c| c.site == topo::DecisionSite::VertexFusion)
+                                .count();
+                            format!("verts={} keys={} fusions={fusions}", at.len(), keys.len())
+                        }
+                        None => "no body".into(),
+                    };
+                    println!("R1FUSE {names} seed={seed} fib{fib} {tag}: {line}");
+                }
+            }
+        }
+    }
+}
+
+/// Review probe (PR 4728 r1, confirmation round): for each [`dbl`]
+/// run named in `R1_POSES` (`"asym 268 570 yx S;..."`), which result
+/// vertices at `v` each of the pinched operand's two vertices there
+/// reaches (through its null copies, the graft and the zips' fusions),
+/// beside the result's `VertexFusion` rows and vertex-vertex records.
+#[test]
+#[ignore = "review probe; set R1_POSES"]
+fn review_r1_dbl_lineage_at_v() {
+    let spec = std::env::var("R1_POSES").expect("R1_POSES");
+    for one in spec.split(';') {
+        let [first, seed, fib, order, op] = one.split_whitespace().collect::<Vec<_>>()[..] else {
+            panic!("R1_POSES: {one:?}");
+        };
+        let a = if first == "Ltop" { ltop() } else { asym() };
+        let d = dbl_pose((&a, &asym()), seed.parse().unwrap(), fib.parse().unwrap())
+            .unwrap_or_else(|e| panic!("{e}"));
+        let tag = format!("{order} {op}");
+        let (_, r, _) = every_op(
+            ["xy", "yx"],
+            (&d.pinched, d.volume),
+            (&d.cube, SIDE.powi(3)),
+            d.common,
+        )
+        .into_iter()
+        .find(|(t, ..)| *t == tag)
+        .unwrap();
+        let r = r.unwrap_or_else(|e| panic!("{one}: {e:?}"));
+        let bb = r.body().expect("a body");
+        let n = &bb.naming;
+        let pinched_side = if order == "xy" {
+            topo::Operand::A
+        } else {
+            topo::Operand::B
+        };
+        let keys_side = if order == "xy" { n.a_keys } else { n.b_keys };
+        let fused = n.fused_into();
+        let at_v = vertices_at(&bb.body, a.v);
+        let mut reach = Vec::new();
+        for p in vertices_at(&d.pinched, a.v) {
+            let mut set = std::collections::BTreeSet::from([p]);
+            loop {
+                let more: Vec<_> = n
+                    .null_copies
+                    .iter()
+                    .filter(|(s, ..)| *s == pinched_side)
+                    .flat_map(|&(_, x, y)| [(x, y), (y, x)])
+                    .filter(|(x, y)| set.contains(x) && !set.contains(y))
+                    .map(|(_, y)| y)
+                    .collect();
+                if more.is_empty() {
+                    break;
+                }
+                set.extend(more);
+            }
+            let result: std::collections::BTreeSet<_> = set
+                .iter()
+                .filter_map(|&k| match keys_side {
+                    topo::OperandKeys::Direct => Some(k),
+                    topo::OperandKeys::Grafted => n
+                        .graft_vertices
+                        .iter()
+                        .find(|(b, _)| *b == k)
+                        .map(|&(_, r)| r),
+                    topo::OperandKeys::Absent => None,
+                })
+                .map(|k| fused.get(&k).copied().unwrap_or(k))
+                .filter(|k| at_v.contains(k))
+                .collect();
+            reach.push(result);
+        }
+        let fusions = bb
+            .coincidences
+            .iter()
+            .filter(|c| c.site == topo::DecisionSite::VertexFusion)
+            .count();
+        println!(
+            "R1LIN {one}: at_v={at_v:?} reach={reach:?} fusions={fusions} vv={}",
+            bb.contacts.vertex_vertex().count()
+        );
+    }
+}
