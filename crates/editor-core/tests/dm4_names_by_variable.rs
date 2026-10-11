@@ -669,13 +669,12 @@ fn a_read_that_holds_no_body_is_refused_and_a_gone_node_handle_says_so() {
     let (doc, cube, moved, cap) = cube_and_transform();
     let (doc, _) = fixture::step(
         doc,
-        DocEdit::DefineVar {
-            var: editor_core::VarName::from_static("depth").into(),
+        DocEdit::DeclareVar {
+            name: editor_core::VarName::from_static("depth"),
             def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
                 editor_core::Dimension::Length,
                 0.9,
             )),
-            fresh: Vec::new(),
         },
     );
     let depth = doc.var_named("depth").expect("the scalar");

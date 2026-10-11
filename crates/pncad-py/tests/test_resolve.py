@@ -288,7 +288,7 @@ class TestInOneRead(unittest.TestCase):
         name = self.ev.all_faces(self.moved)[0]
         read = self.doc.output(self.moved)
         self.doc.apply(DocEdit.delete_node(self.moved))
-        self.doc.apply(DocEdit.define_var(VarName("depth"), FreeVar.length(4.5 * mm)))
+        self.doc.apply(DocEdit.declare_var(VarName("depth"), FreeVar.length(4.5 * mm)))
         ev = evaluate(self.doc)
         verdict = ev.resolve(read, name)
         self.assertEqual((verdict.status, verdict.variant), ("failed", "read_gone"))

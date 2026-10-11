@@ -1677,7 +1677,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 name: editor_core::test_support::spoken_name(
                     StableName {
                         kind: EntityKind::Face,
-                        node: RecipeNodeId::new(0, tagged(4)),
+                        node: RecipeNodeId::new(0, tagged(5)),
                         path: vec![RoleSeg::Cap(editor_core::CapEnd::End)],
                     },
                     node(),
