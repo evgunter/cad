@@ -603,7 +603,7 @@ fn a_carried_decline_reaches_the_frontier_arm_under_its_own_name() {
 /// The listed arms are `attribute`'s own unattributable vocabulary, and
 /// the row names them rather than accepting whatever turns up. Each
 /// fixture is held to its own floor: a fixture that stopped refusing,
-/// or stopped reaching an undeclared contact, is a moved baseline and
+/// or stopped reaching an unrecorded contact, is a moved baseline and
 /// says so here rather than hiding behind a sibling.
 #[test]
 fn unattributed_is_only_a_finding_no_declaration_answers_for() {
@@ -623,17 +623,17 @@ fn unattributed_is_only_a_finding_no_declaration_answers_for() {
         [0.0, 0.0, 1.0],
     );
 
-    // (fixture, does it reach an undeclared contact?)
+    // (fixture, does it reach an unrecorded contact?)
     let fixtures = [
         // The penetrating seat: the declared pair is refuted AND the
-        // interpenetration itself is a crowd of undeclared contacts.
+        // interpenetration itself is a crowd of unrecorded contacts.
         (row_of("docm6-a3-pen-row", penetrating, 1, 4.0), true),
         (row_of("docm6-a3-pen-pair", penetrating, 2, 4.0), true),
         // The gapped seat touches nothing: its ONE finding is the
         // refuted carried declaration, and nothing is unattributed.
         (row_of("docm6-a3-gap-row", gapped, 1, 4.0), false),
         // Two gapped stands one unit apart: their cubes meet on a face
-        // NO mate declared, the undeclared-contact hard error.
+        // NO mate declared, the unrecorded-contact hard error.
         (row_of("docm6-a3-touching", gapped, 2, 1.0), true),
     ];
     for ((doc, _), undeclared_expected) in &fixtures {
@@ -653,7 +653,7 @@ fn unattributed_is_only_a_finding_no_declaration_answers_for() {
             // that pair as a mixed touch: no declaration answers for a
             // placement either.
             assert!(
-                ["UndeclaredContact", "CensusEscalated"]
+                ["UnrecordedContact", "CensusEscalated"]
                     .iter()
                     .any(|arm| rendered.contains(arm))
                     || matches!(
@@ -829,7 +829,7 @@ fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
         };
 
     // (a) The at-rest gate alone: good parts, no mate of this
-    // document's own — the undeclared contact is what refuses.
+    // document's own — the unrecorded contact is what refuses.
     let (doc, _) = build("docm6-order-atrest", good);
     let ev = run(&doc, &with_resolver(store.clone()));
     assert!(matches!(

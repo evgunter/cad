@@ -2118,7 +2118,6 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Structure { .. } => "structure",
         StepImportError::MissingUncertainty => "missing_uncertainty",
         StepImportError::InvalidEpsOverride { .. } => "invalid_eps_override",
-        StepImportError::DeclarationUnresolved { .. } => "declaration_unresolved",
         StepImportError::MalformedReal { .. } => "malformed_real",
         StepImportError::Topology { .. } => "topology",
         StepImportError::Assembly { .. } => "assembly",
@@ -3014,7 +3013,6 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::BatterySupportAxis => "battery_support_axis",
         S::VertexFusion => "vertex_fusion",
         S::CensusAtRest => "census_at_rest",
-        S::ImportAnchor => "import_anchor",
         S::ProfileJunction => "profile_junction",
     }
 }
@@ -3150,7 +3148,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::SolidOuterShells { .. } => "solid_outer_shells",
         ValidationError::VolumeSignUnresolved { .. } => "volume_sign_unresolved",
         ValidationError::ShellRoleUndecided { .. } => "shell_role_undecided",
-        ValidationError::UndeclaredContact { .. } => "undeclared_contact",
+        ValidationError::UnrecordedContact { .. } => "unrecorded_contact",
         ValidationError::StaleContactDeclaration { .. } => "stale_contact_declaration",
         ValidationError::ContactContradicted { .. } => "contact_contradicted",
         ValidationError::CensusEscalated { .. } => "census_escalated",

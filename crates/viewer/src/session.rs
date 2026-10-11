@@ -751,7 +751,7 @@ impl core::fmt::Debug for LandedRun {
 /// declarations run through the kernel's own verification door
 /// (`assemble`), once per landed evaluation, so a committed mate's
 /// class verdict does not die at the commit: a `Tangent` that solves
-/// green still shows the gate refusing it, and an undeclared contact
+/// green still shows the gate refusing it, and an unrecorded contact
 /// between instances surfaces on the draw path instead of waiting for
 /// an export.
 ///

@@ -245,7 +245,7 @@ fn the_undeclared_l_bracket_carries_no_placement_finding() {
         .filter(|e| {
             matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::VertexOnFace { .. },
                     ..
                 }
@@ -257,7 +257,7 @@ fn the_undeclared_l_bracket_carries_no_placement_finding() {
         .filter(|e| {
             matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::EdgeFaceOverlap { .. },
                     ..
                 }
@@ -485,7 +485,7 @@ fn split_straddle() -> (Body<f64>, ContactRecords) {
         .expect_err("undeclared touches refuse");
     let mut records = ContactRecords::default();
     for e in &errors {
-        if let ValidationError::UndeclaredContact {
+        if let ValidationError::UnrecordedContact {
             contact: CensusContact::VertexOnFace { vertex, face },
             ..
         } = e

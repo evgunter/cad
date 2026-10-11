@@ -97,7 +97,7 @@ fn a_blend_away_from_the_kiss_carries_it() {
     assert!(
         withheld
             .iter()
-            .all(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+            .all(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
         "chamfer: withheld, the kiss is undeclared: {withheld:?}"
     );
 }

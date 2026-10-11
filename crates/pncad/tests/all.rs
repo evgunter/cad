@@ -365,7 +365,7 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
     }
 }
 
-/// `ValidationError::UndeclaredContact`'s payload. The branch that
+/// `ValidationError::UnrecordedContact`'s payload. The branch that
 /// matters is not "a census contact happened" but WHICH: an
 /// `EdgeFacePierce` is interpenetration and undeclarable, while an
 /// `EdgeEdgeOverlap` is certifiable through the D3 reconstruction. Same refusal, opposite advice.
@@ -563,7 +563,7 @@ fn profile_payloads_are_matchable(
 /// WHAT THIS DOES NOT PIN, stated rather than implied: none of these
 /// refusals is CONSTRUCTED from a façade door here. Reaching a real
 /// `UnsupportedCorner` needs a body with an out-of-scope trihedron,
-/// and reaching a real `UndeclaredContact` needs a census finding;
+/// and reaching a real `UnrecordedContact` needs a census finding;
 /// both belong to the kernel suites that already own them. What is
 /// pinned is the CURATION property and only that — the values are
 /// built by hand, and every one of them is built with a bare prelude
@@ -1266,19 +1266,11 @@ fn revolved_kind_is_matchable(kind: &RevolvedKind) -> &'static str {
 /// **The import surface, on both sides of the call** — the refusal a
 /// caller matches, and the options a caller fills.
 ///
-/// The two halves are two different curation defects and this pins
-/// each. `PromotedKind` is `RecognitionAmbiguous`'s discriminant: the
-/// arm was matchable and the kind whose estimator declined was
-/// readable only out of the message prose. `ImportContact` is the
-/// element type of a `pub` field on the options struct, so the
-/// declaration channel was callable and not FILLABLE — the value
-/// below could not be written from this list at all.
-///
-/// What the `import_step` call pins is exactly that: the door accepts
-/// options a prelude caller filled. Whether an anchor RESOLVES is
-/// `step-import`'s own suite, on a file with vertices to resolve
-/// against; here the text is not a STEP file and the refusal is the
-/// parser's.
+/// `PromotedKind` is `RecognitionAmbiguous`'s discriminant: the arm
+/// was matchable and the kind whose estimator declined was readable
+/// only out of the message prose. What the `import_step` call pins is
+/// that the door accepts options a prelude caller filled; the text is
+/// not a STEP file and the refusal is the parser's.
 #[test]
 fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
     assert_eq!(
@@ -1306,9 +1298,6 @@ fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
 
     let options = ImportOptions {
         eps_in: Some(1e-7),
-        declared_contacts: vec![ImportContact::VertexRest {
-            at: [0.0, 0.0, 0.5],
-        }],
         examine_chart_coherence: true,
     };
     assert!(matches!(
@@ -1370,6 +1359,7 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         curve_promotions,
         instances,
         coherence,
+        contacts,
         coincidences,
     } = imported
     else {
@@ -1390,12 +1380,13 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     // empty report; `topo`'s own door draws the same line about the
     // two lists inside a report it did produce.
     named::<Option<CoherenceReport>>(coherence.clone());
-    // The anchors' decisions: none, since the default import declares
-    // no anchor.
+    // The touches between instances the gate recorded, and the rows
+    // they cite: none, since one box touches nothing.
+    named::<ContactRecords>(contacts.clone());
     named::<Vec<pncad::document::coincidence::Coincidence>>(coincidences.clone());
     assert!(
-        coincidences.is_empty(),
-        "the default import declares no anchor"
+        contacts.is_empty() && coincidences.is_empty(),
+        "one box records no contact"
     );
     assert!(
         coherence.is_none(),
