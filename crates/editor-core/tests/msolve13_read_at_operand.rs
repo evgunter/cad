@@ -189,7 +189,7 @@ struct Fused {
     m2: RecipeNodeId,
 }
 
-fn fused(s: &Scene, at_t1: impl Fn(RecipeNodeId, RecipeNodeId) -> SitedFace) -> Fused {
+fn fused(s: &Scene, at_t1: impl Fn(&ProfileDoc, RecipeNodeId, RecipeNodeId) -> SitedFace) -> Fused {
     let (doc, t1) = insert(
         s.doc.clone(),
         xform(s.top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0),
@@ -198,13 +198,14 @@ fn fused(s: &Scene, at_t1: impl Fn(RecipeNodeId, RecipeNodeId) -> SitedFace) -> 
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![t1.into(), t2.into()],
+            members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
             declare: Vec::new(),
         },
     );
     let (doc, _) = crate::fixture::place(doc, union);
-    let (doc, m1) = mated(doc, seat(s.base_cap(s.base1), at_t1(t1, union)));
-    let (doc, m2) = mated(doc, seat(s.base_cap(s.base2), at_t1(t2, union)));
+    let (at1, at2) = (at_t1(&doc, t1, union), at_t1(&doc, t2, union));
+    let (doc, m1) = mated(doc, seat(s.base_cap(s.base1), at1));
+    let (doc, m2) = mated(doc, seat(s.base_cap(s.base2), at2));
     Fused {
         doc,
         t1,
@@ -244,7 +245,7 @@ fn assert_placed(s: &Scene, f: &Fused, what: &str) {
 #[test]
 fn a1a_mates_read_at_the_transforms_below_a_placed_union_mint_nothing() {
     let s = scene("msolve13-a1a");
-    let f = fused(&s, |t, _| head_at(t, s.top_cap()));
+    let f = fused(&s, |_, t1, _| head_at(t1, s.top_cap()));
     assert_placed(&s, &f, "A1(a)");
     let ev = run(&f.doc, &s.opts);
     crate::fixture::assert_mints_nothing(&f.doc, &ev, f.m1);
@@ -297,10 +298,10 @@ fn a1b_a_transform_above_the_operand_mints_nothing() {
 #[test]
 fn a1c_a_reference_read_at_the_union_is_a_member_and_gates() {
     let s = scene("msolve13-a1c");
-    let f = fused(&s, |t1, union| {
-        head_at(union, member_name(union, t1, s.top_cap()))
+    let f = fused(&s, |doc, t1, union| {
+        head_at(union, member_name(doc, union, t1, s.top_cap()))
     });
-    let r = head_at(f.union, member_name(f.union, f.t1, s.top_cap()));
+    let r = head_at(f.union, member_name(&f.doc, f.union, f.t1, s.top_cap()));
     let m = member_of(&f.doc, &r).expect("A1(c): the walk descends the union");
     assert_eq!(m.instance, s.top);
     assert_placed(&s, &f, "A1(c)");
@@ -331,18 +332,13 @@ fn a2_two_spellings_through_a_union_fold_into_one_pair() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![t1.into(), t2.into()],
+            members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
             declare: Vec::new(),
         },
     );
     let (doc, _) = crate::fixture::place(doc, union);
-    let (doc, m2) = mated(
-        doc,
-        seat(
-            s.base_cap(s.base2),
-            head_at(union, member_name(union, t2, s.top_cap())),
-        ),
-    );
+    let through_t2 = member_name(&doc, union, t2, s.top_cap());
+    let (doc, m2) = mated(doc, seat(s.base_cap(s.base2), head_at(union, through_t2)));
     let (doc, coax) = mated(
         doc,
         seat_with(
@@ -352,17 +348,21 @@ fn a2_two_spellings_through_a_union_fold_into_one_pair() {
             Some(0.0),
         ),
     );
+    let through_union = member_name(&doc, union, t1, s.top_cap());
     let (doc, plane) = mated(
         doc,
         seat_with(
             s.base_cap(s.base1),
-            head_at(union, member_name(union, t1, s.top_cap())),
+            head_at(union, through_union),
             MatePrimitive::PlanarRest { offset: 0.0 },
             None,
         ),
     );
     let at_t1 = member_of(&doc, &head_at(t1, s.top_cap()));
-    let at_u = member_of(&doc, &head_at(union, member_name(union, t1, s.top_cap())));
+    let at_u = member_of(
+        &doc,
+        &head_at(union, member_name(&doc, union, t1, s.top_cap())),
+    );
     assert!(at_t1.is_some(), "the t1 spelling is a member");
     assert_eq!(at_t1, at_u, "A2: one placement, one member");
     let poses = solve(&doc, &s.opts, Tol::witness());
@@ -494,10 +494,8 @@ fn a_mate_read_below_a_placed_consumer_mints_nothing() {
     let (with_far, far) = local_block(doc0.clone(), [10.0, 10.0, 10.0], 1.0, 1.0);
     let (doc, fused) = insert(
         with_far,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: t1.into(),
-            b: far.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![t1.into(), far.into()]),
             declare: Vec::new(),
         },
     );
@@ -559,7 +557,7 @@ fn a_part_above_a_union_refuses_at_evaluation_before_the_gate_reads_it() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![t1.into(), far.into()],
+            members: editor_core::Bodies::Spelled(vec![t1.into(), far.into()]),
             declare: Vec::new(),
         },
     );
@@ -572,7 +570,7 @@ fn a_part_above_a_union_refuses_at_evaluation_before_the_gate_reads_it() {
         },
     );
     let (doc, placement) = crate::fixture::place(doc, part);
-    let head = head_at(part, member_name(union, t1, s.top_cap()));
+    let head = head_at(part, member_name(&doc, union, t1, s.top_cap()));
     let m = member_of(&doc, &head).expect("the walk descends the union below the Part");
     assert_eq!(m.instance, s.top);
     let (doc, mate) = mated(doc, seat(s.base_cap(s.base1), head));
@@ -673,8 +671,8 @@ fn declaring(label: &str) -> Scene {
 #[test]
 fn a3a_a_cut_taking_the_union_but_not_its_members_severs_the_union() {
     let s = scene("msolve13-a3a");
-    let f = fused(&s, |t1, union| {
-        head_at(union, member_name(union, t1, s.top_cap()))
+    let f = fused(&s, |doc, t1, union| {
+        head_at(union, member_name(doc, union, t1, s.top_cap()))
     });
     let up = placement_of(&f.doc, f.union);
     let err = split_of(&s, &f.doc, &[f.union, up], "msolve13-a3a-part")
@@ -696,8 +694,8 @@ fn a3a_a_cut_taking_the_union_but_not_its_members_severs_the_union() {
 #[test]
 fn a3b_a_cut_taking_the_members_but_not_the_union_severs_the_union() {
     let s = declaring("msolve13-a3b");
-    let f = fused(&s, |t1, union| {
-        head_at(union, member_name(union, t1, s.top_cap()))
+    let f = fused(&s, |doc, t1, union| {
+        head_at(union, member_name(doc, union, t1, s.top_cap()))
     });
     let err = split_of(&s, &f.doc, &[s.top, f.t1, f.t2], "msolve13-a3b-part")
         .expect_err("the kept union reads the cut transforms");
@@ -719,8 +717,8 @@ fn a3b_a_cut_taking_the_members_but_not_the_union_severs_the_union() {
 #[test]
 fn a3c_a_declaring_mate_read_through_a_union_and_a_transform_refuses_its_frame() {
     let s = declaring("msolve13-a3c");
-    let f = fused(&s, |t1, union| {
-        head_at(union, member_name(union, t1, s.top_cap()))
+    let f = fused(&s, |doc, t1, union| {
+        head_at(union, member_name(doc, union, t1, s.top_cap()))
     });
     let up = placement_of(&f.doc, f.union);
     let err = split_of(
@@ -755,18 +753,13 @@ fn a3d_a_group_with_a_mate_read_at_a_union_splits_and_inlines_back() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![s.top.into(), t1.into()],
+            members: editor_core::Bodies::Spelled(vec![s.top.into(), t1.into()]),
             declare: Vec::new(),
         },
     );
     let (doc, _) = crate::fixture::place(doc, union);
-    let (doc, mate) = mated(
-        doc,
-        seat(
-            s.base_cap(s.base1),
-            head_at(union, member_name(union, s.top, s.top_cap())),
-        ),
-    );
+    let through_top = member_name(&doc, union, s.top, s.top_cap());
+    let (doc, mate) = mated(doc, seat(s.base_cap(s.base1), head_at(union, through_top)));
     let ev = run(&doc, &s.opts);
     assert!(gate(&doc, &ev).is_ok(), "A3(d): the document gates");
     let cut = fixture::with_placements(

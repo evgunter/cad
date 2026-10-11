@@ -39,9 +39,9 @@
 //! node the ray MET — so a pick on a transformed instance says the
 //! transformed instance, a pick on a pattern copy authors an
 //! `Instance(i)`-headed reference at the pattern, and a pick on a
-//! union of placed instances authors the member's face, `FromMember`
-//! headed, at the union. Everything the walk cannot stand a member on
-//! is
+//! union of placed instances authors the member's face, `From`
+//! headed (keyed by the member's read), at the union. Everything the
+//! walk cannot stand a member on is
 //! [`MateToolError::NotAnInstancePick`]. A copy's frame is read at
 //! its MASTER (the member walk takes off one `Instance(i)` per pattern
 //! level, `member_reading`):

@@ -1444,7 +1444,20 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
                     "a live mate's two references resolved to one face: \
                      the solve door's `SelfMate` refusal was bypassed"
                 );
-                at_rest.decide(id, body, (&head_a, face_a), (&head_b, face_b), band);
+                // Each side's cell is named at the read the side selects
+                // in: its selection's body (D10).
+                let read = |side: &crate::VarId| {
+                    doc.selection(*side)
+                        .map(|select| select.body)
+                        .unwrap_or_else(|| unreachable!("a live mate's side is a selection"))
+                };
+                at_rest.decide(
+                    id,
+                    body,
+                    (&head_a, face_a, read(a)),
+                    (&head_b, face_b, read(b)),
+                    band,
+                );
             }
             other => {
                 unminted.push(MintRefusal::NoAtRestRecord {
@@ -1496,8 +1509,8 @@ impl AtRestRows {
         &mut self,
         mate: RecipeNodeId,
         body: &topo::Body<T>,
-        (a, face_a): (&SitedFace, FaceKey),
-        (b, face_b): (&SitedFace, FaceKey),
+        (a, face_a, read_a): (&SitedFace, FaceKey, crate::VarId),
+        (b, face_b, read_b): (&SitedFace, FaceKey, crate::VarId),
         band: Result<geom_core::Band, geom_core::BandError>,
     ) {
         let decided = match band {
@@ -1506,15 +1519,15 @@ impl AtRestRows {
         };
         match decided {
             Ok(row) => {
-                let cell = |r: &SitedFace| crate::coincide::NamedCell::Entity {
-                    input: r.at,
+                let cell = |r: &SitedFace, input| crate::coincide::NamedCell::Entity {
+                    input,
                     name: (*r.name).clone(),
                 };
                 let k = u32::try_from(self.coincidences.len()).unwrap_or(u32::MAX);
                 self.coincidences.push(AtRestRow {
                     mate,
                     row: crate::coincide::NamedCoincidence {
-                        cells: [cell(a), cell(b)],
+                        cells: [cell(a, read_a), cell(b, read_b)],
                         relation: row.relation,
                         site: row.site,
                         margin: row.margin,
@@ -1597,7 +1610,7 @@ fn copy_face<'k, P: crate::ProfilePayload, T: Decide>(
         .placements()
         .into_iter()
         .filter(
-            |&p| matches!(doc.node(p), Some(Node::PlaceInWorld { body, .. }) if copies_body(*body)),
+            |&p| matches!(doc.node(p), Some(Node::PlaceInWorld { body, .. }) if copies_body(body.read)),
         )
         .collect();
     let placement = match placements.as_slice() {
@@ -1635,9 +1648,9 @@ fn side_placed<P: crate::ProfilePayload>(doc: &Doc<P>, read: crate::VarId) -> bo
     };
     doc.placements().into_iter().any(|p| {
         matches!(doc.node(p), Some(Node::PlaceInWorld { body, .. })
-        if *body == select.body
+        if body.read == select.body
             || matches!(
-                doc.operation_of(*body).and_then(|at| doc.node(at)),
+                doc.operation_of(body.read).and_then(|at| doc.node(at)),
                 Some(Node::Part { of, .. }) if *of == select.body
             ))
     })

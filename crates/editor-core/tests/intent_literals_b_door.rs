@@ -483,7 +483,7 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
     // that no corpus document holds owes an edge above.
     assert_eq!(
         kinds.len(),
-        24,
+        25,
         "a node kind the sweep does not reach: {kinds:?}"
     );
 }

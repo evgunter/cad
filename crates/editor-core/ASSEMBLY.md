@@ -544,7 +544,7 @@ read.
 down to a live `InstantiatePart`, through any number of `Transform`s and
 `Part` instance selections, any number of `Pattern` levels (each of
 which the name qualifies `Instance`) and any number of `Union`s (each of
-which the name qualifies `FromMember`, naming the member the walk
+which the name qualifies `From`, naming the member read the walk
 continues at). The member's frame is the composed offset of every node
 that walk passed, evaluated as that node is evaluated, on that
 instance's pose, so mates never solve for a pattern's or transform's

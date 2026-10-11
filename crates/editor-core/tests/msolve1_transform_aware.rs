@@ -767,26 +767,30 @@ fn two_operands(label: &str, extra_lift: f64) -> (ProfileDoc, EvalOptions, [Reci
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![x1.into(), x2.into()],
+            members: editor_core::Bodies::Spelled(vec![x1.into(), x2.into()]),
             declare: Vec::new(),
         },
     );
     let doc = world(doc, &[base, union], &[]);
     let a = in_part(base, base_body, CapEnd::End);
     let b = in_part(top, top_body, CapEnd::Start);
+    let (b1, b2) = (
+        crate::fixture::member_name(&doc, union, x1, b.clone()),
+        crate::fixture::member_name(&doc, union, x2, b),
+    );
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
             node: Box::new(seat(
                 crate::fixture::head(a.clone()),
-                crate::fixture::head_at(union, crate::fixture::member_name(union, x1, b.clone())),
+                crate::fixture::head_at(union, b1),
             )),
             fresh: Vec::new(),
         },
     );
     let far_corner = Node::Mate {
         a: crate::fixture::head(a).into(),
-        b: crate::fixture::head_at(union, crate::fixture::member_name(union, x2, b)).into(),
+        b: crate::fixture::head_at(union, b2).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::authored(

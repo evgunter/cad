@@ -511,27 +511,15 @@ fn a_rebind_of_a_name_equal_to_an_inner_leaves_the_inner_alone() {
 /// reference to check. `Node::payload_read_sites`' match is
 /// exhaustive with no wildcard, so an instance is classified with the
 /// variants that answer nothing or does not compile — which is what
-/// keeps this answer honest as `Node` grows.
-///
-/// The union beside it is the CONTROL: the same call on the same
-/// document answers its declared pair's two sites, so an empty answer
-/// here is the instance's and not a list that stopped working.
+/// keeps this answer honest as `Node` grows. (A declared pair's sites
+/// are reads now, which the doors hold as reads, so no node answers a
+/// read site here and the row has no control beside it.)
 #[test]
 fn an_instances_record_answers_no_read_site() {
     let (doc_ref, body) = part_ref("crossnames-readsite-part");
     let doc = ProfileDoc::empty(DocumentId::derive("crossnames-readsite"), Tol::witness());
     let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, b) = insert(doc, Node::instantiate_part(doc_ref));
-    let (doc, control) = insert(
-        doc,
-        Node::Union {
-            members: vec![a.into(), b.into()],
-            declare: editor_core::declare_rest(vec![(
-                editor_core::SitedRef::new(a, in_part(a, body, CapEnd::End)),
-                editor_core::SitedRef::new(b, in_part(b, body, CapEnd::Start)),
-            )]),
-        },
-    );
     // Two crossings, so a per-crossing answer would be visible.
     let record = InterfaceRecord {
         crossings: vec![
@@ -565,13 +553,6 @@ fn an_instances_record_answers_no_read_site() {
         node.named_nodes(),
         vec![a, b],
         "its references are NAMES, and they are checked as names"
-    );
-    let control = doc.node(control).expect("the union is live");
-    assert_eq!(
-        control.payload_read_sites(),
-        vec![a, b],
-        "the same list answers a declared pair's two sites — the empty answer above \
-         is the instance's own"
     );
 }
 

@@ -102,10 +102,10 @@ use std::path::Path;
 use std::sync::Arc;
 
 use pncad::document::{
-    Alignment, Assembly, AssemblyError, AxisSense, CONTRADICTORY_RECOURSE, CancelToken, Datum,
-    Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
-    FreeVar, InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, MateReach, MateRole,
-    MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, Operand, PartReach, PartResolver, PartSelect,
+    Alignment, Assembly, AssemblyError, AxisSense, BodyRead, CONTRADICTORY_RECOURSE, CancelToken,
+    Datum, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame,
+    FreeValue, FreeVar, InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, MateReach,
+    MateRole, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, PartReach, PartResolver, PartSelect,
     PatternKind, Placement, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedFace,
     Step, UNDER_RECOURSE, ValuePayload, VarName, apply, assemble, content_pin, evaluate, inline,
     load, mixed_pins, parse_formula, product_named, regauge_then_mate, save, solve_document, split,
@@ -279,7 +279,7 @@ fn insert_through(
 
 /// Places one copy of `body` in the world at the identity, and returns
 /// the placement's id.
-fn place(doc: &mut ProfileDoc, body: impl Into<Operand>, tol: Tol) -> RecipeNodeId {
+fn place(doc: &mut ProfileDoc, body: impl Into<BodyRead<Formula>>, tol: Tol) -> RecipeNodeId {
     let applied = apply(doc, &DocEdit::place(body, None), tol, &RefusingReach)
         .unwrap_or_else(|err| panic!("the placement applies: {err:?}"));
     *doc = applied.doc;
@@ -515,7 +515,7 @@ fn placement_reading(doc: &ProfileDoc, body: RecipeNodeId) -> RecipeNodeId {
         .into_iter()
         .filter(|&p| {
             matches!(doc.node(p), Some(Node::PlaceInWorld { body: read, .. })
-                if doc.operation_of(*read) == Some(body))
+                if doc.operation_of(read.read) == Some(body))
         })
         .collect();
     let [one] = reading[..] else {
@@ -533,7 +533,9 @@ fn placed_body(doc: &ProfileDoc) -> (RecipeNodeId, RecipeNodeId) {
     let Some(Node::PlaceInWorld { body, .. }) = doc.node(placement) else {
         unreachable!("a placement is a world placement")
     };
-    let node = doc.operation_of(*body).expect("the placed body is live");
+    let node = doc
+        .operation_of(body.read)
+        .expect("the placed body is live");
     (placement, node)
 }
 

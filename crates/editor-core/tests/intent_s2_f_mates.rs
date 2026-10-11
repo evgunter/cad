@@ -225,10 +225,8 @@ fn a_mate_on_unplaced_operands_mints_nothing() {
     let (doc, mate) = insert(doc, seat(body, (a, a), (b, b)));
     let (doc, fused) = insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
