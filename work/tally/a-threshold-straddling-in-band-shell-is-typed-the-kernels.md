@@ -68,3 +68,15 @@ cannot certify", but two things are open:
   definite finding (`ResultInvalid`). The CLEAVE case is the
   arithmetic's: the true `V/A` is 50 Kε, so `Escalated` would break PR
   4335's honesty condition.
+
+## The same straddle on check 7's arm (FLUSH, 2026-10-11)
+
+Found by a FLUSH designer lane (fork log row 113), read from the code on
+main after PR 4636. When check 7's certified total for a solid has an
+enclosure that straddles the sliver band's edge, `plus_v_round` records
+`OpenRound::AboutTheBody(None)` and `plus_v_at_target` returns
+`PlusVVerdict::Pass` (`validate.rs`). So such a result passes the
+boolean door silently. Check 10's straddling shell, by contrast, refuses
+`ResultInvalid`. The two subjects (a solid's total and a shell's role)
+should take the same arm. This row's fix should cover check 7's case
+too, or name it as a sibling.
