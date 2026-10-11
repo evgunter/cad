@@ -24,7 +24,7 @@ use crate::common;
 
 use common::{FREECAD_FIXTURES, SOLID_FIXTURES, arena_census, fixture, freecad_fixture};
 use geom_core::Tol;
-use step_import::{ImportContact, ImportOptions, StepImport, import_step};
+use step_import::{ImportOptions, StepImport, import_step};
 
 const CENSUS_GOLDENS: &[(&str, &str, &str)] = &[
     (
@@ -44,29 +44,24 @@ const CENSUS_GOLDENS: &[(&str, &str, &str)] = &[
     ),
 ];
 
-/// `common::import_fixture`'s options, verbatim: the kiss assembly
-/// declares its vertex rest, every other fixture imports bare.
-fn options(name: &str) -> ImportOptions {
-    if name.contains("kiss_assembly") {
-        ImportOptions {
-            declared_contacts: vec![ImportContact::VertexRest {
-                at: [1.0, 1.0, 1.0],
-            }],
-            ..ImportOptions::default()
-        }
-    } else {
-        ImportOptions::default()
-    }
-}
-
 fn row(label: &str, text: &str, options: &ImportOptions, out: &mut String) {
     out.push_str(&format!("## {label}\n"));
     match import_step(text, options, Tol::witness()) {
-        Ok(StepImport::Solid { body, .. }) => {
+        Ok(StepImport::Solid {
+            body,
+            contacts,
+            coincidences,
+            ..
+        }) => {
             let (solids, shells, faces, edges, vertices) = arena_census(&body);
             out.push_str(&format!(
                 "import: Ok(Solid) solids={solids} shells={shells} faces={faces} edges={edges} vertices={vertices}\n"
             ));
+            // The touches between instances the gate recorded: each
+            // record, and the row it cites.
+            for (record, row) in contacts.cell_pairs().zip(&coincidences) {
+                out.push_str(&format!("record {record:?} {row:?}\n"));
+            }
         }
         Ok(StepImport::Wireframe { .. }) => out.push_str("import: Ok(Wireframe)\n"),
         Err(step_import::StepImportError::TierInvalid { solid, errors }) => {
@@ -85,7 +80,12 @@ fn row(label: &str, text: &str, options: &ImportOptions, out: &mut String) {
 fn census_text() -> String {
     let mut out = String::new();
     for name in SOLID_FIXTURES {
-        row(name, &fixture(name, "step"), &options(name), &mut out);
+        row(
+            name,
+            &fixture(name, "step"),
+            &ImportOptions::default(),
+            &mut out,
+        );
     }
     for name in FREECAD_FIXTURES {
         row(

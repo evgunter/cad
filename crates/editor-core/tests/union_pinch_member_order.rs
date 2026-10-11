@@ -261,7 +261,7 @@ struct Outcome {
     shape: Shape,
     record: Record,
     /// The tier-3′ verdict over the body and its record, each error by
-    /// its kind and, for an undeclared contact, its census kind and
+    /// its kind and, for an unrecorded contact, its census kind and
     /// witness point.
     verdict: Result<(), Vec<(String, Option<Point>)>>,
     /// `mesh::validate::check_mesh` on the tessellation, by error kind.
@@ -313,8 +313,10 @@ fn checked(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str, volume: f64) -> O
         let mut es: Vec<(String, Option<Point>)> = es
             .iter()
             .map(|e| match e {
-                topo::ValidationError::UndeclaredContact { contact, witness } => (
-                    format!("UndeclaredContact {}", kind(&format!("{contact:?}"))),
+                topo::ValidationError::UnrecordedContact {
+                    contact, witness, ..
+                } => (
+                    format!("UnrecordedContact {}", kind(&format!("{contact:?}"))),
                     witness_point(witness),
                 ),
                 other => (kind(&format!("{other:?}")).to_owned(), None),
@@ -360,8 +362,8 @@ fn pierce_unrecorded(o: &Outcome, what: &str) {
     assert_eq!(
         kinds,
         [
-            "UndeclaredContact EdgeEdgeOverlap",
-            "UndeclaredContact VertexVertex"
+            "UnrecordedContact EdgeEdgeOverlap",
+            "UnrecordedContact VertexVertex"
         ],
         "{what}: refused at 3′ by other than the unrecorded pierce ({PIERCE_UNRECORDED}): {es:?}"
     );

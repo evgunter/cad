@@ -70,7 +70,7 @@ fn carries_the_kiss(what: &str, body: &Body<f64>, carried: &ContactRecords) {
     assert!(
         withheld
             .iter()
-            .all(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+            .all(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
         "{what}: withheld, the kiss is undeclared: {withheld:?}"
     );
 }
@@ -283,7 +283,7 @@ fn a_touch_the_verb_creates_is_refused_at_rest() {
     assert!(
         refused
             .iter()
-            .any(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+            .any(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
         "the created touch is undeclared: {refused:?}"
     );
 }
