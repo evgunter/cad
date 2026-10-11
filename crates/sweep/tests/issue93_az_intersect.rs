@@ -253,7 +253,6 @@ fn az_coupled_flush_declared_and_undeclared_are_one_exact_body() {
     // offsets are exact bit-for-bit), then the intersect runs on the
     // #93 anchors and is exact. Each pair faces the same way, one
     // carrier with aligned senses: a continuation, not a `Rest`.
-    let mut decls = topo::BooleanDeclarations::none();
     let y_planes = |body: &Body<f64>| -> Vec<(topo::FaceKey, f64)> {
         body.faces()
             .filter_map(|(k, f)| match body.get_surface(f.surface) {

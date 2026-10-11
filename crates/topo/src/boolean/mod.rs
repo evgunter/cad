@@ -4598,7 +4598,8 @@ pub(crate) fn maximal_faces_gate<T: Decide>(
     reduce::gate_maximal_faces(body, operand, Band::linear(tol)?)
 }
 
-/// **The join's own refusal** of `op` under `decls`: what its matching
+/// **The join's own refusal** of `op`, its pairs glued as the
+/// operation decides them: what its matching
 /// or its surgery refuses on the reduction. `None` where the join
 /// connects, or where the reduction leaves no null pair to join. Test
 /// vocabulary (`topo::test_support`).
@@ -4611,10 +4612,11 @@ pub(crate) fn join_refusal(
     op: BooleanOp,
     a: &Body<f64>,
     b: &Body<f64>,
-    decls: &Glue,
     tol: Tol,
 ) -> Result<Option<BooleanError>, BooleanError> {
     let band = Band::linear(tol)?;
+    let none = Glue::none();
+    let decls = &*glue::decided_declarations(a, b, &none, band)?;
     let mut red = boolean_reduce_declared_strategy(op, a, b, decls, SweepStrategy::Realized, tol)?;
     if red.null_pairs.is_empty() {
         return Ok(None);
@@ -5294,7 +5296,12 @@ fn given_verdicts<T: Decide>(
             })
     };
     let mut verified = VerifiedGlue::default();
-    for &GluedPair { a: fa, b: fb, class } in &decls.pairs {
+    for &GluedPair {
+        a: fa,
+        b: fb,
+        class,
+    } in &decls.pairs
+    {
         match class {
             GlueClass::Contact(ContactClass::Tangent) => {
                 verified.tangent.insert((fa, fb));

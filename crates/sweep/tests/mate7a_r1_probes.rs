@@ -141,7 +141,6 @@ pub(crate) fn weld_declarations(
     arch: &Body<f64>,
 ) -> (BooleanDeclarations, usize) {
     let fork = arch_frame().fork;
-    let mut decls = BooleanDeclarations::none();
     let mut pairs = 0;
     for &(fa, oa, _) in &plane_faces(stem) {
         for &(fb, ob, _) in &plane_faces(arch) {
@@ -417,7 +416,6 @@ fn p2_the_g1_chain_price_is_the_measured_195_rows() {
         .body;
         finished("segment B", seg_b, Tol::witness())
     };
-    let mut decls = BooleanDeclarations::none();
     for &fa in &torus_faces(&seg_a) {
         for &fb in &torus_faces(&seg_b) {
             decls
@@ -560,7 +558,6 @@ fn p4_a_definitely_different_rim_radius_keeps_the_class_refusal() {
     .expect("segment B' builds")
     .body;
     let seg_b = finished("segment B'", seg_b, Tol::witness());
-    let mut decls = BooleanDeclarations::none();
     for &fa in &torus_faces(&seg_a) {
         for &fb in &torus_faces(&seg_b) {
             decls

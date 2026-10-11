@@ -779,7 +779,6 @@ fn consumed_side_of_the_pair_leaves_only_period_closures() {
     let (p, q, d) = scene_d();
     let bb = union_honest("D", &p, &q, &d);
     assert_eq!(assert_period_closures("D", &bb).len(), 1, "D: one wall run");
-    let mut reversed = BooleanDeclarations::none();
     reversed.coincident_faces = d.coincident_faces.iter().rev().cloned().collect();
     let rb = union_honest("D (planar pair last)", &p, &q, &reversed);
     assert_eq!(
@@ -898,7 +897,6 @@ fn unresolved_declared_key_still_refuses() {
 fn stacked_equal_pegs_same_sense_walls() {
     let lo = finished("the lower peg", peg_at(0.0, 0.0, 1.0), Tol::witness());
     let hi = finished("the upper peg", peg_at(0.0, 1.0, 1.0), Tol::witness());
-    let mut caps = BooleanDeclarations::none();
     caps.coincident_faces.push(FacePairDeclaration::new(
         plane_face(&lo, 1.0, true),
         plane_face(&hi, 1.0, false),

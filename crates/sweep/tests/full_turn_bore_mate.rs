@@ -376,7 +376,7 @@ fn intersect_and_differences_answer_the_closed_form() {
                     let ab = wall_decls(&c, &p);
                     let ba = wall_decls(&p, &c);
                     let run = |op, a, b, decls| {
-                        topo::boolean_op_with(op, a, b, decls, topo::SweepStrategy::Realized, tol)
+                        topo::boolean_op_with(op, a, b, &topo::BooleanInputs::default(), topo::SweepStrategy::Realized, tol)
                     };
                     for (order, a, b, decls) in [("c ∩ p", &c, &p, &ab), ("p ∩ c", &p, &c, &ba)]
                     {

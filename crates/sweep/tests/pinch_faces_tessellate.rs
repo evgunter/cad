@@ -14,7 +14,7 @@
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use topo::test_support as fixtures;
-use topo::{AtRestBody, Body, BooleanDeclarations, BooleanResult, LoopBoundary};
+use topo::{AtRestBody, Body, BooleanResult, LoopBoundary};
 
 type V3 = [f64; 3];
 
@@ -331,7 +331,6 @@ fn a_face_through_two_vertices_on_one_point_tessellates() {
             1.0,
         ),
     ];
-    let decls = BooleanDeclarations::default();
     for (tag, prism, other, prism_first, op, delta) in rows {
         let prism = finished(
             "the prism",

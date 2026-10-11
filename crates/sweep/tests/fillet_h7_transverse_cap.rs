@@ -706,23 +706,15 @@ fn the_parallel_cylinder_union_builds_and_a_box_edge_is_cut_off() {
         finished("the cylinder", body, tol())
     };
     let (a, b) = (cyl(0.0), cyl(0.6));
-    let d = topo::flush::declare_all(&topo::flush::find_flush_candidates(&a, &b, tol()).unwrap());
-    let declared = topo::union(&a, &b, tol());
-    let undeclared = topo::union(&a, &b, tol());
-    assert_eq!(d.coincident_faces.len(), 2, "the two cap-disc pairs");
-    let Ok(topo::BooleanResult::Body(bb)) = &declared else {
-        panic!("the declared parallel pair builds: {declared:?}");
+    let built = topo::union(&a, &b, tol());
+    let Ok(topo::BooleanResult::Body(bb)) = &built else {
+        panic!("the parallel pair builds: {built:?}");
     };
     // Two r = 1/2 discs whose centres are 0.6 apart, one high.
     let lens = 0.5 * 0.6_f64.acos() - 0.3 * 0.8;
     let want = 2.0 * core::f64::consts::PI * 0.25 - lens;
     let v = topo::mass_properties(&bb.body, tol()).unwrap().volume;
     assert!((v - want).abs() < 1e-9, "{v} vs the closed form {want}");
-    assert_eq!(
-        outcome(&undeclared),
-        outcome(&declared),
-        "undeclared is the declared union"
-    );
 
     let body = cube(1.0, tol());
     let e = query::all_edges(&body)[0];

@@ -23,7 +23,7 @@ use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::rim_of;
 use topo::readback::edge_sides;
 use topo::{
-    Body, BooleanDeclarations, EdgeKey, HalfEdgeKey, RimError, SurfaceKey, validate_geometric,
+    Body, EdgeKey, HalfEdgeKey, RimError, SurfaceKey, validate_geometric,
 };
 
 fn tol() -> Tol {
@@ -35,7 +35,7 @@ fn boolean(name: &str, op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64>
         op,
         &finished(&format!("{name}: operand A"), a.clone(), tol()),
         &finished(&format!("{name}: operand B"), b.clone(), tol()),
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         tol(),
     )

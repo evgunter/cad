@@ -22,7 +22,7 @@ use core::f64::consts::FRAC_PI_2;
 
 use geom_core::{Affine3, Point3, Tol, Vec3};
 use sweep::test_support::{ball_poled, ball_poled_y, ball_poled_z, brick, finished};
-use topo::{AtRestBody, BooleanDeclarations, BooleanError, BooleanResult};
+use topo::{AtRestBody, BooleanError, BooleanResult};
 
 use crate::common::oracles::{ball_volume, lens_volume};
 
@@ -99,7 +99,7 @@ fn assert_six(
     (va, vb, shared): (f64, f64, f64),
     wants: [Want; 6],
 ) {
-    let (tol, none) = (Tol::witness(), BooleanDeclarations::none());
+    let tol = Tol::witness();
     let ops = [
         (
             "a ∪ b",
@@ -327,7 +327,6 @@ fn a_ring_inside_a_sphere_island_moves_and_stops_at_the_role_read() {
         .body
         .clone();
     let ball = ball_y(0.5, Vec3::new(0.3, 2.0, 1.2));
-    let none = BooleanDeclarations::none();
     for (op, out) in [
         ("a ∪ b", topo::union(&slab, &ball, tol)),
         ("b ∪ a", topo::union(&ball, &slab, tol)),
@@ -512,7 +511,6 @@ fn a_path_escalating_at_a_graze_hands_the_winding_to_the_next() {
         // widths here, and every op escalates certifying a pcurve on the
         // sphere's chart (in the merge, or the pcurve pass) before any
         // ring is read — on main too.
-        let none = BooleanDeclarations::none();
         for (op, got) in [
             ("a ∪ b", topo::union(&a, &b, tol)),
             ("b ∪ a", topo::union(&b, &a, tol)),

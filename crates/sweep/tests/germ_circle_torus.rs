@@ -526,7 +526,6 @@ fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
         sweep::test_support::finished("A", a, tol),
         sweep::test_support::finished("B", b, tol),
     );
-    let none = topo::BooleanDeclarations::none();
     for (op, x, y) in [("A ∪ B", &a, &b), ("B ∪ A", &b, &a)] {
         let r = topo::union(x, y, tol);
         let d = topo::flush::declare_all(&topo::flush::find_flush_candidates(x, y, tol).unwrap());

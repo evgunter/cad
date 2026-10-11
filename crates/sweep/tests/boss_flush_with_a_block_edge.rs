@@ -128,7 +128,6 @@ fn the_boss_unions_at_its_closed_form_declared_or_not() {
                 .collect();
             hits[0]
         };
-        let mut d = BooleanDeclarations::none();
         d.coincident_faces.push(FacePairDeclaration::new(
             cap(a, a_is_block),
             cap(b, !a_is_block),

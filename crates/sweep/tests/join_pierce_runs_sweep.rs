@@ -16,7 +16,7 @@
 
 use geom_core::{Point3, Tol};
 use topo::test_support as fixtures;
-use topo::{AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult, mass_properties};
+use topo::{AtRestBody, Body, BooleanError, BooleanResult, mass_properties};
 
 use crate::common::differential::outcome;
 use crate::common::pinch_cones::{
@@ -270,7 +270,6 @@ type Run = (String, Result<BooleanResult<f64>, BooleanError>, f64);
 type Op = fn(
     &AtRestBody<f64>,
     &AtRestBody<f64>,
-    &BooleanDeclarations,
     Tol,
 ) -> Result<BooleanResult<f64>, BooleanError>;
 
@@ -314,7 +313,6 @@ fn every_op(
     (y, vy): (&AtRestBody<f64>, f64),
     common: f64,
 ) -> Vec<Run> {
-    let decls = BooleanDeclarations::default();
     let mut out = Vec::new();
     for (order, p, q, vp) in [(orders[0], x, y, vx), (orders[1], y, x, vy)] {
         let ops: [(&str, Op, f64); 3] = [
@@ -323,7 +321,7 @@ fn every_op(
             ("S", topo::subtract, vp - common),
         ];
         for (op, run, want) in ops {
-            out.push((format!("{order} {op}"), run(p, q, &decls, tol()), want));
+            out.push((format!("{order} {op}"), run(p, q, tol()), want));
         }
     }
     out
@@ -633,7 +631,6 @@ fn six_crossing_corners_build_every_op() {
         ),
         ("wedge edge i=3 j=0 psi=0.3", wedge345, r2(3, 0), 0.3, edge),
     ];
-    let decls = BooleanDeclarations::default();
     let mut bad = Vec::new();
     for (pose, shape, m, psi, lo) in poses {
         let c = shape();
@@ -659,7 +656,7 @@ fn six_crossing_corners_build_every_op() {
                 ("S", topo::subtract, vx - common),
             ];
             for (op, run, want) in ops {
-                let line = outcome(run(x, y, &decls, tol()), want, tol());
+                let line = outcome(run(x, y, tol()), want, tol());
                 if !line.starts_with("OK SOUND") {
                     bad.push(format!("{pose} {order} {op}: {line}"));
                 }
@@ -1228,7 +1225,7 @@ fn a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies() 
     ];
     for (op, run, want, apart) in ops {
         let Ok(BooleanResult::Body(bb)) =
-            run(&prism, &cube, &BooleanDeclarations::default(), tol())
+            run(&prism, &cube, tol())
         else {
             panic!("{op}: the near-tangent pose did not build");
         };
@@ -1377,7 +1374,6 @@ fn corner_pair_runs(a: &Corner, b: &Corner, f: [[f64; 3]; 3]) -> Vec<Run> {
     );
     let (y, _) = posed(b, f, a.v);
     let (va, vb, common) = corner_pair_volumes(a, b, f);
-    let decls = BooleanDeclarations::default();
     let mut out = Vec::new();
     for (order, l, r, vl) in [("ab", &x, &y, va), ("ba", &y, &x, vb)] {
         let ops: [(&str, Op, f64); 3] = [
@@ -1386,7 +1382,7 @@ fn corner_pair_runs(a: &Corner, b: &Corner, f: [[f64; 3]; 3]) -> Vec<Run> {
             ("S", topo::subtract, vl - common),
         ];
         for (op, run, want) in ops {
-            out.push((format!("{order} {op}"), run(l, r, &decls, tol()), want));
+            out.push((format!("{order} {op}"), run(l, r, tol()), want));
         }
     }
     out
@@ -1568,7 +1564,6 @@ fn pinch_runs(m: [f64; 3], psi: f64) -> Vec<Run> {
         fixtures::prism::<f64>(&c.profile, 1.0, tol()).body,
     );
     let f = frame(m, psi);
-    let decls = BooleanDeclarations::default();
     let (c1, c2) = (
         finished("a cube", cube_at(c.v, f, [0.0; 3])),
         finished("a cube", cube_at(c.v, f, [-SIDE; 3])),
@@ -1599,7 +1594,7 @@ fn pinch_runs(m: [f64; 3], psi: f64) -> Vec<Run> {
             ("S", topo::subtract, vx - common),
         ];
         for (op, run, want) in ops {
-            out.push((format!("{order} {op}"), run(x, y, &decls, tol()), want));
+            out.push((format!("{order} {op}"), run(x, y, tol()), want));
         }
     }
     out
@@ -1657,7 +1652,6 @@ fn notch_against(pinch: &AtRestBody<f64>, pinch_pieces: &[Vec<Plane>]) -> (Vec<R
 
 /// Unites `bodies` one by one; `None` where a union refuses.
 fn unite_all(bodies: Vec<Body<f64>>) -> Option<AtRestBody<f64>> {
-    let decls = BooleanDeclarations::default();
     let mut parts = bodies.into_iter().map(|b| finished("a part", b));
     let mut acc = parts.next()?;
     for b in parts {
@@ -2651,7 +2645,6 @@ fn eight_crossings_with_a_pinched_cube(
     az: f64,
     spin: f64,
 ) -> Result<Vec<(String, String)>, String> {
-    let decls = BooleanDeclarations::default();
     let x = finished(
         "a corner",
         fixtures::prism::<f64>(&a.profile, 1.0, tol()).body,
@@ -2683,7 +2676,7 @@ fn eight_crossings_with_a_pinched_cube(
         ];
         for (op, run, want) in ops {
             let tag = format!("{order} {op}");
-            let res = run(l, r, &decls, tol());
+            let res = run(l, r, tol());
             let finding = res.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
                 pierce_point_finding(&bb.body, a.v, tag_cones(&tag, "ab", (&a_pieces, &b_pieces)))
             });

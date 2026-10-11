@@ -44,7 +44,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::outcomes::outcome;
 use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 
@@ -255,8 +254,7 @@ fn every_pose_of_the_family_answers_typed_and_pose_independently() {
 ///   a wall, certified by the circle × cylinder root lane; at one height
 ///   the two pairs of cap discs then overlap in their planes, one plane
 ///   each by margin, which the boolean glues: the union builds at its
-///   closed form, the body the flush detector's declarations build
-///   (D10), in both poses.
+///   closed form, in both poses.
 #[test]
 fn the_fenced_poses_keep_their_own_outcomes() {
     let a = cyl(1.0, 2.0);
@@ -327,20 +325,14 @@ fn the_fenced_poses_keep_their_own_outcomes() {
         ("re-posed", repose(&a), repose(&parallel)),
     ] {
         let (a, b) = (finished("operand A", a, tol), finished("operand B", b, tol));
-        let found = topo::flush::find_flush_candidates(&a, &b, tol).unwrap();
-        let declared = topo::union(&a, &b, tol);
-        let Ok(topo::BooleanResult::Body(bb)) = &declared else {
-            panic!("parallel-equal-r, {pose}: the declared union builds: {declared:?}");
+        let built = topo::union(&a, &b, tol);
+        let Ok(topo::BooleanResult::Body(bb)) = &built else {
+            panic!("parallel-equal-r, {pose}: the union builds: {built:?}");
         };
         let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
         assert!(
             (v - want).abs() < 1e-9,
             "parallel-equal-r, {pose}: {v} vs the closed form {want}"
-        );
-        assert_eq!(
-            outcome(&topo::union(&a, &b, tol)),
-            outcome(&declared),
-            "parallel-equal-r, {pose}: undeclared is the declared union"
         );
     }
 }

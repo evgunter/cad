@@ -151,7 +151,7 @@ fn intersect_and_differences(m: Mate, c: &Body<f64>, s: &Body<f64>, tag: &str) {
     let (cs, sc) = (wall_decls_at(c, s, m.r), wall_decls_at(s, c, m.r));
     let (c, s) = (&fin("the collar", c), &fin("the shaft", s));
     let op = |op, a: &AtRestBody<f64>, b: &AtRestBody<f64>, d| {
-        topo::boolean_op_with(op, a, b, d, topo::SweepStrategy::Realized, tol)
+        topo::boolean_op_with(op, a, b, &topo::BooleanInputs::default(), topo::SweepStrategy::Realized, tol)
     };
     for (order, a, b, d) in [("collar ∩ shaft", c, s, &cs), ("shaft ∩ collar", s, c, &sc)] {
         match op(BooleanOp::Intersect, a, b, d) {
@@ -314,7 +314,6 @@ fn hollow(r: f64, outer: f64) -> Body<f64> {
 /// Every pair of sphere faces of radius `r` across `a` and `b`
 /// declared `Rest`.
 fn sphere_decls(a: &Body<f64>, b: &Body<f64>, r: f64) -> BooleanDeclarations {
-    let mut d = BooleanDeclarations::none();
     declare_rest(&mut d, &spheres_at(a, r), &spheres_at(b, r));
     assert!(!d.coincident_faces.is_empty(), "a declared sphere pair");
     d

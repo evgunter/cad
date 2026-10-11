@@ -32,7 +32,7 @@ use geom_core::{Band, Point3, Tol};
 use topo::entity::{EntityId, LoopBoundary};
 use topo::test_support as fixtures;
 use topo::{
-    AtRestBody, Body, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
+    AtRestBody, Body, BooleanBody, BooleanDecision, BooleanError,
     BooleanResult, CensusStrategy, RegionLane, ValidationError, mass_properties,
 };
 
@@ -515,7 +515,6 @@ fn dump(tag: &str, body: &BooleanBody<f64>) -> Vec<String> {
 type Op = fn(
     &AtRestBody<f64>,
     &AtRestBody<f64>,
-    &BooleanDeclarations,
     Tol,
 ) -> Result<BooleanResult<f64>, BooleanError>;
 
@@ -528,7 +527,6 @@ fn run_all(
     common: f64,
     lumps: &[String],
 ) {
-    let decls = BooleanDeclarations::default();
     let dumping = std::env::var("NT_DUMP").is_ok();
     for (order, x, y, vx) in [("pc", prism, cube, va), ("cp", cube, prism, vb)] {
         let ops: [(&str, Op, f64); 3] = [
@@ -537,7 +535,7 @@ fn run_all(
             ("S", topo::subtract, vx - common),
         ];
         for (op, f, want) in ops {
-            let r = f(x, y, &decls, tol());
+            let r = f(x, y, tol());
             let line = format!("{tag} {order} {op}");
             let mut after = Vec::new();
             match &r {

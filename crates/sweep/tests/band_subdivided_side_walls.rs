@@ -601,7 +601,6 @@ fn a_union_of_flush_cubes_is_a_box_that_fillets_edge_by_edge() {
     // The touching pair (`Rest`), and the four pairs of coplanar sides
     // (continuations) the union's merge stage glues once declared.
     let x1 = |p: Point3<f64>| p.x == 1.0;
-    let mut decls = topo::BooleanDeclarations::none();
     decls.coincident_faces.push(topo::FacePairDeclaration::rest(
         face_on(&ca, x1),
         face_on(&cb, x1),

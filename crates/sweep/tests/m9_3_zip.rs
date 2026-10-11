@@ -449,7 +449,6 @@ fn a_tangent_curved_sector_on_a_face_lumps_whole() {
     let a = wide_slab_below();
     let b = quarter_round_above();
     let va = mass_properties(&a, Tol::witness()).unwrap().volume;
-    let mut decls = BooleanDeclarations::none();
     decls.coincident_faces.push(FacePairDeclaration::new(
         plane_face(&a, 1.0, true),
         plane_face(&b, 1.0, false),
@@ -479,7 +478,7 @@ fn a_tangent_curved_sector_on_a_face_lumps_whole() {
     );
     for (posture, d) in [
         ("Rest only", &rest_only),
-        ("undeclared", &BooleanDeclarations::none()),
+        ("undeclared", &topo::BooleanInputs::default()),
     ] {
         for (op, got, want) in [
             (

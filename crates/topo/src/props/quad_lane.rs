@@ -371,8 +371,8 @@ fn translated_curve(curve: &Curve3<Interval>, by: Point3<Interval>) -> Option<Cu
 /// instead ([`polygon_face_about`]), which close exactly. A flux taken off the
 /// stored plane instead (`((origin − centre)·n)(n·A⃗)/(n·n)`) is not a
 /// closed surface's: a glued face whose points stand `δ` off its carrier
-/// misses `δ` times its area, which crossed the oracle on the door's
-/// settled-residue fixture (`tests/door_backstop_settled_residue.rs`).
+/// misses `δ` times its area, which crosses the oracle on a settled
+/// in-band coincidence.
 /// `anchor` is a point of the face, so the width is the body's own size
 /// times `A⃗`'s; the product is as small as `centre` is near the face,
 /// which `rederive` arranges by taking a corner of the body's own loop

@@ -452,7 +452,7 @@ pub mod test_support {
         b: &Body<f64>,
         tol: geom_core::Tol,
     ) -> Result<Option<crate::BooleanError>, crate::BooleanError> {
-        crate::boolean::join_refusal(op, a, b, &crate::boolean::Glue::none(), tol)
+        crate::boolean::join_refusal(op, a, b, tol)
     }
 
     /// The operand's maximal-faces gate (F7) alone, at `tol`'s band —

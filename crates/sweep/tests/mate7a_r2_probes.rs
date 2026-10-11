@@ -42,7 +42,6 @@ fn torus_faces(body: &Body<f64>) -> Vec<FaceKey> {
 }
 
 fn decls(a: &Body<f64>, b: &Body<f64>, class: ContactClass) -> BooleanDeclarations {
-    let mut d = BooleanDeclarations::none();
     for &fa in &torus_faces(a) {
         for &fb in &torus_faces(b) {
             d.coincident_faces

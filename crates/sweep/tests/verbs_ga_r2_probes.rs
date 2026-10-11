@@ -198,7 +198,6 @@ fn r2_a_spun_steinmetz_moves_the_raiser_to_the_partner_seam() {
 #[test]
 fn r2_a_box_with_on_carrier_rulings_builds_every_op_undeclared() {
     let tol = Tol::witness();
-    let none = topo::BooleanDeclarations::none();
     let x = (1.0f64 - 0.09).sqrt();
     let p = finished("the pipe", cyl(0.0, 0.0, 1.0, -2.0, 2.0), tol);
     let b = finished(

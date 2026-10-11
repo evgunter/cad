@@ -137,23 +137,6 @@ fn ops(tag: &str, t: Body<f64>, vt: f64, ov: f64) {
                 _ => topo::intersect(l, r, tol()),
             };
             println!("POSE {tag} {op} {order} => {}", verdict(res, want));
-            // The flush poses again, with every flush contact declared.
-            if tag.contains(" flush") {
-                use topo::flush::{declare_all, find_flush_candidates};
-                let line = match find_flush_candidates(l, r, tol()) {
-                    Err(e) => format!("FLUSHERR {e:?}"),
-                    Ok(found) => {
-                        let d = declare_all(&found);
-                        let res = match op {
-                            "U" => topo::union(l, r, tol()),
-                            "S" => topo::subtract(l, r, tol()),
-                            _ => topo::intersect(l, r, tol()),
-                        };
-                        verdict(res, want)
-                    }
-                };
-                println!("POSE {tag} DECL {op} {order} => {line}");
-            }
         }
     }
 }

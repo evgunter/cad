@@ -20,16 +20,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::revert_ops::subtract_both_orders_and_intersect;
-use crate::revolve_common;
 
-use geom_core::{Point2, Point3, Tol, Vec3};
-use profile::{ProfileLoop, RawLoop};
-use revolve_common::{axis_y, validated};
+use geom_core::{Point3, Tol, Vec3};
 use sweep::test_support::{finished, tube_frame};
-use sweep::{Revolution, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
+use sweep::{TubeWindow, tube_along_arc, tube_along_arc_hollow};
 use topo::query;
-use topo::{
-AtRestBody, Body, BooleanError, BooleanResult, FaceKey};
+use topo::{AtRestBody, Body, BooleanError, BooleanResult, FaceKey};
 
 const TUBE: f64 = 0.06;
 /// The lower stem arc's ring — the lily's own numbers, so the fixtures

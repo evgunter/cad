@@ -17,7 +17,7 @@ use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query;
-use topo::{Body, BooleanDeclarations};
+use topo::Body;
 
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let lp = bulge_loop(
@@ -239,7 +239,7 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
         BooleanOp::Intersect,
         &finished("the unit cube", c1, Tol::witness()),
         &finished("the tilted cube", c2, Tol::witness()),
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )

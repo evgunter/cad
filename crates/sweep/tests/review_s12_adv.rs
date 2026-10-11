@@ -35,7 +35,7 @@ use std::f64::consts::PI;
 use sweep::ExtrudeSide;
 use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::boolean::{BooleanDeclarations, BooleanOp, boolean_op_with};
+use topo::boolean::{BooleanOp, boolean_op_with};
 use topo::{Body, SweepStrategy};
 
 fn vol(body: &Body<f64>) -> f64 {
@@ -94,7 +94,7 @@ fn probe_torus_union_is_never_silently_wrong() {
             op,
             &slab,
             &torus,
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         ) {
@@ -136,7 +136,7 @@ fn probe_cylinder_radial_poke_is_exact_or_typed() {
             op,
             &a,
             &b,
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         ) {
@@ -201,7 +201,7 @@ fn probe_horizontal_log_halfburied_is_exact_or_typed() {
             op,
             &slab,
             &log,
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         ) {
@@ -248,7 +248,7 @@ fn probe_contained_cylinder_reaches_the_fallback_soundly() {
             op,
             &a,
             &b,
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         ) {

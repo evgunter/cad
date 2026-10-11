@@ -249,7 +249,6 @@ fn probe_cross_wired_declaration_contradicts() {
 fn probe_tangent_on_conformal_walls_contradicts() {
     let p = plate_with_pegs(2.0, 4.0, 0.5);
     let q = plate_with_bores();
-    let mut decls = BooleanDeclarations::none();
     for cx in [2.0, 4.0] {
         for &fa in &walls_at(&p, cx) {
             for &fb in &walls_at(&q, cx) {

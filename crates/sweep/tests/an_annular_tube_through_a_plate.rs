@@ -337,7 +337,6 @@ fn a_plug_flush_in_a_bore_is_sided_by_its_caps() {
             ("plug, plate", &plug, &bored, vp),
             ("plate, plug", &bored, &plug, vb),
         ] {
-            let d = topo::test_support::flush_declarations(x, y, tol());
             let row = format!("the plug over z ∈ {z:?}, {order}");
             let meet = outcome(topo::intersect(x, y, tol()), 0.0, tol());
             assert_eq!(meet, "EMPTY ok", "{row}: ∩");

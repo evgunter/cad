@@ -42,7 +42,7 @@ use geom_core::{Point3, Tol};
 use topo::test_support as fixtures;
 use topo::validate::validate_geometric;
 use topo::{
-    AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult, LoopBoundary,
+    AtRestBody, Body, BooleanError, BooleanResult, LoopBoundary,
     mass_properties,
 };
 
@@ -194,7 +194,6 @@ fn finished(what: &str, body: Body<f64>) -> AtRestBody<f64> {
 type Op = fn(
     &AtRestBody<f64>,
     &AtRestBody<f64>,
-    &BooleanDeclarations,
     Tol,
 ) -> Result<BooleanResult<f64>, BooleanError>;
 
@@ -213,7 +212,6 @@ fn assert_pose(pose: &str, m: [f64; 3]) {
     let vol = |b: &Body<f64>| mass_properties(b, tol()).unwrap().volume;
     let (va, vb, shared) = (vol(&prism), vol(&cube), prism_beyond(m));
     let (pa, pb) = (prism_pieces(), cube_pieces(m));
-    let decls = BooleanDeclarations::default();
     for (order, x, y, vx, px, py) in [
         ("prism-cube", &prism, &cube, va, &pa, &pb),
         ("cube-prism", &cube, &prism, vb, &pb, &pa),
@@ -230,9 +228,9 @@ fn assert_pose(pose: &str, m: [f64; 3]) {
         ];
         for (op, run, want, cones) in ops {
             let what = format!("{pose}: {order} {op}");
-            let line = outcome(run(x, y, &decls, tol()), want, tol());
+            let line = outcome(run(x, y, tol()), want, tol());
             assert!(line.starts_with("OK SOUND"), "{what}: {line}");
-            let Ok(BooleanResult::Body(bb)) = run(x, y, &decls, tol()) else {
+            let Ok(BooleanResult::Body(bb)) = run(x, y, tol()) else {
                 panic!("{what}: a second run did not build");
             };
             assert_eq!(
@@ -311,7 +309,6 @@ fn a_pinch_keeps_one_vertex_per_cone() {
         fixtures::prism::<f64>(&PROFILE, 1.0, tol()).body,
     );
     let cube = finished("the cube", cube_beyond(TWO_RUNS[0]));
-    let decls = BooleanDeclarations::default();
     for (order, x, y) in [("prism-cube", &prism, &cube), ("cube-prism", &cube, &prism)] {
         let Ok(BooleanResult::Body(bb)) = topo::intersect(x, y, tol()) else {
             panic!("{order}: the intersection did not build");

@@ -9,7 +9,7 @@
 
 use geom_core::{Dual64, Point3, Real, Tol, Vec3};
 use topo::{
-    AtRestPolicy, BooleanDeclarations, BooleanError, BooleanOp, Operand, SplitError,
+    AtRestPolicy, BooleanError, BooleanOp, Operand, SplitError,
     SplitReduceError, SweepStrategy, ValidationError,
 };
 
@@ -77,7 +77,7 @@ fn a_split_operand_refuses_at_every_door_at_a_dual() {
         BooleanOp::Union,
         &operand,
         &far,
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         tol,
     ) {

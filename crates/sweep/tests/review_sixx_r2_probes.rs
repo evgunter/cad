@@ -283,7 +283,6 @@ fn shape(name: &str) -> Shape {
 type Op = fn(
     &AtRestBody<f64>,
     &AtRestBody<f64>,
-    &BooleanDeclarations,
     Tol,
 ) -> Result<BooleanResult<f64>, BooleanError>;
 
@@ -385,7 +384,6 @@ fn pose_lines(a: &Shape, other: &Other, f: [V3; 3], what: &str) -> Vec<String> {
             common += s * t * convex_volume(&all);
         }
     }
-    let d = BooleanDeclarations::default();
     let mut out = Vec::new();
     for (order, x, y, vx) in [("ab", &ab, &bb, va), ("ba", &bb, &ab, vb)] {
         let ops: [(&str, Op, f64); 3] = [
@@ -398,7 +396,7 @@ fn pose_lines(a: &Shape, other: &Other, f: [V3; 3], what: &str) -> Vec<String> {
             if std::env::var("SX_THREADS").is_ok_and(|t| t == "1") {
                 eprintln!("SXRUN {tag}");
             }
-            let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(x, y, &d, tol())));
+            let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(x, y, tol())));
             let line = match r {
                 Ok(r) => {
                     let why = match &r {
@@ -674,7 +672,7 @@ fn review_sixx_pinch() {
             if std::env::var("SX_THREADS").is_ok_and(|t| t == "1") {
                 eprintln!("SXRUN pinch {what} {tag}");
             }
-            let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(x, y, d, tol())));
+            let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(x, y, tol())));
             let line = match r {
                 Ok(r) => {
                     let why = match &r {

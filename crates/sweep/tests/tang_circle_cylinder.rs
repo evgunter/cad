@@ -85,7 +85,7 @@ fn segment(a: f64) -> f64 {
 }
 
 fn run(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Result<Body<f64>, BooleanError> {
-    run_with(op, a, b, &topo::BooleanDeclarations::none())
+    run_with(op, a, b, &topo::BooleanInputs::default())
 }
 
 /// [`run`] under `decls`.
@@ -307,7 +307,6 @@ fn a_rim_circle_within_the_band_of_a_parallel_wall_is_the_declared_tangency() {
     };
     for delta in [0.0, -half_zero, half_zero] {
         let b = cyl(2.0 + delta, 0.0, 1.0, 0.5, 2.5);
-        let mut tangent = topo::BooleanDeclarations::none();
         for fa in walls(&a) {
             for fb in walls(&b) {
                 tangent

@@ -9,7 +9,6 @@
 
 use geom_core::Tol;
 use sweep::test_support::{disc_of_arcs, finished};
-use topo::flush::{declare_all, find_flush_candidates};
 use topo::{BooleanResult, mass_properties, union};
 
 #[test]
@@ -18,7 +17,6 @@ fn a_cylinder_flush_inside_a_block_unions_to_the_block() {
     let block = topo::test_support::brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol);
     let block = finished("the block", block, tol);
     let cylinder = finished("the cylinder", disc_of_arcs(3, 0.5, 1.0, tol), tol);
-    let decls = declare_all(&find_flush_candidates(&block, &cylinder, tol).expect("decides"));
     let BooleanResult::Body(union) =
         union(&block, &cylinder, tol).expect("the cylinder's side is decided")
     else {
@@ -52,15 +50,28 @@ fn a_carried_edge_edge_row_on_an_arc_refuses_at_the_door() {
         .map(|(k, _)| k)
         .collect();
     assert!(arcs.len() >= 2, "the caps are rings of arcs");
-    let mut decls = declare_all(&find_flush_candidates(&cylinder, &block, tol).expect("decides"));
-    decls.carried_a.ee = vec![topo::CarriedRecord {
-        contact: topo::EeContact {
-            a: arcs[0],
-            b: arcs[1],
+    let inputs = topo::BooleanInputs {
+        records_a: topo::OperandRecords {
+            ee: vec![topo::CarriedRecord {
+                contact: topo::EeContact {
+                    a: arcs[0],
+                    b: arcs[1],
+                },
+                record: 0,
+            }],
+            ..Default::default()
         },
-        record: 0,
-    }];
-    let got = union(&cylinder, &block, tol).map(|_| ());
+        ..Default::default()
+    };
+    let got = topo::boolean_op_with(
+        topo::BooleanOp::Union,
+        &cylinder,
+        &block,
+        &inputs,
+        topo::SweepStrategy::Realized,
+        tol,
+    )
+    .map(|_| ());
     assert!(
         matches!(
             got,

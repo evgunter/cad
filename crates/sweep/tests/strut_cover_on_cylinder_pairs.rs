@@ -312,7 +312,6 @@ fn the_arc_joint_stacks_union_and_stop_at_the_fallback_extent() {
         for (order, a, b) in [("P, Q", &p, &q), ("Q, P", &q, &p)] {
             let label = format!("{lower:?} under {upper:?}, {order}");
             let d = findings(a, b);
-            let none = BooleanDeclarations::none();
             for (op, r, undeclared) in [
                 (
                     "∪",
@@ -511,7 +510,6 @@ fn walls_continued(x: &Body<f64>, y: &Body<f64>) -> BooleanDeclarations {
             .map(|(k, _)| k)
             .collect()
     };
-    let mut d = BooleanDeclarations::none();
     for fa in walls(x) {
         for fb in walls(y) {
             d.coincident_faces.push(FacePairDeclaration::new(

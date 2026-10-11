@@ -939,11 +939,6 @@ fn a_d_bar_on_the_slab_builds_as_a_line_seam() {
         (v - half_rod).abs() <= 1e-12,
         "the half rod: {v} vs {half_rod}"
     );
-    let flats = |b: &Body<f64>| {
-        let mut f = planes_at_z(b, 0.5);
-        f.extend(planes_at_z(b, -0.5));
-        f
-    };
     for (x, y) in [(&slab, &dbar), (&dbar, &slab)] {
         let label = "slab ∪ D-bar";
         let (v, c, _) = built(label, topo::union(x, y, tol));

@@ -271,9 +271,8 @@ pub enum SplitJoinError {
     /// `work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`,
     /// or a planar one none of whose interior candidates certifies
     /// (`crate::stands`, rung 3) — or where the two solids' faces lie
-    /// within the band of each other (a
-    /// settled in-band coincidence,
-    /// `topo/tests/door_backstop_settled_residue.rs`). No kernel defect.
+    /// within the band of each other (a settled in-band coincidence).
+    /// No kernel defect.
     SectionLoopUndecided {
         /// The null face whose loops' roles went unread.
         face: FaceKey,

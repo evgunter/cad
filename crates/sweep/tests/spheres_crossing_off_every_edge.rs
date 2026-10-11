@@ -27,7 +27,7 @@
 
 use geom_core::{Affine3, Band, Point3, Tol, Vec3};
 use sweep::test_support::{ball_poled_y, brick, finished};
-use topo::{AtRestBody, BooleanDeclarations, BooleanError, BooleanResult};
+use topo::{AtRestBody, BooleanError, BooleanResult};
 
 use crate::common::differential::outcome;
 use crate::common::oracles::{ball_lens as lens, ball_volume, cap_volume};
@@ -174,7 +174,7 @@ fn assert_six(
     (va, vb, shared): (f64, f64, f64),
     wants: [Want; 6],
 ) {
-    let (tol, none) = (Tol::witness(), BooleanDeclarations::none());
+    let tol = Tol::witness();
     let ops = [
         (
             "a ∪ b",
@@ -584,7 +584,6 @@ fn a_large_ball_near_external_tangency_is_pinned() {
         return;
     }
     let tol = Tol::witness();
-    let none = BooleanDeclarations::none();
     let d = 51.0 - 2e-6;
     let (a, b) = (unit(), ball(50.0, Vec3::new(0.0, 0.0, d)));
     let (va, vb, shared) = (ball_volume(1.0), ball_volume(50.0), lens(1.0, 50.0, d));

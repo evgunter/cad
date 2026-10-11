@@ -17,7 +17,7 @@
 
 use geom_core::{Point2, Point3, Tol};
 use topo::test_support::mapped_cube;
-use topo::{AtRestBody, Body, BooleanDeclarations, ContactRecords, EntityId, ValidationError};
+use topo::{AtRestBody, Body, ContactRecords, EntityId, ValidationError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -78,7 +78,6 @@ fn cylinder_pairs_refused(body: &Body<f64>, errors: &[ValidationError]) -> usize
 /// census cannot clear a contact nothing recorded.
 #[test]
 fn a_tube_rim_vertex_touching_a_turned_face_unions_past_tier_3_prime() {
-    let d = BooleanDeclarations::default();
     let t = AtRestBody::validate(tube(), tol()).unwrap();
     let exact = SIDE.powi(3) + std::f64::consts::PI * (1.0 - 0.25);
     for (rim, yv, k) in POSES {
@@ -118,7 +117,6 @@ fn a_tube_rim_vertex_touching_a_turned_face_unions_past_tier_3_prime() {
 /// from the tube.
 #[test]
 fn a_turned_face_clear_of_a_tube_rim_passes_tier_3_prime() {
-    let d = BooleanDeclarations::default();
     let t = AtRestBody::validate(tube(), tol()).unwrap();
     for (rim, yv, k) in POSES {
         let c = AtRestBody::validate(cube(yv, k, 0.05), tol()).unwrap();

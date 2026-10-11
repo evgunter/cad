@@ -123,7 +123,6 @@ fn walls(b: &AtRestBody<f64>) -> Vec<topo::FaceKey> {
 
 /// Every pair of `x`'s and `y`'s wall faces declared a continuation.
 fn continued(x: &AtRestBody<f64>, y: &AtRestBody<f64>) -> BooleanDeclarations {
-    let mut d = BooleanDeclarations::none();
     for fa in walls(x) {
         for fb in walls(y) {
             d.coincident_faces.push(topo::FacePairDeclaration::new(

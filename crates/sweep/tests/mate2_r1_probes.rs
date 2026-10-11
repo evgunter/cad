@@ -18,7 +18,7 @@ use crate::mate2_common;
 use geom_core::Tol;
 use mate2_common::*;
 use sweep::test_support::finished;
-use topo::{BooleanDeclarations, BooleanResult};
+use topo::BooleanResult;
 
 /// PROBE 1 — the azimuth splits MISALIGNED by 60 degrees.
 ///

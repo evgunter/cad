@@ -245,7 +245,6 @@ fn top_wall_declarations(
         .map(|(k, _)| k)
         .collect();
     assert_eq!(top.len(), 1, "one top face");
-    let mut decls = BooleanDeclarations::none();
     for &fb in &cyl_faces(cylinder) {
         decls
             .coincident_faces
@@ -380,7 +379,6 @@ fn tangent_outside_the_witness_lane_refuses_by_class() {
         })
         .map(|(k, _)| k)
         .collect();
-    let mut decls = BooleanDeclarations::none();
     decls.coincident_faces.push(FacePairDeclaration::new(
         top[0],
         bottom[0],
