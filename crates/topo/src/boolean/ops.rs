@@ -664,6 +664,28 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         &desc,
         band,
     )?;
+    if std::env::var_os("R2_RING_PROBE").is_some() {
+        let mut by_key: BTreeMap<_, Vec<VertexKey>> = BTreeMap::new();
+        for (k, v) in body.vertices() {
+            by_key.entry(v.point).or_default().push(k);
+        }
+        let vv: std::collections::BTreeSet<(VertexKey, VertexKey)> = contacts
+            .vertex_vertex()
+            .map(|(a, b)| (a.min(b), a.max(b)))
+            .collect();
+        let (mut pairs, mut unrecorded) = (0, 0);
+        for vs in by_key.values() {
+            for (i, &a) in vs.iter().enumerate() {
+                for &b in &vs[i + 1..] {
+                    pairs += 1;
+                    if !vv.contains(&(a.min(b), a.max(b))) {
+                        unrecorded += 1;
+                    }
+                }
+            }
+        }
+        eprintln!("R2SHARED pairs={pairs} unrecorded={unrecorded}");
+    }
     // Curved results carry certified per-half-edge pcurves at rest
     // (M5 PR 9, the PR 6 contract): re-derive the whole cache set on
     // the finished body — the same pass the split lane runs. A planar
