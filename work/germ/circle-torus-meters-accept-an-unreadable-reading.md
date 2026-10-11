@@ -129,7 +129,7 @@ consulted. Moving it to the parallel-axes sibling's posture (`Err` →
   `work/tang/a-far-origin-rod-cut-escalates-its-mapped-source-at-eps-1e-12.md`),
   and the second, its `a rod clear` fixture refused
   `FallbackExtentUnsupported` on near-tangent carriers, is filed by this
-  branch (`work/tint/an-oblique-rod-clear-of-a-cone-refuses-the-extent-scan-at-1e-12.md`).
+  branch (`work/tint/an-oblique-rod-clear-of-a-cone-refuses-the-extent-scan-at-1e-12.md`; it is red at 1e-6 too).
 
 So refusing would cost a true `Miss` at 1e-12 and buy nothing measured.
 The 16-ulp term-bound charge needs no tightening for it.
