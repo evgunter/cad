@@ -77,6 +77,25 @@ caller's, per `Reading`. Three render the whole escalation
 `under(NO_DECLARATION_RECOURSE)`), so their tail is `IndeterminateUnder`'s
 ` — {advice}; {ending}`, per-kind levers included.
 
+**Done: the topo slice, in PR TOPO_PR.** Its fourteen sentences spell
+the verdict through the rule: `props.rs`, `splitting/mod.rs`
+(`SliverSector`), `splitting/containment.rs` (two) and `chord_join.rs`
+(`RayExhausted`) through `geom_core::undecided!`; `splitting/finish.rs`
+(three), `splitting/section.rs`, `shell.rs`, `replace_face.rs` and
+`chord_join.rs` (`OrderEscalated`, `Escalated`, `RingHoming`'s
+`Escalated`) through `Indeterminate::undecided` with `ending(..)`.
+Left on contact ground under D10: `chart_region.rs`'s `Escalated` arm
+(the face–face record's overlap predicate) and `validate.rs`'s
+`ContactRefusal::Escalated`. `boolean/solid_contain.rs` holds only a
+doc comment. Still hand-spelled in topo, as `"{subject} is undecided
+({payload}). {ending}"` or `"… is undecided: {diag}"`:
+`boolean/edge_join.rs` (`JoinUndecided`, which renders the bare
+`Indeterminate` Display, and `JoinRefusal`'s `undecided` closure),
+`validate.rs` (`JoinUndecidedAtRest`), `chord_join.rs` (`Section`'s
+carrier escalation, "… is undecided for the section through a curved
+face"); and "too close to order" (`splitting/mod.rs`
+`SectionGermsEscalated`), a decision-specific verdict like those below.
+
 ## Repair shape
 
 One crate per PR, re-baselining the texts each moves; drop
