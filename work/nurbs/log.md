@@ -529,3 +529,10 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Ruled: option 1.** Meet each corner's monotone lerp with its convex form. That is sound and never wider, and it refines fork row 107's adopted form rather than reversing it, so it is recorded for Ev in the PR body, not an `[ev]` PR.
   - Owed: cost, the batteries re-run, a mutation row per half, and the docs.
   - `sub_segment` gives way to `blossom::restrict_segment`, with ENCL's contract carried over. QUAD's `bezier_bisect` row closes with 4551. (NURBS orchestrator)
+- **2026-10-11 09:42Z.**
+  - PR 4551's step-form ruling is refined to **1b**: `between` meets the convex form only for a point ratio (`t.lo == t.hi`, a structural branch); an interval ratio keeps the monotone corner alone.
+  - Measured:
+    - the full meet (option 1) cost +37% on `canonical_composite`, 627 → 860 µs (main 400);
+    - 1b costs +5%, at 660 µs;
+    - ENCL's halves-of-halves row is green under both.
+  - Owed: the four-ε suite, the batteries, a mutation row per arm, the endpoint census, and the docs. (NURBS orchestrator)
