@@ -1,6 +1,7 @@
 //! **The differential batteries' shared pieces**: the polygon oracles
 //! their closed-form volumes are derived from, the one `outcome` line a
-//! battery prints per pose, and the reflex-corner pose. Derived without
+//! battery prints per pose, the reflex-corner pose, and the near-tangent
+//! corner poses ([`NtPrism`]) the census probe and its pin share. Derived without
 //! the kernel, as [`super::oracles`] is, and printed in one format, so
 //! two batteries' lines can be diffed against each other.
 //!
@@ -364,4 +365,350 @@ pub fn reflex_run(p: &ReflexPose, op: &str, tol: Tol) -> Result<BooleanResult<f6
         "S_ab" => topo::subtract_with(&p.a, &p.b, &p.d, tol),
         _ => topo::subtract_with(&p.b, &p.a, &p.d, tol),
     }
+}
+
+type V3 = [f64; 3];
+
+fn dot3(a: V3, b: V3) -> f64 {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+fn cross3(a: V3, b: V3) -> V3 {
+    [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
+}
+
+fn unit3(a: V3) -> V3 {
+    let s = 1.0 / dot3(a, a).sqrt();
+    a.map(|c| c * s)
+}
+
+/// One prism of the near-tangent corner poses: its counter-clockwise
+/// profile, its convex pieces (an oracle clips each), its height, and
+/// the corner `v` the cube's near face is laid through.
+pub struct NtPrism {
+    pub name: &'static str,
+    pub profile: Vec<(f64, f64)>,
+    pub pieces: Vec<Vec<(f64, f64)>>,
+    pub h: f64,
+    pub v: V3,
+}
+
+impl NtPrism {
+    /// The prism as an operand.
+    pub fn body(&self, tol: Tol) -> AtRestBody<f64> {
+        AtRestBody::validate(
+            topo::test_support::prism::<f64>(&self.profile, self.h, tol).body,
+            tol,
+        )
+        .expect("a near-tangent prism is a valid operand")
+    }
+
+    /// The corner's three edge directions: the profile's edge in, the
+    /// profile's edge out, and the vertical edge into the prism.
+    pub fn corner_edges(&self) -> [V3; 3] {
+        let n = self.profile.len();
+        let i = self
+            .profile
+            .iter()
+            .position(|&(x, y)| (x - self.v[0]).abs() < 1e-12 && (y - self.v[1]).abs() < 1e-12)
+            .expect("the corner is a profile vertex");
+        let (p, a, b) = (
+            self.profile[i],
+            self.profile[(i + n - 1) % n],
+            self.profile[(i + 1) % n],
+        );
+        let vz = if self.v[2] > 0.5 { -1.0 } else { 1.0 };
+        [
+            [a.0 - p.0, a.1 - p.1, 0.0],
+            [b.0 - p.0, b.1 - p.1, 0.0],
+            [0.0, 0.0, vz],
+        ]
+    }
+
+    /// The near face's unit normal for the pose `nt e{edge} a{a} d{d}`:
+    /// `a + 1/4` sixteenths of a turn about the corner's edge `edge`,
+    /// tilted `d` along it, so the face's plane lies `d` rad off that
+    /// edge. Normalized twice: JOIN's census measured the twice-rounded
+    /// normal, and a sub-ulp change of it moves which poses fire.
+    pub fn near_normal(&self, edge: usize, a: u32, d: f64) -> V3 {
+        let e = unit3(self.corner_edges()[edge]);
+        let (p1, p2) = nt_basis(e);
+        let al = std::f64::consts::TAU * (f64::from(a) + 0.25) / 16.0;
+        unit3(unit3(
+            [0, 1, 2].map(|k| p1[k] * al.cos() + p2[k] * al.sin() + e[k] * d),
+        ))
+    }
+}
+
+/// An orthonormal pair completing the unit `m` to a right-handed frame.
+pub fn nt_basis(m: V3) -> (V3, V3) {
+    let m = unit3(m);
+    let seed = if m[2].abs() < 0.9 {
+        [0.0, 0.0, 1.0]
+    } else {
+        [1.0, 0.0, 0.0]
+    };
+    let u = unit3(cross3(seed, m));
+    (u, cross3(m, u))
+}
+
+/// The cube `v + a u + b w + c m`, a, b ∈ [−2, 2], c ∈ [0, 4], `(u, w)`
+/// [`nt_basis`] of the unit `m`: its near face holds `v` with outward
+/// normal `−m`.
+pub fn nt_cube(v: V3, m: V3, tol: Tol) -> AtRestBody<f64> {
+    let (u, w) = nt_basis(m);
+    let cube = topo::test_support::mapped_cube::<f64>(
+        move |x, y, z| {
+            let (a, b, c) = (-2.0 + 4.0 * x, -2.0 + 4.0 * y, 4.0 * z);
+            let p = [0, 1, 2].map(|k| v[k] + (u[k] * a + (w[k] * b + m[k] * c)));
+            Point3::new(p[0], p[1], p[2])
+        },
+        tol,
+    );
+    AtRestBody::validate(cube, tol).expect("a mapped cube is a valid operand")
+}
+
+/// The near-tangent census's prisms, by name.
+pub fn nt_prisms() -> Vec<NtPrism> {
+    let l = vec![
+        (0.0, 0.0),
+        (2.0, 0.0),
+        (2.0, 1.0),
+        (1.0, 1.0),
+        (1.0, 2.0),
+        (0.0, 2.0),
+    ];
+    let l_pieces = vec![
+        vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
+        vec![(0.0, 1.0), (1.0, 1.0), (1.0, 2.0), (0.0, 2.0)],
+    ];
+    let mirror = |p: &[(f64, f64)]| -> Vec<(f64, f64)> {
+        let mut q: Vec<(f64, f64)> = p.iter().map(|&(x, y)| (-x, y)).collect();
+        q.reverse();
+        q
+    };
+    let prism = |name, profile: Vec<(f64, f64)>, pieces, v| NtPrism {
+        name,
+        profile,
+        pieces,
+        h: 1.0,
+        v,
+    };
+    vec![
+        prism("Ltop", l.clone(), l_pieces.clone(), [1.0, 1.0, 1.0]),
+        prism("Lbot", l.clone(), l_pieces.clone(), [1.0, 1.0, 0.0]),
+        prism(
+            "Lmirror",
+            mirror(&l),
+            l_pieces.iter().map(|p| mirror(p)).collect(),
+            [-1.0, 1.0, 1.0],
+        ),
+        prism(
+            "notch307",
+            vec![(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 1.0), (0.0, 2.0)],
+            vec![
+                vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 2.0)],
+                vec![(2.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 1.0)],
+            ],
+            [2.0, 1.0, 1.0],
+        ),
+        prism(
+            "shallow200",
+            vec![(0.0, 0.0), (4.0, 0.0), (4.0, 1.0), (2.0, 0.6), (0.0, 1.0)],
+            vec![
+                vec![(0.0, 0.0), (2.0, 0.0), (2.0, 0.6), (0.0, 1.0)],
+                vec![(2.0, 0.0), (4.0, 0.0), (4.0, 1.0), (2.0, 0.6)],
+            ],
+            [2.0, 0.6, 1.0],
+        ),
+        prism("convex", l, l_pieces, [2.0, 0.0, 1.0]),
+        prism(
+            "vee300",
+            vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (2.0, 0.5), (0.0, 4.0)],
+            vec![
+                vec![(0.0, 0.0), (2.0, 0.0), (2.0, 0.5), (0.0, 4.0)],
+                vec![(2.0, 0.0), (4.0, 0.0), (4.0, 4.0), (2.0, 0.5)],
+            ],
+            [2.0, 0.5, 1.0],
+        ),
+        prism(
+            "asym",
+            vec![(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (1.0, 1.0), (0.0, 1.5)],
+            vec![
+                vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.5)],
+                vec![(1.0, 0.0), (4.0, 0.0), (4.0, 3.0), (1.0, 1.0)],
+            ],
+            [1.0, 1.0, 1.0],
+        ),
+        nt_wedge("w345", 345.0),
+        nt_wedge("w60", 60.0),
+    ]
+}
+
+/// The `alpha`° wedge about the z axis, corner `(0, 0, 1)`, its
+/// profile on the square of half-side 2 (`join_pierce_runs_sweep`'s).
+fn nt_wedge(name: &'static str, alpha: f64) -> NtPrism {
+    let at = |t: f64| {
+        let t = t.to_radians();
+        let r = 2.0 / t.cos().abs().max(t.sin().abs());
+        (r * t.cos(), r * t.sin())
+    };
+    let mut profile = vec![(0.0, 0.0), at(0.0)];
+    let mut c = 45.0;
+    while c < alpha {
+        profile.push(at(c));
+        c += 90.0;
+    }
+    profile.push(at(alpha));
+    let pieces = (1..profile.len() - 1)
+        .map(|k| vec![profile[0], profile[k], profile[k + 1]])
+        .collect();
+    NtPrism {
+        name,
+        profile,
+        pieces,
+        h: 1.0,
+        v: [0.0, 0.0, 1.0],
+    }
+}
+
+fn add3(a: V3, b: V3) -> V3 {
+    [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
+}
+
+fn sub3(a: V3, b: V3) -> V3 {
+    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+fn scale3(a: V3, s: f64) -> V3 {
+    a.map(|c| c * s)
+}
+
+/// A half-space `n·x ≤ d`.
+pub type NtPlane = (V3, f64);
+
+/// A convex polytope as its faces, each counter-clockwise seen from
+/// outside.
+pub type NtPoly = Vec<Vec<V3>>;
+
+impl NtPrism {
+    /// Each convex piece of the prism as half-spaces.
+    pub fn piece_planes(&self) -> Vec<Vec<NtPlane>> {
+        self.pieces
+            .iter()
+            .map(|poly| {
+                let n = poly.len();
+                let mut out: Vec<NtPlane> = (0..n)
+                    .map(|i| {
+                        let (p, q) = (poly[i], poly[(i + 1) % n]);
+                        let nn = [q.1 - p.1, -(q.0 - p.0), 0.0];
+                        (nn, nn[0] * p.0 + nn[1] * p.1)
+                    })
+                    .collect();
+                out.push(([0.0, 0.0, 1.0], self.h));
+                out.push(([0.0, 0.0, -1.0], 0.0));
+                out
+            })
+            .collect()
+    }
+
+    /// The volume the prism shares with [`nt_cube`]`(self.v, m)`: each
+    /// convex piece clipped by the cube's faces, independent of the
+    /// kernel.
+    pub fn overlap(&self, m: V3) -> f64 {
+        let cube = nt_cube_poly(self.v, m);
+        self.piece_planes()
+            .iter()
+            .map(|pl| nt_poly_volume(&pl.iter().fold(cube.clone(), |acc, &p| nt_clip(&acc, p))))
+            .sum()
+    }
+}
+
+/// [`nt_cube`] as a polytope.
+pub fn nt_cube_poly(v: V3, m: V3) -> NtPoly {
+    let (u, w) = nt_basis(m);
+    let p = |a: f64, b: f64, c: f64| add3(v, add3(scale3(u, a), add3(scale3(w, b), scale3(m, c))));
+    let c = |i: usize| {
+        let (a, b, z) = ((i & 1) as f64, ((i >> 1) & 1) as f64, ((i >> 2) & 1) as f64);
+        p(-2.0 + 4.0 * a, -2.0 + 4.0 * b, 4.0 * z)
+    };
+    let quads = [
+        [0, 2, 3, 1],
+        [4, 5, 7, 6],
+        [0, 1, 5, 4],
+        [2, 6, 7, 3],
+        [0, 4, 6, 2],
+        [1, 3, 7, 5],
+    ];
+    quads
+        .iter()
+        .map(|q| q.iter().map(|&i| c(i)).collect())
+        .collect()
+}
+
+/// `poly` clipped by the half-space `n·x ≤ d`, the cut capped.
+pub fn nt_clip(poly: &NtPoly, (n, d): NtPlane) -> NtPoly {
+    let mut out: NtPoly = Vec::new();
+    let mut cap: Vec<V3> = Vec::new();
+    for f in poly {
+        let mut g = Vec::new();
+        for i in 0..f.len() {
+            let (p, q) = (f[i], f[(i + 1) % f.len()]);
+            let (sp, sq) = (dot3(n, p) - d, dot3(n, q) - d);
+            if sp <= 0.0 {
+                g.push(p);
+            }
+            if (sp < 0.0 && sq > 0.0) || (sp > 0.0 && sq < 0.0) {
+                let t = sp / (sp - sq);
+                let x = add3(p, scale3(sub3(q, p), t));
+                g.push(x);
+                cap.push(x);
+            }
+            if sp == 0.0 {
+                cap.push(p);
+            }
+        }
+        if g.len() >= 3 {
+            out.push(g);
+        }
+    }
+    if cap.len() >= 3 {
+        let c = scale3(
+            cap.iter().fold([0.0; 3], |a, &b| add3(a, b)),
+            1.0 / cap.len() as f64,
+        );
+        let (e1, e2) = nt_basis(unit3(n));
+        let mut pts: Vec<(f64, V3)> = cap
+            .iter()
+            .map(|&p| {
+                let r = sub3(p, c);
+                (dot3(r, e2).atan2(dot3(r, e1)), p)
+            })
+            .collect();
+        pts.sort_by(|a, b| a.0.total_cmp(&b.0));
+        pts.dedup_by(|a, b| dot3(sub3(a.1, b.1), sub3(a.1, b.1)) < 1e-24);
+        out.push(pts.into_iter().map(|p| p.1).collect());
+    }
+    out
+}
+
+/// The polytope's volume, its divergence sum taken about one of its own
+/// vertices: about the world origin, a sliver's volume drowns in its
+/// faces' rounding.
+pub fn nt_poly_volume(poly: &NtPoly) -> f64 {
+    let Some(&o) = poly.first().and_then(|f| f.first()) else {
+        return 0.0;
+    };
+    poly.iter()
+        .map(|f| {
+            (1..f.len() - 1)
+                .map(|i| dot3(sub3(f[0], o), cross3(sub3(f[i], o), sub3(f[i + 1], o))))
+                .sum::<f64>()
+        })
+        .sum::<f64>()
+        / 6.0
 }

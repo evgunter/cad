@@ -40,6 +40,8 @@ use super::sectors::{BoolSector, Flank, PairRecord, Reach, crossing_flank, side_
 use super::tables::{eq15_3_lump, kept_copy, resolve_verdict, table_ii};
 use super::{BooleanError, BooleanOp, Coincide, DeclarationRead, Operand, SideCode};
 use crate::body::Body;
+use crate::entity::EntityId;
+use crate::live::{Proven, proven};
 use crate::validate::decide;
 use geom_core::k_stats::NonzeroSign;
 
@@ -72,8 +74,9 @@ fn carrier_of<T: Decide>(
 /// the operation glued (a verified `Rest` or continuation declaration,
 /// or a pair the glue door decided one carrier and declared) reads as
 /// the declaration door read it at rest, over both faces; any other
-/// pair at the corner's arm, where a coincidence decided Zero is one
-/// the door did not glue and refuses ([`super::unglued_coincidence`]).
+/// pair over the sectors `on` names about the corner, where a
+/// coincidence decided Zero is one the door did not glue and refuses
+/// ([`super::unglued_coincidence`]).
 ///
 /// C8: a CURVED sector pair descends the ladder only as a glued pair —
 /// an unglued on-carrier curved pair keeps the typed frontier refusal.
@@ -86,6 +89,7 @@ pub(super) fn require_same<T: Decide>(
     o2: super::Operand,
     s2: &BoolSector<T>,
     declared: &super::DeclaredPairs<T>,
+    on: ReadOn,
     arm: T,
     band: Band,
 ) -> Result<PlaneRelation, BooleanError> {
@@ -132,17 +136,25 @@ pub(super) fn require_same<T: Decide>(
         declared: declared_one_carrier,
     };
     // A glued pair reads as the door read it at rest, over both faces;
-    // any other at the corner's arm.
+    // any other over the region `on` read it coplanar on, about the
+    // corner.
+    let reach = match on {
+        ReadOn::Faces => arm,
+        ReadOn::FirstBounds => s1.span(),
+    };
     let extent = if declared_one_carrier {
         declared.consumed(o1, s1.face, o2, s2.face)?
     } else {
         super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(
-            geom_core::Point3::origin(),
-            arm,
+            corner_of(body1, s1),
+            reach,
         ))
     };
     let pair = (o1, s1.face, o2, s2.face);
     match super::carrier_eq::carrier_eq_reading(&c1, &c2, id, &extent, band) {
+        Ok((PlaneRelation::Distinct, ..)) if !declared_one_carrier && on == ReadOn::FirstBounds => {
+            Err(unglued_tilt(&c1, &c2, s1, reach, declared, pair, band))
+        }
         Ok((PlaneRelation::Distinct, ..)) => Err(BooleanError::ClassificationInvariant {
             what: "geometrically-ON sector pair with definitely-distinct carriers",
         }),
@@ -185,6 +197,88 @@ pub(super) fn require_same<T: Decide>(
             )?,
             diag,
         )),
+    }
+}
+
+/// What read a [`require_same`] pair coplanar: the region its
+/// coincidence speaks for, which the unglued pair's ladder reads over.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ReadOn {
+    /// `pair_search` read the two faces parallel levered at the pair's
+    /// arm (an all-On record): the ball of that radius about the corner.
+    /// The ladder's parallel rung reads that same margin, so a
+    /// `Distinct` is the corner's standing off two planes it lies on.
+    Faces,
+    /// The first sector's bounds, each On the second's plane at its own
+    /// reach (a flanker's, or a wedge representative's): that sector,
+    /// out to its farther bound.
+    FirstBounds,
+}
+
+/// An unglued pair whose first sector's bounds read On the second's
+/// plane and whose carriers the plane ladder read apart over that
+/// sector's reach. Read at that reach, the two normals' tilt decided off
+/// is a thin sector tilted about a bound: its bounds lie on the other's
+/// plane to within the band and its plane does not, so the pair is
+/// undecided at this tolerance on the bounds' own margin, which a
+/// smaller tolerance reads off the plane (as `vtxfac`'s coplanar lump
+/// refuses its twin). The offset, read at the corner, is the corner's
+/// standing off two planes it lies on.
+fn unglued_tilt<T: Decide>(
+    c1: &CarrierDesc<T>,
+    c2: &CarrierDesc<T>,
+    s1: &BoolSector<T>,
+    reach: T,
+    declared: &super::DeclaredPairs<T>,
+    (o1, f1, o2, f2): (
+        Operand,
+        crate::entity::FaceKey,
+        Operand,
+        crate::entity::FaceKey,
+    ),
+    band: Band,
+) -> BooleanError {
+    let defect = BooleanError::ClassificationInvariant {
+        what: "geometrically-ON sector pair with definitely-distinct carriers",
+    };
+    let (CarrierDesc::Plane { normal: n1, .. }, CarrierDesc::Plane { normal: n2, .. }) = (c1, c2)
+    else {
+        return defect;
+    };
+    let tilted = decide(
+        "bool_plane_parallel",
+        Margin::levered(n1.cross(*n2).norm(), reach),
+        band,
+    );
+    if !matches!(tilted, Ok(Sign::Positive)) {
+        return defect;
+    }
+    let steeper = s1
+        .start_reach
+        .departure(s1.start, *n2)
+        .abs()
+        .max(s1.end_reach.departure(s1.end, *n2).abs());
+    match crate::validate::decide_nonzero("bool_sector_coplanar", Margin::of(steeper), band) {
+        Err(diag) => BooleanError::coincidence(
+            Coincide::Sectors,
+            declared.read(&[(o1, f1, o2, f2)], Coincide::Sectors, &[]),
+            diag,
+        ),
+        Ok(_) => BooleanError::ClassificationInvariant {
+            what: "a sector bound read On departs definitely from the other's plane",
+        },
+    }
+}
+
+/// The point of the vertex a sector of `body` stands at: a line
+/// bound's base, or else its orbit half-edge's start.
+fn corner_of<T: Decide>(body: &Body<T>, s: &BoolSector<T>) -> geom_core::Point3<T> {
+    match (s.start_reach, s.end_reach) {
+        (Reach::Chord { base, .. }, _) | (_, Reach::Chord { base, .. }) => base,
+        _ => body.resolve_vertex_point(
+            proven(&body.half_edges, s.he, EntityId::HalfEdge).start,
+            Proven,
+        ),
     }
 }
 
@@ -330,6 +424,7 @@ pub(super) fn recl_sectors<T: Decide>(
             super::Operand::B,
             sb,
             declared,
+            ReadOn::Faces,
             arm,
             band,
         )?;
@@ -1129,8 +1224,16 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                             )?
                         } else {
                             let rel = require_same(
-                                own_body, own_op, own_sec, other_body, other_op, other_sec,
-                                declared, arm, band,
+                                own_body,
+                                own_op,
+                                own_sec,
+                                other_body,
+                                other_op,
+                                other_sec,
+                                declared,
+                                ReadOn::FirstBounds,
+                                arm,
+                                band,
                             )?;
                             eq15_3_lump(op, comparison, rel)
                         };
@@ -1312,6 +1415,7 @@ fn resolve_edge_sector<T: Decide>(
             ref_op,
             ref_sector,
             declared,
+            ReadOn::FirstBounds,
             own_secs[on_flanker].arm.min(ref_sector.arm),
             band,
         )?;
@@ -2099,6 +2203,7 @@ mod tests {
                     Operand::B,
                     &s2,
                     &declared,
+                    ReadOn::Faces,
                     1.0,
                     band,
                 )
