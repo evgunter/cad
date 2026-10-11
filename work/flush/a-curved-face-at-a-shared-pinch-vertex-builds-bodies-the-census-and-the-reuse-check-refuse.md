@@ -6,6 +6,7 @@ status: closed
 opened: 2026-10-07
 closed: 2026-10-11
 branch: flush/curved-pinch-reread
+pr: 4698
 priority: P2
 cost: M
 refs: [4249]
