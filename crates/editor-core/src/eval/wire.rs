@@ -2711,8 +2711,8 @@ struct Member<T: Decide> {
     read: crate::VarId,
     body: Arc<topo::AtRestBody<T>>,
     table: Arc<NameTable>,
-    /// The member's own contact records, which a two-member node's
-    /// declared same-operand pair cites (D1 (ii)).
+    /// The member's own contact records, carried into the fold step
+    /// that joins it (D1 (ii)).
     records: Arc<topo::ContactRecords>,
 }
 
@@ -2736,7 +2736,11 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 ) -> OpResult<T> {
     let a_table = Arc::clone(&value_of(results_a, a)?.name_table);
     let b_table = Arc::clone(&value_of(results_b, b)?.name_table);
-    let inputs = BooleanInputs::default();
+    let inputs = BooleanInputs {
+        given: None,
+        records_a: records_of(value_of(results_a, a)?).carried(),
+        records_b: records_of(value_of(results_b, b)?).carried(),
+    };
     let body_a = finished_operand(results_a, a, tol)?;
     let body_b = finished_operand(results_b, b, tol)?;
     match (verb.build)(BooleanOp::Subtract, inputs)
@@ -3015,12 +3019,22 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // What the end pass reads of every step: each face's member faces
     // and each step's discards.
     let mut fold = names::UnionFold::new(0, &acc_body);
+    // The accumulation's own records in the node's terms: each cites a
+    // fold row (`fold_rows`) or a member's record, by its place in the
+    // member list. Each step carries them in, as it carries the joining
+    // member's.
+    let mut acc_records = Arc::new(first.records.carried_from(0));
+    let mut fold_rows: Vec<crate::coincide::NamedCoincidence> = Vec::new();
     // Each step's fragment groups, in fold order (`FragmentGroups::folded`).
     let mut step_groups = Vec::with_capacity(rest.len());
     for step in 0..rest.len() {
         let member_body = Arc::clone(&members[step + 1].body);
         let member_table = Arc::clone(&views[step + 1]);
-        let mut inputs = BooleanInputs::default();
+        let mut inputs = BooleanInputs {
+            given: None,
+            records_a: acc_records.carried(),
+            records_b: members[step + 1].records.carried(),
+        };
         if pairwise {
             inputs.given = Some(given_verdicts(&verdicts, step + 1, &fold, &acc_body)?);
         }
@@ -3079,29 +3093,71 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     .map_err(NodeErrorKind::Naming)?;
                     links.judged(0, 1, &naming).map_err(NodeErrorKind::Naming)?;
                 }
-                // The last step's records are the node's, and cite that
-                // step's rows: those are published after the pairwise
-                // judgement's, named in the node's own space (#4323: a
-                // fold row is published), and the records renumbered onto
-                // them.
-                let contacts = if pairwise && step + 1 == rest.len() {
+                // The step's records in the node's terms: a row the step
+                // decided is a fold row, named in the node's own space
+                // (#4323: a fold row is published where a record cites
+                // it); an accumulation record stands for what it cited;
+                // the joining member's is that member's.
+                let base = fold_rows.len();
+                let used = contacts.decided();
+                if pairwise {
+                    let cited = used
+                        .iter()
+                        .map(|&k| {
+                            out.coincidences.get(k as usize).copied().ok_or(
+                                NodeErrorKind::Naming(names::NamingError::Emission {
+                                    what: UNION_STEP_UNDECIDED_CITE,
+                                }),
+                            )
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
                     let acc_view =
                         names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
-                    crate::coincide::publish_cited(
-                        &contacts,
-                        &out.coincidences,
-                        &crate::coincide::RowInputs {
-                            a: (own_read, &acc_view),
-                            b: Some((own_read, &member_table)),
-                            tool: None,
-                        },
-                        &mut coincidences,
-                    )
-                    .map_err(NodeErrorKind::Naming)?
-                } else {
-                    contacts
-                };
-                last = Some((kind, Arc::new(contacts)));
+                    fold_rows.extend(
+                        crate::coincide::name_rows(
+                            &cited,
+                            &crate::coincide::RowInputs {
+                                a: (own_read, &acc_view),
+                                b: Some((own_read, &member_table)),
+                                tool: None,
+                            },
+                        )
+                        .map_err(NodeErrorKind::Naming)?,
+                    );
+                }
+                let member = u32::try_from(step + 1).unwrap_or(u32::MAX);
+                let held = Arc::clone(&acc_records);
+                let contacts = contacts
+                    .recited(|b| match b {
+                        topo::Backing::Decided(k) if pairwise => used
+                            .binary_search(&k)
+                            .map(|rank| {
+                                topo::Backing::Decided(
+                                    u32::try_from(base + rank).unwrap_or(u32::MAX),
+                                )
+                            })
+                            .into_iter()
+                            .collect(),
+                        decided @ topo::Backing::Decided(_) => vec![decided],
+                        topo::Backing::Carried { input: 0, record } => held
+                            .rows()
+                            .nth(record as usize)
+                            .map(|(_, cites)| cites.iter().collect())
+                            .unwrap_or_default(),
+                        topo::Backing::Carried { record, .. } => {
+                            vec![topo::Backing::Carried {
+                                input: member,
+                                record,
+                            }]
+                        }
+                    })
+                    .map_err(|_| {
+                        NodeErrorKind::Naming(names::NamingError::Emission {
+                            what: UNION_CARRY_UNCITED,
+                        })
+                    })?;
+                acc_records = Arc::new(contacts);
+                last = Some((kind, Arc::clone(&acc_records)));
                 // Minted under THIS node's id, its two sides keyed by the
                 // fold's own reads, which tell an intermediate row from a
                 // member's own name when the chain is collapsed.
@@ -3146,13 +3202,41 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         names::name_union(id, &acc_body, &acc_table, &member_views, &fold, &links, tol)
             .map_err(NodeErrorKind::Naming)?;
     let body = (*acc_body).clone().into_body();
-    // The LAST step's record is the result's, contacts included. A
-    // contact fed at an earlier step is consumed there and does not
-    // reach the value — the pair verb's carry rule.
+    // The LAST step's records are the result's: every earlier step's
+    // were carried into the step after it.
     let Some((kind, contacts)) = last else {
         return Err(NodeErrorKind::Naming(names::NamingError::Emission {
             what: UNION_NO_STEP,
         }));
+    };
+    // The fold rows the node's records cite are published after the
+    // pairwise judgement's, the records renumbered onto them.
+    let contacts = if pairwise {
+        let used = contacts.decided();
+        let base = coincidences.len();
+        for &k in &used {
+            coincidences.push(fold_rows.get(k as usize).cloned().ok_or(
+                NodeErrorKind::Naming(names::NamingError::Emission {
+                    what: UNION_STEP_UNDECIDED_CITE,
+                }),
+            )?);
+        }
+        Arc::new(
+            (*contacts)
+                .clone()
+                .renumbered(|k| {
+                    used.binary_search(&k)
+                        .ok()
+                        .map(|rank| u32::try_from(base + rank).unwrap_or(u32::MAX))
+                })
+                .map_err(|_| {
+                    NodeErrorKind::Naming(names::NamingError::Emission {
+                        what: UNION_CARRY_UNCITED,
+                    })
+                })?,
+        )
+    } else {
+        contacts
     };
     Ok(OpOut::plain(
         ValuePayload::Boolean(BooleanValue::Body {
@@ -3168,15 +3252,14 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         &published_groups,
     )))
     .with_coincidences(coincidences)
-    // A pair's records may cite its members' own, by read.
-    .citing(if pairwise {
-        Vec::new()
-    } else {
-        vec![
-            crate::coincide::CitedInput::Read(first.read),
-            crate::coincide::CitedInput::Read(members[1].read),
-        ]
-    }))
+    // The records may cite the members' own, each by its place in the
+    // list.
+    .citing(
+        members
+            .iter()
+            .map(|m| crate::coincide::CitedInput::Read(m.read))
+            .collect(),
+    ))
 }
 
 /// **A union or an intersect of one body is that body** (DM4): no
@@ -3199,6 +3282,13 @@ const UNION_FAMILY_INDEXED: &str =
 
 /// A union or an intersect the document defines no output for.
 const UNION_NO_OUTPUT: &str = "a union or an intersect defines no output variable";
+
+/// A union fold step's record cites a row the step did not decide.
+const UNION_STEP_UNDECIDED_CITE: &str = "a union fold step's record cites a row it did not decide";
+
+/// A union fold step's record cites nothing once carried into the
+/// node's terms.
+const UNION_CARRY_UNCITED: &str = "a union fold step's record cites nothing in the node's terms";
 
 /// A union's or an intersect's fold of two members or more ran no step.
 const UNION_NO_STEP: &str = "a union fold of two members or more ran no step";

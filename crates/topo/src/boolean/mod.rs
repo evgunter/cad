@@ -770,6 +770,30 @@ impl ContactRecords {
         Ok(self)
     }
 
+    /// These records with every citation mapped through `f`, each to
+    /// the citations it stands for.
+    ///
+    /// # Errors
+    ///
+    /// The index in [`Self::rows`] of the first record whose citations
+    /// all mapped to none.
+    pub fn recited(mut self, mut f: impl FnMut(Backing) -> Vec<Backing>) -> Result<Self, usize> {
+        let mapped = self
+            .cites()
+            .enumerate()
+            .map(|(k, cites)| {
+                cites
+                    .try_map(|b| Ok::<_, core::convert::Infallible>(f(b)))
+                    .unwrap_or_else(|never| match never {})
+                    .ok_or(k)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        for (cites, new) in self.cites_mut().zip(mapped) {
+            *cites = new;
+        }
+        Ok(self)
+    }
+
     /// Every record as its cell pair and its citations, in list order
     /// ([`Self::cites`]).
     pub fn rows(&self) -> impl Iterator<Item = ((Cell, Cell), &Cites)> + '_ {
@@ -4639,7 +4663,10 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
 ) -> Result<BooleanReduction<T>, BooleanError> {
     let band = Band::linear(tol)?;
     validate_declarations(a_operand, b_operand, decls)?;
-    let mut verified = verify_declared_contacts(a_operand, b_operand, decls, band)?;
+    let mut verified = match decls.verdicts {
+        Verdicts::Decided => verify_declared_contacts(a_operand, b_operand, decls, band)?,
+        Verdicts::Given => given_verdicts(a_operand, b_operand, decls)?,
+    };
     verified
         .coincidences
         .extend(glue::coaxial_rows(a_operand, b_operand, decls, band)?);
@@ -5237,6 +5264,46 @@ fn verify_declared_contacts<T: Decide>(
                     .coincidences
                     .push(tangent_row(fa, fb, Tangency::Seam, margin));
                 verified.seam.insert((fa, fb), kinds);
+            }
+        }
+    }
+    Ok(verified)
+}
+
+/// **The given pairs as verified, with nothing measured** (DM4: a
+/// union's fold step decides no carrier pair again, so a piece is never
+/// judged at its own extent). Each pair enters the set its class names;
+/// the step records no row of its own for it, since the pair's row is
+/// the pairwise judgement's.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] where a given face has no
+/// surface.
+fn given_verdicts<T: Decide>(
+    a: &Body<T>,
+    b: &Body<T>,
+    decls: &Glue,
+) -> Result<VerifiedGlue, BooleanError> {
+    let kind = |body: &Body<T>, f| {
+        body.get_face(f)
+            .and_then(|face| body.get_surface(face.surface))
+            .map(geom::Surface::kind)
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "a given pair's face has no surface",
+            })
+    };
+    let mut verified = VerifiedGlue::default();
+    for &GluedPair { a: fa, b: fb, class } in &decls.pairs {
+        match class {
+            GlueClass::Contact(ContactClass::Tangent) => {
+                verified.tangent.insert((fa, fb));
+            }
+            GlueClass::Contact(ContactClass::Rest) | GlueClass::Continuation => {
+                verified.one_carrier.insert((fa, fb));
+            }
+            GlueClass::Seam => {
+                verified.seam.insert((fa, fb), (kind(a, fa)?, kind(b, fb)?));
             }
         }
     }
