@@ -6,8 +6,7 @@
 //! corners), one that wraps between two boundaries becomes two (one at
 //! each boundary), and a window that does not wrap becomes a ring, as
 //! on a plane. What the readers cannot yet read about a ringed curved window
-//! refuses where they read it — the mesh, or tier 3's check 7 — and not
-//! in the shell op. Each built row is checked against its closed form.
+//! refuses where they read it — the mesh — and not in the shell op. Each built row is checked against its closed form.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -208,27 +207,28 @@ fn a_d_section_window_opens_to_a_ring_and_the_mesh_refuses_it() {
     );
 }
 
-/// **A window on a sphere refuses at tier 3's check 7**, which has no
-/// volume reading for a ringed sphere face. The shell op builds it and
-/// discards it at its own closing validation, as the boolean does.
+/// **A window on a sphere opens to a ring and passes tier 3.** The
+/// sector's sphere face does not wrap, so the cavity's counterpart is
+/// glued on as a ring, and the sphere arm measures a face over every
+/// loop. The shelled body is valid, its designated face carries the
+/// one ring, and its volume is positive and less than the operand's.
 #[test]
-fn a_sphere_window_refuses_at_check_7() {
+fn a_sphere_window_opens_to_a_ring_and_passes_tier_3() {
+    let tol = Tol::witness();
     let body = dome_sector(1.0, 120.0);
     let zone = faces_on(&body, geom::SurfaceKind::Sphere);
     assert_eq!(zone.len(), 1, "the sector's sphere face is one window");
-    match open(&body, &zone, 0.05) {
-        Err(ShellError::NotValid { errors }) => assert!(
-            matches!(
-                errors[..],
-                [topo::ValidationError::VolumeUncomputable {
-                    source: topo::MassPropsError::RingOnCurvedFace { face },
-                    ..
-                }] if face == zone[0]
-            ),
-            "got {errors:?}"
-        ),
-        other => panic!("expected check 7's refusal, got {other:?}"),
-    }
+    let shelled = open(&body, &zone, 0.05).expect("the window opens");
+    let cut = &shelled.body;
+    assert_eq!(topo::validate_geometric(cut, tol), Ok(()), "tier 3");
+    let rim = cut.get_face(zone[0]).expect("the designated face survives");
+    assert_eq!(rim.rings, vec![shelled.naming.rims[0].ring], "one ring");
+    let before = topo::mass_properties(&body, tol).unwrap().volume;
+    let after = topo::mass_properties(cut, tol).unwrap().volume;
+    assert!(
+        0.0 < after && after < before,
+        "the shell removes material: {after} of {before}"
+    );
 }
 
 /// The vertex of `body` at `(rho, y)` in the meridian half-plane
@@ -531,7 +531,7 @@ fn a_whole_side_wall_disconnects_the_caps() {
 /// `u = 0` into two faces on one chart: a window of two faces that does
 /// not wrap. Built through the public Euler doors, then minted and
 /// finished.
-fn split_d_section(r: f64, h: f64) -> Body<f64> {
+pub(crate) fn split_d_section(r: f64, h: f64) -> Body<f64> {
     let tol = Tol::witness();
     let mut body = d_section(r, h);
     let wall = faces_on(&body, geom::SurfaceKind::Cylinder)[0];

@@ -364,10 +364,6 @@ pub struct ChecksConfig {
     /// per-run choice and never a document's: turning it off removes
     /// reports, never changes a body (DS3).
     pub unproven_coincidence: Advisory,
-    /// How hard that check's door tries to prove a row
-    /// ([`crate::coincide::SymbolicPass`]): the resident budget by
-    /// default, the full one on request.
-    pub symbolic_pass: crate::coincide::SymbolicPass,
 }
 
 impl Default for ChecksConfig {
@@ -378,7 +374,6 @@ impl Default for ChecksConfig {
             separation: Advisory::Warn,
             chart_coherence: Advisory::Off,
             unproven_coincidence: Advisory::Warn,
-            symbolic_pass: crate::coincide::SymbolicPass::Resident,
         }
     }
 }
@@ -809,10 +804,18 @@ pub struct ChecksReport {
     /// findings by root-list position then output index, residents in
     /// registry order. NOT one global sort — root 5's connectedness
     /// finding precedes root 1's separation finding, because each
-    /// resident appends its own pass in sequence.
+    /// resident appends its own pass in sequence, and the coincidence
+    /// door's are settled into the place its pass holds
+    /// ([`ChecksReport::settle`]).
     pub findings: Vec<CheckFinding>,
     /// Checks that did not run because their severity is `Off`.
     pub skipped: Vec<CheckId>,
+    /// **Checks whose answer a job at rest still owes** ([`DoorJob`]):
+    /// a state of the report, not a finding. Only
+    /// [`run_checks_at_rest_on`] leaves one here, until its job's
+    /// findings are settled in ([`ChecksReport::settle`]); a
+    /// synchronous run's report has none.
+    pub pending: Vec<CheckId>,
 }
 
 impl crate::spoken::Say for ChecksReport {
@@ -829,6 +832,12 @@ impl crate::spoken::Say for ChecksReport {
                 write!(f, " {check}")?;
             }
         }
+        if !self.pending.is_empty() {
+            write!(f, "\nchecks pending (running at rest):")?;
+            for check in &self.pending {
+                write!(f, " {check}")?;
+            }
+        }
         Ok(())
     }
 }
@@ -841,6 +850,28 @@ impl fmt::Display for ChecksReport {
 }
 
 impl ChecksReport {
+    /// **Settles a job's findings into the report it was split from**:
+    /// they take the place in [`ChecksReport::findings`] the
+    /// synchronous run gives them, and the check is no longer pending.
+    ///
+    /// # Panics
+    ///
+    /// When `door` is not the answer to a job this report is pending
+    /// on: another document's, or a report that pends on no door.
+    pub fn settle(&mut self, door: DoorFindings) {
+        assert_eq!(
+            door.document, self.document,
+            "a door job's findings settle only into its own document's report"
+        );
+        let before = self.pending.len();
+        self.pending.retain(|c| *c != CheckId::UnprovenCoincidence);
+        assert!(
+            self.pending.len() < before,
+            "the report is not pending on the coincidence door"
+        );
+        self.findings.splice(door.at..door.at, door.findings);
+    }
+
     /// **The speaker for this report's roots**: each as `doc` holds it
     /// now. A frame that draws the findings one at a time says each
     /// through it ([`crate::spoken::Said`]).
@@ -1216,6 +1247,39 @@ pub fn run_checks_on<
     cfg: &ChecksConfig,
     tol: Tol,
 ) -> Result<ChecksReport, ChecksError> {
+    let (mut report, door) = run_checks_at_rest_on(doc, ev, subject, cfg, tol)?;
+    if let Some(job) = door {
+        let Ok(findings) = job.run(doc, &crate::CancelToken::new()) else {
+            unreachable!("a token no one else holds is never canceled")
+        };
+        report.settle(findings);
+    }
+    Ok(report)
+}
+
+/// **The registry with the coincidence door left to run at rest**:
+/// what [`run_checks_on`] answers, except that the
+/// `unproven-coincidence` check is [`ChecksReport::pending`] and its
+/// door is handed back as a [`DoorJob`] for the caller to run off its
+/// draw path. [`run_checks_on`] is this with the job run at once. A
+/// frame that redraws on every edit takes this one: the door's replay
+/// costs seconds on a filleted document, and the next edit cancels the
+/// job ([`DoorJob::run`]). Where no row asks for the door, there is no
+/// job and nothing is pending.
+///
+/// # Errors
+///
+/// As [`run_checks_on`].
+pub fn run_checks_at_rest_on<
+    P: crate::ProfilePayload,
+    T: Decide + AtRestPolicy + CertifiedBounds + ChartCoherenceLane,
+>(
+    doc: &Doc<P>,
+    ev: &Evaluation<T>,
+    subject: Subject<'_, T>,
+    cfg: &ChecksConfig,
+    tol: Tol,
+) -> Result<(ChecksReport, Option<DoorJob>), ChecksError> {
     let pairing = |found| crate::ident::mispaired(doc.id(), found).map(ChecksError::from);
     if let Some(refusal) = pairing(ev.document) {
         return Err(refusal);
@@ -1229,6 +1293,7 @@ pub fn run_checks_on<
         document: doc.id(),
         findings: Vec::new(),
         skipped: Vec::new(),
+        pending: Vec::new(),
     };
     if cfg.severity(CheckId::Connectedness) == Severity::Off {
         report.skipped.push(CheckId::Connectedness);
@@ -1240,6 +1305,7 @@ pub fn run_checks_on<
     } else {
         chart_coherence(doc, ev, tol, &mut report)?;
     }
+    let mut door = None;
     if cfg.severity(CheckId::UnprovenCoincidence) == Severity::Off {
         report.skipped.push(CheckId::UnprovenCoincidence);
     } else if let Subject::Unavailable { refusal } = &subject
@@ -1252,7 +1318,16 @@ pub fn run_checks_on<
             refusal: refusal.clone(),
         });
     } else {
-        unproven_coincidence(doc, ev, &subject, tol, cfg.symbolic_pass, &mut report);
+        let rows = door_rows(ev, &subject);
+        if !rows.is_empty() {
+            report.pending.push(CheckId::UnprovenCoincidence);
+            door = Some(DoorJob {
+                document: doc.id(),
+                rows,
+                tol,
+                at: report.findings.len(),
+            });
+        }
     }
     if cfg.severity(CheckId::Separation) == Severity::Off {
         report.skipped.push(CheckId::Separation);
@@ -1266,8 +1341,60 @@ pub fn run_checks_on<
     } else {
         separation(&subject, tol, &mut report);
     }
-    Ok(report)
+    Ok((report, door))
 }
+
+/// **The coincidence door, split off a report to run at rest**
+/// ([`run_checks_at_rest_on`]): the rows it owes an answer about, named
+/// in the document the report was taken of.
+#[derive(Clone, Debug)]
+pub struct DoorJob {
+    document: crate::DocumentId,
+    rows: Vec<DoorRows>,
+    tol: Tol,
+    /// Where its findings go among the report's.
+    at: usize,
+}
+
+impl DoorJob {
+    /// **Runs the door** over the job's rows in `doc`: the findings to
+    /// settle into the report it was split from
+    /// ([`ChecksReport::settle`]).
+    ///
+    /// # Errors
+    ///
+    /// [`crate::coincide::Canceled`] once `cancel` is canceled: the
+    /// replay checks it between nodes, and the door between the margins
+    /// it discharges.
+    ///
+    /// # Panics
+    ///
+    /// When `doc` is not the document the report was taken of.
+    pub fn run<P: crate::ProfilePayload>(
+        &self,
+        doc: &Doc<P>,
+        cancel: &crate::CancelToken,
+    ) -> Result<DoorFindings, crate::coincide::Canceled> {
+        crate::spoken::assert_taken_of("this door job", self.document, doc);
+        Ok(DoorFindings {
+            document: self.document,
+            at: self.at,
+            findings: door_findings(doc, &self.rows, self.tol, cancel)?,
+        })
+    }
+}
+
+/// **A [`DoorJob`]'s answer**, to settle into its report
+/// ([`ChecksReport::settle`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct DoorFindings {
+    document: crate::DocumentId,
+    at: usize,
+    findings: Vec<CheckFinding>,
+}
+
+/// One deciding node and its rows, in decision order.
+type DoorRows = (RecipeNodeId, Vec<crate::coincide::NamedCoincidence>);
 
 /// Whether `doc` holds a mate: a node whose pair the at-rest census
 /// decides on the gathered product, as the mint walks them.
@@ -1277,41 +1404,45 @@ fn holds_a_mate<P>(doc: &Doc<P>) -> bool {
         .any(|id| matches!(doc.node(id), Some(crate::Node::Mate { .. })))
 }
 
-/// The `unproven-coincidence` resident's pass (D10): every evaluated
-/// node's rows, in evaluation order then decision order, then the
-/// at-rest census's rows on the gathered product, in mint order; each
-/// the door leaves unproven a finding attributed to the node that
-/// decided it, or to the mate whose pair the census decided.
-fn unproven_coincidence<P: crate::ProfilePayload, T: Decide>(
-    doc: &Doc<P>,
-    ev: &Evaluation<T>,
-    subject: &Subject<'_, T>,
-    tol: Tol,
-    pass: crate::coincide::SymbolicPass,
-    report: &mut ChecksReport,
-) {
+/// **The rows the `unproven-coincidence` resident asks the door
+/// about** (D10): every evaluated node's rows, in evaluation order then
+/// decision order, then the at-rest census's rows on the gathered
+/// product, in mint order, each under the mate whose pair the census
+/// decided.
+fn door_rows<T: Decide>(ev: &Evaluation<T>, subject: &Subject<'_, T>) -> Vec<DoorRows> {
     let at_rest = match subject {
         Subject::Product(gathered) => gathered.coincidences.as_slice(),
         Subject::EmptyProduct | Subject::Unavailable { .. } => &[],
     };
-    let nodes: Vec<(RecipeNodeId, &[crate::coincide::NamedCoincidence])> = ev
-        .order
+    ev.order
         .iter()
-        .filter_map(|&node| ev.value(node).map(|value| (node, &*value.coincidences)))
+        .filter_map(|&node| {
+            ev.value(node)
+                .map(|value| (node, value.coincidences.to_vec()))
+        })
         .filter(|(_, rows)| !rows.is_empty())
-        .chain(
-            at_rest
-                .iter()
-                .map(|r| (r.mate, core::slice::from_ref(&r.row))),
-        )
-        .collect();
-    let proofs = crate::coincide::prove(doc, &nodes, tol, pass);
-    let rows = nodes
+        .chain(at_rest.iter().map(|r| (r.mate, vec![r.row.clone()])))
+        .collect()
+}
+
+/// The `unproven-coincidence` resident's findings: each row the door
+/// leaves unproven, attributed to the node that decided it.
+fn door_findings<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    rows: &[DoorRows],
+    tol: Tol,
+    cancel: &crate::CancelToken,
+) -> Result<Vec<CheckFinding>, crate::coincide::Canceled> {
+    let nodes: Vec<(RecipeNodeId, &[crate::coincide::NamedCoincidence])> =
+        rows.iter().map(|(node, rows)| (*node, &rows[..])).collect();
+    let proofs = crate::coincide::prove(doc, &nodes, tol, cancel)?;
+    let rows = rows
         .iter()
-        .flat_map(|&(node, rows)| rows.iter().map(move |row| (node, row)));
-    for ((node, row), proof) in rows.zip(proofs.into_iter().flatten()) {
-        if let crate::coincide::Proof::Unproven { residual, recourse } = proof {
-            report.findings.push(CheckFinding {
+        .flat_map(|(node, rows)| rows.iter().map(move |row| (*node, row)));
+    Ok(rows
+        .zip(proofs.into_iter().flatten())
+        .filter_map(|((node, row), proof)| match proof {
+            crate::coincide::Proof::Unproven { residual, recourse } => Some(CheckFinding {
                 check: CheckId::UnprovenCoincidence,
                 subject: FindingSubject::Node(node),
                 evidence: CheckEvidence::UnprovenCoincidence {
@@ -1319,9 +1450,10 @@ fn unproven_coincidence<P: crate::ProfilePayload, T: Decide>(
                     residual: Box::new(residual),
                     recourse,
                 },
-            });
-        }
-    }
+            }),
+            crate::coincide::Proof::Structural(_) => None,
+        })
+        .collect())
 }
 
 /// The connectedness resident's own pass (I1(0b)) — [`run_checks`]'s
@@ -1648,7 +1780,7 @@ fn declared_pairs<T: Decide>(
 /// pair, and this door hands the whole pair on rather than dropping
 /// half of it. Splitting them again downstream re-opens the failure
 /// this signature closes: a subject that IS a declared boolean result
-/// reporting its own certified seam as an UNDECLARED contact under the
+/// reporting its own certified seam as an UNRECORDED contact under the
 /// tier-3′ gate, while the identical body read through its value
 /// passes. (That direction fails loud, never silently — an absent
 /// record set can only make the gate refuse — but a loud wrong answer
@@ -1704,6 +1836,45 @@ pub fn enforce_checks(report: &ChecksReport, cfg: &ChecksConfig) -> Result<(), C
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{CheckEvidence, RecipeNodeId, Subject};
+
+    /// A stand-in finding, told apart by its count.
+    fn finding(check: super::CheckId, expected: u32) -> super::CheckFinding {
+        super::CheckFinding {
+            check,
+            subject: super::FindingSubject::Node(RecipeNodeId::new(0, 7)),
+            evidence: CheckEvidence::StaleExpectation { expected },
+        }
+    }
+
+    /// INVARIANT: a door job's findings settle where the synchronous
+    /// run puts them, after the residents before the door and before
+    /// those after it, and the check stops pending. Reds if `settle`
+    /// appends rather than splices.
+    #[test]
+    fn a_door_job_settles_its_findings_in_the_doors_place() {
+        use super::CheckId::{Connectedness, Separation, UnprovenCoincidence};
+        let document = crate::DocumentId(1);
+        let mut report = super::ChecksReport {
+            document,
+            findings: vec![finding(Connectedness, 1), finding(Separation, 3)],
+            skipped: Vec::new(),
+            pending: vec![UnprovenCoincidence],
+        };
+        report.settle(super::DoorFindings {
+            document,
+            at: 1,
+            findings: vec![finding(UnprovenCoincidence, 2)],
+        });
+        assert!(report.pending.is_empty());
+        assert_eq!(
+            report.findings,
+            [
+                finding(Connectedness, 1),
+                finding(UnprovenCoincidence, 2),
+                finding(Separation, 3)
+            ]
+        );
+    }
 
     /// The variant name `Debug` opens with.
     fn variant_of(debug: &str) -> String {

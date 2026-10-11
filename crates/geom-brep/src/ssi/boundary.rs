@@ -864,7 +864,7 @@ impl Pass<'_> {
                 let in_start = starts.contains(&corner);
                 // Inside a region's cell the root is the region's; in a
                 // cell the plane is certified clear of, it is none.
-                if regions.iter().chain(&clear).any(|c| holds(*c, point)) {
+                if regions.iter().chain(&clear).any(|c| c.holds(point)) {
                     continue;
                 }
                 if !in_start {
@@ -883,7 +883,7 @@ impl Pass<'_> {
                 // A region's cell holds its zero set only within the
                 // cover, so a root in the cell is the region's, wherever
                 // its settling put it.
-                if regions.iter().any(|r| holds(*r, point)) {
+                if regions.iter().any(|r| r.holds(point)) {
                     continue;
                 }
                 // One crossing per corner a branch starts at: its two
@@ -909,15 +909,46 @@ impl Pass<'_> {
 /// The curve along `side` of `wall`'s domain: a row of a clamped wall's
 /// net, verbatim. Every `KnotVector` is clamped by construction, so no
 /// extraction beyond the copy is needed.
-pub(crate) fn side_row<T: CertifiedBounds>(
-    wall: &geom::NurbsSurface<T>,
+pub(crate) fn side_row(
+    wall: &geom::NurbsSurface<f64>,
     side: ChartSide,
-) -> Result<geom::NurbsCurve3<T>, geom_core::spline::SplineError> {
+) -> Result<geom::NurbsCurve3<f64>, geom_core::spline::SplineError> {
     let high = side.end == ChartEnd::High;
     match side.fixed {
         ChartAxis::U => boundary_iso_u(wall, high),
         ChartAxis::V => boundary_iso_v(wall, high),
     }
+}
+
+/// [`side_row`]'s row as its parts, for a reader that takes the net and
+/// the structure rather than a curve: the knot vector along the side,
+/// the row's control points, and its weights' value channel.
+pub(crate) fn side_row_parts<T: CertifiedBounds>(
+    wall: &geom::NurbsSurface<T>,
+    side: ChartSide,
+) -> (
+    geom_core::spline::KnotVector,
+    Vec<geom_core::Point3<T>>,
+    Vec<f64>,
+) {
+    let (nu, nv) = wall.control_counts();
+    let high = side.end == ChartEnd::High;
+    let (knots, indices): (_, Vec<usize>) = match side.fixed {
+        ChartAxis::U => {
+            let base = if high { (nu - 1) * nv } else { 0 };
+            (wall.knots_v().clone(), (base..base + nv).collect())
+        }
+        ChartAxis::V => {
+            let offset = if high { nv - 1 } else { 0 };
+            (
+                wall.knots_u().clone(),
+                (0..nu).map(|iu| iu * nv + offset).collect(),
+            )
+        }
+    };
+    let control = indices.iter().map(|&i| wall.control()[i]).collect();
+    let channel = indices.iter().map(|&i| wall.weight_channel()[i]).collect();
+    (knots, control, channel)
 }
 
 /// **Whether a side is clear of the plane** (the exact empty answer, Ev's
@@ -1228,11 +1259,6 @@ fn strip_reach<T: CertifiedBounds>(
         }
     }
     best
-}
-
-/// Whether a chart point lies in a rectangle.
-fn holds(r: UvRect, (u, v): (f64, f64)) -> bool {
-    u >= r.u.0 && u <= r.u.1 && v >= r.v.0 && v <= r.v.1
 }
 
 /// The graze refusal at `side` where the slope along it is not

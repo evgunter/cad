@@ -32,3 +32,22 @@ Owed: root-cause both against 4553's change. If a digest moved for a
 stated reason, re-baseline it and say what moved. If the bits now
 differ because the two sides compute the knots differently, make them
 compute them the same way.
+
+The serial-golden row's `Sym` lines also move under PR 4662
+(nurbs-weights-and-knots-are-the-scalar u2): the `validate_geometric`
+rows' `frozen` column is +2 (`sym_arc_loft`) and +1 (`sym_thin_strip`)
+against main, because the carriers' knots and weights are held as nodes,
+with decisions, discharges, shapes and verdicts unchanged and the `f64`
+lines byte-identical to main's red output. Re-cut that golden on a tree
+that carries PR 4662.
+
+PR 4708 (`nurbs-weights-and-knots-are-the-scalar` u4) moves the
+serial-golden row's `Sym` lines again, against its merge base
+`fe323f24d0` (whose own lines had already moved under main's
+`from_computed` loft lift, 9618d84fd8). `sym_arc_loft validate_geometric`
+goes from `sz=28 num=624 frozen=3706` to `sz=40 num=612 frozen=3732`, and
+`sym_thin_strip validate_geometric` from `sz=24 num=636 frozen=3430` to
+`sz=36 num=624 frozen=2792`. Twelve more decisions per row discharge as
+theorems, because topo now reads the carriers' held domain ends.
+Decisions, shapes and verdicts are unchanged, and the `f64` lines are
+byte-identical. Re-cut the golden on a tree that carries PR 4708.

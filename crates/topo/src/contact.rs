@@ -6,7 +6,7 @@
 //! because three consumers must speak the same words and no two of
 //! them can depend on each other:
 //!
-//! - the boolean's `UndeclaredContact`/`ContactContradicted` refusals
+//! - the boolean's `UnrecordedContact`/`ContactContradicted` refusals
 //!   carry the class the detector produced (SELECT-DESIGN §3d, "one
 //!   vocabulary end-to-end") and `topo` cannot depend on `editor-core`;
 //! - the recipe layer's flush detector mints findings in it;
@@ -99,34 +99,38 @@ impl ContactClass {
     }
 }
 
-/// **What a boolean node may declare about a cross-operand face pair**
-/// (C4's continuation and seam clauses): a contact, a continuation, or
-/// a seam.
-///
-/// The two declaration seats take different types, so each states only
-/// what its consumer can use. A mate, a contact record and the census
-/// speak [`ContactClass`] — the valid inputs to a mate. A boolean node
-/// (`BooleanDeclarations::coincident_faces`, and a boolean's declared
-/// pairs at the recipe layer) speaks this type — the valid inputs to a union,
-/// which are every contact plus the two relations that are not contacts.
+/// **What a boolean glues a cross-operand face pair as** (C4's
+/// continuation and seam clauses): a contact, a continuation, or a
+/// seam — the class its decided relation makes it
+/// ([`crate::Relation::glued_class`]). Public as what a refusal's
+/// read of a glued pair names ([`crate::DeclarationRead`]); nothing
+/// takes it as an input.
 ///
 /// - [`Contact`](Self::Contact) — the pair touches, of that class.
 /// - [`Continuation`](Self::Continuation) — the pair lies on ONE
 ///   carrier with its senses ALIGNED: one surface carried on, whether
-///   the two abut along a boundary curve or overlap on a patch. It is
-///   verified by `Rest`'s carrier rung with the sense bit reversed
-///   (opposed senses contradict it), and a union merges it.
+///   the two abut along a boundary curve or overlap on a patch; a union
+///   merges it.
 /// - [`Seam`](Self::Seam) — the pair lies on DISTINCT carriers tangent
 ///   along a curve with its senses ALIGNED: the two surfaces join G1,
-///   material wedge π. It is verified by `Tangent`'s witness lane along
-///   the locus with the sense bit reversed (opposed senses contradict
-///   it), and the zip mints the smooth seam.
+///   material wedge π, and the zip mints the smooth seam.
 ///
-/// Neither a continuation nor a seam is declarable anywhere but a
-/// boolean node: at rest the pair carries nothing to verify, so no mate
-/// can state one.
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung under [`crate::BooleanError`]; the disposition table
+/// cites this paragraph as its home). It reaches a caller only inside
+/// a refusal's [`crate::DeclarationRead`], which says which glue a
+/// spent or read pair held; a Rust caller can already name and match
+/// it, since `pncad` re-exports `topo` whole. Carrying it would owe the
+/// CUR3 property row `carried_refusal_payloads_are_matchable_through_the_prelude`
+/// a new payload and the Python binding a word, and nothing a caller
+/// can do differs by the class: the recourse is the geometry's.
+///
+/// **The falsifier is a caller who must branch on the glue class a
+/// refusal names.** When one exists, the façade carries the class,
+/// and this paragraph and the disposition row go with it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum BooleanCoincidence {
+pub enum GlueClass {
     /// The pair is in contact, of this class.
     Contact(ContactClass),
     /// The pair is one surface carried on, abutting or overlapping:
@@ -137,43 +141,33 @@ pub enum BooleanCoincidence {
     Seam,
 }
 
-/// [`BooleanCoincidence::ALL`]'s storage: every contact class in
+/// [`GlueClass::ALL`]'s storage: every contact class in
 /// [`ContactClass::ALL`]'s order, then the continuation, then the seam,
 /// built from that list at compile time.
-const COINCIDENCES: [BooleanCoincidence; ContactClass::ALL.len() + 2] = {
-    let mut out = [BooleanCoincidence::Continuation; ContactClass::ALL.len() + 2];
-    out[ContactClass::ALL.len() + 1] = BooleanCoincidence::Seam;
+#[cfg(test)]
+const GLUE_CLASSES: [GlueClass; ContactClass::ALL.len() + 2] = {
+    let mut out = [GlueClass::Continuation; ContactClass::ALL.len() + 2];
+    out[ContactClass::ALL.len() + 1] = GlueClass::Seam;
     let mut i = 0;
     while i < ContactClass::ALL.len() {
-        out[i] = BooleanCoincidence::Contact(ContactClass::ALL[i]);
+        out[i] = GlueClass::Contact(ContactClass::ALL[i]);
         i += 1;
     }
     out
 };
 
-impl BooleanCoincidence {
+impl GlueClass {
+    /// Every class: each contact class in [`ContactClass::ALL`]'s
+    /// order, then the continuation, then the seam.
+    #[cfg(test)]
+    pub(crate) const ALL: &'static [GlueClass] = &GLUE_CLASSES;
+
     /// The conformal contact, `Contact(Rest)`.
     pub const REST: Self = Self::Contact(ContactClass::Rest);
     /// The tangent contact, `Contact(Tangent)`.
     pub const TANGENT: Self = Self::Contact(ContactClass::Tangent);
 
-    /// **Every coincidence this type can name**: each contact class in
-    /// [`ContactClass::ALL`]'s order, then the continuation, then the
-    /// seam. The one
-    /// enumeration, for the reason [`ContactClass::ALL`] gives. DERIVED
-    /// from [`ContactClass::ALL`], so a class added there is a
-    /// coincidence here with nothing to keep by hand.
-    pub const ALL: &'static [BooleanCoincidence] = &COINCIDENCES;
-
-    /// The continuation's content tag: outside the contact classes'
-    /// tag space (`ContactClass::content_tag` counts up from 1), so a
-    /// class added later (`Fit`) can take the next small tag without
-    /// colliding. Tags are process-internal, never persisted.
-    const CONTINUATION_TAG: u64 = 1 << 32;
-    /// The seam's content tag, beside the continuation's.
-    const SEAM_TAG: u64 = (1 << 32) + 1;
-
-    /// The coincidence's name, for messages.
+    /// The class's name, for messages.
     pub fn name(self) -> &'static str {
         match self {
             Self::Contact(class) => class.name(),
@@ -182,19 +176,7 @@ impl BooleanCoincidence {
         }
     }
 
-    /// A stable, distinct content tag ([`ContactClass::content_tag`]'s
-    /// contract). A contact keeps its class's tag, so a declaration
-    /// that was a contact before the continuation existed keys as it
-    /// always did.
-    pub fn content_tag(self) -> u64 {
-        match self {
-            Self::Contact(class) => class.content_tag(),
-            Self::Continuation => Self::CONTINUATION_TAG,
-            Self::Seam => Self::SEAM_TAG,
-        }
-    }
-
-    /// The contact class, when the coincidence is a contact.
+    /// The contact class, when the pair is a contact.
     pub fn contact(self) -> Option<ContactClass> {
         match self {
             Self::Contact(class) => Some(class),
@@ -202,19 +184,19 @@ impl BooleanCoincidence {
         }
     }
 
-    /// Whether the declaration asserts ONE carrier (`Rest` or a
-    /// continuation) — the claim the classification stages' same-carrier
-    /// treatment and the merge stage consume. A `Tangent` or seam
-    /// pair's carriers are distinct by its own verification.
+    /// Whether the class is ONE carrier (`Rest` or a continuation) —
+    /// what the classification stages' same-carrier treatment and the
+    /// merge stage consume. A `Tangent` or seam pair's carriers are
+    /// distinct.
     pub fn is_one_carrier(self) -> bool {
         matches!(self, Self::REST | Self::Continuation)
     }
 
-    /// **The one-carrier coincidence two faces' senses make them**, the
-    /// one place a sense is read as a class: opposed senses are a `Rest`
+    /// **The one-carrier class two faces' senses make them**, the one
+    /// place a sense is read as a class: opposed senses are a `Rest`
     /// contact, aligned senses a continuation (C4). Two distinct
     /// carriers are neither, and name no class.
-    pub fn of_senses(relation: crate::boolean::CarrierRelation) -> Option<Self> {
+    pub(crate) fn of_senses(relation: crate::boolean::CarrierRelation) -> Option<Self> {
         match relation {
             crate::boolean::CarrierRelation::SameOriented => Some(Self::Continuation),
             crate::boolean::CarrierRelation::SameOpposite => Some(Self::REST),
@@ -223,7 +205,7 @@ impl BooleanCoincidence {
     }
 }
 
-impl From<ContactClass> for BooleanCoincidence {
+impl From<ContactClass> for GlueClass {
     fn from(class: ContactClass) -> Self {
         Self::Contact(class)
     }
@@ -498,37 +480,7 @@ mod tests {
     fn class_names_are_the_declaration_spelling() {
         assert_eq!(ContactClass::Rest.name(), "Rest");
         assert_eq!(ContactClass::Tangent.name(), "Tangent");
-        assert_eq!(BooleanCoincidence::Continuation.name(), "Continuation");
-        assert_eq!(BooleanCoincidence::Seam.name(), "Seam");
-    }
-
-    /// A contact keys as its class always did, and the continuation and
-    /// the seam take tags no contact holds.
-    #[test]
-    fn coincidence_tags_extend_the_class_tags_injectively() {
-        for &class in ContactClass::ALL {
-            assert_eq!(
-                BooleanCoincidence::from(class).content_tag(),
-                class.content_tag()
-            );
-        }
-        let mut tags: Vec<u64> = BooleanCoincidence::ALL
-            .iter()
-            .map(|c| c.content_tag())
-            .collect();
-        tags.sort_unstable();
-        tags.dedup();
-        assert_eq!(tags.len(), BooleanCoincidence::ALL.len());
-        assert_eq!(
-            BooleanCoincidence::ALL.len(),
-            ContactClass::ALL.len() + 2,
-            "ALL holds every contact class, the continuation and the seam"
-        );
-        // The non-contact tags sit outside the class tags' space, so
-        // the next class (`Fit`, at the next small tag) cannot collide.
-        for &class in ContactClass::ALL {
-            assert!(class.content_tag() < BooleanCoincidence::CONTINUATION_TAG);
-            assert!(class.content_tag() < BooleanCoincidence::SEAM_TAG);
-        }
+        assert_eq!(GlueClass::Continuation.name(), "Continuation");
+        assert_eq!(GlueClass::Seam.name(), "Seam");
     }
 }

@@ -2,12 +2,13 @@
 id: curve-contact-names-one-face-where-its-witness-edge-lies-in-two
 kind: issue
 title: CurveContact { face_a, face_b, witness } names one face of a solid whose witness is an operand edge lying in two, the face-pair ambiguity JOIN-1 retires from the join's germs
-status: open
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [3790]
 rides_with: at-rest-records-are-unordered-cell-pairs
+closed: 2026-10-11
 ---
 
 

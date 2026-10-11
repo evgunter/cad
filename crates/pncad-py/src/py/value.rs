@@ -411,7 +411,7 @@ impl MassProperties {
 /// kernel's own contract is that 3′ ≡ tier 3 plus the census actually
 /// run, which is the STRICTEST rung of the ladder — so a door that
 /// mints a body without records can only make this gate refuse
-/// (`UndeclaredContact`), never falsely pass.
+/// (`UnrecordedContact`), never falsely pass.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Body {
@@ -563,7 +563,7 @@ impl Body {
     /// certified against THIS body's own declared contacts.
     ///
     /// The census is a diff in both directions. Every coincidence it
-    /// finds must be backed by a declaration (`UndeclaredContact`
+    /// finds must be backed by a declaration (`UnrecordedContact`
     /// otherwise — no scan-to-bless) and every declaration must be
     /// geometrically confirmed (`StaleContactDeclaration` otherwise).
     /// There is no contacts argument because a body already carries
@@ -1344,31 +1344,20 @@ impl Evaluation {
 
     /// **The coincidences `node` decided from values** (D10), in
     /// decision order, each with what the coincidence door decided
-    /// about it, at the resident budget or, with `full_symbolic_pass`,
-    /// the full one. A node with no value raises as [`Self::value`]
-    /// does.
-    #[pyo3(signature = (node, full_symbolic_pass = false))]
-    fn coincidences(
-        &self,
-        py: Python<'_>,
-        node: &NodeId,
-        full_symbolic_pass: bool,
-    ) -> PyResult<Vec<Coincidence>> {
+    /// about it. A node with no value raises as [`Self::value`] does.
+    fn coincidences(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<Coincidence>> {
         self.value(py, node)?;
         let Some(value) = self.inner.value(node.0) else {
             return Ok(Vec::new());
         };
-        let pass = if full_symbolic_pass {
-            d::SymbolicPass::Full
-        } else {
-            d::SymbolicPass::Resident
-        };
-        let proofs = d::coincide::prove(
+        let Ok(proofs) = d::coincide::prove(
             &self.doc,
             &[(node.0, &*value.coincidences)],
             Tol::witness(),
-            pass,
-        );
+            &d::CancelToken::new(),
+        ) else {
+            unreachable!("a token no one else holds is never canceled")
+        };
         value
             .coincidences
             .iter()
@@ -1695,54 +1684,6 @@ impl Evaluation {
         ray: &super::pick::Ray,
     ) -> PyResult<Option<super::pick::PickHit>> {
         super::pick::pick_face(py, self, targets, ray)
-    }
-
-    /// **The cross-body flush candidates between `a`'s and
-    /// `b`'s outputs, as of THIS evaluation** — the detect arm of the
-    /// detect/declare protocol: the verifier run in
-    /// candidate-generation mode, so a
-    /// finding can never disagree with the boolean's own
-    /// verify-at-use.
-    ///
-    /// Findings come back in canonical order and are only ever
-    /// DEFINITE values — inspect them, then hand the inspected
-    /// findings to `Node.union`'s, `Node.intersect`'s or
-    /// `Node.subtract`'s `declare=`, or to `Doc.declare` /
-    /// `Doc.declare_all` on the live node.
-    /// Detection and declaration are separate doors ON PURPOSE (the
-    /// ruled no-fusion boundary).
-    ///
-    /// Raises `SelectRefusal`, typed, exactly where the Rust door
-    /// refuses: either node with no value in this evaluation
-    /// (`reason="node_has_no_value"`, its standing in the message), a
-    /// pair whose verify-door margin is inside the
-    /// ambiguity band (`reason="pair_in_band"` — neither reported nor
-    /// silently dropped), a tied name whose candidates disagree
-    /// (`"tied_disagrees"`), an unreadable name-table entry
-    /// (`"unreadable"`), a matched pair the kernel classifies as
-    /// distinct (`"distinct_finding"`, a kernel defect), and an
-    /// ambient tolerance admitting no band at
-    /// all under the constructor's own word (`reason="empty"` when K·ε
-    /// collapsed back onto ε, `"invalid_value"` when it overflowed).
-    fn find_flush_candidates(
-        &self,
-        py: Python<'_>,
-        a: &NodeId,
-        b: &NodeId,
-    ) -> PyResult<Vec<super::flush::FlushFinding>> {
-        let tol = Tol::witness();
-        match pncad::select::find_flush_candidates(&self.inner, &self.doc, a.0, b.0, tol) {
-            Ok(findings) => Ok(findings
-                .into_iter()
-                .map(super::flush::FlushFinding)
-                .collect()),
-            Err(refusal) => Err(super::select::select_refusal(
-                py,
-                &refusal,
-                &self.doc,
-                &self.inner,
-            )),
-        }
     }
 
     /// How many nodes ran their op this evaluation.
@@ -2301,9 +2242,7 @@ impl ImportReport {
 /// a check restated here.
 ///
 /// Its options are a literal naming every field, held to
-/// `ImportOptions` by the surface census's options roster — which is
-/// also where `declared_contacts`, the field this door does not take,
-/// carries its reason.
+/// `ImportOptions` by the surface census's options roster.
 #[pyfunction]
 #[pyo3(signature = (text, *, eps_in = None))]
 pub(crate) fn import_step(
@@ -2315,7 +2254,6 @@ pub(crate) fn import_step(
     let defaults = pncad::step_import::ImportOptions::default();
     let options = pncad::step_import::ImportOptions {
         eps_in: eps_in.map(|e| e.0.meters()).or(defaults.eps_in),
-        declared_contacts: defaults.declared_contacts,
         // This door asks for no chart-coherence examination, because
         // `ImportReport` has no field to report one on: asking would
         // measure the body and drop the measurement. Written as the
@@ -2338,10 +2276,13 @@ pub(crate) fn import_step(
             // examination, and `None` means NOT ASKED — which is the
             // one thing an empty report would not say.
             coherence: _,
-            // Empty by construction: the options declare no anchor.
+            contacts,
+            // The rows `contacts` cite: the body carries its records,
+            // and the rows are the import's own decisions, which no
+            // document reads through this door.
             coincidences: _,
         }) => Ok(ImportReport {
-            body: Body::plain(Arc::new(body)),
+            body: Body::declared(Arc::new(body), Arc::new(contacts)),
             enclosure: enclosure.map(MassProperties::from),
             eps_in,
             normalizations: normalizations
@@ -2698,7 +2639,7 @@ impl Coincidence {
     /// Where it was decided: `plane_ladder`, `carrier_ladder`,
     /// `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn`,
     /// `battery_joint`, `battery_support_axis`, `profile_junction`,
-    /// `vertex_fusion`, `census_at_rest` or `import_anchor`.
+    /// `vertex_fusion` or `census_at_rest`.
     #[getter]
     fn site(&self) -> &'static str {
         self.site

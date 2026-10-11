@@ -141,7 +141,7 @@ fn two_overlapping_copies_gate_ok_with_one_loud_finding() {
 /// **(B, test 8) A pierce is interference.** A bar through a plate's
 /// two side walls, every vertex of each outside the other's material:
 /// the census sees only edges piercing faces, and the gate reports one
-/// finding for the pair rather than refusing an undeclared contact.
+/// finding for the pair rather than refusing an unrecorded contact.
 #[test]
 fn a_bar_through_a_plate_with_no_vertex_inside_is_one_finding() {
     let doc = ProfileDoc::empty_derived("intent-s5-b-pierce", Tol::witness());
@@ -173,13 +173,13 @@ fn a_bar_through_a_plate_with_no_vertex_inside_is_one_finding() {
     assert!(
         finding.evidence.iter().any(|e| matches!(
             e,
-            ValidationError::UndeclaredContact {
+            ValidationError::UnrecordedContact {
                 contact: CensusContact::EdgeFacePierce { .. },
                 ..
             }
         )) && finding.evidence.iter().all(|e| matches!(
             e,
-            ValidationError::UndeclaredContact {
+            ValidationError::UnrecordedContact {
                 contact: CensusContact::EdgeFacePierce { .. },
                 ..
             } | ValidationError::CensusUndecidable { .. }
@@ -637,7 +637,6 @@ fn a_pin_bottoming_through_a_blind_bore_stays_loud() {
         doc,
         Node::Union {
             members: Bodies::Spelled(vec![holed.into(), floor.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, pin) = prism(doc, -0.2, vec![circle(0.505)], 1.7);

@@ -345,7 +345,11 @@ fn verdict_multiset(edges: &[LoopEdge<f64>]) -> Vec<(String, usize)> {
 /// the two records here, and `props_rim_only_closed` is the `Δu` angle
 /// at the azimuthal arm `props_du_consistent` already meters. `Δu`
 /// itself costs nothing to agree on: one rim is one group, so neither
-/// `props_rim_level_group` nor `props_du_consistent` is asked.
+/// `props_rim_level_group` nor `props_du_consistent` is asked. The rim
+/// is minted under certification's span bound, a full period sitting
+/// AT it: `props_rim_span_forward` Positive, `props_rim_span_winding`
+/// Zero — asked twice, by the rim parse's mint and again where the flux
+/// lane integrates the loop's circle spans.
 #[test]
 fn the_apex_cap_records_its_named_decides() {
     let got = verdict_multiset(&[rim(SL, 0.0, TAU, 0, 0)]);
@@ -361,6 +365,8 @@ fn the_apex_cap_records_its_named_decides() {
         ("props_rim_only_closed Zero", 1),
         ("props_rim_only_extent Zero", 1),
         ("props_rim_only_join Zero", 1),
+        ("props_rim_span_forward Positive", 2),
+        ("props_rim_span_winding Zero", 2),
     ]
     .into_iter()
     .map(|(k, n)| (k.to_string(), n))
@@ -637,15 +643,15 @@ fn the_apex_cap_measures_on_a_general_cone() {
 // One extent, three doors
 // ---------------------------------------------------------------------
 
-/// **A folded apex carries its guard, so no door can read a side off
-/// an extent nothing checked.** The fold lives in the shared parse and
-/// refuses there, which is the only arrangement in which the flux
-/// lane, the shape door and the material-side gate agree about what
-/// the boundary bounds. Left to the caller, two of the three forgot:
-/// a half rim only answered `Ok(())` at the door and a definite
-/// `Encoded` side at the gate for a boundary `curved_face` refused —
-/// an unpaired derivation, which is what raises `CurvedSenseInverted`
-/// on a face whose honest answer is `NotIsoRectangle`.
+/// **A boundary that does not close is refused at every door.** The
+/// apex fold lives in the shared parse and refuses there, so the flux
+/// lane and the shape door refuse by the fold's guard. The
+/// material-side gate reads the boundary's vector area, which is the
+/// region's only for a closed loop, and refuses on its own closure
+/// decide. Left unchecked, a half rim answered a definite `Encoded`
+/// side at the gate for a boundary `curved_face` refused — an unpaired
+/// derivation, which is what raises `CurvedSenseInverted` on a face
+/// whose honest answer is a refusal.
 #[test]
 fn a_boundary_that_does_not_close_refuses_at_every_door() {
     for (name, edges) in [
@@ -659,7 +665,7 @@ fn a_boundary_that_does_not_close_refuses_at_every_door() {
         let gate = boundary_material_sign(&cone(), &edges, band()).map(|_| ());
         let flux = curved_face(&cone(), &edges, true, band()).map(|_| ());
         println!("  {name:<24} door={door:?} gate={gate:?} flux={flux:?}");
-        for (which, got) in [("door", &door), ("gate", &gate), ("flux", &flux)] {
+        for (which, got) in [("door", &door), ("flux", &flux)] {
             assert!(
                 matches!(
                     got,
@@ -670,6 +676,13 @@ fn a_boundary_that_does_not_close_refuses_at_every_door() {
                 "{name}: the {which} must refuse by the guard's own name, got {got:?}"
             );
         }
+        assert_eq!(
+            gate,
+            Err(PropsError::NotIsoRectangle {
+                what: "props_loop_closed"
+            }),
+            "{name}: the gate refuses the open loop"
+        );
     }
     // The floor, unmoved: the true zero-extent patch is not folded at
     // all (its rims run opposite ways), so the door still admits it —
@@ -681,4 +694,84 @@ fn a_boundary_that_does_not_close_refuses_at_every_door() {
         curved_face(&cone(), &zero_extent, true, band()),
         Err(PropsError::DegenerateFace)
     ));
+}
+
+/// **The cone gate's side is a face fact under a re-anchoring**
+/// (`work/flux/rim-side-and-rim-dir-group-signs-are-facts-about-cycle-order.md`).
+/// The gate reads the sign of the face's area against the chart normal
+/// off its axial vector area (`props_cone_area_side`), the quantity the
+/// flux integrates, so no rim is read first: a frustum patch — two rims
+/// and two generators — answers one side at every rotation of its edge
+/// list, on both nappes and both traversals, and the population it
+/// records is the same at every anchor and holds no `props_rim_side`.
+#[test]
+fn the_cone_gate_reads_one_side_at_every_anchor() {
+    let verdicts = |edges: &[LoopEdge<f64>]| {
+        let bracket = geom_core::k_stats::Bracket::open();
+        let side = boundary_material_sign(&cone(), edges, band());
+        let mut got: Vec<String> = bracket
+            .finish()
+            .verdicts
+            .iter()
+            .map(|v| format!("{} {:?}", v.predicate, v.sign))
+            .collect();
+        got.sort();
+        (side, got)
+    };
+    for nappe in [1.0, -1.0] {
+        let (lo, hi) = (nappe * SL, nappe * 2.0 * SL);
+        // Along the rim at `lo`, out along the generator at `u = 1`,
+        // back along the rim at `hi`, in along the generator at `u = 0`:
+        // counter-clockwise in the chart `(u, v)` where `hi > lo`, the
+        // `v > 0` nappe, and clockwise on the mirrored `v < 0` one. There
+        // a generator's points lie at azimuth `u + π`, where its rims'
+        // arcs are read from.
+        let du = if nappe > 0.0 { 0.0 } else { PI };
+        let patch = [
+            rim(lo, du, du + 1.0, 0, 1),
+            generator(1.0, lo, hi, 1, 2),
+            rim(hi, du + 1.0, du, 2, 3),
+            generator(0.0, hi, lo, 3, 0),
+        ];
+        let want = if nappe > 0.0 {
+            geom_core::Sign::Positive
+        } else {
+            geom_core::Sign::Negative
+        };
+        let rotated = |k: usize, reversed: bool| -> Vec<LoopEdge<f64>> {
+            let mut e: Vec<LoopEdge<f64>> = (0..patch.len())
+                .map(|i| patch[(i + k) % patch.len()].clone())
+                .collect();
+            if reversed {
+                e = e
+                    .into_iter()
+                    .rev()
+                    .map(|x| LoopEdge {
+                        forward: !x.forward,
+                        start: x.end,
+                        end: x.start,
+                        ..x
+                    })
+                    .collect();
+            }
+            e
+        };
+        for reversed in [false, true] {
+            let want = if reversed { want.flip() } else { want };
+            let (_, first) = verdicts(&rotated(0, reversed));
+            assert!(
+                first.iter().all(|v| !v.starts_with("props_rim_side ")),
+                "the gate reads no rim side: {first:?}"
+            );
+            for k in 0..patch.len() {
+                let (side, got) = verdicts(&rotated(k, reversed));
+                assert_eq!(
+                    side,
+                    Ok(MaterialSign::Encoded(want)),
+                    "nappe {nappe}, reversed {reversed}, k {k}"
+                );
+                assert_eq!(got, first, "nappe {nappe}, reversed {reversed}, k {k}");
+            }
+        }
+    }
 }

@@ -108,10 +108,9 @@ pub use editor_core::cascade_delete_order;
 // `Operand` read, written at an `OperandSlot` (a `SlotId::Operand`)
 // that admits a `SlotKind`; `DocEdit::SetParam` writes a `SlotValue`.
 pub use editor_core::{
-    Axis3, Bodies, BodyRead, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault,
-    ListFault, MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind,
-    PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SlotId, SlotKind, TubeWindow, VectorSlot,
-    declare_continuation, declare_rest,
+    Axis3, Bodies, BodyRead, CountMismatch, Datum, ExtrudeSide, InputFault, ListFault, MintId,
+    Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind, PlacementRuleFault, PortKind,
+    RecipeNodeId, RigidArg, SlotId, SlotKind, TubeWindow, VectorSlot,
 };
 
 // How a sentence names a node: the kind noun and tag a person reads, the
@@ -559,8 +558,8 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // does not reports that as a finding rather than as a clean body.
 pub use editor_core::{
     Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
-    ChecksConfig, ChecksError, ChecksReport, FindingSubject, Severity, Subject, enforce_checks,
-    run_checks, run_checks_on, subject_body,
+    ChecksConfig, ChecksError, ChecksReport, DoorFindings, DoorJob, FindingSubject, Severity,
+    Subject, enforce_checks, run_checks, run_checks_at_rest_on, run_checks_on, subject_body,
 };
 // The coincidence door (D10): the rows an evaluation's nodes decided
 // from values, and what the door decides about each — the payload of
@@ -569,9 +568,7 @@ pub use editor_core::{
 // the door is a module so its `Recourse` keeps its name. A cell on a
 // profile piece names it by `select`'s `ProfileEdgeRef`, curated there.
 pub use editor_core::coincide;
-pub use editor_core::{
-    CitedInput, NamedCell, NamedCoincidence, Proof, Residual, Rung, SymbolicPass, Unreplayed,
-};
+pub use editor_core::{CitedInput, NamedCell, NamedCoincidence, Proof, Residual, Rung, Unreplayed};
 // The pose definitions (D10): how a pose variable is defined, read off
 // geometry or constructed, and the faults the doors and the evaluator
 // name. A module, so its arms keep their names (`pose::PoseDef::Plane`).

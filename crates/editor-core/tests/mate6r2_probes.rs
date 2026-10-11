@@ -424,7 +424,7 @@ fn p7_seam_gate_by_arm() {
         Err(AssemblyError::AtRest { findings }) => {
             let undeclared = findings
                 .iter()
-                .filter(|f| format!("{:?}", f.error).contains("UndeclaredContact"))
+                .filter(|f| format!("{:?}", f.error).contains("UnrecordedContact"))
                 .count();
             println!(
                 "P7: AtRest findings={} undeclared={}",

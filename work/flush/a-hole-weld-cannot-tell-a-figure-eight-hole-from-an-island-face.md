@@ -2,10 +2,11 @@
 id: a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face
 kind: issue
 title: Joint::Hole reads only 'one ring holds both copies': it cannot tell a figure-8 hole from an island face pinched inside the hole, and weld_pinches now takes it on an unreached path
-status: open
+status: dispatched
 opened: 2026-10-04
 priority: P2
 cost: M
+branch: flush/pinch-cluster
 ---
 
 

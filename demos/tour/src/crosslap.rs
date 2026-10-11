@@ -4,14 +4,12 @@
 //! visible. Geometry is the `issue86_double_subtract` crossing-slots
 //! class promoted to real joint proportions.
 //!
-//! The declared mated union BUILDS through the join — the contact
-//! patches (notch floor/ceiling and the four flush walls) are removed
-//! as interior and the seam is fused, volume exactly
-//! 2·(BEAM_VOL − NOTCH_VOL). The stop ships the
-//! GLUED union (watertight STL + STEP exported by the tour like every
-//! stop body). UNDECLARED, the union decides the same contacts one
-//! carrier by margin (D10) and glues them alike: the scene checks the
-//! two bodies are one.
+//! The mated union BUILDS through the join — it decides the contacts
+//! one carrier by margin (D10), the contact patches (notch
+//! floor/ceiling and the four flush walls) are removed as interior and
+//! the seam is fused, volume exactly 2·(BEAM_VOL − NOTCH_VOL). The stop
+//! ships the GLUED union (watertight STL + STEP exported by the tour
+//! like every stop body).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -56,8 +54,8 @@ fn beam_b<S: Scalar>(tol: Tol) -> BooleanBody<S> {
 }
 
 /// The joint's boolean work, generic (the Probe sweep runs the same
-/// ops): both notched beams, the DECLARED glued union (checked equal
-/// to the undeclared one), and the lifted exploded copy.
+/// ops): both notched beams, the glued union, and the lifted exploded
+/// copy.
 pub(crate) fn build<S: Scalar>(
     tol: Tol,
 ) -> (
@@ -70,35 +68,17 @@ pub(crate) fn build<S: Scalar>(
     let b = beam_b::<S>(tol);
 
     let expected = 2.0 * (BEAM_VOL - NOTCH_VOL);
-    let undeclared = expect_seamed(
-        "undeclared mated union",
+    // The union BUILDS through the join, which leaves the coincident
+    // contact patches out and fuses the seam — exact dyadic volume
+    // additivity (interiors disjoint).
+    let glued = expect_seamed(
+        "mated union (the join)",
         check(try_union(&a.body, &b.body, tol), expected, tol),
         expected,
     );
-    // DECLARED, the union BUILDS through the join, which leaves the
-    // coincident contact patches out and fuses the seam — exact dyadic
-    // volume additivity (interiors disjoint).
-    let glued = expect_seamed(
-        "declared mated union (the join)",
-        check(
-            crate::booleans::try_union_declared(&a.body, &b.body, tol),
-            expected,
-            tol,
-        ),
-        expected,
-    );
-    assert_eq!(
-        format!("{:?}", undeclared.body),
-        format!("{:?}", glued.body),
-        "the undeclared mated union glues the same contacts as the declared one"
-    );
     println!(
-        "   mated-union WITHOUT declarations: glued on the decided zero (D10), the \
-         same body as the declared mate"
-    );
-    println!(
-        "   mated-union WITH the mate declared: GLUED (volume {expected} exactly) — \
-         through the join (crosslap_rest.rs pins both doors)"
+        "   mated-union: GLUED on the decided zero (D10), volume {expected} exactly — \
+         through the join"
     );
 
     // Exploded: beam B lifted by a rigid transform (#84 — every moved
@@ -112,10 +92,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let (a, _b, glued, b_lifted) = build::<f64>(tol);
     let note = format!(
         "each beam is a boolean RESULT (notch subtract, volume {} — observed \
-         bit-exact, gated 1e-9); DECLARED, the join GLUES the joint — one \
-         watertight body, volume {} exactly (2·(beam − notch); interiors \
-         disjoint, nothing discarded); undeclared, the union glues the same \
-         contacts on their decided zero (D10) into the same body",
+         bit-exact, gated 1e-9); the join GLUES the joint on the contacts' \
+         decided zero (D10) — one watertight body, volume {} exactly \
+         (2·(beam − notch); interiors disjoint, nothing discarded)",
         BEAM_VOL - NOTCH_VOL,
         2.0 * (BEAM_VOL - NOTCH_VOL)
     );
@@ -124,7 +103,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             name: "crosslap",
             caption: "cross-lap (glued)".to_string(),
             // Off the sheet: `twopeg` shows this cell's whole claim —
-            // a glued union across a declared coincident PLANAR
+            // a glued union across a coincident PLANAR
             // contact — and adds two CYLINDRICAL contacts on a shape
             // that is more part-like. The cross-lap keeps its
             // standalone render, its narration, and every non-sheet
@@ -133,7 +112,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             story: "cross-lap joint, glued: two half-depth-notched beams interlocked and \
                     UNIONED into one body through the join — the \
                     contact patches are interior now; only the seam edges remain",
-            ops: "2 x (extrude beam, extrude cutter -> subtract); declared mate -> union",
+            ops: "2 x (extrude beam, extrude cutter -> subtract); mate -> union",
             delta: 1e-2,
             note: Some(note.clone()),
             view: View {

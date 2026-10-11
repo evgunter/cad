@@ -141,7 +141,6 @@ fn subtract_node(a: RecipeNodeId, b: RecipeNodeId) -> Node<FakeProfile, Formula>
     Node::Subtract {
         from: a.into(),
         tool: b.into(),
-        declare: Vec::new(),
     }
 }
 

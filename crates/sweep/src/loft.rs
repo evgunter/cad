@@ -61,9 +61,16 @@
 //!
 //! Structure — the skinned walls' knots, control bits, weights, and
 //! the section chains — is selected at `f64` ([`fn@crate::skin`]'s
-//! contract) and lifted exactly (`from_f64`) into the requested
-//! scalar, so every lane builds the SAME body and the interval lane
-//! encloses the very geometry the `f64` lane defines.
+//! contract) and lifted exactly into the requested scalar, so every
+//! lane builds the SAME body and the interval lane encloses the very
+//! geometry the `f64` lane defines. The section chains are the
+//! profile's own lift. The walls' control points, knots and weights
+//! and the section placements are computed values, so they enter
+//! through `from_computed` (an unknown each at `Sym`;
+//! `work/intent/the-skin-computes-its-values-in-t.md` owes computing
+//! them in `T`), each lifted once and shared by every reader: a placement by
+//! the stacking fold and the assembly, a seam column by both walls
+//! that end on it.
 
 use core::fmt;
 use std::sync::Arc;
@@ -327,11 +334,69 @@ impl From<EulerOpError> for LoftError {
 /// [`SkinError::SectionProfile`] before any of this runs.
 fn end_profile<T: Real>(
     canonical: &ValidatedProfile<f64>,
-    place: &Affine3<f64>,
+    place: Affine3<T>,
 ) -> ValidatedProfile<T> {
-    canonical
-        .clone()
-        .lift_onto(SketchPlane::new(place.map(T::from_f64)))
+    canonical.clone().lift_onto(SketchPlane::new(place))
+}
+
+/// A section placement at `T`. It reaches this door as `f64`, composed
+/// by `sweep_places` or read out of a caller's own scalar, so it is a
+/// computed value; an identity placement's zeros and ones are unknowns
+/// too, because the `f64` cannot say which entries were not computed.
+fn lift_place<T: Real>(place: &Affine3<f64>) -> Affine3<T> {
+    place.map(T::from_computed)
+}
+
+/// One loop's skinned walls at `T`. Their control nets are computed
+/// values ([`Real::from_computed`]), and wall `j`'s `u = 1` column is
+/// wall `j + 1 mod n`'s `u = 0` column (the seam both walls end on), so
+/// a column the two nets hold bit for bit is lifted once and shared:
+/// at `Sym` the seam is one set of unknowns on both sides of it.
+///
+/// # Errors
+///
+/// [`LoftError::SeamStructure`] if a rebuilt net is refused, which a
+/// net of the counts it was lifted from cannot be.
+fn lift_loop_walls<T: geom_core::spline::SpanLocate>(
+    walls: &[Arc<NurbsSurface<f64>>],
+) -> Result<Vec<Arc<NurbsSurface<T>>>, LoftError> {
+    let mut nets: Vec<Vec<Point3<T>>> = walls
+        .iter()
+        .map(|w| {
+            w.control()
+                .iter()
+                .map(|p| p.map(T::from_computed))
+                .collect()
+        })
+        .collect();
+    let bits = |p: &Point3<f64>| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()];
+    let n = walls.len();
+    for j in 0..n {
+        let k = (j + 1) % n;
+        let ((nu, nv), (_, nv_k)) = (walls[j].control_counts(), walls[k].control_counts());
+        let last = (nu - 1) * nv;
+        let shared = nv == nv_k
+            && (0..nv)
+                .all(|iv| bits(&walls[j].control()[last + iv]) == bits(&walls[k].control()[iv]));
+        if shared {
+            let column: Vec<Point3<T>> = nets[j][last..last + nv].to_vec();
+            nets[k][..nv].copy_from_slice(&column);
+        }
+    }
+    walls
+        .iter()
+        .zip(nets)
+        .map(|(w, net)| {
+            NurbsSurface::new(
+                w.knot_values_u().lift(T::from_computed),
+                w.knot_values_v().lift(T::from_computed),
+                net,
+                w.weights().iter().map(|&x| T::from_computed(x)).collect(),
+            )
+            .map(Arc::new)
+            .map_err(|source| LoftError::SeamStructure { source })
+        })
+        .collect()
 }
 
 /// The world point of a sketch-plane point under a lifted placement.
@@ -349,15 +414,14 @@ fn world<T: Real>(place: &Affine3<T>, p: geom_core::Point2<T>) -> Point3<T> {
 /// input fault.
 fn outer_world<T: Real>(
     canonical: &ValidatedProfile<f64>,
-    place: &Affine3<f64>,
+    place: Affine3<T>,
 ) -> Option<Vec<Point3<T>>> {
     let profile: ValidatedProfile<T> = end_profile(canonical, place);
     let outer = profile.loops().first()?;
-    let placed: Affine3<T> = place.map(T::from_f64);
     Some(
         swept_segments(outer, false)
             .iter()
-            .map(|s| world(&placed, s.a))
+            .map(|s| world(&place, s.a))
             .collect(),
     )
 }
@@ -398,7 +462,7 @@ fn outer_world<T: Real>(
 /// mismatched sections first (`SkinError::SectionShapeMismatch`), and
 /// a loopless section never leaves profile validation.
 fn stacking_fold<T: Decide>(
-    places: &[Affine3<f64>],
+    places: &[Affine3<T>],
     canonical: &[ValidatedProfile<f64>],
     band: Band,
 ) -> Result<(), LoftError> {
@@ -408,7 +472,7 @@ fn stacking_fold<T: Decide>(
     let mut outers = places
         .iter()
         .zip(canonical)
-        .map(|(place, c)| outer_world::<T>(c, place).ok_or(LoftError::SectionStructure));
+        .map(|(place, c)| outer_world(c, *place).ok_or(LoftError::SectionStructure));
     let mut base: Vec<Point3<T>> = outers.next().ok_or(LoftError::SectionStructure)??;
     // `outers` now yields section `slab + 1` beside the slab's base and
     // far placements.
@@ -424,8 +488,8 @@ fn stacking_fold<T: Decide>(
         }
         #[allow(clippy::cast_precision_loss)]
         let count = T::from_f64(next.len() as f64);
-        let facing = |place: &Affine3<f64>| {
-            let margin = d.dot(place.map(T::from_f64).linear.c2) / count;
+        let facing = |place: &Affine3<T>| {
+            let margin = d.dot(place.linear.c2) / count;
             geom_core::k_stats::decide("loft_stacking", Margin::of(margin), band)
         };
         match facing(base_place).map_err(|source| LoftError::StackingEscalated { slab, source })? {
@@ -459,13 +523,14 @@ fn build<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
     let canonical = validate_loft(sections, places, v_degree, tol).map_err(LoftError::Skin)?;
-    stacking_fold::<T>(
-        places,
+    let lifted: Vec<Affine3<T>> = places.iter().map(lift_place).collect();
+    stacking_fold(
+        &lifted,
         &canonical,
         Band::linear(tol).map_err(LoftError::Band)?,
     )?;
     let geometry = skin_validated(canonical, places, v_degree).map_err(LoftError::Skin)?;
-    assemble(places, &geometry, tol)
+    assemble(&lifted, &geometry, tol)
 }
 
 /// Assembles the loft BODY from its skinned geometry (module docs),
@@ -475,7 +540,7 @@ fn build<T: Decide + topo::AtRestPolicy>(
 ///
 /// [`LoftError`] — every door named on the enum.
 fn assemble<T: Decide + topo::AtRestPolicy>(
-    places: &[Affine3<f64>],
+    places: &[Affine3<T>],
     geometry: &LoftGeometry,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
@@ -488,10 +553,9 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     ) else {
         return Err(LoftError::SectionStructure);
     };
-    let bottom_profile: ValidatedProfile<T> = end_profile(can_bottom, place_bottom);
-    let top_profile: ValidatedProfile<T> = end_profile(can_top, place_top);
-    let bplace: Affine3<T> = place_bottom.map(T::from_f64);
-    let tplace: Affine3<T> = place_top.map(T::from_f64);
+    let (bplace, tplace) = (*place_bottom, *place_top);
+    let bottom_profile: ValidatedProfile<T> = end_profile(can_bottom, bplace);
+    let top_profile: ValidatedProfile<T> = end_profile(can_top, tplace);
     let n_bottom = bplace.linear.c2;
     let n_top = tplace.linear.c2;
 
@@ -532,13 +596,8 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     let walls_t: Vec<Vec<Arc<NurbsSurface<T>>>> = geometry
         .walls
         .iter()
-        .map(|loop_walls| {
-            loop_walls
-                .iter()
-                .map(|w| Arc::new(w.map_scalar(T::from_f64)))
-                .collect()
-        })
-        .collect();
+        .map(|w| lift_loop_walls(w))
+        .collect::<Result<_, _>>()?;
 
     // ---- Phase 1: bottom lamina (the extrude shape: the seed face's
     // chain is minted at the BOTTOM vertices and survives as the TOP

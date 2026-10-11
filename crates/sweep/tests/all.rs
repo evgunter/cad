@@ -55,6 +55,12 @@ mod common;
 mod mate2_common;
 mod revolve_common;
 
+#[path = "a_curved_keel_in_the_plane.rs"]
+mod a_curved_keel_in_the_plane;
+#[path = "a_flank_touch_at_a_shared_corner.rs"]
+mod a_flank_touch_at_a_shared_corner;
+#[path = "a_flipped_shallow_dimple.rs"]
+mod a_flipped_shallow_dimple;
 #[path = "a_move_through_a_neighbour_inverts_the_body.rs"]
 mod a_move_through_a_neighbour_inverts_the_body;
 #[path = "a_plane_across_a_one_face_wall.rs"]
@@ -69,12 +75,18 @@ mod a_ring_on_a_cone_face;
 mod a_ring_on_a_sphere_face;
 #[path = "a_ruling_lying_on_a_wall.rs"]
 mod a_ruling_lying_on_a_wall;
+#[path = "a_ruling_through_a_box_corner_edge.rs"]
+mod a_ruling_through_a_box_corner_edge;
+#[path = "a_split_through_a_wrap_edges_vertex.rs"]
+mod a_split_through_a_wrap_edges_vertex;
 #[path = "a_swaying_loft_corner_meters.rs"]
 mod a_swaying_loft_corner_meters;
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
 #[path = "a_tangent_arc_at_other_boolean_vertices.rs"]
 mod a_tangent_arc_at_other_boolean_vertices;
+#[path = "a_thin_cap_keeps_its_digits.rs"]
+mod a_thin_cap_keeps_its_digits;
 #[path = "a_tube_ending_on_a_ball.rs"]
 mod a_tube_ending_on_a_ball;
 #[path = "an_annular_tube_through_a_plate.rs"]
@@ -191,10 +203,14 @@ mod r2_mate3_probes;
 mod r2_mesh1_donut_probes;
 #[path = "rehome_rings_lune.rs"]
 mod rehome_rings_lune;
+#[path = "review_4704_flush_round_oracle.rs"]
+mod review_4704_flush_round_oracle;
 #[path = "review_r2_vv_probes.rs"]
 mod review_r2_vv_probes;
 #[path = "review_sixx_r2_probes.rs"]
 mod review_sixx_r2_probes;
+#[path = "saddle_wall_offset_fit.rs"]
+mod saddle_wall_offset_fit;
 #[path = "scaffolding_on_a_blend_support_face_does_not_finish.rs"]
 mod scaffolding_on_a_blend_support_face_does_not_finish;
 #[path = "sf2a_r1.rs"]
@@ -366,6 +382,8 @@ mod ladder_split_key;
 mod lamina_annulus;
 #[path = "lib_u3_sections.rs"]
 mod lib_u3_sections;
+#[path = "loft_lifts_its_placements_as_computed.rs"]
+mod loft_lifts_its_placements_as_computed;
 #[path = "loft_v_is_the_section_set.rs"]
 mod loft_v_is_the_section_set;
 #[path = "m3_pr5_extrude_booleans.rs"]
@@ -484,6 +502,8 @@ mod reach_wall_chord_rows;
 mod readback_doors;
 #[path = "recourse_roster.rs"]
 mod recourse_roster;
+#[path = "review_4704_r1_probes.rs"]
+mod review_4704_r1_probes;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
 #[path = "review_arms2_r1_probes.rs"]
@@ -736,6 +756,8 @@ mod germ_coplanar_conic;
 mod germ_interior_oval;
 #[path = "germ_interior_saddle.rs"]
 mod germ_interior_saddle;
+#[path = "germ_plane_torus_frame.rs"]
+mod germ_plane_torus_frame;
 #[path = "germ_radial_hole.rs"]
 mod germ_radial_hole;
 #[path = "germ_sphere_no_crossings.rs"]
@@ -782,8 +804,6 @@ mod mate2_r1_probes;
 mod mate2_r2_probes;
 #[path = "mate7a_r1_probes.rs"]
 mod mate7a_r1_probes;
-#[path = "mate7a_r2_probes.rs"]
-mod mate7a_r2_probes;
 #[path = "mate7a_torus_rest.rs"]
 mod mate7a_torus_rest;
 #[path = "near_tangent_pierce_poses.rs"]
@@ -817,6 +837,9 @@ mod r1_probes_m9_3;
 
 #[path = "curved_mergedoor.rs"]
 mod curved_mergedoor;
+
+#[path = "curved_notch_pinch.rs"]
+mod curved_notch_pinch;
 
 #[path = "verbs_gate_r1_probes.rs"]
 mod verbs_gate_r1_probes;
@@ -858,6 +881,8 @@ mod fillet_h5_r2_probes;
 #[path = "review_fillet_h5_r1_probes.rs"]
 mod review_fillet_h5_r1_probes;
 
+#[path = "blend_carries_records.rs"]
+mod blend_carries_records;
 #[path = "blend_per_shell.rs"]
 mod blend_per_shell;
 #[path = "blend_per_shell_carry.rs"]
@@ -866,6 +891,8 @@ mod blend_per_shell_carry;
 mod blend_recourse_followability;
 #[path = "review_blend3_r3_probes.rs"]
 mod review_blend3_r3_probes;
+#[path = "shell_carries_records.rs"]
+mod shell_carries_records;
 
 #[path = "review_fillet_e2_probes.rs"]
 mod review_fillet_e2_probes;

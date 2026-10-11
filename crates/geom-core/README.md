@@ -66,9 +66,9 @@ clause:
 - **Equality on all three types is address equality on the borrow**,
   plus the indices. A proof is about *that* structure; two bit-equal
   knot vectors at different addresses are two structures. (None of
-  `KnotVector`, `NurbsCurve` or `NurbsSurface` is `Eq` — their knots and
-  weights are `f64` — so a by-value equality is not available in any
-  case.) `Debug` prints the borrow as an **address** and never follows
+  `KnotVector`, `NurbsCurve` or `NurbsSurface` is `Eq` — a carrier's
+  data is held in a scalar that has no equality — so a by-value
+  equality is not available in any case.) `Debug` prints the borrow as an **address** and never follows
   it: the alternative dumps a whole control net at every `{:?}`.
 - **A borrow cannot be held across a rebinding of what it borrows.**
   That costs nothing here: every knot-algebra door in this crate and in
