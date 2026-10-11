@@ -1431,3 +1431,7 @@ Ev said go.
   - Ruled: `SeedInRegion` departs from Ev's letter ("a region is the answer"), and a Side region at the old middle is a valid row edge. The fix pass implements the letter (Side → the row via `level_row`'s carrier, Corner → refuse), plus the de-duplication and docs.
   - Fix pass sent.
 - **Unit 20 review dispatched**: PR 4672 @5ffb365, sequential (byte 109), one Opus review.
+- **Unit 20 reviewed** (2026-10-11 ~13:00Z): PR 4672 @5ffb365, sequential (byte 109), one Opus review: APPROVE-WITH-FIXES, no MAJOR.
+  - Termination and soundness held, and three mutations turned the rows red.
+  - The orchestrator's ruling repeated the lane's "same worst-case work" claim, which is false in total (rounds repeat up to the cap). Corrected in the fix pass.
+  - Also in the fix pass: the seed checked against the cap, a BoundNotFinite fixture row, the per-ε split pinned in encl, a slow-set row, doc rot in two open items, and filing the two-stop-rules duplication.
