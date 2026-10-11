@@ -888,7 +888,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
                 relation: crate::Relation::OnCarrier,
                 site: crate::DecisionSite::SplitOn,
                 margin,
-                discharge: crate::Discharge::Numeric,
+                discharge: crate::Discharge::of(margin),
             });
         }
         let hood = insert::Neighborhood {

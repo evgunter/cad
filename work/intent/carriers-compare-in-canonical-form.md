@@ -2,11 +2,12 @@
 id: carriers-compare-in-canonical-form
 kind: issue
 title: D10 stage 4 PR C (with D): the door replays the document at Sym and proves a coincidence by two rungs: the kernel's carrier-pair verdict on the cells' symbolic carriers, then the deciding margin's identity
-status: dispatched
+status: closed
 opened: 2026-10-08
 priority: P0
 cost: H
 branch: intent/s4-cd-symbolic-door
+closed: 2026-10-11
 ---
 
 INTENT stage 4, PR C, which absorbs PR D
@@ -74,3 +75,37 @@ S4-B, 2026-10-08). This unit adds `Theorem(kind)` (the symbolic tier's
 `SymbolicZero`, `SignGated`, `Registered`) and threads it from
 `Decided` when it replays at `Sym`; `geom_core::Decided` carries no
 discharge today (`Sym::sign_within` computes `how` and drops it).
+
+
+## Closed
+
+The door replays the document at `Sym` with every continuous variable a
+symbol (`analysis::var_env_symbolic`, `EvalOptions::symbols`), in a
+deferring session (`geom_core::sym::deferred`), and proves a row by the
+two rungs. Rung 1 is the kernel's carrier-pair verdict on the cells'
+faces as the replay built them (`Rung::CarrierVerdict`). Rung 2 is the
+deciding margin's identity (`Rung::MarginIdentity`). The theorem kind
+is stamped on the margin by `Sym::sign_within`
+(`MarginDiag::theorem`). Where several Zeros back one decision, it is
+the weakest of them (`jointly`). It is threaded to every row as
+`topo::Discharge::Theorem`.
+
+On the orchestrator's rulings, the door is one door with two passes
+(`SymbolicPass`). The resident pass, which the lint runs after every
+evaluation, is rung 0 alone, and a row it leaves says the full pass
+decides. The full pass (`ChecksConfig::symbolic_pass`) replays at 256
+terms with the drive's ladder.
+
+The box mitre was measured as asked: its angle term is the zero
+polynomial, and the feet distance freezes at every budget, so every
+box mitre stays unproven. Closing it is the SYM rows'
+(`the-mitres-feet-distance-freezes-at-sym`,
+`the-blend-joints-prove-only-past-the-door-s-budget`).
+
+The recourse (Q3) moved to `the-door-names-its-residual`. Also filed:
+- `a-construction-s-identities-are-a-generated-cache` (parked, Ev's call);
+- `the-full-symbolic-pass-runs-off-the-hot-path`;
+- `declared-rest-rows-are-two-values-or-too-big-to-close`.
+
+The owed `from_f64` sites stay a disclosed hazard, guarded by
+`revalue_corpus`.

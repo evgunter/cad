@@ -847,14 +847,17 @@ pub(crate) enum SlotValueArg {
 
 /// **An operand as Python writes it**: a node, read at its one output
 /// (a node with several, a revolve or a split, refuses
-/// `ambiguous_output`: its port is read by `Doc.output`), or a variable
-/// — an output by `Doc.output`, or a name's.
-#[derive(FromPyObject, Clone, Copy)]
+/// `ambiguous_output`: its port is read by `Doc.output`), a variable
+/// — an output by `Doc.output`, or a name's — or a pose defined at the
+/// seat (`PoseDef`).
+#[derive(FromPyObject, Clone)]
 pub(crate) enum OperandArg {
     /// A node, read at its one output.
     Node(NodeId),
     /// A variable, read as itself.
     Var(Var),
+    /// A pose defined at the seat.
+    Pose(super::pose::PoseDef),
 }
 
 impl OperandArg {
@@ -863,6 +866,7 @@ impl OperandArg {
         match self {
             Self::Node(node) => d::Operand::Node(node.0),
             Self::Var(var) => d::Operand::Var(var.0),
+            Self::Pose(pose) => pose.inner,
         }
     }
 }
@@ -893,9 +897,12 @@ impl IndexedRead {
 #[pymethods]
 impl IndexedRead {
     fn __repr__(&self) -> String {
-        let read = match self.read {
+        let read = match &self.read {
             OperandArg::Node(node) => format!("NodeId({})", node.0.full()),
             OperandArg::Var(var) => format!("Var({})", var.0.full()),
+            OperandArg::Pose(_) => {
+                unreachable!("an indexed read is `[]` on a node or a variable, never a pose")
+            }
         };
         let at: Vec<String> = self.at.iter().map(ToString::to_string).collect();
         format!("{read}[{}]", at.join(", "))
@@ -1024,7 +1031,9 @@ impl Doc {
                 let dim = self.inner.var(var).and_then(|held| match held.def() {
                     d::VarDef::Free(free) => Some(free.dim()),
                     d::VarDef::Defined(expr) => Some(expr.dim()),
-                    d::VarDef::Output { .. } | d::VarDef::Select(_) => held.kind().dimension(),
+                    d::VarDef::Output { .. } | d::VarDef::Select(_) | d::VarDef::Pose(_) => {
+                        held.kind().dimension()
+                    }
                 });
                 let Some(dim) = dim else {
                     let unheld = d::EvalError::UnresolvedVar { var };
@@ -2053,15 +2062,9 @@ const fn _binds_every_kernel_side(kernel: d::ExtrudeSide) -> ExtrudeSide {
     }
 }
 
-/// **Which body of a multi-body value a `Node.part` selects**: the
-/// named half of a split, or one instance of a pattern by index.
-///
-/// One class for the two because the node is one sentence — "this
-/// body, out of those" — and the VALUE decides which arm is
-/// well-typed: a half against a split, an index against a pattern's
-/// instances. Any other pairing refuses typed at `evaluate`
-/// (`wrong_operand`), never here, because which value a node id
-/// carries is not known until the document runs.
+/// **Which copy of a pattern a `Node.part` selects**, by index. A
+/// split's halves need no selector: each is an output of the split,
+/// read as `doc.output(split, port)`.
 ///
 /// The shape is `PatternKind`'s: a frozen value class of static
 /// constructors, one per kernel arm, spelled in snake case.
@@ -2071,19 +2074,6 @@ pub(crate) struct PartSelect(pub(crate) d::PartSelect<d::Formula>);
 
 #[pymethods]
 impl PartSelect {
-    /// The named half of a `Node.split` value.
-    ///
-    /// `Above` is the material on the tool plane's normal side and
-    /// `Below` the other — the same two words `SegPat.side` takes, and
-    /// the same output-body order `Value.split`'s tuple is in. A half
-    /// the cut left with no material refuses at `evaluate`
-    /// (`empty_half`), which is a statement about the geometry rather
-    /// than about the selection.
-    #[staticmethod]
-    fn split_half(half: super::select::SplitHalf) -> Self {
-        Self(d::PartSelect::SplitHalf(half.to_kernel()))
-    }
-
     /// The `index`-th instance of a `Node.pattern` value, counting
     /// from zero.
     ///
@@ -2483,7 +2473,14 @@ impl Node {
         })
     }
 
-    /// Revolve an upstream profile about a datum axis.
+    /// Revolve an upstream profile about an axis line in its own plane.
+    ///
+    /// `axis_origin` and `axis_direction` are the line in the profile's
+    /// own 2-D coordinates: the origin lengths, the direction
+    /// dimensionless and unnormalized. Four numbers in the plane cannot
+    /// leave it, so no residual is checked. The revolve's second output
+    /// (`Doc.output(revolve, 1)`) is the line lifted to 3-D, an axis
+    /// other nodes read.
     ///
     /// `angle` is the node's `revolve_angle` slot —
     /// `DocEdit.set_param` is what drives it afterwards, as it is for
@@ -2492,14 +2489,22 @@ impl Node {
     fn revolve(
         py: Python<'_>,
         profile: OperandArg,
-        axis: OperandArg,
+        axis_origin: (super::expr::SlotArg, super::expr::SlotArg),
+        axis_direction: (super::expr::SlotArg, super::expr::SlotArg),
         angle: super::expr::SlotArg,
     ) -> PyResult<Self> {
         let angle = slot_expr(py, d::SlotId::RevolveAngle, &angle)?;
         Ok(Self {
             inner: d::Node::Revolve {
                 profile: profile.read(),
-                axis: axis.read(),
+                axis_origin: [
+                    slot_expr(py, d::SlotId::Origin(d::Axis3::X), &axis_origin.0)?,
+                    slot_expr(py, d::SlotId::Origin(d::Axis3::Y), &axis_origin.1)?,
+                ],
+                axis_direction: [
+                    slot_expr(py, d::SlotId::Direction(d::Axis3::X), &axis_direction.0)?,
+                    slot_expr(py, d::SlotId::Direction(d::Axis3::Y), &axis_direction.1)?,
+                ],
                 angle,
             },
         })
@@ -2631,7 +2636,7 @@ impl Node {
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Loft {
-                profiles: profiles.iter().map(|p| p.read()).collect(),
+                profiles: profiles.into_iter().map(OperandArg::read).collect(),
                 v_degree: slot_expr(py, d::SlotId::VDegree, &v_degree)?,
             },
         })
@@ -2713,46 +2718,11 @@ impl Node {
         })
     }
 
-    /// A datum axis written IN a sketch frame — what a revolve turns.
-    ///
-    /// `plane` is the `Datum.frame` node the axis lives in, and the
-    /// two pairs are that frame's own 2-D coordinates: the origin
-    /// slots `Length`, the direction's dimensionless and
-    /// unnormalized, as `SlotId::Direction`'s `Scalar` says.
-    ///
-    /// A revolve takes one of these and NOT a `datum_axis`: a 3-D axis
-    /// would have to be checked into the profile's plane, and that
-    /// check was a tolerance verdict on a direction residual. Written
-    /// here, the axis cannot leave the frame — and whether it is the
-    /// frame the profile was drawn on is an equality of node ids.
-    #[staticmethod]
-    fn datum_axis_in_plane(
-        py: Python<'_>,
-        plane: OperandArg,
-        origin: (super::expr::SlotArg, super::expr::SlotArg),
-        direction: (super::expr::SlotArg, super::expr::SlotArg),
-    ) -> PyResult<Self> {
-        Ok(Self {
-            inner: d::Node::Datum(d::Datum::AxisInPlane {
-                frame: plane.read(),
-                origin: [
-                    slot_expr(py, d::SlotId::Origin(d::Axis3::X), &origin.0)?,
-                    slot_expr(py, d::SlotId::Origin(d::Axis3::Y), &origin.1)?,
-                ],
-                direction: [
-                    slot_expr(py, d::SlotId::Direction(d::Axis3::X), &direction.0)?,
-                    slot_expr(py, d::SlotId::Direction(d::Axis3::Y), &direction.1)?,
-                ],
-            }),
-        })
-    }
-
     /// **A sketch frame DERIVED from a face** — "sketch on this
     /// face", as a node.
     ///
     /// `at` is the body-denoting node the face is read out of, and it
-    /// is a DAG input exactly as [`Node::datum_axis_in_plane`]'s
-    /// `plane` is: the frame moves when the face moves, so raising the
+    /// is a DAG input: the frame moves when the face moves, so raising the
     /// body carries every sketch built on this frame up with it.
     /// `face` is one of the opaque texts `Evaluation.all_faces` /
     /// `select` answered with, handed back unread — the face is
@@ -3282,29 +3252,20 @@ impl Node {
         })
     }
 
-    /// **The projection**: ONE body out of a multi-body value — "the
-    /// upper half of that split", "instance 3 of that pattern".
+    /// **The projection**: ONE body out of a pattern's copies —
+    /// "instance 3 of that pattern".
     ///
-    /// A projection, not an operation. The selected body is the half's
-    /// or the instance's OWN, and the node's name table is the input's
+    /// A projection, not an operation. The selected body is the
+    /// instance's OWN, and the node's name table is the input's
     /// restricted to that body with every name verbatim, so a selector
-    /// already spelled against that half or that instance resolves
-    /// here unchanged and a `Value.mass_properties` read matches the
-    /// side read straight off `Value.split` / `Value.bodies`.
+    /// already spelled against that instance resolves here unchanged
+    /// and a `Value.mass_properties` read matches the body read
+    /// straight off `Value.bodies`.
     ///
-    /// `of` is the split or pattern node whose value is read, and
-    /// `select` says which body (`PartSelect.split_half` /
-    /// `PartSelect.instance`). This is a NODE rather than a selector
-    /// argument on every consumer: one meaning, one node, and every
-    /// downstream door keeps the operand shape it has.
-    ///
-    /// Refuses typed at `evaluate`, never here — which body a node id
-    /// carries is not known until the document runs: `wrong_operand`
-    /// when the selector and the value disagree in kind (a half asked
-    /// of a pattern, an index asked of a split, either asked of a
-    /// plain body), `empty_half` when the cut left that side with no
-    /// material, and `instance_out_of_range` for an index outside
-    /// `0 .. count`.
+    /// `of` reads the copies (a list of bodies), and `select` says
+    /// which one (`PartSelect.instance`). Reading anything else
+    /// refuses at insert (`slot_var_kind`). An index outside
+    /// `0 .. count` refuses at `evaluate` (`instance_out_of_range`).
     #[staticmethod]
     fn part(of: OperandArg, select: &PartSelect) -> Self {
         Self {

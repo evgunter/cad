@@ -88,3 +88,12 @@ weaker probe. The line measurement above is the one that bears.
 The harness (a scratch `#[ignore]` dump plus the mpmath oracle) was
 not committed. It asserts nothing a row would keep, and the
 recentring that makes the lane safe is structural.
+
+## Reopened at scale, as evidence (CLEAVE, PR 4607 review, 2026-10-11)
+
+The measurement above held the torus at `R = 1` and moved the origin. At
+a large torus the coefficients' own magnitudes carry the noise: at
+`R = 1e6`, `r = 1e4` the ray lane certifies `Miss` where the exact count
+is two, crossings up to 3.9e-8 m deep. The status stays as GERM set it.
+INSIDE's `ray-torus-count-certifies-on-an-uncharged-discriminant` holds the
+measurement and owns the fix.

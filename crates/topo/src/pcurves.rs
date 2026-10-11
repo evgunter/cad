@@ -1293,7 +1293,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                              seam column it sits on cannot be positioned",
                         ));
                     };
-                    side_pick(&column, &[T::from_f64(foot.x)])?.ok_or_else(|| {
+                    side_pick(&column, &[computed_foot::<T>(foot).x])?.ok_or_else(|| {
                         refuse(
                             "the carrier's start has a certified chart foot, but the \
                              neighbour's v map does not place it there — the two walls do \
@@ -1424,14 +1424,14 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                     let (Some(f0), Some(f1)) = (f0, f1) else {
                         return Err(no_boundary());
                     };
-                    let (u0, u1) = (T::from_f64(f0.x), T::from_f64(f1.x));
-                    let plx = (u1 - u0) / span;
-                    let p0x = u0 - plx * t0;
+                    let (f0, f1) = (computed_foot::<T>(f0), computed_foot::<T>(f1));
+                    let plx = (f1.x - f0.x) / span;
+                    let p0x = f0.x - plx * t0;
                     // The row: a boundary one where it is definitely that,
                     // else the row the start's foot measures — a cap rim
                     // an offset moved into the chart's interior.
-                    let v = side_pick(&row(p0x, plx), &[cv0, cv1, T::from_f64(f0.y)])?
-                        .ok_or_else(no_boundary)?;
+                    let v =
+                        side_pick(&row(p0x, plx), &[cv0, cv1, f0.y])?.ok_or_else(no_boundary)?;
                     Ok(Pcurve::IsoLine {
                         p0: Point2::new(p0x, v),
                         pl: Vec2::new(plx, T::zero()),
@@ -1571,10 +1571,10 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                 )
                 && row_space.admits(f1.x > f0.x)
             {
-                let (u0, u1) = (T::from_f64(f0.x), T::from_f64(f1.x));
-                let slope = (u1 - u0) / span;
+                let (f0, f1) = (computed_foot::<T>(f0), computed_foot::<T>(f1));
+                let slope = (f1.x - f0.x) / span;
                 let cand = Pcurve::IsoLine {
-                    p0: Point2::new(u0 - slope * t0, T::from_f64(f0.y)),
+                    p0: Point2::new(f0.x - slope * t0, f0.y),
                     pl: Vec2::new(slope, T::zero()),
                 };
                 let uv = cand.eval(probe_t);
@@ -1684,6 +1684,12 @@ fn derive_chart_foot<T: AtRestPolicy>(
     lane.chart_foot(point, wall)
         .map(Some)
         .map_err(|error| PcurveMintError::Certify { half_edge, error })
+}
+
+/// A chart foot [`derive_chart_foot`] measured, in `T`: Newton's
+/// `f64`, so each coordinate enters as a computed value.
+fn computed_foot<T: Real>(foot: geom_core::Point2<f64>) -> Point2<T> {
+    foot.map(T::from_computed)
 }
 
 /// Is `half_edge` the `he_plus` of its edge (so the loop traverses it
@@ -4214,7 +4220,7 @@ impl AzimuthRule {
 /// at rest — loud, never silent. Where the room is short (a pole at a
 /// small `K`, a narrow cone's apex), a composition may name another lift
 /// of the same point than a fresh decision does; that too is loud at
-/// rest (`work/topo/a-kill-bridging-joints-that-straddle-the-pole-lever-band-writes-a-reset-the-pass-decides-a-shift`).
+/// rest (`work/topotail/a-kill-bridging-joints-that-straddle-the-pole-lever-band-writes-a-reset-the-pass-decides-a-shift`).
 ///
 /// **So a reset is written in exactly two cases**: a vertex decided on
 /// the singular set (any chart), and a spline chart whose net-level gate
@@ -7345,6 +7351,50 @@ mod row_space_tests {
                 backward: true
             },
             "an exactly symmetric row runs either way on its own knots"
+        );
+    }
+}
+
+#[cfg(test)]
+mod from_computed_rows {
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
+    use std::sync::Arc;
+
+    use geom::{NurbsSurface, Surface};
+    use geom_core::spline::KnotVector;
+    use geom_core::{Point3, Real};
+
+    use super::{computed_foot, derive_chart_foot};
+    use crate::entity::HalfEdgeKey;
+    use crate::revalue_pin::{Revalued, S, revalued};
+
+    /// A chart foot enters as computed values: the fitted lane's foot of
+    /// a point the parameter moves, on a flat spline chart at
+    /// `Sym<f64>`, re-values to neither coordinate `p0` measured.
+    #[test]
+    fn a_chart_foot_enters_as_computed() {
+        let found = revalued([0.25, 0.25 + 1.0e-3], |_, x| {
+            let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+            let control = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
+                .map(|(u, v)| Point3::new(u, v, 0.0).map(S::from_f64))
+                .to_vec();
+            let chart = Surface::Nurbs(Arc::new(
+                NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap(),
+            ));
+            let point = Point3::new(x, S::from_f64(0.5) * x, S::zero());
+            let foot = derive_chart_foot(point, &chart, HalfEdgeKey::default())
+                .unwrap()
+                .expect("a spline chart at a certifying scalar measures a foot");
+            let foot = computed_foot::<S>(foot);
+            vec![foot.x, foot.y]
+        });
+        assert_eq!(
+            found,
+            Revalued {
+                kept: 0,
+                opaque: 2,
+                laundered: 0,
+            }
         );
     }
 }

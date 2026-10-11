@@ -513,6 +513,7 @@ which is what actually moves the number.
 | boolean/sectors.rs:342–433 | bool_sector_within / bool_dir_* / bool_faces_parallel | sin/cos × sector arm (arm = shorter bounding chord, m; every caller passes unit dirs — verified); a pair `bool_faces_parallel` reads Zero is a near-coincidence and goes to the carrier ladder with every code On (its arm-setting bound reads On or in band) | m | OK |
 | boolean/sectors.rs (`wedge_classes`) | bool_corner_one_plane | the chord `\|n̂ − n̂′\|` between two faces' unit outward normals at the vertex × the farthest reach the reading classes (the classed edges' reaches and the corner's sectors' spans, m): how far apart the two planes stand there, opposed normals two apart; a Zero lets a bound On or in band of that plane vote nothing on the corner's convexity, and anything else reads the corner as a polygon cone | m | OK |
 | boolean/sectors.rs (`side_code`) | bool_chord_side / enters_material / bool_pierce_sector_side_curved | a LINE bound: its far vertex's signed distance from the plane through the base vertex (`sector_shape::plane_offset`); a curved bound: cos × its own extent; a bisector: cos × its sector's arm; the curvature charge: the bound's tangent RAY's least separation from the face past the sagitta, `slope·l − l²/lever` at `l = min(slope·lever/2, reach)`, where it peaks within the bound's own reach (a statement about the ray for every reach kind, not a point of a curved edge or a bisector) | m | FIXED (CONTACT-9; every bound was cos × the shorter sector arm, so a long line edge read On while its far end stood hundreds of bands off) |
+| boolean/sectors.rs (`conic_side`) | bool_conic_flat / bool_conic_bend / bool_conic_bend_side | a conic bound tied with a plane at first order: the whole edge's height bound `(|t̂·n̂| + |N̂·n̂|)·reach` (sine sum × the carrier's point-set radius from the vertex); the bend's certified lift less the first-order residue, `|N̂·n̂|·2·sin²(κ_min·l/2)/κ_min − |t̂·n̂|·l` at `l = min(extent, π/(2·κ_max))`; and its side, `½·(κ·n̂)·l²` (the sagitta door) | m | OK |
 | boolean/solid_contain.rs:438 | bool_wall_trim_period | (τ−width)·radius | m | OK |
 | boolean/solid_contain.rs:462 | bool_wall_trim (cone term) | (cosΔ−cos h)·radius — effective arm sin(h)·r, collapses for narrow windows | m | FLAG F8 |
 | boolean/solid_contain.rs (`wall_outline`) | bool_wall_iso_meridian / bool_wall_iso_rim / bool_wall_section_tilt | sin or cos of unit vectors × radius; radius and off-axis differences | m | OK |
@@ -920,11 +921,11 @@ Flagged, NOT fixed here (dispositions):
   
   This row proposed levering the sine at the profile's radial extent,
   kernel-side. What happened instead is that the QUESTION was deleted.
-  A revolve's axis is now a `Datum::AxisInPlane` — written in the
-  profile's own frame, in that frame's two coordinates — so it cannot
-  have an out-of-plane component to classify, and the only thing left
-  to decide is whether it is the same frame the profile is drawn on:
-  an equality of node ids, with no band and no scale. Both in-plane
+  A revolve's axis is now written on the revolve itself, in its
+  profile's own two coordinates (`Revolve`'s `axis_origin` and
+  `axis_direction`), so it cannot have an out-of-plane component to
+  classify and there is no second frame to compare: nothing is left to
+  decide, with no band and no scale. Both in-plane
   predicates went with it, this one and the metre-valued
   `revolve_axis_origin_in_plane` beside it.
   

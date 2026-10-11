@@ -1196,6 +1196,11 @@ impl<P> Doc<P> {
         match self.vars.get(&var).map(Var::def) {
             Some(VarDef::Defined(expr)) => expr.var_reads(&mut reads),
             Some(VarDef::Select(select)) => return vec![select.body],
+            Some(VarDef::Pose(def)) => {
+                let mut out: Vec<VarId> = def.reads().into_iter().map(|(_, &r, _)| r).collect();
+                out.extend(def.scalars().into_iter().map(|(_, &s)| s));
+                return out;
+            }
             Some(VarDef::Free(_) | VarDef::Output { .. }) | None => {}
         }
         reads.into_iter().map(|(read, _)| read).collect()
@@ -1213,14 +1218,20 @@ impl<P> Doc<P> {
         let mut definers = vec![Vec::new(); ids.len()];
         let mut any = false;
         for (at, read_by) in reads.iter_mut().enumerate() {
-            let Some(expr) = self.vars.get(&ids[at]).and_then(|v| v.def().defined()) else {
+            // A pose definition is ordered by what it reads as a defined
+            // variable is: its reads and its scalars, so a walk in
+            // definition order (`observed`, the bindings) meets each
+            // after everything it reads.
+            if !matches!(
+                self.vars.get(&ids[at]).map(Var::def),
+                Some(VarDef::Defined(_) | VarDef::Pose(_))
+            ) {
                 continue;
-            };
-            let mut leaves = Vec::new();
-            expr.var_reads(&mut leaves);
-            let mut held: Vec<usize> = leaves
+            }
+            let mut held: Vec<usize> = self
+                .definition_reads(ids[at])
                 .into_iter()
-                .filter_map(|(read, _)| position.get(&read).copied())
+                .filter_map(|read| position.get(&read).copied())
                 .collect();
             held.sort_unstable();
             held.dedup();
@@ -1405,7 +1416,8 @@ impl<P> Doc<P> {
 
     /// **The observed variables** (D10): every [`Node::Measure`]'s
     /// output — a function of the built geometry — and every definition
-    /// reading one, directly or through another definition. Only an
+    /// reading one, directly or through another definition, a pose
+    /// definition's included. Only an
     /// assertion reads one ([`crate::EditError::ConstructionReadsObserved`]).
     pub fn observed(&self) -> std::collections::BTreeSet<VarId> {
         let mut observed: std::collections::BTreeSet<VarId> = self
@@ -1418,12 +1430,19 @@ impl<P> Doc<P> {
             return observed;
         }
         for id in self.definition_order() {
-            let Some(expr) = self.vars.get(&id).and_then(|v| v.def().defined()) else {
+            // A pose definition is a definition too: a standoff by a
+            // measured length is as observed as the length.
+            if !matches!(
+                self.vars.get(&id).map(Var::def),
+                Some(VarDef::Defined(_) | VarDef::Pose(_))
+            ) {
                 continue;
-            };
-            let mut reads = Vec::new();
-            expr.var_reads(&mut reads);
-            if reads.iter().any(|(read, _)| observed.contains(read)) {
+            }
+            if self
+                .definition_reads(id)
+                .iter()
+                .any(|read| observed.contains(read))
+            {
                 observed.insert(id);
             }
         }
@@ -1449,6 +1468,14 @@ impl<P> Doc<P> {
             .into_iter()
             .find(|(_, var)| observed.contains(var))
             .map(|(slot, &var)| (slot, var))
+            .or_else(|| {
+                // An operand reads an observed variable through a pose
+                // definition that reads one.
+                node.operand_rows()
+                    .into_iter()
+                    .find(|(_, var)| observed.contains(var))
+                    .map(|(slot, var)| (crate::SlotId::Operand(slot), var))
+            })
     }
 
     /// **The first construction in this document reading an observed
@@ -1741,12 +1768,106 @@ impl<P> Doc<P> {
         }
     }
 
+    /// **A read as it was written**: an anonymous selection as the
+    /// selection it is, an anonymous pose as its definition, each read
+    /// within written the same way and each scalar as the formula it
+    /// was written as; any other read by id.
+    pub fn written_operand(&self, var: VarId) -> crate::Operand {
+        if self.var_names.contains_key(&var) {
+            return crate::Operand::Var(var);
+        }
+        match self.vars.get(&var).map(Var::def) {
+            Some(VarDef::Select(select)) => {
+                crate::Operand::select(crate::Operand::Var(select.body), select.names.clone())
+            }
+            Some(VarDef::Pose(def)) => {
+                let written = def.try_map(
+                    &mut |_, &read| Ok::<_, core::convert::Infallible>(self.written_operand(read)),
+                    &mut |slot, &scalar| {
+                        Ok(crate::Formula::from(
+                            self.written(&crate::Expr::var(scalar, slot.dimension())),
+                        ))
+                    },
+                );
+                let Ok(written) = written;
+                crate::Operand::Pose(Box::new(written))
+            }
+            _ => crate::Operand::Var(var),
+        }
+    }
+
+    /// **The operations and ports a read reaches** (D10: reading is the
+    /// only dependency): an output's own, a selection's body's, and for
+    /// a pose definition every one its reads reach, through nested
+    /// definitions, in read order, each once. Its scalars reach no
+    /// operation: a construction reads what was written. Empty for a
+    /// read this document does not resolve.
+    pub fn read_ports(&self, var: VarId) -> Vec<(RecipeNodeId, u8)> {
+        let mut out = Vec::new();
+        self.push_read_ports(var, &mut out, &mut BTreeSet::new());
+        out
+    }
+
+    fn push_read_ports(
+        &self,
+        var: VarId,
+        out: &mut Vec<(RecipeNodeId, u8)>,
+        seen: &mut BTreeSet<VarId>,
+    ) {
+        if !seen.insert(var) {
+            return;
+        }
+        let Some(held) = self.vars.get(&var) else {
+            return;
+        };
+        let at = match held.def() {
+            VarDef::Output { node, port } => Some((*node, *port)),
+            VarDef::Select(select) => self.defined_by(select.body),
+            VarDef::Pose(def) => {
+                for (_, &read, _) in def.reads() {
+                    self.push_read_ports(read, out, seen);
+                }
+                None
+            }
+            VarDef::Free(_) | VarDef::Defined(_) => None,
+        };
+        if let Some(at) = at
+            && !out.contains(&at)
+        {
+            out.push(at);
+        }
+    }
+
+    /// **The first variable a read reaches that the document does not
+    /// hold, or that names a body no live operation defines**: a
+    /// deleted operation leaves its readers unresolved (D10), and a
+    /// selection's or a pose definition's readers with them. `None`
+    /// when the read resolves.
+    pub fn unresolved_read(&self, var: VarId) -> Option<VarId> {
+        let Some(held) = self.vars.get(&var) else {
+            return Some(var);
+        };
+        match held.def() {
+            VarDef::Output { .. } => self.operation_of(var).is_none().then_some(var),
+            VarDef::Select(select) => self
+                .operation_of(select.body)
+                .is_none()
+                .then_some(select.body),
+            VarDef::Pose(def) => def
+                .reads()
+                .into_iter()
+                .find_map(|(_, &read, _)| self.unresolved_read(read)),
+            VarDef::Free(_) | VarDef::Defined(_) => Some(var),
+        }
+    }
+
     /// **The operations `node` depends on** (D10: reading is the only
     /// dependency): the operations defining the variables its operands
     /// read ([`Node::operand_rows`]), then those defining the measured
     /// values its expressions read through definitions
     /// ([`Self::observed_outputs`]: an assertion's value); a selection
-    /// read is its body's operation ([`Self::read_operation`]). In read
+    /// read is its body's operation, and a pose definition's every one
+    /// its reads reach ([`Self::read_ports`]). In read
     /// order, each once; a read this document does not resolve
     /// contributes nothing (an unresolved read is the reader's refusal at
     /// evaluation, not an edge). Empty for a node this document does not
@@ -1779,7 +1900,8 @@ impl<P> Doc<P> {
         let at = node
             .operand_rows()
             .into_iter()
-            .filter_map(|(_, var)| self.read_operation(var))
+            .flat_map(|(_, var)| self.read_ports(var))
+            .map(|(at, _)| at)
             .chain(observed);
         for id in at {
             if !out.contains(&id) {
@@ -1791,19 +1913,17 @@ impl<P> Doc<P> {
 
     /// **What is wrong with reading `held` at a seat admitting
     /// `expected`** (D10), if anything: a kind the seat does not admit
-    /// ([`crate::SlotKind::admits`]); for a part projection that
-    /// selects `half` of a split, the split's other half; or, for a
-    /// reader that constructs, a world placement's copy, read directly
-    /// or through a selection of it (D10: construction never reads the
-    /// world; a measure observes a copy's placed geometry). Asked of a live read by every door that writes
-    /// or loads one — the edit doors' lowering and the load door's
-    /// operand walk — so the rule is stated once; liveness is each
-    /// door's own question, asked before.
+    /// ([`crate::SlotKind::admits`]); or, for a reader that
+    /// constructs, a world placement's copy, read directly or through a
+    /// selection of it (D10: construction never reads the world; a
+    /// measure observes a copy's placed geometry). Asked of a live read
+    /// by every door that writes or loads one — the edit doors' lowering
+    /// and the load door's operand walk — so the rule is stated once;
+    /// liveness is each door's own question, asked before.
     pub(crate) fn read_fault(
         &self,
         held: &crate::Var,
         expected: crate::SlotKind,
-        half: Option<crate::SplitHalf>,
         reader: Reader,
     ) -> Option<ReadFault> {
         if !expected.admits(held) {
@@ -1816,16 +1936,9 @@ impl<P> Doc<P> {
             return matches!(self.node(body), Some(Node::PlaceInWorld { .. }))
                 .then_some(ReadFault::WorldCopy { placement: body });
         }
-        let (from, port) = held.def().output()?;
-        match (half, self.node(from)) {
-            (Some(half), Some(Node::Split { .. })) if u32::from(port) != half.output_body() => {
-                Some(ReadFault::OtherHalf { half })
-            }
-            (_, Some(Node::PlaceInWorld { .. })) if reader == Reader::Constructs => {
-                Some(ReadFault::WorldCopy { placement: from })
-            }
-            _ => None,
-        }
+        let (from, _) = held.def().output()?;
+        (reader == Reader::Constructs && matches!(self.node(from), Some(Node::PlaceInWorld { .. })))
+            .then_some(ReadFault::WorldCopy { placement: from })
     }
 
     /// **The variable port `port` of `node` defines**
@@ -2276,7 +2389,9 @@ impl<P> Doc<P> {
                 crate::VarDef::Defined(defined) => self
                     .anonymous_expansion(&crate::Formula::from(defined))
                     .ok(),
-                crate::VarDef::Output { .. } | crate::VarDef::Select(_) => None,
+                crate::VarDef::Output { .. }
+                | crate::VarDef::Select(_)
+                | crate::VarDef::Pose(_) => None,
             }
         })
     }
@@ -2933,12 +3048,6 @@ pub(crate) enum ReadFault {
     Kind {
         /// The variable's kind.
         found: crate::VarKind,
-    },
-    /// A part projection selecting `half` of a split reads the split's
-    /// other half.
-    OtherHalf {
-        /// The half the projection selects.
-        half: crate::SplitHalf,
     },
     /// The variable is a world placement's copy.
     WorldCopy {

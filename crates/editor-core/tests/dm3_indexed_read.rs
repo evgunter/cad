@@ -151,9 +151,11 @@ fn an_indexed_read_at_a_body_seat_reads_that_member() {
     );
     let (doc, lower) = insert(
         doc,
-        Node::Part {
-            of: editor_core::Operand::output(split, 1),
-            select: editor_core::PartSelect::SplitHalf(editor_core::SplitHalf::Below),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![
+                editor_core::Operand::output(split, editor_core::SplitHalf::Below.port()).into(),
+            ]),
+            declare: Vec::new(),
         },
     );
     let (doc, cut) = insert(

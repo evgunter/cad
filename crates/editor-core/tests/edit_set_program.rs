@@ -1838,7 +1838,7 @@ fn a_reshaping_from_a_parked_program_strands_a_kept_leg_it_stops_drawing() {
 
 /// **A reshaping's values strand what the same value written by a
 /// slot edit would not** — the behaviour
-/// `work/recipe/a-reshapings-values-strand-what-a-value-edit-would-not.md`
+/// `work/doctail/a-reshapings-values-strand-what-a-value-edit-would-not.md`
 /// asks about, pinned as built. [`filleted_square`] at `r = 0.3` with a
 /// frame on the fillet's run out, rewritten whole at `r = 2` with every
 /// step kept: the run's `Zero` fit leaves it undrawn and the reshaping

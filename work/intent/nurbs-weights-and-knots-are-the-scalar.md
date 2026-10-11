@@ -45,8 +45,17 @@ gate C+D on that evidence. The evidence is silence: no counter says
 which listed sites a document reaches, so a scene that reaches a
 stored weight without moving it is indistinguishable from one that
 never reaches it. This unit's fix owes its own pin, as
-`*-keeps-computed-values-in-t` do: a revolve with a variable angle at
-`Sym<f64>`, whose rational weight re-values with the angle.
+`*-keeps-computed-values-in-t` do. No revolve builds a rational weight
+(a spline profile's revolve takes `Surface::nurbs_placeholder()`, and
+lines and arcs revolve to analytic carriers), so the pin is
+`geom::test_support::held_arc::HeldArc`. It is a rational arc built in
+`T` at `Sym<f64>` over a variable sweep `θ`, with weights `cos(Δ/2)`.
+The pin owes two halves through the NURBS carrier, landed in u3 once
+u2's carriers hold their weights in `T`: the carrier's point re-values
+with `θ`, and `pcurve_cache.rs`'s arc-rim margin `w − cos(h/2)` is a
+symbolic Zero. Each half is red on the stored-`f64` weight. The skinned arc wall
+takes over as the door-level pin once `the-skin-computes-its-values-in-t`
+lands.
 
 Four `stored-carrier-data` rows are values computed from the stored
 data rather than the stored data itself: `curves/nurbs.rs`'s `wp_lo` and
@@ -56,3 +65,5 @@ Once the weights are `T`, each is a value this crate computed, so it
 stays in `T` or enters through `from_computed`. It does not stay as
 stored data re-read. Re-class them as each is touched. (Raised by PR
 4589's review, unverified.)
+
+Closing this removes a way for the coincidence door to report a false proof: the door's symbolic rungs (`carriers-compare-in-canonical-form`) are theorems about the expression the `Sym` replay saw, and a listed site re-enters a computed value there as a constant.
