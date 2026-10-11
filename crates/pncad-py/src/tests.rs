@@ -6444,6 +6444,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "approx_certification",
             "approx_lane_unsupported",
+            "arc_end_off_corner",
             "back_pointer_mismatch",
             "band",
             "census_escalated",

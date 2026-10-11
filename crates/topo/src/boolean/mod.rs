@@ -155,7 +155,7 @@ pub use carrier_eq::{
     CarrierDesc, CarrierEqError, CarrierRelation, CoincidenceMeasure, ConsumedExtent, carrier_eq,
 };
 pub use contain::{
-    CONTAINMENT_RAISED, ContainDecision, ContainError, FaceContainment, contfp,
+    ArcEndGaps, CONTAINMENT_RAISED, ContainDecision, ContainError, FaceContainment, contfp,
     curved_face_containment, placement_ending, placement_lever, placement_subject,
     unnamed_placement_ending,
 };
@@ -3494,7 +3494,8 @@ impl core::fmt::Display for BooleanError {
                     ContainError::Curved(e) => write!(f, "the Boolean {e}"),
                     ContainError::Escalated { .. }
                     | ContainError::StaleFace(_)
-                    | ContainError::Uncrossable(_) => write!(f, "{preamble}: {refusal}"),
+                    | ContainError::Uncrossable(_)
+                    | ContainError::ArcEndClearOfCorners(_) => write!(f, "{preamble}: {refusal}"),
                 }
             }
             Self::ScaffoldingOperand { operand, .. } => write!(

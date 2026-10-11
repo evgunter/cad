@@ -4097,6 +4097,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBandShell> {
         | V::CensusUnsupported { .. }
         | V::CensusLaneUnsupported { .. }
         | V::CensusUndecidable { .. }
+        | V::ArcEndOffCorner { .. }
         | V::InstanceInterference { .. } => None,
         // A certificate that failed or a lane that cannot run: the
         // kernel's.
