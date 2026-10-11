@@ -2,7 +2,9 @@
 id: an-l-prism-top-edge-exactly-in-the-cube-face-plane-ships-an-undeclared-contact
 kind: issue
 title: A cube ∪/∖ L-prism whose top edge lies exactly in the cube's face plane ships a body with an undeclared contact (tier 3′ red, pre-existing)
-status: open
+status: review
+branch: flush/corner-ruling-tier3
+pr: 4650
 opened: 2026-10-05
 priority: P1
 cost: M
@@ -42,3 +44,26 @@ Diagnose which lane let the edge-in-face coincidence through without a
 refusal or a contact record, beside
 `an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired`.
 Repro: `R2P_T3=1 R2P_PICK=fib0 r2_pinch_probes cube Ltop`.
+
+## Measured (2026-10-11, PR 4650)
+
+The probe (`R2P_T3=1 R2P_PICK=fib0 r2_pinch_probes cube Ltop`, the
+example copied from `join/pierce-pinch-families-review-r2`, unchanged)
+on main's merge base `8c8f3b4c`: the three `edge psi=1.9` runs fail as
+above (`pc U`, `cp U` `UndeclaredContact`; `pc S` `StaleContactDeclaration`).
+On `flush/corner-ruling-tier3` all three are `SOUND`, and no other line
+of the probe moves. On PR 4604's head `29f98d7a` the three fail as on
+main: 4604 does not clear them.
+
+The cause is PR 4650's row's
+(`a-box-and-a-cylinder-through-its-corner-edge-intersect-past-tier-3-prime`):
+the prism's top-edge ends rest on the cube's near face, the section
+divides it, and the record was chased by key to the wrong piece or
+dropped with it. The op does carry its contact; it carried it to the
+wrong face. The `pc S` `StaleContactDeclaration` was this defect too,
+not FUSE's.
+
+Pinned: `join_pierce_runs_sweep.rs`
+`an_edge_in_the_partners_face_plane_records_its_rests_where_the_result_keeps_them`
+(the cube rebuilt exactly, `cube_at(V, frame(fib0, 1.9), (0, −2, 0))`,
+plain booleans), red on the merge base in `ab U`, `ab S` and `ba U`.
