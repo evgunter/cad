@@ -38,7 +38,7 @@ pub(crate) struct Box4(pub(crate) [(f64, f64); 4]);
 impl Box4 {
     /// The product of `a`'s and `b`'s knot rectangles: the whole state
     /// space of their section.
-    pub(crate) fn of_charts<T: Bounds>(a: &NurbsSurface<T>, b: &NurbsSurface<T>) -> Self {
+    pub(crate) fn of_charts<T: CertifiedBounds>(a: &NurbsSurface<T>, b: &NurbsSurface<T>) -> Self {
         Self([
             a.knots_u().domain(),
             a.knots_v().domain(),
