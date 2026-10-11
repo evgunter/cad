@@ -70,7 +70,7 @@
 use std::sync::Arc;
 
 use geom_core::Decide;
-use topo::{ContactRecords, FaceKey, PatchContact, ValidationError};
+use topo::{Cell, Contact, ContactRecords, FaceKey, ValidationError};
 
 use crate::doc::Doc;
 use crate::eval::{Evaluation, ValuePayload};
@@ -1423,14 +1423,13 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
         // door enforces its own half of it, and takes the REASON from
         // the table too, so the message can never be another class's.
         match class_admission(*class) {
-            // Face granularity (M9-1): a rest between two placed faces
-            // IS a `PatchContact`. Same type as the boolean wrapper's
-            // records, no adapter.
+            // A rest between two placed faces IS a face–face record.
+            // Same type as the boolean wrapper's records, no adapter.
             //
             // INVARIANT, pinned here because `attribute`'s
             // `StaleContactDeclaration` arm reasons from it: this door
-            // makes patch records of two DISTINCT faces, and never a
-            // `CurveContact`. A same-instance mate is refused
+            // makes face–face records of two DISTINCT faces and nothing
+            // else. A same-instance mate is refused
             // `SelfMate` at the solve door, so a live mate reaching
             // here names two faces of two different instances.
             //
@@ -1534,10 +1533,13 @@ impl AtRestRows {
                         discharge: row.discharge,
                     },
                 });
-                self.contacts.patches.push(topo::Cited::new(
-                    PatchContact { face_a, face_b },
-                    topo::Cites::decided(k),
-                ));
+                let Ok(contact) = Contact::new(body, Cell::Face(face_a), Cell::Face(face_b)) else {
+                    unreachable!(
+                        "a mate the census decided names two faces, which no incidence joins"
+                    )
+                };
+                self.contacts
+                    .extend([topo::Cited::new(contact, topo::Cites::decided(k))]);
             }
             Err(finding) => self.refused.push(finding),
         }
@@ -1757,14 +1759,9 @@ fn attribute(
         // own faces are in the error, so it names its mate exactly.
         //
         // **No row pins its `Refuted` label**, because no fixture
-        // reaches the arm: the `CurveLocus` half needs a
-        // `CurveContact`, and [`mint`] makes `PatchContact`s of two
-        // DISTINCT faces and nothing else — the invariant its own
-        // `debug_assert` pins, and the row
-        // `mint_makes_distinct_face_patches_and_no_curve_records`
-        // asserts. The `Patch` half needs the census's chart door to
-        // answer `Empty` on a cross-instance pair, which it does not
-        // do today.
+        // reaches the arm: it needs the census's chart door to answer
+        // `Empty` on a cross-instance pair, which it does not do
+        // today.
         //
         // The label still has to be right, because it is the dangerous
         // direction: relabelled `Declined`, a REFUTED declaration would
@@ -1773,9 +1770,7 @@ fn attribute(
         // `Empty`, this arm executes and wants its own acceptance row
         // in the same change.
         ValidationError::StaleContactDeclaration {
-            declaration:
-                topo::StaleDeclaration::Patch { face_a, face_b }
-                | topo::StaleDeclaration::CurveLocus { face_a, face_b, .. },
+            declaration: topo::StaleDeclaration::Patch { face_a, face_b },
         } => named(by_pair(*face_a, *face_b), Relation::Refuted),
         // A carrier kind the census inventory cannot certify: it
         // neither certified nor contradicted the pair, which is the
@@ -1816,7 +1811,7 @@ fn attribute(
         // mate authored it, which is what makes it F1's hard error.
         //
         // The VERTEX- and EDGE-granular staleness arms name a v-v,
-        // v-on-f, v-on-e or e-e record, and [`mint`] makes `PatchContact` and nothing else
+        // v-on-f, v-on-e, e-e or e-f record, and [`mint`] makes face–face records and nothing else
         // — so no declaration of this document is the subject, and a
         // stale record a PART carries is a finding against the
         // document that a mate cannot answer for. Sharing a face with
@@ -1831,9 +1826,8 @@ fn attribute(
         // frontier.
         //
         // `CensusUnsupported` on a non-face entity is unattributable
-        // by key: a minted declaration names two faces. Its live case
-        // is the curve-record confirm pass, which names its witness
-        // EDGE — a carried `CurveContact`, never a minted one.
+        // by key: a minted declaration names two faces, and an
+        // edge–face record, which names an EDGE, is never a minted one.
         //
         // `CensusLaneUnsupported` is a fact about the DOOR the census
         // ran through — it held no certified chart-overlap lane, so a
@@ -1859,7 +1853,8 @@ fn attribute(
                 topo::StaleDeclaration::VertexVertex { .. }
                 | topo::StaleDeclaration::VertexOnFace { .. }
                 | topo::StaleDeclaration::VertexOnEdge { .. }
-                | topo::StaleDeclaration::EdgeEdge { .. },
+                | topo::StaleDeclaration::EdgeEdge { .. }
+                | topo::StaleDeclaration::EdgeFace { .. },
         }
         | ValidationError::CensusEscalated { .. }
         | ValidationError::CensusLaneUnsupported { .. }
@@ -2007,7 +2002,7 @@ mod attribution {
     //! produces a given finding for a given configuration — those are
     //! the arguments at the arms, and the two that carry weight (a
     //! declared pair never reaches the cross-solid backstop; `mint`
-    //! makes `PatchContact` and nothing else) are properties of
+    //! makes face–face records and nothing else) are properties of
     //! `topo::census` and [`mint`], not of this module.
 
     use geom_core::predicate::{Band, MarginDiag};
@@ -2431,8 +2426,8 @@ mod attribution {
     }
 
     /// The same refusal on a NON-face entity names no declaration:
-    /// `mint` mints face pairs, so its live case — the curve-record
-    /// confirm pass, which names its witness edge — is a record a PART
+    /// `mint` mints face pairs, so its live case — an edge–face
+    /// record's confirm pass, which names its edge — is a record a PART
     /// carried, not one this document minted.
     #[test]
     fn an_unsupported_non_face_entity_is_unattributed() {

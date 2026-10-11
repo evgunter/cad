@@ -24,7 +24,7 @@ escalated typed refusal, never a raw comparison.
 | Decisions | Lives in |
 |---|---|
 | C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`) |
-| C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends}.rs` |
+| C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs` |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
 | C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions) |
 | C6 f64 structure vs generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
@@ -131,7 +131,24 @@ plane×NURBS the chain is the
 wall pcurve's per-span windows, padded along each chart axis by the
 radius over that axis's chart speed (minted once over the wall's domain,
 refusing a zero or non-finite axis by name), and the enclosure is the
-chart form `∇φ·e⊥ / ‖chart stretch‖`. The certificate records the tube
+chart form `∇φ·e⊥ / ‖chart stretch‖`. For NURBS×NURBS the chain is
+of boxes in the ℝ⁴ state space, each the product of the two pcurves'
+padded windows over a run of consecutive spans (at most
+`PAIR_TUBE_BOXES` of them, the same windows hulled), and the enclosure
+is the determinant of the 3×4 Jacobian of `S₁(u₁,v₁) − S₂(u₂,v₂)`, each
+column scaled by its chart speed, stacked over the run's scaled unit
+tangent `e` (orthonormal charts crossing at θ read `√2 sin θ`); each
+box, cut to the product of the two knot rectangles, holds one piece
+where its eight faces, three equations in three unknowns each, hold
+exactly two solutions, each isolated by Krawczyk (a face piece is first
+cleared by the mean-value form along the coordinate axes and each
+chart's normal), and an end is reached where the slice through it holds
+a solution or a box about it, `ε/8` per axis at that axis's chart speed,
+holds one on its boundary (`ssi/four.rs`). At rest the edge certificate
+derives both charts' images of the carrier from the fixed foot schedule,
+decides each interior sample's two normals transversal, and certifies
+the pair with this tube (`edge_nurbs::nurbs_pair_limbs`); the pcurve
+cache derives the mate chart's image the same way. The certificate records the tube
 by kind, a radius in metres or the per-axis chart pad (`SsiTube`), and
 the exhaustiveness accounting banks exactly the region it records.
 A component outside the chain is C3's exhaustiveness obligation, a
@@ -174,7 +191,8 @@ jet system solved by SVD, Frenet choice of free coefficients, Newton
 refinement; all f64, libm-only, fixed iteration order). Two trace shapes
 are compile-time decisions per table arm: an implicit pair in ℝ³ (2×3
 SVD; `cylinder_sphere_ssi`) and a parametric pair in ℝ⁴ on
-`G₁(u₁,v₁) − G₂(u₂,v₂) = 0` (3×4 SVD; `plane_nurbs_ssi`), from which the
+`G₁(u₁,v₁) − G₂(u₂,v₂) = 0` (3×4 SVD; `plane_nurbs_ssi`, and
+`ssi::Section` on two NURBS charts), from which the
 3-D curve and both pcurves fall out as projections of one traced object
 on one shared parameter. A branch jump is a certificate refusal. The
 stepper guards the step where it mints it: no step is longer than the
@@ -363,6 +381,41 @@ per-sample check in `plane_nurbs_limbs`, which refuses
 its arm was (`PointLever`). A decision over a region (the boundary
 strip, and limb 3's tube on both lanes) reads the certified least
 `sin θ` over it, levered by `E` alone.
+The NURBS × NURBS lane is one complete operation, the full solution
+set over the product of the two knot rectangles, read through a handle
+(`ssi::Section::of`). Its boundary pass runs once per handle, at the
+first reading that needs its crossings: each side of either rectangle
+is a face of the product, the other surface against that side, and the
+pass walks all eight faces as limb 3 walks a box's
+(`ssi::four::face_roots`), each solution it isolates settled onto both
+surfaces with its face's coordinate held, or refused
+`SsiError::EndNotOnLocus`; those are the crossings, the only ends an
+open branch has. A face the walk does not resolve within its pieces —
+the section touching or running along a side, or through a corner, of
+either rectangle — refuses `SsiError::PairBoundaryUnresolved`: this
+lane reports no `Side` or `Corner` region. Its two readings are one
+contract. `branch_at(seed)` settles the seed's feet on both charts
+onto the section by Newton (outside either rectangle it refuses
+`SeedOffDomain`; where the surfaces are tangent, by the march's
+transversality decision); a seed inside a tube already certified is
+that branch, any other is traced to the crossings it reaches as an
+interior seed is, fitted, refined and certified, and the answer is the
+branch whose certified tube holds the settled seed, or
+`SsiError::SeedOutsideTube`. What is proved is that the answer is
+the branch through the state Newton settled on. Newton's convergence to
+the component nearest the seed is not proved, and the tube check does
+not catch a seed that settled onto another component (the branch is
+traced through the settled state, so its tube holds it); a seed far
+from the section gets whichever branch Newton reaches, with no distance
+gate. The backstops are the caller's: the offset door's seed lies
+within `d / sin(φ/2)` of the moved seam, and a wrong branch
+disagrees with the edge's moved vertices (`VertexDisagreement`). `all()` traces every open branch between the
+crossings no certified branch already ends at, every closed loop from
+the pair lane's seeds (cells of the product whose two charts' boxes are
+not certified apart, at the seeding floor), and accounts every cell of
+the product, excluded or inside a tube, at the accounting floor, in
+chart units at the fastest of the four chart speeds
+(`exhaust::account_pair`). Exhaustiveness is `all()`'s obligation.
 Hoffmann §6.5's tracing through singular points is deliberately not
 adopted. Subdivision is recursive bisection with a linear scan over
 tubes; the C10 tree is not wired in.
@@ -519,7 +572,12 @@ Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
 plane×cylinder, plane×cone (all but the parabola and hyperbola),
 declared-equal cylinder×cylinder, axis-aligned plane×torus (its
 axis-parallel pose off the axis the `Spiric`) (rung 2); cylinder×sphere,
-plane×NURBS and plane×`Approx` (rung 3). Every other pair refuses, most blocked on the cone
+plane×NURBS and plane×`Approx`, NURBS×NURBS and every pairing of
+`Approx` with NURBS or `Approx` (rung 3). The offset door reads
+NURBS×NURBS through `Section::branch_at` at the old edge's middle; the
+whole-section reading a boolean takes is `Section::all`, which no
+boolean reads yet (no boolean reads a rung-3 arm). `implemented` covers
+the whole operation. Every other pair refuses, most blocked on the cone
 and torus metres conversion (C2 limb 2).
 
 ### Fitted-cache structure
@@ -684,14 +742,22 @@ pcurve channels refuse `QuadratureUnsupported`; exhaustion is
 bounded by a `Curve3::Spiric` takes `props/spiric.rs`: the cap's vector
 area and the wall's chart Green form along the spiric are elliptic
 integrals in the torus minor angle, enclosed by a fifth-order Taylor
-rule whose only non-ring operation is `√`, on the same schedule. A sphere face whose
-boundary circles are tilted against its chart has no conic or spline
-trim and is on the closed-form lane, measured by Gauss–Bonnet over its
-circle arcs (`props/curved.rs`, `sphere_circle_loop`). A chart
+rule whose only non-ring operation is `√`, on the same schedule. A sphere face bounded
+by circle arcs — rims, meridians and sections tilted against its chart
+alike, holes included — has no conic or spline trim and is on the
+closed-form lane, measured by Gauss–Bonnet over all its loops
+(`props/curved.rs`, `sphere_face`). A chart
 singularity inside a face is a vertex of it, so a sphere face lies on
 the side of its loop that holds no chart pole. The closed-form lane and
 tier 3 read that side to cross-check the face's sense bit, and refuse a
-contradiction, wherever at least one pole lies off the loop. (8) In-house SVD and
+contradiction, wherever at least one pole lies off the loop
+(`sphere_loop_side`). A loop with a pole off it on each side encodes no
+side: under either sense its face holds a pole, which is validity's to
+refuse. Nor does a loop whose poles both read undecided: a pole within
+the ambiguity band of a great or near-great carrier's plane has its
+antipode there too, so a face whose loop passes that close to a pole
+is measured under its bit alone. A face with holes reads its side off the sign of its own
+Gauss–Bonnet area. (8) In-house SVD and
 least-squares solvers with fixed elimination order
 (`geom-core/src/linalg`). (9) The curvo audit is `docs/CURVO-AUDIT.md`
 (it has no SSI); the stance is DESIGN.md Q5.
@@ -836,10 +902,23 @@ fit, at the row its iso image names. Its corners are the planes' roots
 along those edges, a section's sought from its end at the corner; the
 fit itself is not rooted, and a corner no root of which lies on a moved
 fit refuses (`CornerSection`, naming the corner's vertex and an edge of
-the fit meeting it). Its other boundary refuses: `Approx` against
-anything but a plane, a row of the fit beside a spline or another
-fitted face, and a seam between two moved fits, included
-(`NeighborPairUnroutable`, naming `Approx`); by
+the fit meeting it). A fitted face's edge with a spline face or another fit, moved or held,
+is their NURBS × NURBS section through the old edge's middle
+(`Section::branch_at`), in the old edge's sense. Measured: a crease
+between two moved fits derives there (the shelled twisted loft's four
+wall–wall seams at ε = 1e-6), and a seam where the two are tangent (a
+smooth one) refuses by the section's transversality decision. A wall
+moved alone beside a held spline wall refuses at that seam, typed by
+whichever reading of the section meets it first: inward, the boundary
+pass does not resolve the side the section runs along
+(`PairBoundaryUnresolved`); outward, the seed settles outside the fit's
+window (`SeedOffDomain`), or, where the move is far inside ε, the
+boundary pass refuses as inward or the trace loses the section at the
+side (`CrossingUnmatched`, or the step-progress decision). A concave
+crease's section lies outside both fits' windows; no row measures its
+verdict. Its other boundary refuses: `Approx`
+against a curved analytic face (`NeighborPairUnroutable`, naming
+`Approx`); by
 `FittedBoundaryUnsupported`, a curve on the fit that is no line of its
 chart, or a line along a seam the face shares with itself that holds
 neither parameter fixed, a scaffold edge, and a seam the face shares

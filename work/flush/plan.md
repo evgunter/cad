@@ -19,11 +19,11 @@ lanes in flight are expected to close more, so the track is not split.
 | pri | item | cost | title |
 |---|---|---|---|
 | P0 | `a-box-and-a-cylinder-through-its-corner-edge-intersect-past-tier-3-prime` | M | box ∩ cylinder through its corner edge: the right volume, and tier 3′ fails |
-| P0 | `a-result-that-is-only-a-sliver-shell-passes-the-door` | M | a result whose only lump is a sliver ships: check 7 exempts its in-band sign, check 10 reads no one-shell solid |
 | P0 | `a-corner-pair-with-an-edge-in-the-partners-face-plane-builds-with-undeclared-contacts` | M | a corner pair with an edge in the partner's face plane: tier 3′ `UndeclaredContact`, `StaleContactDeclaration` |
 | P1 | `a-wedge-flush-on-a-block-top-refuses-every-op-undeclared-though-its-face-reads-zero` | M | a wedge flush on a block's top, its face Zero off the block's plane, refuses every op undeclared; the declared spelling builds and F retires it |
 | P1 | `an-l-prism-top-edge-exactly-in-the-cube-face-plane-ships-an-undeclared-contact` | M | an L-prism's top edge in the cube's face plane ships an undeclared contact |
 | P1 | `the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone` | H | the pre-zip pinch weld stays as the repair of an operand's coincident pierces |
+| P2 | `a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses` | M | a thin-walled hollow ships while a slab as thin refuses: the door reads a sliver per shell, never per solid (design) |
 | P2 | `a-curved-face-at-a-shared-pinch-vertex-builds-bodies-the-census-and-the-reuse-check-refuse` | M | a curved face at a shared pinch vertex: bodies tier 3′ escalates and a further union refuses |
 | P2 | `a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face` | M | `Joint::Hole` cannot tell a figure-8 hole from an island face |
 | P2 | `a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys` | M | a pinch whose keys no seam ties keeps its cones on separate point keys |

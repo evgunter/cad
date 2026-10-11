@@ -1668,7 +1668,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::Join => "join",
         BooleanErrorKind::JoinUndecided => "join_undecided",
         BooleanErrorKind::JoinCarrierUnsupported => "join_carrier_unsupported",
-        BooleanErrorKind::CurvedRestUnrecorded => "curved_rest_unrecorded",
         BooleanErrorKind::JoinDesync => "join_desync",
         BooleanErrorKind::TornComponent => "torn_component",
         BooleanErrorKind::ShellWitnessExhausted => "shell_witness_exhausted",
@@ -3321,8 +3320,8 @@ pub fn census_contact_tag(contact: &CensusContact) -> &'static str {
 ///
 /// The word decides which record a caller withdraws or re-seats. A
 /// `vertex_vertex` or `vertex_on_face` record names entities, so the
-/// repair is at those entities; a `curve_locus` record was certified
-/// by a witness EDGE whose locus is gone, and a `patch` record by a
+/// repair is at those entities; an `edge_face` record names an edge
+/// and the face it lies in, and a `patch` record was certified by a
 /// trim overlap in a shared chart. Withdrawing the wrong granularity
 /// leaves the refusal standing, which is what a caller reading only
 /// `stale_contact_declaration` cannot avoid.
@@ -3335,7 +3334,7 @@ pub fn stale_declaration_tag(declaration: &StaleDeclaration) -> &'static str {
         StaleDeclaration::VertexOnFace { .. } => "vertex_on_face",
         StaleDeclaration::VertexOnEdge { .. } => "vertex_on_edge",
         StaleDeclaration::EdgeEdge { .. } => "edge_edge",
-        StaleDeclaration::CurveLocus { .. } => "curve_locus",
+        StaleDeclaration::EdgeFace { .. } => "edge_face",
         StaleDeclaration::Patch { .. } => "patch",
     }
 }

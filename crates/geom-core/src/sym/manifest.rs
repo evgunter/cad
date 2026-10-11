@@ -72,7 +72,9 @@
 //! only); `geom/src/curves/banded.rs`'s dropped `L` zero, which takes
 //! its pivot's sign (`f64` only); `geom-brep/src/implicit.rs`'s cone
 //! gradient;
-//! `geom-brep/src/props/curved.rs`'s sphere-meridian pole margins;
+//! `geom-brep/src/props/curved.rs`'s arc span membership (the
+//! sphere-meridian pole margins and the sphere side reader's pole on an
+//! arc, one helper);
 //! `geom-brep/src/tangent.rs`'s jet (the orientation sign of the
 //! second surface's normal curvature);
 //! `profile/src/sugar.rs`'s arc-leg fillet tangent point (the offset
