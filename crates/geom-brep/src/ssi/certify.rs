@@ -3052,7 +3052,6 @@ mod tests {
     #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
     fn the_hull_bound_escalates_with_an_enclosure_at_interval() {
         use super::{ANALYTIC_HULL, CHART_HULL, Hull, SsiError, Subdivided, hull_limb};
-        use geom_core::interval::certification::Certification;
         use geom_core::{Band, ErrorTextReading, Interval, MarginDiag};
         let band = Band::new(4.0e-15, 6.0e-15).unwrap();
         let sup = 5.0e-15;
@@ -3061,7 +3060,9 @@ mod tests {
                 sup,
                 breaks: vec![0.0, 1.0],
                 spans: vec![sup],
-                values: vec![Interval::point(0.0); 2],
+                floors: vec![0.0; 2],
+                work: 1,
+                data: (),
             };
             let mut at = super::Refused::default();
             let err = hull_limb::<Interval>(arm, Subdivided::Bound(hull), band, &mut at)
