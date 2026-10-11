@@ -261,6 +261,22 @@ Pinned by `a_curved_notch_at_a_corner_pinch_builds_bodies_two_lanes_cannot_read_
 (poses `0 0 0 ab I` and `0 0 0 ab U` refuse; `9 4 4 ab S` passes):
 when this lane lands, flip those two expectations.
 
+## Two batteries read it as their one failure (FLUSH, 2026-10-11)
+
+Measured on `flush/e-tail` (main at `121741a2b` plus FLUSH's E tail),
+ε = 1e-9, once `crates/sweep/tests/pocket_ring_steep_ellipse.rs`
+`steep_quad_prism_battery` and `crates/sweep/tests/join3_r2_probes.rs`
+`j3r2_tilted_battery` judge their bodies through
+`common::differential::outcome`, which asks each built body to unite
+with the far brick `[50, 51]³`. Every body the two batteries read BAD
+passes tiers 2 and 3′ and the certificate and fails only that union:
+849 of 960 runs and 2 153 of 2 160. The cutters alone are legal
+operands (`j3r2_tilted_operands`: every one unites); the results
+carrying their ellipse-trimmed walls are not, and
+`j3r2_tilted_rod_operand` prints the refusal,
+`Containment(VolumeUncertified)`, for a tilted round rod and a tilted
+D at θ = 0.15 (a tilted square, with no curved wall, unites).
+
 ## Measured (CLEAVE `cleave/missed-ray-side`, 2026-10-11)
 
 CLEAVE's missed-ray unit

@@ -67,6 +67,8 @@ crates/geom-core/src/spline/locate.rs	1	constant	<fn>	SpanLocate::refine_homogen
 crates/geom-core/src/spline/projective.rs	1	constant	v	apply_homogeneous_in: a knot the refinement brings in, a point of its schedule
 crates/geom-core/src/sym.rs	1	constant	x	the Real impl's own door: Sym::from_f64 is the Lit
 crates/geom/src/convention.rs	1	constant	band.zero()	the band's zero width, a tolerance
+crates/geom/src/curves/banded.rs	1	constant	l	a dropped term's structural zero, signed as its pivot
+crates/geom/src/curves/fit.rs	1	constant	degree as f64	the fit degree, a count
 crates/geom/src/curves/nurbs.rs	1	constant	active.len() as f64	a count of active basis functions
 crates/geom/src/curves/nurbs.rs	1	constant	binom	a binomial coefficient
 crates/geom/src/curves/nurbs.rs	1	constant	*wj	a piece-restriction weight sum (piece_weights: exact de Casteljau ratios of the meter's piece schedule)
@@ -92,8 +94,13 @@ crates/sweep/src/blend/reach.rs	1	constant	band.zero()	the band's zero width, a 
 crates/sweep/src/blend/reach.rs	1	constant	pts.len() as f64	a point count
 crates/sweep/src/blend/reach.rs	3	constant	band.escalate()	the band's escalation width, a tolerance
 crates/sweep/src/loft.rs	1	constant	next.len() as f64	a count
+crates/sweep/src/skin.rs	1	constant	(k + 1) as f64 / steps	a sub-arc end k/m as a fraction of the sweep, structure
+crates/sweep/src/skin.rs	1	constant	counted as f64	a row count
+crates/sweep/src/skin.rs	1	constant	k as f64	a sub-arc index
+crates/sweep/src/skin.rs	1	constant	k as f64 / steps	a sub-arc breakpoint k/m, structure
+crates/sweep/src/skin.rs	1	constant	steps	the sub-arc count
 crates/sweep/src/test_support.rs	1	fixture	(core::f64::consts::FRAC_PI_2 / 4.0).tan()	a fixture arc's bulge
-crates/sweep/src/test_support.rs	2	fixture	<fn>	a fixture's f64 points lifted into T
+crates/sweep/src/test_support.rs	4	fixture	<fn>	a fixture's f64 points lifted into T
 crates/topo/src/boolean/boxes.rs	1	constant	l as f64	a sample index
 crates/topo/src/boolean/boxes.rs	3	constant	k as f64	a sample index
 crates/topo/src/boolean/carrier_touch.rs	2	constant	band.escalate()	the band's escalation width, a tolerance

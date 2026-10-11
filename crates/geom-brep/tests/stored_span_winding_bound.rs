@@ -423,11 +423,14 @@ fn null_ellipse<T: Real>() -> LoopEdge<T> {
     LoopEdge::hand_built(c, f(0.0), f(0.0), true, 0, 0)
 }
 
-/// **The cone's ellipse-cut branch decides the circle spans it
-/// integrates.** On main the `3π` rectangle plus a null ellipse
-/// answered the `3π` area (`1.4685e-4` m²) — the branch never reaches
-/// the rim parse, and `loop_vector_area` reads `R²·Δt` — at `f64` and
-/// at the interval scalar alike.
+/// **The cone's vector-area reader decides the circle spans it
+/// integrates.** Before the decide the `3π` rectangle plus a null
+/// ellipse answered the `3π` area (`1.4685e-4` m²) — the ellipse-cut
+/// branch never reached the rim parse, and `loop_vector_area` reads
+/// `R²·Δt` — at `f64` and at the interval scalar alike. Every cone face
+/// is now read by the one reader, which decides the spans before
+/// anything integrates them; a null ellipse, an edge of no span, turns
+/// through no decidable azimuth, so the control is the rectangle alone.
 #[test]
 fn the_cones_ellipse_branch_refuses_a_rim_past_the_winding_bound() {
     use geom_core::Interval;
@@ -440,10 +443,8 @@ fn the_cones_ellipse_branch_refuses_a_rim_past_the_winding_bound() {
     edges.push(null_ellipse());
     let r = curved_face(&surface::<Interval>(Kind::Cone), &edges, true, bd);
     assert!(refuses_as(&r, RIM_WINDING), "interval: {r:?}");
-    // The control: a full-period rectangle on the same branch answers
-    // the closed form.
-    let mut edges = rim_rect::<f64>(Kind::Cone, TAU);
-    edges.push(null_ellipse());
+    // The control: a full-period rectangle answers the closed form.
+    let edges = rim_rect::<f64>(Kind::Cone, TAU);
     let fc = curved_face(&surface::<f64>(Kind::Cone), &edges, true, bd).unwrap();
     let exact = exact_area(Kind::Cone, TAU, levels(Kind::Cone, DV));
     let rel = (fc.area.abs() - exact).abs() / exact;

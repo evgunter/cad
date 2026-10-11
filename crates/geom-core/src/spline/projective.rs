@@ -135,6 +135,71 @@ impl<T: ProjectiveScalar> ProjectiveScalar for crate::dual::Dual<T> where
 impl<T: ProjectiveScalar> sealed::Sealed for crate::sym::Sym<T> {}
 impl<T: ProjectiveScalar> ProjectiveScalar for crate::sym::Sym<T> {}
 
+/// **A computation with one half per side of the projective
+/// partition**, run by [`SpanLocate::split_projective`] at the scalar
+/// `S`: [`Self::projective`] where `S` is a [`ProjectiveScalar`], so the
+/// half may call the projective knot algebra, and [`Self::enclosure`]
+/// where `S`'s value channel is an enclosure (`Interval`, and `Dual`
+/// and `Sym` over it), where that algebra does not typecheck. No value
+/// is read to choose: the scalar's type answers.
+pub trait ProjectiveSplit<S: SpanLocate> {
+    /// What either half returns.
+    type Out;
+
+    /// The half run at a projective scalar.
+    fn projective(self) -> Self::Out
+    where
+        S: ProjectiveScalar;
+
+    /// The half run at an enclosure scalar.
+    fn enclosure(self) -> Self::Out;
+}
+
+/// `Dual<T>`'s answer is its base's: `arm` runs at `Dual<T>` on the
+/// half `T` takes (a projective `T` makes `Dual<T>` projective).
+pub(crate) struct DualArm<A>(pub(crate) A);
+
+impl<T, A> ProjectiveSplit<T> for DualArm<A>
+where
+    T: SpanLocate + crate::dual::KinkJacobian,
+    A: ProjectiveSplit<crate::dual::Dual<T>>,
+{
+    type Out = A::Out;
+
+    fn projective(self) -> A::Out
+    where
+        T: ProjectiveScalar,
+    {
+        self.0.projective()
+    }
+
+    fn enclosure(self) -> A::Out {
+        self.0.enclosure()
+    }
+}
+
+/// `Sym<T>`'s answer is its base's, as [`DualArm`].
+pub(crate) struct SymArm<A>(pub(crate) A);
+
+impl<T, A> ProjectiveSplit<T> for SymArm<A>
+where
+    T: SpanLocate,
+    A: ProjectiveSplit<crate::sym::Sym<T>>,
+{
+    type Out = A::Out;
+
+    fn projective(self) -> A::Out
+    where
+        T: ProjectiveScalar,
+    {
+        self.0.projective()
+    }
+
+    fn enclosure(self) -> A::Out {
+        self.0.enclosure()
+    }
+}
+
 /// The control data [`CurvePlan::apply_rational`] combines at the
 /// projective scalar `T` (and [`CurvePlan::apply_points`] at `f64`):
 /// `T` itself, and the points and coordinate
@@ -190,5 +255,52 @@ impl CurvePlan {
             let span = hi - lo;
             Some(x * ((hi - u) / span) + y * ((u - lo) / span))
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ProjectiveScalar, ProjectiveSplit, SpanLocate};
+    use crate::dual::Dual;
+    use crate::{Interval, Sym};
+
+    /// Names the half the dispatch ran.
+    struct Which;
+
+    impl<S: SpanLocate> ProjectiveSplit<S> for Which {
+        type Out = &'static str;
+
+        fn projective(self) -> &'static str
+        where
+            S: ProjectiveScalar,
+        {
+            "projective"
+        }
+
+        fn enclosure(self) -> &'static str {
+            "enclosure"
+        }
+    }
+
+    #[test]
+    fn a_wrapper_takes_its_bases_half() {
+        assert_eq!(
+            [
+                f64::split_projective(Which),
+                Dual::<f64>::split_projective(Which),
+                Sym::<f64>::split_projective(Which),
+                Interval::split_projective(Which),
+                Dual::<Interval>::split_projective(Which),
+                Sym::<Interval>::split_projective(Which),
+            ],
+            [
+                "projective",
+                "projective",
+                "projective",
+                "enclosure",
+                "enclosure",
+                "enclosure",
+            ]
+        );
     }
 }

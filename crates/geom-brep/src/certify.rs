@@ -1326,7 +1326,11 @@ impl<T: Decide> EdgeCurve<T> {
     /// 3. Endpoint pinning: `|carrier(t₀) − start| ≤ ε`,
     ///    `|carrier(t₁) − end| ≤ ε`.
     /// 4. Per-sample description residuals, samples i = 0…8 in order
-    ///    (per-sample check order as listed in [`CertCheck`]):
+    ///    (per-sample check order as listed in [`CertCheck`]). Every
+    ///    sample is a carrier point, the two ends included: the
+    ///    certificate bounds the carrier (D4 ¶2), and a vertex on the
+    ///    surfaces does not put the carrier's end, up to ε from it by
+    ///    check 3, on them.
     ///    - `Intersection`: implicit residual vs `s1`, then `s2`; at
     ///      interior samples (i = 1…7) the transversality margin
     ///      (definitely transverse required), metered through the
