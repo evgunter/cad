@@ -822,8 +822,9 @@ fn a_lens_of_two_domes_builds_with_its_discs_declared_rest() {
 }
 
 /// **A rim lying inside the partner's face** passes the crossing layer:
-/// a tube standing on a torus's 45° latitude stops in the join, on the
-/// torus × plane germ frame (`work/germ/c5-plane-torus-cone-cylinder-arms.md`),
+/// a tube standing on a torus's 45° latitude stops in the join, past the
+/// torus × plane germ frame, at the wall side's section, which has no
+/// plane × torus arm (`work/germ/c5-plane-torus-cone-cylinder-arms.md`),
 /// a frontier that is not the crossing layer's. A tube ending on a ball
 /// builds (`a_tube_ending_on_a_ball.rs`).
 #[test]
@@ -849,7 +850,11 @@ fn a_rim_inside_the_partners_face_passes_the_crossing_layer() {
     .enumerate()
     {
         assert!(
-            matches!(r, Err(BooleanError::GermFrameUnsupported { .. })),
+            matches!(
+                &r,
+                Err(BooleanError::Join(topo::SplitJoinError::SectionInvariant { what, .. }))
+                    if what.contains("plane×torus")
+            ),
             "order {order}: past the crossing layer, the join's refusal: {:?}",
             r.err()
         );

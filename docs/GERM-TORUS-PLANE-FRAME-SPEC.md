@@ -559,11 +559,19 @@ Rows run in-crate, against `pair_section_frame_at` and
 - **Q5 The frame's extent** (answered: the torus face's reach, as the
   cone's). Answered on the cone spec's Q4 argument: a lever is sound if
   it bounds the consumed region, and the face's reach does.
-- **Q6 The same loop question on the cylinder × sphere coaxial pair.**
-  `cs_pair_frame` serves one frame for two circles, and nothing stops
-  `nearer_along` ranking across them where both lie on one face pair.
-  This was not measured. U-T1 measures it, since it threads the loop
-  identity through the same consumers, and files a row if it is live.
+- **Q6 The same loop question on the cylinder × sphere coaxial pair**
+  (answered by measurement: not live). `cs_pair_frame` serves one frame
+  for two circles, and nothing in the frame stops `nearer_along` ranking
+  across them where both lie on one face pair. Measured in U-T1 on a
+  `0.5` rod (`germ_pair::cyl`) through a ball centred on its axis, at
+  radii `1` and `0.52` (circles `1.73` and `0.29` apart, the second
+  nearer than the half-turn along either), the ball also moved `0.3` up
+  the axis, the rod spun 1 rad, and the ball's chart turned a
+  quarter-turn: each circle holds two sites, and every segment of
+  ∪, ∩ and both ∖, in both member orders, joins two sites of one circle.
+  No row is filed. `germ_plane_torus_frame`'s
+  `the_coaxial_cylinder_sphere_pair_keeps_each_circle_to_itself` pins
+  the nearest pose.
 - **Q7 The row's chain is stale in three places** (§0.1): the lily
   stops at the dispatch, not the frame; TANG's pose stops at the wall
   side's section once past the frame; and the corner bar's barrier is

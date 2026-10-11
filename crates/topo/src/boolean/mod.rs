@@ -130,6 +130,8 @@ mod surface_group;
 pub mod tables;
 #[cfg(test)]
 mod torn_hop_rows;
+#[cfg(test)]
+mod torus_frame_rows;
 pub mod voids;
 pub(crate) mod vtxfac;
 pub(crate) mod zip;
@@ -2120,6 +2122,18 @@ pub enum SectorRead {
     Pair(VertexKey),
 }
 
+/// **The loops a plane cuts on a ring torus**, as the section
+/// certificate classifies them ([`BooleanError::GermSectionSpiric`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpiricLoops {
+    /// Two loops, each winding once round the torus's axis.
+    AroundAxis,
+    /// Two loops, each winding once round the tube.
+    AroundTube,
+    /// One loop on the tube that winds round neither.
+    Null,
+}
+
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
 #[derive(Debug)]
 pub enum BooleanError {
@@ -2951,6 +2965,27 @@ pub enum BooleanError {
         /// The section table's refusal, naming the conic.
         section: geom_brep::SectionError,
     },
+    /// **A germ pair whose plane cuts a torus face in a general spiric
+    /// quartic**: a plane neither through the torus's axis, nor square to
+    /// it, nor parallel to it short of its inner equator. The C5 table
+    /// routes that section to its general rung, which is unbuilt, and no
+    /// carrier holds the curve, so the pair is refused at its frame.
+    /// `loops` is the section certificate's own classification of the
+    /// section, and `section` the table's refusal.
+    GermSectionSpiric {
+        /// The A-side germ face.
+        a_face: FaceKey,
+        /// Its kind.
+        a_kind: geom::SurfaceKind,
+        /// The B-side germ face.
+        b_face: FaceKey,
+        /// Its kind.
+        b_kind: geom::SurfaceKind,
+        /// The loops the plane cuts.
+        loops: SpiricLoops,
+        /// The section table's refusal.
+        section: geom_brep::SectionError,
+    },
     /// **A germ pair of two cylinder walls whose axes definitely
     /// INTERSECT** — the frame dispatch's named sub-case of "no
     /// frame", and the door the intersecting equal-radius family
@@ -3314,6 +3349,8 @@ pub enum BooleanErrorKind {
     GermFrameUnsupported,
     /// [`BooleanError::GermSectionOutsideInventory`].
     GermSectionOutsideInventory,
+    /// [`BooleanError::GermSectionSpiric`].
+    GermSectionSpiric,
     /// [`BooleanError::GermFrameCylinderPinch`].
     GermFrameCylinderPinch,
     /// [`BooleanError::Euler`].
@@ -3539,6 +3576,7 @@ impl BooleanError {
             Self::GermSectionOutsideInventory { .. } => {
                 BooleanErrorKind::GermSectionOutsideInventory
             }
+            Self::GermSectionSpiric { .. } => BooleanErrorKind::GermSectionSpiric,
             Self::GermFrameCylinderPinch { .. } => BooleanErrorKind::GermFrameCylinderPinch,
             Self::Euler(_) => BooleanErrorKind::Euler,
             Self::Pcurves { .. } => BooleanErrorKind::Pcurves,
@@ -3881,6 +3919,18 @@ impl core::fmt::Display for BooleanError {
                 match conic {
                     geom_brep::OutsideConic::Parabola => "a parabola",
                     geom_brep::OutsideConic::Hyperbola => "a hyperbola",
+                },
+            ),
+            Self::GermSectionSpiric { loops, .. } => write!(
+                f,
+                "a flat face of one part cuts a torus face of the other at a slant, along a \
+                 curve the Boolean cannot yet trace ({}). Recourse: cut the torus with a \
+                 flat face through its axis, square to its axis, or parallel to its axis \
+                 inside its hole",
+                match loops {
+                    SpiricLoops::AroundAxis => "two loops round the axis",
+                    SpiricLoops::AroundTube => "two loops round the tube",
+                    SpiricLoops::Null => "one loop on the tube",
                 },
             ),
             // One sentence for BOTH radius cases: the walls may have
@@ -6967,6 +7017,17 @@ mod tests {
                     why: "a hyperbola",
                 },
             },
+            BooleanError::GermSectionSpiric {
+                a_face: face,
+                a_kind: geom::SurfaceKind::Plane,
+                b_face: face,
+                b_kind: geom::SurfaceKind::Torus,
+                loops: SpiricLoops::Null,
+                section: geom_brep::SectionError::RoutesToGeneralRung {
+                    pair: "plane×torus",
+                    why: "a folded loop",
+                },
+            },
             BooleanError::GermFrameCylinderPinch {
                 a_face: face,
                 b_face: face,
@@ -7097,6 +7158,7 @@ mod tests {
                 BooleanErrorKind::SpheresMeet => "SpheresMeet",
                 BooleanErrorKind::GermFrameUnsupported => "GermFrameUnsupported",
                 BooleanErrorKind::GermSectionOutsideInventory => "GermSectionOutsideInventory",
+                BooleanErrorKind::GermSectionSpiric => "GermSectionSpiric",
                 BooleanErrorKind::GermFrameCylinderPinch => "GermFrameCylinderPinch",
                 BooleanErrorKind::Euler => "Euler",
                 BooleanErrorKind::Pcurves => "Pcurves",

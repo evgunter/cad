@@ -391,6 +391,20 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "GermSectionSpiric",
+            BooleanError::GermSectionSpiric {
+                a_face: face,
+                a_kind: SurfaceKind::Plane,
+                b_face: face,
+                b_kind: SurfaceKind::Torus,
+                loops: topo::SpiricLoops::AroundTube,
+                section: geom_brep::SectionError::RoutesToGeneralRung {
+                    pair: "plane×torus",
+                    why: "generic tilt cuts a spiric quartic",
+                },
+            },
+        ),
+        (
             "GermFrameCylinderPinch",
             BooleanError::GermFrameCylinderPinch {
                 a_face: face,

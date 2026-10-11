@@ -822,7 +822,7 @@ pub use boolean::{
     NullEdgePairRecord, Operand, OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread,
     PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation,
     PlaneRung, PointInSolidError, SectorRead, SectorRung, SelfCheck, Settling, ShellOrientation,
-    SideCode, SolidContainment, SolidFaces, SphereQuestion, SweepStrategy, SweepTrace,
+    SideCode, SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SweepStrategy, SweepTrace,
     TorusConvention, VeContact, Verdicts, VfContact, VoidContainment, VoidEvidence,
     VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce,
     boolean_reduce_declared, carrier_eq, contfp, curved_face_containment, decision_words,
