@@ -9,8 +9,10 @@ use crate::readable::Readable;
 use crate::real::Real;
 use core::num::NonZeroUsize;
 
-/// `hi − lo` for two stored `f64` knots, the difference taken in `T`:
-/// each knot lifted, then subtracted at the scalar. At `Interval` that is
+/// `hi − lo` for two `f64` knots of a bare [`KnotVector`] (one that
+/// holds no values in a scalar; a carrier's held knots are subtracted
+/// in their own scalar), the difference taken in `T`: each knot
+/// lifted, then subtracted at the scalar. At `Interval` that is
 /// an outward enclosure of the exact difference, which
 /// `T::from_f64(hi - lo)` is not when the `f64` subtraction rounds (two
 /// knots more than a factor of two apart, Sterbenz's lemma failing); at
@@ -93,6 +95,16 @@ pub enum SplineError {
         /// Index of the offending run.
         index: usize,
     },
+    /// A weight held in the scalar is an enclosure wider than a point
+    /// (`SpanLocate::point_value` reads none, and it is not poison,
+    /// which refuses as a non-positive weight). The weights' value
+    /// channel is what every structure decision on them reads
+    /// (positivity, the knot algebra's plans), and such a value gives
+    /// it nothing to read.
+    WeightNotAPoint {
+        /// Index of the offending weight.
+        index: usize,
+    },
 }
 
 impl core::fmt::Display for SplineError {
@@ -147,6 +159,12 @@ impl core::fmt::Display for SplineError {
                  would merge into one run or reverse the vector. Recourse: supply one \
                  breakpoint with the summed multiplicity where the two are one knot, or \
                  breakpoints that increase"
+            ),
+            SplineError::WeightNotAPoint { index } => write!(
+                f,
+                "weight {index} is an enclosure wider than a point, so no positivity or \
+                 knot-algebra decision can read it. Recourse: supply a weight that is a \
+                 single number there"
             ),
         }
     }
@@ -331,8 +349,9 @@ impl core::fmt::Display for KnotMirrorError {
 impl core::error::Error for KnotMirrorError {}
 
 /// A validated **clamped** knot vector with its degree — the structural
-/// half of every B-spline/NURBS entity (knots and degree are `f64`/
-/// `usize` structure per C6; generic scalar types never appear here).
+/// half of every B-spline/NURBS entity: `f64`/`usize` structure per C6,
+/// the value channel of the knots a carrier holds in its scalar
+/// ([`super::Knots`]); generic scalar types never appear here.
 ///
 /// # Invariants (established at construction, relied on by indexing)
 ///
@@ -1980,6 +1999,7 @@ mod tests {
             SplineError::DomainInvalid { lo: 1.0, hi: 1.0 },
             SplineError::KnotNotAPoint { index: 1 },
             SplineError::KnotRunsNotIncreasing { index: 2 },
+            SplineError::WeightNotAPoint { index: 1 },
         ];
         // Exhaustive by the compiler: a new arm fails to build here
         // until it is listed above.
@@ -1992,10 +2012,11 @@ mod tests {
                 | SplineError::WeightCountMismatch { .. }
                 | SplineError::DomainInvalid { .. }
                 | SplineError::KnotNotAPoint { .. }
-                | SplineError::KnotRunsNotIncreasing { .. } => {}
+                | SplineError::KnotRunsNotIncreasing { .. }
+                | SplineError::WeightNotAPoint { .. } => {}
             }
         }
-        assert_eq!(arms.len(), 8, "an arm was added without a row here");
+        assert_eq!(arms.len(), 9, "an arm was added without a row here");
         // The repair is labelled, once: a wrapper that forwards this
         // carrier whole and adds a `Recourse:` of its own is then two
         // to the checker, not one it cannot see.

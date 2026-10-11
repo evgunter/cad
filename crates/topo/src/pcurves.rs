@@ -1205,14 +1205,11 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
     // the wrong rectangle.
     let (cu0, cu1, cv0, cv1) = match surface.spline_chart() {
         Some(payload) => {
-            let (a, b) = payload.knots_u().domain();
-            let (c, d) = payload.knots_v().domain();
-            (
-                T::from_f64(a),
-                T::from_f64(b),
-                T::from_f64(c),
-                T::from_f64(d),
-            )
+            let ((a, b), (c, d)) = (
+                payload.knot_values_u().domain(),
+                payload.knot_values_v().domain(),
+            );
+            (a, b, c, d)
         }
         None => (T::zero(), T::one(), T::zero(), T::one()),
     };
@@ -1877,7 +1874,7 @@ fn chart_u_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<T> {
     let Some(payload) = surface.spline_chart() else {
         return Some(T::tau());
     };
-    let (u0, u1) = payload.knots_u().domain();
+    let (u0, u1) = payload.knot_values_u().domain();
     let (nu, nv) = payload.control_counts();
     if nu < 2 || nv == 0 {
         return None;
@@ -1891,7 +1888,7 @@ fn chart_u_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<T> {
             _ => return None,
         }
     }
-    Some(T::from_f64(u1 - u0))
+    Some(u1 - u0)
 }
 
 /// The meridional (second-channel) lever arm where that channel is
@@ -5759,7 +5756,13 @@ mod stretch_meter {
             Point3::new(span, span, 0.0),
         ];
         Surface::Nurbs(Arc::new(
-            NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap(),
+            NurbsSurface::new(
+                geom_core::spline::Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
+                control,
+                vec![geom_core::Real::one(); 4],
+            )
+            .unwrap(),
         ))
     }
 
@@ -6163,22 +6166,22 @@ mod derive_without_a_door {
         let lift = Dual64::from_f64;
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let chart = NurbsSurface::new(
-            kv.clone(),
-            kv.clone(),
+            geom_core::spline::Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
+            geom_core::spline::Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
             vec![
                 Point3::new(0.0, 0.0, 0.0),
                 Point3::new(0.0, 1.0, 0.0),
                 Point3::new(1.0, 0.0, 0.0),
                 Point3::new(1.0, 1.0, 0.0),
             ],
-            vec![1.0; 4],
+            vec![geom_core::Real::one(); 4],
         )
         .unwrap()
         .map_scalar(lift);
         let carrier = NurbsCurve3::new(
-            kv,
+            geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
             vec![Point3::new(0.5, 0.0, 0.0), Point3::new(0.5, 1.0, 0.0)],
-            vec![1.0; 2],
+            vec![geom_core::Real::one(); 2],
         )
         .unwrap()
         .map_scalar(lift);
@@ -7379,7 +7382,13 @@ mod from_computed_rows {
                 .map(|(u, v)| Point3::new(u, v, 0.0).map(S::from_f64))
                 .to_vec();
             let chart = Surface::Nurbs(Arc::new(
-                NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap(),
+                NurbsSurface::new(
+                    geom_core::spline::Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
+                    geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
+                    control,
+                    vec![geom_core::Real::one(); 4],
+                )
+                .unwrap(),
             ));
             let point = Point3::new(x, S::from_f64(0.5) * x, S::zero());
             let foot = derive_chart_foot(point, &chart, HalfEdgeKey::default())

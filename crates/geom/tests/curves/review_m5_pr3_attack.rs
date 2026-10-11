@@ -71,12 +71,7 @@ fn sup3(a: geom_core::Vec3<f64>, b: geom_core::Vec3<f64>) -> f64 {
 
 /// Constant-lift a curve's control points to Dual64 (structure shared).
 fn lift_dual(c: &NurbsCurve3<f64>) -> NurbsCurve3<Dual64> {
-    let ctrl = c
-        .control()
-        .iter()
-        .map(|p| p.map(Dual64::constant))
-        .collect();
-    NurbsCurve3::new(c.knots().clone(), ctrl, c.weights().to_vec()).unwrap()
+    c.map_scalar(Dual64::constant)
 }
 
 fn supp(a: Point3<f64>, b: Point3<f64>) -> f64 {

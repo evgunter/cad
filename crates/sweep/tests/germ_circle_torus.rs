@@ -22,13 +22,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::outcomes::outcome;
 use geom_core::{Point3, Tol, Vec3};
 use sweep::test_support::tube_frame;
 use sweep::{TubeWindow, tube_along_arc};
 use topo::{Body, BooleanError, EdgeKey, FaceKey, SweepStrategy, sweep_traces};
 
-use crate::mate7a_r1_probes::{arch, stem, weld_declarations};
+use crate::mate7a_r1_probes::{arch, stem};
 
 const B_MAJOR: f64 = 1.0;
 const B_MINOR: f64 = 0.2;
@@ -149,9 +148,8 @@ fn accepted_against_torus(
 #[test]
 fn the_lily_stem_glue_is_past_the_circle_torus_pairs() {
     let (s, a) = (stem(), arch());
-    let (decls, _) = weld_declarations(&s, &a);
-    let err = topo::union_with(&s, &a, &decls, Tol::witness())
-        .expect_err("the stem glue still refuses, in the join");
+    let err =
+        topo::union(&s, &a, Tol::witness()).expect_err("the stem glue still refuses, in the join");
     let BooleanError::Join(topo::SplitJoinError::SectionInvariant { face, what }) = err else {
         panic!("the lily's next door is the plane × torus chord: {err:?}");
     };
@@ -481,16 +479,15 @@ fn a_small_tilted_seam_crosses_the_wall_on_the_quartic_arm() {
 /// `B`'s carrier. (Its tube crosses `B`'s transversally, so no tangency
 /// elsewhere refuses first.) The seam's clearance is zero, the door
 /// answers `Coaxial`, and `wall_crossing` answers `LiesOn`. Its parents
-/// are decided distinct from `B`'s carrier, so the undeclared
-/// `(Zero, Zero)` arm asks `lying_on`. Certificate (a) declines, because
+/// are decided distinct from `B`'s carrier, so the `(Zero, Zero)` arm
+/// asks `lying_on`. Certificate (a) declines, because
 /// `B`'s far end meridian meets the seam's CIRCLE beyond the arc's end,
 /// and no chain of `B`'s arcs runs along it; the interior question
 /// certifies that the ARC meets `B`'s boundary nowhere strictly inside
 /// its span, so its ends place it and the sweep answers. The two tubes'
 /// coplanar start caps are one plane by margin and glue, so the op
 /// itself stops later, at the join's germ frame: past the plane × torus
-/// germ pairs, at a torus × torus pair, which has no arm; undeclared, it
-/// is the refusal the caps' declared continuation reaches (D10).
+/// germ pairs, at a torus × torus pair, which has no arm.
 #[test]
 fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
     let tol = Tol::witness();
@@ -526,16 +523,8 @@ fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
         sweep::test_support::finished("A", a, tol),
         sweep::test_support::finished("B", b, tol),
     );
-    let none = topo::BooleanDeclarations::none();
     for (op, x, y) in [("A ∪ B", &a, &b), ("B ∪ A", &b, &a)] {
-        let r = topo::union_with(x, y, &none, tol);
-        let d = topo::flush::declare_all(&topo::flush::find_flush_candidates(x, y, tol).unwrap());
-        let dr = topo::union_with(x, y, &d, tol);
-        assert_eq!(
-            d.coincident_faces.len(),
-            1,
-            "{op}: the start caps' one continuation"
-        );
+        let r = topo::union(x, y, tol);
         assert!(
             matches!(
                 r,
@@ -546,11 +535,6 @@ fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
                 })
             ),
             "{op}: the join's torus × torus germ frame: {r:?}"
-        );
-        assert_eq!(
-            outcome(&r),
-            outcome(&dr),
-            "{op}: undeclared is the declared refusal"
         );
     }
 }
@@ -572,10 +556,8 @@ fn a_planar_face_holding_the_arch_rim_is_no_edge_plane_holder() {
         ("stem ∪ arch", &s, &a, "planar-side germ partner is not"),
         ("arch ∪ stem", &a, &s, "no plane×torus"),
     ] {
-        let (decls, _) = weld_declarations(x, y);
-        let refusal =
-            topo::test_support::boolean_join_refusal(topo::BooleanOp::Union, x, y, &decls, t)
-                .unwrap_or_else(|e| panic!("{label}: the reduction refused {e:?}"));
+        let refusal = topo::test_support::boolean_join_refusal(topo::BooleanOp::Union, x, y, t)
+            .unwrap_or_else(|e| panic!("{label}: the reduction refused {e:?}"));
         assert!(
             matches!(
                 &refusal,

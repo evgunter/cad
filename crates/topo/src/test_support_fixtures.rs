@@ -729,6 +729,52 @@ pub fn mapped_cube<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body
 }
 
+/// **A wedge cornered on a block's top**: the block `[−1, 3] × [−2, 2.5]
+/// × [0, 1]`, and a parallelepiped cornered at `(0.5, 0.2, 1)` by an
+/// `opening_deg` wedge angle, its face in the block's top plane tilted
+/// about the wedge's `x` edge by `tilt` (m/m). It stands `height` tall,
+/// sunk `depth` into the block. Returns `(block, wedge)`.
+pub fn wedge_on_a_block_top(
+    opening_deg: f64,
+    tilt: f64,
+    height: f64,
+    depth: f64,
+    tol: Tol,
+) -> (Body<f64>, Body<f64>) {
+    let phi = opening_deg.to_radians();
+    let (ea, eb) = (
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(phi.cos(), phi.sin(), tilt * phi.sin()),
+    );
+    let p = Point3::new(0.5, 0.2, 1.0);
+    (
+        brick((-1.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
+        mapped_cube(
+            move |u, v, w| p + ea * u + eb * v + Vec3::new(0.0, 0.0, height * w - depth),
+            tol,
+        ),
+    )
+}
+
+/// The one planar face of `body` whose outward normal leans along
+/// `facing` in `z` (`+1` up, `−1` down).
+///
+/// # Panics
+///
+/// Unless exactly one face does.
+pub fn face_facing(body: &Body<f64>, facing: f64) -> crate::entity::FaceKey {
+    let hits: Vec<_> = body
+        .faces()
+        .map(|(k, _)| k)
+        .filter(|&k| {
+            matches!(crate::face_carrier(body, k),
+                Some(crate::CarrierDesc::Plane { normal, .. }) if normal.z * facing > 0.99)
+        })
+        .collect();
+    assert_eq!(hits.len(), 1, "one face faces {facing}");
+    hits[0]
+}
+
 /// [`mapped_cube`] into an EXISTING body (a second `mvfs` seeds a
 /// second solid — the hand-built self-intersection control's door).
 pub fn cube_into<T: geom_core::Decide + crate::props::AtRestPolicy>(
@@ -747,37 +793,6 @@ pub fn cube_into<T: geom_core::Decide + crate::props::AtRestPolicy>(
     // Construction-final description step (D6) — the whole of what
     // this door does that [`geometric_cube`] does not.
     describe_as_intersections(body, tol);
-}
-
-/// Test-authoring convenience: the [`crate::BooleanDeclarations`] declaring
-/// every flush face pair of `(a, b)`, on any carrier the `Rest`
-/// ladder verifies — the test author's
-/// stand-in for a recipe declaration (the author built the contact
-/// deliberately; this writes the intent down).
-///
-/// The detection is the library's ([`crate::flush`]), so this helper
-/// interprets nothing: it detects through the same door the op then
-/// verifies with, and hands the findings straight to the declare
-/// sugar. Coincidence CERTIFICATION still happens inside the op
-/// through the verified declared rung, never here.
-///
-/// **The in-band arm INVERTED here, deliberately.** The hand declarer
-/// this replaced treated an in-band pair as plausible and declared it
-/// anyway, leaving the op's declared rung to re-check it. A finding is
-/// only ever DEFINITE, so the library refuses instead — and this
-/// helper turns that refusal into a panic rather than swallowing it,
-/// which makes "every fixture that reaches this helper decides
-/// definitely" a fixture assertion instead of an assumption. A future
-/// fixture built inside the band fails loudly at its own door; the old
-/// helper would have declared it and moved on.
-pub fn flush_declarations<T: geom_core::Decide>(
-    a: &Body<T>,
-    b: &Body<T>,
-    tol: Tol,
-) -> crate::BooleanDeclarations {
-    let found = crate::flush::find_flush_candidates(a, b, tol)
-        .expect("a fixture's flush pairs decide definitely");
-    crate::flush::declare_all(&found)
 }
 
 // ---------------------------------------------------------------------
@@ -1678,6 +1693,92 @@ pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKe
     )
     .unwrap();
     (body, seed.face, seed.vertex)
+}
+
+/// **A planar cap on an arc of `carrier`** (a circle) over `span`,
+/// closed by its chord, built through the public operators: the arc's
+/// start corner at the carrier's start, its end corner at the carrier's
+/// end plus `off` (certified, so `off` lies within the run's zero band).
+/// Returns the body and the cap face.
+pub fn arc_cap(
+    carrier: Curve3<f64>,
+    span: (f64, f64),
+    off: Vec3<f64>,
+    tol: Tol,
+) -> (Body<f64>, FaceKey) {
+    let Curve3::Circle {
+        center,
+        axis,
+        radius,
+        u_ref,
+    } = carrier
+    else {
+        unreachable!("an arc cap is cut from a circle, and the caller passed another curve")
+    };
+    let mut body = Body::<f64>::new();
+    let (p0, p1) = (carrier.eval(span.0), carrier.eval(span.1) + off);
+    let seed = body.mvfs(p0, true).unwrap();
+    let plane = body.add_surface(Surface::Plane {
+        origin: center,
+        normal: axis,
+        u_ref,
+    });
+    let wall = body.add_surface(Surface::Cylinder {
+        origin: center,
+        axis,
+        radius,
+        u_ref,
+    });
+    let arc = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            p1,
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    pair: SurfacePair::new(wall, plane),
+                    witness: carrier.eval(0.5 * (span.0 + span.1)),
+                },
+                carrier,
+                param_start: span.0,
+                param_end: span.1,
+            },
+            tol,
+        )
+        .unwrap();
+    let cap = body
+        .mef(
+            MefSite::Chords {
+                he1: arc.he_minus,
+                he2: arc.he_plus,
+            },
+            EdgeCurveSpec::line_between(p1, p0),
+            FaceSurface::Shared {
+                key: plane,
+                sense: true,
+            },
+            tol,
+        )
+        .unwrap();
+    (body, cap.face)
+}
+
+/// **A planar half-disc cap** ([`arc_cap`]): the unit circle's arc from
+/// `(1, 0, 0)` to `(-1, 0, 0)` through `+y`, its end corner stored `off`
+/// along `-y` from the carrier's end. Returns the body, the cap face, and
+/// the carrier's end at `π`.
+pub fn half_disc_cap(off: f64, tol: Tol) -> (Body<f64>, FaceKey, Point3<f64>) {
+    let carrier = Curve3::Circle {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let span = (0.0, core::f64::consts::PI);
+    let end = carrier.eval(span.1);
+    let (body, cap) = arc_cap(carrier, span, -Vec3::unit_y() * off, tol);
+    (body, cap, end)
 }
 
 #[cfg(test)]

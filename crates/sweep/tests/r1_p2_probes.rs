@@ -559,16 +559,7 @@ fn r1_dual_scalar_wall_seam_arm_answers_no_boundary() {
         let Surface::Nurbs(n) = widened_u_chart_by(&chart_of(&body, bowed), 1) else {
             panic!("the widened chart is a NURBS chart")
         };
-        let control = n.control().iter().map(|p| p.map(Dual::constant)).collect();
-        Surface::Nurbs(Arc::new(
-            NurbsSurface::<Dual64>::new(
-                n.knots_u().clone(),
-                n.knots_v().clone(),
-                control,
-                n.weights().to_vec(),
-            )
-            .unwrap(),
-        ))
+        Surface::Nurbs(Arc::new(n.map_scalar(Dual::constant)))
     };
     let square = || -> sweep::Section {
         let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
@@ -585,9 +576,14 @@ fn r1_dual_scalar_wall_seam_arm_answers_no_boundary() {
         Affine3::translation(Vec3::new(0.5 * SCALE, 0.0, 1.0 * SCALE)),
         Affine3::translation(Vec3::new(0.0, 0.0, 2.0 * SCALE)),
     ];
-    let mut body = sweep::loft_body::<Dual64>(&sections, &places, 2, Tol::witness())
-        .expect("the offset square prism builds at Dual64")
-        .body;
+    let mut body = sweep::loft_body::<Dual64>(
+        &sweep::test_support::lift_sections::<Dual64>(&sections),
+        &sweep::test_support::lift_places::<Dual64>(&places),
+        2,
+        Tol::witness(),
+    )
+    .expect("the offset square prism builds at Dual64")
+    .body;
     let bowed = body
         .faces()
         .find_map(|(_, f)| match body.get_surface(f.surface) {

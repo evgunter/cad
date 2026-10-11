@@ -1445,7 +1445,7 @@ fn the_fallback_assembly_carries_the_kept_operands_certificates() {
 /// the circle's interior, `(u, E)`, never `(u, v)`, and tier 3′ answers
 /// alike, its curved cross-solid reach the only finding. The census
 /// still sweeps the vertex's point: stripped of its record, the corner
-/// at the vertex is an undeclared contact, so the record is what backs
+/// at the vertex is an unrecorded contact, so the record is what backs
 /// it.
 #[test]
 fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
@@ -1567,7 +1567,7 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
             if along == 0.0 {
                 assert!(
                     matches!(stripped.as_slice(), [e] if e.starts_with(
-                        "UndeclaredContact { contact: VertexVertex"
+                        "UnrecordedContact { contact: VertexVertex"
                     )),
                     "{label}: without its record the corner at the vertex is undeclared: \
                      {stripped:?}"

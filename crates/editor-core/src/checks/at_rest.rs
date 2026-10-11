@@ -280,11 +280,11 @@ fn interference_solids<T: Decide>(
     };
     match error {
         ValidationError::InstanceInterference { outer, inner, .. } => Some((*outer, *inner)),
-        ValidationError::UndeclaredContact {
+        ValidationError::UnrecordedContact {
             contact: CensusContact::EdgeFacePierce { edge, face },
             ..
         } => Some((of_edge(*edge)?, body.solid_of_face(*face)?)),
-        ValidationError::UndeclaredContact {
+        ValidationError::UnrecordedContact {
             contact:
                 CensusContact::EdgeEdgeCross {
                     a,
@@ -377,13 +377,16 @@ pub(crate) fn partition<T: LocalizeLane>(
         .enumerate()
         .flat_map(|(i, c)| c.keys.solids().iter().map(move |&s| (s, i)))
         .collect();
+    // The two copies a pair of solids belongs to, smaller first; `None`
+    // for one copy, or a solid of no copy.
+    let pair_of = |x: SolidKey, y: SolidKey| {
+        let (x, y) = (*copy_of.get(&x)?, *copy_of.get(&y)?);
+        (x != y).then_some((x.min(y), x.max(y)))
+    };
     let mut pairs: Vec<((usize, usize), Vec<ValidationError>)> = Vec::new();
     let mut rest = Vec::new();
     for error in errors {
-        let pair = interference_solids(&product.body, &error)
-            .and_then(|(x, y)| Some((*copy_of.get(&x)?, *copy_of.get(&y)?)))
-            .filter(|(x, y)| x != y)
-            .map(|(x, y)| (x.min(y), x.max(y)));
+        let pair = interference_solids(&product.body, &error).and_then(|(x, y)| pair_of(x, y));
         match pair {
             Some(pair) => match pairs.iter_mut().find(|(p, _)| *p == pair) {
                 Some((_, evidence)) => evidence.push(error),
@@ -397,15 +400,22 @@ pub(crate) fn partition<T: LocalizeLane>(
     // reach of each other — rides the pair's findings as evidence: often
     // the same overlap, but not always (a pin pressed into one bore and
     // slipped into another), so a quiet finding requires each such
-    // verdict to lie on its own overlap (`covered`). A pair the census
-    // decided nothing about stays refused as it left it.
+    // verdict to lie on its own overlap (`covered`). So does a touch
+    // between them, which the census records for no interfering pair
+    // (`topo::record_at_rest`), and which keeps the finding loud. A pair
+    // the census decided nothing about stays refused as it left it.
     let undecided_pair = |error: &ValidationError| match error {
         ValidationError::CensusUndecidable { a, b, .. } => {
-            let (x, y) = (
-                *copy_of.get(&solid_of(&product.body, *a)?)?,
-                *copy_of.get(&solid_of(&product.body, *b)?)?,
-            );
-            (x != y).then_some((x.min(y), x.max(y)))
+            pair_of(solid_of(&product.body, *a)?, solid_of(&product.body, *b)?)
+        }
+        touch @ ValidationError::UnrecordedContact { .. } => {
+            let [x, y] = topo::census_contact_row(touch)?
+                .cells
+                .map(|cell| match cell {
+                    topo::RowCell::Result { cell } => cell_solid(&product.body, cell),
+                    topo::RowCell::Input { .. } | topo::RowCell::Tool => None,
+                });
+            pair_of(x?, y?)
         }
         _ => None,
     };
@@ -421,6 +431,79 @@ pub(crate) fn partition<T: LocalizeLane>(
         .flat_map(|((a, b), evidence)| T::localize(product, a, b, evidence, tol))
         .collect();
     (findings, kept)
+}
+
+/// **Which copy each of the product's solids is**: the census's groups
+/// at rest ([`topo::record_at_rest`]), each copy its own.
+pub(crate) fn copy_groups<T: Decide>(copies: &[GatheredCopy<T>]) -> BTreeMap<SolidKey, u32> {
+    copies
+        .iter()
+        .zip(0u32..)
+        .flat_map(|(c, i)| c.keys.solids().iter().map(move |&s| (s, i)))
+        .collect()
+}
+
+/// **The census's rows between two copies, named** (D1 (iii), D10):
+/// each row [`topo::record_at_rest`] recorded between two copies, its
+/// cells named as each copy's placement reads them, and the two copies
+/// it is about. The `unproven-coincidence` check reports each the door
+/// does not prove.
+pub(crate) fn copy_rows<T: Decide>(
+    body: &Body<T>,
+    names: &NameTable,
+    copies: &[GatheredCopy<T>],
+    rows: Vec<topo::Coincidence>,
+) -> Vec<crate::assembly::AtRestRow> {
+    let groups = copy_groups(copies);
+    let named = |cell: topo::RowCell| {
+        let topo::RowCell::Result { cell } = cell else {
+            return None;
+        };
+        let key = match cell {
+            topo::Cell::Face(f) => EntityKey::Face(f),
+            topo::Cell::Edge(e) => EntityKey::Edge(e),
+            topo::Cell::Vertex(v) => EntityKey::Vertex(v),
+        };
+        let copy = *groups.get(&cell_solid(body, cell)?)? as usize;
+        let name = names.name_of(&EntityRef { body: 0, key })?.clone();
+        Some((copy, name))
+    };
+    let by = |x: usize| CopyRef {
+        var: copies[x].var,
+        member: copies[x].output,
+    };
+    rows.into_iter()
+        .map(|row| {
+            let [Some((ca, na)), Some((cb, nb))] = row.cells.map(named) else {
+                unreachable!("a row the census recorded between copies names a cell of each")
+            };
+            let cell = |copy: usize, name| crate::coincide::NamedCell::Entity {
+                input: copies[copy].var,
+                name,
+            };
+            crate::assembly::AtRestRow {
+                by: crate::assembly::AtRestBy::Copies(by(ca.min(cb)), by(ca.max(cb))),
+                row: crate::coincide::NamedCoincidence {
+                    cells: [cell(ca, na), cell(cb, nb)],
+                    relation: row.relation,
+                    site: row.site,
+                    margin: row.margin,
+                    discharge: row.discharge,
+                },
+            }
+        })
+        .collect()
+}
+
+/// The solid an edge or a vertex of `body` belongs to, through a
+/// half-edge of it; `None` for a lone vertex.
+fn cell_solid<T: Decide>(body: &Body<T>, cell: topo::Cell) -> Option<SolidKey> {
+    let he = match cell {
+        topo::Cell::Edge(e) => body.get_edge(e)?.he_plus,
+        topo::Cell::Vertex(v) => body.get_vertex(v)?.emanating?,
+        topo::Cell::Face(f) => return body.solid_of_face(f),
+    };
+    body.solid_of_face(body.face_of_half_edge(he)?)
 }
 
 /// The solid a census entity belongs to: itself, or a face's.
@@ -507,6 +590,9 @@ fn localize(
                 .into_iter()
                 .all(|f| component.sources.iter().any(|(_, s)| s == f)),
             ValidationError::CensusUndecidable { .. } => false,
+            // A touch between the two copies is no part of the overlap
+            // an assertion bounds, and no assertion speaks for it here.
+            ValidationError::UnrecordedContact { .. } => topo::census_contact_row(error).is_none(),
             _ => true,
         })
     };
