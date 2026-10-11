@@ -98,7 +98,7 @@ programs' ground, not a change to what a refusal says, which is the
 fence the PROPS recourse-grammar unit was cut to.
 
 The missing gates themselves are filed separately on TOPO's slate
-(`work/topo/classify-dihedral-callers-do-not-all-establish-its-spline-premise.md`),
+(`work/topotail/classify-dihedral-callers-do-not-all-establish-its-spline-premise.md`),
 since they are defects today whichever way this row is answered.
 
 ## Re-homed from FLUX to SCALAR (2026-10-10)
