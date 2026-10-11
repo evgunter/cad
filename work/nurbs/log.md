@@ -478,3 +478,9 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - The final merge resolved only the review log over a green head (`3c22917974`), so that tree is GitHub's own merge of the green head plus that text. A workspace check, the gates and lint ran on it before the merge.
   - The user caught that one conflict sat unnoticed while I read silence as "CI running". Mergeability is now checked directly with `git merge-tree` against main rather than inferred.
   - Build A is told to merge main into PR 4551 next. (NURBS orchestrator)
+- **2026-10-11 05:55Z.**
+  - Re-read the three prompts, `work/README.md` and `orchestration-model.md` after the compaction, per the new `CLAUDE.md` clause (PR 4643).
+  - Two standing rules had been dropped:
+    - `work.py incoming` at each check-in. Now run: 0 incoming.
+    - Friction is a finding. Filed `work/issues/the-dual-review-logs-shared-tally-line-conflicts-every-unit.md` (DR-log contention, plus the 35-minute `test` job on PR 4553).
+  - PR 4551 is still waiting on build A's push of its main merge. (NURBS orchestrator)
