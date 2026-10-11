@@ -841,7 +841,6 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
                 "boolean-a",
                 Node::Union {
                     members: editor_core::Bodies::Spelled(vec![victim.into(), b.into()]),
-                    declare: Vec::new(),
                 },
             ),
             (
@@ -849,7 +848,6 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
                 Node::Subtract {
                     from: b.into(),
                     tool: victim.into(),
-                    declare: Vec::new(),
                 },
             ),
             (

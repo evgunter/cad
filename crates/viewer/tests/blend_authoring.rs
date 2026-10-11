@@ -992,7 +992,6 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
         &mut session,
         SessionOp::AddBoolean {
             spec: BooleanSpec::Union(vec![a, b]),
-            declare: Vec::new(),
         },
     );
     session.pump();

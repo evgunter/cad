@@ -300,7 +300,6 @@ fn tied_name_resolves_ambiguous_with_the_tie_witness() {
         Node::Subtract {
             from: a.into(),
             tool: b.into(),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc, None);
@@ -753,7 +752,6 @@ fn failed_and_poisoned_targets_resolve_indeterminate_not_vanished() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     // Zero the A extrude's distance: A fails, the union poisons.
@@ -836,7 +834,6 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc, None);
@@ -1215,7 +1212,6 @@ fn suggestions_never_offer_wall_phantoms_and_are_kind_filtered() {
         Node::Subtract {
             from: _a.into(),
             tool: tr.into(),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc, None);
@@ -1284,7 +1280,6 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let ev1 = run(&doc1, None);
@@ -1391,7 +1386,6 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![b.into(), d.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc1, n) = insert(

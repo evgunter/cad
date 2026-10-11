@@ -156,7 +156,6 @@ fn a_union_of_two_flush_placements_of_one_prototype_fuses_declared_or_not() {
         doc.clone(),
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![m1.into(), m2.into()]),
-            declare: Vec::new(),
         },
     );
     let undeclared = run(&bare);
@@ -712,7 +711,6 @@ fn the_insert_door_and_set_declare_refuse_a_name_or_site_that_is_not_live() {
         doc.clone(),
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     // An id no node has yet: the one the next insert would mint, and
@@ -778,7 +776,6 @@ fn the_insert_door_and_set_declare_refuse_a_name_or_site_that_is_not_live() {
         doc.clone(),
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let off_member = editor_core::declare_continuation(vec![(
@@ -929,7 +926,6 @@ fn set_declare_on_a_live_union_edits_it_in_place() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![m1.into(), m2.into()]),
-            declare: Vec::new(),
         },
     );
     let order = doc.ids().to_vec();
@@ -1002,7 +998,6 @@ fn a_declaration_recomputes_the_union_alone() {
         base.clone(),
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let prior = run(&bare);

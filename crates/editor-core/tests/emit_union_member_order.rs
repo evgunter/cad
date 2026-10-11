@@ -55,16 +55,13 @@ impl Op {
         match self {
             Self::Union => Node::Union {
                 members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-                declare: Vec::new(),
             },
             Self::Intersect => Node::Intersect {
                 members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-                declare: Vec::new(),
             },
             Self::Subtract => Node::Subtract {
                 from: a.into(),
                 tool: b.into(),
-                declare: Vec::new(),
             },
         }
     }
@@ -299,7 +296,6 @@ fn no_name_rebinds_across_the_member_orders_of_a_cut_seam_union() {
                         members: editor_core::Bodies::Spelled(
                             p.iter().map(|&i| m[i].into()).collect(),
                         ),
-                        declare: Vec::new(),
                     },
                 );
                 let ev = run(&doc);
@@ -424,7 +420,6 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![rib.into(), turned.into()]),
-            declare: Vec::new(),
         },
     );
     ids.push(("union node", node));

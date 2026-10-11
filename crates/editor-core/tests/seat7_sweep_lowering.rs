@@ -884,7 +884,6 @@ fn one_declared_radius_pinches_at_the_germ_as_its_kernel_twin_does() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = eval::<f64>(&doc);

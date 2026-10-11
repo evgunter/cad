@@ -58,7 +58,6 @@ fn subtract(doc: ProfileDoc, from: RecipeNodeId, tool: RecipeNodeId) -> (Profile
         Node::Subtract {
             from: from.into(),
             tool: tool.into(),
-            declare: Vec::new(),
         },
     )
 }
@@ -286,7 +285,6 @@ fn a_union_reads_a_cited_member_line_by_its_rows() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![notched.into(), post.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc, None);

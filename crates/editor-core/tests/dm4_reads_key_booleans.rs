@@ -116,7 +116,6 @@ fn a_union_of_a_read_with_itself_is_that_body_named_as_its() {
         doc,
         Node::Union {
             members: spelled(&[a, a]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -136,7 +135,6 @@ fn an_intersect_of_a_read_with_itself_is_that_body_named_as_its() {
         doc,
         Node::Intersect {
             members: spelled(&[a, a]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -157,7 +155,6 @@ fn a_subtract_of_a_read_from_itself_is_the_typed_empty_body() {
         Node::Subtract {
             from: a.into(),
             tool: a.into(),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -171,14 +168,12 @@ fn a_union_or_intersect_of_one_body_is_that_body() {
         doc,
         Node::Union {
             members: spelled(&[a]),
-            declare: Vec::new(),
         },
     );
     let (doc, i) = insert(
         doc,
         Node::Intersect {
             members: spelled(&[a]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -196,14 +191,12 @@ fn a_union_or_intersect_of_no_body_is_the_typed_empty_body() {
         doc,
         Node::Union {
             members: Bodies::Spelled(Vec::new()),
-            declare: Vec::new(),
         },
     );
     let (doc, i) = insert(
         doc,
         Node::Intersect {
             members: Bodies::Spelled(Vec::new()),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -374,7 +367,6 @@ fn a_stored_name_carrying_a_read_the_document_never_minted_refuses_at_load() {
         doc,
         Node::Union {
             members: spelled(&[a, b]),
-            declare: Vec::new(),
         },
     );
     let read = fixture::out(&doc, a);

@@ -30,7 +30,6 @@ fn a_face_cut_and_merged_in_one_pair_step_publishes_no_constituent() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![b.into(), g.into()]),
-            declare: Vec::new(),
         },
     );
     // `b`'s faces, sited at the operand that holds them: `bg`'s A side.

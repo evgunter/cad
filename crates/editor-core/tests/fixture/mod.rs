@@ -1601,7 +1601,6 @@ pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
         Node::Subtract {
             from: target.into(),
             tool: cutter.into(),
-            declare: Vec::new(),
         },
     )
 }
@@ -2219,7 +2218,6 @@ pub fn two_blocks_and_their_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     )
 }

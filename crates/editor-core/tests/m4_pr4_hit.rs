@@ -264,7 +264,6 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![ext.into(), ext2.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);

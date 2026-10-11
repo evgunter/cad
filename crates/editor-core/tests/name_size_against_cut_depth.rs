@@ -94,7 +94,6 @@ fn boolean_chain() -> (ProfileDoc, Vec<RecipeNodeId>) {
             Node::Subtract {
                 from: body.into(),
                 tool: block.into(),
-                declare: Vec::new(),
             },
         );
         doc = d;

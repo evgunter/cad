@@ -330,7 +330,6 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         &mut session,
         SessionOp::AddBoolean {
             spec: BooleanSpec::Intersect(vec![block, moved]),
-            declare: Vec::new(),
         },
         "overlap",
     );

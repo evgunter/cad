@@ -123,7 +123,6 @@ fn declaring_each_finding_in_turn_adds_it_and_builds_the_undeclared_body() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![low.into(), mid.into(), top.into()]),
-            declare: Vec::new(),
         },
     );
     let undeclared = run(&doc);

@@ -88,7 +88,6 @@ fn a_read_of_the_wrong_kind_refuses_at_the_door() {
                     Operand::Var(read).into(),
                     extrude.into(),
                 ]),
-                declare: Vec::new(),
             }),
             fresh: Vec::new(),
         },
@@ -209,7 +208,6 @@ fn a_forward_member_saves_loads_and_cascades() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, _, c) = block(doc, 6.0);
@@ -334,7 +332,6 @@ fn the_slot_door_re_points_an_operand_and_reports_what_it_strands() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, moved) = insert(doc, xform(union, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0], 0.0));
@@ -535,7 +532,6 @@ fn a_split_port_read_is_its_half() {
     let (port_read, part_read) = (fixture::out(&doc, split), fixture::out(&doc, part));
     let boolean = |a: Operand| Node::Union {
         members: editor_core::Bodies::Spelled(vec![a.into(), other.into()]),
-        declare: Vec::new(),
     };
     let (doc, by_port) = insert(
         doc,
@@ -597,7 +593,6 @@ fn the_comparator_reads_reads_as_inputs_and_catches_a_re_pointed_one() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
@@ -643,7 +638,6 @@ fn the_comparator_catches_a_read_re_pointed_from_one_port_to_another() {
                 Operand::output(split, 0).into(),
                 far.into(),
             ]),
-            declare: Vec::new(),
         },
     );
     let new = crate::wire::wire_body(&save(&doc, &[], Tol::witness()).expect("saves"));
@@ -876,7 +870,6 @@ fn a_port_re_point_keys_apart_and_the_memo_serves_no_stale_half() {
                 Operand::output(split, 0).into(),
                 far.into(),
             ]),
-            declare: Vec::new(),
         },
     );
     let opts = editor_core::EvalOptions::default();
@@ -929,7 +922,6 @@ fn dm5_is_over_the_variables_read() {
                 Operand::output(split, 0).into(),
                 Operand::output(split, 1).into(),
             ]),
-            declare: Vec::new(),
         },
     );
     // Admitted, the union keys each member by its read (DM4), so two
@@ -966,7 +958,6 @@ fn dm5_is_over_the_variables_read() {
                 Operand::output(split, 0).into(),
                 Operand::output(split, 0).into(),
             ]),
-            declare: Vec::new(),
         },
     );
     let (doc, once) = insert(
@@ -1231,7 +1222,6 @@ pub(crate) fn families_document() -> ProfileDoc {
                 rounded.into(),
                 instance.into(),
             ]),
-            declare: Vec::new(),
         },
     );
     doc
@@ -1258,7 +1248,6 @@ fn union_under_a_transform() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeN
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, moved) = insert(doc, xform(union, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0], 0.0));

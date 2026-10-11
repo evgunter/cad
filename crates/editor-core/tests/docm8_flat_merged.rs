@@ -623,7 +623,6 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![far.into(), inner.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, c) = block(doc, (1.2, 2.2), (0.0, 1.0), 0.0, 1.0);

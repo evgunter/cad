@@ -635,7 +635,6 @@ fn block_and_cut(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
     let cut = r.insert(Node::Subtract {
         from: block.into(),
         tool: pin.into(),
-        declare: Vec::new(),
     });
     (block, cut)
 }
@@ -900,7 +899,6 @@ fn a_strand_row_names_a_deleted_union() {
     });
     let union = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![block.into(), boss.into()]),
-        declare: Vec::new(),
     });
     let doc = r.doc;
     let ev = fixture::run(&doc, &EvalOptions::default());

@@ -1267,7 +1267,6 @@ fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc, &EvalOptions::default());
@@ -1358,7 +1357,6 @@ fn a_reaching_name_names_a_live_node_before_a_deleted_one() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc, &EvalOptions::default());

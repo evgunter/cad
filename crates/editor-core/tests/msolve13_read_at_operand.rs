@@ -212,7 +212,6 @@ fn fused(s: &Scene, at_t1: impl Fn(&ProfileDoc, RecipeNodeId, RecipeNodeId) -> S
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, _) = crate::fixture::place(doc, union);
@@ -362,7 +361,6 @@ fn a2_two_spellings_through_a_union_fold_into_one_pair() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, _) = crate::fixture::place(doc, union);
@@ -519,7 +517,6 @@ fn a_pair_boolean_above_the_operand_carries_the_face() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![t1.into(), far.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, _) = crate::fixture::place(doc, fused);
@@ -566,7 +563,6 @@ fn vanished_names_the_consumer_that_lost_the_face_not_a_reading_datum() {
         doc,
         Node::Intersect {
             members: editor_core::Bodies::Spelled(vec![t1.into(), far.into()]),
-            declare: Vec::new(),
         },
     );
     assert!(
@@ -670,7 +666,6 @@ fn a_part_above_a_union_refuses_at_evaluation_before_the_gate_reads_it() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![t1.into(), far.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, moved) = insert(doc, xform(union, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));

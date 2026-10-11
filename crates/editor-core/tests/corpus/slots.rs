@@ -73,7 +73,6 @@ pub fn document() -> CorpusDoc {
     let sub1 = r.insert(Node::Subtract {
         from: plate.into(),
         tool: slot1.into(),
-        declare: Vec::new(),
     });
 
     // Slot 2: runs in x, SAME floor plane z = 0.5 — the declared

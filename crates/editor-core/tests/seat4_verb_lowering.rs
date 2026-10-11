@@ -486,7 +486,6 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     });
     let boolean = r.insert(Node::Intersect {
         members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-        declare: Vec::new(),
     });
     let ev = corpus::eval::<f64>(&r.doc);
     let failures = corpus::failures(&ev);

@@ -32,7 +32,6 @@ fn plate_on_a_block(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recipe
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![base.into(), plate.into()]),
-            declare: Vec::new(),
         },
     );
     (doc, base, plate, union)

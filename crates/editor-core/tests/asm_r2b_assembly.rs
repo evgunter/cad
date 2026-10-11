@@ -96,7 +96,6 @@ fn kiss_part(label: &str) -> ProfileDoc {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     crate::fixture::place(doc, union).0

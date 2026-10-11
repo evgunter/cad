@@ -195,14 +195,8 @@ pub(crate) fn name_lone_member(
 /// **One entity of one member, in the union's own name space** — the
 /// row [`member_view`] puts into that member's operand table, for a
 /// caller that has the name rather than the table.
-///
-/// The declaration channel is that caller: a declared pair names
-/// SITED entities (`SitedRef { at, name }`), and the union rewrites
-/// each into this space before the shared resolver runs. Minting the
-/// row here rather than there is what keeps the member-keying rule to
-/// ONE definition — the view and the door cannot disagree about what
-/// a member's entity is called.
-pub(crate) fn member_name(union: RecipeNodeId, member: VarId, name: &StableName) -> StableName {
+#[cfg(test)]
+fn member_name(union: RecipeNodeId, member: VarId, name: &StableName) -> StableName {
     keyed(union, member, NameRef::new(name.clone()), name.kind)
 }
 

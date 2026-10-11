@@ -32,7 +32,6 @@ mod emit_shell;
 mod emit_sweep;
 mod emit_topo;
 mod emit_union;
-mod flush;
 mod geompred;
 mod groups;
 pub(crate) mod interrogate;
@@ -62,13 +61,8 @@ pub(crate) use emit_shell::name_shell;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
 pub(crate) use emit_topo::{FaceDescent, OperandCtx, name_boolean, name_split};
 pub(crate) use emit_union::{
-    Fold as UnionFold, Links as UnionLinks, Member as UnionMember, collapse_table, member_name,
-    member_view, name_lone_member, name_union,
-};
-pub use flush::{
-    BooleanCoincidence, CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict,
-    DeclareError, DeclaredContact, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, declare,
-    declare_all, declared_pairs, find_flush_candidates,
+    Fold as UnionFold, Links as UnionLinks, Member as UnionMember, collapse_table, member_view,
+    name_lone_member, name_union,
 };
 pub use geompred::{
     Cmp, CurveKind, CurveKindSet, GeomPred, SEL_DATUM_DISTANCE, SelectRefusal, SurfaceKindSet,
@@ -90,9 +84,11 @@ pub(crate) use role::{Carry, SegRewrite, inert_seg, locator_seg};
 pub(crate) use role::{FOLD_A, FOLD_B, read_edge};
 pub(crate) use role::{Lift, VerbatimEdge, lift, verbatim_edge};
 pub(crate) use role::{edge_line, fragment_tail_start, name_free_seg, wrapped_edge};
-pub(crate) use seam_pair::face_descends_from;
 pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select, select_where};
 pub use table::{DuplicateName, EntityKey, EntityRef, Entry, NameTable};
+/// The kernel's contact vocabulary, re-exported so a refusal the recipe
+/// layer renders quotes the kernel's own words.
+pub use topo::{CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict, FIT_DEFERRAL};
 pub use words::{LeafRole, leaf_role, role_leaf};
 
 /// **Every edge name of a node's output body, as of THIS evaluation**

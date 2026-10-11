@@ -767,7 +767,6 @@ fn two_operands(label: &str, extra_lift: f64) -> (ProfileDoc, EvalOptions, [Reci
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![x1.into(), x2.into()]),
-            declare: Vec::new(),
         },
     );
     let doc = world(doc, &[base, union], &[]);

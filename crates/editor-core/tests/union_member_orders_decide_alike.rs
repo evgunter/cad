@@ -179,7 +179,6 @@ fn decide(fixture: Members, order: &[usize]) -> Decided {
             members: editor_core::Bodies::Spelled(
                 order.iter().map(|&i| members[i].into()).collect(),
             ),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);

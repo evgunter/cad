@@ -123,7 +123,6 @@ fn slotted_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Subtract {
             from: body.into(),
             tool: b.into(),
-            declare: Vec::new(),
         },
     )
 }
@@ -499,7 +498,6 @@ fn an_operand_under_an_empty_boolean_root_refuses_vanished_naming_the_boolean() 
         doc,
         Node::Intersect {
             members: editor_core::Bodies::Spelled(vec![s.xf.into(), far.into()]),
-            declare: Vec::new(),
         },
     );
     let doc = world(doc, &[s.base, empty], &[]);

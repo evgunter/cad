@@ -143,7 +143,6 @@ pub fn document() -> CorpusDoc {
     let pipped = r.insert(Node::Subtract {
         from: cube.into(),
         tool: tool.into(),
-        declare: Vec::new(),
     });
 
     r.place(pipped);

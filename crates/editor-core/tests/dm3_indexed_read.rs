@@ -32,7 +32,6 @@ fn subtract(from: BodyRead<Formula>, xs: RecipeNodeId) -> editor_core::AuthoredN
     Node::Subtract {
         from,
         tool: member(xs, 0),
-        declare: Vec::new(),
     }
 }
 
@@ -92,14 +91,12 @@ fn a_union_of_a_family_and_of_its_members_spelled_name_and_build_alike() {
         doc,
         Node::Union {
             members: Bodies::Family(xs.into()),
-            declare: Vec::new(),
         },
     );
     let (doc, spelled) = insert(
         doc,
         Node::Union {
             members: Bodies::Spelled(vec![member(xs, 0), member(xs, 1), member(xs, 2)]),
-            declare: Vec::new(),
         },
     );
     let ev = eval(&doc);
@@ -161,7 +158,6 @@ fn an_indexed_read_at_a_body_seat_reads_that_member() {
         Node::Subtract {
             from: member(xs, 1),
             tool: member(xs, 0),
-            declare: Vec::new(),
         },
     );
     let ev = eval(&doc);
@@ -197,7 +193,6 @@ fn an_index_out_of_range_refuses_typed_and_an_index_edit_restores_it() {
         Node::Subtract {
             from: member(xs, 5),
             tool: member(xs, 0),
-            declare: Vec::new(),
         },
     );
     let ev = eval(&doc);
@@ -247,7 +242,6 @@ fn the_index_variable_is_an_input_of_its_reader() {
                 xs,
                 vec![Formula::named(k, editor_core::Dimension::Count)],
             )]),
-            declare: Vec::new(),
         },
     );
     let ev = eval(&doc);
@@ -317,7 +311,6 @@ fn an_indexed_read_round_trips_persistence() {
         Node::Subtract {
             from: member(xs, 2),
             tool: member(xs, 0),
-            declare: Vec::new(),
         },
     );
     let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
@@ -410,7 +403,6 @@ fn the_doors_refuse_an_index_where_no_family_is_read() {
                 &doc,
                 Node::Union {
                     members: Bodies::Family(member(xs, 0)),
-                    declare: Vec::new(),
                 },
             ),
             EditError::IndexedRead {
@@ -428,7 +420,6 @@ fn the_doors_refuse_an_index_where_no_family_is_read() {
                 &doc,
                 Node::Union {
                     members: Bodies::Spelled(vec![two]),
-                    declare: Vec::new(),
                 },
             ),
             EditError::IndexedRead {
@@ -447,7 +438,6 @@ fn set_members_writes_indexed_members() {
         doc,
         Node::Union {
             members: Bodies::Spelled(vec![member(xs, 0), member(xs, 1), member(xs, 2)]),
-            declare: Vec::new(),
         },
     );
     let (doc, _) = step(
@@ -492,7 +482,6 @@ fn a_subtract_of_two_overlapping_members_of_one_family_builds_as_two_parts_do() 
         Node::Subtract {
             from: one.into(),
             tool: zero.into(),
-            declare: Vec::new(),
         },
     );
     let (doc, by_index) = insert(
@@ -500,7 +489,6 @@ fn a_subtract_of_two_overlapping_members_of_one_family_builds_as_two_parts_do() 
         Node::Subtract {
             from: member(xs, 1),
             tool: member(xs, 0),
-            declare: Vec::new(),
         },
     );
     let (doc, reversed) = insert(
@@ -508,7 +496,6 @@ fn a_subtract_of_two_overlapping_members_of_one_family_builds_as_two_parts_do() 
         Node::Subtract {
             from: member(xs, 0),
             tool: member(xs, 1),
-            declare: Vec::new(),
         },
     );
     let ev = eval(&doc);
@@ -554,14 +541,12 @@ fn an_overlapping_family_names_alike_read_whole_and_spelled() {
         doc,
         Node::Union {
             members: Bodies::Family(xs.into()),
-            declare: Vec::new(),
         },
     );
     let (doc, spelled) = insert(
         doc,
         Node::Union {
             members: Bodies::Spelled(vec![member(xs, 0), member(xs, 1), member(xs, 2)]),
-            declare: Vec::new(),
         },
     );
     let ev = eval(&doc);

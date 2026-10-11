@@ -701,15 +701,12 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         Node::Subtract {
             from: nid(1).into(),
             tool: nid(2).into(),
-            declare: Vec::new(),
         },
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![nid(1).into(), nid(2).into()]),
-            declare: Vec::new(),
         },
         Node::Intersect {
             members: editor_core::Bodies::Spelled(vec![nid(1).into(), nid(2).into()]),
-            declare: Vec::new(),
         },
         Node::transform(
             nid(1),

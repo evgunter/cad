@@ -52,7 +52,6 @@ fn cone_block_union_refusal() -> String {
             editor_core::Operand::output(cone, 0).into(),
             block.into(),
         ]),
-        declare: Vec::new(),
     });
     let ev = eval::<f64>(&r.doc);
     match ev.nodes.get(&union) {

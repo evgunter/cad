@@ -144,7 +144,6 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
         Node::Subtract {
             from: ua.into(),
             tool: ub.into(),
-            declare: Vec::new(),
         },
     );
     doc = d;

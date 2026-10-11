@@ -439,7 +439,6 @@ fn a_set_declare_refusal_names_the_labelled_union_it_rewrites() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![left.into(), right.into()]),
-            declare: Vec::new(),
         },
     );
     let doc = set_label(doc, union, Some("pair"));

@@ -170,7 +170,6 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), n.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -236,7 +235,6 @@ fn slot_subtract_names_cap_fragments_by_the_walls_they_border() {
         Node::Subtract {
             from: a.into(),
             tool: b.into(),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -318,7 +316,6 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
         Node::Subtract {
             from: a.into(),
             tool: b.into(),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);

@@ -63,7 +63,6 @@ fn union_cross_bar_names_totally() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -85,7 +84,6 @@ fn union_cross_bar_swapped_names_totally() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -106,7 +104,6 @@ fn subtract_cross_bar_names_totally() {
         Node::Subtract {
             from: a.into(),
             tool: b.into(),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -127,7 +124,6 @@ fn subtract_block_from_bar_never_fails_in_naming() {
         Node::Subtract {
             from: a.into(),
             tool: b.into(),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);

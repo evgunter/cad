@@ -1925,9 +1925,6 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::SelectionShape { .. }
             | EditError::IndexedRead { .. }
             | EditError::SetMembersOnNonList { .. }
-            | EditError::SetDeclareOnNonDeclaring { .. }
-            | EditError::DeclaredSiteNotAnOperand { .. }
-            | EditError::DeclaredNameNotUpstream { .. }
             | EditError::SetProgramOnNonProfile { .. }
             | EditError::SetExtrudeSideOnNonExtrude { .. }
             | EditError::StepIdsRefused { .. }
@@ -2308,36 +2305,6 @@ fn remap_rule(
     })
 }
 
-/// Rewrites a subtract's, union's or intersect's declared pairs. Each
-/// half remaps like an operand: the NAME through the name door and the
-/// SITE through the read door, because a site is a read. Either one the
-/// cut severed makes the remap MISS loudly.
-///
-/// # Errors
-///
-/// The first [`RemapMiss`].
-fn remap_declared(
-    pairs: &[crate::DeclaredPair],
-    rd: &dyn Fn(crate::OperandSlot, VarId) -> Result<VarId, RemapMiss>,
-    nm: &impl Fn(&StableName) -> Result<StableName, RemapMiss>,
-) -> Result<Vec<crate::DeclaredPair>, RemapMiss> {
-    // A site is not an operand slot; it is read as the subtract's
-    // `from` is for the miss's sentence.
-    let site = |at: VarId| rd(crate::OperandSlot::From, at);
-    pairs
-        .iter()
-        .map(|((a, b), class)| {
-            Ok((
-                (
-                    crate::node::SitedRef::new(site(a.at)?, nm(&a.name)?),
-                    crate::node::SitedRef::new(site(b.at)?, nm(&b.name)?),
-                ),
-                *class,
-            ))
-        })
-        .collect()
-}
-
 /// Rewrites a node payload's id references — DAG inputs AND
 /// name-reference payloads — through `map`, and gauge references
 /// through `regauge`, for insertion into the other document.
@@ -2368,16 +2335,9 @@ fn remap_node(
     let id = |n: RecipeNodeId| -> Result<RecipeNodeId, RemapMiss> {
         map.get(&n).copied().ok_or(RemapMiss::Input(n))
     };
-    let nm = |n: &StableName| {
-        remap_name(n, map, steps, reads).map_err(|missing| RemapMiss::Name {
-            name: Box::new(n.clone()),
-            missing,
-        })
-    };
     // A mate head across the cut, through the one face remap
     // (`remap_face`): its derivation is rewritten and its kind is the
-    // type's, so the only miss is the miss `nm` reports for a bare
-    // name.
+    // type's, so the only miss is a name the cut severed.
     let face = |n: &FaceName| {
         remap_face(n, map, steps, reads).map_err(|missing| RemapMiss::Name {
             name: Box::new((**n).clone()),
@@ -2517,22 +2477,15 @@ fn remap_node(
             target: br(crate::OperandSlot::Target, target)?,
             tool: rd(crate::OperandSlot::Tool, *tool)?,
         },
-        Node::Subtract {
-            from,
-            tool,
-            declare,
-        } => Node::Subtract {
+        Node::Subtract { from, tool } => Node::Subtract {
             from: br(crate::OperandSlot::From, from)?,
             tool: br(crate::OperandSlot::Cut, tool)?,
-            declare: remap_declared(declare, rd, &nm)?,
         },
-        Node::Union { members, declare } => Node::Union {
+        Node::Union { members } => Node::Union {
             members: members.try_map(&br)?,
-            declare: remap_declared(declare, rd, &nm)?,
         },
-        Node::Intersect { members, declare } => Node::Intersect {
+        Node::Intersect { members } => Node::Intersect {
             members: members.try_map(&br)?,
-            declare: remap_declared(declare, rd, &nm)?,
         },
         Node::Transform { input, placement } => Node::Transform {
             input: rd(crate::OperandSlot::Input, *input)?,

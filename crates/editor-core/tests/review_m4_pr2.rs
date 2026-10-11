@@ -242,7 +242,6 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![fa.into(), fb.into()]),
-            declare: Vec::new(),
         },
     );
     // One more hop: a transform downstream of the poisoned join.
@@ -395,7 +394,6 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
-            declare: Vec::new(),
         },
     );
     // Circular pattern of base about a datum axis (data only).
@@ -469,7 +467,6 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
         Node::Subtract {
             from: u.into(),
             tool: bad.into(),
-            declare: Vec::new(),
         },
     );
     (
@@ -806,7 +803,6 @@ fn wire_doors_refuse_typed() {
         &doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![u.into(), pat.into()]),
-            declare: Vec::new(),
         },
     );
     assert!(

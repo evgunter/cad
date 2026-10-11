@@ -154,14 +154,6 @@ pub enum NodeErrorClass {
     UnschedulableCycle,
     /// [`NodeErrorKind::Naming`].
     Naming,
-    /// [`NodeErrorKind::DeclareResolve`].
-    DeclareResolve,
-    /// [`NodeErrorKind::DeclareSiteNotAnOperand`].
-    DeclareSiteNotAnOperand,
-    /// [`NodeErrorKind::DeclareUnsupportedPair`].
-    DeclareUnsupportedPair,
-    /// [`NodeErrorKind::DeclaredContactUnbacked`].
-    DeclaredContactUnbacked,
     /// [`NodeErrorKind::UnionFoldStep`].
     UnionFoldStep,
     /// [`NodeErrorKind::BlendSelectionEmpty`] refused by a fillet.
@@ -335,10 +327,6 @@ impl NodeErrorKind {
             Self::PlacementRule(fault) => C::of_placement_rule(fault),
             Self::UnschedulableCycle => C::UnschedulableCycle,
             Self::Naming(_) => C::Naming,
-            Self::DeclareResolve { .. } => C::DeclareResolve,
-            Self::DeclareSiteNotAnOperand { .. } => C::DeclareSiteNotAnOperand,
-            Self::DeclareUnsupportedPair { .. } => C::DeclareUnsupportedPair,
-            Self::DeclaredContactUnbacked { .. } => C::DeclaredContactUnbacked,
             Self::UnionFoldStep { .. } => C::UnionFoldStep,
             Self::BlendSelectionEmpty { verb } => {
                 by_verb(*verb, C::FilletSelectionEmpty, C::ChamferSelectionEmpty)
@@ -552,10 +540,6 @@ mod tests {
         PlacementRuleNonRigidFrame,
         UnschedulableCycle,
         Naming,
-        DeclareResolve,
-        DeclareSiteNotAnOperand,
-        DeclareUnsupportedPair,
-        DeclaredContactUnbacked,
         UnionFoldStep,
         FilletSelectionEmpty,
         ChamferSelectionEmpty,
@@ -873,21 +857,6 @@ mod tests {
             C::Naming => K::Naming(crate::NamingError::Emission {
                 what: "a cap face with no profile loop behind it",
             }),
-            C::DeclareResolve => K::DeclareResolve {
-                error: resolve_error(),
-                reference: 0,
-            },
-            C::DeclareSiteNotAnOperand => K::DeclareSiteNotAnOperand {
-                at: crate::VarId::new(3, 3),
-            },
-            C::DeclareUnsupportedPair => K::DeclareUnsupportedPair {
-                kinds: (EntityKind::Edge, EntityKind::Vertex),
-                cross_operand: true,
-            },
-            C::DeclaredContactUnbacked => K::DeclaredContactUnbacked {
-                reference: 0,
-                at_union_step: false,
-            },
             C::UnionFoldStep => K::UnionFoldStep {
                 member: 2,
                 read: crate::VarId::new(2, 2),

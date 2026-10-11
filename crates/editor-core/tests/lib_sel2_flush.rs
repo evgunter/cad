@@ -191,7 +191,6 @@ fn detect_declare_boolean_round_trip_builds_the_undeclared_body() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![base.into(), top.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = eval(&undeclared);
@@ -342,7 +341,6 @@ fn undeclared_union(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     )
 }

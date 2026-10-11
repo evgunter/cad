@@ -437,7 +437,6 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
         Node::Subtract {
             from: small.into(),
             tool: big.into(),
-            declare: Vec::new(),
         },
     );
     // A downstream consumer of the empty value: typed EmptyOperand
@@ -446,7 +445,6 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![sub.into(), big.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc, None, false);

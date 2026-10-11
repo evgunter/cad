@@ -92,16 +92,13 @@ fn build(blocks: &[B], ops: &[Op], creation: &[usize]) -> Built {
                 members: editor_core::Bodies::Spelled(
                     ms.iter().map(|&m| r(m, &out).into()).collect(),
                 ),
-                declare: Vec::new(),
             },
             Op::Pair(BooleanOp::Union, a, b) => Node::Union {
                 members: editor_core::Bodies::Spelled(vec![r(a, &out).into(), r(b, &out).into()]),
-                declare: Vec::new(),
             },
             Op::Pair(BooleanOp::Subtract, a, b) => Node::Subtract {
                 from: r(a, &out).into(),
                 tool: r(b, &out).into(),
-                declare: Vec::new(),
             },
         };
         let (d, id) = insert(doc, node);

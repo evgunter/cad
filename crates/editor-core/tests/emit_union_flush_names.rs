@@ -660,7 +660,6 @@ fn a_member_of_two_touching_shells_names_each_shell_for_itself() {
             doc,
             Node::Union {
                 members: editor_core::Bodies::Spelled(vec![ids[0].into(), ids[1].into()]),
-                declare: Vec::new(),
             },
         );
         for order in permutations(&[0, 1]) {

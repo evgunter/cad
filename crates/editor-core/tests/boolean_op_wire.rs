@@ -29,7 +29,6 @@ fn rows() -> [(&'static str, AuthoredNode, &'static str); 3] {
             "union",
             Node::Union {
                 members: Bodies::Spelled(vec![a.into(), b.into()]),
-                declare: Vec::new(),
             },
             r#"{"Union":{"members":{"Spelled":[{"Node":"0:0000000000000001"},{"Node":"0:0000000000000002"}]},"declare":[]}}"#,
         ),
@@ -37,7 +36,6 @@ fn rows() -> [(&'static str, AuthoredNode, &'static str); 3] {
             "intersect",
             Node::Intersect {
                 members: Bodies::Spelled(vec![a.into(), b.into()]),
-                declare: Vec::new(),
             },
             r#"{"Intersect":{"members":{"Spelled":[{"Node":"0:0000000000000001"},{"Node":"0:0000000000000002"}]},"declare":[]}}"#,
         ),
@@ -46,7 +44,6 @@ fn rows() -> [(&'static str, AuthoredNode, &'static str); 3] {
             Node::Subtract {
                 from: a.into(),
                 tool: b.into(),
-                declare: Vec::new(),
             },
             r#"{"Subtract":{"from":{"Node":"0:0000000000000001"},"tool":{"Node":"0:0000000000000002"},"declare":[]}}"#,
         ),
@@ -67,7 +64,6 @@ fn each_boolean_kind_rides_the_wire_as_its_variant_name() {
 fn a_family_union_rides_the_wire_as_one_read() {
     let node: AuthoredNode = Node::Union {
         members: Bodies::Family(RecipeNodeId::new(0, 1).into()),
-        declare: Vec::new(),
     };
     assert_eq!(
         serde_json::to_string(&node).unwrap(),

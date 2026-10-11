@@ -362,7 +362,6 @@ fn box_with_a_failed_and_a_poisoned_node() -> (ProfileDoc, RecipeNodeId, RecipeN
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![failed.into(), good.into()]),
-            declare: Vec::new(),
         },
     );
     (doc, good, failed, poisoned)

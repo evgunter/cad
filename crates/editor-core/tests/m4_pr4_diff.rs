@@ -268,7 +268,6 @@ fn parallel_schedule_preserves_verdict_logs() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let seq = run(&doc, None);

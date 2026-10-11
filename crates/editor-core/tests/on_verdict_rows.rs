@@ -163,7 +163,6 @@ fn two_parts_of_one_half_answer_under_every_op() {
     let nodes: Vec<RecipeNodeId> = OPS.iter().map(|&op| boolean(&mut r, op, p, q)).collect();
     let union = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![p.into(), q.into()]),
-        declare: Vec::new(),
     });
     let ev = eval(&r.doc);
     for (op, &id) in OPS.iter().zip(&nodes) {

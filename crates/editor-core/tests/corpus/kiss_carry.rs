@@ -86,7 +86,6 @@ pub fn document() -> CorpusDoc {
     // DISCOVERED by the op and recorded in the result's contacts.
     let u1 = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-        declare: Vec::new(),
     });
 
     // The mover: [1.5,2.5]² × [1.5,2.5], a transversal crossing of b.

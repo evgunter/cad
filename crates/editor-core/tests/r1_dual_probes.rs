@@ -526,7 +526,6 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
     });
     let fused = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![slab.into(), boss.into()]),
-        declare: Vec::new(),
     });
     let tool = r.insert(Node::Datum(Datum::Plane {
         origin: [len(0.0), len(0.0), len(0.75)],

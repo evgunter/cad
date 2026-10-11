@@ -2601,14 +2601,12 @@ fn the_export_door_refuses_typed_not_vaguely() {
         Node::Subtract {
             from: first_box.into(),
             tool: second_box.into(),
-            declare: Vec::new(),
         },
     );
     let (doc, downstream) = insert(
         doc,
         Node::Union {
             members: pncad::document::Bodies::Spelled(vec![cut.into(), first_box.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = doors_evaluate(&doc);
@@ -2752,7 +2750,6 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         doc,
         Node::Union {
             members: pncad::document::Bodies::Spelled(vec![plate.into(), tab.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, _) = place(doc, solid);

@@ -237,7 +237,6 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         SessionOp::AddBoolean {
             spec: BooleanSpec::Union(vec![softened, base]),
-            declare: Vec::new(),
         },
     );
     let v_u1 = body_volume(&mut session, u1, tol);
@@ -262,7 +261,6 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         SessionOp::AddBoolean {
             spec: BooleanSpec::Union(vec![u1, shaft]),
-            declare: Vec::new(),
         },
     );
     let v_u2 = body_volume(&mut session, u2, tol);
@@ -282,7 +280,6 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         SessionOp::AddBoolean {
             spec: BooleanSpec::Union(vec![u2, drum]),
-            declare: Vec::new(),
         },
     );
     let v_u3 = body_volume(&mut session, u3, tol);
@@ -306,7 +303,6 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
                 from: u3,
                 tool: cutter,
             },
-            declare: Vec::new(),
         },
     );
     let v_cut1 = body_volume(&mut session, cut1, tol);
@@ -330,7 +326,6 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
                 from: cut1,
                 tool: cutter2,
             },
-            declare: Vec::new(),
         },
     );
     let v_carved = body_volume(&mut session, carved, tol);
@@ -395,7 +390,6 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let states = session.history().len();
     let refused = session.perform(SessionOp::AddBoolean {
         spec: BooleanSpec::Union(vec![carved, pattern]),
-        declare: Vec::new(),
     });
     assert!(
         matches!(
@@ -441,7 +435,6 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         SessionOp::AddBoolean {
             spec: BooleanSpec::Union(vec![carved, merlons]),
-            declare: Vec::new(),
         },
     );
     // Each merlon meets the crown in its sunk slab and nowhere else,

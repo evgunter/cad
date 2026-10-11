@@ -118,7 +118,6 @@ fn band_cut() -> BandCut {
         Node::Subtract {
             from: a.into(),
             tool: transform.into(),
-            declare: Vec::new(),
         },
     );
     BandCut {

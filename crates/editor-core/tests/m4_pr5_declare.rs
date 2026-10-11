@@ -87,7 +87,6 @@ fn kiss_base(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recipe
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     (doc, a, b, u)
@@ -142,7 +141,6 @@ fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
         doc_undeclared,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![base.into(), mover.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc_undeclared);
@@ -202,7 +200,6 @@ fn flush_plane_pair_glues_declared_or_not() {
         doc.clone(),
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc_undeclared);
@@ -257,7 +254,6 @@ fn flush_plane_pair_glues_declared_or_not() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -287,7 +283,6 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
         Node::Subtract {
             from: slab.into(),
             tool: b1.into(),
-            declare: Vec::new(),
         },
     );
     // Slot floor of s1 = FromB(b1's Cap(Start)); the second tool's
@@ -641,7 +636,6 @@ fn declare_doors_node_gone_and_ambiguous() {
         Node::Subtract {
             from: ua.into(),
             tool: ub.into(),
-            declare: Vec::new(),
         },
     );
     let ev1 = run(&doc);
@@ -721,7 +715,6 @@ fn crossing_slots_swapped_order_hits_the_junction_arm() {
         Node::Subtract {
             from: slab.into(),
             tool: b2.into(),
-            declare: Vec::new(),
         },
     );
     let floor2 = fname(

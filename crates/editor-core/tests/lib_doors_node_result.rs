@@ -86,14 +86,12 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Box::new(Node::Subtract {
             from: outer.into(),
             tool: inner.into(),
-            declare: Vec::new(),
         }),
     );
     let downstream = insert(
         &mut doc,
         Box::new(Node::Union {
             members: editor_core::Bodies::Spelled(vec![cut.into(), outer.into()]),
-            declare: Vec::new(),
         }),
     );
     (doc, cut, downstream)

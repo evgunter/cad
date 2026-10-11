@@ -842,7 +842,6 @@ fn r1_ops_refuse_measurement_operands_typed() {
         Node::Subtract {
             from: slab.into(),
             tool: a.into(),
-            declare: Vec::new(),
         },
     );
     assert!(

@@ -76,7 +76,6 @@ fn a_slab_cut_through_a_drum_answers_its_volume() {
         Node::Subtract {
             from: drum.into(),
             tool: cutter.into(),
-            declare: Vec::new(),
         },
     );
     let truth = PI * r * r * h - strip(half_t, r) * (z0 + h - cut_z);
@@ -118,7 +117,6 @@ fn a_slab_across_a_round_boss_builds_in_every_order() {
                 members: editor_core::Bodies::Spelled(
                     order.iter().map(|&i| ids[i].into()).collect(),
                 ),
-                declare: Vec::new(),
             },
         );
         let what = format!("order {order:?}");

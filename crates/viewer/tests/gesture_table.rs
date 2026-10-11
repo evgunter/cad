@@ -284,7 +284,6 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         },
         SessionOp::AddBoolean {
             spec: BooleanSpec::Union(vec![node, node]),
-            declare: Vec::new(),
         },
         SessionOp::AddSplit {
             target: node,

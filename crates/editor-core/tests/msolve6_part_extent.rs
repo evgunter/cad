@@ -989,7 +989,6 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
             &DocEdit::InsertNode {
                 node: Box::new(Node::Union {
                     members: editor_core::Bodies::Spelled(vec![b.into(), c.into()]),
-                    declare: Vec::new(),
                 }),
                 fresh: Vec::new(),
             },

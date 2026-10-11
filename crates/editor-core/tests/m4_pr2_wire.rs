@@ -243,7 +243,6 @@ fn linear_pattern_evaluates_instances_as_data() {
         &doc2,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![pat.into(), other.into()]),
-            declare: Vec::new(),
         },
     );
     assert!(
@@ -443,7 +442,6 @@ fn typed_refusal_doors() {
         &doc,
         Node::Intersect {
             members: editor_core::Bodies::Spelled(vec![split_node.into(), second.into()]),
-            declare: Vec::new(),
         },
     );
     assert!(
@@ -951,7 +949,6 @@ fn set_declare_on_a_live_boolean_builds_its_undeclared_body() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let undeclared = run(&doc);

@@ -360,7 +360,6 @@ fn every_predicate_a_subtract_logs_has_words_or_a_reason() {
         Node::Subtract {
             from: a.into(),
             tool: m.into(),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc, &editor_core::EvalOptions::default());

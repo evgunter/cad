@@ -377,7 +377,6 @@ fn flush_findings_of_two_placements_declare_and_fuse_through_a_union() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![m1.into(), m2.into()]),
-            declare: Vec::new(),
         },
     );
     let undeclared = run(&bare);

@@ -241,7 +241,6 @@ impl BooleanTool {
     pub fn op(&self) -> Result<SessionOp, SeatError> {
         Ok(SessionOp::AddBoolean {
             spec: self.spec()?,
-            declare: Vec::new(),
         })
     }
 }

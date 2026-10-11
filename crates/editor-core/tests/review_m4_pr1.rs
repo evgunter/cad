@@ -676,7 +676,6 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
         &Edit::InsertNode {
             node: Box::new(Node::Union {
                 members: editor_core::Bodies::Spelled(vec![extrude.into(), next_would_be.into()]),
-                declare: Vec::new(),
             }),
             fresh: Vec::new(),
         },
@@ -1044,7 +1043,6 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
         &[Edit::InsertNode {
             node: Box::new(Node::Union {
                 members: editor_core::Bodies::Spelled(vec![input.into(), other.into()]),
-                declare: Vec::new(),
             }),
             fresh: Vec::new(),
         }],

@@ -73,7 +73,6 @@ fn disjoint_union() -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     fixture::place(doc, result)
@@ -90,7 +89,6 @@ fn voided() -> (ProfileDoc, RecipeNodeId) {
         Node::Subtract {
             from: a.into(),
             tool: b.into(),
-            declare: Vec::new(),
         },
     );
     fixture::place(doc, result)
@@ -224,7 +222,6 @@ fn annihilated() -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Intersect {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     fixture::place(doc, result)
@@ -366,7 +363,6 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
         Node::Subtract {
             from: a.into(),
             tool: b.into(),
-            declare: Vec::new(),
         },
     );
     let (doc, c) = slab(doc, 0.0, 0.8, 0.5, 1.5 - t);
@@ -374,7 +370,6 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![hollow.into(), c.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, placement) = fixture::place(doc, root);

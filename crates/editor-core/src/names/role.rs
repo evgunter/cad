@@ -1894,11 +1894,9 @@ pub(crate) fn lift<P>(
         .collect(),
         Node::Union {
             members,
-            declare: _,
         }
         | Node::Intersect {
             members,
-            declare: _,
         } => members
             .reads()
             .filter(|m| reads(m.read))
@@ -1907,7 +1905,6 @@ pub(crate) fn lift<P>(
         Node::Subtract {
             from,
             tool,
-            declare: _,
         } => [
             seat(from.read, under(from.read)),
             seat(tool.read, under(tool.read)),
@@ -2944,7 +2941,6 @@ mod tests {
         let node: crate::node::Node<crate::ProfileProgram> = crate::node::Node::Subtract {
             from: crate::BodyRead::plain(from_read),
             tool: crate::BodyRead::plain(tool_read),
-            declare: Vec::new(),
         };
         let defined_by = |read: crate::VarId| {
             if read == from_read {
