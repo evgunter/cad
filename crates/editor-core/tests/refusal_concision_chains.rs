@@ -5046,6 +5046,10 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             },
         ),
         (
+            "NarrowWindowUnread",
+            PointInSolidError::NarrowWindowUnread { face, diag: diag() },
+        ),
+        (
             "RootCountDisagrees",
             PointInSolidError::RootCountDisagrees {
                 face,

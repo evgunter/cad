@@ -55,37 +55,38 @@ battery reaches the check. If that ordering is a proof, `corner_bound`'s
 refusal is bug-only and belongs in row 4 with the other two. If it is
 not, its comment should name the input that reaches it.
 
-## Ruling for `CountDisagrees` (CLEAVE unit `point-in-solid-mints-outside-its-period-and-nappe-rows`, 2026-10-10)
+## Ruling for `CountDisagrees` (CLEAVE unit `point-in-solid-mints-outside-its-period-and-nappe-rows`, 2026-10-10; corrected 2026-10-11)
 
-**`TorusRoots::CountDisagrees` is reachable, so it is typed, not a panic.**
+**`TorusRoots::CountDisagrees` is reachable by input, so it is typed,
+not a panic. The cause is a kernel defect: the certified count is wrong.**
 The shared quartic ladder (`solid_contain.rs` `depressed_quartic_roots`)
-builds a root count its own sign ladder did not certify on coefficients an
-input gives. The half-angle lane hands it such quartics for
-`circle_wall_rows::a_graze_is_read_by_its_depth` and
-`ellipse_rows::a_graze_is_read_by_its_depth`, with every sign decided past
-the band. `torus_predicate_rows::the_ladder_disagrees_with_itself_on_a_lanes_coefficients`
-pins four of them (certified 4 / built 2, and certified 2 / built 4). The
-factorization's rounding is not charged to its band decisions, so the
-agreement of the two counts is not a property of the f64 computation. No
-ray×torus input has reached it.
+reads its count off `Δ`'s sign, and `Δ`'s `f64` rounding (3e-7 to 6e-6 in
+`Δ/L¹¹`, against a 1e-8 band) is charged to no decision. Counted exactly,
+the four quartics the half-angle lane hands it
+(`torus_predicate_rows::the_ladder_disagrees_with_itself_on_a_lanes_coefficients`)
+have 2, 4, 4 and 4 real roots. The factorization builds those counts; the
+sign ladder certified 4, 2, 2, 2. A ray at `R = 1e6`, `r = 1e4` reaches it
+too (`a_far_ray_reaches_the_count_disagreement`). The same defect also
+gives silent wrong `Miss` answers that no rung sees. INSIDE's P1
+`ray-torus-count-certifies-on-an-uncharged-discriminant` owns the fix.
 
 - **C17** (`point_in_solid`'s torus arm): `PointInSolidError::RootCountDisagrees
-  { face, certified, constructed }`, a limit of that ray's computation
-  (`confined`, `RayFault::Blocked`), so another ray may settle.
-- **C18** (`sphere_region` `ray`): row 0. `CircleRoots::CountDisagrees` is
-  gone. Its only producer was the conversion from `TorusRoots` in
-  `reduce.rs`'s line lane, which now matches `TorusRoots` itself, so no
-  circle root door can answer it.
-- **Left on this row:** `reduce.rs` `line_roots` still answers
-  `TorusRoots::CountDisagrees` with `ClassificationInvariant` and the
-  kernel-defect ending. By this ruling the state is reachable, so that
-  ending is a false story there. The span lane's honest reading is
-  probably `Uncertain`'s (localize and read against the face), which is a
-  behaviour change in the reduction and was not made by this unit.
+  { face, certified, constructed }`. It blocks that ray (`confined`,
+  `RayFault::Blocked`, through `torus_crossings`), since another ray or
+  witness can settle the point. At every door it ends on its lever plus
+  "this may indicate a kernel bug worth reporting", which is true.
+- **C18** (`sphere_region` `ray`): D9 row 0. `CircleRoots::CountDisagrees`
+  is gone, and the first-harmonic doors answer
+  `circle_roots::FirstHarmonicRoots`, which has neither it nor `AtApex`.
+- **`reduce.rs` `line_roots`** keeps `ClassificationInvariant` with the
+  kernel-defect ending for `TorusRoots::CountDisagrees`, and that ending is
+  right: the cause is the defect above. (The first version of this note
+  suggested moving it. That is retracted.)
 
 The same unit found the two wall-junction mints K-dependent rather than
 bug-only. Both are reachable because `Tolerance` accepts any finite K > 1:
-- C13 (sides disagree at an active junction) at K below a few, in
+- C13 (sides disagree at an active junction) is reachable for K below
+  2, or about 3.2 with radial misses, in
   `PointInSolidError::JunctionSidesDisagree`.
-- C14 (both ends of a piece active) at K < 2, where the parity has a definite
-  answer and the arm now gives it.
+- C14 (both ends of a piece active) is reachable at K < 2. The parity there
+  has a definite answer, and the arm gives it.

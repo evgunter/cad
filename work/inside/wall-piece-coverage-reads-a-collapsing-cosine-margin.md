@@ -28,10 +28,12 @@ Measured at ε = 1e-9, 1e-6 and 1e-12 at the default K
 (`wall_section_rows::a_narrow_windows_collapsed_margin_keeps_its_reading`):
 on windows 0.02, 0.05 and 0.08 rad wide, a hit `2Kε` past or short of the
 window's end is definitely clear of that end's junction (its sine offset is
-`2Kε`), yet the window margin decides Zero. The arm now refuses there with
-the nonzero gate's tagged rejection (`bool_wall_trim`, margin within ε);
-before, it minted `INVALID`. Either way a hit the face definitely holds or
-definitely misses is refused, and a ray that meets it is set aside.
+`2Kε`), yet the window margin decides Zero. The arm now refuses there as
+`PointInSolidError::NarrowWindowUnread`, carrying the nonzero gate's
+tagged rejection (`bool_wall_trim`, margin within ε) and ending on this
+kernel limit; before, it minted `INVALID`. Either way a hit the face
+definitely holds or definitely misses is refused, and a ray that meets it
+is set aside.
 
 ## What would close it
 

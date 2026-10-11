@@ -5325,17 +5325,10 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     band,
                 )?;
                 let thetas = match roots {
-                    super::circle_roots::CircleRoots::Miss => continue,
-                    super::circle_roots::CircleRoots::Certified { count, thetas } => {
-                        thetas[..count].to_vec()
-                    }
-                    super::circle_roots::CircleRoots::AtApex => unreachable!(
-                        "the first-harmonic door answered AtApex for a boundary arc against \
-                         the cut's meridian plane: it decides a first harmonic's range, which \
-                         has no apex"
-                    ),
-                    super::circle_roots::CircleRoots::OnSurface
-                    | super::circle_roots::CircleRoots::Uncertain => {
+                    super::circle_roots::FirstHarmonicRoots::Miss => continue,
+                    super::circle_roots::FirstHarmonicRoots::Certified(thetas) => thetas.to_vec(),
+                    super::circle_roots::FirstHarmonicRoots::OnSurface
+                    | super::circle_roots::FirstHarmonicRoots::Uncertain => {
                         return Err(refuse(
                             "a boundary arc of the sphere face meets the cut's meridian plane \
                              where its roots are not certified",

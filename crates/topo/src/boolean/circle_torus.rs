@@ -264,6 +264,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
                     "bool_circle_torus_coaxial_residual",
                     band,
                 )
+                .map(CircleRoots::from)
                 .map_err(escalated)
             }
             Ok(Sign::Positive) => parallel_axes_roots(

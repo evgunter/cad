@@ -96,7 +96,8 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::BooleanDecision;
 use super::circle_roots::{
-    CircleRoots, FirstHarmonic, FirstHarmonicRows, first_harmonic_roots_in_band, rounding_charge,
+    FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_roots_in_band,
+    rounding_charge,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
@@ -367,16 +368,12 @@ impl<T: Decide> SphereFaceRegion<T> {
         let mut crossings = Crossings::new();
         for (j, arc) in self.arcs.iter().enumerate() {
             let thetas = match self.ray_roots(arc, g, band).map_err(in_band)? {
-                CircleRoots::Miss => continue,
-                CircleRoots::Certified { count, thetas } => thetas[..count].to_vec(),
+                FirstHarmonicRoots::Miss => continue,
+                FirstHarmonicRoots::Certified(thetas) => thetas,
                 // The arc in the ray's plane, or a tangency.
-                CircleRoots::OnSurface | CircleRoots::Uncertain => {
+                FirstHarmonicRoots::OnSurface | FirstHarmonicRoots::Uncertain => {
                     return Err(RayFault::Graze);
                 }
-                CircleRoots::AtApex => unreachable!(
-                    "the first-harmonic door answered AtApex for arc {j} against a great \
-                     circle's plane: it decides a first harmonic's range, which has no apex"
-                ),
             };
             for theta in thetas {
                 let start = row("bool_sphere_region_span", arc.radius * (theta - arc.t0))?;
@@ -419,7 +416,7 @@ impl<T: Decide> SphereFaceRegion<T> {
         arc: &RegionArc<T>,
         g: Vec3<T>,
         band: Band,
-    ) -> Result<CircleRoots<T>, Indeterminate> {
+    ) -> Result<FirstHarmonicRoots<T>, Indeterminate> {
         let v_ref = arc.axis.cross(arc.u_ref);
         let offset = arc.center - self.center;
         let d = g.dot(offset);

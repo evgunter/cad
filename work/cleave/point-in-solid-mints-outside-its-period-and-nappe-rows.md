@@ -55,90 +55,81 @@ the containment door (`contfp`) and a ray, each ended "margin is invalid
 or outside the face; an unreadable margin may indicate a kernel bug worth
 reporting".
 
-- **C13 is reachable at small K.** At K = 1.5, a V of two steep pieces
-  whose planes each pass 0.9ε from the shared vertex puts a hit 0.9ε round
-  the wall at +2.0ε from one plane and −1.6ε from the other. At the default
-  K it is unreachable: a definite side is then the side of the vertex's
-  height, the same for both planes. Any finite K > 1 is accepted, so this
-  is not D9 row 4. It is now
-  `PointInSolidError::JunctionSidesDisagree { face, sides, band }`. It
-  carries both side margins, is `in_band` (the hit is in the junction's
-  band), and is placed by the census as a witness too close.
-- **C14 is reachable at K < 2, and it has an answer.** A piece wider than
-  Kε and narrower than 2ε has both end junctions within ε of a hit at its
-  middle. The arm reads every active junction as just past it, the
-  convention the rest of the arm already used. A piece with both ends
-  active ends before that point, so it does not cover the hit. The
-  parity argument at `wall_outline` covers both crossings. No error
-  remains.
+- **C13 is reachable at small K.**
+  - Witness at K = 1.5: two steep pieces whose planes each pass 0.9ε from
+    the shared vertex form a V. A hit 0.9ε round the wall reads +2.0ε
+    from one plane and −1.6ε from the other.
+  - The review put the threshold at K* = 2, up to about 3.2 with radial
+    misses. At the default K it is unreachable.
+  - Now `PointInSolidError::JunctionSidesDisagree { face, sides, band }`,
+    `in_band`, placed by the census as a witness too close.
+- **C14 is reachable at K < 2, and it has an answer.** The arm reads every
+  active junction as just past it. A piece with both ends active ends
+  before that point, so it does not cover the hit. The review checked
+  this on 75,108 oracle samples with 0 wrong. The pin is a family checked
+  against the parity at the hit's exact azimuth: flat floors, tilted
+  ones, a tilted step, a flat step up, and a face that is itself the
+  sliver and turns at both ends.
 - **C15 is not a graze, and it is reachable at the default K.** With
   neither end active, the hit is definitely clear of both ends. Only the
-  cosine-window margin's collapse on a narrow piece (ledger F8) puts it
-  in band: windows 0.02–0.08 rad wide, with hits 2Kε past or short of the
-  end. It now goes through `decide_nonzero` and refuses with the tagged
-  decided margin. The cause is filed on INSIDE.
-- **C16 is unreachable.** `sphere_chart_trim` returns before the fold on
-  an empty level set. Row 0 applies: `latitude_extremes` takes `first`
-  and `rest`, so an empty set cannot be passed and the mint is deleted.
-  It had no ending to move.
-- **C17 is reachable, so it is typed** (the ruling is on
-  `classification-invariant-family-types-bug-only-states-against-d9-row-4`).
-  It is `PointInSolidError::RootCountDisagrees { face, certified,
-  constructed }` and blocks the ray (`confined`). `TorusRoots::CountDisagrees`
-  carries both counts.
-- **C18 cannot happen.** Row 0 applies: `CircleRoots::CountDisagrees` is
-  deleted. The sphere region's `AtApex` arm, which was folded silently
-  into a graze, is now an `unreachable!` with why, as is its twin in
-  `ops.rs`.
+  cosine-window margin's collapse on a narrow piece (ledger F8) puts it in
+  band, for windows 0.02–0.08 rad wide.
+  - Now `PointInSolidError::NarrowWindowUnread { face, diag }`, carrying
+    `decide_nonzero`'s tagged rejection. It names the narrow window and
+    ends on moving the point plus the kernel-limit note.
+  - The cause is filed on INSIDE.
+- **C16 is reachable.** A face closed on itself along one slit arc (a
+  latitude arc or an equator arc) has no rim and no vertex on a pole, so
+  its level set is empty. Before, it answered "a face the chart cannot
+  express", so `boxes` took the whole ball. It now answers the
+  unconstrained trim, the whole sphere, which is the same box.
+  `latitude_extremes` takes a non-empty set by type.
+- **C17 is reachable, so it is typed.** The cause is a kernel defect:
+  rung 1 certifies on `Δ`'s uncharged `f64` rounding, so the certified
+  count is the wrong one, and the construction is right. The review
+  counted the pinned quartics exactly, and a ray at `R = 1e6` reaches it.
+  - Now `PointInSolidError::RootCountDisagrees`. It blocks that ray
+    through `torus_crossings`, the helper `cast_ray` calls.
+  - The defect also gives silent wrong `Miss` answers. P1 filed on INSIDE.
+  - The ruling is on
+    `classification-invariant-family-types-bug-only-states-against-d9-row-4`.
+- **C18 cannot happen.** `CircleRoots::CountDisagrees` is deleted. The
+  first-harmonic doors (`first_harmonic_roots`, `constant_residual_roots`)
+  answer `FirstHarmonicRoots`, which has no apex and no count
+  disagreement. The two `unreachable!` `AtApex` arms in `sphere_region`
+  and `ops.rs` are gone with it.
 
-The endings, before → after:
+Endings, before → after (the C13 and C15 states, and C17's
+three doors, are pinned through the solid door, `contfp`, the at-rest
+validator and the census):
 
-- **C13, through the solid door, `contfp` and the at-rest validator:**
-  - Before: the lever plus the unreadable-margin note.
-  - After: the lever alone, with both margins in the sentence.
-  - The note is gone because both margins were read. Moving the point off
-    the junction decides it, which is the in-band sibling's story
-    (D4 ¶1 (iv)). The census was `WitnessTooClose(None)` and still is.
-- **C14:** the same refusal → an answer (`Some(true)` between floor and
-  roof, `Some(false)` outside).
-- **C15:** lever plus note → the lever alone, with a decided margin
-  inside ε tagged as the gate's rejection. The note is gone because the
-  margin was read.
+- **C13:** the lever plus the unreadable-margin note → the lever alone,
+  through `unnamed_placement_ending` (the `None` arm of
+  `placement_ending`), with both margins in the sentence. The note is gone
+  because both margins were read: this is the in-band sibling's story
+  (D4 ¶1 (iv)).
+- **C14:** the same refusal → an answer.
+- **C15:** the lever plus the unreadable-margin note → "test a point
+  farther from that end", plus "a limit of the kernel's narrow-window
+  reading, worth reporting". The census places
+  it as `WitnessNarrowWindow`, and the validator gives the same story.
 - **C17:**
-  - Before: `Fatal`, the whole query refused with the note.
-  - After: the ray is blocked and another ray may settle.
-  - Where none settles, the sentence names the two counts and the face.
-    Its recourse is "test a point farther from that face; this may
-    indicate a kernel bug worth reporting". That note is now about two
-    counts the kernel computed that disagree, which is true. The old
-    note was about an unreadable margin, which was false.
-  - The census placement moved from `WitnessTooClose(None)` to
-    `WitnessGrazed`, and the validator's from the placement lever to
-    the grazed story.
-- **C16 and C18:** no reachable ending.
+  - Before: the whole query was refused, with the unreadable-margin note.
+  - After: the ray is blocked. Where no ray settles, every door gives its
+    lever plus "this may indicate a kernel bug worth reporting". The
+    census places it as `WitnessRootCount`.
+- **C16:** the ball → the same box, now reached as the whole-sphere trim.
+- **C18:** no reachable ending.
 
-Census over the two files, production code only:
+Census over the two files, production code only. The second pass also
+counts the impossible variants of a shared result type that are read as
+outcomes:
 
-- **Pass 1** (`MarginDiag::INVALID`, `invalid_margin::invalid`,
-  `Indeterminate {`, `invalid(`):
-  - Before: `solid_contain.rs` had 11 (PRED's `:1289`, `:1922` helper,
-    `:1938`, `:1943` and `:2986`, plus C13–C17's `:2699` helper, `:2760`,
-    `:2766`, `:2774`, `:3533` and `:5405`). `sphere_region.rs` had 1
-    (`:384`).
-  - After: `solid_contain.rs` has PRED's 5, and `sphere_region.rs` has 0.
-- **Pass 2** (`terminal_sliver:`):
-  - Before: `solid_contain.rs` had 5 and `sphere_region.rs` had 0.
-  - After: `solid_contain.rs` has PRED's 3, and `sphere_region.rs` has 0.
-
-Pins, run locally at all three ε rows:
-
-- `wall_section_rows`:
-  - `a_hit_in_a_steep_junctions_band_carries_both_sides` (4 poses);
-  - `a_piece_narrower_than_two_bands_is_read_past_both_ends` (3 widths ×
-    3 heights);
-  - `a_narrow_windows_collapsed_margin_keeps_its_reading` (3 widths × 2
-    sides);
-  - `a_hit_between_a_junctions_pieces_carries_both_sides`.
-- `torus_predicate_rows`:
-  - `the_ladder_disagrees_with_itself_on_a_lanes_coefficients`;
-  - `a_count_disagreement_blocks_the_ray_and_says_so`.
+| pass | file | before | after |
+|---|---|---|---|
+| 1 (`INVALID`, `invalid_margin::invalid`, `Indeterminate {`, `invalid(`) | `solid_contain.rs` | 11 | 5 (PRED's) |
+| 1 | `sphere_region.rs` | 1 | 0 |
+| 2 (`terminal_sliver:`) | `solid_contain.rs` | 5 | 3 (PRED's) |
+| 2 | `sphere_region.rs` | 0 | 0 |
+| impossible variants read as outcomes | `sphere_region.rs` | `AtApex` | 0 |
+| impossible variants read as outcomes | `ops.rs` | `AtApex` | 0 |

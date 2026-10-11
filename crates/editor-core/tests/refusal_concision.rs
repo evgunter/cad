@@ -743,6 +743,10 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "Containment(NarrowWindowUnread)",
+            PointInSolidError::NarrowWindowUnread { face, diag },
+        ),
+        (
             "Containment(RootCountDisagrees)",
             PointInSolidError::RootCountDisagrees {
                 face,

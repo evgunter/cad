@@ -231,7 +231,8 @@ pub(super) fn conic_quadric_roots<T: Decide>(
                 t1,
                 &first_rows(BooleanDecision::ArcSphereRoots),
                 band,
-            );
+            )
+            .map(CircleRoots::from);
         }
         (_, &geom::Surface::Sphere { center, radius, .. }) => (
             geom_brep::conic_sphere_harmonics(&conic, center, radius),
@@ -277,7 +278,8 @@ pub(super) fn conic_quadric_roots<T: Decide>(
             t1,
             &first_rows(decision),
             band,
-        );
+        )
+        .map(CircleRoots::from);
     }
     half_angle_roots(
         &TrigPoly::second(h.c0, h.c1, h.s1, h.c2, h.s2),
@@ -365,14 +367,14 @@ fn cone_roots<T: Decide>(
     let h = geom_brep::conic_cone_harmonics(conic, apex, axis, half_angle);
     let noise = rounding_charge(h.terms) / h.per;
     let roots = if let Some(first) = first_harmonic_arm(&h, noise, band) {
-        let roots = first_harmonic_roots(
+        let roots = CircleRoots::from(first_harmonic_roots(
             &first,
             conic.speed_hi(),
             t0,
             t1,
             &first_rows(BooleanDecision::ArcConeRoots),
             band,
-        )?;
+        )?);
         if let CircleRoots::OnSurface = roots {
             // `|res| ≤ |F| / floor`: a constant `F` in the band certifies
             // the carrier on the cone only once its whole reach, read
