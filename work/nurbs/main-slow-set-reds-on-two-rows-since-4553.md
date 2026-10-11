@@ -2,10 +2,9 @@
 id: main-slow-set-reds-on-two-rows-since-4553
 kind: issue
 title: Main's slow set is red on two rows since PR 4553 (knot algebra off the ring): the sweep serial-golden digest and the arc-loft import volume bits
-status: closed
+status: open
 opened: 2026-10-11
 priority: P0
-closed: 2026-10-11
 branch: nurbs/main-slow-set-reds-since-4553
 ---
 
@@ -39,39 +38,57 @@ compute them the same way.
 
 Both reds start at PR 4553's merge `98e620a195`: its parent
 `afabd44061` reads the old digest line, and the merge reads the new
-one.
+one. (A first bisection read "passes at the merge" off a worktree in
+which cargo reused the parent's artifacts. Every build that compiled
+agrees with this.)
 
-**The digest moved for a stated reason, and is re-cut.** Only
-`arc_loft_1e9eps` moves, at every ε: the one body in the roster whose
-walls are rational patches. 4553 moved those patches' knot refinement
-(`props::quad`'s `refine_dir`) from `ring_lerp`, which combined points
-through the plan's rounded `f64` λ, into the certification ring's convex
-step. Every new volume and area enclosure lies inside the old one. The
-volume pads fall by 7e-6 of themselves and the area pads by 4e-10.
+**The digest moved for a stated reason, and is re-cut on this branch.**
+Only `arc_loft_1e9eps` moves, at every ε: the one body in the roster
+whose walls are rational patches. 4553 moved those patches' knot
+refinement (`props::quad`'s `refine_dir`) from `ring_lerp`, which
+combined points through the plan's rounded `f64` λ, into the
+certification ring's convex step. Every new volume and area enclosure
+lies inside the old one. The volume pads fall by 7e-6 of themselves and
+the area pads by 4e-10.
 
-**The import bits differed in the face SUM's order, not in the
+**The import bits differ in the face SUM's order, not in the
 quadrature.** Fingerprinting the quadrature's inputs and outputs per
-face, native against imported: every face hands the lane identical
-bits (knots, net, weights, rectangle, perimeter, defect), and every
-face's flux comes back identical. The body sum then added the same
-six terms in different orders. `mass_properties` and check 7 summed in
-face-ARENA order. The native body's arena is its shell's face list, but
-the reader's Euler-operator assembly allocates faces in its own order,
-and the `CLOSED_SHELL` list it rebuilds (`Shell::faces`) is the native
-list. So: native `[9.14, 0, 6.2, 9.7389…, 6.2, 6.2]` against imported
-arena `[9.14, 9.7389…, 0, 6.2, 6.2, 6.2]`, totals one rounding apart.
-4553 changed the rational face's flux bits, and with them whether the
-two orders happen to round alike. No enclosure was lost; this is not a
-soundness finding.
+face, native against imported:
+- every face hands the lane identical bits (knots, net, weights,
+  rectangle, perimeter, defect);
+- every face's flux comes back identical (the rational wall
+  `[9.738934194323258, 9.738940253487032]` both ways);
+- the body sum (`props::fold_runs`, face-arena order) adds the same six
+  terms in two orders, native `[9.14, 0, 6.2, 9.7389…, 6.2, 6.2]`
+  against imported `[9.14, 9.7389…, 0, 6.2, 6.2, 6.2]`, totals
+  `37.48052987749494` against `…493`.
 
-Fix: the whole-body walks sum in WALK order (`Body::faces_in_walk_order`:
-solids, each solid's shells as listed, each shell's faces as listed).
-That order is the body's data, and a STEP round trip carries it. The
-call sites are `mass_properties`, the closed-form door, check 7's
-subjects, the assembled body certificate and the boolean volume
-backstop. A body built with its shell lists in arena order, as every
-fresh build in the slow sets is, keeps its bits.
+The reader's Euler-operator assembly allocates faces in its own order.
+The `CLOSED_SHELL` list it rebuilds (`Shell::faces`) IS the native
+arena order. 4553 changed the rational face's flux bits, and with them
+whether the two orders happen to round alike. No enclosure was lost:
+this is not a soundness finding.
+
+**Still open: the fix needs a decision.**
+- *Sum in the shells' stored face order* (tried on this branch). The
+  import row goes green, but two green rows go red:
+  `sweep::fillet_h5_hostless_rim::a_hostless_rim_composes_with_a_shared_wall_neighbour`
+  and `sweep::blend_tworims::a_seam_split_rim_pair_on_shared_half_band_walls_composes_in_one_call`.
+  Both pin a one-call result bit-identical to a sequential
+  composition, and those two bodies agree in arena order but not in
+  shell order. A storage order is canonical for one equivalence and not
+  another, so this was reverted.
+- *Sum exactly* (a correctly rounded sum of the face terms, so the bits
+  are a function of the multiset of faces). It makes all three rows
+  pass by construction, but it needs a per-scalar summation on
+  `geom_core`'s scalar traits (`f64` exact; `Interval` directed; the
+  others sequential), and it moves every mass-property golden where the
+  sequential sum differs from the exact one.
+- *Or* re-scope the import row's claim to the per-face bits, which are
+  identical, and the overlap of the body enclosures.
 
 PR 4551's `quad-de-boor-through-the-blossom-breaks-the-import-bit-identity`
-(on its branch) is the same cause: a one-ulp change in the rational
-face's flux, summed in two arena orders. This fix closes that too.
+(on its branch) reads as the same mechanism: one ulp on the same body,
+pads identical. Its premise that "the two walks hand `de_boor` inputs
+that differ" is what this measurement refutes: the inputs agree, and
+the sum's order differs.

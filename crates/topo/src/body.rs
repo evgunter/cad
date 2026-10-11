@@ -699,69 +699,6 @@ impl<T: Real> Body<T> {
         )
     }
 
-    /// Every face of the body **in its walk order**: the solids in arena
-    /// order, each solid's shells in the order the solid lists them
-    /// ([`Solid::shells`]), each shell's faces in the order the shell
-    /// lists them ([`Shell::faces`]); then any face no solid's shell
-    /// reaches, in arena order. A permutation of [`Body::faces`].
-    ///
-    /// **Why a walk order and not arena order.** The stored lists are
-    /// the body's data and a STEP round trip carries them (each
-    /// `CLOSED_SHELL` lists its faces in [`Shell::faces`] order, and the
-    /// reader rebuilds that list), while arena order is an allocation
-    /// order: the reader's Euler-operator assembly allocates faces in
-    /// its own order. A sum over faces taken in walk order is therefore
-    /// the same sum on a body and on its round trip; taken in arena
-    /// order it is not. On a body whose shells list their faces in
-    /// arena order, as a freshly built one does, the two orders agree.
-    #[must_use]
-    pub fn faces_in_walk_order(&self) -> Vec<FaceKey> {
-        let mut out = Vec::new();
-        let mut seen = std::collections::BTreeSet::new();
-        for (solid, _) in self.solids() {
-            self.push_solid_walk(solid, &mut out, &mut seen);
-        }
-        out.extend(self.faces().map(|(k, _)| k).filter(|k| seen.insert(*k)));
-        out
-    }
-
-    /// [`Body::faces_in_walk_order`] restricted to one solid: its shells
-    /// in the order the solid lists them, each shell's faces in the
-    /// order the shell lists them. `None` where the solid key does not
-    /// resolve. On a tier-1 valid body it answers the same SET as
-    /// [`Body::faces_of_solid`], in walk order rather than arena order.
-    #[must_use]
-    pub fn faces_of_solid_in_walk_order(&self, solid: SolidKey) -> Option<Vec<FaceKey>> {
-        self.get_solid(solid)?;
-        let mut out = Vec::new();
-        let mut seen = std::collections::BTreeSet::new();
-        self.push_solid_walk(solid, &mut out, &mut seen);
-        Some(out)
-    }
-
-    fn push_solid_walk(
-        &self,
-        solid: SolidKey,
-        out: &mut Vec<FaceKey>,
-        seen: &mut std::collections::BTreeSet<FaceKey>,
-    ) {
-        let Some(shells) = self.shells_of_solid(solid) else {
-            return;
-        };
-        for &shell in shells {
-            let Some(shell) = self.get_shell(shell) else {
-                continue;
-            };
-            out.extend(
-                shell
-                    .faces
-                    .iter()
-                    .copied()
-                    .filter(|&f| self.get_face(f).is_some() && seen.insert(f)),
-            );
-        }
-    }
-
     /// The shells of `solid`, **in the order the solid lists them**,
     /// or `None` where the solid key does not resolve. The list is a
     /// collection the key owns, so

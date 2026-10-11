@@ -269,9 +269,8 @@ impl fmt::Display for MassPropsError {
 impl std::error::Error for MassPropsError {}
 
 /// Volume and surface area of `body` over the exact B-rep (module
-/// docs). Faces are visited in the body's walk order
-/// ([`Body::faces_in_walk_order`]); the accumulation order is fixed
-/// (D9), and a STEP round trip of the body reproduces it.
+/// docs). Faces are visited in face-arena order; the accumulation
+/// order is fixed (D9).
 ///
 /// # Errors
 ///
@@ -353,7 +352,7 @@ pub fn mass_properties_structural<T: Decide>(
 }
 
 /// [`mass_properties`] against a caller-built band and the caller's
-/// quadrature lane, over every face in walk order — the
+/// quadrature lane, over the whole face arena in arena order — the
 /// reporting walk, run to the target in one entry per face.
 pub(crate) fn mass_properties_with<T: Decide>(
     body: &Body<T>,
@@ -361,7 +360,7 @@ pub(crate) fn mass_properties_with<T: Decide>(
     tol: Tol,
     quad: Option<QuadLane<T>>,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    let faces = body.faces_in_walk_order();
+    let faces = crate::query::all_faces(body);
     mass_properties_impl(body, &faces, band, &reporting_hook(quad), tol)
 }
 
@@ -451,7 +450,7 @@ fn round_hook<T: Decide>(
 /// target, whichever comes first.
 ///
 /// **The order, stated, because the bits depend on it.** Faces are
-/// visited in the order `faces` gives within every round, and the sum accumulates
+/// visited in arena order within every round, and the sum accumulates
 /// in that order — so a face's enclosure at round `r` is the
 /// enclosure the reporting walk computes at its round `r`
 /// (the lanes' rounds are independent recomputations, so a window
@@ -464,7 +463,7 @@ fn round_hook<T: Decide>(
 /// **A face with no enclosure at all stops the walk**: poison, a
 /// degenerate lever and an escalated funnel decision leave the sum
 /// undefined, so they refuse here exactly as they refuse the
-/// reporting door, naming the first such face in that order at the
+/// reporting door, naming the first such face in arena order at the
 /// round it happens. A face that refuses on BUDGET is different — it
 /// has an enclosure, and the sum keeps it — so the refusal rides on
 /// the certificate, and whether it is REPORTED is the caller's
@@ -486,9 +485,8 @@ fn round_hook<T: Decide>(
 /// ONE solid's volume is positive, or whether one shell bounds
 /// material or a cavity, is asking a question no other solid's faces
 /// enter — [`classify_shells_of`]'s argument, made at SIGN level
-/// instead of at the reporting one. Handing every face in walk order
-/// ([`Body::faces_in_walk_order`]) is the whole-body walk, term for
-/// term and round for round;
+/// instead of at the reporting one. Handing the face arena in arena
+/// order is the whole-body walk, term for term and round for round;
 /// the restriction is which faces are visited and nothing else.
 ///
 /// **This family is a single door where two of its neighbours are
@@ -560,7 +558,7 @@ pub(crate) fn sign_walk<'b, T: Decide, V>(
             ));
         }
         round += 1;
-        // The open faces, in walk order — the same subsequence the
+        // The open faces, in arena order — the same subsequence the
         // serial walk re-entered, so the recordings splice back in the
         // order it made them. A face that is not open contributes no
         // decision this round, exactly as before.
@@ -592,9 +590,9 @@ pub(crate) fn sign_walk<'b, T: Decide, V>(
 /// # The refusal rule, stated once
 ///
 /// **A reading of this certificate names the FIRST refusing face in
-/// walk order, resumed or already outstanding**, because that is the
+/// arena order, resumed or already outstanding**, because that is the
 /// reporting walk's own rule and the two doors must agree. The
-/// reporting walk visits faces in walk order and stops at the first
+/// reporting walk visits faces in arena order and stops at the first
 /// one whose lane refuses; the sign-level walk cannot, because it
 /// needs every face's enclosure to have a sum at all, so it carries
 /// budget refusals as data and keeps going. A continuation that folded
@@ -1524,9 +1522,9 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
             }
         }
         let runs: Vec<FaceRun<T>> = body
-            .faces_in_walk_order()
-            .into_iter()
-            .filter_map(|face_key| by_face.remove(face_key))
+            .faces
+            .iter()
+            .filter_map(|(face_key, _)| by_face.remove(face_key))
             .collect();
         assert!(
             handed == runs.len() && by_face.is_empty() && runs.len() == body.faces.len(),
@@ -1565,12 +1563,12 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
     /// on the same body at the same `tol`, and its piece evaluations
     /// are the same evaluations: a face left open at round `k` resumes
     /// at `k + 1`, a face that already met the target is not touched,
-    /// and the sum is over the same terms in the same walk order.
+    /// and the sum is over the same terms in the same arena order.
     ///
     /// **The `Err` is the same refusal too** — [`SignCertificate`]'s
     /// refusal rule, which this walk keeps whatever width it runs at:
     /// the open faces are resumed by an indexed parallel map into one
-    /// slot per face in walk order (D9's addendum idiom 1, through
+    /// slot per face in arena order (D9's addendum idiom 1, through
     /// [`geom_core::k_stats::map_detached`], each resumption under a K-funnel frame
     /// of its own) and the walk over those slots is sequential in that
     /// order (idiom 2). So the verdict log, the escalation log and the
@@ -1675,7 +1673,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         // thing differs: this walk stops on a refusal a face it did not
         // resume was already CARRYING, which a fold over decided slots
         // cannot see. So the splice and that check interleave, slot by
-        // slot, in walk order. A slot the map did not cover is decided
+        // slot, in arena order. A slot the map did not cover is decided
         // here instead — that is both the session arm and the tail past
         // `reached`, which the return below never gets to.
         //
@@ -1722,7 +1720,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
     }
 
     /// The refusal a target-level reading of this body earns, if any —
-    /// the first face in walk order whose quadrature has run out of
+    /// the first face in arena order whose quadrature has run out of
     /// schedule. A `Some` here with a definite sign above it is
     /// exactly the case this certificate exists for: the body's
     /// orientation is decided and its volume is not measurable at this
@@ -1896,13 +1894,13 @@ pub(crate) fn mass_properties_closed_form<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    let faces = body.faces_in_walk_order();
+    let faces = crate::query::all_faces(body);
     mass_properties_closed_form_of(body, &faces, band, tol)
 }
 
 /// [`mass_properties_closed_form`] over exactly `faces` — the enclosure
 /// those faces bound, summed in the order given. The whole-body door
-/// is this one handed every face in walk order, so its answer is
+/// is this one handed the face arena in arena order, so its answer is
 /// bit-for-bit the same (`face_list_door_tests` pins it); the
 /// point-in-solid door's per-solid entry hands it one solid's faces so
 /// a no-hit ray reads THAT solid's at-infinity side and not the
@@ -1954,8 +1952,8 @@ type FaceDecision<T> = (Result<FaceRun<T>, MassPropsError>, Detached);
 type ResumedFace<T> = (Option<Result<FaceRun<T>, MassPropsError>>, Detached);
 
 /// **The face walk, in one spelling and two dispatches.** `run` decides
-/// one face; the answer is the faces in the caller's order, or the
-/// first refusal in that order.
+/// one face; the answer is the faces in arena order, or the first
+/// refusal in arena order.
 ///
 /// *Thread-portable* (the shipped case): **D9 addendum idiom 1** — one
 /// slot per item in the caller's order, results written positionally
@@ -2048,7 +2046,7 @@ fn splice_in_arena_order<T: Decide>(
 
 /// **The escalation path, read directly**: the fold splices every
 /// recording up to and including the refusing face and drops every one
-/// after it, in walk order.
+/// after it, in arena order.
 ///
 /// The end-to-end rows live in `sweep`'s
 /// `mass_props_are_thread_count_invariant` — a real body, the public
@@ -2395,9 +2393,8 @@ fn mass_properties_impl<T: Decide>(
 ///
 /// **The order is the RUNS' order**, and the sum accumulates in it
 /// (D9's idiom 2): this fold never re-orders, so whichever walk built
-/// the slice decides the vocabulary — walk order
-/// ([`Body::faces_in_walk_order`]) for the whole-body walks and the
-/// continuation, the shell's own face list
+/// the slice decides the vocabulary — face-arena order for the
+/// whole-body walks and the continuation, the shell's own face list
 /// for [`classify_shells_of`]. The enclosure exists whenever every
 /// face produced bounds at all, which a face carrying an outstanding
 /// budget refusal still does. The second half names the FIRST face in
@@ -4624,7 +4621,7 @@ mod face_list_door_tests {
     ];
 
     #[test]
-    fn the_whole_body_door_is_bitwise_the_face_list_door_over_the_walk() {
+    fn the_whole_body_door_is_bitwise_the_face_list_door_over_the_arena() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         for ((name, body), (pin_name, volume, area)) in corpus().into_iter().zip(PINNED) {
@@ -4632,75 +4629,13 @@ mod face_list_door_tests {
             let whole = mass_properties_closed_form(&body, band, tol).unwrap();
             assert_eq!(whole.volume.to_bits(), volume, "{name}: volume moved");
             assert_eq!(whole.surface_area.to_bits(), area, "{name}: area moved");
-            let faces = body.faces_in_walk_order();
+            let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
             let listed = mass_properties_closed_form_of(&body, &faces, band, tol).unwrap();
             assert_eq!(listed.volume.to_bits(), whole.volume.to_bits(), "{name}");
             assert_eq!(
                 listed.surface_area.to_bits(),
                 whole.surface_area.to_bits(),
                 "{name}"
-            );
-        }
-    }
-
-    /// **The whole-body sum follows the shells' stored face lists, not
-    /// the arena.** On each corpus body, every shell's face list is
-    /// reversed: the whole-body door then sums in that reversed order,
-    /// bit for bit the face-list door handed it, and so does the body
-    /// certificate check 7 assembles. A STEP round trip rebuilds the
-    /// shell's list and not the arena's order, so this is what makes an
-    /// imported body's volume its native one's
-    /// (`step-import`'s `arc_loft_natively_computes_its_rational_volume`).
-    #[test]
-    fn the_whole_body_sum_follows_the_shells_face_lists() {
-        let tol = Tol::witness();
-        let band = Band::linear(tol).unwrap();
-        for (name, mut body) in corpus() {
-            let arena: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
-            assert_eq!(
-                body.faces_in_walk_order(),
-                arena,
-                "{name}: built in arena order"
-            );
-            for (_, shell) in body.shells.iter_mut() {
-                shell.faces.reverse();
-            }
-            let walk = body.faces_in_walk_order();
-            assert_ne!(
-                walk, arena,
-                "{name}: the reversed lists must reorder the walk"
-            );
-            let mut sorted = walk.clone();
-            sorted.sort();
-            let mut all = arena.clone();
-            all.sort();
-            assert_eq!(
-                sorted, all,
-                "{name}: the walk is a permutation of the arena"
-            );
-            let whole = mass_properties_closed_form(&body, band, tol).unwrap();
-            let listed = mass_properties_closed_form_of(&body, &walk, band, tol).unwrap();
-            assert_eq!(listed.volume.to_bits(), whole.volume.to_bits(), "{name}");
-            assert_eq!(
-                listed.surface_area.to_bits(),
-                whole.surface_area.to_bits(),
-                "{name}"
-            );
-            let parts: Vec<_> = body
-                .solids
-                .iter()
-                .map(|(solid, _)| {
-                    let faces = body.faces_of_solid_in_walk_order(solid).unwrap();
-                    sign_walk(&body, &faces, band, tol, None, None, |_| Some(()), |_| ())
-                        .unwrap()
-                        .1
-                })
-                .collect();
-            let assembled = SignCertificate::assembled(&body, band, tol, None, parts);
-            assert_eq!(
-                fold_runs(&assembled.runs).0.volume.to_bits(),
-                whole.volume.to_bits(),
-                "{name}: the assembled certificate sums in walk order"
             );
         }
     }

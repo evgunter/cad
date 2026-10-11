@@ -1873,7 +1873,7 @@ pub(crate) fn volume_backstop<T: Decide>(
     // Each body to its reporting target, keeping the walk so a bound
     // the reporting enclosures leave open can be refined past it.
     let measure = |body, operand| {
-        let faces = Body::faces_in_walk_order(body);
+        let faces = crate::query::all_faces(body);
         let (refused, certificate) = crate::props::sign_walk(
             body,
             &faces,
