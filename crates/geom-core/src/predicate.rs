@@ -2146,9 +2146,12 @@ impl Indeterminate {
     /// zero on the side it rejects. The words are
     /// [`MarginDiag::sized_recourse`]'s, which is also where a
     /// straddling enclosure and an unreadable margin lose the offer:
-    /// neither names a tolerance that decides. The classifier names no
-    /// door, so an unreadable margin takes a build's note; a reader over
-    /// stored geometry gives its own ([`Indeterminate::ending_noted`]).
+    /// neither names a tolerance that decides. Each takes its own first
+    /// lever in front of the door's instead: an enclosure that straddles
+    /// the band can be subdivided, and a margin nobody could read is a
+    /// question about the inputs. The classifier names no door, so an
+    /// unreadable margin takes a build's note; a reader over stored
+    /// geometry gives its own ([`Indeterminate::ending_noted`]).
     #[must_use]
     pub fn ending(&self, levers: &str) -> String {
         self.ending_noted(levers, UNREADABLE_MARGIN_NOTE)
@@ -2158,10 +2161,19 @@ impl Indeterminate {
     /// margin takes: the one its reader's door gives.
     #[must_use]
     pub fn ending_noted(&self, levers: &str, unreadable: &str) -> String {
+        let levers = match (self.margin.placement(self.band), self.margin.kind()) {
+            (Placement::Undecided, MarginKind::Enclosure | MarginKind::Invalid) => {
+                format!("subdivide the parameter box for a tighter enclosure, or {levers}")
+            }
+            (Placement::Invalid, _) => {
+                format!("check the operation's inputs upstream, then {levers}")
+            }
+            _ => levers.to_owned(),
+        };
         self.margin.sized_recourse(
             self.band,
             SizedWords {
-                lever: levers,
+                lever: &levers,
                 size: "size",
                 passes: self.passes(),
                 otherwise: None,
@@ -2254,53 +2266,34 @@ impl fmt::Display for IndeterminateUnder<'_> {
 impl fmt::Display for UnderTail<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let UnderTail(under) = self;
-        let levers = under.recourse;
-        // Each reading's own first lever joins the door's, so everything
-        // the reader can act on sits under the one `Recourse:` label
-        // the ending carries: an undecided enclosure can be subdivided,
-        // and a margin nobody could read is a question about the
-        // inputs. A decided reading is neither: subdivision keeps its
-        // sign, a decided nonzero sign is sign-certain, and a zero on
-        // the side a gate rejects stays there at every smaller
+        // What the reading is, where it is decided: subdivision keeps a
+        // decided sign, a decided nonzero sign is sign-certain, and a
+        // zero on the side a gate rejects stays there at every smaller
         // tolerance, so no tolerance arm rides with either (D4 ¶1 (i)).
+        // An undecided enclosure and an unreadable margin say theirs in
+        // the ending's first lever.
         let margin = under.diag.margin;
         let band = under.diag.band;
-        match (margin.placement(band), margin.kind()) {
-            (Placement::Past, _) => write!(
-                f,
-                " — a decided sign this decision cannot use; {}",
-                under.diag.ending(levers)
-            ),
+        let reading = match (margin.placement(band), margin.kind()) {
+            (Placement::Past, _) => Some("a decided sign this decision cannot use"),
             (Placement::ZeroBand, _)
                 if margin.tag().is_some()
                     && margin.tightens_below(band, under.diag.passes()).is_none() =>
             {
-                write!(
-                    f,
-                    " — a decided zero no smaller tolerance moves onto a side this decision \
-                     passes; {}",
-                    under.diag.ending(levers)
+                Some(
+                    "a decided zero no smaller tolerance moves onto a side this decision \
+                     passes",
                 )
             }
             (Placement::ZeroBand | Placement::Undecided, MarginKind::Value)
-            | (Placement::ZeroBand, _) => {
-                write!(f, " — a near-coincidence; {}", under.diag.ending(levers))
-            }
-            (Placement::Undecided, _) => write!(
-                f,
-                " — {}",
-                under.diag.ending(&format!(
-                    "subdivide the parameter box for a tighter enclosure, or {levers}"
-                ))
-            ),
-            (Placement::Invalid, _) => write!(
-                f,
-                " — {}",
-                under.diag.ending(&format!(
-                    "check the operation's inputs upstream, then {levers}"
-                ))
-            ),
+            | (Placement::ZeroBand, _) => Some("a near-coincidence"),
+            (Placement::Undecided | Placement::Invalid, _) => None,
+        };
+        f.write_str(" — ")?;
+        if let Some(reading) = reading {
+            write!(f, "{reading}; ")?;
         }
+        f.write_str(&under.diag.ending(under.recourse))
     }
 }
 
@@ -3317,6 +3310,29 @@ mod tests {
                  enclosure, or {COINCIDENCE_RECOURSE}"
             )
         );
+
+        // The reading's own lever is the ending's, so the undecided
+        // shape keeps it.
+        for (diag, lever) in [
+            (&invalid, "check the operation's inputs upstream, then"),
+            (
+                &enclosure,
+                "subdivide the parameter box for a tighter enclosure, or",
+            ),
+        ] {
+            let ending = diag.ending(COINCIDENCE_RECOURSE);
+            assert!(
+                ending.starts_with(&format!("Recourse: {lever} {COINCIDENCE_RECOURSE}")),
+                "{diag:?}: {ending}"
+            );
+            assert_eq!(
+                diag.undecided("whether it holds", &ending).to_string(),
+                format!(
+                    "whether it holds is undecided: {}. {ending}",
+                    diag.payload()
+                ),
+            );
+        }
     }
 
     proptest! {

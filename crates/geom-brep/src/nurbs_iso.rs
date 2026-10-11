@@ -297,18 +297,13 @@ impl<T: Real> core::fmt::Display for IsoRowError<T> {
                 "a surface's control net, or the iso row read from it, is not valid spline \
                  structure: {source}"
             ),
-            // `iso_boundary_row` takes no declaration: the margin kind's
-            // own advice stays, the declaration leaves the recourse.
-            Self::Escalated { source } => write!(
-                f,
-                concat!(
-                    geom_core::undecided!(
-                        "whether an edge lies on the boundary of its face's fitted surface"
-                    ),
-                    ": {}"
-                ),
-                source.under(NO_DECLARATION_RECOURSE)
-            ),
+            // `iso_boundary_row` takes no declaration.
+            Self::Escalated { source } => source
+                .undecided(
+                    "whether an edge lies on the boundary of its face's fitted surface",
+                    source.ending(NO_DECLARATION_RECOURSE),
+                )
+                .fmt(f),
             Self::WeightsNotSeparable { control_counts } => write!(
                 f,
                 "interior_iso_u: the {control_counts:?} weight net varies along both u and v, \
@@ -616,7 +611,7 @@ mod tests {
 
     /// The boundary-row coincidence escalating, raised for real at
     /// each margin kind: its sentence says what was being decided,
-    /// keeps the kind's own advice, and routes the two levers a door
+    /// keeps the kind's own lever, and routes the two levers a door
     /// without a declaration has, once.
     #[test]
     fn an_escalated_row_states_its_decision_and_no_declaration() {
@@ -635,14 +630,36 @@ mod tests {
             IsoRowError::Escalated { source } => IsoRowError::<f64>::Escalated { source },
             other => panic!("the straddling enclosure escalates, got {other}"),
         });
-        for (kind, got, advice) in [
-            ("value", value, "a near-coincidence"),
-            ("invalid", invalid, "check the operation's inputs upstream"),
-            ("enclosure", enclosure, "subdivide the parameter box"),
+        for (kind, got, lever) in [
+            (
+                "value",
+                value,
+                "or, if this size is intended, tighten the tolerance below",
+            ),
+            (
+                "invalid",
+                invalid,
+                "Recourse: check the operation's inputs upstream, then",
+            ),
+            (
+                "enclosure",
+                enclosure,
+                "Recourse: subdivide the parameter box",
+            ),
         ] {
             let e = got.expect_err("the margin is in the band");
-            assert!(matches!(e, IsoRowError::Escalated { .. }), "{kind}: {e}");
+            let IsoRowError::Escalated { source } = &e else {
+                panic!("{kind}: {e}");
+            };
             let text = e.to_string();
+            assert!(
+                text.starts_with(&format!(
+                    "whether an edge lies on the boundary of its face's fitted surface is \
+                     undecided: {}. Recourse: ",
+                    source.payload()
+                )),
+                "{kind}: the one undecided shape: {text}"
+            );
             assert!(
                 test_utils::refusal::subjectless_escalations(&text).is_empty(),
                 "{kind}: the escalation names its decision: {text}"
@@ -653,8 +670,8 @@ mod tests {
                 "{kind}: one recourse: {text}"
             );
             assert!(
-                text.contains(advice),
-                "{kind}: the margin kind keeps its own advice: {text}"
+                text.contains(lever),
+                "{kind}: the margin kind keeps its own lever: {text}"
             );
             // The door's one lever, labelled (the marker count above
             // reads the label) and — on a band-decided arm whose margin
