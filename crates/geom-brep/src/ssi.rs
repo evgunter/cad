@@ -1160,13 +1160,17 @@ impl core::fmt::Display for SsiError {
             ),
             Self::Escalated { decision, cause } => write!(
                 f,
-                "ssi: whether {} is too close to call: {}",
+                concat!("ssi: whether {}", geom_core::undecided!(), ": {}"),
                 decision.question(),
                 cause.payload()
             ),
             Self::CertificateEscalated { limb, cause } => write!(
                 f,
-                "ssi: whether the fitted carrier passes {} is too close to call: {}",
+                concat!(
+                    "ssi: whether the fitted carrier passes {}",
+                    geom_core::undecided!(),
+                    ": {}"
+                ),
                 limb.name(),
                 cause.payload()
             ),
@@ -3321,7 +3325,7 @@ mod ending_tests {
             let shown = error.to_string();
             assert!(
                 shown.starts_with("ssi: whether ")
-                    && shown.ends_with(&format!("too close to call: {}", in_band.payload()))
+                    && shown.ends_with(&format!(" is undecided: {}", in_band.payload()))
                     && !shown.contains("Recourse")
                     && !shown.contains("declare"),
                 "payload only: {shown}"
