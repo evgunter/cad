@@ -96,12 +96,20 @@ fn vanished(
     node: RecipeNodeId,
     pick: impl Fn(&StableName, &Entry) -> bool,
 ) -> Vec<(StableName, Diagnosis)> {
-    let now = ev2.table_at(node).expect("the node evaluates now");
-    ev1.table_at(node)
-        .expect("the node evaluated before")
-        .iter()
+    // Each output's table against the same output's now (NAMES N1: a
+    // split's halves are two).
+    let reads = ev1.named_outputs(node);
+    assert!(!reads.is_empty(), "the node evaluated before");
+    reads
+        .into_iter()
+        .flat_map(|var| {
+            let now = ev2.table(var).expect("the node evaluates now");
+            ev1.table(var)
+                .expect("the node evaluated before")
+                .iter()
+                .filter(move |(n, _)| now.lookup(n).is_none())
+        })
         .filter(|(n, e)| matches!(n.path.last(), Some(RoleSeg::Fragment(_))) && pick(n, e))
-        .filter(|(n, _)| now.lookup(n).is_none())
         .map(|(n, _)| {
             let res = resolve_with_prior(
                 RunCtx {

@@ -602,6 +602,11 @@ fn the_reachable_ladder_is_driven_through_its_doors() {
     let (face_frameless_at, face_frameless) = a_frameless_carrier(&loft_ev, EntityKind::Face);
     let (edge_frameless_at, edge_frameless) = a_frameless_carrier(&loft_ev, EntityKind::Edge);
 
+    // A split named alone: its halves are two reads, each its own table
+    // (NAMES N1), so the node alone answers no one table.
+    let (split_doc, [_, _, split]) = editor_core::test_support::clipped_cylinder(Tol::witness());
+    let split_ev = eval(&split_doc);
+
     // Each entry: what the door was asked, what it must answer, and
     // what it actually answered.
     let driven = [
@@ -645,6 +650,11 @@ fn the_reachable_ladder_is_driven_through_its_doors() {
             "a whole-body name, which has no single frame",
             InterrogateError::WholeBody,
             face_frame(&ev, good, &body),
+        ),
+        (
+            "a split named alone, whose halves are two reads",
+            InterrogateError::SeveralOutputs { node: split },
+            face_frame(&split_ev, split, &face),
         ),
         (
             "a face whose carrier is a NURBS patch",

@@ -574,15 +574,16 @@ fn reads(code: &str) -> usize {
 const READERS: [(&str, usize, &str); 12] = [
     (
         "crates/editor-core/src/eval/mod.rs",
-        25,
-        "the home: the evaluator writes every result, and `usable_in` is the one ladder",
+        26,
+        "the home: the evaluator writes every result, and `usable_in` is the one ladder; the \
+         test-support hand-built evaluation takes its result map whole",
     ),
     (
         "crates/editor-core/src/eval/wire.rs",
         7,
         "the op wiring holds the result map as it is written, and reads it through `usable_in`; \
-         a read of a split's port copies the standing entries and writes the half it projects \
-         (`split_ports_projected`), every read still through `value_of`",
+         a read of a split's port or a family's member copies the standing entries and writes \
+         the value it resolves to (`reads_projected`), every read still through `value_of`",
     ),
     (
         "crates/editor-core/src/eval/measure.rs",

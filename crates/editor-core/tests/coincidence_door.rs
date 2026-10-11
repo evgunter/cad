@@ -176,7 +176,11 @@ fn face_of(
     p: [f64; 3],
     n: [f64; 3],
 ) -> StableName {
-    table(ev, node)
+    // The read holding output `index`, and the body's index in its table
+    // (a split's half is body 0 of its own, NAMES N1).
+    let (var, index) = ev.body_read_of(node, index).expect("the node evaluated");
+    ev.table(var)
+        .expect("the node evaluated")
         .iter()
         .find_map(|(name, entry)| match entry {
             Entry::Unique(r) if r.body == index => match r.key {

@@ -1064,7 +1064,7 @@ fn a4_the_key_moves_under_an_edit_to_the_faces_part_and_holds_under_one_outside_
         earlier.value(mate),
         later.value(mate),
     ) {
-        (Some(a), Some(b)) => Arc::ptr_eq(&a.verdicts, &b.verdicts),
+        (Some(a), Some(b)) => Arc::ptr_eq(&a.contacts, &b.contacts),
         _ => false,
     };
     let placed_z = move |doc: &ProfileDoc, opts: &EvalOptions| {

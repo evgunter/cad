@@ -497,15 +497,12 @@ fn a_split_port_read_is_its_half() {
         (volume - 1.5).abs() < 1e-12,
         "the half (0.5) and the block (1): {volume}"
     );
-    let above_rows: Vec<editor_core::StableName> = ev
-        .table_at(split)
-        .expect("the split")
-        .iter()
-        .filter(|(_, e)| {
-            matches!(e, editor_core::Entry::Unique(r) if r.body == editor_core::SplitHalf::Above.output_body())
-        })
-        .map(|(n, _)| n.clone())
-        .collect();
+    let above_rows: Vec<editor_core::StableName> =
+        fixture::half(&ev, split, editor_core::SplitHalf::Above)
+            .iter()
+            .filter(|(_, e)| matches!(e, editor_core::Entry::Unique(_)))
+            .map(|(n, _)| n.clone())
+            .collect();
     let port_read = doc
         .output(split, editor_core::SplitHalf::Above.port())
         .expect("the split's above port");
@@ -974,12 +971,16 @@ fn a_pair_declared_across_one_splits_halves_is_sited_by_read() {
             _ => None,
         })
         .expect("the split's target");
-    let held = |id| before.table_at(id).expect("a value").clone();
-    let (whole, cut) = (held(target), held(split));
+    let whole = before.table_at(target).expect("a value").clone();
+    let cut = [editor_core::SplitHalf::Above, editor_core::SplitHalf::Below]
+        .map(|h| fixture::half(&before, split, h).clone());
     let wall = whole
         .iter()
         .map(|(name, _)| name.clone())
-        .find(|name| name.kind == editor_core::EntityKind::Face && cut.lookup(name).is_none())
+        .find(|name| {
+            name.kind == editor_core::EntityKind::Face
+                && cut.iter().all(|half| half.lookup(name).is_none())
+        })
         .expect("a wall the cut renamed");
     let section = |_: editor_core::SplitHalf| crate::corpus::part_select::section_face(split);
     let half = |h: editor_core::SplitHalf| Operand::output(split, h.port()).into();

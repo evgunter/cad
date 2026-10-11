@@ -28,7 +28,7 @@ use test_utils::refusal::tagged;
 use editor_core::{
     CancelToken, Cmp, CurveKind, CurveKindSet, Datum, EntityKind, Entry, EvalOptions, Evaluation,
     GeomPred, NamePat, NameTable, NamingError, Node, NodeErrorKind, ProfileDoc, RecipeNodeId,
-    RoleSeg, SegPat, SegTag, Selector, StableName, VarEnv, evaluate, select, select_where,
+    RoleSeg, SegPat, SegTag, Selector, SplitHalf, StableName, VarEnv, evaluate, select, select_where,
 };
 
 // `table` panics on a node with no value rather than answering `None`,
@@ -148,11 +148,14 @@ fn split_over_a_tied_operand_names_and_keeps_the_tie() {
     let ev = run(&doc);
     let up = table(&ev, sub);
     assert!(!ties(up).is_empty(), "fixture lost its operand tie");
-    let t = table(&ev, split);
     // Totality is the emitter's own postcondition; what this row adds
     // is that the tie SURVIVED as a tie rather than refusing or being
-    // silently split into two distinct names.
-    let after = ties(t);
+    // silently split into two distinct names — in the half that holds
+    // both candidates (each half its own table, NAMES N1).
+    let after: Vec<_> = [SplitHalf::Above, SplitHalf::Below]
+        .into_iter()
+        .flat_map(|h| ties(crate::fixture::half(&ev, split, h)))
+        .collect();
     assert!(
         !after.is_empty(),
         "the operand's tie did not propagate into the split"
@@ -280,8 +283,8 @@ fn tied_and_end_qualified_name_tables_are_identical_across_evaluations() {
     ];
     for (build, exercises) in builds.into_iter().zip(["Ends", "Tied"]) {
         let (doc, n) = build();
-        let a = format!("{:?}", table(&run(&doc), n));
-        let b = format!("{:?}", table(&run(&doc), n));
+        let a = format!("{:?}", fixture::tables(&run(&doc), n));
+        let b = format!("{:?}", fixture::tables(&run(&doc), n));
         assert_eq!(a, b, "naming differed across two evaluations");
         assert!(a.contains(exercises), "fixture should exercise {exercises}");
     }
@@ -325,18 +328,19 @@ fn l_split(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 fn l_shaped_extrude_cut_across_both_legs_names_its_chords_by_their_ends() {
     let (doc, _, split) = l_split(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
     let ev = run(&doc);
-    let t = table(&ev, split);
     // The wall was here: this document has no boolean at all, so the
     // refusal it used to raise had nothing to do with provenance.
-    let mut by_parent: std::collections::BTreeMap<RoleSeg, Vec<&StableName>> =
+    let mut by_parent: std::collections::BTreeMap<(SplitHalf, RoleSeg), Vec<&StableName>> =
         std::collections::BTreeMap::new();
-    for (n, e) in t.iter() {
-        let Some(head @ RoleSeg::SectionEdge { .. }) = n.path.first() else {
-            continue;
-        };
-        assert!(matches!(e, Entry::Unique(_)), "a chord ties: {n:?} {e:?}");
-        assert_eq!(n.kind, EntityKind::Edge);
-        by_parent.entry(head.clone()).or_default().push(n);
+    for h in [SplitHalf::Above, SplitHalf::Below] {
+        for (n, e) in crate::fixture::half(&ev, split, h).iter() {
+            let Some(head @ RoleSeg::SectionEdge { .. }) = n.path.first() else {
+                continue;
+            };
+            assert!(matches!(e, Entry::Unique(_)), "a chord ties: {n:?} {e:?}");
+            assert_eq!(n.kind, EntityKind::Edge);
+            by_parent.entry((h, head.clone())).or_default().push(n);
+        }
     }
     assert!(!by_parent.is_empty(), "no section chords named at all");
     // Each cap, on each side, takes exactly two chords, each its own
@@ -371,43 +375,61 @@ fn the_chords_are_reachable_one_by_one_through_the_selector_layer() {
         SegPat::tag(SegTag::SectionEdge),
         SegPat::tag(SegTag::Fragment),
     ]));
-    let plain = select(&ev, split, &sel);
+    // Each half is read by its port (NAMES N1): the split's chords are
+    // the two reads' chords together.
+    let halves = [SplitHalf::Above, SplitHalf::Below].map(|h| {
+        doc.output(split, h.port())
+            .expect("a split defines a port per half")
+    });
+    let plain: Vec<StableName> = halves.iter().flat_map(|&h| select(&ev, h, &sel)).collect();
     assert_eq!(plain.len(), 8, "two chords a cap a side: {plain:?}");
-    let t = table(&ev, split);
     assert!(
-        plain.iter().all(|n| !t.is_tied(n)),
+        halves.iter().all(|&h| {
+            let t = ev.table(h).expect("each half evaluates");
+            select(&ev, h, &sel).iter().all(|n| !t.is_tied(n))
+        }),
         "a chord name is tied: {plain:?}"
     );
     // Every chord of a polygonal prism cut by a plane is a line, so
     // the exact atom keeps the whole corpus.
-    let lines = select_where(
-        &ev,
-        split,
-        &sel,
-        &[GeomPred::CurveKind(CurveKindSet::just(CurveKind::Line))],
-        &params,
-        Tol::witness(),
-    )
-    .expect("an exact atom never refuses");
+    let lines: Vec<StableName> = halves
+        .iter()
+        .flat_map(|&h| {
+            select_where(
+                &ev,
+                h,
+                &sel,
+                &[GeomPred::CurveKind(CurveKindSet::just(CurveKind::Line))],
+                &params,
+                Tol::witness(),
+            )
+            .expect("an exact atom never refuses")
+        })
+        .collect();
     assert_eq!(lines, plain, "the exact atom dropped a chord");
 
     // A DECIDED atom that separates the two cap chords keeps some and
     // drops the others.
     let (doc, datum) = plane(doc, [1.25, 0.0, 0.0], [1.0, 0.0, 0.0]);
     let ev = run(&doc);
-    let far = select_where(
-        &ev,
-        split,
-        &sel,
-        &[GeomPred::DatumDistance {
-            datum,
-            cmp: Cmp::Greater,
-            value: len(0.1),
-        }],
-        &params,
-        Tol::witness(),
-    )
-    .expect("a separating atom over names that do not tie narrows");
+    let far: Vec<StableName> = halves
+        .iter()
+        .flat_map(|&h| {
+            select_where(
+                &ev,
+                h,
+                &sel,
+                &[GeomPred::DatumDistance {
+                    datum,
+                    cmp: Cmp::Greater,
+                    value: len(0.1),
+                }],
+                &params,
+                Tol::witness(),
+            )
+            .expect("a separating atom over names that do not tie narrows")
+        })
+        .collect();
     assert!(
         !far.is_empty() && far.len() < plain.len(),
         "the atom keeps some chords and drops others: {far:?} of {plain:?}"

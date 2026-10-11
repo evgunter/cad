@@ -195,10 +195,15 @@ fn census(label: &str, doc: &ProfileDoc, ev: &Evaluation<f64>) -> Census {
     let full = Speaker::of(doc);
     let scoped = full.within(ev);
     let mut out = Census::default();
-    for id in doc.ids() {
+    // Each output's table on its own (NAMES N1: a split's halves are two
+    // tables, a name in both said once in each).
+    for (id, table) in doc
+        .ids()
+        .into_iter()
+        .flat_map(|id| crate::fixture::tables(ev, id).into_iter().map(move |t| (id, t)))
+    {
         let mut groups: [BTreeMap<String, usize>; 3] = Default::default();
-        let tables = crate::fixture::tables(ev, id);
-        for (name, _) in tables.into_iter().flat_map(|t| t.iter()) {
+        for (name, _) in table.iter() {
             let said = full.name(name).to_string();
             let by_tag = name.to_string();
             *groups[0].entry(said.clone()).or_default() += 1;

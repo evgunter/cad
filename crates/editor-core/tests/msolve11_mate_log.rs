@@ -314,11 +314,12 @@ fn each_decision_is_on_the_log_of_the_mate_whose_answer_it_decided() {
 // ---- the memo ----
 
 /// **Whether `later` served `id` from `earlier`** rather than running
-/// its op again: a memo hit returns the prior value's verdict log, the
-/// same allocation, and every op that runs mints a fresh one.
+/// its op again: a memo hit returns the prior value's contact records,
+/// the same allocation, and every op that runs mints a fresh one (a
+/// reused mate's verdict log is this run's, so it cannot say).
 fn reused_value(earlier: &Evaluation<f64>, later: &Evaluation<f64>, id: RecipeNodeId) -> bool {
     match (earlier.value(id), later.value(id)) {
-        (Some(a), Some(b)) => std::sync::Arc::ptr_eq(&a.verdicts, &b.verdicts),
+        (Some(a), Some(b)) => std::sync::Arc::ptr_eq(&a.contacts, &b.contacts),
         _ => false,
     }
 }

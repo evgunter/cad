@@ -254,14 +254,15 @@ fn row_role(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str) -> MateRole {
 /// **Whether `later` SERVED `id` from `earlier`** rather than running
 /// its op again — the memo's own witness, per node.
 ///
-/// A memo hit returns the prior `NodeValue` cloned, so its verdict log
-/// is the same allocation; every op that runs mints a fresh one (the
-/// log is `Arc::new`'d per call, so even an empty one is a new
-/// pointer). The document-wide `reused` counter cannot say
+/// A memo hit returns the prior `NodeValue` cloned, so its contact
+/// records are the same allocation; every op that runs mints a fresh
+/// one (the empty records a mate carries are `Arc::new`'d per call, so
+/// even they are a new pointer). Not the verdict log: a reused mate
+/// carries this run's recording. The document-wide `reused` counter cannot say
 /// WHICH node, which is the whole question here.
 fn reused_value(earlier: &Evaluation<f64>, later: &Evaluation<f64>, id: RecipeNodeId) -> bool {
     match (earlier.value(id), later.value(id)) {
-        (Some(a), Some(b)) => Arc::ptr_eq(&a.verdicts, &b.verdicts),
+        (Some(a), Some(b)) => Arc::ptr_eq(&a.contacts, &b.contacts),
         _ => false,
     }
 }
