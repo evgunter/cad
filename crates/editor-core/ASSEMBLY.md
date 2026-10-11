@@ -182,7 +182,8 @@ Evaluation mints each mate's declaration into the product's
 declarations are verified, never trusted. `class_admission` is the one
 table both the solve and the mint door read: `Rest` solves and mints;
 `Tangent` solves and refuses at the mint door
-(`MintRefusal::NoAtRestRecord`: no witness edge at rest; recourse
+(`MintRefusal::NoAtRestRecord`: the census at rest decides nothing
+along a tangency's locus for its face–face record to cite; recourse
 `NO_AT_REST_RECORD_RECOURSE`); anything else, including the reserved
 and unbuilt `Fit { gap }`, refuses at the solve door.
 

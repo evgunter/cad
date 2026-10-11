@@ -2092,7 +2092,9 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
 
 /// The 3′ pass judges a wedge end exactly as tier 3 does: the local
 /// battery reads no contact record, so a jet-determinate cusp passes
-/// 3′ with no records.
+/// 3′ with no records, and with a face–face record of the cusp's two
+/// walls, which the census confirms along their tangent line (two
+/// parallel cylinders' closed-form locus) and the battery never reads.
 #[test]
 fn the_pseudomanifold_gate_judges_a_cusp_as_tier_3_does() {
     let tol = Tol::witness();
@@ -2103,6 +2105,21 @@ fn the_pseudomanifold_gate_judges_a_cusp_as_tier_3_does() {
             &crate::boolean::ContactRecords::default(),
             tol
         ),
+        Ok(())
+    );
+    let records: crate::boolean::ContactRecords = [crate::Cited::new(
+        crate::Contact::new(
+            &p.body,
+            crate::Cell::Face(p.face_side[0]),
+            crate::Cell::Face(p.face_side[2]),
+        )
+        .unwrap(),
+        crate::Cites::decided(0),
+    )]
+    .into_iter()
+    .collect();
+    assert_eq!(
+        crate::validate::validate_pseudomanifold(&p.body, &records, tol),
         Ok(())
     );
 }

@@ -1672,10 +1672,10 @@ pub enum ValidationError {
         /// The face pair and class that were declared.
         declaration: DeclaredContact,
         /// Where the contradiction holds, as a place read after
-        /// "contradicted" in the message, preposition included: along
-        /// the witnessing edge (the curve-record confirm pass), or
-        /// across both faces (the patch-record confirm pass's Door 1,
-        /// whose verdict compares whole surfaces). Never the pair
+        /// "contradicted" in the message, preposition included: across
+        /// both faces (the face–face record confirm pass's Door 1,
+        /// whose verdict compares whole surfaces), or the region the
+        /// conformal arm reads. Never the pair
         /// again, and never a key: `declaration` carries both.
         witness: String,
         /// The margin that decided, and its predicate — carried for a

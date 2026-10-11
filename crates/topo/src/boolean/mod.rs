@@ -142,7 +142,7 @@ use geom_core::{
 
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
-use crate::coincidence::Cited;
+use crate::coincidence::{Cited, Cites};
 use crate::contact::{BooleanCoincidence, ContactClass};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
@@ -174,7 +174,8 @@ pub use ops::{
     intersect, intersect_with, subtract, subtract_with, union, union_with,
 };
 pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
-pub use records::{Contact, ContactKind, ContactPairError, ContactRecords};
+pub(crate) use records::incident;
+pub use records::{Contact, ContactKind, ContactPairError, ContactRecords, RekeyRefusal};
 #[cfg(feature = "sweep-testing")]
 pub use reduce::PlantedDegradation;
 pub use reduce::{SweepStrategy, SweepTrace};
@@ -577,6 +578,40 @@ pub struct ReductionContacts {
     pub a_on_b: Vec<Cited<VfContact>>,
     /// Vertices of B on faces of A (`sonvb`).
     pub b_on_a: Vec<Cited<VfContact>>,
+}
+
+impl ReductionContacts {
+    /// Every row as its two operand-tagged cells and its citations, in
+    /// one fixed order: the vertex pairs (A's vertex, B's), then A's
+    /// vertices on B's faces, then B's on A's, each vertex first.
+    pub fn rows(&self) -> impl Iterator<Item = ([(Operand, Cell); 2], &Cites)> + '_ {
+        let vv = self.vv.iter().map(|c| {
+            (
+                [
+                    (Operand::A, Cell::Vertex(c.a)),
+                    (Operand::B, Cell::Vertex(c.b)),
+                ],
+                &c.cites,
+            )
+        });
+        fn vf(
+            side: Operand,
+            other: Operand,
+            list: &[Cited<VfContact>],
+        ) -> impl Iterator<Item = ([(Operand, Cell); 2], &Cites)> + '_ {
+            list.iter().map(move |c| {
+                (
+                    [(side, Cell::Vertex(c.vertex)), (other, Cell::Face(c.face))],
+                    &c.cites,
+                )
+            })
+        }
+        vv.chain(vf(Operand::A, Operand::B, &self.a_on_b)).chain(vf(
+            Operand::B,
+            Operand::A,
+            &self.b_on_a,
+        ))
+    }
 }
 
 /// Operand-internal contact records carried by recipe intent (F5, M4

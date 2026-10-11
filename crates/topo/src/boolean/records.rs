@@ -20,7 +20,8 @@ use super::{
 use crate::body::Body;
 use crate::coincidence::{Backing, Cited, Cites};
 use crate::contact::ContactClass;
-use crate::entity::{EdgeKey, FaceKey, LoopBoundary, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, VertexKey};
+use crate::live::{linked, proven};
 
 /// **A contact record's two cells**, in canonical order: the lesser
 /// cell first by [`Cell`]'s order (vertex < edge < face, then key), so
@@ -40,6 +41,15 @@ pub enum ContactPairError {
     /// One cell bounds the other, in canonical order: a vertex ends the
     /// edge or lies on the face's boundary, or the edge bounds the face.
     Incident([Cell; 2]),
+}
+
+/// Why [`ContactRecords::rekeyed`] refused.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RekeyRefusal {
+    /// A cell the map has no image of the same kind for.
+    Unmapped(Cell),
+    /// A pair whose images are not a record in the target body.
+    Pair(ContactPairError),
 }
 
 /// **A record's kind, read from its cells' dimensions**: the six pairs
@@ -94,12 +104,6 @@ impl Contact {
         self.cells
     }
 
-    /// The two cells as a tuple, in canonical order.
-    #[must_use]
-    pub const fn pair(self) -> (Cell, Cell) {
-        (self.cells[0], self.cells[1])
-    }
-
     /// The record's kind.
     #[must_use]
     pub fn kind(self) -> ContactKind {
@@ -115,38 +119,50 @@ impl Contact {
             }
         }
     }
-
-    /// Whether `cell` is one of the two.
-    #[must_use]
-    pub fn names(self, cell: Cell) -> bool {
-        self.cells.contains(&cell)
-    }
 }
 
-/// Whether the lesser cell of `cells` bounds the greater in `body`.
-fn incident<T: Real>(body: &Body<T>, cells: [Cell; 2]) -> bool {
-    let ends = |e: EdgeKey| {
-        body.get_edge(e).map_or([None, None], |edge| {
-            [edge.he_plus, edge.he_minus].map(|h| body.get_half_edge(h).map(|h| h.start))
-        })
-    };
-    let faces_of_edge = |e: EdgeKey| {
-        body.get_edge(e).map_or([None, None], |edge| {
-            [edge.he_plus, edge.he_minus].map(|h| body.face_of_half_edge(h))
+/// Whether the lesser cell of `cells` bounds the greater in `body`: a
+/// vertex ends the edge or lies on one of the face's loops, or the edge
+/// bounds the face. A cell `body` does not hold bounds nothing; a live
+/// cell's links are read as links ([`crate::live`]), so a torn one
+/// panics rather than read as non-incident.
+pub(crate) fn incident<T: Real>(body: &Body<T>, cells: [Cell; 2]) -> bool {
+    let half_edges = |e: EdgeKey| {
+        body.get_edge(e).map(|edge| {
+            [(edge.he_plus, "he_plus"), (edge.he_minus, "he_minus")].map(|(h, field)| {
+                (
+                    h,
+                    linked(
+                        &body.half_edges,
+                        h,
+                        EntityId::HalfEdge,
+                        EntityId::Edge(e),
+                        field,
+                    ),
+                )
+            })
         })
     };
     match cells {
-        [Cell::Vertex(v), Cell::Edge(e)] => ends(e).contains(&Some(v)),
-        [Cell::Vertex(v), Cell::Face(f)] => {
-            body.faces_of_vertex(v).is_some_and(|fs| fs.contains(&f))
-                || body.get_face(f).is_some_and(|face| {
-                    core::iter::once(face.outer)
-                        .chain(face.rings.iter().copied())
-                        .filter_map(|l| body.get_loop(l))
-                        .any(|l| l.boundary == LoopBoundary::Empty { vertex: v })
-                })
+        [Cell::Vertex(v), Cell::Edge(e)] => {
+            half_edges(e).is_some_and(|hs| hs.iter().any(|(_, h)| h.start == v))
         }
-        [Cell::Edge(e), Cell::Face(f)] => faces_of_edge(e).contains(&Some(f)),
+        [Cell::Vertex(v), Cell::Face(f)] => body.get_face(f).is_some_and(|face| {
+            body.face_loops_linked(f, face)
+                .any(|(_, l)| match l.boundary {
+                    LoopBoundary::Empty { vertex } => vertex == v,
+                    LoopBoundary::Cycle { first } => body
+                        .loop_walk(first)
+                        .closed("loop", first)
+                        .into_iter()
+                        .any(|h| proven(&body.half_edges, h, EntityId::HalfEdge).start == v),
+                })
+        }),
+        [Cell::Edge(e), Cell::Face(f)] => {
+            body.get_face(f).is_some()
+                && half_edges(e)
+                    .is_some_and(|hs| hs.iter().any(|&(h, _)| body.face_of_linked(h) == f))
+        }
         _ => false,
     }
 }
@@ -198,7 +214,10 @@ impl ContactRecords {
 
     /// Every record as the cell pair it names, in list order.
     pub fn cell_pairs(&self) -> impl Iterator<Item = (Cell, Cell)> + '_ {
-        self.rows.iter().map(|c| c.pair())
+        self.rows.iter().map(|c| {
+            let [x, y] = c.cells();
+            (x, y)
+        })
     }
 
     /// Every record's kind, in list order.
@@ -309,7 +328,7 @@ impl ContactRecords {
         self.rows
             .iter()
             .position(|c| c.record == pair)
-            .map(|k| u32::try_from(k).unwrap_or(u32::MAX))
+            .map(super::reduce::index)
     }
 
     /// These records as an op's that carries them from its input
@@ -322,7 +341,7 @@ impl ContactRecords {
             .iter()
             .enumerate()
             .map(|(k, c)| {
-                let record = u32::try_from(k).unwrap_or(u32::MAX);
+                let record = super::reduce::index(k);
                 Cited::new(c.record, Cites::one(Backing::Carried { input, record }))
             })
             .collect();
@@ -336,7 +355,7 @@ impl ContactRecords {
     pub fn carried(&self, class: ContactClass) -> CarriedContacts {
         let mut out = CarriedContacts::default();
         for (k, c) in self.rows.iter().enumerate() {
-            let record = u32::try_from(k).unwrap_or(u32::MAX);
+            let record = super::reduce::index(k);
             match c.kind() {
                 ContactKind::VertexVertex(a, b) => out.vv.push(CarriedVv {
                     pair: VvContact { a, b },
@@ -362,29 +381,32 @@ impl ContactRecords {
         out
     }
 
-    /// The same records with every cell re-keyed through `key`, a map
-    /// that keeps each cell's kind and incidence (a graft into another
-    /// arena). The first cell `key` cannot map refuses with that cell.
+    /// The same records with every cell re-keyed through `key` into
+    /// `body`'s arena (a graft), each pair built as [`Contact::new`]
+    /// builds it there and pushed with [`Self::push`]'s merge, so two
+    /// records re-keyed onto one pair are one record citing both.
     ///
     /// # Errors
     ///
-    /// The cell that has no image, or the first of two cells `key` maps
-    /// onto one.
-    pub fn rekeyed(&self, key: impl Fn(Cell) -> Option<Cell>) -> Result<Self, Cell> {
+    /// [`RekeyRefusal::Unmapped`] for the first cell `key` has no image
+    /// of the same kind for, and [`RekeyRefusal::Pair`] for the first
+    /// pair whose images are one cell or incident in `body`.
+    pub fn rekeyed<T: Real>(
+        &self,
+        body: &Body<T>,
+        key: impl Fn(Cell) -> Option<Cell>,
+    ) -> Result<Self, RekeyRefusal> {
         let image = |c: Cell| match key(c) {
             Some(k) if core::mem::discriminant(&k) == core::mem::discriminant(&c) => Ok(k),
-            _ => Err(c),
+            _ => Err(RekeyRefusal::Unmapped(c)),
         };
-        let rows = self
-            .rows
-            .iter()
-            .map(|c| {
-                let [x, y] = c.cells();
-                let pair = Contact::of(image(x)?, image(y)?).map_err(|_| x)?;
-                Ok(Cited::new(pair, c.cites.clone()))
-            })
-            .collect::<Result<_, _>>()?;
-        Ok(Self { rows })
+        let mut out = Self::default();
+        for c in &self.rows {
+            let [x, y] = c.cells();
+            let pair = Contact::new(body, image(x)?, image(y)?).map_err(RekeyRefusal::Pair)?;
+            out.push(Cited::new(pair, c.cites.clone()));
+        }
+        Ok(out)
     }
 }
 

@@ -254,7 +254,7 @@ fn r2_a_box_with_on_carrier_rulings_builds_every_op_undeclared() {
         );
         assert!(
             c.edge_face().next().is_none() && c.face_face().next().is_none(),
-            "{op}: no curve or patch records"
+            "{op}: no edge-face or face-face records"
         );
     }
 }

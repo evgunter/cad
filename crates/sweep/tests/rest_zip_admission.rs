@@ -424,7 +424,7 @@ fn cited_rows(r: &topo::BooleanBody<f64>) -> Vec<String> {
     r.contacts
         .rows()
         .iter()
-        .map(|c| (c.pair(), &c.cites))
+        .map(|c| (c.cells(), &c.cites))
         .map(|(cells, cites)| {
             let rows: Vec<String> = cites
                 .iter()

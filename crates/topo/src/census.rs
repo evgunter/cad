@@ -24,8 +24,8 @@
 //! - **Examined and decided**: everything with vertex/line/planar
 //!   evidence (the exact sweeps); same-key opposed-sense curved
 //!   pairs (the conformal arm, [`sweep_conformal_patches`], through
-//!   the chart-region predicate); declared curve/patch records (the
-//!   jet schedule; the patch certifier). A proper pierce
+//!   the chart-region predicate); face–face records (the patch
+//!   certifier). A proper pierce
 //!   (`EdgeFacePierce`) is CATEGORICALLY undeclarable at rest — a
 //!   transverse dive is interpenetration, and no record backs it.
 //!   Between two copies at rest the assembly layer reports it as an
@@ -159,7 +159,7 @@
 //! [`Declared::vf_face_backed`] at [`sweep_vertex_face`],
 //! [`Declared::ve_face_backed`] at [`sweep_vertex_edge`], and
 //! [`ee_bound_backed`]'s face-pair arms. The face pairs every rung reads
-//! are the ones the op's curve and patch records name, not user
+//! are the ones the body's face–face records name, not user
 //! declarations.
 //! A grandfathered rung asks whether a declared face pair HOLDS the
 //! entities of the event — one on each side, through boundary
@@ -5330,10 +5330,11 @@ fn backstop_apart<T: Decide>(
 ///
 /// **Contact records do not license a deferral in arm 2, and this is
 /// the one place the rule had to be derived rather than inherited.**
-/// Each record states one coincidence of its two cells — a coincident
-/// vertex pair, a vertex resting in a face's region, a conformal region
-/// overlap of two faces — and the confirm pass asks exactly that of
-/// each: is THIS
+/// Each record states one coincidence of its two cells, whatever its
+/// kind — two vertices at one point, a vertex on an edge's interior or
+/// in a face's region, two edges crossing or overlapping, an edge
+/// meeting a face, two faces meeting — and the confirm pass asks exactly
+/// that of each: is THIS
 /// coincidence geometrically real. Arm 2's question is different in
 /// kind: where does one instance sit relative to another. No record
 /// type in [`crate::boolean::ContactRecords`] states a placement
@@ -6423,6 +6424,18 @@ fn confirm_vertex_on_face<T: Decide>(
         errors.push(stale);
         return;
     };
+    // A body edited after its records were made can leave a record's
+    // vertex on its face's boundary: incident, so not a contact.
+    if crate::boolean::incident(
+        body,
+        [
+            crate::boolean::Cell::Vertex(vertex),
+            crate::boolean::Cell::Face(face),
+        ],
+    ) {
+        errors.push(stale);
+        return;
+    }
     let Some(f) = geo.faces.iter().find(|f| f.key == face) else {
         if !geo.curved_faces.contains(&face) {
             errors.push(stale);
@@ -6491,20 +6504,25 @@ fn confirm_vertex_on_edge<T: Decide>(
         errors.push(stale);
         return;
     };
-    let Some(e) = geo.edges.iter().find(|e| e.key == edge) else {
-        let Some(e) = body.get_edge(edge) else {
-            errors.push(stale);
-            return;
-        };
-        let end = [e.he_plus, e.he_minus]
-            .iter()
-            .any(|&h| body.get_half_edge(h).is_some_and(|h| h.start == vertex));
-        if end || curved::on_curved_interior(body, edge, q, band, errors) == Some(false) {
-            errors.push(stale);
-        }
+    // A body edited after its records were made can leave a record's
+    // vertex at its edge's end: incident, so not a contact.
+    if body.get_edge(edge).is_none()
+        || crate::boolean::incident(
+            body,
+            [
+                crate::boolean::Cell::Vertex(vertex),
+                crate::boolean::Cell::Edge(edge),
+            ],
+        )
+    {
+        errors.push(stale);
         return;
+    }
+    let meets = match geo.edges.iter().find(|e| e.key == edge) {
+        Some(e) => on_edge_interior(q, e, band, errors),
+        None => curved::on_curved_interior(body, edge, q, band, errors),
     };
-    if vertex == e.v0 || vertex == e.v1 || on_edge_interior(q, e, band, errors) == Some(false) {
+    if meets == Some(false) {
         errors.push(stale);
     }
 }
@@ -11584,5 +11602,107 @@ mod records_by_carrier {
             )),
             "clear: the curve touch is contradicted: {errors:?}"
         );
+    }
+}
+
+/// **A record a later edit made incident is stale.** The census takes a
+/// body's records as its caller hands them, and a public edit after
+/// they were made can turn a contact into structure: the merge of two
+/// coplanar faces makes a vertex of the one it kills lie on the kept
+/// face's boundary, and the join after it makes a vertex of one joined
+/// edge an end of the edge it keeps.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod incident_after_an_edit {
+    use super::*;
+    use crate::boolean::{Cell as BCell, ContactRecords};
+    use crate::test_support_fixtures::prism_z;
+    use geom_core::Tol;
+
+    fn at(body: &Body<f64>, p: [f64; 3]) -> VertexKey {
+        body.vertex_points()
+            .find(|(_, q)| [q.x, q.y, q.z] == p)
+            .map(|(k, _)| k)
+            .expect("the vertex")
+    }
+
+    /// The prism over a square with a station at (1, 0.5): its x = 1
+    /// side is two coplanar faces, which the merge makes one, and the
+    /// joins make its top and bottom one edge each.
+    #[test]
+    fn a_record_the_merge_and_join_made_incident_is_stale() {
+        let tol = Tol::witness();
+        let p = prism_z::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 0.5), (1.0, 1.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            tol,
+        );
+        let mut body = p.body;
+        let (low, high) = (p.side_faces[1], p.side_faces[2]);
+        let near = at(&body, [1.0, 0.0, 1.0]);
+        let far = at(&body, [1.0, 1.0, 1.0]);
+        let edge_from = |v: VertexKey| {
+            let m = at(&body, [1.0, 0.5, 1.0]);
+            body.edges()
+                .find(|(_, e)| {
+                    let ends =
+                        [e.he_plus, e.he_minus].map(|h| body.get_half_edge(h).unwrap().start);
+                    ends.contains(&v) && ends.contains(&m)
+                })
+                .map(|(k, _)| k)
+                .unwrap()
+        };
+        let (e_near, e_far) = (edge_from(near), edge_from(far));
+        let pairs = [
+            (BCell::Vertex(far), BCell::Edge(e_near)),
+            (BCell::Vertex(near), BCell::Edge(e_far)),
+            (BCell::Vertex(at(&body, [1.0, 1.0, 0.0])), BCell::Face(low)),
+            (BCell::Vertex(at(&body, [1.0, 0.0, 0.0])), BCell::Face(high)),
+        ];
+        let records: ContactRecords = pairs
+            .iter()
+            .map(|&(x, y)| {
+                crate::Cited::new(
+                    crate::Contact::new(&body, x, y).unwrap(),
+                    crate::Cites::decided(0),
+                )
+            })
+            .collect();
+        body.merge_coplanar_faces(tol)
+            .expect("the x = 1 sides merge");
+        let mut made_incident = 0;
+        for &(x, y) in &pairs {
+            let live = match y {
+                BCell::Edge(e) => body.get_edge(e).is_some(),
+                BCell::Face(f) => body.get_face(f).is_some(),
+                BCell::Vertex(_) => unreachable!("a vertex record's other cell"),
+            };
+            if live {
+                assert!(
+                    crate::boolean::incident(&body, [x, y]),
+                    "{x:?}, {y:?}: the edit made the live pair incident"
+                );
+                made_incident += 1;
+            }
+        }
+        assert_eq!(made_incident, 2, "the kept edge and the kept face");
+        let band = Band::linear(tol).unwrap();
+        let errors = census_and_certify(&body, &records, band, tol, None);
+        for &(x, y) in &pairs {
+            let want = match (x, y) {
+                (BCell::Vertex(vertex), BCell::Edge(edge)) => {
+                    StaleDeclaration::VertexOnEdge { vertex, edge }
+                }
+                (BCell::Vertex(vertex), BCell::Face(face)) => {
+                    StaleDeclaration::VertexOnFace { vertex, face }
+                }
+                _ => unreachable!("vertex records"),
+            };
+            assert!(
+                errors.contains(&ValidationError::StaleContactDeclaration { declaration: want }),
+                "{want:?} is stale: {errors:?}"
+            );
+        }
     }
 }

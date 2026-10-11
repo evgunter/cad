@@ -3271,34 +3271,10 @@ type End = (Operand, Cell);
 /// it cites.
 type Tagged<'a> = ([End; 2], &'a Cites);
 
-/// The reduction's working set as tagged rows: a vertex pair's A vertex
-/// and B vertex, and each vertex on the other operand's face.
+/// The reduction's working set as tagged rows
+/// ([`ReductionContacts::rows`]).
 fn tagged(d: &ReductionContacts) -> Vec<Tagged<'_>> {
-    let vv = d.vv.iter().map(|c| {
-        (
-            [
-                (Operand::A, Cell::Vertex(c.a)),
-                (Operand::B, Cell::Vertex(c.b)),
-            ],
-            &c.cites,
-        )
-    });
-    let vf = [(Operand::A, &d.a_on_b), (Operand::B, &d.b_on_a)]
-        .into_iter()
-        .flat_map(|(side, list)| {
-            let other = if side == Operand::A {
-                Operand::B
-            } else {
-                Operand::A
-            };
-            list.iter().map(move |c| {
-                (
-                    [(side, Cell::Vertex(c.vertex)), (other, Cell::Face(c.face))],
-                    &c.cites,
-                )
-            })
-        });
-    vv.chain(vf).collect()
+    d.rows().collect()
 }
 
 /// **The substitution door**: every contact record an op holds,

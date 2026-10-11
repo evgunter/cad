@@ -230,6 +230,10 @@ fn probe_replay_partial_eq_bites_on_mutation() {
     };
     let mut mutated = x.contacts.clone();
     assert_eq!(mutated, x.contacts, "clone is bit-identical");
+    if let Some((_, kept)) = x.contacts.rows().split_last() {
+        let dropped: topo::ContactRecords = kept.iter().cloned().collect();
+        assert_ne!(dropped, x.contacts, "a dropped row must show");
+    }
     let mut faces = x.body.faces().map(|(k, _)| k);
     let (fa, fb) = (faces.next().unwrap(), faces.next().unwrap());
     mutated.extend([topo::Cited::new(

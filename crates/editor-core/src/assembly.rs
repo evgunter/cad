@@ -2458,8 +2458,8 @@ mod attribution {
     }
 
     /// The same refusal on a NON-face entity names no declaration:
-    /// `mint` mints face pairs, so its live case — the curve-record
-    /// confirm pass, which names its witness edge — is a record a PART
+    /// `mint` mints face pairs, so its live case — an edge–face
+    /// record's confirm pass, which names its edge — is a record a PART
     /// carried, not one this document minted.
     #[test]
     fn an_unsupported_non_face_entity_is_unattributed() {
