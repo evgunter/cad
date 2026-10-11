@@ -32,10 +32,14 @@ On main (reproduced at `084e223a6e`), `crates/step-import/tests/nurbs_import.rs:
 
 ## Closed (NURBS, PR 4684)
 
-Repair (b). The row keeps bit identity between the import's gate
-enclosure and `topo::mass_properties` of the imported body, and bounds
-native against imported by the recursive sum's reordering error. The
+Repair (b), strengthened. The row now asserts every face's flux term
+bit-identical native against imported (through
+`topo::test_support::mass_properties_with_face_terms`), keeps bit
+identity between the import's gate enclosure and the imported body's
+own measurement, and asserts native against imported enclosures
+overlapping, with midpoints within the recursive sum's reordering
+error. The
 mechanism was confirmed by execution: per-face quadrature inputs and
 outputs are identical native against imported, and the six terms arrive
 in two arena orders. Repair (a) is
-`work/flux/whole-body-volume-fold-depends-on-face-order.md`.
+`work/flux/the-whole-body-property-fold-depends-on-face-order.md`.

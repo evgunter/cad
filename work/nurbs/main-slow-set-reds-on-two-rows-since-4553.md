@@ -71,22 +71,24 @@ arena order. 4553 changed the rational face's flux bits, and with them
 whether the two orders happen to round alike. No enclosure was lost:
 this is not a soundness finding.
 
-**Resolved on this branch by re-scoping the row**, as ENCL's repair (b)
-proposed (`work/exch/arc-loft-round-trip-volume-differs-by-face-order.md`):
-- bit identity is kept where it holds: the import's gate enclosure
-  against `topo::mass_properties` of the imported body, the same body
-  in the same order;
-- native against imported is bounded by the recursive sum's reordering
-  error, `2(n − 1)·u·Σ|xᵢ|`, which is `Σ|xᵢ| = 3V` here because every face
-  term is non-negative, plus an ulp per side for the `/3`.
+**Resolved on this branch by re-scoping the row** along ENCL's repair
+(b) (`work/exch/arc-loft-round-trip-volume-differs-by-face-order.md`),
+in the form the orchestrator ruled:
+- per-face flux terms and half-widths bit-identical native against
+  imported, read off the same walk as `mass_properties` through a new
+  test door, `topo::test_support::mass_properties_with_face_terms`;
+- each body's own paths bit-identical: the import's gate enclosure
+  against the imported body's measurement;
+- native against imported bodies: enclosures overlapping, midpoints
+  within the recursive sum's reordering error, `2(n − 1)·u·Σ|xᵢ|` with
+  `Σ|xᵢ| = 3V` (every face term is non-negative), plus an ulp a side
+  for the `/3`. About 10 ulp; 1 and 2 measured.
 
 Summing in the shells' stored face order was tried first and backed
 out: it reddened two sweep composition rows that agree in arena order
-and not in shell order. An order-independent fold is FLUX's question,
-`work/flux/whole-body-volume-fold-depends-on-face-order.md`.
-
-PR 4551's `quad-de-boor-through-the-blossom-breaks-the-import-bit-identity`
-(on its branch) reads as the same mechanism: one ulp on the same body,
-pads identical. Its premise that "the two walks hand `de_boor` inputs
-that differ" is what this measurement refutes: the inputs agree, and
-the sum's order differs.
+and not in shell order. Whether the fold should be order-independent
+is FLUX's design row,
+`work/flux/the-whole-body-property-fold-depends-on-face-order.md`,
+which also carries the note on PR 4551's
+`quad-de-boor-through-the-blossom-breaks-the-import-bit-identity`:
+the same fold, its "inputs differ" premise refuted.
