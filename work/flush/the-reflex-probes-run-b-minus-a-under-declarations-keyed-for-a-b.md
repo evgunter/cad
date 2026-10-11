@@ -2,7 +2,8 @@
 id: the-reflex-probes-run-b-minus-a-under-declarations-keyed-for-a-b
 kind: issue
 title: The reflex probes run b ∖ a under declarations keyed for (a, b), so every declared S_ba pose refuses at the declaration door
-status: open
+status: closed
+closed: 2026-10-11
 opened: 2026-10-06
 priority: P3
 cost: E
@@ -35,3 +36,15 @@ the op refuses at the declaration door before anything is measured.
 So the batteries' "no wrong body" reading says nothing about `b ∖ a`
 at a flush-declared pose. The repair is `flush_declarations(&b, &a, tol)`
 for that op (a second field on `ReflexPose`, or the op building its own).
+
+## Parked on INTENT stage 4 F (2026-10-11)
+
+F (`declared-pairs-retire`, branch `intent/s4-f-declared-pairs-retire`)
+deletes `flush_declarations` from `reflex_pose` and runs every reflex
+op through the plain booleans, so no op carries a declaration keyed for
+the other order. When F merges this row closes on F's diff, unless F's
+lane closes it in its own PR.
+
+## Closed (2026-10-11, stage 4 F)
+
+No op takes declarations: `ReflexPose` lost its declaration field (`crates/sweep/tests/common/differential.rs`), and `S_ba` runs the plain `topo::subtract(&p.b, &p.a, tol)` under no keys at all.

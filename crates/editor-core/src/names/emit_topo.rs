@@ -327,7 +327,7 @@ fn split_joined_readings<T: Decide>(
     // over both sides' rows is each side's.
     let joins: Vec<topo::EdgeJoin> = naming.edge_joins.iter().map(|&(_, j)| j).collect();
     // Each record states the half it was made on: the edge it leaves
-    // lives there (the mirrored run's records are flipped to say so).
+    // lives there.
     for &(side, j) in &naming.edge_joins {
         let half = match side {
             PlaneSide::Above => SplitHalf::Above,

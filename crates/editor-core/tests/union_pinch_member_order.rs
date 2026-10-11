@@ -328,7 +328,7 @@ fn checked(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str, volume: f64) -> O
         es.sort_unstable();
         es
     });
-    if let Err(e) = topo::test_support::meeting::corners_disjoint(body) {
+    if let Err(e) = topo::test_support::meeting::corners_disjoint(body, Tol::witness()) {
         panic!("{what}: {e}");
     }
     Outcome {
@@ -352,8 +352,7 @@ fn top() -> Point {
 
 /// Where a pair boolean clips a carried contact at the pinch and keeps
 /// the pierce as two vertices, recording nothing for it.
-const PIERCE_UNRECORDED: &str =
-    "work/wire/a-boolean-clipping-a-carried-contact-at-a-pinch-records-no-contact-for-the-pierce.md";
+const PIERCE_UNRECORDED: &str = "work/wire/a-boolean-clipping-a-carried-contact-at-a-pinch-records-no-contact-for-the-pierce.md";
 
 /// Asserts `o` is refused at 3′ by exactly an edge-edge overlap and a
 /// vertex-vertex contact at the pinch, the pair [`PIERCE_UNRECORDED`]

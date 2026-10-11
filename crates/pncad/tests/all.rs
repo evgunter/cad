@@ -3795,9 +3795,8 @@ fn asm2a_spawn_probe(tag: &str) -> String {
 /// frame-coincidence mate 30 along +x (the part spans 2, so the pair
 /// stays disjoint and the product is a clean two-solid gather).
 ///
-/// The instance names are the A12 shape — an `InPart`-headed name whose
-/// HEAD is the instantiate node, which is exactly what the reading edge
-/// is recomputed from, wearing the part's product name of the face;
+/// The instance names are an `InPart`-headed name whose HEAD is the
+/// instantiate node, wearing the part's product name of the face;
 /// `body` is the part's body. Each instance is placed in the world.
 fn asm_r2a_mated_assembly(
     label: &str,
@@ -3844,8 +3843,8 @@ fn asm_r2a_mated_assembly(
         // The second instance is the mate's first operand: the mate
         // places its group on the first's.
         Node::Mate {
-            a: face_head(name(ids[1])),
-            b: face_head(name(ids[0])),
+            a: face_head(name(ids[1])).into(),
+            b: face_head(name(ids[0])).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: axis([0.0, 0.0, 0.0]),

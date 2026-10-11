@@ -154,8 +154,8 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
     let (doc, mate) = insert(
         doc,
         Node::Mate {
-            a: crate::fixture::head(instance_face(ia, part_body)),
-            b: crate::fixture::head_at(placed, head_b),
+            a: crate::fixture::head(instance_face(ia, part_body)).into(),
+            b: crate::fixture::head_at(placed, head_b).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(),
@@ -187,8 +187,8 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
         .expect("the solve refuses the mate whose operand left")
         .clone();
     assert!(
-        matches!(&fault, editor_core::MateFault::DanglingHead { head, .. } if *head == placed),
-        "typed, naming the node the walk stopped at, not silence: {fault:?}"
+        matches!(&fault, editor_core::MateFault::SideUnresolved { mate: m, .. } if *m == mate),
+        "typed, naming the stranded side, not silence: {fault:?}"
     );
 }
 

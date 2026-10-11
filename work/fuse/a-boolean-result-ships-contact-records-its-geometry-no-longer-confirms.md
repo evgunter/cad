@@ -109,6 +109,32 @@ loop to `i = 1`, and print `validate_pseudomanifold`'s error in
 
 Waits on `intent-stage4-is-built`, not on the whole program: StaleContactDeclaration comes from the declared-contact records remap_contacts carries; stage 4 retires the declared-contact seats and records found contacts at the one door. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
 
+## Evidence: near-tangent wedge poses (branch `cleave/near-tangent-invariants`, 2026-10-10)
+
+JOIN's near-tangent census (`crates/sweep/examples/near_tangent_census_probe.rs`)
+at ε = 1e-12: once `pierce_germ_dir` stopped refusing them
+(`ClassificationInvariant`, a translation-dependent misreading), four
+runs build their closed-form volume and fail tier 3′ definitely. The
+door runs no census, so it ships them. Ruled acceptable by the CLEAVE
+orchestrator at PR 4581's review, and pinned at exactly these findings
+by `crates/sweep/tests/near_tangent_pierce_poses.rs` (`SHIPS_A_FINDING`),
+which goes red when this row or
+`work/reachhold/boolean-door-runs-the-census-over-its-result.md` lands:
+
+- `w345 nt e1 a13 d1e-8`, prism ∩ cube: two stale `VertexOnFace`
+  records, `VertexKey(2v1)` and `VertexKey(9v1)` on `FaceKey(19v7)`.
+- `w345 nt e1 a13 d1e-9`, prism ∩ cube: the same two, on `FaceKey(19v9)`.
+- `w345 nt e1 a14 d1e-8`, cube ∩ prism: two stale `VertexOnFace`
+  records, `VertexKey(23v3)` and `VertexKey(17v3)` on `FaceKey(6v1)`.
+- `w345 nt e1 a14 d1e-8`, cube ∖ prism: three undeclared contacts on
+  `FaceKey(8v1)`: `VertexOnFace` at `(2, 0, 1)` (`VertexKey(16v3)`),
+  `VertexOnFace` at `(2, 0, 0)` (`VertexKey(22v3)`), and an
+  `EdgeFaceOverlap` of `EdgeKey(20v7)` witnessed at `(2, 0, 0.5)`.
+
+Main already ships the same findings at the neighbouring pose
+`w345 nt e1 a14 d1e-9`; the census counts 6 stale and 596 undeclared
+findings at 1e-12 on main, and these add 6 and 3.
+
 ## Released by stage 4 F (2026-10-11)
 
 Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.

@@ -103,8 +103,8 @@ fn mate_node(
     a_frame: MateFrame<Formula>,
 ) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(a),
-        b: crate::fixture::head(b),
+        a: crate::fixture::head(a).into(),
+        b: crate::fixture::head(b).into(),
         class,
         alignment: Alignment {
             a: a_frame,

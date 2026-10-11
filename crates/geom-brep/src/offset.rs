@@ -102,8 +102,7 @@
 
 use geom::Surface;
 use geom_core::{
-    Band, Indeterminate, KERNEL_DEFECT_ENDING, Margin, COINCIDENCE_RECOURSE, NOT_YET_ENDING,
-    Sign,
+    Band, COINCIDENCE_RECOURSE, Indeterminate, KERNEL_DEFECT_ENDING, Margin, NOT_YET_ENDING, Sign,
 };
 
 use crate::dihedral::decide;
@@ -306,7 +305,10 @@ impl<T: geom_core::Real> core::fmt::Display for OffsetError<T> {
             // own lever is the geometry alone.
             Self::Escalated { source } => write!(
                 f,
-                "whether the offset surface keeps a valid radius is too close to call: {}",
+                concat!(
+                    geom_core::undecided!("whether the offset surface keeps a valid radius"),
+                    ": {}"
+                ),
                 source.under(COINCIDENCE_RECOURSE)
             ),
         }

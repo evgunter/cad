@@ -65,13 +65,6 @@
 //! `Instance` and their siblings — down to the role that minted it,
 //! so "which feature is this face's" is answered by the name rather
 //! than by whichever node happens to draw the body.
-//!
-//! Detection and declaration of flush contact are separate doors on
-//! purpose (the ruled no-fusion boundary): [`find_flush_candidates`]
-//! REPORTS [`FlushFinding`]s — the contact verifier in
-//! candidate-generation mode, so a finding cannot disagree with the
-//! boolean's own verify-at-use — and [`declare`]/[`declare_all`]
-//! set findings the caller has INSPECTED on a live boolean or union.
 
 // `NamingError` is in this list by the payload rule `crate::document`
 // states: it is what `document::NodeErrorKind::Naming` holds, and the

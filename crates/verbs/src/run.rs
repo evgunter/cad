@@ -402,11 +402,9 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
     /// comes back. A split hands back TWO sides, each a body or the typed
     /// empty, and the one-body out-type cannot carry them — so this is
     /// the split's own door
-    /// with its own out-type ([`SplitOut`]), and the D7 pinch lane
-    /// inside the kernel door (`topo::split` reruns a one-sided pinch
-    /// mirrored and swaps the sides back) is the door's, reached here
-    /// unchanged: this dispatches and re-wraps, and adds no decision
-    /// of its own.
+    /// with its own out-type ([`SplitOut`]). Every decision, the pinch's
+    /// copies included, is the kernel door's, reached here unchanged:
+    /// this dispatches and re-wraps, and adds no decision of its own.
     ///
     /// # Errors
     ///

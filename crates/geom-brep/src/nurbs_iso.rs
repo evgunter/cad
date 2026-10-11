@@ -39,7 +39,7 @@ use geom::NurbsSurface;
 use geom_core::k_stats::decide;
 use geom_core::spline::basis::basis_funs;
 use geom_core::spline::{SpanLocate, SplineError};
-use geom_core::{Band, Decide, Indeterminate, Margin, COINCIDENCE_RECOURSE, Point3, Real, Sign};
+use geom_core::{Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point3, Real, Sign};
 
 use crate::ssi::ChartAxis;
 
@@ -301,8 +301,12 @@ impl<T: Real> core::fmt::Display for IsoRowError<T> {
             // own advice stays, the declaration leaves the recourse.
             Self::Escalated { source } => write!(
                 f,
-                "whether an edge lies on the boundary of its face's fitted surface is too \
-                 close to call: {}",
+                concat!(
+                    geom_core::undecided!(
+                        "whether an edge lies on the boundary of its face's fitted surface"
+                    ),
+                    ": {}"
+                ),
                 source.under(COINCIDENCE_RECOURSE)
             ),
             Self::WeightsNotSeparable { control_counts } => write!(

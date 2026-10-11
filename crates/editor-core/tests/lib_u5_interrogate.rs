@@ -12,9 +12,8 @@
 //! `vertex_position` — the doors `names::interrogate` exports, whose
 //! own return type is this enum. Two other public doors surface an
 //! `InterrogateError` WHOLE inside a refusal of their own and are not
-//! this suite's subject: `select_where` and `find_flush_candidates`
-//! wrap one in `SelectRefusal::Unreadable` (`names::select`,
-//! `names::flush`), and a measurement reference wraps one in
+//! this suite's subject: `select_where` wraps one in
+//! `SelectRefusal::Unreadable` (`names::select`), and a measurement reference wraps one in
 //! `NodeErrorKind::MeasureRefUnreadable` (`eval::wire`). They index
 //! the payload with the name table's own `ent.body`, exactly as
 //! `interrogate::entity_of` does, so the two exclusions the ladder row

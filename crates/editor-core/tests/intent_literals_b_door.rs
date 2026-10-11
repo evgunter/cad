@@ -334,8 +334,8 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
             Some(rigid()),
         ),
         Node::Mate {
-            a: head(in_part(b, b, CapEnd::End)),
-            b: head(in_part(b, b, CapEnd::Start)),
+            a: head(in_part(b, b, CapEnd::End)).into(),
+            b: head(in_part(b, b, CapEnd::Start)).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: MateFrame::on_part(rigid()),

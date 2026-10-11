@@ -1,27 +1,11 @@
-//! PR 3 adversarial review — target 1 (BOB pinch): the reviewer's
-//! independent derivation of the impossibility claim, plus the probe
-//! the acceptance suite does NOT run: the SAME physical configuration
-//! under the FLIPPED plane. Derivation (reviewer, independent):
-//!
-//! At a BOB tip vertex the ABOVE runs are {tip edge} and {wide-cap
-//! bisector}; their null halves land in (slantL, slantR) and
-//! (cap, cap). The join's neighbor criterion (same face + opposite
-//! sense) is NOT a tunable pairing heuristic — connecting chords are
-//! minted by `mef` INSIDE one face loop, so cross-face pairing is
-//! structurally impossible in the half-edge calculus, and a slant
-//! face touches the plane only along the tip line, so its exactly two
-//! null halves MUST pair with each other: the zero-area 2-gon is
-//! forced regardless of lex order. CONCUR with the refusal.
-//!
-//! The refusal WAS orientation-DEPENDENT: under the flipped plane the
-//! tip context reads AOA, the runs become {slantL} / {slantR}, each
-//! null edge bridges slant↔cap, and the sections are buildable — the
-//! pinched pieces get their distinct copies because they are now the
-//! ABOVE side (ch. 14 mints copies for ABOVE runs only). That
-//! asymmetry is exactly what M3 PR 6a's D7 pinch lane consumes:
-//! `split` reruns a `DegenerateSection` refusal under the mirrored
-//! plane and swaps the sides back, so every cell of the orientation
-//! table now succeeds (the table test below).
+//! PR 3 adversarial review — target 1 (BOB pinch): the touching-wedge
+//! fixture under both plane orientations. At the Λ tip the section's
+//! two corners each pair one Below wedge's germs, so the reduction keeps
+//! one vertex per wedge on the wedges' side and one for the tip edge and
+//! the cap between them on the other (`splitting::insert`). Every cell
+//! of the orientation table succeeds with the same physical
+//! decomposition; only the side assignment swaps with the normal (the
+//! table test below).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -80,15 +64,11 @@ fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> usize {
         .count()
 }
 
-/// THE MISSING PROBE: the touching-wedge fixture split by (o, −n).
-/// The physical decomposition is identical to MIRRORED(+n) — slab +
-/// three floor pieces pinched at the (4,1) tip line — but presented
-/// so the pinched pieces are the ABOVE side, whose runs DO get vertex
-/// copies. Predicted (reviewer derivation): SUCCESS, with the pieces
-/// landing as three disconnected shells with coincident-but-distinct
-/// tip copies — i.e., `split(S, n)` refuses while
-/// `swap(split(S, −n))` returns the pieces. The refusal is NOT
-/// invariant under plane orientation; only the piece-ASSIGNMENT is.
+/// The touching-wedge fixture split by (o, −n): the physical
+/// decomposition of MIRRORED(+n) — slab + three floor pieces pinched at
+/// the (4,1) tip line — presented so the pinched pieces are the ABOVE
+/// side. The pieces land as three disconnected shells with
+/// coincident-but-distinct tip copies.
 #[test]
 fn mirrored_fixture_flipped_plane_succeeds() {
     let fx = prism::<f64>(MIRRORED, 1.0, Tol::witness());
@@ -116,16 +96,14 @@ fn mirrored_fixture_flipped_plane_succeeds() {
     assert!((vp + vs - v0).abs() <= 1e-12 * v0, "{vp} + {vs} vs {v0}");
 }
 
-/// The orientation table, CLOSED symmetric by M3 PR 6a's D7 (the
-/// pinch lane): all four cells of the 2×2 now SUCCEED with identical
-/// physical decompositions —
+/// The orientation table: all four cells of the 2×2 succeed with
+/// identical physical decompositions —
 ///   MIRRORED(+n) succeed | MIRRORED(−n) succeed
 ///   NOTCHED(−n)  succeed | NOTCHED(+n)  succeed
-/// — the below-side pinch cells (left column) acquire their
-/// below-vertex copies through `split`'s mirror-identity lane, so op
-/// success is orientation-INVARIANT and only the piece ASSIGNMENT
-/// swaps with the normal (PR 2's equivariance, now for success too).
-/// Equal-volume oracle across every cell.
+/// — the cells whose pinch lies below the normal (left column) get
+/// their below copies from the reduction itself, so op success is
+/// orientation-invariant and only the piece assignment swaps with the
+/// normal (PR 2's equivariance). Equal-volume oracle across every cell.
 #[test]
 fn notched_fixture_orientation_table() {
     for (profile, pinched_above_under_plus) in [(NOTCHED, true), (MIRRORED, false)] {

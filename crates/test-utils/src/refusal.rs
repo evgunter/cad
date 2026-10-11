@@ -81,10 +81,7 @@ const SENTENCE_WORDS: &[&str] = &[
 /// `editor-core/tests/refusal_concision_chains.rs`
 /// `the_bare_recourses_are_geom_cores_constants` holds the copy equal
 /// to the constants.
-pub const BARE_RECOURSES: &[&str] = &[
-    "move the split plane or the geometry",
-    "move the geometry",
-];
+pub const BARE_RECOURSES: &[&str] = &["move the split plane or the geometry", "move the geometry"];
 
 /// The verbs a wrapper states a refusal with. A clause that opens with
 /// one has no subject (`escalated at the path door:`), and one whose

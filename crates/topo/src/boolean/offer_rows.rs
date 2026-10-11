@@ -1118,7 +1118,13 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
         normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
         arm: 1.0,
     };
-    super::super::vtxfac::pierce_germ_dir(&s, Vec3::new(D.sin(), 0.0, D.cos()), band()).map(|_| ())
+    super::super::vtxfac::pierce_germ_dir(
+        &s,
+        Vec3::new(D.sin(), 0.0, D.cos()),
+        super::super::vtxfac::OutBound::Start,
+        band(),
+    )
+    .map(|_| ())
 }
 
 /// `A` a block `[0, 2]² × [0, 1]`, `B` a unit block standing over its
@@ -1577,11 +1583,11 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
         end: z,
         start_reach: Reach::Chord {
             base: o,
-            far: o + y,
+            far: o + y * arm,
         },
         end_reach: Reach::Chord {
             base: o,
-            far: o + z,
+            far: o + z * arm,
         },
         face,
         normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true),
@@ -1596,6 +1602,7 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
         Operand::B,
         &sector(pb.side_faces[3]),
         &declared,
+        super::super::recl::ReadOn::Faces,
         arm,
         band(),
     )
@@ -2422,14 +2429,20 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "conic_quadric/mod.rs",
         "conic_quadric_roots",
+        "BooleanDecision::ArcSphereRoots",
+        1,
+    ),
+    (
+        "conic_quadric/mod.rs",
+        "quadric_ladder",
         "BooleanDecision::ArcCylinderRoots",
         1,
     ),
     (
         "conic_quadric/mod.rs",
-        "conic_quadric_roots",
+        "quadric_ladder",
         "BooleanDecision::ArcSphereRoots",
-        2,
+        1,
     ),
     ("finish.rs", "corner_holds", "Coincide::Sectors", 1),
     (
@@ -2585,6 +2598,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("recl.rs", "resolve_edge_edge", "Coincide::FlankSense", 1),
     ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),
+    ("recl.rs", "unglued_tilt", "Coincide::Sectors", 2),
     ("recl.rs", "wedge_is_reflex", "Coincide::Sectors", 1),
     (
         "reduce.rs",

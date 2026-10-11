@@ -220,6 +220,20 @@ impl<'a, T: geom_core::CertifiedBounds> SsiOperand<'a, T> {
     pub fn nurbs(surface: &'a NurbsSurface<T>) -> Result<Self, SsiError> {
         ChartedNurbs::mint(surface).map(Self::Nurbs)
     }
+
+    /// A NURBS operand whose chart enclosures read `grid`, a refinement
+    /// of `surface`'s net in certification arithmetic
+    /// ([`ChartedNurbs::mint_on`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`SsiOperand::nurbs`].
+    pub(crate) fn nurbs_on(
+        surface: &'a NurbsSurface<T>,
+        grid: &'a enclose::CellGrid,
+    ) -> Result<Self, SsiError> {
+        ChartedNurbs::mint_on(surface, grid).map(Self::Nurbs)
+    }
 }
 
 /// Which length levers the transversality decision at a point
@@ -1146,13 +1160,17 @@ impl core::fmt::Display for SsiError {
             ),
             Self::Escalated { decision, cause } => write!(
                 f,
-                "ssi: whether {} is too close to call: {}",
+                concat!("ssi: whether {}", geom_core::undecided!(), ": {}"),
                 decision.question(),
                 cause.payload()
             ),
             Self::CertificateEscalated { limb, cause } => write!(
                 f,
-                "ssi: whether the fitted carrier passes {} is too close to call: {}",
+                concat!(
+                    "ssi: whether the fitted carrier passes {}",
+                    geom_core::undecided!(),
+                    ": {}"
+                ),
                 limb.name(),
                 cause.payload()
             ),
@@ -1570,6 +1588,7 @@ impl TubeDegeneracy {
 #[derive(Clone, Copy, Debug)]
 pub struct ChartedNurbs<'a, T: geom_core::Real> {
     surface: &'a NurbsSurface<T>,
+    grid: Option<&'a enclose::CellGrid>,
     speeds: enclose::ChartSpeeds,
 }
 
@@ -1582,7 +1601,45 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
     /// not finite.
     pub fn mint(surface: &'a NurbsSurface<T>) -> Result<Self, SsiError> {
         let speeds = NurbsBoxes::new(surface).chart_speeds()?;
-        Ok(Self { surface, speeds })
+        Ok(Self {
+            surface,
+            grid: None,
+            speeds,
+        })
+    }
+
+    /// [`ChartedNurbs::mint`] with every chart enclosure, the speeds
+    /// among them, read off `grid`'s finer cells
+    /// ([`enclose::CellGrid`]).
+    ///
+    /// The two refusals are read on the surface's own cells first. They
+    /// are facts of the described net: a net constant along an axis
+    /// reads an exact zero there, where the grid's refined entries are
+    /// enclosures whose differences read their widths.
+    ///
+    /// # Errors
+    ///
+    /// As [`ChartedNurbs::mint`], on the surface's own cells or on the
+    /// grid's.
+    pub(crate) fn mint_on(
+        surface: &'a NurbsSurface<T>,
+        grid: &'a enclose::CellGrid,
+    ) -> Result<Self, SsiError> {
+        NurbsBoxes::new(surface).chart_speeds()?;
+        let speeds = NurbsBoxes::on_grid(surface, grid).chart_speeds()?;
+        Ok(Self {
+            surface,
+            grid: Some(grid),
+            speeds,
+        })
+    }
+
+    /// The chart enclosures, over the cells it was minted on.
+    pub(crate) fn boxes(&self) -> NurbsBoxes<'a, T> {
+        match self.grid {
+            Some(g) => NurbsBoxes::on_grid(self.surface, g),
+            None => NurbsBoxes::new(self.surface),
+        }
     }
 }
 
@@ -3268,7 +3325,7 @@ mod ending_tests {
             let shown = error.to_string();
             assert!(
                 shown.starts_with("ssi: whether ")
-                    && shown.ends_with(&format!("too close to call: {}", in_band.payload()))
+                    && shown.ends_with(&format!(" is undecided: {}", in_band.payload()))
                     && !shown.contains("Recourse")
                     && !shown.contains("declare"),
                 "payload only: {shown}"

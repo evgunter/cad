@@ -17,15 +17,10 @@
 //! [`super::entity_door`]. A declared pair's names are the ladder's only
 //! other reader.
 //!
-//! **The declaration routing.** A union's declared face pairs are SITED
-//! at its members and consumed by a fold of pairwise booleans, so
-//! something decides which fold step each pair belongs to and which
-//! side of it each site takes: [`side_by_operand`] for the pair
-//! boolean, [`route_declarations`] and [`look_through_fold`] for the
-//! union, and the refusal menu beneath them. The kernel takes a
-//! [`BooleanDeclarations`] already resolved to operands and entity
-//! keys; every decision about where an authored pair resolves is made
-//! here.
+//! **The union's fold.** A union judges every member pair pairwise
+//! before its fold and hands each fold step the pass's verdicts, read
+//! through member lineage ([`given_verdicts`]), with each operand's own
+//! records carried in; the kernel takes them as [`BooleanInputs`].
 //!
 //! **The placement-rule arithmetic.** [`transform_map`],
 //! [`SteppedOperands`], [`stepped_rule_map`] and the direction-role
@@ -439,21 +434,27 @@ where
         // A gauge DENOTES NO BODY (A11 (2)): its slots evaluated above,
         // and the instances on it read where it sits.
         Node::Gauge { .. } => Ok(OpOut::plain(ValuePayload::Gauge, names::empty())),
-        // A mate DENOTES NO BODY (A12): it evaluates to its role in
-        // the solve. A refusing mate fails here rather than at the
-        // instance it would have placed, so the message names the mate.
-        Node::Mate { .. } => match env.poses.fault(id) {
-            Some(fault) => Err(NodeErrorKind::Mate(Box::new(fault.clone()))),
-            None => Ok(OpOut::plain(
-                ValuePayload::Mate(env.poses.role(id).unwrap_or_else(|| {
-                    unreachable!(
-                        "the solve of this document records a role for every mate in its \
+        // A mate DENOTES NO BODY: it evaluates to its role in the
+        // solve. Its two faces are read first, so a side whose name no
+        // longer resolves refuses in the selection's own words. A
+        // refusing mate fails here rather than at the instance it would
+        // have placed, so the message names the mate.
+        Node::Mate { a, b, .. } => {
+            select(doc, results, O::Side(crate::mate::MateSide::A), *a)?;
+            select(doc, results, O::Side(crate::mate::MateSide::B), *b)?;
+            match env.poses.fault(id) {
+                Some(fault) => Err(NodeErrorKind::Mate(Box::new(fault.clone()))),
+                None => Ok(OpOut::plain(
+                    ValuePayload::Mate(env.poses.role(id).unwrap_or_else(|| {
+                        unreachable!(
+                            "the solve of this document records a role for every mate in its \
                          order, or faults it, yet mate {id:?} has neither"
-                    )
-                })),
-                names::empty(),
-            )),
-        },
+                        )
+                    })),
+                    names::empty(),
+                )),
+            }
+        }
     }
 }
 
@@ -2432,8 +2433,8 @@ fn wire_assertion<T: Decide>(
 ///
 /// A tool that is not a plane datum is `WrongOperand`, decided before
 /// any verb exists. Failure of the op itself is
-/// [`NodeErrorKind::Split`] through [`verb_refused`]. The D7 pinch lane
-/// lives inside the kernel door; nothing here re-derives the plane.
+/// [`NodeErrorKind::Split`] through [`verb_refused`]; nothing here
+/// re-derives the plane.
 fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::split::SplitVerb<T>,
     id: RecipeNodeId,
