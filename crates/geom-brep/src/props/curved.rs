@@ -865,11 +865,45 @@ struct Rim<T: Real> {
     /// by construction, which is a discrete comparison wearing a
     /// tolerance's costume.
     d_u_sign: Sign,
-    /// Carrier parameter span `t1 − t0` (angle-true; `Δu`).
+    /// Carrier parameter span `t1 − t0` (angle-true; `Δu`), decided
+    /// within certification's per-edge bound ([`Rim::decided`]).
     dt: T,
     /// The rim's iso-level, dimension carried by the variant (see
     /// [`RimLevel`] and the per-surface call sites).
     level: RimLevel<T>,
+}
+
+impl<T: Decide> Rim<T> {
+    /// **The one door a rim is minted through, on every kind**: the
+    /// stored span is decided forward and within one period
+    /// ([`require_span_within_period`], at the rim circle's radius
+    /// `r_c` — certification's lever) as `props_rim_span_forward` /
+    /// `props_rim_span_winding`, refusing as
+    /// [`PropsError::NotIsoRectangle`]. Every reader of [`Rim::dt`] —
+    /// the cylinder and torus charts' `Δu` sums, [`du_of_rims`],
+    /// [`span_sum`] — rests on that bound. A full-period rim sits AT
+    /// it and is admitted. A distinct key from the meridian decide's
+    /// because a rim's span is the face's `Δu`, not its level extent.
+    fn decided(
+        e: &LoopEdge<T>,
+        d_u_sign: Sign,
+        level: RimLevel<T>,
+        r_c: T,
+        band: Band,
+    ) -> Result<Self, PropsError> {
+        require_span_within_period(
+            e,
+            r_c,
+            band,
+            ["props_rim_span_forward", "props_rim_span_winding"],
+            |what| PropsError::NotIsoRectangle { what },
+        )?;
+        Ok(Self {
+            d_u_sign,
+            dt: e.t1 - e.t0,
+            level,
+        })
+    }
 }
 
 /// The two lever arms a rim decision meters at, kept apart because on
@@ -1645,12 +1679,14 @@ fn cylinder_boundary<T: Decide>(
                 )?;
                 require_rim_incidence(center - origin, n_c, r_c, axis, band, Premise::OnSurface)?;
                 let v = (center - origin).dot(axis);
-                rims.push(Rim {
-                    d_u_sign: rim_dir(s, e.forward),
-                    dt: e.t1 - e.t0,
-                    // The axial arc length itself — meters.
-                    level: RimLevel::Length(v),
-                });
+                // The axial arc length itself — meters.
+                rims.push(Rim::decided(
+                    e,
+                    rim_dir(s, e.forward),
+                    RimLevel::Length(v),
+                    r_c,
+                    band,
+                )?);
                 levels.push(v);
             }
             // An ellipse arc on a wall boundary (a curved cut, M5
@@ -2115,12 +2151,14 @@ fn cone_boundary<T: Decide>(
                     Premise::OnSurface,
                 )?;
                 require_rim_incidence(center - apex, n_c, r_c, axis, band, Premise::OnSurface)?;
-                rims.push(Rim {
-                    d_u_sign: rim_dir(s, e.forward),
-                    dt: e.t1 - e.t0,
-                    // The signed slant arc length itself — meters.
-                    level: RimLevel::Length(v),
-                });
+                // The signed slant arc length itself — meters.
+                rims.push(Rim::decided(
+                    e,
+                    rim_dir(s, e.forward),
+                    RimLevel::Length(v),
+                    r_c,
+                    band,
+                )?);
                 levels.push(v);
             }
             Curve3::Ellipse { .. } => {
@@ -3031,18 +3069,25 @@ fn arc_point_margin<T: Decide>(arc: &SphereArc<T>, p: Point3<T>) -> Margin<T> {
 /// the coincidence band above τ is one certification admits too);
 /// either decide's ambiguity band escalates.
 ///
-/// Two askers, each with its own lever and names. The doors
-/// ([`sphere_meridian_pole_margins`], for [`sphere_boundary`]'s fold
-/// and [`require_one_chart_branch`]) ask it of a meridian at the
-/// sphere radius, `props_meridian_span_forward` /
-/// `props_meridian_span_winding`, refusing as
-/// [`PropsError::NotIsoRectangle`]; the flux lane ([`sphere_loop`])
-/// asks it of every arc at the arc's own radius,
-/// `props_sphere_arc_span_forward` / `props_sphere_arc_span_winding`,
-/// refusing as [`PropsError::SphereLoop`]. The torus decides the same
-/// pair for a span it reconstructs across pieces
-/// (`props_meridian_pieces_forward`, `props_meridian_pieces_winding`,
-/// [`fold_chain`]).
+/// Each asker brings its own lever and names:
+///
+/// * a meridian, `props_meridian_span_forward` /
+///   `props_meridian_span_winding`, refusing as
+///   [`PropsError::NotIsoRectangle`] — the sphere's doors at the sphere
+///   radius ([`sphere_meridian_pole_margins`], for [`sphere_boundary`]'s
+///   fold and [`require_one_chart_branch`]), and every torus meridian
+///   edge at the minor radius ([`torus_classify`]);
+/// * a rim of any kind, `props_rim_span_forward` /
+///   `props_rim_span_winding`, at the rim's own radius, refusing as
+///   [`PropsError::NotIsoRectangle`] ([`Rim::decided`]);
+/// * every arc of the sphere's flux lane ([`sphere_loop`]) at the arc's
+///   own radius, `props_sphere_arc_span_forward` /
+///   `props_sphere_arc_span_winding`, refusing as
+///   [`PropsError::SphereLoop`].
+///
+/// The torus decides the same pair for a span it reconstructs across
+/// pieces (`props_meridian_pieces_forward`,
+/// `props_meridian_pieces_winding`, [`fold_chain`]).
 fn require_span_within_period<T: Decide>(
     e: &LoopEdge<T>,
     radius: T,
@@ -3278,17 +3323,14 @@ fn sphere_boundary<T: Decide>(
                 require_rim_incidence(w, n_c, r_c, axis, band, Premise::Inventory)?;
                 let sin_v = w.dot(axis) / radius;
                 let cos_v = r_c / radius;
-                rims.push(Rim {
-                    d_u_sign: rim_dir(s, e.forward),
-                    dt: e.t1 - e.t0,
-                    // Dimensionless latitude DIRECTION pair, both
-                    // components from stored data (`w·â/R`, `r_c/R`).
-                    // The chord between two of these is the geodesic
-                    // separation at R everywhere on the sphere; the
-                    // axial component alone shrinks by `cos v̄` toward
-                    // the poles and merges distinct near-polar rims.
-                    level: RimLevel::Unit(sin_v, cos_v),
-                });
+                // Dimensionless latitude DIRECTION pair, both
+                // components from stored data (`w·â/R`, `r_c/R`). The
+                // chord between two of these is the geodesic separation
+                // at R everywhere on the sphere; the axial component
+                // alone shrinks by `cos v̄` toward the poles and merges
+                // distinct near-polar rims.
+                let level = RimLevel::Unit(sin_v, cos_v);
+                rims.push(Rim::decided(e, rim_dir(s, e.forward), level, r_c, band)?);
                 levels.push(sin_v);
             }
             Sign::Zero => {
@@ -3854,12 +3896,15 @@ fn torus_classify<'a, T: Decide>(
                     Premise::Inventory,
                 )?;
                 require_rim_incidence(c_c - center, n_c, r_c, axis, band, Premise::Inventory)?;
-                classified.push(TorusEdge::Rim(Rim {
-                    d_u_sign: rim_dir(s, e.forward),
-                    dt: e.t1 - e.t0,
-                    // Dimensionless minor-angle direction pair.
-                    level: RimLevel::Unit(sin_v, cos_v),
-                }));
+                // Dimensionless minor-angle direction pair.
+                let level = RimLevel::Unit(sin_v, cos_v);
+                classified.push(TorusEdge::Rim(Rim::decided(
+                    e,
+                    rim_dir(s, e.forward),
+                    level,
+                    r_c,
+                    band,
+                )?));
             }
             Sign::Zero => {
                 let w = c_c - center;
@@ -3882,6 +3927,15 @@ fn torus_classify<'a, T: Decide>(
                     Margin::of(n_c.dot(w - axis * h)),
                     band,
                     Premise::Inventory,
+                )?;
+                // Certification's per-edge bound, at the minor radius:
+                // the chart's lift and the meridian fold read this span.
+                require_span_within_period(
+                    e,
+                    minor,
+                    band,
+                    ["props_meridian_span_forward", "props_meridian_span_winding"],
+                    |what| PropsError::NotIsoRectangle { what },
                 )?;
                 classified.push(TorusEdge::Arc(TorusArc { edge: e, n_c, c_c }));
             }
@@ -4001,7 +4055,12 @@ fn exact_band() -> Band {
 /// * `props_meridian_pieces_winding` — it does not definitely exceed a
 ///   period, certification's winding bound, at the same band and lever.
 ///
-/// A single edge is its own certified interval and re-decides nothing.
+/// A single edge's span — and each piece's — was decided at
+/// [`torus_classify`] against certification's own per-edge bound
+/// ([`require_span_within_period`]), under the sphere doors' names for
+/// that question (`props_meridian_span_forward`,
+/// `props_meridian_span_winding`) at the minor radius, so a chain of
+/// one is already one certified interval.
 fn fold_chain<T: Decide>(
     chain: Vec<TorusArc<'_, T>>,
     minor: T,
