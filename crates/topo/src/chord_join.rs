@@ -2777,8 +2777,8 @@ pub(crate) fn path_island_winding<T: Decide>(
         Ok(None) => {}
     }
     Err(invariant(
-        "no outer-loop point of a sphere or cone face reads which side of a ring-lane island it \
-         is on (every path to the closing chord meets the island's boundary in the zero band)",
+        "no outer-loop point of a sphere, cone or torus face reads which side of a ring-lane island \
+         it is on (every path to the closing chord meets the island's boundary in the zero band)",
     ))
 }
 
@@ -2852,7 +2852,7 @@ fn path_ring_side<T: Decide>(
 ) -> Result<RingSide, SplitJoinError> {
     let cycle = outer_cycle(body, newf)?.ok_or(SplitJoinError::SectionInvariant {
         face: newf,
-        what: "ring re-homing on a sphere or a cone: the run is not a cycle",
+        what: "ring re-homing on a sphere, a cone or a torus: the run is not a cycle",
     })?;
     let arcs = run_loop_arcs(body, newf, (surface, quadric), &cycle, band)?;
     let run_edges = cycle
