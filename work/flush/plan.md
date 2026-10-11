@@ -24,7 +24,7 @@ lanes in flight are expected to close more, so the track is not split.
 | P1 | `an-l-prism-top-edge-exactly-in-the-cube-face-plane-ships-an-undeclared-contact` | M | an L-prism's top edge in the cube's face plane ships an undeclared contact |
 | P1 | `the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone` | H | the pre-zip pinch weld stays as the repair of an operand's coincident pierces |
 | P2 | `a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses` | M | a thin-walled hollow ships while a slab as thin refuses: the door reads a sliver per shell, never per solid (design) |
-| P2 | `a-curved-face-at-a-shared-pinch-vertex-builds-bodies-the-census-and-the-reuse-check-refuse` | M | a curved face at a shared pinch vertex: bodies tier 3′ escalates and a further union refuses |
+| P2 | `a-curved-notch-at-a-corner-pinch-refuses-join-desync-on-a-section-vertexs-null-edge-copies` | M | a curved notch at a corner pinch refuses `JoinDesync` on a section vertex's null-edge copies (15 lines, 5 poses) |
 | P2 | `a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face` | M | `Joint::Hole` cannot tell a figure-8 hole from an island face |
 | P2 | `a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys` | M | a pinch whose keys no seam ties keeps its cones on separate point keys |
 | P3 | `the-turn-sense-divisor-is-nonzero-by-prose` | E | `Turn.sense`'s nonzero divisor is held by call order, not by type |
@@ -71,7 +71,8 @@ Parked, and not counted:
    `declared-flush-intersect-refuses-in-one-operand-order` (folded into
    step 2's measuring lane), then the pinch rows:
    `the-pre-zip-pinch-weld-retires-…`, `a-pinch-the-seams-do-not-link-…`,
-   `a-hole-weld-cannot-tell-…` and `a-curved-face-at-a-shared-pinch-vertex-…`.
+   `a-hole-weld-cannot-tell-…` and `a-curved-notch-at-a-corner-pinch-refuses-join-desync-…`
+   (the residue of the curved shared-pinch re-read, PR 4698).
 5. **The E tail** (dispatched after F as one lane, `flush/e-tail`):
    `the-turn-sense-divisor-…`, `strut-side-labels-…`,
    `a-curved-boolean-refusal-cites-…` and `levered-sign-as-bool-…` in
