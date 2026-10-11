@@ -2771,15 +2771,13 @@ impl Descendants {
             "absorb_merge: the boolean's merge is the unjoined one, so it reports no join"
         );
         for group in &merged.groups {
-            for &absorbed in &group.absorbed {
-                self.faces.insert(absorbed, group.kept);
-            }
-            let kept = Cell::Face(group.kept);
-            for &e in &group.killed_edges {
-                self.substitute(Cell::Edge(e), kept);
-            }
-            for &v in &group.killed_vertices {
-                self.substitute(Cell::Vertex(v), kept);
+            for (dead, by) in group.substitutions() {
+                match dead {
+                    Cell::Face(f) => {
+                        self.faces.insert(f, group.kept);
+                    }
+                    _ => self.substitute(dead, by),
+                }
             }
         }
     }
@@ -3014,7 +3012,8 @@ fn piece_holds<T: Decide>(
             | ContainError::EmptyLoop(_)
             | ContainError::LoopUnreadable(_)
             | ContainError::Uncrossable(_)
-            | ContainError::Curved(_)),
+            | ContainError::Curved(_)
+            | ContainError::ArcEndClearOfCorners(_)),
         )) => Ok(PieceRead::Unread(Some(refusal))),
     }
 }
@@ -3896,16 +3895,7 @@ fn carry_rows<T: Decide>(
 /// whatever its kind: how the census confirms it is read from its two
 /// cells' carriers, not decided here.
 fn record<T: Real>(body: &Body<T>, out: &mut ContactRecords, x: End, y: End, cites: Cites) {
-    // A conventional vertex has no identity of its own: a record at its
-    // point is a record on its closed edge's interior.
-    let cell = |c: Cell| match c {
-        Cell::Vertex(v) if super::edge_join::is_conventional_vertex(body, v) => body
-            .get_vertex(v)
-            .and_then(|d| d.emanating)
-            .and_then(|h| body.get_half_edge(h))
-            .map_or(c, |h| Cell::Edge(h.edge)),
-        _ => c,
-    };
+    let cell = |c: Cell| super::records::conventional_edge(body, c);
     if let Ok(contact) = Contact::new(body, cell(x.1), cell(y.1)) {
         out.push(Cited::new(contact, cites));
     }
@@ -4097,6 +4087,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBandShell> {
         | V::CensusUnsupported { .. }
         | V::CensusLaneUnsupported { .. }
         | V::CensusUndecidable { .. }
+        | V::ArcEndOffCorner { .. }
         | V::InstanceInterference { .. } => None,
         // A certificate that failed or a lane that cannot run: the
         // kernel's.

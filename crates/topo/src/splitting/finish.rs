@@ -70,6 +70,7 @@ use super::join::{CompletedSection, loop_points_of};
 use super::{KnifeEdge, KnifeEdgeSite, PlaneSide, SplitReduction, section_loops};
 use crate::attach::{Named, Rechart};
 use crate::body::Body;
+use crate::boolean::{CarryRefusal, Cell};
 use crate::chord_join::SplitJoinError;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
@@ -115,6 +116,116 @@ pub struct SplitResult<T: Real> {
     /// The coincidences the split decided from values (its pinches), in
     /// the operand's keys ([`crate::coincidence`]).
     pub coincidences: Vec<crate::Coincidence>,
+}
+
+/// The operand's contact records carried onto the split's two sides
+/// ([`SplitResult::carry_contacts`]): each side's own list, each record
+/// citing the operand's record it is.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SplitContacts {
+    /// The records the above side holds.
+    pub above: crate::boolean::ContactRecords,
+    /// The records the below side holds.
+    pub below: crate::boolean::ContactRecords,
+}
+
+impl<T: Real> SplitResult<T> {
+    /// `records`, the operand's, carried onto each side that holds both of
+    /// a record's cells, every record citing the operand's
+    /// ([`crate::ContactRecords::carried_through`]). A side's survivors
+    /// keep their operand keys (`carve` clones one arena); a vertex the
+    /// cut copied (`SplitNaming::vertex_pairs`) is read on each side as
+    /// the copy that side holds, which shares its point, so a record at
+    /// such a vertex lands on every side that holds both its cells (D1
+    /// (ii)); and each cell is read through its side's joins.
+    ///
+    /// # Errors
+    ///
+    /// [`CarryRefusal::Parted`] for a record whose cells the cut put on
+    /// different sides, and [`crate::ContactRecords::carried_through`]'s
+    /// refusals for one that lands on no side.
+    pub fn carry_contacts(
+        &self,
+        records: &crate::boolean::ContactRecords,
+    ) -> Result<SplitContacts, CarryRefusal> {
+        let sides: Vec<(PlaneSide, &Body<T>, Vec<crate::boolean::EdgeJoin>)> = [
+            (PlaneSide::Above, self.above.body()),
+            (PlaneSide::Below, self.below.body()),
+        ]
+        .into_iter()
+        .filter_map(|(side, body)| {
+            let joins = self
+                .naming
+                .edge_joins
+                .iter()
+                .filter(|(s, _)| *s == side)
+                .map(|&(_, j)| j)
+                .collect();
+            body.map(|b| (side, b, joins))
+        })
+        .collect();
+        let mut out = SplitContacts::default();
+        for k in 0..records.len() {
+            let mut refusals = Vec::new();
+            let mut landed = false;
+            for (side, body, joins) in &sides {
+                let image = |c: Cell| self.side_image(body, joins, c);
+                match records.carried_row(0, k, body, &image) {
+                    Ok(row) => {
+                        landed = true;
+                        match side {
+                            PlaneSide::Above => out.above.extend(row),
+                            _ => out.below.extend(row),
+                        }
+                    }
+                    Err(refusal) => refusals.push(refusal),
+                }
+            }
+            if !landed {
+                let record = crate::boolean::reduce::index(k);
+                let [x, y] = records.rows()[k].cells();
+                let held = |c: Cell| {
+                    sides
+                        .iter()
+                        .any(|(_, body, joins)| self.side_image(body, joins, c).is_some())
+                };
+                return Err(match (held(x), held(y)) {
+                    (true, true) => refusals
+                        .into_iter()
+                        .find(|r| matches!(r, CarryRefusal::Pair { .. }))
+                        .unwrap_or(CarryRefusal::Parted { record }),
+                    (false, _) => CarryRefusal::Unmapped { record, cell: x },
+                    (true, false) => CarryRefusal::Unmapped { record, cell: y },
+                });
+            }
+        }
+        Ok(out)
+    }
+
+    /// What the side `body`, ending with `joins`, made of operand cell
+    /// `c`: the cell, or the one copy of it the cut minted there, read
+    /// through the joins; `None` where the side holds neither, or more
+    /// than one copy.
+    fn side_image(
+        &self,
+        body: &Body<T>,
+        joins: &[crate::boolean::EdgeJoin],
+        c: Cell,
+    ) -> Option<Cell> {
+        let copies = self
+            .naming
+            .vertex_pairs
+            .iter()
+            .filter_map(|&(copy, original)| {
+                (Cell::Vertex(original) == c).then_some(Cell::Vertex(copy))
+            });
+        let mut held = core::iter::once(c)
+            .chain(copies)
+            .map(|x| crate::boolean::joined_cell(joins, x))
+            .filter(|&x| crate::boolean::records::holds(body, x));
+        let first = held.next()?;
+        held.next().is_none().then_some(first)
+    }
 }
 
 /// Mint-time naming facts of one split (M4 PR 3). Keys live in the

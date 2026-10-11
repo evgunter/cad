@@ -1791,6 +1791,19 @@ pub enum ValidationError {
         /// The not-yet-supported class, named.
         what: &'static str,
     },
+    /// Tier 3′: the census read a point at an arc's end that lies
+    /// definitely off both of its edge's corners, on a body tier 3 passed
+    /// at the same band, which pins every carrier end within the zero
+    /// band of its corner. The kernel's two readings of one end disagree
+    /// (certification's against the boundary walk's, which part by
+    /// rounding alone), so this is a defect to report, never a reading
+    /// of the geometry.
+    ArcEndOffCorner {
+        /// The face whose boundary the census read.
+        face: FaceKey,
+        /// The arc's ends against its edge's corners.
+        gaps: Box<crate::boolean::ArcEndGaps>,
+    },
     /// Tier 3′ (the census's instance-containment arm): one instance's
     /// material contains a vertex of another's — an interference fit,
     /// DECIDED by the material test and not undecidable. A vertex
@@ -2144,16 +2157,13 @@ pub enum CrossingSideVerdict {
     /// interpenetration evidence. Refuses, naming this verdict.
     SameSide,
     /// The side question did not reach a verdict at a candidate that
-    /// held the crossing: the site's margins escalated in band, or —
-    /// contradicting the carrier screens that just passed — the
-    /// dihedral gate could not establish the Smooth precondition the
-    /// sense algebra requires (`geom_brep::classify_material_pairing`'s
-    /// contract). Escalated typed either way
-    /// ([`ValidationError::CensusEscalated`]), never sampled, never a
-    /// fake side verdict. A pair whose carriers are DEFINITELY
-    /// transverse at the crossing never reaches this arm at all: the
-    /// edge screen refuses it silently first, because a question about
-    /// "the shared carrier" has no subject there.
+    /// held the crossing: the dihedral or the sense algebra
+    /// (`geom_brep::classify_material_pairing`) escalated in band.
+    /// Escalated typed ([`ValidationError::CensusEscalated`]), never
+    /// sampled, never a fake side verdict. A pair whose carriers are
+    /// DEFINITELY transverse at the crossing never reaches this arm at
+    /// all: the carrier screens refuse it silently first, because a
+    /// question about "the shared carrier" has no subject there.
     Undecided,
 }
 
@@ -3230,7 +3240,32 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, Cow<'static, str>) 
         ContainError::LoopUnreadable(_) => (UNWALKABLE.into(), DEFECT.into()),
         ContainError::Curved(e) => classify_point_in_solid(e),
         ContainError::Uncrossable(u) => (uncrossable(u), NOT_YET_ENDING.into()),
+        ContainError::ArcEndClearOfCorners(gaps) => arc_end_clear_of_corners(gaps),
     }
+}
+
+/// A point at an arc's end the corner pass placed clear of the edge's
+/// corners, read at rest. Where an end of the arc lies definitely off
+/// both corners on a body certified at this band, the kernel's two
+/// readings of one end disagree, which no move of the geometry repairs;
+/// otherwise the band alone parted the two passes (`K ≤ 3`), and the arc
+/// end's own lever is the way through.
+fn arc_end_clear_of_corners(
+    gaps: &crate::boolean::ArcEndGaps,
+) -> (Cow<'static, str>, Cow<'static, str>) {
+    use crate::boolean::{ContainDecision, placement_lever};
+    (
+        format!("a point lies at an arc's end clear of its corners: {gaps}").into(),
+        if gaps.off_corner() {
+            DEFECT.into()
+        } else {
+            format!(
+                "Recourse: {}",
+                placement_lever(Some(ContainDecision::ArcEnd))
+            )
+            .into()
+        },
+    )
 }
 
 const UNWALKABLE: &str = "its boundary could not be walked";
@@ -3894,6 +3929,11 @@ impl fmt::Display for ValidationError {
                  decided about the geometry. Recourse: run the certified check \
                  (validate_pseudomanifold, or validate_pseudomanifold_certificate for a \
                  certificate) at a certifying scalar"
+            ),
+            Self::ArcEndOffCorner { gaps, .. } => write!(
+                f,
+                "a face's boundary reads an arc's end off its corner where certification pinned \
+                 it: {gaps}. {DEFECT}"
             ),
             Self::CensusUndecidable { a, b, what } => write!(
                 f,

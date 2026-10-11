@@ -427,10 +427,10 @@ impl NtPrism {
     /// tilted `d` along it, so the face's plane lies `d` rad off that
     /// edge. Normalized twice: JOIN's census measured the twice-rounded
     /// normal, and a sub-ulp change of it moves which poses fire.
-    pub fn near_normal(&self, edge: usize, a: u32, d: f64) -> V3 {
+    pub fn near_normal(&self, edge: usize, a: f64, d: f64) -> V3 {
         let e = unit3(self.corner_edges()[edge]);
         let (p1, p2) = nt_basis(e);
-        let al = std::f64::consts::TAU * (f64::from(a) + 0.25) / 16.0;
+        let al = std::f64::consts::TAU * (a + 0.25) / 16.0;
         unit3(unit3(
             [0, 1, 2].map(|k| p1[k] * al.cos() + p2[k] * al.sin() + e[k] * d),
         ))
