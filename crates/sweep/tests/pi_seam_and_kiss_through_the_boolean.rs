@@ -413,6 +413,10 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
     enum Expect {
         Builds((usize, usize, usize, usize)),
         RulingDoor,
+        /// The ruling door with the tube as operand A; with the cap as
+        /// operand A, the containment of a contact vertex escalates
+        /// (`work/tang/a-near-aligned-capped-tube-refuses-by-operand-order.md`).
+        RulingDoorTubeFirst,
     }
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
@@ -425,7 +429,7 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
     // side.
     for (apart, expect) in [
         (0.01 * zero, Expect::Builds((5, 8, 5, 1))),
-        (2.0 * (zero * escalate).sqrt(), Expect::RulingDoor),
+        (2.0 * (zero * escalate).sqrt(), Expect::RulingDoorTubeFirst),
         (5.0 * escalate, Expect::RulingDoor),
         ((R * escalate).sqrt(), Expect::RulingDoor),
         (-(R * escalate).sqrt(), Expect::RulingDoor),
@@ -451,7 +455,17 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
                     );
                     assert_eq!(c, rims, "{label}: F, E, V, shells");
                 }
-                Expect::RulingDoor => {
+                Expect::RulingDoorTubeFirst if tube_is == topo::Operand::B => {
+                    let Err(BooleanError::Escalated { diag, .. }) = &r else {
+                        panic!("{label}: the contact vertex's containment escalates: {r:?}");
+                    };
+                    assert_eq!(
+                        diag.predicate,
+                        Some("bool_contact_vertex"),
+                        "{label}: the contact vertex's containment: {r:?}"
+                    );
+                }
+                Expect::RulingDoor | Expect::RulingDoorTubeFirst => {
                     let Err(BooleanError::CurvedPierceUnsupported { operand, edge, .. }) = r else {
                         panic!("{label}: the covered line rung's door: {r:?}");
                     };
