@@ -28,9 +28,8 @@
 //! `f64`) is a different function of the variables than the one it came
 //! from, so a proof whose expression crosses such a site can be false.
 //! The sites are listed with the rows that owe their fix
-//! (`scripts/gates/from-f64-sites.tsv`: `topo-keeps-computed-values-in-t`,
-//! `sweep-keeps-computed-values-in-t` and
-//! `nurbs-weights-and-knots-are-the-scalar` hold the open ones), and the
+//! (`scripts/gates/from-f64-sites.tsv`'s `launders(…)` and
+//! `stored-carrier-data(…)` classes name the open ones), and the
 //! re-valuation row (`editor-core/tests/revalue_corpus.rs`) is what
 //! catches one.
 //!
