@@ -380,12 +380,16 @@ mod a_whole_villarceau_circle_bounds_a_torus_face;
 mod certified_enclosure_impl_census;
 #[path = "cleave_mint_doors.rs"]
 mod cleave_mint_doors;
+#[path = "divided_cell_carry.rs"]
+mod divided_cell_carry;
 #[path = "holes_meeting_at_a_vertex.rs"]
 mod holes_meeting_at_a_vertex;
 #[path = "pierce_strut_at_a_pinch.rs"]
 mod pierce_strut_at_a_pinch;
 #[path = "review_4694_carry_probes.rs"]
 mod review_4694_carry_probes;
+#[path = "review_4730_divided_carry_probes.rs"]
+mod review_4730_divided_carry_probes;
 #[path = "review_cleave_mint_doors.rs"]
 mod review_cleave_mint_doors;
 #[path = "spline_reanchor_rows.rs"]

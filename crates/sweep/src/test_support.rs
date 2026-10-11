@@ -1018,6 +1018,23 @@ pub fn stacked_at(zs: &[f64]) -> Vec<Affine3<f64>> {
         .collect()
 }
 
+/// **Fixture sections at a lane scalar**: each loop of `sections`
+/// carried into `T` value by value as the constants a fixture's
+/// literals are ([`Real::from_f64`]), for a row that lofts at a scalar
+/// other than `f64` ([`crate::loft_body`] takes its sections in the
+/// scalar it builds at).
+pub fn lift_sections<T: Real>(sections: &[Section]) -> Vec<Section<ProfileLoop<T>>> {
+    sections
+        .iter()
+        .map(|s| s.iter().map(|lp| lp.map_scalar(T::from_f64)).collect())
+        .collect()
+}
+
+/// [`lift_sections`]' placements: each a fixture's constant.
+pub fn lift_places<T: Real>(places: &[Affine3<f64>]) -> Vec<Affine3<T>> {
+    places.iter().map(|p| p.map(T::from_f64)).collect()
+}
+
 /// [`loft_prism`] with its sections placed at `zs` instead of
 /// [`PRISM_Z`]. The spacing is the only thing the fold varies, so it
 /// is the only thing this door takes.
