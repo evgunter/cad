@@ -2271,11 +2271,10 @@ pub fn plane_cone_section<T: Decide>(
         let steep = sin_a * s + cos_a * c.abs();
         // Each read's rounding off the stored `f64`s (step 2): `u` for
         // the offset's difference and `γ₃` for each sum.
-        let rounding = |x: Vec3<T>, y: Vec3<T>, ulps: f64| {
-            T::from_f64(ulps * f64::EPSILON)
-                * (x.x.abs() * y.x.abs() + x.y.abs() * y.y.abs() + x.z.abs() * y.z.abs())
+        let rounding = |x: Vec3<T>, y: Vec3<T>, per_unit: T| {
+            per_unit * (x.x.abs() * y.x.abs() + x.y.abs() * y.y.abs() + x.z.abs() * y.z.abs())
         };
-        let gap_err = rounding(apex - q, n, 2.5);
+        let gap_err = rounding(apex - q, n, T::from_f64(2.5 * f64::EPSILON));
         let size = apex_gap.abs() + gap_err;
         let (name, bound) = match verdict {
             Sign::Positive => (
@@ -2285,7 +2284,7 @@ pub fn plane_cone_section<T: Decide>(
                     (apex, a, cos_a, sin_a),
                     (discr, steep, s),
                     (apex_gap, gap_err),
-                    (c, rounding(a, n, 2.0)),
+                    (c, rounding(a, n, T::from_f64(2.0 * f64::EPSILON))),
                 ),
             ),
             Sign::Zero => (
