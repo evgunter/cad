@@ -20,8 +20,11 @@
 //! Two classes no row here owns are pinned as known, by row: a box
 //! less a tube, which leaves a rod in the bore, fails tier 3′
 //! (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`),
-//! and a result under a tilted plane is no legal operand
-//! (`work/restread/at-infinity-probe-measures-in-closed-form-only.md`);
+//! and a piece of the wall under a tilted plane is no legal operand: a
+//! ray from the far brick that meets nothing has its side read by a ray
+//! aimed at a planar face, and every such ray crosses the one-face
+//! wall's carrier, where the wall's period guard escalates
+//! (`work/inside/revolved-tube-wall-refuses-bool-wall-trim-period.md`);
 //! a two-arc wall fails both the same way.
 //!
 //! The one-site loops the join does not build keep
@@ -217,12 +220,13 @@ fn a_tilted_plane_across_a_one_segment_cylinder() {
         seam_cylinder(0.0),
         cutter,
         (TAU, 512.0, PI),
-        &ALL_OPS.map(|op| (op, Known::Operand)),
+        &WALL_PIECES.map(|op| (op, Known::Operand)),
     );
 }
 
-/// The six runs' names, as `every_op_both_orders` gives them.
-const ALL_OPS: [&str; 6] = ["A ∪ B", "B ∪ A", "A ∩ B", "B ∩ A", "A ∖ B", "B ∖ A"];
+/// The runs whose result is a piece of the wall cut by the plane: the
+/// wall below it, in both orders, and the wall above it.
+const WALL_PIECES: [&str; 3] = ["A ∩ B", "B ∩ A", "A ∖ B"];
 
 /// **A plane close by the wrap edge's end**: `z = c + m(1 − x)`, turned
 /// about `y`, meets the seam at `z = c`, just above the bottom cap's
@@ -239,7 +243,7 @@ fn a_plane_close_by_the_wrap_edges_end() {
             seam_cylinder(0.0),
             below(Point3::new(1.0, 0.0, c), turn),
             (TAU, 512.0, PI * (c + m)),
-            &ALL_OPS.map(|op| (op, Known::Operand)),
+            &WALL_PIECES.map(|op| (op, Known::Operand)),
         );
     }
 }
