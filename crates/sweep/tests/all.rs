@@ -55,6 +55,10 @@ mod common;
 mod mate2_common;
 mod revolve_common;
 
+#[path = "a_flank_touch_at_a_shared_corner.rs"]
+mod a_flank_touch_at_a_shared_corner;
+#[path = "a_flipped_shallow_dimple.rs"]
+mod a_flipped_shallow_dimple;
 #[path = "a_move_through_a_neighbour_inverts_the_body.rs"]
 mod a_move_through_a_neighbour_inverts_the_body;
 #[path = "a_plane_across_a_one_face_wall.rs"]
@@ -75,6 +79,8 @@ mod a_swaying_loft_corner_meters;
 mod a_swept_cusp_is_legal_at_rest;
 #[path = "a_tangent_arc_at_other_boolean_vertices.rs"]
 mod a_tangent_arc_at_other_boolean_vertices;
+#[path = "a_thin_cap_keeps_its_digits.rs"]
+mod a_thin_cap_keeps_its_digits;
 #[path = "a_tube_ending_on_a_ball.rs"]
 mod a_tube_ending_on_a_ball;
 #[path = "an_annular_tube_through_a_plate.rs"]
@@ -366,6 +372,8 @@ mod ladder_split_key;
 mod lamina_annulus;
 #[path = "lib_u3_sections.rs"]
 mod lib_u3_sections;
+#[path = "loft_lifts_its_placements_as_computed.rs"]
+mod loft_lifts_its_placements_as_computed;
 #[path = "loft_v_is_the_section_set.rs"]
 mod loft_v_is_the_section_set;
 #[path = "m3_pr5_extrude_booleans.rs"]
@@ -736,6 +744,8 @@ mod germ_coplanar_conic;
 mod germ_interior_oval;
 #[path = "germ_interior_saddle.rs"]
 mod germ_interior_saddle;
+#[path = "germ_plane_torus_frame.rs"]
+mod germ_plane_torus_frame;
 #[path = "germ_radial_hole.rs"]
 mod germ_radial_hole;
 #[path = "germ_sphere_no_crossings.rs"]

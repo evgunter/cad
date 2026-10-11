@@ -252,7 +252,7 @@ fn the_envelope_dominates_a_certified_lower_bound_at_interval() {
                     })
                     .collect();
                 image.carrier = FramedCarrier::Net(Arc::new(
-                    NurbsCurve3::new(sn.knots().clone(), ctl, sn.weights().to_vec()).unwrap(),
+                    NurbsCurve3::new(sn.knot_values().clone(), ctl, sn.weights().to_vec()).unwrap(),
                 ));
             }
             if s.below(4) == 0 {

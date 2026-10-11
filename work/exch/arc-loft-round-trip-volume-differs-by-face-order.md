@@ -26,3 +26,7 @@ On main (reproduced at `084e223a6e`), `crates/step-import/tests/nurbs_import.rs:
 
 - **(b) quick unblock, here.** Keep the bit identity where it holds: the import's gate enclosure against `topo::mass_properties(&imported)`, same face order, which is bit-identical. Compare native against imported within the order-dependent rounding, a few ulp, and say why in the comment.
 - **(a) the kernel question, FLUX's.** Make the whole-body fold independent of face order, for example with an exact two-sum expansion of the per-face terms, rounded once. Every volume golden moves. D9 idiom 2's wording ("accumulates in the runs' order") is involved, so check whether it is ratified before changing it.
+
+## Repair (b) taken (ENCL, to unblock main)
+
+The test now asserts the volumes agree within `faces − 1` ulps, keeps the pad bit-identical, and says why in its comment. Repair (a), an order-independent fold, remains FLUX's question; this row stays open for it.

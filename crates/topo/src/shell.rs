@@ -4296,7 +4296,7 @@ impl<T: Decide> ArcPiece<T> {
 /// A coefficient over an empty knot span is skipped: its basis
 /// function's derivative is zero.
 fn spline_speed<T: Real>(spline: &geom::NurbsCurve3<T>) -> T {
-    let (control, weights) = (spline.control(), spline.weights());
+    let (control, weights) = (spline.control(), spline.weight_channel());
     let (knots, p) = (spline.knots().knots(), spline.degree());
     let c = control[0];
     let reach = control

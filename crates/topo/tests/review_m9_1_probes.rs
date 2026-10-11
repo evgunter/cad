@@ -170,7 +170,9 @@ fn probe_mm_vs_metre_twin_and_margin_naming() {
 
 /// CLAIM 2 — a DEFINITE separation must beat the declaration: two
 /// parallel planes a definite gap apart, declared tangent along a
-/// line lying on the first.
+/// line lying on the first. The pair's separation is read before the
+/// witness, so the refusal is the gap (positive: apart), not the
+/// witness's miss on the second plane.
 #[test]
 fn probe_tangent_definite_separation_contradicts() {
     let up = plane_s([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
@@ -179,7 +181,12 @@ fn probe_tangent_definite_separation_contradicts() {
         .unwrap_err();
     match err {
         topo::ContactRefusal::Contradicted { diag, steer } => {
-            assert_eq!(diag.predicate, Some("contact_tangent_off_2"));
+            assert_eq!(diag.predicate, Some("contact_tangent_gap"));
+            let gap = diag.margin.diagnostic_f64_for_error_text().value();
+            assert!(
+                gap.is_some_and(|g| g > 0.0),
+                "apart, not crossing: {diag:?}"
+            );
             assert_eq!(steer, Some(topo::FIT_DEFERRAL));
         }
         other => panic!("expected Contradicted, got {other:?}"),
@@ -244,8 +251,8 @@ fn probe_tangent_bridges_inband_residual_beyond_the_stated_residue() {
 }
 
 /// CLAIM 4 — the at-rest gate refuses a false edge–face record: a top
-/// edge of a brick recorded as touching its bottom face, a metre away,
-/// is never blessed.
+/// edge of a brick recorded as touching its bottom face, a metre off
+/// its plane, is stale.
 #[test]
 fn probe_at_rest_gate_refuses_a_false_edge_face_record() {
     let body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
@@ -278,12 +285,13 @@ fn probe_at_rest_gate_refuses_a_false_edge_face_record() {
     let errs = validate_pseudomanifold(&body, &contacts, Tol::witness())
         .expect_err("false record must fail");
     assert!(
-        errs.iter().any(|e| matches!(
-            e,
-            ValidationError::StaleContactDeclaration { .. }
-                | ValidationError::CensusUnsupported { .. }
-        )),
-        "the at-rest gate refuses the record: {errs:?}"
+        errs.contains(&ValidationError::StaleContactDeclaration {
+            declaration: topo::StaleDeclaration::EdgeFace {
+                edge: witness,
+                face: bottom,
+            },
+        }),
+        "the at-rest gate reads the record stale: {errs:?}"
     );
 }
 

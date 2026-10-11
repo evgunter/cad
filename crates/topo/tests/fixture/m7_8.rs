@@ -15,11 +15,12 @@
 //! validation, which is why the rows here count check 2 alone
 //! ([`edge_findings`]) and claim nothing wider.
 
+use geom_core::spline::{Knots, SpanLocate};
 use geom_core::{Point3, Real, Tol};
 use topo::Body;
 
 /// The described NURBS net on `y = 0`, u along +x, v along +z, at `T`.
-pub fn nurbs_wall<T: Real>() -> geom::Surface<T> {
+pub fn nurbs_wall<T: SpanLocate>() -> geom::Surface<T> {
     let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
     let ticks = [-1.0, 0.5, 2.0];
     let (mut control, mut weights) = (Vec::new(), Vec::new());
@@ -29,7 +30,13 @@ pub fn nurbs_wall<T: Real>() -> geom::Surface<T> {
             weights.push(1.0);
         }
     }
-    let n = geom::NurbsSurface::new(k.clone(), k, control, weights).unwrap();
+    let n = geom::NurbsSurface::new(
+        Knots::from(k.clone()).lift(geom_core::Real::from_f64),
+        Knots::from(k).lift(geom_core::Real::from_f64),
+        control,
+        weights,
+    )
+    .unwrap();
     assert!(!n.is_placeholder(), "the wall is DESCRIBED");
     geom::Surface::Nurbs(std::sync::Arc::new(n)).map_scalar(T::from_f64)
 }
@@ -76,7 +83,12 @@ where
         }
         let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(
-            geom::NurbsCurve3::new(kv, vec![p0, p1], vec![1.0, 1.0]).unwrap(),
+            geom::NurbsCurve3::new(
+                Knots::from(kv).lift(geom_core::Real::from_f64),
+                vec![p0, p1],
+                vec![Real::one(); 2],
+            )
+            .unwrap(),
         ));
         body.set_edge_curve(
             edge_key,
@@ -114,7 +126,7 @@ where
 /// How many M7-8 carriers (a `Nurbs` carrier under an `Intersection`)
 /// `body` holds, so a row that says the class survived cannot pass on a
 /// body that lost it.
-pub fn m7_8_edges<T: Real>(body: &Body<T>) -> usize {
+pub fn m7_8_edges<T: SpanLocate>(body: &Body<T>) -> usize {
     body.curves()
         .filter(|(_, c)| match c {
             topo::CurveGeom::Certified(c) => {
@@ -130,7 +142,7 @@ pub fn m7_8_edges<T: Real>(body: &Body<T>) -> usize {
 }
 
 /// Strict-inside carried evidence for every shell of `cavity`.
-pub fn carried<T: Real>(cavity: &Body<T>) -> topo::VoidEvidence {
+pub fn carried<T: SpanLocate>(cavity: &Body<T>) -> topo::VoidEvidence {
     topo::VoidEvidence {
         shells: cavity
             .shells()
