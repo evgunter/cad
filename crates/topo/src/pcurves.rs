@@ -4220,7 +4220,7 @@ impl AzimuthRule {
 /// at rest — loud, never silent. Where the room is short (a pole at a
 /// small `K`, a narrow cone's apex), a composition may name another lift
 /// of the same point than a fresh decision does; that too is loud at
-/// rest (`work/topo/a-kill-bridging-joints-that-straddle-the-pole-lever-band-writes-a-reset-the-pass-decides-a-shift`).
+/// rest (`work/topotail/a-kill-bridging-joints-that-straddle-the-pole-lever-band-writes-a-reset-the-pass-decides-a-shift`).
 ///
 /// **So a reset is written in exactly two cases**: a vertex decided on
 /// the singular set (any chart), and a spline chart whose net-level gate

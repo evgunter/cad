@@ -28,7 +28,7 @@ postcondition panics first:
 - `crates/topo/src/euler.rs`
   `a_fan_split_past_a_paired_tear_leaves_no_minted_key_in_an_orbit_error`
   (`mev_null`; also noted on
-  `work/topo/vertex-orbit-answers-part-of-a-torn-orbit.md`);
+  `work/topotail/vertex-orbit-answers-part-of-a-torn-orbit.md`);
 - `crates/topo/src/row_walk_proofs.rs:408`
   `a_diversion_paired_with_a_parent_loop_tear_passes_the_proof`,
   `:760` `row_walks_on_a_few_torn_bodies`, `:776`
