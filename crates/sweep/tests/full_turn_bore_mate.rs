@@ -1,12 +1,13 @@
-//! **A shaft set into a full-turn bore, its cylindrical `Rest`
-//! declared, unions.**
+//! **A shaft set into a full-turn bore, resting on its cylindrical
+//! wall, unions.**
 //!
 //! The collar is the rectangle `ρ ∈ [0.5, 1.5]`, `y ∈ [1, 2]` revolved
 //! a full turn about `y`: its bore is ONE face with a self-mated seam
 //! ruling at azimuth 0, bounded by two rim circles that each carry one
 //! vertex. The shaft is the three-arc peg of radius 0.5 (three wall
 //! thirds, three seam rulings) turned so its axis is `y`, its first
-//! ruling at azimuth `a`. Every bore × peg-wall pair is declared `Rest`.
+//! ruling at azimuth `a`. Every bore × peg-wall pair is one carrier
+//! with opposed senses, a `Rest`.
 //!
 //! What the mate makes the kernel do, by the shaft's azimuth and span:
 //!
@@ -33,7 +34,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::mate2_common::{full_turn_collar, onto_y, peg_at, wall_decls};
+use crate::mate2_common::{full_turn_collar, onto_y, peg_at, walls_at};
 use core::f64::consts::PI;
 use geom_core::{Affine3, Point3, Tol};
 use sweep::test_support::finished;
@@ -97,15 +98,13 @@ fn agrees(got: f64, want: f64) -> bool {
     (got - want).abs() <= 1e-12 * collar_volume()
 }
 
-/// `c ∪ p` and `p ∪ c`, each with its declarations in its own operand
-/// order: a body, its volume the closed form, one shell, tier 3 and the
+/// `c ∪ p` and `p ∪ c`: a body, its volume the closed form, one shell, tier 3 and the
 /// pseudomanifold census clean.
 fn unions_both_ways(c: &AtRestBody<f64>, p: &AtRestBody<f64>, h: f64, tag: &str) {
     let tol = Tol::witness();
     for (order, a, b) in [("collar ∪ shaft", c, p), ("shaft ∪ collar", p, c)] {
         let tag = format!("{tag}, {order}");
-        let decls = wall_decls(a, b);
-        let bb = match topo::union_with(a, b, &decls, tol) {
+        let bb = match topo::union(a, b, tol) {
             Ok(BooleanResult::Body(bb)) => bb,
             other => panic!("{tag}: the mate does not union: {:?}", other.err()),
         };
@@ -181,9 +180,7 @@ fn a_blind_shaft_unions_on_and_off_the_bores_seam() {
 fn a_shaft_off_the_bores_seam_is_built_by_the_join() {
     let (c, (_, y0, h)) = (collar(), SPANS[0]);
     let p = shaft(60.0, y0, h);
-    let decls = wall_decls(&c, &p);
-    let join =
-        topo::test_support::boolean_join_refusal(BooleanOp::Union, &c, &p, &decls, Tol::witness());
+    let join = topo::test_support::boolean_join_refusal(BooleanOp::Union, &c, &p, Tol::witness());
     assert!(
         join.as_ref().is_ok_and(Option::is_none),
         "the join connects the mate, got {join:?}"
@@ -196,13 +193,12 @@ fn a_shaft_off_the_bores_seam_is_built_by_the_join() {
     unions_both_ways(&c, &p, h, "the join's row");
 }
 
-/// **The join's union carries the declaration door's rows** (D10): the
-/// mate off the seam records each declared bore × peg-wall `Rest` once,
-/// in declaration order, as `SameOpposite` at the carrier ladder, its
-/// cells the two declared faces of their operands. In both operand
-/// orders.
+/// **The join's union carries the carrier ladder's rows**: the mate off
+/// the seam records each bore × peg-wall `Rest` once, as `SameOpposite`
+/// at the carrier ladder, its cells the two faces of their operands. In
+/// both operand orders.
 #[test]
-fn the_joins_union_records_each_declared_rest_at_the_carrier_ladder() {
+fn the_joins_union_records_each_rest_at_the_carrier_ladder() {
     let (c, (_, y0, h)) = (collar(), SPANS[0]);
     let p = shaft(60.0, y0, h);
     let tol = Tol::witness();
@@ -211,24 +207,23 @@ fn the_joins_union_records_each_declared_rest_at_the_carrier_ladder() {
         sweep::test_support::finished("the shaft", p, tol),
     );
     for (order, a, b) in [("collar ∪ shaft", &c, &p), ("shaft ∪ collar", &p, &c)] {
-        let decls = wall_decls(a, b);
-        let rests: Vec<_> = decls
-            .coincident_faces
-            .iter()
-            .filter(|d| d.class == topo::BooleanCoincidence::Contact(topo::ContactClass::Rest))
-            .map(|d| {
+        let mut rests: Vec<_> = walls_at(a, BORE)
+            .into_iter()
+            .flat_map(|fa| walls_at(b, BORE).into_iter().map(move |fb| (fa, fb)))
+            .map(|(fa, fb)| {
                 [
-                    topo::RowCell::face(topo::Operand::A, d.a),
-                    topo::RowCell::face(topo::Operand::B, d.b),
+                    topo::RowCell::face(topo::Operand::A, fa),
+                    topo::RowCell::face(topo::Operand::B, fb),
                 ]
             })
             .collect();
+        rests.sort();
         assert_eq!(
             rests.len(),
             3,
             "{order}: the bore against three wall thirds"
         );
-        let bb = match topo::union_with(a, b, &decls, tol) {
+        let bb = match topo::union(a, b, tol) {
             Ok(BooleanResult::Body(bb)) => bb,
             other => panic!("{order}: the mate does not union: {:?}", other.err()),
         };
@@ -237,11 +232,9 @@ fn the_joins_union_records_each_declared_rest_at_the_carrier_ladder() {
             .iter()
             .filter(|r| r.site == topo::DecisionSite::CarrierLadder)
             .collect();
-        assert_eq!(
-            curved.iter().map(|r| r.cells).collect::<Vec<_>>(),
-            rests,
-            "{order}: one row per declared Rest, in declaration order"
-        );
+        let mut cells: Vec<_> = curved.iter().map(|r| r.cells).collect();
+        cells.sort();
+        assert_eq!(cells, rests, "{order}: one row per Rest");
         assert!(
             curved
                 .iter()
@@ -373,26 +366,27 @@ fn intersect_and_differences_answer_the_closed_form() {
                 for (span, y0, h) in SPANS {
                     let p = placed(&shaft(deg, y0, h), &pose);
                     let tag = format!("{bore}, azimuth {deg}, {span}, pose {pose_name}");
-                    let ab = wall_decls(&c, &p);
-                    let ba = wall_decls(&p, &c);
-                    let run = |op, a, b, decls| {
-                        topo::boolean_op_with(op, a, b, decls, topo::SweepStrategy::Realized, tol)
+                    let run = |op, a, b| {
+                        topo::boolean_op_with(
+                            op,
+                            a,
+                            b,
+                            &topo::BooleanInputs::default(),
+                            topo::SweepStrategy::Realized,
+                            tol,
+                        )
                     };
-                    for (order, a, b, decls) in [("c ∩ p", &c, &p, &ab), ("p ∩ c", &p, &c, &ba)]
-                    {
+                    for (order, a, b) in [("c ∩ p", &c, &p), ("p ∩ c", &p, &c)] {
                         assert!(
-                            matches!(
-                                run(BooleanOp::Intersect, a, b, decls),
-                                Ok(BooleanResult::Empty)
-                            ),
+                            matches!(run(BooleanOp::Intersect, a, b), Ok(BooleanResult::Empty)),
                             "{tag}: {order} is empty"
                         );
                     }
-                    for (order, a, b, decls, want) in [
-                        ("c ∖ p", &c, &p, &ab, collar_volume()),
-                        ("p ∖ c", &p, &c, &ba, shaft_volume(h)),
+                    for (order, a, b, want) in [
+                        ("c ∖ p", &c, &p, collar_volume()),
+                        ("p ∖ c", &p, &c, shaft_volume(h)),
                     ] {
-                        let bb = match run(BooleanOp::Subtract, a, b, decls) {
+                        let bb = match run(BooleanOp::Subtract, a, b) {
                             Ok(BooleanResult::Body(bb)) => bb,
                             other => panic!("{tag}: {order}: {other:?}"),
                         };

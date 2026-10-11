@@ -452,7 +452,7 @@ pub enum MergeCoplanarError {
     /// A declared surface pair references a key that does not
     /// resolve, or names two surfaces of DIFFERENT kinds — a malformed
     /// argument, refused up front.
-    InvalidDeclaration {
+    InvalidInput {
         /// The offending surface key.
         surface: SurfaceKey,
         /// What was wrong.
@@ -992,7 +992,7 @@ impl core::fmt::Display for MergeCoplanarError {
                  cut-carrying canonical form and are recorded as a loud skip"
             ),
             Self::Op { error } => write!(f, "merge_coplanar_faces: {error}"),
-            Self::InvalidDeclaration { surface, what } => write!(
+            Self::InvalidInput { surface, what } => write!(
                 f,
                 "merge_coplanar_faces: invalid declared pair at surface {surface:?}: {what}"
             ),
@@ -1757,18 +1757,18 @@ impl<T: Decide> Body<T> {
         // A key that does not resolve, or a pair of two kinds, is a
         // malformed argument and refuses.
         let kind_of = |k: SurfaceKey| -> Result<SurfaceKind, MergeCoplanarError> {
-            self.get_surface(k).map(geom::Surface::kind).ok_or(
-                MergeCoplanarError::InvalidDeclaration {
+            self.get_surface(k)
+                .map(geom::Surface::kind)
+                .ok_or(MergeCoplanarError::InvalidInput {
                     surface: k,
                     what: "declared surface key does not resolve",
-                },
-            )
+                })
         };
         let mut eq = DeclaredSurfaceEq::default();
         for &(k1, k2) in declared {
             if kind_of(k1)? != kind_of(k2)? {
                 // Named: the second key, whose kind disagrees with the first's.
-                return Err(MergeCoplanarError::InvalidDeclaration {
+                return Err(MergeCoplanarError::InvalidInput {
                     surface: k2,
                     what: "declared surfaces are not one kind",
                 });

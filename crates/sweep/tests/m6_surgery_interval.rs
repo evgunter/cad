@@ -24,7 +24,7 @@ mod certified {
     use sweep::test_support::{cube, finished, sketch_from_axes};
     use sweep::{Revolution, RevolveAxis, revolve};
     use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-    use topo::{Body, BooleanDeclarations, mass_properties};
+    use topo::{Body, mass_properties};
 
     const DIE_L: f64 = 1.0;
     const DIE_R: f64 = 0.12;
@@ -132,7 +132,7 @@ mod certified {
             BooleanOp::Subtract,
             &finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness()),
             &finished("the pip ball", pip_ball(), Tol::witness()),
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         )

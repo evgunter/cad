@@ -341,7 +341,6 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         DocEdit::InsertNode {
             node: Box::new(Node::Union {
                 members: editor_core::Bodies::Spelled(vec![e0.into(), e1.into()]),
-                declare: Vec::new(),
             }),
             fresh: Vec::new(),
         },

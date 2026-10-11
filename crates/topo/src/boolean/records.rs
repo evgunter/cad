@@ -13,13 +13,9 @@
 
 use geom_core::Real;
 
-use super::{
-    CarriedContacts, CarriedRecord, CarriedVf, CarriedVv, Cell, EeContact, VeContact, VfContact,
-    VvContact,
-};
+use super::{CarriedRecord, Cell, EeContact, OperandRecords, VeContact, VfContact, VvContact};
 use crate::body::Body;
 use crate::coincidence::{Backing, Cited, Cites};
-use crate::contact::ContactClass;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, VertexKey};
 use crate::live::{linked, proven};
 
@@ -400,8 +396,9 @@ impl ContactRecords {
     /// op names no replacement. A conventional vertex has no identity of
     /// its own, so an image landing on one is its closed edge. Two records
     /// mapped onto one pair are one record citing both, and a record
-    /// whose two cells map to one cell is consumed and drops, as the
-    /// boolean's does (D1's strict record-drop rule).
+    /// whose two vertices map to one vertex is consumed and drops, as the
+    /// boolean's does (D1's strict record-drop rule); any other pair
+    /// mapped to one cell is refused.
     ///
     /// Whether a carried touch still holds is not read here: the
     /// census confirms each record against the result's geometry.
@@ -410,7 +407,8 @@ impl ContactRecords {
     ///
     /// [`CarryRefusal::Unmapped`] for the first cell whose image is
     /// `None` or not live in `result`, and [`CarryRefusal::Pair`] for the
-    /// first record whose images are incident there.
+    /// first record whose images are incident there, or one cell that is
+    /// not two vertices fused.
     pub fn carried_through<T: Real>(
         &self,
         input: u32,
@@ -434,7 +432,8 @@ impl ContactRecords {
         image: &impl Fn(Cell) -> Option<Cell>,
     ) -> Result<Option<Cited<Contact>>, CarryRefusal> {
         let record = super::reduce::index(k);
-        let [x, y] = self.rows[k].cells().map(|c| {
+        let cells = self.rows[k].cells();
+        let [x, y] = cells.map(|c| {
             image(c)
                 .filter(|&i| holds(result, i))
                 .map(|i| conventional_edge(result, i))
@@ -445,28 +444,49 @@ impl ContactRecords {
                 pair,
                 Cites::one(Backing::Carried { input, record }),
             ))),
-            Err(ContactPairError::OneCell(_)) => Ok(None),
+            Err(ContactPairError::OneCell(Cell::Vertex(_)))
+                if matches!(cells, [Cell::Vertex(_), Cell::Vertex(_)]) =>
+            {
+                Ok(None)
+            }
             Err(error) => Err(CarryRefusal::Pair { record, error }),
         }
     }
 
+    /// These records with every citation mapped through `f`, each to
+    /// the citations it stands for.
+    ///
+    /// # Errors
+    ///
+    /// The index in [`Self::rows`] of the first record whose citations
+    /// all mapped to none.
+    pub fn recited(mut self, mut f: impl FnMut(Backing) -> Vec<Backing>) -> Result<Self, usize> {
+        for (k, c) in self.rows.iter_mut().enumerate() {
+            c.cites = c
+                .cites
+                .try_map(|b| Ok::<_, core::convert::Infallible>(f(b)))
+                .unwrap_or_else(|never| match never {})
+                .ok_or(k)?;
+        }
+        Ok(self)
+    }
+
     /// These records carried back into an op as one operand's own, each
-    /// with its index here, the vertex records asserting `class`. An
-    /// edge–face or face–face record has no carried kind and stays here.
+    /// with its index here. An edge–face or face–face record has no
+    /// carried kind and stays here
+    /// (`work/wire/a-boolean-drops-its-operands-curve-and-patch-records.md`).
     #[must_use]
-    pub fn carried(&self, class: ContactClass) -> CarriedContacts {
-        let mut out = CarriedContacts::default();
+    pub fn carried(&self) -> OperandRecords {
+        let mut out = OperandRecords::default();
         for (k, c) in self.rows.iter().enumerate() {
             let record = super::reduce::index(k);
             match c.kind() {
-                ContactKind::VertexVertex(a, b) => out.vv.push(CarriedVv {
-                    pair: VvContact { a, b },
-                    class,
+                ContactKind::VertexVertex(a, b) => out.vv.push(CarriedRecord {
+                    contact: VvContact { a, b },
                     record,
                 }),
-                ContactKind::VertexFace(vertex, face) => out.vf.push(CarriedVf {
-                    rest: VfContact { vertex, face },
-                    class,
+                ContactKind::VertexFace(vertex, face) => out.vf.push(CarriedRecord {
+                    contact: VfContact { vertex, face },
                     record,
                 }),
                 ContactKind::VertexEdge(vertex, edge) => out.ve.push(CarriedRecord {

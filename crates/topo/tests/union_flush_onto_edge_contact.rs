@@ -7,12 +7,50 @@
 
 use crate::common;
 
-use common::{brick, finished, flush_declarations};
+use common::{brick, finished};
 use geom_core::Tol;
 use topo::{
-    AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, CarriedVv, ContactClass,
-    intersect_with, mass_properties, subtract_with, union_with, validate_pseudomanifold,
+    AtRestBody, Body, BooleanBody, BooleanError, BooleanInputs, BooleanOp, BooleanResult,
+    CarriedRecord, VvContact, mass_properties, subtract, union, validate_pseudomanifold,
 };
+
+/// `op` on `a` and `b`, carrying `inputs`' records.
+fn op_in(
+    op: BooleanOp,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
+    inputs: &BooleanInputs,
+    tol: Tol,
+) -> Result<BooleanResult<f64>, BooleanError> {
+    topo::boolean_op_with(op, a, b, inputs, topo::SweepStrategy::Realized, tol)
+}
+
+fn union_in(
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
+    inputs: &BooleanInputs,
+    tol: Tol,
+) -> Result<BooleanResult<f64>, BooleanError> {
+    op_in(BooleanOp::Union, a, b, inputs, tol)
+}
+
+fn subtract_in(
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
+    inputs: &BooleanInputs,
+    tol: Tol,
+) -> Result<BooleanResult<f64>, BooleanError> {
+    op_in(BooleanOp::Subtract, a, b, inputs, tol)
+}
+
+fn intersect_in(
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
+    inputs: &BooleanInputs,
+    tol: Tol,
+) -> Result<BooleanResult<f64>, BooleanError> {
+    op_in(BooleanOp::Intersect, a, b, inputs, tol)
+}
 
 /// `c`'s x-range: over `b` alone, inside `a ∩ b`, and across `a`'s
 /// far end.
@@ -35,8 +73,7 @@ fn members(c_span: (f64, f64), tol: Tol) -> [AtRestBody<f64>; 3] {
     ]
 }
 
-/// Folds `order`, each step declaring its flush pairs and, when
-/// `carry`, carrying the accumulator's own records in ([`carried_rows`]).
+/// Folds `order`, each step, when `carry`, carrying the accumulator's own records in ([`carried_rows`]).
 /// Every step's result, or the refusal and the step it came at.
 fn fold(
     bodies: &[AtRestBody<f64>; 3],
@@ -47,11 +84,11 @@ fn fold(
     let mut steps: Vec<BooleanBody<f64>> = Vec::new();
     for (step, &next) in order[1..].iter().enumerate() {
         let acc = steps.last().map_or(&bodies[order[0]], |s| &s.body);
-        let mut decls = flush_declarations(acc, &bodies[next], tol);
+        let mut decls = BooleanInputs::default();
         if carry && let Some(prev) = steps.last() {
-            decls.carried_a = carried_rows(&prev.contacts);
+            decls.records_a = carried_rows(&prev.contacts);
         }
-        match union_with(acc, &bodies[next], &decls, tol).map_err(|e| (step + 1, Box::new(e)))? {
+        match union_in(acc, &bodies[next], &decls, tol).map_err(|e| (step + 1, Box::new(e)))? {
             BooleanResult::Body(out) => steps.push(out),
             BooleanResult::Empty => panic!("a union of two bricks came back empty"),
         }
@@ -116,12 +153,12 @@ fn carried_records_certify_every_order_of_the_fold() {
     }
 }
 
-/// Every row of `records` carried in as `Rest`: the v-v rows, and the
+/// Every row of `records` carried in: the v-v rows, and the
 /// `(vertex, edge)` and edge-edge rows a join leaves.
-fn carried_rows(records: &topo::ContactRecords) -> topo::CarriedContacts {
-    topo::CarriedContacts {
+fn carried_rows(records: &topo::ContactRecords) -> topo::OperandRecords {
+    topo::OperandRecords {
         vf: Vec::new(),
-        ..records.carried(ContactClass::Rest)
+        ..records.carried()
     }
 }
 
@@ -147,11 +184,11 @@ fn joined_folds_certify_and_build_one_body_in_every_order() {
             let mut acc: Option<BooleanBody<f64>> = None;
             for &next in &order[1..] {
                 let base = acc.as_ref().map_or(&bodies[order[0]], |s| &s.body);
-                let mut decls = flush_declarations(base, &bodies[next], tol);
+                let mut decls = BooleanInputs::default();
                 if let Some(prev) = &acc {
-                    decls.carried_a = carried_rows(&prev.contacts);
+                    decls.records_a = carried_rows(&prev.contacts);
                 }
-                let out = match union_with(base, &bodies[next], &decls, tol) {
+                let out = match union_in(base, &bodies[next], &decls, tol) {
                     Ok(BooleanResult::Body(out)) => out,
                     other => panic!("c over {span:?}, order {order:?}: {other:?}"),
                 };
@@ -200,7 +237,7 @@ fn joined_folds_certify_and_build_one_body_in_every_order() {
 /// Two bricks touching along the z-axis over z ∈ (0.5, 1.5), and
 /// their record carried as `Rest` rows: two vertices at each end of
 /// the touch.
-fn pinch(tol: Tol) -> (BooleanBody<f64>, Vec<CarriedVv>) {
+fn pinch(tol: Tol) -> (BooleanBody<f64>, Vec<CarriedRecord<VvContact>>) {
     quarter_pinch([(0.0, 0.0), (-1.0, -1.0)], (0.5, 1.5), tol)
 }
 
@@ -210,7 +247,7 @@ fn quarter_pinch(
     lows: [(f64, f64); 2],
     z: (f64, f64),
     tol: Tol,
-) -> (BooleanBody<f64>, Vec<CarriedVv>) {
+) -> (BooleanBody<f64>, Vec<CarriedRecord<VvContact>>) {
     let [p, q] = lows.map(|(x, y)| {
         finished(
             "a quarter brick",
@@ -218,9 +255,7 @@ fn quarter_pinch(
             tol,
         )
     });
-    let BooleanResult::Body(pinch) =
-        union_with(&p, &q, &flush_declarations(&p, &q, tol), tol).expect("an edge contact builds")
-    else {
+    let BooleanResult::Body(pinch) = union(&p, &q, tol).expect("an edge contact builds") else {
         panic!("a union of two bricks came back empty");
     };
     assert_eq!(
@@ -232,8 +267,8 @@ fn quarter_pinch(
     (pinch, carried)
 }
 
-fn rest_rows(records: &topo::ContactRecords) -> Vec<CarriedVv> {
-    records.carried(ContactClass::Rest).vv
+fn rest_rows(records: &topo::ContactRecords) -> Vec<CarriedRecord<VvContact>> {
+    records.carried().vv
 }
 
 /// The unit-radius wedge from `d0` to `d1` degrees (counterclockwise,
@@ -287,37 +322,37 @@ fn keys_at(body: &Body<f64>, p: (f64, f64, f64)) -> Vec<topo::VertexKey> {
 /// `cutter ∖ pinch`.
 fn every_op_builds(
     pinch: &AtRestBody<f64>,
-    carried: &[CarriedVv],
+    carried: &[CarriedRecord<VvContact>],
     cutter: &AtRestBody<f64>,
     [union, pinch_less, common, cutter_less]: [f64; 4],
     tol: Tol,
 ) {
-    let mut ab = flush_declarations(pinch, cutter, tol);
-    ab.carried_a.vv = carried.to_vec();
-    let mut ba = flush_declarations(cutter, pinch, tol);
-    ba.carried_b.vv = carried.to_vec();
+    let mut ab = BooleanInputs::default();
+    ab.records_a.vv = carried.to_vec();
+    let mut ba = BooleanInputs::default();
+    ba.records_b.vv = carried.to_vec();
     for (op, got, want) in topo::test_support::ops_under_test(|| {
         [
-            ("pinch ∪ cutter", union_with(pinch, cutter, &ab, tol), union),
+            ("pinch ∪ cutter", union_in(pinch, cutter, &ab, tol), union),
             (
                 "pinch ∖ cutter",
-                subtract_with(pinch, cutter, &ab, tol),
+                subtract_in(pinch, cutter, &ab, tol),
                 pinch_less,
             ),
             (
                 "pinch ∩ cutter",
-                intersect_with(pinch, cutter, &ab, tol),
+                intersect_in(pinch, cutter, &ab, tol),
                 common,
             ),
-            ("cutter ∪ pinch", union_with(cutter, pinch, &ba, tol), union),
+            ("cutter ∪ pinch", union_in(cutter, pinch, &ba, tol), union),
             (
                 "cutter ∖ pinch",
-                subtract_with(cutter, pinch, &ba, tol),
+                subtract_in(cutter, pinch, &ba, tol),
                 cutter_less,
             ),
             (
                 "cutter ∩ pinch",
-                intersect_with(cutter, pinch, &ba, tol),
+                intersect_in(cutter, pinch, &ba, tol),
                 common,
             ),
         ]
@@ -426,9 +461,11 @@ fn clip(subject: &[(f64, f64)], window: &[(f64, f64)]) -> Vec<(f64, f64)> {
 /// the cutter by that much per unit of height ([`sheared`]).
 fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), shear: (f64, f64), tol: Tol) {
     let fold = |acc: &BooleanBody<f64>, next: &AtRestBody<f64>| {
-        let mut decls = flush_declarations(&acc.body, next, tol);
-        decls.carried_a = carried_rows(&acc.contacts);
-        match union_with(&acc.body, next, &decls, tol).expect("a touching wedge folds in") {
+        let decls = BooleanInputs {
+            records_a: carried_rows(&acc.contacts),
+            ..BooleanInputs::default()
+        };
+        match union_in(&acc.body, next, &decls, tol).expect("a touching wedge folds in") {
             BooleanResult::Body(out) => out,
             BooleanResult::Empty => panic!("a union of wedges came back empty"),
         }
@@ -437,13 +474,9 @@ fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), shear: (f64
         .iter()
         .map(|&(d0, d1)| wedge(d0, d1, (0.5, 1.5), tol))
         .collect();
-    let BooleanResult::Body(two) = union_with(
-        &wedges[0],
-        &wedges[1],
-        &flush_declarations(&wedges[0], &wedges[1], tol),
-        tol,
-    )
-    .expect("two wedges touching along an edge build") else {
+    let BooleanResult::Body(two) =
+        union(&wedges[0], &wedges[1], tol).expect("two wedges touching along an edge build")
+    else {
         panic!("a union of wedges came back empty");
     };
     let pinch = wedges[2..].iter().fold(two, |acc, next| fold(&acc, next));
@@ -542,9 +575,9 @@ fn two_pinches_crossing_on_one_line_refuse_their_union_typed() {
         ("a, b", &pinch_a, &pinch_b, &carried_a, &carried_b),
         ("b, a", &pinch_b, &pinch_a, &carried_b, &carried_a),
     ] {
-        let mut decls = flush_declarations(&a.body, &b.body, tol);
-        decls.carried_a.vv.clone_from(ca);
-        decls.carried_b.vv.clone_from(cb);
+        let mut decls = BooleanInputs::default();
+        decls.records_a.vv.clone_from(ca);
+        decls.records_b.vv.clone_from(cb);
         // At (0,0,1) the lower pinch's two vertices are its split edges'
         // and the upper pinch's are its corners; every pair crosses.
         // The refusal names A's vertex there and the two B vertices it
@@ -553,7 +586,7 @@ fn two_pinches_crossing_on_one_line_refuse_their_union_typed() {
             keys_at(&a.body, (0.0, 0.0, 1.0)),
             keys_at(&b.body, (0.0, 0.0, 1.0)),
         );
-        match union_with(&a.body, &b.body, &decls, tol) {
+        match union_in(&a.body, &b.body, &decls, tol) {
             Err(BooleanError::NonManifoldResult {
                 a_vertex: vertex,
                 b_vertices: [p0, p1],
@@ -572,7 +605,7 @@ fn two_pinches_crossing_on_one_line_refuse_their_union_typed() {
                 other.map(|_| ())
             ),
         }
-        let less = subtract_with(&a.body, &b.body, &decls, tol);
+        let less = subtract_in(&a.body, &b.body, &decls, tol);
         let BooleanResult::Body(less) = less.unwrap_or_else(|e| panic!("{name} ∖ refused: {e:?}"))
         else {
             panic!("{name} ∖ came back empty");
@@ -586,7 +619,7 @@ fn two_pinches_crossing_on_one_line_refuse_their_union_typed() {
         );
         let verdict = validate_pseudomanifold(&less.body, &less.contacts, tol);
         assert!(verdict.is_ok(), "{name} ∖: 3′ refused {:?}", verdict.err());
-        let common = intersect_with(&a.body, &b.body, &decls, tol);
+        let common = intersect_in(&a.body, &b.body, &decls, tol);
         assert!(
             matches!(common, Ok(BooleanResult::Empty)),
             "{name} ∩: want empty, got {:?}",
@@ -613,9 +646,9 @@ fn two_pinches_meeting_end_to_end_build_in_every_op() {
         ("low, high", &low, &high, &low_rows, &high_rows, low_volume),
         ("high, low", &high, &low, &high_rows, &low_rows, high_volume),
     ] {
-        let mut decls = flush_declarations(&a.body, &b.body, tol);
-        decls.carried_a.vv.clone_from(ca);
-        decls.carried_b.vv.clone_from(cb);
+        let mut decls = BooleanInputs::default();
+        decls.records_a.vv.clone_from(ca);
+        decls.records_b.vv.clone_from(cb);
         let built = |op: &str, got: Result<BooleanResult<f64>, BooleanError>, want: f64| {
             let BooleanResult::Body(out) =
                 got.unwrap_or_else(|e| panic!("{name} {op} refused: {e:?}"))
@@ -639,7 +672,7 @@ fn two_pinches_meeting_end_to_end_build_in_every_op() {
         };
         let union = built(
             "∪",
-            union_with(&a.body, &b.body, &decls, tol),
+            union_in(&a.body, &b.body, &decls, tol),
             low_volume + high_volume,
         );
         assert_eq!(
@@ -647,8 +680,8 @@ fn two_pinches_meeting_end_to_end_build_in_every_op() {
             4,
             "{name} ∪: each brick's corner at (0,0,1) is its own vertex"
         );
-        built("∖", subtract_with(&a.body, &b.body, &decls, tol), minuend);
-        let common = intersect_with(&a.body, &b.body, &decls, tol);
+        built("∖", subtract_in(&a.body, &b.body, &decls, tol), minuend);
+        let common = intersect_in(&a.body, &b.body, &decls, tol);
         assert!(
             matches!(common, Ok(BooleanResult::Empty)),
             "{name} ∩: want empty, got {:?}",
@@ -777,12 +810,12 @@ fn a_pinch_line_through_a_face_drops_its_records_at_the_new_end() {
         brick::<f64>((-0.5, 0.5), (-0.5, 0.5), (0.0, 1.0), tol),
         tol,
     );
-    let mut ab = flush_declarations(&pinch.body, &cutter, tol);
-    ab.carried_a.vv.clone_from(&carried);
-    let mut ba = flush_declarations(&cutter, &pinch.body, tol);
-    ba.carried_b.vv.clone_from(&carried);
-    let mut block_first = flush_declarations(&block, &pinch.body, tol);
-    block_first.carried_b.vv = carried;
+    let mut ab = BooleanInputs::default();
+    ab.records_a.vv.clone_from(&carried);
+    let mut ba = BooleanInputs::default();
+    ba.records_b.vv.clone_from(&carried);
+    let mut block_first = BooleanInputs::default();
+    block_first.records_b.vv = carried;
     let volume_of = |op: &str, got: Result<BooleanResult<f64>, BooleanError>, drops: bool| {
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
@@ -802,32 +835,32 @@ fn a_pinch_line_through_a_face_drops_its_records_at_the_new_end() {
     };
     let union = volume_of(
         "pinch ∪ cutter",
-        union_with(&pinch.body, &cutter, &ab, tol),
+        union_in(&pinch.body, &cutter, &ab, tol),
         false,
     );
     let pinch_less = volume_of(
         "pinch ∖ cutter",
-        subtract_with(&pinch.body, &cutter, &ab, tol),
+        subtract_in(&pinch.body, &cutter, &ab, tol),
         true,
     );
     let common = volume_of(
         "pinch ∩ cutter",
-        intersect_with(&pinch.body, &cutter, &ab, tol),
+        intersect_in(&pinch.body, &cutter, &ab, tol),
         true,
     );
     let swapped = volume_of(
         "cutter ∪ pinch",
-        union_with(&cutter, &pinch.body, &ba, tol),
+        union_in(&cutter, &pinch.body, &ba, tol),
         false,
     );
     let cutter_less = volume_of(
         "cutter ∖ pinch",
-        subtract_with(&cutter, &pinch.body, &ba, tol),
+        subtract_in(&cutter, &pinch.body, &ba, tol),
         false,
     );
     let common_swapped = volume_of(
         "cutter ∩ pinch",
-        intersect_with(&cutter, &pinch.body, &ba, tol),
+        intersect_in(&cutter, &pinch.body, &ba, tol),
         true,
     );
     // Shearing keeps the cutter's volume: its triangle × the height.
@@ -843,7 +876,7 @@ fn a_pinch_line_through_a_face_drops_its_records_at_the_new_end() {
     }
     let block_common = volume_of(
         "block ∩ pinch",
-        intersect_with(&block, &pinch.body, &block_first, tol),
+        intersect_in(&block, &pinch.body, &block_first, tol),
         true,
     );
     assert!(
@@ -873,10 +906,10 @@ fn a_face_through_a_pinch_line_builds_in_every_op() {
         common::prism_z(&[(-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)], 0.0, 1.0, tol).body,
         tol,
     );
-    let mut ab = flush_declarations(&pinch.body, &wall, tol);
-    ab.carried_a.vv.clone_from(&carried);
-    let mut ba = flush_declarations(&wall, &pinch.body, tol);
-    ba.carried_b.vv.clone_from(&carried);
+    let mut ab = BooleanInputs::default();
+    ab.records_a.vv.clone_from(&carried);
+    let mut ba = BooleanInputs::default();
+    ba.records_b.vv.clone_from(&carried);
     // The same wall over z ∈ (0.75, 1.25) cuts the brick on its side
     // in two and leaves the other whole: the pinch survives below 0.75
     // with a new pair of vertices at its cut.
@@ -885,37 +918,29 @@ fn a_face_through_a_pinch_line_builds_in_every_op() {
         common::prism_z(&[(-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)], 0.75, 1.25, tol).body,
         tol,
     );
-    let mut cut = flush_declarations(&pinch.body, &upper, tol);
-    cut.carried_a.vv = carried;
+    let mut cut = BooleanInputs::default();
+    cut.records_a.vv = carried;
     // The prism holds the half x + y > 0 of the square, so it meets
     // the pinch in the brick on that side, z ∈ (0.5, 1): 0.5, and the
     // upper one over z ∈ (0.75, 1.25), 0.5 again.
     for (op, got, want) in [
         (
             "pinch ∖ upper wall",
-            subtract_with(&pinch.body, &upper, &cut, tol),
+            subtract_in(&pinch.body, &upper, &cut, tol),
             1.5,
         ),
-        (
-            "pinch ∪ wall",
-            union_with(&pinch.body, &wall, &ab, tol),
-            3.5,
-        ),
+        ("pinch ∪ wall", union_in(&pinch.body, &wall, &ab, tol), 3.5),
         (
             "pinch ∖ wall",
-            subtract_with(&pinch.body, &wall, &ab, tol),
+            subtract_in(&pinch.body, &wall, &ab, tol),
             1.5,
         ),
         (
             "pinch ∩ wall",
-            intersect_with(&pinch.body, &wall, &ab, tol),
+            intersect_in(&pinch.body, &wall, &ab, tol),
             0.5,
         ),
-        (
-            "wall ∪ pinch",
-            union_with(&wall, &pinch.body, &ba, tol),
-            3.5,
-        ),
+        ("wall ∪ pinch", union_in(&wall, &pinch.body, &ba, tol), 3.5),
     ] {
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
@@ -953,16 +978,14 @@ fn a_four_row_remap_group_certifies_a_subtract_of_two_pinches() {
         brick::<f64>((0.0, 1.0), (-1.0, 0.0), (1.0, 2.0), tol),
         tol,
     );
-    let BooleanResult::Body(pinch_b) =
-        union_with(&q2, &q4, &flush_declarations(&q2, &q4, tol), tol).expect("a pinch builds")
-    else {
+    let BooleanResult::Body(pinch_b) = union(&q2, &q4, tol).expect("a pinch builds") else {
         panic!("a union of two bricks came back empty");
     };
-    let mut decls = flush_declarations(&pinch_a.body, &pinch_b.body, tol);
-    decls.carried_a.vv = carried_a;
-    decls.carried_b = carried_rows(&pinch_b.contacts);
+    let mut decls = BooleanInputs::default();
+    decls.records_a.vv = carried_a;
+    decls.records_b = carried_rows(&pinch_b.contacts);
     let BooleanResult::Body(out) =
-        subtract_with(&pinch_a.body, &pinch_b.body, &decls, tol).expect("the subtract builds")
+        subtract_in(&pinch_a.body, &pinch_b.body, &decls, tol).expect("the subtract builds")
     else {
         panic!("the subtract of disjoint quadrants came back empty");
     };
@@ -997,7 +1020,7 @@ pub(crate) fn corner_prism(rays: [[f64; 3]; 3], scale: f64, tol: Tol) -> AtRestB
 /// both operand orders, with `carried` as `y`'s records.
 fn against_the_cube(
     y: &AtRestBody<f64>,
-    carried: &topo::CarriedContacts,
+    carried: &topo::OperandRecords,
     tol: Tol,
 ) -> [(&'static str, BooleanOutcome); 6] {
     let cube = finished(
@@ -1005,18 +1028,22 @@ fn against_the_cube(
         brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
         tol,
     );
-    let mut ab = flush_declarations(y, &cube, tol);
-    ab.carried_a = carried.clone();
-    let mut ba = flush_declarations(&cube, y, tol);
-    ba.carried_b = carried.clone();
+    let ab = BooleanInputs {
+        records_a: carried.clone(),
+        ..BooleanInputs::default()
+    };
+    let ba = BooleanInputs {
+        records_b: carried.clone(),
+        ..BooleanInputs::default()
+    };
     topo::test_support::ops_under_test(|| {
         [
-            ("y ∪ cube", union_with(y, &cube, &ab, tol)),
-            ("y ∖ cube", subtract_with(y, &cube, &ab, tol)),
-            ("y ∩ cube", intersect_with(y, &cube, &ab, tol)),
-            ("cube ∪ y", union_with(&cube, y, &ba, tol)),
-            ("cube ∖ y", subtract_with(&cube, y, &ba, tol)),
-            ("cube ∩ y", intersect_with(&cube, y, &ba, tol)),
+            ("y ∪ cube", union_in(y, &cube, &ab, tol)),
+            ("y ∖ cube", subtract_in(y, &cube, &ab, tol)),
+            ("y ∩ cube", intersect_in(y, &cube, &ab, tol)),
+            ("cube ∪ y", union_in(&cube, y, &ba, tol)),
+            ("cube ∖ y", subtract_in(&cube, y, &ba, tol)),
+            ("cube ∩ y", intersect_in(&cube, y, &ba, tol)),
         ]
     })
 }
@@ -1091,40 +1118,40 @@ fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), tol: Tol) {
     ];
     let common: f64 = squares.iter().map(|q| area(&clip(&rect, q))).sum();
     let prism_volume = area(&profile);
-    let mut ab = flush_declarations(&pinch.body, &prism, tol);
-    ab.carried_a.vv.clone_from(&carried);
-    let mut ba = flush_declarations(&prism, &pinch.body, tol);
-    ba.carried_b.vv = carried;
+    let mut ab = BooleanInputs::default();
+    ab.records_a.vv.clone_from(&carried);
+    let mut ba = BooleanInputs::default();
+    ba.records_b.vv = carried;
     for (op, got, want) in topo::test_support::ops_under_test(|| {
         [
             (
                 "pinch ∪ prism",
-                union_with(&pinch.body, &prism, &ab, tol),
+                union_in(&pinch.body, &prism, &ab, tol),
                 2.0 + prism_volume - common,
             ),
             (
                 "pinch ∖ prism",
-                subtract_with(&pinch.body, &prism, &ab, tol),
+                subtract_in(&pinch.body, &prism, &ab, tol),
                 2.0 - common,
             ),
             (
                 "pinch ∩ prism",
-                intersect_with(&pinch.body, &prism, &ab, tol),
+                intersect_in(&pinch.body, &prism, &ab, tol),
                 common,
             ),
             (
                 "prism ∪ pinch",
-                union_with(&prism, &pinch.body, &ba, tol),
+                union_in(&prism, &pinch.body, &ba, tol),
                 2.0 + prism_volume - common,
             ),
             (
                 "prism ∖ pinch",
-                subtract_with(&prism, &pinch.body, &ba, tol),
+                subtract_in(&prism, &pinch.body, &ba, tol),
                 prism_volume - common,
             ),
             (
                 "prism ∩ pinch",
-                intersect_with(&prism, &pinch.body, &ba, tol),
+                intersect_in(&prism, &pinch.body, &ba, tol),
                 common,
             ),
         ]
@@ -1288,22 +1315,23 @@ fn pit_holding_spikes_built(
         brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0), tol),
         tol,
     );
-    let BooleanResult::Body(mut y) =
-        subtract_with(&block, &pit, &flush_declarations(&block, &pit, tol), tol)
-            .expect("the pit is cut")
-    else {
+    let BooleanResult::Body(mut y) = subtract(&block, &pit, tol).expect("the pit is cut") else {
         panic!("the block ∖ pit came back empty");
     };
     for &(rays, scale) in spikes {
         let spike = corner_prism(rays, scale, tol);
         let got = if spike_first {
-            let mut decls = flush_declarations(&spike, &y.body, tol);
-            decls.carried_b = carried_rows(&y.contacts);
-            union_with(&spike, &y.body, &decls, tol)
+            let decls = BooleanInputs {
+                records_b: carried_rows(&y.contacts),
+                ..BooleanInputs::default()
+            };
+            union_in(&spike, &y.body, &decls, tol)
         } else {
-            let mut decls = flush_declarations(&y.body, &spike, tol);
-            decls.carried_a = carried_rows(&y.contacts);
-            union_with(&y.body, &spike, &decls, tol)
+            let decls = BooleanInputs {
+                records_a: carried_rows(&y.contacts),
+                ..BooleanInputs::default()
+            };
+            union_in(&y.body, &spike, &decls, tol)
         };
         let BooleanResult::Body(next) = got.expect("the spike touches the pit's apex") else {
             panic!("the union came back empty");
@@ -1440,28 +1468,26 @@ fn lens_ys(
         brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0), tol),
         tol,
     );
-    let BooleanResult::Body(cut) = subtract_with(
-        &block,
-        &k.body,
-        &flush_declarations(&block, &k.body, tol),
-        tol,
-    )
-    .expect("the lens is cut") else {
+    let BooleanResult::Body(cut) = subtract(&block, &k.body, tol).expect("the lens is cut") else {
         panic!("the block ∖ lens came back empty");
     };
     let piece = lens(inner, scale, tol);
-    let mut cut_first = flush_declarations(&cut.body, &piece.body, tol);
-    cut_first.carried_a = carried_rows(&cut.contacts);
-    let mut piece_first = flush_declarations(&piece.body, &cut.body, tol);
-    piece_first.carried_b = carried_rows(&cut.contacts);
+    let cut_first = BooleanInputs {
+        records_a: carried_rows(&cut.contacts),
+        ..BooleanInputs::default()
+    };
+    let piece_first = BooleanInputs {
+        records_b: carried_rows(&cut.contacts),
+        ..BooleanInputs::default()
+    };
     [
         (
             "cut ∪ lens",
-            union_with(&cut.body, &piece.body, &cut_first, tol),
+            union_in(&cut.body, &piece.body, &cut_first, tol),
         ),
         (
             "lens ∪ cut",
-            union_with(&piece.body, &cut.body, &piece_first, tol),
+            union_in(&piece.body, &cut.body, &piece_first, tol),
         ),
     ]
     .map(|(order, got)| {
@@ -1476,9 +1502,7 @@ fn lens_ys(
 /// The lens over `rays` ([`lens_prisms`]) at `scale`.
 fn lens(rays: [[[f64; 3]; 3]; 2], scale: f64, tol: Tol) -> BooleanBody<f64> {
     let [up, down] = rays.map(|r| corner_prism(r, scale, tol));
-    let BooleanResult::Body(lens) =
-        union_with(&up, &down, &flush_declarations(&up, &down, tol), tol).expect("a lens")
-    else {
+    let BooleanResult::Body(lens) = union(&up, &down, tol).expect("a lens") else {
         panic!("the lens came back empty");
     };
     lens
@@ -1695,19 +1719,23 @@ fn two_dangling_null_edges_with_one_segment_ending_in_the_cubes_face_build_in_ev
 /// if given.
 fn notched(y: &BooleanBody<f64>, notch: Lens, fill: Option<Lens>, tol: Tol) -> BooleanBody<f64> {
     let notch = lens(notch.0, notch.1, tol);
-    let mut decls = flush_declarations(&y.body, &notch.body, tol);
-    decls.carried_a = carried_rows(&y.contacts);
+    let decls = BooleanInputs {
+        records_a: carried_rows(&y.contacts),
+        ..BooleanInputs::default()
+    };
     let BooleanResult::Body(mut y) =
-        subtract_with(&y.body, &notch.body, &decls, tol).expect("the notch is cut")
+        subtract_in(&y.body, &notch.body, &decls, tol).expect("the notch is cut")
     else {
         panic!("the notched y came back empty");
     };
     if let Some((rays, scale)) = fill {
         let fill = lens(rays, scale, tol);
-        let mut decls = flush_declarations(&y.body, &fill.body, tol);
-        decls.carried_a = carried_rows(&y.contacts);
-        let BooleanResult::Body(next) = union_with(&y.body, &fill.body, &decls, tol)
-            .expect("the fill touches the notch's apex")
+        let decls = BooleanInputs {
+            records_a: carried_rows(&y.contacts),
+            ..BooleanInputs::default()
+        };
+        let BooleanResult::Body(next) =
+            union_in(&y.body, &fill.body, &decls, tol).expect("the fill touches the notch's apex")
         else {
             panic!("the filled y came back empty");
         };
@@ -1826,7 +1854,7 @@ fn a_corner_crossing_the_cubes_four_times_builds_every_op() {
         common > 0.0 && common < y_volume,
         "the corner crosses the cube"
     );
-    for (op, got) in against_the_cube(&band, &topo::CarriedContacts::default(), tol) {
+    for (op, got) in against_the_cube(&band, &topo::OperandRecords::default(), tol) {
         let want = match op {
             "y ∪ cube" | "cube ∪ y" => y_volume + 1.0 - common,
             "y ∖ cube" => y_volume - common,
@@ -1888,14 +1916,14 @@ fn three_corners_alternating_round_the_cube_refuse_three_ops() {
         ],
     ];
     let [i, j, k] = rays.map(|r| corner_prism(r, 0.4, tol));
-    let BooleanResult::Body(two) =
-        union_with(&i, &j, &flush_declarations(&i, &j, tol), tol).expect("i ∪ j")
-    else {
+    let BooleanResult::Body(two) = union(&i, &j, tol).expect("i ∪ j") else {
         panic!("i ∪ j came back empty");
     };
-    let mut decls = flush_declarations(&two.body, &k, tol);
-    decls.carried_a = carried_rows(&two.contacts);
-    let BooleanResult::Body(y) = union_with(&two.body, &k, &decls, tol).expect("∪ k") else {
+    let decls = BooleanInputs {
+        records_a: carried_rows(&two.contacts),
+        ..BooleanInputs::default()
+    };
+    let BooleanResult::Body(y) = union_in(&two.body, &k, &decls, tol).expect("∪ k") else {
         panic!("∪ k came back empty");
     };
     let y_volume = mass_properties(&y.body, tol).expect("mass").volume;

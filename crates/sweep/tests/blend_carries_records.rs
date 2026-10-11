@@ -10,8 +10,8 @@ use sweep::blend::build::{Blended, fillet_edges};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::finished;
 use topo::{
-    Backing, BooleanBody, BooleanDeclarations, BooleanResult, ContactRecords, ValidationError,
-    union_with, validate_pseudomanifold,
+    Backing, BooleanBody, BooleanResult, ContactRecords, ValidationError, union,
+    validate_pseudomanifold,
 };
 
 /// The blend size, meters.
@@ -34,7 +34,7 @@ fn kiss() -> BooleanBody<f64> {
         brick(Point3::new(1.0, 1.0, 1.0), Point3::new(2.0, 2.0, 2.0)),
         tol(),
     );
-    match union_with(&a, &b, &BooleanDeclarations::none(), tol()) {
+    match union(&a, &b, tol()) {
         Ok(BooleanResult::Body(r)) => r,
         other => panic!("the union builds: {other:?}"),
     }

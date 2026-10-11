@@ -8,9 +8,9 @@ use crate::common;
 use common::{brick, describe_as_intersections, finished, geometric_cube, line};
 use geom_core::{Affine3, Point3, Tol, Vec3};
 use topo::{
-    AtRestBody, Backing, Body, BooleanBody, BooleanDeclarations, BooleanResult, CarryRefusal, Cell,
-    Cited, Cites, Contact, ContactRecords, FaceKey, FaceSurface, MefSite, Surface, ValidationError,
-    union_with, validate_pseudomanifold,
+    AtRestBody, Backing, Body, BooleanBody, BooleanResult, CarryRefusal, Cell, Cited, Cites,
+    Contact, ContactRecords, FaceKey, FaceSurface, MefSite, Surface, ValidationError, union,
+    validate_pseudomanifold,
 };
 
 fn tol() -> Tol {
@@ -26,7 +26,7 @@ fn box_of(x: (f64, f64), y: (f64, f64), z: (f64, f64), what: &str) -> AtRestBody
 fn kiss() -> BooleanBody<f64> {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
     let b = box_of((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), "b");
-    match union_with(&a, &b, &BooleanDeclarations::none(), tol()) {
+    match union(&a, &b, tol()) {
         Ok(BooleanResult::Body(r)) => r,
         other => panic!("the union builds: {other:?}"),
     }
@@ -269,7 +269,7 @@ fn a_merge_carries_records_onto_what_it_made_of_their_cells() {
 fn a_touch_the_verb_creates_is_refused_at_rest() {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
     let b = box_of((1.1, 2.1), (0.5, 1.5), (0.0, 1.0), "b");
-    let apart = match union_with(&a, &b, &BooleanDeclarations::none(), tol()) {
+    let apart = match union(&a, &b, tol()) {
         Ok(BooleanResult::Body(r)) => r,
         other => panic!("the union builds: {other:?}"),
     };
@@ -315,7 +315,7 @@ fn a_rim_that_opens_under_a_resting_corner_leaves_its_record_stale() {
         tol(),
     );
     let tilted = finished("the tilted cube", tilted, tol());
-    let base = match union_with(&tilted, &slab, &BooleanDeclarations::none(), tol()) {
+    let base = match union(&tilted, &slab, tol()) {
         Ok(BooleanResult::Body(r)) => r,
         other => panic!("the union builds: {other:?}"),
     };
@@ -461,9 +461,10 @@ fn a_record_at_a_conventional_vertex_lands_on_its_closed_edge() {
     );
 }
 
-/// **A record whose two cells map to one is consumed**, as the boolean
-/// drops a record whose vertex pair it fused (D1). Red if the carry
-/// refuses it or keeps a one-cell record.
+/// **A record whose two vertices map to one is consumed**, as the boolean
+/// drops a record whose vertex pair it fused (D1); any other pair mapped
+/// to one cell is a lineage bug and refused. Red if the carry refuses the
+/// fusion, keeps a one-cell record, or drops the face pair.
 #[test]
 fn a_record_whose_cells_map_to_one_cell_is_consumed() {
     let base = kiss();
@@ -473,6 +474,21 @@ fn a_record_whose_cells_map_to_one_cell_is_consumed() {
         .carried_through(0, &base.body, |c| Some(if c == b { a } else { c }))
         .unwrap();
     assert!(carried.is_empty(), "{carried:?}");
+
+    // Two faces mapped to one are no fusion: refused, not dropped.
+    let (fa, fb) = (face_at_x(&base.body, 0.0), face_at_x(&base.body, 2.0));
+    let faces = one_record(&base.body, Cell::Face(fa), Cell::Face(fb));
+    assert_eq!(
+        faces.carried_through(0, &base.body, |c| Some(if c == Cell::Face(fb) {
+            Cell::Face(fa)
+        } else {
+            c
+        })),
+        Err(CarryRefusal::Pair {
+            record: 0,
+            error: topo::ContactPairError::OneCell(Cell::Face(fa))
+        })
+    );
 }
 
 fn face_at_z(body: &Body<f64>, z: f64) -> FaceKey {

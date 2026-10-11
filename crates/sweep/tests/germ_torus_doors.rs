@@ -8,8 +8,7 @@
 //! underside at `ρ = 0.8` down to the joint plane `y = 0` at `ρ = 0.3`,
 //! where the two halves meet on a `0.3`-radius joint disc. The two
 //! waists are one torus carrier and meet tangentially along the joint
-//! circle. The union declares the joint discs and every torus×torus
-//! pair `Rest`.
+//! circle.
 //!
 //! **The halves are used as built.** A full revolve builds each planar
 //! wall as one face (`crates/sweep/README.md`, "Walls: one per run"), so
@@ -23,8 +22,8 @@
 //! 1. the operand gate's KIND roster, which had no torus;
 //! 2. the circle rung on the waist's seam meridian against the other
 //!    half's waist — a coincident pair whose sampled clearance reads
-//!    definitely negative, so the declared cover behind it was never
-//!    consulted; the carrier-identity rung now answers first;
+//!    definitely negative, so the glued cover behind it could not be
+//!    reached on the enclosures; the carrier-identity rung answers first;
 //! 3. face-level containment on a torus face, which answered nothing;
 //! 4. the sector walk's outward normal on a torus face, which had no
 //!    arm.
@@ -45,7 +44,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::operands::{bar, framed_bar};
-use crate::common::outcomes::outcome;
 use crate::common::revert_ops::subtract_both_orders_and_intersect;
 use crate::germ_plane_torus_frame::{TorusDoor, torus_door};
 use crate::revolve_common;
@@ -56,10 +54,7 @@ use profile::{ProfileLoop, test_support::bulge_loop};
 use revolve_common::{axis_y, validated};
 use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
-use topo::{
-    AtRestBody, Body, BooleanCoincidence, BooleanDeclarations, BooleanError, ContactClass,
-    FaceContainment, FaceKey, FacePairDeclaration,
-};
+use topo::{AtRestBody, Body, BooleanError, FaceContainment, FaceKey};
 
 /// The waist's tube.
 const MAJOR: f64 = 0.8;
@@ -139,53 +134,16 @@ fn faces_where(body: &Body<f64>, pred: impl Fn(&geom::Surface<f64>) -> bool) -> 
         .collect()
 }
 
-fn is_joint_disc(s: &geom::Surface<f64>) -> bool {
-    matches!(s, geom::Surface::Plane { origin, .. } if origin.y.abs() < 1e-12)
-}
-
-fn is_handle(s: &geom::Surface<f64>) -> bool {
-    matches!(s, geom::Surface::Torus { .. })
-        || matches!(s, geom::Surface::Cylinder { radius, .. } if (*radius - 0.3).abs() < 1e-12)
-}
-
 fn is_torus(s: &geom::Surface<f64>) -> bool {
     matches!(s, geom::Surface::Torus { .. })
 }
 
-/// The joint discs declared `Rest`, and every handle×handle pair
-/// declared under `handle_class` (none when `None`).
-fn declarations(
-    a: &Body<f64>,
-    b: &Body<f64>,
-    handle_class: Option<BooleanCoincidence>,
-) -> BooleanDeclarations {
-    let mut decls = BooleanDeclarations::none();
-    for fa in faces_where(a, is_joint_disc) {
-        for fb in faces_where(b, is_joint_disc) {
-            decls
-                .coincident_faces
-                .push(FacePairDeclaration::rest(fa, fb));
-        }
-    }
-    if let Some(class) = handle_class {
-        for fa in faces_where(a, is_handle) {
-            for fb in faces_where(b, is_handle) {
-                decls
-                    .coincident_faces
-                    .push(FacePairDeclaration::new(fa, fb, class));
-            }
-        }
-    }
-    decls
-}
-
-/// The T2 union: both halves, the joint discs declared `Rest` and the
-/// handle pairs — one handle carried on across the joint — declared
-/// continuations.
+/// The T2 union: both halves, the joint discs resting on each other and
+/// the handle pairs — one handle carried on across the joint — gluing
+/// as continuations.
 fn t2(handle: Handle) -> Result<topo::BooleanResult<f64>, BooleanError> {
     let (a, b) = (half(1.0, handle), half(-1.0, handle));
-    let decls = declarations(&a, &b, Some(BooleanCoincidence::Continuation));
-    topo::union_with(&a, &b, &decls, Tol::witness())
+    topo::union(&a, &b, Tol::witness())
 }
 
 // -------------------------------------------------------------------
@@ -228,7 +186,7 @@ fn the_half_dumbbell_is_a_valid_torus_waisted_solid_as_built() {
         let out = m.merge_coplanar_faces(Tol::witness()).unwrap();
         assert!(out.groups.is_empty(), "no planar wall is split: {out:?}");
     }
-    let r = topo::union_with(&a, &b, &declarations(&a, &b, None), Tol::witness());
+    let r = topo::union(&a, &b, Tol::witness());
     assert!(
         !matches!(r, Err(BooleanError::NonMaximalFaces { .. })),
         "F7 does not answer on the halves as built: {r:?}"
@@ -242,47 +200,19 @@ fn the_half_dumbbell_is_a_valid_torus_waisted_solid_as_built() {
 /// **The KIND roster has a torus, and the gate admits it in every
 /// variant of the union**: a waist face against the other half's
 /// joint disc, boxes overlapping, is no `CurvedPairUnsupported` at the
-/// gate, declared or not.
+/// gate.
 ///
 /// The waists are one carrier by margin, so the boolean glues them as
-/// the continuation they are whether or not they are declared: the
-/// undeclared union is the declared one (D10), which builds
+/// the continuation they are, and the union builds
 /// (`the_torus_waisted_union_builds_like_the_cylinder_control`).
 #[test]
-fn the_operand_gate_admits_the_torus_and_the_undeclared_pair_glues() {
+fn the_operand_gate_admits_the_torus_and_the_pair_glues() {
     let (a, b) = (half(1.0, Handle::Torus), half(-1.0, Handle::Torus));
-    let built = topo::union_with(
-        &a,
-        &b,
-        &declarations(&a, &b, Some(BooleanCoincidence::Continuation)),
-        Tol::witness(),
-    );
+    let built = topo::union(&a, &b, Tol::witness());
     assert!(
         !matches!(built, Err(BooleanError::CurvedPairUnsupported { .. })),
         "the gate must admit the torus: {built:?}"
     );
-    let undeclared = topo::union_with(&a, &b, &declarations(&a, &b, None), Tol::witness());
-    assert_eq!(
-        outcome(&undeclared),
-        outcome(&built),
-        "undeclared, the waists glue as the declared continuation"
-    );
-}
-
-/// **A `Tangent` claim on a conformal torus pair is refused at the
-/// declaration door**: the conformal screen finds one carrier, so the
-/// claim is contradicted before the gate runs.
-#[test]
-fn a_tangent_declared_torus_pair_is_refused_before_the_gate() {
-    let (a, b) = (half(1.0, Handle::Torus), half(-1.0, Handle::Torus));
-    let decls = declarations(&a, &b, Some(BooleanCoincidence::TANGENT));
-    let err = topo::union_with(&a, &b, &decls, Tol::witness())
-        .expect_err("a Tangent claim on one carrier is false");
-    let BooleanError::ContactContradicted { declaration, .. } = err else {
-        panic!("the declaration door must refuse the Tangent torus pair: {err:?}");
-    };
-    assert_eq!(declaration.class, ContactClass::Tangent);
-    assert!(is_torus(surface(&a, declaration.a)) && is_torus(surface(&b, declaration.b)));
 }
 
 // -------------------------------------------------------------------
@@ -295,7 +225,7 @@ fn a_tangent_declared_torus_pair_is_refused_before_the_gate() {
 /// along it — but the arc's sampled enclosure is `±charge` about that
 /// zero, and the carrier's harmonic one is wider still, so the folded
 /// one-sidedness margin is `−charge`: 1.73e-5 m here, definitely
-/// negative at every eps row the run matrix draws. The declared-cover
+/// negative at every eps row the run matrix draws. The glued-cover
 /// rung needs a `Zero`, so on the enclosures alone the covered pair
 /// could never reach it. The carrier-identity rung answers first.
 #[test]
@@ -339,17 +269,16 @@ fn the_waist_meridian_reads_definitely_negative_on_the_sampled_enclosure() {
     assert_eq!(meridians, 2, "the waist carries its seam meridian twice");
 }
 
-/// **The declared waists pass the crossing layer.** With both waist
-/// pairs declared continuations, the seam meridian reaches the
-/// declared-cover rung through the carrier identity, and neither the
-/// circle rung's frontier nor its escalation is what the union answers:
-/// it builds.
+/// **The glued waists pass the crossing layer.** With both waist pairs
+/// glued as continuations, the seam meridian reaches the glued-cover
+/// rung through the carrier identity, and neither the circle rung's
+/// frontier nor its escalation is what the union answers: it builds.
 #[test]
-fn the_declared_waists_pass_the_circle_rung() {
+fn the_glued_waists_pass_the_circle_rung() {
     let r = t2(Handle::Torus);
     assert!(
         matches!(r, Ok(topo::BooleanResult::Body(_))),
-        "the carrier-identity rung must carry the declared waists past the circle rung: {:?}",
+        "the carrier-identity rung must carry the glued waists past the circle rung: {:?}",
         r.err()
     );
 }
@@ -483,7 +412,7 @@ fn a_segment_through_the_tube_is_pierced_at_both_quartic_roots() {
 ///
 /// The middle fragment of each edge is a chord with both ends on the
 /// carrier, and it is also tested against the donut's OUTER face, whose
-/// box spans the hole. There the undeclared `(Zero, Zero)` arm gets
+/// box spans the hole. There the `(Zero, Zero)` arm gets
 /// `NoInterior` from the quartic and both ends certified `Elsewhere` by
 /// the chart trim: the chord meets the outer face nowhere, so it is no
 /// event there. Nothing lands on the outer face — a chord recorded
@@ -816,8 +745,7 @@ fn a_near_perpendicular_bar_through_the_tube_never_comes_back_disjoint() {
     let floor = 100.0 * Tol::witness().get().eps;
     for w in [1e-6, 1e-3].into_iter().filter(|&w| w > floor) {
         let b = finished("the bar", framed_bar(o, d, -4.6, -0.1, w), Tol::witness());
-        if let Ok(r) = topo::union_with(&donut(), &b, &BooleanDeclarations::none(), Tol::witness())
-        {
+        if let Ok(r) = topo::union(&donut(), &b, Tol::witness()) {
             panic!(
                 "a bar through the tube is not disjoint (w = {w}): {:?}",
                 r.body().map(|x| x.kind)
@@ -1205,15 +1133,13 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
 ///   sunk `0.05` into the tube circle); two tori meeting in an oval have
 ///   no section classification (R-reach);
 /// - the dumbbell's waists stop at the section pass on their tangency
-///   (R-tan), declared a continuation or not: undeclared, each op is
-///   the declared refusal (D10).
+///   (R-tan).
 ///
 /// None of them is a body.
 #[test]
 fn subtract_and_intersect_refuse_where_union_does() {
     use geom_core::{Affine3, Mat3, Vec3};
     let d = donut();
-    let none = BooleanDeclarations::none();
     let near = framed_bar(
         Point3::new(
             -2.109_637_800_205_744_5,
@@ -1257,7 +1183,7 @@ fn subtract_and_intersect_refuse_where_union_does() {
             }
             continue;
         }
-        for (op, r) in subtract_both_orders_and_intersect(&d, &b, &none) {
+        for (op, r) in subtract_both_orders_and_intersect(&d, &b) {
             let err = r.expect_err(op);
             assert!(
                 matches!(
@@ -1301,51 +1227,33 @@ fn subtract_and_intersect_refuse_where_union_does() {
         finished("the grazing cylinder", cyl, Tol::witness())
     };
     let halves = (half(1.0, Handle::Torus), half(-1.0, Handle::Torus));
-    let waists = declarations(&halves.0, &halves.1, Some(BooleanCoincidence::Continuation));
-    for (name, a, b, decls, says) in [
+    for (name, a, b, says) in [
         (
             "slab",
             &d,
             &bar((-0.8, 0.8), (-0.4, 0.4), (2.45, 3.0)),
-            &none,
             "a closed loop interior to both faces",
         ),
-        ("two tori", &d, &far, &none, "has no section classification"),
+        ("two tori", &d, &far, "has no section classification"),
         (
             "grazing cylinder",
             &d,
             &cyl,
-            &none,
             "a closed loop interior to both faces",
         ),
         (
-            "declared dumbbell",
+            "dumbbell",
             &halves.0,
             &halves.1,
-            &waists,
             "tangent or near-tangent carriers",
         ),
     ] {
-        for (op, r) in subtract_both_orders_and_intersect(a, b, decls) {
+        for (op, r) in subtract_both_orders_and_intersect(a, b) {
             let err = r.expect_err(op);
             let BooleanError::FallbackExtentUnsupported { what, .. } = &err else {
                 panic!("{name}, {op}: the section pass refuses: {err:?}");
             };
             assert!(what.contains(says), "{name}, {op}: {what}");
         }
-    }
-    // Undeclared, the dumbbell's waists glue as the continuation they
-    // are, and each op is the declared refusal.
-    for ((op, r), (_, declared)) in subtract_both_orders_and_intersect(&halves.0, &halves.1, &none)
-        .into_iter()
-        .zip(subtract_both_orders_and_intersect(
-            &halves.0, &halves.1, &waists,
-        ))
-    {
-        assert_eq!(
-            outcome(&r),
-            outcome(&declared),
-            "undeclared dumbbell, {op}: the declared refusal"
-        );
     }
 }

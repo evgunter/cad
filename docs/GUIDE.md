@@ -202,7 +202,7 @@ material. Three boxes, a union and a subtract.
 The web stands flush on the plate's top, and the pocket's floor is
 flush with the plate's bottom. Where two faces meet on one plane the
 kernel decides it from their margins — "these two planes are one
-plane" within the tolerance — and glues them, declared or not; it
+plane" within the tolerance — and glues them; it
 records each such decision so the document can say which ones its
 construction proves (the `unproven-coincidence` lint). Two faces whose
 planes lie apart inside the tolerance's ambiguity band — too far to
@@ -1918,7 +1918,6 @@ let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p.into(), distance: 
 doc = next;
 let (next, solid) = insert(&doc, Node::Union {
     members: Bodies::Spelled(vec![plate.into(), tab.into()]),
-    declare: Vec::new(),
 });
 doc = next;
 

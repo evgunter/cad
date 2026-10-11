@@ -6,8 +6,8 @@ use crate::common;
 use common::{brick, describe_as_intersections, finished, geometric_cube, line};
 use geom_core::{Point3, Tol, Vec3};
 use topo::{
-    AtRestBody, Body, BooleanBody, BooleanDeclarations, BooleanResult, Cell, Cited, Cites, Contact,
-    ContactRecords, FaceSurface, MefSite, union_with, validate_pseudomanifold,
+    AtRestBody, Body, BooleanBody, BooleanResult, Cell, Cited, Cites, Contact, ContactRecords,
+    FaceSurface, MefSite, union, validate_pseudomanifold,
 };
 
 fn tol() -> Tol {
@@ -19,7 +19,7 @@ fn box_of(x: (f64, f64), y: (f64, f64), z: (f64, f64), what: &str) -> AtRestBody
 }
 
 fn union_of(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> BooleanBody<f64> {
-    match union_with(a, b, &BooleanDeclarations::none(), tol()) {
+    match union(a, b, tol()) {
         Ok(BooleanResult::Body(r)) => r,
         other => panic!("the union builds: {other:?}"),
     }

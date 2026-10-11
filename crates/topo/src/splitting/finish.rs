@@ -183,16 +183,19 @@ impl<T: Real> SplitResult<T> {
             }
             if !landed {
                 let record = crate::boolean::reduce::index(k);
-                return Err(match refusals[..] {
-                    [
-                        CarryRefusal::Unmapped { cell: a, .. },
-                        CarryRefusal::Unmapped { cell: b, .. },
-                    ] if a != b => CarryRefusal::Parted { record },
-                    [first, ..] => first,
-                    [] => CarryRefusal::Unmapped {
-                        record,
-                        cell: records.rows()[k].cells()[0],
-                    },
+                let [x, y] = records.rows()[k].cells();
+                let held = |c: Cell| {
+                    sides
+                        .iter()
+                        .any(|(_, body, joins)| self.side_image(body, joins, c).is_some())
+                };
+                return Err(match (held(x), held(y)) {
+                    (true, true) => refusals
+                        .into_iter()
+                        .find(|r| matches!(r, CarryRefusal::Pair { .. }))
+                        .unwrap_or(CarryRefusal::Parted { record }),
+                    (false, _) => CarryRefusal::Unmapped { record, cell: x },
+                    (true, false) => CarryRefusal::Unmapped { record, cell: y },
                 });
             }
         }

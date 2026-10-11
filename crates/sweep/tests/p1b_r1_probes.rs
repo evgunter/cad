@@ -36,7 +36,7 @@ use sweep::{
     tube_along_arc_hollow,
 };
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, BooleanDeclarations, CurveGeom, EdgeKey, ValidationError};
+use topo::{Body, CurveGeom, EdgeKey, ValidationError};
 
 /// Every edge at rest still described through the scaffolding door.
 fn scaffold_edges(body: &Body<f64>) -> Vec<EdgeKey> {
@@ -310,7 +310,6 @@ fn loft_products_carry_no_scaffold_at_rest() {
 
 #[test]
 fn boolean_products_carry_no_scaffold_at_rest() {
-    let decls = BooleanDeclarations::none();
     // A through hole: plate minus a taller coaxial disc.
     let plate = extruded(
         vec![ProfileLoop::polygon([
@@ -344,7 +343,7 @@ fn boolean_products_carry_no_scaffold_at_rest() {
         BooleanOp::Subtract,
         &plate,
         &tall,
-        &decls,
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
@@ -367,7 +366,7 @@ fn boolean_products_carry_no_scaffold_at_rest() {
         BooleanOp::Union,
         &plate,
         &boss,
-        &decls,
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
