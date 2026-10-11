@@ -37,7 +37,7 @@
 use geom::NurbsCurve3;
 use geom::NurbsSurface;
 use geom_core::k_stats::decide;
-use geom_core::spline::basis::basis_funs;
+use geom_core::spline::basis::basis_funs_in;
 use geom_core::spline::{SpanLocate, SplineError};
 use geom_core::{Band, Decide, Indeterminate, Margin, NO_DECLARATION_RECOURSE, Point3, Real, Sign};
 
@@ -53,7 +53,7 @@ use crate::ssi::ChartAxis;
 /// [`SplineError::NonFiniteWeight`] for a bad weight on the extracted
 /// row (its `index` counts along the row) — unreachable for a surface
 /// `NurbsSurface::new` built, surfaced rather than swallowed (D4 ¶2).
-pub fn boundary_iso_u<T: Real>(
+pub fn boundary_iso_u<T: SpanLocate>(
     s: &NurbsSurface<T>,
     end: bool,
 ) -> Result<NurbsCurve3<T>, SplineError> {
@@ -61,7 +61,7 @@ pub fn boundary_iso_u<T: Real>(
     let base = if end { (nu - 1) * nv } else { 0 };
     let control = s.control()[base..base + nv].to_vec();
     let weights = s.weights()[base..base + nv].to_vec();
-    NurbsCurve3::new(s.knots_v().clone(), control, weights)
+    NurbsCurve3::new(s.knot_values_v().clone(), control, weights)
 }
 
 /// `column` run back: its knots reflected through 0
@@ -77,9 +77,9 @@ pub fn boundary_iso_u<T: Real>(
 /// on a four-section loft's column), and a curve on rounded knots is
 /// not the column run back.
 #[must_use]
-pub fn reversed_column<T: Real>(column: &NurbsCurve3<T>) -> NurbsCurve3<T> {
+pub fn reversed_column<T: SpanLocate>(column: &NurbsCurve3<T>) -> NurbsCurve3<T> {
     NurbsCurve3::new(
-        column.knots().negated(),
+        column.knot_values().negated(),
         column.control().iter().rev().copied().collect(),
         column.weights().iter().rev().copied().collect(),
     )
@@ -93,7 +93,7 @@ pub fn reversed_column<T: Real>(column: &NurbsCurve3<T>) -> NurbsCurve3<T> {
 /// # Errors
 ///
 /// [`SplineError`], as [`boundary_iso_u`]'s.
-pub fn boundary_iso_v<T: Real>(
+pub fn boundary_iso_v<T: SpanLocate>(
     s: &NurbsSurface<T>,
     end: bool,
 ) -> Result<NurbsCurve3<T>, SplineError> {
@@ -101,7 +101,7 @@ pub fn boundary_iso_v<T: Real>(
     let offset = if end { nv - 1 } else { 0 };
     let control = (0..nu).map(|iu| s.control()[iu * nv + offset]).collect();
     let weights = (0..nu).map(|iu| s.weights()[iu * nv + offset]).collect();
-    NurbsCurve3::new(s.knots_u().clone(), control, weights)
+    NurbsCurve3::new(s.knot_values_u().clone(), control, weights)
 }
 
 /// **The interior iso-curve `u = u*` of a clamped surface, by de Boor
@@ -156,37 +156,41 @@ pub fn interior_iso_u<T: SpanLocate>(
     u: T,
 ) -> Result<NurbsCurve3<T>, IsoRowError<T>> {
     let (nu, nv) = s.control_counts();
+    // The separability tests read the weights' value channel, bitwise
+    // (structure decisions); the factors and the row's weights are the
+    // held weights.
+    let c = s.weight_channel();
     let w = s.weights();
-    let along_u_constant = (0..nu).all(|i| (0..nv).all(|j| w[i * nv + j] == w[j]));
-    let along_v_constant = (0..nu).all(|i| (0..nv).all(|j| w[i * nv + j] == w[i * nv]));
+    let along_u_constant = (0..nu).all(|i| (0..nv).all(|j| c[i * nv + j] == c[j]));
+    let along_v_constant = (0..nu).all(|i| (0..nv).all(|j| c[i * nv + j] == c[i * nv]));
     // The per-row factor `ωᵢ` of `λᵢ ∝ Nᵢ(u*)·ωᵢ`, and the weights the
     // row is wrapped with (module docs: the two separable cases).
-    let (omega, weights): (Vec<f64>, Vec<f64>) = if along_u_constant {
-        (vec![1.0; nu], w[..nv].to_vec())
+    let (omega, weights): (Vec<T>, Vec<T>) = if along_u_constant {
+        (vec![T::one(); nu], w[..nv].to_vec())
     } else if along_v_constant {
-        ((0..nu).map(|i| w[i * nv]).collect(), vec![1.0; nv])
+        ((0..nu).map(|i| w[i * nv]).collect(), vec![T::one(); nv])
     } else {
         return Err(IsoRowError::WeightsNotSeparable {
             control_counts: (nu, nv),
         });
     };
-    let ku = s.knots_u();
-    let Some(spans) = u.locate_spans(ku) else {
+    let ku = s.knot_values_u();
+    let Some((first, last)) = ku.locate(u) else {
         // A poison `u*` locates no span, and the row is poison in every
         // channel `u*` carries.
         let control = vec![Point3::<T>::origin().map(|_| geom_core::spline::poison_from(u)); nv];
-        return NurbsCurve3::new(s.knots_v().clone(), control, weights)
+        return NurbsCurve3::new(s.knot_values_v().clone(), control, weights)
             .map_err(|source| IsoRowError::Structure { source });
     };
     let mut hulled: Option<Vec<Point3<T>>> = None;
-    for index in spans.first.index()..=spans.last.index() {
+    for index in first.span().index()..=last.span().index() {
         // The locator's range may cross an EMPTY span (interior knot
         // multiplicity); the evaluators skip those the same way.
         let Some(span) = ku.span(index) else {
             continue;
         };
-        let n = basis_funs(span, u);
-        let base = span.first_control();
+        let n = basis_funs_in(span, u);
+        let base = span.span().first_control();
         // `λᵢ = Nᵢ·ωᵢ / Σₖ Nₖ·ωₖ`, the denominator once per span (it
         // does not depend on `j`). In case (a) `ωᵢ = 1` and the
         // denominator is the partition of unity, identically 1 in ℝ:
@@ -196,7 +200,7 @@ pub fn interior_iso_u<T: SpanLocate>(
         let lam: Vec<T> = n
             .iter()
             .enumerate()
-            .map(|(r, nr)| *nr * T::from_f64(omega[base + r]))
+            .map(|(r, nr)| *nr * omega[base + r])
             .collect();
         let den = lam.iter().fold(T::zero(), |acc, l| acc + *l);
         let row: Vec<Point3<T>> = (0..nv)
@@ -235,7 +239,7 @@ pub fn interior_iso_u<T: SpanLocate>(
     let Some(control) = hulled else {
         unreachable!("locate_spans returned no nonempty span")
     };
-    NurbsCurve3::new(s.knots_v().clone(), control, weights)
+    NurbsCurve3::new(s.knot_values_v().clone(), control, weights)
         .map_err(|source| IsoRowError::Structure { source })
 }
 
@@ -297,18 +301,13 @@ impl<T: Real> core::fmt::Display for IsoRowError<T> {
                 "a surface's control net, or the iso row read from it, is not valid spline \
                  structure: {source}"
             ),
-            // `iso_boundary_row` takes no declaration: the margin kind's
-            // own advice stays, the declaration leaves the recourse.
-            Self::Escalated { source } => write!(
-                f,
-                concat!(
-                    geom_core::undecided!(
-                        "whether an edge lies on the boundary of its face's fitted surface"
-                    ),
-                    ": {}"
-                ),
-                source.under(NO_DECLARATION_RECOURSE)
-            ),
+            // `iso_boundary_row` takes no declaration.
+            Self::Escalated { source } => source
+                .undecided(
+                    "whether an edge lies on the boundary of its face's fitted surface",
+                    source.ending(NO_DECLARATION_RECOURSE),
+                )
+                .fmt(f),
             Self::WeightsNotSeparable { control_counts } => write!(
                 f,
                 "interior_iso_u: the {control_counts:?} weight net varies along both u and v, \
@@ -396,7 +395,7 @@ mod tests {
             Point3::new(2.0, 0.0, -0.3),
             Point3::new(2.0, 1.0, 0.1),
         ];
-        NurbsSurface::<f64>::new(ku, kv, control, vec![1.0; 6]).unwrap()
+        NurbsSurface::<f64>::new(ku, kv, control, vec![geom_core::Real::one(); 6]).unwrap()
     }
 
     /// A poison `u*` locates no span, so the collapsed row is poison in
@@ -413,7 +412,13 @@ mod tests {
             .iter()
             .map(|p| p.map(geom_core::Dual64::constant))
             .collect();
-        let dual = NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap();
+        let dual = NurbsSurface::new(
+            geom_core::spline::Knots::from(ku).lift(geom_core::Real::from_f64),
+            geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
+            control,
+            vec![geom_core::Real::one(); 6],
+        )
+        .unwrap();
         let row = interior_iso_u(&dual, geom_core::Dual64::variable(f64::NAN))
             .expect("a separable net collapses");
         for p in row.control() {
@@ -421,6 +426,42 @@ mod tests {
                 assert!(c.value.is_nan() && c.deriv.is_nan(), "{p:?}");
             }
         }
+    }
+
+    /// The collapse reads the surface's HELD weights: a weight held as a
+    /// `Dual` variable (one quantity along its u-row, so the net is
+    /// constant along `v` on its value channel) moves the row's points
+    /// exactly as it moves the surface at `(u*, v)`, value and tangent.
+    #[test]
+    fn the_collapsed_row_carries_a_held_weights_tangent() {
+        use geom_core::Dual64;
+        let s = surface();
+        let c = Dual64::constant;
+        let w = Dual64::variable(0.6);
+        let dual = NurbsSurface::new(
+            geom_core::spline::Knots::from(s.knots_u().clone()).lift(c),
+            geom_core::spline::Knots::from(s.knots_v().clone()).lift(c),
+            s.control().iter().map(|p| p.map(c)).collect(),
+            vec![c(1.0), c(1.0), w, w, c(1.0), c(1.0)],
+        )
+        .unwrap();
+        let u = 0.3;
+        let row = interior_iso_u(&dual, c(u)).expect("a separable net collapses");
+        let mut moved = false;
+        for j in 0..=8 {
+            let v = f64::from(j) / 8.0;
+            let (on_row, on_surface) = (row.eval(c(v)), dual.eval(c(u), c(v)));
+            for (a, b) in [
+                (on_row.x, on_surface.x),
+                (on_row.y, on_surface.y),
+                (on_row.z, on_surface.z),
+            ] {
+                assert!((a.value - b.value).abs() < 1e-14, "v={v}: {a:?} vs {b:?}");
+                assert!((a.deriv - b.deriv).abs() < 1e-12, "v={v}: {a:?} vs {b:?}");
+                moved |= b.deriv != 0.0;
+            }
+        }
+        assert!(moved, "the held weight reached no point of the row");
     }
 
     /// [`iso_boundary_row`] selects the row the stored parameter names,
@@ -616,8 +657,9 @@ mod tests {
 
     /// The boundary-row coincidence escalating, raised for real at
     /// each margin kind: its sentence says what was being decided,
-    /// keeps the kind's own advice, and routes the two levers a door
-    /// without a declaration has, once.
+    /// keeps what the kind adds to the ending (a lever in front of the
+    /// door's, or, at a value, the tolerance arm after it), and routes
+    /// the one lever a door without a declaration has, once.
     #[test]
     fn an_escalated_row_states_its_decision_and_no_declaration() {
         let band = geom_core::Band::new(1e-6, 1e-3).unwrap();
@@ -635,14 +677,36 @@ mod tests {
             IsoRowError::Escalated { source } => IsoRowError::<f64>::Escalated { source },
             other => panic!("the straddling enclosure escalates, got {other}"),
         });
-        for (kind, got, advice) in [
-            ("value", value, "a near-coincidence"),
-            ("invalid", invalid, "check the operation's inputs upstream"),
-            ("enclosure", enclosure, "subdivide the parameter box"),
+        for (kind, got, added) in [
+            (
+                "value",
+                value,
+                "or, if this size is intended, tighten the tolerance below",
+            ),
+            (
+                "invalid",
+                invalid,
+                "Recourse: check the operation's inputs upstream, then",
+            ),
+            (
+                "enclosure",
+                enclosure,
+                "Recourse: subdivide the parameter box",
+            ),
         ] {
             let e = got.expect_err("the margin is in the band");
-            assert!(matches!(e, IsoRowError::Escalated { .. }), "{kind}: {e}");
+            let IsoRowError::Escalated { source } = &e else {
+                panic!("{kind}: {e}");
+            };
             let text = e.to_string();
+            assert!(
+                text.starts_with(&format!(
+                    "whether an edge lies on the boundary of its face's fitted surface is \
+                     undecided: {}. Recourse: ",
+                    source.payload()
+                )),
+                "{kind}: the one undecided shape: {text}"
+            );
             assert!(
                 test_utils::refusal::subjectless_escalations(&text).is_empty(),
                 "{kind}: the escalation names its decision: {text}"
@@ -653,15 +717,15 @@ mod tests {
                 "{kind}: one recourse: {text}"
             );
             assert!(
-                text.contains(advice),
-                "{kind}: the margin kind keeps its own advice: {text}"
+                text.contains(added),
+                "{kind}: the margin kind keeps what it adds to the ending: {text}"
             );
             // The door's one lever, labelled (the marker count above
             // reads the label) and — on a band-decided arm whose margin
             // gives one — followed by the tolerance below which a
-            // smaller one decides it. An unreadable margin puts the
-            // input check in front of the lever, so the lever is read by
-            // `contains` rather than by position. Never a declaration:
+            // smaller one decides it. An unreadable or straddling
+            // margin puts its own lever in front of the door's, so the
+            // door's is read by `contains` rather than by position. Never a declaration:
             // this door takes none.
             assert!(
                 text.contains(NO_DECLARATION_RECOURSE) && !text.contains("declare"),

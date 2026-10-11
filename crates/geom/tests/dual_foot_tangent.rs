@@ -46,28 +46,40 @@
 
 use geom::{NurbsCurve3, NurbsSurface};
 use geom_core::spline::KnotVector;
+use geom_core::spline::{Knots, SpanLocate};
 use geom_core::{Point3, Real};
 
 /// Degree-1 line from `(s, 0, 0)` to `(4 + s, 0, 0)` — the whole curve
 /// slides along x with the seeded parameter `s`.
-fn sliding_line<T: Real>(shift: T) -> NurbsCurve3<T> {
+fn sliding_line<T: SpanLocate>(shift: T) -> NurbsCurve3<T> {
     let control = vec![
         Point3::new(shift, T::from_f64(0.0), T::from_f64(0.0)),
         Point3::new(T::from_f64(4.0) + shift, T::from_f64(0.0), T::from_f64(0.0)),
     ];
     let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    NurbsCurve3::new(knots, control, vec![1.0, 1.0]).unwrap()
+    NurbsCurve3::new(
+        Knots::from(knots).lift(geom_core::Real::from_f64),
+        control,
+        vec![Real::one(); 2],
+    )
+    .unwrap()
 }
 
 /// The bilinear patch in `z = 0` over `x ∈ [s, 4 + s]`, `y ∈ [-2, 2]` —
 /// the surface twin of [`sliding_line`], sliding the same way.
-fn sliding_patch<T: Real>(shift: T) -> NurbsSurface<T> {
+fn sliding_patch<T: SpanLocate>(shift: T) -> NurbsSurface<T> {
     let z = T::from_f64(0.0);
     let p = |x: f64, y: f64| Point3::new(T::from_f64(x) + shift, T::from_f64(y), z);
     let control = vec![p(0.0, -2.0), p(0.0, 2.0), p(4.0, -2.0), p(4.0, 2.0)];
     let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    NurbsSurface::new(ku, kv, control, vec![1.0, 1.0, 1.0, 1.0]).unwrap()
+    NurbsSurface::new(
+        Knots::from(ku).lift(geom_core::Real::from_f64),
+        Knots::from(kv).lift(geom_core::Real::from_f64),
+        control,
+        vec![Real::one(); 4],
+    )
+    .unwrap()
 }
 
 /// The step of the central differences below, and **the usual
