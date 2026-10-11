@@ -14,7 +14,7 @@ use geom_core::{Point2, Real};
 /// per interior sub-arc boundary.
 #[derive(Clone, Debug)]
 pub struct HeldArc<T: Real> {
-    /// The knots `0, 0, 0, 1/m, 1/m, …, 1, 1, 1`.
+    /// The breakpoints `0` (triple), `k/m` (double) and `1` (triple).
     pub knots: Knots<T>,
     /// On-arc points at the sub-arc ends; tangent-intersection points
     /// between them.
@@ -49,15 +49,14 @@ impl<T: SpanLocate> HeldArc<T> {
             control.push(at(base + delta, r));
             weights.push(T::one());
         }
-        let mut knots = vec![T::zero(); 3];
+        let mut runs = vec![(T::zero(), 3)];
         for k in 1..m {
             #[allow(clippy::cast_precision_loss)]
-            let t = T::from_f64(k as f64) / steps;
-            knots.extend([t, t]);
+            runs.push((T::from_f64(k as f64) / steps, 2));
         }
-        knots.extend([T::one(); 3]);
+        runs.push((T::one(), 3));
         Ok(Self {
-            knots: Knots::new(knots, 2)?,
+            knots: Knots::new(runs, 2)?,
             control,
             weights,
         })

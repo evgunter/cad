@@ -135,10 +135,9 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// The one `f64` this value locates by, or `None` when it is no
     /// single point: poison, or an enclosure wider than a point.
     ///
-    /// This is how a carrier's knot and weight values, held in the
-    /// scalar, give the `f64` knot vector and weights their value
-    /// channel ([`super::Knots::new`]): the read the locator itself
-    /// makes, and nothing else. An interval answers only for a point
+    /// This is how knot values held in the scalar give the `f64` knot
+    /// vector its value channel ([`super::Knots::new`]): the read the
+    /// locator itself makes, and nothing else. An interval answers only for a point
     /// bracket, because a wide one names no knot structure, and a
     /// midpoint would invent one.
     fn point_value(self) -> Option<f64>;

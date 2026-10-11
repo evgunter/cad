@@ -36,9 +36,8 @@
 //! The triangular recursion runs ascending level `j = 1..=p`, ascending
 //! entry `r = 0..j`, exactly as written in [`basis_funs`]; derivative
 //! accumulation runs ascending `j` with the term order written in
-//! [`ders_basis_funs`]. Denominators are **pure knot differences**
-//! (taken in `f64` and lifted once for the `f64` knots, in `T` for
-//! knots held in `T`) — not the textbook
+//! [`ders_basis_funs`]. Denominators are **pure knot differences**,
+//! two knots subtracted in `T` — not the textbook
 //! `(U − t) + (t − U′)` form, whose exact-in-ℝ cancellation of `t`
 //! would widen enclosures at the interval scalar (and could put 0 in a
 //! denominator enclosure that is structurally positive).
@@ -61,7 +60,7 @@ trait KnotRead<T> {
 }
 
 /// The `f64` knots lifted: each read is [`Real::from_f64`] of a stored
-/// knot, and a difference is taken in `f64` and lifted once.
+/// knot, and a difference is taken between two lifted knots, in `T`.
 struct Lifted<'a>(Span<'a>);
 
 impl<T: Real> KnotRead<T> for Lifted<'_> {
@@ -72,8 +71,7 @@ impl<T: Real> KnotRead<T> for Lifted<'_> {
         T::from_f64(self.0.knots().knots()[i])
     }
     fn gap(&self, hi: usize, lo: usize) -> T {
-        let u = self.0.knots().knots();
-        T::from_f64(u[hi] - u[lo])
+        KnotRead::<T>::at(self, hi) - KnotRead::<T>::at(self, lo)
     }
 }
 
@@ -334,45 +332,97 @@ mod tests {
         }
     }
 
-    /// At `f64` the held values are the vector's own, so the two reads
-    /// are one recursion over the same numbers: bit-identical rows.
-    #[test]
-    fn held_f64_knots_read_bit_identically_to_the_vector() {
-        let held = crate::spline::Knots::from(kv(&[0.0, 0.0, 0.0, 0.3, 1.7, 4.0, 4.0, 4.0], 2));
-        for t in [0.0, 0.2, 0.3, 1.1, 3.9, 4.0] {
-            let (span, _) = held.locate(t).expect("a numeric parameter");
-            let lifted = ders_basis_funs(span.span(), t, 3);
-            let read = ders_basis_funs_in(span, t, 3);
-            let bits = |rows: &[Vec<f64>]| -> Vec<u64> {
-                rows.iter().flatten().map(|x| x.to_bits()).collect()
-            };
-            assert_eq!(bits(&lifted), bits(&read), "ders rows at t = {t}");
-            let row: Vec<u64> = basis_funs_in(span, t).iter().map(|x| x.to_bits()).collect();
-            assert_eq!(row, bits(&lifted[..1]), "basis row at t = {t}");
-        }
+    /// A spread of vectors: degrees 1 to 5, interior multiplicities up
+    /// to the degree, a single span, uneven spacing.
+    fn vectors() -> Vec<KnotVector> {
+        vec![
+            kv(&[0.0, 0.0, 1.0, 1.0], 1),
+            kv(&[0.0, 0.0, 0.0, 0.3, 1.7, 4.0, 4.0, 4.0], 2),
+            kv(&[0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 3.0, 3.0, 3.0, 3.0], 3),
+            kv(
+                &[-1.0, -1.0, -1.0, -1.0, 0.5, 0.5, 0.5, 2.0, 2.0, 2.0, 2.0],
+                3,
+            ),
+            kv(
+                &[
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.25, 0.6, 0.6, 1.0, 1.0, 1.0, 1.0, 1.0,
+                ],
+                4,
+            ),
+            kv(
+                &[0.0; 6]
+                    .iter()
+                    .chain(&[0.7, 0.7])
+                    .chain(&[1.0; 6])
+                    .copied()
+                    .collect::<Vec<_>>(),
+                5,
+            ),
+        ]
     }
 
-    /// A knot held as a function of a variable enters the row as that
-    /// function: its derivative channel is the row's derivative in the
-    /// knot, against a central difference of rebuilt `f64` vectors.
-    /// Lifted from the `f64` vector, the same knot is a constant and
-    /// the channel is zero.
+    /// The held read of a vector's own values is the lifted read: one
+    /// recursion over the same numbers, bit-identical at `f64` and at
+    /// `Dual<f64>` (a parameter variable), every derivative order up to
+    /// `p + 2`, at knots and between them.
+    #[test]
+    fn held_knots_read_bit_identically_to_the_vector() {
+        let bits = |rows: &[Vec<f64>]| -> Vec<u64> {
+            rows.iter().flatten().map(|x| x.to_bits()).collect()
+        };
+        let dual_bits = |rows: &[Vec<Dual64>]| -> Vec<(u64, u64)> {
+            rows.iter()
+                .flatten()
+                .map(|x| (x.value.to_bits(), x.deriv.to_bits()))
+                .collect()
+        };
+        let mut cases = 0;
+        for k in vectors() {
+            let p = k.degree();
+            let held = crate::spline::Knots::from(k.clone());
+            let lifted_d = held.map(Dual64::constant);
+            let (lo, hi) = k.domain();
+            let mut ts: Vec<f64> = k.knots().to_vec();
+            ts.extend((0..=8).map(|i| lo + (hi - lo) * f64::from(i) / 8.0));
+            for t in ts {
+                let (span, _) = held.locate(t).expect("a numeric parameter");
+                let lifted = ders_basis_funs(span.span(), t, p + 2);
+                let read = ders_basis_funs_in(span, t, p + 2);
+                assert_eq!(bits(&lifted), bits(&read), "f64 ders, p = {p}, t = {t}");
+                let row = basis_funs_in(span, t);
+                assert_eq!(
+                    bits(&[row]),
+                    bits(&lifted[..1]),
+                    "f64 row, p = {p}, t = {t}"
+                );
+
+                let td = Dual64::variable(t);
+                let (dspan, _) = lifted_d.locate(td).expect("a numeric parameter");
+                let lifted = ders_basis_funs(dspan.span(), td, p + 2);
+                let read = ders_basis_funs_in(dspan, td, p + 2);
+                assert_eq!(
+                    dual_bits(&lifted),
+                    dual_bits(&read),
+                    "dual ders, p = {p}, t = {t}"
+                );
+                cases += 1;
+            }
+        }
+        assert!(cases > 60, "the spread shrank to {cases} cases");
+    }
+
+    /// A breakpoint held as a function of a variable enters the row as
+    /// that function: its derivative channel is the row's derivative in
+    /// the breakpoint, against a central difference of rebuilt `f64`
+    /// vectors.
     #[test]
     fn a_held_knot_variable_moves_the_row() {
         let a = 0.8;
-        let at = |x: Dual64| {
-            vec![
-                Dual64::constant(0.0),
-                Dual64::constant(0.0),
-                Dual64::constant(0.0),
-                x,
-                Dual64::constant(2.0),
-                Dual64::constant(2.0),
-                Dual64::constant(2.0),
-            ]
-        };
-        let held = crate::spline::Knots::new(at(Dual64::variable(a)), 2).unwrap();
-        let t = Dual64::constant(1.2);
+        let c = Dual64::constant;
+        let held =
+            crate::spline::Knots::new(vec![(c(0.0), 3), (Dual64::variable(a), 1), (c(2.0), 3)], 2)
+                .unwrap();
+        let t = c(1.2);
         let (span, _) = held.locate(t).expect("a numeric parameter");
         let row = basis_funs_in(span, t);
         let ders = ders_basis_funs_in(span, t, 1);
@@ -395,10 +445,31 @@ mod tests {
             }
         }
         assert!(moved, "the fixture's row does not depend on the knot");
-        let frozen = basis_funs(span.span(), t);
+    }
+
+    /// At `Interval` a coefficient over two point knots encloses the
+    /// real one. The knots `2⁻⁶⁰` and `1` differ by `1 − 2⁻⁶⁰`, which
+    /// rounds to `1` in `f64`; the real slope `1/(1 − 2⁻⁶⁰)` of the
+    /// degree-1 basis is above `1`, so the enclosure must reach past it.
+    #[test]
+    fn an_interval_coefficient_encloses_the_unrounded_knot_gap() {
+        use crate::interval::Interval;
+        use crate::real::Bounds;
+        let tiny = 2f64.powi(-60);
+        let k = kv(&[tiny, tiny, 1.0, 1.0], 1);
+        let t = Interval::from_bounds(0.5, 0.5);
+        let span = k.span_at(0.5).unwrap();
+        let ders = ders_basis_funs(span, t, 1);
         assert!(
-            frozen.iter().all(|n| n.deriv == 0.0),
-            "a lifted knot carried a channel"
+            Bounds::hi(ders[1][1]) > 1.0,
+            "N'_1 = [{}, {}] misses 1/(1 − 2⁻⁶⁰)",
+            Bounds::lo(ders[1][1]),
+            Bounds::hi(ders[1][1])
+        );
+        let row = basis_funs(span, t);
+        assert!(
+            Bounds::hi(row[0]) > 0.5,
+            "N_0(0.5) misses its real value above 0.5"
         );
     }
 }

@@ -429,15 +429,12 @@ const ROW_COUNT: usize = 11_151;
 
 /// FNV-1a 64 over `"{label} {bits:#018x}\n"` for every row in order.
 ///
-/// The `Interval` derivative rows read the basis's derivative ladder in
-/// interval arithmetic over the knots, not as an `f64` quotient lifted
-/// to a point: a lifted quotient encloses the rounded coefficient, not
-/// the real one. That is 487 of the rows, every one an `Interval`
-/// derivative endpoint (`.iv.deriv`, `.iv.deriv2`, `.ders`), each
-/// within 3e-14 relative of the point-lifted spelling: 416 looser and
-/// 71 tighter. No `f64` or `Dual` row, and no `Interval` evaluation
-/// row, reads the ladder.
-const DIGEST: u64 = 0x25a8_22b6_2014_5793;
+/// At `Interval` the basis takes every knot difference and every
+/// derivative coefficient in interval arithmetic over the lifted knots,
+/// so each enclosure contains the real basis value, not the value over
+/// `f64`-rounded knot gaps (`basis.rs`'s
+/// `an_interval_coefficient_encloses_the_unrounded_knot_gap`).
+const DIGEST: u64 = 0x1836_e357_1f82_1ae6;
 
 #[test]
 fn the_extended_corpus_is_bit_identical_to_the_retired_spellings() {

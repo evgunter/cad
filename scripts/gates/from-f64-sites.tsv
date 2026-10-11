@@ -84,7 +84,6 @@ crates/geom-core/src/interval.rs	1	constant	x	the Real impl's own door: Interval
 crates/geom-core/src/interval/certification.rs	1	constant	x	the concrete Interval's point embed, the door itself: never Sym
 crates/geom-core/src/spline/basis.rs	1	constant	factor	a falling factorial of the degree, a count
 crates/geom-core/src/spline/basis.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	self.0.knots().knots()[i]	a stored knot, read by the lifted basis
-crates/geom-core/src/spline/basis.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	u[hi] - u[lo]	a knot difference, read by the lifted basis
 crates/geom-core/src/sym.rs	1	constant	x	the Real impl's own door: Sym::from_f64 is the Lit
 crates/geom/src/convention.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/geom/src/curves/nurbs.rs	1	constant	active.len() as f64	a count of active basis functions
