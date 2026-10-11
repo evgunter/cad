@@ -11,39 +11,45 @@ use std::collections::BTreeSet;
 
 use crate::entity::FaceKey;
 
-/// **A face's lineage**: the face and every face the fragment rows
-/// (`(new face, divided-from face)`, in any order) divide off it or off
-/// one of its fragments: the faces a key read before those divisions
-/// may now name.
-pub(super) struct Lineage(BTreeSet<FaceKey>);
+/// **A cell's lineage**: the cell and every cell the division rows
+/// (`(new cell, divided-from cell)`, in any order) divide off it or off
+/// one of its pieces: the cells a key read before those divisions may
+/// now name. A face's rows are the chord joiner's fragment rows; an
+/// edge's, the edge splits an op logs.
+pub(crate) struct Lineage<K = FaceKey>(BTreeSet<K>);
 
-impl Lineage {
-    /// `face`'s lineage through `rows`.
-    pub(super) fn of<'r>(
-        face: FaceKey,
-        rows: impl IntoIterator<Item = &'r (FaceKey, FaceKey)>,
-    ) -> Self {
+impl<K: Ord + Copy> Lineage<K> {
+    /// `cell`'s lineage through `rows`.
+    pub(crate) fn of<'r>(cell: K, rows: impl IntoIterator<Item = &'r (K, K)>) -> Self
+    where
+        K: 'r,
+    {
         let rows: Vec<_> = rows.into_iter().collect();
-        let mut faces = BTreeSet::from([face]);
-        let mut todo = vec![face];
+        let mut cells = BTreeSet::from([cell]);
+        let mut todo = vec![cell];
         while let Some(f) = todo.pop() {
             for &&(new, from) in &rows {
-                if from == f && faces.insert(new) {
+                if from == f && cells.insert(new) {
                     todo.push(new);
                 }
             }
         }
-        Self(faces)
+        Self(cells)
     }
 
-    /// Whether `face` is of the lineage.
-    pub(super) fn contains(&self, face: FaceKey) -> bool {
-        self.0.contains(&face)
+    /// Whether `cell` is of the lineage.
+    pub(crate) fn contains(&self, cell: K) -> bool {
+        self.0.contains(&cell)
     }
 
-    /// The lineage's faces, the root among them, in key order.
-    pub(super) fn faces(&self) -> impl Iterator<Item = FaceKey> + '_ {
+    /// The lineage's cells, the root among them, in key order.
+    pub(crate) fn cells(&self) -> impl Iterator<Item = K> + '_ {
         self.0.iter().copied()
+    }
+
+    /// The cells divided off the root, the root excluded, in key order.
+    pub(crate) fn pieces(&self, root: K) -> impl Iterator<Item = K> + '_ {
+        self.0.iter().copied().filter(move |&c| c != root)
     }
 }
 

@@ -98,7 +98,9 @@ fn every_surgery_verb_carries_a_corner_kiss() {
     carries_the_kiss(
         "shell",
         &shelled.body,
-        &shelled.carry_contacts(&base.contacts).unwrap(),
+        &shelled
+            .carry_contacts(&base.contacts, geom_core::Band::linear(tol()).unwrap())
+            .unwrap(),
     );
 
     let opened = topo::shell_open(&base.body, 0.1, &[face_at_x(&base.body, 0.0)], tol())
@@ -106,7 +108,9 @@ fn every_surgery_verb_carries_a_corner_kiss() {
     carries_the_kiss(
         "shell_open",
         &opened.body,
-        &opened.carry_contacts(&base.contacts).unwrap(),
+        &opened
+            .carry_contacts(&base.contacts, geom_core::Band::linear(tol()).unwrap())
+            .unwrap(),
     );
 
     let mut offset = Body::clone(&base.body);
@@ -129,7 +133,9 @@ fn every_surgery_verb_carries_a_corner_kiss() {
     // The cut at x = 1/2 leaves the kiss whole on the side above it.
     let plane = common::split_plane(Point3::new(0.5, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), tol());
     let split = topo::split(&base.body, &plane, tol()).expect("the kiss splits");
-    let sides = split.carry_contacts(&base.contacts).unwrap();
+    let sides = split
+        .carry_contacts(&base.contacts, geom_core::Band::linear(tol()).unwrap())
+        .unwrap();
     let above = split.above.body().expect("material above");
     carries_the_kiss("split above", above, &sides.above);
     let below = split.below.body().expect("material below");
@@ -158,7 +164,7 @@ fn a_record_the_cut_parts_is_refused() {
     let plane = common::split_plane(Point3::new(0.5, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), tol());
     let split = topo::split(&base.body, &plane, tol()).expect("the kiss splits");
     assert_eq!(
-        split.carry_contacts(&records),
+        split.carry_contacts(&records, geom_core::Band::linear(tol()).unwrap()),
         Err(CarryRefusal::Parted { record: 1 })
     );
 }
@@ -339,7 +345,9 @@ fn a_rim_that_opens_under_a_resting_corner_leaves_its_record_stale() {
         .map(|(k, _)| k)
         .unwrap();
     let opened = topo::shell_open(&base.body, 0.1, &[top], tol()).expect("the slab opens");
-    let carried = opened.carry_contacts(&base.contacts).unwrap();
+    let carried = opened
+        .carry_contacts(&base.contacts, geom_core::Band::linear(tol()).unwrap())
+        .unwrap();
     assert_eq!(
         carried.vertex_face().collect::<Vec<_>>(),
         base.contacts.vertex_face().collect::<Vec<_>>(),

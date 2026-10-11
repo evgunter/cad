@@ -6659,6 +6659,57 @@ fn segment<T: Real>((p0, p1): (Point3<T>, Point3<T>)) -> EdgeGeo<T> {
     }
 }
 
+/// **A record's confirm pass, one pair at a time**: whether two cells'
+/// interiors meet in `body`, decided as [`confirm_declarations`]
+/// decides a record of them, so a record placed by this answer is one
+/// the census confirms. The body is read once, at [`Self::of`].
+pub(crate) struct RecordConfirm<'b, T: Decide> {
+    body: &'b Body<T>,
+    geo: Geo<T>,
+    band: Band,
+}
+
+impl<'b, T: Decide + geom_core::CertifiedBounds> RecordConfirm<'b, T> {
+    pub(crate) fn of(body: &'b Body<T>, band: Band) -> Self {
+        Self {
+            body,
+            geo: snapshot(body),
+            band,
+        }
+    }
+
+    /// Whether a record of `pair` is confirmed: `Ok(false)` where the
+    /// census reads it stale.
+    ///
+    /// # Errors
+    ///
+    /// The first finding that is not staleness: an escalated decision,
+    /// or a pair outside the census's lanes.
+    pub(crate) fn meets(&self, pair: crate::Contact) -> Result<bool, ValidationError> {
+        let one: ContactRecords = core::iter::once(crate::coincidence::Cited::new(
+            pair,
+            crate::coincidence::Cites::decided(0),
+        ))
+        .collect();
+        let mut errors = Vec::new();
+        confirm_declarations(
+            self.body,
+            &self.geo,
+            &one,
+            self.band,
+            Some(RegionLane::certified()),
+            &mut errors,
+        );
+        match errors
+            .iter()
+            .find(|e| !matches!(e, ValidationError::StaleContactDeclaration { .. }))
+        {
+            Some(finding) => Err(finding.clone()),
+            None => Ok(errors.is_empty()),
+        }
+    }
+}
+
 /// [`interiors_meet`] over two segments: whether their interiors cross
 /// or overlap, decided as the confirm pass of an edge-edge record
 /// decides it, so a record placed by this answer is one the census

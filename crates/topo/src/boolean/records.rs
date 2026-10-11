@@ -66,6 +66,15 @@ pub enum CarryRefusal {
         /// The record's index in the input's list.
         record: u32,
     },
+    /// Whether input record `record`'s touch is on `cells`, a pair of
+    /// pieces of the cells the op divided, could not be read: the
+    /// census's confirm pass escalated, or has no lane for the pair.
+    Unread {
+        /// The record's index in the input's list.
+        record: u32,
+        /// The pair of pieces.
+        cells: [Cell; 2],
+    },
 }
 
 /// **A record's kind, read from its cells' dimensions**: the six pairs
@@ -418,6 +427,107 @@ impl ContactRecords {
         let mut out = Self::default();
         for k in 0..self.rows.len() {
             out.extend(self.carried_row(input, k, result, &image)?);
+        }
+        Ok(out)
+    }
+
+    /// These records as an op's that made `result` from its input
+    /// `input` and divided some of its cells: as
+    /// [`Self::carried_through`], except that a record on a cell the op
+    /// divided lands on every pair of pieces whose interiors still meet
+    /// (D1). `pieces` answers which cells the op divided an input cell
+    /// into (none where it did not divide it), each read through `image`
+    /// as the cell would be; the touch is placed among them by the
+    /// census's own confirm pass, so what lands is what the census
+    /// confirms. A division only chooses among a record's own pieces:
+    /// nothing else of the result is searched. Where no pair of pieces
+    /// meets, the record is carried as [`Self::carried_through`] carries
+    /// it, so the census reads it stale or the carry refuses it.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::carried_through`]; [`CarryRefusal::Unread`] for the
+    /// first pair of pieces the confirm pass cannot read.
+    pub fn carried_through_pieces<T: geom_core::Decide + geom_core::CertifiedBounds>(
+        &self,
+        input: u32,
+        result: &Body<T>,
+        image: impl Fn(Cell) -> Option<Cell>,
+        pieces: impl Fn(Cell) -> Vec<Cell>,
+        band: geom_core::Band,
+    ) -> Result<Self, CarryRefusal> {
+        let mut out = Self::default();
+        let mut confirm = None;
+        for k in 0..self.rows.len() {
+            if self.divided(k, &pieces) {
+                let confirm =
+                    confirm.get_or_insert_with(|| crate::census::RecordConfirm::of(result, band));
+                let landed = self.landed_on_pieces(input, k, result, &image, &pieces, confirm)?;
+                if !landed.is_empty() {
+                    out.extend(landed);
+                    continue;
+                }
+            }
+            out.extend(self.carried_row(input, k, result, &image)?);
+        }
+        Ok(out)
+    }
+
+    /// Whether the op divided either of record `k`'s cells.
+    pub(crate) fn divided(&self, k: usize, pieces: &impl Fn(Cell) -> Vec<Cell>) -> bool {
+        self.rows[k].cells().iter().any(|&c| !pieces(c).is_empty())
+    }
+
+    /// Record `k` on every pair of its cells' pieces in `result` (each
+    /// cell itself and the pieces the op divided it into, each through
+    /// `image`) whose interiors `confirm` reads meeting, each citing
+    /// the input record: none where no pair meets.
+    ///
+    /// # Errors
+    ///
+    /// [`CarryRefusal::Unread`] for the first pair `confirm` cannot
+    /// read.
+    pub(crate) fn landed_on_pieces<T: geom_core::Decide + geom_core::CertifiedBounds>(
+        &self,
+        input: u32,
+        k: usize,
+        result: &Body<T>,
+        image: &impl Fn(Cell) -> Option<Cell>,
+        pieces: &impl Fn(Cell) -> Vec<Cell>,
+        confirm: &crate::census::RecordConfirm<'_, T>,
+    ) -> Result<Vec<Cited<Contact>>, CarryRefusal> {
+        let record = super::reduce::index(k);
+        let held = |c: Cell| {
+            let mut out: Vec<Cell> = Vec::new();
+            for i in core::iter::once(c)
+                .chain(pieces(c))
+                .filter_map(image)
+                .filter(|&i| holds(result, i))
+                .map(|i| conventional_edge(result, i))
+            {
+                if !out.contains(&i) {
+                    out.push(i);
+                }
+            }
+            out
+        };
+        let [x, y] = self.rows[k].cells();
+        let mut out = Vec::new();
+        for &a in &held(x) {
+            for &b in &held(y) {
+                let Ok(pair) = Contact::new(result, a, b) else {
+                    continue;
+                };
+                if confirm.meets(pair).map_err(|_| CarryRefusal::Unread {
+                    record,
+                    cells: pair.cells(),
+                })? {
+                    out.push(Cited::new(
+                        pair,
+                        Cites::one(Backing::Carried { input, record }),
+                    ));
+                }
+            }
         }
         Ok(out)
     }

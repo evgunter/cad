@@ -390,6 +390,7 @@ use geom_core::{
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
+use crate::boolean::Cell;
 use crate::boolean::voids::{VoidContainment, VoidEvidence, VoidInsertError, insert_hollow_voids};
 use crate::chart_groups::ChartGroups;
 use crate::entity::{
@@ -905,24 +906,55 @@ pub struct Shelled<T: Real> {
     pub naming: ShellNaming,
 }
 
-impl<T: Real> Shelled<T> {
+impl<T: Decide + geom_core::CertifiedBounds> Shelled<T> {
     /// `records`, the operand's, carried onto the thin solid: the outer
     /// walls keep their operand keys, so each cell is itself or the edge
     /// the closing join made of it, and a cell the construction retired
-    /// ([`ShellNaming::dead`]) is refused
-    /// ([`crate::ContactRecords::carried_through`]). The cavity twins are
-    /// new cells and no operand record names one.
+    /// ([`ShellNaming::dead`]) is refused. The rim surgery divides cells
+    /// of a designated chart on the outer shell: a seam into its pieces
+    /// ([`RimNaming::seam_pieces`]), and the chart's faces into the rim
+    /// and the region at each further boundary ([`RimNaming::holes`]); a
+    /// record on one lands on the pieces whose interiors still meet
+    /// ([`crate::ContactRecords::carried_through_pieces`]). The cavity
+    /// twins are new cells and no operand record names one.
     ///
     /// # Errors
     ///
-    /// As [`crate::ContactRecords::carried_through`].
+    /// As [`crate::ContactRecords::carried_through_pieces`].
     pub fn carry_contacts(
         &self,
         records: &crate::boolean::ContactRecords,
+        band: Band,
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::CarryRefusal> {
-        records.carried_through(0, &self.body, |c| {
-            Some(crate::boolean::joined_cell(&self.naming.edge_joins, c))
-        })
+        let seams: Vec<(EdgeKey, EdgeKey)> = self
+            .naming
+            .rims
+            .iter()
+            .flat_map(|rim| rim.seam_pieces.iter().copied())
+            .collect();
+        let pieces = |c: Cell| -> Vec<Cell> {
+            match c {
+                Cell::Vertex(_) => Vec::new(),
+                Cell::Edge(e) => crate::boolean::fragments::Lineage::of(e, &seams)
+                    .pieces(e)
+                    .map(Cell::Edge)
+                    .collect(),
+                Cell::Face(f) => self
+                    .naming
+                    .rims
+                    .iter()
+                    .filter(|rim| rim.side == RimShell::Outer && rim.sources.contains(&f))
+                    .flat_map(|rim| rim.holes.iter().map(|h| Cell::Face(h.face)))
+                    .collect(),
+            }
+        };
+        records.carried_through_pieces(
+            0,
+            &self.body,
+            |c| Some(crate::boolean::joined_cell(&self.naming.edge_joins, c)),
+            pieces,
+            band,
+        )
     }
 }
 

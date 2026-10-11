@@ -124,26 +124,48 @@ pub struct Blended<T: Real> {
     pub coincidences: Vec<topo::Coincidence>,
 }
 
-impl<T: Real> Blended<T> {
+impl<T: Decide + geom_core::CertifiedBounds> Blended<T> {
     /// `records`, the operand's, carried onto the blended body: the blend
     /// keeps every key it does not carve away, so each cell is itself or
     /// the edge the closing join made of it ([`topo::joined_cell`]), and
     /// a cell the blend consumed — a requested edge, a corner it rounds,
-    /// a vertex it retracts — is refused
-    /// ([`topo::ContactRecords::carried_through`]). What the blend's new
-    /// faces would inherit from a record on a consumed cell is not
-    /// decided, so no record lands on one. A body with no birth records
-    /// names no join, so a cell a join took is refused with the rest.
+    /// a vertex it retracts — is refused. A source edge the band's carve
+    /// split survives as its pieces
+    /// ([`super::naming::BlendNaming::meridian_remnants`]), and a record
+    /// on it lands on the piece whose interior still meets the other
+    /// cell ([`topo::ContactRecords::carried_through_pieces`]). What the
+    /// blend's new faces would inherit from a record on a consumed cell
+    /// is not decided, so no record lands on one. A body with no birth
+    /// records names no join, so a cell a join took is refused with the
+    /// rest.
     ///
     /// # Errors
     ///
-    /// As [`topo::ContactRecords::carried_through`].
+    /// As [`topo::ContactRecords::carried_through_pieces`].
     pub fn carry_contacts(
         &self,
         records: &topo::ContactRecords,
+        band: geom_core::Band,
     ) -> Result<topo::ContactRecords, topo::CarryRefusal> {
         let joins = self.naming.as_ref().map_or(&[][..], |n| &n.edge_joins[..]);
-        records.carried_through(0, &self.body, |c| Some(topo::joined_cell(joins, c)))
+        let remnants = self
+            .naming
+            .as_ref()
+            .map_or(&[][..], |n| &n.meridian_remnants[..]);
+        records.carried_through_pieces(
+            0,
+            &self.body,
+            |c| Some(topo::joined_cell(joins, c)),
+            |c| match c {
+                topo::Cell::Edge(e) => remnants
+                    .iter()
+                    .filter(|&&(piece, source)| source == e && piece != e)
+                    .map(|&(piece, _)| topo::Cell::Edge(piece))
+                    .collect(),
+                _ => Vec::new(),
+            },
+            band,
+        )
     }
 }
 

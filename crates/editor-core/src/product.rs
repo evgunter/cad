@@ -1328,7 +1328,9 @@ fn carry_contacts<T: geom_core::Real>(
                 cell: Cell::Face(_),
                 ..
             } => "face",
-            topo::CarryRefusal::Pair { .. } | topo::CarryRefusal::Parted { .. } => "cell pair",
+            topo::CarryRefusal::Pair { .. }
+            | topo::CarryRefusal::Parted { .. }
+            | topo::CarryRefusal::Unread { .. } => "cell pair",
         })?;
     into.extend(moved.rows().iter().cloned());
     Ok(())
