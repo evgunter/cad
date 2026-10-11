@@ -536,3 +536,12 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - 1b costs +5%, at 660 µs;
     - ENCL's halves-of-halves row is green under both.
   - Owed: the four-ε suite, the batteries, a mutation row per arm, the endpoint census, and the docs. (NURBS orchestrator)
+- **2026-10-11 09:57Z.** PR 4551: build A's equivalence probe refutes the case for 1b.
+  - 394,939 draws compared 1b against always-meet at interval ratios.
+    - 21% differ.
+    - Always-meet is narrower in 95% of those, by up to 62.5% of the width.
+    - 2.7% of draws are more than 1% narrower, all at thin ratios: knot quotients and drawn thin ratios.
+  - No suite row tells the two apart.
+  - Re-ruled: option 1, the unconditional meet, unless its suite-level cost (m5 fast set, `props::quad` rows) exceeds 1b's by more than about 10%.
+    - If it does, 1b stays, with the trade stated at the claim site and a P3 revisit row.
+  - Either way, a static thin-ratio row guards the meet. (NURBS orchestrator)
