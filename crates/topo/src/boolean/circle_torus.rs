@@ -265,6 +265,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
                     "bool_circle_torus_coaxial_residual",
                     band,
                 )
+                .map(CircleRoots::from)
                 .map_err(escalated)
             }
             Ok(Sign::Positive) => parallel_axes_roots(
@@ -1514,7 +1515,6 @@ mod tests {
                     match got {
                         CircleRoots::Uncertain => {}
                         CircleRoots::OnSurface => panic!("{label}: not on the torus"),
-                        CircleRoots::CountDisagrees => panic!("{label}: counts disagree"),
                         CircleRoots::AtApex => panic!("{label}: a torus has no apex"),
                         CircleRoots::Miss => {
                             assert!(truth.is_empty(), "{label}: a certified miss on a dip");
