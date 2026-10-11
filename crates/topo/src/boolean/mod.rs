@@ -5531,9 +5531,9 @@ fn verify_tangency_declaration<T: Decide>(
         Tangency::Contact => contact_verify::tangent_locus_reading(
             &sa, sense_a, &sb, sense_b, &carrier, t0, t1, true, band,
         ),
-        Tangency::Seam => contact_verify::tangent_seam_reading(
-            &sa, sense_a, &sb, sense_b, &carrier, t0, t1, band,
-        ),
+        Tangency::Seam => {
+            contact_verify::tangent_seam_reading(&sa, sense_a, &sb, sense_b, &carrier, t0, t1, band)
+        }
     };
     let margin = match table {
         // The reading is the touch's; it is a theorem only where the
