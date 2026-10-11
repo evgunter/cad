@@ -447,8 +447,8 @@ fn agree(
             assert_eq!(measure(&a.body), measure(&b.body), "{name}: the same body");
             assert_eq!(a.minted.len(), b.minted.len(), "{name}: the same minting");
             assert_eq!(
-                a.contacts.patches.len(),
-                b.contacts.patches.len(),
+                a.contacts.face_face().count(),
+                b.contacts.face_face().count(),
                 "{name}: the same declared contacts"
             );
             assert_eq!(a.names.len(), b.names.len(), "{name}: the same name table");

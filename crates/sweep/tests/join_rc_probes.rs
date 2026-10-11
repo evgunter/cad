@@ -143,6 +143,46 @@ fn reflex_corner_struts_past_a_half_turn_build_sound() {
     }
 }
 
+/// **An edge of `b`'s tilted cap in `a`'s 315° top face, ending at or
+/// running through the reflex corner, builds every op undeclared.** At
+/// each pose both germs of the corner's vertex pair lie in that face, so
+/// the section loops' winding rests on the strut facing its germs by
+/// their angle from the arrival edge (`insert::strut_order`); a facing
+/// read by a bare cosine winds `b`'s section face as `a`'s, and the zip
+/// refuses `SeamOrientation`. Every op, in both subtract orders, builds
+/// sound at the closed form through the plain booleans.
+#[test]
+fn reflex_corner_edge_in_face_poses_build_every_op_undeclared() {
+    for (profile, sx, sy) in [
+        ("sqQ2", 0.0, -0.5),
+        ("sqQ2", 0.0, -0.25),
+        ("sqQ2", 0.25, 0.0),
+        ("sqQ2", 0.5, 0.0),
+        ("dLeft", 0.25, 0.25),
+        ("dLeft", 0.25, -0.25),
+        ("dLeft", 0.5, 0.5),
+        ("dLeft", 0.5, -0.5),
+        ("eRight", 0.25, 0.0),
+        ("eRight", 0.5, 0.0),
+    ] {
+        let p = reflex_pose(profile, 0.0, sx, sy, tol());
+        for op in REFLEX_OPS {
+            let r = match op {
+                "I" => topo::intersect(&p.a, &p.b, tol()),
+                "U" => topo::union(&p.a, &p.b, tol()),
+                "S_ab" => topo::subtract(&p.a, &p.b, tol()),
+                _ => topo::subtract(&p.b, &p.a, tol()),
+            };
+            assert_sound(
+                &p,
+                op,
+                r,
+                &format!("{profile} (sx, sy) = ({sx}, {sy}) {op}"),
+            );
+        }
+    }
+}
+
 /// **A flush-declared reflex union never ships the overlap twice.**
 /// Each pose either refuses or builds at the closed form, sound.
 #[test]

@@ -7,6 +7,7 @@ opened: 2026-10-11
 priority: P4
 cost: M
 closed: 2026-10-11
+pr: 4647
 ---
 
 
@@ -86,3 +87,12 @@ The damage listed under "Measured" was migrated as follows:
 - The computed foot restores the omissions: DR-123, DR-129, DR-132 and
   DR-161 among the M-tier units, and FLUX's two pairs among the fair
   pairs that found a MAJOR.
+
+## Closed
+
+Resolved by PR 4647 (`tooling/dual-review-log-per-row`, merged by Ev on
+2026-10-11). Each row is now its own file,
+`docs/dual-review-log/rows/PR-<n>.md`, so two PRs never share a file.
+Its DR number is assigned on main in merge order by the
+`dual-review-log` workflow. The foot is computed from the rows' front
+matter, so it cannot omit a row. CI latency stays with CIW's `latency-cut`.

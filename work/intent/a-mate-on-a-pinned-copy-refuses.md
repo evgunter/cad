@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: M
-blocked_on: [a-mate-relates-two-poses, carriers-compare-in-canonical-form]
+blocked_on: [a-mate-relates-two-poses]
 refs: [intent-stage3-is-built, mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion]
 ---
 

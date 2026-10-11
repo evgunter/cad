@@ -2,7 +2,8 @@
 id: the-meters-sup-side-still-reads-boxes-where-the-cell-carries-no-coefficient-form
 kind: issue
 title: the offset meters' sup side still folds boxes where PatchCell carries no coefficient form: the rational arm's chart speeds and cell_normal's sup on ‖S_u × S_v‖
-status: open
+status: dispatched
+branch: encl/meters-sup-coefficients
 opened: 2026-10-08
 priority: P3
 cost: M
