@@ -56,6 +56,11 @@ Most `"{what} is too close to call: {source}"` sites render an
 `Indeterminate` whole, which is `{payload}. {ending}`: the
 `Indeterminate::undecided` shape with the escalation's own ending.
 
+**Done: the geom-brep slice, in PR 4612.** Its seven sentences spell the verdict
+through `geom_core::undecided!`. Each Display there carries the payload, or the
+whole escalation, with no ending of its own to hand to
+`Indeterminate::undecided`.
+
 ## Repair shape
 
 Route each through `Indeterminate::undecided` (payload in the
