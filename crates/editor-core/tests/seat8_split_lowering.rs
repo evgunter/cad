@@ -224,6 +224,10 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
 /// pins and `m5_pr8_bvh_diff` held.
 ///
+/// RE-BLESSED, `cut_cylinder` only, when a split's section face came to
+/// take its chart axis as its first chord projected into the plane: the
+/// tilted section's `u_ref` moved by one ulp in `z`, and nothing else did.
+///
 /// RE-BLESSED, `part_select` only, when its union came to read the
 /// split's two ports where it read a `Part` of each half: the two
 /// projections are gone from the evaluation this digest walks, and the
@@ -233,7 +237,7 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x2f75_0d41_c9ca_4e19u64),
+        ("cut_cylinder", 0xa6c1_1622_9a6f_5245u64),
         ("part_select", 0x023e_8e17_7f50_25c3),
         ("kitchen_sink", 0xe9f2_08e8_5449_a003),
     ] {
