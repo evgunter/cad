@@ -589,11 +589,16 @@ which is what actually moves the number.
 | chord_join.rs (`chart_v_du`) | split_chart_azimuth_linear | harmonic azimuth amplitude `\|pa.x\| + \|pb.x\|` (rad), levered at the radius | m | OK (a precondition: the cylinder chart writes the azimuth linear; TANG, PR 3851) |
 | chord_join.rs (`chart_island_winding`) | split_ring_closure_ruling | `n·â` (cosine), levered at the radius | m | OK |
 | chord_join.rs (`chart_island_winding`) | bool_ring_run_winding (wall chart) | `2·R·A_chart / P`, `P` an upper bound in metres (`R·\|Δu\|` plus axial variation per piece) | m | OK (the planar arm's F4 comparand on the wall's chart) |
-| chord_join.rs (`path_island_winding`) | split_ring_path_lean | `−a·(N × t)/‖N × t‖` (the cosine between a path's arrival and the closing chord's left normal), levered at `Quadric::lever` (the sphere's radius, or the radius of the cone's parallel through the chord's midpoint) | m | OK (TANG) |
-| ring_path.rs (`Quadric::off_apex`) | split_ring_path_off_apex | a point's distance from a cone's axis | m | OK (TANG) |
+| chord_join.rs (`path_island_winding`) | split_ring_path_lean | `−a·(N × t)/‖N × t‖` (the cosine between a path's arrival and the closing chord's left normal), levered at `Quadric::lever` (the sphere's radius, the radius of the cone's parallel through the chord's midpoint, or the smaller of the torus's tube radius and its parallel's there) | m | OK (TANG) |
+| ring_path.rs (`Quadric::off_apex`) | split_ring_path_off_apex | a point's distance from a cone's or a torus's axis | m | OK (TANG) |
 | ring_path.rs (`Quadric::paths`) | split_ring_path_span | `‖â × b̂‖` (the sine between a sphere path's ends), levered at the sphere's radius | m | OK (TANG) |
 | ring_path.rs (`Quadric::paths`) | split_ring_path_nappe | a cone path end's height along the axis from the apex | m | OK (TANG) |
 | ring_path.rs (`Quadric::paths`) | split_ring_path_rise | the difference of a cone path's ends' slant distances from the apex | m | OK (TANG) |
+| ring_path.rs (`Quadric::paths`) | split_ring_path_off_core | a torus path end's distance from the core circle | m | OK (GERM) |
+| ring_path.rs (`Quadric::torus_circle_arc`) | split_ring_torus_meridian | `n̂·â` (the cosine between a loop circle's axis and the torus's), levered at the circle's radius | m | OK (GERM) |
+| ring_path.rs (`Quadric::torus_circle_arc`) | split_ring_torus_parallel | `‖n̂ × â‖` (the sine between a loop circle's axis and the torus's), levered at the circle's radius | m | OK (GERM) |
+| ring_path.rs (`Quadric::torus_circle_arc`) | split_ring_torus_parallel_side | a parallel's radius less the torus's major radius | m | OK (GERM) |
+| ring_path.rs (`path_parity`) | split_ring_path_torus_loop | a crossing's side of the split between its plane's two loops on a torus: `(p − c)·ê` for a meridian, `ρ − R` (signed outward) for a parallel | m | OK (GERM) |
 | ring_path.rs (`path_parity`) | split_ring_path_meets_plane | the gap `r·√(A² + B²) − \|D\|`: a circle piece's reach across a loop conic's plane less its centre's offset from it, the plane's displacement that flips the meeting | m | OK (TANG) |
 | ring_path.rs (`path_parity`) | split_ring_path_segment_side | a ruling segment's end's offset from a loop conic's plane, `n̂·(p − c)` | m | OK (TANG) |
 | ring_path.rs (`path_parity`) | split_ring_path_line_across | `m̂·d̂` (the cosine between a circle piece's plane normal and a loop ruling), levered at the piece's radius | m | OK (TANG) |
