@@ -311,7 +311,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    - The census is exact on the planar inventory and admits every
      carrier kind: same-key opposed-sense curved pairs certify through
      the conformal arm, face–face records through the patch
-     certifier on one carrier and the jet schedule on two,
+     certifier on one carrier or two planes and the jet schedule
+     along the closed-form tangent line on two other carriers,
      cross-solid pairs with a curved
      side in reach refuse as undecidable, and same-solid distinct-key
      curved pairs stay undetected until C9/C6 (`topo::census` module
