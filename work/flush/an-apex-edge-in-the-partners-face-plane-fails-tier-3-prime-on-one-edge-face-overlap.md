@@ -8,6 +8,7 @@ priority: P0
 cost: M
 refs: [a-corner-pair-with-an-edge-in-the-partners-face-plane-builds-with-undeclared-contacts, 4650]
 branch: flush/apex-edge-in-face-plane
+pr: 4737
 ---
 
 
