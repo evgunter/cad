@@ -6706,7 +6706,7 @@ fn segment<T: Real>((p0, p1): (Point3<T>, Point3<T>)) -> EdgeGeo<T> {
 }
 
 /// **A record's confirm pass, one pair at a time**: whether two cells'
-/// interiors meet in `body`, decided as [`confirm_declarations`]
+/// interiors meet in `body`, decided as [`confirm_records`]
 /// decides a record of them, so a record placed by this answer is one
 /// the census confirms. The body is read once, at [`Self::of`]. The
 /// chart-region door is the caller's, as at every census door: without
@@ -6742,7 +6742,7 @@ impl<'b, T: Decide> RecordConfirm<'b, T> {
         ))
         .collect();
         let mut errors = Vec::new();
-        confirm_declarations(
+        confirm_records(
             self.body,
             &self.geo,
             &one,
