@@ -386,13 +386,19 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
 /// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
 /// pins and `m5_pr8_bvh_diff` held.
+///
+/// RE-BLESSED, every row, for CONTACTHOLD's at-rest record (contact
+/// records are one list of unordered cell pairs): the digest feeds each
+/// value's `Debug`, and the records' `Debug` shape moved from seven
+/// per-kind lists to one list of canonical pairs. No outcome, count or
+/// point moved: every other row of these suites held.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x823c_b402_fbb7_bb8fu64),
-        ("heat_sink", 0x628e_523d_e3d7_d18d),
-        ("kiss_carry", 0x9dad_6601_7308_857f),
+        ("crossing_slots", 0x2454_2319_8a2e_6027u64),
+        ("heat_sink", 0x077d_7601_580e_739f),
+        ("kiss_carry", 0xb6cf_9a24_aba9_b50b),
     ] {
         let doc = corpus::documents()
             .into_iter()

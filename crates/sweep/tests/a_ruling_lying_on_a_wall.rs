@@ -228,15 +228,15 @@ fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
                 let c = &bb.contacts;
                 assert_eq!(
                     [
-                        c.vv.len(),
-                        c.a_on_b.len() + c.b_on_a.len(),
-                        c.ve.len(),
-                        c.ee.len(),
-                        c.curves.len(),
-                        c.patches.len()
+                        c.vertex_vertex().count(),
+                        c.vertex_face().count(),
+                        c.vertex_edge().count(),
+                        c.edge_edge().count(),
+                        c.edge_face().count(),
+                        c.face_face().count()
                     ],
                     contacts,
-                    "{label}: [v-v, v-f, v-e, e-e, curve, patch] records"
+                    "{label}: [v-v, v-f, v-e, e-e, e-f, f-f] records"
                 );
                 assert_eq!(
                     topo::joinable_vertices(body, geom_core::Band::linear(tol).unwrap()).unwrap(),
@@ -374,13 +374,13 @@ fn a_ruling_across_an_ellipse_builds_every_op_undeclared() {
             let c = &bb.contacts;
             assert_eq!(
                 [
-                    c.vv.len(),
-                    c.a_on_b.len() + c.b_on_a.len(),
-                    c.curves.len(),
-                    c.patches.len()
+                    c.vertex_vertex().count(),
+                    c.vertex_face().count(),
+                    c.edge_face().count(),
+                    c.face_face().count()
                 ],
                 contacts,
-                "{label}: [v-v, v-f, curve, patch] records"
+                "{label}: [v-v, v-f, e-f, f-f] records"
             );
         }
     }

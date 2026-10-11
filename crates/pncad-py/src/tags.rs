@@ -1825,6 +1825,8 @@ pub fn param_box_error_tag(err: &ParamBoxError) -> &'static str {
     match err {
         ParamBoxError::UnknownParam { .. } => "unknown_param",
         ParamBoxError::AxisUnrepresentable { .. } => "axis_unrepresentable",
+        ParamBoxError::SymbolsOverABox => "symbols_over_a_box",
+        ParamBoxError::SymbolsAcrossAPartSeam => "symbols_across_a_part_seam",
     }
 }
 
@@ -3004,6 +3006,8 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
 pub fn coincidence_rung_tag(rung: pncad::document::Rung) -> &'static str {
     match rung {
         pncad::document::Rung::SameConstruction => "same_construction",
+        pncad::document::Rung::CarrierVerdict(_) => "carrier_verdict",
+        pncad::document::Rung::MarginIdentity(_) => "margin_identity",
     }
 }
 
@@ -3284,8 +3288,8 @@ pub fn census_contact_tag(contact: &CensusContact) -> &'static str {
 ///
 /// The word decides which record a caller withdraws or re-seats. A
 /// `vertex_vertex` or `vertex_on_face` record names entities, so the
-/// repair is at those entities; a `curve_locus` record was certified
-/// by a witness EDGE whose locus is gone, and a `patch` record by a
+/// repair is at those entities; an `edge_face` record names an edge
+/// and the face it lies in, and a `patch` record was certified by a
 /// trim overlap in a shared chart. Withdrawing the wrong granularity
 /// leaves the refusal standing, which is what a caller reading only
 /// `stale_contact_declaration` cannot avoid.
@@ -3298,7 +3302,7 @@ pub fn stale_declaration_tag(declaration: &StaleDeclaration) -> &'static str {
         StaleDeclaration::VertexOnFace { .. } => "vertex_on_face",
         StaleDeclaration::VertexOnEdge { .. } => "vertex_on_edge",
         StaleDeclaration::EdgeEdge { .. } => "edge_edge",
-        StaleDeclaration::CurveLocus { .. } => "curve_locus",
+        StaleDeclaration::EdgeFace { .. } => "edge_face",
         StaleDeclaration::Patch { .. } => "patch",
     }
 }

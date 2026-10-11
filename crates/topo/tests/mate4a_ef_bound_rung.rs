@@ -46,7 +46,7 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{Body, CensusContact, ContactRecords, FaceKey, PatchContact, ValidationError};
+use topo::{Body, CensusContact, ContactRecords, FaceKey, ValidationError};
 
 /// The overhang seat (issue 973's section (a), the review probe's
 /// fixture): the cap crosses the shelf's `y = 0.30` side edge at the
@@ -93,17 +93,11 @@ fn straddle_seat() -> (Body<f64>, FaceKey, FaceKey) {
     (seat.body, seat.post_top, seat.shelf_bottom)
 }
 
-fn declared(a: FaceKey, b: FaceKey) -> ContactRecords {
-    ContactRecords {
-        patches: vec![topo::Cited::new(
-            PatchContact {
-                face_a: a,
-                face_b: b,
-            },
-            topo::Cites::decided(0),
-        )],
-        ..ContactRecords::default()
-    }
+fn declared(body: &Body<f64>, a: FaceKey, b: FaceKey) -> ContactRecords {
+    topo::ContactRecords::from_iter(vec![topo::Cited::new(
+        topo::Contact::new(body, topo::Cell::Face(a), topo::Cell::Face(b)).unwrap(),
+        topo::Cites::decided(0),
+    )])
 }
 
 fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
@@ -144,7 +138,7 @@ fn count(cs: &[CensusContact], f: impl Fn(&CensusContact) -> bool) -> usize {
 #[test]
 fn the_declared_overhang_seat_keeps_no_hard_finding() {
     let (body, post_top, shelf_bottom, _) = overhang_seat();
-    let found = errors(&body, &declared(post_top, shelf_bottom));
+    let found = errors(&body, &declared(&body, post_top, shelf_bottom));
     assert!(
         undeclared(&found).is_empty(),
         "every finding of the declared overhang seat is answered: {found:?}"
@@ -192,7 +186,7 @@ fn the_bare_overhang_seat_still_refuses() {
 fn a_wrong_pair_backs_no_ef_bound() {
     let (body, post_top, _, shelf_top) = overhang_seat();
     let bare = undeclared(&errors(&body, &ContactRecords::default()));
-    let wrong = undeclared(&errors(&body, &declared(post_top, shelf_top)));
+    let wrong = undeclared(&errors(&body, &declared(&body, post_top, shelf_top)));
     assert_eq!(
         count(&wrong, |c| matches!(
             c,
@@ -224,7 +218,7 @@ fn a_wrong_pair_backs_no_ef_bound() {
 #[test]
 fn the_declared_straddle_seat_certifies() {
     let (body, post_top, shelf_bottom) = straddle_seat();
-    let found = errors(&body, &declared(post_top, shelf_bottom));
+    let found = errors(&body, &declared(&body, post_top, shelf_bottom));
     assert!(
         found.is_empty(),
         "the declared straddle seat's crossings are backed at the \

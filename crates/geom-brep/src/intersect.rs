@@ -379,21 +379,37 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    extensions into the bound or poison — loud and typed, never \
                    silent",
         },
-        // ---- Nurbs × the rest: the universal general-rung route. ----
-        (Nurbs, Cylinder | Cone | Sphere | Torus | Nurbs)
-        | (Cylinder | Cone | Sphere | Torus, Nurbs) => PairRoute {
+        // ---- Rung 3, IMPLEMENTED: the ℝ⁴ trace on two charts, one
+        // complete operation read at a seed or whole. ----
+        (Nurbs, Nurbs) => PairRoute {
             rung: Rung::General,
-            implemented: false,
-            note: "a NURBS operand routes to the general rung with the ℝ⁴ \
-                   PARAMETRIC-PAIR trace shape; the general-rung marcher traces \
-                   it and the tensor-composite sup bound that certifies \
-                   plane×NURBS is the substrate these arms reuse. What is \
-                   missing is the rest of the CERTIFICATE: the analytic partner \
-                   needs its chart-form uniqueness tube (written for the plane), \
-                   and NURBS×NURBS needs both charts' tube plus its own \
-                   exhaustiveness/seeding story — arms retire one at a time, each \
-                   with its proof",
+            implemented: true,
+            note: "traced in ℝ⁴ on the PARAMETRIC PAIR (3×4 SVD) by \
+                   geom_brep::ssi::Section, one complete operation over the product \
+                   of the two knot rectangles: a boundary pass over every side of \
+                   both rectangles, branches traced between its crossings and from \
+                   the subdivision's seeds, each certified by both charts' \
+                   tensor-composite sup bounds and the TWO-CHART uniqueness tube, \
+                   and the accounting of every cell; a consumer reads the branch \
+                   through a seed (Section::branch_at) or all of them \
+                   (Section::all). A section touching or running along a side, or \
+                   through a corner, of either rectangle refuses at the boundary \
+                   pass — loud and typed, never silent",
         },
+        // ---- Nurbs × a curved analytic: the general-rung route. ----
+        (Nurbs, Cylinder | Cone | Sphere | Torus) | (Cylinder | Cone | Sphere | Torus, Nurbs) => {
+            PairRoute {
+                rung: Rung::General,
+                implemented: false,
+                note: "a NURBS operand routes to the general rung with the ℝ⁴ \
+                       PARAMETRIC-PAIR trace shape; the general-rung marcher traces \
+                       it and the tensor-composite sup bound that certifies \
+                       plane×NURBS is the substrate these arms reuse. What is \
+                       missing is the rest of the CERTIFICATE: the analytic partner \
+                       needs its chart-form uniqueness tube (written for the plane) \
+                       — arms retire one at a time, each with its proof",
+            }
+        }
         // ---- Approx: an intersection operand is its fit, as it is for
         // evaluation, boxes and pcurves. The fit's distance from its
         // description is the face's claim (O3, re-derived at rest by
@@ -441,8 +457,9 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 ///
 /// Every other implemented pair serves every pose: plane×plane,
 /// plane×cylinder, plane×sphere, sphere×sphere, and the general-rung
-/// arms that march (cylinder×sphere, and plane×NURBS with plane×Approx
-/// over its fit). An
+/// arms that march (cylinder×sphere, plane×NURBS with plane×Approx
+/// over its fit, and NURBS×NURBS with every Approx pairing over its
+/// fits). An
 /// unimplemented pair answers [`route`] unchanged. The match is
 /// exhaustive with no wildcard, as [`route`]'s is, so a kind added to
 /// the table is a compile-time visit here too.
@@ -509,15 +526,16 @@ pub fn route_pose<T: Decide>(
         (Plane, Plane | Cylinder | Sphere | Nurbs | Approx)
         | (Cylinder | Sphere | Nurbs | Approx, Plane)
         | (Sphere, Sphere | Cylinder)
-        | (Cylinder, Sphere) => Ok(()),
+        | (Cylinder, Sphere)
+        | (Nurbs | Approx, Nurbs | Approx) => Ok(()),
         // Unimplemented at the kind level: `route`'s answer stands.
         (Cylinder, Torus | Nurbs)
         | (Torus, Cylinder | Cone | Sphere | Torus | Nurbs)
         | (Cone, Cone | Sphere | Torus | Nurbs)
         | (Sphere, Cone | Torus | Nurbs)
-        | (Nurbs, Cylinder | Cone | Sphere | Torus | Nurbs)
-        | (Approx, Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
-        | (Cylinder | Cone | Sphere | Torus | Nurbs, Approx) => Ok(()),
+        | (Nurbs, Cylinder | Cone | Sphere | Torus)
+        | (Approx, Cylinder | Cone | Sphere | Torus)
+        | (Cylinder | Cone | Sphere | Torus, Approx) => Ok(()),
     };
     let refused = |note| {
         Ok(PairRoute {
@@ -980,6 +998,8 @@ fn plane_cylinder_ruled_read<T: Decide>(
     let hinge = o - n * gap_signed;
     let cos = (T::one() - c.powi(2)).max(T::zero()).sqrt();
     let lever = reach.hinge_lever(o, -(gap_signed * c)) + reach.turn_lever(hinge, (n, a), c, cos);
+    // A tangent line's Zero is one only with this one, so its margin
+    // stands for both.
     let parallel = decide_reported("pc_axis_plane_parallel", Margin::levered(c, lever), band)?;
     if parallel.sign != Sign::Zero {
         return Ok((parallel, None));
@@ -1014,7 +1034,7 @@ fn plane_cylinder_ruled_read<T: Decide>(
         (Sign::Zero, gap) => RuledSection::TangentLine {
             origin: o - n * gap_signed,
             dir: a,
-            gap,
+            gap: gap.jointly(parallel.margin),
         },
         (Sign::Negative, _) => RuledSection::Empty,
     };
@@ -1581,7 +1601,21 @@ pub fn cylinder_axes_parallel<T: Decide>(
     line2: (Point3<T>, Vec3<T>),
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    decide(
+    cylinder_axes_parallel_reported(reach, line1, line2, band).map(|d| d.sign)
+}
+
+/// [`cylinder_axes_parallel`], keeping the reading it decided on.
+///
+/// # Errors
+///
+/// As [`cylinder_axes_parallel`].
+pub fn cylinder_axes_parallel_reported<T: Decide>(
+    reach: &Reach<T>,
+    line1: (Point3<T>, Vec3<T>),
+    line2: (Point3<T>, Vec3<T>),
+    band: Band,
+) -> Result<Decided, Indeterminate> {
+    decide_reported(
         "cc_axes_parallel",
         Margin::levered(
             line1.1.cross(line2.1).norm(),

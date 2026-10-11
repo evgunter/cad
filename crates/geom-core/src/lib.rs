@@ -48,7 +48,7 @@ pub use predicate::{
     IndeterminateUnder, InfSpeed, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_LAST_RESORT,
     KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING, Margin, MarginDiag, MarginKind,
     MissReading, MissSource, MissingRecourse, NOT_YET_ENDING, RANGE_RECOURSE, Recourse,
-    SPLIT_PLANE_RECOURSE, Sign, SizedPass, SizedWords, SupSpeed, UNNAMED_DECISION,
+    SPLIT_PLANE_RECOURSE, Sign, SizedPass, SizedWords, SupSpeed, Theorem, UNNAMED_DECISION,
     UNREADABLE_MARGIN_NOTE, UNREADABLE_STORED_MARGIN_NOTE, UndecidedRefusal, UnderTail,
     lever_recourse, noted,
 };

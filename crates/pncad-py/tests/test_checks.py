@@ -458,8 +458,9 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
     """The `unproven-coincidence` lint (D10): a plate resting flush on
     a block, unioned. The margin decides the rest from values, so the
     union records one coincidence, and the door does not prove it: the
-    two caps are two constructions. The report's rows are the evaluation's
-    unproven rows, word for word."""
+    two caps are two constructions, and the block's top and the plate's
+    floor are two variables typed to one value. The report's rows are
+    the evaluation's unproven rows, word for word."""
 
     def test_a_glued_rest_is_one_unproven_coincidence(self):
         doc = Doc()
@@ -472,7 +473,11 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         (row,) = rows
         self.assertEqual((row.relation, row.site), ("same_opposite", "plane_ladder"))
         self.assertIsNone(row.rung)
-        self.assertEqual(row.residual, "the two cells are two constructions")
+        self.assertEqual(
+            row.residual,
+            "the two cells are two constructions; unproven at the resident budget; "
+            "the full symbolic pass decides",
+        )
         # Each cell is named in the table of the read it came in
         # through: the two members' outputs.
         self.assertEqual(
@@ -506,6 +511,26 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         self.assertEqual(
             [f for f in off.findings if f.check == CheckId.UnprovenCoincidence], []
         )
+
+        # The full pass replays the document with every variable a
+        # symbol, and says so of a row it does not prove.
+        full = (
+            "the two cells are two constructions; with every variable a symbol, "
+            "neither the carriers' verdict nor the deciding margin is shown "
+            "identically zero within the full pass's budget"
+        )
+        (row,) = ev.coincidences(glued, full_symbolic_pass=True)
+        self.assertIsNone(row.rung)
+        self.assertEqual(row.residual, full)
+        self.assertFalse(cfg.full_symbolic_pass)
+        cfg = ChecksConfig(
+            connectedness=Severity.Off,
+            separation=Advisory.Off,
+            full_symbolic_pass=True,
+        )
+        self.assertTrue(cfg.full_symbolic_pass)
+        (finding,) = run_checks(doc, ev, cfg).findings
+        self.assertEqual(finding.evidence.reason, full)
 
 
 if __name__ == "__main__":

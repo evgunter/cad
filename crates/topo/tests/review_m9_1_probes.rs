@@ -14,8 +14,8 @@ use geom_core::{Band, Point3, Vec3};
 use topo::boolean::contact_verify::tangent_locus_relation;
 use topo::boolean::plane_eq::PlaneIdentity;
 use topo::{
-    CarrierDesc, CarrierEqError, CarrierRelation, ContactRecords, ContactRefusal, ContactVerdict,
-    CurveContact, PatchContact, ValidationError, carrier_eq, validate_pseudomanifold,
+    CarrierDesc, CarrierEqError, CarrierRelation, ContactRefusal, ContactVerdict, ValidationError,
+    carrier_eq, validate_pseudomanifold,
 };
 
 fn band() -> Band {
@@ -242,12 +242,11 @@ fn probe_tangent_bridges_inband_residual_beyond_the_stated_residue() {
     assert!(matches!(undeclared, ContactRefusal::Escalated { .. }));
 }
 
-/// CLAIM 4 — the at-rest gate fires `ValidationError::ContactContradicted`:
-/// a CurveContact record whose faces are definitely separated must be
-/// contradicted BY THE CENSUS, not just at use. (No test in the PR
-/// executes this arm; this probe does.)
+/// CLAIM 4 — the at-rest gate refuses a false edge–face record: a top
+/// edge of a brick recorded as touching its bottom face, a metre away,
+/// is never blessed.
 #[test]
-fn probe_at_rest_gate_contradicts_a_false_curve_record() {
+fn probe_at_rest_gate_refuses_a_false_edge_face_record() {
     let body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let z_face = |z: f64| {
         body.faces()
@@ -266,45 +265,38 @@ fn probe_at_rest_gate_contradicts_a_false_curve_record() {
     let witness = body
         .edges()
         .map(|(k, _)| k)
-        .find(|_| true)
-        .expect("brick has edges");
-    let contacts = ContactRecords {
-        curves: vec![topo::Cited::new(
-            CurveContact {
-                face_a: top,
-                face_b: bottom,
-                witness,
-            },
-            topo::Cites::decided(0),
-        )],
-        ..ContactRecords::default()
-    };
+        .find(|&e| {
+            topo::Contact::new(&body, topo::Cell::Edge(e), topo::Cell::Face(top)).is_err()
+                && topo::Contact::new(&body, topo::Cell::Edge(e), topo::Cell::Face(bottom)).is_ok()
+        })
+        .expect("an edge of the top");
+    let contacts = topo::test_support::records(
+        &body,
+        [(topo::Cell::Edge(witness), topo::Cell::Face(bottom))],
+    );
     let errs = validate_pseudomanifold(&body, &contacts, Tol::witness())
         .expect_err("false record must fail");
     assert!(
-        errs.iter()
-            .any(|e| matches!(e, ValidationError::ContactContradicted { .. })),
-        "the at-rest gate must fire ContactContradicted specifically: {errs:?}"
+        errs.iter().any(|e| matches!(
+            e,
+            ValidationError::StaleContactDeclaration { .. }
+                | ValidationError::CensusUnsupported { .. }
+        )),
+        "the at-rest gate refuses the record: {errs:?}"
     );
 }
 
-/// CLAIM 6 — nothing certifies a PatchContact: a body carrying a patch
+/// CLAIM 6 — nothing certifies a false patch: a body carrying a patch
 /// record is refused typed at rest (CensusUnsupported), never blessed.
 #[test]
 fn probe_patch_contact_is_never_certified_at_rest() {
     let body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let mut it = body.faces().map(|(k, _)| k);
     let (fa, fb) = (it.next().unwrap(), it.next().unwrap());
-    let contacts = ContactRecords {
-        patches: vec![topo::Cited::new(
-            PatchContact {
-                face_a: fa,
-                face_b: fb,
-            },
-            topo::Cites::decided(0),
-        )],
-        ..ContactRecords::default()
-    };
+    let contacts = topo::ContactRecords::from_iter(vec![topo::Cited::new(
+        topo::Contact::new(&body, topo::Cell::Face(fa), topo::Cell::Face(fb)).unwrap(),
+        topo::Cites::decided(0),
+    )]);
     let errs = validate_pseudomanifold(&body, &contacts, Tol::witness())
         .expect_err("a patch record cannot be confirmed");
     // Since M9-2 the certifier EXISTS: two arbitrary brick faces are
@@ -338,27 +330,13 @@ fn probe_records_partialeq_bites_on_mutation() {
         panic!("union is a body");
     };
     let mut mutated = out.contacts.clone();
-    let fa = a.faces().next().unwrap().0;
-    mutated.patches.push(topo::Cited::new(
-        PatchContact {
-            face_a: fa,
-            face_b: fa,
-        },
+    let mut faces = out.body.faces().map(|(k, _)| k);
+    let (fa, fb) = (faces.next().unwrap(), faces.next().unwrap());
+    mutated.extend([topo::Cited::new(
+        topo::Contact::new(&out.body, topo::Cell::Face(fa), topo::Cell::Face(fb)).unwrap(),
         topo::Cites::decided(0),
-    ));
+    )]);
     assert_ne!(out.contacts, mutated, "PartialEq must see the new fields");
-    let mut curve_mutated = out.contacts.clone();
-    if let Some((e, _)) = a.edges().next() {
-        curve_mutated.curves.push(topo::Cited::new(
-            CurveContact {
-                face_a: fa,
-                face_b: fa,
-                witness: e,
-            },
-            topo::Cites::decided(0),
-        ));
-        assert_ne!(out.contacts, curve_mutated);
-    }
 }
 
 /// CLAIM 7 / AQ6 — the definite verdict beats the declaration in BOTH

@@ -3144,8 +3144,8 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                         decided @ topo::Backing::Decided(_) => vec![decided],
                         topo::Backing::Carried { input: 0, record } => held
                             .rows()
-                            .nth(record as usize)
-                            .map(|(_, cites)| cites.iter().collect())
+                            .get(record as usize)
+                            .map(|c| c.cites.iter().collect())
                             .unwrap_or_default(),
                         topo::Backing::Carried { record, .. } => {
                             vec![topo::Backing::Carried {

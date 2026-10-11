@@ -173,14 +173,27 @@ pub enum DecisionSite {
     ImportAnchor,
 }
 
-/// **How a row's Zero was discharged.** Every row a lane records today
-/// was decided numerically, against the band; a Zero the symbolic tier
-/// proves identically is a theorem, an arm the door's replay at `Sym`
-/// adds when it reads one.
+/// **How a row's Zero was discharged**: against the band, or, in a
+/// replay at `Sym`, as a theorem of the symbolic tier (ERROR-DESIGN
+/// E12) — the deciding margin identically zero in the variables.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Discharge {
     /// The margin was classified against the band.
     Numeric,
+    /// The symbolic tier proved the margin zero.
+    Theorem(geom_core::Theorem),
+}
+
+impl Discharge {
+    /// How `margin`'s Zero was discharged, as its decision stamped it
+    /// ([`MarginDiag::theorem`]).
+    #[must_use]
+    pub const fn of(margin: MarginDiag) -> Self {
+        match margin.theorem() {
+            Some(how) => Self::Theorem(how),
+            None => Self::Numeric,
+        }
+    }
 }
 
 /// **One coincidence an operation decided from values.**

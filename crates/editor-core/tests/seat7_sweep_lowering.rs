@@ -350,14 +350,20 @@ fn both_sweeps_evaluate_in_one_document() {
 /// point moved: the id-free fence with the pointless datum outcomes
 /// dropped is equal on the base tree and this one. Re-taken merged over
 /// FORK-DM4 unit 1 (PR 4527).
+///
+/// RE-BLESSED, `kitchen_sink` only, merging main's INTENT stage 3 A
+/// re-pin with the at-rest records' cell-pair shape: each moved it
+/// alone, and the merged tree is neither value. `m4_pr8_corpus`'s exact
+/// mass pins, `m5_pr8_bvh_diff` and `m10_p_fence`'s id-masked geometry
+/// held.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x1bc5_64c1_4662_657e),
-        ("corner_table", 0xe0a3_16bc_c748_b225),
+        ("die", 0x20d0_b806_b3a7_87fe),
+        ("corner_table", 0x0ff2_e6d5_8c6f_bdcd),
         ("cut_cylinder", 0xa6c1_1622_9a6f_5245),
-        ("boss_union", 0x47af_11e8_2062_25a2),
-        ("kitchen_sink", 0xf4ce_f4d4_a447_cbaa),
+        ("boss_union", 0xa1a1_dffb_faca_cea6),
+        ("kitchen_sink", 0x587e_9ada_00a5_7fb6),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

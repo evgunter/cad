@@ -100,9 +100,8 @@ fn declared_crosslap_rest_union_builds() {
         "3′ with the surviving records"
     );
     assert!(
-        glued.contacts.vv.is_empty()
-            && glued.contacts.a_on_b.is_empty()
-            && glued.contacts.b_on_a.is_empty(),
+        glued.contacts.vertex_vertex().next().is_none()
+            && glued.contacts.vertex_face().next().is_none(),
         "every REST record is consumed into seam structure: {:?}",
         glued.contacts
     );

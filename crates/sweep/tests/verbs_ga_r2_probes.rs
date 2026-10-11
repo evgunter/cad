@@ -247,13 +247,13 @@ fn r2_a_box_with_on_carrier_rulings_builds_every_op_undeclared() {
         );
         let c = &bb.contacts;
         assert_eq!(
-            [c.vv.len(), c.a_on_b.len() + c.b_on_a.len()],
+            [c.vertex_vertex().count(), c.vertex_face().count()],
             contacts,
             "{op}: [v-v, v-f] records"
         );
         assert!(
-            c.curves.is_empty() && c.patches.is_empty(),
-            "{op}: no curve or patch records"
+            c.edge_face().next().is_none() && c.face_face().next().is_none(),
+            "{op}: no edge-face or face-face records"
         );
     }
 }

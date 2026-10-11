@@ -568,7 +568,9 @@ pub use editor_core::{
 // the door is a module so its `Recourse` keeps its name. A cell on a
 // profile piece names it by `select`'s `ProfileEdgeRef`, curated there.
 pub use editor_core::coincide;
-pub use editor_core::{CitedInput, NamedCell, NamedCoincidence, Proof, Residual, Rung};
+pub use editor_core::{
+    CitedInput, NamedCell, NamedCoincidence, Proof, Residual, Rung, SymbolicPass, Unreplayed,
+};
 // The pose definitions (D10): how a pose variable is defined, read off
 // geometry or constructed, and the faults the doors and the evaluator
 // name. A module, so its arms keep their names (`pose::PoseDef::Plane`).

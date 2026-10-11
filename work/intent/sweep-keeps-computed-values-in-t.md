@@ -33,3 +33,5 @@ with them (`chart_region.rs`'s `the_wrap_band_keeps_its_corners_in_t`
 is the shape), red on the code before the fix. A move to
 `from_computed` can only lose symbolic `Zero`s, never geometry: say
 which `symbolic_zero` counts moved.
+
+Closing this removes a way for the coincidence door to report a false proof: the door's symbolic rungs (`carriers-compare-in-canonical-form`) are theorems about the expression the `Sym` replay saw, and a listed site re-enters a computed value there as a constant.

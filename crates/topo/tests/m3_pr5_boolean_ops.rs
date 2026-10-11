@@ -233,7 +233,7 @@ fn void_birth_cube_minus_inner_cube() {
         }
     );
     assert_props(&body.body, 26.0, 60.0);
-    assert!(body.contacts.vv.is_empty());
+    assert!(body.contacts.vertex_vertex().next().is_none());
 }
 
 // ---------------------------------------------------------------
@@ -318,19 +318,18 @@ fn corner_kiss_operands() {
         }
     );
     assert_props(&body.body, 2.0, 12.0);
-    assert_eq!(body.contacts.vv.len(), 1);
-    let c = body.contacts.vv[0].record;
-    assert!(body.body.get_vertex(c.a).is_some());
-    assert!(body.body.get_vertex(c.b).is_some());
+    assert_eq!(body.contacts.vertex_vertex().count(), 1);
     // The kiss point is one position, two distinct vertices (3′
     // touching via distinct entities — F2's representable class).
-    assert_ne!(c.a, c.b);
+    let (va, vb) = body.contacts.vertex_vertex().next().unwrap();
+    assert!(body.body.get_vertex(va).is_some());
+    assert!(body.body.get_vertex(vb).is_some());
     // ∩: regularized empty. ∖: A, contacts dropped (B not in result).
     assert!(matches!(run(topo::intersect, &a, &b), BooleanResult::Empty));
     let r = run(subtract, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::OperandA);
-    assert!(body.contacts.vv.is_empty());
+    assert!(body.contacts.vertex_vertex().next().is_none());
 }
 
 // ---------------------------------------------------------------

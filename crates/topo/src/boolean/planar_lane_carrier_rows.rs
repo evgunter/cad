@@ -227,7 +227,7 @@ fn brick_face(x: (f64, f64), y: (f64, f64), n: Vec3<f64>) -> (Body<f64>, FaceKey
 fn sweep_a(
     a: &Body<f64>,
     b: &Body<f64>,
-) -> Result<(Body<f64>, crate::boolean::ContactRecords), BooleanError> {
+) -> Result<(Body<f64>, crate::boolean::ReductionContacts), BooleanError> {
     let (mut x, mut y) = (a.clone(), b.clone());
     let mut acc = super::ContactAcc::default();
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
@@ -261,7 +261,7 @@ fn bezier(mx: f64, h: f64, t: f64) -> (f64, f64) {
 /// spline's box is the whole space, a spiric's its whole-period box),
 /// and a carrier with no lane cannot be cleared of any face.
 fn assert_refused(
-    got: Result<(Body<f64>, crate::boolean::ContactRecords), BooleanError>,
+    got: Result<(Body<f64>, crate::boolean::ReductionContacts), BooleanError>,
     edge: crate::EdgeKey,
     b: &Body<f64>,
 ) {

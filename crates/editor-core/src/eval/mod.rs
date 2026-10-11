@@ -3151,6 +3151,14 @@ pub struct EvalOptions {
     /// `param_box` exactly where both capabilities meet
     /// (`Dual<Interval>`: value channel the box, tangent the seed).
     pub seed: Option<crate::var::VarId>,
+    /// **Every continuous free variable a symbol**
+    /// ([`crate::analysis::var_env_symbolic`]): the environment the
+    /// coincidence door replays a document in. `false` — the default —
+    /// is every other evaluation. Exclusive with `param_box`, which
+    /// widens named variables over a box instead: an evaluation asked
+    /// for both refuses every node. So does one that also carries a
+    /// `resolver` ([`crate::analysis::ParamBoxError::SymbolsAcrossAPartSeam`]).
+    pub symbols: bool,
 }
 
 /// Where profile geometry comes from at a non-`f64` scalar.
@@ -3349,6 +3357,7 @@ impl Default for EvalOptions {
             profile_lift: ProfileLift::Pinned,
             param_box: None,
             seed: None,
+            symbols: false,
         }
     }
 }
@@ -3635,12 +3644,18 @@ where
     // ladders): one environment per evaluation is what makes "this run
     // evaluated over that box" a fact about the run rather than about
     // each call site.
-    let env = match opts.param_box.as_deref() {
-        None => doc.var_env::<T>(),
-        Some(b) => match crate::analysis::var_env_over::<T, _>(doc, b) {
-            Ok(env) => env,
-            Err(source) => return refuse_param_box(doc, sched, opts, prior_refused, source),
-        },
+    let env = match (opts.param_box.as_deref(), opts.symbols) {
+        (None, false) => Ok(doc.var_env::<T>()),
+        (None, true) if opts.resolver.is_some() => {
+            Err(crate::analysis::ParamBoxError::SymbolsAcrossAPartSeam)
+        }
+        (None, true) => crate::analysis::var_env_symbolic::<T, _>(doc),
+        (Some(b), false) => crate::analysis::var_env_over::<T, _>(doc, b),
+        (Some(_), true) => Err(crate::analysis::ParamBoxError::SymbolsOverABox),
+    };
+    let env = match env {
+        Ok(env) => env,
+        Err(source) => return refuse_param_box(doc, sched, opts, prior_refused, source),
     };
     // The E4 seed rides the SAME environment (a seed is a separate act
     // on the environment the box door built, never a property of the
@@ -3664,7 +3679,8 @@ where
         opts.boolean_sweep,
         opts.profile_lift,
         tol,
-    );
+    )
+    .with_symbols(opts.symbols);
     // The mate solve is a WHOLE-DOCUMENT computation over recipe data
     // (A11): one spanning tree per group, folded once, read by every
     // instance and every mate below. Running it here rather than per

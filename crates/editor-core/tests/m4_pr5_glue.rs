@@ -105,7 +105,10 @@ fn a_reused_kiss_carries_its_record_into_the_next_union() {
     let BooleanValue::Body { body, contacts, .. } = boolean_value(&ev, u2) else {
         panic!("union is a body");
     };
-    assert!(!contacts.vv.is_empty(), "the kiss's vertex-vertex record");
+    assert!(
+        contacts.vertex_vertex().next().is_some(),
+        "the kiss's vertex-vertex record"
+    );
     assert_eq!(
         validate_pseudomanifold(body, contacts, Tol::witness()),
         Ok(()),

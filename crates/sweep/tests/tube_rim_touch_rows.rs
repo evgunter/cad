@@ -93,7 +93,7 @@ fn a_tube_rim_vertex_touching_a_turned_face_unions_past_tier_3_prime() {
                 (volume - exact).abs() < 1e-6,
                 "{tag}: the union's volume is the cube's and the tube's, got {volume}"
             );
-            let vf = bb.contacts.a_on_b.len() + bb.contacts.b_on_a.len();
+            let vf = bb.contacts.vertex_face().count();
             assert_eq!(vf, 1, "{tag}: the rim vertex on the cube face is recorded");
             assert_eq!(
                 topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
