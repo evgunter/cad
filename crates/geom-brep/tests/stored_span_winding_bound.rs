@@ -221,26 +221,22 @@ fn rim_refusal<V: core::fmt::Debug>(
     }
 }
 
-/// The consumers that read a curved face's rims, on one loop: the flux
-/// lane, the material sign, the shape door. The cone's material sign
-/// is not among them: it parses no rim, and reads the loop's vector
-/// area and length, both linear in every stored span and exact for
-/// any of them — no closed form there rests on the bound.
-fn consumers(kind: Kind, edges: &[LoopEdge<f64>]) -> Vec<(&'static str, Result<(), PropsError>)> {
+/// The consumers that read a curved face's rim spans, on one loop: the
+/// flux lane, the material sign, the shape door.
+fn consumers(kind: Kind, edges: &[LoopEdge<f64>]) -> [(&'static str, Result<(), PropsError>); 3] {
     let s = surface::<f64>(kind);
     let bd = band();
-    let mut out = vec![(
-        "flux lane",
-        curved_face(&s, edges, true, bd).map(|_: FaceContribution<f64>| ()),
-    )];
-    if !matches!(kind, Kind::Cone) {
-        out.push((
+    [
+        (
+            "flux lane",
+            curved_face(&s, edges, true, bd).map(|_: FaceContribution<f64>| ()),
+        ),
+        (
             "material sign",
             boundary_material_sign(&s, edges, bd).map(|_| ()),
-        ));
-    }
-    out.push(("shape door", require_iso_rectangle(&s, edges, bd)));
-    out
+        ),
+        ("shape door", require_iso_rectangle(&s, edges, bd)),
+    ]
 }
 
 // ---------------------------------------------------------------------
@@ -406,4 +402,154 @@ fn the_torus_meridian_decide_holds_at_the_interval_scalar() {
     let edges = rect::<Interval>(Kind::Torus, (0.0, PI / 2.0), (V0, V0 + 3.0 * PI));
     let r = curved_face(&surface::<Interval>(Kind::Torus), &edges, true, band());
     assert!(refuses_as(&r, MERIDIAN_WINDING), "{r:?}");
+}
+
+// ---------------------------------------------------------------------
+// The cone reads circle spans the parse never mints as rims
+// ---------------------------------------------------------------------
+
+/// A zero-span ellipse edge at the cone's low level: it adds nothing
+/// to the loop's vector area, and its presence alone steers
+/// `cone_face_closed_form` onto the ellipse-cut branch, which reads its
+/// loops' endpoints and vector areas and parses no rim.
+fn null_ellipse<T: Real>() -> LoopEdge<T> {
+    let c = Curve3::Ellipse {
+        center: p(0.0, 0.0, S0 * HALF.cos()),
+        axis: v(0.0, 0.0, 1.0),
+        major: f(S0 * HALF.sin()),
+        minor: f(S0 * HALF.sin() * 0.5),
+        u_ref: v(1.0, 0.0, 0.0),
+    };
+    LoopEdge::hand_built(c, f(0.0), f(0.0), true, 0, 0)
+}
+
+/// **The cone's ellipse-cut branch decides the circle spans it
+/// integrates.** On main the `3π` rectangle plus a null ellipse
+/// answered the `3π` area (`1.4685e-4` m²) — the branch never reaches
+/// the rim parse, and `loop_vector_area` reads `R²·Δt` — at `f64` and
+/// at the interval scalar alike.
+#[test]
+fn the_cones_ellipse_branch_refuses_a_rim_past_the_winding_bound() {
+    use geom_core::Interval;
+    let bd = band();
+    let mut edges = rim_rect::<f64>(Kind::Cone, 3.0 * PI);
+    edges.push(null_ellipse());
+    let r = curved_face(&surface::<f64>(Kind::Cone), &edges, true, bd);
+    assert!(refuses_as(&r, RIM_WINDING), "f64: {r:?}");
+    let mut edges = rim_rect::<Interval>(Kind::Cone, 3.0 * PI);
+    edges.push(null_ellipse());
+    let r = curved_face(&surface::<Interval>(Kind::Cone), &edges, true, bd);
+    assert!(refuses_as(&r, RIM_WINDING), "interval: {r:?}");
+    // The control: a full-period rectangle on the same branch answers
+    // the closed form.
+    let mut edges = rim_rect::<f64>(Kind::Cone, TAU);
+    edges.push(null_ellipse());
+    let fc = curved_face(&surface::<f64>(Kind::Cone), &edges, true, bd).unwrap();
+    let exact = exact_area(Kind::Cone, TAU, levels(Kind::Cone, DV));
+    let rel = (fc.area.abs() - exact).abs() / exact;
+    assert!(rel < 1e-12, "area {:e} != {exact:e}", fc.area);
+}
+
+/// **The cone's material sign and its flux lane agree on a `3π` rim**:
+/// both refuse under the rim decide's name. On main the material sign
+/// answered `Encoded(Positive)` where the flux lane (through the rim
+/// parse) refused.
+#[test]
+fn the_cones_material_sign_refuses_what_its_flux_lane_refuses() {
+    let s = surface::<f64>(Kind::Cone);
+    let edges = rim_rect::<f64>(Kind::Cone, 3.0 * PI);
+    let flux = curved_face(&s, &edges, true, band());
+    let side = boundary_material_sign(&s, &edges, band());
+    assert!(refuses_as(&flux, RIM_WINDING), "flux lane: {flux:?}");
+    assert!(refuses_as(&side, RIM_WINDING), "material sign: {side:?}");
+}
+
+// ---------------------------------------------------------------------
+// The torus levers: the rim's own radius, and the minor radius
+// ---------------------------------------------------------------------
+
+/// **The torus rim decide is levered at the rim circle's radius
+/// `R + r·cos v`**: a rim overrun of `2·escalate/r_c` refuses, where at
+/// the minor radius (`r_c/r ≈ 3.3`) it would be under `escalate` and
+/// only escalate. A meridian overrun of `2·escalate/r` refuses too; a
+/// LARGER lever would refuse it as well, so the meridian's lever is
+/// pinned by the band row below, which a lever other than `r` moves.
+#[test]
+fn the_torus_levers_are_the_rim_radius_and_the_minor_radius() {
+    let bd = band();
+    let s = surface::<f64>(Kind::Torus);
+    let (lo, hi) = levels(Kind::Torus, DV);
+    let rc_min = [lo, hi]
+        .map(|lv| R + MINOR * lv.cos())
+        .into_iter()
+        .fold(f64::MAX, f64::min);
+    let du = TAU + 2.0 * bd.escalate() / rc_min;
+    let r = curved_face(&s, &rect::<f64>(Kind::Torus, (0.0, du), (lo, hi)), true, bd);
+    assert!(refuses_as(&r, RIM_WINDING), "rim: {r:?}");
+    let dv = TAU + 2.0 * bd.escalate() / MINOR;
+    let r = curved_face(
+        &s,
+        &rect::<f64>(Kind::Torus, (0.0, PI / 2.0), (lo, lo + dv)),
+        true,
+        bd,
+    );
+    assert!(refuses_as(&r, MERIDIAN_WINDING), "meridian: {r:?}");
+}
+
+/// **The torus meridian's ambiguity band is metered at the minor
+/// radius**: an overrun mid-band at `r` escalates under the meridian
+/// decide's name, and one inside the coincidence band at `r` is not
+/// refused by it.
+#[test]
+fn the_torus_meridian_band_is_metered_at_the_minor_radius() {
+    let bd = band();
+    let s = surface::<f64>(Kind::Torus);
+    let (lo, _) = levels(Kind::Torus, DV);
+    let escalates = |r: &Result<FaceContribution<f64>, PropsError>| {
+        matches!(r, Err(PropsError::Escalated { cause, .. })
+            if cause.predicate == Some(MERIDIAN_WINDING))
+    };
+    let mid = TAU + 0.5 * (bd.zero() + bd.escalate()) / MINOR;
+    let r = curved_face(
+        &s,
+        &rect::<f64>(Kind::Torus, (0.0, PI / 2.0), (lo, lo + mid)),
+        true,
+        bd,
+    );
+    assert!(escalates(&r), "mid-band meridian: {r:?}");
+    let inside = TAU + 0.5 * bd.zero() / MINOR;
+    let r = curved_face(
+        &s,
+        &rect::<f64>(Kind::Torus, (0.0, PI / 2.0), (lo, lo + inside)),
+        true,
+        bd,
+    );
+    assert!(
+        !refuses_as(&r, MERIDIAN_WINDING) && !escalates(&r),
+        "coincident meridian: {r:?}"
+    );
+}
+
+/// **The torus rim's ambiguity band is metered at the rim's own
+/// radius**: an overrun mid-band at both rims' levers (the geometric
+/// mean of the band's edges over the geometric mean of the two radii)
+/// escalates under the rim decide's name.
+#[test]
+fn the_torus_rim_band_is_metered_at_the_rim_radius() {
+    let bd = band();
+    let s = surface::<f64>(Kind::Torus);
+    let (lo, hi) = levels(Kind::Torus, DV);
+    let rc = ((R + MINOR * lo.cos()) * (R + MINOR * hi.cos())).sqrt();
+    let mid = TAU + (bd.zero() * bd.escalate()).sqrt() / rc;
+    let r = curved_face(
+        &s,
+        &rect::<f64>(Kind::Torus, (0.0, mid), (lo, hi)),
+        true,
+        bd,
+    );
+    assert!(
+        matches!(&r, Err(PropsError::Escalated { cause, .. })
+            if cause.predicate == Some(RIM_WINDING)),
+        "mid-band rim: {r:?}"
+    );
 }

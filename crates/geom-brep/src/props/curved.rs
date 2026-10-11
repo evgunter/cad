@@ -875,15 +875,11 @@ struct Rim<T: Real> {
 
 impl<T: Decide> Rim<T> {
     /// **The one door a rim is minted through, on every kind**: the
-    /// stored span is decided forward and within one period
-    /// ([`require_span_within_period`], at the rim circle's radius
-    /// `r_c` — certification's lever) as `props_rim_span_forward` /
-    /// `props_rim_span_winding`, refusing as
-    /// [`PropsError::NotIsoRectangle`]. Every reader of [`Rim::dt`] —
-    /// the cylinder and torus charts' `Δu` sums, [`du_of_rims`],
-    /// [`span_sum`] — rests on that bound. A full-period rim sits AT
-    /// it and is admitted. A distinct key from the meridian decide's
-    /// because a rim's span is the face's `Δu`, not its level extent.
+    /// stored span is decided ([`require_rim_span`], at the rim
+    /// circle's radius `r_c` — certification's lever), so every reader
+    /// of [`Rim::dt`] — the cylinder and torus charts' `Δu` sums,
+    /// [`du_of_rims`], [`span_sum`] — rests on that bound. A
+    /// full-period rim sits AT it and is admitted.
     fn decided(
         e: &LoopEdge<T>,
         d_u_sign: Sign,
@@ -891,13 +887,7 @@ impl<T: Decide> Rim<T> {
         r_c: T,
         band: Band,
     ) -> Result<Self, PropsError> {
-        require_span_within_period(
-            e,
-            r_c,
-            band,
-            ["props_rim_span_forward", "props_rim_span_winding"],
-            |what| PropsError::NotIsoRectangle { what },
-        )?;
+        require_rim_span(e, r_c, band)?;
         Ok(Self {
             d_u_sign,
             dt: e.t1 - e.t0,
@@ -1834,6 +1824,7 @@ pub fn cone_face_closed_form<T: Decide>(
     let mut per_loop = Vec::with_capacity(loops.len());
     let mut va = Vec3::zero();
     for &edges in loops {
+        require_cone_circle_spans(edges, band)?;
         let loop_va = loop_vector_area(edges, apex)?;
         per_loop.push(axis.dot(loop_va));
         va = va + loop_va;
@@ -1891,6 +1882,25 @@ fn require_cone_rings_are_holes<T: Decide>(
     require_holes_wound_against("props_cone_area_side", total, &sides[1..], band)
 }
 
+/// **Every circle span the cone reads, decided** ([`require_rim_span`]).
+/// The cone's flux lane and material sign integrate each edge's stored
+/// span through [`loop_vector_area`] (`R²·Δt`) and [`cone_edge_length`]
+/// (`R·|Δt|`) on every loop, rings and the ellipse-cut branch included,
+/// none of which mints a [`Rim`]; a circle on a cone is a coaxial
+/// section, so its span is a rim's and is decided under the rim's names
+/// at its own radius.
+fn require_cone_circle_spans<T: Decide>(
+    edges: &[LoopEdge<T>],
+    band: Band,
+) -> Result<(), PropsError> {
+    for e in edges {
+        if let Curve3::Circle { radius, .. } = e.carrier {
+            require_rim_span(e, radius, band)?;
+        }
+    }
+    Ok(())
+}
+
 /// An upper bound on a cone boundary edge's length: a conic's speed is
 /// at most its major semi-axis.
 fn cone_edge_length<T: Decide>(e: &LoopEdge<T>) -> Result<T, PropsError> {
@@ -1929,6 +1939,7 @@ fn cone_material_sign<T: Decide>(
     let slant = |p: Point3<T>| (p - apex).dot(axis) / cos_a;
     let (mut ends, mut length, mut axial) = (Vec::new(), T::zero(), T::zero());
     for &edges in loops {
+        require_cone_circle_spans(edges, band)?;
         for (e, next) in edges.iter().zip(edges.iter().cycle().skip(1)) {
             require_zero(
                 "props_loop_closed",
@@ -3054,6 +3065,43 @@ fn arc_point_margin<T: Decide>(arc: &SphereArc<T>, p: Point3<T>) -> Margin<T> {
     Margin::levered(span_membership(ps, pc, arc.span), arc.radius)
 }
 
+/// **The rim span door**: [`require_span_within_period`] at a coaxial
+/// circle's own radius `r_c`, as `props_rim_span_forward` /
+/// `props_rim_span_winding`, refusing [`PropsError::NotIsoRectangle`].
+/// Asked by [`Rim::decided`] at every rim mint, and by
+/// [`require_cone_circle_spans`] wherever the cone reads a circle's span
+/// without minting a rim.
+fn require_rim_span<T: Decide>(e: &LoopEdge<T>, r_c: T, band: Band) -> Result<(), PropsError> {
+    require_span_within_period(
+        e,
+        r_c,
+        band,
+        ["props_rim_span_forward", "props_rim_span_winding"],
+        |what| PropsError::NotIsoRectangle { what },
+    )
+}
+
+/// **The meridian span door**: [`require_span_within_period`] at the
+/// meridian circle's radius — the sphere's `R`, the torus's minor
+/// radius — as `props_meridian_span_forward` /
+/// `props_meridian_span_winding`, refusing
+/// [`PropsError::NotIsoRectangle`]. Asked by
+/// [`sphere_meridian_pole_margins`] and by [`torus_classify`] on every
+/// torus meridian edge.
+fn require_meridian_span<T: Decide>(
+    e: &LoopEdge<T>,
+    radius: T,
+    band: Band,
+) -> Result<(), PropsError> {
+    require_span_within_period(
+        e,
+        radius,
+        band,
+        ["props_meridian_span_forward", "props_meridian_span_winding"],
+        |what| PropsError::NotIsoRectangle { what },
+    )
+}
+
 /// **Certification's per-edge span bounds, re-decided at the parse**:
 /// the stored span is definitely forward and does not definitely
 /// exceed one period. Certification enforces `0 < Δt ≤ τ` on every
@@ -3071,15 +3119,9 @@ fn arc_point_margin<T: Decide>(arc: &SphereArc<T>, p: Point3<T>) -> Margin<T> {
 ///
 /// Each asker brings its own lever and names:
 ///
-/// * a meridian, `props_meridian_span_forward` /
-///   `props_meridian_span_winding`, refusing as
-///   [`PropsError::NotIsoRectangle`] — the sphere's doors at the sphere
-///   radius ([`sphere_meridian_pole_margins`], for [`sphere_boundary`]'s
-///   fold and [`require_one_chart_branch`]), and every torus meridian
-///   edge at the minor radius ([`torus_classify`]);
-/// * a rim of any kind, `props_rim_span_forward` /
-///   `props_rim_span_winding`, at the rim's own radius, refusing as
-///   [`PropsError::NotIsoRectangle`] ([`Rim::decided`]);
+/// * a meridian, through [`require_meridian_span`];
+/// * a rim of any kind, and every circle the cone reads, through
+///   [`require_rim_span`];
 /// * every arc of the sphere's flux lane ([`sphere_loop`]) at the arc's
 ///   own radius, `props_sphere_arc_span_forward` /
 ///   `props_sphere_arc_span_winding`, refusing as
@@ -3172,13 +3214,7 @@ fn sphere_meridian_pole_margins<T: Decide>(
     n_c: Vec3<T>,
     band: Band,
 ) -> Result<[(T, T); 2], PropsError> {
-    require_span_within_period(
-        e,
-        radius,
-        band,
-        ["props_meridian_span_forward", "props_meridian_span_winding"],
-        |what| PropsError::NotIsoRectangle { what },
-    )?;
+    require_meridian_span(e, radius, band)?;
     let w0 = e.p0() - center;
     let sa = w0.dot(axis) / radius;
     let ca = n_c.cross(w0).dot(axis) / radius;
@@ -3930,13 +3966,7 @@ fn torus_classify<'a, T: Decide>(
                 )?;
                 // Certification's per-edge bound, at the minor radius:
                 // the chart's lift and the meridian fold read this span.
-                require_span_within_period(
-                    e,
-                    minor,
-                    band,
-                    ["props_meridian_span_forward", "props_meridian_span_winding"],
-                    |what| PropsError::NotIsoRectangle { what },
-                )?;
+                require_meridian_span(e, minor, band)?;
                 classified.push(TorusEdge::Arc(TorusArc { edge: e, n_c, c_c }));
             }
         }
