@@ -1376,22 +1376,87 @@ struct Reach<T: geom_core::Real> {
     turn: Option<Turn<T>>,
 }
 
-/// A conic germ line as its germ turns along it: the section's centre
-/// and axis and the germ's rotational sense (±1), which say which way
-/// is ahead; then a site on the conic and the line of the conic's
-/// tangent there, which [`turned_past`] measures from. The site and its
-/// tangent are another germ's (a partner's, or the germ's own in
-/// [`germ_arm`]), and that germ's direction may run either way along
-/// the tangent: [`turned_past`] reads the tangent only through
-/// magnitudes, so its orientation never reaches a verdict.
-#[derive(Clone, Copy)]
-struct Turn<T: geom_core::Real> {
-    center: geom_core::Point3<T>,
-    axis: Vec3<T>,
-    sense: T,
-    site: geom_core::Point3<T>,
-    tangent: Vec3<T>,
+/// A conic germ line as its germ turns along it.
+mod turn {
+    use super::{BooleanError, Sense, rotational_sense};
+    use geom_core::{Band, Decide, Point3, Vec3};
+
+    /// The section's centre and axis; the germ's site and direction,
+    /// whose rotational sense says which way is ahead; then a site on
+    /// the conic and the line of the conic's tangent there, which
+    /// [`super::turned_past`] measures from. The site and its tangent
+    /// are another germ's (a partner's, or the germ's own in
+    /// [`Turn::read_from_germ`]), and that germ's direction may run either
+    /// way along the tangent: [`super::turned_past`] reads the tangent
+    /// only through magnitudes, so its orientation never reaches a
+    /// verdict.
+    ///
+    /// Both directions' rotational senses are decided nonzero by
+    /// [`Turn::decide`], the one way to make a `Turn`: the germ's is the
+    /// sign ahead, and the site's is the divisor
+    /// [`super::turned_past`] and [`super::off_conic_slack`] read.
+    #[derive(Clone, Copy)]
+    pub(super) struct Turn<T: geom_core::Real> {
+        center: Point3<T>,
+        axis: Vec3<T>,
+        sense: Sense,
+        germ: (Point3<T>, Vec3<T>),
+        site: (Point3<T>, Vec3<T>),
+    }
+
+    impl<T: Decide> Turn<T> {
+        /// The germ at `germ` read toward `site`, each a point and its
+        /// direction, about `frame`: refuses where either direction has
+        /// no rotational sense there ([`rotational_sense`]).
+        pub(super) fn decide(
+            frame: (Point3<T>, Vec3<T>),
+            germ: (Point3<T>, Vec3<T>),
+            site: (Point3<T>, Vec3<T>),
+            band: Band,
+        ) -> Result<Self, BooleanError> {
+            let sense = rotational_sense(frame, germ.0, germ.1, band)?;
+            rotational_sense(frame, site.0, site.1, band)?;
+            Ok(Turn {
+                center: frame.0,
+                axis: frame.1,
+                sense,
+                germ,
+                site,
+            })
+        }
+    }
+
+    impl<T: geom_core::Real> Turn<T> {
+        /// The same turn read from the germ's own site.
+        pub(super) fn read_from_germ(self) -> Self {
+            Turn {
+                site: self.germ,
+                ..self
+            }
+        }
+
+        /// `(center, axis)`.
+        pub(super) fn frame(self) -> (Point3<T>, Vec3<T>) {
+            (self.center, self.axis)
+        }
+
+        /// The germ's rotational sense.
+        pub(super) fn sense(self) -> Sense {
+            self.sense
+        }
+
+        /// The site measured from.
+        pub(super) fn site(self) -> Point3<T> {
+            self.site.0
+        }
+
+        /// The conic's tangent line at [`Turn::site`].
+        pub(super) fn tangent(self) -> Vec3<T> {
+            self.site.1
+        }
+    }
 }
+use turn::Turn;
 
 /// Which half-turn of its section conic a partner site lies in, seen
 /// from the germ and in the germ's own rotational sense. A straight germ
@@ -1402,6 +1467,11 @@ enum GermArm {
     Ahead,
     /// Past it.
     Behind,
+}
+
+/// A join coincidence the band cannot decide.
+fn join_escalate(diag: geom_core::Indeterminate) -> BooleanError {
+    BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag)
 }
 
 /// **Is `cand` nearer than `best` along ONE germ's line?** Both are
@@ -1421,17 +1491,12 @@ fn nearer_along<T: Decide>(
     best: Reach<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    if cand.arm != best.arm {
-        return Ok(cand.arm == GermArm::Ahead);
-    }
-    if let (Some(c), Some(b)) = (cand.turn, best.turn) {
-        let escalate =
-            |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
-        let one_site = decide("bool_join_chord", Margin::norm3(c.site - b.site), band)
-            .map_err(escalate)?
+    if let (true, Some(c), Some(b)) = (cand.arm == best.arm, cand.turn, best.turn) {
+        let one_site = decide("bool_join_chord", Margin::norm3(c.site() - b.site()), band)
+            .map_err(join_escalate)?
             == Sign::Zero;
         if !one_site {
-            match travel("bool_join_arc_travel", b, c.site, band)? {
+            match travel("bool_join_arc_travel", b, c.site(), band)? {
                 Sign::Negative => return Ok(true),
                 Sign::Positive => return Ok(false),
                 Sign::Zero => {}
@@ -1449,13 +1514,12 @@ fn nearer<T: Decide>(cand: Reach<T>, best: Reach<T>, band: Band) -> Result<bool,
     if cand.arm != best.arm {
         return Ok(cand.arm == GermArm::Ahead);
     }
-    let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
     Ok(decide(
         "bool_join_nearest",
         Margin::of(cand.chord - best.chord),
         band,
     )
-    .map_err(escalate)?
+    .map_err(join_escalate)?
         == Sign::Negative)
 }
 
@@ -1484,9 +1548,8 @@ fn turn_of<T: geom_core::Real>(
 /// aspect `k`. At the half-turn it is the arc again to first order, by
 /// the conic's central symmetry; between, it is neither, and only its
 /// sign is read there. `|turn(t̂)|` is the site's rotational sense,
-/// decided nonzero before a partner is ranked (the [`Sense`] a
-/// [`rotational_sense`] returns). Reading from the site cancels nothing
-/// near it.
+/// decided nonzero when the [`Turn`] was made ([`Turn::decide`]).
+/// Reading from the site cancels nothing near it.
 ///
 /// The sites are vertices, and a vertex lies within the band of its
 /// edges' carriers but not on them: each edge's endpoints are pinned to
@@ -1497,10 +1560,10 @@ fn turn_of<T: geom_core::Real>(
 /// it against that slack. Metres: a metre vector projected across a
 /// metre radius, over a unit tangent projected the same way.
 fn turned_past<T: geom_core::Real>(from: Turn<T>, p: geom_core::Point3<T>) -> Margin<T> {
-    let frame = (from.center, from.axis);
+    let frame = from.frame();
     Margin::levered_inv(
-        turn_of(frame, from.site, p - from.site) * from.sense,
-        turn_of(frame, from.site, from.tangent).abs(),
+        turn_of(frame, from.site(), p - from.site()) * from.sense().unit(),
+        turn_of(frame, from.site(), from.tangent()).abs(),
     )
 }
 
@@ -1513,8 +1576,9 @@ fn turned_past<T: geom_core::Real>(from: Turn<T>, p: geom_core::Point3<T>) -> Ma
 /// `|t̂·(site − c)|·|axis|` over `|turn(t̂)|`, the axis's length
 /// cancelling with [`turn_of`]'s.
 fn off_conic_slack<T: geom_core::Real>(from: Turn<T>, band: Band) -> Margin<T> {
-    let cot = from.tangent.dot(from.site - from.center).abs() * from.axis.norm()
-        / turn_of((from.center, from.axis), from.site, from.tangent).abs();
+    let (center, axis) = from.frame();
+    let cot = from.tangent().dot(from.site() - center).abs() * axis.norm()
+        / turn_of(from.frame(), from.site(), from.tangent()).abs();
     Margin::levered(cot + cot, T::from_f64(band.zero()))
 }
 
@@ -1529,19 +1593,18 @@ fn travel<T: Decide>(
     p: geom_core::Point3<T>,
     band: Band,
 ) -> Result<Sign, BooleanError> {
-    let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
     let margin = turned_past(from, p);
     let slack = off_conic_slack(from, band);
-    let sign = decide(name, margin, band).map_err(escalate)?;
+    let sign = decide(name, margin, band).map_err(join_escalate)?;
     let tie_clear = sign == Sign::Zero
-        && decide("bool_join_arc_slack", slack, band).map_err(escalate)? == Sign::Zero;
+        && decide("bool_join_arc_slack", slack, band).map_err(join_escalate)? == Sign::Zero;
     if !tie_clear {
         decide_positive(
             "bool_join_arc_clear",
             Margin::of(margin.value().abs() - slack.value()),
             band,
         )
-        .map_err(escalate)?;
+        .map_err(join_escalate)?;
     }
     Ok(sign)
 }
@@ -1560,21 +1623,17 @@ fn travel<T: Decide>(
 ///
 /// A straight germ line has no turn to read, so every partner is
 /// `Ahead` and the order is the chord alone — the planar pairing.
-fn germ_arm<T: Decide>(
-    turn: Option<Turn<T>>,
-    (p_c, dir): (geom_core::Point3<T>, Vec3<T>),
-    band: Band,
-) -> Result<GermArm, BooleanError> {
+fn germ_arm<T: Decide>(turn: Option<Turn<T>>, band: Band) -> Result<GermArm, BooleanError> {
     let Some(turn) = turn else {
         return Ok(GermArm::Ahead);
     };
-    let from_germ = Turn {
-        site: p_c,
-        tangent: dir,
-        ..turn
-    };
     Ok(
-        match travel("bool_join_arc_ahead", from_germ, turn.site, band)? {
+        match travel(
+            "bool_join_arc_ahead",
+            turn.read_from_germ(),
+            turn.site(),
+            band,
+        )? {
             Sign::Negative => GermArm::Behind,
             Sign::Positive | Sign::Zero => GermArm::Ahead,
         },
@@ -1766,8 +1825,7 @@ fn partners<T: Decide>(
     let p_c = point_of(rga.he)?;
     let p_e = point_of(ega.he)?;
     let dist = (p_e - p_c).norm();
-    let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
-    match decide("bool_join_chord", Margin::of(dist), band).map_err(escalate)? {
+    match decide("bool_join_chord", Margin::of(dist), band).map_err(join_escalate)? {
         Sign::Positive => {}
         _ => return Ok(None), // coincident sites: no polygon edge
     }
@@ -1796,17 +1854,16 @@ fn partners<T: Decide>(
         None => None,
         Some(loops) => {
             let (_, lp) = loops.at(p_c, band)?;
-            Some(Turn {
-                center: lp.center,
-                axis: lp.axis,
-                sense: rotational_sense(lp.turn(), p_c, rga.dir, band)?.unit(),
-                site: p_e,
-                tangent: ega.dir,
-            })
+            Some(Turn::decide(
+                lp.turn(),
+                (p_c, rga.dir),
+                (p_e, ega.dir),
+                band,
+            )?)
         }
     };
     Ok(Some(Reach {
-        arm: germ_arm(turn, (p_c, rga.dir), band)?,
+        arm: germ_arm(turn, band)?,
         chord: dist,
         turn,
     }))
@@ -3234,7 +3291,6 @@ pub(super) fn germs_face_each_other<T: Decide>(
     p2: geom_core::Point3<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
     match loops {
         None => {
             let chord = p2 - p1;
@@ -3245,9 +3301,9 @@ pub(super) fn germs_face_each_other<T: Decide>(
             let f1 = g1.dir.dot(chord);
             let f2 = g2.dir.dot(-chord);
             Ok(
-                decide("bool_join_facing", Margin::of(f1), band).map_err(escalate)?
+                decide("bool_join_facing", Margin::of(f1), band).map_err(join_escalate)?
                     == Sign::Positive
-                    && decide("bool_join_facing", Margin::of(f2), band).map_err(escalate)?
+                    && decide("bool_join_facing", Margin::of(f2), band).map_err(join_escalate)?
                         == Sign::Positive,
             )
         }
@@ -3783,9 +3839,12 @@ fn cut_pair<T: Decide>(
 /// cell-dimension witness ladder ([`complex_side`]) against the
 /// pristine other operand. Probing waits for quiescence, so no
 /// crossing runs through a region face and the ladder's premise holds.
-/// Strut side labels are never consulted: pierce-ring struts carry
-/// provisional labels, and a single-face seam ring has no in-solid
-/// label to anchor on.
+/// Strut side labels are not consulted. They are derived like every
+/// null half's (the module docs' sense theorem; a ring strut is minted
+/// by the same rule), and they fix which way each loop's chords run, so
+/// reading the roles from geometry alone keeps the zip's
+/// [`BooleanError::SeamOrientation`] a check of the labels against an
+/// independent reading rather than against themselves.
 ///
 /// What this question adds to the ladder is [`loop_roles`]: the two
 /// loops' regions flank the seam, so their sides are opposite.
@@ -4011,13 +4070,15 @@ mod travel_rows {
             Reach {
                 arm: GermArm::Ahead,
                 chord: (site - germ).norm(),
-                turn: Some(Turn {
-                    center: Point3::origin(),
-                    axis: Vec3::unit_z(),
-                    sense: -1.0,
-                    site,
-                    tangent,
-                }),
+                turn: Some(
+                    Turn::decide(
+                        (Point3::origin(), Vec3::unit_z()),
+                        (germ, Vec3::unit_x()),
+                        (site, tangent),
+                        band(),
+                    )
+                    .unwrap(),
+                ),
             }
         })
     }
@@ -4079,14 +4140,14 @@ mod travel_rows {
         let arm = |k: f64| {
             let (germ, dir) = at(k, -FRAC_PI_4);
             let (site, tangent) = at(k, -FRAC_PI_4 + core::f64::consts::PI);
-            let turn = Turn {
-                center: Point3::origin(),
-                axis: Vec3::unit_z(),
-                sense: -1.0,
-                site,
-                tangent,
-            };
-            germ_arm(Some(turn), (germ, dir * -1.0), band())
+            let turn = Turn::decide(
+                (Point3::origin(), Vec3::unit_z()),
+                (germ, dir * -1.0),
+                (site, tangent),
+                band(),
+            )
+            .unwrap();
+            germ_arm(Some(turn), band())
         };
         assert!(matches!(arm(1.0), Ok(GermArm::Ahead)), "circle");
         assert!(
