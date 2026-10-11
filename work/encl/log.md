@@ -1422,3 +1422,4 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-11 — Dispatched `analytic-rung3-hull-limb-refuses-on-fixed-parts-without-subdividing` (`encl/rung3-hull-refine`). It crosses PCERT's `pcurve_cache.rs` (`projected_hull_lane`, shared with check 4), so a seam note is due.
 - 2026-10-11 — Bisected main's red arc-loft volume row to NURBS #4553: `fold_runs` is face-order dependent and the import reorders faces. Filed exch P1 `arc-loft-round-trip-volume-differs-by-face-order`, with notes on exch, nurbs and flux. PR 4629 waits on it.
 - 2026-10-11 — Dispatched `the-meters-sup-side-still-reads-boxes-where-the-cell-carries-no-coefficient-form` (`encl/meters-sup-coefficients`).
+- 2026-10-11 — Merged ENCL's test-only fix for main's red arc-loft row (PR 4682, `d46cdaa15b`) and ported it into PR 4629.

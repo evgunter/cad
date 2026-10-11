@@ -362,18 +362,26 @@ fn arc_loft_natively_computes_its_rational_volume() {
             // that check decided on.
             let got = enclosure;
             let want = native_props.expect("the native side certified");
-            // **BIT identity, not overlap** (R1 MINOR-2). Overlap is
-            // what soundness needs — two certified enclosures of one
-            // solid must intersect — but it is not what actually
+            // **Ulp identity, not overlap** (R1 MINOR-2; re-stated for
+            // `work/exch/arc-loft-round-trip-volume-differs-by-face-order.md`).
+            // Overlap is what soundness needs, but it is not what actually
             // happens, and asserting the weaker fact would let a real
-            // divergence hide inside a pad. The reader reconstructs the
-            // same chart and the same trim, so the same quadrature runs
-            // on the same bits: pin THAT, and let a single ulp of drift
-            // be a finding.
-            assert_eq!(
-                got.volume.to_bits(),
-                want.volume.to_bits(),
-                "the round trip must reproduce the volume BIT-identically: \
+            // divergence hide inside a pad. The reader reconstructs the same
+            // charts and trims, so each FACE's quadrature runs on the same
+            // bits — but it does not promise the native arena's face order,
+            // and the whole-body fold (`topo` `fold_runs`) sums the faces in
+            // arena order, in plain f64. Two orders of one sum may round
+            // apart by at most one ulp per addition, so the volumes must
+            // agree to within `faces − 1` ulps of each other, and the pad
+            // (a sum of non-negative pads in the same fold, outward) must
+            // still agree bit for bit at this body's values. Measured:
+            // 2 ulps since NURBS #4553 moved the per-face fluxes.
+            let faces = native.faces().count() as u64;
+            let ulps = got.volume.to_bits().abs_diff(want.volume.to_bits());
+            assert!(
+                got.volume > 0.0 && want.volume > 0.0 && ulps < faces,
+                "the round trip must reproduce the volume to within the fold's \
+                 face-order rounding ({ulps} ulps against {faces} faces): \
                  imported {} ± {}, native {} ± {}",
                 got.volume,
                 got.volume_pad,
