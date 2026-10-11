@@ -2,11 +2,13 @@
 id: interference-at-rest-is-a-finding
 kind: issue
 title: D10 stage 5 PR B: interference between copies is its own finding, quiet only under a one-sided Gap assertion whose own faces bound the overlap
-status: dispatched
+status: closed
 opened: 2026-10-08
 priority: P0
 cost: H
 branch: intent/s5-b-interference
+pr: 4560
+closed: 2026-10-10
 ---
 
 INTENT stage 5, PR B. Ev approved the design in PR 4319 (fork log row
@@ -60,3 +62,10 @@ members, adjacent or all. D10's Assertions paragraph states it; the
 maps are `a-map-over-a-patterns-bodies-asserts-once-per-member`. This
 unit's quieting rule is per finding, so a mapped assertion quiets
 exactly as the one it expands to would.
+
+Closed by PR 4560 (dual review DR-152). The owed work is on its rows:
+- `the-at-rest-containment-check-has-no-sphere-lane`;
+- `a-pierce-only-overlap-can-never-be-quieted`;
+- `the-probe-gated-assembly-battery-gathers-an-unplaced-fixture`;
+- the flush press fit's coplanar-cap contact, and the at-rest census as
+  a check, on `the-at-rest-census-is-a-check` (stage 5 C).

@@ -164,10 +164,10 @@ use super::{PropsCheck, PropsError};
 use crate::offset_meters::mig;
 
 /// The initial piece count of the composite rule (round 0).
-const QUAD_INIT_PIECES: usize = 16;
+pub(super) const QUAD_INIT_PIECES: usize = 16;
 /// Refinement rounds before the typed budget refusal (pieces double
 /// per round: ≤ `16·2¹²` = 65536 pieces).
-const QUAD_MAX_ROUNDS: usize = 12;
+pub(super) const QUAD_MAX_ROUNDS: usize = 12;
 /// Convergence target as a multiple of ε, metered as the mean boundary
 /// displacement `width(flux)/(3·area)` (module docs: why not 1·ε).
 pub(super) const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
@@ -350,7 +350,7 @@ pub struct TrimEdgeQ {
 // ---------------------------------------------------------------------
 
 /// Shorthand: a point bracket.
-fn pt(x: f64) -> Interval {
+pub(super) fn pt(x: f64) -> Interval {
     Interval::point(x)
 }
 
@@ -404,7 +404,7 @@ fn sin_step(s: f64) -> Interval {
 /// enclosures are given. Intersecting with [−1, 1] after every
 /// compose keeps the propagated brackets from drifting past the
 /// circle (sound: the true values lie in both).
-fn rotate(c: Interval, s: Interval, ch: Interval, sh: Interval) -> (Interval, Interval) {
+pub(super) fn rotate(c: Interval, s: Interval, ch: Interval, sh: Interval) -> (Interval, Interval) {
     let clamp = |x: Interval| x.clamped_to(-1.0, 1.0);
     (clamp(c * ch - s * sh), clamp(s * ch + c * sh))
 }
@@ -418,7 +418,7 @@ fn rotate(c: Interval, s: Interval, ch: Interval, sh: Interval) -> (Interval, In
 /// full-period offset), NOT the exponential-in-|off| compounding a
 /// step-march would suffer. The composed rotation is applied to the
 /// base exactly once.
-fn trig_at(base: (Interval, Interval), off: f64) -> (Interval, Interval) {
+pub(super) fn trig_at(base: (Interval, Interval), off: f64) -> (Interval, Interval) {
     if off == 0.0 {
         return base;
     }
@@ -469,6 +469,25 @@ fn trig_over(base: (Interval, Interval), off: f64, d: f64) -> (Interval, Interva
     };
     let sh = Interval::from_bounds(0.0, d.min(1.0));
     rotate(at.0, at.1, ch, sh)
+}
+
+/// `cos δ` over `|δ| ≤ h`: `[1 − h²/2, 1]`, the whole circle past
+/// `h = 1.5`. The `.max` is not the refusal-swallowing shape
+/// `Interval::clamped_to` exists for: `h` is a finite f64 by every
+/// caller's guard and the operands are `pt` of it with an exact
+/// nonzero divisor, so no refusal can arise.
+pub(super) fn spread_cos(h: f64) -> Interval {
+    if h <= 1.5 {
+        Interval::from_bounds((pt(1.0) - pt(h).sqr() / pt(2.0)).lo().max(-1.0), 1.0)
+    } else {
+        Interval::from_bounds(-1.0, 1.0)
+    }
+}
+
+/// `sin δ` over `|δ| ≤ h`: `[−h, h]`, clipped to the unit interval.
+pub(super) fn spread_sin(h: f64) -> Interval {
+    let b = h.min(1.0);
+    Interval::from_bounds(-b, b)
 }
 
 // ---------------------------------------------------------------------
@@ -527,16 +546,7 @@ fn harmonic_edge_integral(e: &TrimEdgeQ, pieces: usize, radius: Interval) -> Int
     // `trig_over` — the `.max`/`.min` here operate on refusal-free ring
     // arithmetic and are not the `clamped_to` hazard.
     let h2 = h * 0.5;
-    let spread_c = if h2 <= 1.5 {
-        Interval::from_bounds((pt(1.0) - pt(h2).sqr() / pt(2.0)).lo().max(-1.0), 1.0)
-    } else {
-        Interval::from_bounds(-1.0, 1.0)
-    };
-    let spread_s = if h2 <= 1.5 {
-        Interval::from_bounds(-h2.min(1.0), h2.min(1.0))
-    } else {
-        Interval::from_bounds(-1.0, 1.0)
-    };
+    let (spread_c, spread_s) = (spread_cos(h2), spread_sin(h2));
     for i in 0..pieces {
         #[allow(clippy::cast_precision_loss)]
         let p = a + span * (i as f64 / pieces as f64);
@@ -592,7 +602,7 @@ fn edge_metric_length(e: &TrimEdgeQ, radius: Interval) -> f64 {
 /// the `is_finite` tests, the margin classifiers, the gauges and the
 /// knot-collapse windows all refuse on it — so this is the one door
 /// that turns the decoration back into the value those readers expect.
-fn lo_or_refuse(x: Interval) -> f64 {
+pub(super) fn lo_or_refuse(x: Interval) -> f64 {
     if !x.is_certified() { f64::NAN } else { x.lo() }
 }
 
@@ -604,7 +614,7 @@ fn hi_or_refuse(x: Interval) -> f64 {
 /// Midpoint of a bracket (structure selection for integration limits;
 /// the bracket's width is repaid by the endpoint pad). A refused
 /// bracket has no midpoint, and says so.
-fn mid(x: Interval) -> f64 {
+pub(super) fn mid(x: Interval) -> f64 {
     if !x.is_certified() {
         return f64::NAN;
     }
@@ -612,7 +622,7 @@ fn mid(x: Interval) -> f64 {
 }
 
 /// Interval absolute value: `|x|` as an enclosure.
-trait AbsEnclosure {
+pub(super) trait AbsEnclosure {
     fn abs_enclosure(self) -> Interval;
 }
 
@@ -638,7 +648,7 @@ impl AbsEnclosure for Interval {
 /// Funnel wrapper (the `props_*` idiom of [`super::curved`]): margins
 /// are certification-substrate `f64` lengths lifted to the caller's
 /// scalar so every lane (f64 / Probe / Interval) records identically.
-fn classify_len<T: Decide>(
+pub(super) fn classify_len<T: Decide>(
     name: &'static str,
     margin: Margin<f64>,
     band: Band,
@@ -699,7 +709,10 @@ fn classify_len<T: Decide>(
 /// metering decision (module docs) and would have to be re-measured
 /// and re-ratified as one — the defect fixed here is the *unguarded
 /// division*, and only that.
-fn mean_boundary_displacement(flux: Interval, area: Interval) -> Result<f64, PropsError> {
+pub(super) fn mean_boundary_displacement(
+    flux: Interval,
+    area: Interval,
+) -> Result<f64, PropsError> {
     displacement_len(flux.width(), area)
 }
 
@@ -755,7 +768,7 @@ fn displacement_len(width: f64, area: Interval) -> Result<f64, PropsError> {
 /// last-round constant. What each lane keeps is what is genuinely
 /// its own: the after-round-0 budget exit, which reads a bound only
 /// that lane can compute.
-fn round_exit(
+pub(super) fn round_exit(
     round: usize,
     max_rounds: usize,
     window: RoundWindow,
@@ -1238,7 +1251,7 @@ const QUAD2_REFINE_SPANS: usize = 16;
 /// A ring-bracketed 3-vector (a control point, an enclosure).
 pub type RVec3 = [Interval; 3];
 
-fn rv_cross(a: RVec3, b: RVec3) -> RVec3 {
+pub(super) fn rv_cross(a: RVec3, b: RVec3) -> RVec3 {
     [
         a[1] * b[2] - a[2] * b[1],
         a[2] * b[0] - a[0] * b[2],
@@ -1246,7 +1259,7 @@ fn rv_cross(a: RVec3, b: RVec3) -> RVec3 {
     ]
 }
 
-fn rv_dot(a: RVec3, b: RVec3) -> Interval {
+pub(super) fn rv_dot(a: RVec3, b: RVec3) -> Interval {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 
