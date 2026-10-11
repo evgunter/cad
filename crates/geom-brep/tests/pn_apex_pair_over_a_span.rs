@@ -774,3 +774,44 @@ fn a_span_is_read_at_its_distance_from_the_apex_no_farther() {
     );
     assert!(worst <= eps, "the pair stands {:.4}·ε off", worst / eps);
 }
+
+/// **A needle's plane near tangency is not served the pair its normal's
+/// rounding turns off the section.** The fuzz's counterexample (seed
+/// `0x1d2c3b4a59687706`, effort 50, read at its own ε of `1e-12`): the
+/// cone `α ≈ 6.7e-4`, the plane `D ≈ 1.4e-11` past tangency a rounding
+/// gap off the apex, over a span from `2.2e-12` to `7.1` up the axis.
+/// The pair's own bound is `0.9·ε`, but `cos γ` is read off `a·n`, a
+/// `6.7e-4` dot product carrying its rounding whole, which `acos` near
+/// tangency turned the lines by enough to stand them `1.13·ε` off; the
+/// arm reads that rounding beside the bound. Whatever it serves stands
+/// within ε of the section.
+#[test]
+fn a_needles_plane_near_tangency_reads_its_normals_rounding() {
+    let e = 1e-12;
+    let band = Band::new(e, Tol::witness().k() * e).unwrap();
+    let alpha = 0.0006679744654476203;
+    let axis = Vec3::new(0.5162029411022415, -0.5069460497530679, -0.6903189308118066);
+    let u_ref = Vec3::new(
+        -0.24299173505528693,
+        0.6862016424361179,
+        -0.6856254973473459,
+    );
+    let radial = Vec3::new(-0.5918936476407264, 0.3714021211021089, -0.715347729655592);
+    let p = plane(-axis, radial, 1.5701283523433798, 9.192356398007253e-17);
+    let c = cone(axis, u_ref, alpha);
+    let (lo, hi) = (2.1810750976419317e-12, 7.106305111166084);
+    let got = plane_cone_section(&p, &c, &window(lo, hi, hi / alpha.cos()), band);
+    if let Ok(PlaneConeSection::ApexLinePair { l1, l2 }) = &got {
+        let cut = Cut::new(axis, alpha, plane_of(&p));
+        let worst = miss(
+            &cut,
+            &[line_of(l1), line_of(l2)],
+            (lo / alpha.cos(), hi / alpha.cos()),
+        );
+        assert!(
+            worst <= e,
+            "served a pair {:.4}·ε off the section",
+            worst / e
+        );
+    }
+}

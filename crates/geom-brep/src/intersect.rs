@@ -2378,15 +2378,19 @@ pub fn plane_cone_section<T: Decide>(
 ///   reaches past the apex into it; a window holding the apex counts the
 ///   apex, whose section stands the nearer start off.
 /// - `H = 2|δ| / (σ + √max(σ² − 2s|δ|/(ρ·sin α), 0))`, `σ = √(D·M)/sin α`.
-/// - Beside both, the served lines' own rounding, which their slope to
-///   the plane amplifies. Their azimuth `φ ± γ` is read off `cos γ` by
-///   `acos`, whose slope is `1/sin γ = s/σ`, and off `φ`, the `atan2` of
-///   the normal's two components across the axis, which are `s` long and
-///   carry their rounding whole. So the rounding in either (a few
-///   operations' units in the last place, `≤ 4·f64::EPSILON`, taken
-///   twice) turns a line by `s/σ + 1/s` of it, and moves it `sin α` of
-///   that per unit of the farthest consumed point's distance from the
-///   apex, `max(|lo|, |hi|)/cos α` over the window.
+/// - Beside both, the served lines' own rounding, which the plane's near
+///   tangency amplifies, read with `u = f64::EPSILON/2` per operation on
+///   unit vectors. `c` is read `3u` off and `s` `4u` off, so
+///   `cos γ = −c·cos α/(s·sin α)` is read
+///   `3u·cot α/s + (4u/s + 6u)·|cos γ|` off, and `acos` turns that by
+///   `s/σ` (`sin γ = σ/s`) and adds `2u`. `φ`, the `atan2` of the
+///   normal's two components across the axis, each `3u` off and together
+///   `s` long, is `5u/s` off, and the sum and its sine and cosine `12u`.
+///   A line turned `Δ` in azimuth moves `sin α·Δ` per unit of its
+///   distance from the apex, and its direction's own sum `3u`: so
+///   `u·((3·cos α + 4·sin α + 6s·sin α)/σ + 5·sin α/s + 12·sin α + 3)`
+///   per unit of the farthest consumed point's distance from the apex,
+///   `max(|lo|, |hi|)/cos α` over the window.
 ///
 /// `D > 0` on this lane, so every divisor is positive; `ρ` is floored at
 /// the least positive `f64`, which leaves `H` at its `ρ = 0` value
@@ -2419,8 +2423,13 @@ fn pair_bound<T: Real>(
         gap.abs(),
     )
     .value();
+    let turn = (T::from_f64(3.0) * cos_a + T::from_f64(4.0) * sin_a + T::from_f64(6.0) * s * sin_a)
+        / sigma_sq.sqrt()
+        + T::from_f64(5.0) * sin_a / s
+        + T::from_f64(12.0) * sin_a
+        + T::from_f64(3.0);
     let azimuth = Margin::levered(
-        T::from_f64(8.0 * f64::EPSILON) * sin_a * (s / sigma_sq.sqrt() + T::one() / s),
+        T::from_f64(0.5 * f64::EPSILON) * turn,
         lo.abs().max(hi.abs()) / cos_a,
     )
     .value();
