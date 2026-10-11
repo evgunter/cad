@@ -10,7 +10,10 @@
 //! (`census::sweep_cross_solid_backstop`), which reads vertices only and
 //! refuses where all of them touch
 //! (`work/inside/the-census-material-probe-reads-only-vertices-so-a-flush-nested-solid-is-undecided.md`).
-//! Each asks it
+//! The containment door's aimed rays (`boolean::solid_contain`
+//! `aimed_side`) read its third rung alone, [`planar_interior_point`], as
+//! points to aim at rather than witnesses to probe.
+//! Each of the questions asks it
 //! under the premise that the complex crosses no surface it is probed
 //! against, so it meets one only where it lies ON it, every point of it
 //! off those surfaces is on one side of each, and one decisive witness
@@ -233,12 +236,7 @@ pub(crate) fn ladder<T: Decide, S, E: From<LadderRefusal>>(
     }
 
     for &face in faces {
-        let normal = match face_plane(body, face) {
-            Ok((_, normal)) => normal,
-            Err(PointInSolidError::KindUnsupported { .. }) => continue,
-            Err(e) => return Err(LadderRefusal::Containment(e).into()),
-        };
-        if let Some(q) = face_interior_point(body, face, normal, band)?
+        if let Some(q) = planar_interior_point(body, face, band)?
             && let Some(s) = side(q)?
         {
             return Ok(Reading::Side(s));
@@ -248,12 +246,34 @@ pub(crate) fn ladder<T: Decide, S, E: From<LadderRefusal>>(
     Ok(Reading::Undecided(tally))
 }
 
+/// **A point certified strictly inside `face`, where `face` is planar**
+/// (module docs, rung 3): [`face_interior_point`] over the face's
+/// outward plane. `None` for a curved face, which offers none, and for
+/// a planar face no candidate of which certifies.
+///
+/// # Errors
+///
+/// [`LadderRefusal`] where the face does not walk or its plane or
+/// in-face walk refuses other than in band.
+pub(crate) fn planar_interior_point<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    band: Band,
+) -> Result<Option<Point3<T>>, LadderRefusal> {
+    let normal = match face_plane(body, face) {
+        Ok((_, normal)) => normal,
+        Err(PointInSolidError::KindUnsupported { .. }) => return Ok(None),
+        Err(e) => return Err(LadderRefusal::Containment(e)),
+    };
+    face_interior_point(body, face, normal, band)
+}
+
 /// The first candidate strictly inside planar `face` (module docs,
 /// rung 3): each consecutive vertex triple's centroid, then the
 /// midpoint of each pair of the face's vertices, over its outer loop
 /// and every ring, then the points across its edges ([`across_edges`]).
 /// `None` when no candidate certifies.
-pub(crate) fn face_interior_point<T: Decide>(
+fn face_interior_point<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     normal: Vec3<T>,

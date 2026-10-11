@@ -39,7 +39,7 @@ use geom_core::{Affine3, Arc2, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, Segment, SketchPlane};
 use sweep::test_support::{brick, revolved_about_y};
 use sweep::{ExtrudeSide, Extrusion, Revolution, extrude};
-use topo::{Body, BooleanError, SplitJoinError};
+use topo::{Body, BooleanError, PointInSolidError, SplitJoinError};
 
 use crate::common::differential::{every_op_both_orders, outcome};
 
@@ -138,8 +138,43 @@ fn every_op(what: &str, a: Body<f64>, b: Body<f64>, v: (f64, f64, f64), known: &
             m.volume,
             m.volume_pad
         );
-        let line = outcome(r, m.volume, tol());
         let k = known.iter().find(|(o, _)| *o == op).map(|&(_, k)| k);
+        // `operand=` reads only whether the union builds. A legal
+        // operand's union with the far brick also holds the brick's
+        // volume, and a wall piece's refusal is the period guard's.
+        let far = fin(
+            "the far brick",
+            brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol()),
+        );
+        let joined = topo::union(body, &far, tol());
+        if matches!(k, Some(Known::Operand)) {
+            let held = match &joined {
+                Err(BooleanError::ShellWitnessExhausted {
+                    first_in_band: Some(PointInSolidError::Escalated { diag, .. }),
+                    ..
+                })
+                | Err(BooleanError::Containment(PointInSolidError::Escalated { diag, .. })) => {
+                    diag.predicate
+                }
+                _ => None,
+            };
+            assert_eq!(
+                held,
+                Some("bool_wall_trim_period"),
+                "{row}: ∪ a far brick refuses on the wall's period guard: {:?}",
+                joined.map(|_| ())
+            );
+        } else {
+            let joined = joined.unwrap_or_else(|e| panic!("{row}: ∪ a far brick: {e:?}"));
+            let j = topo::mass_properties(&joined.body().expect("not empty").body, tol()).unwrap();
+            assert!(
+                (j.volume - (m.volume + 1.0)).abs() <= j.volume_pad + m.volume_pad + 1e-9,
+                "{row}: ∪ a far brick: volume {} vs {}",
+                j.volume,
+                m.volume + 1.0
+            );
+        }
+        let line = outcome(r, m.volume, tol());
         let flags = ["t2=", "t3p=", "cert=", "operand="].map(|f| {
             let named = matches!(
                 (f, k),

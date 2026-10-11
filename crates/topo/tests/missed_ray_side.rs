@@ -15,8 +15,8 @@ use crate::common;
 use common::brick;
 use geom_core::{Band, Point3, Tol};
 use topo::{
-    AtRestBody, Body, BooleanDecision, BooleanError, BooleanResult, SolidContainment,
-    point_in_solid,
+    AtRestBody, AtRestOutcome, Body, BooleanDecision, BooleanError, BooleanResult, Operand,
+    SolidContainment, ValidationError, point_in_solid,
 };
 
 /// The slab thicknesses, in ε: the in-band window of `V/A`, its ends
@@ -46,6 +46,18 @@ fn far_brick(tol: Tol) -> AtRestBody<f64> {
     at_rest(brick((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), tol), tol)
 }
 
+/// `body`'s signed volume over its area lies in the band, so the volume
+/// cannot read the side at infinity and the aimed rays have to.
+fn volume_in_band(what: &str, body: &Body<f64>) {
+    let tol = Tol::witness();
+    let m = topo::mass_properties(body, tol).expect("the body measures");
+    let va = (m.volume / m.surface_area).abs();
+    assert!(
+        va > tol.eps() && va < tol.k() * tol.eps(),
+        "{what}: |V/A| = {va:e} lies in the band"
+    );
+}
+
 /// `body` answers `want` at every point of `points`.
 fn sides(what: &str, body: &Body<f64>, points: &[Point3<f64>], want: SolidContainment) {
     let tol = Tol::witness();
@@ -69,6 +81,7 @@ fn a_thin_slab_reads_out_far_away_and_its_complement_in() {
     for m in WINDOW {
         let t = m * tol.eps();
         let body = slab(t, tol);
+        volume_in_band(&format!("slab {m}ε"), &body);
         sides(
             &format!("slab {m}ε"),
             &body,
@@ -128,14 +141,15 @@ fn a_thin_slab_is_a_legal_operand_against_a_brick_far_away() {
 /// **A thin-walled hollow (a void) reads `Out` far from it and in its
 /// cavity**, and `In` at both once reverted. The whole body's `V/A` is
 /// its wall's half-thickness, in band, while each shell's role decides;
-/// so `hollow ∪ brick` builds, two solids. The window starts above
-/// `10ε` here: at `10ε` the core's inset rounds the wall under the band
-/// at ε = 1e-6, and the subtract refuses that coincidence.
+/// so `hollow ∪ brick` builds, two solids. The window is narrower
+/// here: at `10ε` the core's inset rounds the wall under the band at
+/// ε = 1e-6, and the subtract refuses that coincidence; at `20ε` the
+/// wall's `V/A` rounds just past the band, and the volume decides.
 #[test]
 fn a_thin_walled_hollow_reads_out_far_away_and_in_its_cavity() {
     let tol = Tol::witness();
     let far = far_brick(tol);
-    for m in WINDOW.into_iter().skip(1) {
+    for m in [12.0, 15.0, 18.0] {
         let d = m * tol.eps();
         let unit = at_rest(brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol), tol);
         let core = at_rest(brick((d, 1.0 - d), (d, 1.0 - d), (d, 1.0 - d), tol), tol);
@@ -153,6 +167,7 @@ fn a_thin_walled_hollow_reads_out_far_away_and_in_its_cavity() {
             Point3::new(5.5, 5.5, 5.5),
             Point3::new(0.5, 0.5, 0.5),
         ];
+        volume_in_band(&format!("hollow {m}ε"), hollow);
         sides(
             &format!("hollow {m}ε"),
             hollow,
@@ -168,10 +183,20 @@ fn a_thin_walled_hollow_reads_out_far_away_and_in_its_cavity() {
         let hollow = at_rest((**hollow).clone(), tol);
         let joined = topo::union(&hollow, &far, tol)
             .unwrap_or_else(|e| panic!("{m}ε: hollow ∪ brick builds, got {e:?}"));
+        let joined = &joined.body().expect("not empty").body;
         assert_eq!(
-            joined.body().expect("not empty").body.solids().count(),
+            joined.solids().count(),
             2,
             "{m}ε: hollow ∪ brick is two solids"
+        );
+        let wall = 1.0 - (1.0 - 2.0 * d).powi(3);
+        let v = topo::mass_properties(joined, tol).unwrap();
+        assert!(
+            (v.volume - (wall + 1.0)).abs() <= v.volume_pad + 1e-12,
+            "{m}ε: hollow ∪ brick holds the wall and the brick: {} ± {} vs {}",
+            v.volume,
+            v.volume_pad,
+            wall + 1.0
         );
     }
 }
@@ -187,6 +212,7 @@ fn two_thin_slabs_in_one_body_read_their_sides() {
         let mut body = slab(t, tol);
         let beside = brick((2.0, 3.0), (0.0, 1.0), (0.0, t), tol);
         topo::graft_disjoint(&mut body, &beside).expect("the slabs are disjoint");
+        volume_in_band(&format!("two slabs {m}ε"), &body);
         let points = [
             Point3::new(1.5, 0.5, 1.0),
             Point3::new(1.5, 0.5, t / 2.0),
@@ -205,5 +231,59 @@ fn two_thin_slabs_in_one_body_read_their_sides() {
             &points,
             SolidContainment::In,
         );
+    }
+}
+
+/// **An inside-out slab is refused as an operand, in every op and both
+/// orders.** Its `V/A` is in band, so check 7 exempts it and it finishes
+/// at rest (`Validated`); the Boolean reads its orientation by a ray and
+/// refuses it as the inside-out operand, naming it, rather than
+/// answering for its complement. Against a brick far away and one
+/// across it alike: the gate reads it before any classification.
+#[test]
+fn an_inside_out_slab_is_refused_as_an_operand() {
+    type Op =
+        fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
+    let tol = Tol::witness();
+    let ops: [(&str, Op); 3] = [
+        ("∪", topo::union),
+        ("∩", topo::intersect),
+        ("∖", topo::subtract),
+    ];
+    let bricks = [
+        ("far", far_brick(tol)),
+        (
+            "across",
+            at_rest(brick((0.5, 1.5), (0.5, 1.5), (-1.0, 1.0), tol), tol),
+        ),
+    ];
+    for m in WINDOW {
+        let t = m * tol.eps();
+        let rev = at_rest(slab(t, tol).revert(), tol);
+        assert_eq!(
+            rev.outcome(),
+            AtRestOutcome::Validated,
+            "{m}ε: the at-rest gate admits the inside-out slab"
+        );
+        for (place, other) in &bricks {
+            for (name, op) in ops {
+                for (a, b, inside_out) in [(&rev, other, Operand::A), (other, &rev, Operand::B)] {
+                    match op(a, b, tol) {
+                        Err(BooleanError::InsideOutOperand { operand, errors }) => {
+                            assert_eq!(operand, inside_out, "{m}ε {place} {name}: the operand");
+                            assert!(
+                                matches!(errors[..], [ValidationError::SliverInsideOut { .. }]),
+                                "{m}ε {place} {name}: {errors:?}"
+                            );
+                        }
+                        other => panic!(
+                            "{m}ε {place} {name} ({inside_out:?} inside-out): want \
+                             InsideOutOperand, got {:?}",
+                            other.map(|_| ())
+                        ),
+                    }
+                }
+            }
+        }
     }
 }

@@ -6515,6 +6515,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "shell_winding",
             "shell_without_faces",
             "sliver_dihedral",
+            "sliver_inside_out",
             "solid_outer_shells",
             "solid_without_shells",
             "split_vertex_orbit",

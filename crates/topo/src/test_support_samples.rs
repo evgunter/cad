@@ -1206,6 +1206,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         },
         ValidationError::CurvedSenseInverted { face },
         ValidationError::NegativeVolume { solid },
+        ValidationError::SliverInsideOut { solid },
         ValidationError::RingOutsideOuter {
             face,
             ring: loop_,

@@ -58,12 +58,9 @@ for a slab `t` thick:
   (`interval_span_forward`), so the family starts at `10ε`.
 
 **What decides the side at infinity.** The representation does not.
-`point_in_solid` takes any `Body`, and two kinds of body have infinity
-inside their material:
-- a reverted body, which `∖` hands the door as a transient operand;
-- a cavity wall's own selection (`SolidFaces::of_shell`).
-
-At rest, D1's positive-volume invariant exempts an in-band volume. An
+`point_in_solid` takes any `Body`, and a reverted body (`∖`'s
+transient operand, a complement the door answers for) has infinity
+inside its material. At rest, D1's positive-volume invariant exempts an in-band volume. An
 inside-out slab in this window finishes `Validated` (filed as
 RESTFRONT's
 `an-inside-out-slab-thin-enough-for-its-volume-to-be-in-band-finishes-at-rest`).
@@ -77,8 +74,11 @@ measurement.
 - Where the volume does not decide (in band, uncertified or zero),
   `aimed_side` casts rays from a point twice the selection's reach out
   along that missed ray. Each ray aims at a point certified strictly
-  inside a planar face (`stands::face_interior_point`, now
-  crate-visible), and is read to its closest crossing.
+  inside a planar face (`stands::planar_interior_point`, the ladder's
+  rung 3, computed once per query), and is read to its closest
+  crossing. A ray's fault is that ray's alone. Where no aimed ray
+  decides, an in-band aimed reading is the refusal; otherwise the
+  volume's.
 - Every missed ray aims from its own far point, because a missed ray
   that runs along a thin body's carrier leaves its far point on that
   carrier.
@@ -94,7 +94,20 @@ red on main:
 - a thin-walled hollow (a void) reads `Out` far away and in its cavity,
   and `In` at both once reverted, and `hollow ∪ brick` builds;
 - two thin slabs in one body read `Out` between and beside them, mid-plane
-  included, and `In` once reverted.
+  included, and `In` once reverted;
+- each body's `|V/A|` is asserted in band, so the aimed rays are what
+  decide;
+- the reverted slab as a user operand refuses `InsideOutOperand`
+  (`SliverInsideOut`) in every op and both orders, against a far brick
+  and one across it.
+
+**The inside-out operand (review blocker).** With the aimed read, an
+inside-out sliver that finished at rest gave silent wrong answers
+(`brick ∩ rev` the brick, `brick ∖ rev` empty). The Boolean's operand
+gate now reads each sliver solid's orientation at a point outside its
+face boxes (`boolean/reduce.rs` `gate_sliver_orientation`) and refuses
+it as the inside-out operand. The evidence is on RESTFRONT's row, now
+P1.
 
 The sliver lens has no planar face, so it keeps the volume reading. Its
 row waits on FLUXTAIL.

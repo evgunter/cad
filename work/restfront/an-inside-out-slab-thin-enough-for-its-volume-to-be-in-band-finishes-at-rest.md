@@ -4,7 +4,7 @@ kind: issue
 title: An inside-out slab thin enough that its V/A is in band finishes at rest, so the side it bounds is the complement's
 status: open
 opened: 2026-10-11
-priority: P2
+priority: P1
 cost: M
 design: true
 ---
@@ -48,3 +48,40 @@ What does check 7 read for a shell whose `V/A` is in band?
 
 This ties to FLUSH's `check-10-reads-a-cavitys-role-from-its-volume-sign`,
 which asks the same question of a cavity's role.
+
+## Measured (PR 4725's review and fix pass, 2026-10-11)
+
+**The at-rest gate admits an operand the Boolean must refuse.** With
+the missed-ray read and no operand check, at ε 1e-9, `rev =
+slab(t).revert()` finishes `Validated`, and against a brick far away:
+- `brick ∩ rev` built the brick;
+- `brick ∖ rev` was empty;
+- `rev ∖ brick` refused `ResultInvalid { NegativeVolume }`, which reads
+  as a kernel defect.
+
+Main had refused all three on the in-band volume read. The ray reads
+the operand as holding infinity, and every answer then follows the
+complement.
+
+**Handled at the Boolean, not here.** On PR 4725 the Boolean's
+operand gate (`boolean/reduce.rs` `gate_sliver_orientation`) reads
+each solid the at-rest gate passed as a sliver
+(`AtRestBody::slivers`). It reads the solid at a point outside its
+faces' certified boxes. If the material holds that point, the gate
+refuses `InsideOutOperand` with
+`ValidationError::SliverInsideOut { solid }`. That is pinned at every
+ε for every op in both orders, against a far brick and against a brick
+across the slab
+(`crates/topo/tests/missed_ray_side.rs`
+`an_inside_out_slab_is_refused_as_an_operand`).
+
+The reverted thin hollow does not need this: check 10 refuses it at
+rest (`ShellWinding` on both shells, at `12`–`18ε`, at every ε).
+
+**Still open here:**
+- Every door that takes an at-rest operand and does not read its
+  orientation still admits it. The split is one; the dual gate reads
+  no slivers.
+- The question above is whether check 7 should read a sliver's
+  orientation by a ray, so that `AtRestBody` never carries one. That
+  would retire the Boolean's read.

@@ -2047,13 +2047,16 @@ pub enum BooleanError {
     /// volume tier 3's check 7 decides definitely negative
     /// ([`ValidationError::NegativeVolume`]), or a shell check 10 finds
     /// bounding a region of winding −1 inside a solid whose total is
-    /// positive ([`ValidationError::ShellWinding`]). Its faces bound the
+    /// positive ([`ValidationError::ShellWinding`]), or a solid check 7
+    /// passed in band that a ray reads inside-out
+    /// ([`ValidationError::SliverInsideOut`]). Its faces bound the
     /// complement of the region they enclose. A finished body never
-    /// holds one; the door reads both checks itself on an operand whose
-    /// scalar runs no at-rest gate (a dual,
-    /// [`crate::AtRestOutcome::NotRunAtThisScalar`]), and refuses it
-    /// before any classification reads it, rather than answering for
-    /// the complement.
+    /// holds one of the first two; the door reads both checks itself on
+    /// an operand whose scalar runs no at-rest gate (a dual,
+    /// [`crate::AtRestOutcome::NotRunAtThisScalar`]), reads the third on
+    /// every sliver the at-rest gate passed, and refuses before any
+    /// classification reads the operand, rather than answering for the
+    /// complement.
     InsideOutOperand {
         /// The offending operand.
         operand: Operand,

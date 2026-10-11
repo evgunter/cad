@@ -181,9 +181,10 @@
 //!   side, which is `Out` for a positively-oriented body and `In` for
 //!   a complement (negative signed volume). Where that margin is not
 //!   definite — a body thin everywhere puts its mean half-thickness in
-//!   band however far `q` lies from it — a ray aimed from `q` at a
-//!   point inside a planar face reads the side instead, off its closest
-//!   crossing, on the rows above ([`missed_side`]).
+//!   band however far `q` lies from it — a ray aimed from far out along
+//!   the missed ray at a point inside a planar face reads the side
+//!   instead, off its closest crossing, on the rows above
+//!   ([`missed_side`]).
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, SupSpeed, Vec3};
 
@@ -298,17 +299,20 @@ pub enum PointInSolidError {
         /// Its kind — the row the arm is missing for.
         kind: geom::SurfaceKind,
     },
-    /// The at-infinity orientation probe needs the body's signed
-    /// volume and the closed-form props lane refused to certify it.
+    /// The at-infinity side could be read neither off the body's signed
+    /// volume, which the closed-form props lane refused to certify, nor
+    /// off a ray aimed at one of its planar faces.
     ///
     /// Consulted only when a schedule ray crosses NO boundary at all —
     /// `q` then sits on the at-infinity side, and which side that IS
     /// depends on the body's orientation. A body whose volume the props
     /// lane cannot certify (a curved face outside its closed-form
     /// inventory — the shapes `topo::ValidationError::VolumeUncomputable`
-    /// breaks down by source) leaves that question unanswerable along
-    /// that ray, and where no ray of the schedule decides, this says so
-    /// rather than reporting a HEALTHY body as broken.
+    /// breaks down by source), and none of whose aimed rays decides
+    /// without reading in band, leaves that question unanswerable along
+    /// that ray; where no ray of the schedule decides, this says so
+    /// rather than reporting a HEALTHY body as broken. A body with no
+    /// planar face offers no ray to aim.
     VolumeUncertified,
     /// A `Sphere` face that is not closed on its own surface and has a
     /// boundary edge that is not a circle arc.
@@ -477,17 +481,18 @@ impl PointInSolidError {
     /// Is this refusal **inconclusive about the one point asked**, so
     /// that another point can still decide: a reading about where the
     /// point stands ([`Self::in_band`]), a limit the door met near it
-    /// ([`Self::confined`]), or a volume that could not side the point's
-    /// rays that met nothing ([`Self::sideless`]) — another point's rays
-    /// may meet the boundary. Every other refusal is about a body — a
+    /// ([`Self::confined`]), or a side that neither the volume nor an
+    /// aimed ray could read for the point's rays that met nothing
+    /// ([`Self::sideless`]) — another point's rays may meet the boundary. Every other refusal is about a body — a
     /// face kind with no arm, a corrupt face — and answers the same at
     /// any point.
     pub(crate) fn inconclusive(&self) -> bool {
         self.in_band() || self.confined() || self.sideless()
     }
 
-    /// A ray of the point's that met nothing, whose side the solid's
-    /// volume could not read (`VolumeUncertified`, `ZeroVolumeBody`).
+    /// A ray of the point's that met nothing, whose side neither the
+    /// solid's volume nor a ray aimed at its boundary could read
+    /// (`VolumeUncertified`, `ZeroVolumeBody`).
     /// The walk reaches it only through such a ray, and refuses on it
     /// only where no ray settled; an empty selection's `ZeroVolumeBody`
     /// answers the same at every point, which a ladder trying the next
@@ -556,7 +561,8 @@ impl PointInSolidError {
             }
             Self::VolumeUncertified => {
                 "the instance's at-infinity side could not be read — its closed-form \
-                 signed volume is uncertified"
+                 signed volume is uncertified, and no ray aimed at a flat face of it \
+                 decided"
             }
             Self::PartialSphereFace { .. }
             | Self::PartialConeFace { .. }
@@ -638,10 +644,10 @@ impl core::fmt::Display for PointInSolidError {
             Self::VolumeUncertified => write!(
                 f,
                 "cannot tell what is inside the solid: a test ray from the point met \
-                 none of its boundary, and the solid's volume, which would say which \
-                 side that leaves the point on, could not be measured for one of its \
-                 curved faces; no other test ray settled it. The solid itself is fine. \
-                 Recourse: test a point whose rays meet the boundary"
+                 none of its boundary, and neither its volume, unmeasurable for a curved \
+                 face, nor a ray aimed at a flat face said which side that leaves; no \
+                 other ray settled it. The solid itself is fine. Recourse: test a point \
+                 whose rays meet the boundary"
             ),
             Self::PartialSphereFace { .. } => write!(
                 f,
@@ -4162,25 +4168,26 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
 
     // ---- Closest-hit ray sweep over the fixed schedule. ----
     let reach = selection_reach(body, faces, q)?;
-    // A ray that crosses nothing reads the at-infinity side. An in-band
-    // reading is the ray's to set aside; a volume the props lane cannot
-    // certify, or one below its own rounding, blocks the ray at any
-    // tolerance; the rest is about the body.
-    let volume = core::cell::OnceCell::new();
+    // A ray that crosses nothing reads the at-infinity side
+    // (`missed_side`). An in-band reading is the ray's to set aside; a
+    // side neither the volume nor an aimed ray could read blocks the
+    // ray; the rest is about the body.
+    let reads = MissedReads::new();
     ray_walk::walk(
         &SCHEDULE,
         |r| {
             let d = r.map(T::from_f64).normalize();
             match cast_ray(body, sel, q, d, reach, band)? {
                 Some(side) => Ok(side),
-                None => {
-                    missed_side(body, sel, q, d, reach, band, tol, &volume).map_err(|e| match e {
-                        PointInSolidError::Escalated { .. } => RayFault::InBand(e),
-                        PointInSolidError::VolumeUncertified
-                        | PointInSolidError::ZeroVolumeBody => RayFault::Blocked(e),
-                        e => RayFault::Fatal(e),
-                    })
-                }
+                None => missed_side(body, sel, q, d, reach, band, tol, &reads).map_err(|e| {
+                    if e.in_band() {
+                        RayFault::InBand(e)
+                    } else if e.sideless() {
+                        RayFault::Blocked(e)
+                    } else {
+                        RayFault::Fatal(e)
+                    }
+                }),
             }
         },
         || PointInSolidError::RayExhausted,
@@ -5617,6 +5624,23 @@ fn cast_ray<T: Decide>(
     }))
 }
 
+/// **What a query's rays that cross nothing share**, read once per query
+/// whichever such ray comes first: the selection's volume reading
+/// ([`at_infinity_side`]) and the points its rays aim at ([`aim_points`]).
+struct MissedReads<T: Decide> {
+    volume: core::cell::OnceCell<Result<SolidContainment, PointInSolidError>>,
+    aims: core::cell::OnceCell<Vec<Point3<T>>>,
+}
+
+impl<T: Decide> MissedReads<T> {
+    const fn new() -> Self {
+        Self {
+            volume: core::cell::OnceCell::new(),
+            aims: core::cell::OnceCell::new(),
+        }
+    }
+}
+
 /// **The side of `q` that a ray crossing no face leaves to read**: the
 /// at-infinity side, since that ray, `q + s·d` for `s ≥ 0`, joins `q`
 /// to infinity without crossing the boundary (module docs).
@@ -5624,16 +5648,15 @@ fn cast_ray<T: Decide>(
 /// A selection whose role is already decided reads it
 /// ([`SolidFaces::with_role`]). Otherwise the selection's certified
 /// signed volume reads it where its sign is definite
-/// ([`at_infinity_side`], read once per query into `volume`), and where
-/// it is not, rays aimed at the boundary from a point of the missed ray
-/// do ([`aimed_side`]). The volume's margin is the selection's mean
-/// half-thickness, which a body thin everywhere puts in band however
-/// far `q` lies from it; an aimed ray reads the side off one crossing's
-/// outward normal. The aim starts out along the missed ray, at twice
-/// the selection's reach from `q`, rather than at `q`: a `q` near the
-/// carrier of a thin body's faces would send every aimed ray along
-/// them, and so does a missed ray that runs along them, so each missed
-/// ray aims from its own far point. Where no aimed ray decides, the
+/// ([`at_infinity_side`]), and where it is not, rays aimed at the
+/// boundary from `from`, a point of the missed ray, do ([`aimed_side`]):
+/// the volume's margin is the selection's mean half-thickness, while an
+/// aimed ray reads the side off one crossing's outward normal. Any
+/// point of the missed ray is on `q`'s side; `from` is the one twice the
+/// selection's reach out, past the ball about `q` that holds every
+/// face's loops, so the aimed rays leave from away from the carriers
+/// `q` may sit near. Where an aimed ray reads in band, that reading is
+/// the refusal: a tighter tolerance may decide it. Where none does, the
 /// volume's refusal stands.
 #[allow(clippy::too_many_arguments)] // one internal lane, each a named datum
 fn missed_side<T: Decide + crate::props::AtRestPolicy>(
@@ -5644,60 +5667,76 @@ fn missed_side<T: Decide + crate::props::AtRestPolicy>(
     reach: T,
     band: Band,
     tol: Tol,
-    volume: &core::cell::OnceCell<Result<SolidContainment, PointInSolidError>>,
+    reads: &MissedReads<T>,
 ) -> Result<SolidContainment, PointInSolidError> {
     if let Some(side) = sel.at_infinity {
         return Ok(side);
     }
-    volume
+    let refused = match reads
+        .volume
         .get_or_init(|| at_infinity_side(body, sel.faces(), band, tol))
-        .clone()
-        .or_else(|refused| {
-            let from = q + d * (reach * T::from_f64(2.0));
-            aimed_side(body, sel, from, band)?.ok_or(refused)
+    {
+        Ok(side) => return Ok(*side),
+        Err(refused) => refused.clone(),
+    };
+    let aims = reads.aims.get_or_init(|| aim_points(body, sel, band));
+    let from = q + d * (reach * T::from_f64(2.0));
+    match aimed_side(body, sel, from, aims, band)? {
+        Ok(side) => Ok(side),
+        Err(in_band) => Err(in_band.unwrap_or(refused)),
+    }
+}
+
+/// **The points a query's aimed rays aim at**: one certified strictly
+/// inside each planar face of the selection that offers one
+/// ([`crate::stands::planar_interior_point`]), in face order. A face
+/// whose candidate does not read offers none: that is about the face,
+/// and another face may serve.
+fn aim_points<T: Decide>(body: &Body<T>, sel: &SolidFaces, band: Band) -> Vec<Point3<T>> {
+    sel.faces()
+        .iter()
+        .filter_map(|&face| {
+            crate::stands::planar_interior_point(body, face, band)
+                .ok()
+                .flatten()
         })
+        .collect()
 }
 
 /// **The side of `from` read off a ray aimed at the boundary**: for each
-/// planar face of the selection in order, the ray from `from` through a
-/// point certified strictly inside that face
-/// ([`crate::stands::face_interior_point`]), read to its closest
-/// crossing as a schedule ray is ([`cast_ray`]). The aim point is on the
-/// boundary, so the ray crosses it there or before. The first ray that
-/// decides answers; a ray that grazes, reads in band, meets a limit or
-/// crosses nothing is passed over, and `None` is every aimed ray passed
-/// over. A curved face offers no aim point, so a selection with no
-/// planar face keeps the volume's reading.
+/// of `aims` in order, the ray from `from` through it, read to its
+/// closest crossing as a schedule ray is ([`cast_ray`]). An aim point is
+/// on the boundary, so its ray crosses the boundary there or before. The
+/// first ray that decides answers. Every other outcome is about that ray
+/// and passes to the next: a graze, a limit, a crossing it cannot read,
+/// or no crossing at all. `Err` is no ray deciding, carrying the first
+/// in-band reading among them.
 ///
 /// # Errors
 ///
-/// A refusal of the whole query, as a schedule ray would raise it.
+/// The outer `Err` is a refusal about the body: the selection's reach
+/// from `from`, which every ray of the query reads.
 fn aimed_side<T: Decide>(
     body: &Body<T>,
     sel: &SolidFaces,
     from: Point3<T>,
+    aims: &[Point3<T>],
     band: Band,
-) -> Result<Option<SolidContainment>, PointInSolidError> {
+) -> Result<Result<SolidContainment, Option<PointInSolidError>>, PointInSolidError> {
     let reach = selection_reach(body, sel.faces(), from)?;
-    for &face in sel.faces() {
-        let normal = match face_plane(body, face) {
-            Ok((_, normal)) => normal,
-            Err(PointInSolidError::KindUnsupported { .. }) => continue,
-            Err(e) => return Err(e),
-        };
-        let Some(aim) = crate::stands::face_interior_point(body, face, normal, band)? else {
-            continue;
-        };
+    let mut in_band = None;
+    for &aim in aims {
         match cast_ray(body, sel, from, (aim - from).normalize(), reach, band) {
-            Ok(Some(side)) => return Ok(Some(side)),
+            Ok(Some(side)) => return Ok(Ok(side)),
+            Err(RayFault::InBand(e)) => {
+                in_band.get_or_insert(e);
+            }
             Ok(None)
-            | Err(
-                RayFault::Graze | RayFault::Unread | RayFault::InBand(_) | RayFault::Blocked(_),
-            ) => {}
-            Err(RayFault::Fatal(e)) => return Err(e),
+            | Err(RayFault::Graze | RayFault::Unread | RayFault::Blocked(_) | RayFault::Fatal(_)) =>
+                {}
         }
     }
-    Ok(None)
+    Ok(Err(in_band))
 }
 
 /// The at-infinity material side, from the EXACT signed volume the

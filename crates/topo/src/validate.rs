@@ -1375,6 +1375,18 @@ pub enum ValidationError {
         /// The solid whose oriented boundary encloses negative volume.
         solid: SolidKey,
     },
+    /// **A sliver read inside-out by a ray.** Check 7 passed `solid` with
+    /// its `V/A` certified in band, which the +V invariant exempts
+    /// ([`Self::NegativeVolume`]), and a ray from a point outside it,
+    /// aimed at one of its planar faces, crossed into its material from
+    /// that outside point: infinity lies inside it. The tier-3 battery
+    /// never raises it. A door that classifies points against its
+    /// operand does (`boolean::reduce`'s operand gate), since the side of
+    /// a missed ray is the side at infinity there.
+    SliverInsideOut {
+        /// The solid whose material holds the side at infinity.
+        solid: SolidKey,
+    },
     /// Tier 3: the exact-B-rep volume for the +V invariant could not
     /// be computed — a face's boundary fell outside the M2
     /// iso-rectangle inventory or its closed-form classification
@@ -3764,6 +3776,11 @@ impl fmt::Display for ValidationError {
             Self::NegativeVolume { .. } => write!(
                 f,
                 "a solid encloses negative volume, so it is inside-out. {DEFECT}"
+            ),
+            Self::SliverInsideOut { .. } => write!(
+                f,
+                "a solid too thin for its volume to show its orientation is inside-out: \
+                 a ray from outside it crosses into its material. {DEFECT}"
             ),
             Self::VolumeUncomputable { source, .. } => {
                 let MassPropsReading { why, recourse, .. } = classify_mass_props(source);

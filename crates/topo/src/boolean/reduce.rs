@@ -556,6 +556,8 @@ pub(super) fn gate_operand<T: Decide>(
 /// [`crate::AtRestBody::gate_unverdicted`] — the split's door reads the
 /// same), refused as [`BooleanError::ScaffoldingOperand`],
 /// [`BooleanError::InsideOutOperand`] or [`BooleanError::UnjoinedOperand`].
+/// Then the orientation of each solid the at-rest gate passed as a
+/// sliver ([`gate_sliver_orientation`]).
 /// It runs before the pipeline reads
 /// a several-solid operand as one solid (`ops::one_solid`), since the
 /// orientation read's subjects are the solid and, within it, the shell.
@@ -566,7 +568,67 @@ pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), BooleanError> {
     body.gate_unverdicted(format_args!("operand {operand:?}"), band, tol)
-        .map_err(|unfinished| BooleanError::unfinished(operand, unfinished))
+        .map_err(|unfinished| BooleanError::unfinished(operand, unfinished))?;
+    gate_sliver_orientation(body, operand, band, tol)
+}
+
+/// **A sliver operand's orientation, read by a ray.** Check 7 passes a
+/// solid whose `V/A` is certified in band without reading its sign
+/// (D1's +V invariant exempts it), so an inside-out sliver finishes at
+/// rest. The containment fallback reads a missed ray's side as the side
+/// at infinity, which for a body the caller handed in is outside its
+/// material; an inside-out operand would turn every such reading round
+/// and answer for its complement. So each solid the at-rest gate passed
+/// as a sliver ([`crate::AtRestBody::slivers`]) is read at a point
+/// outside the hull of its faces' reach boxes
+/// ([`crate::census::face_reach`], each a superset of its face, so a
+/// looser one only puts the point farther out) through
+/// [`super::point_in_solid_of`], and a solid whose material holds that
+/// point refuses [`BooleanError::InsideOutOperand`] with
+/// [`crate::ValidationError::SliverInsideOut`]. A reading that does not
+/// decide passes, as check 7 passed it, and so does a solid a face of
+/// which has no reach box. A dual operand carries no slivers, and none
+/// is read.
+fn gate_sliver_orientation<T: Decide + crate::props::AtRestPolicy>(
+    body: &crate::AtRestBody<T>,
+    operand: Operand,
+    band: Band,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    'solids: for sliver in body.slivers() {
+        let Some(faces) = body.faces_of_solid(sliver.solid) else {
+            continue;
+        };
+        let mut hull: Option<(Point3<T>, Point3<T>)> = None;
+        for face in faces {
+            let Some((lo, hi)) = crate::census::face_reach(body, face, band) else {
+                continue 'solids;
+            };
+            hull = Some(match hull {
+                None => (lo, hi),
+                Some((l, h)) => (
+                    Point3::new(l.x.min(lo.x), l.y.min(lo.y), l.z.min(lo.z)),
+                    Point3::new(h.x.max(hi.x), h.y.max(hi.y), h.z.max(hi.z)),
+                ),
+            });
+        }
+        let Some((lo, hi)) = hull else {
+            continue;
+        };
+        let span = (hi.x - lo.x).max(hi.y - lo.y).max(hi.z - lo.z) + T::one();
+        let far = Point3::new(hi.x + span, hi.y + span, hi.z + span);
+        if super::point_in_solid_of(body, sliver.solid, far, band, tol)
+            == Ok(super::SolidContainment::In)
+        {
+            return Err(BooleanError::InsideOutOperand {
+                operand,
+                errors: vec![crate::ValidationError::SliverInsideOut {
+                    solid: sliver.solid,
+                }],
+            });
+        }
+    }
+    Ok(())
 }
 
 /// [`gate_operand`]'s edge carriers.
