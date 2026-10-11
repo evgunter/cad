@@ -191,7 +191,6 @@ fn picked_member(
     let reference = SitedFace::new(at, name);
     let (member, placed) =
         member_reading(doc, &reference).ok_or(MateToolError::NotAnInstancePick { side, node })?;
-    let placed = placed.clone();
     Ok((reference, member, placed))
 }
 

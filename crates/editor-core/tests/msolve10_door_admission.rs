@@ -117,8 +117,8 @@ fn mate_across(
     alignment: Alignment<Formula>,
 ) -> AuthoredNode {
     Node::Mate {
-        a: fixture::head(in_part(a, a_body, CapEnd::End)),
-        b: fixture::head(in_part(b, b_body, CapEnd::Start)),
+        a: fixture::head(in_part(a, a_body, CapEnd::End)).into(),
+        b: fixture::head(in_part(b, b_body, CapEnd::Start)).into(),
         class: ContactClass::Rest,
         alignment,
     }
@@ -127,7 +127,7 @@ fn mate_across(
 /// `node` with its `b` head replaced.
 fn with_b(mut node: AuthoredNode, head: editor_core::SitedFace) -> AuthoredNode {
     if let Node::Mate { b, .. } = &mut node {
-        *b = head;
+        *b = head.into();
     }
     node
 }
@@ -135,7 +135,7 @@ fn with_b(mut node: AuthoredNode, head: editor_core::SitedFace) -> AuthoredNode 
 /// `node` with its `a` head replaced.
 fn with_a(mut node: AuthoredNode, head: editor_core::SitedFace) -> AuthoredNode {
     if let Node::Mate { a, .. } = &mut node {
-        *a = head;
+        *a = head.into();
     }
     node
 }
@@ -835,6 +835,7 @@ fn own_datum_subject(fault: &MateFault) -> Option<RecipeNodeId> {
         MateFault::Frame { mate, .. }
         | MateFault::ClassNotAdmitted { mate }
         | MateFault::TableLacks { mate, .. }
+        | MateFault::SideUnresolved { mate, .. }
         | MateFault::DanglingHead { mate, .. }
         | MateFault::PartSelectsAnotherCopy { mate, .. }
         | MateFault::SelfMate { mate, .. }
@@ -920,6 +921,11 @@ fn renamed(fault: MateFault, from: RecipeNodeId, to: RecipeNodeId) -> MateFault 
             parent,
             child,
             residual,
+        },
+        MateFault::SideUnresolved { mate, side, read } => MateFault::SideUnresolved {
+            mate: r(mate),
+            side,
+            read,
         },
         MateFault::DanglingHead { mate, side, head } => MateFault::DanglingHead {
             mate: r(mate),
@@ -1113,9 +1119,8 @@ fn corpus() -> Vec<Row> {
         ("msolve10-corpus-stranded", doc, opts)
     });
     rows.push({
-        // One member on both sides, by a rebind after insert: the
-        // name-repair door moves a head read at its own mint with its
-        // name, so `b`'s head lands on `a`.
+        // One member on both sides, by a re-point after insert: the
+        // side's slot door writes `b`'s side onto `a`.
         let (doc, ids, opts, body) = instances("msolve10-corpus-self", 2);
         let reach = mate_reach::<f64>(&opts, Tol::witness());
         let (doc, _) = step_with(
@@ -1126,12 +1131,16 @@ fn corpus() -> Vec<Row> {
             },
             &reach,
         );
+        let mate_id = *doc.ids().last().expect("the mate is the last node");
         let (doc, _) = step_with(
             doc,
-            DocEdit::Rebind {
-                body: None,
-                from: in_part(ids[1], body, CapEnd::Start),
-                to: in_part(ids[0], body, CapEnd::Start),
+            DocEdit::SetParam {
+                node: mate_id,
+                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Side(MateSide::B)),
+                value: editor_core::SlotValue::Read(
+                    fixture::head(in_part(ids[0], body, CapEnd::Start)).into(),
+                ),
+                fresh: Vec::new(),
             },
             &reach,
         );
@@ -1265,7 +1274,7 @@ fn a2_the_door_and_the_solve_agree_on_every_mate_of_the_corpus() {
                 continue;
             }
             mates += 1;
-            let twin = at_the_door(&doc, &reach, node.authored(&doc));
+            let twin = at_the_door(&doc, &reach, node.written(&doc));
             match poses.fault(id) {
                 None => {
                     assert!(

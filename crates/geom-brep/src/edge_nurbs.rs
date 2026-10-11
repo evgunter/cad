@@ -402,8 +402,12 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             ),
             Self::TransversalityEscalated { sample, cause } => write!(
                 f,
-                "whether the plane and the NURBS wall cross at interior sample {sample} is too \
-                 close to call: {}",
+                concat!(
+                    "whether the plane and the NURBS wall cross at interior sample {}",
+                    geom_core::undecided!(),
+                    ": {}"
+                ),
+                sample,
                 cause.payload()
             ),
             Self::PcurveFit => write!(f, "{PCURVE_FIT_REFUSAL}. {KERNEL_OR_FILE_DEFECT_ENDING}"),
