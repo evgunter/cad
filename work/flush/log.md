@@ -133,6 +133,17 @@ pass's delta.
   spent time reproducing them before the FYI reached them.
 — (FLUSH orchestrator)
 
+## 2026-10-11 — the anti-parallel touch closes as fixed by PR 4496 (PR 4649)
+
+Tier: the orchestrator's read. The PR is a regression gate plus tracker
+edits, with no kernel change, and its gate is red at the commit before
+the fix. The lane bisected the fix to PR 4496 (INTENT stage 4 E,
+booleans glue on Zero). It also found that the class is 18 pose-ops,
+not the 8 the row named. The union and intersect poses refused
+`UndeclaredCoincidence` before PR 4496, so the original review never
+saw them. CONTACTHOLD's PRs 4598 and 4604 merged during this unit, so
+the tier-3′ rows (the corner ruling and its planar siblings) now read
+the new census. The track's load is 31/32, back under budget.
 ## 2026-10-11 — wave 2 begins (CONTACTHOLD 4598/4604 merged; F still open)
 
 - **A designer pair on `a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses`**
