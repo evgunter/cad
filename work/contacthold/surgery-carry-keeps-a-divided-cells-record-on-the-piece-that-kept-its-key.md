@@ -51,3 +51,13 @@ supplies.
 A cut through a corner kiss is closed: the split's copies of a vertex
 (`SplitNaming::vertex_pairs`) share its point, so the carry reads each
 side's copy and lands the record on both sides.
+
+## 2026-10-11 — the kiss now carries its edge–edge record (FLUSH)
+
+Since FLUSH's `an-apex-edge-…` (PR 4737), the boolean records a line
+edge's span along an edge between its recorded bounds, so the edge kiss
+carries a third record: the two kissing edges' edge–edge record. The
+split keeps it on the side whose pieces kept the edges' keys (`below`),
+the case D1's "an `(edge, edge)` record onto every pair of pieces whose
+interiors still meet" rules and this row owes. The pin's count moved
+from `(1, 1)` to `(1, 2)`, and both sides still refuse at the cut.
