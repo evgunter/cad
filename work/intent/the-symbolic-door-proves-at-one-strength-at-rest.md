@@ -2,7 +2,7 @@
 id: the-symbolic-door-proves-at-one-strength-at-rest
 kind: unit
 title: The coincidence door proves at one strength, a kernel constant; the viewer runs it at rest; the resident/full switch goes
-status: open
+status: dispatched
 opened: 2026-10-11
 priority: P1
 cost: M
