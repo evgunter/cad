@@ -32,18 +32,20 @@
 //! Every result is read at all three tiers, against that census of wall
 //! faces and strut, with every edge's wrap flag against its faces, and
 //! against the closed-form volume `∫∫ clamp(g, 0, 2) dA` over the disc.
-//! Two doors, one family each: `topo::split` by planes through either
-//! vertex, both senses of each normal; the boolean against a half-space
-//! through the bottom vertex of the cylinder tilted about x, every op in
-//! both operand senses.
+//! Two doors: `topo::split` by planes through either vertex, of the
+//! cylinder and of a block the circle is a hole in, both senses of each
+//! normal; the boolean against a half-space through the bottom vertex
+//! of the cylinder tilted about x, every op in both operand senses.
 //!
 //! **Near the vertex** the plane is also moved ±0.6ε and ±0.9ε along its
 //! normal, which leaves the vertex On. A pose whose plane only touches
 //! the near rim at the vertex builds as through it. Every other pose
 //! crosses the rim, or meets the section's carrier, between ε and Kε
 //! from the vertex, and refuses typed with the margin it read in the
-//! band (D4); the two-arc form refuses those poses alike. A near pose is
-//! held to the closed form wherever it builds.
+//! band (D4); the two-arc form refuses those poses alike, but for one
+//! class that reads a sector's subdivision ray rather than the geometry
+//! (`work/cleave/a-wide-sectors-subdivision-ray-along-the-planes-trace-reads-in-the-band.md`).
+//! A near pose is held to the closed form wherever it builds.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
