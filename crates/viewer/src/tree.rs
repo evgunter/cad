@@ -1200,9 +1200,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // The input's door shipped a body that does not finish: a
         // kernel defect, and no author's slot refused.
         NodeErrorKind::UnfinishedOperand { .. } => None,
-        // The lane cannot carry what the named nodes hold; neither
-        // node is wrong, and the f64 lane builds them.
-        NodeErrorKind::SeedPinnedSection { .. } | NodeErrorKind::DerivedFrameSection { .. } => None,
         // Names the failing instance itself.
         NodeErrorKind::CrossingUnverified { .. } => None,
         // The kernel's own words: "repair <the node>" — the gauge, or

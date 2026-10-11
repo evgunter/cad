@@ -168,7 +168,7 @@ mod swept;
 pub mod test_support;
 
 pub use extrude::{ExtrudeError, ExtrudeSide, Extruded, Extrusion, SideWall, extrude};
-pub use loft::{LoftError, Lofted, loft_body, sweep_body};
+pub use loft::{LoftError, Lofted, loft_body, loft_profiles, sweep_body};
 pub use revolve::tube::{TubeError, TubeWindow, tube_along_arc, tube_along_arc_hollow};
 pub use revolve::{
     BandWall, Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, WedgeCapsError,

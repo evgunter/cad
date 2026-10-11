@@ -401,22 +401,15 @@ fn the_evaluation_door_runs_the_lift_at_dual() {
     );
 }
 
-/// **The asymmetry the section ladder's own docs state, pinned.**
-///
-/// `wire.rs`'s `section_of` says a loft's or sweep's SECTION stays f64
-/// under the lift — the skinned surface's knots, degrees and control
-/// bits must be identical in every lane (C6/D9) — while the profile
-/// node's payload is the `T`-valued profile. Both halves of that need a
-/// witness at a scalar where "widened" is observable, or the sentence
-/// is prose about f64 rows that cannot tell the two apart.
-///
-/// So, at `Interval` under `Guided`: the extrude ladder's profile
-/// payload is elaborated at the lane (its vertex enclosures are the
-/// lane's own), and the loft's body is bit-identical to the pinned
-/// lane's. The second half is the load-bearing one — it is what says
-/// the gate did not leak into the geometry.
+/// **A lofted body at `Interval` is the same under both lifts.** A loft
+/// reads its sections' profile values, and at `Interval` it encloses
+/// the `f64` skin of their value channel (`sweep::loft_profiles`); with
+/// no parameter box the two lifts' profile values hold the same points,
+/// so the lofted body is bit for bit one body. The profile node's own
+/// payload under the guided lift is elaborated at the lane (its vertex
+/// enclosures are the lane's own).
 #[test]
-fn the_loft_section_stays_f64_while_the_profile_payload_lifts() {
+fn a_lofted_body_at_interval_is_one_body_under_both_lifts() {
     use geom_core::Interval;
     let run = |doc: &editor_core::ProfileDoc, lift| {
         evaluate::<Interval>(
@@ -444,8 +437,8 @@ fn the_loft_section_stays_f64_while_the_profile_payload_lifts() {
         out
     };
 
-    // The loft half: the section is f64 by C6/D9, so the lift must not
-    // move one bit of the body it skins.
+    // The loft half: both lifts' sections have one value channel here,
+    // and the loft encloses its `f64` skin.
     let loft = corpus::loft_prism::document();
     let (pinned, guided) = (
         run(&loft.doc, ProfileLift::Pinned),
@@ -458,8 +451,8 @@ fn the_loft_section_stays_f64_while_the_profile_payload_lifts() {
     assert_eq!(
         body_bits(&pinned),
         body_bits(&guided),
-        "the lift moved a lofted body at Interval — the section is supposed to stay \
-         f64, so the second pass is a GATE here and must leak nothing into the geometry"
+        "the lift moved a lofted body at Interval, though both lifts' sections hold the \
+         same points"
     );
 
     // The extrude half: the profile node's own payload IS elaborated at
