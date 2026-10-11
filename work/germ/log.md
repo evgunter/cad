@@ -943,3 +943,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **Brief hygiene:** the build-slot lockfiles expose lane names through pid environments. Future briefs should tell reviewers not to inspect slot holders' environments.
 - 2026-10-11 07:11 — PR 4646 (the apex reach over span; SEQUENTIAL, byte 155): the lane is idle, and hosted `test` is red (expected: main's apex row; the reviewer confirms it by name). Frozen `8fd2ee212`. One local Opus review, r4646, is dispatched (brief sha256 `6488ea9cb320`, in its own lane dir; it is told not to inspect slot holders and to use separate targets per tree). The U-T1 fix pass is running.
 - 2026-10-11 08:12 — Check-in: nothing ready. r4646 is alive (fuzz logs written through 08:10, after the restart at about 07:10). The U-T1 fix pass is running per-crate nextest after lint.
+- 2026-10-11 09:20 — The U-T1 fix pass is done (head `44f6d912a`). I merged main locally, with two conflicts:
+  - topo `lib.rs` re-exports: took main's contact names and added `SpiricLoops`;
+  - the nextest slow set: took the union.
+
+  My first union split one of main's entries, and I fixed it in a follow-up commit; the slow-set line is now main's 111 entries plus our 4. I then started topo and sweep `--profile ci`, plus the touched rows at three ε.
