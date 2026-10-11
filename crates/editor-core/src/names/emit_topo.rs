@@ -1874,9 +1874,8 @@ fn name_boolean_vertices<T: Decide>(
             }
             Ok(held)
         };
-    // A-side weld and zip fusions (`vertex_merges`; a B-side weld kills
-    // a minted pierce vertex before the graft, which has no name to
-    // owe): kept key → dead partners (a fused vertex may owe
+    // The zips' fusions (`vertex_merges`): kept key → dead partners
+    // (a fused vertex may owe
     // its operand identity to a DEAD partner's key — e.g. a B corner
     // vertex fused into an A-side crossing key on a shared plane).
     let fused = Fused::of(naming);

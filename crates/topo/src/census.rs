@@ -1321,7 +1321,15 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
 impl<T: Real> Geo<T> {
     /// Whether `a` and `b` are one vertex or sit on one point — the
     /// structural rung of D1 tier 3′ ("same surface or point key"): an
-    /// op's copies of one vertex share its point.
+    /// op's copies of one vertex share its point, and so do the cones of
+    /// a pinch (Ev, PR 4057), whose vertices may be copies of several
+    /// operand vertices the op glued there by a value decision (one
+    /// pierce ring serving several pierces, `boolean::vtxfac::mint_ring`,
+    /// whose seams tie their keys, `boolean::zip::share_points`). The op
+    /// records that decision (`DecisionSite::VertexFusion`), with
+    /// a record of the cones citing it, for the `unproven-coincidence`
+    /// lint. The census reads keys, not lineage, so it cannot tell the
+    /// two cases apart and does not ask for the record.
     fn same_point(&self, a: VertexKey, b: VertexKey) -> bool {
         a == b
             || matches!(

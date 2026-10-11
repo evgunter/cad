@@ -3689,6 +3689,10 @@ fn ring_run_ccw<T: Decide>(
     ring_winding_order(wound.map(|decided| decided.sign))
 }
 
+/// The ring lane's refusal of a run that encloses no area.
+pub(super) const DEGENERATE_RING_WINDING: &str =
+    "ring-run winding is degenerate (zero enclosed area)";
+
 /// The ring lane's role order from the decided winding: CCW keeps the
 /// order. A zero area is a degenerate run, so its in-band twin is the
 /// kernel's too.
@@ -3701,9 +3705,7 @@ fn ring_winding_order(wound: Result<Sign, geom_core::Indeterminate>) -> Result<b
     match sign {
         Sign::Positive => Ok(true),
         Sign::Negative => Ok(false),
-        Sign::Zero => Err(desync(
-            "ring-run winding is degenerate (zero enclosed area)",
-        )),
+        Sign::Zero => Err(desync(DEGENERATE_RING_WINDING)),
     }
 }
 

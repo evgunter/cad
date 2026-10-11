@@ -223,6 +223,37 @@ fn the_staircase_and_the_plate_build_in_every_op() {
         ("P ∩ X", Kind::Intersect, true, [20, 48, 28], both, true),
     ];
     every_op("staircase", &x, &p, &rows);
+    // `P − X` passes 3′ on a record: where a line of X's pierces the
+    // plate's top, one ring serves its two edges' pierces, and the
+    // result records that grouping (a `VertexFusion` row) with a record
+    // of the vertices it keeps there citing it.
+    let BooleanResult::Body(r) = subtract(&p, &x, t()).unwrap() else {
+        panic!("P − X is empty")
+    };
+    let fusions = r
+        .coincidences
+        .iter()
+        .filter(|c| c.site == topo::DecisionSite::VertexFusion)
+        .count();
+    assert!(fusions > 0, "P − X: the rings' groupings recorded");
+    let at = |q: (f64, f64, f64)| -> Vec<topo::VertexKey> {
+        r.body
+            .vertex_points()
+            .filter(|&(_, w)| (w.x, w.y, w.z) == q)
+            .map(|(k, _)| k)
+            .collect()
+    };
+    for q in [(1.5, 1.0, 1.0), (2.0, 1.5, 1.0)] {
+        let here = at(q);
+        if here.len() > 1 {
+            assert!(
+                r.contacts
+                    .vertex_vertex()
+                    .any(|(a, b)| here.contains(&a) && here.contains(&b)),
+                "P − X: the vertices at {q:?} are a recorded pair"
+            );
+        }
+    }
 }
 
 /// **A bare pinch against a face its line pierces, every op both ways
