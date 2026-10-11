@@ -1,0 +1,42 @@
+diff --git a/crates/sweep/tests/pi_seam_and_kiss_through_the_boolean.rs b/crates/sweep/tests/pi_seam_and_kiss_through_the_boolean.rs
+index 04b307dd..bd138709 100644
+--- a/crates/sweep/tests/pi_seam_and_kiss_through_the_boolean.rs
++++ b/crates/sweep/tests/pi_seam_and_kiss_through_the_boolean.rs
+@@ -956,6 +956,12 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
+         let slack = (k.abs() * band.zero() / R + 64.0 * f64::EPSILON) * want;
+         let fine = tol.eps() == 1e-12;
+         let mut built = Vec::new();
++        let mutf = |order: usize| -> f64 {
++            let m: f64 = std::env::var("RV_MUT").ok().and_then(|x| x.parse().ok()).unwrap_or(0.0);
++            let o: usize = std::env::var("RV_ORDER").ok().and_then(|x| x.parse().ok()).unwrap_or(9);
++            let kk: f64 = std::env::var("RV_K").ok().and_then(|x| x.parse().ok()).unwrap_or(f64::NAN);
++            if (o == 9 || o == order) && (kk.is_nan() || kk == k) { 1.0 + m } else { 1.0 }
++        };
+         for (order, r) in unions_with_discs_rest(&tube, &dome).into_iter().enumerate() {
+             let label = format!("k = {k}, order {order}");
+             if (0.0..=0.5).contains(&k) {
+@@ -972,7 +978,9 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
+                     vec![kept; 2],
+                     "{label}: the rim keeps the first operand's circle"
+                 );
+-                built.push((label, topo::mass_properties(&b, tol).unwrap().volume));
++                let v = topo::mass_properties(&b, tol).unwrap().volume;
++                println!("PROBE {label} BUILT v-want={:+e} rel={:+e} slack_rel={:e}", v - want, (v - want) / want, slack / want);
++                built.push((label, v * mutf(order)));
+                 continue;
+             }
+             // At ε = 1e-12 the member orders part: order 0 builds, order
+@@ -984,9 +992,12 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
+                     Ok(BooleanResult::Body(b)) => b.body,
+                     other => panic!("{label}: at ε 1e-12 order 0 builds: {other:?}"),
+                 };
+-                built.push((label, topo::mass_properties(&b, tol).unwrap().volume));
++                let v = topo::mass_properties(&b, tol).unwrap().volume;
++                println!("PROBE {label} BUILT v-want={:+e} rel={:+e} slack_rel={:e}", v - want, (v - want) / want, slack / want);
++                built.push((label, v * mutf(order)));
+                 continue;
+             }
++            if let Err(e) = &r { println!("PROBE {label} REFUSED {:?}", e); } else { println!("PROBE {label} BUILT-UNEXPECTED"); }
+             let e = r.err().unwrap_or_else(|| panic!("{label}: refuses"));
+             match k {
+                 -0.5 | -0.25 => assert!(

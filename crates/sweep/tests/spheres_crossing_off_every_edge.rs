@@ -626,3 +626,34 @@ fn a_large_ball_near_external_tangency_is_pinned() {
         );
     }
 }
+
+/// Verifier probe (PR 4573, 7a1f6fcef): the near-tangent sliver's
+/// volume against the lens, RELATIVE, both orders, across gaps; and
+/// whether the row's `outcome` line could tell a wrong volume apart.
+#[test]
+fn review_4573_v2_sliver_relative() {
+    let tol = Tol::witness();
+    let none = BooleanDeclarations::none();
+    for gap in [2e-6, 3e-6, 5e-6, 1e-5, 3e-5, 1e-4] {
+        let d = 51.0 - gap;
+        let (a, b) = (unit(), ball(50.0, Vec3::new(0.0, 0.0, d)));
+        let shared = lens(1.0, 50.0, d);
+        for (op, flip) in [("a ∩ b", false), ("b ∩ a", true)] {
+            let run = || if flip { topo::intersect_with(&b, &a, &none, tol) } else { topo::intersect_with(&a, &b, &none, tol) };
+            let out = run();
+            match out.as_ref().ok().and_then(|r| r.body()) {
+                Some(bb) => match topo::mass_properties(&bb.body, tol) {
+                    Ok(m) => println!(
+                        "SLIVER gap={gap:e} {op}: lens={shared:e} v={:e} rel={:+.3e} abs={:+.3e} ; with 2x volume the line reads: {}",
+                        m.volume,
+                        m.volume / shared - 1.0,
+                        m.volume - shared,
+                        outcome(run(), shared * 0.5, tol).chars().take(60).collect::<String>()
+                    ),
+                    Err(e) => println!("SLIVER gap={gap:e} {op}: unmeasured {e:?}"),
+                },
+                None => println!("SLIVER gap={gap:e} {op}: {:?}", out.as_ref().err()),
+            }
+        }
+    }
+}
