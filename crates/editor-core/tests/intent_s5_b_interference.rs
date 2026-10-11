@@ -637,7 +637,6 @@ fn a_pin_bottoming_through_a_blind_bore_stays_loud() {
         doc,
         Node::Union {
             members: Bodies::Spelled(vec![holed.into(), floor.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, pin) = prism(doc, -0.2, vec![circle(0.505)], 1.7);

@@ -159,7 +159,6 @@ pub mod face_boxes;
 pub mod face_normal;
 #[cfg(test)]
 pub(crate) mod fixtures;
-pub mod flush;
 // This crate's own sources, read as source. A sibling of `fixtures`
 // rather than a section of it: that module's subject is canonical
 // bodies, this one's is a Rust reader. Non-doc comment for the
@@ -304,9 +303,9 @@ pub mod test_support {
         CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
         StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_both_rules, brick,
         cube_into, cyl_arc_at, cyl_wall_sheet, cyl_wall_sheet_keyed, declined_cube,
-        describe_as_intersections, drill_hole, flush_declarations, geometric_cube, holed_block,
-        identity_map, kill_under_a_null_strut, line, mapped_cube, plane, plane_every_face,
-        plant_disc_face, plant_ring_face, prism, prism_ops, prism_z, split_plane, straddle_seat,
+        describe_as_intersections, drill_hole, geometric_cube, holed_block, identity_map,
+        kill_under_a_null_strut, line, mapped_cube, plane, plane_every_face, plant_disc_face,
+        plant_ring_face, prism, prism_ops, prism_z, split_plane, straddle_seat,
     };
     pub use crate::test_support_impl::ArenaCounts;
 
@@ -474,10 +473,9 @@ pub mod test_support {
         op: crate::BooleanOp,
         a: &Body<f64>,
         b: &Body<f64>,
-        decls: &crate::BooleanDeclarations,
         tol: geom_core::Tol,
     ) -> Result<Option<crate::BooleanError>, crate::BooleanError> {
-        crate::boolean::join_refusal(op, a, b, decls, tol)
+        crate::boolean::join_refusal(op, a, b, tol)
     }
 
     /// The operand's maximal-faces gate (F7) alone, at `tol`'s band —
@@ -835,25 +833,23 @@ pub mod validate;
 
 pub use body::Body;
 pub use boolean::{
-    ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations,
-    BooleanError, BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult,
-    BooleanResultKind, CarriedContacts, CarriedRecord, CarriedVf, CarriedVv, CarrierDesc,
-    CarrierEqError, CarrierRelation, Cell, Coincide, CoincidenceMeasure, CompletedPolygonPair,
-    ConsumedExtent, Contact, ContactKind, ContactPairError, ContactRecords, ContainDecision,
-    ContainError, Contradiction, DeclarationRead, DiscardRow, EdgeJoin, EdgePieceClass, EeContact,
-    FaceContainment, FacePairDeclaration, Fusions, HeldEdge, JOIN_LEVER, JOIN_SUBJECT, JoinReading,
-    JoinRefusal, JoinUndecided, LeverArm, NullEdgePairRecord, Operand, OperandKeys, PairFace,
-    PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError,
-    PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts, RekeyRefusal,
-    SectorRead, SectorRung, SelfCheck, Settling, ShellOrientation, SideCode, SolidContainment,
-    SolidFaces, SphereQuestion, SpiricLoops, SweepStrategy, SweepTrace, TorusConvention, VeContact,
-    Verdicts, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact,
-    WallRung, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq, contfp,
-    curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
-    insert_voids, intersect, intersect_with, is_conventional_vertex, join_covers,
+    ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanError, BooleanErrorKind,
+    BooleanInputs, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
+    CarriedRecord, CarrierDesc, CarrierEqError, CarrierRelation, Cell, Coincide,
+    CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, Contact, ContactKind,
+    ContactPairError, ContactRecords, ContainDecision, ContainError, Contradiction,
+    DeclarationRead, DiscardRow, EdgeJoin, EdgePieceClass, EeContact, FaceContainment, Fusions,
+    GivenPair, HeldEdge, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
+    LeverArm, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace, PairRefusalSite,
+    PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation,
+    PlaneRung, PointInSolidError, ReductionContacts, RekeyRefusal, SectorRead, SectorRung,
+    SelfCheck, Settling, ShellOrientation, SideCode, SolidContainment, SolidFaces, SphereQuestion,
+    SpiricLoops, SweepStrategy, SweepTrace, TorusConvention, VeContact, VfContact, VoidContainment,
+    VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with,
+    boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words, face_carrier,
+    flush_pair_relation, insert_void, insert_voids, intersect, is_conventional_vertex, join_covers,
     joinable_vertices, joined_edge, lineage_root, oriented_plane_eq, point_in_solid,
-    point_in_solid_faces, point_in_solid_of, subtract, subtract_with, tangent_pair_relation, union,
-    union_with,
+    point_in_solid_faces, point_in_solid_of, subtract, tangent_pair_relation, union,
 };
 pub use joint::{Deck, JointElement};
 pub use surgery::Surgery;
@@ -873,9 +869,9 @@ pub use census::{CensusStrategy, CensusTrace, SweepPairs, census_rest_decision};
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
 pub use contact::{
-    BooleanCoincidence, CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE,
-    ContactClass, ContactFinding, ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL,
-    FIT_DEFERRAL_FOR_USERS, SEAM_STEER,
+    CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactClass, ContactFinding,
+    ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL, FIT_DEFERRAL_FOR_USERS,
+    GlueClass, SEAM_STEER,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,

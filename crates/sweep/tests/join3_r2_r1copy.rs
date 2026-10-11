@@ -12,9 +12,7 @@
 //! The batteries: `join1_r1_battery` (z-prisms: diamond, hexagon,
 //! triangle, rod, against boxes), `join1_r1_seam_battery` (a revolved
 //! ball and a revolved solid cylinder — the latter refused at the
-//! operand gate, `NonMaximalFaces`), `join1_r1_declared_battery`
-//! (flush-declared z-prisms against boxes, coplanar caps and sides),
-//! `join1_r1_reflex_battery` (the reflex-corner issue's probe rebuilt
+//! operand gate, `NonMaximalFaces`), `join1_r1_reflex_battery` (the reflex-corner issue's probe rebuilt
 //! from its text), `join1_r1_tube_battery` (a bored revolve whose ONE
 //! outer wall face carries its seam meridian, against boxes and wedges
 //! along that seam) and `join1_r1_bored_capsule_battery` (a crease
@@ -454,80 +452,6 @@ fn y_prism(xz: &[(f64, f64)], y: (f64, f64)) -> AtRestBody<f64> {
     finished("the y-prism", body, tol())
 }
 
-/// Flush-declared poses: z-prisms against boxes whose caps and side
-/// faces may be coplanar with the prism's, every flush pair declared.
-#[test]
-#[ignore = "differential battery; run with --ignored"]
-fn j3r2_r1_declared_battery() {
-    use topo::flush::{declare_all, find_flush_candidates};
-    let h = (0.0, 2.0);
-    let shapes: Vec<(&str, Vec<(f64, f64)>)> = vec![
-        (
-            "square",
-            vec![(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)],
-        ),
-        (
-            "diamond",
-            vec![(0.5, 0.0), (0.0, 0.5), (-0.5, 0.0), (0.0, -0.5)],
-        ),
-        ("tri", vec![(-0.5, -0.5), (0.5, 0.0), (-0.5, 0.5)]),
-        (
-            "hex",
-            vec![
-                (0.5, 0.0),
-                (0.25, 0.5),
-                (-0.25, 0.5),
-                (-0.5, 0.0),
-                (-0.25, -0.5),
-                (0.25, -0.5),
-            ],
-        ),
-    ];
-    let coords = [-1.0, -0.5, 0.0, 0.25, 0.5, 1.0];
-    let mut ranges = Vec::new();
-    for i in 0..coords.len() {
-        for j in i + 1..coords.len() {
-            ranges.push((coords[i], coords[j]));
-        }
-    }
-    let zs = [(0.0, 2.0), (0.0, 1.0), (1.0, 2.0), (-1.0, 2.0), (1.0, 3.0)];
-    for (name, pts) in &shapes {
-        let a = prism(pts, h.1);
-        let va = area(pts) * (h.1 - h.0);
-        for &x in &ranges {
-            for &y in &ranges {
-                for &z in &zs {
-                    let b = finished("the box", brick(x, y, z, tol()), tol());
-                    let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
-                    let vi = area(&clip(pts, x, y)) * overlap(h, z);
-                    for (op, want_ab, want_ba) in [
-                        ("U", va + vb - vi, va + vb - vi),
-                        ("S", va - vi, vb - vi),
-                        ("I", vi, vi),
-                    ] {
-                        for (order, want) in [("AB", want_ab), ("BA", want_ba)] {
-                            let (l, r) = if order == "AB" { (&a, &b) } else { (&b, &a) };
-                            let line = match find_flush_candidates(l, r, tol()) {
-                                Err(e) => format!("FLUSHERR {e:?}"),
-                                Ok(found) => {
-                                    let d = declare_all(&found);
-                                    let res = match op {
-                                        "U" => topo::union_with(l, r, &d, tol()),
-                                        "S" => topo::subtract_with(l, r, &d, tol()),
-                                        _ => topo::intersect_with(l, r, &d, tol()),
-                                    };
-                                    outcome(res, want)
-                                }
-                            };
-                            println!("DECL {name} x={x:?} y={y:?} z={z:?} {op} {order} => {line}");
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
 #[test]
 #[ignore = "detail probe"]
 fn j3r2_r1_hex_detail() {
@@ -585,13 +509,11 @@ fn ccw(mut p: Vec<(f64, f64)>) -> Vec<(f64, f64)> {
 /// The `reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap`
 /// probe, rebuilt from its issue text: `a` the 315° reflex prism, `b` a
 /// prism over z ∈ (1, 3) sheared `z' = z + sx·x + sy·y`, its bottom cap
-/// through `a`'s reflex corner `(0, 0, 1)`; flush-declared.
+/// through `a`'s reflex corner `(0, 0, 1)`.
 #[test]
 #[ignore = "differential battery; run with --ignored"]
 fn j3r2_r1_reflex_battery() {
-    use topo::test_support::{
-        FaceGeometry, describe_as_intersections, flush_declarations, prism_ops, prism_z,
-    };
+    use topo::test_support::{FaceGeometry, describe_as_intersections, prism_ops, prism_z};
     let a_prof = ccw(vec![
         (0.0, 0.0),
         (2.0, 2.0),
@@ -689,7 +611,6 @@ fn j3r2_r1_reflex_battery() {
                 let low = clip_convex(&both, &half);
                 let (mx, my) = moments(&low);
                 let vi = -(sx * mx + sy * my);
-                let d = flush_declarations(&a, &b, tol());
                 for (op, want) in [
                     ("I", vi),
                     ("U", va + vb - vi),
@@ -697,10 +618,10 @@ fn j3r2_r1_reflex_battery() {
                     ("S_ba", vb - vi),
                 ] {
                     let res = match op {
-                        "I" => topo::intersect_with(&a, &b, &d, tol()),
-                        "U" => topo::union_with(&a, &b, &d, tol()),
-                        "S_ab" => topo::subtract_with(&a, &b, &d, tol()),
-                        _ => topo::subtract_with(&b, &a, &d, tol()),
+                        "I" => topo::intersect(&a, &b, tol()),
+                        "U" => topo::union(&a, &b, tol()),
+                        "S_ab" => topo::subtract(&a, &b, tol()),
+                        _ => topo::subtract(&b, &a, tol()),
                     };
                     println!(
                         "REFLEX {name} sx={sx} sy={sy} {op} => {}",

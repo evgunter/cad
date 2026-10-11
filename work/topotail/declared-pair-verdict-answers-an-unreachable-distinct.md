@@ -2,9 +2,8 @@
 id: declared-pair-verdict-answers-an-unreachable-distinct
 kind: issue
 title: topo: declared_pair_verdict answers the declared rung's unreachable Distinct verdict as 'do not merge'
-status: parked
+status: open
 opened: 2026-09-30
-blocked_on: [intent-stage4-is-built]
 ---
 
 (TOPO, the receipt of the D262 unit, PR 3532: its sweep of every
@@ -46,3 +45,7 @@ Waits on `intent-stage4-is-built`, not on the whole program: merge_faces::declar
 ## Re-homed at TOPO's cut (2026-10-11)
 
 Moved from TOPO to TOPOTAIL when TOPO dropped to P2 and split on its priority seam (`work/topotail/log.md`). TOPO kept the Euler surgery doors; this row is a torn-record, refusal-recourse or code-hygiene row, or a parked boolean or placement row.
+
+## Released by stage 4 F (2026-10-11)
+
+Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.

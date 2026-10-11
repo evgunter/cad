@@ -4,7 +4,7 @@
 //! wall-half pairs that meet across the mating circle are
 //! continuations (`crates/topo/README.md`, C4's continuation clause).
 //!
-//! The declared union builds at every θ. With the seams aligned (θ = 0,
+//! The union builds at every θ. With the seams aligned (θ = 0,
 //! and θ = π with the halves swapped) the mating circle carries two
 //! sites a half turn apart: each seam segment is a semicircle, so its
 //! two end germs are perpendicular to their chord, and the two arcs
@@ -17,10 +17,7 @@
 use geom_core::{Point2, Tol};
 use profile::circle_split;
 use sweep::test_support::{extruded, finished, sketch_at};
-use topo::{
-    AtRestBody, Body, BooleanBody, BooleanCoincidence, BooleanDeclarations, BooleanError,
-    BooleanResult,
-};
+use topo::{AtRestBody, Body, BooleanBody, BooleanError, BooleanResult};
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
@@ -47,12 +44,6 @@ fn rod(z0: f64, phase: f64) -> AtRestBody<f64> {
         extruded(sketch_at(z0), vec![rim.into()], 1.0, tol()),
         tol(),
     )
-}
-
-/// Every finding the flush detector offers between `a` and `b`, declared.
-fn declared(a: &Body<f64>, b: &Body<f64>) -> BooleanDeclarations {
-    let found = topo::flush::find_flush_candidates(a, b, tol()).expect("the rods decide");
-    topo::flush::declare_all(&found)
 }
 
 fn volume(body: &Body<f64>) -> f64 {
@@ -84,28 +75,15 @@ fn builds(
     bb
 }
 
-/// **The declared union builds at every seam turn**: six faces (top,
+/// **The union builds at every seam turn**: six faces (top,
 /// bottom and the four wall halves, unmerged across the mating circle:
 /// gluing them would close the wall's full period, which the merge
 /// records as one skip), volume 2π.
 #[test]
-fn a_declared_half_rod_stack_unions_at_every_seam_turn() {
+fn a_half_rod_stack_unions_at_every_seam_turn() {
     for (label, theta) in POSES {
         let (a, b) = (rod(0.0, 0.0), rod(1.0, theta));
-        let d = declared(&a, &b);
-        assert_eq!(
-            d.coincident_faces
-                .iter()
-                .map(|f| f.class == BooleanCoincidence::REST)
-                .fold((0, 0), |(r, c), rest| if rest {
-                    (r + 1, c)
-                } else {
-                    (r, c + 1)
-                }),
-            (1, 4),
-            "{label}: the mating disc and four wall continuations"
-        );
-        let bb = builds(label, topo::union_with(&a, &b, &d, tol()), 2.0 * PI);
+        let bb = builds(label, topo::union(&a, &b, tol()), 2.0 * PI);
         assert_eq!(bb.body.faces().count(), 6, "{label}: faces");
         assert!(
             matches!(
@@ -129,14 +107,13 @@ fn a_declared_half_rod_stack_unions_at_every_seam_turn() {
 /// (`work/reachhold/rounded-stack-subtract-and-intersect-refuse-fallback-extent.md`).
 /// Their oracle once built: ∩ empty, each difference its minuend, π.
 #[test]
-fn a_declared_half_rod_stack_keeps_its_intersect_and_subtract_refusals() {
+fn a_half_rod_stack_keeps_its_intersect_and_subtract_refusals() {
     for (label, theta) in POSES {
         let (a, b) = (rod(0.0, 0.0), rod(1.0, theta));
-        let (ab, ba) = (declared(&a, &b), declared(&b, &a));
         for (op, out) in [
-            ("A ∩ B", topo::intersect_with(&a, &b, &ab, tol())),
-            ("A ∖ B", topo::subtract_with(&a, &b, &ab, tol())),
-            ("B ∖ A", topo::subtract_with(&b, &a, &ba, tol())),
+            ("A ∩ B", topo::intersect(&a, &b, tol())),
+            ("A ∖ B", topo::subtract(&a, &b, tol())),
+            ("B ∖ A", topo::subtract(&b, &a, tol())),
         ] {
             assert!(
                 matches!(out, Err(BooleanError::FallbackExtentUnsupported { .. })),
@@ -147,53 +124,17 @@ fn a_declared_half_rod_stack_keeps_its_intersect_and_subtract_refusals() {
 }
 
 /// **The union is a legal operand**: a third rod, aligned with the
-/// lower one's seams, stacks on top with its own findings declared.
+/// lower one's seams, stacks on top.
 #[test]
 fn a_half_rod_stack_takes_a_third_rod() {
     for (label, theta) in POSES {
         let (a, b) = (rod(0.0, 0.0), rod(1.0, theta));
-        let stack = builds(
-            label,
-            topo::union_with(&a, &b, &declared(&a, &b), tol()),
-            2.0 * PI,
-        )
-        .body;
+        let stack = builds(label, topo::union(&a, &b, tol()), 2.0 * PI).body;
         let c = rod(2.0, 0.0);
         builds(
             &format!("{label}, third rod"),
-            topo::union_with(&stack, &c, &declared(&stack, &c), tol()),
+            topo::union(&stack, &c, tol()),
             3.0 * PI,
         );
-    }
-}
-
-/// **Undeclared, or with only the mate declared, the union is the
-/// declared body** (D10): the wall halves are one carrier by margin, so
-/// the boolean glues them as continuations either way, at every seam
-/// turn.
-#[test]
-fn an_undeclared_half_rod_stack_is_the_declared_union_at_every_seam_turn() {
-    for (label, theta) in POSES {
-        let (a, b) = (rod(0.0, 0.0), rod(1.0, theta));
-        let all = declared(&a, &b);
-        let want = builds(label, topo::union_with(&a, &b, &all, tol()), 2.0 * PI);
-        let mut mate = all.clone();
-        mate.coincident_faces
-            .retain(|f| f.class == BooleanCoincidence::REST);
-        for (what, d) in [
-            ("undeclared", BooleanDeclarations::default()),
-            ("mate only", mate),
-        ] {
-            let got = builds(
-                &format!("{label}, {what}"),
-                topo::union_with(&a, &b, &d, tol()),
-                2.0 * PI,
-            );
-            assert_eq!(
-                format!("{:?}", got.body),
-                format!("{:?}", want.body),
-                "{label}, {what}: the declared body"
-            );
-        }
     }
 }

@@ -749,37 +749,6 @@ pub fn cube_into<T: geom_core::Decide + crate::props::AtRestPolicy>(
     describe_as_intersections(body, tol);
 }
 
-/// Test-authoring convenience: the [`crate::BooleanDeclarations`] declaring
-/// every flush face pair of `(a, b)`, on any carrier the `Rest`
-/// ladder verifies — the test author's
-/// stand-in for a recipe declaration (the author built the contact
-/// deliberately; this writes the intent down).
-///
-/// The detection is the library's ([`crate::flush`]), so this helper
-/// interprets nothing: it detects through the same door the op then
-/// verifies with, and hands the findings straight to the declare
-/// sugar. Coincidence CERTIFICATION still happens inside the op
-/// through the verified declared rung, never here.
-///
-/// **The in-band arm INVERTED here, deliberately.** The hand declarer
-/// this replaced treated an in-band pair as plausible and declared it
-/// anyway, leaving the op's declared rung to re-check it. A finding is
-/// only ever DEFINITE, so the library refuses instead — and this
-/// helper turns that refusal into a panic rather than swallowing it,
-/// which makes "every fixture that reaches this helper decides
-/// definitely" a fixture assertion instead of an assumption. A future
-/// fixture built inside the band fails loudly at its own door; the old
-/// helper would have declared it and moved on.
-pub fn flush_declarations<T: geom_core::Decide>(
-    a: &Body<T>,
-    b: &Body<T>,
-    tol: Tol,
-) -> crate::BooleanDeclarations {
-    let found = crate::flush::find_flush_candidates(a, b, tol)
-        .expect("a fixture's flush pairs decide definitely");
-    crate::flush::declare_all(&found)
-}
-
 // ---------------------------------------------------------------------
 // The §9.3 surgery: a ring face planted in a face, and a hole drilled
 // through a body
