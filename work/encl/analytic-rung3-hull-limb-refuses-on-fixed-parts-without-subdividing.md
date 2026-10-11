@@ -7,6 +7,7 @@ branch: encl/rung3-hull-refine
 opened: 2026-10-10
 priority: P3
 cost: H
+pr: 4675
 ---
 
 Filed by `encl/hull-bound-refine` (row `hull-bound-refusals-could-refine-the-composite-before-refusing`), which made the two SSI hull limbs (`ssi_hull_sup`, `ssi_hull_sup_chart` in `crates/geom-brep/src/ssi/certify.rs`) subdivide their composite under a budget before refusing.
