@@ -2,9 +2,10 @@
 id: two-names-differing-only-in-an-unsaid-carry-node-read-alike
 kind: issue
 title: Two names that differ only in a carry node the words never say read alike, even in full
-status: open
+status: parked
 opened: 2026-10-06
 priority: P3
+blocked_on: [a-name-is-scoped-by-the-variable-holding-its-body]
 ---
 
 
@@ -18,3 +19,7 @@ A name's words say neither a primary carry's node (a Boolean's A, a fillet's tar
 **Reachability.** No evaluation is known to mint such a pair in one table: a Boolean's merged constituents share its node (`names/emit_topo.rs`, the merged-face emission), and the corpus gate (`name_words_corpus.rs`, every table read apart in full and scoped) has never seen one. The full-form fuzzer (`name_words_rows::the_full_form_says_no_two_names_alike`) counts such pairs apart from real collisions, and the table fuzzer keeps them out of its tables.
 
 **What closing it would take.** Either say the unsaid node where it is the only difference (a qualifier the table detail could open, like a citation: "carried at Fillet 92b0"), or show no node mints such a pair and pin that. The first changes the ruled silence, so it goes to Ev as a design question.
+
+## Re-homed at RECIPE's close (2026-10-11)
+
+Moved to DOCTAIL and parked on INTENT's `a-name-is-scoped-by-the-variable-holding-its-body` (dispatched). That unit scopes a name by the variable holding its body and drops the split half from a split's roles, which changes both what holds a name and which nodes a name leaves unsaid. Re-read this row against its merge before building anything.

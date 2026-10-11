@@ -66,3 +66,7 @@ rather than a value.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `select-defines-face-and-edge-variables`, not on the whole program: it is the strand report on names that kept readers hold (edit.rs undrawn_kept_pieces); unit E moves names into Select-defined Face/Edge variables that own N5, so where strands are reported moves there. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Re-homed at RECIPE's close (2026-10-11)
+
+Moved to DOCTAIL. Its trigger (`select-defines-face-and-edge-variables`, PR 4523) has closed, so it can be dispatched: the designer pair first (`design: true`), then an `[ev]` PR if the fork is Ev's. `maintenance-net-keeps-an-undrawn-piece-strand-a-later-edit-redrew` is parked on it, because that row's survival test depends on which strands this row keeps.

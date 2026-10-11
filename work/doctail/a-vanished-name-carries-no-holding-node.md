@@ -2,10 +2,11 @@
 id: a-vanished-name-carries-no-holding-node
 kind: issue
 title: A vanished name forwarded bare carries no holding node, so two copies' faces read alike in it
-status: open
+status: parked
 opened: 2026-10-06
 priority: P3
 cost: M
+blocked_on: [a-name-is-scoped-by-the-variable-holding-its-body]
 ---
 
 
@@ -23,3 +24,7 @@ Carrying the holder means a field on `ResolveError::Vanished` (and `NodeGone`, `
 Priority low while the bare form has no viewer surface: every viewer door that says a resolve failure leads with the reference.
 
 A second instance of the class, found by the same sweep: the viewer's picking-paths notice (`viewer/src/idpass.rs` `Disagreement`) keeps the ray's tie as names alone (`from_ray: Vec<StableName>`, built in `pane/viewport.rs` `cursor_news` from `faces_under_cursor`'s hits with their nodes dropped), so a tie between two copies' faces reads "tied between X and X". The comparison is by name on purpose (`idpass::disagreement`'s docs); the sentence could keep each hit's node beside its name, as `HitTestError::Ambiguous` does.
+
+## Re-homed at RECIPE's close (2026-10-11)
+
+Moved to DOCTAIL and parked on INTENT's `a-name-is-scoped-by-the-variable-holding-its-body` (dispatched). That unit scopes a name by the variable holding its body and drops the split half from a split's roles, which changes both what holds a name and which nodes a name leaves unsaid. Re-read this row against its merge before building anything.

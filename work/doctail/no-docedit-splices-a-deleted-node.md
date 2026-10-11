@@ -196,3 +196,7 @@ listing of this row as an `[ev]` conversation predated DM6's
 ratification and was not updated with it; Ev confirmed in chat
 (2026-09-16) that no conversation is owed. The row stays as DM6's
 named trigger, not as work.
+
+## Re-homed at RECIPE's close (2026-10-11)
+
+Moved to DOCTAIL, still deferred. What remains is the one-edit convenience and the policy for which input survives (§1), which is Ev's to rule; reopen it on that ruling.

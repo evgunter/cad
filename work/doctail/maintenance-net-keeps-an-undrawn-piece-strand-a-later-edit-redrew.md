@@ -2,10 +2,11 @@
 id: maintenance-net-keeps-an-undrawn-piece-strand-a-later-edit-redrew
 kind: issue
 title: MaintenanceNet keeps a SetProgram's undrawn-piece strand that a later edit of the same action draws again
-status: open
+status: parked
 opened: 2026-10-02
 priority: P4
 cost: M
+blocked_on: [a-reshapings-values-strand-what-a-value-edit-would-not]
 ---
 
 
@@ -34,3 +35,7 @@ ask whether the end document's program still leaves that piece undrawn
 — `ProfilePayload::drawn_pieces` under the end document's parameters —
 rather than whether the carrier holds the name. That needs the row to
 carry, or the net to re-derive, which piece it was about.
+
+## Re-homed at RECIPE's close (2026-10-11)
+
+Moved to DOCTAIL and parked on `a-reshapings-values-strand-what-a-value-edit-would-not`: whether a value-only undrawn piece strands at all decides which strands this survival test must re-derive.

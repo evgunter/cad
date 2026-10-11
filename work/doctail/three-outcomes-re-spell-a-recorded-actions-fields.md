@@ -2,11 +2,11 @@
 id: three-outcomes-re-spell-a-recorded-actions-fields
 kind: issue
 title: RegaugeThenMateOutcome, SplitOutcome and InlineOutcome re-spell Recorded's fields instead of carrying one
-status: open
+status: parked
 opened: 2026-10-03
 priority: P4
 cost: M
-refs: [three-loops-apply-several-edits-and-net-their-maintenance]
+blocked_on: [a-placement-is-the-bundle-of-mates]
 ---
 
 Found by the fix pass of
@@ -46,3 +46,7 @@ local tidy.
 
 Each outcome carries `recorded: Recorded<P>` (`SplitOutcome` two of
 them) beside its own fields; the consumers read through it.
+
+## Re-homed at RECIPE's close (2026-10-11)
+
+Moved to DOCTAIL and parked on INTENT stage 3's `a-placement-is-the-bundle-of-mates`, which retires gauges and with them `regauge_then_mate`'s outcome. What is left after it (`SplitOutcome`, `InlineOutcome`) is a local tidy.

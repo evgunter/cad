@@ -60,3 +60,7 @@ blocker is not set here because the row does not exist yet.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage3-is-built`, not on the whole program: two of the three spellings (step 0 of transform/gauge/offset, PlacementStep) belong to gauges, offsets and Transform-as-placement, which stage 3 retires; MateFrameStep is re-cut with frame variables. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Re-homed at RECIPE's close (2026-10-11)
+
+Moved to INTENT, parked as it was on `intent-stage3-is-built`.

@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-03
 priority: P4
 cost: M
-refs: [three-loops-apply-several-edits-and-net-their-maintenance]
 ---
 
 Found by the sweep for
@@ -45,3 +44,7 @@ A public single-insert door answering `(Applied, RecipeNodeId)` (or
 `apply_insert` made public), the two shapes moved onto it, and the
 dead refusal arms removed with their words.
 
+
+## Re-homed at RECIPE's close (2026-10-11)
+
+Moved to DOCTAIL with RECIPE's other live rows; nothing on it is held by the D10 build.

@@ -32,3 +32,7 @@ reader (`meta::read_nested`) shares its depth guard
 `MetaError`, so a metadata value past its bound reaches the door as
 the `Unreadable` prose quoted above, place doubled. A typed arm for it
 belongs with this roster.
+
+## Re-homed at RECIPE's close (2026-10-11)
+
+Moved to DOCTAIL with RECIPE's other live rows; nothing on it is held by the D10 build.

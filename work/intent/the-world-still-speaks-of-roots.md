@@ -2,8 +2,9 @@
 id: the-world-still-speaks-of-roots
 kind: issue
 title: Under the world the kernel still names placements roots: CheckFinding.root, ChecksError::Root, PartRoot*, ProductError::Root*, "part root" wording
-status: open
+status: parked
 opened: 2026-10-08
+blocked_on: [a-placement-is-the-bundle-of-mates]
 ---
 
 
@@ -29,3 +30,7 @@ Also seen by the viewer lane: `resolve` of a vanished name under a
 upstream first", `crates/editor-core/src/resolve/mod.rs`), and a check
 finding is spoken by the placement's kind noun ("PlaceInWorld <tag>
 output 0") rather than by the body it places.
+
+## Re-homed at RECIPE's close (2026-10-11)
+
+Moved to INTENT and parked on stage 3's `a-placement-is-the-bundle-of-mates`, which retires `PlaceInWorld`, roots and the spanning tree. Renaming these now would be churn; the stage 3 B lane renames or deletes them, and closes this row in its PR.

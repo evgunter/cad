@@ -120,3 +120,7 @@ Part 5 (the principle states only the margin; the lint checks structure):
 `git show da589659c0:docs/ev-transcripts/2026-10-03-one-way-to-say-dependency-and-intent-part-5.md`.
 Part 6 (the consistency pass and the sign-off):
 `git show 9046cfe90d:docs/ev-transcripts/2026-10-03-one-way-to-say-dependency-and-intent-part-6.md`.
+
+## Re-homed at RECIPE's close (2026-10-11)
+
+Moved to INTENT, closed, as the record of Ev's words behind D10; INTENT's charter, `docs/INTENT-STAGE4-SPEC.md` and fork-log row 62 cite it.
