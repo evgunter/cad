@@ -287,3 +287,69 @@ fn a_touch_the_verb_creates_is_refused_at_rest() {
         "the created touch is undeclared: {refused:?}"
     );
 }
+
+/// **A rim that opens under a resting corner leaves its record stale,
+/// loudly.** A cube balanced on one corner on a slab's top carries one
+/// vertex–face record; opening that top as a rim keeps the face's key on
+/// the annulus, so the record carries by key, and the census refuses it
+/// stale, because the corner now points into the opening. Whether such a
+/// record is consumed instead is undecided
+/// (`work/contacthold/a-blend-or-shell-that-consumes-a-recorded-cell-refuses-the-record.md`).
+/// Red if the carry drops the record or the census blesses it.
+#[test]
+fn a_rim_that_opens_under_a_resting_corner_leaves_its_record_stale() {
+    let slab = box_of((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), "slab");
+    let tilted = common::mapped_cube(
+        |x, y, z| {
+            let (e1, e2, e3) = (
+                Vec3::new(0.9, 0.1, 0.3),
+                Vec3::new(-0.2, 0.8, 0.45),
+                Vec3::new(-0.3, -0.4, 0.85),
+            );
+            Point3::new(
+                2.0 + x * e1.x + y * e2.x + z * e3.x,
+                2.0 + x * e1.y + y * e2.y + z * e3.y,
+                1.0 + x * e1.z + y * e2.z + z * e3.z,
+            )
+        },
+        tol(),
+    );
+    let tilted = finished("the tilted cube", tilted, tol());
+    let base = match union_with(&tilted, &slab, &BooleanDeclarations::none(), tol()) {
+        Ok(BooleanResult::Body(r)) => r,
+        other => panic!("the union builds: {other:?}"),
+    };
+    assert_eq!(
+        base.contacts.vertex_face().count(),
+        1,
+        "{:?}",
+        base.contacts
+    );
+    assert_eq!(base.contacts.len(), 1, "{:?}", base.contacts);
+    let top = base
+        .body
+        .faces()
+        .find(|(_, f)| {
+            matches!(
+                base.body.get_surface(f.surface),
+                Some(Surface::Plane { origin, normal, .. })
+                    if normal.z.abs() == 1.0 && origin.z == 1.0
+            )
+        })
+        .map(|(k, _)| k)
+        .unwrap();
+    let opened = topo::shell_open(&base.body, 0.1, &[top], tol()).expect("the slab opens");
+    let carried = opened.carry_contacts(&base.contacts).unwrap();
+    assert_eq!(
+        carried.vertex_face().collect::<Vec<_>>(),
+        base.contacts.vertex_face().collect::<Vec<_>>(),
+        "the record carries by key"
+    );
+    let refused = validate_pseudomanifold(&opened.body, &carried, tol()).expect_err("stale");
+    assert!(
+        refused
+            .iter()
+            .all(|e| matches!(e, ValidationError::StaleContactDeclaration { .. })),
+        "the corner touches nothing now: {refused:?}"
+    );
+}

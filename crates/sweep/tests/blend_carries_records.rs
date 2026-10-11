@@ -10,8 +10,8 @@ use sweep::blend::build::{Blended, fillet_edges};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::finished;
 use topo::{
-    Backing, BooleanBody, BooleanDeclarations, BooleanResult, CarryRefusal, Cell, ContactRecords,
-    ValidationError, union_with, validate_pseudomanifold,
+    Backing, BooleanBody, BooleanDeclarations, BooleanResult, ContactRecords, ValidationError,
+    union_with, validate_pseudomanifold,
 };
 
 /// The blend size, meters.
@@ -50,12 +50,11 @@ fn edge_between(body: &topo::Body<f64>, p: Point3<f64>, q: Point3<f64>) -> topo:
     e
 }
 
-/// The kiss's record carried onto `out`: it cites the operand's record
-/// 0, the at-rest gate passes with it, and refuses the touch as
-/// undeclared without it.
-fn carries_the_kiss(what: &str, base: &BooleanBody<f64>, out: &Blended<f64>) {
+/// The kiss's record carried onto `out`, citing the operand's record 0.
+fn carried_kiss(what: &str, base: &BooleanBody<f64>, out: &Blended<f64>) -> ContactRecords {
     let carried = out.carry_contacts(&base.contacts).unwrap();
     assert_eq!(carried.vertex_vertex().count(), 1, "{what}: {carried:?}");
+    assert_eq!(carried.len(), 1, "{what}: {carried:?}");
     let cites: Vec<Backing> = carried.rows()[0].cites.iter().collect();
     assert_eq!(
         cites,
@@ -65,23 +64,16 @@ fn carries_the_kiss(what: &str, base: &BooleanBody<f64>, out: &Blended<f64>) {
         }],
         "{what}: the record cites the operand's"
     );
-    assert_eq!(
-        validate_pseudomanifold(&out.body, &carried, tol()),
-        Ok(()),
-        "{what}: the carried record passes at rest"
-    );
-    let withheld = validate_pseudomanifold(&out.body, &ContactRecords::default(), tol())
-        .expect_err("the kiss is a touch");
-    assert!(
-        withheld
-            .iter()
-            .all(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
-        "{what}: withheld, the kiss is undeclared: {withheld:?}"
-    );
+    carried
 }
 
 /// **A fillet and a chamfer away from the kiss carry it.** Red if the
 /// blend's carry drops the record or cites anything but the operand's.
+/// The chamfer's result passes at rest with the carried record and
+/// refuses the kiss as undeclared without it. The fillet's is not read
+/// at rest: its curved band lies within reach of the other cube, which
+/// the census cannot yet decide
+/// (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
 #[test]
 fn a_blend_away_from_the_kiss_carries_it() {
     let base = kiss();
@@ -91,25 +83,21 @@ fn a_blend_away_from_the_kiss_carries_it() {
         Point3::new(1.0, 0.0, 0.0),
     );
     let filleted = fillet_edges(&base.body, &[edge], R, tol()).expect("the fillet builds");
-    carries_the_kiss("fillet", &base, &filleted);
-    let chamfered = chamfer_edges(&base.body, &[edge], R, tol()).expect("the chamfer builds");
-    carries_the_kiss("chamfer", &base, &chamfered);
-}
+    carried_kiss("fillet", &base, &filleted);
 
-#[test]
-fn probe_a_blend_at_the_kiss() {
-    let base = kiss();
-    let edge = edge_between(
-        &base.body,
-        Point3::new(1.0, 1.0, 0.0),
-        Point3::new(1.0, 1.0, 1.0),
+    let chamfered = chamfer_edges(&base.body, &[edge], R, tol()).expect("the chamfer builds");
+    let carried = carried_kiss("chamfer", &base, &chamfered);
+    assert_eq!(
+        validate_pseudomanifold(&chamfered.body, &carried, tol()),
+        Ok(()),
+        "chamfer: the carried record passes at rest"
     );
-    match fillet_edges(&base.body, &[edge], R, tol()) {
-        Ok(out) => eprintln!(
-            "PROBE fillet at kiss: carry -> {:?}",
-            out.carry_contacts(&base.contacts)
-        ),
-        Err(e) => eprintln!("PROBE fillet at kiss refused {e:?}"),
-    }
-    let _ = (CarryRefusal::NoLineage, Cell::Vertex(Default::default()));
+    let withheld = validate_pseudomanifold(&chamfered.body, &ContactRecords::default(), tol())
+        .expect_err("the kiss is a touch");
+    assert!(
+        withheld
+            .iter()
+            .all(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+        "chamfer: withheld, the kiss is undeclared: {withheld:?}"
+    );
 }

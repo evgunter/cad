@@ -2,11 +2,12 @@
 id: topo-surgery-verbs-drop-a-bodys-contact-records
 kind: issue
 title: No non-boolean topo op carries ContactRecords in or out, so a fillet, shell or replace_face of a touching boolean result loses its declarations and refuses at rest downstream
-status: open
+status: review
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [transform-and-pattern-drop-a-values-contact-records, 3856]
+branch: contacthold/surgery-carries-records
 ---
 
 
@@ -59,3 +60,30 @@ order, which the open record-shape fork
 the re-citing isn't built twice. The editor-core twin is WIRE's
 `transform-and-pattern-drop-a-values-contact-records`.
 (CONTACTHOLD orchestrator)
+
+## Built (2026-10-11)
+
+Measured first. A corner-kiss union run through `transform_rigid`,
+`shell`, `split` (the side that keeps the kiss), `replace_face_offset`
+or `merge_coplanar_faces` was refused by `validate_pseudomanifold` with
+no records, `UndeclaredContact` at the kiss vertex pair.
+
+`ContactRecords::carried_through` maps each record's cells through an
+op's lineage and re-cites it `Backing::Carried { input: 0, record }`.
+It refuses a cell the op removed without naming a replacement
+(`CarryRefusal::Unmapped`), and a pair that is no longer a record
+(`CarryRefusal::Pair`). Each verb's outcome carries through it:
+
+- `OffsetOutcome::carry_contacts`, for all five offset doors;
+- `MergeCoplanarOutcome::carry_contacts`;
+- `Shelled::carry_contacts`;
+- `SplitResult::carry_contacts`, which returns one list per side and
+  refuses `Parted`;
+- `Blended::carry_contacts`, for fillet and chamfer;
+- `transform_rigid`, which keeps its keys, through
+  `carried_through(0, &moved, Some)`.
+
+Residue:
+`surgery-carry-keeps-a-divided-cells-record-on-the-piece-that-kept-its-key`,
+and the design question
+`a-blend-or-shell-that-consumes-a-recorded-cell-refuses-the-record`.

@@ -1,38 +1,49 @@
 ---
 id: a-blend-or-shell-that-consumes-a-recorded-cell-refuses-the-record
 kind: issue
-title: A blend or shell that consumes a recorded cell refuses the record: what its new faces inherit is undecided
+title: A surgery verb that removes a recorded touch's cell or material refuses the record; whether the record is consumed or inherited is undecided
 status: open
 opened: 2026-10-11
-priority: P1
+priority: P2
 cost: M
 design: true
-refs: [topo-surgery-verbs-drop-a-bodys-contact-records]
+refs: [topo-surgery-verbs-drop-a-bodys-contact-records, surgery-carry-keeps-a-divided-cells-record-on-the-piece-that-kept-its-key]
 ---
 
 ## What
 
-A surgery verb's carry refuses, `CarryRefusal::Unmapped`, a record
-naming a cell the verb consumed and names no replacement for
-(`ContactRecords::carried_through`, `crates/topo/src/boolean/records.rs`):
+Each surgery verb's carry maps its operand's records through the verb's
+lineage (`ContactRecords::carried_through`,
+`crates/topo/src/boolean/records.rs`). Three verbs can remove what a
+record stands on, and each one refuses today. None of them drops the
+record:
 
-- `fillet_edges` and `chamfer_edges` (`Blended::carry_contacts`,
-  `crates/sweep/src/blend/build.rs`): the requested edge (its blend
-  face is `BlendNaming::blends`' row), the corner vertex a corner patch
-  replaces (`BlendNaming::corners`), a vertex a foot retracts from
-  (`BlendNaming::feet`);
-- `shell_open` (`Shelled::carry_contacts`, `crates/topo/src/shell.rs`):
-  a designated chart's merged-away face and the faces, seams and slits
-  in `ShellRetired`;
-- `merge_coplanar_faces` (`MergeCoplanarOutcome::carry_contacts`): a
-  group's `killed_vertices`, which the field's own doc calls consumed.
+- **A cell the verb consumes.** `fillet_edges` and `chamfer_edges`
+  (`Blended::carry_contacts`, `crates/sweep/src/blend/build.rs`) replace
+  the requested edge with a blend face (`BlendNaming::blends`), a corner
+  vertex with a patch (`BlendNaming::corners`), and retract vertices to
+  feet (`BlendNaming::feet`). `shell_open` retires a designated chart's
+  merged-away faces (`ShellRetired`), and `merge_coplanar_faces` retires
+  a group's `killed_vertices`. A record on any of these is refused
+  `CarryRefusal::Unmapped`. No reachable blend instance was found: on
+  the corner kiss of `crates/sweep/tests/blend_carries_records.rs`, a
+  fillet of an edge ending at the kiss vertex is refused first by the
+  battery (`FaceClearance` against the other cube's face).
+- **Material the verb removes from under a touch on a cell it keeps.**
+  `shell_open` designating the slab's top face, under a cube resting one
+  corner on that face, keeps the face's key on the annular rim. The
+  record carries by key, and the census refuses it
+  `StaleContactDeclaration`, because the corner now points into the
+  opening (`a_rim_that_opens_under_a_resting_corner_leaves_its_record_stale`
+  in `crates/topo/tests/surgery_carries_records.rs`). The two solids
+  touch nothing, so the result is a valid body refused.
 
-That refusal is honest: nothing is dropped and nothing is invented. But
-it stops a real composition, such as rounding an edge that ends at a
-declared corner kiss. Whether such a record is consumed, moves onto the
-blend face or corner patch that replaced its cell (D1's "rewrites every
-record naming it onto the replacement, by substitution"), or splits
-across several new cells is a choice with several viable answers. It
-should be weighed before anyone builds it.
-
-Measured on the corner kiss of `crates/sweep/tests/blend_carries_records.rs`.
+In each case the record could be consumed, because the touch went with
+the material. Or it could move onto the cell that replaced its own
+(D1's "rewrites every record naming it onto the replacement, by
+substitution": a blend face, a corner patch, the merged face). Or the
+verb could refuse, as it does now. The answer may differ between a
+consumed cell and removed material. Weigh it before building it
+(`memories/orchestration-model.md`). Whatever is decided has to keep
+the census's rule that it never scans to bless: a record cannot be
+dropped because the census found no witness for it.
