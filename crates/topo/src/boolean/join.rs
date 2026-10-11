@@ -2239,14 +2239,11 @@ fn cone_window<T: Decide>(
     if !matches!(wall, geom::Surface::Cone { .. }) {
         return None;
     }
-    match crate::splitting::rules::cone_axial_window(body, face, wall, band) {
-        Ok(window) => Some(window),
-        // A face whose outer loop is a lone vertex has no extent to
-        // narrow by; the reader's own face's window holds the section
-        // without it, and that face's own lone loop is refused where
-        // its reach is measured.
-        Err(crate::splitting::rules::UnboundedFace { .. }) => None,
-    }
+    // The one refusal is a face whose outer loop is a lone vertex, which
+    // has no extent to narrow by: the reader's own face's window holds
+    // the section without it, and that face's own lone loop is refused
+    // where its reach is measured.
+    crate::splitting::rules::cone_axial_window(body, face, wall, band).ok()
 }
 
 /// [`frame_extent`]'s plane×cone arm: the cone face's reach from `at`,
