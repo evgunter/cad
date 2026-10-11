@@ -37,9 +37,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, Datum, DocEdit, EvalOptions, Evaluation, Node,
-    NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, TubeWindow,
-    ValuePayload, apply, evaluate,
+    BooleanValue, CancelToken, Datum, DocEdit, EvalOptions, Evaluation, Node, NodeResult,
+    PartSelect, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, TubeWindow, ValuePayload,
+    apply, evaluate,
 };
 use geom_core::Decide;
 use geom_core::Tol;
@@ -104,7 +104,7 @@ pub fn place_pattern_to(doc: ProfileDoc, count: i64) -> ProfileDoc {
         .into_iter()
         .filter(|&p| match doc.node(p) {
             Some(Node::PlaceInWorld { body, .. }) => doc
-                .operation_of(*body)
+                .operation_of(body.read)
                 .and_then(|picked| doc.node(picked))
                 .is_some_and(|picked| {
                     matches!(picked, Node::Part { of, .. } if doc.operation_of(*of) == Some(pattern))
@@ -399,7 +399,7 @@ pub const BESIDE_THE_REGISTRY: [&str; 1] = ["Shell"];
 ///
 /// Hand-written, not welded to `Node`, and without `InstantiatePart`
 /// or `Mate`: `work/tint/corpus-node-kinds-roster-is-hand-written`.
-pub const NODE_KINDS: [&str; 21] = [
+pub const NODE_KINDS: [&str; 22] = [
     "Datum",
     "Profile",
     "Extrude",
@@ -414,13 +414,11 @@ pub const NODE_KINDS: [&str; 21] = [
     // document.
     "Chamfer",
     "Split",
-    "Boolean",
-    // DOCM-3's n-ary union — COVERED, by `die_composed_tour`, whose
-    // cutting tool is one union over 21 pips. Listed as its own row
-    // beside `Boolean` because they are two nodes: a pair union keeps
-    // its `FromA`/`FromB` naming, and a
-    // document that carries one carries nothing about the other.
+    // The three booleans are three nodes: a union and an intersect over
+    // a `Bodies` argument, a subtract over its binary `from`/`tool`.
     "Union",
+    "Intersect",
+    "Subtract",
     "Transform",
     "Pattern",
     // DOCM-2's projection node — COVERED, by `part_select`.
@@ -505,18 +503,16 @@ pub const EDIT_KINDS: [&str; 21] = [
 ];
 
 /// The node SUB-kinds the corpus must also cover in full: every datum
-/// flavour, every boolean operator (and the declared boolean), and
+/// flavour, the declared boolean, and
 /// both pattern kinds.
-pub const SUB_KINDS: [&str; 20] = [
+pub const SUB_KINDS: [&str; 17] = [
     "Datum::Plane",
     "Datum::Axis",
     "Datum::AxisInPlane",
     "Datum::Point",
     "Datum::Frame",
     "Datum::FaceFrame",
-    "Boolean::Union",
-    "Boolean::Intersect",
-    "Boolean::Subtract",
+    // A boolean that declares a coincidence, of any of the three.
     "Boolean+Declare",
     "Pattern::Linear",
     "Pattern::Circular",
@@ -563,16 +559,14 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         // in-plane axis for its revolve — which is the whole reason
         // they are two sub-kinds to count.
         Node::Datum(Datum::AxisInPlane { .. }) => vec!["Datum::AxisInPlane"],
-        Node::Boolean { op, declare, .. } => {
-            let mut v = vec![match op {
-                BooleanOp::Union => "Boolean::Union",
-                BooleanOp::Intersect => "Boolean::Intersect",
-                BooleanOp::Subtract => "Boolean::Subtract",
-            }];
-            if !declare.is_empty() {
-                v.push("Boolean+Declare");
+        Node::Union { declare, .. }
+        | Node::Intersect { declare, .. }
+        | Node::Subtract { declare, .. } => {
+            if declare.is_empty() {
+                Vec::new()
+            } else {
+                vec!["Boolean+Declare"]
             }
-            v
         }
         Node::Pattern { kind, .. } => vec![match kind {
             PatternKind::Linear { .. } => "Pattern::Linear",
@@ -595,7 +589,7 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
             PartSelect::Instance(_) => "Part::Instance",
         }],
         // EXHAUSTIVE on purpose (review MIN-2): no wildcard arm, so a
-        // new `Node` variant — or a new `Datum`/`BooleanOp`/
+        // new `Node` variant — or a new `Datum`/
         // `PatternKind` flavour above — is a COMPILE error here rather
         // than a silently uncovered sub-kind, matching the
         // compile-time totality `node_kind`/`edit_kind` already have.
@@ -623,7 +617,6 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         // payload's emptiness, which no other kind counts either.
         | Node::Shell { .. }
         | Node::Split { .. }
-        | Node::Union { .. }
         | Node::Transform { .. }
         | Node::PlaceInWorld { .. }
         | Node::Loft { .. }
@@ -652,8 +645,9 @@ pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Tube { .. } => "Tube",
         Node::HollowTube { .. } => "HollowTube",
         Node::Split { .. } => "Split",
-        Node::Boolean { .. } => "Boolean",
         Node::Union { .. } => "Union",
+        Node::Intersect { .. } => "Intersect",
+        Node::Subtract { .. } => "Subtract",
         Node::Transform { .. } => "Transform",
         Node::PlaceInWorld { .. } => "PlaceInWorld",
         Node::Pattern { .. } => "Pattern",

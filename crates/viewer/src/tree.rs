@@ -647,8 +647,9 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
         | Node::Chamfer { .. }
         | Node::Shell { .. }
         | Node::Split { .. }
-        | Node::Boolean { .. }
+        | Node::Subtract { .. }
         | Node::Union { .. }
+        | Node::Intersect { .. }
         | Node::Transform { .. }
         | Node::Pattern { .. }
         | Node::Part { .. }
@@ -844,8 +845,9 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
         | Node::Chamfer { .. }
         | Node::Shell { .. }
         | Node::Split { .. }
-        | Node::Boolean { .. }
+        | Node::Subtract { .. }
         | Node::Union { .. }
+        | Node::Intersect { .. }
         | Node::Transform { .. }
         | Node::Pattern { .. }
         | Node::Part { .. }
@@ -1199,7 +1201,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::ProductOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }
-        | NodeErrorKind::MembersShareAnOperation { .. }
         | NodeErrorKind::InstanceOutOfRange { .. }
         | NodeErrorKind::AxisInDifferentPlane { .. } => None,
         // Names an id no live node holds, so there is no row to go to.
@@ -1301,6 +1302,8 @@ fn repaired_at(fault: &MateFault) -> Option<RecipeNodeId> {
         MateFault::PlacerRefused { placer, .. } => Some(*placer),
         // Named beside the mate, and not the repair (module header).
         MateFault::DanglingHead { .. } | MateFault::PartSelectsAnotherCopy { .. } => None,
+        // The side's read is repaired at the mate itself.
+        MateFault::SideUnresolved { .. } => None,
         // Name no node beside the mate, or name one only as evidence
         // of where the refusal held.
         MateFault::Frame { .. }
@@ -1363,6 +1366,7 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::TableLacks { mate, .. }
         | MateFault::Indeterminate { mate, .. }
         | MateFault::Under { mate, .. }
+        | MateFault::SideUnresolved { mate, .. }
         | MateFault::DanglingHead { mate, .. }
         | MateFault::PlacerRefused { mate, .. }
         | MateFault::SelfMate { mate, .. }

@@ -228,7 +228,7 @@ mod interval_lane {
         };
         assert!(format!("{err:?}").contains("ssi_hull_sup"), "{err:?}");
         let text = err.to_string();
-        assert!(text.contains("too close to call"), "{text}");
+        assert!(text.contains(" is undecided: "), "{text}");
         assert!(
             text.contains("enclosure ["),
             "the margin must render as an enclosure, not a value or a hole: {text}"

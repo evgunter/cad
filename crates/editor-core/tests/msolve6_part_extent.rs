@@ -25,7 +25,7 @@ use editor_core::{
     Alignment, AxisSense, CapEnd, Clash, ContactClass, DocEdit, DocumentId, EditError, EvalOptions,
     Frame, Lever, LeverRefusal, MateFault, MateFrame, MatePrimitive, MateReach, MateRole, Node,
     NodeErrorKind, NodeResult, PartFault, PartReach, ProfileDoc, ReachRefusal, RecipeNodeId,
-    ResolveFault, SplitError, content_pin, mate_reach, product, split,
+    ResolveFault, SplitError, ValuePayload, content_pin, mate_reach, product, split,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -211,8 +211,8 @@ fn clocked(
     alignment: Alignment<Formula>,
 ) -> AuthoredNode {
     Node::Mate {
-        a: fixture::head(in_part(a, a_body, CapEnd::End)),
-        b: fixture::head(in_part(b, b_body, CapEnd::Start)),
+        a: fixture::head(in_part(a, a_body, CapEnd::End)).into(),
+        b: fixture::head(in_part(b, b_body, CapEnd::Start)).into(),
         class: ContactClass::Rest,
         alignment,
     }
@@ -772,11 +772,24 @@ fn a5_a_part_change_that_flips_the_verdict_moves_the_mates_memo() {
         ),
         Verdict::Parallel | Verdict::Indeterminate => {
             // The band did not separate the two scales at this ε, so
-            // the solve's answer did not move and neither does the
-            // key: the mate's key follows the VERDICT, not the part's
-            // bytes, which is exactly the claim.
-            let key_large = second.value(mate).map(|v| v.content_key);
-            assert_eq!(Some(key_small), key_large, "no flip, no key move");
+            // the solve's answer did not move. The key does: a mate's
+            // key is its reads' upstream keys (D10), and its sides read
+            // faces of the re-pinned instances, so the memo cannot
+            // serve the old entry — it re-runs and answers the same.
+            let large = second.value(mate).expect("the large part's mate evaluates");
+            assert_ne!(
+                key_small, large.content_key,
+                "the mate reads the re-pinned parts"
+            );
+            let role = |payload: &ValuePayload<f64>| match payload {
+                ValuePayload::Mate(role) => *role,
+                other => panic!("a mate evaluates to its role, got {other:?}"),
+            };
+            assert_eq!(
+                first.value(mate).map(|v| role(&v.payload)),
+                Some(role(&large.payload)),
+                "no flip, the same answer"
+            );
         }
     }
 }
@@ -906,7 +919,11 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
         ),
     ] {
         let applied = applied.expect("deleting a placing mate is never refused");
-        assert!(applied.maintenance.is_empty(), "{:?}", applied.maintenance);
+        assert!(
+            crate::fixture::without_anonymous(&applied.maintenance).is_empty(),
+            "{:?}",
+            applied.maintenance
+        );
         assert!(
             matches!(
                 applied.doc.node(ids[0]),
@@ -988,7 +1005,7 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Union {
-                    members: vec![b.into(), c.into()],
+                    members: editor_core::Bodies::Spelled(vec![b.into(), c.into()]),
                     declare: Vec::new(),
                 }),
                 fresh: Vec::new(),
@@ -1026,11 +1043,15 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
             .apply(&DocEdit::DeleteNode { id }, tol, &counting)
             .expect("a delete is never refused for the placement it removes");
         assert!(
-            applied.maintenance.iter().all(|row| matches!(
-                row,
-                editor_core::Maintenance::Strand { .. }
-                    | editor_core::Maintenance::StrandedAppearance { .. }
-            )),
+            crate::fixture::without_anonymous(&applied.maintenance)
+                .iter()
+                .all(|row| matches!(
+                    row,
+                    editor_core::Maintenance::Strand { .. }
+                        | editor_core::Maintenance::StrandedRead { .. }
+                        | editor_core::Maintenance::StrandedSelection { .. }
+                        | editor_core::Maintenance::StrandedAppearance { .. }
+                )),
             "a delete reports what it stranded and records no frame: {:?}",
             applied.maintenance
         );
@@ -1159,15 +1180,27 @@ fn a5_at_interval_the_doors_reach_is_the_brackets_hi_bit_for_bit() {
         Some(Node::InstantiatePart { doc_ref, .. }) => *doc_ref,
         other => panic!("an instance, not {other:?}"),
     };
-    let (doc, mate) = mated(
-        doc,
-        &opts,
-        clocked(
-            (ids[0], body),
-            (ids[1], body),
-            coincidence(frame([0.0, 0.0, 0.7]), frame([0.0; 3]), 0.0),
-        ),
+    // A revolved cylinder has no caps by those names, so each side reads
+    // the first face its instance's table carries: the sides now
+    // resolve at evaluation, and this row is about the reach.
+    let ev0 = run(&doc, &opts);
+    let first_face = |instance: RecipeNodeId| {
+        fixture::table(&ev0, instance)
+            .iter()
+            .map(|(name, _)| name.clone())
+            .find(|name| name.kind == editor_core::EntityKind::Face)
+            .expect("a cylinder has faces")
+    };
+    let mut node = clocked(
+        (ids[0], body),
+        (ids[1], body),
+        coincidence(frame([0.0, 0.0, 0.7]), frame([0.0; 3]), 0.0),
     );
+    if let Node::Mate { a, b, .. } = &mut node {
+        *a = fixture::head(first_face(ids[0])).into();
+        *b = fixture::head(first_face(ids[1])).into();
+    }
+    let (doc, mate) = mated(doc, &opts, node);
     let r64 = mate_reach::<f64>(&opts, Tol::witness())
         .reach(&doc_ref)
         .expect("bounded at f64");
@@ -1443,7 +1476,7 @@ fn a6_an_indeterminate_groups_mate_deletes_like_any_other() {
         ),
     ] {
         let applied = applied.expect("deleting a mate is never refused");
-        assert!(applied.maintenance.is_empty());
+        assert!(crate::fixture::without_anonymous(&applied.maintenance).is_empty());
     }
 }
 

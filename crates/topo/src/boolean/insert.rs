@@ -2198,11 +2198,14 @@ fn record_germ_dir<T: Decide>(
 /// (grazes count — an on-bound germ's direction IS the bound). An
 /// ambiguous or coplanar configuration refuses loudly.
 ///
-/// Sense-invariant given its sources (S10): `±(n_a × n_b)` is a LINE,
-/// and the sign is chosen by sector membership, not by either normal —
-/// flipping a normal flips the raw cross product and the `within`
-/// verdicts pick the same ray back out. The normals arrive already
-/// oriented from `sectors::sector_face`; nothing is multiplied here.
+/// The sign is the membership `sectors::pair_search` made this crossing
+/// record on: the same `within` readings of the same line at the same
+/// arms, so they single out the ray they found there. `±(n_a × n_b)` is
+/// a LINE and membership picks the ray, so neither normal's sign
+/// survives into it; they arrive outward from `sectors::sector_face`
+/// and nothing is multiplied here. (A pierce germ is signed by its
+/// transition's codes instead, `vtxfac::pierce_germ_dir`, which reads
+/// both normals as outward.)
 fn germ_dir<T: Decide>(
     sa: &BoolSector<T>,
     sb: &BoolSector<T>,

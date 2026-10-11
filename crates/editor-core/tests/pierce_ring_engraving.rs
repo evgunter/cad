@@ -26,8 +26,8 @@ use editor_core::Formula;
 use crate::corpus::{body_of, eval};
 use crate::fixture::{frame, insert, len, len2, scl, xform};
 use editor_core::{
-    BooleanOp, Evaluation, LoopProgram, Node, NodeResult, ProfileDoc, ProfileProgram,
-    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
+    Evaluation, LoopProgram, Node, NodeResult, ProfileDoc, ProfileProgram, ProgramArcData,
+    ProgramStep, ProgramTarget, RecipeNodeId,
 };
 use geom_core::Tol;
 
@@ -117,10 +117,9 @@ fn engrave(tool: LoopProgram<Formula>, dx: f64) -> (Evaluation<f64>, [RecipeNode
     let (doc, lifted) = insert(doc, xform(prism, [dx, DEPTH, 0.0], [0.0, 0.0, 1.0], 0.0));
     let (doc, cut) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: cylinder.into(),
-            b: lifted.into(),
+        Node::Subtract {
+            from: cylinder.into(),
+            tool: lifted.into(),
             declare: Vec::new(),
         },
     );
