@@ -774,8 +774,11 @@ pub fn is_analytic<T: Real>(surface: &Surface<T>) -> bool {
 ///   certified over the edge's interval `params`
 ///   ([`crate::pcurve_cache::projected::net_offset_sup`]: the operand's
 ///   canonical implicit form composed along the carrier, converted to
-///   metres per span) and decided zero against the band. Limb 1, the
-///   same distance at the schedule's samples, is implied by it;
+///   metres per part, the parts halved under limb 2's budget) and
+///   decided zero against the band, or, where the halving stops on a
+///   break whose certified distance lies past the band, that measured
+///   miss decided first ([`Rung3Limb::HullValue`]). Limb 1, the same
+///   distance at the schedule's samples, is implied by it;
 /// - **limb 3**: over a chain of boxes around the carrier the
 ///   enclosure of `(∇f₁ × ∇f₂)·e` excludes zero, so the solution set in
 ///   the chain is one arc and it spans the carrier over `params`.
@@ -807,30 +810,17 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     let piece = edge_piece(carrier, t0.lo().min(t1.lo()), t0.hi().max(t1.hi()))?;
     let lane = crate::FittedLane::<T>::certified();
     for operand in [s1, s2] {
+        use crate::pcurve_cache::projected::{Offset, net_offset_sup};
         let kind = operand.kind();
-        let offset =
-            crate::pcurve_cache::projected::net_offset_sup(carrier, params, operand, band, lane)
-                .map_err(|e| AnalyticRung3Refusal::of_offset(kind, e))?;
-        match crate::dihedral::decide_reported("ssi_hull_sup", geom_core::Margin::of(offset), band)
-        {
-            Ok(Decided {
-                sign: Sign::Zero, ..
-            }) => {}
-            Ok(Decided { margin, .. }) => {
-                return Err(AnalyticRung3Refusal::Limb {
-                    operand: kind,
-                    limb: Rung3Limb::HullSup,
-                    margin,
-                });
+        let refused = |e| AnalyticRung3Refusal::of_offset(kind, e);
+        let offset = match net_offset_sup(carrier, params, operand, band, lane).map_err(refused)? {
+            Offset::Bound(offset) => offset,
+            Offset::Miss { floor, bound } => {
+                rung3_limb(kind, Limb2::Miss, floor, band)?;
+                bound.map_err(refused)?
             }
-            Err(cause) => {
-                return Err(AnalyticRung3Refusal::Escalated {
-                    operand: Some(kind),
-                    limb: Rung3Limb::HullSup,
-                    cause,
-                });
-            }
-        }
+        };
+        rung3_limb(kind, Limb2::Bound, offset, band)?;
     }
     crate::ssi::certify::certify_branch(
         &piece,
@@ -850,6 +840,44 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     )
     .map(|_| ())
     .map_err(AnalyticRung3Refusal::of_tube)
+}
+
+/// Which of limb 2's readings a verdict decides on.
+#[derive(Clone, Copy)]
+enum Limb2 {
+    /// The bound over the edge's interval ([`Rung3Limb::HullSup`]).
+    Bound,
+    /// A break's measured miss ([`Rung3Limb::HullValue`]).
+    Miss,
+}
+
+/// Limb 2's verdict against `operand` on its reading `value`, in metres,
+/// decided zero against the band at the reading's predicate.
+fn rung3_limb<T: Decide>(
+    operand: geom::SurfaceKind,
+    reading: Limb2,
+    value: T,
+    band: Band,
+) -> Result<(), AnalyticRung3Refusal> {
+    let (limb, predicate) = match reading {
+        Limb2::Bound => (Rung3Limb::HullSup, "ssi_hull_sup"),
+        Limb2::Miss => (Rung3Limb::HullValue, "ssi_hull_value"),
+    };
+    match crate::dihedral::decide_reported(predicate, geom_core::Margin::of(value), band) {
+        Ok(Decided {
+            sign: Sign::Zero, ..
+        }) => Ok(()),
+        Ok(Decided { margin, .. }) => Err(AnalyticRung3Refusal::Limb {
+            operand,
+            limb,
+            margin,
+        }),
+        Err(cause) => Err(AnalyticRung3Refusal::Escalated {
+            operand: Some(operand),
+            limb,
+            cause,
+        }),
+    }
 }
 
 /// The piece of the carrier the tube reads: the carrier over `[lo, hi]`
@@ -932,12 +960,17 @@ fn edge_piece<T: SpanLocate>(
 }
 
 /// The limbs the analytic rung-3 certificate decides, so the ones its
-/// refusals can name: limb 2 on [`analytic_rung3`]'s own bound, and
-/// limb 3, which it asks the SSI certificate for alone.
+/// refusals can name: limb 2 on [`analytic_rung3`]'s own bound and on
+/// its value at a break, and limb 3, which it asks the SSI certificate
+/// for alone.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Rung3Limb {
     /// Limb 2: the carrier's certified distance bound from an operand.
     HullSup,
+    /// Limb 2 at a break of its composite: a certified lower bound on
+    /// the carrier's distance from an operand there, past the band's
+    /// zero, so no bound over a part holding the break can clear.
+    HullValue,
     /// Limb 3: the uniqueness tube.
     Tube,
 }
@@ -949,6 +982,7 @@ impl Rung3Limb {
     pub fn name(self) -> &'static str {
         match self {
             Self::HullSup => SsiLimb::HullSup,
+            Self::HullValue => SsiLimb::HullValue,
             Self::Tube => SsiLimb::Tube,
         }
         .name()
@@ -956,11 +990,13 @@ impl Rung3Limb {
 
     /// The certification check a refusal of this limb is a refused arm
     /// of: limb 2 here is the carrier's certified distance bound from an
-    /// analytic operand, not the plane × NURBS lane's.
+    /// analytic operand, not the plane × NURBS lane's, and its value at
+    /// a break is that distance itself, measured.
     #[must_use]
     pub fn check(self) -> CertCheck {
         match self {
             Self::HullSup => CertCheck::AnalyticHull,
+            Self::HullValue => CertCheck::AnalyticBreakResidual,
             Self::Tube => SsiLimb::Tube.check(),
         }
     }
@@ -978,18 +1014,20 @@ impl Rung3Limb {
     strum_discriminants(name(AnalyticRung3RefusalKind), derive(strum::EnumIter), doc(hidden))
 )]
 pub enum AnalyticRung3Refusal {
-    /// The carrier's certified distance bound from an operand exceeds
-    /// the band: the certificate cannot show the carrier on that surface
-    /// between the schedule's samples.
+    /// Limb 2 against an operand lies past the band: its certified
+    /// distance bound ([`Rung3Limb::HullSup`]), so the certificate cannot
+    /// show the carrier on that surface between the schedule's samples,
+    /// or the carrier's certified distance from it at a break
+    /// ([`Rung3Limb::HullValue`]), so the carrier is off it there.
     Limb {
-        /// The operand the bound is from.
+        /// The operand the reading is from.
         operand: geom::SurfaceKind,
         /// Which limb refused.
         limb: Rung3Limb,
-        /// What the classifier saw of the certified bound, in metres,
-        /// for error reporting only
-        /// ([`MarginDiag`]): it rides [`AnalyticRung3Refusal::decision`]'s
-        /// sign-certain arm to the import door's words on a bound.
+        /// What the classifier saw of the reading, in metres, for error
+        /// reporting only ([`MarginDiag`]): it rides
+        /// [`AnalyticRung3Refusal::decision`]'s sign-certain arm to the
+        /// import door's words on the limb's check.
         margin: MarginDiag,
     },
     /// A limb's margin escalated.
@@ -1114,6 +1152,17 @@ impl AnalyticRung3Refusal {
 impl core::fmt::Display for AnalyticRung3Refusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            Self::Limb {
+                operand,
+                limb: limb @ Rung3Limb::HullValue,
+                margin,
+            } => write!(
+                f,
+                "{} puts the carrier at least {margin:e} m from the {}, past the run \
+                 tolerance — the carrier leaves that surface between the schedule's samples",
+                limb.name(),
+                operand.name()
+            ),
             Self::Limb {
                 operand,
                 limb,

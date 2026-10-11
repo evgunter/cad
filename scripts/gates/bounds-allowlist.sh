@@ -540,7 +540,12 @@ BOUNDS_ALLOWLIST=(
   # in this file already reaches through, ratified for the same
   # seam. The added occurrence is the caller spelling that header,
   # not a new bracket read: nothing in `wire_shell` reads a bound.
-  'crates/editor-core/src/eval/wire.rs 17 2026-07-29 (M5 PR 8), the driver amendment'
+  # 17 -> 14: the loft section seam left. `section_of`, `wire_loft`
+  # and `wire_sweep` spelled `Decide + Bounds + SectionScalar`; a loft
+  # now reads its sections' profile values
+  # (`a-loft-is-the-nominal-surface-in-every-generic-lane`), and none of
+  # the three read a bound, so the headers go with the seam.
+  'crates/editor-core/src/eval/wire.rs 14 2026-07-29 (M5 PR 8), the driver amendment'
   # M5 PR 11, the certified-quadrature plumbing.
   #
   # 19 -> 23 (TRIM-2 PR-1, the trimmed-region quadrature). The seam is

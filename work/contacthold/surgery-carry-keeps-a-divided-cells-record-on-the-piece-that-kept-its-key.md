@@ -1,12 +1,15 @@
 ---
 id: surgery-carry-keeps-a-divided-cells-record-on-the-piece-that-kept-its-key
 kind: issue
-title: The surgery carry keeps a record on a divided cell on the piece that kept its key, and backs no pair a cut mints at a touch
-status: open
+title: The surgery carry keeps a record on a divided cell on the piece that kept its key
+status: closed
 opened: 2026-10-11
 priority: P1
 cost: M
-refs: [topo-surgery-verbs-drop-a-bodys-contact-records]
+refs: [topo-surgery-verbs-drop-a-bodys-contact-records, a-cut-through-a-recorded-touch-mints-a-pair-no-record-backs, the-boolean-and-the-surgery-carry-place-a-divided-cells-record-by-two-routes]
+branch: contacthold/divided-cell-carry
+pr: 4730
+closed: 2026-10-11
 ---
 
 ## What
@@ -35,19 +38,10 @@ Measure first: a split plane through a recorded vertex–face record's
 face, with the vertex on the fragment that did not keep the key, then
 `validate_pseudomanifold` with `SplitResult::carry_contacts`' side.
 
-## A cut through a touch mints cells no record backs
+## A cut through a touch
 
-A split through an edge kiss (two cubes sharing the edge x = y = 1)
-at z = ½ cuts each kissing edge, minting one new vertex on each at
-(1, 1, ½). The two share a point, and no decision of the split cites
-that. Each side keeps one of the kiss's end records, and each side
-refuses the minted pair `UndeclaredContact`, along with the half
-overlap it bounds (`a_split_across_an_edge_kiss_refuses_both_sides`
-in `crates/topo/tests/review_4694_carry_probes.rs`). Backing it means
-the split recording the pair as a coincidence it made at a recorded
-touch. That is a new record citing a new decision, which no lineage
-supplies.
-
-A cut through a corner kiss is closed: the split's copies of a vertex
-(`SplitNaming::vertex_pairs`) share its point, so the carry reads each
-side's copy and lands the record on both sides.
+A cut through a recorded touch mints a pair of cells no decision backs:
+`a-cut-through-a-recorded-touch-mints-a-pair-no-record-backs`, a design
+fork of its own. A cut through a corner kiss is closed: the split's
+copies of a vertex (`SplitNaming::vertex_pairs`) share its point, so the
+carry reads each side's copy and lands the record on both sides.

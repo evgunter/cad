@@ -297,6 +297,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          reach about it reports the trouble",
     ),
     ("crates/geom-brep/src/pcurve_cache.rs", 2, 2, ""),
+    ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     (
         "crates/geom-brep/src/props/quad.rs",
         11,
