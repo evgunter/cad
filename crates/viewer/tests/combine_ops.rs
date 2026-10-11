@@ -64,7 +64,7 @@ const OVERLAP: f64 = 0.005 * 0.01 * 0.006;
 
 /// A session over a throwaway document.
 fn session(tol: Tol) -> DocSession {
-    DocSession::inline(Doc::empty_derived("combine-start", tol), tol)
+    crate::common::inline_without_door(Doc::empty_derived("combine-start", tol), tol)
 }
 
 /// The two overlapping blocks (module docs), the second placed by a
