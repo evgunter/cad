@@ -3650,3 +3650,65 @@ fn the_census_gate_finds_a_far_slab_nested_in_another_solid() {
         "the slab stands inside the block's material: {errors:?}"
     );
 }
+
+/// Review rows (PR 4604, R2): the cusp prism and a brick whose top
+/// face y = 0 is tangent to the outer wall along the cusp's line
+/// (x = 0, y = 0), the normals opposed.
+mod review_4604_r2_cusp {
+    use super::*;
+    use crate::boolean::{Cell, ContactRecords};
+
+    /// **FINDING (R2, PR 4604): a face–face record on two carriers is
+    /// confirmed without the faces meeting.** The brick stands 4 m
+    /// above the prism, so the record of the outer wall and the
+    /// brick's top names two faces with no point in common: stale by
+    /// D1 and by C3's bounded locus. `tangent_pair_at_rest` reads the
+    /// carriers along the union of both faces' spans on the line and
+    /// never places the line in either face, so the gate clears. Base
+    /// `3bdef5735d` refused it (`ContactContradicted`, class `Rest`).
+    /// The inner wall's record, the senses aligned, is contradicted.
+    #[test]
+    fn a_tangent_record_of_two_faces_four_metres_apart_clears() {
+        let tol = Tol::witness();
+        let mut p = cusp_prism(tol);
+        let block =
+            crate::test_support_fixtures::brick::<f64>((-0.5, 0.5), (-1.0, 0.0), (5.0, 6.0), tol);
+        let keys = crate::graft_disjoint_all_keyed(&mut p.body, &block).unwrap();
+        let top = block
+            .faces()
+            .find(|(_, f)| match block.get_surface(f.surface) {
+                Some(Surface::Plane { origin, normal, .. }) => {
+                    normal.y.abs() > 0.5 && origin.y.abs() < 1e-12
+                }
+                _ => false,
+            })
+            .and_then(|(k, _)| keys.face(k))
+            .unwrap();
+        let record = |wall| -> ContactRecords {
+            [crate::Cited::new(
+                crate::Contact::new(&p.body, Cell::Face(wall), Cell::Face(top)).unwrap(),
+                crate::Cites::decided(0),
+            )]
+            .into_iter()
+            .collect()
+        };
+        let gate = |r: &ContactRecords| crate::validate::validate_pseudomanifold(&p.body, r, tol);
+        assert_eq!(
+            gate(&ContactRecords::default()),
+            Ok(()),
+            "apart, unrecorded"
+        );
+        assert_eq!(
+            gate(&record(p.face_side[0])),
+            Ok(()),
+            "FINDING: the stale record clears"
+        );
+        let inner = gate(&record(p.face_side[2])).expect_err("aligned senses");
+        assert!(
+            inner
+                .iter()
+                .all(|e| matches!(e, ValidationError::ContactContradicted { .. })),
+            "{inner:?}"
+        );
+    }
+}

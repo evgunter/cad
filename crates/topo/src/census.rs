@@ -11706,3 +11706,79 @@ mod incident_after_an_edit {
         }
     }
 }
+
+/// Review rows (PR 4604, R2): what the edge–face confirm reads.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod review_4604_r2 {
+    use super::*;
+    use crate::Contact;
+    use crate::boolean::{Cell, ContactRecords};
+    use crate::test_support_fixtures::brick;
+    use geom_core::Tol;
+
+    fn one(body: &Body<f64>, x: Cell, y: Cell) -> ContactRecords {
+        [crate::Cited::new(
+            crate::Contact::new(body, x, y).unwrap(),
+            crate::Cites::decided(0),
+        )]
+        .into_iter()
+        .collect()
+    }
+
+    /// **The residual is what makes a parallel edge above a face
+    /// stale.** The upper brick's top edge along y = 0.25, at z = 2,
+    /// projects into the lower brick's top face (z = 1) over
+    /// x in (0.5, 1): the containment door reads that projection In,
+    /// so only the ends' residuals refuse the record. The PR's own
+    /// off-plane rows (its `records_by_carrier` row and CLAIM 4) pick
+    /// edges whose projection misses the face's interior, so they stay
+    /// green with the residual loop deleted.
+    #[test]
+    fn a_parallel_edge_above_a_face_projecting_into_it_is_stale() {
+        let tol = Tol::witness();
+        let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let top = brick::<f64>((0.5, 1.5), (0.25, 0.75), (1.0, 2.0), tol);
+        crate::graft_disjoint_all_keyed(&mut body, &top).unwrap();
+        let at = |v: VertexKey| {
+            let r = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+            [r.x, r.y, r.z]
+        };
+        let (p, q) = ([0.5, 0.25, 2.0], [1.5, 0.25, 2.0]);
+        let edge = body
+            .edges()
+            .find(|(_, e)| {
+                let ends =
+                    [e.he_plus, e.he_minus].map(|h| at(body.get_half_edge(h).unwrap().start));
+                ends == [p, q] || ends == [q, p]
+            })
+            .map(|(k, _)| k)
+            .unwrap();
+        let face = body
+            .faces()
+            .find(|&(k, f)| {
+                matches!(body.get_surface(f.surface),
+                    Some(geom::Surface::Plane { origin, normal, .. })
+                        if normal.z.abs() > 0.5 && (origin.z - 1.0).abs() < 1e-12)
+                    && body.vertices().any(|(v, _)| {
+                        at(v) == [0.0, 0.0, 1.0]
+                            && Contact::new(&body, Cell::Vertex(v), Cell::Face(k)).is_err()
+                    })
+            })
+            .map(|(k, _)| k)
+            .unwrap();
+        let errors = census_and_certify(
+            &body,
+            &one(&body, Cell::Edge(edge), Cell::Face(face)),
+            Band::linear(tol).unwrap(),
+            tol,
+            None,
+        );
+        assert!(
+            errors.contains(&ValidationError::StaleContactDeclaration {
+                declaration: StaleDeclaration::EdgeFace { edge, face },
+            }),
+            "an edge a metre above the face is stale: {errors:?}"
+        );
+    }
+}
