@@ -509,3 +509,16 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - ENCL root-caused the import row as a face-order-dependent volume fold that 4553 exposed (`exch/arc-loft-round-trip-volume-differs-by-face-order`).
     - Build B's bisect pins the sweep digest to CLEAVE's PR 4626.
     - Build B is validating its PR. (NURBS orchestrator)
+- **2026-10-11 09:00Z.** Build B root-caused the P0 slow-set reds. Both start at PR 4553: its first bisect to #4626 came from stale cargo artifacts in a second worktree.
+  - **Sweep digest.** Only `arc_loft_1e9eps` moves, the roster's only rational-wall body.
+    - Cause: `refine_dir` moved from `ring_lerp` (f64 λ) to the ring's step.
+    - Every new volume and area enclosure nests inside the old one.
+    - Re-cut accepted.
+  - **Import bits.** Per-face flux is bit-identical native vs imported. `props::fold_runs` sums the same six terms in face-arena order, and the two arenas differ, so the bodies round 1 ulp apart.
+    - 4553 only changed which orders happen to round alike.
+    - 4551's filed `de_boor` row is the same mechanism; its "inputs differ" premise is refuted.
+  - **Rulings:**
+    - The import row is re-scoped to per-face bit identity, each body's own paths, and overlapping body enclosures (ENCL's repair (b), not a re-pin: the row's premise was false).
+    - Summing in shell order was built and backed out. It reddened two sweep bit-identity rows (one-call == sequential).
+    - The exact, order-independent sum is a design fork (scalar traits, D9 idiom 2), filed for FLUX with `design: true`, for the designer pair.
+  - Tier: orchestrator's read. (NURBS orchestrator)
