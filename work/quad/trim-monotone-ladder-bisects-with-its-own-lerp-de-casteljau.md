@@ -13,7 +13,7 @@ sub-row cuts found it.
 
 ## What
 
-`props::quad::bezier_bisect` (`crates/geom-brep/src/props/quad.rs:4278`)
+`props::quad::bezier_bisect` (`crates/geom-brep/src/props/quad.rs:4247`)
 halves a bracketed Bézier control polygon at `λ = ½` for the trim
 monotone ladder (`TRIM_MONOTONE_DEPTH` levels). It is a de Casteljau
 sub-row cut of its own, written in the lerp form
