@@ -331,3 +331,14 @@ RECIPE closed on 2026-10-11 (`docs/doc-ledger/recipe-leaves-the-tracker.md`). Ci
 | `docs/DESIGN-FORK-LOG.md` (rows 46, 52, 56, 69) | `di1-may-simplify-now-node-ids-are-digests`, `names-render-a-faces-leaf-role-in-words`, `pattern-spacing-is-a-signed-size-beside-a-direction`, `refusals-with-the-longest-scoped-names-overrun-the-budget` |
 
 Other programs' rows and logs also cite closed RECIPE rows. They are history, not shipped prose, and are not listed.
+
+## ZIP's closed rows (added 2026-10-11, at ZIP's exit)
+
+ZIP closed on 2026-10-11 (`docs/doc-ledger/zip-leaves-the-tracker.md`). Citations of its two live rows were rewritten to INSIDE and FUSE. Citations of its CLOSED rows in shipped code now dangle. Each is recoverable at `0e64891ae`:
+
+| citing file | cited row |
+| --- | --- |
+| `crates/sweep/tests/reach_continuation.rs` | `a-declared-continuation-across-a-rabbet-step-leaves-six-loose-ends` |
+| `crates/sweep/tests/rest_mate_every_op.rs` | `blind-shaft-in-a-full-turn-bore-revisits-the-seam-vertex` |
+| `crates/sweep/tests/rest_zip_admission.rs` (module doc) | `a-flush-declared-reflex-union-ships-the-wrong-volume` |
+| `crates/sweep/tests/round_tube_on_plate.rs` (module doc) | `a-round-tube-standing-on-a-plate-refuses-seam-orientation` |

@@ -7,7 +7,7 @@ opened: 2026-10-06
 priority: P3
 cost: M
 design: true
-refs: [a-flush-declared-reflex-union-ships-the-wrong-volume, a-kissing-convex-corner-result-ships-an-undeclared-vertex-on-face]
+refs: [a-kissing-convex-corner-result-ships-an-undeclared-vertex-on-face]
 ---
 
 
@@ -153,3 +153,7 @@ union is now the declared one, body and records alike.
 `rest_zip_admission.rs`'s
 `a_line_kiss_beside_a_tangent_site_ships_its_contact_undeclared` pins
 that.
+
+## Re-homed at ZIP's close (2026-10-11)
+
+Moved from ZIP to FUSE: what is left is `boolean::ops::carry_rows` dropping the vertex-on-face records the reduction mints, which is the same fix site as FUSE's `a-kissing-convex-corner-result-ships-an-undeclared-vertex-on-face`.

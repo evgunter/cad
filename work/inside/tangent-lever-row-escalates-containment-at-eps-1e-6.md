@@ -32,3 +32,7 @@ The row is `rest_zip_admission::the_tangent_site_keeps_building_pure_contacts`
 now: the zip is deleted and the join builds the tangent site, so no
 "lever" hands the union anywhere. The escalation, if it stands, is the
 reduction's, before the join.
+
+## Re-homed at ZIP's close (2026-10-11)
+
+Moved from ZIP to INSIDE: the escalation is the reduction's containment ladder in `boolean/contain.rs`, which INSIDE owns. The declared-REST zip it once exercised was deleted by INTENT stage 4 A.
