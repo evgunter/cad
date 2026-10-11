@@ -2,10 +2,11 @@
 id: tangent-offset-and-tilt-are-two-epsilon-checks-where-rest-is-one-displacement
 kind: issue
 title: Should C4/C7's Tangent decide its locus offsets and its tilt as one displacement, as Rest does, rather than as separate ε checks that together admit about 2ε?
-status: open
+status: review
 opened: 2026-10-10
 priority: P3
 cost: M
+pr: 4640
 ---
 
 
