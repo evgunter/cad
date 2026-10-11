@@ -10,7 +10,7 @@ Scope: D10's **Coincidence** and **Booleans** paragraphs (`docs/DESIGN.md` §D10
 
 **Rulings this spec follows.**
 
-- **D10** (#3990). Ev's words behind it are in the ruling row `work/recipe/one-way-to-say-dependency-and-intent.md`.
+- **D10** (#3990). Ev's words behind it are in the ruling row `work/intent/one-way-to-say-dependency-and-intent.md`.
   - Part 2: "i'm happy to build only (2) to begin with, and extend it to (3) later if necessary". Rung (2) is canonical-form equality and rung (3) is the symbolic tier's polynomial identity. Adding (3) is one more rung at the one door.
   - Part 3: a margin decided Zero glues whether or not it is structural, so the solid is the same under every lint setting. This retires DS2's "no knob".
   - Part 4: "the lint … checks every case where a coincidence is inferred from values to ensure that it holds symbolically".
