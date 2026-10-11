@@ -229,14 +229,15 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// axis is a line on the node): its in-plane axis datum left, so every
 /// later node id re-mints and the name table with it. No outcome or
 /// point moved: the id-free fence with the pointless datum outcomes
-/// dropped is equal on the base tree and this one.
+/// dropped is equal on the base tree and this one. Re-taken merged over
+/// FORK-DM4 unit 1 (PR 4527).
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("cut_cylinder", 0x2f75_0d41_c9ca_4e19u64),
         ("part_select", 0x1413_2c09_88a7_ce7d),
-        ("kitchen_sink", 0xe9f2_08e8_5449_a003),
+        ("kitchen_sink", 0x6b95_5c68_645c_448d),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

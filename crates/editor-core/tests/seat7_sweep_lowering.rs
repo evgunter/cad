@@ -344,7 +344,8 @@ fn both_sweeps_evaluate_in_one_document() {
 /// axis is a line on the node): its in-plane axis datum left, so every
 /// later node id re-mints and the name table with it. No outcome or
 /// point moved: the id-free fence with the pointless datum outcomes
-/// dropped is equal on the base tree and this one.
+/// dropped is equal on the base tree and this one. Re-taken merged over
+/// FORK-DM4 unit 1 (PR 4527).
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
@@ -352,7 +353,7 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
         ("corner_table", 0x3a0c_c743_4ba5_7aed),
         ("cut_cylinder", 0x2f75_0d41_c9ca_4e19),
         ("boss_union", 0x95b5_a63f_f861_7235),
-        ("kitchen_sink", 0xe9f2_08e8_5449_a003),
+        ("kitchen_sink", 0x6b95_5c68_645c_448d),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

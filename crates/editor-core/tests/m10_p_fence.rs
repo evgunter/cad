@@ -568,6 +568,8 @@
 //! 0xe9da_67e7_5e7d_f009)` before the turned-vertex change above
 //! merged, `(0xbb6f_8c13_2eb3_f98d, 0xe3ef_0697_8aaf_ef89)` after —
 //! so no point and no other outcome moved.
+//! Re-taken merged over FORK-DM4 unit 1 (PR 4527); the id-free digest
+//! held there.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -863,7 +865,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x14d5_dc2a_8dbf_d98a, 0xf4eb_8b81_81fa_891e),
+        (0x7f9e_76dd_c35d_7270, 0x60c4_fb62_e975_5f9c),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -889,7 +891,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x380d_6cef_fb98_9b6a, 0x5a5a_26d6_1b20_5cb6),
+        (0x860f_2a3b_b74e_a490, 0x761b_c47f_3d06_6744),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -913,7 +915,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x14d5_dc2a_8dbf_d98a, 0xf4eb_8b81_81fa_891e),
+        (0x7f9e_76dd_c35d_7270, 0x60c4_fb62_e975_5f9c),
         "the corpus's Probe evaluation moved"
     );
 }

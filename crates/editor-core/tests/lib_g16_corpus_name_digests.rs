@@ -162,7 +162,9 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// the node): the five documents that revolve — `kitchen_sink`,
 /// `die_pips`, `die_tool`, `die_composed` and `die_composed_tour` —
 /// hold no in-plane axis datum, so their later node ids moved and every
-/// name holding one; every other row held its word.
+/// name holding one; every other row held its word. Re-taken merged
+/// over FORK-DM4 unit 1 (PR 4527), whose names keyed by read had moved
+/// the same rows on main.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xadebdf8fa8c159b4),
     ("corner_table", 0x557d106640cda5b6),
@@ -172,20 +174,20 @@ const PINNED: &[(&str, u64)] = &[
     ("nested_islands_106_depth1", 0x21fc3461c8da2531),
     ("nested_islands_106_depth2", 0xa2b91f4b061a349c),
     ("declared_tangency", 0x370595ad9c1f1053),
-    ("kitchen_sink", 0x46f74d27b4f23841),
+    ("kitchen_sink", 0xd32146daec65263e),
     ("cut_cylinder", 0xecad82208268b4e3),
     ("measured_web", 0xa8eab47c82dec152),
     ("boss_union", 0xe9503f4d4a3ff20a),
     ("die_fillet", 0x27b561518c428c4e),
     ("die_chamfer", 0xab3bd8b84ab7788a),
-    ("die_pips", 0x2f0eca44f0526e0a),
+    ("die_pips", 0x743820cf1ef6cf30),
     ("heat_sink_fins", 0xf0b12754e2c4efed),
-    ("die_tool", 0x37de0a4d1d097a20),
+    ("die_tool", 0x0fbb89c36a3d1d92),
     ("face_sketch", 0x033a72b2be1ba6b8),
     ("part_select", 0xa85cfa7a21b2a379),
     ("loft_prism", 0x4413e8ba1b27cd15),
-    ("die_composed", 0x12b2f2012d9e168a),
-    ("die_composed_tour", 0x161160c6434ac313),
+    ("die_composed", 0xbd8fa5ea0cf63e62),
+    ("die_composed_tour", 0xfee3cf78bd33c35e),
     ("plate_param", 0x32f483640510f717),
     ("kiss_carry", 0x1b7743b8854af605),
     ("tube_ring", 0x0d0d950420bce9dd),
