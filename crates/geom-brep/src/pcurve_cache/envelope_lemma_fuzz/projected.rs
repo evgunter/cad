@@ -1150,6 +1150,8 @@ fn each_conversion_reads_its_stated_floors() {
             f_sup: f,
             rho_lo,
             z,
+            meters: f64::NAN,
+            floors: (0.0, 0.0),
         }],
     };
     let close = |got: f64, want: f64| (got - want).abs() <= 1e-12 * want.abs();
@@ -1625,7 +1627,7 @@ fn an_uncertified_part_refuses_only_inside_the_edges_interval() {
         unreachable!("a spline carrier")
     };
     let twin = super::super::orthonormal_chart(&cylinder);
-    let hull = lane.projected_hull(&image, net, &twin).unwrap();
+    let hull = lane.projected_hull(&image, net, &twin, &[]).unwrap();
     let edge = (0.0, 0.5);
     let read = |hull: &super::super::projected::ProjectedHull| {
         super::super::projected::net_incidence(hull, edge, &image.chart, &twin, 0.0, b)
@@ -1667,7 +1669,7 @@ fn an_uncertified_sector_bound_escalates() {
         unreachable!("a spline carrier")
     };
     let twin = super::super::orthonormal_chart(&torus);
-    let hull = lane.projected_hull(&image, net, &twin).unwrap();
+    let hull = lane.projected_hull(&image, net, &twin, &[]).unwrap();
     for (k, piece) in hull.pieces.iter().enumerate() {
         hull_sector(piece, k, &image.chart, b).expect("the clean hull's sectors hold");
     }
@@ -1712,7 +1714,7 @@ fn the_hull_lane_reads_an_uncertified_control_as_escalating() {
     let corrupt = NurbsCurve3::new(net.knots().clone(), control, net.weights().to_vec()).unwrap();
     image.carrier = FramedCarrier::Net(Arc::new(corrupt.clone()));
     let twin = super::super::orthonormal_chart(&torus);
-    let hull = lane.projected_hull(&image, &corrupt, &twin).unwrap();
+    let hull = lane.projected_hull(&image, &corrupt, &twin, &[]).unwrap();
     let got = hull_sector(&hull.pieces[0], 0, &image.chart, b);
     assert!(
         matches!(
@@ -1752,7 +1754,7 @@ fn a_corrupt_net_escalates_the_azimuth_sector_on_a_cylinder() {
     let corrupt = NurbsCurve3::new(net.knots().clone(), control, net.weights().to_vec()).unwrap();
     image.carrier = FramedCarrier::Net(Arc::new(corrupt.clone()));
     let twin = super::super::orthonormal_chart(&cylinder);
-    let hull = lane.projected_hull(&image, &corrupt, &twin).unwrap();
+    let hull = lane.projected_hull(&image, &corrupt, &twin, &[]).unwrap();
     assert!(hull.pieces[0].x_lo.is_nan(), "{:?}", hull.pieces[0]);
     let got = hull_sector(&hull.pieces[0], 0, &image.chart, b);
     assert!(
