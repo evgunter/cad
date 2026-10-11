@@ -41,3 +41,11 @@ Owed, to enclose the family a wide section spans:
 The enclosure half of `split_projective` is where this lands.
 `a-loft-is-the-nominal-surface-in-every-generic-lane`'s `Interval`
 enclosure pin waits on it.
+
+Since #4741 the document's loft reads its sections at the lane scalar.
+So at `Interval` it reaches this limit wherever a section or its
+placement is wider than a point. A parameter box on a section's
+dimension refuses `SectionNotAPoint`. A section on a derived frame
+refuses `PlacementNotAPoint` even with no box, because the frame's
+landed placement is an enclosure.
+
