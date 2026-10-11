@@ -1614,12 +1614,12 @@ fn read_containment<V>(
         }
         // A loop with an edge no walk crosses, an exhausted ray
         // schedule, a loop with no region or no walk, a curved chart
-        // read: refusals that metred no margin, CARRIED rather than replaced. An
+        // read, an arc's end its corners disagree with: refusals that
+        // left no margin undecided, CARRIED rather than replaced. An
         // escalation is what a predicate says when it measured and
-        // could not decide, so minting one for a door that measured
-        // nothing put a fabricated quantity in the field a reader
-        // judges the call by — and named a predicate that decides
-        // nothing anywhere in the tree.
+        // could not decide, so minting one for a door that did not
+        // put a fabricated quantity in the field a reader judges the
+        // call by.
         //
         // The subject is the FACE, which is the one entity every
         // caller of this helper shares: the second entity is a vertex
@@ -1633,12 +1633,21 @@ fn read_containment<V>(
         // arm must be routed here deliberately rather than default
         // into the wrong half.
         Err(ContainError::StaleFace(face)) => crate::boolean::driver_face_stale(face),
+        // The census reads at the run's band a body tier 3 passed, and
+        // tier 3 pins every carrier end within that band's zero of its
+        // corner, so an end read off both corners is the kernel's two
+        // readings of one end parting (rounding): a defect, not a reading.
+        Err(ContainError::ArcEndClearOfCorners(gaps)) if gaps.off_corner() => {
+            errors.push(ValidationError::ArcEndOffCorner { face, gaps });
+            None
+        }
         Err(
             e @ (ContainError::Uncrossable(_)
             | ContainError::RayExhausted
             | ContainError::EmptyLoop(_)
             | ContainError::LoopUnreadable(_)
-            | ContainError::Curved(_)),
+            | ContainError::Curved(_)
+            | ContainError::ArcEndClearOfCorners(_)),
         ) => {
             errors.push(ValidationError::CensusUnsupported {
                 subject: CensusSubject::Entity(EntityId::Face(face)),
@@ -2539,19 +2548,19 @@ enum CrossingBacking {
 ///
 /// 1. the crossing is an event OF the pair's carrier — the crossing
 ///    point on both carriers and within both CLOSED trim regions
-///    ([`pair_holds_point`]), and BOTH crossing edges lying in both
+///    ([`pair_holds_point`]), BOTH crossing edges lying in both
 ///    carriers ([`pair_holds_edges`], the spec's "two coplanar
 ///    boundary edges" read as a decided screen: an edge DIVING
 ///    through the carrier crosses in-plane edges at plane level, and
 ///    such a transverse crossing is interpenetration however the seat
-///    is declared);
+///    is declared), and the carriers not definitely transverse at the
+///    crossing ([`geom_brep::classify_dihedral`], the same all-smooth
+///    gate the tier-3 wedge pass and the rim-wedge screen run);
 /// 2. the side question is validly posed and answers
 ///    [`CrossingSideVerdict::OppositeSides`] — the Smooth-site
 ///    precondition [`geom_brep::classify_material_pairing`]'s
-///    contract states is ESTABLISHED first
-///    ([`geom_brep::classify_dihedral`] at the crossing, the same
-///    all-smooth gate the tier-3 wedge pass and the rim-wedge screen
-///    run), then the material pairing decided by that one sense
+///    contract states is ESTABLISHED first (the dihedral of 1
+///    decided Smooth), then the material pairing decided by that one sense
 ///    algebra (which mints both outward normals itself from the
 ///    faces' `Face::sense` bits, levered by
 ///    [`geom_brep::folded_lever_arm`] over the shorter edge — the
@@ -2634,18 +2643,16 @@ fn ee_cross_backed<T: Decide>(
             body.face_surface_linked(fb, db),
         );
         let arm_extent = ea.len.min(eb.len);
-        // The Smooth-site precondition, established rather than
-        // assumed. After the edge screen a definitely-Transverse
-        // answer contradicts the carriers' just-decided agreement
-        // along two crossing directions, so it lands with the in-band
-        // case as an undecided candidate — typed, never a side
-        // verdict from a question that was not validly posed.
+        // The last carrier screen, and the Smooth-site precondition the
+        // pairing below states. The edge screen reads points against
+        // each plane; this reads the planes against each other, at the
+        // crossing. Two edges can run within the zero band of two
+        // transverse planes where both hug the planes' common line, so a
+        // definitely transverse pair passes the edge screen and still
+        // does not hold the crossing: it answers for nothing.
         match geom_brep::classify_dihedral(sa, sb, q, arm_extent, band) {
             Ok(geom_brep::DihedralClass::Smooth) => {}
-            Ok(geom_brep::DihedralClass::Transverse) => {
-                undecided.push(crate::invalid_margin::invalid(band, "material_wedge_side"));
-                continue;
-            }
+            Ok(geom_brep::DihedralClass::Transverse) => continue,
             Err(escalation) => {
                 undecided.push(escalation.diag());
                 continue;
@@ -6480,7 +6487,7 @@ fn confirm_face_pair<T: Decide>(
     };
     let q = carrier.eval((t0 + t1) * T::from_f64(0.5));
     for face in [a, b] {
-        match face_holds(body, geo, face, q, band, errors) {
+        match face_holds(body, face, q, band, "pm_census_confirm_ff", errors) {
             Some(Some(FaceContainment::In)) => {}
             Some(Some(_)) => {
                 errors.push(stale);
@@ -6503,25 +6510,30 @@ fn confirm_face_pair<T: Decide>(
     }
 }
 
-/// Where `face` holds `q`, a point on its carrier: through the planar
-/// containment door for a planar face and the curved one otherwise.
-/// `Some(None)` where the curved door leaves the point unread; `None`
-/// where a decision escalated (pushed).
+/// Where `face` holds `q`, a point on its carrier: the boolean's own
+/// placement ([`crate::boolean::face_placement`]), a point decided off a
+/// planar face's plane read `Out`. `Some(None)` where the curved door
+/// leaves the point unread; `None` where a decision escalated or the door
+/// refused (pushed).
 fn face_holds<T: Decide>(
     body: &Body<T>,
-    geo: &Geo<T>,
     face: FaceKey,
     q: Point3<T>,
     band: Band,
+    on_plane: &'static str,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<FaceContainment>> {
-    match planar_face(geo, face) {
-        Some(f) => contain(body, f, q, band, errors).map(Some),
-        None => read_containment(
-            face,
-            crate::boolean::curved_face_containment(body, face, q, band),
-            errors,
-        ),
+    use crate::boolean::{CurvedPlacement, PlacementError};
+    match crate::boolean::face_placement(body, face, q, band, on_plane) {
+        Ok(CurvedPlacement::OffCarrier) => Some(Some(FaceContainment::Out)),
+        Ok(CurvedPlacement::Trim(at)) => Some(at),
+        Err(PlacementError::OnPlane(cause)) => {
+            errors.push(ValidationError::CensusEscalated { cause });
+            None
+        }
+        Err(PlacementError::Door(e)) => {
+            read_containment(face, Err::<(), _>(e), errors).map(|()| None)
+        }
     }
 }
 
@@ -6557,50 +6569,25 @@ fn confirm_vertex_on_face<T: Decide>(
         errors.push(stale);
         return;
     }
-    let Some(f) = geo.faces.iter().find(|f| f.key == face) else {
-        if !geo.curved_faces.contains(&face) {
-            errors.push(stale);
-            return;
-        }
+    if planar_face(geo, face).is_none() && !geo.curved_faces.contains(&face) {
+        errors.push(stale);
+        return;
+    }
+    match face_holds(body, face, q, band, "pm_census_confirm_vf", errors) {
+        Some(Some(FaceContainment::In)) => {}
+        Some(Some(_)) => errors.push(stale),
         // `None` is the door's remainder, not a refusal: no
         // `ContainError` stands behind it to carry, so it is named the
         // way the census names a configuration outside its lanes.
-        match read_containment(
-            face,
-            crate::boolean::curved_face_containment(body, face, q, band),
-            errors,
-        ) {
-            Some(Some(FaceContainment::In)) => {}
-            Some(Some(_)) => errors.push(stale),
-            Some(None) => errors.push(ValidationError::CensusUnsupported {
-                subject: CensusSubject::Entity(EntityId::Face(face)),
-                cause: CensusUnsupportedCause::ContactLane(
-                    crate::contact::ContactRefusal::NotCertifiable {
-                        what: "a vertex-on-face record on a curved face whose trim \
-                               the containment door does not read",
-                    },
-                ),
-            }),
-            None => {}
-        }
-        return;
-    };
-    match signed_is_zero(
-        "pm_census_confirm_vf",
-        Margin::of((q - f.origin).dot(f.normal)),
-        band,
-        errors,
-    ) {
-        Some(true) => {}
-        Some(false) => {
-            errors.push(stale);
-            return;
-        }
-        None => return,
-    }
-    match contain(body, f, q, band, errors) {
-        Some(FaceContainment::In) => {}
-        Some(_) => errors.push(stale),
+        Some(None) => errors.push(ValidationError::CensusUnsupported {
+            subject: CensusSubject::Entity(EntityId::Face(face)),
+            cause: CensusUnsupportedCause::ContactLane(
+                crate::contact::ContactRefusal::NotCertifiable {
+                    what: "a vertex-on-face record on a curved face whose trim \
+                           the containment door does not read",
+                },
+            ),
+        }),
         None => {}
     }
 }
@@ -8089,6 +8076,245 @@ mod tests {
             assert!(
                 !pair_region_verified(&body, post_top, block_bottom, band(), region),
                 "the isolator pair answers false whether or not the door is in hand"
+            );
+        }
+    }
+
+    /// **A declared pair whose planes cross definitely transverse at a
+    /// crossing does not hold it, however near both edges run to both
+    /// planes.** Two blocks in one body: one's top face in `z = 0`, the
+    /// other's bottom face that plane turned by `α` about the x axis, so
+    /// the two planes meet along the x axis. Each face's crossing edge
+    /// runs through the origin at an angle `φ` to that axis, so its ends
+    /// stand `φ·sin α = ε/2` off the other plane: both edges lie in both
+    /// planes at the band, the two edges cross past the band, and the
+    /// dihedral is past it by orders. The pair is declared. Its carrier
+    /// screens (the dihedral last) refuse it silently, so the crossing is
+    /// the plain hard finding, nothing escalates for it, and the confirm
+    /// pass reports the declaration contradicted. Three poses per row,
+    /// `sin α` scaled by `2/K` so every pose holds at any `K`.
+    #[test]
+    fn a_transverse_declared_pair_holds_no_crossing_its_edges_hug() {
+        use crate::test_support_fixtures::{
+            FaceGeometry, describe_as_intersections, identity_map, prism_ops,
+        };
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let k = band.escalate() / band.zero();
+        for f in [0.25, 0.5, 0.75] {
+            let sin = f * 2.0 / k;
+            let cos = (1.0 - sin * sin).sqrt();
+            let phi = band.zero() / (2.0 * sin);
+            let turn =
+                move |x: f64, y: f64, z: f64| Point3::new(x, y * cos - z * sin, y * sin + z * cos);
+            let mut body = Body::<f64>::new();
+            let low = prism_ops(
+                &mut body,
+                &[(-1.0, -phi), (1.0, phi), (1.0, 1.0), (-1.0, 1.0)],
+                (-1.0, 0.0),
+                identity_map,
+                FaceGeometry::Certified,
+                tol,
+            );
+            let high = prism_ops(
+                &mut body,
+                &[(-1.0, phi), (-1.0, -1.0), (1.0, -1.0), (1.0, -phi)],
+                (0.0, 1.0),
+                turn,
+                FaceGeometry::Certified,
+                tol,
+            );
+            describe_as_intersections(&mut body, tol);
+            let (fa, fb) = (low.seed.face, high.bottom.face);
+            let mut records = ContactRecords::default();
+            records.push(crate::Cited::new(
+                crate::Contact::of(crate::Cell::Face(fa), crate::Cell::Face(fb)).unwrap(),
+                crate::Cites::decided(0),
+            ));
+            let what = format!("sin α {sin}, φ {phi:e}");
+            let geo = snapshot(&body);
+            let edge = |a: Point3<f64>, b: Point3<f64>| {
+                geo.edges
+                    .iter()
+                    .find(|e| {
+                        let far = e.p0 + e.dir * e.len;
+                        [(a, b), (b, a)].iter().any(|&(p, q)| {
+                            (e.p0 - p).norm() == 0.0 && (far - q).norm() <= 1e-3 * band.zero()
+                        })
+                    })
+                    .unwrap_or_else(|| panic!("{what}: the edge {a:?} → {b:?}"))
+            };
+            let ea = edge(Point3::new(-1.0, -phi, 0.0), Point3::new(1.0, phi, 0.0));
+            let eb = edge(turn(-1.0, phi, 0.0), turn(1.0, -phi, 0.0));
+            let mut errors = Vec::new();
+            let backing = ee_cross_backed(
+                &body,
+                &geo,
+                &Declared::index(&geo, &records),
+                ea,
+                eb,
+                Point3::origin(),
+                band,
+                Some(RegionLane::certified()),
+                &mut errors,
+            );
+            assert!(
+                matches!(backing, CrossingBacking::Unanswered) && errors.is_empty(),
+                "{what}: the transverse pair answers for nothing and raises nothing: {errors:?}"
+            );
+            let errors = crate::validate_pseudomanifold(&body, &records, tol).unwrap_err();
+            let pair = [ea.key, eb.key];
+            assert!(
+                errors.iter().any(|e| matches!(e,
+                    ValidationError::UnrecordedContact {
+                        contact: CensusContact::EdgeEdgeCross { a, b, side: None },
+                        ..
+                    } if [*a, *b] == pair || [*b, *a] == pair)),
+                "{what}: the crossing is the plain hard finding: {errors:?}"
+            );
+            assert!(
+                !errors.iter().any(|e| matches!(e,
+                    ValidationError::CensusEscalated { cause }
+                        if cause.predicate == Some("material_wedge_side"))),
+                "{what}: nothing escalates for the crossing: {errors:?}"
+            );
+            assert!(
+                errors.iter().any(|e| matches!(e,
+                    ValidationError::ContactContradicted { declaration, .. }
+                        if [declaration.a, declaration.b] == [fa, fb]
+                            || [declaration.a, declaration.b] == [fb, fa])),
+                "{what}: the confirm pass reports the declaration: {errors:?}"
+            );
+        }
+    }
+
+    /// **The arc-end finding the census reaches is the band's own
+    /// parting, carried whole**: at rest every carrier end lies at its
+    /// corner, so the census meets the finding only where `K ≤ 3` parts a
+    /// point at the end from the corner (the band `(ε, 1.25ε)` here, on a
+    /// half-disc cap the public operators built). It left no margin
+    /// undecided, so it is no escalation, and it ends in the arc end's
+    /// lever.
+    #[test]
+    fn the_band_parting_an_arc_end_from_its_corner_is_carried_whole() {
+        use crate::test_support_fixtures::half_disc_cap;
+        let tol = Tol::witness();
+        let zero = Band::linear(tol).unwrap().zero();
+        let (body, cap, end) = half_disc_cap(0.0, tol);
+        let q = end + Vec3::new(-0.95 * zero, 0.95 * zero, 0.0);
+        let narrow = Band::new(zero, 1.25 * zero).unwrap();
+        let read = crate::boolean::contfp(&body, cap, Vec3::unit_z(), q, narrow);
+        let Err(refusal @ ContainError::ArcEndClearOfCorners(_)) = read.clone() else {
+            panic!("the band's own parting: {read:?}");
+        };
+        let mut errors = Vec::new();
+        assert_eq!(read_containment(cap, read, &mut errors), None);
+        let want = ValidationError::CensusUnsupported {
+            subject: CensusSubject::Entity(EntityId::Face(cap)),
+            cause: CensusUnsupportedCause::Containment(refusal),
+        };
+        assert_eq!(errors, vec![want.clone()]);
+        let text = want.to_string();
+        assert!(
+            text.ends_with("Recourse: move the point clear of the arc's end"),
+            "{text}"
+        );
+    }
+
+    /// **An arc's end read off both corners at the census is a defect**:
+    /// tier 3, which the census runs behind, pins every carrier end within
+    /// the run's zero band of its corner, so an end the census reads off
+    /// both is the kernel's two readings of one end parting. A certified
+    /// cap read at a band finer than the run's stands in for that parting
+    /// here; the census reports it as its own finding, with the defect
+    /// ending, and never as a face it "could not check".
+    #[test]
+    fn an_arc_end_off_both_corners_is_a_census_defect() {
+        use crate::test_support_fixtures::half_disc_cap;
+        let tol = Tol::witness();
+        let off = Band::linear(tol).unwrap().zero() / 2.0;
+        let (body, cap, end) = half_disc_cap(off, tol);
+        let fine = Band::new(off / 50.0, off / 5.0).unwrap();
+        let read = crate::boolean::contfp(&body, cap, Vec3::unit_z(), end, fine);
+        let mut errors = Vec::new();
+        assert_eq!(read_containment(cap, read, &mut errors), None);
+        let [ValidationError::ArcEndOffCorner { face, gaps }] = errors.as_slice() else {
+            panic!("the census's own finding: {errors:?}");
+        };
+        assert!(*face == cap && gaps.off_corner(), "{errors:?}");
+        let text = errors[0].to_string();
+        assert!(
+            text.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
+                && !text.contains("could not be checked"),
+            "{text}"
+        );
+    }
+
+    /// **A far arc at `K` near one reads its end where certification
+    /// pinned it** (the review's witness). A cap on a circle of radius
+    /// `98765.4` at ε = 1e-9 (scaled with ε), centre and axis generic,
+    /// over `[0, 2.5]`, its end corner certified `0.9905·zero` off the
+    /// carrier's end, along the direction from the end the conic's own
+    /// frame computes to the one `Curve3::eval` computes; the point
+    /// `0.95·zero` back along the arc from the end and `0.3·zero` off it.
+    /// The two ends part by rounding past `(K − 1)·zero` at `K = 1.001`,
+    /// so a boundary pass reading the frame's end read the end off its
+    /// corner. It reads `eval`'s, the point certification pinned: at
+    /// `K = 1.001` and `K = 1.2` every end lies at a corner (the band's
+    /// own parting), and the census reports no defect.
+    #[test]
+    fn a_far_arc_at_k_near_one_reads_its_end_where_certification_pinned_it() {
+        use crate::test_support_fixtures::arc_cap;
+        use geom::Curve3;
+        let tol = Tol::witness();
+        let zero = Band::linear(tol).unwrap().zero();
+        let axis = Vec3::new(0.3, -0.2, 1.0).normalize();
+        let u_ref = axis.cross(Vec3::new(0.6, 0.7, 0.1)).normalize();
+        let v_ref = axis.cross(u_ref);
+        let t1 = 2.5_f64;
+        let (s, c) = t1.sin_cos();
+        // The review's radius at ε = 1e-9, scaled with ε, and the first of
+        // a few nearby where the frame and `eval` part by rounding past
+        // `(K − 1)·zero` at `K = 1.001`: the witness is sharp at every row.
+        let circle = |r: f64| {
+            let center = Point3::new(0.31 * r, -0.17 * r, 0.05 * r);
+            let carrier = Curve3::Circle {
+                center,
+                axis,
+                radius: r,
+                u_ref,
+            };
+            let end = carrier.eval(t1);
+            let frame_end = center + u_ref * (r * c) + v_ref * (r * s);
+            (carrier, center, end, end - frame_end)
+        };
+        let (carrier, center, end, parting) = [1.0, 1.07, 1.13, 0.91, 0.83, 1.29]
+            .into_iter()
+            .map(|m| circle(98765.4 * (zero / 1e-9) * m))
+            .find(|(.., parting)| parting.norm() > 0.001 * zero)
+            .expect("a radius where the frame's end and eval's part past (K - 1)·zero");
+        let r = (end - center).norm();
+        let away = parting / parting.norm();
+        let parting = parting.norm();
+        let (body, cap) = arc_cap(carrier, (0.0, t1), away * (0.9905 * zero), tol);
+        let tangent = u_ref * (-s) + v_ref * c;
+        let radial = (end - center) / r;
+        let q = end - tangent * (0.95 * zero) + radial * (0.3 * zero);
+        for k in [1.001, 1.2] {
+            let band = Band::new(zero, k * zero).unwrap();
+            let read = crate::boolean::contfp(&body, cap, axis, q, band);
+            assert!(
+                matches!(&read, Err(ContainError::ArcEndClearOfCorners(g)) if !g.off_corner()),
+                "K {k}: the end lies at its corner, and only the band parts the passes (frame \
+                 and eval part by {parting:e}): {read:?}"
+            );
+            let mut errors = Vec::new();
+            read_containment(cap, read, &mut errors);
+            assert!(
+                !errors
+                    .iter()
+                    .any(|e| matches!(e, ValidationError::ArcEndOffCorner { .. })),
+                "K {k}: the census reports no defect: {errors:?}"
             );
         }
     }

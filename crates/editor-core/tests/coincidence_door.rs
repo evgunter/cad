@@ -13,8 +13,8 @@ use editor_core::{
     Advisory, CapEnd, CheckEvidence, CheckId, ChecksConfig, Datum, EntityKey, EntityKind, Entry,
     Evaluation, FindingSubject, Formula, LoopProgram, NamedCell, NamedCoincidence, Node,
     PartSelect, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, Proof,
-    RecipeNodeId, RoleSeg, Rung, Severity, SplitHalf, StableName, SymbolicPass, ValuePayload,
-    VarId, coincide, spoken_by,
+    RecipeNodeId, RoleSeg, Rung, Severity, SplitHalf, StableName, ValuePayload, VarId, coincide,
+    spoken_by,
 };
 use geom_core::{MarginDiag, Point3, Tol};
 use topo::{DecisionSite, Relation};
@@ -47,21 +47,17 @@ fn rows(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
 }
 
 /// The door's proof of each of `node`'s `rows`, given in its decision
-/// order, at `pass`.
-fn proofs_at(
-    doc: &ProfileDoc,
-    node: RecipeNodeId,
-    rows: &[NamedCoincidence],
-    pass: SymbolicPass,
-) -> Vec<Proof> {
-    coincide::prove(doc, &[(node, rows)], Tol::witness(), pass)
-        .pop()
-        .expect("one node asked")
-}
-
-/// [`proofs_at`] the full pass.
+/// order.
 fn proofs(doc: &ProfileDoc, node: RecipeNodeId, rows: &[NamedCoincidence]) -> Vec<Proof> {
-    proofs_at(doc, node, rows, SymbolicPass::Full)
+    coincide::prove(
+        doc,
+        &[(node, rows)],
+        Tol::witness(),
+        &editor_core::CancelToken::new(),
+    )
+    .expect("an uncanceled door")
+    .pop()
+    .expect("one node asked")
 }
 
 /// What each proof left the replay saying, `None` for a proven row.
@@ -71,6 +67,17 @@ fn replays(proofs: &[Proof]) -> Vec<Option<coincide::Unreplayed>> {
         .map(|p| match p {
             Proof::Structural(_) => None,
             Proof::Unproven { residual, .. } => Some(residual.replay),
+        })
+        .collect()
+}
+
+/// Each proof's recourse, `None` for a proven row.
+fn recourses(proofs: &[Proof]) -> Vec<Option<coincide::Recourse>> {
+    proofs
+        .iter()
+        .map(|p| match p {
+            Proof::Structural(_) => None,
+            Proof::Unproven { recourse, .. } => Some(*recourse),
         })
         .collect()
 }
@@ -481,16 +488,18 @@ fn a_filleted_box_records_one_unproven_turn_per_corner() {
             );
         }
     }
+    let proved = proofs(&doc, fillet, &got);
     assert_eq!(
-        replays(&proofs(&doc, fillet, &got)),
+        replays(&proved),
         [Some(coincide::Unreplayed::Numeric); 8],
-        "the full pass takes each turn, and its margin is not the zero polynomial \
+        "the door takes each turn, and its margin is not shown the zero polynomial \
          (work/sym/the-mitres-feet-distance-freezes-at-sym.md)"
     );
     assert_eq!(
-        replays(&proofs_at(&doc, fillet, &got, SymbolicPass::Resident)),
-        [Some(coincide::Unreplayed::ResidentBudget); 8],
-        "the resident pass leaves each turn to the full pass"
+        recourses(&proved),
+        [Some(coincide::Recourse::OneConstruction); 8],
+        "the feet distance freezes on the door's budget, which is no value computed apart \
+         from the variables: no special recourse"
     );
     assert_eq!(unproven(&doc, &ev).len(), 8);
 }
@@ -882,10 +891,16 @@ fn a_profile_junction_decided_tangent_is_one_unproven_row_on_its_profile() {
     let findings = unproven(&doc, &ev);
     assert_eq!(findings.len(), 1, "{findings:?}");
     assert_eq!(findings[0].subject, FindingSubject::Node(p));
-    let CheckEvidence::UnprovenCoincidence { row, .. } = &findings[0].evidence else {
+    let CheckEvidence::UnprovenCoincidence { row, recourse, .. } = &findings[0].evidence else {
         panic!("{:?}", findings[0].evidence)
     };
     assert_eq!(**row, got[0]);
+    assert_eq!(
+        *recourse,
+        coincide::Recourse::OneConstruction,
+        "the junction's margin keeps no opaque atom: drawing the two pieces as one \
+         construction would make it hold"
+    );
     let said = spoken_by(&findings[0], &doc);
     assert!(
         said.contains("continues tangent into")
@@ -1046,15 +1061,16 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
         );
     }
     assert_eq!(
-        replays(&proofs_at(&doc, fillet, &got, SymbolicPass::Resident)),
-        [Some(coincide::Unreplayed::ResidentBudget); 4],
-        "the resident pass discharges none of the four, and leaves each to the full pass"
+        recourses(&proved[2..]),
+        [Some(coincide::Recourse::OneConstruction); 2],
+        "a joint's form freezes on the door's budget: no special recourse"
     );
     let findings = unproven(&doc, &ev);
     assert_eq!(
         findings.len(),
-        4,
-        "the default report is the resident's: {findings:?}"
+        2,
+        "the report carries the door's verdict: the supports proven, the joints left: \
+         {findings:?}"
     );
     let said: Vec<String> = findings.iter().map(|f| spoken_by(f, &doc)).collect();
     assert!(
@@ -1313,8 +1329,9 @@ fn a_ratio_evaluates_exactly_at_sym() {
 }
 
 /// **What the door proves on the corpus**: every document's rows, by
-/// the rung that proved each or why none did, and the door's time. A
-/// census for the PR that changes a rung, not a gate.
+/// the rung that proved each or why none did, and what the door costs:
+/// the replay at `Sym` alone, and the whole door, whose difference is
+/// the discharge. A census for the PR that changes a rung, not a gate.
 #[test]
 #[ignore = "a census: run in release with --nocapture"]
 fn census_the_door_over_the_corpus() {
@@ -1327,23 +1344,58 @@ fn census_the_door_over_the_corpus() {
             .filter(|(_, rows)| !rows.is_empty())
             .collect();
         let t = std::time::Instant::now();
-        let pass = if std::env::var_os("RESIDENT").is_some() {
-            SymbolicPass::Resident
-        } else {
-            SymbolicPass::Full
-        };
-        let proofs = coincide::prove(&cd.doc, &nodes, Tol::witness(), pass);
+        // The replay alone, as `coincide/replay.rs` runs it: its budget
+        // and options spelled again here, kept in step with it by hand.
+        let replay = (!nodes.is_empty()).then(|| {
+            geom_core::sym::deferred::with_deferred_session(
+                geom_core::SymBudget {
+                    max_terms: 256,
+                    max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+                },
+                geom_core::SymRules::shipped(),
+                editor_core::drive::DEFAULT_SYM_RETRY,
+                || {
+                    let opts = editor_core::EvalOptions {
+                        symbols: true,
+                        profile_lift: editor_core::ProfileLift::Guided,
+                        ..editor_core::EvalOptions::default()
+                    };
+                    let _: Evaluation<geom_core::Sym<f64>> = editor_core::evaluate(
+                        &cd.doc,
+                        None,
+                        &editor_core::CancelToken::new(),
+                        &opts,
+                        Tol::witness(),
+                    );
+                },
+            );
+            t.elapsed()
+        });
+        let t = std::time::Instant::now();
+        let proofs = coincide::prove(
+            &cd.doc,
+            &nodes,
+            Tol::witness(),
+            &editor_core::CancelToken::new(),
+        )
+        .expect("an uncanceled door");
+        let door = t.elapsed();
         let mut tally: std::collections::BTreeMap<String, usize> = Default::default();
         for ((_, rows), proofs) in nodes.iter().zip(&proofs) {
             for (row, proof) in rows.iter().zip(proofs) {
                 let how = match proof {
                     Proof::Structural(rung) => format!("{rung:?}"),
-                    Proof::Unproven { residual, .. } => format!("unproven/{:?}", residual.replay),
+                    Proof::Unproven { residual, recourse } => {
+                        format!("unproven/{:?}/{recourse:?}", residual.replay)
+                    }
                 };
                 *tally.entry(format!("{:?} {how}", row.site)).or_default() += 1;
             }
         }
-        eprintln!("CENSUS {} {:?} {tally:?}", cd.name, t.elapsed());
+        eprintln!(
+            "CENSUS {} door {door:?} replay {replay:?} {tally:?}",
+            cd.name
+        );
     }
 }
 
@@ -1364,24 +1416,17 @@ fn measure_a_corpus_document_at_sym() {
     }
 }
 
-/// **The door's three words for a row it did not prove**, each its own:
-/// the full pass found no identity, the resident pass left the row to
-/// the full one, and the row was not replayed at all.
+/// **The door's words for a row it did not prove**, each its own: the
+/// replay found no identity, the row was not replayed at all, or it
+/// stands on a part.
 #[test]
-fn an_unproven_row_says_which_pass_left_it() {
+fn an_unproven_row_says_why_the_replay_left_it() {
     use coincide::Unreplayed as U;
     assert_eq!(
-        [
-            U::Numeric,
-            U::ResidentBudget,
-            U::NotReplayed,
-            U::ThroughAPart
-        ]
-        .map(|u| u.to_string()),
+        [U::Numeric, U::NotReplayed, U::ThroughAPart].map(|u| u.to_string()),
         [
             "with every variable a symbol, neither the carriers' verdict nor the deciding \
-             margin is shown identically zero within the full pass's budget",
-            "unproven at the resident budget; the full symbolic pass decides",
+             margin is shown identically zero within the door's budget",
             "the row is not replayed with every variable a symbol",
             "the row stands on a part, and the replay with every variable a symbol resolves no \
              part",
@@ -1389,13 +1434,12 @@ fn an_unproven_row_says_which_pass_left_it() {
     );
 }
 
-/// **What the full pass proves on the tour's composed dies**: the blend
+/// **What the door proves on the tour's composed dies**: the blend
 /// joints whose `fillet3_chain_g1` margin is the zero polynomial. One of
 /// `die_composed`'s two and 21 of `die_composed_tour`'s 42 prove as
-/// theorems, and the rest stay unproven by the full pass; every one is
-/// left to the full pass by the resident one.
+/// theorems, and the rest stay unproven.
 #[test]
-fn the_full_pass_proves_half_the_composed_dies_joints() {
+fn the_door_proves_half_the_composed_dies_joints() {
     for (name, proved, rows) in [("die_composed", 1, 2), ("die_composed_tour", 21, 42)] {
         let cd = crate::corpus::documents()
             .into_iter()
@@ -1408,40 +1452,33 @@ fn the_full_pass_proves_half_the_composed_dies_joints() {
             .filter_map(|&node| ev.value(node).map(|v| (node, &*v.coincidences)))
             .filter(|(_, rows)| !rows.is_empty())
             .collect();
-        let count = |pass| {
-            let proofs = coincide::prove(&cd.doc, &nodes, Tol::witness(), pass);
-            let all: Vec<Proof> = proofs.into_iter().flatten().collect();
-            let theorems = all
-                .iter()
-                .filter(|p| {
-                    matches!(
-                        p,
-                        Proof::Structural(Rung::MarginIdentity(geom_core::Theorem::SymbolicZero))
-                    )
-                })
-                .count();
-            (theorems, replays(&all))
-        };
-        let (full, replayed) = count(SymbolicPass::Full);
-        assert_eq!(
-            (full, replayed.len()),
-            (proved, rows),
-            "{name}: the full pass"
-        );
+        let all: Vec<Proof> = coincide::prove(
+            &cd.doc,
+            &nodes,
+            Tol::witness(),
+            &editor_core::CancelToken::new(),
+        )
+        .expect("an uncanceled door")
+        .into_iter()
+        .flatten()
+        .collect();
+        let theorems = all
+            .iter()
+            .filter(|p| {
+                matches!(
+                    p,
+                    Proof::Structural(Rung::MarginIdentity(geom_core::Theorem::SymbolicZero))
+                )
+            })
+            .count();
+        let replayed = replays(&all);
+        assert_eq!((theorems, replayed.len()), (proved, rows), "{name}");
         assert!(
             replayed
                 .iter()
                 .flatten()
                 .all(|u| *u == coincide::Unreplayed::Numeric),
-            "{name}: the rest are unproven by the full pass: {replayed:?}"
-        );
-        let (resident, replayed) = count(SymbolicPass::Resident);
-        assert_eq!(resident, 0, "{name}: the resident pass replays nothing");
-        assert!(
-            replayed
-                .iter()
-                .all(|u| *u == Some(coincide::Unreplayed::ResidentBudget)),
-            "{name}: {replayed:?}"
+            "{name}: the rest are unproven: {replayed:?}"
         );
     }
 }
@@ -1580,4 +1617,63 @@ fn two_copies_meeting_by_the_same_face_are_not_one_construction() {
         .filter(|f| matches!(f.subject, FindingSubject::Copies { .. }))
         .count();
     assert_eq!(reported, rows, "every row between the copies is unproven");
+}
+
+/// **The door enters a report one way.** On a filleted corpus document,
+/// the registry split at rest reads the door pending and holds none of
+/// its findings; its job, run and settled, gives back the synchronous
+/// report exactly, findings in the same places. An expectation about a
+/// subject the document lacks is a connectedness finding, which the
+/// registry runs before the door: it stays first in both reports. Reds
+/// if the door's findings go anywhere but after the residents before it.
+#[test]
+fn a_report_settled_at_rest_is_the_synchronous_report() {
+    let cd = crate::corpus::documents()
+        .into_iter()
+        .find(|cd| cd.name == "reshaped_rod")
+        .expect("a corpus document");
+    let ev = run(&cd.doc);
+    let tol = Tol::witness();
+    let mut cfg = ChecksConfig::default();
+    cfg.expected_components.insert((ev.order[0], 99), 1);
+    let gathered = editor_core::product_recorded(&cd.doc, &ev, tol).expect("the product gathers");
+    let sync = editor_core::run_checks_on(
+        &cd.doc,
+        &ev,
+        editor_core::Subject::Product(&gathered),
+        &cfg,
+        tol,
+    )
+    .expect("the checks run");
+    assert!(
+        sync.pending.is_empty(),
+        "a synchronous report pends on nothing"
+    );
+    assert_eq!(
+        sync.findings.iter().map(|f| f.check).collect::<Vec<_>>()[..2],
+        [CheckId::Connectedness, CheckId::UnprovenCoincidence],
+        "the stale expectation, then the rod's support row: {sync}"
+    );
+    let (mut at_rest, job) = editor_core::run_checks_at_rest_on(
+        &cd.doc,
+        &ev,
+        editor_core::Subject::Product(&gathered),
+        &cfg,
+        tol,
+    )
+    .expect("the checks run");
+    assert_eq!(at_rest.pending, [CheckId::UnprovenCoincidence]);
+    assert!(
+        at_rest
+            .findings
+            .iter()
+            .all(|f| f.check != CheckId::UnprovenCoincidence),
+        "pending is not a finding: {at_rest}"
+    );
+    let job = job.expect("a row asks for the door");
+    at_rest.settle(
+        job.run(&cd.doc, &editor_core::CancelToken::new())
+            .expect("an uncanceled door"),
+    );
+    assert_eq!(at_rest, sync);
 }

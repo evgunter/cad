@@ -918,11 +918,13 @@ fn an_unexamined_loop_is_a_finding_never_a_skipped_check() {
             },
         }],
         skipped: Vec::new(),
+        pending: Vec::new(),
     };
     let chose_not_to = ChecksReport {
         document: editor_core::DocumentId(1),
         findings: Vec::new(),
         skipped: vec![CheckId::ChartCoherence],
+        pending: Vec::new(),
     };
 
     let data = could_not_look.to_string();

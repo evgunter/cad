@@ -4485,6 +4485,75 @@ fn discharge_retried(id: SymId) -> Option<(Discharge, u8)> {
     discharge_in(id, true)
 }
 
+/// **Whether the early form of `id` keeps an opaque value**
+/// ([`SymOp::Opaque`]): a value computed apart from the parameter
+/// symbols, which the tier keeps as an unknown of its own. Read off the
+/// form's indeterminates, through every atom's arguments; where the
+/// walk froze a node on its budget, or poisoned the form, the form says
+/// nothing past that node, and the node's DAG is read for an opaque
+/// value instead. A frozen node over the parameter symbols alone is no
+/// opaque value: it is a form too big for this budget. `None` outside a
+/// session.
+fn keeps_an_opaque_atom(id: SymId) -> Option<bool> {
+    SESSION.with(|s| {
+        let mut slot = s.borrow_mut();
+        let sess = slot.as_mut()?;
+        let opaque: std::collections::HashSet<u128> = sess
+            .nodes
+            .values()
+            .filter(|n| n.op == SymOp::Opaque)
+            .map(|n| indet_opaque(n.payload))
+            .collect();
+        if opaque.is_empty() {
+            return Some(false);
+        }
+        let reaches_opaque = |sess: &Session, from: SymId| {
+            let mut stack = vec![from];
+            let mut seen = std::collections::HashSet::new();
+            while let Some(at) = stack.pop() {
+                let Some(node) = sess.nodes.get(&at) else {
+                    continue;
+                };
+                if node.op == SymOp::Opaque {
+                    return true;
+                }
+                if seen.insert(at) {
+                    stack.extend(node.kids().iter().copied());
+                }
+            }
+            false
+        };
+        let early = early_form(sess, id);
+        if early.poisoned {
+            return Some(reaches_opaque(sess, id));
+        }
+        let mut stack = vec![early];
+        let mut seen = std::collections::HashSet::new();
+        while let Some(form) = stack.pop() {
+            for poly in [&form.num, &form.den] {
+                for (mono, _) in poly.terms() {
+                    for &(x, _) in mono {
+                        if !seen.insert(x) {
+                            continue;
+                        }
+                        if opaque.contains(&x) {
+                            return Some(true);
+                        }
+                        if let Some(atom) = sess.atoms.get(&x) {
+                            stack.extend(atom.args.iter().flatten().cloned());
+                        } else if sess.nodes.contains_key(&SymId(x))
+                            && reaches_opaque(sess, SymId(x))
+                        {
+                            return Some(true);
+                        }
+                    }
+                }
+            }
+        }
+        Some(false)
+    })
+}
+
 fn discharge_in(id: SymId, retries: bool) -> Option<(Discharge, u8)> {
     SESSION.with(|s| {
         let mut slot = s.borrow_mut();

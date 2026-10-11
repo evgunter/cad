@@ -885,12 +885,16 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
     )
     .expect("checks run over the stand");
     assert!(
-        report
-            .findings
-            .iter()
-            .any(|f| f.check == editor_core::CheckId::UnprovenCoincidence
-                && f.subject == editor_core::FindingSubject::Node(mate)),
-        "the census's row is reported against its mate: {report}"
+        report.findings.iter().any(|f| matches!(
+            &f.evidence,
+            editor_core::CheckEvidence::UnprovenCoincidence {
+                recourse: editor_core::coincide::Recourse::Assert,
+                ..
+            }
+        ) && f.subject == editor_core::FindingSubject::Node(mate)),
+        "the census's row is reported against its mate, and the door, which does not \
+         replay the product, has no form of it to read, so its recourse is an assertion: \
+         {report}"
     );
 }
 

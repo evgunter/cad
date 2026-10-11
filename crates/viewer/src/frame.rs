@@ -2294,19 +2294,45 @@ pub fn at_rest_badge(at_rest: Option<&AtRestBadge>) -> Option<Badge> {
 /// otherwise. So it is [`Tone::Actionable`] and it
 /// [`Affordance::Opens`] — the findings' own sentences, each carrying
 /// its own recourse, live in the window it opens and never here.
+///
+/// **A check still running at rest** ([`ChecksReport::pending`]) is
+/// neither: its badge says pending, and alongside findings it says
+/// more may come. Pending is a state of the report, not a finding, so
+/// on its own it is [`Tone::Advisory`].
 pub fn checks_badge(report: Option<&ChecksReport>) -> Option<Badge> {
-    let count = report
-        .map(|report| report.findings.len())
-        .filter(|c| *c > 0)?;
-    Some(
-        Badge::read(
-            Subject::Document,
-            format!("checks: {count} finding(s)"),
+    let report = report?;
+    let count = report.findings.len();
+    let pending = !report.pending.is_empty();
+    let (words, tone) = match (count, pending) {
+        (0, false) => return None,
+        (0, true) => ("checks: pending".to_owned(), Tone::Advisory),
+        (count, false) => (format!("checks: {count} finding(s)"), Tone::Actionable),
+        (count, true) => (
+            format!("checks: {count} finding(s), more pending"),
             Tone::Actionable,
-        )
-        .opens()
-        .detailed("show what the checks found"),
+        ),
+    };
+    Some(
+        Badge::read(Subject::Document, words, tone)
+            .opens()
+            .detailed("show what the checks found"),
     )
+}
+
+/// **The Checks window's line for the checks still running at rest**
+/// ([`ChecksReport::pending`]), `None` when none is.
+pub fn pending_line(report: &ChecksReport) -> Option<String> {
+    (!report.pending.is_empty()).then(|| {
+        format!(
+            "pending (running at rest, cancelled by the next edit): {}",
+            report
+                .pending
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    })
 }
 
 /// **One row of the Checks window**: the node a finding is about, the
