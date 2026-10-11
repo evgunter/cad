@@ -920,3 +920,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - That P1 is dispatched: arm byte 155, mod 3 = 2, **SEQUENTIAL**. Cloud session `session_01UhKjVzeZdBqikzsCiharxN`, branch `germ/pn-apex-reach-over-span`.
   - The conic-past-band P2 waits on it, since both are in `intersect.rs`.
   - U-T1's PR 4614 has a red lint check; the lane is polling CI and will see it. 4600's fix pass is running.
+- 2026-10-11 03:05 — Check-in: nothing ready. The 4600 fix pass is running its new rows and the census (CI running on 54aabcb1). U-T1 (4614) is resolving a merge conflict with main, and its lint is no longer red. The apex-reach P1 has no PR yet.
