@@ -2,10 +2,11 @@
 id: sibling-batteries-judge-sound-weaker-than-differential-outcome
 kind: issue
 title: Four differential batteries judge SOUND by their own outcome, weaker than common::differential::outcome
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P4
 cost: E
+branch: flush/e-tail
 ---
 
 

@@ -14,30 +14,18 @@ use crate::common;
 use common::{brick, finished, prism_z};
 use geom_core::{Decide, Tol};
 use topo::{
-    AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, subtract_with, union_with,
-    validate_closed, validate_pseudomanifold,
+    AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, subtract, union, validate_closed,
+    validate_pseudomanifold,
 };
 
-type BoolOp<T> = fn(
-    &AtRestBody<T>,
-    &AtRestBody<T>,
-    &topo::BooleanDeclarations,
-    Tol,
-) -> Result<BooleanResult<T>, BooleanError>;
+type BoolOp<T> = fn(&AtRestBody<T>, &AtRestBody<T>, Tol) -> Result<BooleanResult<T>, BooleanError>;
 
 fn run<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
     op: BoolOp<T>,
     a: &AtRestBody<T>,
     b: &AtRestBody<T>,
 ) -> BooleanBody<T> {
-    match op(
-        a,
-        b,
-        &common::flush_declarations(a, b, Tol::witness()),
-        Tol::witness(),
-    )
-    .unwrap()
-    {
+    match op(a, b, Tol::witness()).unwrap() {
         BooleanResult::Body(body) => body,
         BooleanResult::Empty => panic!("expected a non-empty boolean result"),
     }
@@ -50,7 +38,7 @@ fn pinches<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
     let block = |what, x, y, z| finished(what, brick::<T>(x, y, z, t), t);
     let slab = block("slab", (0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
     let notched = run(
-        subtract_with,
+        subtract,
         &slab,
         &block("first notch", (1.0, 3.0), (-1.0, 1.0), (-1.0, 2.0)),
     );
@@ -83,7 +71,7 @@ fn pinches<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
         (
             "reflex_edge_split",
             run(
-                subtract_with,
+                subtract,
                 &notched.body,
                 &block("second notch", (-1.0, 1.0), (1.0, 3.0), (-1.0, 2.0)),
             ),
@@ -92,22 +80,19 @@ fn pinches<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
         (
             "reflex_edge_split_upper",
             run(
-                subtract_with,
+                subtract,
                 &notched.body,
                 &block("upper notch", (-1.0, 1.0), (1.0, 3.0), (0.5, 2.0)),
             ),
         ),
         // A wedge whose edge runs along the cube's convex edge (1, 1, z).
-        ("wedge_on_edge", run(subtract_with, &cube, &wedge(-1.0))),
-        (
-            "wedge_on_edge_upper",
-            run(subtract_with, &cube, &wedge(0.5)),
-        ),
+        ("wedge_on_edge", run(subtract, &cube, &wedge(-1.0))),
+        ("wedge_on_edge_upper", run(subtract, &cube, &wedge(0.5))),
         // A cube kissing the L's reflex edge at its top vertex.
         (
             "reflex_vertex_kiss",
             run(
-                union_with,
+                union,
                 &ell,
                 &block("kissing cube", (1.0, 2.0), (1.0, 2.0), (1.0, 2.0)),
             ),

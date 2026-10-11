@@ -316,8 +316,8 @@ const REVOLVE_FLOW: &[ParamFlow] = &[
 
 /// **The boolean has NO scalar parameters, so its flow has no rows —
 /// and the empty slice is the declaration, not an omission.** The
-/// payload is an operation selector and declared coincidence intents,
-/// which are REFERENCES (arena keys), not scalars: nothing a document
+/// payload is an operation selector and its inputs, which are
+/// REFERENCES (arena keys), not scalars: nothing a document
 /// slot evaluates ever lands in a field the boolean mints (its seam
 /// geometry is derived from the operands, not parameterized). The
 /// chamfer's row is empty at the `fields` level because its one scalar

@@ -106,7 +106,7 @@ pub(crate) const ALLOWED_LABELS: &[(&str, &str)] = &[
 /// still red.
 pub(crate) const FILED: &[(&str, &str)] = &[
     // `geom/src/curves.rs` (#2861): `EllipseInvalid` opens with
-    // "ellipse construction:" and offers "declare" under a split:
+    // "ellipse construction:":
     // work/chrome/the-refusal-shape-guard-has-blind-spots.md
     ("Split/Join/Section(Carrier)", "ellipse construction"),
     ("Boolean/Join/Section(Carrier)", "ellipse construction"),
@@ -167,7 +167,7 @@ pub(crate) const FILED_NAMESPACES: &[(&str, &str, bool)] = &[];
 /// The split rows that may still offer "declare", which a split has no
 /// door for, each filed with its owner (the note above `FILED`'s
 /// `EllipseInvalid` entries).
-pub(crate) const FILED_DECLARE: &[&str] = &["Split/Join/Section(Carrier)"];
+pub(crate) const FILED_DECLARE: &[&str] = &[];
 
 /// The rows that render a key or a hex id, by exact row id and the
 /// exact span, each filed with its owner.
@@ -201,10 +201,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "SelectResolve/Vanished",
     "CrossingUnverified",
     "CurvedSolidFrontier",
-    "DeclareResolve/Ambiguous",
-    "DeclareResolve/Vanished",
-    "DeclareSiteNotAnOperand",
-    "DeclareUnsupportedPair",
     "DegenerateDirection",
     "DerivedFrameSection",
     "EmptyHalf",
@@ -448,9 +444,8 @@ fn the_bare_recourses_are_geom_cores_constants() {
     assert_eq!(
         test_utils::refusal::BARE_RECOURSES,
         [
-            geom_core::COINCIDENCE_RECOURSE,
             geom_core::SPLIT_PLANE_RECOURSE,
-            geom_core::NO_DECLARATION_RECOURSE,
+            geom_core::COINCIDENCE_RECOURSE,
         ]
     );
 }
@@ -676,7 +671,7 @@ fn every_node_refusal_renders_within_the_budget() {
         // carries the margin payload beside it. An arm with a lever of
         // its own — "move the geometry", for a definite verdict no
         // declaration would change — is NOT it, and the levers alone no
-        // longer tell the two apart now that `NO_DECLARATION_RECOURSE`
+        // longer tell the two apart now that `COINCIDENCE_RECOURSE`
         // is the lever and not a sentence.
         if let Some(arm) = name.strip_prefix("Boolean/Join/") {
             let split = rows
@@ -692,7 +687,7 @@ fn every_node_refusal_renders_within_the_budget() {
             ]
             .iter()
             .any(|p| split.contains(p));
-            if escalated && split.contains(geom_core::NO_DECLARATION_RECOURSE) {
+            if escalated && split.contains(geom_core::COINCIDENCE_RECOURSE) {
                 assert!(
                     text.contains(geom_core::COINCIDENCE_RECOURSE),
                     "{name}: {text}"
@@ -1218,22 +1213,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::SeedPinnedSection {
                 section: RecipeNodeId::new(0, tagged(3)),
                 param: editor_core::VarId::new(0, tagged(7)),
-            },
-        ),
-        row(
-            "DeclareSiteNotAnOperand",
-            NodeErrorKind::DeclareSiteNotAnOperand {
-                at: editor_core::VarId::new(0, tagged(3)),
-            },
-        ),
-        row(
-            "DeclareUnsupportedPair",
-            NodeErrorKind::DeclareUnsupportedPair {
-                kinds: (
-                    editor_core::EntityKind::Edge,
-                    editor_core::EntityKind::Vertex,
-                ),
-                cross_operand: true,
             },
         ),
         row(
@@ -3515,18 +3494,12 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         rows.push(row(&format!("Naming/{n}"), NodeErrorKind::Naming(e)));
     }
     type Wrap = fn(Box<ResolveError>) -> NodeErrorKind;
-    let wraps: [(&str, Wrap); 2] = [
-        ("DeclareResolve", |error| NodeErrorKind::DeclareResolve {
-            error,
-            reference: 0,
-        }),
-        ("SelectResolve", |error| NodeErrorKind::SelectResolve {
-            slot: editor_core::OperandSlot::Selection,
-            var: editor_core::VarId::new(0, 7),
-            error,
-            reference: 0,
-        }),
-    ];
+    let wraps: [(&str, Wrap); 1] = [("SelectResolve", |error| NodeErrorKind::SelectResolve {
+        slot: editor_core::OperandSlot::Selection,
+        var: editor_core::VarId::new(0, 7),
+        error,
+        reference: 0,
+    })];
     for (wrap, build) in wraps {
         for (n, e) in resolve() {
             rows.push(row(&format!("{wrap}/{n}"), build(Box::new(e))));

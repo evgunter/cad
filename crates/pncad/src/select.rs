@@ -65,13 +65,6 @@
 //! `Instance` and their siblings — down to the role that minted it,
 //! so "which feature is this face's" is answered by the name rather
 //! than by whichever node happens to draw the body.
-//!
-//! Detection and declaration of flush contact are separate doors on
-//! purpose (the ruled no-fusion boundary): [`find_flush_candidates`]
-//! REPORTS [`FlushFinding`]s — the contact verifier in
-//! candidate-generation mode, so a finding cannot disagree with the
-//! boolean's own verify-at-use — and [`declare`]/[`declare_all`]
-//! set findings the caller has INSPECTED on a live boolean or union.
 
 // `NamingError` is in this list by the payload rule `crate::document`
 // states: it is what `document::NodeErrorKind::Naming` holds, and the
@@ -96,17 +89,15 @@
 // for a consumer of `pncad::document` alone, and the cost the other
 // way is the same name on two lists.
 pub use editor_core::{
-    BooleanCoincidence, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal,
-    ContactVerdict, CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation,
-    DuplicateName, EntityKind, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred,
+    CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict, CurveKind,
+    CurveKindSet, DeclaredContact, Denotation, DuplicateName, EntityKind, FIT_DEFERRAL, GeomPred,
     InterrogateError, LeafRole, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NamingError,
     OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfilePieces, ProfileVertexRef, RimShare,
     RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag,
     SelectRefusal, Selector, Sense, Side, SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies,
     all_edges, all_faces, all_vertices, attribute, band, band_pi, band_rim, band_rim_pi, carried,
-    declare, declare_all, declared_pairs, denotation, edge_carrier_kind, edge_frame, edge_name,
-    face_carrier_kind, face_frame, face_name, find_flush_candidates, leaf_role, meridian_vertex,
-    role_leaf, select, select_where, vertex_position,
+    denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind, face_frame, face_name,
+    leaf_role, meridian_vertex, role_leaf, select, select_where, vertex_position,
 };
 /// The kernel contact FINDING — "this face pair would verify as this
 /// class, on this evidence" — the fourth quarter of a vocabulary this

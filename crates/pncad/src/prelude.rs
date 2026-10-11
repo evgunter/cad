@@ -477,11 +477,10 @@ pub use geom::SurfaceKind;
 // Stated so the next curation pass re-measures rather than
 // re-deriving.
 pub use topo::{
-    AtRestBody, Backing, Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanOp,
-    BooleanResult, BooleanResultKind, Cited, Cites, ContactRecords, Curve3, EdgeDescription,
-    EdgeKey, EntityId, FaceKey, GeomRef, LoopKey, Operand, PairRefusalSite, PlaneRelation,
-    ShellOrientation, Surface, TransformError, VertexKey, intersect, intersect_with, subtract,
-    subtract_with, transform_rigid, union, union_with,
+    AtRestBody, Backing, Body, BooleanBody, BooleanError, BooleanOp, BooleanResult,
+    BooleanResultKind, Cited, Cites, ContactRecords, Curve3, EdgeDescription, EdgeKey, EntityId,
+    FaceKey, GeomRef, LoopKey, Operand, PairRefusalSite, PlaneRelation, ShellOrientation, Surface,
+    TransformError, VertexKey, intersect, subtract, transform_rigid, union,
 };
 
 // --- 5. The validation ladder ---------------------------------
@@ -754,20 +753,15 @@ pub use editor_core::{NameTextError, StableName};
 // away, so a prelude user could hold the type and do nothing with it.
 // These are that door, curated as one group in `crate::select` (whose
 // module docs carry the worked examples).
-// The detect/declare protocol rides in this group too: the
-// findings vocabulary, the detector, and the declare sugar (the
-// worked example is in `crate::select`'s module docs).
 pub use crate::select::{
-    BooleanCoincidence, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactFinding,
-    ContactRefusal, ContactVerdict, CurveKind, CurveKindSet, DeclareError, DeclaredContact,
-    Denotation, EntityKind, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred,
+    CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactFinding, ContactRefusal, ContactVerdict,
+    CurveKind, CurveKindSet, DeclaredContact, Denotation, EntityKind, FIT_DEFERRAL, GeomPred,
     InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole,
     PieceRun, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg,
     SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, Side,
     SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
-    attribute, declare, declare_all, declared_pairs, denotation, edge_carrier_kind, edge_frame,
-    edge_name, face_carrier_kind, face_frame, face_name, find_flush_candidates, select,
-    select_where, vertex_position,
+    attribute, denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind, face_frame,
+    face_name, select, select_where, vertex_position,
 };
 // The KERNEL query seat (`topo::query`): the same selection
 // vocabulary as a pure function of a `Body`, for the caller who holds
@@ -781,14 +775,3 @@ pub use crate::select::{
 // mirror, and the sets `CurveKindSet` and `SurfaceKindSet` from
 // `topo::query`.
 pub use topo::query;
-// The KERNEL flush seat (`topo::flush`): the same detect/declare
-// protocol as a pure function of two `Body`s, for the caller who holds
-// arena keys and no document. A MODULE for the reason `query` is one,
-// and more sharply — all three door names collide with the document
-// seat's above (`find_flush_candidates`, `declare`, `declare_all`),
-// which answer names from an evaluation where `flush::` answers keys
-// from a body. The finding vocabulary the doors speak
-// (`BooleanCoincidence`, `FlushEvidence`, `FlushRung`, `PlaneRelation`) is
-// already above, one definition re-exported upward: `FlushFinding` is
-// literally the same type at both seats, over each seat's pair.
-pub use topo::flush;
