@@ -921,3 +921,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The conic-past-band P2 waits on it, since both are in `intersect.rs`.
   - U-T1's PR 4614 has a red lint check; the lane is polling CI and will see it. 4600's fix pass is running.
 - 2026-10-11 03:05 — Check-in: nothing ready. The 4600 fix pass is running its new rows and the census (CI running on 54aabcb1). U-T1 (4614) is resolving a merge conflict with main, and its lint is no longer red. The apex-reach P1 has no PR yet.
+- 2026-10-11 04:10 — Check-in.
+  - **Main is red** on `split_through_an_apex::a_recharted_residual_in_the_band_refuses_typed` since PR 4609 (a CLEAVE semantic conflict, filed P0 by INTENT as `main-reds-on-a-recharted-residual-in-the-band-since-4609`). It is not GERM's and not 4592's. Every PR whose CI selects topo inherits it, so 4600 and 4614 show red `test` and `gate ok`.
+  - **U-T1 (4614)**: the lane is idle, and its only red is that main row. Frozen `28e49bde7`. A HOLDOUT pair, r4614a and r4614b, runs from one brief (sha256 `d4e8e8c3c608`). Coding byte 13, odd: A = R2.
+    - The briefs now sit in each lane's own directory, so neither lane sees the other's filename (4592's flagged glimpse came from a shared scratch directory).
+  - **4600**: the fix pass is done. I'm verifying locally after merging main: full topo `--profile ci`, expecting only the main-red row, plus the touched rows at three ε.
