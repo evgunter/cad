@@ -240,13 +240,14 @@ fn a_run_that_needs_no_subject_does_not_gather() {
     );
 }
 
-/// **The coincidence lint needs the product only for the mates' rows.**
-/// A document with no mate whose gather refuses (two placed copies
-/// crossing): with Separation off and the lint on, the run reports the
-/// nodes' rows rather than refusing, since none of its rows rides the
-/// product.
+/// **The coincidence lint needs the product.** The at-rest rows ride
+/// it: a mated pair's, and every contact between two copies (D10), so a
+/// document whose gather refuses has rows nobody can read, mate or no
+/// mate (two placed copies crossing here). With Separation off and the
+/// lint on, the run refuses with the gather's refusal rather than
+/// reporting the nodes' rows as if they were all.
 #[test]
-fn the_coincidence_lint_reports_node_rows_when_a_mateless_gather_refuses() {
+fn the_coincidence_lint_refuses_when_the_gather_refuses() {
     let tol = Tol::witness();
     let cfg = ChecksConfig {
         separation: Advisory::Off,
@@ -259,9 +260,13 @@ fn the_coincidence_lint_reports_node_rows_when_a_mateless_gather_refuses() {
         product_recorded(&collide, &ev, tol).is_err(),
         "the premise: this document's gather refuses"
     );
-    let report =
-        run_checks(&collide, &ev, &cfg, tol).expect("no mate, so no row needs the product");
-    assert!(!report.skipped.contains(&CheckId::UnprovenCoincidence));
+    assert!(
+        matches!(
+            run_checks(&collide, &ev, &cfg, tol),
+            Err(editor_core::ChecksError::Product { .. })
+        ),
+        "the lint's at-rest rows ride the product"
+    );
 }
 
 /// **DI3 at the door.** (R2's two rows, adopted.)
@@ -447,8 +452,8 @@ fn agree(
             assert_eq!(measure(&a.body), measure(&b.body), "{name}: the same body");
             assert_eq!(a.minted.len(), b.minted.len(), "{name}: the same minting");
             assert_eq!(
-                a.contacts.patches.len(),
-                b.contacts.patches.len(),
+                a.contacts.face_face().count(),
+                b.contacts.face_face().count(),
                 "{name}: the same declared contacts"
             );
             assert_eq!(a.names.len(), b.names.len(), "{name}: the same name table");
@@ -634,7 +639,6 @@ fn failing_root(id: &str) -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     crate::fixture::place(doc, fused)

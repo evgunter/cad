@@ -42,8 +42,7 @@ fn infallible<'py, T>(converted: Result<Bound<'py, T>, std::convert::Infallible>
 /// one concept one name; where two arms name one concept differently
 /// the concept's clearest word wins and `crate::edit_payload` states
 /// the mapping at the arm. Every attribute is present at every raise
-/// site of the class — the document layer's refusals, the declare
-/// sugar's, and the three the boundary builds itself — so `getattr`
+/// site of the class — the document layer's refusals and the three the boundary builds itself — so `getattr`
 /// never raises and a caller need not branch on `variant` first.
 fn edit_fields(
     py: Python<'_>,
@@ -213,41 +212,6 @@ fn boundary_edit_err(py: Python<'_>, refusal: BoundaryEdit<'_>, message: String)
             &crate::edit_payload::EditPayload::NONE,
         ),
     )
-}
-
-/// Raise `EditError` for a declare-sugar refusal.
-///
-/// `DeclareError` implements `Display`: the human message is the
-/// door's own prose (its `Edit` arm forwards the document layer's
-/// message, so one refusal keeps one voice), and the machine payload
-/// is the stable tag (`crate::tags::declare_error_tag` — the `Edit`
-/// arm carries the document layer's own tag through) plus that arm's
-/// fields.
-fn declare_err(py: Python<'_>, err: &pncad::select::DeclareError) -> PyErr {
-    // The `Edit` arm carries the document layer's refusal whole, so
-    // its inner arm and its payload cross too; `NoFindings` has
-    // neither.
-    let (inner, payload) = match err {
-        pncad::select::DeclareError::Edit(inner) => (
-            edit_inner_variant_tag(inner),
-            crate::edit_payload::edit_payload(inner),
-        ),
-        pncad::select::DeclareError::NoFindings => (None, crate::edit_payload::EditPayload::NONE),
-    };
-    typed_err(
-        py,
-        ErrorClass::Edit,
-        err.to_string(),
-        &edit_fields(py, crate::tags::declare_error_tag(err), inner, &payload),
-    )
-}
-
-/// The kernel's declared-pair list for a union's, an intersect's or a
-/// subtract's `declare=` or a `DocEdit.set_declare`: each inspected finding's pair
-/// and class. An empty list is the undeclared node.
-fn declared_pairs(findings: Vec<super::flush::FlushFinding>) -> Vec<d::DeclaredPair> {
-    let kernel: Vec<pncad::select::FlushFinding> = findings.into_iter().map(|f| f.0).collect();
-    pncad::select::declared_pairs(&kernel)
 }
 
 /// Raise `PersistError` carrying the refusal's stable tag and the
@@ -847,14 +811,17 @@ pub(crate) enum SlotValueArg {
 
 /// **An operand as Python writes it**: a node, read at its one output
 /// (a node with several, a revolve or a split, refuses
-/// `ambiguous_output`: its port is read by `Doc.output`), or a variable
-/// — an output by `Doc.output`, or a name's.
-#[derive(FromPyObject, Clone, Copy)]
+/// `ambiguous_output`: its port is read by `Doc.output`), a variable
+/// — an output by `Doc.output`, or a name's — or a pose defined at the
+/// seat (`PoseDef`).
+#[derive(FromPyObject, Clone)]
 pub(crate) enum OperandArg {
     /// A node, read at its one output.
     Node(NodeId),
     /// A variable, read as itself.
     Var(Var),
+    /// A pose defined at the seat.
+    Pose(super::pose::PoseDef),
 }
 
 impl OperandArg {
@@ -863,6 +830,7 @@ impl OperandArg {
         match self {
             Self::Node(node) => d::Operand::Node(node.0),
             Self::Var(var) => d::Operand::Var(var.0),
+            Self::Pose(pose) => pose.inner,
         }
     }
 }
@@ -893,9 +861,12 @@ impl IndexedRead {
 #[pymethods]
 impl IndexedRead {
     fn __repr__(&self) -> String {
-        let read = match self.read {
+        let read = match &self.read {
             OperandArg::Node(node) => format!("NodeId({})", node.0.full()),
             OperandArg::Var(var) => format!("Var({})", var.0.full()),
+            OperandArg::Pose(_) => {
+                unreachable!("an indexed read is `[]` on a node or a variable, never a pose")
+            }
         };
         let at: Vec<String> = self.at.iter().map(ToString::to_string).collect();
         format!("{read}[{}]", at.join(", "))
@@ -1024,7 +995,9 @@ impl Doc {
                 let dim = self.inner.var(var).and_then(|held| match held.def() {
                     d::VarDef::Free(free) => Some(free.dim()),
                     d::VarDef::Defined(expr) => Some(expr.dim()),
-                    d::VarDef::Output { .. } | d::VarDef::Select(_) => held.kind().dimension(),
+                    d::VarDef::Output { .. } | d::VarDef::Select(_) | d::VarDef::Pose(_) => {
+                        held.kind().dimension()
+                    }
                 });
                 let Some(dim) = dim else {
                     let unheld = d::EvalError::UnresolvedVar { var };
@@ -1058,10 +1031,8 @@ impl Doc {
     /// `pub(crate)` because the rest of the crate reads the document,
     /// so nothing stops a new door assigning either field directly.
     /// [`Doc::insert_node`] closes that hole for `insert` by taking its
-    /// action up internally, and [`Doc::declare_findings`] closes it for the
-    /// declare doors by taking the kernel sugar's whole acceptance up
-    /// here; a door reaching `d::apply` for any OTHER edit lands here,
-    /// and a kernel door answering a whole action's paired document and
+    /// action up internally; a door reaching `d::apply` for any OTHER
+    /// edit lands here, and a kernel door answering a whole action's paired document and
     /// maintenance lands in [`Doc::take_up`] directly; anything else is a
     /// bug the test names. The refactoring wrappers are the
     /// one family that does not pass through: they never `apply` a
@@ -1136,21 +1107,6 @@ impl Doc {
         let done = action.finish()?;
         self.take_up(done.doc, done.maintenance);
         Ok(NodeId(id))
-    }
-
-    /// The declare doors' shared tail: the kernel declare sugar's
-    /// acceptance — the new document, its record and its (empty)
-    /// maintenance — is taken up whole through the swap point, and
-    /// every `DeclareError` arm reaches Python through the same
-    /// `declare_err`.
-    fn accept_declared(
-        &mut self,
-        py: Python<'_>,
-        applied: Result<d::Applied<d::ProfileProgram>, pncad::select::DeclareError>,
-    ) -> PyResult<()> {
-        let applied = applied.map_err(|err| declare_err(py, &err))?;
-        self.accept(applied);
-        Ok(())
     }
 }
 
@@ -1678,50 +1634,6 @@ impl Doc {
             .map(|label| label.as_str().to_owned()))
     }
 
-    /// ADD one inspected finding's pair to the declared pairs of the
-    /// live union, intersect or subtract `node`, keeping every pair it
-    /// declares
-    /// already — the detect/declare protocol's declare arm
-    /// (SELECT-DESIGN §3). A pair on the same two sides as one already
-    /// declared
-    /// replaces it rather than repeating it. Nothing here detects;
-    /// findings reach this door as VALUES the caller already inspected
-    /// (the ruled no-fusion boundary).
-    ///
-    /// Raises `EditError`: `set_declare_on_non_declaring` when `node`
-    /// is none of the three, `unknown_node` for a node the document
-    /// does not hold, `declared_site_not_an_operand` for a finding
-    /// inspected between other operand reads than `node`'s, and the
-    /// name checks an insert runs on a pair naming a node or step the
-    /// document does not hold.
-    fn declare(
-        &mut self,
-        py: Python<'_>,
-        node: &NodeId,
-        finding: &super::flush::FlushFinding,
-    ) -> PyResult<()> {
-        let applied = pncad::select::declare(&self.inner, node.0, &finding.0, Tol::witness());
-        self.accept_declared(py, applied)
-    }
-
-    /// Declare a SET of inspected findings on the live union, intersect
-    /// or subtract `node`, replacing its whole declared-pair list —
-    /// `DocEdit.set_declare`'s replace, where `declare` adds (the
-    /// boundary is fusion, not arity). Same refusals as `declare`; an
-    /// EMPTY list refuses (`no_findings`) rather than
-    /// clearing silently — `DocEdit.set_declare(node, [])` is the
-    /// spelling that clears.
-    fn declare_all(
-        &mut self,
-        py: Python<'_>,
-        node: &NodeId,
-        findings: Vec<super::flush::FlushFinding>,
-    ) -> PyResult<()> {
-        let kernel: Vec<pncad::select::FlushFinding> = findings.into_iter().map(|f| f.0).collect();
-        let applied = pncad::select::declare_all(&self.inner, node.0, &kernel, Tol::witness());
-        self.accept_declared(py, applied)
-    }
-
     /// How many nodes the document holds.
     #[getter]
     fn node_count(&self) -> usize {
@@ -2053,15 +1965,9 @@ const fn _binds_every_kernel_side(kernel: d::ExtrudeSide) -> ExtrudeSide {
     }
 }
 
-/// **Which body of a multi-body value a `Node.part` selects**: the
-/// named half of a split, or one instance of a pattern by index.
-///
-/// One class for the two because the node is one sentence — "this
-/// body, out of those" — and the VALUE decides which arm is
-/// well-typed: a half against a split, an index against a pattern's
-/// instances. Any other pairing refuses typed at `evaluate`
-/// (`wrong_operand`), never here, because which value a node id
-/// carries is not known until the document runs.
+/// **Which copy of a pattern a `Node.part` selects**, by index. A
+/// split's halves need no selector: each is an output of the split,
+/// read as `doc.output(split, port)`.
 ///
 /// The shape is `PatternKind`'s: a frozen value class of static
 /// constructors, one per kernel arm, spelled in snake case.
@@ -2071,19 +1977,6 @@ pub(crate) struct PartSelect(pub(crate) d::PartSelect<d::Formula>);
 
 #[pymethods]
 impl PartSelect {
-    /// The named half of a `Node.split` value.
-    ///
-    /// `Above` is the material on the tool plane's normal side and
-    /// `Below` the other — the same two words `SegPat.side` takes, and
-    /// the same output-body order `Value.split`'s tuple is in. A half
-    /// the cut left with no material refuses at `evaluate`
-    /// (`empty_half`), which is a statement about the geometry rather
-    /// than about the selection.
-    #[staticmethod]
-    fn split_half(half: super::select::SplitHalf) -> Self {
-        Self(d::PartSelect::SplitHalf(half.to_kernel()))
-    }
-
     /// The `index`-th instance of a `Node.pattern` value, counting
     /// from zero.
     ///
@@ -2483,7 +2376,14 @@ impl Node {
         })
     }
 
-    /// Revolve an upstream profile about a datum axis.
+    /// Revolve an upstream profile about an axis line in its own plane.
+    ///
+    /// `axis_origin` and `axis_direction` are the line in the profile's
+    /// own 2-D coordinates: the origin lengths, the direction
+    /// dimensionless and unnormalized. Four numbers in the plane cannot
+    /// leave it, so no residual is checked. The revolve's second output
+    /// (`Doc.output(revolve, 1)`) is the line lifted to 3-D, an axis
+    /// other nodes read.
     ///
     /// `angle` is the node's `revolve_angle` slot —
     /// `DocEdit.set_param` is what drives it afterwards, as it is for
@@ -2492,14 +2392,22 @@ impl Node {
     fn revolve(
         py: Python<'_>,
         profile: OperandArg,
-        axis: OperandArg,
+        axis_origin: (super::expr::SlotArg, super::expr::SlotArg),
+        axis_direction: (super::expr::SlotArg, super::expr::SlotArg),
         angle: super::expr::SlotArg,
     ) -> PyResult<Self> {
         let angle = slot_expr(py, d::SlotId::RevolveAngle, &angle)?;
         Ok(Self {
             inner: d::Node::Revolve {
                 profile: profile.read(),
-                axis: axis.read(),
+                axis_origin: [
+                    slot_expr(py, d::SlotId::Origin(d::Axis3::X), &axis_origin.0)?,
+                    slot_expr(py, d::SlotId::Origin(d::Axis3::Y), &axis_origin.1)?,
+                ],
+                axis_direction: [
+                    slot_expr(py, d::SlotId::Direction(d::Axis3::X), &axis_direction.0)?,
+                    slot_expr(py, d::SlotId::Direction(d::Axis3::Y), &axis_direction.1)?,
+                ],
                 angle,
             },
         })
@@ -2631,7 +2539,7 @@ impl Node {
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Loft {
-                profiles: profiles.iter().map(|p| p.read()).collect(),
+                profiles: profiles.into_iter().map(OperandArg::read).collect(),
                 v_degree: slot_expr(py, d::SlotId::VDegree, &v_degree)?,
             },
         })
@@ -2713,46 +2621,11 @@ impl Node {
         })
     }
 
-    /// A datum axis written IN a sketch frame — what a revolve turns.
-    ///
-    /// `plane` is the `Datum.frame` node the axis lives in, and the
-    /// two pairs are that frame's own 2-D coordinates: the origin
-    /// slots `Length`, the direction's dimensionless and
-    /// unnormalized, as `SlotId::Direction`'s `Scalar` says.
-    ///
-    /// A revolve takes one of these and NOT a `datum_axis`: a 3-D axis
-    /// would have to be checked into the profile's plane, and that
-    /// check was a tolerance verdict on a direction residual. Written
-    /// here, the axis cannot leave the frame — and whether it is the
-    /// frame the profile was drawn on is an equality of node ids.
-    #[staticmethod]
-    fn datum_axis_in_plane(
-        py: Python<'_>,
-        plane: OperandArg,
-        origin: (super::expr::SlotArg, super::expr::SlotArg),
-        direction: (super::expr::SlotArg, super::expr::SlotArg),
-    ) -> PyResult<Self> {
-        Ok(Self {
-            inner: d::Node::Datum(d::Datum::AxisInPlane {
-                frame: plane.read(),
-                origin: [
-                    slot_expr(py, d::SlotId::Origin(d::Axis3::X), &origin.0)?,
-                    slot_expr(py, d::SlotId::Origin(d::Axis3::Y), &origin.1)?,
-                ],
-                direction: [
-                    slot_expr(py, d::SlotId::Direction(d::Axis3::X), &direction.0)?,
-                    slot_expr(py, d::SlotId::Direction(d::Axis3::Y), &direction.1)?,
-                ],
-            }),
-        })
-    }
-
     /// **A sketch frame DERIVED from a face** — "sketch on this
     /// face", as a node.
     ///
     /// `at` is the body-denoting node the face is read out of, and it
-    /// is a DAG input exactly as [`Node::datum_axis_in_plane`]'s
-    /// `plane` is: the frame moves when the face moves, so raising the
+    /// is a DAG input: the frame moves when the face moves, so raising the
     /// body carries every sketch built on this frame up with it.
     /// `face` is one of the opaque texts `Evaluation.all_faces` /
     /// `select` answered with, handed back unread — the face is
@@ -3167,25 +3040,15 @@ impl Node {
     /// the live node. Not `Node.placed_union`, whose members are one
     /// prototype under a placement rule.
     ///
-    /// `declare` is the node's declared contact pairs, given as the
-    /// `FlushFinding`s the caller INSPECTED — each carries its pair,
-    /// sited at the two member reads, and its class — and held as the
-    /// node's own payload; an empty list declares nothing. Members whose
-    /// faces a margin decides on one surface glue there, declared or not,
+    /// Members whose faces a margin decides on one surface glue there,
     /// and the coincidence is recorded for the `unproven_coincidence`
-    /// check; a declaration adds its verification. A declared pair is fed
-    /// at the fold step its two members meet at. A refusal only a fold
-    /// step raises is `kind == "union_fold_step"`, naming the member it
-    /// folds in. The protocol that fills this argument is
-    /// `Evaluation.find_flush_candidates` → inspect → this `declare=`,
-    /// or `Doc.declare`/`Doc.declare_all` on the live node.
+    /// check. A refusal only a fold step raises is
+    /// `kind == "union_fold_step"`, naming the member it folds in.
     #[staticmethod]
-    #[pyo3(signature = (members, declare=Vec::new()))]
-    fn union(members: MembersArg, declare: Vec<super::flush::FlushFinding>) -> PyResult<Self> {
+    fn union(members: MembersArg) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Union {
                 members: members.bodies(),
-                declare: declared_pairs(declare),
             },
         })
     }
@@ -3193,19 +3056,17 @@ impl Node {
     /// **The intersect**: the material in EVERY member, folded in the
     /// members' order.
     ///
-    /// `members` and `declare` are `Node.union`'s, read the same way:
+    /// `members` is `Node.union`'s, read the same way:
     /// a list of operands or one family read, any count — one member
     /// is that body, none is the typed empty body, and `[a, a]` is
     /// `a`. A fold step whose members share no material is the typed
     /// empty body, not a refusal. `DocEdit.set_members` rewrites the
     /// list on the live node.
     #[staticmethod]
-    #[pyo3(signature = (members, declare=Vec::new()))]
-    fn intersect(members: MembersArg, declare: Vec<super::flush::FlushFinding>) -> PyResult<Self> {
+    fn intersect(members: MembersArg) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Intersect {
                 members: members.bodies(),
-                declare: declared_pairs(declare),
             },
         })
     }
@@ -3218,21 +3079,12 @@ impl Node {
     /// tools are one subtract of their union,
     /// `Node.subtract(body, Node.union([t1, t2]))`. A body cut by
     /// itself, `Node.subtract(a, a)`, is the typed empty body.
-    ///
-    /// `declare` is `Node.union`'s declared-pair list, sited at the two
-    /// operand reads.
     #[staticmethod]
-    #[pyo3(signature = (from_, tool, declare=Vec::new()))]
-    fn subtract(
-        from_: BodyArg,
-        tool: BodyArg,
-        declare: Vec<super::flush::FlushFinding>,
-    ) -> PyResult<Self> {
+    fn subtract(from_: BodyArg, tool: BodyArg) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Subtract {
                 from: from_.read(),
                 tool: tool.read(),
-                declare: declared_pairs(declare),
             },
         })
     }
@@ -3282,29 +3134,20 @@ impl Node {
         })
     }
 
-    /// **The projection**: ONE body out of a multi-body value — "the
-    /// upper half of that split", "instance 3 of that pattern".
+    /// **The projection**: ONE body out of a pattern's copies —
+    /// "instance 3 of that pattern".
     ///
-    /// A projection, not an operation. The selected body is the half's
-    /// or the instance's OWN, and the node's name table is the input's
+    /// A projection, not an operation. The selected body is the
+    /// instance's OWN, and the node's name table is the input's
     /// restricted to that body with every name verbatim, so a selector
-    /// already spelled against that half or that instance resolves
-    /// here unchanged and a `Value.mass_properties` read matches the
-    /// side read straight off `Value.split` / `Value.bodies`.
+    /// already spelled against that instance resolves here unchanged
+    /// and a `Value.mass_properties` read matches the body read
+    /// straight off `Value.bodies`.
     ///
-    /// `of` is the split or pattern node whose value is read, and
-    /// `select` says which body (`PartSelect.split_half` /
-    /// `PartSelect.instance`). This is a NODE rather than a selector
-    /// argument on every consumer: one meaning, one node, and every
-    /// downstream door keeps the operand shape it has.
-    ///
-    /// Refuses typed at `evaluate`, never here — which body a node id
-    /// carries is not known until the document runs: `wrong_operand`
-    /// when the selector and the value disagree in kind (a half asked
-    /// of a pattern, an index asked of a split, either asked of a
-    /// plain body), `empty_half` when the cut left that side with no
-    /// material, and `instance_out_of_range` for an index outside
-    /// `0 .. count`.
+    /// `of` reads the copies (a list of bodies), and `select` says
+    /// which one (`PartSelect.instance`). Reading anything else
+    /// refuses at insert (`slot_var_kind`). An index outside
+    /// `0 .. count` refuses at `evaluate` (`instance_out_of_range`).
     #[staticmethod]
     fn part(of: OperandArg, select: &PartSelect) -> Self {
         Self {
@@ -3506,7 +3349,7 @@ impl Node {
         a: &str,
         b_at: &NodeId,
         b: &str,
-        class_: super::flush::ContactClass,
+        class_: super::contact::ContactClass,
         alignment: &super::mate::Alignment,
     ) -> PyResult<Self> {
         Ok(Self {
@@ -3532,8 +3375,8 @@ impl Node {
     /// gives the placed number; naming the minting node gives the
     /// authored one. Both are legal, and they are different questions.
     ///
-    /// **The references ARE dag edges**, unlike a boolean's declared
-    /// pairs or a `Node.mate`'s names: each is a selection of the named
+    /// **The references ARE dag edges**, unlike a `Node.mate`'s
+    /// names: each is a selection of the named
     /// node's body (or, for a whole body, a read of it), so the
     /// referenced nodes are its data dependencies, and deleting one is
     /// accepted and reported on the measure (`stranded_read` and
@@ -4293,13 +4136,7 @@ impl DocEdit {
     /// positional spelling and no per-entry arm, so nothing is
     /// inferred about which of the old entries survived or moved.
     /// Dropping one member is this edit without it plus a
-    /// `DocEdit.delete_node` of the orphan, one committed action. The
-    /// node's declared pairs are left as they were, so a pair whose two
-    /// member reads are both still in the list re-routes to the step
-    /// they now meet at; a pair whose member read was DROPPED has lost
-    /// its site and refuses at the next evaluation
-    /// (`declare_site_not_an_operand`), rather than being edited away
-    /// silently.
+    /// `DocEdit.delete_node` of the orphan, one committed action.
     ///
     /// Every check `Doc.insert` makes of a node's inputs is remade
     /// here, of the REWRITTEN node, so this edit cannot reach a state
@@ -4320,32 +4157,6 @@ impl DocEdit {
                 members: members.bodies(),
             },
         }
-    }
-
-    /// **Replace a live union's, intersect's or subtract's whole
-    /// declared-pair list** with the pairs and classes of `findings` —
-    /// the inspected `FlushFinding`s, as `Node.union`'s `declare=` takes
-    /// them. An
-    /// empty list clears the declaration. Nothing is inferred about
-    /// the old list: it is replaced whole.
-    ///
-    /// Refuses typed on `EditError`: `set_declare_on_non_declaring`
-    /// for a node that is none of the three,
-    /// `unknown_node` for a node the document does not hold, the name
-    /// checks an insert runs (`declare_names_missing_node`,
-    /// `name_step_never_minted`, `read_site_missing_node`) on a pair
-    /// naming what the document does not hold, and the pair rule an
-    /// insert asks: `declared_site_not_an_operand` for a pair sited at
-    /// a read that is not one of `node`'s operand reads,
-    /// `declared_name_not_upstream` for a name not minted before `node`.
-    #[staticmethod]
-    fn set_declare(node: &NodeId, findings: Vec<super::flush::FlushFinding>) -> PyResult<Self> {
-        Ok(Self {
-            inner: d::DocEdit::SetDeclare {
-                node: node.0,
-                pairs: declared_pairs(findings),
-            },
-        })
     }
 
     /// **Replace a CONTINUOUS slot's expression on a live node** — an
@@ -4852,7 +4663,7 @@ impl DocEdit {
     ///
     /// THE name repair, and the only one. A selection is stored as a
     /// stable name — a fillet's edges, a chamfer's, a shell's open
-    /// faces, a declaration's pairs — and a recipe edit upstream can
+    /// faces — and a recipe edit upstream can
     /// leave one denoting something else or nothing at all. This edit
     /// says what it now denotes, once: no alias table persists and
     /// nothing follows automatically afterwards, so a second name
@@ -4863,8 +4674,8 @@ impl DocEdit {
     /// the selections of that body naming `from_name` are rewritten,
     /// each re-canonicalizing as its kind does — an edge set re-sorts,
     /// a face set drops a repeat and keeps the earlier position; with
-    /// no body, the names no selection holds (declared pairs, mate
-    /// heads, appearance keys).
+    /// no body, the names no selection holds (mate heads,
+    /// appearance keys).
     ///
     /// Neither half keeps the kernel's bare word — `from` is a Python
     /// keyword — so both take the role suffix, exactly as

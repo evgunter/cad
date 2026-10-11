@@ -57,24 +57,26 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pncad::document::{
-    Assembly, AssemblyError, AuthoredNode, ChecksConfig, ChecksReport, Dimension, DimensionError,
-    Doc, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeValue,
-    FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Node, Operand, OperandSlot, PartReach,
-    PartResolver, ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId,
-    Subject, VarId, VarName, apply, assemble_gathered, cascade_delete_order, parse_formula,
-    product_recorded, run_checks_on,
+    Assembly, AssemblyError, AuthoredNode, CheckId, ChecksConfig, ChecksReport, Dimension,
+    DimensionError, Doc, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula,
+    FreeValue, FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Node, Operand, OperandSlot,
+    PartReach, PartResolver, ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording,
+    SlotId, StepId, Subject, VarId, VarName, apply, assemble_gathered, cascade_delete_order,
+    parse_formula, product_recorded, run_checks_at_rest_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
-use pncad::select::{FlushFinding, Resolution, RunCtx, declared_pairs, resolve};
+use pncad::select::{Resolution, RunCtx, resolve};
 use pncad::topo::Body;
 
 use crate::blend::BlendKindChoice;
 use crate::combine::{self, DuplicateFault, PatternOutputChoice};
 use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver, NoFile};
-use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator};
+use crate::evalseam::{
+    DoorDone, DoorRequest, DoorService, EvalRequest, EvalService, InlineEvaluator, InlineProver,
+};
 use crate::g1;
 use crate::generation::Generation;
 use crate::history::History;
@@ -101,7 +103,7 @@ pub use op::{
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
     FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, Step, VersionOffer, admits,
-    face_frame_seat, face_frame_seat_drawn,
+    admits_read, face_frame_seat, face_frame_seat_drawn,
 };
 pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
 
@@ -387,6 +389,10 @@ pub struct DocSession {
     tol: Tol,
     gesture: g1::Slot<Gesture, SlotValue>,
     eval: Box<dyn EvalService>,
+    /// **The coincidence door's seam**: the landed report's door runs
+    /// here, at rest, and the next request cancels it
+    /// ([`DocSession::request_eval`]).
+    door: Box<dyn DoorService>,
     generation: Generation,
     /// The document handed to the seam under [`DocSession::generation`]
     /// — kept so a landed result can be paired with the document it
@@ -745,7 +751,7 @@ impl core::fmt::Debug for LandedRun {
 /// declarations run through the kernel's own verification door
 /// (`assemble`), once per landed evaluation, so a committed mate's
 /// class verdict does not die at the commit: a `Tangent` that solves
-/// green still shows the gate refusing it, and an undeclared contact
+/// green still shows the gate refusing it, and an unrecorded contact
 /// between instances surfaces on the draw path instead of waiting for
 /// an export.
 ///
@@ -833,6 +839,7 @@ impl DocSession {
             tol,
             gesture: g1::Slot::closed(),
             eval,
+            door: Box::new(InlineProver::new()),
             generation: Generation::FIRST,
             derived: Derived::none(),
             path: None,
@@ -842,6 +849,16 @@ impl DocSession {
         };
         session.request_eval();
         session
+    }
+
+    /// This session with its coincidence door run through `door`, in
+    /// place of the inline seam [`DocSession::new`] gives it, which runs
+    /// a landing's door inside [`DocSession::pump`]. Taken before the
+    /// first pump: a job the replaced seam holds is dropped with it.
+    #[must_use]
+    pub fn with_door(mut self, door: Box<dyn DoorService>) -> Self {
+        self.door = door;
+        self
     }
 
     /// A session running the seam inline — the shape a test and the
@@ -1145,10 +1162,12 @@ impl DocSession {
     }
 
     /// The advisory-check report for the landed pair — findings in
-    /// deterministic order, and the residents that were configured
-    /// `Off`. `None` before anything lands, or when the registry
-    /// refused (which is distinct from an empty report: "not checked"
-    /// and "checked and fine" are different answers).
+    /// deterministic order, the residents that were configured `Off`,
+    /// and the coincidence door while it runs at rest
+    /// ([`ChecksReport::pending`]). `None` before anything lands, or
+    /// when the registry refused (which is distinct from an empty
+    /// report: "not checked" and "checked and fine" are different
+    /// answers).
     pub fn checks(&self) -> Option<&ChecksReport> {
         self.derived.landed.as_ref()?.checks.as_ref()
     }
@@ -1353,7 +1372,36 @@ impl DocSession {
         while let Some(done) = self.eval.poll() {
             landings.push(self.land(done));
         }
+        while let Some(done) = self.door.poll() {
+            self.settle(done);
+        }
         landings
+    }
+
+    /// **Settles a door job into the landed report it was split from**
+    /// — only that one: an answer for a landing since replaced, or one
+    /// the next request canceled, is dropped, and a report whose door
+    /// was canceled goes on reading it pending until a landing answers
+    /// again. A second answer for a report already settled is dropped
+    /// too.
+    pub fn settle(&mut self, done: DoorDone) {
+        let Some(run) = self.derived.landed.as_mut() else {
+            return;
+        };
+        if run.generation != done.generation {
+            return;
+        }
+        if let (Some(report), Ok(findings)) = (run.checks.as_mut(), done.findings)
+            && report.pending.contains(&CheckId::UnprovenCoincidence)
+        {
+            report.settle(findings);
+        }
+    }
+
+    /// Whether the landed report's coincidence door is still running
+    /// at rest.
+    pub fn proving(&self) -> bool {
+        self.door.busy()
     }
 
     /// Decide one result's fate. Public so the staleness rule is
@@ -1403,7 +1451,7 @@ impl DocSession {
                 // otherwise. A refusal of the registry itself leaves
                 // no report rather than a clean one: "not checked" is
                 // not "checked and fine".
-                let checks = run_checks_on(
+                let checks = run_checks_at_rest_on(
                     doc,
                     &done.evaluation,
                     Subject::Product(&product),
@@ -1441,8 +1489,14 @@ impl DocSession {
                     .kind()
                     .means_no_body()
                     .then(|| {
-                        run_checks_on(doc, &done.evaluation, Subject::EmptyProduct, &cfg, self.tol)
-                            .ok()
+                        run_checks_at_rest_on(
+                            doc,
+                            &done.evaluation,
+                            Subject::EmptyProduct,
+                            &cfg,
+                            self.tol,
+                        )
+                        .ok()
                     })
                     .flatten();
                 (Err(fault), checks)
@@ -1455,6 +1509,16 @@ impl DocSession {
         } else {
             PartFiles::Unscanned
         };
+        // **The door runs at rest**: the report reads it pending until
+        // the job lands ([`DocSession::settle`]).
+        let (checks, door) = checks.map_or((None, None), |(report, door)| (Some(report), door));
+        if let Some(job) = door {
+            self.door.submit(DoorRequest {
+                generation: done.generation,
+                doc: Arc::clone(&self.requested_doc),
+                job,
+            });
+        }
         // The landed pair and its verdicts become the session's as ONE
         // value, which is the same value `Derived::none` clears.
         self.derived.landed = Some(LandedRun {
@@ -1662,10 +1726,11 @@ impl DocSession {
             SessionOp::AddExtrude { profile, distance } => self.add_extrude(profile, distance),
             SessionOp::AddRevolve {
                 profile,
-                axis,
+                axis_origin,
+                axis_direction,
                 angle,
-            } => self.add_revolve(profile, axis, angle),
-            SessionOp::AddBoolean { spec, declare } => self.add_boolean(spec, declare),
+            } => self.add_revolve(profile, axis_origin, axis_direction, angle),
+            SessionOp::AddBoolean { spec } => self.add_boolean(spec),
             SessionOp::AddSplit { target, tool } => self.add_split(target, tool),
             SessionOp::AddTransform {
                 input,
@@ -2598,25 +2663,17 @@ impl DocSession {
     }
 
     /// Insert one datum node ([`SessionOp::AddDatum`]). Its slots are
-    /// literals; the two kinds that also name a node by PICK — an axis
-    /// in a sketch names its frame, a frame on a face names the body
-    /// its face is read out of — are gated by kind here, so a pick of
-    /// the wrong kind is refused `WrongNodeKind` before the edit.
+    /// literals; the one kind that also names a node by PICK — a frame
+    /// on a face names the body its face is read out of — is gated by
+    /// kind here, so a pick of the wrong kind is refused
+    /// `WrongNodeKind` before the edit.
     fn add_datum(&mut self, datum: DatumSpec) -> OpOutcome {
-        // An axis in a sketch names its frame by PICK, so it is gated
-        // at this door by kind, as the add-profile door gates its
-        // plane.
-        if let DatumSpec::AxisInPlane { plane, .. } = &datum
-            && let Err(refusal) = self.require_kind(*plane, NodeKindWanted::Frame)
-        {
-            return OpOutcome::refused(refusal);
-        }
         // A frame on a face names the node its face is read out of by
-        // PICK too, and that node has to denote ONE body: the
+        // PICK, and that node has to denote ONE body: the
         // evaluator reads the face through its single-body operand
         // door, so a split side or a pattern instance would mint a
-        // node that refuses after the edit lands. Gated here for the
-        // same reason the frame above is.
+        // node that refuses after the edit lands. Gated here, as the
+        // add-profile door gates its plane.
         if let DatumSpec::FaceFrame { at, .. } = &datum
             && let Err(refusal) = self.require_kind(*at, NodeKindWanted::Body)
         {
@@ -2805,42 +2862,38 @@ impl DocSession {
         })
     }
 
-    /// Insert one revolve of an existing profile about an existing
-    /// axis datum ([`SessionOp::AddRevolve`]).
+    /// Insert one revolve of an existing profile about an axis line in
+    /// its own plane ([`SessionOp::AddRevolve`]).
     fn add_revolve(
         &mut self,
         profile: RecipeNodeId,
-        axis: RecipeNodeId,
+        axis_origin: [Formula; 2],
+        axis_direction: [Formula; 2],
         angle: Formula,
     ) -> OpOutcome {
         if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }
-        if let Err(refusal) = self.require_kind(axis, NodeKindWanted::SketchAxis) {
-            return OpOutcome::refused(refusal);
-        }
         self.create_placed(Node::Revolve {
             profile: profile.into(),
-            axis: axis.into(),
+            axis_origin,
+            axis_direction,
             angle,
         })
     }
 
-    /// Insert one boolean of existing bodies, carrying the declaration
-    /// of the contacts it names ([`SessionOp::AddBoolean`]).
-    fn add_boolean(&mut self, spec: BooleanSpec, declare: Vec<FlushFinding>) -> OpOutcome {
+    /// Insert one boolean of existing bodies ([`SessionOp::AddBoolean`]).
+    fn add_boolean(&mut self, spec: BooleanSpec) -> OpOutcome {
         for seat in spec.operands() {
-            if let Err(refusal) = self.require_kind(seat, NodeKindWanted::Body) {
+            if let Err(refusal) = self.require_read(&seat, NodeKindWanted::Body) {
                 return OpOutcome::refused(refusal);
             }
         }
         // A node spelled twice is not refused: a repeated read glues
         // (A∪A = A∩A = A, A−A the typed empty body), so it is a
-        // document like any other. An empty list is the undeclared
-        // boolean.
-        let pairs = declared_pairs(&declare);
+        // document like any other.
         let staged = self.stage_run(|run| {
-            let node = run.insert(spec.node(pairs))?;
+            let node = run.insert(spec.node())?;
             combine_in_world(run, &spec.operands(), node)?;
             Ok(node)
         });
@@ -2853,8 +2906,8 @@ impl DocSession {
 
     /// Insert one split of an existing body by an existing datum plane
     /// ([`SessionOp::AddSplit`]).
-    fn add_split(&mut self, target: RecipeNodeId, tool: RecipeNodeId) -> OpOutcome {
-        if let Err(refusal) = self.require_kind(target, NodeKindWanted::Body) {
+    fn add_split(&mut self, target: Operand, tool: RecipeNodeId) -> OpOutcome {
+        if let Err(refusal) = self.require_read(&target, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
         if let Err(refusal) = self.require_kind(tool, NodeKindWanted::Plane) {
@@ -2873,18 +2926,18 @@ impl DocSession {
     /// ([`SessionOp::AddTransform`]).
     fn add_transform(
         &mut self,
-        input: RecipeNodeId,
+        input: Operand,
         translation: [Formula; 3],
         rotation_axis: [Formula; 3],
         rotation_angle: Formula,
     ) -> OpOutcome {
-        if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
+        if let Err(refusal) = self.require_read(&input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
         // Total, as the other lowerings are: slot dimensions are the
         // edit door's question.
         self.feature_over(
-            self.placements_of(input),
+            self.placements_of(&input),
             Node::transform(
                 input,
                 pncad::document::Step::Rigid {
@@ -2906,12 +2959,12 @@ impl DocSession {
     /// where a reader can see the pair side by side.
     fn add_pattern(
         &mut self,
-        input: RecipeNodeId,
+        input: Operand,
         count: i64,
         rule: PatternRuleSpec,
         output: PatternOutputChoice,
     ) -> OpOutcome {
-        if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
+        if let Err(refusal) = self.require_read(&input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
         if let PatternRuleSpec::Circular { axis, .. } = rule
@@ -2928,27 +2981,16 @@ impl DocSession {
                 fresh: Vec::new(),
             }),
             PatternOutputChoice::Fused => self.feature_over(
-                self.placements_of(input),
+                self.placements_of(&input),
                 combine::placed_union_node(input, count, rule),
             ),
         }
     }
 
-    /// Insert one projection of a multi-body value
+    /// Insert one projection of a pattern's copies
     /// ([`SessionOp::AddPart`]).
-    ///
-    /// **The seat is the SELECTION's**, not one kind for both arms: a
-    /// half reads a split and an index reads a pattern, and which of
-    /// the two a node is, is a fact about the committed document. The
-    /// refusal therefore names the kind the chosen selector wanted,
-    /// which is what a user can act on — "that is a pattern, and a
-    /// half comes out of a split".
     fn add_part(&mut self, of: RecipeNodeId, select: PartSelectSpec) -> OpOutcome {
-        let wanted = match select {
-            PartSelectSpec::SplitHalf(_) => NodeKindWanted::Split,
-            PartSelectSpec::Instance(_) => NodeKindWanted::Instances,
-        };
-        if let Err(refusal) = self.require_kind(of, wanted) {
+        if let Err(refusal) = self.require_kind(of, NodeKindWanted::Instances) {
             return OpOutcome::refused(refusal);
         }
         self.create_placed(combine::part_node(of, select))
@@ -2963,8 +3005,8 @@ impl DocSession {
     /// it is placed where the person can see it, and it is a body of
     /// its own — a feature authored on it re-points the copy's
     /// placement alone.
-    fn add_duplicate(&mut self, input: RecipeNodeId) -> OpOutcome {
-        if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
+    fn add_duplicate(&mut self, input: Operand) -> OpOutcome {
+        if let Err(refusal) = self.require_read(&input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
         // The kind gate above is the document's; this is the VALUE's —
@@ -2977,7 +3019,7 @@ impl DocSession {
         let step = match self.landed_pair() {
             None => Err(DuplicateFault::NotLanded),
             Some(_) if self.busy() => Err(DuplicateFault::Stale),
-            Some((doc, eval)) => combine::duplicate_step(doc, eval, input, self.tol),
+            Some((doc, eval)) => combine::duplicate_step(doc, eval, &input, self.tol),
         };
         let step = match step {
             Ok(step) => step,
@@ -3087,10 +3129,31 @@ impl DocSession {
         })
     }
 
-    /// The world placements of `target` ([`crate::world::placements_of_target`]),
-    /// in the committed document.
-    fn placements_of(&self, target: RecipeNodeId) -> Vec<RecipeNodeId> {
-        crate::world::placements_of_target(self.committed_doc(), target)
+    /// The world placements of the body `target` reads
+    /// ([`crate::world::placements_of_read`]), in the committed document.
+    fn placements_of(&self, target: &Operand) -> Vec<RecipeNodeId> {
+        crate::world::placements_of_read(self.committed_doc(), target)
+    }
+
+    /// [`Self::require_kind`] of a seat's read: a node named alone, or
+    /// one of its ports ([`admits_read`]).
+    fn require_read(&self, read: &Operand, wanted: NodeKindWanted) -> Result<(), Refusal> {
+        let doc = self.committed_doc();
+        if admits_read(doc, read, wanted) {
+            return Ok(());
+        }
+        match crate::world::read_output(doc, read) {
+            Some((node, _)) => Err(Refusal::WrongNodeKind {
+                node: doc.spoken(node),
+                wanted,
+            }),
+            None => match read {
+                Operand::Var(var) => Err(Refusal::NoSuchVariable(*var)),
+                _ => Err(Refusal::NotABodyRead {
+                    read: Box::new(read.clone()),
+                }),
+            },
+        }
     }
 
     /// The node-kind gate every creation seat shares: the named node
@@ -3190,7 +3253,6 @@ impl DocSession {
             DocEdit::InsertNode { .. }
             | DocEdit::DeleteNode { .. }
             | DocEdit::SetMembers { .. }
-            | DocEdit::SetDeclare { .. }
             // A profile's program replaced whole: structure, not a
             // panel field's value — and the identity program keeping
             // every step is the door's own no-op.
@@ -3402,6 +3464,8 @@ impl DocSession {
         // retained copy — the session keeps exactly one.
         self.requested_doc = Arc::new(self.doc().clone());
         self.requested_resolver = self.run_resolver();
+        // The landing this request will replace no longer wants its door.
+        self.door.cancel();
         self.eval.submit(EvalRequest {
             generation: self.generation,
             doc: self.requested_doc.as_ref().clone(),
@@ -3438,18 +3502,18 @@ fn repoint(
 /// nothing.
 fn combine_in_world(
     run: &mut Recording<'_, ProfileProgram>,
-    operands: &[RecipeNodeId],
+    operands: &[Operand],
     result: RecipeNodeId,
 ) -> Result<(), EditError> {
-    let mut seen = std::collections::HashSet::new();
-    let distinct: Vec<RecipeNodeId> = operands
-        .iter()
-        .copied()
-        .filter(|operand| seen.insert(*operand))
-        .collect();
+    let mut distinct: Vec<&Operand> = Vec::new();
+    for operand in operands {
+        if !distinct.contains(&operand) {
+            distinct.push(operand);
+        }
+    }
     let mut placed = distinct
         .into_iter()
-        .map(|operand| crate::world::placements_of_target(run.doc(), operand))
+        .map(|operand| crate::world::placements_of_read(run.doc(), operand))
         .filter(|placements| !placements.is_empty())
         .collect::<Vec<_>>()
         .into_iter();
@@ -3561,9 +3625,9 @@ fn session_dir(path: &Path) -> PathBuf {
 /// its members travel with their declaration rather than being listed
 /// a second time here.
 ///
-/// The four `_` arms, one reason each: `tol` is `Tol(())`, a ZST with
-/// no content to print; `eval` is a `dyn` service and implements no
-/// `Debug`; `requested_doc` is a whole recipe DAG; and `display` is
+/// The five `_` arms, one reason each: `tol` is `Tol(())`, a ZST with
+/// no content to print; `eval` and `door` are `dyn` services and
+/// implement no `Debug`; `requested_doc` is a whole recipe DAG; and `display` is
 /// not derived from the document, is as large as the document's hidden
 /// and moved sets, and has its own [`DocSession::display`] door to be
 /// dumped through.
@@ -3581,6 +3645,7 @@ impl core::fmt::Debug for DocSession {
             tol: _,
             gesture,
             eval: _,
+            door: _,
             generation,
             requested_doc: _,
             requested_resolver: _,

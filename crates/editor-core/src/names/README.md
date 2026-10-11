@@ -40,7 +40,7 @@ chamfer, told apart by the minting node), `InPart`, pattern `Instance { i, of }`
 with `i` recipe-structural. Role arguments are themselves names; profile locators
 (`ProfileEdgeRef`, `ProfileVertexRef`) name a profile piece by the id its step
 was minted with, never by its position (below). Names contain no floats and no arena keys; a pass-through op (Transform,
-split-intact entity, a `Part`'s projection of one half or one instance) adds no
+split-intact entity, a read of a split's half, a `Part`'s projection of one instance) adds no
 segment, so `node` stays the original minter. Names are document-local;
 assembly wrapping is `ASSEMBLY.md`'s.
 
@@ -347,12 +347,10 @@ that face. A reference to a member edge, or to a piece of one, that no longer
 resolves is offered every set listing that member edge.
 
 **A union's face is named for its PARENT.** Two member faces are linked when
-all of these hold: their margins decide them one carrier, declared or not
-(D10), with the same orientation; the pairwise judgement
-certifies the pair (DM4); and that judgement consumed the pair, meaning its
-two-member union merged the faces or held either face's region through the
-other (`BooleanNaming::merge_groups`, `BooleanNaming::covered`). A certified
-pair the judgement never brought together links nothing. Linking is
+the pairwise judgement of their two members (DM4) merged or covered them:
+its two-member union merged the faces or held either face's region through
+the other (`BooleanNaming::merge_groups`, `BooleanNaming::covered`). A pair
+the judgement never brought together links nothing. Linking is
 transitive. The member faces so linked are one parent, named `Merged` of all of
 them, and a member face nothing links is its own parent. A parent is a set of
 member-face entities, never a name: the candidates of a tied row are separate
@@ -432,7 +430,7 @@ an arena key.
 **A tie's candidates keep their identity.** The node that mints an
 `Entry::Tied` row numbers its candidates, and the number belongs to the row: a
 tied row holds (candidate, entity) pairs, and a row that narrows to one
-candidate (a `Part`'s projection of the half that holds it, a split's
+candidate (a read of the split half that holds it, a split's
 pass-through of the uncut one, a divider that crosses one candidate and leaves
 the other whole) is a `Unique` row that keeps its candidate. A divider is a
 discriminator among a tie's candidates like any other: the divided candidate's
@@ -497,10 +495,6 @@ or `NodeGone { name, edit }`. `Diagnosis` is one of:
 - `Upstream { node, cause }`: evidence upstream of the minting node, off the
   derivation path;
 - `WitnessBifurcation` (SOLVER-DESIGN W3).
-
-`Diagnosis` also carries `ConsumedByFold`, which is not N5's: the n-ary union
-adds it for a fold that leaves no one entity for a member-space name to denote
-(`Node::Union`).
 
 Diagnosis is computable because every node evaluation records its verdict log
 (`k_stats`); `resolve/vdiff.rs` diffs two runs per predicate by sign population
@@ -602,8 +596,8 @@ tombstone, never a key. N3's offers ride beside the verbatim error in
 `ResolutionFailure::offers`. The automatic rebinding menu is empty: the only
 repair is `DocEdit::Rebind { body, from, to }`, recorded once, no alias
 table: with a body it rewrites that body's selections naming `from`, and
-without one the names no selection holds (a declared pair's, an instance's
-crossing `outer`, an appearance key).
+without one the names no selection holds (an instance's crossing `outer`, an
+appearance key).
 
 **N6 — A cell's construction is read from the document.** A recorded
 cell is named by the read it entered the deciding operation through and its

@@ -311,7 +311,7 @@ fn patterned_post(
     let pattern = common::session_insert(
         session,
         SessionOp::AddPattern {
-            input: bench.post_b,
+            input: bench.post_b.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -426,7 +426,7 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
     let moved = common::session_insert(
         &mut session,
         SessionOp::AddTransform {
-            input: bench.post_b,
+            input: bench.post_b.into(),
             translation: [len(0.0), len(0.0), len(0.0)],
             rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
             rotation_angle: ang(0.0),
@@ -436,7 +436,7 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
     let pattern = common::session_insert(
         &mut session,
         SessionOp::AddPattern {
-            input: moved,
+            input: moved.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -496,10 +496,9 @@ fn a_pick_on_a_fused_body_is_not_an_instance_pick() {
         &mut session,
         SessionOp::AddBoolean {
             spec: BooleanSpec::Subtract {
-                from: bench.post_b,
-                tool: bench.post_a,
+                from: bench.post_b.into(),
+                tool: bench.post_a.into(),
             },
-            declare: Vec::new(),
         },
     );
     session.pump();
@@ -544,7 +543,6 @@ fn a_pick_on_a_union_of_instances_stands_on_the_member() {
                 bench.post_a.into(),
                 bench.post_b.into(),
             ]),
-            declare: Vec::new(),
         },
         tol,
     );
@@ -603,7 +601,7 @@ fn a_pick_on_a_moved_instance_authors_the_transform_and_seats() {
     let moved = common::session_insert(
         &mut session,
         SessionOp::AddTransform {
-            input: bench.post_b,
+            input: bench.post_b.into(),
             translation: [len(0.015), len(-0.005), len(0.02)],
             rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
             rotation_angle: ang(core::f64::consts::FRAC_PI_2),
@@ -696,7 +694,7 @@ fn spun_post(session: &mut DocSession, bench: &asm::Bench) -> RecipeNodeId {
     let pattern = common::session_insert(
         session,
         SessionOp::AddPattern {
-            input: bench.post_b,
+            input: bench.post_b.into(),
             count: 2,
             rule: PatternRuleSpec::Circular {
                 axis,

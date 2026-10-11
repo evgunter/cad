@@ -539,7 +539,7 @@ fn a_brick_through_a_steep_elliptic_end_builds_in_every_op() {
             op,
             &operand,
             &tool,
-            &topo::BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             topo::boolean::SweepStrategy::Realized,
             tol(),
         )

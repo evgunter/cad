@@ -13,7 +13,7 @@ use editor_core::{
     CancelToken, Datum, EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult, PatternKind,
     ProfileDoc, ValuePayload, evaluate,
 };
-use fixture::{ang, insert, len, on_frame, on_frame_keeping, scl};
+use fixture::{ang, insert, len, on_frame, scl};
 use geom_core::Tol;
 use topo::{mass_properties, validate, validate_closed};
 
@@ -52,21 +52,11 @@ fn unit_cube(doc: ProfileDoc, x0: f64, y0: f64) -> (ProfileDoc, editor_core::Rec
     )
 }
 
-fn y_axis(doc: ProfileDoc, origin_z: f64) -> (ProfileDoc, editor_core::RecipeNodeId) {
-    insert(
-        doc,
-        Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(origin_z)],
-            direction: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-    )
-}
-
 #[test]
 fn revolve_wires_the_datum_axis_through_the_sketch_plane() {
     let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
     // Unit square touching the axis: full revolve → cylinder r=1 h=1.
-    let (doc, plane, prof) = on_frame_keeping(
+    let (doc, prof) = on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -75,14 +65,10 @@ fn revolve_wires_the_datum_axis_through_the_sketch_plane() {
     );
     // The sketch's own +y through its origin — the same line the
     // world-space `y_axis` named, in the coordinates the revolve reads.
-    let (doc, axis) = insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
+    // Decided coincident with τ ⇒ Full.
     let (doc, rev) = insert(
         doc,
-        Node::Revolve {
-            profile: prof.into(),
-            axis: axis.into(),
-            angle: ang(TAU), // decided coincident with τ ⇒ Full
-        },
+        fixture::revolve_about(prof, (0.0, 0.0), (0.0, 1.0), ang(TAU)),
     );
     let ev = run(&doc);
     let ValuePayload::Body(body) = &ev.value(rev).expect("revolve evaluated").payload else {
@@ -92,91 +78,6 @@ fn revolve_wires_the_datum_axis_through_the_sketch_plane() {
     assert_eq!(validate_closed(body), Ok(()));
     let vol = mass_properties(body, Tol::witness()).unwrap().volume;
     assert!((vol - PI).abs() < 1e-9, "cylinder volume π, got {vol}");
-}
-
-/// **The out-of-plane revolve axis is not a refusal any more — it is
-/// not a document.**
-///
-/// This row asserted `AxisNotInSketchPlane`: a 3-D axis whose origin
-/// sat a metre off the sketch plane, caught by a decided projection.
-/// A revolve takes an axis written IN a frame now, so the two ways
-/// that authoring can go wrong are both KIND questions, and neither
-/// needs a band:
-///
-///  1. a 3-D `Datum::Axis` at the seat is the wrong kind of node, and
-///  2. an in-plane axis written in a DIFFERENT frame is the right kind
-///     in the wrong place.
-///
-/// The old row's own numbers cannot be spelled at all: `y_axis`'s
-/// `origin_z` has no counterpart in a frame's two coordinates, which
-/// is the whole claim of the rung.
-#[test]
-fn a_revolve_refuses_an_axis_it_cannot_turn_in() {
-    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
-    let (doc, plane, prof) = on_frame_keeping(
-        doc,
-        [0.0; 3],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.5, 1.0)]],
-    );
-
-    // (1) The 3-D axis: a kind mismatch at the operand door, naming
-    //     what to author instead.
-    let (doc, world_axis) = y_axis(doc, 1.0);
-    let (doc, bad_kind) = insert(
-        doc,
-        Node::Revolve {
-            profile: prof.into(),
-            axis: world_axis.into(),
-            angle: ang(PI),
-        },
-    );
-
-    // (2) The right kind in the wrong frame: a SECOND frame, parallel
-    //     to the first and a metre up, carrying an axis of its own.
-    //     Nothing about the axis is out of ITS plane — the numbers are
-    //     identical to a legal one — so no projection could tell these
-    //     two documents apart. The node ids can, exactly.
-    let (doc, other_plane) = insert(
-        doc,
-        fixture::frame([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
-    let (doc, stranger) = insert(
-        doc,
-        fixture::axis_in_plane(other_plane, (0.0, 0.0), (0.0, 1.0)),
-    );
-    let (doc, wrong_frame) = insert(
-        doc,
-        Node::Revolve {
-            profile: prof.into(),
-            axis: stranger.into(),
-            angle: ang(PI),
-        },
-    );
-    let ev = run(&doc);
-    match ev.nodes.get(&bad_kind) {
-        Some(NodeResult::Failed(e)) => assert!(
-            matches!(e.kind, NodeErrorKind::WrongOperand { input, .. } if input == world_axis),
-            "got {:?}",
-            e.kind
-        ),
-        other => panic!("expected Failed, got {other:?}"),
-    }
-    match ev.nodes.get(&wrong_frame) {
-        Some(NodeResult::Failed(e)) => assert!(
-            matches!(
-                e.kind,
-                NodeErrorKind::AxisInDifferentPlane { axis, axis_plane, profile_plane }
-                    if axis == stranger
-                        && axis_plane == Some(other_plane)
-                        && profile_plane == Some(plane)
-            ),
-            "got {:?}",
-            e.kind
-        ),
-        other => panic!("expected Failed, got {other:?}"),
-    }
 }
 
 #[test]
@@ -243,7 +144,6 @@ fn linear_pattern_evaluates_instances_as_data() {
         &doc2,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![pat.into(), other.into()]),
-            declare: Vec::new(),
         },
     );
     assert!(
@@ -443,7 +343,6 @@ fn typed_refusal_doors() {
         &doc,
         Node::Intersect {
             members: editor_core::Bodies::Spelled(vec![split_node.into(), second.into()]),
-            declare: Vec::new(),
         },
     );
     assert!(
@@ -935,77 +834,4 @@ fn a_non_finite_pattern_direction_mints_nothing_at_the_interval_scalar() {
         ),
         other => panic!("expected a refusal, got {other:?}"),
     }
-}
-
-/// **A boolean's declared pairs are its own payload, and `SetDeclare`
-/// replaces them on the live node.** Undeclared, the flush contacts
-/// glue; the same boolean with the pairs set builds the same body. A
-/// node that declares no contacts refuses the edit at the door.
-#[test]
-fn set_declare_on_a_live_boolean_builds_its_undeclared_body() {
-    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
-    let (doc, a) = unit_cube(doc, 0.0, 0.0);
-    let (doc, b) = unit_cube(doc, 0.5, 0.0); // overlapping, flush y/z planes
-    let pairs = fixture::declare_x_offset_flush(&doc, a, b);
-    let (doc, boolean) = insert(
-        doc,
-        Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
-        },
-    );
-    let undeclared = run(&doc);
-    let ValuePayload::Boolean(editor_core::BooleanValue::Body { body: bare, .. }) = &undeclared
-        .value(boolean)
-        .unwrap_or_else(|| {
-            panic!(
-                "the flush contacts glue undeclared, got {:?}",
-                undeclared.nodes.get(&boolean)
-            )
-        })
-        .payload
-    else {
-        panic!("expected boolean body");
-    };
-
-    let declared = doc
-        .apply(
-            &editor_core::DocEdit::SetDeclare {
-                node: boolean,
-                pairs: pairs.clone(),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("a live boolean takes a declared-pair list");
-    assert_eq!(declared.record.minted, None, "the edit mints nothing");
-    let Some(Node::Union { declare, .. }) = declared.doc.node(boolean) else {
-        panic!("the boolean is live under its own id");
-    };
-    assert_eq!(declare, &pairs, "the list is the one set");
-    let ev = run(&declared.doc);
-    let ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) =
-        &ev.value(boolean).expect("boolean evaluated").payload
-    else {
-        panic!("expected boolean body");
-    };
-    assert_eq!(mass_properties(body, Tol::witness()).unwrap().volume, 1.5); // dyadic union
-    assert_eq!(
-        format!("{body:?}"),
-        format!("{bare:?}"),
-        "the declared boolean is the undeclared one's body"
-    );
-
-    let refused = doc.apply(
-        &editor_core::DocEdit::SetDeclare { node: a, pairs },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    );
-    assert!(
-        matches!(
-            &refused,
-            Err(editor_core::EditError::SetDeclareOnNonDeclaring { node }) if node.id() == a
-        ),
-        "an extrude declares no contacts, got {refused:?}"
-    );
 }

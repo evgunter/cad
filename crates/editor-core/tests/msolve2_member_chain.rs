@@ -29,7 +29,7 @@ use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, Datum, Dimension,
     DocEdit, DocumentId, EvalOptions, Formula, FreeValue, FreeVar, MateFault, MateFrame,
     MatePrimitive, MateRole, MateSide, Node, PartSelect, PatternKind, ProfileDoc, RecipeNodeId,
-    SitedFace, SplitHalf, StableName, VarName, groups, member_of, product,
+    SitedFace, StableName, VarName, groups, member_of, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated as assert_seated_named, seat_map as seat_map_named};
@@ -471,9 +471,9 @@ fn assert_loop_closes(
     assert!(
         findings
             .iter()
-            .any(|f| matches!(f.attribution, Attribution::Refuted(_))),
+            .any(|f| matches!(f.attribution, Some(Attribution::Refuted(_)))),
         "{what}: the refusal names the declaration the geometry \
-         contradicts, rather than only an undeclared contact: {findings:?}"
+         contradicts, rather than only an unrecorded contact: {findings:?}"
     );
 }
 
@@ -1408,39 +1408,6 @@ fn a3d_a_part_over_the_wrong_pattern_stops_the_walk() {
     assert!(
         matches!(fault, MateFault::DanglingHead { head, .. } if head == inner_b),
         "the walk stops at the pattern it actually reached: {fault:?}"
-    );
-}
-
-/// **A split half is a different body, not this one placed.**
-/// `Part { SplitHalf }` is the other arm of the same node, and it is
-/// NOT a member-vocabulary pass-through: the walk stops at it.
-#[test]
-fn a3e_a_part_naming_a_split_half_stops_the_walk() {
-    let s = scene("msolve2-a3e");
-    let (base, top) = (s.base, s.top);
-    let (base_body, top_body) = (s.base_body, s.top_body);
-    let (doc, pattern) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
-    let (doc, part) = insert(
-        doc,
-        Node::Part {
-            of: editor_core::Operand::output(pattern, SplitHalf::Above.port()),
-            select: PartSelect::SplitHalf(SplitHalf::Above),
-        },
-    );
-    let b = in_copy(pattern, 1, in_part(top, top_body, CapEnd::Start));
-    let r = crate::fixture::head_at(part, b);
-    assert!(member_of(&doc, &r).is_none(), "not a member");
-    let fault = door_refusal(
-        &doc,
-        seat_at(
-            crate::fixture::head(in_part(base, base_body, CapEnd::End)),
-            r,
-            FIRST_SEAT,
-        ),
-    );
-    assert!(
-        matches!(fault, MateFault::DanglingHead { head, .. } if head == part),
-        "the walk stops at the Part itself: {fault:?}"
     );
 }
 

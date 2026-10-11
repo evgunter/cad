@@ -73,7 +73,7 @@
 //! relabel.
 
 use geom_core::{
-    Band, Decide, Indeterminate, Margin, NO_DECLARATION_RECOURSE, Point2, Point3, Sign, Vec2, Vec3,
+    Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Point3, Sign, Vec2, Vec3,
 };
 
 use crate::validate::decide;
@@ -89,8 +89,9 @@ use crate::validate::decide;
 /// **What a tighter tolerance could change sorts the last three.** A
 /// reading a tighter `ε` could decide otherwise is never [`Self::Blocked`]:
 /// a `Zero` grazes, an in-band margin is [`Self::InBand`], and only a
-/// limit the ray met on definite decisions alone — which stay definite
-/// at every tighter `ε` — blocks it.
+/// limit the ray met that no tolerance cures blocks it — one met on
+/// definite decisions alone, or the reader's own arithmetic read wrong
+/// on this ray.
 #[derive(Debug)]
 pub(crate) enum RayFault<E> {
     /// A `Zero` on one of the ray's rows — a vertex on the ray line, a
@@ -105,9 +106,11 @@ pub(crate) enum RayFault<E> {
     /// An in-band margin about this ray alone, kept as evidence with its
     /// value: a tighter tolerance could decide it.
     InBand(E),
-    /// A limit of the reader this ray definitely meets — a face or an
-    /// edge it has no exact reading for, met on definite decisions
-    /// alone, so no tolerance moves it — and another ray might miss.
+    /// A limit of the reader this ray meets that no tolerance moves — a
+    /// face or an edge it has no exact reading for, met on definite
+    /// decisions alone, or a computation of this ray's own that came out
+    /// wrong (two counts of its crossings that disagree) — and another
+    /// ray might miss.
     Blocked(E),
     /// A refusal of the whole query.
     Fatal(E),
@@ -255,7 +258,7 @@ impl core::fmt::Display for NoRaySettled {
             "the point is off its boundary, but no test ray from it settled where it \
              lies: each grazed the boundary, at a vertex, along an edge or at a \
              tangency, or could not be cast or read from the point. Recourse: \
-             {NO_DECLARATION_RECOURSE}"
+             {COINCIDENCE_RECOURSE}"
         )
     }
 }

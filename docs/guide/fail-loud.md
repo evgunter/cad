@@ -184,11 +184,9 @@ rather than one size read twice. The solid is the same under every
 setting of that check (D10): the check reports, it never changes what
 was built.
 
-A declaration still has a job. Declaring a contact
-(`union_with(&a, &b, &decls)`) bridges a margin in the ambiguity band —
-"these are one plane, the residue is noise" — and it is verified, not
-believed: a declaration whose planes are definitely apart is
-`DeclarationContradicted`.
+Nothing bridges a margin in the ambiguity band: a boolean that meets
+one refuses, and its recourse is the geometry, or the tolerance where
+the margin gives one.
 
 ## 4. The edit door: refusals before anything is evaluated
 
@@ -400,14 +398,11 @@ def revolved(x0, angle):
         .line_to((x0 * m, 1 * m))
         .line_to(Start)
     )
-    axis = doc.insert(Node.datum_axis_in_plane(frame, (
-        Formula.length_in(0, m),
-        Formula.length_in(0, m),
-    ), (
-        Formula.literal(0.0),
-        Formula.literal(1.0),
-    )))
-    node = doc.insert(Node.revolve(doc.insert(Node.profile(square, plane=frame)), axis, Formula.literal(angle)))
+    axis = (
+        (Formula.length_in(0, m), Formula.length_in(0, m)),
+        (Formula.literal(0.0), Formula.literal(1.0)),
+    )
+    node = doc.insert(Node.revolve(doc.insert(Node.profile(square, plane=frame)), *axis, Formula.literal(angle)))
     try:
         evaluate(doc).value(node)
         raise AssertionError("expected a typed refusal")

@@ -121,8 +121,12 @@ pub enum NodeErrorClass {
     VerbArity,
     /// [`NodeErrorKind::Escalated`].
     Escalated,
-    /// [`NodeErrorKind::AxisInDifferentPlane`].
-    AxisInDifferentPlane,
+    /// [`NodeErrorKind::PoseRead`].
+    PoseRead,
+    /// [`NodeErrorKind::PoseDegenerate`].
+    PoseDegenerate,
+    /// [`NodeErrorKind::PoseScalar`].
+    PoseScalar,
     /// [`NodeErrorKind::NonPositiveCount`].
     NonPositiveCount,
     /// [`NodeErrorKind::NegativeSpacing`].
@@ -154,14 +158,6 @@ pub enum NodeErrorClass {
     UnschedulableCycle,
     /// [`NodeErrorKind::Naming`].
     Naming,
-    /// [`NodeErrorKind::DeclareResolve`].
-    DeclareResolve,
-    /// [`NodeErrorKind::DeclareSiteNotAnOperand`].
-    DeclareSiteNotAnOperand,
-    /// [`NodeErrorKind::DeclareUnsupportedPair`].
-    DeclareUnsupportedPair,
-    /// [`NodeErrorKind::DeclaredContactUnbacked`].
-    DeclaredContactUnbacked,
     /// [`NodeErrorKind::UnionFoldStep`].
     UnionFoldStep,
     /// [`NodeErrorKind::BlendSelectionEmpty`] refused by a fillet.
@@ -327,7 +323,9 @@ impl NodeErrorKind {
             Self::MissingSlot { .. } => C::MissingSlot,
             Self::VerbArity { .. } => C::VerbArity,
             Self::Escalated { .. } => C::Escalated,
-            Self::AxisInDifferentPlane { .. } => C::AxisInDifferentPlane,
+            Self::PoseRead { .. } => C::PoseRead,
+            Self::PoseDegenerate { .. } => C::PoseDegenerate,
+            Self::PoseScalar { .. } => C::PoseScalar,
             Self::NonPositiveCount { .. } => C::NonPositiveCount,
             Self::NegativeSpacing { .. } => C::NegativeSpacing,
             Self::DegenerateSpacing => C::DegenerateSpacing,
@@ -337,10 +335,6 @@ impl NodeErrorKind {
             Self::PlacementRule(fault) => C::of_placement_rule(fault),
             Self::UnschedulableCycle => C::UnschedulableCycle,
             Self::Naming(_) => C::Naming,
-            Self::DeclareResolve { .. } => C::DeclareResolve,
-            Self::DeclareSiteNotAnOperand { .. } => C::DeclareSiteNotAnOperand,
-            Self::DeclareUnsupportedPair { .. } => C::DeclareUnsupportedPair,
-            Self::DeclaredContactUnbacked { .. } => C::DeclaredContactUnbacked,
             Self::UnionFoldStep { .. } => C::UnionFoldStep,
             Self::BlendSelectionEmpty { verb } => {
                 by_verb(*verb, C::FilletSelectionEmpty, C::ChamferSelectionEmpty)
@@ -541,7 +535,9 @@ mod tests {
         MissingSlot,
         VerbArity,
         Escalated,
-        AxisInDifferentPlane,
+        PoseRead,
+        PoseDegenerate,
+        PoseScalar,
         NonPositiveCount,
         NegativeSpacing,
         DegenerateSpacing,
@@ -555,10 +551,6 @@ mod tests {
         PlacementRuleNonRigidFrame,
         UnschedulableCycle,
         Naming,
-        DeclareResolve,
-        DeclareSiteNotAnOperand,
-        DeclareUnsupportedPair,
-        DeclaredContactUnbacked,
         UnionFoldStep,
         FilletSelectionEmpty,
         ChamferSelectionEmpty,
@@ -829,10 +821,18 @@ mod tests {
                 predicate: "side_of_plane",
                 source: diag(),
             },
-            C::AxisInDifferentPlane => K::AxisInDifferentPlane {
-                axis: n(3),
-                axis_plane: Some(n(1)),
-                profile_plane: Some(n(2)),
+            C::PoseRead => K::PoseRead {
+                pose: crate::VarKind::Axis,
+                fault: crate::pose::PoseReadFault::NoAxis {
+                    carrier: crate::pose::Carrier::Surface(geom::SurfaceKind::Plane),
+                },
+            },
+            C::PoseDegenerate => K::PoseDegenerate {
+                construction: crate::pose::PoseConstruction::Through,
+            },
+            C::PoseScalar => K::PoseScalar {
+                var: crate::VarId::new(2, 0),
+                source: EvalError::NonFiniteResult,
             },
             C::NonPositiveCount => K::NonPositiveCount { count: 0 },
             C::NegativeSpacing => K::NegativeSpacing {
@@ -877,21 +877,6 @@ mod tests {
             C::Naming => K::Naming(crate::NamingError::Emission {
                 what: "a cap face with no profile loop behind it",
             }),
-            C::DeclareResolve => K::DeclareResolve {
-                error: resolve_error(),
-                reference: 0,
-            },
-            C::DeclareSiteNotAnOperand => K::DeclareSiteNotAnOperand {
-                at: crate::VarId::new(3, 3),
-            },
-            C::DeclareUnsupportedPair => K::DeclareUnsupportedPair {
-                kinds: (EntityKind::Edge, EntityKind::Vertex),
-                cross_operand: true,
-            },
-            C::DeclaredContactUnbacked => K::DeclaredContactUnbacked {
-                reference: 0,
-                at_union_step: false,
-            },
             C::UnionFoldStep => K::UnionFoldStep {
                 member: 2,
                 read: crate::VarId::new(2, 2),
@@ -913,7 +898,7 @@ mod tests {
             },
             C::DerivedFrameSection => K::DerivedFrameSection {
                 profile: n(3),
-                frame: n(2),
+                frame: Some(n(2)),
             },
             C::FrameDirectionDegenerate => frame_direction(UnitVec3Error::Degenerate),
             C::FrameDirectionNonFiniteLength => frame_direction(UnitVec3Error::NonFiniteLength),

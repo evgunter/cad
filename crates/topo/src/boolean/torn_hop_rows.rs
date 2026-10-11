@@ -455,7 +455,7 @@ fn the_maximal_faces_gate_panics_on_a_torn_shared_surface() {
 /// one that does panics, where it read as the kind with no arm.
 #[test]
 fn the_vertex_on_face_classification_panics_on_a_torn_pierced_surface() {
-    use super::{BooleanError, BooleanOp, ContactRecords, DeclaredPairs, Operand, VfContact};
+    use super::{BooleanError, BooleanOp, GluedPairs, Operand, ReductionContacts, VfContact};
     // A small cube stood on its corner, the long diagonal up, at the
     // centre of the unit cube's top face: no face of it is coplanar
     // with the face it touches.
@@ -494,8 +494,8 @@ fn the_vertex_on_face_classification_panics_on_a_torn_pierced_surface() {
             Operand::A,
             contact,
             BooleanOp::Union,
-            &DeclaredPairs::default(),
-            &ContactRecords::default(),
+            &GluedPairs::default(),
+            &ReductionContacts::default(),
             None,
             band(),
             Tol::witness(),

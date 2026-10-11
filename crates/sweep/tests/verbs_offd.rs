@@ -496,11 +496,13 @@ fn a_shared_surface_key_refuses_typed() {
 /// **The fitted lane, through the door.** A lofted prism's wall face
 /// carries a NURBS surface, so the door reaches the fit door and mints
 /// the certified `Approx`, and then refuses, by name, at a seam with
-/// the next wall. The seam is a row of the moving fit, but the wall
-/// across it is a distinct spline face that does not move with it, so
-/// the edge is the section of the two, `Approx × Nurbs`, which C5 has
-/// no arm for (`NeighborPairUnroutable`). The door decides that before
-/// it mutates.
+/// the next wall. The wall across it is a distinct spline face that does
+/// not move with it, so the edge is the NURBS × NURBS section of the
+/// two, which at the prism's right angle runs along the moved fit's side
+/// (`d·cot 90° = 0`): the arm refuses it typed, an `EdgeSection` of
+/// `Approx × Nurbs` carrying the section's own verdict, per ε and side
+/// as `common::approx::assert_seam_verdict` pins it. The door decides
+/// that before it mutates.
 #[test]
 fn the_fitted_lane_refuses_at_a_seam_with_a_held_spline_wall() {
     for d in [5e-10_f64, -5e-10] {
@@ -511,17 +513,7 @@ fn the_fitted_lane_refuses_at_a_seam_with_a_held_spline_wall() {
         let before = body.clone();
         let e = topo::replace_face_offset(&mut body, wall, d, Tol::witness())
             .expect_err("a fitted face's shared seam has nowhere to go");
-        assert!(
-            matches!(
-                e,
-                ReplaceFaceError::NeighborPairUnroutable {
-                    kind: geom::SurfaceKind::Approx,
-                    other_kind: geom::SurfaceKind::Nurbs,
-                    ..
-                }
-            ),
-            "d = {d}: expected the seam's unroutable pair, got {e}"
-        );
+        common::approx::assert_seam_verdict("planar prism", false, d, &e);
         assert_eq!(
             format!("{:?}", body.faces().collect::<Vec<_>>()),
             format!("{:?}", before.faces().collect::<Vec<_>>()),

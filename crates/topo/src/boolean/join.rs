@@ -9,10 +9,12 @@
 //! book's `ssortnulledges` ordering/orientation discipline is
 //! enforced as the derived sense data below, not as a sort).
 //!
-//! The section frame a conic germ turns about is read here too, keyed by
-//! the germ's two surface kinds ([`germ_section_frame`],
-//! [`pair_section_frame_at`]): a straight pair has none, and each conic
-//! pair names its centre and axis.
+//! The section frame a curved germ turns about is read here too, keyed
+//! by the germ's two surface kinds ([`germ_section_loops`],
+//! [`pair_section_frame_at`]): a straight pair has none, each conic pair
+//! names its centre and axis, and the plane×torus pair names two loops
+//! with a frame each ([`SectionLoops`]), of which a germ takes its own
+//! ([`germ_section_frame`]).
 //!
 //! # Matching is germ identity, not slots or senses (the below-copy
 //! # audit)
@@ -679,27 +681,44 @@ fn matched_records<T: Decide>(
 
 /// **Whether `rec` is a one-site record**: neither of its germs is
 /// used, both name one locus on both operands, and that locus pair's
-/// section is a conic, so the record's germs can only match each other.
-/// Its A germ and the conic's frame.
-#[allow(clippy::type_complexity)] // (germ, (conic center, conic axis))
+/// section is curved, so the record's germs, at one site of one loop of
+/// it, can only match each other. Its A germ, the section's loops, and
+/// the loop the germ lies on with its index among them.
+#[allow(clippy::type_complexity)] // (germ, the loops, (index, its loop))
 fn one_site<T: Decide>(
     red: &BooleanReduction<T>,
     rec: &OpenRecord<T>,
     band: Band,
-) -> Result<Option<(HalfGerm<T>, (Point3<T>, Vec3<T>))>, BooleanError> {
+) -> Result<Option<(HalfGerm<T>, SectionLoops<T>, (usize, SectionLoop<T>))>, BooleanError> {
     let [(g0, used0), (g1, used1)] = rec.a;
     if used0 || used1 || g0.a_locus != g1.a_locus || g0.b_locus != g1.b_locus {
         return Ok(None);
     }
-    Ok(germ_section_frame(red, &g0, band)?.map(|frame| (g0, frame)))
+    let Some(loops) = germ_section_loops(red, &g0, band)? else {
+        return Ok(None);
+    };
+    let on = loops.at(germ_site(red, &g0)?, band)?;
+    Ok(Some((g0, loops, on)))
 }
 
-/// **The section loops with one site on a wrap edge**: a transverse
-/// section of a one-face closed wall crosses the wall's wrap edge (both
-/// its halves bound that face) once, so its loop has one site, and the
-/// record there carries both of the loop's germs, one each way round
-/// the conic. The loop is one segment, from that site round the whole
-/// conic back to it ([`crate::chord_join`]'s self-loop chord): its two
+/// The site of an A germ.
+fn germ_site<T: Decide>(
+    red: &BooleanReduction<T>,
+    germ: &HalfGerm<T>,
+) -> Result<Point3<T>, BooleanError> {
+    red.a
+        .half_edge_start_point(germ.he)
+        .ok_or(BooleanError::JoinDesync {
+            what: "germ site has no point",
+        })
+}
+
+/// **The section loops with one site on a wrap edge**: a loop of a
+/// transverse section of a one-face closed wall can cross the wall's
+/// wrap edge (both its halves bound that face) once, so that it has one
+/// site, and the record there carries both of the loop's germs, one each
+/// way round it. The loop is one segment, from that site round the whole
+/// loop back to it ([`crate::chord_join`]'s self-loop chord): its two
 /// ends are the record's two slots.
 ///
 /// Read from the records [`matched_records`]' quiescence left. A
@@ -714,10 +733,12 @@ fn one_site<T: Decide>(
 ///
 /// Where a record is taken, three things are kernel bugs, refused as
 /// [`BooleanError::JoinDesync`]: another record naming its locus pair
-/// (a conic of one face pair is one closed curve, which the record's
-/// two germs then cover alone); B germs whose loci are not the A
-/// germs'; and two germs that agree in sense or turn one way round the
-/// conic (insertion mints a null edge's two germs facing apart).
+/// on the same loop of its section ([`SectionLoops`]; each loop is one
+/// closed curve, which the record's two germs then cover alone, while a
+/// section of two loops, the plane×torus pair's, carries the other
+/// loop's records); B germs whose loci are not the A germs'; and two
+/// germs that agree in sense or turn one way round the loop (insertion
+/// mints a null edge's two germs facing apart).
 fn wrap_site_segments<T: Decide>(
     red: &BooleanReduction<T>,
     open: &[OpenRecord<T>],
@@ -733,7 +754,7 @@ fn wrap_site_segments<T: Decide>(
     };
     let mut out = Vec::new();
     for (r, rec) in open.iter().enumerate() {
-        let Some((g0, frame)) = one_site(red, rec, band)? else {
+        let Some((g0, loops, (own, frame))) = one_site(red, rec, band)? else {
             continue;
         };
         let (super::Locus::InFace(fa), super::Locus::InFace(fb)) = (g0.a_locus, g0.b_locus) else {
@@ -750,17 +771,17 @@ fn wrap_site_segments<T: Decide>(
         if !crossed {
             continue;
         }
-        let shared = open.iter().enumerate().any(|(o, other)| {
-            o != r
-                && other
-                    .a
-                    .iter()
-                    .any(|(g, _)| g.a_locus == g0.a_locus && g.b_locus == g0.b_locus)
-        });
-        if shared {
-            return Err(desync(
-                "a one-site record on a wrap edge shares its locus pair with another record",
-            ));
+        for (_, other) in open.iter().enumerate().filter(|&(o, _)| o != r) {
+            for (g, _) in &other.a {
+                if g.a_locus == g0.a_locus
+                    && g.b_locus == g0.b_locus
+                    && loops.at(germ_site(red, g)?, band)?.0 == own
+                {
+                    return Err(desync(
+                        "a one-site record on a wrap edge shares its loop with another record",
+                    ));
+                }
+            }
         }
         let g1 = rec.a[1].0;
         if rec
@@ -775,17 +796,14 @@ fn wrap_site_segments<T: Decide>(
         {
             return Err(desync("a one-site record's two germs agree in sense"));
         }
-        let p = red
-            .a
-            .half_edge_start_point(g0.he)
-            .ok_or(desync("germ site has no point"))?;
+        let p = germ_site(red, &g0)?;
         let senses = (
-            rotational_sense(frame, p, g0.dir, band)?,
-            rotational_sense(frame, p, g1.dir, band)?,
+            rotational_sense(frame.turn(), p, g0.dir, band)?,
+            rotational_sense(frame.turn(), p, g1.dir, band)?,
         );
         if senses.0 == senses.1 {
             return Err(desync(
-                "a one-site record's two germs turn one way round its conic",
+                "a one-site record's two germs turn one way round its loop",
             ));
         }
         out.push(SectionSegment {
@@ -956,16 +974,21 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // positive that the full reach would not. Read only by the arms
         // that mint a germ normal, before they mutate the body.
         // A one-site loop's two sites are one, and its chord runs round
-        // the whole conic: the ball holds the site's antipode through the
-        // conic's centre in the other's place, a point of the conic too.
+        // the whole loop: the ball holds, in the other's place, the
+        // site's antipode through a conic's centre, a point of the conic
+        // too, or a loop's own ball where its centre is no centre of
+        // symmetry.
         let antipode = if entry == cand {
-            let (center, _) = germ_section_frame(red, &germ, band)?
+            let lp = germ_section_frame(red, &germ, band)?
                 .ok_or(desync("a one-site section loop has no conic frame"))?;
             let p = red
                 .a
                 .half_edge_start_point(ea)
                 .ok_or(desync("germ site has no point"))?;
-            Some(center + (center - p))
+            Some(
+                lp.ball
+                    .unwrap_or_else(|| geom_brep::ExtentBall::point(lp.center + (lp.center - p))),
+            )
         } else {
             None
         };
@@ -976,7 +999,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     .ok_or(desync("germ site has no point"))
             };
             let other = match antipode {
-                Some(q) => geom_brep::ExtentBall::point(q),
+                Some(ball) => ball,
                 None => site(ra)?,
             };
             geom_brep::ExtentBall::enclosing(&[site(ea)?, other])
@@ -996,17 +1019,29 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // No wired join arm for this germ pair (cyl×sphere's rung-3
         // fitted chords off any edge, a coaxial cylinder pair, which the
         // section door owns, plane×NURBS behind PR 7b): typed, citing
-        // the kind whose join arm is missing.
+        // the face that holds the segment's entry half now (an earlier
+        // segment's `mef` may have divided the germ's recorded face) and
+        // that face's kind.
         let no_arm = || {
-            let (operand, face, s) = if matches!(ga, Sf::Plane { .. }) {
-                (Operand::B, germ.b_face, &gb)
+            let (operand, body, he) = if matches!(ga, Sf::Plane { .. }) {
+                (Operand::B, &red.b, eb)
             } else {
-                (Operand::A, germ.a_face, &ga)
+                (Operand::A, &red.a, ea)
             };
-            BooleanError::CurvedBooleanUnsupported {
-                operand,
-                face,
-                kind: s.kind(),
+            let face = match crate::chord_join::he_face(body, he) {
+                Ok(face) => face,
+                Err(e) => return BooleanError::Join(e),
+            };
+            match body
+                .get_face(face)
+                .and_then(|f| body.get_surface(f.surface))
+            {
+                Some(s) => BooleanError::CurvedBooleanUnsupported {
+                    operand,
+                    face,
+                    kind: s.kind(),
+                },
+                None => desync("a segment's face holds no surface"),
             }
         };
         // A segment along a conic edge of one solid, inside the other's
@@ -1367,22 +1402,93 @@ struct Reach<T: geom_core::Real> {
     turn: Option<Turn<T>>,
 }
 
-/// A conic germ line as its germ turns along it: the section's centre
-/// and axis and the germ's rotational sense (±1), which say which way
-/// is ahead; then a site on the conic and the line of the conic's
-/// tangent there, which [`turned_past`] measures from. The site and its
-/// tangent are another germ's (a partner's, or the germ's own in
-/// [`germ_arm`]), and that germ's direction may run either way along
-/// the tangent: [`turned_past`] reads the tangent only through
-/// magnitudes, so its orientation never reaches a verdict.
-#[derive(Clone, Copy)]
-struct Turn<T: geom_core::Real> {
-    center: geom_core::Point3<T>,
-    axis: Vec3<T>,
-    sense: T,
-    site: geom_core::Point3<T>,
-    tangent: Vec3<T>,
+/// A conic germ line as its germ turns along it.
+mod turn {
+    use super::{BooleanError, Sense, rotational_sense};
+    use geom_core::{Band, Decide, Point3, Vec3};
+
+    /// The section's frame; the germ's site and direction, whose
+    /// rotational sense says which way is ahead; then a site on the
+    /// conic and the line of the conic's tangent there, which
+    /// [`super::turned_past`] measures from. The site and its tangent
+    /// are another germ's (a partner's, or the germ's own in
+    /// [`Turn::read_from_germ`]), and that germ's direction may run
+    /// either way along the tangent: [`super::turned_past`] reads the
+    /// tangent only through magnitudes, so its orientation never
+    /// reaches a verdict.
+    ///
+    /// [`Turn::facing`] is the one way to make a `Turn`, and it decides
+    /// both directions' rotational senses nonzero against the frame it
+    /// stores: the germ's is the sign ahead, and the site's is the
+    /// divisor [`super::turned_past`] and [`super::off_conic_slack`]
+    /// read.
+    #[derive(Clone, Copy)]
+    pub(super) struct Turn<T: geom_core::Real> {
+        center: Point3<T>,
+        axis: Vec3<T>,
+        sense: Sense,
+        germ: (Point3<T>, Vec3<T>),
+        site: (Point3<T>, Vec3<T>),
+    }
+
+    impl<T: Decide> Turn<T> {
+        /// **Whether two germs on one loop of a conic section face each
+        /// other**, each a site and its direction, about the loop's
+        /// `frame`: they bound one rotational traversal of it exactly
+        /// when their [`rotational_sense`]s differ, and the turn from
+        /// `germ` toward `site` is then `Some`. A radial direction
+        /// refuses there ([`rotational_sense`]).
+        pub(super) fn facing(
+            frame: (Point3<T>, Vec3<T>),
+            germ: (Point3<T>, Vec3<T>),
+            site: (Point3<T>, Vec3<T>),
+            band: Band,
+        ) -> Result<Option<Self>, BooleanError> {
+            let sense = rotational_sense(frame, germ.0, germ.1, band)?;
+            if rotational_sense(frame, site.0, site.1, band)? == sense {
+                return Ok(None);
+            }
+            Ok(Some(Turn {
+                center: frame.0,
+                axis: frame.1,
+                sense,
+                germ,
+                site,
+            }))
+        }
+    }
+
+    impl<T: geom_core::Real> Turn<T> {
+        /// The same turn read from the germ's own site.
+        pub(super) fn read_from_germ(self) -> Self {
+            Turn {
+                site: self.germ,
+                ..self
+            }
+        }
+
+        /// `(center, axis)`.
+        pub(super) fn frame(self) -> (Point3<T>, Vec3<T>) {
+            (self.center, self.axis)
+        }
+
+        /// The germ's rotational sense.
+        pub(super) fn sense(self) -> Sense {
+            self.sense
+        }
+
+        /// The site measured from.
+        pub(super) fn site(self) -> Point3<T> {
+            self.site.0
+        }
+
+        /// The conic's tangent line at [`Turn::site`].
+        pub(super) fn tangent(self) -> Vec3<T> {
+            self.site.1
+        }
+    }
 }
+use turn::Turn;
 
 /// Which half-turn of its section conic a partner site lies in, seen
 /// from the germ and in the germ's own rotational sense. A straight germ
@@ -1393,6 +1499,11 @@ enum GermArm {
     Ahead,
     /// Past it.
     Behind,
+}
+
+/// A join coincidence the band cannot decide.
+fn join_escalate(diag: geom_core::Indeterminate) -> BooleanError {
+    BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag)
 }
 
 /// **Is `cand` nearer than `best` along ONE germ's line?** Both are
@@ -1412,17 +1523,12 @@ fn nearer_along<T: Decide>(
     best: Reach<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    if cand.arm != best.arm {
-        return Ok(cand.arm == GermArm::Ahead);
-    }
-    if let (Some(c), Some(b)) = (cand.turn, best.turn) {
-        let escalate =
-            |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
-        let one_site = decide("bool_join_chord", Margin::norm3(c.site - b.site), band)
-            .map_err(escalate)?
+    if let (true, Some(c), Some(b)) = (cand.arm == best.arm, cand.turn, best.turn) {
+        let one_site = decide("bool_join_chord", Margin::norm3(c.site() - b.site()), band)
+            .map_err(join_escalate)?
             == Sign::Zero;
         if !one_site {
-            match travel("bool_join_arc_travel", b, c.site, band)? {
+            match travel("bool_join_arc_travel", b, c.site(), band)? {
                 Sign::Negative => return Ok(true),
                 Sign::Positive => return Ok(false),
                 Sign::Zero => {}
@@ -1440,13 +1546,12 @@ fn nearer<T: Decide>(cand: Reach<T>, best: Reach<T>, band: Band) -> Result<bool,
     if cand.arm != best.arm {
         return Ok(cand.arm == GermArm::Ahead);
     }
-    let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
     Ok(decide(
         "bool_join_nearest",
         Margin::of(cand.chord - best.chord),
         band,
     )
-    .map_err(escalate)?
+    .map_err(join_escalate)?
         == Sign::Negative)
 }
 
@@ -1475,9 +1580,8 @@ fn turn_of<T: geom_core::Real>(
 /// aspect `k`. At the half-turn it is the arc again to first order, by
 /// the conic's central symmetry; between, it is neither, and only its
 /// sign is read there. `|turn(t̂)|` is the site's rotational sense,
-/// decided nonzero before a partner is ranked (the [`Sense`] a
-/// [`rotational_sense`] returns). Reading from the site cancels nothing
-/// near it.
+/// decided nonzero when the [`Turn`] was made ([`Turn::facing`]).
+/// Reading from the site cancels nothing near it.
 ///
 /// The sites are vertices, and a vertex lies within the band of its
 /// edges' carriers but not on them: each edge's endpoints are pinned to
@@ -1488,10 +1592,10 @@ fn turn_of<T: geom_core::Real>(
 /// it against that slack. Metres: a metre vector projected across a
 /// metre radius, over a unit tangent projected the same way.
 fn turned_past<T: geom_core::Real>(from: Turn<T>, p: geom_core::Point3<T>) -> Margin<T> {
-    let frame = (from.center, from.axis);
+    let frame = from.frame();
     Margin::levered_inv(
-        turn_of(frame, from.site, p - from.site) * from.sense,
-        turn_of(frame, from.site, from.tangent).abs(),
+        turn_of(frame, from.site(), p - from.site()) * from.sense().unit(),
+        turn_of(frame, from.site(), from.tangent()).abs(),
     )
 }
 
@@ -1504,8 +1608,9 @@ fn turned_past<T: geom_core::Real>(from: Turn<T>, p: geom_core::Point3<T>) -> Ma
 /// `|t̂·(site − c)|·|axis|` over `|turn(t̂)|`, the axis's length
 /// cancelling with [`turn_of`]'s.
 fn off_conic_slack<T: geom_core::Real>(from: Turn<T>, band: Band) -> Margin<T> {
-    let cot = from.tangent.dot(from.site - from.center).abs() * from.axis.norm()
-        / turn_of((from.center, from.axis), from.site, from.tangent).abs();
+    let (center, axis) = from.frame();
+    let cot = from.tangent().dot(from.site() - center).abs() * axis.norm()
+        / turn_of(from.frame(), from.site(), from.tangent()).abs();
     Margin::levered(cot + cot, T::from_f64(band.zero()))
 }
 
@@ -1520,19 +1625,18 @@ fn travel<T: Decide>(
     p: geom_core::Point3<T>,
     band: Band,
 ) -> Result<Sign, BooleanError> {
-    let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
     let margin = turned_past(from, p);
     let slack = off_conic_slack(from, band);
-    let sign = decide(name, margin, band).map_err(escalate)?;
+    let sign = decide(name, margin, band).map_err(join_escalate)?;
     let tie_clear = sign == Sign::Zero
-        && decide("bool_join_arc_slack", slack, band).map_err(escalate)? == Sign::Zero;
+        && decide("bool_join_arc_slack", slack, band).map_err(join_escalate)? == Sign::Zero;
     if !tie_clear {
         decide_positive(
             "bool_join_arc_clear",
             Margin::of(margin.value().abs() - slack.value()),
             band,
         )
-        .map_err(escalate)?;
+        .map_err(join_escalate)?;
     }
     Ok(sign)
 }
@@ -1551,21 +1655,17 @@ fn travel<T: Decide>(
 ///
 /// A straight germ line has no turn to read, so every partner is
 /// `Ahead` and the order is the chord alone — the planar pairing.
-fn germ_arm<T: Decide>(
-    turn: Option<Turn<T>>,
-    (p_c, dir): (geom_core::Point3<T>, Vec3<T>),
-    band: Band,
-) -> Result<GermArm, BooleanError> {
+fn germ_arm<T: Decide>(turn: Option<Turn<T>>, band: Band) -> Result<GermArm, BooleanError> {
     let Some(turn) = turn else {
         return Ok(GermArm::Ahead);
     };
-    let from_germ = Turn {
-        site: p_c,
-        tangent: dir,
-        ..turn
-    };
     Ok(
-        match travel("bool_join_arc_ahead", from_germ, turn.site, band)? {
+        match travel(
+            "bool_join_arc_ahead",
+            turn.read_from_germ(),
+            turn.site(),
+            band,
+        )? {
             Sign::Negative => GermArm::Behind,
             Sign::Positive | Sign::Zero => GermArm::Ahead,
         },
@@ -1757,16 +1857,16 @@ fn partners<T: Decide>(
     let p_c = point_of(rga.he)?;
     let p_e = point_of(ega.he)?;
     let dist = (p_e - p_c).norm();
-    let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
-    match decide("bool_join_chord", Margin::of(dist), band).map_err(escalate)? {
+    match decide("bool_join_chord", Margin::of(dist), band).map_err(join_escalate)? {
         Sign::Positive => {}
         _ => return Ok(None), // coincident sites: no polygon edge
     }
     // Locus-aware mutual facing: straight germ lines take the chord
     // test; conic germ loci compare rotational senses about the section
-    // frame.
-    let frame = germ_section_frame(red, &rga, band)?;
-    if !germs_face_each_other(frame, &rga, &ega, p_c, p_e, band)? {
+    // frame, on one loop of it.
+    let loops = germ_section_loops(red, &rga, band)?;
+    let faced = facing(loops.as_ref(), &rga, &ega, p_c, p_e, band)?;
+    if let Faced::Apart = faced {
         return Ok(None);
     }
     // The B side at the SAME slots — mirror checks, not freedom:
@@ -1783,18 +1883,12 @@ fn partners<T: Decide>(
     if sb.is_up(&red.b, egb.he)? == sb.is_up(&red.b, rgb.he)? {
         return Err(desync("B senses agree at a matched pair"));
     }
-    let turn = match frame {
-        None => None,
-        Some(frame) => Some(Turn {
-            center: frame.0,
-            axis: frame.1,
-            sense: rotational_sense(frame, p_c, rga.dir, band)?.unit(),
-            site: p_e,
-            tangent: ega.dir,
-        }),
+    let turn = match faced {
+        Faced::Conic(turn) => Some(turn),
+        Faced::Apart | Faced::Straight => None,
     };
     Ok(Some(Reach {
-        arm: germ_arm(turn, (p_c, rga.dir), band)?,
+        arm: germ_arm(turn, band)?,
         chord: dist,
         turn,
     }))
@@ -1881,10 +1975,12 @@ fn along_edge_conic<T: Decide>(
     Ok(Some(AlongEdge { on, root, carrier }))
 }
 
-/// The germ pair's section frame: the conic center and axis of the
-/// section the germ line lies on, or `None` when that locus is
-/// STRAIGHT — a plane×plane pair, and the degenerate plane×cylinder
-/// outcomes whose loci ARE lines (ParallelLines/TangentLine).
+/// The germ pair's section loops: the loops of the section the germ
+/// line lies on, each with the centre and axis it turns about, or `None`
+/// when that locus is STRAIGHT — a plane×plane pair, and the degenerate
+/// plane×cylinder outcomes whose loci ARE lines
+/// (ParallelLines/TangentLine). [`germ_section_frame`] picks the germ's
+/// own loop.
 ///
 /// A germ along an edge of either solid lies on that edge, and its
 /// frame is the edge's own ([`along_edge_conic`]), or a desync where
@@ -1901,12 +1997,11 @@ fn along_edge_conic<T: Decide>(
 /// Section escalations propagate; non-escalation classification
 /// failures at match time are a desync (the germ was minted FROM this
 /// pair's crossing).
-#[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
-fn germ_section_frame<T: Decide>(
+fn germ_section_loops<T: Decide>(
     red: &BooleanReduction<T>,
     germ: &HalfGerm<T>,
     band: Band,
-) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, BooleanError> {
+) -> Result<Option<SectionLoops<T>>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     // A germ along an edge lies on that edge, whatever the two faces it
     // was recorded against, which may share one carrier, or meet in no
@@ -1917,21 +2012,36 @@ fn germ_section_frame<T: Decide>(
         return match along.carrier {
             geom::Curve3::Line { .. } => Ok(None),
             geom::Curve3::Circle { center, axis, .. }
-            | geom::Curve3::Ellipse { center, axis, .. } => Ok(Some((center, axis))),
+            | geom::Curve3::Ellipse { center, axis, .. } => {
+                Ok(Some(SectionLoops::conic((center, axis))))
+            }
             _ => Err(desync(
                 "an OnEdge germ's edge is neither a line nor a conic (the operand gates refuse \
                  the kinds)",
             )),
         };
     }
+    face_pair_section_loops((&red.a, germ.a_face), (&red.b, germ.b_face), band)
+}
+
+/// **The section loops of a face pair**, read where the section is
+/// consumed ([`frame_reading`]) and levered at the consumed region's
+/// measure ([`frame_extent`]): [`germ_section_loops`] for a germ lying
+/// inside a face of each operand.
+pub(super) fn face_pair_section_loops<T: Decide>(
+    (body_a, face_a): (&Body<T>, FaceKey),
+    (body_b, face_b): (&Body<T>, FaceKey),
+    band: Band,
+) -> Result<Option<SectionLoops<T>>, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
     let surf = |body: &Body<T>, f: FaceKey| -> Result<geom::Surface<T>, BooleanError> {
         body.get_face(f)
             .and_then(|fd| body.get_surface(fd.surface))
             .cloned()
             .ok_or(desync("germ face surface no longer resolves"))
     };
-    let sa = surf(&red.a, germ.a_face)?;
-    let sb = surf(&red.b, germ.b_face)?;
+    let sa = surf(body_a, face_a)?;
+    let sb = surf(body_b, face_b)?;
     // `surf` resolved both faces above, and nothing writes between, so
     // `face_witnesses` reads each.
     let witnesses = |body: &Body<T>, f: FaceKey| {
@@ -1945,20 +2055,33 @@ fn germ_section_frame<T: Decide>(
     let (at, span) = frame_reading(
         &sa,
         &sb,
-        witnesses(&red.a, germ.a_face),
-        witnesses(&red.b, germ.b_face),
+        witnesses(body_a, face_a),
+        witnesses(body_b, face_b),
     )
     .map_err(desync)?;
-    let extent = frame_extent(
-        (&sa, &red.a, germ.a_face),
-        (&sb, &red.b, germ.b_face),
-        at,
-        span,
-        band,
-    )
-    .map_err(desync)?;
+    let extent = frame_extent((&sa, body_a, face_a), (&sb, body_b, face_b), at, span, band)
+        .map_err(desync)?;
     pair_section_frame_at(&sa, &sb, at, extent, band)
-        .map_err(|e| frame_refusal(e, (germ.a_face, &sa), (germ.b_face, &sb)))
+        .map_err(|e| frame_refusal(e, (face_a, &sa), (face_b, &sb)))
+}
+
+/// **The germ's own loop** of its pair's section
+/// ([`germ_section_loops`]), picked at the germ's site.
+fn germ_section_frame<T: Decide>(
+    red: &BooleanReduction<T>,
+    germ: &HalfGerm<T>,
+    band: Band,
+) -> Result<Option<SectionLoop<T>>, BooleanError> {
+    let Some(loops) = germ_section_loops(red, germ, band)? else {
+        return Ok(None);
+    };
+    let p = red
+        .a
+        .half_edge_start_point(germ.he)
+        .ok_or(BooleanError::JoinDesync {
+            what: "germ site has no point",
+        })?;
+    Ok(Some(loops.at(p, band)?.1))
 }
 
 /// **Where the germ frame reads its axis rows, and its span**: the
@@ -2028,6 +2151,10 @@ pub(super) enum FrameExtent<T: geom_core::Real> {
         /// ([`agreed_section`](crate::chord_join::agreed_section)).
         round: T,
     },
+    /// A plane×torus pair's torus face: its farthest distance from `at`,
+    /// each edge levered round its whole carrier
+    /// ([`face_reach_from`](crate::splitting::rules::face_reach_from)).
+    Reach(T),
     /// A plane×cone pair's cone face, against the cone's axis
     /// ([`cone_face_reach`](crate::splitting::rules::cone_face_reach)).
     Cone(geom_brep::Reach<T>),
@@ -2047,7 +2174,10 @@ pub(super) enum FrameExtent<T: geom_core::Real> {
 /// together. A plane×cone pair's section lies on the cone face, which
 /// hands the table its range along the cone's axis from `at` and its
 /// farthest distance from `at`: the measures the cone's split lane
-/// reads the same section at. Every other pair takes the walls' `span`.
+/// reads the same section at. A plane×torus pair's lies on the torus
+/// face, which hands its farthest distance from `at`, the one measure
+/// the torus's split lane levers it at. Every other pair takes the
+/// walls' `span`.
 ///
 /// # Errors
 ///
@@ -2071,6 +2201,12 @@ pub(super) fn frame_extent<T: Decide>(
         }
         (cone @ geom::Surface::Cone { .. }, geom::Surface::Plane { .. }) => {
             return cone_reach((body_a, face_a), (body_b, face_b), at, cone, band);
+        }
+        (geom::Surface::Plane { .. }, geom::Surface::Torus { .. }) => {
+            return face_reach(body_b, face_b, at);
+        }
+        (geom::Surface::Torus { .. }, geom::Surface::Plane { .. }) => {
+            return face_reach(body_a, face_a, at);
         }
         _ => return Ok(span.map_or(FrameExtent::Radii, FrameExtent::Span)),
     };
@@ -2126,6 +2262,17 @@ fn cone_reach<T: Decide>(
     let within = cone_window(plane_body, plane_face, cone, band);
     crate::splitting::rules::cone_face_reach(body, face, at, (cone, within), band)
         .map(FrameExtent::Cone)
+        .map_err(|_| LONE_WALL)
+}
+
+/// [`frame_extent`]'s plane×torus arm: the torus face's reach from `at`.
+fn face_reach<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: geom_core::Point3<T>,
+) -> Result<FrameExtent<T>, &'static str> {
+    crate::splitting::rules::face_reach_from(body, face, at)
+        .map(FrameExtent::Reach)
         .map_err(|_| LONE_WALL)
 }
 
@@ -2293,6 +2440,14 @@ pub(super) fn frame_refusal<T: geom_core::Real>(
                 section,
             }
         }
+        FrameError::Spiric { loops, section } => BooleanError::GermSectionSpiric {
+            a_face: a.0,
+            a_kind: a.1.kind(),
+            b_face: b.0,
+            b_kind: b.1.kind(),
+            loops,
+            section,
+        },
     }
 }
 
@@ -2339,6 +2494,148 @@ pub(super) enum FrameError {
         /// The table's refusal, which names it.
         section: geom_brep::SectionError,
     },
+    /// A plane cuts a torus in a general spiric quartic, which the
+    /// table routes to its unbuilt general rung.
+    Spiric {
+        /// The loops the section certificate reads.
+        loops: super::SpiricLoops,
+        /// The table's refusal.
+        section: geom_brep::SectionError,
+    },
+}
+
+/// [`pair_section_frame_at`] for a pair handed without its faces: the
+/// cylinder pair levered at `span` where it is given, every pair
+/// otherwise at its radii.
+#[cfg(test)]
+#[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
+pub(super) fn pair_section_frame<T: Decide>(
+    sa: &geom::Surface<T>,
+    sb: &geom::Surface<T>,
+    at: geom_core::Point3<T>,
+    span: Option<T>,
+    band: Band,
+) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, FrameError> {
+    let extent = span.map_or(FrameExtent::Radii, FrameExtent::Span);
+    one_loop(pair_section_frame_at(sa, sb, at, extent, band))
+}
+
+/// A one-loop section's frame as its `(centre, axis)`, for the rows of
+/// the pairs whose sections are one loop.
+#[cfg(test)]
+#[allow(clippy::type_complexity, clippy::panic)] // (conic center, conic axis) — one frame tuple
+pub(super) fn one_loop<T: geom_core::Real>(
+    frame: Result<Option<SectionLoops<T>>, FrameError>,
+) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, FrameError> {
+    frame.map(|f| {
+        f.map(|loops| match loops {
+            SectionLoops::One(lp) => lp.turn(),
+            SectionLoops::Two { .. } => panic!("a two-loop section read as one loop"),
+        })
+    })
+}
+
+/// **One loop of a germ pair's section**: the centre and axis it turns
+/// about strictly monotonically, which is all the rotational-sense facing
+/// test and the turn ranking read of a frame, and where it reaches.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct SectionLoop<T: geom_core::Real> {
+    /// The centre it turns about.
+    pub(super) center: geom_core::Point3<T>,
+    /// The axis it turns about.
+    pub(super) axis: geom_core::Vec3<T>,
+    /// `None` where `center` is a centre of symmetry of the loop, so that
+    /// a point's antipode through it lies on the loop too; the loop's
+    /// ball otherwise.
+    pub(super) ball: Option<geom_brep::ExtentBall<T>>,
+}
+
+impl<T: geom_core::Real> SectionLoop<T> {
+    /// `(center, axis)`, the frame [`rotational_sense`] reads.
+    pub(super) fn turn(self) -> (geom_core::Point3<T>, geom_core::Vec3<T>) {
+        (self.center, self.axis)
+    }
+}
+
+/// **The loops of a germ pair's section**: one, or two that a margin at
+/// a site of the section tells apart ([`LoopSplit`]).
+#[derive(Clone, Copy, Debug)]
+pub(super) enum SectionLoops<T: geom_core::Real> {
+    /// A section of one loop, or of loops that share one frame.
+    One(SectionLoop<T>),
+    /// Two loops with frames of their own.
+    Two {
+        /// The loop on the split's positive side, then its negative one.
+        loops: [SectionLoop<T>; 2],
+        /// The margin that tells them apart.
+        split: LoopSplit<T>,
+    },
+}
+
+/// **Which loop of two a site of the section lies on**: the sign of a
+/// margin that is decided definite at every point of the section.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum LoopSplit<T: geom_core::Real> {
+    /// `(p − origin)·dir`, `dir` unit.
+    Side {
+        /// A point of the plane between the loops.
+        origin: geom_core::Point3<T>,
+        /// That plane's unit normal.
+        dir: geom_core::Vec3<T>,
+    },
+    /// `p`'s distance from the axis `(origin, axis)` less `radius`,
+    /// `axis` unit.
+    Radius {
+        /// A point of the axis.
+        origin: geom_core::Point3<T>,
+        /// The axis.
+        axis: geom_core::Vec3<T>,
+        /// The radius between the loops.
+        radius: T,
+    },
+}
+
+impl<T: Decide> SectionLoops<T> {
+    /// A conic's one loop, its centre a centre of symmetry.
+    fn conic((center, axis): (geom_core::Point3<T>, geom_core::Vec3<T>)) -> Self {
+        Self::One(SectionLoop {
+            center,
+            axis,
+            ball: None,
+        })
+    }
+
+    /// **The loop the site `p` lies on**, and its index. The split's
+    /// margin (`bool_join_section_loop`) is definite at every point of a
+    /// served section, so a site whose margin is `Zero` is on neither
+    /// loop, a desync; an undecided one escalates.
+    pub(super) fn at(
+        &self,
+        p: geom_core::Point3<T>,
+        band: Band,
+    ) -> Result<(usize, SectionLoop<T>), BooleanError> {
+        let (loops, split) = match self {
+            Self::One(lp) => return Ok((0, *lp)),
+            Self::Two { loops, split } => (loops, split),
+        };
+        let margin = match *split {
+            LoopSplit::Side { origin, dir } => (p - origin).dot(dir),
+            LoopSplit::Radius {
+                origin,
+                axis,
+                radius,
+            } => (p - origin).cross(axis).norm() - radius,
+        };
+        match decide("bool_join_section_loop", Margin::of(margin), band) {
+            Ok(Sign::Positive) => Ok((0, loops[0])),
+            Ok(Sign::Negative) => Ok((1, loops[1])),
+            Ok(Sign::Zero) => Err(BooleanError::JoinDesync {
+                what: "a germ site lies on neither loop of its section (its loop margin is in \
+                       the band)",
+            }),
+            Err(diag) => Err(join_escalate(diag)),
+        }
+    }
 }
 
 /// **The pair-general section-frame dispatch**, keyed on the germ
@@ -2355,24 +2652,30 @@ pub(super) enum FrameError {
 /// reads `None` as "run the straight-chord facing test" and would mint
 /// a wrong chord from it.
 ///
-/// [`pair_section_frame_at`] for a pair handed without its faces: the
-/// cylinder pair levered at `span` where it is given, every pair
-/// otherwise at its radii.
-#[cfg(test)]
-#[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
-pub(super) fn pair_section_frame<T: Decide>(
+/// The answer is the section's loops, each with its frame
+/// ([`SectionLoops`]); the caller picks the loop a germ lies on by its
+/// site. The plane×torus pair names two loops with frames of their own
+/// ([`pt_germ_frame`]); every other pair's section is one loop, or loops
+/// that share one frame ([`conic_section_frame_at`]).
+pub(super) fn pair_section_frame_at<T: Decide>(
     sa: &geom::Surface<T>,
     sb: &geom::Surface<T>,
     at: geom_core::Point3<T>,
-    span: Option<T>,
+    extent: FrameExtent<T>,
     band: Band,
-) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, FrameError> {
-    let extent = span.map_or(FrameExtent::Radii, FrameExtent::Span);
-    pair_section_frame_at(sa, sb, at, extent, band)
+) -> Result<Option<SectionLoops<T>>, FrameError> {
+    use geom::Surface as Sf;
+    match (sa, sb) {
+        (Sf::Plane { .. }, Sf::Torus { .. }) => pt_germ_frame(sa, sb, extent, band),
+        (Sf::Torus { .. }, Sf::Plane { .. }) => pt_germ_frame(sb, sa, extent, band),
+        _ => conic_section_frame_at(sa, sb, at, extent, band)
+            .map(|frame| frame.map(SectionLoops::conic)),
+    }
 }
 
+/// [`pair_section_frame_at`]'s pairs whose sections share one frame.
 /// The plane×cylinder and cylinder pairs read their axis rows at the
-/// foot of `at` on each axis ([`germ_section_frame`]: a point the
+/// foot of `at` on each axis ([`germ_section_loops`]: a point the
 /// section is consumed at), levered at `extent`, the consumed region's
 /// measure the caller took from `at` ([`frame_extent`]). The
 /// plane×cylinder pair is levered at its wall face's axial extent from
@@ -2382,7 +2685,7 @@ pub(super) fn pair_section_frame<T: Decide>(
 /// apart over the walls. [`FrameExtent::Radii`], a pair handed without
 /// its faces, levers by the radii alone.
 #[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
-pub(super) fn pair_section_frame_at<T: Decide>(
+fn conic_section_frame_at<T: Decide>(
     sa: &geom::Surface<T>,
     sb: &geom::Surface<T>,
     at: geom_core::Point3<T>,
@@ -2507,7 +2810,9 @@ pub(super) fn pair_section_frame_at<T: Decide>(
             let lever = match extent {
                 FrameExtent::Span(l) => l.max(r1.max(*r2)),
                 FrameExtent::Radii | FrameExtent::Wall { .. } => r1.max(*r2),
-                FrameExtent::Cone(_) => return Err(FrameError::Desync(CONE_REACH_ELSEWHERE)),
+                FrameExtent::Reach(_) | FrameExtent::Cone(_) => {
+                    return Err(FrameError::Desync(FACE_REACH_ELSEWHERE));
+                }
             };
             let reach = geom_brep::Reach::Measured { at, lever };
             match geom_brep::cylinder_axes_parallel(&reach, (*o1, *a1), (*o2, *a2), band) {
@@ -2562,7 +2867,9 @@ pub(super) fn pair_section_frame_at<T: Decide>(
             &geom_brep::Reach::Measured { at, lever: radius },
             band,
         ),
-        FrameExtent::Cone(_) => return Err(FrameError::Desync(CONE_REACH_ELSEWHERE)),
+        FrameExtent::Reach(_) | FrameExtent::Cone(_) => {
+            return Err(FrameError::Desync(FACE_REACH_ELSEWHERE));
+        }
     };
     match section {
         Ok(geom_brep::PlaneCylinderSection::Rim(geom::Curve3::Circle { center, axis, .. }))
@@ -2582,9 +2889,10 @@ pub(super) fn pair_section_frame_at<T: Decide>(
     }
 }
 
-/// [`FrameExtent::Cone`] handed to a cylinder pair: only a cone face's
-/// frame is levered at it ([`frame_extent`]).
-const CONE_REACH_ELSEWHERE: &str = "a cone face's reach levered a pair with no cone";
+/// [`FrameExtent::Reach`] or [`FrameExtent::Cone`] handed to a cylinder
+/// pair: only a cone or a torus face's frame is levered at them
+/// ([`frame_extent`]).
+const FACE_REACH_ELSEWHERE: &str = "a curved face's reach levered a pair with no cone or torus";
 
 /// A germ pair's section refusal that is not the table's verdict on the
 /// pair's locus: an undecided degeneracy, or a carrier the conic
@@ -2656,6 +2964,158 @@ fn pk_germ_frame<T: Decide>(
         Err(e) => Err(section_refusal(e)),
     }
 }
+
+/// **The plane×torus germ frame**, through THE table's own
+/// [`geom_brep::plane_torus_section`]. Each served section is two loops,
+/// each with a frame it turns about strictly monotonically:
+///
+/// - **meridian circles** (the plane holds the axis): each circle's own
+///   centre and axis, the loop told by the side of the axis's trace;
+/// - **spiric ovals** (parallel to the axis, short of the inner
+///   equator): the point `k` where the core circle crosses the plane
+///   inside the oval, and the plane's normal, the loop told by the side
+///   of the axis's trace. In the plane, with `t` running away from the
+///   trace along the oval's side and `y` along the axis, `ρ² = d² + t²`
+///   (`d` the plane's stand-off) and `k = (t₀, 0)`, `t₀ = √(R² − d²)`.
+///   The oval's upper half `y = f(t)` has `f f′ = −(ρ − R)·t/ρ`, so its
+///   turn about `k`, times `f`, is `−(t − t₀)(ρ − R)·t/ρ − f²`. `ρ − R`
+///   has the sign of `t − t₀`, so both terms are `≤ 0`, and the first is
+///   strictly negative at the ends where `f` vanishes: one strict sign
+///   along the oval, the lower half by `y ↦ −y`. `k` is no centre of
+///   symmetry of the oval, so the loop carries its closed-form ball:
+///   `t` between `√((R − r)² − d²)` and `√((R + r)² − d²)`, `|y| ≤ r`;
+/// - **concentric circles** (square to the axis): their common centre
+///   and axis, the loop told by the distance from the axis against `R`.
+///
+/// Each loop margin is at least `√((R − r)² − d²)` or `√(r² − h²)` at
+/// every point of the section, which the table decided positive.
+///
+/// A general plane cuts a spiric quartic, which the table routes to its
+/// unbuilt general rung; that refuses as [`FrameError::Spiric`], naming
+/// the loops by the section certificate's own margins
+/// ([`section_cert::torus_plane_loops`](super::section_cert::torus_plane_loops)).
+/// A tangent circle or no section under a minted germ is the desync the
+/// sphere arm's tangent point is. Where the table routes the pose to its
+/// general rung and the certificate's unlevered margins read it touching
+/// or empty, the two readings straddle the band about one pose, which
+/// escalates ([`PT_TOUCHING_UNDER_A_GERM`]), as does a certificate
+/// margin left undecided.
+///
+/// Levered at the torus face's reach from the reading point
+/// ([`FrameExtent::Reach`]); any other extent is a desync.
+fn pt_germ_frame<T: Decide>(
+    plane: &geom::Surface<T>,
+    torus: &geom::Surface<T>,
+    extent: FrameExtent<T>,
+    band: Band,
+) -> Result<Option<SectionLoops<T>>, FrameError> {
+    let FrameExtent::Reach(lever) = extent else {
+        return Err(FrameError::Desync(
+            "a plane×torus frame was levered at no torus face's reach",
+        ));
+    };
+    let (
+        &geom::Surface::Plane {
+            origin: q,
+            normal: n,
+            ..
+        },
+        &geom::Surface::Torus {
+            center: c,
+            axis: a,
+            major_radius: big_r,
+            minor_radius: r,
+            ..
+        },
+    ) = (plane, torus)
+    else {
+        return Err(FrameError::Desync(
+            "the plane×torus frame was handed another kind pair",
+        ));
+    };
+    let carried = || FrameError::Desync("plane×torus classification carried another carrier");
+    let circle = |curve: geom::Curve3<T>| match curve {
+        geom::Curve3::Circle { center, axis, .. } => Ok(SectionLoop {
+            center,
+            axis,
+            ball: None,
+        }),
+        _ => Err(carried()),
+    };
+    let two = |loops, split| Ok(Some(SectionLoops::Two { loops, split }));
+    match geom_brep::plane_torus_section(plane, torus, lever, band) {
+        Ok(geom_brep::PlaneTorusSection::MeridianCircles { c1, c2 }) => {
+            let loops = [circle(c1)?, circle(c2)?];
+            let dir = (loops[0].center - c).normalize();
+            two(loops, LoopSplit::Side { origin: c, dir })
+        }
+        Ok(geom_brep::PlaneTorusSection::SpiricOvals { s1, s2 }) => {
+            let oval = |curve: geom::Curve3<T>| match curve {
+                geom::Curve3::Spiric {
+                    center,
+                    axis,
+                    u_ref,
+                    major_radius,
+                    minor_radius,
+                    offset,
+                } => {
+                    let side = axis.cross(u_ref);
+                    let foot = center + u_ref * offset;
+                    let along =
+                        |radius: T| ((radius - offset.abs()) * (radius + offset.abs())).sqrt();
+                    let (t_in, t_out) = (
+                        along(major_radius - minor_radius),
+                        along(major_radius + minor_radius),
+                    );
+                    let halved = |x: T| x / (T::one() + T::one());
+                    let (mid, half) = (halved(t_in + t_out), halved(t_out - t_in));
+                    Ok(SectionLoop {
+                        center: foot + side * along(major_radius),
+                        axis: n,
+                        ball: Some(geom_brep::ExtentBall::new(
+                            foot + side * mid,
+                            (half.powi(2) + minor_radius.powi(2)).sqrt(),
+                        )),
+                    })
+                }
+                _ => Err(carried()),
+            };
+            let dir = a.cross(n).normalize();
+            two([oval(s1)?, oval(s2)?], LoopSplit::Side { origin: c, dir })
+        }
+        Ok(geom_brep::PlaneTorusSection::ConcentricCircles { c1, c2 }) => two(
+            [circle(c1)?, circle(c2)?],
+            LoopSplit::Radius {
+                origin: c,
+                axis: a.normalize(),
+                radius: big_r,
+            },
+        ),
+        Ok(
+            geom_brep::PlaneTorusSection::TangentCircle(_) | geom_brep::PlaneTorusSection::Empty,
+        ) => Err(FrameError::Desync(
+            "germ pair's plane×torus section is not a locus",
+        )),
+        Err(e @ geom_brep::SectionError::RoutesToGeneralRung { .. }) => {
+            match super::section_cert::torus_plane_loops((c, a, big_r, r), (q, n), band) {
+                Ok(Some(loops)) => Err(FrameError::Spiric { loops, section: e }),
+                Ok(None) => Err(FrameError::Escalated(crate::invalid_margin::invalid(
+                    band,
+                    PT_TOUCHING_UNDER_A_GERM,
+                ))),
+                Err(diag) => Err(FrameError::Escalated(diag)),
+            }
+        }
+        Err(e) => Err(section_refusal(e)),
+    }
+}
+
+/// [`pt_germ_frame`]'s escalation where the table, levered at the torus
+/// face's reach, routes a pose to its general rung and the section
+/// certificate's unlevered margins read it touching or empty: two
+/// readings of one pose straddling the band
+/// ([`crate::invalid_margin::invalid`]).
+const PT_TOUCHING_UNDER_A_GERM: &str = "bool_join_torus_section_touching_under_a_germ";
 
 /// **The intersecting-axes cylinder pair, routed by whether its radii
 /// decide equal.**
@@ -2889,6 +3349,33 @@ pub(super) fn cs_pair_frame<T: Decide>(
     }
 }
 
+/// Whether two germs face each other ([`facing`]).
+#[cfg(test)]
+pub(super) fn germs_face_each_other<T: Decide>(
+    loops: Option<&SectionLoops<T>>,
+    g1: &HalfGerm<T>,
+    g2: &HalfGerm<T>,
+    p1: geom_core::Point3<T>,
+    p2: geom_core::Point3<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    Ok(!matches!(
+        facing(loops, g1, g2, p1, p2, band)?,
+        Faced::Apart
+    ))
+}
+
+/// How two germs face each other ([`facing`]).
+enum Faced<T: geom_core::Real> {
+    /// They do not.
+    Apart,
+    /// They do, along a straight germ line.
+    Straight,
+    /// They do, along one loop of a conic section: the turn from `g1`
+    /// toward `g2`.
+    Conic(Turn<T>),
+}
+
 /// Mutual germ facing along the germ LOCUS. Straight germ lines take
 /// the chord test: both dirs definitely point at each other along the
 /// chord (Zero = definite non-facing; in-band escalates in `decide`).
@@ -2896,18 +3383,18 @@ pub(super) fn cs_pair_frame<T: Decide>(
 /// semicircle arc leaves BOTH sites exactly perpendicular to the chord
 /// — so the arc-aware test asks whether the two germs bound ONE
 /// rotational traversal of the section conic: do their
-/// [`rotational_sense`]s differ? A radial germ is a loud desync there,
-/// never a silent non-match.
-pub(super) fn germs_face_each_other<T: Decide>(
-    frame: Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>,
+/// [`rotational_sense`]s differ ([`Turn::facing`])? A radial germ is a loud desync there,
+/// never a silent non-match. Two germs on different loops of the
+/// section never face: each loop is its own traversal.
+fn facing<T: Decide>(
+    loops: Option<&SectionLoops<T>>,
     g1: &HalfGerm<T>,
     g2: &HalfGerm<T>,
     p1: geom_core::Point3<T>,
     p2: geom_core::Point3<T>,
     band: Band,
-) -> Result<bool, BooleanError> {
-    let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
-    match frame {
+) -> Result<Faced<T>, BooleanError> {
+    match loops {
         None => {
             let chord = p2 - p1;
             // Facing margins in METRES: unit germ dir · chord = cos ×
@@ -2916,15 +3403,25 @@ pub(super) fn germs_face_each_other<T: Decide>(
             // the length band — class (c)).
             let f1 = g1.dir.dot(chord);
             let f2 = g2.dir.dot(-chord);
+            let faces = decide("bool_join_facing", Margin::of(f1), band).map_err(join_escalate)?
+                == Sign::Positive
+                && decide("bool_join_facing", Margin::of(f2), band).map_err(join_escalate)?
+                    == Sign::Positive;
+            Ok(if faces { Faced::Straight } else { Faced::Apart })
+        }
+        Some(loops) => {
+            let ((l1, f1), (l2, _)) = (loops.at(p1, band)?, loops.at(p2, band)?);
+            if l1 != l2 {
+                return Ok(Faced::Apart);
+            }
+            // One loop, one frame.
             Ok(
-                decide("bool_join_facing", Margin::of(f1), band).map_err(escalate)?
-                    == Sign::Positive
-                    && decide("bool_join_facing", Margin::of(f2), band).map_err(escalate)?
-                        == Sign::Positive,
+                match Turn::facing(f1.turn(), (p1, g1.dir), (p2, g2.dir), band)? {
+                    Some(turn) => Faced::Conic(turn),
+                    None => Faced::Apart,
+                },
             )
         }
-        Some(frame) => Ok(rotational_sense(frame, p1, g1.dir, band)?
-            != rotational_sense(frame, p2, g2.dir, band)?),
     }
 }
 
@@ -3449,9 +3946,12 @@ fn cut_pair<T: Decide>(
 /// cell-dimension witness ladder ([`complex_side`]) against the
 /// pristine other operand. Probing waits for quiescence, so no
 /// crossing runs through a region face and the ladder's premise holds.
-/// Strut side labels are never consulted: pierce-ring struts carry
-/// provisional labels, and a single-face seam ring has no in-solid
-/// label to anchor on.
+/// Strut side labels are not consulted. They are derived like every
+/// null half's (the module docs' sense theorem; a ring strut is minted
+/// by the same rule), and they fix which way each loop's chords run, so
+/// reading the roles from geometry alone keeps the zip's
+/// [`BooleanError::SeamOrientation`] a check of the labels against an
+/// independent reading rather than against themselves.
 ///
 /// What this question adds to the ladder is [`loop_roles`]: the two
 /// loops' regions flank the seam, so their sides are opposite.
@@ -3677,13 +4177,13 @@ mod travel_rows {
             Reach {
                 arm: GermArm::Ahead,
                 chord: (site - germ).norm(),
-                turn: Some(Turn {
-                    center: Point3::origin(),
-                    axis: Vec3::unit_z(),
-                    sense: -1.0,
-                    site,
-                    tangent,
-                }),
+                turn: Turn::facing(
+                    (Point3::origin(), Vec3::unit_z()),
+                    (germ, Vec3::unit_x()),
+                    (site, tangent),
+                    band(),
+                )
+                .unwrap(),
             }
         })
     }
@@ -3745,14 +4245,15 @@ mod travel_rows {
         let arm = |k: f64| {
             let (germ, dir) = at(k, -FRAC_PI_4);
             let (site, tangent) = at(k, -FRAC_PI_4 + core::f64::consts::PI);
-            let turn = Turn {
-                center: Point3::origin(),
-                axis: Vec3::unit_z(),
-                sense: -1.0,
-                site,
-                tangent,
-            };
-            germ_arm(Some(turn), (germ, dir * -1.0), band())
+            let turn = Turn::facing(
+                (Point3::origin(), Vec3::unit_z()),
+                (germ, dir * -1.0),
+                (site, tangent),
+                band(),
+            )
+            .unwrap();
+            assert!(turn.is_some(), "the germ and its partner face");
+            germ_arm(turn, band())
         };
         assert!(matches!(arm(1.0), Ok(GermArm::Ahead)), "circle");
         assert!(
@@ -3812,7 +4313,7 @@ mod self_check_rows {
         };
         let (o, z) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let err = super::germs_face_each_other(
-            Some((o, z)),
+            Some(&super::SectionLoops::conic((o, z))),
             &germ(Vec3::new(1.0, w, 0.0)),
             &germ(Vec3::new(0.0, 1.0, 0.0)),
             Point3::new(1.0, 0.0, 0.0),
@@ -4090,7 +4591,7 @@ mod frame_dispatch_tests {
             let (at, span) = super::frame_reading(a, b, on_a, on_b).expect("a reading");
             let extent =
                 super::frame_extent((a, body, face), (b, body, face), at, span, band()).unwrap();
-            let got = super::pair_section_frame_at(a, b, at, extent, band());
+            let got = super::one_loop(super::pair_section_frame_at(a, b, at, extent, band()));
             (label, got)
         })
         .collect()
@@ -5141,6 +5642,7 @@ mod frame_dispatch_tests {
             Err(FrameError::RadiusEscalated { .. }) => "a radius escalation",
             Err(FrameError::IntersectingCylinderAxes { .. }) => "the cylinder pinch",
             Err(FrameError::OutsideInventory { .. }) => "a conic outside the inventory",
+            Err(FrameError::Spiric { .. }) => "a general spiric",
         }
     }
 

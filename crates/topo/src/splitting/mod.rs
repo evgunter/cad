@@ -105,7 +105,7 @@ pub use containment::{
     Escalation, LoopContainment, LoopDecision, OffPlane, OffPlaneCause, PointInLoopError,
     Uncrossable, UncrossableCarrier, point_in_loop,
 };
-pub use finish::{SplitFinishError, SplitNaming, SplitPart, SplitResult};
+pub use finish::{SplitContacts, SplitFinishError, SplitNaming, SplitPart, SplitResult};
 pub use neighborhood::classify_neighborhood;
 pub use section::{
     Section, SectionEdge, SectionError, SectionPolygon, SectionRegion, plane_section,
@@ -888,7 +888,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
                 relation: crate::Relation::OnCarrier,
                 site: crate::DecisionSite::SplitOn,
                 margin,
-                discharge: crate::Discharge::Numeric,
+                discharge: crate::Discharge::of(margin),
             });
         }
         let hood = insert::Neighborhood {

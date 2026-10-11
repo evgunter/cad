@@ -2,8 +2,10 @@
 //! `Body::mev`** (issue 1601): on the same `(t0, t1)`, rung by rung
 //! around both band edges, the Euler door's verdict on the edge and
 //! the parse's verdict on the hand-built loop agree — admit, escalate
-//! (`ParamSpan` / `props_meridian_span_winding`) and refuse
-//! (`WindingExceeded` / `NotIsoRectangle`) land on the same rungs, so
+//! (`ParamSpan` / `props_meridian_span_winding` at the branch door,
+//! `props_sphere_arc_span_winding` on the flux lane) and refuse
+//! (`WindingExceeded` / `NotIsoRectangle` or `SphereLoop`) land on the
+//! same rungs, so
 //! a span a certified door hands the parse is never refused there and
 //! a span it refuses never gets an answer.
 //!
@@ -23,8 +25,10 @@ const PI: f64 = core::f64::consts::PI;
 const TAU: f64 = core::f64::consts::TAU;
 /// The sphere under every row: R = 10 mm about +Z at the origin.
 const RS: f64 = 0.010;
-/// The parse's winding decide.
+/// The branch door's winding decide.
 const NAME: &str = "props_meridian_span_winding";
+/// The flux lane's winding decide, asked of every arc.
+const ARC_NAME: &str = "props_sphere_arc_span_winding";
 
 fn sphere() -> Surface<f64> {
     Surface::Sphere {
@@ -97,8 +101,13 @@ fn mev_disp(t0: f64, t1: f64) -> Disp {
 fn parse_disp<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> Disp {
     match r {
         Ok(_) => Disp::Admit,
-        Err(PropsError::Escalated { cause, .. }) if cause.predicate == Some(NAME) => Disp::Escalate,
+        Err(PropsError::Escalated { cause, .. })
+            if cause.predicate == Some(NAME) || cause.predicate == Some(ARC_NAME) =>
+        {
+            Disp::Escalate
+        }
         Err(PropsError::NotIsoRectangle { what }) if *what == NAME => Disp::Refuse,
+        Err(PropsError::SphereLoop { what }) if *what == ARC_NAME => Disp::Refuse,
         Err(e) => Disp::Other(format!("{e:?}")),
     }
 }

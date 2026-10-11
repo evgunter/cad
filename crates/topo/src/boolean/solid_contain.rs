@@ -141,10 +141,10 @@
 //!   either leaves the count uncertain, which this door never answers
 //!   on. **`bool_ray_torus_odd`** selects the biquadratic closed form,
 //!   **`bool_ray_torus_split_lead`** and **`bool_ray_torus_split`** are
-//!   the factorization's own certifications, and
-//!   **`bool_ray_torus_count`** is the `Invalid` the ray raises when a
-//!   constructed root set disagrees with the certified count
-//!   ([`TorusRoots::CountDisagrees`]).
+//!   the factorization's own certifications. A constructed root set
+//!   that disagrees with the certified count
+//!   ([`TorusRoots::CountDisagrees`]) blocks the ray, carrying both
+//!   counts ([`PointInSolidError::RootCountDisagrees`]).
 //! - **`bool_ray_torus_incidence`**: `d·n̂` at a torus hit, levered by
 //!   the tube radius.
 //! - **`bool_torus_trim`** / **`bool_torus_trim_major_period`** /
@@ -217,6 +217,17 @@ pub enum SolidContainment {
     /// On the boundary (within the band).
     OnBoundary,
 }
+
+/// The note a refusal ends on where the kernel's own arithmetic, not
+/// the geometry, came apart ([`PointInSolidError::RootCountDisagrees`]):
+/// every door that renders it ends on this.
+pub(crate) const KERNEL_BUG_NOTE: &str = "this may indicate a kernel bug worth reporting";
+
+/// The note a refusal ends on where the kernel's reading of a narrow
+/// wall window cannot place a hit it is clear of
+/// ([`PointInSolidError::NarrowWindowUnread`]).
+pub(crate) const NARROW_WINDOW_NOTE: &str =
+    "a limit of the kernel's narrow-window reading, worth reporting";
 
 /// Typed failure of [`point_in_solid`].
 #[derive(Clone, Debug, PartialEq)]
@@ -403,6 +414,55 @@ pub enum PointInSolidError {
         /// The cylinder wall face whose outline the walk cannot read.
         face: FaceKey,
     },
+    /// A hit on a `Cylinder` wall face lies within the band of a
+    /// junction of its outline, and reads definitely above the plane of
+    /// one piece meeting there and definitely below the other's
+    /// ([`wall_outline`], "At a junction"). Which piece covers the hit's
+    /// ruling is a question in the junction's band, and the two pieces
+    /// answer it differently. Reachable only when `K` is below the few
+    /// zero-band widths the hit and the junction's vertex may sit off
+    /// the ruling and the planes: above that, a definite side is the
+    /// side of the vertex's height along the ruling, the same for both.
+    JunctionSidesDisagree {
+        /// The cylinder wall face.
+        face: FaceKey,
+        /// The hit's side margins against the plane of the piece the
+        /// loop leaves at the junction and the one it enters, each
+        /// decided past the band.
+        sides: (geom_core::MarginDiag, geom_core::MarginDiag),
+        /// The band both were decided against.
+        band: Band,
+    },
+    /// A hit on a `Cylinder` wall face lies near an end of a narrow
+    /// piece's azimuth window, definitely clear of that end (its junction
+    /// is not active), and the window's cosine margin still reads Zero:
+    /// on a window `2h` wide the margin `δ` past an end is about
+    /// `sin h·δ`, so it places a hit only from about `ε/sin h` away. A
+    /// limit of the kernel's window reading
+    /// (`work/inside/wall-piece-coverage-reads-a-collapsing-cosine-margin.md`).
+    NarrowWindowUnread {
+        /// The cylinder wall face.
+        face: FaceKey,
+        /// The nonzero gate's rejection of the window margin, the
+        /// decided margin tagged Zero.
+        diag: Indeterminate,
+    },
+    /// A test ray met a `Torus` face where the crossings built from its
+    /// quartic disagree in number with the count the quartic's signs
+    /// certify ([`TorusRoots::CountDisagrees`]). The certified count is
+    /// the wrong one: the sign ladder's discriminant carries `f64`
+    /// rounding its band does not charge
+    /// (`work/inside/ray-torus-count-certifies-on-an-uncharged-discriminant.md`),
+    /// a kernel defect. Another ray's quartic is another computation, so
+    /// it blocks this ray only.
+    RootCountDisagrees {
+        /// The torus face.
+        face: FaceKey,
+        /// The count the sign ladder certified.
+        certified: usize,
+        /// The count the factorization built.
+        constructed: usize,
+    },
     /// [`point_in_solid_of`] was asked about a solid the body does not
     /// hold — an arena claim, like [`Self::CorruptFace`].
     NoSuchSolid {
@@ -434,13 +494,17 @@ impl PointInSolidError {
         matches!(self, Self::VolumeUncertified | Self::ZeroVolumeBody)
     }
 
-    /// An in-band reading (`Escalated`, `Loop(Escalated)`), or a
-    /// schedule no ray of which settled (`RayExhausted`,
+    /// An in-band reading (`Escalated`, `Loop(Escalated)`,
+    /// `JunctionSidesDisagree`, whose hit is in a junction's band, and
+    /// `NarrowWindowUnread`, read Zero by a window margin), or
+    /// a schedule no ray of which settled (`RayExhausted`,
     /// `Loop(RayExhausted)`).
     pub(crate) fn in_band(&self) -> bool {
         matches!(
             self,
             Self::Escalated { .. }
+                | Self::JunctionSidesDisagree { .. }
+                | Self::NarrowWindowUnread { .. }
                 | Self::RayExhausted
                 | Self::Loop(
                     PointInLoopError::Escalated { .. } | PointInLoopError::RayExhausted { .. }
@@ -450,13 +514,15 @@ impl PointInSolidError {
 
     /// A face or edge the door cannot read, refused only where it could
     /// decide the answer: the point on or near it, or a test ray that
-    /// definitely met it where no ray settled.
+    /// definitely met it where no ray settled; or a ray whose quartic
+    /// against a torus face the kernel read wrong.
     pub(crate) fn confined(&self) -> bool {
         matches!(
             self,
             Self::PartialConeFace { .. }
                 | Self::EdgeCarrierUnsupported { .. }
                 | Self::WallOutlineUnsupported { .. }
+                | Self::RootCountDisagrees { .. }
         )
     }
 
@@ -504,6 +570,20 @@ impl PointInSolidError {
                 "a probe ray from the material witness met a cylinder wall edged by a \
                  curve that is not a flat cut across it, or holed, so the hit cannot be \
                  placed on it exactly"
+            }
+            Self::JunctionSidesDisagree { .. } => {
+                "the material witness, or a probe ray's hit, lies in the band of a \
+                 cylinder wall's corner whose two edges read it on opposite sides — \
+                 undecided at this ε"
+            }
+            Self::NarrowWindowUnread { .. } => {
+                "the material witness, or a probe ray's hit, lies near the end of a narrow \
+                 cylinder wall's window, which the kernel's window reading cannot place it \
+                 against"
+            }
+            Self::RootCountDisagrees { .. } => {
+                "a probe ray from the material witness met a torus face where the kernel's \
+                 count of its crossings came apart"
             }
             Self::NoSuchSolid { .. } => "the instance's solid key does not resolve",
         }
@@ -599,6 +679,40 @@ impl core::fmt::Display for PointInSolidError {
                  or an edge that is not a flat cut across it, could hold it, and that \
                  outline cannot be read. The solid itself is fine. Recourse: test a \
                  point farther from that wall"
+            ),
+            // The in-band escalation's story and lever (D4 ¶1 (iv)): the
+            // undecided question is the same placement, read definitely.
+            Self::JunctionSidesDisagree { sides, .. } => write!(
+                f,
+                "cannot tell what is inside the solid: the point, or a test ray's hit, lies \
+                 within the tolerance of a corner of a cylinder wall face, above one edge \
+                 meeting there and below the other (margins {:e} and {:e}). {}",
+                sides.0,
+                sides.1,
+                super::unnamed_placement_ending(
+                    geom_brep::recourse::RefusedArm::SignCertain(None),
+                    Reading::Build
+                ),
+            ),
+            Self::NarrowWindowUnread { diag, .. } => write!(
+                f,
+                "cannot tell what is inside the solid: the point, or a test ray's hit, lies \
+                 near the end of a narrow cylinder wall face's window, which the kernel's \
+                 window reading cannot place it against (margin {:e}). Recourse: test a \
+                 point farther from that end; {NARROW_WINDOW_NOTE}",
+                diag.margin,
+            ),
+            Self::RootCountDisagrees {
+                certified,
+                constructed,
+                ..
+            } => write!(
+                f,
+                "cannot tell what is inside the solid: a test ray met one of its torus faces \
+                 where the crossings built from the ray's equation ({constructed}) disagree \
+                 with the count its signs certify ({certified}), and no other ray settled. \
+                 The solid itself is fine. Recourse: test a point farther from that face; \
+                 {KERNEL_BUG_NOTE}"
             ),
             Self::NoSuchSolid { .. } => write!(
                 f,
@@ -1214,7 +1328,9 @@ enum WallEdge<T: geom_core::Real> {
 /// - within a meridian run's height span, strictly, it is on the
 ///   meridian: a graze;
 /// - otherwise it must be definitely on ONE side of both incident
-///   pieces' planes, or it escalates. When both sides agree at `p`, the
+///   pieces' planes; definitely on opposite sides is
+///   [`PointInSolidError::JunctionSidesDisagree`], with both margins.
+///   When both sides agree at `p`, the
 ///   parity does not depend on which of the two pieces covers `p`'s
 ///   ruling. Where the loop passes through the junction (one piece
 ///   left of it, one right), exactly one of them covers, and it counts
@@ -1226,10 +1342,15 @@ enum WallEdge<T: geom_core::Real> {
 ///   end is active). A meridian run between the pieces changes neither
 ///   case, because the hit is outside its span.
 ///
-/// A piece whose two ends are both active is narrower than the band and
-/// escalates. So does a piece whose sub-window the hit is in band of
-/// with neither end active, which only the cosine construction's
-/// quadratic collapse on a narrow window can produce.
+/// A piece whose two ends are both active (reachable at `K < 2`: its
+/// extent is past `Kε` and each end within `ε` of the hit) ends before
+/// the point just past both, so it does not cover the hit; crossing
+/// each junction keeps the parity as above. With neither end active, a
+/// sub-window margin that decides Zero is
+/// [`PointInSolidError::NarrowWindowUnread`], carrying the gate's
+/// rejection: the hit is definitely clear of both ends, and only the
+/// cosine construction's quadratic collapse on a narrow window puts it
+/// in band.
 ///
 /// # Errors
 ///
@@ -2694,24 +2815,16 @@ fn point_on_chart_wall<T: Decide>(
     band: Band,
 ) -> Result<Option<bool>, PointInSolidError> {
     let escalate = |diag| PointInSolidError::Escalated { face, diag };
-    let invalid = |predicate| PointInSolidError::Escalated {
-        face,
-        diag: Indeterminate {
-            margin: geom_core::MarginDiag::INVALID,
-            band,
-            predicate: Some(predicate),
-            terminal_sliver: false,
-        },
-    };
     let r_hat = radial / radial.norm();
     let height = (p - origin).dot(axis);
     // The side of each piece's plane `p` is on, decided once.
-    let mut sides: Vec<Option<Sign>> = vec![None; pieces.len()];
-    let mut side = |k: usize| -> Result<Sign, PointInSolidError> {
+    let mut sides: Vec<Option<geom_core::Decided>> = vec![None; pieces.len()];
+    let mut side = |k: usize| -> Result<geom_core::Decided, PointInSolidError> {
         if let Some(s) = sides[k] {
             return Ok(s);
         }
-        let s = decide("bool_wall_trim", pieces[k].plane.above(p), band).map_err(escalate)?;
+        let s = crate::validate::decide_reported("bool_wall_trim", pieces[k].plane.above(p), band)
+            .map_err(escalate)?;
         sides[k] = Some(s);
         Ok(s)
     };
@@ -2753,30 +2866,38 @@ fn point_on_chart_wall<T: Decide>(
         }
         let (a, b) = junction.pieces;
         let (sa, sb) = (side(a)?, side(b)?);
-        if sa == Sign::Zero || sb == Sign::Zero {
+        if sa.sign == Sign::Zero || sb.sign == Sign::Zero {
             return Ok(None); // on a piece at its end: the vertex
         }
-        if sa != sb {
-            return Err(invalid("bool_wall_junction"));
+        if sa.sign != sb.sign {
+            return Err(PointInSolidError::JunctionSidesDisagree {
+                face,
+                sides: (sa.margin, sb.margin),
+                band,
+            });
         }
     }
     let mut below = 0usize;
     for (k, piece) in pieces.iter().enumerate() {
+        // Read just past every active junction ([`wall_outline`]): a
+        // piece covers the hit when its `lo` end is active and its `hi`
+        // end is not.
         let covers = match (active[piece.ends.0], active[piece.ends.1]) {
-            (true, true) => return Err(invalid("bool_wall_junction")),
+            (_, true) => false,
             (true, false) => true,
-            (false, true) => false,
             (false, false) => {
                 let m = chart_azimuth_margin(face, axis, u_ref, piece.az, radial, radius, band)?;
-                match decide("bool_wall_trim", m, band).map_err(escalate)? {
-                    Sign::Positive => true,
-                    Sign::Negative => false,
-                    Sign::Zero => return Err(invalid("bool_wall_trim")),
-                }
+                crate::validate::decide_nonzero("bool_wall_trim", m, band).map_err(|diag| {
+                    if diag.margin.rejected_sign() == Some(Sign::Zero) {
+                        PointInSolidError::NarrowWindowUnread { face, diag }
+                    } else {
+                        escalate(diag)
+                    }
+                })? == geom_core::k_stats::NonzeroSign::Positive
             }
         };
         if covers {
-            match side(k)? {
+            match side(k)?.sign {
                 Sign::Negative => below += 1,
                 Sign::Positive => {}
                 Sign::Zero => return Ok(None), // on the piece: boundary graze
@@ -3429,10 +3550,18 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             Sign::Zero | Sign::Negative => return Ok(None),
         },
     };
-    if levels.is_empty() {
-        return Ok(None);
-    }
-    let Some((north, south)) = latitude_extremes(&levels, radius, band).map_err(escalate)? else {
+    // Only a face that wraps alone can leave no level: one with no rim
+    // and no vertex on a pole has no unmated boundary at all, so it is
+    // the whole sphere (a slit closed on itself), which nothing trims.
+    let Some((&first, rest)) = levels.split_first() else {
+        return Ok(Some(SphereChartTrim {
+            az: None,
+            north: None,
+            south: None,
+        }));
+    };
+    let Some((north, south)) = latitude_extremes(first, rest, radius, band).map_err(escalate)?
+    else {
         return Ok(None);
     };
     Ok(Some(SphereChartTrim { az, north, south }))
@@ -3507,8 +3636,9 @@ fn latitude_after<T: Decide>(
     }
 }
 
-/// Folds the boundary latitudes to the window's two extremes, and
-/// resolves each end against its pole.
+/// Folds the boundary latitudes (`first`, then `rest`: a set with at
+/// least one level) to the window's two extremes, and resolves each end
+/// against its pole.
 ///
 /// The fold's own comparison is [`latitude_after`], whose primary key
 /// is the same non-collapsing sine the membership margins use, so its
@@ -3525,19 +3655,13 @@ fn latitude_after<T: Decide>(
 /// extremes at one pole is a face with no latitude extent at all.
 #[allow(clippy::type_complexity)] // the two window ends, each optional
 fn latitude_extremes<T: Decide>(
-    levels: &[(T, T)],
+    first: (T, T),
+    rest: &[(T, T)],
     radius: T,
     band: Band,
 ) -> Result<Option<(Option<(T, T)>, Option<(T, T)>)>, Indeterminate> {
-    let mut it = levels.iter().copied();
-    let first = it.next().ok_or(Indeterminate {
-        margin: geom_core::MarginDiag::INVALID,
-        band,
-        predicate: Some("bool_sphere_trim_latitude"),
-        terminal_sliver: false,
-    })?;
     let (mut lo, mut hi) = (first, first);
-    for e in it {
+    for &e in rest {
         if latitude_after(e, lo, radius, band)? {
             lo = e;
         }
@@ -4066,7 +4190,9 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
 /// cannot read, and places a hit that only the band puts there on the
 /// face's boundary (a `Zero`, which the fold grazes on where it is the
 /// closest crossing) — so a block is one no tolerance moves
-/// ([`RayFault::Blocked`]).
+/// ([`RayFault::Blocked`]). [`PointInSolidError::RootCountDisagrees`],
+/// the other confined refusal, is a reading of the ray itself and blocks
+/// it where it is raised ([`torus_crossings`]), never here.
 fn at_hit(e: PointInSolidError) -> RayFault<PointInSolidError> {
     if e.in_band() {
         RayFault::InBand(e)
@@ -4366,11 +4492,15 @@ pub(super) enum TorusRoots<T> {
         ts: [T; 4],
     },
     /// The roots constructed disagree in number with the count
-    /// certified: the sign ladder and the factorization, two
-    /// computations on the same coefficients, broke the invariant that
-    /// they agree. Never an answer; each caller refuses on it as a
-    /// kernel invariant.
-    CountDisagrees,
+    /// certified. Never an answer: one of the two is wrong, and where
+    /// measured it is the certified count (rung 5 of
+    /// [`line_torus_roots`]).
+    CountDisagrees {
+        /// The count the sign ladder certified.
+        certified: usize,
+        /// The count the factorization built.
+        constructed: usize,
+    },
 }
 
 /// A real cube root, built from `sqrt` alone — and a TRUNCATED one, with
@@ -4625,12 +4755,17 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 ///    has a zero discriminant, i.e. a double root, which contradicts the
 ///    definite discriminant of rung 1. Uncertain, graze.
 /// 5. **[`TorusRoots::CountDisagrees`]** — the roots CONSTRUCTED disagree
-///    in number with the count CERTIFIED by rung 1. That is not a
-///    conditioning problem but a broken premise, so it refuses typed
-///    rather than retrying: no other ray of the schedule would fare
-///    better. **No input has reached it**, in this lane or in either
-///    review lane's oracle; the note at the site says why it stays
-///    anyway.
+///    in number with the count CERTIFIED by rung 1. Where measured
+///    exactly, the construction is right and rung 1 is wrong: `Δ`'s
+///    `f64` evaluation carries rounding far past the band that no
+///    decision charges, so a definite-looking sign can be the noise's
+///    (`work/inside/ray-torus-count-certifies-on-an-uncharged-discriminant.md`;
+///    `torus_predicate_rows::the_ladder_disagrees_with_itself_on_a_lanes_coefficients`
+///    and `a_far_ray_reaches_the_count_disagreement`). This rung catches
+///    the defect only where the two counts differ; where the noise flips
+///    the count to `Miss`, the answer is wrong and nothing here sees it.
+///    On a ray it blocks that ray
+///    ([`PointInSolidError::RootCountDisagrees`]) and another may settle.
 ///
 /// # The certified count, and what it costs
 ///
@@ -4661,8 +4796,8 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 ///
 /// # Errors
 ///
-/// [`geom_core::Indeterminate`] — an in-band classifying sign, or the
-/// `Invalid` of rung 5. The caller wraps it in its own error type.
+/// [`geom_core::Indeterminate`] — an in-band classifying sign. The
+/// caller wraps it in its own error type.
 pub(super) fn line_torus_roots<T: Decide>(
     q: Point3<T>,
     d: Vec3<T>,
@@ -4740,8 +4875,7 @@ const RAY_TORUS_ROWS: QuarticRows = QuarticRows {
 ///
 /// # Errors
 ///
-/// [`geom_core::Indeterminate`] — an in-band classifying sign, or the
-/// `Invalid` of the count cross-check (`rows.count`).
+/// [`geom_core::Indeterminate`] — an in-band classifying sign.
 #[allow(clippy::too_many_lines)] // one closed form and its ladder
 pub(super) fn depressed_quartic_roots<T: Decide>(
     p: T,
@@ -4851,21 +4985,45 @@ pub(super) fn depressed_quartic_roots<T: Decide>(
             found += 1;
         }
     }
-    // **Rung 5, and it has never fired.** Two factors contribute two
-    // roots each, so `found` is 0, 2 or 4 by construction and the array
-    // cannot overflow; what this compares is the CONSTRUCTED count
-    // against the CERTIFIED one, and neither review lane's oracle
-    // reached a disagreement (1310 rays geometrically counted, 3000+
-    // independently bisected). It stays because it is what makes
-    // "answered only on a certified count" falsifiable at run time
-    // rather than a claim about the algebra: the sign ladder and the
-    // factorization are two different computations on the same
-    // coefficients, and this is the one place they are made to agree.
-    // Its cost is one comparison.
+    // **Rung 5.** Two factors contribute two roots each, so `found` is
+    // 0, 2 or 4 by construction and the array cannot overflow; what this
+    // compares is the CONSTRUCTED count against the CERTIFIED one, the
+    // one place the sign ladder and the factorization are made to agree.
     if found != count {
-        return Ok(TorusRoots::CountDisagrees);
+        return Ok(TorusRoots::CountDisagrees {
+            certified: count,
+            constructed: found,
+        });
     }
     Ok(TorusRoots::Certified { count, ts })
+}
+
+/// **What the torus arm reads off a ray's quartic** ([`line_torus_roots`]):
+/// `None` a certified miss, `Some` the certified crossings. An uncertain
+/// count grazes; a constructed count that disagrees with the certified
+/// one blocks this ray ([`PointInSolidError::RootCountDisagrees`]): its
+/// quartic is read wrong, and another ray's is another computation.
+///
+/// # Errors
+///
+/// [`RayFault::Graze`] and [`RayFault::Blocked`], as above.
+fn torus_crossings<T: Decide>(
+    face: FaceKey,
+    roots: TorusRoots<T>,
+) -> Result<Option<(usize, [T; 4])>, RayFault<PointInSolidError>> {
+    match roots {
+        TorusRoots::Miss => Ok(None),
+        TorusRoots::Uncertain => Err(RayFault::Graze),
+        TorusRoots::Certified { count, ts } => Ok(Some((count, ts))),
+        TorusRoots::CountDisagrees {
+            certified,
+            constructed,
+        } => Err(RayFault::Blocked(PointInSolidError::RootCountDisagrees {
+            face,
+            certified,
+            constructed,
+        })),
+    }
 }
 
 /// Is `q`, at elevation `elev` off `face`'s carrier, definitely further
@@ -5391,20 +5549,8 @@ fn cast_ray<T: Decide + crate::props::AtRestPolicy>(
                 }
                 let roots = line_torus_roots(q, d, center, axis, major_radius, minor_radius, band)
                     .map_err(escalate)?;
-                let (count, ts) = match roots {
-                    TorusRoots::Miss => continue,
-                    // An uncertain count: graze, retry.
-                    TorusRoots::Uncertain => return Err(RayFault::Graze),
-                    TorusRoots::Certified { count, ts } => (count, ts),
-                    // A broken invariant, not this ray's conditioning (D9):
-                    // the whole query refuses, as every caller of the
-                    // quartic does.
-                    TorusRoots::CountDisagrees => {
-                        return Err(RayFault::Fatal(PointInSolidError::Escalated {
-                            face,
-                            diag: crate::invalid_margin::invalid(band, "bool_ray_torus_count"),
-                        }));
-                    }
+                let Some((count, ts)) = torus_crossings(face, roots)? else {
+                    continue;
                 };
                 for &t in &ts[..count] {
                     let p = q + d * t;
@@ -5966,12 +6112,9 @@ mod escalated_ending_rows {
     /// carries the same escalation — the sphere region's, on the same face
     /// — as `ContainError::Escalated` naming no decision, and both end in
     /// the placement's own lever. A point has no coincidence to declare,
-    /// and a poisoned margin — a NaN, or the invalid margin the door
-    /// mints where two decided readings contradict each other (wall
-    /// pieces on opposite sides of one junction, two counts of one
-    /// quartic's roots) or a face has no latitude at all — keeps the lever
-    /// with the build's unreadable-margin note: another point is a way
-    /// through, as `PointInSolidError::in_band` says.
+    /// and a poisoned margin keeps the lever with the build's
+    /// unreadable-margin note: another point is a way through, as
+    /// `PointInSolidError::in_band` says.
     #[test]
     fn a_solid_escalation_ends_as_the_unnamed_placement_does() {
         let face = FaceKey::default();
@@ -5979,7 +6122,7 @@ mod escalated_ending_rows {
             let diag = Indeterminate {
                 margin,
                 band: Band::new(1e-9, 1e-8).unwrap(),
-                predicate: Some("bool_ray_torus_count"),
+                predicate: Some("bool_wall_trim"),
                 terminal_sliver: false,
             };
             let contfp = ContainError::Escalated {

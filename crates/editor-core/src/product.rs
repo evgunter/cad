@@ -56,29 +56,35 @@
 //! solid's signed volume, read on that solid's own faces), so no check
 //! compares one solid against another and solids that OVERLAP pass THIS
 //! call undetected — inter-solid interference is not among its checks.
-//! It is not local in what it REPORTS (`attribute_at_rest`). Undeclared
-//! cross-instance contact is A5's hard error and an overlap between
-//! copies is A5's interference finding; both are decided by the tier-3′
-//! door ([`topo::validate_pseudomanifold`]), which the ASSEMBLY gate
-//! runs over this gather's output ([`crate::assemble`]) and which this
-//! function does not. The aggregate gate's verdict rides on the
-//! product's body ([`topo::AtRestBody`]), so that gate pays tier 3′'s
-//! census over it and not the local battery a second time.
+//! It is not local in what it REPORTS (`attribute_at_rest`). Contact
+//! and overlap between copies are decided by the tier-3′ census
+//! ([`topo::validate_pseudomanifold`]), and the gather runs it too,
+//! through the census's recording door ([`topo::record_at_rest`], each
+//! copy its own group): a touch between two copies no record backs is
+//! a `CensusAtRest` row of the product and a record citing it (D1 (iii),
+//! D10), and every other finding is kept on the product
+//! ([`Product::census`]) for the ASSEMBLY gate ([`crate::assemble`]),
+//! which reads it and the kept tier-3 verdict ([`topo::AtRestBody`])
+//! and runs neither again.
 //!
-//! **That is a division of labour, not a gap**: the census reaches the
-//! touching/overlap space and nothing in it validates silently. The
-//! gather stays on the local battery because the census refuses what a
-//! caller gathering on every edit must still be handed — the corpus
-//! heat sink at 160 fins (161 solids / 991 faces), whose fins meet the
-//! base, refuses there with 125 findings — and because it costs the
-//! same order as the gather itself. The gather, not the registry above
-//! it, is what a landing pays for, which is why a caller gathers ONCE.
-//! The terms are measured over that heat sink, not stated here: the
-//! `registry split` row of `crates/editor-core/tests/m4_pr8_latency.rs`
-//! appends `registry_split.gather_ms`, `checks_ms` (the registry over a
-//! subject already gathered) and `census_ms` (the assembly gate over
-//! the kept verdict) to `docs/perf-data/rebuild-latency/`, on a nightly
-//! cron gated on `main` having moved. What the gather
+//! **The gather does not refuse on the census**: what the census finds
+//! is kept, not raised, because a caller gathering on every edit must
+//! still be handed the product — the corpus heat sink at 160 fins (161
+//! solids / 991 faces), whose fins overlap the base, is handed over
+//! with its census's findings, which the gate turns into interference
+//! findings. The census costs the same order as the gather itself, and
+//! more than once where a touch between copies is unmated (the door
+//! reruns to confirm what it recorded, at most four passes), so every
+//! gather door pays it, and the
+//! gather, not the registry above it, is what a landing pays for, which
+//! is why a caller gathers ONCE. The terms are measured over that heat
+//! sink, not stated here: the `registry split` row of
+//! `crates/editor-core/tests/m4_pr8_latency.rs` appends
+//! `registry_split.gather_ms` (the census included), `checks_ms` (the
+//! registry over a subject already gathered) and `census_ms` (one census
+//! pass over the gathered product and its records) to
+//! `docs/perf-data/rebuild-latency/`, on a nightly cron gated on `main`
+//! having moved. What the gather
 //! DOES owe — [`topo::graft_disjoint_all_keyed`] asserts nothing about
 //! its operands, so every caller of it must establish disjointness —
 //! is discharged by [`crate::checks`]'s separation resident, which
@@ -610,11 +616,9 @@ impl ProductError {
 /// other op's ride [`crate::eval::NodeValue::contacts`]. Downstream
 /// therefore never asks which op put records where.
 ///
-/// A [`crate::Node::Part`] is a `Body` value and contributes exactly
-/// the body it selected. The half or instance it did NOT select is in
-/// no product through it: a placement reads one `Body`, so the product
-/// of a document whose one placement reads a `Part(Above)` is that one
-/// half.
+/// A placement reads one `Body`, so the product of a document whose one
+/// placement reads a split's `above` port is that one half, and one
+/// reading a `Part` of a pattern is that one copy.
 pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<T>>> {
     let carried = || Arc::clone(&value.contacts);
     let none = || Arc::new(ContactRecords::default());
@@ -763,27 +767,38 @@ pub struct Product<T: Decide> {
     /// the identity BOTH arguments agreed on.
     pub document: crate::ident::DocumentId,
     /// The gathered aggregate, with the at-rest gate's verdict on it
-    /// kept ([`topo::AtRestBody`]): [`crate::assemble_gathered`] reads
-    /// it and pays tier 3′'s census alone.
+    /// kept ([`topo::AtRestBody`]). The gather runs tier 3′'s census
+    /// over it once ([`Self::census`]); [`crate::assemble_gathered`]
+    /// reads both and runs neither again.
     pub body: topo::AtRestBody<T>,
     /// Its stable names, re-keyed onto the aggregate ([`product_named`]).
     pub names: NameTable,
-    /// Its declared contacts, re-keyed onto the aggregate through the
-    /// graft's own descendant map. A source's record cites that source's
-    /// record ([`Self::cited_inputs`]); a record a mate minted cites the
-    /// at-rest census's row of [`Self::coincidences`].
+    /// Its contact records: each source's, re-keyed onto the aggregate
+    /// through the graft's own descendant map, citing that source's
+    /// record ([`Self::cited_inputs`]); each a mate minted, citing the
+    /// at-rest census's row of [`Self::coincidences`]; and each the
+    /// census recorded for a touch between copies, citing its own row
+    /// there ([`topo::record_at_rest`]).
     pub contacts: ContactRecords,
-    /// **The at-rest census's decisions the mates' records cite**
-    /// ([`topo::DecisionSite::CensusAtRest`]), in mint order, each cell
-    /// named as the mate's reference reads it. The
-    /// `unproven-coincidence` check reads them ([`crate::checks`]).
+    /// **The at-rest census's decisions** ([`topo::DecisionSite::CensusAtRest`]):
+    /// those the mates' records cite, in mint order, each cell named as
+    /// the mate's reference reads it; then the contacts between copies
+    /// no record backs, in the census's order, each cell named as its
+    /// copy's placement reads it. The `unproven-coincidence` check reads
+    /// them ([`crate::checks`]).
     pub coincidences: Vec<crate::assembly::AtRestRow>,
     /// The product's inputs a carried record cites, by position: the
     /// gathered sources, in gather order.
     pub cited_inputs: Vec<crate::coincide::CitedInput>,
+    /// **The tier-3′ census's findings over the product and its
+    /// records**, run once, by the gather, in the census's order: every
+    /// finding but the contacts between copies it recorded as rows
+    /// ([`Self::coincidences`]). The at-rest gate reads them and runs
+    /// no census of its own ([`crate::assemble_gathered`]).
+    pub census: Vec<ValidationError>,
     /// The census's findings for the mated pairs it refused to read as
     /// one carrier: those mates minted no record, and the at-rest gate
-    /// raises these beside its own ([`crate::assemble_gathered`]).
+    /// raises these beside the census's ([`crate::assemble_gathered`]).
     pub refused_at_rest: Vec<ValidationError>,
     /// Which placement contributed each of the aggregate's solids, in
     /// gather order (`crate::checks`'s separation resident is the
@@ -948,7 +963,7 @@ pub fn product_named<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     product_recorded(doc, evaluation, tol).map(|p| (p.body.into_body(), p.names))
 }
 
-/// The document's product with its name table AND its declared contact
+/// The document's product with its name table AND its contact
 /// records — the widest of the three doors, and the one the other two
 /// are defined by ([`Product`]).
 ///
@@ -959,8 +974,10 @@ pub fn product_named<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
 /// the boolean pipeline's substitution door (`carry`) states: a record's new key
 /// is the key the graft says its old entity BECAME, never a key
 /// re-derived by looking at the gathered geometry. Re-derivation is
-/// the scan-to-bless move F1 bans; there is no second opinion here
-/// about which faces touch.
+/// the scan-to-bless move F1 bans. The touches the census finds between
+/// copies are recorded beside the carried records, never in place of
+/// them: each is a row of its own decision ([`topo::record_at_rest`]),
+/// and a carried record is never re-derived from one.
 ///
 /// # Errors
 ///
@@ -1131,8 +1148,13 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         };
         let input = u32::try_from(cited_inputs.len()).unwrap_or(u32::MAX);
         cited_inputs.push(crate::coincide::CitedInput::Read(read.read));
-        carry_contacts(&mut at_rest.contacts, &records.carried_from(input), keys)
-            .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
+        carry_contacts(
+            &aggregate,
+            &mut at_rest.contacts,
+            &records.carried_from(input),
+            keys,
+        )
+        .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
         carry_declarations(&mut carried, &rows.minted, keys)
             .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
         for finding in &rows.refused {
@@ -1188,10 +1210,37 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         geom_core::Band::linear(tol),
     );
     let crate::assembly::AtRestRows {
-        contacts,
-        coincidences,
+        mut contacts,
+        mut coincidences,
         refused: refused_at_rest,
     } = at_rest;
+    // The tier-3′ census over the product and its records, here and
+    // nowhere else: each touch it finds between two copies is a row of
+    // the product and a record citing it (`topo::record_at_rest`, D1
+    // (iii)), which the `unproven-coincidence` check reads, and the rest
+    // is what the at-rest gate refuses or reports ([`Product::census`]).
+    let groups = crate::checks::at_rest::copy_groups(&copies);
+    let first_row = u32::try_from(coincidences.len())
+        .unwrap_or_else(|_| unreachable!("a product's mates number fewer than u32"));
+    let recorded = topo::record_at_rest(
+        &aggregate,
+        &contacts,
+        |records| {
+            T::gate_at_rest_declared(&aggregate, records, tol)
+                .err()
+                .unwrap_or_default()
+        },
+        &|solid| groups.get(&solid).copied(),
+        first_row,
+    );
+    contacts.extend(recorded.records.rows().iter().cloned());
+    coincidences.extend(crate::checks::at_rest::copy_rows(
+        &aggregate,
+        &names,
+        &copies,
+        recorded.rows,
+    ));
+    let census = recorded.findings;
     let gap_assertions =
         crate::checks::at_rest::gap_assertions(doc, evaluation, &aggregate, &names, &copies, tol);
     let spaces = match space {
@@ -1205,6 +1254,7 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         contacts,
         coincidences,
         cited_inputs,
+        census,
         refused_at_rest,
         solid_copies,
         copies,
@@ -1289,8 +1339,9 @@ pub(crate) type Source0<T> = (
 /// lineage the graft recorded. Nothing is looked up by position, by
 /// name, or by re-measuring the aggregate.
 ///
-/// The bridge is total over a source it grafted, so a missing image is
-/// a bridge bug, not a dropped declaration: it refuses typed rather
+/// The bridge is total and incidence-keeping over a source it grafted,
+/// so a missing image, or a pair the bridge made one cell or incident
+/// in the aggregate, is a bridge bug, not a dropped declaration: it refuses typed rather
 /// than silently weakening the at-rest gate the records feed.
 ///
 /// [`ProductError::ContactLineage`] is therefore DEFENSIVE and has no
@@ -1298,41 +1349,35 @@ pub(crate) type Source0<T> = (
 /// own key-bridge contract. Stated rather than left to be discovered —
 /// an arm that cannot be exercised is worth knowing about, and the
 /// alternative (dropping the record) is the failure this guards.
-fn carry_contacts(
+fn carry_contacts<T: geom_core::Real>(
+    body: &Body<T>,
     into: &mut ContactRecords,
     from: &ContactRecords,
     keys: &topo::GraftKeys,
 ) -> Result<(), &'static str> {
     use topo::Cell;
     let moved = from
-        .rekeyed(|cell| match cell {
+        .rekeyed(body, |cell| match cell {
             Cell::Vertex(v) => keys.vertex(v).map(Cell::Vertex),
             Cell::Edge(e) => keys.edge(e).map(Cell::Edge),
             Cell::Face(f) => keys.face(f).map(Cell::Face),
         })
-        .map_err(|cell| match cell {
-            Cell::Vertex(_) => "vertex",
-            Cell::Edge(_) => "edge",
-            Cell::Face(_) => "face",
+        .map_err(|refusal| match refusal {
+            topo::CarryRefusal::Unmapped {
+                cell: Cell::Vertex(_),
+                ..
+            } => "vertex",
+            topo::CarryRefusal::Unmapped {
+                cell: Cell::Edge(_),
+                ..
+            } => "edge",
+            topo::CarryRefusal::Unmapped {
+                cell: Cell::Face(_),
+                ..
+            } => "face",
+            topo::CarryRefusal::Pair { .. } | topo::CarryRefusal::Parted { .. } => "cell pair",
         })?;
-    // Every field, by name: a new record kind fails to compile here
-    // until it is carried.
-    let ContactRecords {
-        vv,
-        a_on_b,
-        b_on_a,
-        ve,
-        ee,
-        curves,
-        patches,
-    } = moved;
-    into.vv.extend(vv);
-    into.a_on_b.extend(a_on_b);
-    into.b_on_a.extend(b_on_a);
-    into.ve.extend(ve);
-    into.ee.extend(ee);
-    into.curves.extend(curves);
-    into.patches.extend(patches);
+    into.extend(moved.rows().iter().cloned());
     Ok(())
 }
 

@@ -269,7 +269,7 @@ class ValidationFinding:
     A frozen value with no constructor: findings come off a refusal.
     Two that say the same thing compare equal and hash equal.
 
-    `variant` is which validator arm refused (`undeclared_contact`,
+    `variant` is which validator arm refused (`unrecorded_contact`,
     `census_undecidable`, `negative_volume`, …). The other five are
     that arm's payload and are `None` on an arm that carries none, so
     reading one never raises `AttributeError`:
@@ -277,8 +277,7 @@ class ValidationFinding:
     - `subject_kind` — what a census refusal is ABOUT: `"entity"` (one
       carrier outside the certifiable inventory) or `"face_pair"` (a
       candidate contact). Two different repairs: simplify or certify
-      the carrier, versus declare the coincidence or separate the two
-      faces.
+      the carrier, versus move the geometry so the two faces separate.
     - `entity_kind` — that entity's kind (`"face"`, `"edge"`,
       `"vertex"`, `"loop"`, `"half_edge"`, `"shell"`, `"solid"`);
       `None` for a `"face_pair"`, whose two sides are faces.
@@ -292,7 +291,7 @@ class ValidationFinding:
       `"undecided"` neither; `None` on every other finding.
     - `stale_kind` — which contact record the tier-3′ census could
       not confirm (`"vertex_vertex"`, `"vertex_on_face"`,
-      `"vertex_on_edge"`, `"edge_edge"`, `"curve_locus"`, `"patch"`).
+      `"vertex_on_edge"`, `"edge_edge"`, `"edge_face"`, `"patch"`).
       A record a declaration made is withdrawn or re-seated at that
       granularity, and withdrawing another one leaves the refusal
       standing. `"vertex_on_edge"` and `"edge_edge"` are records an op
@@ -590,7 +589,6 @@ class StepImportError(PncadError):
     `dangling_reference`, `wrong_entity_type`, `malformed_record`,
     `unsupported_entity`, `unsupported_unit`, `nothing_to_import`,
     `structure`, `missing_uncertainty`, `invalid_eps_override`,
-    `declaration_unresolved`,
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
@@ -636,24 +634,17 @@ class SelectRefusal(PncadError):
     own typed refusal, crossing under its own name.
 
     `reason` is `in_band`, `tied_disagrees`, `unreadable`,
-    `not_a_datum`, `datum_has_no_value`, `node_has_no_value`,
-    `node_has_no_output` (a flush query's node defines no output for a
-    finding to be sited at), `not_a_length`, `pair_in_band`, `bad_value`, `band`, or
-    `distinct_finding` (a kernel defect). The other attributes are
-    the refusing arm's payload, always present and `None` where
-    inapplicable: `name` (the candidate's opaque name text, a flush
-    pair's first face), `other` (a flush pair's second face), `at` and
-    `other_at` (the nodes holding a flush pair's two faces, which tell
-    two copies of one body apart), `predicate` (the funnel site), `matched`/`candidates` (a tied
+    `not_a_datum`, `datum_has_no_value`, `not_a_length`, `bad_value`,
+    or `band`. The other attributes are the refusing arm's payload,
+    always present and `None` where inapplicable: `name` (the
+    candidate's opaque name text), `predicate` (the funnel site),
+    `matched`/`candidates` (a tied
     name's disagreement counts), `datum` (the non-datum reference, or
     the datum with no value), `found` (what it evaluated to),
     `dim` (a non-length comparand's dimension tag)."""
 
     reason: str
     name: Optional[str]
-    other: Optional[str]
-    at: Optional[NodeId]
-    other_at: Optional[NodeId]
     predicate: Optional[str]
     matched: Optional[int]
     candidates: Optional[int]
@@ -685,7 +676,7 @@ class AssemblyError(PncadError):
 
     The two verdict arms are NOT interchangeable. `at_rest` is a
     finding AGAINST the document — a refuted declaration or an
-    undeclared contact. `uncertified` is the declared direction's
+    unrecorded contact. `uncertified` is the declared direction's
     FRONTIER: nothing refuted, nothing undeclared, the census simply
     declined to certify, so nothing was decided about the geometry
     either way. A gather refusal arrives under the GATHER's own tag
@@ -1011,8 +1002,8 @@ class FrameError(PncadError):
     margin carries the band and no number. This is diagnostic data,
     for error text only and not a decision input: the escalation
     contract is that no sound branch exists here, so
-    the recourse is the message's own three levers — declare the
-    coincidence, move the geometry, or lower the tolerance.
+    the recourse is the message's own levers — move the geometry,
+    or lower the tolerance.
 
     `band` wraps a band-construction refusal, whose word rides on
     `inner_variant` (`invalid_value`, `invalid_lever_arm`, `empty`)
@@ -2100,19 +2091,10 @@ class PatternKind:
         EditError (`empty_placement_list`) at insert."""
 
 class PartSelect:
-    """Which body of a multi-body value a `Node.part` selects: the
-    named half of a split, or one instance of a pattern by index.
-
-    One class for the two because the node is one sentence — "this
-    body, out of those" — and the VALUE decides which arm is
-    well-typed. Any other pairing refuses at `evaluate`
-    (`wrong_operand`), never at construction.
+    """Which copy of a pattern a `Node.part` selects, by index. A
+    split's halves need no selector: each is an output of the split,
+    read as `doc.output(split, port)`.
     """
-
-    @staticmethod
-    def split_half(half: SplitHalf) -> PartSelect:
-        """The named half of a `Node.split` value. A half the cut left
-        with no material refuses at `evaluate` (`empty_half`)."""
 
     @staticmethod
     def instance(index: _CountArg) -> PartSelect:
@@ -2252,10 +2234,21 @@ class Node:
         `set_var_value` per value."""
 
     @staticmethod
-    def revolve(profile: _Operand, axis: _Operand, angle: _AngleArg) -> Node:
-        """Revolve a profile about a datum axis. `angle` mints a
-        literal in the node's `revolve_angle` slot, driven afterwards
-        by `DocEdit.set_param` as an extrude's `distance` is."""
+    def revolve(
+        profile: _Operand,
+        axis_origin: tuple[_LengthArg, _LengthArg],
+        axis_direction: tuple[_ScalarArg, _ScalarArg],
+        angle: _AngleArg,
+    ) -> Node:
+        """Revolve a profile about an axis line in its own plane.
+
+        `axis_origin` and `axis_direction` are the line in the
+        profile's own 2-D coordinates: four numbers in the plane, which
+        cannot leave it. The revolve's second output,
+        `Doc.output(revolve, 1)`, is the line lifted to 3-D, an axis
+        other nodes read. `angle` mints a literal in the node's
+        `revolve_angle` slot, driven afterwards by `DocEdit.set_param`
+        as an extrude's `distance` is."""
     @staticmethod
     def tube(
         frame: _Operand,
@@ -2333,18 +2326,6 @@ class Node:
         origin: tuple[_LengthArg, _LengthArg, _LengthArg],
         direction: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
     ) -> Node: ...
-    @staticmethod
-    def datum_axis_in_plane(
-        plane: _Operand,
-        origin: tuple[_LengthArg, _LengthArg],
-        direction: tuple[_ScalarArg, _ScalarArg],
-    ) -> Node:
-        """An axis written IN a sketch frame — a revolve's axis.
-
-        The two pairs are `plane`'s own 2-D coordinates. A revolve
-        takes one of these and not a `datum_axis`: an axis written in
-        the frame cannot leave the plane it turns.
-        """
     @staticmethod
     def datum_plane(
         origin: tuple[_LengthArg, _LengthArg, _LengthArg],
@@ -2425,8 +2406,12 @@ class Node:
 
     @staticmethod
     def split(target: _BodyArg, tool: _Operand) -> Node:
-        """Split `target` by `tool` (a `datum_plane`). The value is a
-        split — read it with `Value.split()`, not `Value.body()`."""
+        """Split `target` by `tool` (a plane: a `datum_plane`, or a
+        `PoseDef` of kind plane). The value is a split — read it with
+        `Value.split()`, not `Value.body()`. Its two outputs are its
+        halves, read by port (`doc.output(split, 0)` is the half above
+        the plane's normal); a read of a half the cut left with no
+        material refuses at `evaluate` (`empty_half`)."""
 
     @staticmethod
     def transform(
@@ -2456,9 +2441,7 @@ class Node:
         `Node.transform_by`'s is."""
 
     @staticmethod
-    def union(
-        members: Sequence[_BodyArg] | _Operand, declare: list[FlushFinding] = []
-    ) -> Node:
+    def union(members: Sequence[_BodyArg] | _Operand) -> Node:
         """The UNION: the material in any member, folded into ONE body
         in the members' order.
 
@@ -2477,33 +2460,24 @@ class Node:
         placement rule: here the membership is data, which
         `DocEdit.set_members` rewrites on the live node.
 
-        `declare` is the node's declared contact pairs, given as the
-        INSPECTED findings (each carries its pair, sited at the two
-        member reads, and its class) and held as the node's own
-        payload; each pair is fed at the fold step its two members meet
-        at. An empty list declares nothing. Members whose faces a margin
-        decides on one surface glue there, declared or not, and each
-        such coincidence is recorded for the `unproven_coincidence`
-        check; a declaration adds its verification. A refusal only a
-        fold step raises is `kind == "union_fold_step"`, naming the
-        member it folds in. `Doc.declare` / `Doc.declare_all` set the
-        list on the live node.
+        Members whose faces a margin decides on one surface glue there,
+        and each such coincidence is recorded for the
+        `unproven_coincidence` check. A refusal only a fold step raises
+        is `kind == "union_fold_step"`, naming the member it folds in.
 
         A closed surface of one member that lies wholly on another's —
         one read at two seats, or a member carried into a union
         unchanged — is answered where every face of it is the same face
-        as one of the other's, by recipe or by declaration; where they
+        as one of the other's, by recipe or by a decided margin; where they
         do not show that, the evaluation refuses with
         `inner_kind == "coincident_shell"`."""
 
     @staticmethod
-    def intersect(
-        members: Sequence[_BodyArg] | _Operand, declare: list[FlushFinding] = []
-    ) -> Node:
+    def intersect(members: Sequence[_BodyArg] | _Operand) -> Node:
         """The INTERSECT: the material in every member, folded in the
         members' order.
 
-        `members` and `declare` are `union`'s, read the same way: a
+        `members` is `union`'s, read the same way: a
         sequence of operands or one family read, any count — one
         member is that body, none is the typed empty body, and
         `[a, a]` is `a`. A fold step whose members share no material
@@ -2511,9 +2485,7 @@ class Node:
         rewrites the list on the live node."""
 
     @staticmethod
-    def subtract(
-        from_: _BodyArg, tool: _BodyArg, declare: list[FlushFinding] = []
-    ) -> Node:
+    def subtract(from_: _BodyArg, tool: _BodyArg) -> Node:
         """The SUBTRACT: `from_` with the material of `tool` cut away.
 
         The one pair node — difference neither commutes nor associates
@@ -2522,8 +2494,7 @@ class Node:
         `tool` (slot word `cut`). Several tools are one subtract of
         their union, `Node.subtract(body, Node.union([t1, t2]))`. A
         body cut by itself, `Node.subtract(a, a)`, is the typed empty
-        body. `declare` is `union`'s declared-pair list, sited at the
-        two operand reads."""
+        body."""
 
     @staticmethod
     def pattern(input: _Operand, count: _CountArg, kind: PatternKind) -> Node:
@@ -2546,15 +2517,14 @@ class Node:
 
     @staticmethod
     def part(of: _Operand, select: PartSelect) -> Node:
-        """ONE body out of a multi-body value — a split's half or a
-        pattern's instance.
+        """ONE body out of a pattern's copies.
 
-        A projection, not an operation: the body is the half's or the
-        instance's own and the names pass through verbatim, so a
-        selector spelled against that half resolves here unchanged.
-        Refuses at `evaluate`: `wrong_operand` when the selector and
-        the value disagree in kind, `empty_half`,
-        `instance_out_of_range`."""
+        A projection, not an operation: the body is the instance's own
+        and the names pass through verbatim, so a selector spelled
+        against that instance resolves here unchanged. `of` reads a
+        list of bodies, or the insert raises EditError
+        (`slot_var_kind`); an index outside `0 .. count` refuses at
+        `evaluate` (`instance_out_of_range`)."""
 
     @staticmethod
     def placed_union(input: _Operand, count: _CountArg, kind: PatternKind) -> Node:
@@ -2690,8 +2660,8 @@ class Node:
         name the minting node for the authored one. Both are legal and
         they are different questions.
 
-        These references ARE recipe edges, unlike a boolean's declared
-        pairs and `Node.mate`'s names: each is a selection of the named
+        These references ARE recipe edges, unlike `Node.mate`'s names:
+        each is a selection of the named
         node's body (or, for a whole body, a read of it), so deleting a
         referenced node is accepted and reported on the measure
         (`stranded_read` and `stranded_selection`), like any other
@@ -2748,15 +2718,74 @@ _LengthArg: TypeAlias = Var | Formula | WrittenLength | Length
 _AngleArg: TypeAlias = Var | Formula | WrittenAngle | Angle
 _ScalarArg: TypeAlias = Var | Formula | float
 _CountArg: TypeAlias = Var | Formula | int
-_Operand: TypeAlias = NodeId | Var
+_Operand: TypeAlias = NodeId | Var | PoseDef
 """What an operand takes: a node, read at its one output (a node with
 several, a revolve's body and axis or a split's two halves, refuses
-`ambiguous_output`: read its port with `Doc.output(node, port)`), or a
-variable — an output by `Doc.output`, or a named one. The slot admits
-one kind, and a read of another refuses `slot_var_kind`."""
+`ambiguous_output`: read its port with `Doc.output(node, port)`), a
+variable — an output by `Doc.output`, or a named one — or a pose
+defined at the seat (`PoseDef`). The slot admits one kind, and a read
+of another refuses `slot_var_kind`."""
+
 _BodyArg: TypeAlias = NodeId | Var | IndexedRead
 """What a body seat takes: an operand, or one member of a family
 (`xs[i]`, `IndexedRead`)."""
+
+class PoseDef:
+    """A pose defined where it is read: pass it to an operand that reads
+    a pose (a split's `tool`, a profile's frame, a circular rule's
+    axis), and the edit door mints the pose variable there. No pose is
+    free and none is defined from nothing: each constructor reads
+    geometry, writes coordinates in a frame it reads, or constructs
+    from other poses."""
+
+    @staticmethod
+    def plane(at: _Operand, face: str) -> PoseDef:
+        """A face read as a plane: its carrier's plane, with the face's
+        outward normal. A curved face refuses `pose_read` at
+        `evaluate`."""
+    @staticmethod
+    def axis(at: _Operand, name: str) -> PoseDef:
+        """A cylinder's, a cone's or a torus's axis, a straight edge's
+        line, or a circular edge's axis."""
+    @staticmethod
+    def point(at: _Operand, name: str) -> PoseDef:
+        """A sphere's, a torus's or a circle's centre, a cone's apex, or
+        a vertex's point."""
+    @staticmethod
+    def in_frame(
+        frame: _Operand,
+        *,
+        origin: Optional[tuple[_LengthArg, _LengthArg, _LengthArg]] = None,
+        direction: Optional[tuple[_ScalarArg, _ScalarArg, _ScalarArg]] = None,
+        normal: Optional[tuple[_ScalarArg, _ScalarArg, _ScalarArg]] = None,
+        u: Optional[tuple[_ScalarArg, _ScalarArg, _ScalarArg]] = None,
+        v: Optional[tuple[_ScalarArg, _ScalarArg, _ScalarArg]] = None,
+    ) -> PoseDef:
+        """A pose written by coordinates in a frame: `origin` alone a
+        point, `direction` alone a direction, `origin` and `direction`
+        an axis, `origin` and `normal` a plane, `origin`, `u` and `v` a
+        frame. Any other combination raises `ValueError`."""
+    @staticmethod
+    def through(axis: _Operand, point: _Operand) -> PoseDef:
+        """The frame through an axis and a point: origin the foot of the
+        point on the axis, `z` the axis, `x` towards the point. A point
+        on the axis refuses `pose_degenerate` at `evaluate`."""
+    @staticmethod
+    def meet(a: _Operand, b: _Operand) -> PoseDef:
+        """The axis two planes meet in. Parallel planes refuse
+        `pose_degenerate` at `evaluate`."""
+    @staticmethod
+    def flip(pose: _Operand) -> PoseDef:
+        """The opposite sense of a direction, an axis, a plane or a
+        frame. A flip of a flip is the pose it flips: the edit door
+        normalises it, and a point, which has no sense, refuses."""
+    @staticmethod
+    def standoff(plane: _Operand, by: _LengthArg) -> PoseDef:
+        """A plane moved along its own normal by `by`."""
+    @staticmethod
+    def project(of: _Operand, to: str) -> PoseDef:
+        """A frame's `"plane"`, `"axis"` or `"point"`, or a plane's or
+        an axis's `"direction"`."""
 
 class Formula:
     """A dimension-checked expression — the recipe's arithmetic, as a
@@ -3413,10 +3442,7 @@ class DocEdit:
         The one edit that changes a live node's inputs: no positional
         spelling and no per-entry arm, so nothing is inferred about
         which old entry survived. Dropping a member is this edit
-        without it plus `delete_node` of the orphan. The node's
-        declared pairs are left as they were: a pair whose member read
-        was dropped refuses at the next evaluation
-        (`declare_site_not_an_operand`).
+        without it plus `delete_node` of the orphan.
 
         Every input check `Doc.insert` makes is remade of the
         REWRITTEN node — `unresolved_input`, `slot_var_kind` (a family
@@ -3425,23 +3451,6 @@ class DocEdit:
         sections are spelled one read each, so a family there refuses
         `loft_sections_spelled`, and a node carrying no list refuses
         `set_members_on_non_list`."""
-
-    @staticmethod
-    def set_declare(node: NodeId, findings: list[FlushFinding]) -> DocEdit:
-        """Replace a live union's, intersect's or subtract's whole
-        declared-pair list with the pairs and classes of `findings`,
-        the inspected `FlushFinding`s `Node.union`'s `declare=` takes.
-        An empty list clears the declaration.
-
-        Refuses `set_declare_on_non_declaring` on a node that is none
-        of the three, `unknown_node` for a node the document does not
-        hold, the name checks an insert runs
-        (`declare_names_missing_node`, `name_step_never_minted`,
-        `read_site_missing_node`), and the pair rule an insert asks:
-        `declared_site_not_an_operand` for a pair sited at a read that
-        is not one of `node`'s operand reads (the read rides `param`),
-        `declared_name_not_upstream` for a name not minted before
-        `node`."""
 
     @staticmethod
     def set_param(node: NodeId, slot: str, value: _SlotArg | NodeId) -> DocEdit:
@@ -3691,8 +3700,7 @@ class DocEdit:
         """Repair a stored name, addressed by body and name: with `body`
         (`Doc.output(node)`), rewrite every selection of that body that
         names `from_name` EXACTLY to name `to_name`; with no body, every
-        site no selection holds (a declaration's pairs, a mate's heads,
-        an appearance key).
+        site no selection holds (a mate's heads, an appearance key).
 
         THE name repair, and the only one. A selection stores stable
         names — a fillet's edges, a chamfer's, a shell's open faces —
@@ -4041,22 +4049,6 @@ class Doc:
         body are two copies. `label=` labels the placement in the same
         call, as `insert`'s does."""
 
-    def declare(self, node: NodeId, finding: FlushFinding) -> None:
-        """ADD one inspected finding's pair to the declared pairs of the
-        live union, intersect or subtract `node`, keeping every pair it
-        declares already (the detect/declare protocol's declare arm). A pair on
-        the same two sides as one already declared replaces it. Raises
-        EditError, typed: `set_declare_on_non_declaring` on a node
-        that is none of the three, `unknown_node`,
-        `declared_site_not_an_operand` for a finding inspected between
-        other operand reads than `node`'s, and the name checks an
-        insert runs."""
-
-    def declare_all(self, node: NodeId, findings: list[FlushFinding]) -> None:
-        """Set `node`'s whole declared-pair list to a SET of findings —
-        `DocEdit.set_declare`'s replace, where `declare` adds. An empty list raises
-        EditError (`no_findings`); `DocEdit.set_declare(node, [])` is
-        the spelling that clears."""
     @property
     def node_count(self) -> int: ...
     def order(self) -> list[NodeId]: ...
@@ -4755,7 +4747,7 @@ class Body:
         contract rather than a wrinkle: `assemble`'s at-rest body
         carries its mates' minted records and passes over its seats,
         while `product`, which gathers the same solids and declares
-        nothing, reports every seat as an undeclared contact. With no
+        nothing, reports every seat as an unrecorded contact. With no
         declarations at all this is simply the strictest rung — the
         census still runs, and on a body with no coincidences it finds
         nothing.
@@ -4981,18 +4973,6 @@ class Datum:
     def origin(self) -> tuple[Length, Length, Length]: ...
     @property
     def direction(self) -> Optional[tuple[float, float, float]]: ...
-    @property
-    def in_plane(self) -> Optional[tuple[tuple[Length, Length], tuple[float, float]]]:
-        """An in-plane axis in its frame's own 2-D coordinates — the
-        origin then the direction, as authored. `None` for every other
-        kind, whose numbers are all world numbers.
-
-        The halves cross differently because they are different
-        things. The ORIGIN is a position, so it carries `Length`s —
-        the same shape `Node.datum_axis_in_plane` writes it in and the
-        same shape `Datum.origin` reads back. The DIRECTION is
-        dimensionless and stays bare. Frame-local is a change of
-        datum, not of dimension."""
 
     @property
     def axes(
@@ -5028,74 +5008,15 @@ class Verdict:
     @property
     def reason(self) -> Optional[str]: ...
 
-# --- detect / declare -------------------------------------------------
-# The flush-contact protocol's value vocabulary. A finding is a
-# REPORT: `Evaluation.find_flush_candidates` answers with them, the
-# caller inspects, and `Node.union` / `Node.intersect` /
-# `Node.subtract`'s `declare=`, `Doc.declare` / `Doc.declare_all` and
-# `DocEdit.set_declare` put inspected findings on one of those nodes as
-# its declared pairs. Detection and declaration are separate doors ON PURPOSE: no fused
-# detect-and-declare door exists.
-
-class PlaneRelation:
-    """The verify door's relation verdict: `SameOpposite` = resting
-    contact (opposed outward normals), `SameOriented` = flush walls
-    (a continuation). `Distinct` exists as vocabulary; a
-    finding never carries it."""
-
-    SameOriented: Final[PlaneRelation]
-    SameOpposite: Final[PlaneRelation]
-    Distinct: Final[PlaneRelation]
+# --- contact ----------------------------------------------------------
 
 class ContactClass:
     """The contact class a mate asserts: `Rest` (cosurface contact,
     opposed senses, on any carrier the verify ladder names — plane,
-    sphere, cylinder, torus) or `Tangent`. A union's declaration
-    speaks `BooleanCoincidence`, which adds the continuation."""
+    sphere, cylinder, torus) or `Tangent`."""
 
     Rest: Final[ContactClass]
     Tangent: Final[ContactClass]
-
-class BooleanCoincidence:
-    """What a boolean node may declare about a face pair: a contact
-    (`Rest`, `Tangent`), a `Continuation` — one carrier with aligned
-    senses, as two stacked parts' outer walls are, which the union
-    merges — or a `Seam` — two carriers joining G1 with aligned senses,
-    as a cap on a tube does. The flush detector reports `Rest` for an
-    opposed pair and `Continuation` for an aligned one; it never reports
-    a seam."""
-
-    Rest: Final[BooleanCoincidence]
-    Tangent: Final[BooleanCoincidence]
-    Continuation: Final[BooleanCoincidence]
-    Seam: Final[BooleanCoincidence]
-
-class FlushRung:
-    """Which rung of the verify ladder decided a finding:
-    `DecidedCoincident` = the geometric trilean's coincident arm."""
-
-    DecidedCoincident: Final[FlushRung]
-
-class FlushFinding:
-    """One flush finding: "this face pair would verify as declared" —
-    a VALUE to inspect and declare, never itself a declaration. The
-    detector's reach is the carrier ladder's, so a pair may be
-    cosurface on a plane, a sphere, a cylinder or a torus. `a`/`b` are the pair's names in the same OPAQUE text
-    alphabet every materializer speaks (store them, hand them back;
-    never parse). `class_` spells `class` (a Python keyword)
-    with the `or_` trailing-underscore precedent."""
-
-    @property
-    def a(self) -> str: ...
-    @property
-    def b(self) -> str: ...
-    @property
-    def relation(self) -> PlaneRelation: ...
-    @property
-    def class_(self) -> BooleanCoincidence: ...
-    @property
-    def rung(self) -> FlushRung: ...
-    def __eq__(self, other: object) -> bool: ...
 
 class Value:
     """A node's successful value."""
@@ -5620,16 +5541,6 @@ class Evaluation:
         evaluation has no value for; then the loud `unnamed` bug arm
         if the winning face inverts to no name."""
 
-    def find_flush_candidates(self, a: NodeId, b: NodeId) -> list[FlushFinding]:
-        """The cross-body flush candidates between `a`'s and `b`'s
-        outputs, as of THIS evaluation — the detect arm of the
-        detect/declare protocol, run by the C4 verifier itself (a
-        finding cannot disagree with the boolean's verify-at-use).
-        Findings are DEFINITE and canonically ordered. Raises
-        `SelectRefusal`, typed (`node_has_no_value` when either node
-        has no value, `pair_in_band`, `tied_disagrees`, `unreadable`,
-        `band`, `distinct_finding` for a kernel defect) — an ambiguous
-        pair is never silently included or dropped."""
     @property
     def recomputed(self) -> int:
         """How many nodes ran their op. With no `prior=` that is every
@@ -6020,13 +5931,15 @@ class Subgroup:
     """A residual subgroup: what a fold left free.
 
     `normal`, `point` and `direction` are present on every arm and
-    `None` where that arm does not carry one. `planar` and `prismatic`
-    are point-FREE on purpose: rotations about any parallel axis, and
-    translations along any parallel line, are in the group."""
+    `None` where that arm does not carry one. `planar`, `prismatic`,
+    `parallel` and `plane_translation` are point-FREE on purpose:
+    rotations about any parallel axis, and translations along any
+    parallel line, are in the group."""
 
     @property
     def variant(self) -> str:
         """`se3`, `planar`, `cylindrical`, `prismatic`, `revolute`,
+        `spherical`, `parallel`, `translation`, `plane_translation`,
         `trivial`, or `empty`."""
 
     @property
@@ -6434,9 +6347,7 @@ class Attribution:
         """`refuted` (the faces do not meet as declared — a finding
         against the document), `declined` (the census has no certifier
         lane for a face the declaration names, so nothing was decided
-        either way), or `unattributed` (no declaration of ANY document
-        in the tree answers — an UNDECLARED contact, the hard error by
-        definition).
+        either way).
 
         A declaration a document BELOW this one authored answers under
         `carried_refuted` and `carried_declined`: the same two
@@ -6445,9 +6356,9 @@ class Attribution:
         `via` are what say which document and by what path."""
 
     @property
-    def declaration(self) -> Optional[MintedDeclaration]:
-        """The declaration named, `None` for `unattributed`. Under a
-        `carried_*` relation its `mate` is a node of `of`."""
+    def declaration(self) -> MintedDeclaration:
+        """The declaration named. Under a `carried_*` relation its
+        `mate` is a node of `of`."""
 
     @property
     def of(self) -> Optional[str]:
@@ -6480,7 +6391,9 @@ class AtRestFinding:
     own story, which carries its own recourse."""
 
     @property
-    def attribution(self) -> Attribution: ...
+    def attribution(self) -> Optional[Attribution]:
+        """Which declaration the finding names, and in what relation;
+        `None` where it names none."""
 
 class MintRefusal:
     """One mate whose declaration the gather could not mint — a row of
@@ -7069,13 +6982,15 @@ class Coincidence:
     `co_ruled`; `site` is `plane_ladder`, `carrier_ladder`,
     `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn`,
     `battery_joint`, `battery_support_axis`, `profile_junction`,
-    `vertex_fusion`, `census_at_rest` or `import_anchor`. A
+    `vertex_fusion` or `census_at_rest`. A
     `profile_junction` row is `tangent` or `cusp` between two carriers
     and `same_oriented` where its two pieces continue one carrier; a
     `tangent_witness` row is `tangent_contact` (the outward sides
     opposed) or `seam` (one face carried on into the other). `rung` is the door's rung that proved
-    it structural (`same_construction`), or `None`, and then `residual` says
-    what separates the two constructions."""
+    it structural (`same_construction`, `carrier_verdict` or
+    `margin_identity`), or `None`, and then `residual` says what separates
+    the two constructions and what the replay with every variable a
+    symbol made of the row."""
 
     @property
     def cells(self) -> list[tuple[Var | NodeId, Optional[str]]]: ...
@@ -7091,8 +7006,10 @@ class Coincidence:
 class CheckFinding:
     """One finding of one check on one subject: a copy a placement
     defines, attributed as `(root, output_ix)` with `root` the placement,
-    or a node of the document (`node`) — the node that decided an
-    unproven coincidence. Whichever it is not answers `None`.
+    a node of the document (`node`) — the node that decided an unproven
+    coincidence — or two copies the at-rest census found touching with
+    no mate between them (`copies`). Whichever it is not answers
+    `None`.
 
     A REPORT about geometry, not a verdict on the program: holding one
     changes nothing. `subject_body` resolves the attribution back to
@@ -7108,15 +7025,21 @@ class CheckFinding:
     @property
     def root(self) -> NodeId | None:
         """The root whose value carries the subject body; `None` for a
-        finding about a node."""
+        finding about a node or two copies."""
     @property
     def output_ix(self) -> int | None:
         """Which output body of that root; `None` for a finding about a
-        node."""
+        node or two copies."""
     @property
     def node(self) -> NodeId | None:
         """The node the finding is about, root or not; `None` for a
-        finding about a root output."""
+        finding about a root output or two copies."""
+    @property
+    def copies(self) -> tuple[tuple[Var, int], tuple[Var, int]] | None:
+        """The two copies the finding is about, earlier in gather order
+        first, each as its placement's output and its member there (as
+        `InterferenceFinding.a` spells one); `None` for any other
+        subject."""
     @property
     def evidence(self) -> CheckEvidence: ...
     def __eq__(self, other: object) -> bool: ...
@@ -7201,7 +7124,7 @@ def subject_body(
     same ones `Value.body` captures — so a subject reached through an
     attribution has the SAME tier-3′ verdict as the same body reached
     through its value, and a declared boolean's own certified seam is
-    not reported here as an undeclared contact."""
+    not reported here as an unrecorded contact."""
 
 def import_step(text: str, *, eps_in: Optional[Length] = None) -> ImportReport:
     """Parse a STEP text with the kernel's importer and adopt its

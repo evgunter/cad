@@ -76,15 +76,15 @@ use super::plane_eq::PlaneEqError;
 use super::reduce::face_plane;
 use std::collections::BTreeMap;
 
-use super::sectors::{BoolSector, PierceLever, build_sectors, pierce_side};
+use super::sectors::{BoolSector, PierceLever, build_sectors, pierce_side, pierce_side_reported};
 use super::tables::{eq15_3_lump, lump_keeps_one};
 use super::{
-    BoolNullEdgeRecord, BooleanError, BooleanOp, ContactRecords, NullEdgePairRecord, Operand,
-    PairSite, PierceRingRecord, SectorRead, SideCode, VfContact,
+    BoolNullEdgeRecord, BooleanError, BooleanOp, NullEdgePairRecord, Operand, PairSite,
+    PierceRingRecord, ReductionContacts, SectorRead, SideCode, VfContact,
 };
 use super::{Coincide, Contradiction, DeclarationRead};
 use crate::body::{Body, WALKS_CLOSE};
-use crate::contact::BooleanCoincidence;
+use crate::contact::GlueClass;
 use crate::entity::{EntityId, HalfEdgeKey, VertexKey};
 use crate::euler::{MevSite, RunSite};
 use crate::live::{Proven, linked, proven};
@@ -102,7 +102,7 @@ use geom_core::Tol;
 /// several pairs and in no pierce is not returned, since the
 /// vertex-vertex passes read every pair before the first writes.
 pub(super) fn pierced_and_paired(
-    contacts: &ContactRecords,
+    contacts: &ReductionContacts,
 ) -> Result<BTreeMap<(Operand, VertexKey), SectorRead>, BooleanError> {
     let mut rereads = BTreeMap::new();
     for (operand, pierced) in [
@@ -399,6 +399,9 @@ struct Entry {
     /// The bound's first-order reading tied
     /// ([`super::sectors::PierceSide::tied`]).
     tied: bool,
+    /// The Zero this bound's own first-order reading decided, where it
+    /// read `On` there.
+    on: Option<super::sectors::OnReading>,
     /// The class is Delta 2's lump, not this bound's own reading.
     lumped: bool,
 }
@@ -415,8 +418,8 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     piercing: Operand,
     contact: VfContact,
     op: BooleanOp,
-    declared: &super::DeclaredPairs<T>,
-    contacts: &super::ContactRecords,
+    declared: &super::GluedPairs<T>,
+    contacts: &super::ReductionContacts,
     reread: Option<SectorRead>,
     band: Band,
     tol: Tol,
@@ -498,7 +501,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     let mut entries = Vec::with_capacity(n);
     let mut unread_bends = Vec::new();
     for s in &sectors {
-        let read = match pierce_side(
+        let (read, on) = match pierce_side_reported(
             s.end,
             s.end_reach,
             n_pierced,
@@ -514,10 +517,11 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 },
             ) => {
                 unread_bends.push((entries.len(), refusal));
-                super::sectors::PierceSide {
+                let unread = super::sectors::PierceSide {
                     code: SideCode::On,
                     tied: true,
-                }
+                };
+                (unread, None)
             }
             Err(e) => return Err(e),
         };
@@ -526,6 +530,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             is_edge: s.end_edge(),
             class: read.code,
             tied: read.tied,
+            on,
             lumped: false,
         });
     }
@@ -601,11 +606,11 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 terminal_sliver: false,
             };
             return Err(match class {
-                BooleanCoincidence::Continuation => {
+                GlueClass::Continuation => {
                     BooleanError::ContinuationContradicted { a, b, fact, margin }
                 }
-                BooleanCoincidence::Seam => BooleanError::SeamContradicted { a, b, fact, margin },
-                BooleanCoincidence::Contact(class) => BooleanError::ContactContradicted {
+                GlueClass::Seam => BooleanError::SeamContradicted { a, b, fact, margin },
+                GlueClass::Contact(class) => BooleanError::ContactContradicted {
                     declaration: crate::contact::DeclaredContact { a, b, class },
                     steer: fact.and_then(super::contact_verify::fit_steer),
                     fact,
@@ -619,8 +624,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // one does.
         let refused = match (&tilt, class) {
             (Ok(Sign::Zero), _) => false,
-            (Err(_), Some(BooleanCoincidence::Seam) | None)
-            | (Ok(Sign::Positive | Sign::Negative), _) => true,
+            (Err(_), Some(GlueClass::Seam) | None) | (Ok(Sign::Positive | Sign::Negative), _) => {
+                true
+            }
             (Err(_), Some(_)) => false,
         };
         if refused {
@@ -667,12 +673,12 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 .is_some()
                 .then(|| {
                     super::plane_eq::senses(s.normal.vec(), n_pierced.vec(), s.arm, band)
-                        .and_then(BooleanCoincidence::of_senses)
+                        .and_then(GlueClass::of_senses)
                 })
                 .flatten();
-            let admitted: Vec<BooleanCoincidence> = one_carrier
+            let admitted: Vec<GlueClass> = one_carrier
                 .into_iter()
-                .chain(tangent.then_some(BooleanCoincidence::TANGENT))
+                .chain(tangent.then_some(GlueClass::TANGENT))
                 // A decided tilt admits no class: no declaration settles it.
                 .filter(|_| !decided_tilt)
                 .collect();
@@ -709,7 +715,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // band too, so the two `On`s are the consecutive-`On` refusal
         // (`work/hone/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`;
         // pinned by `m9_3_zip::a_tangent_curved_sector_on_a_face_lumps_whole`).
-        if class == Some(BooleanCoincidence::TANGENT) {
+        if class == Some(GlueClass::TANGENT) {
             let surface_of = |body: &Body<T>, f| {
                 body.get_face(f)
                     .and_then(|face| body.get_surface(face.surface))
@@ -1314,7 +1320,14 @@ fn resolve_on_entries(entries: &mut [Entry], band: Band) -> Result<(), BooleanEr
         let (before, after) = (&entries[(k + n - 1) % n], &entries[(k + 1) % n]);
         let (prev, next) = (before.class, after.class);
         if !entries[k].is_edge && !before.lumped && !after.lumped && prev == next {
-            return Err(super::sectors::bisector_zero_refusal(band));
+            let Some(on) = entries[k].on else {
+                unreachable!(
+                    "a bisector classed On with no Zero of its own: a bisector reads On only at \
+                     its own first-order Zero, or from a lump of two bounds both read On ({:?})",
+                    entries[k].he
+                )
+            };
+            return Err(super::sectors::bisector_zero_refusal(on, band));
         }
         entries[k].class = super::sectors::fold_on_bound(prev, next);
     }
@@ -1516,7 +1529,7 @@ mod tests {
         let (f, g) = (FaceKey::from(key(4)), FaceKey::from(key(5)));
         let vf = |vertex, face| VfContact { vertex, face };
         let vv = |a, b| VvContact { a, b };
-        let read = |c: &ContactRecords| match pierced_and_paired(c) {
+        let read = |c: &ReductionContacts| match pierced_and_paired(c) {
             Err(BooleanError::VertexReadTwice {
                 operand,
                 vertex,
@@ -1528,7 +1541,7 @@ mod tests {
         let rows = [
             (
                 "pierced twice by A",
-                ContactRecords {
+                ReductionContacts {
                     a_on_b: vec![
                         crate::Cited::new(vf(v, f), crate::Cites::decided(0)),
                         crate::Cited::new(vf(w, f), crate::Cites::decided(0)),
@@ -1544,7 +1557,7 @@ mod tests {
             ),
             (
                 "pierced and paired, B",
-                ContactRecords {
+                ReductionContacts {
                     b_on_a: vec![crate::Cited::new(vf(w, f), crate::Cites::decided(0))],
                     vv: vec![
                         crate::Cited::new(vv(x, v), crate::Cites::decided(0)),
@@ -1557,7 +1570,7 @@ mod tests {
             ),
             (
                 "paired twice",
-                ContactRecords {
+                ReductionContacts {
                     vv: vec![
                         crate::Cited::new(vv(v, w), crate::Cites::decided(0)),
                         crate::Cited::new(vv(v, x), crate::Cites::decided(0)),
@@ -1569,7 +1582,7 @@ mod tests {
             ),
             (
                 "one key on each operand, pierced by A's and paired by B's",
-                ContactRecords {
+                ReductionContacts {
                     a_on_b: vec![crate::Cited::new(vf(v, f), crate::Cites::decided(0))],
                     vv: vec![crate::Cited::new(vv(w, v), crate::Cites::decided(0))],
                     ..Default::default()
@@ -1763,38 +1776,110 @@ mod tests {
         }
     }
 
-    fn entry(is_edge: bool, class: SideCode) -> Entry {
+    /// A bound's entry; an `On` carries the Zero `on_margin` it read.
+    fn entry(is_edge: bool, class: SideCode, on_margin: f64) -> Entry {
         Entry {
             he: HalfEdgeKey::default(),
             is_edge,
             class,
             tied: class == SideCode::On,
+            on: (class == On).then(|| super::super::sectors::OnReading {
+                predicate: "enters_material",
+                decided: geom_core::Decided {
+                    sign: geom_core::Sign::Zero,
+                    margin: geom_core::MarginDiag::value(on_margin),
+                },
+            }),
             lumped: false,
         }
     }
 
     /// A bisector reading On between two bounds read Out is the band's
     /// Zero (reachable only at K ≤ 2, which no suite runs), and it
-    /// refuses; an edge's On there, a real one, resolves; a bisector
+    /// refuses as the nonzero gate's rejection of the Zero the bisector's
+    /// own side reading decided, quoting that reading's margin, on the
+    /// frame's log; an edge's On there, a real one, resolves; a bisector
     /// between mixed neighbours resolves, since its code moves no edge.
+    ///
+    /// The Zero is read, not supplied: a bisector of arm `1` tilted off
+    /// the face's plane by `asin(f·ε)` reads `f·ε` through
+    /// [`pierce_side_reported`], and the refusal quotes exactly that, on
+    /// the log under `enters_material`, the predicate that decided it.
     #[test]
     fn a_bisector_on_between_one_sided_bounds_refuses() {
+        use super::super::sectors::{FaceShape, NO_CURVATURE, Reach, pierce_side_reported};
+        use geom_brep::OutwardNormal;
+        use geom_core::{ErrorTextReading, Vec3};
         let band = Band::linear(Tol::witness()).unwrap();
-        let mut one_sided = [entry(true, Out), entry(false, On), entry(true, Out)];
-        assert!(
-            matches!(
-                resolve_on_entries(&mut one_sided, band),
-                Err(BooleanError::Escalated {
+        let up = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        for f in [-0.7, 0.2, 0.9] {
+            let rise = f * band.zero();
+            let dir = Vec3::new((1.0 - rise * rise).sqrt(), 0.0, rise);
+            let (side, on) = pierce_side_reported(
+                dir,
+                Reach::Bisector(1.0),
+                up,
+                FaceShape::Plane,
+                NO_CURVATURE(),
+                band,
+            )
+            .unwrap();
+            assert_eq!(side.code, On, "f {f}: the bisector reads On");
+            for side in [Out, In] {
+                let what = format!("f {f}, {side:?}");
+                let bisector = Entry {
+                    on,
+                    ..entry(false, On, 0.0)
+                };
+                let mut one_sided = [entry(true, side, 0.0), bisector, entry(true, side, 0.0)];
+                let bracket = geom_core::k_stats::Bracket::open();
+                let got = resolve_on_entries(&mut one_sided, band);
+                let log = bracket.finish();
+                let Err(BooleanError::Escalated {
                     decision: super::super::BooleanDecision::BisectorSide,
                     diag,
-                }) if diag.predicate == Some("bool_sector_bisector_side")
-            ),
-            "the bisector's Zero refuses as its own decision"
-        );
-        let mut edge = [entry(true, Out), entry(true, On), entry(true, Out)];
+                }) = got
+                else {
+                    panic!("{what}: the bisector's Zero refuses as its own decision: {got:?}");
+                };
+                assert_eq!(
+                    diag.predicate,
+                    Some("enters_material"),
+                    "{what}: logged under the predicate that decided the Zero"
+                );
+                assert_eq!(
+                    diag.margin.rejected_sign(),
+                    Some(geom_core::Sign::Zero),
+                    "{what}: the nonzero gate's rejection of the Zero"
+                );
+                let ErrorTextReading::Value(quoted) = diag.margin.diagnostic_f64_for_error_text()
+                else {
+                    panic!("{what}: a point reading: {diag:?}");
+                };
+                assert!(
+                    (quoted - rise).abs() <= 4.0 * f64::EPSILON * band.zero(),
+                    "{what}: the refusal quotes the bisector's own reading {rise:e}, not \
+                     {quoted:e}"
+                );
+                assert_eq!(
+                    log.escalations.iter().map(|e| e.source).collect::<Vec<_>>(),
+                    vec![diag],
+                    "{what}: the rejection is the one escalation on the log"
+                );
+            }
+        }
+        let mut edge = [
+            entry(true, Out, 0.0),
+            entry(true, On, 0.0),
+            entry(true, Out, 0.0),
+        ];
         resolve_on_entries(&mut edge, band).unwrap();
         assert_eq!(edge[1].class, Out, "an edge's On resolves");
-        let mut mixed = [entry(true, Out), entry(false, On), entry(true, In)];
+        let mut mixed = [
+            entry(true, Out, 0.0),
+            entry(false, On, 0.0),
+            entry(true, In, 0.0),
+        ];
         resolve_on_entries(&mut mixed, band).unwrap();
         assert_eq!(
             mixed[1].class, In,
@@ -2046,6 +2131,7 @@ mod tests {
                             is_edge: s.end_edge(),
                             class,
                             tied: class == SideCode::On,
+                            on: None,
                             lumped: false,
                         }
                     })
@@ -2195,7 +2281,7 @@ mod tests {
     #[test]
     fn a_bisector_run_after_the_other_run_keeps_its_corner() {
         use crate::test_support_fixtures::{mapped_cube, prism};
-        use crate::{AtRestBody, BooleanDeclarations, mass_properties};
+        use crate::{AtRestBody, mass_properties};
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let profile = [
@@ -2242,7 +2328,6 @@ mod tests {
             .expect("the cube's near face, outward along -m");
         let cube_body = cube.clone();
         let cube = AtRestBody::validate(cube, tol).unwrap();
-        let decls = BooleanDeclarations::default();
         let built = prism::<f64>(&profile, 1.0, tol);
         let corner = built.top[3];
         let orbit = built.body.vertex_orbit_linked(corner);
@@ -2261,8 +2346,8 @@ mod tests {
                     face: near,
                 },
                 super::super::BooleanOp::Union,
-                &super::super::DeclaredPairs::default(),
-                &super::super::ContactRecords::default(),
+                &super::super::GluedPairs::default(),
+                &super::super::ReductionContacts::default(),
                 None,
                 band,
                 tol,
@@ -2283,12 +2368,12 @@ mod tests {
                     .map_or(0.0, |b| mass_properties(&b.body, tol).unwrap().volume)
             };
             volumes.push([
-                volume(crate::union_with(&body, &cube, &decls, tol)),
-                volume(crate::intersect_with(&body, &cube, &decls, tol)),
-                volume(crate::subtract_with(&body, &cube, &decls, tol)),
-                volume(crate::union_with(&cube, &body, &decls, tol)),
-                volume(crate::intersect_with(&cube, &body, &decls, tol)),
-                volume(crate::subtract_with(&cube, &body, &decls, tol)),
+                volume(crate::union(&body, &cube, tol)),
+                volume(crate::intersect(&body, &cube, tol)),
+                volume(crate::subtract(&body, &cube, tol)),
+                volume(crate::union(&cube, &body, tol)),
+                volume(crate::intersect(&cube, &body, tol)),
+                volume(crate::subtract(&cube, &body, tol)),
             ]);
         }
         let fan_first = vec![false, true];

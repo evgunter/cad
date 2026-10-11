@@ -135,6 +135,13 @@
 //! re-taken once more; only `measured_web`'s rows moved, where both
 //! changes meet.
 //!
+//! **ALL FOUR NUMBERS MOVED WHEN A SPLIT'S HALF BECAME ITS PORT**,
+//! through `part_select` alone: the document's two `Part` projections
+//! of a split's halves are gone and its union reads the split's two
+//! ports. Two nodes fewer is two outcomes fewer, so the id-masked fence
+//! moved too; `lib_g16_corpus_name_digests` moved that row and no
+//! other, and every point of the bodies that remain is where it was.
+//!
 //! A whole-corpus scalar is a blunt instrument for "did an existing
 //! document move", and there is now a SECOND, finer measurement to
 //! read beside it: `lib_g16_corpus_name_digests` pins a digest PER
@@ -556,6 +563,24 @@
 //! at worst before, 8.9e-16 after). Turning a revolved description by
 //! the same spelling at evaluation moved no corpus point at either
 //! scalar.
+//!
+//! **EVERY NUMBER MOVED, THE ID-FREE ONE TOO, FOR INTENT STAGE 3 PR A
+//! (a revolve's axis is a line on the node).** The in-plane axis datum
+//! left the vocabulary: each revolve writes its axis as four slots of
+//! its own, so four corpus documents hold one node fewer, every later
+//! id re-mints, and the id-free digest loses one pointless `datum`
+//! outcome per document. Measured rather than argued: the id-free
+//! digest with every pointless `datum` outcome dropped is the same on
+//! the base tree and on this one — `(0x2370_478e_c993_590d,
+//! 0xe9da_67e7_5e7d_f009)` before the turned-vertex change above
+//! merged, `(0xbb6f_8c13_2eb3_f98d, 0xe3ef_0697_8aaf_ef89)` after —
+//! so no point and no other outcome moved.
+//! Re-taken merged over FORK-DM4 unit 1 (PR 4527); the id-free digest
+//! held there.
+//! Re-taken again merged over the split-half retirement (PR 4618),
+//! which drops two `Part` outcomes of its own: the id-free digest with
+//! pointless `datum` outcomes dropped is `(0x77f4_6374_c6b8_bb0d,
+//! 0xf303_efdf_51fc_fb09)` on that main and on this tree alike.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -851,7 +876,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x14d5_dc2a_8dbf_d98a, 0xf4eb_8b81_81fa_891e),
+        (0x4350_f267_f58a_3457, 0x789b_1192_e944_30b3),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -877,7 +902,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x380d_6cef_fb98_9b6a, 0x5a5a_26d6_1b20_5cb6),
+        (0xbaa1_65e6_5edf_10c3, 0xacce_6e0c_f962_8a97),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -901,7 +926,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x14d5_dc2a_8dbf_d98a, 0xf4eb_8b81_81fa_891e),
+        (0x4350_f267_f58a_3457, 0x789b_1192_e944_30b3),
         "the corpus's Probe evaluation moved"
     );
 }
@@ -979,7 +1004,7 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
     println!("m10-p fence id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0x4e83_a4d8_b6bd_ee50, 0x37d4_cb01_e189_8fac),
+        (0xf613_9d62_68dd_3931, 0xe6b3_fef9_f9f8_90fd),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );

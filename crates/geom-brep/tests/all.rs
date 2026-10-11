@@ -93,6 +93,8 @@ mod d290_r2_e2e;
 mod decoration_plane_mint;
 #[path = "ellipse_signed_semi_axis_gate.rs"]
 mod ellipse_signed_semi_axis_gate;
+#[path = "end_samples_read_the_carrier.rs"]
+mod end_samples_read_the_carrier;
 #[path = "exhaust_lane_meters.rs"]
 mod exhaust_lane_meters;
 #[path = "germ_pose_gate.rs"]
@@ -135,6 +137,8 @@ mod pn_apex_reach;
 mod props_cone_apex_cap;
 #[path = "props_cone_ring.rs"]
 mod props_cone_ring;
+#[path = "props_cone_vector_area.rs"]
+mod props_cone_vector_area;
 #[path = "props_sphere_circle_loop.rs"]
 mod props_sphere_circle_loop;
 #[path = "props_sphere_pole_side.rs"]
@@ -236,6 +240,8 @@ mod sketch_segment_restriction;
 mod span_meter_dim_twins;
 #[path = "ssi_limb3_one_arc.rs"]
 mod ssi_limb3_one_arc;
+#[path = "stored_span_winding_bound.rs"]
+mod stored_span_winding_bound;
 
 test_utils::every_suite_file_is_aggregated!();
 
@@ -280,6 +286,8 @@ mod mesh11r2_base_probes;
 mod mesh11r2_probes;
 #[path = "mesh12_saturated_span.rs"]
 mod mesh12_saturated_span;
+#[path = "nurbs_nurbs_section.rs"]
+mod nurbs_nurbs_section;
 #[path = "pcurve_mirror_v.rs"]
 mod pcurve_mirror_v;
 
@@ -293,6 +301,8 @@ mod r2_mesh7_door_probes;
 mod span_reach_differential;
 #[path = "span_reach_hunt.rs"]
 mod span_reach_hunt;
+#[path = "tangent_gap_hull_charges_both_sags.rs"]
+mod tangent_gap_hull_charges_both_sags;
 #[path = "tcost_k1_budget_exit.rs"]
 mod tcost_k1_budget_exit;
 #[path = "torus_chart_guards.rs"]

@@ -230,7 +230,7 @@ fn findings(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> Vec<S
 /// map, exactly as it already carried boolean-discovered records.
 ///
 /// Before minting moved into the gather this refused
-/// `UndeclaredContact` at the outer gate: the inner seat is a real
+/// `UnrecordedContact` at the outer gate: the inner seat is a real
 /// contact of the outer product, and the only thing that ever declared
 /// it — the inner mate — was minted by a door the seam does not call.
 #[test]
@@ -249,7 +249,7 @@ fn three_identical_stands_in_a_row_carry_their_inner_declarations() {
         "three stands of two cubes each"
     );
     assert_eq!(
-        gathered.contacts.patches.len(),
+        gathered.contacts.face_face().count(),
         3,
         "one carried declaration per stand — the inner mate's, re-keyed \
          onto the aggregate"
@@ -288,7 +288,7 @@ fn the_carry_survives_a_second_nesting_level() {
     let gathered = product_recorded(&outer, &ev, Tol::witness()).expect("the deep row gathers");
     assert_eq!(gathered.body.solids().count(), 8, "two mids of two stands");
     assert_eq!(
-        gathered.contacts.patches.len(),
+        gathered.contacts.face_face().count(),
         4,
         "one carried declaration per stand, through two seams"
     );
@@ -359,12 +359,12 @@ fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
     assert!(
         findings.iter().any(|f| matches!(
             &f.attribution,
-            Attribution::Carried {
+            Some(Attribution::Carried {
                 route,
                 declaration,
                 relation: editor_core::Relation::Refuted,
                 ..
-            } if route.through == instances[0]
+            }) if route.through == instances[0]
                 && route.of == inner_id
                 && route.via.is_empty()
                 && declaration.mate == inner_mate
@@ -373,9 +373,7 @@ fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
          the instance it arrived through: {findings:?}"
     );
     assert!(
-        findings
-            .iter()
-            .all(|f| !matches!(f.attribution, Attribution::Unattributed)),
+        findings.iter().all(|f| f.attribution.is_some()),
         "and nothing here is anonymous any more: {findings:?}"
     );
 }
@@ -431,7 +429,7 @@ fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
     assert!(
         findings
             .iter()
-            .any(|f| matches!(&f.attribution, Attribution::Refuted(m) if m.mate == mate)),
+            .any(|f| matches!(&f.attribution, Some(Attribution::Refuted(m)) if m.mate == mate)),
         "naming the mate that declared it: {:?}",
         findings.iter().map(|f| &f.attribution).collect::<Vec<_>>()
     );
@@ -451,7 +449,7 @@ fn assemble_gates_the_gathers_own_record_set_and_mints_nothing() {
     let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the stand gathers");
     assert_eq!(
-        gathered.contacts.patches.len(),
+        gathered.contacts.face_face().count(),
         1,
         "minted once by the gather"
     );
@@ -492,15 +490,14 @@ fn a_document_with_no_mates_gathers_exactly_what_it_did_before() {
 }
 
 /// INVARIANT (**the premise `attribute`'s `StaleContactDeclaration` arm
-/// reasons from**): what this door mints is `PatchContact`s of two
-/// DISTINCT faces, and never a `CurveContact`. The arm's unreachability
-/// argument rests on exactly that — the `CurveLocus` half needs a curve
-/// record no mate can author — so the claim is a row rather than a
-/// paragraph. (`mint` pins the distinctness half with its own
-/// `debug_assert`, which this row also exercises, tests being a debug
-/// build.)
+/// reasons from**): what this door mints is face–face records and
+/// nothing else, so no edge–face staleness names a mate's record — the
+/// claim is a row rather than a paragraph. (A record's two faces are
+/// distinct by its type; `mint` pins the same of the row it writes with
+/// its own `debug_assert`, which this row also exercises, tests being a
+/// debug build.)
 #[test]
-fn mint_makes_distinct_face_patches_and_no_curve_records() {
+fn mint_makes_face_face_records_and_nothing_else() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-shape-cube"), Tol::witness());
     let (doc, ids) = row_of("mate6-shape-row", part, 3, 4.0);
@@ -530,17 +527,13 @@ fn mint_makes_distinct_face_patches_and_no_curve_records() {
     let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
     assert_eq!(gathered.minted.len(), 2, "both mates minted");
-    assert!(
-        gathered.contacts.curves.is_empty(),
-        "a mate authors no curve record: {:?}",
-        gathered.contacts.curves
+    assert_eq!(
+        gathered.contacts.face_face().count(),
+        2,
+        "a mate authors face–face records only: {:?}",
+        gathered.contacts
     );
-    for patch in &gathered.contacts.patches {
-        assert_ne!(
-            patch.face_a, patch.face_b,
-            "a minted patch names two distinct faces"
-        );
-    }
+    assert_eq!(gathered.contacts.len(), 2, "{:?}", gathered.contacts);
     for m in &gathered.minted {
         assert_ne!(m.faces.0, m.faces.1, "and so does the row that records it");
     }
@@ -657,7 +650,7 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
         "the mate AFTER the bad reference still minted"
     );
     assert_eq!(
-        gathered.contacts.patches.len(),
+        gathered.contacts.face_face().count(),
         1,
         "and its record is in the set the gate will read"
     );
@@ -720,7 +713,7 @@ fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
         vec![good],
         "the mate AFTER the unmintable class still minted"
     );
-    assert_eq!(gathered.contacts.patches.len(), 1);
+    assert_eq!(gathered.contacts.face_face().count(), 1);
     assert_eq!(
         gathered
             .unminted
@@ -794,7 +787,7 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
         vec![good],
         "the good mate between two bad ones still minted"
     );
-    assert_eq!(gathered.contacts.patches.len(), 1);
+    assert_eq!(gathered.contacts.face_face().count(), 1);
     assert_eq!(
         gathered
             .unminted
@@ -859,16 +852,24 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
     let (stand, _, mate) = stand("mate6-cites-stand", part, body, 1.0);
     let ev = run(&stand, &with_resolver(store));
     let product = product_recorded(&stand, &ev, Tol::witness()).expect("the stand gathers");
-    assert_eq!(product.contacts.patches.len(), 1, "one mate, one record");
     assert_eq!(
-        product.contacts.patches[0].cites,
+        product.contacts.face_face().count(),
+        1,
+        "one mate, one record"
+    );
+    assert_eq!(
+        product.contacts.rows()[0].cites,
         topo::Cites::decided(0),
         "the record cites the product's row 0"
     );
     let [row] = product.coincidences.as_slice() else {
         panic!("one row: {:?}", product.coincidences);
     };
-    assert_eq!(row.mate, mate, "the row is the mate's pair's");
+    assert_eq!(
+        row.by,
+        editor_core::AtRestBy::Mate(mate),
+        "the row is the mate's pair's"
+    );
     assert_eq!(row.row.site, topo::DecisionSite::CensusAtRest);
     assert_eq!(row.row.relation, topo::Relation::SameOpposite);
     assert!(
@@ -884,12 +885,16 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
     )
     .expect("checks run over the stand");
     assert!(
-        report
-            .findings
-            .iter()
-            .any(|f| f.check == editor_core::CheckId::UnprovenCoincidence
-                && f.subject == editor_core::FindingSubject::Node(mate)),
-        "the census's row is reported against its mate: {report}"
+        report.findings.iter().any(|f| matches!(
+            &f.evidence,
+            editor_core::CheckEvidence::UnprovenCoincidence {
+                recourse: editor_core::coincide::Recourse::Assert,
+                ..
+            }
+        ) && f.subject == editor_core::FindingSubject::Node(mate)),
+        "the census's row is reported against its mate, and the door, which does not \
+         replay the product, has no form of it to read, so its recourse is an assertion: \
+         {report}"
     );
 }
 
@@ -906,7 +911,7 @@ fn a_pair_the_census_refuses_mints_no_record() {
     let ev = run(&stand, &with_resolver(store));
     let product = product_recorded(&stand, &ev, Tol::witness()).expect("the stand gathers");
     assert!(
-        product.contacts.patches.is_empty(),
+        product.contacts.face_face().next().is_none(),
         "{:?}",
         product.contacts
     );
@@ -940,7 +945,7 @@ fn an_instances_record_cites_the_parts_record() {
     let ev = run(&outer, &with_resolver(store));
     let value = ev.value(instances[0]).expect("the instance evaluates");
     assert_eq!(
-        value.contacts.patches[0].cites,
+        value.contacts.rows()[0].cites,
         topo::Cites::one(topo::Backing::Carried {
             input: 0,
             record: 0
@@ -952,7 +957,7 @@ fn an_instances_record_cites_the_parts_record() {
     );
     let product = product_recorded(&outer, &ev, Tol::witness()).expect("the row gathers");
     assert_eq!(
-        product.contacts.patches[0].cites,
+        product.contacts.rows()[0].cites,
         topo::Cites::one(topo::Backing::Carried {
             input: 0,
             record: 0

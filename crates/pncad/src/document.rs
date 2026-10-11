@@ -108,10 +108,9 @@ pub use editor_core::cascade_delete_order;
 // `Operand` read, written at an `OperandSlot` (a `SlotId::Operand`)
 // that admits a `SlotKind`; `DocEdit::SetParam` writes a `SlotValue`.
 pub use editor_core::{
-    Axis3, Bodies, BodyRead, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault,
-    ListFault, MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind,
-    PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SlotId, SlotKind, TubeWindow, VectorSlot,
-    declare_continuation, declare_rest,
+    Axis3, Bodies, BodyRead, CountMismatch, Datum, ExtrudeSide, InputFault, ListFault, MintId,
+    Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind, PlacementRuleFault, PortKind,
+    RecipeNodeId, RigidArg, SlotId, SlotKind, TubeWindow, VectorSlot,
 };
 
 // How a sentence names a node: the kind noun and tag a person reads, the
@@ -286,7 +285,7 @@ pub use editor_core::DocParamField;
 // REFUSAL is the detect/declare protocol's trigger, and
 // `NodeError`/`NodeErrorKind` were unreachable without the result
 // enum that carries them.
-// `DatumValue`'s direction fields are `geom_core::UnitVec3`, reached
+// `PoseValue`'s direction fields are `geom_core::UnitVec3`, reached
 // through the re-exported `geom_core` crate rather than curated here:
 // a consumer cannot read a datum's normal, or build a datum at all,
 // without naming the type that makes it unit, and it names it at the
@@ -326,9 +325,9 @@ pub use editor_core::DocParamField;
 // `StepTurns` rides with `NodeErrorKind`: it is `FullRangeStep`'s
 // `turns`, how the copies of a step a turn or more would land.
 pub use editor_core::{
-    Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DatumValue,
-    DirectionRefusal, EvalOptions, EvalOutcome, Evaluation, Found, FramePlacement, Mispaired,
-    NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
+    Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DirectionRefusal,
+    EvalOptions, EvalOutcome, Evaluation, Found, FramePlacement, Mispaired, NodeError,
+    NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue,
     ProfileLift, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
 };
 
@@ -375,10 +374,11 @@ pub use editor_core::ContentBits;
 // is one unplaced group's own space, which a `Product` carries beside
 // the world for the at-rest gate to check, and `own_spaces` gathers
 // every one. `AtRestRow` is one of the product's at-rest decisions,
-// the mate it is decided for beside the census's row.
+// beside whose pair it is (`AtRestBy`): a mate's, or two copies' the
+// census found touching.
 pub use editor_core::{
-    AtRestRow, OwnSpace, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal,
-    SourceFinding, own_spaces, product, product_recorded,
+    AtRestBy, AtRestRow, OwnSpace, Product, ProductError, ProductErrorKind, ProductRefusal,
+    Refusal, SourceFinding, own_spaces, product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:
@@ -559,8 +559,8 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // does not reports that as a finding rather than as a clean body.
 pub use editor_core::{
     Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
-    ChecksConfig, ChecksError, ChecksReport, FindingSubject, Severity, Subject, enforce_checks,
-    run_checks, run_checks_on, subject_body,
+    ChecksConfig, ChecksError, ChecksReport, DoorFindings, DoorJob, FindingSubject, Severity,
+    Subject, enforce_checks, run_checks, run_checks_at_rest_on, run_checks_on, subject_body,
 };
 // The coincidence door (D10): the rows an evaluation's nodes decided
 // from values, and what the door decides about each — the payload of
@@ -569,7 +569,11 @@ pub use editor_core::{
 // the door is a module so its `Recourse` keeps its name. A cell on a
 // profile piece names it by `select`'s `ProfileEdgeRef`, curated there.
 pub use editor_core::coincide;
-pub use editor_core::{CitedInput, NamedCell, NamedCoincidence, Proof, Residual, Rung};
+pub use editor_core::{CitedInput, NamedCell, NamedCoincidence, Proof, Residual, Rung, Unreplayed};
+// The pose definitions (D10): how a pose variable is defined, read off
+// geometry or constructed, and the faults the doors and the evaluator
+// name. A module, so its arms keep their names (`pose::PoseDef::Plane`).
+pub use editor_core::pose;
 /// The shell door's typed refusal, which two `CheckEvidence` arms
 /// carry — by the payload rule this list states at `VerbKind`.
 ///

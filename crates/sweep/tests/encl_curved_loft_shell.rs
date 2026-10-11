@@ -8,8 +8,9 @@
 //! the natural operand for the question "what does a shell of a
 //! spline-walled body cost at the run's ε", and these rows pin why that
 //! cost cannot be taken yet, at the thickness a user would ask for:
-//! `topo::shell` moves every chart at once and refuses at a wall, at its
-//! offset fit or at a seam between two moved fits.
+//! `topo::shell` moves every chart at once and refuses at a wall's
+//! offset fit, or, where the fit certifies, past every seam, at a top
+//! rim's at-rest certificate.
 //!
 //! A cap moved alone moves the cap's corners along the slanted seams:
 //! each corner is the moved plane's root along its seam, and each rim
@@ -60,6 +61,47 @@ fn assert_wall_seam(body: &Body<f64>, edge: EdgeKey, context: &str) {
         sides.len() == 2 && sides.iter().all(|k| is_spline_wall(&walls, *k)),
         "{context}: {edge:?} is not a seam between two spline walls"
     );
+}
+
+/// **The shelled twisted loft's wall–wall seams derive.** Every chart
+/// moved inward by `THICKNESS` at once, as `topo::shell` moves them, read
+/// per edge at its plan: each seam between two walls is the NURBS ×
+/// NURBS section of their two moved fits, selected through
+/// `Section::branch_at` at the old seam's middle, and plans. Where ε is
+/// tighter than the twisted wall's fit reaches, no fit mints and the row
+/// above is the pin.
+#[test]
+fn the_shelled_lofts_wall_seams_derive_where_its_fits_certify() {
+    let eps = Tol::witness().eps();
+    if eps < 1e-8 {
+        return;
+    }
+    let body = twisted_loft(0.3);
+    let faces: Vec<[FaceKey; 1]> = body.faces().map(|(k, _)| [k]).collect();
+    let moves: Vec<(&[FaceKey], f64)> = faces
+        .iter()
+        .map(|f| {
+            let sense = body.get_face(f[0]).expect("a live face").sense;
+            (&f[..], if sense { -THICKNESS } else { THICKNESS })
+        })
+        .collect();
+    let walls = nurbs_walls(&body);
+    let mut seams = 0;
+    for (edge, plan) in topo::offset_charts_edge_plans_for_tests(&body, &moves, Tol::witness()) {
+        let halves = body.get_edge(edge).expect("the edge resolves");
+        let sides: Vec<FaceKey> = [halves.he_plus, halves.he_minus]
+            .into_iter()
+            .filter_map(|he| body.face_of_half_edge(he))
+            .collect();
+        if sides.len() == 2 && sides.iter().all(|k| is_spline_wall(&walls, *k)) {
+            seams += 1;
+            assert!(
+                matches!(plan, Ok(None)),
+                "eps {eps:e}: the seam {edge:?} between two moved fits derives, got {plan:?}"
+            );
+        }
+    }
+    assert_eq!(seams, 4, "the twisted loft has four wall–wall seams");
 }
 
 /// An INWARD cap offset of the curved loft derives its rims: each is
@@ -158,10 +200,15 @@ fn the_curved_lofts_cap_moves_its_corners_along_the_slanted_seams() {
 }
 
 /// The curved loft's shell moves every chart at once, so it mints every
-/// wall's offset fit before any edge, and refuses at a wall: its offset
-/// fit where ε is tighter than the fit reaches, and where the fit
-/// certifies, at a seam between two walls, which is the section of two
-/// moved fits and has no C5 arm.
+/// wall's offset fit before any edge. Where ε is tighter than the fit
+/// reaches it refuses at a wall's fit. Where the fit certifies, every
+/// wall–wall seam derives as the NURBS × NURBS section of its two moved
+/// fits, and the shell refuses at a top rim's at-rest certificate: the
+/// plane × fit lane's chart image of the rim is the degree-1 interpolant
+/// of its fixed foot schedule, and on this twisted wall limb 2's value
+/// at a break is about 1e-6 m: in the band at 1e-6, where it escalates,
+/// and past it at 1e-9, where it refuses outright
+/// (`work/iso/a-moved-lofts-top-rim-refuses-its-at-rest-certificate.md`).
 #[test]
 fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
     let body = twisted_loft(0.3);
@@ -174,38 +221,75 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
     let ShellError::Face { face, error } = &e else {
         panic!("expected a per-face offset refusal, got {e}");
     };
-    assert!(
-        is_spline_wall(&nurbs_walls(&body), *face),
-        "the refusing face is not a wall: {e}"
-    );
-    // Which wall door answers first depends on ε: the fit reaches about
-    // 4.1e-9 m in its round budget, so below that the fit refuses, and
-    // above it the fit certifies and the wall refuses at its seam.
+    // Which door answers first depends on ε: a wall's fit reaches
+    // 1.3958e-10 m on a 62 x 35 grid, the last within the sample cap,
+    // so below that the fit refuses at the cap, and above it the fit
+    // certifies and the seams derive.
     let eps = Tol::witness().eps();
-    if eps < 1e-8 {
+    if eps < 1.3958e-10 {
+        assert!(
+            is_spline_wall(&nurbs_walls(&body), *face),
+            "the refusing face is not a wall: {e}"
+        );
         let ReplaceFaceError::Fit {
-            error: geom_brep::OffsetFitError::BudgetExhausted { achieved, .. },
+            error: geom_brep::OffsetFitError::SampleCapReached { achieved, grid, .. },
             ..
         } = error.as_ref()
         else {
-            panic!("eps {eps:e}: expected the wall's fit to exhaust its budget, got {e}");
+            panic!("eps {eps:e}: expected the wall's fit to reach the sample cap, got {e}");
         };
         assert!(
-            *achieved > eps,
-            "eps {eps:e}: the fit stopped short of ε, at {achieved:e}"
+            *grid == (62, 35) && (achieved - 1.3958e-10).abs() < 1e-14,
+            "eps {eps:e}: the fit stopped at {achieved:e} on {grid:?}"
         );
     } else {
-        // Both walls of a seam move, so the seam is the section of their
-        // two fits, which C5 does not route.
-        let ReplaceFaceError::NeighborPairUnroutable {
-            edge,
-            kind: geom::SurfaceKind::Approx,
-            other_kind: geom::SurfaceKind::Approx,
+        // Limb 2's hull value at a break on the rim: 1.5994e-6 m at 1e-9,
+        // past the band, so it refuses outright; 1.02e-6 m at 1e-6, in the
+        // band, so it escalates. It moves when the rim's derivation does,
+        // so the 1e-9 arm reads it within 5%.
+        let ReplaceFaceError::Op {
+            error: topo::EulerOpError::RechartFalsifies { edge, error, .. },
+            ..
         } = error.as_ref()
         else {
-            panic!("eps {eps:e}: expected the seam between two moved fits to refuse, got {e}");
+            panic!("eps {eps:e}: expected a rim's at-rest certificate to refuse, got {error:?}");
         };
-        assert_wall_seam(&body, *edge, "the refused seam");
+        if eps < 1e-7 {
+            let geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
+                limb: geom_brep::ssi::SsiLimb::HullValueChart,
+                margin,
+            }) = error
+            else {
+                panic!("eps {eps:e}: expected limb 2's value to refuse outright, got {error:?}");
+            };
+            let value = margin.diagnostic_f64_for_error_text().value();
+            assert!(
+                value.is_some_and(|v| (v - 1.5994e-6).abs() <= 0.05 * 1.5994e-6),
+                "eps {eps:e}: limb 2 reads {value:?}"
+            );
+        } else {
+            assert!(
+                matches!(
+                    error,
+                    geom_brep::CertifyError::Escalated {
+                        check: geom_brep::CertCheck::PlaneNurbsHullValue,
+                        ..
+                    }
+                ),
+                "eps {eps:e}: expected limb 2 to escalate in the band, got {error:?}"
+            );
+        }
+        // The refusing edge is a top rim: the top cap's edge with a wall.
+        let halves = body.get_edge(*edge).expect("the refused edge resolves");
+        let sides: Vec<FaceKey> = [halves.he_plus, halves.he_minus]
+            .into_iter()
+            .filter_map(|he| body.face_of_half_edge(he))
+            .collect();
+        let walls = nurbs_walls(&body);
+        assert!(
+            sides.contains(&top_cap(&body)) && sides.iter().any(|k| is_spline_wall(&walls, *k)),
+            "eps {eps:e}: {edge:?} is not a top rim, its faces are {sides:?}"
+        );
     }
 }
 
@@ -286,9 +370,14 @@ fn a_dual_scalar_refuses_the_spline_seam_re_anchor_by_name() {
         .iter()
         .map(|z| geom_core::Affine3::translation(Vec3::new(0.0, 0.0, *z)))
         .collect::<Vec<_>>();
-    let body = sweep::loft_body::<Dual64>(&[square(), square()], &places, 1, Tol::witness())
-        .expect("the square prism lofts at a dual")
-        .body;
+    let body = sweep::loft_body::<Dual64>(
+        &sweep::test_support::lift_sections::<Dual64>(&[square(), square()]),
+        &sweep::test_support::lift_places::<Dual64>(&places),
+        1,
+        Tol::witness(),
+    )
+    .expect("the square prism lofts at a dual")
+    .body;
     let mut moved = body.clone();
     let cap = top_cap(&body);
     let Err(ReplaceFaceError::NurbsLaneUnsupported { scalar, .. }) = topo::replace_face_offset(
@@ -522,9 +611,14 @@ fn at_interval_the_prism_moves_by_the_shortcut_and_a_slanted_rim_refuses_by_name
         .map(|z| geom_core::Affine3::translation(Vec3::new(0.0, 0.0, *z)))
         .collect::<Vec<_>>();
     let loft = |turn: f64| {
-        sweep::loft_body::<Interval>(&[square(0.0), square(turn)], &places, 1, Tol::witness())
-            .expect("the loft builds at interval")
-            .body
+        sweep::loft_body::<Interval>(
+            &sweep::test_support::lift_sections::<Interval>(&[square(0.0), square(turn)]),
+            &sweep::test_support::lift_places::<Interval>(&places),
+            1,
+            Tol::witness(),
+        )
+        .expect("the loft builds at interval")
+        .body
     };
     let d = <Interval as Real>::from_f64(-THICKNESS);
     let prism = loft(0.0);
@@ -852,8 +946,9 @@ fn a_moved_fitted_cap_stands_its_corners_on_the_held_sides() {
 /// **A curved fitted cap moves where its fit certifies.** The unit
 /// box's cap is swapped for a biquadratic NURBS bump over `[-1, 3]²`
 /// (its middle control point raised 0.1 above `z = 1`) and moved by
-/// `±0.05`. Where ε is looser than the offset fit reaches (about
-/// 2.4e-9 m in its round budget) the move builds: its corners are the
+/// `±0.05`. Where ε is looser than the offset fit reaches (4.382e-11
+/// m within the sample cap) and the moved rims certify (not at 1e-9)
+/// the move builds: its corners are the
 /// side planes' roots along the plane × fit sections, tier 3 refuses the
 /// cap's volume alone
 /// (`work/quad/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image.md`),
@@ -887,16 +982,43 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies() {
         )
         .expect("the cap takes a NURBS surface");
         let moved = topo::replace_face_offset(&mut body, cap, d, Tol::witness());
+        // The cap's fit reaches 4.382e-11 m on a 45 x 45 grid, the last
+        // within the sample cap. Above that it certifies, and at 1e-9 the
+        // moved cap's rim then refuses at its plane × fit limb 2
+        // (6.75e-7 m, above the band).
+        if eps < 4.382e-11 {
+            match &moved {
+                Err(ReplaceFaceError::Fit {
+                    error: geom_brep::OffsetFitError::SampleCapReached { achieved, grid, .. },
+                    ..
+                }) => assert!(
+                    *grid == (45, 45) && (achieved - 4.382e-11).abs() < 1e-14,
+                    "eps {eps:e}, d = {d}: the cap's fit stopped at {achieved:e} on {grid:?}"
+                ),
+                other => panic!(
+                    "eps {eps:e}, d = {d}: expected the cap's fit to reach the sample cap, got {other:?}"
+                ),
+            }
+            continue;
+        }
         if eps < 2e-9 {
             assert!(
                 matches!(
                     moved,
-                    Err(ReplaceFaceError::Fit {
-                        error: geom_brep::OffsetFitError::BudgetExhausted { .. },
+                    Err(ReplaceFaceError::Op {
+                        error: topo::EulerOpError::RechartFalsifies {
+                            error: geom_brep::CertifyError::PlaneNurbs(
+                                geom_brep::PlaneNurbsRefusal::Limb {
+                                    limb: geom_brep::ssi::SsiLimb::HullValueChart,
+                                    ..
+                                }
+                            ),
+                            ..
+                        },
                         ..
                     })
                 ),
-                "eps {eps:e}, d = {d}: expected the cap's fit to exhaust its budget, got {moved:?}"
+                "eps {eps:e}, d = {d}: expected the moved cap's rim to refuse its limb 2, got {moved:?}"
             );
             continue;
         }

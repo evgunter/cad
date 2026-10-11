@@ -243,11 +243,10 @@ pub fn documents() -> Vec<CorpusDoc> {
         // registry, so the derived frame carries the standard rows
         // (every ε, the Interval lane under DM1c, persistence, latency).
         face_sketch::document(),
-        // `part_select` (DOCM-2): a split's two halves and a pattern's
-        // middle instance each selected by a `Node::Part` and consumed
-        // downstream, so the census counts both selectors and every
-        // standard row (every ε, the Interval lane, persistence,
-        // latency) runs the projection.
+        // `part_select` (DOCM-2): a split's two halves read by port and
+        // a pattern's middle instance selected by a `Node::Part`, each
+        // consumed downstream, so every standard row (every ε, the
+        // Interval lane, persistence, latency) runs both.
         part_select::document(),
         // `loft_prism` (M6-3): R5 shape (iii)'s loft body — the
         // Band 4 corpus's first NURBS-walled solid. Standard rows
@@ -282,9 +281,8 @@ pub fn documents() -> Vec<CorpusDoc> {
         plate_param::document(),
         // `kiss_carry` (SEAT-5): the one corpus boolean whose result
         // carries NON-EMPTY surviving contacts — the discovered
-        // corner kiss, then the same record re-entered by name as a
-        // declared pair (the carried v-v arm of `resolve_declarations`,
-        // reached nowhere else in the corpus). Registered so a pin can
+        // corner kiss, then the same record carried from the operand
+        // into the next union. Registered so a pin can
         // tell a lowering that carries the tier-3′ records from one
         // that drops them.
         kiss_carry::document(),
@@ -370,6 +368,24 @@ pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
         other => panic!("expected a single body, got {}", other.kind_name()),
     }
+}
+
+/// The single body a read holds: its output's body
+/// ([`ValuePayload::output_body`]), a split's port that half.
+pub fn read_body<'e, T: Decide>(
+    ev: &'e Evaluation<T>,
+    doc: &ProfileDoc,
+    read: editor_core::VarId,
+) -> &'e Body<T> {
+    let (node, port) = doc
+        .var(read)
+        .and_then(|var| var.def().output())
+        .expect("a read of a live output");
+    ev.value(node)
+        .expect("node evaluated to a value")
+        .payload
+        .output_body(u32::from(port))
+        .unwrap_or_else(|e| panic!("the read holds one body: {e}"))
 }
 
 /// **The node kinds no document can evaluate to a value** — the
@@ -464,9 +480,9 @@ pub const NODE_KINDS: [&str; 22] = [
 /// tally's DOMAIN, not the `DocEdit` vocabulary.
 ///
 /// It is a SUBSET, deliberately and visibly: `SetMembers`,
-/// `SetOffset`, `SetGauge`, `Promote`, `Fold`, `UpdateReference` and
-/// `SetDeclare` are arms of `DocEdit` that no corpus document authors,
-/// and listing them here would report seven permanent misses rather
+/// `SetOffset`, `SetGauge`, `Promote`, `Fold` and `UpdateReference`
+/// are arms of `DocEdit` that no corpus document authors, and listing
+/// them here would report six permanent misses rather
 /// than covering anything. `SetProgram` is
 /// listed: `reshaped_rod` authors one, the first persisted in the
 /// tree. What guards the
@@ -503,22 +519,17 @@ pub const EDIT_KINDS: [&str; 21] = [
 ];
 
 /// The node SUB-kinds the corpus must also cover in full: every datum
-/// flavour, the declared boolean, and
-/// both pattern kinds.
-pub const SUB_KINDS: [&str; 17] = [
+/// flavour and both pattern kinds.
+pub const SUB_KINDS: [&str; 14] = [
     "Datum::Plane",
     "Datum::Axis",
-    "Datum::AxisInPlane",
     "Datum::Point",
     "Datum::Frame",
     "Datum::FaceFrame",
-    // A boolean that declares a coincidence, of any of the three.
-    "Boolean+Declare",
     "Pattern::Linear",
     "Pattern::Circular",
-    // Both selectors of the projection node: `part_select` reads a
-    // split's two halves and a pattern's middle instance.
-    "Part::SplitHalf",
+    // The projection node: `part_select` reads a pattern's middle
+    // instance.
     "Part::Instance",
     // LIB-PLACEDUNION's two register payoffs. `PlacedUnion::Circular`
     // is deliberately NOT listed: no corpus document needs one, and a
@@ -553,21 +564,7 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         Node::Datum(Datum::Frame { .. }) => vec!["Datum::Frame"],
         // Listed: `face_sketch` draws on a frame derived from a face.
         Node::Datum(Datum::FaceFrame { .. }) => vec!["Datum::FaceFrame"],
-        // Listed: four corpus documents revolve, and a revolve's axis
-        // is written in the profile's frame. `kitchen_sink` carries
-        // BOTH axis kinds — a world line for its circular pattern, an
-        // in-plane axis for its revolve — which is the whole reason
-        // they are two sub-kinds to count.
-        Node::Datum(Datum::AxisInPlane { .. }) => vec!["Datum::AxisInPlane"],
-        Node::Union { declare, .. }
-        | Node::Intersect { declare, .. }
-        | Node::Subtract { declare, .. } => {
-            if declare.is_empty() {
-                Vec::new()
-            } else {
-                vec!["Boolean+Declare"]
-            }
-        }
+        Node::Union { .. } | Node::Intersect { .. } | Node::Subtract { .. } => Vec::new(),
         Node::Pattern { kind, .. } => vec![match kind {
             PatternKind::Linear { .. } => "Pattern::Linear",
             PatternKind::Circular { .. } => "Pattern::Circular",
@@ -581,13 +578,10 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
             PatternKind::Circular { .. } => "PlacedUnion::Circular",
             PatternKind::Explicit(_) => "PlacedUnion::Explicit",
         }],
-        // The two selectors are two sub-kinds: which value kind the
-        // node reads, and so which refusals it can meet, follows the
-        // selector.
-        Node::Part { select, .. } => vec![match select {
-            PartSelect::SplitHalf(_) => "Part::SplitHalf",
-            PartSelect::Instance(_) => "Part::Instance",
-        }],
+        Node::Part {
+            select: PartSelect::Instance(_),
+            ..
+        } => vec!["Part::Instance"],
         // EXHAUSTIVE on purpose (review MIN-2): no wildcard arm, so a
         // new `Node` variant — or a new `Datum`/
         // `PatternKind` flavour above — is a COMPILE error here rather
@@ -695,7 +689,6 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::Fold { .. } => "Fold",
         DocEdit::UpdateReference { .. } => "UpdateReference",
         DocEdit::SetLabel { .. } => "SetLabel",
-        DocEdit::SetDeclare { .. } => "SetDeclare",
     }
 }
 

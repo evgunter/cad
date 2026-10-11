@@ -4596,7 +4596,6 @@ mod split_carries_candidates {
             Node::Subtract {
                 from: a.into(),
                 tool: b.into(),
-                declare: Vec::new(),
             },
         );
         let (doc, tool) = ins(
@@ -4694,7 +4693,7 @@ mod split_edge_lineage {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::{Side, chase_edge_to_table, chase_split_edge_to_table};
-    use crate::eval::{CancelToken, DatumValue, EvalOptions, ValuePayload, evaluate};
+    use crate::eval::{CancelToken, EvalOptions, PoseValue, ValuePayload, evaluate};
     use crate::names::role::SplitHalf;
     use crate::names::table::{EntityKey, EntityRef};
     use crate::test_support::clipped_cylinder;
@@ -4716,7 +4715,7 @@ mod split_edge_lineage {
             panic!("the extrude is one body");
         };
         // The plane the split verb reads off the same datum.
-        let Some(ValuePayload::Datum(DatumValue::Plane { origin, normal })) =
+        let Some(ValuePayload::Datum(PoseValue::Plane { origin, normal })) =
             ev.value(tool).map(|v| &v.payload)
         else {
             panic!("the tool is a plane datum");
@@ -4892,7 +4891,6 @@ mod crossings_rank_along_the_line {
             Node::Subtract {
                 from: disc.into(),
                 tool: notch.into(),
-                declare: Vec::new(),
             },
         );
         let ev = evaluate::<f64>(
@@ -5446,7 +5444,6 @@ mod edge_pieces_of_one_line_tie {
             Node::Subtract {
                 from: rod.into(),
                 tool: top.into(),
-                declare: Vec::new(),
             },
         );
         let ev = evaluate::<f64>(

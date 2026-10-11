@@ -26,11 +26,11 @@ use std::borrow::Cow;
 use geom_core::{Band, Bounds, Decide};
 
 use super::{
-    BooleanDeclarations, BooleanError, CarrierRelation, FacePairDeclaration, Operand, PairUnread,
-    Tangency, boxes, carrier_pair_relation, verify_tangency_declaration,
+    BooleanError, CarrierRelation, Glue, GluedPair, Operand, PairUnread, Tangency, boxes,
+    carrier_pair_relation, verify_tangency_declaration,
 };
 use crate::body::Body;
-use crate::contact::BooleanCoincidence;
+use crate::contact::GlueClass;
 use crate::entity::FaceKey;
 
 /// `decls` with every undeclared pair the operation decides one carrier
@@ -43,40 +43,35 @@ use crate::entity::FaceKey;
 pub(crate) fn decided_declarations<'d, T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
-    decls: &'d BooleanDeclarations,
+    decls: &'d Glue,
     band: Band,
-) -> Result<Cow<'d, BooleanDeclarations>, BooleanError> {
+) -> Result<Cow<'d, Glue>, BooleanError> {
     if decls.verdicts == super::Verdicts::Given {
         return Ok(Cow::Borrowed(decls));
     }
-    let declared = |fa, fb| {
-        decls
-            .coincident_faces
-            .iter()
-            .any(|d| d.a == fa && d.b == fb)
-    };
+    let declared = |fa, fb| decls.pairs.iter().any(|d| d.a == fa && d.b == fb);
     let mut found = Vec::new();
     for (fa, fb) in overlapping_pairs(a, b, |_| true, band)? {
         if declared(fa, fb) {
             continue;
         }
         let class = match carrier_pair_relation(a, fa, b, fb, false, band) {
-            Ok(Ok(CarrierRelation::SameOpposite)) => Some(BooleanCoincidence::REST),
-            Ok(Ok(CarrierRelation::SameOriented)) => Some(BooleanCoincidence::Continuation),
+            Ok(Ok(CarrierRelation::SameOpposite)) => Some(GlueClass::REST),
+            Ok(Ok(CarrierRelation::SameOriented)) => Some(GlueClass::Continuation),
             Ok(Ok(CarrierRelation::Distinct)) | Err(PairUnread::OutsideInventory) => {
                 tangency(a, fa, b, fb, band)?
             }
             Ok(Err(_)) | Err(PairUnread::Extent(_)) => None,
         };
         if let Some(class) = class {
-            found.push(FacePairDeclaration::new(fa, fb, class));
+            found.push(GluedPair::new(fa, fb, class));
         }
     }
     if found.is_empty() {
         return Ok(Cow::Borrowed(decls));
     }
     let mut out = decls.clone();
-    out.coincident_faces.extend(found);
+    out.pairs.extend(found);
     Ok(Cow::Owned(out))
 }
 
@@ -91,7 +86,7 @@ fn tangency<T: Decide>(
     b: &Body<T>,
     fb: FaceKey,
     band: Band,
-) -> Result<Option<BooleanCoincidence>, BooleanError> {
+) -> Result<Option<GlueClass>, BooleanError> {
     use geom::SurfaceKind::{Cylinder, Plane};
     let kind = |body: &Body<T>, f| {
         body.get_face(f)
@@ -174,7 +169,7 @@ fn overlapping_pairs<T: Decide + Bounds>(
 pub(crate) fn coaxial_rows<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
-    decls: &BooleanDeclarations,
+    decls: &Glue,
     band: Band,
 ) -> Result<Vec<crate::Coincidence>, BooleanError> {
     if decls.verdicts == super::Verdicts::Given {
@@ -214,7 +209,7 @@ pub(crate) fn coaxial_rows<T: Decide + Bounds>(
                 relation: crate::Relation::OnCarrier,
                 site: crate::DecisionSite::CoaxialSphere,
                 margin,
-                discharge: crate::Discharge::Numeric,
+                discharge: crate::Discharge::of(margin),
             });
         }
     }

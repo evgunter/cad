@@ -202,17 +202,14 @@ fn run_names_agree_across_scalar_types() {
             }),
         );
         let (doc, n) = if revolve {
-            let (doc, axis) = insert(
-                doc,
-                crate::fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
-            );
             insert(
                 doc,
-                Node::Revolve {
-                    profile: p.into(),
-                    axis: axis.into(),
-                    angle: crate::fixture::ang(std::f64::consts::TAU),
-                },
+                crate::fixture::revolve_about(
+                    p,
+                    (0.0, 0.0),
+                    (0.0, 1.0),
+                    crate::fixture::ang(std::f64::consts::TAU),
+                ),
             )
         } else {
             insert(
@@ -262,8 +259,8 @@ fn a_union_offers_its_members_run_wall_across_a_station() {
         ProgramStep::LineTo(ProgramTarget::Start),
     ];
     let (doc, p, ex) = build(plain, ExtrudeSide::ALL[0]);
-    let (doc, apart) = crate::docm7_union_declare::block(doc, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union) = crate::fixture::union_over(doc, &[ex, apart], Vec::new());
+    let (doc, apart) = crate::blocks::block(doc, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, union) = crate::fixture::union_over(doc, &[ex, apart]);
     let ex_read = crate::fixture::out(&doc, ex);
     let keyed = |n: StableName| member_entity(union, ex_read, n, EntityKind::Face);
     let held = keyed(lateral(ex, vec![piece(&doc, ex, 0, 0)]));

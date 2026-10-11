@@ -236,8 +236,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let u1 = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            spec: BooleanSpec::Union(vec![softened, base]),
-            declare: Vec::new(),
+            spec: BooleanSpec::Union(vec![softened.into(), base.into()]),
         },
     );
     let v_u1 = body_volume(&mut session, u1, tol);
@@ -261,8 +260,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let u2 = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            spec: BooleanSpec::Union(vec![u1, shaft]),
-            declare: Vec::new(),
+            spec: BooleanSpec::Union(vec![u1.into(), shaft.into()]),
         },
     );
     let v_u2 = body_volume(&mut session, u2, tol);
@@ -281,8 +279,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let u3 = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            spec: BooleanSpec::Union(vec![u2, drum]),
-            declare: Vec::new(),
+            spec: BooleanSpec::Union(vec![u2.into(), drum.into()]),
         },
     );
     let v_u3 = body_volume(&mut session, u3, tol);
@@ -303,10 +300,9 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         SessionOp::AddBoolean {
             spec: BooleanSpec::Subtract {
-                from: u3,
-                tool: cutter,
+                from: u3.into(),
+                tool: cutter.into(),
             },
-            declare: Vec::new(),
         },
     );
     let v_cut1 = body_volume(&mut session, cut1, tol);
@@ -317,7 +313,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let cutter2 = session_insert(
         &mut session,
         SessionOp::AddTransform {
-            input: cutter,
+            input: cutter.into(),
             translation: len3([0.0, 0.0, CUT2_LIFT]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
             rotation_angle: ang(FRAC_PI_2),
@@ -327,10 +323,9 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         SessionOp::AddBoolean {
             spec: BooleanSpec::Subtract {
-                from: cut1,
-                tool: cutter2,
+                from: cut1.into(),
+                tool: cutter2.into(),
             },
-            declare: Vec::new(),
         },
     );
     let v_carved = body_volume(&mut session, carved, tol);
@@ -371,7 +366,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let pattern = session_insert(
         &mut session,
         SessionOp::AddPattern {
-            input: block,
+            input: block.into(),
             count: 4,
             rule: PatternRuleSpec::Circular {
                 axis,
@@ -394,8 +389,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     // consumes (the F4 division the heatsink demo documents).
     let states = session.history().len();
     let refused = session.perform(SessionOp::AddBoolean {
-        spec: BooleanSpec::Union(vec![carved, pattern]),
-        declare: Vec::new(),
+        spec: BooleanSpec::Union(vec![carved.into(), pattern.into()]),
     });
     assert!(
         matches!(
@@ -415,7 +409,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let merlons = session_insert(
         &mut session,
         SessionOp::AddPlacedUnion {
-            input: block,
+            input: block.into(),
             count: 4,
             rule: PatternRuleSpec::Circular {
                 axis,
@@ -440,8 +434,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let crenellated = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            spec: BooleanSpec::Union(vec![carved, merlons]),
-            declare: Vec::new(),
+            spec: BooleanSpec::Union(vec![carved.into(), merlons.into()]),
         },
     );
     // Each merlon meets the crown in its sunk slab and nowhere else,

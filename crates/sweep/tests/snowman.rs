@@ -1445,7 +1445,7 @@ fn the_fallback_assembly_carries_the_kept_operands_certificates() {
 /// the circle's interior, `(u, E)`, never `(u, v)`, and tier 3′ answers
 /// alike, its curved cross-solid reach the only finding. The census
 /// still sweeps the vertex's point: stripped of its record, the corner
-/// at the vertex is an undeclared contact, so the record is what backs
+/// at the vertex is an unrecorded contact, so the record is what backs
 /// it.
 #[test]
 fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
@@ -1528,13 +1528,14 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
             );
             let c = &bb.contacts;
             let records = [
-                c.vv.len(),
-                c.a_on_b.len() + c.b_on_a.len(),
-                c.ve.len(),
-                c.ee.len(),
+                c.vertex_vertex().count(),
+                c.vertex_face().count(),
+                c.vertex_edge().count(),
+                c.edge_edge().count(),
             ];
             assert_eq!(records, [0, 0, 1, 0], "{label}: one (u, E) record");
-            let edge = bb.body.get_edge(c.ve[0].edge).unwrap();
+            let (_, e) = c.vertex_edge().next().unwrap();
+            let edge = bb.body.get_edge(e).unwrap();
             assert!(
                 matches!(
                     bb.body
@@ -1549,8 +1550,13 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
             );
             // Stripped of the record, the touch at the vertex is found:
             // the sweeps still read a conventional vertex's point.
-            let mut bare = bb.contacts.clone();
-            bare.ve.clear();
+            let bare: topo::ContactRecords = bb
+                .contacts
+                .rows()
+                .iter()
+                .filter(|c| !matches!(c.kind(), topo::ContactKind::VertexEdge(..)))
+                .cloned()
+                .collect();
             let stripped: Vec<String> = topo::validate_pseudomanifold(&bb.body, &bare, tol)
                 .err()
                 .unwrap_or_default()
@@ -1561,7 +1567,7 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
             if along == 0.0 {
                 assert!(
                     matches!(stripped.as_slice(), [e] if e.starts_with(
-                        "UndeclaredContact { contact: VertexVertex"
+                        "UnrecordedContact { contact: VertexVertex"
                     )),
                     "{label}: without its record the corner at the vertex is undeclared: \
                      {stripped:?}"
@@ -1644,10 +1650,10 @@ fn a_plane_through_a_caps_conventional_vertex_cuts_as_elsewhere() {
             let got = (
                 (b.faces().count(), b.edges().count(), b.vertices().count()),
                 [
-                    c.vv.len(),
-                    c.a_on_b.len() + c.b_on_a.len(),
-                    c.ve.len(),
-                    c.ee.len(),
+                    c.vertex_vertex().count(),
+                    c.vertex_face().count(),
+                    c.vertex_edge().count(),
+                    c.edge_edge().count(),
                 ],
             );
             assert_eq!(

@@ -2,10 +2,11 @@
 id: isosceles-mitre-reads-as-an-unproven-coincidence-on-every-box
 kind: issue
 title: D10: a blend's isosceles-mitre verdict on an extruded box is decided from values, and D10's structural test, which compares carriers, cannot prove the two equal angles one construction
-status: open
+status: closed
 opened: 2026-10-06
 priority: P0
 cost: M
+closed: 2026-10-10
 ---
 
 
@@ -73,3 +74,18 @@ Take an extrude in direction `d` over a profile edge with tangent `t`. The cap n
 Stage 4 measures this on box mitres. The expressions are small, and only coincidences decided from values are checked. Per-node theorems, meaning an operation listing the identities it guarantees, are kept only as a possible cache. One is added only where the algebra is measured too slow or undecidable, because a second hand-written description of an operation can drift from its code.
 
 The fillet sibling is already structural under rung 2: two cylinder radii that read one variable compare equal.
+
+## Closed — measured
+
+Closed by `carriers-compare-in-canonical-form`, which measures the box
+mitre as Ev's answer asks. On a box 2 × 1.5 × 1 with both rims
+filleted, the door replays the document at `Sym` with every variable a
+symbol (64 ms) and matches all eight `BatteryTurn` rows. Each margin
+is `max(|cos₁ − cos₂|·arm, |y₂ − y₁|)`. The angle term is the zero
+polynomial: the output definitions alone prove the isosceles fact. The
+distance between the two bands' feet does not reduce to zero at any
+term budget measured (64 to 4096; 1563 DAG nodes, 19 symbols). So
+every box mitre is still reported unproven, now with the replay's
+word on it. Closing the feet is the tier's work:
+`work/sym/the-mitres-feet-distance-freezes-at-sym.md`. No per-node
+theorem or cache was built.

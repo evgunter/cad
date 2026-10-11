@@ -31,15 +31,15 @@
 //!   one, and are welded only in the second case.
 //!
 //! Each row also reads the result's contact record, its tier-3′ verdict
-//! and `check_mesh` on its tessellation. Two of those diverge where they
-//! should agree, each while a filed row stands ([`DROPPED_RECORDS`],
-//! [`DOUBLED_EDGE`]), and the rows assert the divergence as it stands.
+//! and `check_mesh` on its tessellation: every result passes 3′, every
+//! order of one union publishes one record, and `check_mesh` diverges
+//! only while [`DOUBLED_EDGE`] stands.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;
 
+use crate::blocks::{block, failure, run};
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, failure, run};
 use crate::fixture::{ends, face_vertices, insert, len, on_frame, point};
 use editor_core::{
     BooleanValue, Evaluation, ExtrudeSide, Node, ProfileDoc, RecipeNodeId, ValuePayload,
@@ -53,16 +53,13 @@ fn pair_node(op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> editor_core::Au
     match op {
         BooleanOp::Union => Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
         BooleanOp::Intersect => Node::Intersect {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
         BooleanOp::Subtract => Node::Subtract {
             from: a.into(),
             tool: b.into(),
-            declare: Vec::new(),
         },
     }
 }
@@ -239,27 +236,22 @@ struct Record {
 }
 
 fn record(body: &Body<f64>, c: &ContactRecords) -> Record {
-    let mut vv: Vec<[Point; 2]> =
-        c.vv.iter()
-            .map(|r| {
-                let mut ps = [at_point(body, r.a), at_point(body, r.b)];
-                ps.sort_unstable();
-                ps
-            })
-            .collect();
-    vv.sort_unstable();
-    let mut vf: Vec<Point> = c
-        .a_on_b
-        .iter()
-        .chain(&c.b_on_a)
-        .map(|r| at_point(body, r.vertex))
+    let mut vv: Vec<[Point; 2]> = c
+        .vertex_vertex()
+        .map(|(a, b)| {
+            let mut ps = [at_point(body, a), at_point(body, b)];
+            ps.sort_unstable();
+            ps
+        })
         .collect();
+    vv.sort_unstable();
+    let mut vf: Vec<Point> = c.vertex_face().map(|(v, _)| at_point(body, v)).collect();
     vf.sort_unstable();
     Record {
         vv,
         vf,
-        curves: c.curves.len(),
-        patches: c.patches.len(),
+        curves: c.edge_face().count(),
+        patches: c.face_face().count(),
     }
 }
 
@@ -269,7 +261,7 @@ struct Outcome {
     shape: Shape,
     record: Record,
     /// The tier-3′ verdict over the body and its record, each error by
-    /// its kind and, for an undeclared contact, its census kind and
+    /// its kind and, for an unrecorded contact, its census kind and
     /// witness point.
     verdict: Result<(), Vec<(String, Option<Point>)>>,
     /// `mesh::validate::check_mesh` on the tessellation, by error kind.
@@ -321,8 +313,10 @@ fn checked(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str, volume: f64) -> O
         let mut es: Vec<(String, Option<Point>)> = es
             .iter()
             .map(|e| match e {
-                topo::ValidationError::UndeclaredContact { contact, witness } => (
-                    format!("UndeclaredContact {}", kind(&format!("{contact:?}"))),
+                topo::ValidationError::UnrecordedContact {
+                    contact, witness, ..
+                } => (
+                    format!("UnrecordedContact {}", kind(&format!("{contact:?}"))),
                     witness_point(witness),
                 ),
                 other => (kind(&format!("{other:?}")).to_owned(), None),
@@ -353,6 +347,33 @@ fn top() -> Point {
     micron(MEET[0], MEET[1], MEET[2])
 }
 
+/// Where a pair boolean clips a carried contact at the pinch and keeps
+/// the pierce as two vertices, recording nothing for it.
+const PIERCE_UNRECORDED: &str = "work/wire/a-boolean-clipping-a-carried-contact-at-a-pinch-records-no-contact-for-the-pierce.md";
+
+/// Asserts `o` is refused at 3′ by exactly an edge-edge overlap and a
+/// vertex-vertex contact at the pinch, the pair [`PIERCE_UNRECORDED`]
+/// leaves unrecorded.
+fn pierce_unrecorded(o: &Outcome, what: &str) {
+    let Err(es) = &o.verdict else {
+        panic!("{what}: passes 3′ — {PIERCE_UNRECORDED} may be fixed; assert Ok instead")
+    };
+    let kinds: Vec<&str> = es.iter().map(|(k, _)| k.as_str()).collect();
+    assert_eq!(
+        kinds,
+        [
+            "UnrecordedContact EdgeEdgeOverlap",
+            "UnrecordedContact VertexVertex"
+        ],
+        "{what}: refused at 3′ by other than the unrecorded pierce ({PIERCE_UNRECORDED}): {es:?}"
+    );
+    assert_eq!(
+        es[1].1,
+        Some(top()),
+        "{what}: the vertex pair lies at the pinch"
+    );
+}
+
 /// Every order of `0..n`.
 fn orders(n: usize) -> Vec<Vec<usize>> {
     if n == 0 {
@@ -369,81 +390,30 @@ fn orders(n: usize) -> Vec<Vec<usize>> {
     out
 }
 
-/// Where a body's contact record and tier-3′ verdict are owed but, while
-/// it stands, not published: a boolean publishes the contacts its own
-/// step decided and drops its operands', so a union's record is its last
-/// fold step's.
-const DROPPED_RECORDS: &str = "work/wire/a-boolean-drops-its-operands-own-contact-records.md";
-
 /// The double edge two touching solids leave meshes as one segment of
 /// four triangles, which `check_mesh` refuses.
 const DOUBLED_EDGE: &str =
     "work/tess/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md";
 
-/// An undeclared contact 3′ reports: its kind and its witness point.
-type Contact = (&'static str, Point);
-
-/// Where two blocks touch beyond the plate: the overlap of their
-/// coincident edges, witnessed at its middle, and the vertex at its end,
-/// which rests on the other block's edge once the output stage has
-/// joined that edge's cut vertex away (maximal edges).
-fn touch(overlap: Point, end: Point) -> [Contact; 2] {
-    [("EdgeEdgeOverlap", overlap), ("VertexOnEdge", end)]
-}
-
-/// `p1` against `p2` above the plate's top.
-fn p1_p2() -> [Contact; 2] {
-    touch(
-        (1_500_000, 1_000_000, 1_350_000),
-        (1_500_000, 1_000_000, 1_700_000),
-    )
-}
-
-/// Asserts `o` is refused at 3′ by exactly the undeclared `contacts`,
-/// the operand records [`DROPPED_RECORDS`] drops.
-fn dropped(o: &Outcome, what: &str, contacts: &[Contact]) {
-    let mut want: Vec<(String, Option<Point>)> = contacts
-        .iter()
-        .map(|&(k, p)| (format!("UndeclaredContact {k}"), Some(p)))
-        .collect();
-    want.sort_unstable();
-    match &o.verdict {
-        Err(es) => assert_eq!(
-            es, &want,
-            "{what}: refused at 3′ by other than the dropped records ({DROPPED_RECORDS})"
-        ),
-        Ok(()) => {
-            panic!("{what}: passes 3′ — {DROPPED_RECORDS} may be fixed; assert one verdict instead")
-        }
-    }
-}
-
 /// Asserts every member order of `fixture`'s union builds one body,
 /// with `counts` (faces, edges, vertices), `volume` and one vertex at
-/// each of `pinches`, and one mesh verdict.
-///
-/// The record and the 3′ verdict follow the LAST member folded
-/// ([`DROPPED_RECORDS`]): orders that fold one member last agree on
-/// both, and 3′ refuses exactly the `touches` between two members
-/// neither of which is the last, the contacts no step after them
-/// decided.
+/// each of `pinches`, passes 3′, and publishes one record and one mesh
+/// verdict.
 fn every_order(
     label: &str,
     fixture: fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>),
     counts: [usize; 3],
     volume: f64,
     pinches: &[Point],
-    touches: &[([usize; 2], &[Contact])],
 ) {
     let mut first: Option<Outcome> = None;
-    let mut by_last: BTreeMap<usize, Outcome> = BTreeMap::new();
     let n = fixture(ProfileDoc::empty_derived("union_pinch", Tol::witness()))
         .1
         .len();
     for order in orders(n) {
         let (doc, m) = fixture(ProfileDoc::empty_derived("union_pinch", Tol::witness()));
         let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
-        let (doc, u) = crate::fixture::union_over(doc, &members, Vec::new());
+        let (doc, u) = crate::fixture::union_over(doc, &members);
         let what = format!("{label}, member order {order:?} (0 = plate)");
         let ev = run(&doc);
         let o = checked(&ev, u, &what, volume);
@@ -451,38 +421,21 @@ fn every_order(
         for &p in pinches {
             assert_eq!(at(&o.shape, p), 1, "{what}: vertices at the pinch {p:?}");
         }
-        let last = order[n - 1];
-        let undecided: Vec<Contact> = touches
-            .iter()
-            .filter(|(pair, _)| !pair.contains(&last))
-            .flat_map(|&(_, cs)| cs.iter().copied())
-            .collect();
-        if undecided.is_empty() {
-            assert_eq!(o.verdict, Ok(()), "{what}: 3′");
-        } else {
-            dropped(&o, &what, &undecided);
-        }
+        assert_eq!(o.verdict, Ok(()), "{what}: 3′");
         if let Some(f) = &first {
             assert_eq!(
                 o.shape, f.shape,
                 "{what}: a different body from the first order"
             );
             assert_eq!(
+                o.record, f.record,
+                "{what}: a different record from the first order"
+            );
+            assert_eq!(
                 o.manifold, f.manifold,
                 "{what}: a different mesh verdict from the first order"
             );
-        }
-        match by_last.get(&last) {
-            Some(f) => assert_eq!(
-                (&o.record, &o.verdict),
-                (&f.record, &f.verdict),
-                "{what}: a different record or 3′ verdict from an order folding the same member last"
-            ),
-            None => {
-                by_last.insert(last, o.clone());
-            }
-        }
-        if first.is_none() {
+        } else {
             first = Some(o);
         }
     }
@@ -498,27 +451,13 @@ fn every_order(
 /// it.**
 #[test]
 fn a_pinch_union_builds_one_body_in_every_member_order() {
-    every_order(
-        "top",
-        pinch,
-        [19, 48, 31],
-        UNION_VOLUME,
-        &[top()],
-        &[([1, 2], &p1_p2())],
-    );
+    every_order("top", pinch, [19, 48, 31], UNION_VOLUME, &[top()]);
     every_order(
         "side",
         side_pinch,
         [16, 36, 23],
         6.0 + (0.225 - 0.075) + (0.2145 - 0.0795),
         &[(3_000_000, 1_000_000, 500_000)],
-        &[(
-            [1, 2],
-            &touch(
-                (3_450_000, 1_000_000, 500_000),
-                (3_900_000, 1_000_000, 500_000),
-            ),
-        )],
     );
 }
 
@@ -534,17 +473,6 @@ fn two_pinches_build_one_body_in_every_member_order() {
         [24, 60, 38],
         6.0 + (2.5 - 0.5) + (2.17 - 0.5),
         &[top(), (1_500_000, 1_000_000, 0)],
-        &[(
-            [1, 2],
-            &[
-                p1_p2(),
-                touch(
-                    (1_500_000, 1_000_000, -235_000),
-                    (1_500_000, 1_000_000, -470_000),
-                ),
-            ]
-            .concat(),
-        )],
     );
     every_order(
         "two pinches on the top",
@@ -552,16 +480,6 @@ fn two_pinches_build_one_body_in_every_member_order() {
         [26, 66, 42],
         UNION_VOLUME + 0.5 * (0.9 + 0.5),
         &[top(), (1_000_000, 1_000_000, 1_000_000)],
-        &[
-            ([1, 2], &p1_p2()),
-            (
-                [1, 3],
-                &touch(
-                    (1_000_000, 1_000_000, 1_250_000),
-                    (1_000_000, 1_000_000, 1_500_000),
-                ),
-            ),
-        ],
     );
 }
 
@@ -573,14 +491,12 @@ fn two_pinches_build_one_body_in_every_member_order() {
 /// with its own polygon.
 #[test]
 fn holes_touching_at_a_corner_build_one_body_in_every_member_order() {
-    let touches: &[([usize; 2], &[Contact])] = &[([1, 2], &p1_p2())];
     every_order(
         "corner holes",
         corner_holes,
         [16, 36, 23],
         6.0 + 0.25 * (2.0 - 1.0) + 0.25 * (1.7 - 1.0),
         &[top()],
-        touches,
     );
     every_order(
         "notch and hole",
@@ -588,7 +504,6 @@ fn holes_touching_at_a_corner_build_one_body_in_every_member_order() {
         [17, 42, 27],
         6.0 + 0.5 * 2.0 * (2.0 - 1.0) + 0.5 * 1.0 * (1.0 - 0.5) + 0.25 * (1.7 - 1.0),
         &[top()],
-        touches,
     );
     let wedge = 0.5
         * ((WEDGE[1].0 - WEDGE[0].0) * (WEDGE[2].1 - WEDGE[0].1)
@@ -599,7 +514,6 @@ fn holes_touching_at_a_corner_build_one_body_in_every_member_order() {
         [17, 39, 25],
         6.0 + wedge * (2.0 - 1.0) + 0.75 * (1.7 - 1.0),
         &[top()],
-        touches,
     );
 }
 
@@ -612,8 +526,8 @@ fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
     let [plate, p1, p2] = m[..] else {
         panic!("the pinch fixture is three members")
     };
-    let (doc, blocks) = crate::fixture::union_over(doc, &[p1, p2], Vec::new());
-    let (doc, folded) = crate::fixture::union_over(doc, &[p1, p2, plate], Vec::new());
+    let (doc, blocks) = crate::fixture::union_over(doc, &[p1, p2]);
+    let (doc, folded) = crate::fixture::union_over(doc, &[p1, p2, plate]);
     let pair = |doc, op, a: RecipeNodeId, b: RecipeNodeId| insert(doc, pair_node(op, a, b));
     let (doc, plate_first) = pair(doc, BooleanOp::Union, plate, blocks);
     let (doc, blocks_first) = pair(doc, BooleanOp::Union, blocks, plate);
@@ -621,43 +535,36 @@ fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
     let (doc, footprints) = pair(doc, BooleanOp::Intersect, plate, blocks);
     let ev = run(&doc);
 
-    // The joined blocks hold their contact in their own record, which
-    // none of these booleans carries into its result: 3′ finds it where
-    // the result keeps it, the contact the plate clips it to.
-    let m = |what: &str, o: Outcome, contacts: &[Contact]| {
-        dropped(&o, what, contacts);
+    // The joined blocks' own contact record carries into each result.
+    let m = |what: &str, o: Outcome| {
+        assert_eq!(o.verdict, Ok(()), "{what}: 3′");
         assert_eq!(o.manifold, Ok(()), "{what}: check_mesh");
-        o.shape
-    };
-    let below = |ends: &[(&'static str, i64)]| {
-        let mut cs = vec![("EdgeEdgeOverlap", (1_500_000, 1_000_000, 750_000))];
-        cs.extend(
-            ends.iter()
-                .map(|&(kind, z)| (kind, (1_500_000, 1_000_000, z))),
-        );
-        cs
+        o
     };
     let union = m(
         "the folded union",
         checked(&ev, folded, "the folded union", UNION_VOLUME),
-        &p1_p2(),
     );
     for (what, id) in [
         ("plate ∪ blocks", plate_first),
         ("blocks ∪ plate", blocks_first),
     ] {
+        let o = m(what, checked(&ev, id, what, UNION_VOLUME));
         assert_eq!(
-            m(what, checked(&ev, id, what, UNION_VOLUME), &p1_p2()),
-            union,
+            o.shape, union.shape,
             "{what}: a different body from the member-order union"
+        );
+        assert_eq!(
+            o.record, union.record,
+            "{what}: a different record from the member-order union"
         );
     }
 
     let s = m(
         "plate ∖ blocks",
         checked(&ev, notched, "plate ∖ blocks", 6.0 - NOTCHES),
-        &below(&[("VertexOnEdge", 500_000)]),
-    );
+    )
+    .shape;
     assert_eq!(at(&s, top()), 1, "plate ∖ blocks: vertices at the pinch");
     let tops = s
         .faces
@@ -666,11 +573,10 @@ fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
         .count();
     assert_eq!(tops, 2, "plate ∖ blocks: faces on the top");
 
-    let s = m(
-        "plate ∩ blocks",
-        checked(&ev, footprints, "plate ∩ blocks", NOTCHES),
-        &below(&[("VertexOnEdge", 500_000), ("VertexVertex", 1_000_000)]),
-    );
+    let o = checked(&ev, footprints, "plate ∩ blocks", NOTCHES);
+    pierce_unrecorded(&o, "plate ∩ blocks");
+    assert_eq!(o.manifold, Ok(()), "plate ∩ blocks: check_mesh");
+    let s = o.shape;
     assert_eq!(
         at(&s, top()),
         2,
@@ -698,7 +604,7 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
     let pair = |doc, op, a: RecipeNodeId, b: RecipeNodeId| insert(doc, pair_node(op, a, b));
     // One cut: cutting the blocks one at a time sets the second block's
     // wall flush with the first's hole wall, an undeclared continuation.
-    let (doc, blocks) = crate::fixture::union_over(doc, &[p1, p2], Vec::new());
+    let (doc, blocks) = crate::fixture::union_over(doc, &[p1, p2]);
     let (doc, x) = pair(doc, BooleanOp::Subtract, slab, blocks);
     // The slab less the two notches, and the plate's part inside it.
     let x_volume = 50.0 - 0.5 * 2.0 * 1.8 - 0.5 * 2.0 * 1.5;
@@ -712,7 +618,6 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
             6.0 - shared,
             [15, 36, 23],
             2,
-            (750_000, &[("VertexVertex", 1_000_000)][..]),
         ),
         (
             "X ∖ plate",
@@ -722,7 +627,6 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
             x_volume - shared,
             [23, 60, 39],
             1,
-            (1_500_000, &[("VertexOnEdge", 2_000_000)][..]),
         ),
         (
             "X ∪ plate",
@@ -732,10 +636,6 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
             x_volume + 6.0 - shared,
             [22, 60, 40],
             2,
-            (
-                1_500_000,
-                &[("VertexVertex", 1_000_000), ("VertexOnEdge", 2_000_000)][..],
-            ),
         ),
         (
             "plate ∪ X",
@@ -745,10 +645,6 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
             x_volume + 6.0 - shared,
             [22, 60, 40],
             2,
-            (
-                1_500_000,
-                &[("VertexVertex", 1_000_000), ("VertexOnEdge", 2_000_000)][..],
-            ),
         ),
         (
             "X ∩ plate",
@@ -758,7 +654,6 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
             shared,
             [16, 36, 22],
             1,
-            (0, &[][..]),
         ),
         (
             "plate ∩ X",
@@ -768,7 +663,6 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
             shared,
             [16, 36, 22],
             1,
-            (0, &[][..]),
         ),
     ];
     let mut doc = doc;
@@ -779,34 +673,39 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
         ids.push(id);
     }
     let ev = run(&doc);
-    let mut shapes = Vec::new();
-    for (&(what, op, _, _, volume, counts, pinch, (overlap, ends)), &id) in rows.iter().zip(&ids) {
+    let mut outcomes = Vec::new();
+    for (&(what, op, _, _, volume, counts, pinch), &id) in rows.iter().zip(&ids) {
         let o = checked(&ev, id, what, volume);
+        // X's own contact record carries into each result; where the op
+        // keeps the pierce as two vertices it records nothing for them.
+        if pinch == 2 {
+            pierce_unrecorded(&o, what);
+        } else {
+            assert_eq!(o.verdict, Ok(()), "{what}: 3′");
+        }
         if op == BooleanOp::Intersect {
             // Two L-prisms touching along the contact line, which runs
             // between one vertex at each end as two coincident edges.
-            assert_eq!(o.verdict, Ok(()), "{what}: 3′");
             assert_eq!(
                 o.manifold,
                 Err("NonManifoldEdge".to_owned()),
                 "{what}: check_mesh, while {DOUBLED_EDGE} stands"
             );
         } else {
-            // X holds the blocks' contact in its own record: 3′ finds it
-            // where the result keeps it.
-            let line = |z| (1_500_000, 1_000_000, z);
-            let mut contacts = vec![("EdgeEdgeOverlap", line(overlap))];
-            contacts.extend(ends.iter().map(|&(kind, z)| (kind, line(z))));
-            dropped(&o, what, &contacts);
             assert_eq!(o.manifold, Ok(()), "{what}: check_mesh");
         }
-        let s = o.shape;
-        assert_eq!(s.counts(), counts, "{what}: faces, edges, vertices");
-        assert_eq!(at(&s, top()), pinch, "{what}: vertices at the pinch");
-        shapes.push(s);
+        assert_eq!(o.shape.counts(), counts, "{what}: faces, edges, vertices");
+        assert_eq!(at(&o.shape, top()), pinch, "{what}: vertices at the pinch");
+        outcomes.push(o);
     }
-    assert_eq!(shapes[2], shapes[3], "X ∪ plate and plate ∪ X: one body");
-    assert_eq!(shapes[4], shapes[5], "X ∩ plate and plate ∩ X: one body");
+    for (i, what) in [
+        (2, "X ∪ plate and plate ∪ X"),
+        (4, "X ∩ plate and plate ∩ X"),
+    ] {
+        let (o, swapped) = (&outcomes[i], &outcomes[i + 1]);
+        assert_eq!(o.shape, swapped.shape, "{what}: one body");
+        assert_eq!(o.record, swapped.record, "{what}: one record");
+    }
 }
 
 use topo::test_support::meeting::{
@@ -878,14 +777,7 @@ fn wedges_meeting_at_a_vertex_build_one_body_in_every_member_order() {
         ),
     ];
     for (label, holes, fixture, counts) in rows {
-        every_order(
-            label,
-            fixture,
-            counts,
-            tilted_volume(&holes()),
-            &[top()],
-            &[],
-        );
+        every_order(label, fixture, counts, tilted_volume(&holes()), &[top()]);
     }
 }
 
@@ -910,14 +802,7 @@ fn holes_with_a_reflex_sector_at_their_vertex_build_one_body_in_every_member_ord
         ),
     ];
     for (label, holes, fixture, counts) in rows {
-        every_order(
-            label,
-            fixture,
-            counts,
-            tilted_volume(&holes()),
-            &[top()],
-            &[],
-        );
+        every_order(label, fixture, counts, tilted_volume(&holes()), &[top()]);
     }
 }
 
@@ -955,7 +840,7 @@ fn the_junction_where_the_wedges_meet_has_one_name_in_every_member_order() {
             &three_wedges(),
         );
         let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
-        let (doc, u) = crate::fixture::union_over(doc, &members, Vec::new());
+        let (doc, u) = crate::fixture::union_over(doc, &members);
         let ev = run(&doc);
         if let Some(e) = failure(&ev, u) {
             panic!("member order {order:?}: refused: {e:?}");
@@ -995,7 +880,7 @@ fn two_wedges_name_their_meeting_point_a_seam_of_their_legs_in_either_order() {
             ProfileDoc::empty_derived("union_pinch", Tol::witness()),
             &two_wedges(),
         );
-        let (doc, u) = crate::fixture::union_over(doc, &[m[order[0]], m[order[1]]], Vec::new());
+        let (doc, u) = crate::fixture::union_over(doc, &[m[order[0]], m[order[1]]]);
         let ev = run(&doc);
         if let Some(e) = failure(&ev, u) {
             panic!("member order {order:?}: refused: {e:?}");
@@ -1070,52 +955,35 @@ fn three_prisms(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 }
 
 /// Asserts every member order of `fixture`'s union builds one body, as
-/// [`every_order`] does, where three solids touch along one line. The
-/// contacts [`DROPPED_RECORDS`] drops are those of earlier members that
-/// the last one's do not cover, which [`every_order`]'s pairs cannot
-/// name: `dropped[i]` of them, all on the line, when member `i` folds
-/// last.
+/// [`every_order`] does, where three solids touch along one line.
 fn every_order_on_a_line(
     label: &str,
     fixture: fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>),
     counts: [usize; 3],
     volume: f64,
     pinch: bool,
-    dropped: &[usize],
 ) {
     let mut first: Option<Outcome> = None;
-    let n = dropped.len();
+    let n = fixture(ProfileDoc::empty_derived("on_a_line", Tol::witness()))
+        .1
+        .len();
     for order in orders(n) {
         let (doc, m) = fixture(ProfileDoc::empty_derived("on_a_line", Tol::witness()));
         let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
-        let (doc, u) = crate::fixture::union_over(doc, &members, Vec::new());
+        let (doc, u) = crate::fixture::union_over(doc, &members);
         let what = format!("{label}, member order {order:?}");
         let o = checked(&run(&doc), u, &what, volume);
         assert_eq!(o.shape.counts(), counts, "{what}: faces, edges, vertices");
         if pinch {
             assert_eq!(at(&o.shape, top()), 1, "{what}: vertices at the pinch");
         }
-        let refused = match &o.verdict {
-            Ok(()) => Vec::new(),
-            Err(es) => es.clone(),
-        };
-        for (kind, p) in &refused {
-            assert!(
-                kind.starts_with("UndeclaredContact")
-                    && p.is_some_and(|(x, y, _)| (x, y) == (1_500_000, 1_000_000)),
-                "{what}: 3′ refused off the line: {kind} at {p:?}"
-            );
-        }
-        assert_eq!(
-            refused.len(),
-            dropped[order[n - 1]],
-            "{what}: 3′ refused by other than the records {DROPPED_RECORDS} drops: {refused:?}"
-        );
+        assert_eq!(o.verdict, Ok(()), "{what}: 3′");
         if let Some(f) = &first {
             assert_eq!(
                 o.shape, f.shape,
                 "{what}: a different body from the first order"
             );
+            assert_eq!(o.record, f.record, "{what}: a different record");
             assert_eq!(o.manifold, f.manifold, "{what}: a different mesh verdict");
         } else {
             first = Some(o);
@@ -1141,7 +1009,6 @@ fn solids_touching_along_one_line_build_one_body_in_every_member_order() {
         [18, 39, 24],
         above.mul_add(1.0 + 0.7 + 0.81, 6.0),
         true,
-        &[6, 0, 2, 0],
     );
     every_order_on_a_line(
         "three prisms",
@@ -1149,7 +1016,6 @@ fn solids_touching_along_one_line_build_one_body_in_every_member_order() {
         [15, 27, 18],
         above * (1.5 + 1.23 + 1.37),
         false,
-        &[2, 2, 0],
     );
     every_order_on_a_line(
         "four prisms and the plate",
@@ -1157,7 +1023,6 @@ fn solids_touching_along_one_line_build_one_body_in_every_member_order() {
         [22, 48, 29],
         above.mul_add(1.0 + 0.7 + 0.81 + 0.63, 6.0),
         true,
-        &[12, 0, 2, 0, 6],
     );
     every_order_on_a_line(
         "four prisms",
@@ -1165,6 +1030,5 @@ fn solids_touching_along_one_line_build_one_body_in_every_member_order() {
         [20, 36, 24],
         above * (1.5 + 1.23 + 1.37 + 1.22),
         false,
-        &[6, 4, 0, 6],
     );
 }

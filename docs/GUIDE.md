@@ -202,7 +202,7 @@ material. Three boxes, a union and a subtract.
 The web stands flush on the plate's top, and the pocket's floor is
 flush with the plate's bottom. Where two faces meet on one plane the
 kernel decides it from their margins — "these two planes are one
-plane" within the tolerance — and glues them, declared or not; it
+plane" within the tolerance — and glues them; it
 records each such decision so the document can say which ones its
 construction proves (the `unproven-coincidence` lint). Two faces whose
 planes lie apart inside the tolerance's ambiguity band — too far to
@@ -624,7 +624,7 @@ validate_pseudomanifold(body, &result.contacts, tol)
   on. It runs tier 2 first.
 - **Tier 3′, `validate_pseudomanifold(body, contacts)`** — tier 3 for
   a body that legitimately touches itself, checked against the
-  declared contacts the boolean pipeline carried into the result.
+  contact records the boolean pipeline carried into the result.
 
 The 3-versus-3′ choice is mechanical, and the tour makes it the same
 way you should: **if the value came from a boolean, gate it at 3′
@@ -633,12 +633,13 @@ body from `split` carries no contacts, so it takes plain tier 3.
 
 All four rungs are bound in Python as methods on `Body`, and the
 fourth takes **no** contacts argument there: a Python `Body` carries
-the declarations its own producer minted for it, so
+the contact records its own producer minted for it, so
 `body.validate_pseudomanifold()` certifies against those and the
 choice above is already made. An `assemble`d at-rest body arrives
-with its mates' records and passes over its seats; `product`, which
-gathers the same solids and declares nothing, reports every seat as
-an undeclared contact.
+with its mates' records and the records its gather made of every
+other touch between copies, and passes over its seats; `product`,
+which gathers the same solids and carries no records, reports every
+seat as an unrecorded contact.
 
 ```
 use pncad::prelude::*;
@@ -1276,17 +1277,14 @@ frame = doc.sketch_frame(
     plane=SketchPlane.from_frame((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0), (0.0, 0.0, 1.0))
 )
 # The axis of revolution is written IN that frame, in its own two
-# coordinates: the frame's v is world +z, so the pole axis is its +y
-# through (0, 0). A revolve takes this and not a `datum_axis` — an
-# axis written in the frame cannot leave the plane it turns.
-axis = doc.insert(Node.datum_axis_in_plane(frame, (
-    Formula.length_in(0, m),
-    Formula.length_in(0, m),
-), (
-    Formula.literal(0.0),
-    Formula.literal(1.0),
-)))
-ball = doc.insert(Node.revolve(doc.insert(Node.profile(half, plane=frame)), axis, Formula.angle_in(2 * math.pi, rad)))
+# coordinates — an origin and a direction the revolve itself holds:
+# the frame's v is world +z, so the pole axis is its +y through
+# (0, 0). An axis written in the frame cannot leave the plane it turns.
+axis = (
+    (Formula.length_in(0, m), Formula.length_in(0, m)),
+    (Formula.literal(0.0), Formula.literal(1.0)),
+)
+ball = doc.insert(Node.revolve(doc.insert(Node.profile(half, plane=frame)), *axis, Formula.angle_in(2 * math.pi, rad)))
 # A revolve defines two outputs, its body and its axis, so a read of
 # it names which: `doc.output(ball, 0)` is the body.
 pip = doc.insert(
@@ -1647,13 +1645,8 @@ profile = doc.insert(Node.profile(section, plane=frame))
 ring = doc.insert(
     Node.revolve(
         profile,
-        doc.insert(Node.datum_axis_in_plane(frame, (
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        ))),
+        (Formula.length_in(0, m), Formula.length_in(0, m)),
+        (Formula.literal(0.0), Formula.literal(1.0)),
         Formula.angle_in(2 * math.pi, rad),
     )
 )
@@ -1926,7 +1919,6 @@ let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p.into(), distance: 
 doc = next;
 let (next, solid) = insert(&doc, Node::Union {
     members: Bodies::Spelled(vec![plate.into(), tab.into()]),
-    declare: Vec::new(),
 });
 doc = next;
 

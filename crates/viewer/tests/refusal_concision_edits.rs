@@ -178,12 +178,6 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "SetDeclareOnNonDeclaring",
-            EditError::SetDeclareOnNonDeclaring {
-                node: s(5, "Extrude"),
-            },
-        ),
-        (
             "SetProgramOnNonProfile",
             EditError::SetProgramOnNonProfile {
                 node: s(5, "Extrude"),
@@ -210,17 +204,6 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             EditError::DefinesNothing {
                 input: s(3, "Assertion"),
                 slot: SlotId::Operand(pncad::document::OperandSlot::Target),
-            },
-        ),
-        (
-            "PartHalfPort",
-            EditError::PartHalfPort {
-                node: s(5, "Part"),
-                half: pncad::select::SplitHalf::Above,
-                var: Box::new(pncad::document::SpokenVar::new(
-                    pncad::document::VarId::new(0, tagged(8)),
-                    None,
-                )),
             },
         ),
         (

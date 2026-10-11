@@ -103,7 +103,7 @@ fn route_inventory() {
         (Sphere, Nurbs, Rung::General, false),
         (Torus, Torus, Rung::General, false),
         (Torus, Nurbs, Rung::General, false),
-        (Nurbs, Nurbs, Rung::General, false),
+        (Nurbs, Nurbs, Rung::General, true),
     ];
     assert_eq!(rows.len(), 21, "6 kinds ⇒ 21 unordered pairs");
     for &(a, b, rung, implemented) in rows {
@@ -478,8 +478,7 @@ fn parallel_equal_cylinders_trio() {
         cylinder_cylinder_section(&c1, &mk(2.0 + 3.0 * eps()), &metre_on(&c1), band()).unwrap_err();
     assert!(matches!(err, SectionError::Escalated(_)), "{err:?}");
     // Coaxial equal-radius: the coincident-surface refusal, carrying
-    // the shared recourse exactly once. Coincident operands are what a
-    // declaration exists for, so "declare the coincidence" is the lever.
+    // the shared recourse exactly once.
     let err = cylinder_cylinder_section(&c1, &mk(0.0), &metre_on(&c1), band()).unwrap_err();
     assert!(matches!(err, SectionError::CoincidentSurfaces), "{err:?}");
     let msg = err.to_string();

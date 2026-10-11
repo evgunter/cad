@@ -106,7 +106,7 @@ pub(crate) const ALLOWED_LABELS: &[(&str, &str)] = &[
 /// still red.
 pub(crate) const FILED: &[(&str, &str)] = &[
     // `geom/src/curves.rs` (#2861): `EllipseInvalid` opens with
-    // "ellipse construction:" and offers "declare" under a split:
+    // "ellipse construction:":
     // work/chrome/the-refusal-shape-guard-has-blind-spots.md
     ("Split/Join/Section(Carrier)", "ellipse construction"),
     ("Boolean/Join/Section(Carrier)", "ellipse construction"),
@@ -167,7 +167,7 @@ pub(crate) const FILED_NAMESPACES: &[(&str, &str, bool)] = &[];
 /// The split rows that may still offer "declare", which a split has no
 /// door for, each filed with its owner (the note above `FILED`'s
 /// `EllipseInvalid` entries).
-pub(crate) const FILED_DECLARE: &[&str] = &["Split/Join/Section(Carrier)"];
+pub(crate) const FILED_DECLARE: &[&str] = &[];
 
 /// The rows that render a key or a hex id, by exact row id and the
 /// exact span, each filed with its owner.
@@ -195,17 +195,12 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
 pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     // work/wire/wire-refusals-short-of-the-shape-guard.md
     "AssertionDimension",
-    "AxisInDifferentPlane",
     "BlendSelectionEmpty",
     "SelectKind",
     "SelectResolve/Ambiguous",
     "SelectResolve/Vanished",
     "CrossingUnverified",
     "CurvedSolidFrontier",
-    "DeclareResolve/Ambiguous",
-    "DeclareResolve/Vanished",
-    "DeclareSiteNotAnOperand",
-    "DeclareUnsupportedPair",
     "DegenerateDirection",
     "DerivedFrameSection",
     "EmptyHalf",
@@ -449,9 +444,8 @@ fn the_bare_recourses_are_geom_cores_constants() {
     assert_eq!(
         test_utils::refusal::BARE_RECOURSES,
         [
-            geom_core::COINCIDENCE_RECOURSE,
             geom_core::SPLIT_PLANE_RECOURSE,
-            geom_core::NO_DECLARATION_RECOURSE,
+            geom_core::COINCIDENCE_RECOURSE,
         ]
     );
 }
@@ -677,7 +671,7 @@ fn every_node_refusal_renders_within_the_budget() {
         // carries the margin payload beside it. An arm with a lever of
         // its own — "move the geometry", for a definite verdict no
         // declaration would change — is NOT it, and the levers alone no
-        // longer tell the two apart now that `NO_DECLARATION_RECOURSE`
+        // longer tell the two apart now that `COINCIDENCE_RECOURSE`
         // is the lever and not a sentence.
         if let Some(arm) = name.strip_prefix("Boolean/Join/") {
             let split = rows
@@ -693,7 +687,7 @@ fn every_node_refusal_renders_within_the_budget() {
             ]
             .iter()
             .any(|p| split.contains(p));
-            if escalated && split.contains(geom_core::NO_DECLARATION_RECOURSE) {
+            if escalated && split.contains(geom_core::COINCIDENCE_RECOURSE) {
                 assert!(
                     text.contains(geom_core::COINCIDENCE_RECOURSE),
                     "{name}: {text}"
@@ -1135,11 +1129,25 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
-            "AxisInDifferentPlane",
-            NodeErrorKind::AxisInDifferentPlane {
-                axis: RecipeNodeId::new(0, tagged(3)),
-                axis_plane: Some(RecipeNodeId::new(0, tagged(1))),
-                profile_plane: Some(RecipeNodeId::new(0, tagged(2))),
+            "PoseRead",
+            NodeErrorKind::PoseRead {
+                pose: editor_core::VarKind::Axis,
+                fault: editor_core::pose::PoseReadFault::NoAxis {
+                    carrier: editor_core::pose::Carrier::Surface(geom::SurfaceKind::Plane),
+                },
+            },
+        ),
+        row(
+            "PoseDegenerate",
+            NodeErrorKind::PoseDegenerate {
+                construction: editor_core::pose::PoseConstruction::Meet,
+            },
+        ),
+        row(
+            "PoseScalar",
+            NodeErrorKind::PoseScalar {
+                var: editor_core::VarId::new(0, tagged(4)),
+                source: editor_core::EvalError::NonFiniteResult,
             },
         ),
         row(
@@ -1208,22 +1216,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
-            "DeclareSiteNotAnOperand",
-            NodeErrorKind::DeclareSiteNotAnOperand {
-                at: editor_core::VarId::new(0, tagged(3)),
-            },
-        ),
-        row(
-            "DeclareUnsupportedPair",
-            NodeErrorKind::DeclareUnsupportedPair {
-                kinds: (
-                    editor_core::EntityKind::Edge,
-                    editor_core::EntityKind::Vertex,
-                ),
-                cross_operand: true,
-            },
-        ),
-        row(
             "BlendSelectionEmpty",
             NodeErrorKind::BlendSelectionEmpty {
                 verb: sweep::blend::BlendKind::Fillet,
@@ -1243,7 +1235,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             "DerivedFrameSection",
             NodeErrorKind::DerivedFrameSection {
                 profile: RecipeNodeId::new(0, tagged(3)),
-                frame: RecipeNodeId::new(0, tagged(2)),
+                frame: Some(RecipeNodeId::new(0, tagged(2))),
             },
         ),
         row(
@@ -2249,7 +2241,7 @@ fn wall_endings() -> [(&'static str, String); 2] {
 ///   raises every arm but `WindowUnsupported` (the mint certifies over
 ///   the chart rectangle it fitted), `Limb` (a limb refusing at the
 ///   mint is `MintLimb`) and `Band` (below). The loop's own
-///   terminations — `BudgetExhausted`, `SampleCapReached`, `BoundNotFinite`,
+///   terminations — `SeedOverCap`, `SampleCapReached`, `BoundNotFinite`,
 ///   `RefinementStalled` — and the interpolation's `Fit`, `Structure`
 ///   and `NonFiniteSample` reach the user by this route and by the
 ///   transform's re-fit, and so does `MintLimb`, whose re-fit is the
@@ -2295,9 +2287,9 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
         .collect();
     // The roster is borrowed, so its reach is checked on the roster
     // itself: a sample list that stopped carrying an arm would
-    // otherwise shrink these rows silently. `BudgetExhausted`,
-    // `BoundNotFinite`, `Limb` and `MintLimb` each carry two samples
-    // (both `LastRound` readings, both `best` cases, both limbs).
+    // otherwise shrink these rows silently. `BoundNotFinite`, `Limb`
+    // and `MintLimb` each carry two samples (both `best` cases, both
+    // limbs).
     for (arm, samples) in [
         ("Meter/NormalFloor", 2),
         ("Meter/CurvatureHeadroom", 2),
@@ -2307,7 +2299,7 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
         ("Structure/", 1),
         ("InvalidRequest", 1),
         ("NonFiniteSample", 1),
-        ("BudgetExhausted", 2),
+        ("SeedOverCap", 1),
         ("SampleCapReached", 1),
         ("BoundNotFinite", 2),
         ("RefinementStalled", 1),
@@ -2461,6 +2453,7 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("SectionStructure", E::SectionStructure),
+        ("PlacementNotAPoint", E::PlacementNotAPoint { section: 1 }),
         ("ReversedStacking", E::ReversedStacking { slab: 1 }),
         ("DegenerateStacking", E::DegenerateStacking { slab: 1 }),
         ("FarSectionNotForward", E::FarSectionNotForward { slab: 1 }),
@@ -3502,18 +3495,12 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         rows.push(row(&format!("Naming/{n}"), NodeErrorKind::Naming(e)));
     }
     type Wrap = fn(Box<ResolveError>) -> NodeErrorKind;
-    let wraps: [(&str, Wrap); 2] = [
-        ("DeclareResolve", |error| NodeErrorKind::DeclareResolve {
-            error,
-            reference: 0,
-        }),
-        ("SelectResolve", |error| NodeErrorKind::SelectResolve {
-            slot: editor_core::OperandSlot::Selection,
-            var: editor_core::VarId::new(0, 7),
-            error,
-            reference: 0,
-        }),
-    ];
+    let wraps: [(&str, Wrap); 1] = [("SelectResolve", |error| NodeErrorKind::SelectResolve {
+        slot: editor_core::OperandSlot::Selection,
+        var: editor_core::VarId::new(0, 7),
+        error,
+        reference: 0,
+    })];
     for (wrap, build) in wraps {
         for (n, e) in resolve() {
             rows.push(row(&format!("{wrap}/{n}"), build(Box::new(e))));
@@ -5077,6 +5064,29 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
         (
             "WallOutlineUnsupported",
             PointInSolidError::WallOutlineUnsupported { face },
+        ),
+        (
+            "JunctionSidesDisagree",
+            PointInSolidError::JunctionSidesDisagree {
+                face,
+                sides: (
+                    geom_core::MarginDiag::value(2.0e-9),
+                    geom_core::MarginDiag::value(-1.6e-9),
+                ),
+                band: geom_core::Band::new(1e-9, 1.5e-9).unwrap(),
+            },
+        ),
+        (
+            "NarrowWindowUnread",
+            PointInSolidError::NarrowWindowUnread { face, diag: diag() },
+        ),
+        (
+            "RootCountDisagrees",
+            PointInSolidError::RootCountDisagrees {
+                face,
+                certified: 2,
+                constructed: 4,
+            },
         ),
         (
             "NoSuchSolid",

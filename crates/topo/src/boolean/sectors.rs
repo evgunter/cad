@@ -44,9 +44,11 @@
 //! identical / identical-reversed region cases); touch-only sharing of
 //! a single bound is NOT overlap.
 
-use geom_brep::{EntersMaterial, OutwardNormal, enters_material};
+#[cfg(test)]
+use geom_brep::enters_material;
+use geom_brep::{EntersMaterial, OutwardNormal, enters_material_reported};
 use geom_core::k_stats::{Magnitude, NonzeroSign};
-use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Decided, Margin, Point3, Sign, Vec3};
 
 use super::{
     BooleanDecision, BooleanError, Coincide, DeclarationRead, LeverArm, Operand, SideCode,
@@ -548,17 +550,18 @@ pub(super) fn sector_face<T: Decide>(
 /// The refusal for a bisector reading On between two bounds definitely
 /// on one side (`vtxfac`'s on-edge resolution,
 /// `recl::resolve_bisector_graze`): reachable only when K ≤ 2, where the
-/// Zero is the band's and does not decide. The payload says what is
-/// known: the reading lies within `±zero`.
-pub(super) fn bisector_zero_refusal(band: Band) -> BooleanError {
+/// Zero is the band's and does not decide. The side is read off a sign,
+/// so `on`, the Zero the bisector's code was decided on, is the nonzero
+/// gate's rejection, on the log under the predicate that decided it.
+pub(super) fn bisector_zero_refusal(on: OnReading, band: Band) -> BooleanError {
     BooleanError::Escalated {
         decision: BooleanDecision::BisectorSide,
-        diag: geom_core::Indeterminate {
-            margin: geom_core::MarginDiag::enclosure(-band.zero(), band.zero()),
+        diag: geom_core::k_stats::gate_rejection(
+            on.predicate,
+            on.decided,
             band,
-            predicate: Some("bool_sector_bisector_side"),
-            terminal_sliver: false,
-        },
+            geom_core::SizedPass::NonZero,
+        ),
     }
 }
 
@@ -657,7 +660,7 @@ pub(super) fn side_code<T: Decide>(
     lever: T,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
-    read_side(dir, reach, face_normal, lever, None, band).map(|side| side.code)
+    read_side(dir, reach, face_normal, lever, None, band).map(|(side, _)| side.code)
 }
 
 /// **A bound's side of a pierced face, as the vertex-on-face pass reads
@@ -679,7 +682,32 @@ pub(super) fn pierce_side<T: Decide>(
     lever: T,
     band: Band,
 ) -> Result<PierceSide, BooleanError> {
+    pierce_side_reported(dir, reach, face_normal, shape, lever, band).map(|(side, _)| side)
+}
+
+/// [`pierce_side`], keeping the first-order Zero a bound read `On` on:
+/// what a caller that cannot use the `On` refuses through the gate
+/// ([`bisector_zero_refusal`]). `None` beside a side, and beside an `On`
+/// the second order read.
+pub(super) fn pierce_side_reported<T: Decide>(
+    dir: Vec3<T>,
+    reach: Reach<T>,
+    face_normal: OutwardNormal<T>,
+    shape: FaceShape,
+    lever: T,
+    band: Band,
+) -> Result<(PierceSide, Option<OnReading>), BooleanError> {
     read_side(dir, reach, face_normal, lever, Some(shape), band)
+}
+
+/// The Zero a bound's first-order side reading decided, and the
+/// predicate that decided it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct OnReading {
+    /// The predicate that decided the Zero.
+    pub(super) predicate: &'static str,
+    /// The Zero, with the margin it was decided on.
+    pub(super) decided: Decided,
 }
 
 /// What [`pierce_side`] read of a bound.
@@ -702,39 +730,59 @@ fn read_side<T: Decide>(
     lever: T,
     shape: Option<FaceShape>,
     band: Band,
-) -> Result<PierceSide, BooleanError> {
+) -> Result<(PierceSide, Option<OnReading>), BooleanError> {
     let n = face_normal.vec();
     let length = reach.length();
     let tie = |code| PierceSide { code, tied: true };
+    let on = |predicate, decided| (tie(SideCode::On), Some(OnReading { predicate, decided }));
     let (verdict, displacement) = match reach {
         Reach::Chord { base, far } => {
             let offset = crate::sector_shape::plane_offset(base, n, far);
-            let verdict = match decide("bool_chord_side", Margin::of(offset), band) {
-                // Same mapping as `enters_material`: into the material
-                // is against the outward normal.
-                Ok(Sign::Negative) => SideCode::In,
-                Ok(Sign::Positive) => SideCode::Out,
-                Ok(Sign::Zero) => return Ok(tie(SideCode::On)),
-                Err(diag) => {
-                    return Err(BooleanError::coincidence(
-                        Coincide::SectorSide,
-                        DeclarationRead::Moot,
-                        diag,
-                    ));
-                }
-            };
+            let verdict =
+                match crate::validate::decide_reported("bool_chord_side", Margin::of(offset), band)
+                {
+                    // Same mapping as `enters_material`: into the material
+                    // is against the outward normal.
+                    Ok(Decided {
+                        sign: Sign::Negative,
+                        ..
+                    }) => SideCode::In,
+                    Ok(Decided {
+                        sign: Sign::Positive,
+                        ..
+                    }) => SideCode::Out,
+                    Ok(
+                        zero @ Decided {
+                            sign: Sign::Zero, ..
+                        },
+                    ) => return Ok(on("bool_chord_side", zero)),
+                    Err(diag) => {
+                        return Err(BooleanError::coincidence(
+                            Coincide::SectorSide,
+                            DeclarationRead::Moot,
+                            diag,
+                        ));
+                    }
+                };
             (verdict, offset.abs())
         }
         Reach::Extent(_) | Reach::Conic { .. } | Reach::Bisector(_) => {
-            let verdict = match enters_material(dir, face_normal, length, band) {
-                Ok(EntersMaterial::Enters) => SideCode::In,
-                Ok(EntersMaterial::Exits) => SideCode::Out,
-                Ok(EntersMaterial::Tangent) => {
+            let verdict = match enters_material_reported(dir, face_normal, length, band) {
+                Ok((EntersMaterial::Enters, _)) => SideCode::In,
+                Ok((EntersMaterial::Exits, _)) => SideCode::Out,
+                Ok((EntersMaterial::Tangent, margin)) => {
                     return match reach {
                         Reach::Conic { extent, bend } if shape == Some(FaceShape::Plane) => {
-                            conic_side(dir, extent, bend, face_normal, band).map(tie)
+                            conic_side(dir, extent, bend, face_normal, band)
+                                .map(|code| (tie(code), None))
                         }
-                        _ => Ok(tie(SideCode::On)),
+                        _ => Ok(on(
+                            "enters_material",
+                            Decided {
+                                sign: Sign::Zero,
+                                margin,
+                            },
+                        )),
                     };
                 }
                 Err(escalation) => {
@@ -764,10 +812,13 @@ fn read_side<T: Decide>(
         band,
     ) {
         Ok(decided) => match Refused::of(decided, band) {
-            None => Ok(PierceSide {
-                code: verdict,
-                tied: false,
-            }),
+            None => Ok((
+                PierceSide {
+                    code: verdict,
+                    tied: false,
+                },
+                None,
+            )),
             Some(refused) => Err(BooleanError::CurvedSectorSideUnsupported { verdict: refused }),
         },
         Err(diag) => Err(BooleanError::Escalated {
@@ -1268,7 +1319,7 @@ struct Along {
 /// site's surgery moves the orbit the bounds are read from.
 pub(super) fn germ_locus<T: Decide>(
     side: GermSide<'_, T>,
-    contacts: &super::ContactRecords,
+    contacts: &super::ReductionContacts,
 ) -> Result<super::Locus, BooleanError> {
     let in_face = super::Locus::InFace(side.sector.face);
     Ok(match along(side)? {
@@ -1292,7 +1343,7 @@ pub(super) fn germ_locus<T: Decide>(
 pub(super) fn germ_loci<T: Decide>(
     a: GermSide<'_, T>,
     b: GermSide<'_, T>,
-    contacts: &super::ContactRecords,
+    contacts: &super::ReductionContacts,
     band: Band,
 ) -> Result<(super::Locus, super::Locus), BooleanError> {
     use super::Locus::{InFace, OnEdge};
@@ -1459,7 +1510,7 @@ pub(super) fn stale_site(_: StaleSite) -> BooleanError {
 fn touch<T: Decide>(
     side: GermSide<'_, T>,
     far: VertexKey,
-    contacts: &super::ContactRecords,
+    contacts: &super::ReductionContacts,
 ) -> Result<Touch, BooleanError> {
     let site = site_of(side.body, far)?;
     Ok(
@@ -1482,7 +1533,7 @@ fn touch<T: Decide>(
 
 /// The recorded contacts of `operand`'s vertices on the partner's faces.
 fn on_faces(
-    contacts: &super::ContactRecords,
+    contacts: &super::ReductionContacts,
     operand: Operand,
 ) -> &[crate::Cited<super::VfContact>] {
     match operand {
@@ -1508,7 +1559,7 @@ fn tangent_face<T: Decide>(
     side: GermSide<'_, T>,
     partner: GermSide<'_, T>,
     along: crate::entity::EdgeKey,
-    contacts: &super::ContactRecords,
+    contacts: &super::ReductionContacts,
 ) -> Result<Option<FaceKey>, BooleanError> {
     let edge = proven(&partner.body.edges, along, EntityId::Edge);
     let (u, v) = (
@@ -1617,14 +1668,14 @@ pub(super) fn direction_sense<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    match crate::validate::decide_nonzero("bool_dir_same", Margin::levered(u.dot(v), arm), band) {
-        Ok(NonzeroSign::Positive) => Ok(true),
-        Ok(NonzeroSign::Negative) => Ok(false),
-        Err(diag) => Err(BooleanError::Escalated {
-            decision: BooleanDecision::DirectionSense,
-            diag,
-        }),
-    }
+    Ok(
+        crate::validate::decide_nonzero("bool_dir_same", Margin::levered(u.dot(v), arm), band)
+            .map_err(|diag| BooleanError::Escalated {
+                decision: BooleanDecision::DirectionSense,
+                diag,
+            })?
+            == NonzeroSign::Positive,
+    )
 }
 
 /// `sectoroverlap` — coplanar sectors overlap test (module docs).
@@ -2349,7 +2400,7 @@ fn arc_side<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::contact::BooleanCoincidence;
+    use crate::contact::GlueClass;
     use geom_core::Tol;
 
     fn band() -> Band {
@@ -6000,7 +6051,7 @@ mod tests {
             p,
             d,
             arm,
-            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
+            DeclarationRead::Spent(GlueClass::TANGENT),
             b,
         )
         .expect_err("an in-band sagitta escalates the reading");
@@ -6011,7 +6062,7 @@ mod tests {
             decision,
             BooleanDecision::Coincidence(
                 Coincide::TangentSide,
-                DeclarationRead::Spent(BooleanCoincidence::TANGENT)
+                DeclarationRead::Spent(GlueClass::TANGENT)
             )
         );
         assert_eq!(diag.predicate, Some("tangent_sector_order2"));
@@ -6269,7 +6320,7 @@ mod tests {
             Operand::B,
             FaceKey::default(),
             0.5,
-            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
+            DeclarationRead::Spent(GlueClass::TANGENT),
             b,
         )
         .unwrap();
@@ -6287,7 +6338,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             0.5,
-            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
+            DeclarationRead::Spent(GlueClass::TANGENT),
             b,
         )
         .unwrap();
@@ -6315,7 +6366,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             0.25,
-            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
+            DeclarationRead::Spent(GlueClass::TANGENT),
             b,
         )
         .unwrap();
@@ -6344,7 +6395,7 @@ mod tests {
                 Operand::A,
                 FaceKey::default(),
                 arm,
-                DeclarationRead::Spent(BooleanCoincidence::TANGENT),
+                DeclarationRead::Spent(GlueClass::TANGENT),
                 b,
             )
         };
@@ -6382,7 +6433,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             0.5,
-            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
+            DeclarationRead::Spent(GlueClass::TANGENT),
             b,
         ) {
             Err(BooleanError::ClassificationInvariant { .. }) => {}
@@ -6404,7 +6455,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             0.5,
-            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
+            DeclarationRead::Spent(GlueClass::TANGENT),
             b,
         ) {
             Err(BooleanError::CurvedBooleanUnsupported { .. }) => {}

@@ -2,7 +2,8 @@
 id: a-unions-same-member-declared-pair-records-no-row
 kind: issue
 title: An n-ary union's declared pair whose two sites are one member is verified at its fold step, and that step's row is dropped
-status: open
+status: closed
+closed: 2026-10-11
 opened: 2026-10-08
 priority: P1
 cost: M
@@ -47,3 +48,7 @@ lineage is the implementer's, provided the decision is made once.
 The row that pins it: a three-member union declaring a pair within one
 member records that pair's row, its cells named by that member, and
 `run_checks` reports it.
+
+## Closed (2026-10-11, stage 4 F)
+
+No pair can be declared at a union; a member's own records carry into the fold step that joins it, citing that member by its place in the list.

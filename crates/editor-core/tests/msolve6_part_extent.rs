@@ -28,9 +28,7 @@ use editor_core::{
     ResolveFault, SplitError, ValuePayload, content_pin, mate_reach, product, split,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{
-    ang, at_the_door, axis_in_plane, insert, len, on_frame, on_frame_keeping, run, solve, step,
-};
+use fixture::{ang, at_the_door, insert, len, on_frame, revolve_about, run, solve, step};
 use geom_core::predicate::{Band, Sign};
 use geom_core::{Decide, Point3, Tol};
 
@@ -116,7 +114,7 @@ fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
 /// is placed in the part's world ([`placed_part`]).
 fn cylinder_part(label: &str, radius: f64, height: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, plane, profile) = on_frame_keeping(
+    let (doc, profile) = on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -128,14 +126,9 @@ fn cylinder_part(label: &str, radius: f64, height: f64) -> ProfileDoc {
             (0.0, height),
         ]],
     );
-    let (doc, axis) = insert(doc, axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let (doc, body) = insert(
         doc,
-        Node::Revolve {
-            profile: profile.into(),
-            axis: axis.into(),
-            angle: ang(std::f64::consts::TAU),
-        },
+        revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
     );
     placed_part(doc, body)
 }
@@ -939,7 +932,7 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
 /// on its coincidence is decided over its two parts, once each — and
 /// joins the third instance's group, clearing the offset of its first
 /// operand's group root (the mate door). An offset, an appearance, a
-/// union and its declared-pair list, a fourth instance and every delete — the mate's, the root's — ask nothing:
+/// union, a fourth instance and every delete — the mate's, the root's — ask nothing:
 /// no edit records a frame, so none solves.
 #[test]
 fn a6_only_a_mate_inserts_rider_asks_the_store() {
@@ -1006,7 +999,6 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
             &DocEdit::InsertNode {
                 node: Box::new(Node::Union {
                     members: editor_core::Bodies::Spelled(vec![b.into(), c.into()]),
-                    declare: Vec::new(),
                 }),
                 fresh: Vec::new(),
             },
@@ -1014,19 +1006,7 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
             &counting,
         )
         .expect("a union asks nothing");
-    let u = union.record.minted.expect("the union is minted");
-    let doc = union
-        .doc
-        .apply(
-            &DocEdit::SetDeclare {
-                node: u,
-                pairs: Vec::new(),
-            },
-            tol,
-            &counting,
-        )
-        .expect("a declared-pair list asks nothing")
-        .doc;
+    let doc = union.doc;
     let doc = doc
         .apply(
             &DocEdit::InsertNode {

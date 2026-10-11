@@ -12,9 +12,8 @@
 use crate::common;
 use geom_core::{Band, Point3, Tol};
 use topo::{
-    Body, CensusContact, ContactRecords, EntityId, PatchContact, SolidContainment, SolidKey,
-    ValidationError, VfContact, VoidContainment, VoidEvidence, insert_void,
-    validate_pseudomanifold,
+    Body, CensusContact, ContactRecords, EntityId, SolidContainment, SolidKey, ValidationError,
+    VoidContainment, VoidEvidence, insert_void, validate_pseudomanifold,
 };
 
 fn block(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
@@ -73,7 +72,7 @@ fn crosses(errors: &[ValidationError]) -> usize {
         .filter(|e| {
             matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::EdgeEdgeCross { .. },
                     ..
                 }
@@ -88,7 +87,7 @@ fn pierces(errors: &[ValidationError]) -> usize {
         .filter(|e| {
             matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::EdgeFacePierce { .. },
                     ..
                 }
@@ -340,29 +339,22 @@ fn a_lump_inside_the_other_instance_is_found_whatever_its_sibling_does() {
         assert_eq!(
             errors
                 .iter()
-                .any(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+                .any(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
             meets,
             "{errors:?}"
         );
         assert_eq!(the_interference(&errors).1, lumps, "{errors:?}");
         // Declared: lump 2's corners resting on B, every touch recorded.
-        let records = ContactRecords {
-            b_on_a: errors
-                .iter()
-                .filter_map(|e| match e {
-                    ValidationError::UndeclaredContact {
-                        contact: CensusContact::VertexOnFace { vertex, face },
-                        ..
-                    } => Some(VfContact {
-                        vertex: *vertex,
-                        face: *face,
-                    }),
-                    _ => None,
-                })
-                .map(|c| topo::Cited::new(c, topo::Cites::decided(0)))
-                .collect(),
-            ..ContactRecords::default()
-        };
+        let records = topo::test_support::records(
+            &body,
+            errors.iter().filter_map(|e| match e {
+                ValidationError::UnrecordedContact {
+                    contact: CensusContact::VertexOnFace { vertex, face },
+                    ..
+                } => Some((topo::Cell::Vertex(*vertex), topo::Cell::Face(*face))),
+                _ => None,
+            }),
+        );
         let errors = validate_pseudomanifold(&body, &records, tol).unwrap_err();
         assert_eq!(the_interference(&errors).1, lumps, "{errors:?}");
     }
@@ -381,24 +373,17 @@ fn a_declared_rest_with_a_dipping_point_is_probed() {
     let prof = [(0.0, 0.0), (1.0, 0.0), (1.0, 2.0), (0.0, 2.0), (-0.1, 1.0)];
     let part = common::prism_z::<f64>(&prof, 0.0, 1.0, Tol::witness()).body;
     let body = assembly(&[wall, part]);
-    let records = ContactRecords {
-        b_on_a: errors_of(&body)
-            .iter()
-            .filter_map(|e| match e {
-                ValidationError::UndeclaredContact {
-                    contact: CensusContact::VertexOnFace { vertex, face },
-                    ..
-                } => Some(VfContact {
-                    vertex: *vertex,
-                    face: *face,
-                }),
-                _ => None,
-            })
-            .map(|c| topo::Cited::new(c, topo::Cites::decided(0)))
-            .collect(),
-        ..ContactRecords::default()
-    };
-    assert_eq!(records.b_on_a.len(), 4);
+    let records = topo::test_support::records(
+        &body,
+        errors_of(&body).iter().filter_map(|e| match e {
+            ValidationError::UnrecordedContact {
+                contact: CensusContact::VertexOnFace { vertex, face },
+                ..
+            } => Some((topo::Cell::Vertex(*vertex), topo::Cell::Face(*face))),
+            _ => None,
+        }),
+    );
+    assert_eq!(records.vertex_face().count(), 4);
     let errors = validate_pseudomanifold(&body, &records, Tol::witness()).unwrap_err();
     let solids: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
     assert_eq!(
@@ -450,25 +435,22 @@ fn a_declared_seat_with_a_keel_is_probed() {
         let top = base.side_faces[2];
         let keys = topo::graft_disjoint_all_keyed(&mut body, &part.body).unwrap();
         let under = |i: usize| keys.face(part.side_faces[i]).unwrap();
-        let records = ContactRecords {
-            patches: vec![
-                topo::Cited::new(
-                    PatchContact {
-                        face_a: under(0),
-                        face_b: top,
-                    },
-                    topo::Cites::decided(0),
-                ),
-                topo::Cited::new(
-                    PatchContact {
-                        face_a: under(if keel { 3 } else { 2 }),
-                        face_b: top,
-                    },
-                    topo::Cites::decided(0),
-                ),
-            ],
-            ..ContactRecords::default()
-        };
+        let records = topo::ContactRecords::from_iter(vec![
+            topo::Cited::new(
+                topo::Contact::new(&body, topo::Cell::Face(under(0)), topo::Cell::Face(top))
+                    .unwrap(),
+                topo::Cites::decided(0),
+            ),
+            topo::Cited::new(
+                topo::Contact::new(
+                    &body,
+                    topo::Cell::Face(under(if keel { 3 } else { 2 })),
+                    topo::Cell::Face(top),
+                )
+                .unwrap(),
+                topo::Cites::decided(0),
+            ),
+        ]);
         let errors = validate_pseudomanifold(&body, &records, Tol::witness())
             .err()
             .unwrap_or_default();
@@ -532,7 +514,7 @@ fn hollow(outer: [(f64, f64); 3], void: [(f64, f64); 3]) -> Body<f64> {
 /// The Rest mate's declaration of every face-to-face seat in `body`:
 /// planar faces of two solids on one plane with opposite outward
 /// normals and overlapping extents, one patch record each.
-fn rest_patches(body: &Body<f64>) -> Vec<PatchContact> {
+fn rest_patches(body: &Body<f64>) -> Vec<topo::Contact> {
     let extent = |f: topo::FaceKey| -> ([f64; 3], [f64; 3]) {
         let mut b = ([f64::MAX; 3], [f64::MIN; 3]);
         for (_, he) in body.half_edges() {
@@ -570,10 +552,9 @@ fn rest_patches(body: &Body<f64>) -> Vec<PatchContact> {
             }
             let (ba, bb) = (extent(fa), extent(fb));
             if (0..3).all(|k| ba.0[k] <= bb.1[k] + 1e-9 && bb.0[k] <= ba.1[k] + 1e-9) {
-                out.push(PatchContact {
-                    face_a: fa,
-                    face_b: fb,
-                });
+                out.push(
+                    topo::Contact::new(body, topo::Cell::Face(fa), topo::Cell::Face(fb)).unwrap(),
+                );
             }
         }
     }
@@ -581,14 +562,11 @@ fn rest_patches(body: &Body<f64>) -> Vec<PatchContact> {
 }
 
 fn declared_seats(body: &Body<f64>) -> Result<(), Vec<ValidationError>> {
-    let records = ContactRecords {
-        patches: rest_patches(body)
-            .into_iter()
-            .map(|c| topo::Cited::new(c, topo::Cites::decided(0)))
-            .collect(),
-        ..ContactRecords::default()
-    };
-    assert!(!records.patches.is_empty());
+    let records: ContactRecords = rest_patches(body)
+        .into_iter()
+        .map(|c| topo::Cited::new(c, topo::Cites::decided(0)))
+        .collect();
+    assert!(!records.is_empty());
     validate_pseudomanifold(body, &records, Tol::witness())
 }
 

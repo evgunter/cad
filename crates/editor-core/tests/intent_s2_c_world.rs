@@ -283,7 +283,6 @@ fn inserting_a_boolean_over_two_placed_blocks_places_nothing() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     assert_eq!(doc.placements(), placements, "the insert placed nothing");
@@ -465,7 +464,6 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
         host,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![instance.into(), other.into()]),
-            declare: Vec::new(),
         },
     );
     let (host, _) = place(host, fused);
@@ -511,7 +509,6 @@ fn no_slot_reads_a_world_copy_at_the_door_or_at_load() {
         .expect("the placement defines its copy");
     let boolean = |a: editor_core::Operand| Node::Union {
         members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-        declare: Vec::new(),
     };
     let refused_naming_placement =
         |result: Result<_, editor_core::EditError>, at: &str| match result {
@@ -630,7 +627,7 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
 
     let run = ev(&posed);
     let gathered = editor_core::product_recorded(&posed, &run, Tol::witness()).expect("gathers");
-    let [ref kiss] = gathered.contacts.vv[..] else {
+    let [kiss] = gathered.contacts.vertex_vertex().collect::<Vec<_>>()[..] else {
         panic!(
             "the copy carries the union's one v-v record: {:?}",
             gathered.contacts
@@ -646,7 +643,7 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
     };
     // A quarter turn about +z takes (1, 1, 1) to (−1, 1, 1).
     let want = [-1.0 + t[0], 1.0 + t[1], 1.0 + t[2]];
-    for got in [at(kiss.a), at(kiss.b)] {
+    for got in [at(kiss.0), at(kiss.1)] {
         assert!(
             got.iter().zip(want).all(|(g, w)| (g - w).abs() < 1e-9),
             "the kiss moved with the pose: {got:?} vs {want:?}"
@@ -687,7 +684,6 @@ fn inline_refuses_a_reader_of_an_instance_whose_part_places_at_a_pose() {
         host,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![instance.into(), other.into()]),
-            declare: Vec::new(),
         },
     );
     let (host, _) = place(host, fused);

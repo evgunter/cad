@@ -76,7 +76,7 @@ use editor_core::{
     AssertionVerdict, ContentKey, Datum, DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram,
     SlotId, ValuePayload, product_recorded,
 };
-use editor_core::{BooleanValue, DatumValue, Evaluation, NodeResult, SplitSide};
+use editor_core::{BooleanValue, Evaluation, NodeResult, PoseValue, SplitSide};
 use fixture::{len, scl, xy_frame};
 use geom_core::{Bounds, Decide, Dual64, Tol};
 use topo::Body;
@@ -188,41 +188,29 @@ where
             Some(NodeResult::Ok(v)) => {
                 d.u64(3);
                 match &v.payload {
-                    ValuePayload::Datum(DatumValue::Plane { origin, normal }) => {
+                    ValuePayload::Datum(PoseValue::Plane { origin, normal }) => {
                         d.u64(10);
                         d.p3(*origin);
                         d.v3(normal.get());
                     }
-                    ValuePayload::Datum(DatumValue::Axis { origin, dir }) => {
+                    ValuePayload::Datum(PoseValue::Axis { origin, dir }) => {
                         d.u64(11);
                         d.p3(*origin);
                         d.v3(dir.get());
                     }
-                    ValuePayload::Datum(DatumValue::Point { position }) => {
+                    ValuePayload::Datum(PoseValue::Point { position }) => {
                         d.u64(12);
                         d.p3(*position);
                     }
-                    ValuePayload::Datum(DatumValue::Frame(f)) => {
+                    ValuePayload::Datum(PoseValue::Frame(f)) => {
                         d.u64(23);
                         d.p3(f.origin());
                         d.v3(f.u().get());
                         d.v3(f.v().get());
                     }
-                    // Tag 24, appended: both spellings of an in-plane
-                    // axis, so a drift in the numbers a revolve
-                    // actually consumes cannot hide behind the lift.
-                    ValuePayload::Datum(DatumValue::AxisInPlane {
-                        plane_origin,
-                        plane_dir,
-                        origin,
-                        dir,
-                    }) => {
-                        d.u64(24);
-                        d.sc(plane_origin.x);
-                        d.sc(plane_origin.y);
-                        d.sc(plane_dir.x);
-                        d.sc(plane_dir.y);
-                        d.p3(*origin);
+                    // Tag 24 is retired with the in-plane axis datum.
+                    ValuePayload::Datum(PoseValue::Direction { dir }) => {
+                        d.u64(26);
                         d.v3(dir.get());
                     }
                     ValuePayload::Profile(p) => {
@@ -526,7 +514,6 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
     });
     let fused = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![slab.into(), boss.into()]),
-        declare: Vec::new(),
     });
     let tool = r.insert(Node::Datum(Datum::Plane {
         origin: [len(0.0), len(0.0), len(0.75)],

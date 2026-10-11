@@ -171,8 +171,12 @@ fn sym_bodies() -> Vec<(String, Body<Sym<f64>>)> {
     let eps = Tol::witness().get().eps;
     let arc = |s: f64| {
         loft_body::<Sym<f64>>(
-            &[arc_section(s), arc_section(s), arc_section(s)],
-            &stacked(&[0.0, 1.0, 2.0], s),
+            &sweep::test_support::lift_sections::<Sym<f64>>(&[
+                arc_section(s),
+                arc_section(s),
+                arc_section(s),
+            ]),
+            &sweep::test_support::lift_places::<Sym<f64>>(&stacked(&[0.0, 1.0, 2.0], s)),
             2,
             Tol::witness(),
         )
@@ -180,11 +184,11 @@ fn sym_bodies() -> Vec<(String, Body<Sym<f64>>)> {
         .body
     };
     let strip = loft_body::<Sym<f64>>(
-        &[
+        &sweep::test_support::lift_sections::<Sym<f64>>(&[
             strip_section(1.0e12 * eps, 1.0e9 * eps, false),
             strip_section(1.0e12 * eps, 1.0e9 * eps, false),
-        ],
-        &stacked(&[0.0, 1.0], 1.0e12 * eps),
+        ]),
+        &sweep::test_support::lift_places::<Sym<f64>>(&stacked(&[0.0, 1.0], 1.0e12 * eps)),
         1,
         Tol::witness(),
     )
@@ -453,6 +457,18 @@ fn digest() -> String {
 /// 606 → 605 at ε = 1e-6 / 1e-9 / 1e-12). Decisions, discharges, shapes
 /// and every verdict are unchanged. Measured by disabling only that
 /// assembly on a probe build, which restores the old column.
+///
+/// **Re-cut at all three ε when the loft's placements and skinned walls
+/// began entering the scalar as computed values** (`Real::from_computed`
+/// in `sweep::loft`, an unknown each at `Sym` where each was a
+/// constant, a seam column shared by the two walls that end on it).
+/// Only the `frozen` column of the two `validate_geometric` rows moves,
+/// and up: `sym_arc_loft` 606 → 1254 / 538 → 1244 / 605 → 1253 and
+/// `sym_thin_strip` 704 → 1257 / 674 → 1268 / 699 → 1256 at
+/// ε = 1e-6 / 1e-9 / 1e-12. The walk freezes more nodes once its
+/// leaves are unknowns rather than constants; which freeze cause each
+/// added count is, is not measured. Decisions, discharges (`sz`),
+/// shapes, verdicts and every f64 row are unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

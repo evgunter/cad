@@ -61,10 +61,7 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{
-    Body, CensusContact, ContactRecords, CrossingSideVerdict, FaceKey, PatchContact,
-    ValidationError,
-};
+use topo::{Body, CensusContact, ContactRecords, CrossingSideVerdict, FaceKey, ValidationError};
 
 /// [`common::straddle_seat`] as this file's tuple:
 /// `(body, post_top, post_side_x030, shelf_bottom, shelf_side_y030)`.
@@ -79,18 +76,13 @@ fn straddle_parts() -> (Body<f64>, FaceKey, FaceKey, FaceKey, FaceKey) {
     )
 }
 
-fn declared(pairs: &[(FaceKey, FaceKey)]) -> ContactRecords {
-    ContactRecords {
-        patches: pairs
+fn declared<T: geom_core::Real>(body: &Body<T>, pairs: &[(FaceKey, FaceKey)]) -> ContactRecords {
+    topo::test_support::records(
+        body,
+        pairs
             .iter()
-            .map(|&(a, b)| PatchContact {
-                face_a: a,
-                face_b: b,
-            })
-            .map(|c| topo::Cited::new(c, topo::Cites::decided(0)))
-            .collect(),
-        ..ContactRecords::default()
-    }
+            .map(|&(a, b)| (topo::Cell::Face(a), topo::Cell::Face(b))),
+    )
 }
 
 fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
@@ -113,9 +105,10 @@ fn crossings(errors: &[ValidationError]) -> Vec<(CensusContact, String)> {
     errors
         .iter()
         .filter_map(|e| match e {
-            ValidationError::UndeclaredContact {
+            ValidationError::UnrecordedContact {
                 contact: contact @ CensusContact::EdgeEdgeCross { .. },
                 witness,
+                ..
             } => Some((*contact, witness.clone())),
             _ => None,
         })
@@ -135,7 +128,7 @@ fn crossings(errors: &[ValidationError]) -> Vec<(CensusContact, String)> {
 fn the_declared_crossing_seat_certifies_both_ways() {
     let (body, post_top, _, shelf_bottom, _) = straddle_parts();
     for pair in [(post_top, shelf_bottom), (shelf_bottom, post_top)] {
-        let found = errors(&body, &declared(&[pair]));
+        let found = errors(&body, &declared(&body, &[pair]));
         assert!(
             found.is_empty(),
             "the declared overhang seat certifies with the record in \
@@ -186,7 +179,7 @@ fn a_transverse_crossing_refuses_naming_the_side_verdict() {
         (post.bottom_face, shelf_bottom),
         (shelf_bottom, post.bottom_face),
     ] {
-        let found = errors(&body, &declared(&[pair]));
+        let found = errors(&body, &declared(&body, &[pair]));
         let crossed = crossings(&found);
         assert_eq!(crossed.len(), 2, "declared {pair:?}: {found:?}");
         assert!(
@@ -241,7 +234,7 @@ fn a_verified_pair_elsewhere_backs_no_crossing() {
     let shelf_bottom = skeys.face(shelf.bottom_face).unwrap();
 
     let bare = crossings(&errors(&body, &ContactRecords::default()));
-    let found = errors(&body, &declared(&[(flush_top, shelf_bottom)]));
+    let found = errors(&body, &declared(&body, &[(flush_top, shelf_bottom)]));
     let crossed = crossings(&found);
     assert_eq!(
         format!("{bare:?}"),
@@ -282,7 +275,7 @@ fn a_verified_pair_elsewhere_backs_no_crossing() {
 fn a_perpendicular_pair_holding_the_point_names_nothing() {
     let (body, _, post_side_x030, _, shelf_side_y030) = straddle_parts();
     let pair = (post_side_x030, shelf_side_y030);
-    let found = errors(&body, &declared(&[pair]));
+    let found = errors(&body, &declared(&body, &[pair]));
     let crossed = crossings(&found);
     assert_eq!(crossed.len(), 2, "{found:?}");
     assert!(
@@ -355,7 +348,7 @@ fn an_unverified_point_holding_pair_backs_no_crossing() {
     let block_bottom = bkeys.face(block.bottom_face).unwrap();
 
     let bare = crossings(&errors(&body, &ContactRecords::default()));
-    let found = errors(&body, &declared(&[(post_top, block_bottom)]));
+    let found = errors(&body, &declared(&body, &[(post_top, block_bottom)]));
     let with = crossings(&found);
     assert_eq!(
         format!("{bare:?}"),
@@ -400,9 +393,10 @@ fn the_pierce_stays_categorical() {
         errors(&body, records)
             .iter()
             .filter_map(|e| match e {
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::EdgeFacePierce { edge, face },
                     witness,
+                    ..
                 } => Some(format!("{edge:?} through {face:?} at {witness}")),
                 _ => None,
             })
@@ -413,7 +407,7 @@ fn the_pierce_stays_categorical() {
         !bare.is_empty(),
         "the tall post pierces the shelf somewhere"
     );
-    let with_declaration = pierces(&declared(&[(post.side_faces[0], shelf_bottom)]));
+    let with_declaration = pierces(&declared(&body, &[(post.side_faces[0], shelf_bottom)]));
     assert_eq!(
         bare, with_declaration,
         "no declaration reaches a pierce: the class is categorical"
@@ -475,7 +469,7 @@ fn the_structural_door_at_a_dual_refuses_the_declared_seat_typed_and_backs_no_cr
         "no declaration, no consult: {bare:?}"
     );
 
-    let found = structural(&dual, &declared(&[pair]));
+    let found = structural(&dual, &declared(&dual, &[pair]));
     let refusals = lane_refusals(&found);
     assert_eq!(
         refusals.len(),
@@ -502,13 +496,13 @@ fn the_structural_door_at_a_dual_refuses_the_declared_seat_typed_and_backs_no_cr
         pair,
         "the two seats are built in one arena order"
     );
-    let at_f64 = topo::validate_pseudomanifold_structural(&seat, &declared(&[pair]), tol)
+    let at_f64 = topo::validate_pseudomanifold_structural(&seat, &declared(&seat, &[pair]), tol)
         .expect_err("the `_structural` door at f64 holds no region door either");
     let shape = |errors: &[ValidationError]| -> Vec<String> {
         errors
             .iter()
             .map(|e| match e {
-                ValidationError::UndeclaredContact { contact, .. } => format!("{contact:?}"),
+                ValidationError::UnrecordedContact { contact, .. } => format!("{contact:?}"),
                 other => format!("{other:?}"),
             })
             .collect()
@@ -520,7 +514,7 @@ fn the_structural_door_at_a_dual_refuses_the_declared_seat_typed_and_backs_no_cr
          rendering aside"
     );
     assert!(
-        errors(&seat, &declared(&[pair])).is_empty(),
+        errors(&seat, &declared(&seat, &[pair])).is_empty(),
         "and the certified door, holding the region door, certifies the seat"
     );
 }

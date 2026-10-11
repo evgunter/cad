@@ -77,7 +77,7 @@ use super::{
 };
 use super::{BooleanDecision, Coincide, DeclarationRead, SelfCheck};
 use crate::body::{Body, WALKS_CLOSE};
-use crate::contact::BooleanCoincidence;
+use crate::contact::GlueClass;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::{MevSite, RunSite};
 use crate::live::{Proven, linked, proven};
@@ -104,8 +104,8 @@ fn insert_null_pairs<T: Decide>(
     b_sectors: &[BoolSector<T>],
     records: &[PairRecord],
     raw: &[PairRecord],
-    declared: &super::DeclaredPairs<T>,
-    contacts: &super::ContactRecords,
+    declared: &super::GluedPairs<T>,
+    contacts: &super::ReductionContacts,
     op: BooleanOp,
     band: Band,
 ) -> Result<InsertOut<T>, BooleanError> {
@@ -384,8 +384,8 @@ pub(super) fn plan_null_pairs<T: Decide>(
     b_sectors: &[BoolSector<T>],
     records: &[PairRecord],
     raw: &[PairRecord],
-    declared: &super::DeclaredPairs<T>,
-    contacts: &super::ContactRecords,
+    declared: &super::GluedPairs<T>,
+    contacts: &super::ReductionContacts,
     op: BooleanOp,
     band: Band,
 ) -> Result<NullPlan<T>, BooleanError> {
@@ -2107,10 +2107,10 @@ pub(super) fn strut_order<T: Decide>(
         return Ok(far1);
     }
     let order = Margin::levered(germs.0.cross(germs.1).dot(normal), arm);
-    match crate::validate::decide_nonzero("bool_strut_order", order, band).map_err(refuse)? {
-        NonzeroSign::Negative => Ok(true),
-        NonzeroSign::Positive => Ok(false),
-    }
+    Ok(
+        crate::validate::decide_nonzero("bool_strut_order", order, band).map_err(refuse)?
+            == NonzeroSign::Negative,
+    )
 }
 
 /// The unit direction of an orbit half-edge, one the sector walk
@@ -2136,7 +2136,7 @@ fn record_germ_dir<T: Decide>(
     b_body: &Body<T>,
     sa: &BoolSector<T>,
     sb: &BoolSector<T>,
-    declared: &super::DeclaredPairs<T>,
+    declared: &super::GluedPairs<T>,
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
     // What the door read of the pair, which the questions below refuse
@@ -2146,7 +2146,7 @@ fn record_germ_dir<T: Decide>(
         Coincide::TangentLocus,
         &[],
     );
-    if read != DeclarationRead::Spent(BooleanCoincidence::TANGENT) {
+    if read != DeclarationRead::Spent(GlueClass::TANGENT) {
         return germ_dir(sa, sb, read, band);
     }
     let surface_of = |body: &Body<T>, face| {
@@ -2494,8 +2494,8 @@ mod tests {
             &[],
             &recs,
             &recs,
-            &crate::boolean::DeclaredPairs::default(),
-            &crate::boolean::ContactRecords::default(),
+            &crate::boolean::GluedPairs::default(),
+            &crate::boolean::ReductionContacts::default(),
             BooleanOp::Union,
             geom_core::Band::linear(Tol::witness()).unwrap(),
         )
@@ -2510,8 +2510,8 @@ mod tests {
             &[],
             &recs,
             &recs,
-            &crate::boolean::DeclaredPairs::default(),
-            &crate::boolean::ContactRecords::default(),
+            &crate::boolean::GluedPairs::default(),
+            &crate::boolean::ReductionContacts::default(),
             BooleanOp::Union,
             geom_core::Band::linear(Tol::witness()).unwrap(),
         )
@@ -2633,8 +2633,8 @@ mod tests {
                 &b_secs,
                 recs,
                 recs,
-                &crate::boolean::DeclaredPairs::default(),
-                &crate::boolean::ContactRecords::default(),
+                &crate::boolean::GluedPairs::default(),
+                &crate::boolean::ReductionContacts::default(),
                 op,
                 band,
             )
@@ -3077,8 +3077,8 @@ mod tests {
             &b_sectors,
             &recs,
             &recs,
-            &crate::boolean::DeclaredPairs::default(),
-            &crate::boolean::ContactRecords::default(),
+            &crate::boolean::GluedPairs::default(),
+            &crate::boolean::ReductionContacts::default(),
             BooleanOp::Union,
             geom_core::Band::linear(Tol::witness()).unwrap(),
         )

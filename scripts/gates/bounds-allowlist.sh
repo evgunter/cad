@@ -469,7 +469,13 @@ BOUNDS_ALLOWLIST=(
   # instantiated at `Dual64` (`crates/topo/tests/inside_out_operand.rs`),
   # which has no certified enclosure (`real.rs`'s entry).
   'crates/topo/src/boolean/carrier_touch.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
-  'crates/topo/src/boolean/mod.rs 5 2026-07-29 (M5 PR 8), the driver amendment'
+  # mod.rs's four are the reduction's doors: `boolean_reduce`, the
+  # strategy driver it and the ops call (`boolean_reduce_declared_strategy`),
+  # and the two trace doors (`sweep_traces`, `sweep_traces_with_pad`).
+  # Each sweeps through the certified face boxes the driver reads. The
+  # fifth, `boolean_reduce_declared`, went with the declaration channel
+  # (INTENT stage 4 F), its body now `boolean_reduce`'s.
+  'crates/topo/src/boolean/mod.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   # glue.rs's three are the glue door's box sweep, the amendment's
   # funnel shape: `overlapping_pairs` builds each face's certified box
   # (`boxes::face_box`) and walks the box-overlapping cross pairs, and
@@ -486,18 +492,20 @@ BOUNDS_ALLOWLIST=(
   # callers, `interior_loop_verdict` (crossings) and
   # `section_extent_pass` (no crossings), which replaced the torus and
   # cylinder extent gates; and `section_report`, the test door over the
-  # same scan. With the eleven pre-existing seams (the nine public and
-  # pipeline doors, `sphere_extent_scan` and `apply_recuts`) the count
-  # is 15. Four more ride the same seam: `face_rows`, which builds each
+  # same scan. With the eight pre-existing seams (the six public and
+  # pipeline doors, `sphere_extent_scan` and `apply_recuts`; the three
+  # declaring doors `union_with`, `intersect_with` and `subtract_with`
+  # went with the declaration channel, INTENT stage 4 F) the count is
+  # 12. Four more ride the same seam: `face_rows`, which builds each
   # face's certified box once; `walk_pairs`, the one walker over
   # box-overlapping row pairs that `section_pairs` and the extent
   # scan's face-scoped reading both take; `pair_verdict`, the per-pair
   # rule's driver, which builds the pair's reach from the two boxes;
   # and `sphere_faces_apart`, that face-scoped reading of a crossing
-  # or touching sphere pair. 15 + 4 = 19. One more reads the edge boxes
+  # or touching sphere pair. 12 + 4 = 16. One more reads the edge boxes
   # of one face against a region and decides on them:
   # `face_boundary_meets`, the walk the plane arm's whole-circle
-  # membership takes. 19 + 1 = 20. `section_cert.rs` itself, the
+  # membership takes. 16 + 1 = 17. `section_cert.rs` itself, the
   # classifier and the per-pair rule, reads no box and carries no
   # compound bound. Four more carry the result gate's box read (the
   # finished-body door, PR 3987): `gate`, which sorts the result into
@@ -505,8 +513,8 @@ BOUNDS_ALLOWLIST=(
   # tier 3 finishes it; `fallback` and `finish_fallback`, the two
   # fallback sites that build a result and hand it to `gate`; and
   # `boolean_door`, the front door's body, split from `boolean_op_with`
-  # so the door can time and meter the call around it. 20 + 4 = 24.
-  'crates/topo/src/boolean/ops.rs 24 2026-07-29 (M5 PR 8), the driver amendment'
+  # so the door can time and meter the call around it. 17 + 4 = 21.
+  'crates/topo/src/boolean/ops.rs 21 2026-07-29 (M5 PR 8), the driver amendment'
   # reduce.rs's four are the sweep's own doors (`first_unsupported_pair`,
   # `gate_operand_pairs`, `face_tree`, `sweep_direction`); the fifth,
   # `sweep_and_settle`, is the one driver every boolean sweeps through,
@@ -682,7 +690,7 @@ BOUNDS_ALLOWLIST=(
   # at its domain middle and read no bracket, and its callers in
   # `ssi.rs` now take `Curve3::mid_point`, the witness pin's own point.
   # The seam is unmoved: the branch certificate keeps its bounds.
-  'crates/geom-brep/src/ssi/certify.rs 14 M6-2, the SSI rung-3 certificate'
+  'crates/geom-brep/src/ssi/certify.rs 16 M6-2, the SSI rung-3 certificate; its two-chart tube (probe_tube_pair, pair_tube_chain) at the same bound'
   # M7-8, the declare-and-check edge lane.
   # 6 -> 8: the edge lane's door value (`NurbsLane`) gained a second
   # body, `analytic_rung3` (`Decide + Bounds + CertifiedEnclosure`, two
@@ -694,7 +702,7 @@ BOUNDS_ALLOWLIST=(
   # ratified at this bound) with `Limbs::Tube`, and its bound is its
   # callee's: nothing weaker compiles. The kernel reaches it only through `NurbsLane::certified`;
   # it is public so the at-rest rows can run the limb directly.
-  'crates/geom-brep/src/edge_nurbs.rs 8 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2'
+  'crates/geom-brep/src/edge_nurbs.rs 10 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound'
   # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the one
   # DOOR that names the certified body `plane_nurbs_limbs`, the lane's
   # door value `NurbsLane::certified`'s block (`Decide +
@@ -708,17 +716,22 @@ BOUNDS_ALLOWLIST=(
   'crates/geom-brep/src/certify.rs 2 M7-8 2026-09-02, the lane split as a BOUND; the lane door value `NurbsLane::certified` and its wiring row at the same bound'
   # M9-2 PR-1, the chart-region overlap predicate.
   'crates/topo/src/chart_region.rs 28 M9-2 PR-1, the chart-region overlap predicate; the region door value `RegionLane::certified` and its wiring row at the same bound'
-  # 2026-08-29, the advisory-check registry.
-  'crates/editor-core/src/checks.rs 4 2026-08-29, the advisory-check registry'
+  # 2026-08-29, the advisory-check registry. Its fifth bound is the same
+  # registry's door with the coincidence door split off to run at rest
+  # (`run_checks_at_rest_on`): `run_checks_on` is that door with the job
+  # run at once, so the two doors are one registry body at one bound.
+  'crates/editor-core/src/checks.rs 5 2026-08-29, the advisory-check registry; its at-rest door'
   # 2026-09-02, the certified at-rest validator and the shell verbs.
-  # `validate.rs` carries the at-rest validator's bounds, 22 of them:
+  # `validate.rs` carries the at-rest validator's bounds, 23 of them:
   # the 10 public doors of the module doc's door roster (5 at
   # `CertifiedBounds`, their 5 `_structural` twins at `Bounds`); the 2
   # `AtRestBody` methods beside the roster (`validate`, which is
   # `validate_geometric` keeping its verdict, and
   # `validate_pseudomanifold`, the tier-3′ door reading it), each at its
-  # door's own `CertifiedBounds` bound; the 7 private passes they share
-  # (`structural_via`, `validate_geometric_certified`,
+  # door's own `CertifiedBounds` bound; the 8 private passes they share
+  # (`validate_geometric_kept`, the composed door keeping check 7's
+  # slivers for `AtRestBody::validate`, `structural_via`,
+  # `validate_geometric_certified`,
   # `tier3_local_checks`, `tier3_local_checks_marked`,
   # `contact_marks_via`, `pseudomanifold_certificate_via`, and
   # `census_verdict`, the census tail both tier-3′ paths end in, at the
@@ -731,7 +744,7 @@ BOUNDS_ALLOWLIST=(
   # is why the census took the C10 tree as its pre-filter — the driver
   # amendment's seam, argued in the ledger under 2026-07-29 beside
   # `separation`.
-  'crates/topo/src/validate.rs 22 2026-09-02, the certified at-rest validator; the three census doors and ring_pairs under 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/validate.rs 23 2026-09-02, the certified at-rest validator; the three census doors and ring_pairs under 2026-07-29 (M5 PR 8), the driver amendment'
   # The census's BVH pre-filter: `Trees::build`, `Candidates::build`,
   # the three census entries above them (`census_and_certify`,
   # `census_traces`, `census_with`) and the backstop's own tree over its

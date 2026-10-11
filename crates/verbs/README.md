@@ -14,9 +14,7 @@ enforces that.
 The design (VERB-SEAT-DESIGN) has three strands:
 
 - **the kernel query seat** (§1), in `topo`: the geometric half of the
-  selection vocabulary as pure functions of a `Body` (`topo::query`),
-  and the flush detector (`topo::flush`), which gives
-  `BooleanDeclarations` its geometric producer;
+  selection vocabulary as pure functions of a `Body` (`topo::query`);
 - **one verb vocabulary** (§2), this crate;
 - **the parameter→field flow** (§3): which of a verb's scalars reaches
   which stored field, read by `editor-core`'s content key. Whether two
@@ -66,9 +64,7 @@ implementation under both.
   `sel_datum_distance` in `topo::query`, with `datum_unit_norm` under it
   as the datum vocabulary's own decision; both carry K-REPORT rows.
 - **The demand this answers.** Whole-body edge sets spelled as arena
-  walks, and one intended contact as many `FacePairDeclaration`s;
-  `BooleanDeclarations` with a public consumer and no geometric producer
-  (#757).
+  walks (#757).
 
 ## 1. The kernel query seat
 
@@ -89,11 +85,13 @@ layer whose types it serves (`topo/src/query.rs`):
   mirrors (`Curve3::kind`, `Surface::kind`). This seat owns the
   comparand sets `CurveKindSet` and `SurfaceKindSet`, their bit
   numbering, and the predicates that read them.
-- The DECIDED atom: `datum_distance_sign` measures an entity's point
-  against a passed-in `DatumValue` through the `SEL_DATUM_DISTANCE`
-  funnel site in `geom-core`'s `k_stats`, with an honest `Margin` door
-  and a typed indeterminate in band. Datum-node resolution —
-  `RecipeNodeId` → `DatumValue` — stays in `editor-core`'s `prepare`.
+- The DECIDED atom is not here: `datum_distance_sign` measures an
+  entity's point against a passed-in `PoseValue` through the
+  `SEL_DATUM_DISTANCE` funnel site in `geom-core`'s `k_stats`, with an
+  honest `Margin` door and a typed indeterminate in band, and it lives in
+  `editor-core`'s `pose.rs` beside the type it measures against, whose
+  kinds are `editor-core`'s `VarKind`s (D10). Datum-node resolution —
+  `RecipeNodeId` → `PoseValue` — is `editor-core`'s `prepare`.
 - One further decision this seat names but does not house, because it is
   not a selection question: `geom_core::decide_unit_direction`, the
   workspace's one `Margin::norm3` decide-then-normalize body under
@@ -123,25 +121,9 @@ atom by atom to `topo::query`, re-exporting the kind mirrors and
 kind-set comparands upward. One implementation of the geometry, two
 doors, the `ContactClass` layering precedent (SELECT-DESIGN §3(e)).
 
-**S3 — the flush detector runs at the body seat.**
-`topo::flush::find_flush_candidates(&Body<T>, &Body<T>, tol)` returns
-findings in `FaceKey`s, and `declare`/`declare_all` turn them into the
-`BooleanDeclarations` the op door takes. The anti-twin rule holds by
-identity rather than by care: the detector has no predicate triple of
-its own but calls `carrier_pair_relation` (`topo/src/boolean/carrier_pair.rs`)
-in `declared: false` mode — the same function verify-at-use calls in
-`declared: true` mode — so a pair the detector calls flush cannot be a
-pair the declared rung then contradicts, and detection's decisions land
-at the verifier's own funnel sites.
-
-Findings are DEFINITE; a pair whose margin lands in band is neither
-reported nor dropped but refuses `FlushRefusal::PairInBand` naming it.
-Scope covers the curved rungs as well as the planar one, which widens
-the failure surface as much as the answer: a bore whose radius misses
-its peg's by less than the band makes the whole query refuse.
-`FlushFinding<P>` is one generic in the pair vocabulary — names at the
-document door, keys at the body door, one verifier under both — with
-`editor-core/src/names/flush.rs` the derived wrapper.
+**S3 — no flush detector.** A boolean glues every coincidence its
+margins decide (D10), so there is nothing for a detector to offer and
+nothing to declare.
 
 **S4 — the blend and shell doors take no `band`.** `Tol` is a
 zero-sized witness of the committed global tolerance, so `Band::linear`

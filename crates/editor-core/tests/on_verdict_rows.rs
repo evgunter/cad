@@ -1,8 +1,7 @@
 //! **One body lying on another, through the public API**: the shapes
 //! whose operands carry a closed surface lying wholly on the other
 //! operand's, answered by the kernel's whole-shell `On` verdict
-//! (`topo::boolean::shell_witness`), and a twin, which answers alike
-//! declared or not.
+//! (`topo::boolean::shell_witness`), and a twin.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -11,9 +10,9 @@ use editor_core::ExtrudeSide;
 use topo::BooleanOp;
 
 use editor_core::{
-    BooleanValue, CancelToken, Datum, EntityKind, EvalOptions, Evaluation, Formula, Node,
-    NodeError, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, RecipeNodeId,
-    RoleSeg, SplitHalf, StableName, ValuePayload, declared_pairs, evaluate, find_flush_candidates,
+    BooleanValue, CancelToken, EntityKind, EvalOptions, Evaluation, Formula, Node, NodeError,
+    NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg,
+    StableName, ValuePayload, evaluate,
 };
 use geom_core::Tol;
 use topo::{BooleanResultKind, mass_properties};
@@ -53,31 +52,23 @@ fn block(
 
 /// The document's node for the kernel verb `op` over `a` and `b`: a
 /// two-member union or intersect, or `a` cut by `b`.
-fn boolean_node(
-    op: BooleanOp,
-    a: RecipeNodeId,
-    b: RecipeNodeId,
-    declare: Vec<editor_core::DeclaredPair>,
-) -> editor_core::AuthoredNode {
+fn boolean_node(op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> editor_core::AuthoredNode {
     match op {
         BooleanOp::Union => Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare,
         },
         BooleanOp::Intersect => Node::Intersect {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare,
         },
         BooleanOp::Subtract => Node::Subtract {
             from: a.into(),
             tool: b.into(),
-            declare,
         },
     }
 }
 
 fn boolean(r: &mut Recorder, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> RecipeNodeId {
-    r.insert(boolean_node(op, a, b, Vec::new()))
+    r.insert(boolean_node(op, a, b))
 }
 
 /// The answer a boolean node holds: `None` for the typed empty result,
@@ -129,41 +120,37 @@ fn assert_answers(ev: &Evaluation<f64>, rows: &[Row]) {
     }
 }
 
-/// The unit box split at z = 0.25, and two `Part(Above)` of it: one
-/// body at both seats.
-fn two_parts_of_one_half(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
-    let cube = block(r, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let tool = r.insert(Node::Datum(Datum::Plane {
-        origin: [len(0.0), len(0.0), len(0.25)],
-        normal: [scl(0.0), scl(0.0), scl(1.0)],
-    }));
-    let split = r.insert(Node::Split {
-        target: cube.into(),
-        tool: tool.into(),
+/// A 1 × 1 × 0.75 box patterned twice, and two `Part(Instance(1))`
+/// of it: one body at both seats.
+fn two_parts_of_one_copy(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
+    let cube = block(r, (0.0, 1.0), (0.0, 1.0), 0.0, 0.75);
+    let pat = r.insert(Node::Pattern {
+        input: cube.into(),
+        count: Formula::count(2),
+        kind: PatternKind::Linear {
+            direction: [scl(1.0), scl(0.0), scl(0.0)],
+            spacing: len(3.0),
+        },
     });
-    let above = PartSelect::SplitHalf(SplitHalf::Above);
-    let p = r.insert(Node::Part {
-        of: editor_core::Operand::output(split, SplitHalf::Above.port()),
-        select: above.clone(),
-    });
-    let q = r.insert(Node::Part {
-        of: editor_core::Operand::output(split, SplitHalf::Above.port()),
-        select: above,
-    });
+    let copy = || Node::Part {
+        of: pat.into(),
+        select: PartSelect::Instance(Formula::count(1)),
+    };
+    let p = r.insert(copy());
+    let q = r.insert(copy());
     (p, q)
 }
 
-/// **Two `Part(Above)` of one split**: ∪ and ∩ are the half, A's copy;
-/// − is the typed empty result. The n-ary union of the two is the half
-/// too.
+/// **Two `Part(Instance(1))` of one pattern**: ∪ and ∩ are the copy,
+/// A's; − is the typed empty result. The n-ary union of the two is the
+/// copy too.
 #[test]
-fn two_parts_of_one_half_answer_under_every_op() {
+fn two_parts_of_one_copy_answer_under_every_op() {
     let mut r = Recorder::new();
-    let (p, q) = two_parts_of_one_half(&mut r);
+    let (p, q) = two_parts_of_one_copy(&mut r);
     let nodes: Vec<RecipeNodeId> = OPS.iter().map(|&op| boolean(&mut r, op, p, q)).collect();
     let union = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![p.into(), q.into()]),
-        declare: Vec::new(),
     });
     let ev = eval(&r.doc);
     for (op, &id) in OPS.iter().zip(&nodes) {
@@ -173,15 +160,15 @@ fn two_parts_of_one_half_answer_under_every_op() {
             _ => assert_eq!(
                 got.map(|(v, n, k)| ((v - 0.75).abs() < 1e-9, n, k)),
                 Some((true, 1, BooleanResultKind::OperandA)),
-                "{op:?}: the half, one shell, A's copy"
+                "{op:?}: the copy, one shell, A's"
             ),
         }
     }
-    let half = mass_properties(crate::corpus::body_of(&ev, union), Tol::witness()).unwrap();
+    let copy = mass_properties(crate::corpus::body_of(&ev, union), Tol::witness()).unwrap();
     assert!(
-        (half.volume - 0.75).abs() < 1e-9,
-        "the n-ary union is the half: {}",
-        half.volume
+        (copy.volume - 0.75).abs() < 1e-9,
+        "the n-ary union is the copy: {}",
+        copy.volume
     );
 }
 
@@ -193,7 +180,7 @@ fn two_parts_of_one_half_answer_under_every_op() {
 #[test]
 fn the_kept_copy_is_named_from_both_seats() {
     let mut r = Recorder::new();
-    let (p, q) = two_parts_of_one_half(&mut r);
+    let (p, q) = two_parts_of_one_copy(&mut r);
     let joined = boolean(&mut r, BooleanOp::Union, p, q);
     let ev = eval(&r.doc);
     let faces = |id: RecipeNodeId| -> Vec<StableName> {
@@ -352,13 +339,11 @@ fn a_union_with_an_inner_member_against_the_outer() {
     assert_answers(&eval(&r.doc), &rows);
 }
 
-/// **A twin answers alike declared or not**: two placements of one
-/// block, and two independent identical extrudes, lie face on face; the
-/// margins decide each face pair one carrier, so every op answers
-/// undeclared, and the placements with all six face pairs declared
-/// build the undeclared bodies bit for bit.
+/// **A twin answers**: two placements of one block, and two
+/// independent identical extrudes, lie face on face; the margins decide
+/// each face pair one carrier, so every op answers.
 #[test]
-fn a_twin_answers_alike_declared_or_not() {
+fn a_twin_answers() {
     let mut r = Recorder::new();
     let x = block(&mut r, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let place = |r: &mut Recorder| {
@@ -373,7 +358,7 @@ fn a_twin_answers_alike_declared_or_not() {
     };
     let (s, t) = (place(&mut r), place(&mut r));
     let twin = block(&mut r, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let undeclared: Vec<(String, RecipeNodeId)> = OPS
+    let cases: Vec<(String, RecipeNodeId)> = OPS
         .iter()
         .flat_map(|&op| {
             [
@@ -385,42 +370,16 @@ fn a_twin_answers_alike_declared_or_not() {
         .collect();
     let want = |op: BooleanOp| (op != BooleanOp::Subtract).then_some((1.0, 1));
     let ev = eval(&r.doc);
-    let undeclared_rows: Vec<Row> = OPS
+    let rows: Vec<Row> = OPS
         .iter()
-        .zip(undeclared.chunks(3))
+        .zip(cases.chunks(3))
         .flat_map(|(&op, ids)| {
             ids.iter()
                 .map(move |(label, id)| (label.clone(), *id, want(op)))
                 .collect::<Vec<_>>()
         })
         .collect();
-    assert_answers(&ev, &undeclared_rows);
-
-    let findings = find_flush_candidates(&ev, &r.doc, s, t, Tol::witness()).unwrap();
-    assert_eq!(findings.len(), 6, "one finding per face pair: {findings:?}");
-    let pairs = declared_pairs(&findings);
-    let declared: Vec<(BooleanOp, RecipeNodeId)> = OPS
-        .iter()
-        .map(|&op| {
-            let id = r.insert(boolean_node(op, s, t, pairs.clone()));
-            (op, id)
-        })
-        .collect();
-    let ev = eval(&r.doc);
-    for ((op, id), (label, bare)) in declared.iter().zip(undeclared.iter().step_by(3)) {
-        assert_eq!(
-            answer(&ev, *id).map(|(v, n, _)| (v, n)),
-            answer(&ev, *bare).map(|(v, n, _)| (v, n)),
-            "S {op:?} T declared answers as {label}"
-        );
-        if *op != BooleanOp::Subtract {
-            assert_eq!(
-                format!("{:?}", crate::corpus::body_of(&ev, *id)),
-                format!("{:?}", crate::corpus::body_of(&ev, *bare)),
-                "S {op:?} T declared is {label}'s body"
-            );
-        }
-    }
+    assert_answers(&ev, &rows);
 }
 
 /// **A surface the coincidences cover one way only refuses**: X against
@@ -429,8 +388,7 @@ fn a_twin_answers_alike_declared_or_not() {
 /// as one of the pocketed body's, by recipe; but the pocket's faces are
 /// the same face as none of X's, so X's surface is not certified to lie
 /// on one surface of the other that lies back on it. The refusal names
-/// no face pair, so the refusal menu has no declaration to offer and
-/// the kernel's refusal crosses as it is.
+/// no face pair, and the kernel's refusal crosses as it is.
 #[test]
 fn a_surface_covered_one_way_refuses_coincident_shell() {
     let mut r = Recorder::new();

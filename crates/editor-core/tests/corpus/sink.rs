@@ -8,7 +8,7 @@
 //!
 //! Node kinds: Datum (Point/Axis/Plane), Profile (plain, arc-bearing
 //! by fillet construction, hand-declared tangent), Extrude, Revolve,
-//! Split, Boolean (Union, declared), Transform, Pattern (Linear and
+//! Split, Boolean (Union), Transform, Pattern (Linear and
 //! Circular).
 //!
 //! Edit kinds — the `EDIT_KINDS` names, which is every arm the corpus
@@ -41,7 +41,7 @@ use editor_core::{
     RoleSeg, SlotId, StableName, UnitSym, VarName, WitnessDatum,
 };
 
-use crate::fixture::{ang, axis_in_plane, declare_x_offset_flush, len, scl};
+use crate::fixture::{ang, len, revolve_about, scl};
 
 use super::{CorpusDoc, Recorder};
 
@@ -130,12 +130,9 @@ pub fn document() -> CorpusDoc {
         side: ExtrudeSide::Along,
     });
 
-    // A flush neighbour and the union declaring its contacts (F5). The
-    // offset is HALF the width, so the blocks OVERLAP along x while
-    // their y-walls and both caps stay flush — the sliding-overlap
-    // shape `declare_x_offset_flush` declares. (A pure face-to-face
-    // touch at x = 1 would be a REST contact, which the join stage
-    // still refuses — the tracked envelope entry, not corpus fodder.)
+    // A flush neighbour and its union (F5). The offset is HALF the
+    // width, so the blocks OVERLAP along x while their y-walls and
+    // both caps stay flush — the sliding-overlap shape.
     let profile_b = r.profile(
         [0.5, 0.0, 0.0],
         [1.0, 0.0, 0.0],
@@ -147,10 +144,8 @@ pub fn document() -> CorpusDoc {
         distance: len(1.25),
         side: ExtrudeSide::Along,
     });
-    let declare = declare_x_offset_flush(&r.doc, block_a, block_b);
     let union = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![block_a.into(), block_b.into()]),
-        declare,
     });
 
     // Split the union with a plane tool.
@@ -199,18 +194,18 @@ pub fn document() -> CorpusDoc {
     // (-2, 0, 0) with v = world +Z, so the line the pattern turns about
     // is this frame's +y through (0, 0) — the same line in space, said
     // in the coordinates the revolve reads.
-    let (rev_plane, rev_profile) = r.profile_keeping(
+    let (_, rev_profile) = r.profile_keeping(
         [-2.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 0.0, 1.0],
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
     );
-    let rev_axis = r.insert(axis_in_plane(rev_plane, (0.0, 0.0), (0.0, 1.0)));
-    let revolve = r.insert(Node::Revolve {
-        profile: rev_profile.into(),
-        axis: rev_axis.into(),
-        angle: ang(std::f64::consts::FRAC_PI_2),
-    });
+    let revolve = r.insert(revolve_about(
+        rev_profile,
+        (0.0, 0.0),
+        (0.0, 1.0),
+        ang(std::f64::consts::FRAC_PI_2),
+    ));
 
     // ---- the non-insert edit vocabulary ----
     // Structural: drive the linear pattern's count from `n`.

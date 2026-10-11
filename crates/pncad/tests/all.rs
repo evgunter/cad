@@ -365,7 +365,7 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
     }
 }
 
-/// `ValidationError::UndeclaredContact`'s payload. The branch that
+/// `ValidationError::UnrecordedContact`'s payload. The branch that
 /// matters is not "a census contact happened" but WHICH: an
 /// `EdgeFacePierce` is interpenetration and undeclarable, while an
 /// `EdgeEdgeOverlap` is certifiable through the D3 reconstruction. Same refusal, opposite advice.
@@ -420,8 +420,7 @@ fn census_contact_is_matchable(contact: CensusContact) -> bool {
 /// An `Entity` subject is one carrier outside the certifiable
 /// inventory: simplify that carrier, or certify it through a
 /// supported lane. A `FacePair` is a candidate CONTACT, so the
-/// recourse is the declaration protocol — declare the coincidence, or
-/// separate the two faces. Both payload types are on the prelude, so
+/// recourse concerns the pair: separate the two faces. Both payload types are on the prelude, so
 /// the answer is read out whole rather than bound and re-rendered.
 ///
 /// The pair is UNORDERED as a subject, which a caller resolving a
@@ -476,15 +475,10 @@ fn stale_declaration_and_ring_contact_are_matchable(
             named::<EdgeKey>(b);
             "edge_edge"
         }
-        StaleDeclaration::CurveLocus {
-            face_a,
-            face_b,
-            witness,
-        } => {
-            named::<FaceKey>(face_a);
-            named::<FaceKey>(face_b);
-            named::<EdgeKey>(witness);
-            "curve_locus"
+        StaleDeclaration::EdgeFace { edge, face } => {
+            named::<EdgeKey>(edge);
+            named::<FaceKey>(face);
+            "edge_face"
         }
         StaleDeclaration::Patch { .. } => "patch",
     };
@@ -569,7 +563,7 @@ fn profile_payloads_are_matchable(
 /// WHAT THIS DOES NOT PIN, stated rather than implied: none of these
 /// refusals is CONSTRUCTED from a façade door here. Reaching a real
 /// `UnsupportedCorner` needs a body with an out-of-scope trihedron,
-/// and reaching a real `UndeclaredContact` needs a census finding;
+/// and reaching a real `UnrecordedContact` needs a census finding;
 /// both belong to the kernel suites that already own them. What is
 /// pinned is the CURATION property and only that — the values are
 /// built by hand, and every one of them is built with a bare prelude
@@ -1271,19 +1265,11 @@ fn revolved_kind_is_matchable(kind: &RevolvedKind) -> &'static str {
 /// **The import surface, on both sides of the call** — the refusal a
 /// caller matches, and the options a caller fills.
 ///
-/// The two halves are two different curation defects and this pins
-/// each. `PromotedKind` is `RecognitionAmbiguous`'s discriminant: the
-/// arm was matchable and the kind whose estimator declined was
-/// readable only out of the message prose. `ImportContact` is the
-/// element type of a `pub` field on the options struct, so the
-/// declaration channel was callable and not FILLABLE — the value
-/// below could not be written from this list at all.
-///
-/// What the `import_step` call pins is exactly that: the door accepts
-/// options a prelude caller filled. Whether an anchor RESOLVES is
-/// `step-import`'s own suite, on a file with vertices to resolve
-/// against; here the text is not a STEP file and the refusal is the
-/// parser's.
+/// `PromotedKind` is `RecognitionAmbiguous`'s discriminant: the arm
+/// was matchable and the kind whose estimator declined was readable
+/// only out of the message prose. What the `import_step` call pins is
+/// that the door accepts options a prelude caller filled; the text is
+/// not a STEP file and the refusal is the parser's.
 #[test]
 fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
     assert_eq!(
@@ -1311,9 +1297,6 @@ fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
 
     let options = ImportOptions {
         eps_in: Some(1e-7),
-        declared_contacts: vec![ImportContact::VertexRest {
-            at: [0.0, 0.0, 0.5],
-        }],
         examine_chart_coherence: true,
     };
     assert!(matches!(
@@ -1375,6 +1358,7 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         curve_promotions,
         instances,
         coherence,
+        contacts,
         coincidences,
     } = imported
     else {
@@ -1395,12 +1379,13 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     // empty report; `topo`'s own door draws the same line about the
     // two lists inside a report it did produce.
     named::<Option<CoherenceReport>>(coherence.clone());
-    // The anchors' decisions: none, since the default import declares
-    // no anchor.
+    // The touches between instances the gate recorded, and the rows
+    // they cite: none, since one box touches nothing.
+    named::<ContactRecords>(contacts.clone());
     named::<Vec<pncad::document::coincidence::Coincidence>>(coincidences.clone());
     assert!(
-        coincidences.is_empty(),
-        "the default import declares no anchor"
+        contacts.is_empty() && coincidences.is_empty(),
+        "one box records no contact"
     );
     assert!(
         coherence.is_none(),
@@ -2601,14 +2586,12 @@ fn the_export_door_refuses_typed_not_vaguely() {
         Node::Subtract {
             from: first_box.into(),
             tool: second_box.into(),
-            declare: Vec::new(),
         },
     );
     let (doc, downstream) = insert(
         doc,
         Node::Union {
             members: pncad::document::Bodies::Spelled(vec![cut.into(), first_box.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = doors_evaluate(&doc);
@@ -2752,7 +2735,6 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         doc,
         Node::Union {
             members: pncad::document::Bodies::Spelled(vec![plate.into(), tab.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, _) = place(doc, solid);
@@ -4912,7 +4894,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 97] = [
+const NOT_CARRIED: [&str; 96] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4937,7 +4919,6 @@ const NOT_CARRIED: [&str; 97] = [
     "EvalScalar",
     "FlipEvidence",
     "FlipSet",
-    "FoldConsumption",
     "FragmentGroups",
     "GroupCutters",
     "Implicated",
@@ -6450,12 +6431,12 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
 }
 
 /// A user's program through the façade, holding the unit-vector
-/// witness: datum nodes evaluate, their `DatumValue` fields ARE the
+/// witness: datum nodes evaluate, their `PoseValue` fields ARE the
 /// witnesses, and the doors that take or mint the type are reached
 /// without naming a second crate.
 mod unit_vector_witness_through_the_facade {
     use pncad::document::{
-        CancelToken, Datum, DatumValue, Doc, EvalOptions, Node, NodeResult, ProfileProgram,
+        CancelToken, Datum, Doc, EvalOptions, Node, NodeResult, PoseValue, ProfileProgram,
         RecipeNodeId, ValuePayload, evaluate,
     };
     use pncad::geom_core::linalg::frame::{mirror_across_plane, path_start_frame, point_at};
@@ -6464,7 +6445,7 @@ mod unit_vector_witness_through_the_facade {
 
     type ProfileDoc = Doc<ProfileProgram>;
 
-    fn datum_of(doc: &ProfileDoc, node: RecipeNodeId) -> DatumValue<f64> {
+    fn datum_of(doc: &ProfileDoc, node: RecipeNodeId) -> PoseValue<f64> {
         let ev = evaluate::<f64>(
             doc,
             None,
@@ -6507,10 +6488,10 @@ mod unit_vector_witness_through_the_facade {
                 direction: [super::scl(3.0), super::scl(4.0), super::scl(0.0)],
             }),
         );
-        let DatumValue::Plane { origin, normal } = datum_of(&doc, plane) else {
+        let PoseValue::Plane { origin, normal } = datum_of(&doc, plane) else {
             panic!("a plane datum");
         };
-        let DatumValue::Axis { origin: ao, dir } = datum_of(&doc, axis) else {
+        let PoseValue::Axis { origin: ao, dir } = datum_of(&doc, axis) else {
             panic!("an axis datum");
         };
         assert_eq!(bits(normal.get()), bits(Vec3::new(0.0, 0.0, 1.0)));
@@ -6542,7 +6523,7 @@ mod unit_vector_witness_through_the_facade {
     }
 
     /// The funnel-site name is the caller's: a direction minted under
-    /// ANY name builds a `DatumValue`, so "a datum's direction is
+    /// ANY name builds a `PoseValue`, so "a datum's direction is
     /// decided under `datum_unit_norm`" is `editor-core`'s convention
     /// at its `datum_unit` door, not a property of the type. The
     /// refusals under the datum name are the constructor's typed ones.
@@ -6555,11 +6536,11 @@ mod unit_vector_witness_through_the_facade {
             band,
         )
         .unwrap();
-        let d = DatumValue::<f64>::Plane {
+        let d = PoseValue::<f64>::Plane {
             origin: Point3::origin(),
             normal: n,
         };
-        let DatumValue::Plane { normal, .. } = d else {
+        let PoseValue::Plane { normal, .. } = d else {
             panic!("a plane datum");
         };
         assert_eq!(bits(normal.get()), bits(Vec3::new(0.0, 0.0, 1.0)));

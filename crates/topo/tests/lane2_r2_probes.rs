@@ -14,19 +14,10 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{CensusContact, ContactRecords, FaceKey, PatchContact, ValidationError};
+use topo::{CensusContact, ContactRecords, FaceKey, ValidationError};
 
-fn declared(pair: (FaceKey, FaceKey)) -> ContactRecords {
-    ContactRecords {
-        patches: vec![topo::Cited::new(
-            PatchContact {
-                face_a: pair.0,
-                face_b: pair.1,
-            },
-            topo::Cites::decided(0),
-        )],
-        ..ContactRecords::default()
-    }
+fn declared(body: &topo::Body<f64>, pair: (FaceKey, FaceKey)) -> ContactRecords {
+    topo::test_support::records(body, [(topo::Cell::Face(pair.0), topo::Cell::Face(pair.1))])
 }
 
 fn lane_refusals(errors: &[ValidationError]) -> Vec<&ValidationError> {
@@ -42,7 +33,7 @@ fn crossings(errors: &[ValidationError]) -> usize {
         .filter(|e| {
             matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::EdgeEdgeCross { .. },
                     ..
                 }
@@ -56,7 +47,7 @@ fn the_declared_seat_through_the_four_doors_at_f64() {
     let tol = Tol::witness();
     let seat = common::straddle_seat(tol);
     let pair = (seat.post_top, seat.shelf_bottom);
-    let records = declared(pair);
+    let records = declared(&seat.body, pair);
 
     let certified = topo::validate_pseudomanifold(&seat.body, &records, tol);
     assert!(

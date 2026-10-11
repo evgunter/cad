@@ -42,10 +42,7 @@
 
 use super::super::reduce::{ContactAcc, CurvedEvent, curved_face_arm};
 use super::super::sectors::{NO_CURVATURE, Reach, side_code, tangent_relative_side};
-use super::super::{
-    BooleanDeclarations, BooleanError, BooleanErrorKind, DeclaredPairs, FacePairDeclaration,
-    Operand,
-};
+use super::super::{BooleanError, BooleanErrorKind, Glue, GluedPair, GluedPairs, Operand};
 use super::tests::every_decision;
 use super::*;
 use crate::contact::ContactClass;
@@ -236,6 +233,11 @@ cases! {
     // its bounds still read On: the bounds' margin decides it.
     thinner_wedge_tilted_past_the_band: "Coincidence(Sectors)", 1.5e-8 * sin_deg(2.0), Public,
         Valued => wedge_on_a_block(super::super::BooleanOp::Union, 2.0, 1.5e-8);
+    // Tilted in band over the two faces, so the glue door leaves the pair
+    // unglued: the corner's bounds' margin, not the glue door's, is the
+    // one a smaller tolerance clears.
+    thin_wedge_in_band_over_its_faces: "Coincidence(Sectors)", 2e-9 * sin_deg(5.0), Public,
+        Valued => wedge_on_a_block(super::super::BooleanOp::Union, 5.0, 2e-9);
     // The coincfr4 review's wedges (W1–W4), on its own poses: turned,
     // scaled, hanging from the bottom face, and tilted into the block,
     // each through the three public ops.
@@ -266,12 +268,6 @@ cases! {
         Valued => turned_wedge(2, true, 200.0, 5.0, 1.0, -D);
     // The arms this pass withdrew, each on the raise that showed its
     // offer false.
-    // The tilt, `D/4` a metre, levered at the declared pair's extent:
-    // the ball around both faces' 3 m × 3 m footprint, `1.5·√2`.
-    tangent_screen_of_a_tilted_block: "Coincidence(Planes)",
-        D / 4.0 * 1.5 * core::f64::consts::SQRT_2, Public,
-        Withdrawn(Because::Refuses("UnsupportedDeclarationClass")) =>
-        tilted_block_declared_tangent();
     membership_along_a_curved_flank: "Coincidence(CurvedFlankSense)", D, Door::Site(
         "the membership tie is read inside the edge-edge resolution, on hand-built sectors: \
          an in-band sense needs a flanker arm inside the band, which the corner's arm rung \
@@ -872,7 +868,7 @@ fn tangent_side(arm_gate: bool) -> Result<(), BooleanError> {
     } else {
         (2.0 * D / (accel(&ball) - accel(&floor)).abs()).sqrt()
     };
-    let read = DeclarationRead::Spent(BooleanCoincidence::TANGENT);
+    let read = DeclarationRead::Spent(GlueClass::TANGENT);
     tangent_relative_side(&ball, &floor, n, p, d, arm, read, band()).map(|_| ())
 }
 
@@ -933,8 +929,7 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
         (0.0, 1.0),
         tol,
     );
-    let declared =
-        DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
+    let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
     let mut acc = ContactAcc::default();
     curved_face_arm(
         &x,
@@ -973,14 +968,14 @@ fn arc_against_a_wall(r: f64, class: Option<ContactClass>) -> Result<(), Boolean
         (0.0, 1.0),
         tol,
     );
-    let decls = BooleanDeclarations {
-        coincident_faces: class
-            .map(|class| vec![FacePairDeclaration::new(xw, yw, class)])
+    let decls = Glue {
+        pairs: class
+            .map(|class| vec![GluedPair::new(xw, yw, class)])
             .unwrap_or_default(),
-        ..BooleanDeclarations::none()
+        ..Glue::none()
     };
     let one = super::super::verify_declared_contacts(&x, &y, &decls, band())?;
-    let declared = DeclaredPairs::build(&decls, one, &x, &y, band())?;
+    let declared = GluedPairs::build(&decls, one, &x, &y, band())?;
     let (edge_key, edge) = x
         .edges()
         .map(|(k, e)| (k, e.clone()))
@@ -1029,7 +1024,7 @@ fn wedge_on_a_block(
         op,
         &block,
         &wedge,
-        &BooleanDeclarations::none(),
+        &super::super::BooleanInputs::default(),
         super::super::SweepStrategy::Realized,
         tol,
     )
@@ -1038,66 +1033,106 @@ fn wedge_on_a_block(
 
 /// The block and the wedge of [`wedge_on_a_block`].
 fn lane_wedge(opening_deg: f64, tilt: f64) -> (crate::AtRestBody<f64>, crate::AtRestBody<f64>) {
-    use crate::test_support_fixtures::{brick, mapped_cube};
     let tol = Tol::witness();
-    let phi = opening_deg.to_radians();
-    let (ea, eb) = (
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(phi.cos(), phi.sin(), tilt * phi.sin()),
-    );
-    let p = Point3::new(0.5, 0.2, 1.0);
-    let wedge = mapped_cube::<f64>(
-        move |u, v, w| p + ea * u + eb * v + Vec3::new(0.0, 0.0, w),
-        tol,
-    );
+    let (block, wedge) =
+        crate::test_support_fixtures::wedge_on_a_block_top(opening_deg, tilt, 1.0, 0.0, tol);
     (
-        finished(
-            "the lane's block",
-            brick((-1.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
-            tol,
-        ),
+        finished("the lane's block", block, tol),
         finished("the lane's wedge", wedge, tol),
     )
 }
 
-/// A block tilted by an in-band angle on a block's top face, the pair
-/// declared `Tangent` (the review's G2 pose).
-fn tilted_block_declared_tangent() -> Result<(), BooleanError> {
-    block_declared_tangent_at(D / 2.0)
+/// The wedge `thin_wedge_in_band_over_its_faces` raises, every op in
+/// both orders: the first outcome other than a `Coincidence(Sectors)`
+/// refusal, or that refusal where every op gives it.
+#[test]
+#[ignore = "a child row: the_in_band_wedge_is_in_band_at_the_glue_door runs it"]
+fn wedge_in_band_every_op() {
+    use super::super::BooleanOp::{Intersect, Subtract, Union};
+    let tol = Tol::witness();
+    let (block, wedge) = lane_wedge(5.0, 2e-9);
+    let run = |op, a, b| {
+        super::super::boolean_op_with(
+            op,
+            a,
+            b,
+            &super::super::BooleanInputs::default(),
+            super::super::SweepStrategy::Realized,
+            tol,
+        )
+        .map(|_| ())
+    };
+    let outcomes = [
+        run(Union, &block, &wedge),
+        run(Union, &wedge, &block),
+        run(Intersect, &block, &wedge),
+        run(Intersect, &wedge, &block),
+        run(Subtract, &block, &wedge),
+        run(Subtract, &wedge, &block),
+    ]
+    .map(outcome);
+    let sectors =
+        |o: &Outcome| matches!(o, Outcome::Refused { key, .. } if key == "Coincidence(Sectors)");
+    let first = outcomes
+        .iter()
+        .find(|o| !sectors(o))
+        .unwrap_or(&outcomes[0]);
+    report("wedge_in_band_every_op", first);
 }
 
-/// The same block, its top rising by `tilt` over each metre along `x`.
-fn block_declared_tangent_at(tilt: f64) -> Result<(), BooleanError> {
-    use crate::test_support_fixtures::{brick, mapped_cube};
-    let tol = Tol::witness();
-    let a = finished("block", brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol), tol);
-    let b = finished(
-        "tilted block",
-        mapped_cube::<f64>(
-            move |u, v, w| Point3::new(1.0 + 2.0 * u, 1.0 + 2.0 * v, 1.0 + w + tilt * u),
-            tol,
+/// `thin_wedge_in_band_over_its_faces`' glue door reads its pair in band
+/// over the two faces, and `thin_wedge_on_a_block`'s reads it apart: the
+/// two cases are the corner's refusal with and without an in-band glue
+/// verdict before it. Just below the tolerance the glue door's margin
+/// would offer, the glue door reads the pair apart and every op still
+/// refuses at the corner, so that offer would be false; the corner's own
+/// executes (the case above).
+#[test]
+fn the_in_band_wedge_is_in_band_at_the_glue_door() {
+    use super::super::carrier_pair::carrier_pair_relation;
+    use crate::test_support_fixtures::face_facing;
+    let read = |tilt: f64, band| {
+        let (block, wedge) = lane_wedge(5.0, tilt);
+        carrier_pair_relation(
+            &block,
+            face_facing(&block, 1.0),
+            &wedge,
+            face_facing(&wedge, -1.0),
+            false,
+            band,
+        )
+    };
+    let glue_margin = match read(2e-9, design_band()) {
+        Ok(Err(crate::CarrierEqError::Escalated { diag, .. })) => {
+            geom_core::test_support::upper(diag.margin)
+        }
+        other => panic!("in band at 2e-9: {other:?}"),
+    };
+    assert!(
+        matches!(
+            read(D, design_band()),
+            Ok(Ok(crate::CarrierRelation::Distinct))
         ),
-        tol,
+        "apart at D: {:?}",
+        read(D, design_band())
     );
-    let facing = |body: &crate::body::Body<f64>, up: bool| {
-        body.faces()
-            .map(|(k, _)| k)
-            .find(|&k| {
-                matches!(super::super::face_carrier(body, k),
-                    Some(super::super::CarrierDesc::Plane { normal, .. })
-                        if (normal.z > 0.99) == up && normal.z.abs() > 0.99)
-            })
-            .unwrap()
-    };
-    let decls = BooleanDeclarations {
-        coincident_faces: vec![FacePairDeclaration::new(
-            facing(&a, true),
-            facing(&b, false),
-            ContactClass::Tangent,
-        )],
-        ..BooleanDeclarations::none()
-    };
-    super::super::union_with(&a, &b, &decls, tol).map(|_| ())
+    let below = test_utils::offer::BELOW * glue_margin / geom_core::tolerance::DEFAULT_K;
+    let tighter = Band::new(below, geom_core::tolerance::DEFAULT_K * below).unwrap();
+    assert!(
+        matches!(
+            read(2e-9, tighter),
+            Ok(Ok(crate::CarrierRelation::Distinct))
+        ),
+        "apart below the glue door's offer {below:e}: {:?}",
+        read(2e-9, tighter)
+    );
+    let module = module_path!()
+        .split_once("::")
+        .map_or(module_path!(), |(_, m)| m);
+    match run(&format!("{module}::wedge_in_band_every_op"), below) {
+        Outcome::Refused { key, .. } if key == "Coincidence(Sectors)" => {}
+        other => panic!("every op refuses at the corner at {below:e}: {other:?}"),
+    }
 }
 
 /// Two corners sharing an edge along `z`, one flanked by a cylinder
@@ -1158,8 +1193,7 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
         intersect: true,
     }];
     let corner = |face| [sector(z, x, face), sector(x, z, face)];
-    let declared =
-        DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
+    let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
     resolve_edge_edge(
         &records,
         &corner(fca),
@@ -1262,7 +1296,7 @@ fn tangent_side_of(side: f64) -> Result<(), BooleanError> {
         -geom_brep::implicit_hessian_form(s, p, d) / geom_brep::implicit_gradient(s, p).dot(n.vec())
     };
     let arm = (2.0 * D / (accel(&ball) - accel(&floor)).abs()).sqrt();
-    let read = DeclarationRead::Spent(BooleanCoincidence::TANGENT);
+    let read = DeclarationRead::Spent(GlueClass::TANGENT);
     tangent_relative_side(&ball, &floor, n, p, d, arm, read, band()).map(|_| ())
 }
 
@@ -1621,16 +1655,16 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
         intersect: true,
     }];
     let flank = if against { -x } else { x };
-    let decls = BooleanDeclarations {
-        coincident_faces: if rest {
-            vec![FacePairDeclaration::new(fa, fb, ContactClass::Rest)]
+    let decls = Glue {
+        pairs: if rest {
+            vec![GluedPair::new(fa, fb, ContactClass::Rest)]
         } else {
             Vec::new()
         },
-        ..BooleanDeclarations::none()
+        ..Glue::none()
     };
     let one = super::super::verify_declared_contacts(&pa.body, &pb.body, &decls, band())?;
-    let declared = DeclaredPairs::build(&decls, one, &pa.body, &pb.body, band())?;
+    let declared = GluedPairs::build(&decls, one, &pa.body, &pb.body, band())?;
     resolve_edge_edge(
         &records,
         &[sector(z, x, fa), sector(x, z, fa)],
@@ -1672,8 +1706,7 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
         normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true),
         arm,
     };
-    let declared =
-        DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
+    let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
     super::super::recl::require_same(
         &pa.body,
         Operand::A,
@@ -1747,12 +1780,11 @@ fn bent_disc(margin: f64) -> Result<(), BooleanError> {
 }
 
 /// The public op `k` (0 union, 1 subtract, else intersect) of `a` and
-/// `b`, `decls` declared.
+/// `b`.
 fn public_op(
     k: u8,
     a: &crate::AtRestBody<f64>,
     b: &crate::AtRestBody<f64>,
-    decls: &BooleanDeclarations,
 ) -> Result<(), BooleanError> {
     let op = match k {
         0 => super::super::BooleanOp::Union,
@@ -1763,7 +1795,7 @@ fn public_op(
         op,
         a,
         b,
-        decls,
+        &super::super::BooleanInputs::default(),
         super::super::SweepStrategy::Realized,
         Tol::witness(),
     )
@@ -1820,39 +1852,7 @@ fn turned_wedge(
     tilt: f64,
 ) -> Result<(), BooleanError> {
     let wedge = review_wedge(top, rot, opening, s, tilt);
-    public_op(k, &big_block(), &wedge, &BooleanDeclarations::none())
-}
-
-/// The plane face of `body` whose outward normal is `±z` (`up`) through
-/// height `z`.
-fn z_face(body: &crate::body::Body<f64>, z: f64, up: bool) -> crate::entity::FaceKey {
-    body.faces()
-        .map(|(k, _)| k)
-        .find(|&k| {
-            matches!(super::super::face_carrier(body, k),
-                Some(super::super::CarrierDesc::Plane { normal, origin, .. })
-                    if (normal.z > 0.9) == up && normal.z.abs() > 0.9
-                        && (origin.z - z).abs() < 1e-3)
-        })
-        .unwrap()
-}
-
-/// A wedge on the block `block` (its top at `z = 1`), the wedge's bottom
-/// declared `Rest` on the block's top through the public door, by op `k`.
-fn declared_rest_wedge(
-    k: u8,
-    block: &crate::AtRestBody<f64>,
-    wedge: &crate::AtRestBody<f64>,
-) -> Result<(), BooleanError> {
-    let decls = BooleanDeclarations {
-        coincident_faces: vec![FacePairDeclaration::new(
-            z_face(block, 1.0, true),
-            z_face(wedge, 1.0, false),
-            ContactClass::Rest,
-        )],
-        ..BooleanDeclarations::none()
-    };
-    public_op(k, block, wedge, &decls)
+    public_op(k, &big_block(), &wedge)
 }
 
 /// A unit block whose corner sits on the corner `(1, 1, 1)` of the unit
@@ -1876,7 +1876,7 @@ fn corner_on_a_corner(axis: Vec3<f64>, theta: f64) -> Result<(), BooleanError> {
         mapped_cube::<f64>(move |u, v, w| c + turn(Vec3::new(u, v, w)), tol),
         tol,
     );
-    public_op(0, &a, &b, &BooleanDeclarations::none())
+    public_op(0, &a, &b)
 }
 
 /// **A stranded split top is refused typed at the at-rest gate, before
@@ -2267,6 +2267,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermEdgeCarrierUnsupported
         | BooleanErrorKind::ArcLoopContainmentUnsupported
         | BooleanErrorKind::PointInFaceRefused
+        | BooleanErrorKind::RestPieceUnread
         | BooleanErrorKind::ScaffoldingOperand
         | BooleanErrorKind::InsideOutOperand
         | BooleanErrorKind::UnjoinedOperand
@@ -2280,7 +2281,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::SeamContradicted
         | BooleanErrorKind::RimCuspArmUnbuilt
         | BooleanErrorKind::TangentSlitArmUnbuilt
-        | BooleanErrorKind::InvalidDeclaration
+        | BooleanErrorKind::InvalidInput
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
         | BooleanErrorKind::PinchConesOnSeparateKeys
@@ -2291,10 +2292,11 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::FallbackExtentUnsupported
         | BooleanErrorKind::GermFrameUnsupported
         | BooleanErrorKind::GermSectionOutsideInventory
+        | BooleanErrorKind::GermSectionSpiric
         | BooleanErrorKind::GermFrameCylinderPinch
         | BooleanErrorKind::JoinDesync
+        | BooleanErrorKind::EdgeUndescribed
         | BooleanErrorKind::JoinCarrierUnsupported
-        | BooleanErrorKind::CurvedRestUnrecorded
         | BooleanErrorKind::TornComponent
         | BooleanErrorKind::ShellWitnessExhausted
         | BooleanErrorKind::CoincidentShell
@@ -2369,92 +2371,6 @@ fn every_arm_that_offers_a_value_has_an_executed_case() {
         "offering arms with no executed case: {missing:?}\ncases standing for no offering arm: \
          {stale:?}"
     );
-}
-
-// ------------------------------------------------------------------
-// A declared `Rest` at a decided tilt (the coincfr4 review's MAJOR-1).
-// ------------------------------------------------------------------
-
-/// Declares the C2 rows: one `#[ignore]`d child each, run at
-/// [`DESIGN_EPS`] by [`a_declared_rest_at_a_decided_tilt_is_contradicted`].
-macro_rules! declared_rows {
-    ($($name:ident => $raise:expr;)*) => {
-        $(
-            #[test]
-            #[ignore = "a child row: a_declared_rest_at_a_decided_tilt_is_contradicted runs it"]
-            fn $name() {
-                report(stringify!($name), &outcome($raise));
-            }
-        )*
-        const DECLARED_ROWS: &[&str] = &[$(stringify!($name)),*];
-    };
-}
-
-declared_rows! {
-    // The lane's own pose, whose normals decide its tilt at 1e-9.
-    declared_rest_on_a_wedge_tilted_past_the_band_union => {
-        let (block, wedge) = lane_wedge(2.0, 1.5e-8);
-        declared_rest_wedge(0, &block, &wedge)
-    };
-    declared_rest_on_a_wedge_tilted_past_the_band_subtract => {
-        let (block, wedge) = lane_wedge(2.0, 1.5e-8);
-        declared_rest_wedge(1, &block, &wedge)
-    };
-    declared_rest_on_a_wedge_tilted_past_the_band_intersect => {
-        let (block, wedge) = lane_wedge(2.0, 1.5e-8);
-        declared_rest_wedge(2, &block, &wedge)
-    };
-    // The review's W1: the door's ladder bridges the tilt, and the
-    // sector's normals decide it at the arm.
-    declared_rest_on_a_turned_wedge_union => {
-        declared_rest_wedge(0, &big_block(), &review_wedge(true, 37.0, 3.0, 2.0, D))
-    };
-    declared_rest_on_a_turned_wedge_subtract => {
-        declared_rest_wedge(1, &big_block(), &review_wedge(true, 37.0, 3.0, 2.0, D))
-    };
-}
-
-/// **A declared `Rest` pair whose sectors' tilt is decided is
-/// contradicted, and offers neither a declaration nor a tolerance**
-/// (C2, declared through `boolean_op_with`): a decided tilt is no
-/// coincidence a declaration settles, so the decided-tilt arm of `vtxfac`
-/// reads none and refuses the declared pair as the door does at a
-/// smaller tolerance. Removed, the declaration leaves the undeclared
-/// cases `thinner_wedge_tilted_past_the_band` and
-/// `wedge_turned_on_a_block_*`, whose offers are executed true.
-#[test]
-fn a_declared_rest_at_a_decided_tilt_is_contradicted() {
-    let module = module_path!()
-        .split_once("::")
-        .map_or(module_path!(), |(_, m)| m);
-    for name in DECLARED_ROWS {
-        let got = run(&format!("{module}::{name}"), DESIGN_EPS);
-        let Outcome::Refused { key, defect, text } = &got else {
-            panic!("{name}: a declared Rest at a decided tilt builds: {got:?}");
-        };
-        assert!(
-            key == "ContactContradicted"
-                && !defect
-                && text.contains("the declared planes are not parallel")
-                && !text.contains("declare the coincidence")
-                && !text.contains("tighten"),
-            "{name}: {got:?}"
-        );
-    }
-    // Undeclared, the same poses offer the tolerance and no declaration.
-    for name in [
-        "thinner_wedge_tilted_past_the_band",
-        "wedge_turned_on_a_block_union",
-    ] {
-        let got = run(&format!("{module}::{name}"), DESIGN_EPS);
-        assert!(
-            matches!(&got, Outcome::Refused { key, text, .. }
-                if key == "Coincidence(Sectors)"
-                    && !text.contains("declare")
-                    && text.contains("tighten")),
-            "{name}: {got:?}"
-        );
-    }
 }
 
 // ------------------------------------------------------------------
@@ -2658,11 +2574,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("join.rs", "bool_connect", "Coincide::Section", 1),
     ("join.rs", "frame_refusal", "BooleanDecision::Radius", 1),
     ("join.rs", "frame_refusal", "Coincide::Section", 1),
-    ("join.rs", "germs_face_each_other", "Coincide::Join", 1),
-    ("join.rs", "nearer", "Coincide::Join", 1),
-    ("join.rs", "nearer_along", "Coincide::Join", 1),
+    ("join.rs", "join_escalate", "Coincide::Join", 1),
     ("join.rs", "parallel_radical_plane", "Coincide::Section", 1),
-    ("join.rs", "partners", "Coincide::Join", 1),
     (
         "join.rs",
         "ring_winding_order",
@@ -2677,7 +2590,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("join.rs", "rotational_sense", "SelfCheck::ArcFacing", 1),
-    ("join.rs", "travel", "Coincide::Join", 1),
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
     ("mod.rs", "undecided_coincidence", "Coincide::Carriers", 1),
     ("mod.rs", "unglued_coincidence", "Coincide::Carriers", 1),
@@ -2751,13 +2663,9 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "sphere_pair_cut", "SphereQuestion::CutIn", 1),
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
+    ("ops.rs", "of_describe", "BooleanDecision::EdgeOnFaces", 1),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
-    (
-        "ops.rs",
-        "finished_body_refusal",
-        "BooleanDecision::ShellRole",
-        1,
-    ),
+    ("ops.rs", "escalated", "BooleanDecision::ShellRole", 1),
     ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),
     ("ops.rs", "sphere_extent_scan", "BooleanDecision::Sphere", 1),
     (
@@ -2777,6 +2685,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "ee_lineage", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "ee_lineage", "BooleanDecision::VertexOnVertex", 1),
     ("ops.rs", "ee_lineage", "SelfCheck::CarriedLineage", 1),
+    ("ops.rs", "piece_holds", "BooleanDecision::SelfCheck", 1),
+    ("ops.rs", "piece_holds", "SelfCheck::CarriedLineage", 1),
     ("ops.rs", "ledger", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "ledger", "BooleanDecision::VertexOnVertex", 1),
     ("ops.rs", "ledger", "SelfCheck::CarriedLineage", 1),
@@ -2793,7 +2703,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "recl.rs",
         "resolve_edge_edge",
         "Coincide::CurvedFlankSense",
-        1,
+        2,
     ),
     ("recl.rs", "resolve_edge_edge", "Coincide::FlankSense", 1),
     ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),
@@ -2996,12 +2906,6 @@ lever_rows! {
         arc_against_a_wall(1.0, Some(ContactClass::Rest));
     covered_vertex_moved_clear_of_its_face: Some("ContactContradicted") =>
         arc_against_a_wall(1.1, Some(ContactClass::Rest));
-    // `Coincidence(Planes)`: a declared-`Tangent` pair of planes, clearly
-    // parallel (contradicted) or clearly tilted (the class unsupported):
-    // no move of the parts passes, so the arm ends as that frontier.
-    tangent_planes_made_parallel: Some("ContactContradicted") => block_declared_tangent_at(0.0);
-    tangent_planes_clearly_tilted: Some("UnsupportedDeclarationClass") =>
-        block_declared_tangent_at(1e-3);
     // `FlankSense`, overlapping and undeclared: lengthened, the sense
     // decides and the coplanar pair, which no glue door glued here,
     // refuses next, whose own story is the declaration, which passes.

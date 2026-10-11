@@ -228,8 +228,13 @@ mod certified {
     #[test]
     fn the_loft_body_certifies_and_encloses_nine_at_interval() {
         let (sections, places) = shape_iii_sections();
-        let lofted = loft_body::<Interval>(&sections, &places, 2, Tol::witness())
-            .expect("the loft builds at Interval");
+        let lofted = loft_body::<Interval>(
+            &sweep::test_support::lift_sections::<Interval>(&sections),
+            &sweep::test_support::lift_places::<Interval>(&places),
+            2,
+            Tol::witness(),
+        )
+        .expect("the loft builds at Interval");
         assert_eq!(
             topo::validate_geometric(&lofted.body, Tol::witness()),
             Ok(()),

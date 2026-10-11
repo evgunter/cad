@@ -54,6 +54,7 @@ pub mod parse;
 pub mod part;
 pub mod persist;
 pub mod placement;
+pub mod pose;
 pub mod product;
 pub mod program;
 /// The certified locally-valid range of ONE field — the on-demand
@@ -106,17 +107,17 @@ pub use appearance::{
     Attr, AttrKind, AttrSet, Rgba8,
 };
 pub use assembly::{
-    Assembly, AssemblyError, AtRestFinding, AtRestRow, Attribution, CarriedDeclaration,
+    Assembly, AssemblyError, AtRestBy, AtRestFinding, AtRestRow, Attribution, CarriedDeclaration,
     CarriedDeclarations, CarriedRefusal, CarriedUnplaced, MintRefusal, MintedDeclaration,
     RefusedRef, Relation, Route, assemble, assemble_gathered,
 };
 pub use checks::at_rest::{CopyRef, FaceSite, InterferenceFinding, Overlap, Unlocalized};
 pub use checks::{
     Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
-    ChecksConfig, ChecksError, ChecksReport, FindingSubject, Severity, Subject, enforce_checks,
-    run_checks, run_checks_on, subject_body,
+    ChecksConfig, ChecksError, ChecksReport, DoorFindings, DoorJob, FindingSubject, Severity,
+    Subject, enforce_checks, run_checks, run_checks_at_rest_on, run_checks_on, subject_body,
 };
-pub use coincide::{CitedInput, NamedCell, NamedCoincidence, Proof, Residual, Rung};
+pub use coincide::{CitedInput, NamedCell, NamedCoincidence, Proof, Residual, Rung, Unreplayed};
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
 pub use doc::{
@@ -135,11 +136,11 @@ pub use edit::{
 pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
     Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
-    ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch, EvalOptions, EvalOutcome,
-    EvalScalar, Evaluation, FramePlacement, NamingKey, NodeError, NodeErrorClass, NodeErrorKind,
-    NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, PartReach, PiecesFault,
-    ProfileLift, ProfilePieces, SectionScalar, SplitSide, StepTurns, ValuePayload, VerbKind,
-    evaluate, mate_reach,
+    ContentBits, ContentKey, DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar,
+    Evaluation, FramePlacement, NamingKey, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal,
+    NodeResult, NodeStanding, NodeValue, PartFault, PartReach, PiecesFault, PoseValue, ProfileLift,
+    ProfilePieces, SectionScalar, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
+    mate_reach,
 };
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
@@ -180,24 +181,22 @@ pub use measure::{
 pub use meta::{MetaError, MetaInt, MetaValue, MetaVersionError, from_value, to_value};
 pub use mint::{Mint, MintId, Minted};
 pub use names::{
-    BooleanCoincidence, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal,
-    ContactVerdict, CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation,
-    DuplicateName, EntityKey, EntityKind, EntityRef, Entry, FIT_DEFERRAL, FaceName, FlushEvidence,
-    FlushFinding, FlushRung, FragmentGroups, GeomPred, InterrogateError, LeafRole, MeridianEnd,
-    NameOrigin, NamePat, NameRef, NameTable, NameTextError, NamingError, NotAFaceName, OpGroup,
-    PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare, RimSupport,
-    RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector,
-    Sense, Side, SplitHalf, StableName, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces,
-    all_vertices, attribute, band, band_pi, band_rim, band_rim_pi, carried, declare, declare_all,
-    declared_pairs, denotation, edge_carrier_kind, edge_frame, face_carrier_kind, face_frame,
-    find_flush_candidates, leaf_role, meridian_vertex, role_leaf, select, select_where,
-    vertex_position,
+    CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict, CurveKind,
+    CurveKindSet, DeclaredContact, Denotation, DuplicateName, EntityKey, EntityKind, EntityRef,
+    Entry, FIT_DEFERRAL, FaceName, FragmentGroups, GeomPred, InterrogateError, LeafRole,
+    MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NameTextError, NamingError, NotAFaceName,
+    OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare,
+    RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag,
+    SelectRefusal, Selector, Sense, Side, SplitHalf, StableName, SurfaceKindSet, TagPat,
+    all_bodies, all_edges, all_faces, all_vertices, attribute, band, band_pi, band_rim,
+    band_rim_pi, carried, denotation, edge_carrier_kind, edge_frame, face_carrier_kind, face_frame,
+    leaf_role, meridian_vertex, role_leaf, select, select_where, vertex_position,
 };
 pub use node::{
-    AuthoredNode, Axis3, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault,
-    InterfaceCrossing, InterfaceRecord, ListFault, Node, OutputPort, PartSelect, PatternKind,
-    PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId, StepArg,
-    StepId, TubeWindow, VectorSlot, declare_continuation, declare_rest,
+    AuthoredNode, Axis3, CountMismatch, Datum, ExtrudeSide, InputFault, InterfaceCrossing,
+    InterfaceRecord, ListFault, Node, OutputPort, PartSelect, PatternKind, PlacementRuleFault,
+    PortKind, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId, StepArg, StepId, TubeWindow,
+    VectorSlot,
 };
 pub use operand::{Bodies, BodyRead, Operand, OperandSlot, SlotKind};
 pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};
@@ -230,13 +229,13 @@ pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,
 };
 pub use resolve::{
-    AboutReference, Diagnosis, FlipSet, FoldConsumption, GroupCutters, HitTestError, MeshPatchKey,
-    NodeVerdictDelta, PredicateDivergence, RecipeEditRef, Resolution, ResolutionFailure,
-    ResolveError, ResolveIndeterminate, Resolved, RunCtx, RunStatus, TieWitness, Tombstone,
-    UnnamedEntity, UpstreamCause, VerdictFlip, appearance_rebind_suggestions, apply_with_names,
-    body_name, derivation_nodes, derivation_reads, diff_verdicts, edge_name,
-    enrich_appearance_loss, enrich_appearance_loss_with_prior, entity_name, face_name,
-    rebind_suggestions, resolve, resolve_with_prior, vertex_name,
+    AboutReference, Diagnosis, FlipSet, GroupCutters, HitTestError, MeshPatchKey, NodeVerdictDelta,
+    PredicateDivergence, RecipeEditRef, Resolution, ResolutionFailure, ResolveError,
+    ResolveIndeterminate, Resolved, RunCtx, RunStatus, TieWitness, Tombstone, UnnamedEntity,
+    UpstreamCause, VerdictFlip, appearance_rebind_suggestions, apply_with_names, body_name,
+    derivation_nodes, derivation_reads, diff_verdicts, edge_name, enrich_appearance_loss,
+    enrich_appearance_loss_with_prior, entity_name, face_name, rebind_suggestions, resolve,
+    resolve_with_prior, vertex_name,
 };
 pub use resolve::{
     NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictRow,

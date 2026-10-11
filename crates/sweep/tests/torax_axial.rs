@@ -831,7 +831,7 @@ fn torax_the_lune_cavity_survives_a_rigid_re_pose() {
 ///
 /// The OPERAND measures: its wall is a rim-free band between two
 /// meridians on two great circles, which the sphere flux arm reads by
-/// the meridian pair (`props_wedge_azimuth`), so the
+/// Gauss–Bonnet, so the
 /// quarter-turn lune's tier 3 passes at the ball wedge's closed form
 /// `πr³/3`. `shell` then walks the WHOLE hollow — corners, carriers,
 /// pcurves, containment — and its last act, tier 3's +V invariant,

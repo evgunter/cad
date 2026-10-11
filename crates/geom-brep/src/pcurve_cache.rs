@@ -2437,8 +2437,8 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     twin_net: &NurbsCurve3<T>,
     twin: &Surface<T>,
 ) -> Result<projected::ProjectedHull, PcurveCertifyError> {
+    use geom_core::Bounds;
     use geom_core::spline::compose::{CanonicalSurface, CurveCertData, canonical_composite};
-    use geom_core::{Bounds, Point3};
     use projected::{PieceHull, ProjectedHull, SpanHull};
     let cross = geom_core::Interval::from_certified;
     let refuse = |why| PcurveCertifyError::ImageMismatch {
@@ -2448,17 +2448,10 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     let FramedCarrier::Net(net) = &image.carrier else {
         return Err(refuse("a circle's projected row takes no door"));
     };
-    let lift = |n: &NurbsCurve3<T>| {
-        NurbsCurve3::new(
-            n.knots().clone(),
-            n.control()
-                .iter()
-                .map(|p| Point3::new(cross(p.x), cross(p.y), cross(p.z)))
-                .collect(),
-            n.weights().to_vec(),
-        )
-        .map_err(|_| refuse("the stored net would not lift to certification arithmetic"))
-    };
+    // The stored net at the certification scalar: control points, held
+    // knots and weights, each through the certified enclosure of its
+    // value (a lift: every point is kept).
+    let lift = |n: &NurbsCurve3<T>| n.map_scalar(cross);
     let chart = match image.chart {
         ProjectedChart::Plane => ProjectedChart::Plane,
         ProjectedChart::Cylinder => ProjectedChart::Cylinder,
@@ -2472,7 +2465,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             major: cross(major),
         },
     };
-    let lifted_net = Arc::new(lift(net)?);
+    let lifted_net = Arc::new(lift(net));
     let lifted = ProjectedImage {
         chart,
         carrier: FramedCarrier::Net(Arc::clone(&lifted_net)),
@@ -2574,9 +2567,9 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     // and its span's, both bounds on `|f|` over the part; its floors are
     // read off its own controls (`projected::piece_controls`, whose
     // ratios are formed in the scalar).
-    let twin_net = lift(twin_net)?;
+    let twin_net = lift(twin_net);
     let coords = twin_net.certified_coords();
-    let data = CurveCertData::new(twin_net.knots(), twin_net.weights(), &coords)
+    let data = CurveCertData::new(twin_net.knots(), twin_net.weight_channel(), &coords)
         .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;
     let composite_of = |data: &CurveCertData<'_>| {
         let composite = canonical_composite(data, &form)
@@ -2701,6 +2694,41 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     // the refusal asks for. The rule is `certify_branch`'s own, in its
     // words: the first operand's NURBS limbs have no traced pcurve, and
     // a NURBS second operand's chart tube is written against a plane.
+    // Two spline charts: the mate's image is derived from the carrier
+    // by the one producer of such images, and the pair certifies with
+    // both, its tube the two-chart one.
+    if let (Some(mate_chart), true) = (mate.spline_chart(), spline_operand(surface)) {
+        let mate_image = crate::edge_nurbs::chart_image(carrier, mate_chart, |_, _| Ok(()))
+            .map_err(|e| {
+                ssi_refusal(match e {
+                    crate::edge_nurbs::PlaneNurbsRefusal::FootPointInconclusive {
+                        last_distance,
+                        ..
+                    } => crate::ssi::SsiError::FootPointInconclusive {
+                        t: f64::NAN,
+                        last_distance,
+                    },
+                    _ => crate::ssi::SsiError::UnsupportedCertificate {
+                        what: "the mate chart's image of the carrier could not be derived",
+                    },
+                })
+            })?;
+        let ssi = crate::ssi::certify::certify_branch(
+            carrier,
+            crate::ssi::certify::Lane::AtRest {
+                a: &operand(mate)?,
+                b: &operand(surface)?,
+                pcurve_a: Some(&mate_image),
+                pcurve_b: Some(image),
+            },
+            arm,
+            band,
+            crate::ssi::certify::Limbs::All,
+            &mut crate::ssi::certify::Refused::default(),
+        )
+        .map_err(ssi_refusal)?;
+        return Ok(FittedEnvelope { ssi });
+    }
     let routing = if spline_operand(mate) {
         Some(crate::ssi::certify::NURBS_LIMBS_NEED_PCURVE)
     } else if spline_operand(surface) && !matches!(mate, Surface::Plane { .. }) {
@@ -2837,6 +2865,8 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::SideSignBudget { .. }
         | E::EndNotOnLocus { .. }
         | E::CrossingUnmatched { .. }
+        | E::PairBoundaryUnresolved { .. }
+        | E::SeedOutsideTube { .. }
         | E::ShortBranchUncertified { .. }
         | E::MarchStepInBand { .. }
         | E::MarchShortOfFit { .. }
@@ -3751,8 +3781,8 @@ fn param_rate_gate<T: Decide>(
     let rate = param_rate(carrier);
     let extent = match *carrier {
         Curve3::Nurbs(ref n) => {
-            let (d0, d1) = n.domain();
-            T::from_f64(d1 - d0)
+            let (d0, d1) = n.knot_values().domain();
+            d1 - d0
         }
         _ => T::one(),
     };
@@ -5660,7 +5690,7 @@ fn nurbs_stretch_bounds<T: Real>(s: &geom::NurbsSurface<T>) -> (SupSpeed<T>, Sup
     // `side_of`'s boundary snap harder to admit and every slack term
     // larger, never the reverse. Exactly 1 for a weight-1 net, so no
     // integral-lane number moves.
-    let ratio = weight_ratio_factor::<T>(s.weights());
+    let ratio = weight_ratio_factor::<T>(s.weight_channel(), s.weights());
     // ONE spelling of the derivative net for the whole file: this
     // function's two loops were the same walk as `derivative_net`'s,
     // down to the `denom == 0.0` skip, and a second copy of a
@@ -5875,8 +5905,13 @@ fn derivative_net<T: Real>(s: &geom::NurbsSurface<T>, along_v: bool) -> Vec<Vec3
     let (nu, nv) = s.control_counts();
     let ctl = s.control();
     let (n_out, n_in) = if along_v { (nv, nu) } else { (nu, nv) };
-    let knots = if along_v { s.knots_v() } else { s.knots_u() };
-    let (p, k) = (knots.degree(), knots.knots());
+    let knots = if along_v {
+        s.knot_values_v()
+    } else {
+        s.knot_values_u()
+    };
+    // The skip reads the structure; the factor the held knots.
+    let (p, k, held) = (knots.degree(), knots.structure().knots(), knots.values());
     let at = |i: usize, j: usize| -> geom_core::Point3<T> {
         if along_v {
             ctl[j * nv + i]
@@ -5891,7 +5926,7 @@ fn derivative_net<T: Real>(s: &geom::NurbsSurface<T>, along_v: bool) -> Vec<Vec3
         if denom == 0.0 {
             continue;
         }
-        let factor = T::from_f64(p as f64 / denom);
+        let factor = T::from_f64(p as f64) / (held[i + p + 1] - held[i + 1]);
         for j in 0..n_in {
             out.push((at(i + 1, j) - at(i, j)) * factor);
         }
@@ -5901,7 +5936,7 @@ fn derivative_net<T: Real>(s: &geom::NurbsSurface<T>, along_v: bool) -> Vec<Vec3
 
 /// [`chart_stretch_inf`]'s spline arm — the derivation lives there.
 fn nurbs_stretch_inf<T: Real>(s: &geom::NurbsSurface<T>) -> ChartStretchInf<T> {
-    let ratio = weight_ratio_factor::<T>(s.weights());
+    let ratio = weight_ratio_factor::<T>(s.weight_channel(), s.weights());
     // The same two nets [`nurbs_stretch_bounds`] reads, from the same
     // door, so `sup_u`/`sup_v` below ARE that function's components.
     let (q_u, q_v) = (derivative_net(s, false), derivative_net(s, true));
@@ -5934,7 +5969,11 @@ fn nurbs_stretch_inf<T: Real>(s: &geom::NurbsSurface<T>) -> ChartStretchInf<T> {
 /// only refuse.
 fn curve_rate_bound<T: Real>(c: &NurbsCurve3<T>) -> SupSpeed<T> {
     let ctl = c.control();
-    let (p, k) = (c.knots().degree(), c.knots().knots());
+    let (p, k, held) = (
+        c.knots().degree(),
+        c.knots().knots(),
+        c.knot_values().values(),
+    );
     let mut sup = T::zero();
     #[allow(clippy::cast_precision_loss)]
     for i in 0..ctl.len().saturating_sub(1) {
@@ -5942,7 +5981,10 @@ fn curve_rate_bound<T: Real>(c: &NurbsCurve3<T>) -> SupSpeed<T> {
         if denom == 0.0 {
             continue;
         }
-        sup = sup.max((ctl[i + 1] - ctl[i]).norm() * T::from_f64(p as f64 / denom));
+        sup = sup.max(
+            (ctl[i + 1] - ctl[i]).norm()
+                * (T::from_f64(p as f64) / (held[i + p + 1] - held[i + 1])),
+        );
     }
     // The rational factor (M8-3), the curve-side twin of
     // `nurbs_stretch_bounds`': the control-difference bound above is a
@@ -5950,10 +5992,12 @@ fn curve_rate_bound<T: Real>(c: &NurbsCurve3<T>) -> SupSpeed<T> {
     // 1992) multiplies it by the weight ratio; squaring it is the
     // conservative reading. Exactly 1 on a unit-weight net, so no
     // integral-lane number moves.
-    SupSpeed::new(sup * weight_ratio_factor::<T>(c.weights()))
+    SupSpeed::new(sup * weight_ratio_factor::<T>(c.weight_channel(), c.weights()))
 }
 
-/// `(w_max/w_min)²` — exactly 1 on a unit-weight net.
+/// `(w_max/w_min)²` — exactly 1 on a unit-weight net — formed in the
+/// scalar over the `held` weights; `channel` is their value channel,
+/// which the admissibility read below decides on.
 ///
 /// The constructors validate weights strictly positive and finite
 /// (`geom`'s `net::validate_counts`), but a refinement can write values
@@ -5963,19 +6007,19 @@ fn curve_rate_bound<T: Real>(c: &NurbsCurve3<T>) -> SupSpeed<T> {
 /// POISON — any number here is a factor on a SUP arm, and one below the
 /// true ratio under-states it in the unsafe direction. A ratio that
 /// overflows answers `+inf`, which over-states (the safe direction).
-fn weight_ratio_factor<T: Real>(weights: &[f64]) -> T {
-    let (mut lo, mut hi) = (f64::INFINITY, 0.0f64);
-    for w in weights {
-        if !(*w > 0.0 && w.is_finite()) {
-            return T::from_f64(f64::NAN);
-        }
+fn weight_ratio_factor<T: Real>(channel: &[f64], held: &[T]) -> T {
+    if channel.is_empty() || channel.len() != held.len() {
+        return T::from_f64(f64::NAN);
+    }
+    if channel.iter().any(|w| !(*w > 0.0 && w.is_finite())) {
+        return T::from_f64(f64::NAN);
+    }
+    let (mut lo, mut hi) = (held[0], held[0]);
+    for w in &held[1..] {
         lo = lo.min(*w);
         hi = hi.max(*w);
     }
-    if weights.is_empty() {
-        return T::from_f64(f64::NAN);
-    }
-    T::from_f64((hi / lo).powi(2))
+    (hi / lo).powi(2)
 }
 
 /// Check 3 for every lane: `|S(P(tᵢ)) − C(tᵢ)|` at the shared
@@ -6134,6 +6178,43 @@ fn run_fitted_checks<T: Decide>(
     ))
 }
 
+/// The arc-rim class' sub-arc in the scalar, and its one decided
+/// margin: the ONE spelling of `h = angle / spans` and `cos(h/2)`, which
+/// both the margin and `Ĉ`'s tangent points read.
+struct ArcRimWeight<T> {
+    /// The sub-arc angle `h`.
+    h: T,
+    /// `cos(h/2)`, the rational-quadratic arc's interior weight.
+    cos_half: T,
+    /// The chart column's held interior weight `w` (its second, the
+    /// first sub-arc's; the pattern check has read every other as `1`
+    /// or this one on the value channel) less `cos(h/2)`. A column
+    /// built over the same angle as the circle, in the scalar, is
+    /// `w − w`: at `Sym` a symbolic Zero, which the weight held as an
+    /// `f64` constant (`from_f64` of its value) is not. Poison for a
+    /// column with fewer than two weights.
+    margin: T,
+}
+
+fn arc_rim_weight<T: SpanLocate>(
+    column: &NurbsCurve3<T>,
+    angle: T,
+    spans: usize,
+) -> ArcRimWeight<T> {
+    #[allow(clippy::cast_precision_loss)]
+    let h = angle / T::from_f64(spans as f64);
+    let (_, cos_half) = (h * T::from_f64(0.5)).sin_cos();
+    let margin = match column.weights().get(1) {
+        Some(&w) => w - cos_half,
+        None => T::from_f64(f64::NAN),
+    };
+    ArcRimWeight {
+        h,
+        cos_half,
+        margin,
+    }
+}
+
 /// **The ARC-RIM iso class** (M8-3) — certification of a
 /// [`Pcurve::IsoArc`], to the same bar as every other minted pcurve.
 ///
@@ -6256,11 +6337,10 @@ fn run_iso_arc_checks<T: Decide>(
     };
     let bad = |what: &'static str| PcurveCertifyError::IsoUnsupported { what };
     let (stretch_u, stretch_v) = nurbs_stretch_bounds(payload);
-    // The chart's OWN domain (`side_of`'s note, #327).
-    let (cu0f, cu1f) = payload.knots_u().domain();
-    let (cv0f, cv1f) = payload.knots_v().domain();
-    let (cu0, cu1) = (T::from_f64(cu0f), T::from_f64(cu1f));
-    let (cv0, cv1) = (T::from_f64(cv0f), T::from_f64(cv1f));
+    // The chart's OWN domain (`side_of`'s note, #327), as the chart
+    // holds it.
+    let (cu0, cu1) = payload.knot_values_u().domain();
+    let (cv0, cv1) = payload.knot_values_v().domain();
     // The moving channel is u and the fixed one v (the cap class'
     // geometry).
     let Some((end, slack_v)) = side_of(
@@ -6289,17 +6369,20 @@ fn run_iso_arc_checks<T: Decide>(
              arc construction is the only one this class certifies",
         ));
     }
-    let kn = b.knots().knots();
+    // The column's knots as the chart holds them, against the uniform
+    // sub-arc breaks over the chart's own held domain, both in `T`.
+    let kn = b.knot_values().values();
     #[allow(clippy::cast_precision_loss)]
-    let expected: Vec<f64> = {
-        let m = spans as f64;
-        let mut v = vec![cu0f, cu0f, cu0f];
+    let expected: Vec<T> = {
+        let m = T::from_f64(spans as f64);
+        let mut v = vec![cu0, cu0, cu0];
         for k in 1..spans {
-            let t = cu0f + (cu1f - cu0f) * (k as f64) / m;
+            #[allow(clippy::cast_precision_loss)]
+            let t = cu0 + (cu1 - cu0) * T::from_f64(k as f64) / m;
             v.push(t);
             v.push(t);
         }
-        v.extend([cu1f, cu1f, cu1f]);
+        v.extend([cu1, cu1, cu1]);
         v
     };
     if kn.len() != expected.len() {
@@ -6332,7 +6415,7 @@ fn run_iso_arc_checks<T: Decide>(
     // a new outcome on this path.
     let mut knot_dev = T::zero();
     for (a, b) in kn.iter().zip(&expected) {
-        knot_dev = knot_dev.max(T::from_f64(a - b).abs());
+        knot_dev = knot_dev.max((*a - *b).abs());
     }
     match decide(
         "pcurve_iso_boundary",
@@ -6351,12 +6434,16 @@ fn run_iso_arc_checks<T: Decide>(
         }
     }
     let slack_knots = stretch_u.to_meters(knot_dev);
-    let bw = b.weights();
+    let bw = b.weight_channel();
     if bw.len() != 2 * spans + 1 || bw.first() != Some(&1.0) || bw.last() != Some(&1.0) {
         return Err(bad(
             "an arc rim whose chart column weights are not the arc pattern",
         ));
     }
+    // The pattern is read on the weights' value channel. Its interior
+    // equalities `wᵢ = w₁` are value identities, decided here at the
+    // witness only (`work/intent/held-value-equalities-decided-on-the-value-channel.md`);
+    // the margin below reads the column's held `w₁`.
     let half_w = bw.get(1).copied().unwrap_or(f64::NAN);
     for (i, w) in bw.iter().enumerate() {
         let want = if i % 2 == 0 { 1.0 } else { half_w };
@@ -6368,13 +6455,14 @@ fn run_iso_arc_checks<T: Decide>(
         }
     }
     // --- The one decided margin: `w = cos(h/2)`. ---
-    #[allow(clippy::cast_precision_loss)]
-    let m_t = T::from_f64(spans as f64);
-    let h = angle / m_t;
-    let (_, cos_half) = (h * T::from_f64(0.5)).sin_cos();
+    let ArcRimWeight {
+        h,
+        cos_half,
+        margin,
+    } = arc_rim_weight(&b, angle, spans);
     match decide(
         "pcurve_iso_boundary",
-        Margin::metered(T::from_f64(half_w) - cos_half, InfSpeed::new(*radius)),
+        Margin::metered(margin, InfSpeed::new(*radius)),
         band,
     )
     .map_err(&esc)?
@@ -6703,17 +6791,9 @@ fn traversed_column<T: Decide>(
     band: Band,
     esc: &impl Fn(Indeterminate) -> PcurveCertifyError,
 ) -> Result<(NurbsCurve3<T>, T), PcurveCertifyError> {
-    let (cu0, cu1) = payload.knots_u().domain();
+    let (cu0, cu1) = payload.knot_values_u().domain();
     Ok(
-        match side_of(
-            u_start,
-            T::from_f64(cu0),
-            T::from_f64(cu1),
-            stretch_u,
-            du_drift,
-            band,
-            esc,
-        )? {
+        match side_of(u_start, cu0, cu1, stretch_u, du_drift, band, esc)? {
             Some((end, slack_u)) => (
                 crate::nurbs_iso::boundary_iso_u(payload, end)
                     .map_err(|source| PcurveCertifyError::ChartRow { source })?,
@@ -6725,7 +6805,7 @@ fn traversed_column<T: Decide>(
                 // span's polynomial EXTENSION, which the chart does
                 // not have — metered through the same stretch the
                 // boundary decide used, refused typed.
-                let outside = escape((T::from_f64(cu0) - u_start).max(u_start - T::from_f64(cu1)));
+                let outside = escape((cu0 - u_start).max(u_start - cu1));
                 match decide(
                     "pcurve_iso_domain",
                     Margin::metered_sup(outside, stretch_u),
@@ -6811,7 +6891,7 @@ fn seam_envelope<T: Decide>(
     if let Curve3::Line { origin, dir } = carrier {
         let u_start = p0.x + pl.x * t0;
         let (b, slack_u) = traversed_column(payload, u_start, stretch_u, du_drift, band, esc)?;
-        if b.weights().iter().any(|w| *w != 1.0) {
+        if b.weight_channel().iter().any(|w| *w != 1.0) {
             return Err(PcurveCertifyError::IsoUnsupported {
                 what: "a LINE seam on a RATIONAL chart column: the Greville hull \
                            is a linear-precision fact and the rational basis has none \
@@ -6820,7 +6900,7 @@ fn seam_envelope<T: Decide>(
                            class's construction",
             });
         }
-        let (p, kn) = (b.knots().degree(), b.knots().knots());
+        let (p, kn) = (b.knots().degree(), b.knot_values().values());
         let mut hull = T::zero();
         // `pl.y ≠ 0` is this class's own classification: the
         // `(false, true)` arm means the v channel MOVES, so
@@ -6830,9 +6910,12 @@ fn seam_envelope<T: Decide>(
         // a superset bound: sound and conservative, and no
         // measured caller exercises the partial case.
         for (i, cp) in b.control().iter().enumerate() {
+            // The Greville abscissa of the held knots, summed in
+            // order from the first (`f64`'s sum from `-0.0` is that).
+            let window = &kn[i + 1..=i + p];
             #[allow(clippy::cast_precision_loss)]
-            let xi = kn[i + 1..=i + p].iter().sum::<f64>() / p as f64;
-            let t_at = (T::from_f64(xi) - p0.y) / pl.y;
+            let xi = window[1..].iter().fold(window[0], |a, k| a + *k) / T::from_f64(p as f64);
+            let t_at = (xi - p0.y) / pl.y;
             hull = hull.max((*cp - (*origin + *dir * t_at)).norm());
         }
         // Domain containment, the siblings' gate verbatim on
@@ -6840,10 +6923,8 @@ fn seam_envelope<T: Decide>(
         // the column's own knot domain only.
         let v_at_0 = p0.y + pl.y * t0;
         let v_at_1 = p0.y + pl.y * t1;
-        let (d0, d1) = b.knots().domain();
-        let over = escape(
-            (T::from_f64(d0) - v_at_0.min(v_at_1)).max(v_at_0.max(v_at_1) - T::from_f64(d1)),
-        );
+        let (d0, d1) = b.knot_values().domain();
+        let over = escape((d0 - v_at_0.min(v_at_1)).max(v_at_0.max(v_at_1) - d1));
         match decide(
             "pcurve_iso_domain",
             Margin::metered_sup(over, stretch_v),
@@ -6882,7 +6963,10 @@ fn seam_envelope<T: Decide>(
     // this class used to carry was over-broad: what is
     // load-bearing is the shared spline space, not the
     // weights being 1.
-    if c.weights().iter().any(|w| !w.is_finite() || *w <= 0.0) {
+    if c.weight_channel()
+        .iter()
+        .any(|w| !w.is_finite() || *w <= 0.0)
+    {
         return Err(PcurveCertifyError::IsoUnsupported {
             what: "a seam carrier with a non-positive or non-finite weight — the \
                        rational convex-hull property is exactly the hypothesis that \
@@ -6927,12 +7011,12 @@ fn seam_envelope<T: Decide>(
     // constant (a collapsed row wrapped polynomial, whose carrier's
     // constant cancels the same way).
     let row_weights: Vec<f64> = if backward {
-        b.weights().iter().rev().copied().collect()
+        b.weight_channel().iter().rev().copied().collect()
     } else {
-        b.weights().to_vec()
+        b.weight_channel().to_vec()
     };
-    let shared_weights = row_weights == c.weights()
-        || (constant_weights(b.weights()) && constant_weights(c.weights()));
+    let shared_weights = row_weights == c.weight_channel()
+        || (constant_weights(b.weight_channel()) && constant_weights(c.weight_channel()));
     let shared_knots = if backward {
         b.knots().is_reflection_of(c.knots())
     } else {
@@ -6962,7 +7046,7 @@ fn seam_envelope<T: Decide>(
     let v_at_1 = p0.y + pl.y * t1;
     let along = |t: T| {
         if backward {
-            T::from_f64(b.domain().0) + T::from_f64(c.domain().1) - t
+            b.knot_values().domain().0 + c.knot_values().domain().1 - t
         } else {
             t
         }
@@ -6972,13 +7056,13 @@ fn seam_envelope<T: Decide>(
     // Domain containment: the hull and rate bounds hold on the knot
     // domains only — the image's `v` on the row's, the span on the
     // carrier's (one domain, unless the carrier is reflected).
-    let (r0, r1) = b.domain();
-    let (d0, d1) = c.domain();
+    let (r0, r1) = b.knot_values().domain();
+    let (d0, d1) = c.knot_values().domain();
     let over = escape(
-        (T::from_f64(r0) - v_at_0.min(v_at_1))
-            .max(v_at_0.max(v_at_1) - T::from_f64(r1))
-            .max(T::from_f64(d0) - t0)
-            .max(t1 - T::from_f64(d1)),
+        (r0 - v_at_0.min(v_at_1))
+            .max(v_at_0.max(v_at_1) - r1)
+            .max(d0 - t0)
+            .max(t1 - d1),
     );
     match decide(
         "pcurve_iso_domain",
@@ -7113,10 +7197,7 @@ fn net_incidence<T: Decide>(
     surface: &Surface<T>,
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
-    let (t0, t1) = span.unwrap_or_else(|| {
-        let (d0, d1) = net.domain();
-        (T::from_f64(d0), T::from_f64(d1))
-    });
+    let (t0, t1) = span.unwrap_or_else(|| net.knot_values().domain());
     let n = f64::from(INCIDENCE_SAMPLES);
     let farthest = (0..=INCIDENCE_SAMPLES).fold(T::zero(), |far, i| {
         let t = t0 + (t1 - t0) * T::from_f64(f64::from(i) / n);
@@ -9892,6 +9973,73 @@ mod tests {
             other => panic!("the domain gate must refuse by name: {other:?}"),
         }
     }
+
+    /// **The NURBS weights-in-`T` pin, through the carrier**
+    /// (`work/intent/nurbs-weights-and-knots-are-the-scalar.md`): a
+    /// rational arc built in `T` over a variable sweep `θ`
+    /// (`geom::test_support::held_arc`), held by a `NurbsCurve2` at
+    /// `Sym`, gives the arc-rim class' margin `w − cos(h/2)` over the
+    /// same `θ` as a symbolic Zero — a theorem, not a reading. The same
+    /// carrier with its weights held as `f64` constants (the stored
+    /// weight before this item) decides the margin numerically: Zero
+    /// at the witness, but no theorem.
+    #[test]
+    fn the_arc_rim_weight_margin_over_a_held_arc_is_a_symbolic_zero() {
+        use core::num::NonZeroUsize;
+        use geom::test_support::held_arc::HeldArc;
+        use geom_core::Point3;
+        use geom_core::sym::with_session;
+        use geom_core::{ParamSymbol, Sym, SymBudget, Theorem};
+        type S = Sym<f64>;
+        let budget = SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        };
+        let spans = 3;
+        let (theorems, _) = with_session(budget, || {
+            let theta = S::param(ParamSymbol::new(0x7e7a), 2.1);
+            let arc =
+                HeldArc::new(S::from_f64(1.5), theta, NonZeroUsize::new(spans).unwrap()).unwrap();
+            // The column a chart holds for the arc, in its plane.
+            let control: Vec<Point3<S>> = arc
+                .control
+                .iter()
+                .map(|p| Point3::new(p.x, p.y, S::zero()))
+                .collect();
+            let held =
+                NurbsCurve3::new(arc.knots.clone(), control.clone(), arc.weights.clone()).unwrap();
+            let frozen = NurbsCurve3::new(
+                arc.knots.clone(),
+                control,
+                held.weight_channel()
+                    .iter()
+                    .map(|w| S::from_f64(*w))
+                    .collect(),
+            )
+            .unwrap();
+            let theorem = |c: &NurbsCurve3<S>| {
+                let margin = arc_rim_weight(c, theta, spans).margin;
+                let d = geom_core::k_stats::decide_reported(
+                    "pcurve_iso_boundary",
+                    Margin::metered(margin, InfSpeed::new(S::from_f64(1.5))),
+                    band(),
+                )
+                .unwrap();
+                (d.sign, d.margin.theorem())
+            };
+            (theorem(&held), theorem(&frozen))
+        });
+        assert_eq!(
+            theorems.0,
+            (Sign::Zero, Some(Theorem::SymbolicZero)),
+            "held"
+        );
+        assert_eq!(theorems.1.0, Sign::Zero, "frozen: Zero at the witness");
+        assert_eq!(
+            theorems.1.1, None,
+            "frozen: no theorem over a frozen weight"
+        );
+    }
 }
 
 /// The two stretch doors' agreement — cheap, and load-bearing.
@@ -10049,7 +10197,7 @@ mod weight_ratio_poison {
     #[test]
     fn an_inadmissible_weight_list_is_poison_and_a_wide_one_over_states() {
         assert_eq!(
-            weight_ratio_factor::<f64>(&[1.0, 2.0]),
+            weight_ratio_factor::<f64>(&[1.0, 2.0], &[1.0, 2.0]),
             4.0,
             "the ratio, squared"
         );
@@ -10060,10 +10208,10 @@ mod weight_ratio_poison {
             ("an infinite weight", vec![1.0, f64::INFINITY]),
             ("no weights", vec![]),
         ] {
-            assert!(weight_ratio_factor::<f64>(&w).is_nan(), "{name}: {w:?}");
+            assert!(weight_ratio_factor::<f64>(&w, &w).is_nan(), "{name}: {w:?}");
         }
         assert_eq!(
-            weight_ratio_factor::<f64>(&[1e-200, 1.0]),
+            weight_ratio_factor::<f64>(&[1e-200, 1.0], &[1e-200, 1.0]),
             f64::INFINITY,
             "an overflowing ratio over-states"
         );
@@ -10138,9 +10286,10 @@ mod fitted_lane_routing_tests {
     /// **A pairing the certificate is not written for refuses as that,
     /// ahead of a degenerate face's chart speeds.** Mending the face
     /// would still meet the routing boundary, so the boundary answers
-    /// first: a NURBS mate (whose limbs have no traced pcurve) and a
-    /// non-plane analytic mate of a NURBS face, each against the point
-    /// wall.
+    /// first: a NURBS mate of an analytic face (whose limbs have no
+    /// traced pcurve) and a non-plane analytic mate of a NURBS face, each
+    /// with the point wall. Two spline charts are no routing boundary:
+    /// they certify with the two-chart tube.
     #[test]
     fn the_routing_boundary_answers_before_the_chart_mint() {
         let lin = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -10166,8 +10315,8 @@ mod fitted_lane_routing_tests {
         let carrier = Curve3::Nurbs(Arc::new(carrier));
         for (name, surface, mate, want) in [
             (
-                "NURBS × NURBS",
-                point_wall(),
+                "NURBS × cylinder",
+                cylinder.clone(),
                 point_wall(),
                 NURBS_LIMBS_NEED_PCURVE,
             ),

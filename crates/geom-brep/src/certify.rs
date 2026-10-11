@@ -159,17 +159,26 @@ pub enum CertCheck {
     /// (D2's derived angular threshold ε·κ_rel; C7 jet schedule), or,
     /// where the second-order margin refuses and so no such lever
     /// exists, at the folded lever arm, as the cause of that refusal.
+    /// The folded-arm reading also names a refused orientation of the
+    /// shared normal ([`CertCheck::TangentGap`]) at any sample, ends
+    /// included.
     TangentParallel,
+    /// TangentIntersection: the two surfaces' separation along their
+    /// shared normal at a sample, `s = r₁ − σ·r₂` (σ the sign of the
+    /// two implicit gradients' alignment) — the touch itself, a fact
+    /// about the pair rather than the carrier (C7).
+    TangentGap,
     /// TangentIntersection: the second-order margin at an interior
     /// sample — the relative transverse normal curvature `|κ_rel|`
     /// metered as the displacement it induces at the folded lever arm
     /// (D4 ¶1), which must be definitely positive (the jet system's
     /// IFT denominator).
     TangentSecondOrder,
-    /// TangentIntersection: the C2.2 between-samples statement — the
+    /// TangentIntersection: the C2.2 between-samples statements — the
     /// worst sampled residual plus the certified quadratic sag bound
-    /// must stay within ε (a sup bound, never a sampled max
-    /// pretending to be one).
+    /// (`tangent_hull_sup`), and the worst sampled separation plus the
+    /// sum of both surfaces' sags (`tangent_gap_hull_sup`), each within
+    /// ε (a sup bound, never a sampled max pretending to be one).
     TangentHull,
     /// TangentIntersection: the C2.3-style tube statement on the JET
     /// system — the sampled `|κ_rel|` minus its certified
@@ -286,6 +295,7 @@ impl core::fmt::Display for CertCheck {
             Self::TransversalityArm => "the length its faces' angle is measured over",
             Self::TangentPlanes => "the surfaces' tangent planes",
             Self::TangentParallel => "the normal-parallelism defect",
+            Self::TangentGap => "the surfaces' separation along their shared normal",
             Self::TangentSecondOrder => "the second-order margin",
             Self::TangentHull => "the between-samples sag bound",
             Self::TangentTube => "the second-order tube bound",
@@ -364,13 +374,14 @@ pub enum CertifyError {
     /// module's), or a `Nurbs` carrier arrived under a conventional
     /// (`MappedCurve`/`Seam`) description.
     ///
-    /// TWO `Intersection` rungs certify, and this variant is what is
+    /// THREE `Intersection` rungs certify, and this variant is what is
     /// left over. The analytic rung: both operands analytic (M5 PR 9,
     /// C12.3 — the class the curved-boolean zip mints). The **plane ×
     /// NURBS** rung (M7-8): exactly one PLANE and one described NURBS
     /// wall, declare-and-check, through the [`NurbsLane`] — a caller
     /// with none in hand gets [`CertifyError::NurbsLaneNotSupplied`].
-    /// NURBS × NURBS has no certificate in this build.
+    /// The **NURBS × NURBS** rung: two spline charts, through the same
+    /// lane. A spline beside a curved analytic surface has none.
     Unimplemented,
     /// An `Intersection` of a PLANE and a described NURBS wall (M7-8)
     /// reached a door that supplied **no plane × NURBS lane**
@@ -563,8 +574,9 @@ impl core::fmt::Display for CertifyError {
                 "a Nurbs described surface, or a Nurbs carrier under a \
                  conventional description, cannot be certified in this build — rung-3 \
                  carriers certify as the Intersection of two analytic surfaces, or of \
-                 one plane and one described NURBS wall through the declare-and-check \
-                 lane; NURBS x NURBS has no certificate"
+                 one plane and one described NURBS wall, or of two spline charts, through \
+                 the declare-and-check lane; a spline beside a curved analytic surface has \
+                 no certificate"
             ),
             Self::NurbsLaneNotSupplied => write!(
                 f,
@@ -886,12 +898,15 @@ impl CertCheck {
             // Exact constructions: the endpoints and witness the kernel
             // placed, the seam and the declared source it restates, the
             // closed-form chart image and its coefficients, the tangent
-            // carrier's own normals.
+            // carrier's own normals, and the touch of the two surfaces a
+            // tangency places (the gap reads the pair, not the carrier,
+            // so no fit is in it).
             Self::EndpointStart
             | Self::EndpointEnd
             | Self::WitnessSurfaceResidual { .. }
             | Self::WitnessMidpoint
             | Self::TangentParallel
+            | Self::TangentGap
             | Self::MappedSource
             | Self::ChartResidual => Ending::Residual(Unsized::Defect),
             Self::ChartImage => Ending::Unsized(Unsized::Defect),
@@ -1311,7 +1326,11 @@ impl<T: Decide> EdgeCurve<T> {
     /// 3. Endpoint pinning: `|carrier(t₀) − start| ≤ ε`,
     ///    `|carrier(t₁) − end| ≤ ε`.
     /// 4. Per-sample description residuals, samples i = 0…8 in order
-    ///    (per-sample check order as listed in [`CertCheck`]):
+    ///    (per-sample check order as listed in [`CertCheck`]). Every
+    ///    sample is a carrier point, the two ends included: the
+    ///    certificate bounds the carrier (D4 ¶2), and a vertex on the
+    ///    surfaces does not put the carrier's end, up to ε from it by
+    ///    check 3, on them.
     ///    - `Intersection`: implicit residual vs `s1`, then `s2`; at
     ///      interior samples (i = 1…7) the transversality margin
     ///      (definitely transverse required), metered through the
@@ -1536,6 +1555,16 @@ pub struct NurbsLane<T: Real> {
             Band,
         )
             -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal>,
+    /// [`crate::nurbs_pair_limbs`] at `T`.
+    pair_limbs:
+        fn(
+            &geom::NurbsCurve3<T>,
+            &geom::NurbsSurface<T>,
+            &geom::NurbsSurface<T>,
+            T,
+            Band,
+        )
+            -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal>,
     /// [`crate::analytic_rung3`] at `T`.
     analytic_rung3: fn(
         &geom::NurbsCurve3<T>,
@@ -1560,6 +1589,7 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
     pub const fn certified() -> Self {
         Self {
             limbs: crate::edge_nurbs::plane_nurbs_limbs::<T>,
+            pair_limbs: crate::edge_nurbs::nurbs_pair_limbs::<T>,
             analytic_rung3: crate::edge_nurbs::analytic_rung3::<T>,
             foot: Self::seeded_foot,
         }
@@ -1588,6 +1618,19 @@ impl<T: Real> NurbsLane<T> {
         band: Band,
     ) -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal> {
         (self.limbs)(carrier, plane, wall, extent, band)
+    }
+
+    /// The lane's limbs for a declared carrier between two spline charts
+    /// ([`crate::nurbs_pair_limbs`]).
+    fn pair_limbs(
+        self,
+        carrier: &geom::NurbsCurve3<T>,
+        a: &geom::NurbsSurface<T>,
+        b: &geom::NurbsSurface<T>,
+        extent: T,
+        band: Band,
+    ) -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal> {
+        (self.pair_limbs)(carrier, a, b, extent, band)
     }
 
     /// The between-samples certificate of a rung-3 carrier between two
@@ -1946,6 +1989,22 @@ pub fn sample_param<T: Real>(t0: T, t1: T, i: u32) -> T {
     schedule_param(t0, t1, i, CERT_SAMPLES)
 }
 
+/// Station `i` of a uniform `samples`-point schedule over a carrier's
+/// held domain `held`, whose value channel is `domain`: the ends are
+/// the held ends themselves (the carrier's own data), and every other
+/// station is the `f64` [`schedule_param`] over `domain`, a point the
+/// schedule chose, entered as the constant it is. Bit for bit
+/// [`schedule_param`] at `f64`; at an enclosure scalar an interior
+/// station stays a point rather than widening by the station's own
+/// arithmetic, which a check at a chosen point has no use for.
+pub(crate) fn held_station<T: Real>(domain: (f64, f64), held: (T, T), i: u32, samples: u32) -> T {
+    match schedule_fraction(i, samples) {
+        0.0 => held.0,
+        1.0 => held.1,
+        _ => T::from_f64(schedule_param(domain.0, domain.1, i, samples)),
+    }
+}
+
 /// The fraction `i / (samples − 1)` of a uniform `samples`-point
 /// schedule — an exact dyadic when `samples − 1` is a power of two, as
 /// every fixed schedule in this crate's certificates is. The same
@@ -2171,6 +2230,104 @@ fn check_residual<T: Decide>(
     }
 }
 
+/// **σ, the orientation of the shared normal** at a tangent sample: the
+/// sign of the two unit implicit gradients' alignment, which must be
+/// definite (`decide_nonzero`). At a tangency the normals are parallel,
+/// so the cosine is `±1`, as far from zero as it can be; it is metered
+/// over the edge's extent, the ordinary angular door, so a surface
+/// curving on a scale near ε (whose folded arm puts every angle in
+/// band) still has an orientation to read the gap along.
+///
+/// No definite sign means no shared normal to read the separation
+/// along. A definite parallelism defect at the folded arm is then the
+/// cause, named as itself (the second-order arm's renaming, below);
+/// otherwise the orientation's own refusal escalates under
+/// [`CertCheck::TangentGap`]. Both readings run detached, so the log
+/// carries only the escalation the error carries; the naming reading
+/// never refuses, it only names.
+fn gap_orientation<T: Decide>(
+    surf1: &Surface<T>,
+    surf2: &Surface<T>,
+    p: Point3<T>,
+    extent: T,
+    sample: u32,
+    band: Band,
+) -> Result<T, CertifyError> {
+    let (g1, g2) = (
+        crate::implicit::implicit_gradient(surf1, p),
+        crate::implicit::implicit_gradient(surf2, p),
+    );
+    let (n1, n2) = (g1.normalize(), g2.normalize());
+    let (oriented, orientation) = geom_core::k_stats::detached(|| {
+        geom_core::k_stats::decide_nonzero(
+            "tangent_gap_orientation",
+            Margin::levered(n1.dot(n2), extent),
+            band,
+        )
+    });
+    let cause = match oriented {
+        Ok(sign) => {
+            geom_core::k_stats::splice(orientation);
+            return Ok(match sign {
+                geom_core::k_stats::NonzeroSign::Positive => T::from_f64(1.0),
+                geom_core::k_stats::NonzeroSign::Negative => T::from_f64(-1.0),
+            });
+        }
+        Err(cause) => cause,
+    };
+    let arm = crate::folded_lever_arm(surf1, surf2, p, extent);
+    if let Some(margin) = named_by_parallelism(crate::tangent::normal_sine(g1, g2), arm, band) {
+        geom_core::k_stats::splice_superseded(orientation);
+        return Err(CertifyError::ResidualExceeded {
+            check: CertCheck::TangentParallel,
+            sample,
+            margin,
+        });
+    }
+    geom_core::k_stats::splice(orientation);
+    Err(CertifyError::Escalated {
+        check: CertCheck::TangentGap,
+        sample,
+        cause,
+    })
+}
+
+/// **The parallelism defect at the folded lever arm**: `sin θ` metered
+/// over [`crate::folded_lever_arm`], the length the normals' angle is
+/// consumed over where no lever `1/κ_rel` exists. One spelling for its
+/// three readers: the certificate's two refusal namings
+/// ([`named_by_parallelism`]) and the declared-contact verifier's
+/// first-order fallback (`topo::boolean::contact_verify`), where it is
+/// the verdict itself.
+#[must_use]
+pub fn folded_parallelism<T: Real>(sin_theta: T, arm: T) -> Margin<T> {
+    Margin::levered(sin_theta, arm)
+}
+
+/// **A refusal already made, named by a definite parallelism defect**
+/// ([`folded_parallelism`], `tangent_normal_parallel`): the margin where
+/// the defect is definite, `None` otherwise. The reading never refuses,
+/// it only names, so it runs detached and its log is spliced as
+/// superseded whatever it reads; the caller supersedes the refusal it
+/// names where it names one.
+fn named_by_parallelism<T: Decide>(sin_theta: T, arm: T, band: Band) -> Option<MarginDiag> {
+    let (renamed, naming) = geom_core::k_stats::detached(|| {
+        match decide_reported(
+            "tangent_normal_parallel",
+            folded_parallelism(sin_theta, arm),
+            band,
+        ) {
+            Ok(Decided {
+                sign: Sign::Positive | Sign::Negative,
+                margin,
+            }) => Some(margin),
+            Ok(_) | Err(_) => None,
+        }
+    });
+    geom_core::k_stats::splice_superseded(naming);
+    renamed
+}
+
 /// The plane × NURBS lane's refusal in this module's vocabulary: a
 /// per-sample transversality refusal or escalation keeps its sample, and a limb's
 /// escalation or the poisoned aggregate, which no schedule point
@@ -2322,6 +2479,14 @@ fn run_checks<T: Decide>(
             witness: Point3<T>,
             lane: NurbsLane<T>,
         },
+        /// `Intersection` of two spline charts, each described or
+        /// fitted: the same lane's NURBS × NURBS limbs.
+        PairNurbs {
+            a: Surface<T>,
+            b: Surface<T>,
+            witness: Point3<T>,
+            lane: NurbsLane<T>,
+        },
     }
     let resolved = match spec.description {
         EdgeDescriptionSpec::Intersection { pair, witness } => {
@@ -2330,19 +2495,25 @@ fn run_checks<T: Decide>(
                 return Err(CertifyError::IntersectionSameSurface { key: k1 });
             }
             // The plane × NURBS lane (M7-8) is tried FIRST, because it
-            // is the only reading under which a described `Nurbs` or a
-            // fitted `Approx` operand certifies at all: `resolve` below
-            // refuses one typed. The pairing must be exactly one PLANE
-            // and one such wall — a NURBS × NURBS `Intersection` has
-            // no certificate (the C5 table's general rung), and its
-            // refusal is `Unimplemented`. The pair with no lane in hand
-            // is refused here, before any other check of the edge.
+            // is one of the two readings under which a described `Nurbs`
+            // or a fitted `Approx` operand certifies at all: `resolve`
+            // below refuses one typed. The other is two such charts, the
+            // same lane's NURBS × NURBS limbs. The pair with no lane in
+            // hand is refused here, before any other check of the edge.
             if let Some((plane_key, plane, wall)) = plane_nurbs_pair(pair, surfaces) {
                 let lane = lane.ok_or(CertifyError::NurbsLaneNotSupplied)?;
                 Resolved::PlaneNurbs {
                     plane_key,
                     plane,
                     wall,
+                    witness,
+                    lane,
+                }
+            } else if let Some((a, b)) = nurbs_pair(pair, surfaces) {
+                let lane = lane.ok_or(CertifyError::NurbsLaneNotSupplied)?;
+                Resolved::PairNurbs {
+                    a,
+                    b,
                     witness,
                     lane,
                 }
@@ -2510,8 +2681,8 @@ fn run_checks<T: Decide>(
         // meter's alone.
         Curve3::Nurbs(n) => {
             let meter = n.speed_lower_bound();
-            let (d0, d1) = n.domain();
-            let net_length = Margin::metered(T::from_f64(d1 - d0), meter);
+            let (d0, d1) = n.knot_values().domain();
+            let net_length = Margin::metered(d1 - d0, meter);
             decide_positive("nurbs_span_meter", net_length, band).map_err(|cause| {
                 match Refused::rejected(&cause) {
                     Some(verdict) => CertifyError::SpanMeterCollapsed { verdict },
@@ -2550,7 +2721,9 @@ fn run_checks<T: Decide>(
     // in its own order and no chart image is derived from an interval
     // the kernel has not yet accepted.
     let canonical: EdgeDescription<T> = match resolved {
-        Resolved::Intersection { witness, .. } | Resolved::PlaneNurbs { witness, .. } => {
+        Resolved::Intersection { witness, .. }
+        | Resolved::PlaneNurbs { witness, .. }
+        | Resolved::PairNurbs { witness, .. } => {
             let EdgeDescriptionSpec::Intersection { pair, .. } = spec.description else {
                 // Unreachable: exactly one spec arm resolves either
                 // way. Typed rather than assumed (D4 ¶2).
@@ -2630,6 +2803,8 @@ fn run_checks<T: Decide>(
     // sampled residual for the C2.2 hull statement, and the weakest
     // sampled second-order data for the tube statement.
     let mut tangent_resid_max = T::zero();
+    let mut tangent_gap_max = T::zero();
+    let mut tangent_prev: Option<(T, T, T)> = None;
     let mut tangent_kappa_min = T::from_f64(f64::MAX);
     let mut tangent_arm_min = T::from_f64(f64::MAX);
     for i in 0..CERT_SAMPLES {
@@ -2695,8 +2870,10 @@ fn run_checks<T: Decide>(
                     }
                 }
             }
-            // The C7 jet schedule, per sample: both implicit residuals
-            // within ε; at interior samples the second-order margin
+            // The C7 jet schedule, per sample: the pair's separation
+            // along the shared normal within ε (the touch, read before
+            // the witness), both implicit residuals within ε; at
+            // interior samples the second-order margin
             // definitely positive FIRST (the IFT denominator — and the
             // parallelism lever arm's own validity gate), then normal
             // parallelism within the derived threshold at lever arm
@@ -2717,7 +2894,27 @@ fn run_checks<T: Decide>(
                 };
                 let r1 = implicit_residual(surf1, p);
                 let r2 = implicit_residual(surf2, p);
+                let sigma = gap_orientation(surf1, surf2, p, extent, i, band)?;
+                // The span line reads `s` under one σ per span: each end
+                // under its own σ and under the other end's, so the bound
+                // holds over the span whichever orientation the shared
+                // normal has there.
+                tangent_gap_max = tangent_gap_max.max((r1 - sigma * r2).abs());
+                if let Some((p1, p2, prev_sigma)) = tangent_prev {
+                    tangent_gap_max = tangent_gap_max
+                        .max((p1 - sigma * p2).abs())
+                        .max((r1 - prev_sigma * r2).abs());
+                }
+                tangent_prev = Some((r1, r2, sigma));
                 tangent_resid_max = tangent_resid_max.max(r1.abs()).max(r2.abs());
+                check_residual(
+                    "tangent_gap",
+                    CertCheck::TangentGap,
+                    i,
+                    Margin::of(r1 - sigma * r2),
+                    band,
+                    &mut max_residual,
+                )?;
                 check_residual(
                     "tangent_on_surface_1",
                     CertCheck::SurfaceResidual { surface: *k1 },
@@ -2779,29 +2976,12 @@ fn run_checks<T: Decide>(
                             // osculating pair: `crate::TangentJet`). An
                             // in-band or zero reading is no more definite
                             // than the second-order one, which stands.
-                            // `topo::boolean::contact_verify`'s tangency
-                            // ladder spells the same fallback lever; the
-                            // one deliberate difference is its role here,
-                            // where it only names a refusal already made.
-                            let (renamed, naming) = geom_core::k_stats::detached(|| {
-                                match decide_reported(
-                                    "tangent_normal_parallel",
-                                    Margin::levered(jet.sin_theta, arm),
-                                    band,
-                                ) {
-                                    Ok(Decided {
-                                        sign: Sign::Positive | Sign::Negative,
-                                        margin,
-                                    }) => Some(margin),
-                                    Ok(_) | Err(_) => None,
-                                }
-                            });
+                            let renamed = named_by_parallelism(jet.sin_theta, arm, band);
                             if renamed.is_some() {
                                 geom_core::k_stats::splice_superseded(second_order);
                             } else {
                                 geom_core::k_stats::splice(second_order);
                             }
-                            geom_core::k_stats::splice_superseded(naming);
                             return Err(match (renamed, refused) {
                                 (Some(margin), _) => CertifyError::ResidualExceeded {
                                     check: CertCheck::TangentParallel,
@@ -2952,7 +3132,7 @@ fn run_checks<T: Decide>(
             // than this one, and shared with the certificate's foot
             // points), so it runs once after the loop rather than
             // per-sample here — see the block below check 4.
-            Resolved::PlaneNurbs { .. } => {}
+            Resolved::PlaneNurbs { .. } | Resolved::PairNurbs { .. } => {}
         }
     }
 
@@ -2979,6 +3159,14 @@ fn run_checks<T: Decide>(
             CertCheck::TangentHull,
             NOT_A_SAMPLE,
             Margin::of(tangent_resid_max + bounds.residual_sag),
+            band,
+            &mut max_residual,
+        )?;
+        check_residual(
+            "tangent_gap_hull_sup",
+            CertCheck::TangentHull,
+            NOT_A_SAMPLE,
+            Margin::of(tangent_gap_max + bounds.gap_sag),
             band,
             &mut max_residual,
         )?;
@@ -3014,6 +3202,29 @@ fn run_checks<T: Decide>(
         // not decided again.
         let limbs = lane
             .limbs(carrier, plane, wall, extent, band)
+            .map_err(from_plane_nurbs)?;
+        max_residual = max_residual
+            .max(limbs.on_locus_max.abs())
+            .max(limbs.hull_sup.abs());
+    }
+
+    // ---- Intersection, NURBS × NURBS: the same lane's certificate
+    // against both charts, its tube the two-chart one. ----
+    if let Resolved::PairNurbs { a, b, lane, .. } = &resolved {
+        let Curve3::Nurbs(ref carrier) = spec.carrier else {
+            return Err(CertifyError::PlaneNurbs(
+                crate::edge_nurbs::PlaneNurbsRefusal::Unsupported {
+                    what: "the declared carrier of a NURBS × NURBS Intersection must be a \
+                           spline: the certificate's limbs are hull statements about a \
+                           control net",
+                },
+            ));
+        };
+        let (Some(a), Some(b)) = (a.spline_chart(), b.spline_chart()) else {
+            return Err(CertifyError::Unimplemented);
+        };
+        let limbs = lane
+            .pair_limbs(carrier, a, b, extent, band)
             .map_err(from_plane_nurbs)?;
         max_residual = max_residual
             .max(limbs.on_locus_max.abs())
@@ -3089,6 +3300,20 @@ fn run_checks<T: Decide>(
     // mid-parameter exactly (`PXN_FIT_SAMPLES` is odd). The
     // mid-parameter pin is unchanged — the witness contract does not
     // move at this rung.
+    // Two charts: both sides are discharged by the lane's schedule, and
+    // the mid-parameter pin is the same.
+    if let Resolved::PairNurbs { witness, .. } = &resolved {
+        let mid = spec.carrier.mid_point(t0, t1);
+        check_residual(
+            "witness_at_mid_parameter",
+            CertCheck::WitnessMidpoint,
+            (CERT_SAMPLES - 1) / 2,
+            Margin::of(mid.distance(*witness)),
+            band,
+            &mut max_residual,
+        )?;
+    }
+
     if let Resolved::PlaneNurbs {
         plane_key,
         plane,
@@ -3124,6 +3349,22 @@ fn run_checks<T: Decide>(
         },
         canonical,
     ))
+}
+
+/// The NURBS × NURBS pairing: two charts each a described NURBS
+/// surface or a fit ([`Surface::spline_chart`]), the mvfs placeholder
+/// never one.
+fn nurbs_pair<T: Real>(
+    pair: SurfacePair,
+    surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
+) -> Option<(Surface<T>, Surface<T>)> {
+    let [k1, k2] = pair.keys();
+    let (a, b) = (surfaces(k1)?, surfaces(k2)?);
+    let chart = |s: &Surface<T>| match s {
+        Surface::Nurbs(n) => !n.is_placeholder(),
+        _ => s.spline_chart().is_some(),
+    };
+    (chart(&a) && chart(&b)).then_some((a, b))
 }
 
 /// The plane × NURBS pairing: exactly one PLANE (returned with its
@@ -3227,6 +3468,12 @@ mod wiring_rows {
         ) {
             return Err("analytic_rung3 is not `edge_nurbs::analytic_rung3`");
         }
+        if !std::ptr::fn_addr_eq(
+            lane.pair_limbs,
+            crate::edge_nurbs::nurbs_pair_limbs::<T> as fn(_, _, _, _, _) -> _,
+        ) {
+            return Err("pair_limbs is not `edge_nurbs::nurbs_pair_limbs`");
+        }
         Ok(())
     }
 
@@ -3235,7 +3482,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<f64>(),
             Ok(()),
-            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs`, `seeded_foot` and `analytic_rung3`"
+            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs`, `nurbs_pair_limbs`, `seeded_foot` and `analytic_rung3`"
         );
     }
 
@@ -3246,7 +3493,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<geom_core::Sym<f64>>(),
             Ok(()),
-            "`NurbsLane::<Sym<f64>>::certified()` holds something other than `plane_nurbs_limbs` and `seeded_foot`"
+            "`NurbsLane::<Sym<f64>>::certified()` holds something other than its four routines"
         );
     }
 
@@ -3256,7 +3503,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<geom_core::Probe>(),
             Ok(()),
-            "`NurbsLane::<Probe>::certified()` holds something other than `plane_nurbs_limbs` and `seeded_foot`"
+            "`NurbsLane::<Probe>::certified()` holds something other than its four routines"
         );
     }
 
@@ -3265,7 +3512,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<geom_core::interval::Interval>(),
             Ok(()),
-            "`NurbsLane::<Interval>::certified()` holds something other than `plane_nurbs_limbs` and `seeded_foot`"
+            "`NurbsLane::<Interval>::certified()` holds something other than its four routines"
         );
     }
 }
@@ -3351,7 +3598,7 @@ mod tests {
     /// below. Held total against the enum by
     /// [`all_is_the_whole_taxonomy`]'s compile-time visit, not by
     /// review.
-    fn all_checks() -> [CertCheck; 26] {
+    fn all_checks() -> [CertCheck; 27] {
         let surface = SurfaceKey::default();
         [
             CertCheck::ParamSpan,
@@ -3366,6 +3613,7 @@ mod tests {
             CertCheck::TransversalityArm,
             CertCheck::TangentPlanes,
             CertCheck::TangentParallel,
+            CertCheck::TangentGap,
             CertCheck::TangentSecondOrder,
             CertCheck::TangentHull,
             CertCheck::TangentTube,
@@ -3398,32 +3646,33 @@ mod tests {
     #[test]
     fn all_is_the_whole_taxonomy() {
         let rows = match CertCheck::ParamSpan {
-            CertCheck::ParamSpan => 26,
-            CertCheck::ParamSpanMeter => 26,
-            CertCheck::ParamWinding => 26,
-            CertCheck::EndpointStart => 26,
-            CertCheck::EndpointEnd => 26,
-            CertCheck::SurfaceResidual { .. } => 26,
-            CertCheck::WitnessSurfaceResidual { .. } => 26,
-            CertCheck::WitnessMidpoint => 26,
-            CertCheck::Transversality => 26,
-            CertCheck::TransversalityArm => 26,
-            CertCheck::TangentPlanes => 26,
-            CertCheck::TangentParallel => 26,
-            CertCheck::TangentSecondOrder => 26,
-            CertCheck::TangentHull => 26,
-            CertCheck::TangentTube => 26,
-            CertCheck::MappedSource => 26,
-            CertCheck::ChartImage => 26,
-            CertCheck::ChartResidual => 26,
-            CertCheck::PlaneNurbsOnLocus => 26,
-            CertCheck::PlaneNurbsHull => 26,
-            CertCheck::PlaneNurbsHullValue => 26,
-            CertCheck::AnalyticBreakResidual => 26,
-            CertCheck::AnalyticHull => 26,
-            CertCheck::PlaneNurbsReportedTransversality => 26,
-            CertCheck::PlaneNurbsChartSpeed => 26,
-            CertCheck::PlaneNurbsChartSpeedBound => 26,
+            CertCheck::ParamSpan => 27,
+            CertCheck::ParamSpanMeter => 27,
+            CertCheck::ParamWinding => 27,
+            CertCheck::EndpointStart => 27,
+            CertCheck::EndpointEnd => 27,
+            CertCheck::SurfaceResidual { .. } => 27,
+            CertCheck::WitnessSurfaceResidual { .. } => 27,
+            CertCheck::WitnessMidpoint => 27,
+            CertCheck::Transversality => 27,
+            CertCheck::TransversalityArm => 27,
+            CertCheck::TangentPlanes => 27,
+            CertCheck::TangentParallel => 27,
+            CertCheck::TangentGap => 27,
+            CertCheck::TangentSecondOrder => 27,
+            CertCheck::TangentHull => 27,
+            CertCheck::TangentTube => 27,
+            CertCheck::MappedSource => 27,
+            CertCheck::ChartImage => 27,
+            CertCheck::ChartResidual => 27,
+            CertCheck::PlaneNurbsOnLocus => 27,
+            CertCheck::PlaneNurbsHull => 27,
+            CertCheck::PlaneNurbsHullValue => 27,
+            CertCheck::AnalyticBreakResidual => 27,
+            CertCheck::AnalyticHull => 27,
+            CertCheck::PlaneNurbsReportedTransversality => 27,
+            CertCheck::PlaneNurbsChartSpeed => 27,
+            CertCheck::PlaneNurbsChartSpeedBound => 27,
         };
         for (i, check) in all_checks().iter().enumerate() {
             assert!(
@@ -5878,6 +6127,7 @@ mod tests {
             (CertCheck::TangentPlanes, Undefined),
             (CertCheck::TangentSecondOrder, Sized(Positive)),
             (CertCheck::TangentParallel, Miss(Unsized::Defect)),
+            (CertCheck::TangentGap, Miss(Unsized::Defect)),
             (CertCheck::TangentHull, Miss(Unsized::Bound)),
             (CertCheck::TangentTube, Sized(Positive)),
             (CertCheck::MappedSource, Miss(Unsized::Defect)),

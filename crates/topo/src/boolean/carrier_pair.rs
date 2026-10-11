@@ -155,7 +155,7 @@ impl<T: geom_core::Real> PairExtent<T> {
 /// [`PairExtent`] of `fa` on `a` and `fb` on `b`. Read on the operands
 /// at rest: mid-operation, a face whose boundary carries null
 /// scaffolding has no box to read, and the sites there take a declared
-/// pair's extent from [`super::DeclaredPairs::consumed`].
+/// pair's extent from [`super::GluedPairs::consumed`].
 ///
 /// # Errors
 ///
@@ -297,6 +297,29 @@ pub fn carrier_pair_verdict<T: Decide>(
     band: Band,
 ) -> Result<Result<(CarrierRelation, crate::contact::ContactVerdict), CarrierEqError>, PairUnread> {
     Ok(carrier_pair_reading(a, fa, b, fb, declared, band)?.map(|(rel, verdict, _)| (rel, verdict)))
+}
+
+/// [`carrier_pair_verdict`], undeclared, with the margin that decided
+/// a coincidence: the reading the coincidence door runs on two cells'
+/// carriers in a replay at `Sym`, where the margin says whether the
+/// symbolic tier proved every Zero the verdict stands on
+/// ([`geom_core::MarginDiag::theorem`]). `None` beside `Distinct`.
+///
+/// # Errors
+///
+/// As [`carrier_pair_relation`].
+///
+/// # Panics
+///
+/// As [`carrier_pair_relation`].
+pub fn carrier_pair_decided<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    band: Band,
+) -> Result<Result<(CarrierRelation, Option<geom_core::MarginDiag>), CarrierEqError>, PairUnread> {
+    Ok(carrier_pair_reading(a, fa, b, fb, false, band)?.map(|(rel, _, margin)| (rel, margin)))
 }
 
 /// [`carrier_pair_verdict`] with the margin that decided a coincidence

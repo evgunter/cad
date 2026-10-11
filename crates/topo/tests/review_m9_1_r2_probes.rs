@@ -6,14 +6,14 @@
 
 use crate::common;
 
-use common::{brick, finished, flush_declarations};
+use common::{brick, finished};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, carrier_eq};
 use topo::boolean::contact_verify::tangent_locus_relation;
 use topo::boolean::plane_eq::PlaneIdentity;
 use topo::contact::{ContactRefusal, ContactVerdict};
-use topo::{BooleanResult, ContactRecords, Surface, ValidationError, union_with};
+use topo::{BooleanResult, Surface, ValidationError, union};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -224,40 +224,31 @@ fn probe_replay_partial_eq_bites_on_mutation() {
         brick::<f64>((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), tol),
         tol,
     );
-    let decls = flush_declarations(&a, &b, Tol::witness());
-    let BooleanResult::Body(x) = union_with(&a, &b, &decls, Tol::witness()).unwrap() else {
+    let BooleanResult::Body(x) = union(&a, &b, Tol::witness()).unwrap() else {
         panic!("overlapping union cannot be empty");
     };
     let mut mutated = x.contacts.clone();
     assert_eq!(mutated, x.contacts, "clone is bit-identical");
-    if let Some(row) = mutated.vv.pop() {
-        assert_ne!(mutated, x.contacts, "a dropped row must show: {row:?}");
-    } else {
-        // No vv rows: mutate by inserting a fabricated patch row.
-        let fk = x.body.faces().next().map(|(k, _)| k).unwrap();
-        mutated.patches.push(topo::Cited::new(
-            topo::PatchContact {
-                face_a: fk,
-                face_b: fk,
-            },
-            topo::Cites::decided(0),
-        ));
-        assert_ne!(mutated, x.contacts, "an added row must show");
+    if let Some((_, kept)) = x.contacts.rows().split_last() {
+        let dropped: topo::ContactRecords = kept.iter().cloned().collect();
+        assert_ne!(dropped, x.contacts, "a dropped row must show");
     }
+    let mut faces = x.body.faces().map(|(k, _)| k);
+    let (fa, fb) = (faces.next().unwrap(), faces.next().unwrap());
+    mutated.extend([topo::Cited::new(
+        topo::Contact::new(&x.body, topo::Cell::Face(fa), topo::Cell::Face(fb)).unwrap(),
+        topo::Cites::decided(0),
+    )]);
+    assert_ne!(mutated, x.contacts, "an added row must show");
 }
 
-/// PROBE 7 (claims 4 + 6): the AT-REST gate executes. A fabricated
-/// CurveContact between two faces that genuinely CROSS (adjacent brick
-/// faces, along their shared edge) must come back ContactContradicted
-/// at the census; a fabricated PatchContact must refuse
-/// CensusUnsupported (nothing certifies a patch — the certifier is
-/// M9-2's).
+/// PROBE 7 (claim 6): the AT-REST gate executes. A fabricated
+/// face–face record between two adjacent brick faces, which cross at
+/// their shared edge and lie on two carriers, is never blessed.
 #[test]
-fn probe_census_gate_contradicts_curve_and_refuses_patch() {
+fn probe_census_gate_refuses_a_fabricated_face_pair() {
     let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    // Pick any edge and its two adjacent faces: a brick's dihedral is
-    // 90 degrees, so a tangency claim along that edge is a lie.
-    let (ek, edge) = a.edges().next().expect("brick has edges");
+    let (_, edge) = a.edges().next().expect("brick has edges");
     let face_of = |he: topo::HalfEdgeKey| {
         a.get_loop(a.get_half_edge(he).unwrap().parent_loop)
             .unwrap()
@@ -265,37 +256,11 @@ fn probe_census_gate_contradicts_curve_and_refuses_patch() {
     };
     let f1 = face_of(edge.he_plus);
     let f2 = face_of(edge.he_minus);
-    let mut contacts = ContactRecords::default();
-    contacts.curves.push(topo::Cited::new(
-        topo::CurveContact {
-            face_a: f1,
-            face_b: f2,
-            witness: ek,
-        },
-        topo::Cites::decided(0),
-    ));
-    let fk = a.faces().next().map(|(k, _)| k).unwrap();
-    contacts.patches.push(topo::Cited::new(
-        topo::PatchContact {
-            face_a: fk,
-            face_b: fk,
-        },
-        topo::Cites::decided(0),
-    ));
+    let contacts = topo::test_support::records(&a, [(topo::Cell::Face(f1), topo::Cell::Face(f2))]);
     let errors = topo::validate_pseudomanifold(&a, &contacts, Tol::witness())
         .expect_err("fabricated contact records must be refused at rest");
-    assert!(
-        errors
-            .iter()
-            .any(|e| matches!(e, ValidationError::ContactContradicted { .. })),
-        "the census must CONTRADICT the false curve tangency: {errors:?}"
-    );
-    // Since M9-2 the patch certifier EXISTS: a self-pair record's
-    // senses are trivially aligned, and aligned coincidence is
-    // containment, not contact — the record is CONTRADICTED (the
-    // Rest-class refusal), which supersedes this probe's original
-    // not-yet-certifiable expectation without weakening it: the
-    // fabricated record still cannot bless.
+    // The patch certifier reads two carriers: the record is
+    // CONTRADICTED (the Rest-class refusal), never blessed.
     assert!(
         errors.iter().any(|e| matches!(
             e,
@@ -308,10 +273,6 @@ fn probe_census_gate_contradicts_curve_and_refuses_patch() {
             }
         )),
         "the fabricated patch record must be contradicted: {errors:?}"
-    );
-    assert!(
-        !errors.is_empty(),
-        "nothing may bless a PatchContact in this unit"
     );
 }
 

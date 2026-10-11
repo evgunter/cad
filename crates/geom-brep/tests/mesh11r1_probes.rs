@@ -130,15 +130,17 @@ fn r1_a_south_pole_crossing_arc_is_refused_too() {
     );
 }
 
-/// **CERT-1's multi-wrap face: both doors refuse it, under one name.**
+/// **CERT-1's multi-wrap face: both doors and the flux lane refuse it,
+/// on one bound.**
 /// As reviewed, `cert1_sphere_polar` asserted the closed form on a 3π
 /// span and the claim was that the branch door refused exactly there —
 /// two doors, two answers on one face. A 3π span is not an arc
 /// certification produces, and the parse now refuses it by
-/// certification's own bound (`props_meridian_span_winding`, issue
-/// 1601) before either door's own question is asked: the shape door
-/// and the flux lane through the parse, the branch door by repeating
-/// the same decide ahead of its pole test. Re-aimed accordingly — the
+/// certification's own bound (issue 1601) before either door's own
+/// question is asked: the shape door through the parse and the branch
+/// door by repeating the same decide ahead of its pole test, both as
+/// `props_meridian_span_winding`; the flux lane on every arc of the
+/// loop, as `props_sphere_arc_span_winding`. Re-aimed accordingly — the
 /// row that would redden if either door answered the span again.
 #[test]
 fn r1_the_multi_wrap_span_splits_the_two_doors() {
@@ -160,7 +162,15 @@ fn r1_the_multi_wrap_span_splits_the_two_doors() {
     let branch = require_one_chart_branch(&sphere(), &pair, band());
     println!("R1 multi-wrap: shape={shape:?} flux={fc:?} branch={branch:?}");
     assert!(winding(&shape), "the shape door: {shape:?}");
-    assert!(winding(&fc), "the flux lane: {fc:?}");
+    assert!(
+        matches!(
+            fc,
+            Err(PropsError::SphereLoop {
+                what: "props_sphere_arc_span_winding"
+            })
+        ),
+        "the flux lane: {fc:?}"
+    );
     assert!(winding(&branch), "the branch door: {branch:?}");
 }
 

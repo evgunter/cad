@@ -138,20 +138,23 @@ ALL_LISTS = ("document", "select", "prelude", "profile", "analysis")
 DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Attr": ("argued", "NOT_CARRIED, the appearance family (crates/pncad/tests/all.rs); "
                        "crates/pncad/src/document.rs says why the record types stay out"),
-    # The one entry whose home is the CARRIER's crate rather than the
-    # façade's: the argument for not publishing this rung is about what
-    # a façade carry would owe (the CUR3 matchability row, and a word
-    # for the Python door), so it is written where the type is declared
-    # and where whoever carries it will be reading.
-    # `BooleanDeclarations::verdicts`: argued where the type is declared,
-    # as the row above is.
-    "Verdicts": ("argued", "non-carriage with its falsifier, beside the declaration in "
-                 "crates/topo/src/boolean/mod.rs"),
+    # The entries whose home is the CARRIER's crate rather than the
+    # façade's: the argument for not publishing the rung is about what a
+    # façade carry would owe (the CUR3 matchability row, and a word for
+    # the Python door), so it is written where the type is declared and
+    # where whoever carries it will be reading.
     "CensusUnsupportedCause": ("argued", "non-carriage with its falsifier, beside the "
                                "declaration in crates/topo/src/validate.rs; the carry "
                                "is the facade crate's row and owes the CUR3 property "
                                "row plus a Python word"),
     "BandField": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
+    # `BooleanError::EdgeUndescribed`'s failure, a kernel-defect refusal.
+    "EdgeDescribeFailure": ("argued", "non-carriage with its falsifier, beside the "
+                            "declaration in crates/topo/src/merge_faces.rs"),
+    # `BooleanError::GermSectionSpiric`'s loops: `WedgeCheck`'s shape,
+    # argued beside the declaration.
+    "SpiricLoops": ("argued", "non-carriage with its falsifier, beside the declaration "
+                    "in crates/topo/src/boolean/mod.rs"),
     # `BooleanError::Escalated`'s and `DeclarationContradicted`'s closed
     # decision types. The row also holds the two types nested one rung
     # further down (`SectorRung`, `CrossingDecision`), which this sweep
@@ -164,9 +167,9 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # carrier, the same row.
     "SectorRead": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
                    "boolean-error.md"),
-    "CarrierRelation": ("false-positive", "blind spot (b): the prelude carries this very "
-                        "declaration under the alias `PlaneRelation` "
-                        "(crates/topo/src/boolean/plane_eq.rs)"),
+    # `BooleanError`'s `DeclarationRead`: the glue a read pair held.
+    "GlueClass": ("argued", "non-carriage with its falsifier, beside the declaration "
+                  "in crates/topo/src/contact.rs"),
     "Diagnosis": ("argued", "the telemetry half, deliberately interior, "
                             "crates/pncad/src/select.rs"),
     "KProbe": ("filed", "work/lib/kprobe-is-a-rung-under-drive-config-on-the-analysis-list.md"),
@@ -204,6 +207,18 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Unwalked": ("argued", "the coincidence door's vocabulary is `document::coincide`'s, "
                            "re-exported whole; Python's `Coincidence.residual` says the "
                            "arm, crates/pncad-py/src/py/value.rs (`Coincidence`)"),
+
+    # The pose definitions (D10, INTENT stage 3 A): carried through
+    # `document::pose`, re-exported whole, and said in Python by
+    # `PoseDef`'s constructors (a definition), `tags.rs`'s `pose_*` words
+    # (a construction's degenerate case) and `errors.rs`'s
+    # `pose_admits_tag` (what a pose read admits).
+    "PoseDef": ("argued", "the pose vocabulary is `document::pose`'s, re-exported whole; "
+                          "Python writes it with `PoseDef`, crates/pncad-py/src/py/pose.rs"),
+    "PoseConstruction": ("argued", "`document::pose`, re-exported whole; Python says the arm "
+                                   "as `pose_degenerate`'s inner word, crates/pncad-py/src/tags.rs"),
+    "PoseAdmits": ("argued", "`document::pose`, re-exported whole; Python says the arm as "
+                             "`pose_admits_tag`, crates/pncad-py/src/errors.rs"),
 
     # Blind spot (k)'s rows: a discriminant behind an uncurated struct
     # payload, reported under the carrier `via` the struct.
@@ -744,10 +759,10 @@ def sweep(root: Path, lists: tuple[str, ...]) -> dict:
     # BLIND SPOT (b), OPEN: a payload named only through a type ALIAS or an
     # associated type. Names are compared as spellings, so a curated list that
     # carries a declaration under an alias reads as carrying nothing, and the
-    # declaration reads as uncurated — which is what produces this sweep's one
-    # standing false positive, `CarrierRelation`, carried by the prelude as
-    # `PlaneRelation`. The alias arm is mechanically closable and the
-    # associated-type arm is not.
+    # declaration reads as uncurated: a `false-positive` row's shape
+    # (`CarrierRelation`, carried by the prelude as `PlaneRelation`, held
+    # one until its carrier retired). The alias arm is mechanically
+    # closable and the associated-type arm is not.
     carriers: list[tuple[Decl, set[str]]] = []
     for name, where in sorted(names.items()):
         roots = {r for rs in where.values() for r in rs}

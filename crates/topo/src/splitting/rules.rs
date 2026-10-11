@@ -94,6 +94,13 @@
 //! touching through distinct entities rather than a shared-entity
 //! pinch (F2).
 //!
+//! Where Above's material joins round one end of the tip edge instead —
+//! a valley in the plane ending at a vertex whose other edges all rise
+//! — the runs are apart at the other end only. Above's piece touches
+//! itself along the edge, and its section runs out along it and back;
+//! the edge reaches into Below's section from its other end, and the
+//! join kills it there (`join::Sweep::strip_spurs`).
+//!
 //! **Smooth edges and duplicates: the wall decides.** Neither carries
 //! a corner to read. A smooth edge (a curved face's seam along the
 //! plane) is unsigned: the seam, the cusp and the slit all classify

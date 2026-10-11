@@ -391,13 +391,17 @@ pub(super) fn pair_door_reading<T: Decide>(
             verdict,
             margin,
         )) if !id.declared => {
-            coincident_as_declared(c1, c2, extent, relation, band).map_err(|diag| {
+            let sum = coincident_as_declared(c1, c2, extent, relation, band).map_err(|diag| {
                 CarrierEqError::Undecided {
                     coincidence: CoincidenceMeasure::not_zero(diag),
                     relation,
                 }
             })?;
-            Ok((relation, verdict, margin))
+            Ok((
+                relation,
+                verdict,
+                margin.map(|m| sum.map_or(m, |s| m.jointly(s))),
+            ))
         }
         verdict => verdict,
     }
@@ -582,7 +586,7 @@ fn perpendicular<T: geom_core::Real>(v: Vec3<T>, axis: Vec3<T>) -> Vec3<T> {
 /// The angle between two axis LINES as a chord, `|a₁ − σ·a₂|` for the
 /// sign σ that brings them nearest: `2·sin(θ/2)`, which bounds how far
 /// a unit offset turns between them. Comparison-free (`min`).
-fn line_tilt<T: geom_core::Real>(a1: Vec3<T>, a2: Vec3<T>) -> T {
+pub(crate) fn line_tilt<T: geom_core::Real>(a1: Vec3<T>, a2: Vec3<T>) -> T {
     (a1 - a2).norm().min((a1 + a2).norm())
 }
 
@@ -809,14 +813,15 @@ pub(super) fn declared_reading<T: Decide>(
 /// where that sum decides zero too — the glue an undeclared pair takes
 /// is then the one its declaration would verify
 /// [`ContactVerdict::Definite`], whatever K. Where the sum does not,
-/// the refusal carries its reading, in band or past it.
+/// the refusal carries its reading, in band or past it; where it does,
+/// its reading, which the coincidence's margin stands for too.
 fn coincident_as_declared<T: Decide>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
     extent: &ConsumedExtent<'_, T>,
     relation: CarrierRelation,
     band: Band,
-) -> Result<(), Indeterminate> {
+) -> Result<Option<geom_core::MarginDiag>, Indeterminate> {
     let sigma = match relation {
         CarrierRelation::SameOpposite => -T::one(),
         CarrierRelation::SameOriented | CarrierRelation::Distinct => T::one(),
@@ -827,12 +832,13 @@ fn coincident_as_declared<T: Decide>(
         ..
     }) = reading(c1, c2, extent.reach, sigma)
     else {
-        return Ok(());
+        return Ok(None);
     };
     match decide_reported(upper_name, Margin::of(upper), band) {
         Ok(Decided {
-            sign: Sign::Zero, ..
-        }) => Ok(()),
+            sign: Sign::Zero,
+            margin,
+        }) => Ok(Some(margin)),
         Ok(Decided { margin, .. }) => Err(Indeterminate {
             margin,
             band,
@@ -1074,7 +1080,10 @@ fn data_rungs<T: Decide>(
                 sign: Sign::Zero,
                 margin,
             }) => {
-                first_zero = first_zero.or(Some(margin));
+                // The first datum's reading, standing for every one.
+                first_zero = Some(
+                    first_zero.map_or(margin, |first: geom_core::MarginDiag| first.jointly(margin)),
+                );
             }
             Err(unread @ CoincidenceMeasure::Unreadable(_)) => kept.blocked(unread),
             Err(in_band) => kept.in_band(in_band),

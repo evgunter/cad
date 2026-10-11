@@ -555,7 +555,7 @@ def audit_gap_ids():
 #:   and `transform_rigid` arrive as `Node.*`, and the three Boolean
 #:   verbs plus their `_with` siblings arrive as `Node.union`,
 #:   `Node.intersect` and `Node.subtract`.
-#: - **A type became the door that reads it.** `DatumValue` is what
+#: - **A type became the door that reads it.** `PoseValue` is what
 #:   `Value.datum` answers, and `geom_core::UnitVec3` — the witness
 #:   that makes a datum's normal unit, so that an unnormalized one has
 #:   no spelling in Rust either; not a curated façade name, since it
@@ -588,6 +588,9 @@ def audit_gap_ids():
 #:   next one.)
 BOUND_AS = {
     "CM": "cm",
+    # The pose module's authoring door: a pose defined at the seat that
+    # reads it, as Python's `PoseDef` constructors write it (D10).
+    "pose": "PoseDef",
     # An interference finding's copies and site, flattened: a copy is
     # its placement's variable beside its member index, and the overlap
     # is the bounding faces or, where the kernel could not bound it, the
@@ -613,6 +616,10 @@ BOUND_AS = {
     "Proof": "Coincidence.rung",
     "Rung": "Coincidence.rung",
     "Residual": "Coincidence.residual",
+    # The verify door's two-plane verdict crosses as the row's word:
+    # `same_oriented` / `same_opposite` on `Coincidence.relation`.
+    "PlaneRelation": "Coincidence.relation",
+    "Unreplayed": "Coincidence.residual",
     # A finding's subject crosses as its three attributes, each `None`
     # for the arm it is not: `root` and `output_ix`, or `node`.
     "FindingSubject": "CheckFinding.node",
@@ -640,7 +647,7 @@ BOUND_AS = {
     "FreshFault": "EvalError.variant",
     "DEG": "deg",
     "AssertionVerdict": "Verdict",
-    "DatumValue": "Value.datum",
+    "PoseValue": "Value.datum",
     "DocumentId": "Doc.id",
     "IN": "inch",
     "M": "m",
@@ -1153,7 +1160,7 @@ BOUND_AS = {
     #
     # `ValidationError.findings` is a list of `ValidationFinding`s, one
     # per failure, `len(findings) == failure_count`. `CensusContact` is
-    # `UndeclaredContact`'s payload and its arm is `contact_kind`;
+    # `UnrecordedContact`'s payload and its arm is `contact_kind`;
     # `CensusSubject` is what `CensusUnsupported` and
     # `CensusLaneUnsupported` are ABOUT and its arm is `subject_kind`,
     # with `entity_kind` beside it for the `Entity` arm's carrier.
@@ -1382,19 +1389,12 @@ BOUND_AS = {
     # refusal's own word as `inner_variant` (its row is in NOT_BOUND's
     # `different-shape` family, beside the other inner refusals).
     "ReachRefusal": "MateFault",
-    "declare": "Doc.declare",
-    "declare_all": "Doc.declare_all",
-    # A finding's pair and class become a declared pair at the
-    # `declare=` seat; the list is the argument, not a value of its own.
-    "declared_pairs": "Node.union",
     "extrude": "Node.extrude",
     "chamfer_edges": "Node.chamfer",
     "tube_along_arc": "Node.tube",
     "tube_along_arc_hollow": "Node.hollow_tube",
     "fillet_edges": "Node.fillet",
-    "find_flush_candidates": "Evaluation.find_flush_candidates",
     "intersect": "Node.intersect",
-    "intersect_with": "Node.intersect",
     "loft_body": "Node.loft",
     "mass_properties": "Body.mass_properties",
     # The façade's lattice-backed loop door and the document layer's
@@ -1413,10 +1413,8 @@ BOUND_AS = {
     "step_string": "Evaluation.step_string",
     "subtract": "Node.subtract",
     "tessellate": "Body.tessellate",
-    "subtract_with": "Node.subtract",
     "transform_rigid": "Node.transform",
     "union": "Node.union",
-    "union_with": "Node.union",
     "validate": "Body.validate",
     "validate_closed": "Body.validate_closed",
     "validate_geometric": "Body.validate_geometric",
@@ -1721,11 +1719,7 @@ FAMILIES: dict[str, str] = {
 #:   producer text rather than re-spelling either.
 #:
 #:   `ImportOptions` is `import_step`'s `eps_in=` — the reading end of
-#:   the ε `step_string` writes as `uncertainty=`. Its second field,
-#:   `declared_contacts`, is the roster's one written refusal here:
-#:   binding it means minting a Python spelling for `ImportContact`,
-#:   which is its own surface work, and the census's decay half is
-#:   what stops that reason outliving the fact.
+#:   the ε `step_string` writes as `uncertainty=`.
 #:
 #:   `EvalOptions` is `evaluate`'s `resolver=`, the one field of it
 #:   that changes an ANSWER, bound at LIB-G18a — which is also when
@@ -1828,10 +1822,9 @@ FAMILIES: dict[str, str] = {
 #: its provenance payloads (`NameTable`, `DuplicateName`,
 #: `ProfileEdgeRef`, `ProfileVertexRef`, `edge_name`, `face_name` —
 #: key-to-name inversions with no key to invert), the declared-contact
-#: interior behind `FlushFinding` (`DeclaredContact`, `ContactVerdict`,
-#: `ContactRefusal`, `FlushEvidence`, `ContactRecords`,
-#: `BooleanDeclarations` — `ContactRecords` is behind a SECOND door
-#: since LIB-B-VALIDATE4, `Body.validate_pseudomanifold`, which takes
+#: interior (`DeclaredContact`, `ContactVerdict`, `ContactRefusal`,
+#: `ContactRecords` — `ContactRecords` is behind
+#: `Body.validate_pseudomanifold`, which takes
 #: one in Rust and captures it here rather than asking a caller for a
 #: value they cannot build), the fillet's coincidence band
 #: (`Band`, `BandError`, built from the run's epsilon), and
@@ -2077,7 +2070,7 @@ FAMILIES: dict[str, str] = {
 #: INPUTS, and that is a step this census cannot prompt.
 #:
 #: What closing it bound: `Node.part(of, select)`,
-#: `PartSelect.split_half` / `PartSelect.instance`, `Node.pattern`,
+#: `PartSelect.instance`, `Node.pattern`,
 #: and `DocEdit.bind_instance_param`. The positive form is
 #: `tests/test_part_select.py`.
 #: **B-NOTATION is CLOSED and no longer a `gap` id here**
@@ -2357,14 +2350,6 @@ NOT_BOUND = {
     "CoherenceReport": SHAPE,
     "Unexamined": SHAPE,
     "CurveKindSet": SHAPE,
-    "DeclareError": SHAPE,
-    # A declared pair is a pair of SITED names and a class. Python
-    # holds names as opaque text, so it declares from the finding that
-    # carries both (`FlushFinding`, at `declare=`); the two builders
-    # over raw sited pairs have no Python spelling for the same reason.
-    "DeclaredPair": SHAPE,
-    "declare_rest": SHAPE,
-    "declare_continuation": SHAPE,
     "Dimension": SHAPE,
     # The sealed trait over the slot forms (`Formula`, `Expr`): a
     # type-level fact with no value to hold, and the reason a fault's
@@ -2504,24 +2489,6 @@ NOT_BOUND = {
     # analysis box, which has no Python door to come apart behind.
     "FramePlacement": SHAPE,
     "ImportOptions": SHAPE,
-    # The element type of `ImportOptions::declared_contacts`, curated
-    # at the prelude because filling a public field means spelling its
-    # element type and a Rust caller could not: the import-side
-    # declaration channel was callable and not FILLABLE. That defect
-    # is a Rust one and it does not reproduce here, which is why this
-    # entry is `different-shape` rather than a gap.
-    #
-    # Its carrier IS bound now — `ImportOptions` crosses as
-    # `import_step`'s `eps_in=` — and this row is the one field that
-    # did not come with it: a list keyword whose elements a caller
-    # cannot build would be a door onto nothing, so the surface census
-    # records the refusal to bind it, with the reason, and decays that
-    # reason against the door's own keywords. Binding it is what makes
-    # this entry stop being honest, in exactly the shape the
-    # `EvalOutcome` entry above records: at that moment
-    # `ImportContact` needs a Python spelling of its own, a
-    # constructor for the position anchor.
-    "ImportContact": SHAPE,
     "InterrogateError": SHAPE,
     "LineTarget": SHAPE,
     # `continue_to`'s target trait, absorbed into the verb exactly as
@@ -2724,12 +2691,6 @@ NOT_BOUND = {
     # `GeomPred.surface_kind` / `GeomPred.adjacent_kinds`, and the
     # `Evaluation.all_edges`/`all_faces` materializers.
     "query": SHAPE,
-    # The kernel flush seat (`topo::flush`): the detect/declare
-    # protocol over two `Body`s and their arena keys — the same
-    # vocabulary Python is deliberately kept from naming. The Python
-    # spelling of these questions is the document door, already bound:
-    # `Evaluation.find_flush_candidates` and `Doc.declare`.
-    "flush": SHAPE,
     # The kernel's coincidence record (`topo::coincidence`): rows keyed
     # by arena keys, which Python does not name. Its two words cross as
     # `Coincidence.relation` and `Coincidence.site`, read off the
@@ -2771,7 +2732,6 @@ NOT_BOUND = {
     # operand at the boolean seat, so Python hands it no body to finish.
     "AtRestBody": INTERIOR,
     "BooleanBody": INTERIOR,
-    "BooleanDeclarations": INTERIOR,
     "BooleanResult": INTERIOR,
     "BooleanResultKind": INTERIOR,
     "BooleanValue": INTERIOR,
@@ -2820,9 +2780,7 @@ NOT_BOUND = {
     # behind it. The finding is a declared pair and a verdict, and
     # projecting it would be projecting a payload's payload; the
     # discriminant is what a curated list owes and it crosses.
-    # (`FlushFinding`, which Python DOES hold, is the detector's own
-    # type and not this one — a pair, a class and the evidence — so it
-    # settles nothing here either way.) `DeclaredContact` and
+    # `DeclaredContact` and
     # `ContactVerdict` — this type's two fields — sit at `INTERIOR`
     # beside it, which is the sibling test the `CensusContact` entry
     # names.
@@ -2897,7 +2855,6 @@ NOT_BOUND = {
     "Extrusion": INTERIOR,
     "FilletLegShape": INTERIOR,
     "Filleted": INTERIOR,
-    "FlushEvidence": INTERIOR,
     "Lofted": INTERIOR,
     "LoopProgram": INTERIOR,
     # A11's member vocabulary, and the structural answer it gives.
@@ -3147,11 +3104,22 @@ NOT_BOUND = {
     # One of a product's at-rest decisions, interior with its `Product`:
     # Python reads them as the unproven-coincidence lint's findings.
     "AtRestRow": INTERIOR,
+    # Whose decision a row is (a mate, or two copies), interior with
+    # its row: the lint's finding says it (`CheckFinding.node`,
+    # `CheckFinding.copies`).
+    "AtRestBy": INTERIOR,
     "own_spaces": INTERIOR,
     "Subject": INTERIOR,
     "assemble_gathered": INTERIOR,
     "product_recorded": INTERIOR,
     "run_checks_on": INTERIOR,
+    # The registry with the coincidence door split off to run at rest,
+    # for a frame that redraws on every edit: Python's `run_checks` is
+    # synchronous and answers the door's verdict whole, so there is no
+    # job to hold and no pending check to settle.
+    "run_checks_at_rest_on": INTERIOR,
+    "DoorJob": INTERIOR,
+    "DoorFindings": INTERIOR,
     # The gather's debug-only witness: how many products this thread
     # has gathered, for a consumer asserting it gathers once per
     # operation. Not a question about a document at all.
@@ -3624,12 +3592,6 @@ MEMBERS_BOUND_AS = {
     # a crossing carries no provenance); the shape that hid it is
     # listed in `ARMS_SPELLED_BY_A_PROPERTY`.
     "InterfaceCrossing::Mate": "InterfaceCrossing.variant",
-    # --- a wrapping arm flattened into its payload's words ---------
-    # `BooleanCoincidence::Contact(ContactClass)` crosses as the
-    # contact class's own words beside `Continuation` and `Seam`: the
-    # Python enum is flat, `Rest`, `Tangent`, `Continuation`, `Seam`, so
-    # the arm is every contact word.
-    "BooleanCoincidence::Contact": ("BooleanCoincidence.Rest", "BooleanCoincidence.Tangent"),
     "AssemblyError::Product": "AssemblyError.variant",
     "AssemblyError::Space": "AssemblyError.variant",
     "AssemblyError::Mint": "AssemblyError.variant",
@@ -3654,7 +3616,6 @@ MEMBERS_BOUND_AS = {
     "Attribution::Refuted": "Attribution.relation",
     "Attribution::Declined": "Attribution.relation",
     "Attribution::Carried": "Attribution.relation",
-    "Attribution::Unattributed": "Attribution.relation",
     # The registry's evidence, a value: which resident found what.
     "CheckEvidence::Connectedness": "CheckEvidence.variant",
     "CheckEvidence::Escalated": "CheckEvidence.variant",
@@ -3704,10 +3665,10 @@ MEMBERS_BOUND_AS = {
     "EditError::UnresolvedInput": "EditError.variant",
     "EditError::WouldCycle": "EditError.variant",
     "EditError::SelectionShape": "EditError.variant",
+    "EditError::PoseShape": "EditError.variant",
     "EditError::IndexedRead": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
     "EditError::LoftSectionsSpelled": "EditError.variant",
-    "EditError::SetDeclareOnNonDeclaring": "EditError.variant",
     "EditError::SetProgramOnNonProfile": "EditError.variant",
     "EditError::SetExtrudeSideOnNonExtrude": "EditError.variant",
     "EditError::StepIdsRefused": "EditError.variant",
@@ -3715,7 +3676,6 @@ MEMBERS_BOUND_AS = {
     "EditError::OperandUnresolved": "EditError.variant",
     "EditError::AmbiguousOutput": "EditError.variant",
     "EditError::DefinesNothing": "EditError.variant",
-    "EditError::PartHalfPort": "EditError.variant",
     "EditError::ReadsWorldCopy": "EditError.variant",
     "EditError::UnknownSlot": "EditError.variant",
     "EditError::SlotDimensionMismatch": "EditError.variant",
@@ -3754,8 +3714,6 @@ MEMBERS_BOUND_AS = {
     "EditError::PathOffTree": "EditError.variant",
     "EditError::Dimension": "EditError.variant",
     "EditError::DeclareNamesMissingNode": "EditError.variant",
-    "EditError::DeclaredSiteNotAnOperand": "EditError.variant",
-    "EditError::DeclaredNameNotUpstream": "EditError.variant",
     "EditError::ReadSiteMissingNode": "EditError.variant",
     "EditError::NonFiniteVar": "EditError.variant",
     "EditError::InvalidDistribution": "EditError.variant",
@@ -3948,18 +3906,13 @@ MEMBERS_BOUND_AS = {
     # `reason` rather than `variant`, the word this door has always
     # carried.
     "SelectRefusal::InBand": "SelectRefusal.reason",
-    "SelectRefusal::AcrossSpaces": "SelectRefusal.reason",
     "SelectRefusal::TiedDisagrees": "SelectRefusal.reason",
     "SelectRefusal::Unreadable": "SelectRefusal.reason",
     "SelectRefusal::NotADatum": "SelectRefusal.reason",
     "SelectRefusal::DatumHasNoValue": "SelectRefusal.reason",
-    "SelectRefusal::NodeHasNoValue": "SelectRefusal.reason",
-    "SelectRefusal::NodeHasNoOutput": "SelectRefusal.reason",
     "SelectRefusal::NotALength": "SelectRefusal.reason",
-    "SelectRefusal::PairInBand": "SelectRefusal.reason",
     "SelectRefusal::BadValue": "SelectRefusal.reason",
     "SelectRefusal::Band": "SelectRefusal.reason",
-    "SelectRefusal::DistinctFinding": "SelectRefusal.reason",
     "SplitError::EmptyCut": "SplitError.variant",
     "SplitError::UnknownCutNode": "SplitError.variant",
     "SplitError::PartIdCollides": "SplitError.variant",
@@ -3996,7 +3949,6 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Structure": "StepImportError.variant",
     "StepImportError::MissingUncertainty": "StepImportError.variant",
     "StepImportError::InvalidEpsOverride": "StepImportError.variant",
-    "StepImportError::DeclarationUnresolved": "StepImportError.variant",
     "StepImportError::MalformedReal": "StepImportError.variant",
     "StepImportError::Topology": "StepImportError.variant",
     "StepImportError::Assembly": "StepImportError.variant",
@@ -4020,6 +3972,10 @@ MEMBERS_BOUND_AS = {
     "Subgroup::Cylindrical": "Subgroup.variant",
     "Subgroup::Prismatic": "Subgroup.variant",
     "Subgroup::Revolute": "Subgroup.variant",
+    "Subgroup::Spherical": "Subgroup.variant",
+    "Subgroup::Parallel": "Subgroup.variant",
+    "Subgroup::Translation": "Subgroup.variant",
+    "Subgroup::PlaneTranslation": "Subgroup.variant",
     "Subgroup::Trivial": "Subgroup.variant",
     "Subgroup::Empty": "Subgroup.variant",
     "TessellateError::InvalidChordalTolerance": "TessellateError.variant",
@@ -4089,13 +4045,14 @@ MEMBERS_BOUND_AS = {
     "ValidationError::ShellWinding": "ValidationFinding.variant",
     "ValidationError::SolidOuterShells": "ValidationFinding.variant",
     "ValidationError::ShellRoleUndecided": "ValidationFinding.variant",
-    "ValidationError::UndeclaredContact": "ValidationFinding.variant",
+    "ValidationError::UnrecordedContact": "ValidationFinding.variant",
     "ValidationError::StaleContactDeclaration": "ValidationFinding.variant",
     "ValidationError::ContactContradicted": "ValidationFinding.variant",
     "ValidationError::CensusEscalated": "ValidationFinding.variant",
     "ValidationError::CensusUnsupported": "ValidationFinding.variant",
     "ValidationError::CensusLaneUnsupported": "ValidationFinding.variant",
     "ValidationError::CensusUndecidable": "ValidationFinding.variant",
+    "ValidationError::ArcEndOffCorner": "ValidationFinding.variant",
     "ValidationError::InstanceInterference": "ValidationFinding.variant",
     "ValidationError::DanglingTopology": "ValidationFinding.variant",
     "ValidationError::DanglingGeometry": "ValidationFinding.variant",
@@ -4178,7 +4135,6 @@ MEMBERS_BOUND_AS = {
     # and each reads back through `Value.datum()`.
     "Datum::Plane": "Node.datum_plane",
     "Datum::Axis": "Node.datum_axis",
-    "Datum::AxisInPlane": "Node.datum_axis_in_plane",
     "Datum::FaceFrame": "Node.datum_face_frame",
     "Datum::Point": "Node.datum_point",
     "Datum::Frame": "Node.datum_frame",
@@ -4202,11 +4158,6 @@ MEMBERS_BOUND_AS = {
     # The run's variable bindings are what `reading` evaluates over.
     "Evaluation::env": "Evaluation.reading",
     "Evaluation::outcome": "Evaluation.canceled",
-    # The detector's finding: its pair crosses as two NAMES, its class
-    # as the word, its evidence as the rung that carried it.
-    "FlushFinding::pair": "FlushFinding.a",
-    "FlushFinding::class": "FlushFinding.class_",
-    "FlushFinding::evidence": "FlushFinding.rung",
     # The maintenance travels with the document handed back, so it is
     # read off that `Doc` rather than off the outcome
     # (`crates/pncad-py/src/py/refactor.rs`).
@@ -4301,6 +4252,10 @@ MEMBERS_NOT_BOUND = {
     # `ChecksReport` holds the evaluated document and speaks from it,
     # and `CheckRefusal` is raised with the message already spoken.
     "ChecksReport::document": SHAPE,
+    # Only a report split at rest pends on a check
+    # (`run_checks_at_rest_on`); Python's `run_checks` is synchronous,
+    # so its report never does.
+    "ChecksReport::pending": INTERIOR,
     "CheckRefusal::document": SHAPE,
     # The chain is authored through `Placement`'s constructors and
     # `then`, and read back only as its length: the steps are the

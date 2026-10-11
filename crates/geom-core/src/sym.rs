@@ -1038,6 +1038,10 @@ use crate::tolerance::Tol;
 /// The atom algebra: the rule A/B reductions over a residual.
 #[path = "sym/algebra.rs"]
 mod algebra;
+/// The deferring session: decisions taken numerically, the Zeros a
+/// reader asks about discharged afterwards.
+#[path = "sym/deferred.rs"]
+pub mod deferred;
 /// The seam pins: the discharge vocabulary's spellings held against
 /// one another, one row per seam.
 #[cfg(test)]
@@ -2558,6 +2562,10 @@ struct Session {
     plain_built: Vec<SymId>,
     plain_atoms: Vec<u128>,
     plain_frozen: Vec<SymId>,
+    /// **The Zeros a deferring session left for later**
+    /// ([`with_deferred_session`]): `None` in every other session, which
+    /// discharges each decision as it is taken.
+    deferred: Option<std::collections::HashMap<u32, deferred::Pending>>,
     /// **The roots the PLAIN walk was asked for** — the leaf's NEED is
     /// counted over their closure ([`leaf_need`]). A SET and not a
     /// list: one decision asks for one root many times over a leaf
@@ -2725,6 +2733,7 @@ impl Session {
             plain_built: Vec::new(),
             plain_atoms: Vec::new(),
             plain_frozen: Vec::new(),
+            deferred: None,
             plain_roots: IdSet::default(),
             foreign: IdSet::default(),
             plain_unpublished: IdSet::default(),
@@ -4365,6 +4374,18 @@ enum Discharge {
     Registered,
 }
 
+impl Discharge {
+    /// The kind as the margin it decided carries it
+    /// ([`crate::MarginDiag::theorem`]).
+    const fn theorem(self) -> crate::Theorem {
+        match self {
+            Self::Theorem => crate::Theorem::SymbolicZero,
+            Self::SignGated => crate::Theorem::SignGated,
+            Self::Registered => crate::Theorem::Registered,
+        }
+    }
+}
+
 #[cfg(any(test, feature = "probe"))]
 impl Discharge {
     /// **Every discharge kind, once** — the roster the seam pins
@@ -4462,6 +4483,75 @@ fn discharge(id: SymId) -> Option<Discharge> {
 /// the first attempt, where it always was.
 fn discharge_retried(id: SymId) -> Option<(Discharge, u8)> {
     discharge_in(id, true)
+}
+
+/// **Whether the early form of `id` keeps an opaque value**
+/// ([`SymOp::Opaque`]): a value computed apart from the parameter
+/// symbols, which the tier keeps as an unknown of its own. Read off the
+/// form's indeterminates, through every atom's arguments; where the
+/// walk froze a node on its budget, or poisoned the form, the form says
+/// nothing past that node, and the node's DAG is read for an opaque
+/// value instead. A frozen node over the parameter symbols alone is no
+/// opaque value: it is a form too big for this budget. `None` outside a
+/// session.
+fn keeps_an_opaque_atom(id: SymId) -> Option<bool> {
+    SESSION.with(|s| {
+        let mut slot = s.borrow_mut();
+        let sess = slot.as_mut()?;
+        let opaque: std::collections::HashSet<u128> = sess
+            .nodes
+            .values()
+            .filter(|n| n.op == SymOp::Opaque)
+            .map(|n| indet_opaque(n.payload))
+            .collect();
+        if opaque.is_empty() {
+            return Some(false);
+        }
+        let reaches_opaque = |sess: &Session, from: SymId| {
+            let mut stack = vec![from];
+            let mut seen = std::collections::HashSet::new();
+            while let Some(at) = stack.pop() {
+                let Some(node) = sess.nodes.get(&at) else {
+                    continue;
+                };
+                if node.op == SymOp::Opaque {
+                    return true;
+                }
+                if seen.insert(at) {
+                    stack.extend(node.kids().iter().copied());
+                }
+            }
+            false
+        };
+        let early = early_form(sess, id);
+        if early.poisoned {
+            return Some(reaches_opaque(sess, id));
+        }
+        let mut stack = vec![early];
+        let mut seen = std::collections::HashSet::new();
+        while let Some(form) = stack.pop() {
+            for poly in [&form.num, &form.den] {
+                for (mono, _) in poly.terms() {
+                    for &(x, _) in mono {
+                        if !seen.insert(x) {
+                            continue;
+                        }
+                        if opaque.contains(&x) {
+                            return Some(true);
+                        }
+                        if let Some(atom) = sess.atoms.get(&x) {
+                            stack.extend(atom.args.iter().flatten().cloned());
+                        } else if sess.nodes.contains_key(&SymId(x))
+                            && reaches_opaque(sess, SymId(x))
+                        {
+                            return Some(true);
+                        }
+                    }
+                }
+            }
+        }
+        Some(false)
+    })
 }
 
 fn discharge_in(id: SymId, retries: bool) -> Option<(Discharge, u8)> {
@@ -5181,6 +5271,10 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
     fn point_value(self) -> Option<f64> {
         self.value.point_value()
     }
+
+    fn split_projective<A: crate::spline::ProjectiveSplit<Self>>(arm: A) -> A::Out {
+        T::split_projective(crate::spline::projective::SymArm(arm))
+    }
 }
 
 /// **The whole of the tier's effect on decision-making** (E12): the
@@ -5292,6 +5386,10 @@ impl<T: Decide> Sym<T> {
         #[cfg(feature = "probe")]
         let mark = crate::k_stats::sink_mark();
         let numeric = self.value.sign_within(band);
+        if let Some(deferred) = deferred::defer(self.node, numeric) {
+            count_decision(None);
+            return deferred;
+        }
         let domain_violation = matches!(&numeric, Err(e) if e.margin.is_invalid());
         let definitely_nonzero = matches!(
             &numeric,
@@ -5385,7 +5483,7 @@ impl<T: Decide> Sym<T> {
             };
             return Ok(Decided {
                 sign: Sign::Zero,
-                margin,
+                margin: margin.proven(how.theorem()),
             });
         }
         // The shape report wants the residual that BLOCKED — rendered

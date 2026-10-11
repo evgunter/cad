@@ -241,16 +241,6 @@ Open.at((0 * mm, 0 * mm)).arc_to(Sweep(1 * mm, ArcSide.Left, 90 * deg))  # ty: e
 _open_fillet = Open.at((0 * mm, 0 * mm)).toward(1.0, 0.0)
 _open_fillet.fillet_arc(1 * mm, Bulge((5 * mm, 5 * mm), 0.5))  # ty: error
 
-# LIB-PYG5. The declare doors take FINDINGS — values from the
-# detector — never name text or bare pairs, and the live-node doors
-# take the node first; the detector takes node ids; a finding's fields
-# are read-only projections of the report.
-doc.declare_all(solid, ["some-name-text", "another"])  # ty: error
-doc.declare(solid, "name-text")  # ty: error
-Node.union([solid, solid], declare=[("a", "b")])  # ty: error
-DocEdit.set_declare(solid, ["name-text"])  # ty: error
-evaluate(doc).find_flush_candidates(solid, "not-a-node")  # ty: error
-
 # LIB-PYPU. A spacing is a `Formula`, not a bare number: the slot's own
 # type is the whole point of the boundary.
 PatternKind.linear((1.0, 0.0, 0.0), 0.5)  # ty: error
@@ -271,12 +261,10 @@ Node.placed_union(solid, 5 * m, PatternKind.linear((Formula.literal(1.0), Formul
 # The narrowed count edit takes a VarName, never bare text.
 DocEdit.bind_count_param(solid, "fins")  # ty: error
 
-# LIB-B-PART. A HALF IS NOT AN INSTANCE, and this is the pair of lines
-# that says so: the two arms of one selector take different types, and
-# neither accepts the other's, so the confusion the kernel refuses at
-# evaluation is refused here at authoring.
+# LIB-B-PART. A HALF IS NOT AN INSTANCE: a split's half is its output,
+# never a selector.
 PartSelect.instance(SplitHalf.Above)  # ty: error
-PartSelect.split_half(0)  # ty: error
+PartSelect.split_half(SplitHalf.Above)  # ty: error
 
 # The selector is a VALUE with its own type: a bare half is not one,
 # any more than a `Frame` is a `PatternKind`.
