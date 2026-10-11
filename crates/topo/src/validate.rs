@@ -5250,14 +5250,17 @@ fn certificate_of_a_clean_verdict<C>(certificate: Option<C>) -> C {
 }
 
 /// **Check 7's subject**: one entry per solid of
-/// `body`, carrying that solid's faces in FACE-ARENA order
-/// ([`Body::faces_of_solid`]).
+/// `body`, carrying that solid's faces in WALK order
+/// ([`Body::faces_of_solid_in_walk_order`]: its shells as the solid
+/// lists them, each shell's faces as the shell lists them), the order a
+/// STEP round trip reproduces.
 ///
 /// The subject is the solid because the invariant is about a solid. A
 /// body's total is a sum over its solids, and a sum hides a sign.
 ///
-/// **A body holding ONE solid hands back the face arena itself**, in
-/// arena order and entire — so the per-solid read IS the whole-body
+/// **A body holding ONE solid hands back every face**, in the
+/// whole-body walk order ([`Body::faces_in_walk_order`]) — so the
+/// per-solid read IS the whole-body
 /// read, term for term, round for round and bit for bit, and the
 /// overwhelmingly common body pays nothing for the check's subject
 /// having moved. That is an EQUIVALENCE and not a special case, and
@@ -5271,7 +5274,8 @@ fn certificate_of_a_clean_verdict<C>(certificate: Option<C>) -> C {
 /// back-pointer that disagrees with the owner. Together: the solids
 /// partition the shells and the shells partition the faces, so
 /// `faces_of_solid`'s back-pointer selection and a `Solid::shells`
-/// walk name the same set, and over one solid that set is the arena.
+/// walk name the same set, and over one solid that set is the arena
+/// and the solid's walk is the body's.
 ///
 /// **What is strictly NEEDED for the one-solid case is narrower than
 /// that.** [`ValidationError::DanglingTopology`] on `Shell::solid` and
@@ -5295,7 +5299,7 @@ fn check7_subjects<T: Real>(body: &Body<T>) -> Vec<(SolidKey, Vec<FaceKey>)> {
     body.solids
         .iter()
         .map(|(solid_key, _)| {
-            let Some(faces) = body.faces_of_solid(solid_key) else {
+            let Some(faces) = body.faces_of_solid_in_walk_order(solid_key) else {
                 unreachable!("a key read out of the solid arena does not resolve in it")
             };
             (solid_key, faces)

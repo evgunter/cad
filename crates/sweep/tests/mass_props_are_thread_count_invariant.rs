@@ -453,6 +453,18 @@ fn digest() -> String {
 /// 606 → 605 at ε = 1e-6 / 1e-9 / 1e-12). Decisions, discharges, shapes
 /// and every verdict are unchanged. Measured by disabling only that
 /// assembly on a probe build, which restores the old column.
+///
+/// **Re-cut at all three ε when the rational patch lane's knot
+/// refinement moved into the certification ring** (`geom_brep::props::
+/// quad`'s `refine_dir`, PR 4553: each homogeneous channel refined by
+/// the convex certified step, where `ring_lerp` combined points through
+/// the plan's rounded `f64` λ). Only `arc_loft_1e9eps` moves, the one
+/// body whose walls are rational patches: `v`, `a`, `vpad` and `apad`
+/// in their last bits at every ε. Each new volume and area enclosure
+/// lies inside the old one; the volume pads fall by 7e-6 of themselves
+/// and the area pads by 4e-10. Bisected: PR 4553's parent `afabd44061`
+/// reads the old line and its merge `98e620a195` the new. Verdicts,
+/// refusals, the other rows and the sym-session counts are unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),
