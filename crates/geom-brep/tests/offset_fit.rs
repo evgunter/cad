@@ -332,32 +332,30 @@ fn degree_1_base_directions_fit_and_certify() {
         ("ruled, linear in u", ruled_linear_in_u(), 0.05),
     ];
     for (name, base, d) in rows {
-        {
-            let (fit, cert) = fit_offset_at(&base, d, tol, band())
-                .unwrap_or_else(|e| panic!("{name} at d = {d}: fit_offset refused: {e}"));
-            assert!(
-                cert.hull_sup <= tol,
-                "{name} at d = {d}: certified sup {} exceeds {tol}",
-                cert.hull_sup
-            );
-            let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
-            assert!(
-                worst <= cert.hull_sup,
-                "{name} at d = {d}: the certified sup {} UNDER-reports the sampled max {worst}",
-                cert.hull_sup
-            );
-            let again = certify_offset_at(&base, &fit, d, tol, band())
-                .unwrap_or_else(|e| panic!("{name} at d = {d}: certify_offset refused: {e}"));
-            assert!(
-                again.hull_sup <= tol,
-                "{name} at d = {d}: re-certified sup {} exceeds {tol}",
-                again.hull_sup
-            );
-            eprintln!(
-                "{name} d={d}: cells={} rounds={} hull_sup={:.3e} sampled={worst:.3e}",
-                cert.cells, cert.rounds, cert.hull_sup
-            );
-        }
+        let (fit, cert) = fit_offset_at(&base, d, tol, band())
+            .unwrap_or_else(|e| panic!("{name} at d = {d}: fit_offset refused: {e}"));
+        assert!(
+            cert.hull_sup <= tol,
+            "{name} at d = {d}: certified sup {} exceeds {tol}",
+            cert.hull_sup
+        );
+        let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
+        assert!(
+            worst <= cert.hull_sup,
+            "{name} at d = {d}: the certified sup {} UNDER-reports the sampled max {worst}",
+            cert.hull_sup
+        );
+        let again = certify_offset_at(&base, &fit, d, tol, band())
+            .unwrap_or_else(|e| panic!("{name} at d = {d}: certify_offset refused: {e}"));
+        assert!(
+            again.hull_sup <= tol,
+            "{name} at d = {d}: re-certified sup {} exceeds {tol}",
+            again.hull_sup
+        );
+        eprintln!(
+            "{name} d={d}: cells={} rounds={} hull_sup={:.3e} sampled={worst:.3e}",
+            cert.cells, cert.rounds, cert.hull_sup
+        );
     }
 }
 

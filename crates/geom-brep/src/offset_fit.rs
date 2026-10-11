@@ -2327,17 +2327,27 @@ impl Composite {
         // The base's homogeneous nets and their first derivatives.
         let a_grid: [TensorCoeffs<'_>; 3] =
             core::array::from_fn(|c| channel(base, c, NetForm::of(base), &ctr));
-        // A degree-1 direction (single-span: the door's C¹ gate) has a
-        // partial constant along it, whose derived vector would be
-        // degree 0, which no clamped vector spells. It is decomposed on
-        // the direction's own vector as the constant's degree-1 form,
-        // both coefficients the one difference. Every base channel is
-        // then raised one degree in each degree-1 direction it varies
-        // along, in the ring: exact in ℝ, so the composite is still
-        // about the base's own nets, and the products' Bernstein hulls
-        // read tighter on the raised form. A degree ≥ 2 direction whose
-        // derived vector is not clamped is refused typed.
-        let (lift_u, lift_v) = (usize::from(ku.degree() == 1), usize::from(kv.degree() == 1));
+        // A degree-1 direction's partial is constant on each span; its
+        // derived vector would be degree 0, which no clamped vector
+        // spells. On a single span it is decomposed on the direction's
+        // own vector as the constant's degree-1 form, both coefficients
+        // the one difference. Across an interior knot the partial jumps,
+        // which no continuous degree-1 form spells, so that direction is
+        // refused as the crease it is. Every base channel is then raised
+        // one degree in each degree-1 direction it varies along, in the
+        // ring: exact in ℝ, so the composite is still about the base's
+        // own nets. The raise buys hull tightness, measured once on
+        // `tests/offset_fit.rs`' degree-1 rows (certified sup, raised
+        // against not): bilinear 4.26e-5 against 4.58e-5, rational
+        // bilinear 7.58e-5 against 9.46e-5, ruled 1.228e-5 against
+        // 1.229e-5, with the same cells and rounds. A degree ≥ 2
+        // direction whose derived vector is not clamped is refused typed.
+        let lift = |k: &KnotVector| match k.degree() {
+            1 if k.interior_knots().next().is_some() => Err(PatchBoundError::Degree1Crease),
+            1 => Ok(1),
+            _ => Ok(0),
+        };
+        let (lift_u, lift_v) = (lift(ku)?, lift(kv)?);
         let raise = |p: PatchSpans, lu: usize, lv: usize| {
             let (pu, pv) = p.degree();
             p.elevated(pu + lu, pv + lv)
@@ -3337,6 +3347,83 @@ mod tests {
                 "M̃ channel {c} reads {h:?}, not [{lo}, {hi}]"
             );
         }
+    }
+
+    /// **The composite is about the supplied net, not a rounded
+    /// elevation of it.** A rational bilinear with weight `1` on the
+    /// `u = 0` ruling and `0.6` on `u = 1`, fitted by itself: every
+    /// coefficient of `Ẽ` encloses `0`, and the base's weight channel,
+    /// raised to degree 2 in `u`, encloses the exact middle weight
+    /// `(1 + 0.6)/2` of the stored `0.6`. An `f64` elevation stores
+    /// that weight as the point `0.8`, `5.6e-17` above it.
+    #[test]
+    fn a_rational_degree_1_composite_encloses_the_supplied_net() {
+        let k1 = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let base = geom::NurbsSurface::new(
+            k1(),
+            k1(),
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(0.0, 1.0, 0.1),
+                Point3::new(1.0, 0.0, 0.2),
+                Point3::new(1.0, 1.0, 1.0),
+            ],
+            vec![1.0, 1.0, 0.6, 0.6],
+        )
+        .unwrap();
+        let comp = Composite::build(&base, &base, 0.05).unwrap();
+        for c in 0..3 {
+            for (k, z) in comp.e[c].cell_coeffs(0, 0).unwrap().iter().enumerate() {
+                assert!(
+                    z.lo() <= 0.0 && 0.0 <= z.hi(),
+                    "Ẽ{c} coefficient {k} reads {z:?}"
+                );
+            }
+        }
+        assert_eq!(comp.w.degree(), (2, 2), "the weight channel's bidegree");
+        let w = comp.w.cell_coeffs(0, 0).unwrap();
+        // Row-major in `u`: the middle `u` row is entries 3..6. `2·x − 1`
+        // is exact for `2·x` in `[1, 2]` (Sterbenz), so the comparison
+        // with the stored `0.6` is too.
+        for (k, h) in w.iter().enumerate().take(6).skip(3) {
+            assert!(
+                2.0 * h.lo() - 1.0 <= 0.6 && 0.6 <= 2.0 * h.hi() - 1.0,
+                "w coefficient {k} reads {h:?}, which misses (1 + 0.6)/2"
+            );
+        }
+    }
+
+    /// A degree-1 direction with an interior knot has a partial that
+    /// jumps there, and the composite refuses it as the crease it is
+    /// rather than reading the first span's constant across both.
+    #[test]
+    fn a_two_span_degree_1_direction_refuses_at_the_composite() {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let base = geom::NurbsSurface::new(
+            ku,
+            kv,
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0),
+                Point3::new(0.5, 0.0, 0.2),
+                Point3::new(0.5, 1.0, 0.1),
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, 1.0, 0.3),
+            ],
+            vec![1.0; 6],
+        )
+        .unwrap();
+        let err = Composite::build(&base, &base, 0.05).err();
+        assert!(
+            matches!(
+                err,
+                Some(super::OffsetFitError::PatchBound(
+                    crate::patch_bound::PatchBoundError::Degree1Crease
+                ))
+            ),
+            "a two-span degree-1 direction reached the composite as {err:?}"
+        );
     }
 }
 
