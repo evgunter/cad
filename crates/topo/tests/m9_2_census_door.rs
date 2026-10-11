@@ -49,12 +49,12 @@ fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 }
 
 // ---------------------------------------------------------------------
-// #382 half-2: inter-instance overlap surfaces as undeclared contact
+// #382 half-2: inter-instance overlap surfaces as unrecorded contact
 // through the SAME census arms — never an ad-hoc graft check.
 // ---------------------------------------------------------------------
 
 #[test]
-fn overlapping_instances_refuse_as_undeclared_contact_naming_the_pair() {
+fn overlapping_instances_refuse_as_unrecorded_contact_naming_the_pair() {
     // Two tier-3-valid unit cubes overlapping by a half-cube: each
     // passes its own gate, the graft passes tier 3 (the #382 finding
     // — no local check compares the solids), and the 3′ census now
@@ -74,7 +74,7 @@ fn overlapping_instances_refuse_as_undeclared_contact_naming_the_pair() {
     assert!(
         errors.iter().any(|e| matches!(
             e,
-            ValidationError::UndeclaredContact {
+            ValidationError::UnrecordedContact {
                 contact: CensusContact::EdgeFacePierce { .. },
                 ..
             }
@@ -187,7 +187,7 @@ fn the_same_touching_pair_undeclared_is_the_f1_hard_error() {
     assert!(
         errors
             .iter()
-            .any(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+            .any(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
         "the undeclared touch is the hard error: {errors:?}"
     );
 }

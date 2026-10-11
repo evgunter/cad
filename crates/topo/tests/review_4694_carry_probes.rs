@@ -107,7 +107,7 @@ fn undeclared_at(what: &str, refused: Result<(), Vec<topo::ValidationError>>, at
     assert!(
         errors.iter().all(|e| matches!(
             e,
-            topo::ValidationError::UndeclaredContact { witness, .. } if witness.contains(at)
+            topo::ValidationError::UnrecordedContact { witness, .. } if witness.contains(at)
         )),
         "{what}: {errors:?}"
     );

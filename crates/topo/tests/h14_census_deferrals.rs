@@ -190,12 +190,12 @@ fn an_embedded_instance_is_examined_though_its_contact_is_declared() {
         "no undecidable verdict rides beside the decided one: {errors:?}"
     );
     // And the declaration did its own job: the four corner rests it
-    // names are no longer reported as undeclared contacts, so the
+    // names are no longer reported as unrecorded contacts, so the
     // refusal above is not the vertex sweeps' either.
     assert!(
         !errors.iter().any(|e| matches!(
             e,
-            ValidationError::UndeclaredContact {
+            ValidationError::UnrecordedContact {
                 contact: CensusContact::VertexOnFace { .. },
                 ..
             }

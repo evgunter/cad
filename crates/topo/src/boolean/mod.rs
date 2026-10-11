@@ -5646,7 +5646,8 @@ pub(crate) fn verify_tangent_declaration<T: Decide>(
 ///    when both faces END at that point, and a pair sharing no stretch
 ///    and no such point is `seam_locus_untouched`. Each carries its fact. A face bounded by a
 ///    curve the read does not place against the locus (an ellipse, a
-///    spline) is refused as outside the envelope
+///    spline), or a touch piece the read does not place (its midpoint
+///    on a face's boundary), is refused as outside the envelope
 ///    ([`BooleanError::UnsupportedDeclarationClass`]).
 ///
 /// A `Tangent` claim along a rim takes the ratified routing instead of

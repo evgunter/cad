@@ -170,7 +170,7 @@ fn carried_rows(records: &topo::ContactRecords) -> topo::OperandRecords {
 /// one vertex, edge and face count, for each span (16, 24 and 12). Red
 /// when the join drops the v-v record whose vertex it joined away: the
 /// touching corner then rests on the joined rim unrecorded
-/// (`UndeclaredContact` `VertexOnEdge` and the overlap it bounds). Red
+/// (`UnrecordedContact` `VertexOnEdge` and the overlap it bounds). Red
 /// when a step's output stage skips the join: the step holds a
 /// joinable vertex, and the orders that cut the rim before the flush
 /// pair merges keep a vertex the others never mint.
@@ -289,7 +289,7 @@ fn assert_pinch_records(records: &topo::ContactRecords) {
 
 /// **A pinch owes its edge-edge row.** Two bricks touching along an
 /// edge pass 3′ with their own records, and without the edge-edge row
-/// the overlap along the touch refuses undeclared though both its ends
+/// the overlap along the touch refuses unrecorded though both its ends
 /// keep their v-v rows: the bounds confirm the row, never stand in for
 /// it (D1). Red if the census backs the overlap on its bounds alone.
 #[test]
@@ -310,7 +310,7 @@ fn a_pinch_without_its_edge_edge_row_refuses_the_overlap() {
     assert!(
         matches!(
             errors[..],
-            [topo::ValidationError::UndeclaredContact {
+            [topo::ValidationError::UnrecordedContact {
                 contact: topo::CensusContact::EdgeEdgeOverlap { .. },
                 ..
             }]
