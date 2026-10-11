@@ -132,6 +132,9 @@ pub enum ProductError {
         /// Every live body no placement reads, in document order
         /// ([`Doc::unplaced`]): what placing would put in the world.
         unplaced: Vec<crate::VarId>,
+        /// Every loose copy, by its placement, in document order: copies
+        /// no placement relates to the world (D10, Spaces).
+        loose: Vec<RecipeNodeId>,
     },
     /// **A placement whose body is gone** (D10, A10): its read is
     /// unresolved, and the copy it defined is absent, which the gather
@@ -139,15 +142,6 @@ pub enum ProductError {
     StrandedPlacement {
         /// The placement.
         placement: RecipeNodeId,
-    },
-    /// **No placement's copy lives in the world, and the placed
-    /// material lives in the own spaces of unplaced groups** (A9,
-    /// A11 (2)): the world product is empty because nothing places that
-    /// material, which placing it repairs.
-    Unplaced {
-        /// Every unplaced group, by its root, with why nothing places
-        /// it, in document order.
-        groups: Vec<(RecipeNodeId, crate::mate::Unplaced)>,
     },
     /// The kernel's disjoint-graft door refused a source body.
     Graft {
@@ -344,11 +338,15 @@ impl ProductError {
                  document {expected}",
             ),
             Self::Root(standing) => write!(f, "{}", Said(&standing.of_placement(), by)),
-            Self::EmptyProduct { unplaced } => {
+            Self::EmptyProduct { unplaced, loose } => {
                 f.write_str("nothing is placed in the world, so the document has no product")?;
                 if !unplaced.is_empty() {
                     let said: Vec<String> = unplaced.iter().map(|&v| by.output(v)).collect();
                     write!(f, " — unplaced: {}", said.join(", "))?;
+                }
+                if !loose.is_empty() {
+                    let said: Vec<String> = loose.iter().map(|&n| by.node(n).to_string()).collect();
+                    write!(f, " — loose, related to no world: {}", said.join(", "))?;
                 }
                 write!(
                     f,
@@ -365,26 +363,6 @@ impl ProductError {
                 root(*placement),
                 crate::sentence::Recourse("re-point it at a body, or delete it")
             ),
-            Self::Unplaced { groups } => {
-                f.write_str(
-                    "no placement's copy lives in the world: the placed material lives in \
-                     the own spaces of unplaced groups —",
-                )?;
-                for (i, (group, cause)) in groups.iter().enumerate() {
-                    let sep = if i == 0 { "" } else { ";" };
-                    write!(
-                        f,
-                        "{sep} the group rooted at {}, because {}",
-                        by.node(*group),
-                        crate::spoken::Said(cause, by)
-                    )?;
-                }
-                write!(
-                    f,
-                    ". {}",
-                    crate::sentence::Recourse(crate::mate::UNPLACED_RECOURSE)
-                )
-            }
             Self::Graft { node, source } => write!(
                 f,
                 "the kernel could not graft {}'s body: {source}",
@@ -510,8 +488,6 @@ pub enum ProductErrorKind {
     EmptyProduct,
     /// [`ProductError::StrandedPlacement`].
     StrandedPlacement,
-    /// [`ProductError::Unplaced`].
-    Unplaced,
     /// [`ProductError::Graft`].
     Graft,
     /// [`ProductError::RootInvalid`].
@@ -559,8 +535,7 @@ impl ProductErrorKind {
     pub fn means_no_body(self) -> bool {
         match self {
             Self::EmptyProduct => true,
-            Self::Unplaced
-            | Self::StrandedPlacement
+            Self::StrandedPlacement
             | Self::EvaluationOfAnotherDocument
             | Self::UnknownNode
             | Self::RootFailed
@@ -593,7 +568,6 @@ impl ProductError {
             },
             Self::EmptyProduct { .. } => ProductErrorKind::EmptyProduct,
             Self::StrandedPlacement { .. } => ProductErrorKind::StrandedPlacement,
-            Self::Unplaced { .. } => ProductErrorKind::Unplaced,
             Self::Graft { .. } => ProductErrorKind::Graft,
             Self::RootInvalid { .. } => ProductErrorKind::RootInvalid,
             Self::ProductInvalid { .. } => ProductErrorKind::ProductInvalid,
@@ -643,7 +617,7 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
         // which refuses any index `names::output_body` does not fit, or
         // by `Placeable::map`, which rebuilds an existing list one body
         // for one.
-        ValuePayload::Instances(bodies) => Some(
+        ValuePayload::Instances(bodies) | ValuePayload::Copies(bodies) => Some(
             bodies
                 .iter()
                 .enumerate()
@@ -679,8 +653,7 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
         // had without one.
         ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
-        | ValuePayload::Mate(_)
-        | ValuePayload::Gauge
+        | ValuePayload::World
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => None,
@@ -853,13 +826,13 @@ pub struct Product<T: Decide> {
     /// health is what the outermost gate refuses over, and the gather
     /// is where it arrives.
     pub carried_unminted: Vec<crate::assembly::CarriedRefusal>,
-    /// **Each unplaced group's own space, gathered by itself** (A9,
+    /// **Each loose copy's space, gathered by itself** (D10, Spaces,
     /// A11 (2)), in document order: what the world leaves out, kept beside
     /// it so the at-rest gate checks every space of the document from
     /// the one product it is handed ([`crate::assemble_gathered`]).
     /// Empty on a space's own gather, and on a document every group of
     /// which is placed.
-    pub spaces: Vec<OwnSpace<T>>,
+    pub spaces: Vec<LooseSpace<T>>,
 }
 
 /// **One copy as the gather grafted it** ([`Product::copies`]).
@@ -879,44 +852,33 @@ pub struct GatheredCopy<T: Decide> {
     pub keys: Arc<topo::GraftKeys>,
 }
 
-/// **One unplaced group's own space, gathered by itself** (A9,
-/// A11 (2)): the roots that live in it, gathered and minted with
-/// nothing outside the group.
+/// **One loose copy's space, gathered by itself** (D10, Spaces): the
+/// copies that live in it, gathered and minted with nothing outside it.
 #[derive(Debug)]
-pub struct OwnSpace<T: Decide> {
-    /// The group, by its root.
-    pub group: RecipeNodeId,
-    /// Why nothing places it.
-    pub cause: crate::mate::Unplaced,
+pub struct LooseSpace<T: Decide> {
+    /// The loose copy, by its placement.
+    pub root: RecipeNodeId,
     /// The space's gather, kept rather than raised: a space whose
-    /// roots denote no body ([`ProductError::NoBodyRoots`], an
-    /// instance only a measure in the group reads) holds nothing to
-    /// check, and any other refusal is the gate's to raise
-    /// ([`crate::AssemblyError::Space`]).
+    /// copies denote no body holds nothing to check, and any other
+    /// refusal is the gate's to raise ([`crate::AssemblyError::Space`]).
     pub gather: Result<Box<Product<T>>, ProductError>,
 }
 
-/// **Every unplaced group's own space** in `evaluation`, each gathered
-/// by itself ([`OwnSpace`]), in document order: what [`product_recorded`]
-/// carries beside the world ([`Product::spaces`]).
-pub fn own_spaces<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
+/// **Every loose copy's space** in `evaluation`, each gathered by
+/// itself ([`LooseSpace`]), in document order: what
+/// [`product_recorded`] carries beside the world ([`Product::spaces`]).
+pub fn loose_spaces<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     tol: Tol,
-) -> Vec<OwnSpace<T>> {
+) -> Vec<LooseSpace<T>> {
     evaluation
-        .unplaced_groups()
+        .loose_roots()
         .into_iter()
-        .map(|(group, cause)| OwnSpace {
-            group,
-            cause,
-            gather: product_in(
-                doc,
-                evaluation,
-                tol,
-                crate::mate::Space::Own { group, cause },
-            )
-            .map(Box::new),
+        .map(|root| LooseSpace {
+            root,
+            gather: product_in(doc, evaluation, tol, crate::mate::Space::Loose { root })
+                .map(Box::new),
         })
         .collect()
 }
@@ -1026,8 +988,10 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // absent, which is never skipped.
     let placements = doc.placements();
     for &placement in &placements {
-        if let Some(crate::node::Node::PlaceInWorld { body, .. }) = doc.node(placement)
-            && doc.operation_of(body.read).is_none()
+        if let Some(crate::node::Node::Place { shapes, .. }) = doc.node(placement)
+            && shapes
+                .iter()
+                .any(|shape| doc.operation_of(shape.read).is_none())
         {
             return Err(ProductError::StrandedPlacement { placement });
         }
@@ -1059,16 +1023,10 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         }));
     }
     if !any_placed {
-        let groups = evaluation.unplaced_groups();
-        return Err(
-            if space == crate::mate::Space::World && !placements.is_empty() && !groups.is_empty() {
-                ProductError::Unplaced { groups }
-            } else {
-                ProductError::EmptyProduct {
-                    unplaced: doc.unplaced(),
-                }
-            },
-        );
+        return Err(ProductError::EmptyProduct {
+            unplaced: doc.unplaced(),
+            loose: evaluation.loose_roots(),
+        });
     }
 
     // Pass 2: the graft, one call per SOURCE BODY, in list order. A
@@ -1132,8 +1090,9 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         copies.push(GatheredCopy {
             node: *node,
             var: doc
-                .output(*node, 0)
-                .unwrap_or_else(|| unreachable!("{node:?} is a placement, which defines one copy")),
+                .output(*node, u8::try_from(*ix).unwrap_or(0))
+                .or_else(|| doc.output(*node, 0))
+                .unwrap_or_else(|| unreachable!("{node:?} is a placement, which defines its copies")),
             output: *ix,
             body: Arc::clone(body),
             keys: Arc::clone(keys),
@@ -1143,11 +1102,20 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         // source's position among the product's inputs, which names the
         // placement's `body` read: the copy's records are the body's, in
         // its order.
-        let Some(crate::node::Node::PlaceInWorld { body: read, .. }) = doc.node(*node) else {
-            unreachable!("a product source is a placement's copy")
-        };
         let input = u32::try_from(cited_inputs.len()).unwrap_or(u32::MAX);
-        cited_inputs.push(crate::coincide::CitedInput::Read(read.read));
+        cited_inputs.push(match doc.node(*node) {
+            Some(crate::node::Node::Place { shapes, .. }) => {
+                let shape = shapes
+                    .get(usize::try_from(*ix).unwrap_or(0))
+                    .or_else(|| shapes.first())
+                    .unwrap_or_else(|| unreachable!("a placement copies at least one shape"));
+                crate::coincide::CitedInput::Read(shape.read)
+            }
+            Some(crate::node::Node::InstantiatePart { doc_ref, .. }) => {
+                crate::coincide::CitedInput::Part(*doc_ref)
+            }
+            _ => unreachable!("a product source is a placement's copy"),
+        });
         carry_contacts(
             &aggregate,
             &mut at_rest.contacts,
@@ -1244,8 +1212,8 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     let gap_assertions =
         crate::checks::at_rest::gap_assertions(doc, evaluation, &aggregate, &names, &copies, tol);
     let spaces = match space {
-        crate::mate::Space::World => own_spaces(doc, evaluation, tol),
-        crate::mate::Space::Own { .. } => Vec::new(),
+        crate::mate::Space::World => loose_spaces(doc, evaluation, tol),
+        crate::mate::Space::Loose { .. } => Vec::new(),
     };
     Ok(Product {
         document: doc.id(),
@@ -1504,6 +1472,7 @@ mod tests {
             ProductError::Root(NodeStanding::Poisoned { node, through }),
             ProductError::EmptyProduct {
                 unplaced: vec![crate::VarId::new(0, test_utils::refusal::tagged(1))],
+                loose: Vec::new(),
             },
             ProductError::StrandedPlacement { placement: node },
             ProductError::Unplaced {
@@ -1630,6 +1599,8 @@ mod tests {
                 "{:?}",
                 ProductError::EmptyProduct {
                     unplaced: vec![crate::VarId::new(0, test_utils::refusal::tagged(1))],
+                    loose: Vec::new(),
+                loose: Vec::new(),
                 }
             )],
             "an empty world is the only gather refusal that is an absence \

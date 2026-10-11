@@ -102,7 +102,7 @@ fn lines_of(
         }
         let world = match poses.placement(doc, id) {
             Ok(f) => frame_bits(&f),
-            Err(crate::mate::PoseRefusal::Unplaced { .. }) => match poses.relative(id) {
+            Err(crate::mate::PoseRefusal::Loose { .. }) => match poses.relative(id) {
                 Some(f) => format!("loose={}", frame_bits(&f)),
                 None => "loose-none".to_owned(),
             },

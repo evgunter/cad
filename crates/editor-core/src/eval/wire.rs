@@ -197,13 +197,12 @@ impl<T> Copy for LaneEnv<'_, T> {}
 pub(crate) struct OpEnv<'a, T: Decide> {
     pub boolean_sweep: topo::SweepStrategy,
     pub parts: &'a super::parts::PartCache<'a, T>,
-    /// The document's mate solve, run once per evaluation (ASM-R2a
-    /// D-5) at its scalar: every instance's pose relative to its group
-    /// root, and every mate's role.
+    /// The document's solve, run once per evaluation at its scalar:
+    /// every placement's pose around its anchor's frame.
     pub poses: &'a crate::mate::SolvedPoses<T>,
-    /// The nodes whose inputs lie in two spaces, each naming the
-    /// unplaced group it would compare (`mate::solve::spaces_of`).
-    pub across: &'a std::collections::BTreeMap<RecipeNodeId, (RecipeNodeId, crate::mate::Unplaced)>,
+    /// The nodes whose reads lie in two spaces, each naming the two
+    /// (`mate::solve::spaces_of`).
+    pub across: &'a std::collections::BTreeMap<RecipeNodeId, (crate::mate::Space, crate::mate::Space)>,
     /// Where profile geometry comes from, and over which environment.
     pub lane: LaneEnv<'a, T>,
 }
@@ -385,11 +384,24 @@ where
         Node::Transform { input, placement } => {
             wire_transform(at(O::Input, *input)?, placement, results, vals, tol)
         }
-        Node::PlaceInWorld { body, pose } => {
-            let at = at(O::Body, body.read)?;
-            let port = doc.defined_by(body.read).map_or(0, |(_, port)| port);
-            wire_place_in_world(id, (at, body.read), port, pose, results, vals, tol)
+        Node::Place { shapes, .. } => {
+            if let Some(fault) = env.poses.fault(id) {
+                return Err(NodeErrorKind::Mate(Box::new(fault.clone())));
+            }
+            let reads = shapes
+                .iter()
+                .enumerate()
+                .map(|(i, shape)| {
+                    let seat = O::Shape(u32::try_from(i).unwrap_or(u32::MAX));
+                    let port = doc.defined_by(shape.read).map_or(0, |(_, port)| port);
+                    Ok(((at(seat, shape.read)?, shape.read), port))
+                })
+                .collect::<Result<Vec<_>, NodeErrorKind>>()?;
+            let map = placement_map(id, env.poses);
+            wire_place(id, &reads, map.as_ref(), results, tol)
         }
+        // The world DENOTES NO BODY and defines no variable.
+        Node::World => Ok(OpOut::plain(ValuePayload::World, names::empty())),
         Node::Pattern { input, kind, .. } => {
             let input = at(O::Input, *input)?;
             let rule = RuleEnv {
@@ -446,73 +458,25 @@ where
             if let Some(fault) = env.poses.fault(id) {
                 return Err(NodeErrorKind::Mate(Box::new(fault.clone())));
             }
-            let frame = instance_frame(doc, id, env.poses, env.lane.params, tol)?
-                .unwrap_or(crate::placement::Motion::Identity);
-            let pose = env
-                .poses
-                .pose(id)
-                .unwrap_or_else(crate::mate::solve::Pose::identity);
-            let map = pose.compose_around(frame).non_identity();
+            let map = placement_map(id, env.poses);
             wire_instantiate_part(id, doc_ref, interface, map, env, tol)
-        }
-        // A gauge DENOTES NO BODY (A11 (2)): its slots evaluated above,
-        // and the instances on it read where it sits.
-        Node::Gauge { .. } => Ok(OpOut::plain(ValuePayload::Gauge, names::empty())),
-        // A mate DENOTES NO BODY: it evaluates to its role in the
-        // solve. Its two faces are read first, so a side whose name no
-        // longer resolves refuses in the selection's own words. A
-        // refusing mate fails here rather than at the instance it would
-        // have placed, so the message names the mate.
-        Node::Mate { a, b, .. } => {
-            select(doc, results, O::Side(crate::mate::MateSide::A), *a)?;
-            select(doc, results, O::Side(crate::mate::MateSide::B), *b)?;
-            match env.poses.fault(id) {
-                Some(fault) => Err(NodeErrorKind::Mate(Box::new(fault.clone()))),
-                None => Ok(OpOut::plain(
-                    ValuePayload::Mate(env.poses.role(id).unwrap_or_else(|| {
-                        unreachable!(
-                            "the solve of this document records a role for every mate in its \
-                         order, or faults it, yet mate {id:?} has neither"
-                        )
-                    })),
-                    names::empty(),
-                )),
-            }
         }
     }
 }
 
-/// **The frame an instance's group sits in, in this lane** (A11 (5)):
-/// its gauge chain composed with its group root's offset, evaluated at
-/// `env`; the identity in an unplaced group's own space. `None` for a
-/// node that is not a posed instance — the solve's own fault is the
-/// op's to raise.
-///
-/// # Errors
-///
-/// [`NodeErrorKind::PlacementRefused`] carrying the refusal of the
-/// gauge or root offset that did not evaluate.
-pub(crate) fn instance_frame<T: Decide>(
-    doc: &crate::doc::Doc<ProfileProgram>,
+/// **The motion a placement's copies sit at, in this lane**: its pose
+/// composed around its anchor's frame, both at the solve's scalar
+/// (`mate::solve::Pose::compose_around`), `None` for the bit-exact
+/// identity. A loose copy sits at its pose in its own space.
+fn placement_map<T: crate::mate::SolveScalar>(
     id: RecipeNodeId,
     poses: &crate::mate::SolvedPoses<T>,
-    env: &crate::expr::VarEnv<T>,
-    tol: Tol,
-) -> Result<Option<crate::placement::Motion<T>>, NodeErrorKind> {
-    if poses.fault(id).is_some() {
-        return Ok(None);
-    }
-    let (Some(space), Some(root)) = (poses.space(id), poses.root(id)) else {
-        return Ok(None);
-    };
-    if let crate::mate::Space::Own { .. } = space {
-        return Ok(Some(crate::placement::Motion::Identity));
-    }
-    let band = geom_core::predicate::Band::linear(tol)
-        .map_err(|error| NodeErrorKind::Mate(Box::new(crate::mate::MateFault::Band { error })))?;
-    crate::mate::solve::group_frame(doc, root, env, band)
-        .map(Some)
-        .map_err(|(node, error)| NodeErrorKind::PlacementRefused { node, error })
+) -> Option<Affine3<T>> {
+    let frame = poses.frame(id).unwrap_or(crate::placement::Motion::Identity);
+    let pose = poses
+        .pose(id)
+        .unwrap_or_else(crate::mate::solve::Pose::identity);
+    pose.compose_around(frame).non_identity()
 }
 
 /// ASM-2A D-3: materialize an instance through the shipped doors.
@@ -604,20 +568,6 @@ where
                 crate::assembly::CarriedRefusal {
                     route,
                     refusal,
-                    held,
-                }
-            })
-            .collect(),
-        unplaced: part
-            .unplaced
-            .iter()
-            .map(|row| {
-                let (route, crate::assembly::UnplacedGroup { group, cause }, held) =
-                    row.through(id);
-                crate::assembly::CarriedUnplaced {
-                    route,
-                    group,
-                    cause,
                     held,
                 }
             })
@@ -3571,74 +3521,113 @@ fn wire_transform<T: Decide + topo::AtRestPolicy>(
     Ok(OpOut::plain(payload, Arc::clone(&value.name_table)).carrying(value.parts))
 }
 
-/// **A world placement** (A10): the body read, at port `port` of the
-/// operation `of`, placed at `pose` as one copy named under this node
-/// ([`names::name_placed`]). A split's half is its port, as a read of
-/// any port is that output. A boolean's empty result places as itself:
-/// an empty copy, a typed success (F8) the gather finds no solid in.
+/// **A placement's copies** (D10): each shape read, at port `port` of
+/// the operation `of`, placed at the one motion `map` its bundle solved
+/// to (`None` the bit-exact identity), as one copy named under this
+/// node ([`names::name_placed`]). A split's half is its port, as a read
+/// of any port is that output. A boolean's empty result places as
+/// itself: an empty copy, a typed success (F8) the gather finds no solid
+/// in. Several shapes are several copies, each read by its port
+/// ([`ValuePayload::Copies`], [`names::name_placed_copies`]).
 ///
-/// The copy carries the body's declared contact records and the
-/// declaration rows keyed with them (ASM-R2b D-1) with their cells
+/// A copy of one shape carries the body's declared contact records and
+/// the declaration rows keyed with them (ASM-R2b D-1) with their cells
 /// verbatim: a rigid placement keeps every arena key
 /// (`transform_rigid`), so they key the copy as they keyed the body.
-/// Each record cites the body's record it is, through the `body` read.
+/// Each record cites the body's record it is, through the shape's read.
 /// A split's half carries none, as its value carries none.
-fn wire_place_in_world<T: Decide + topo::AtRestPolicy>(
+fn wire_place<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
-    (of, read): (RecipeNodeId, crate::VarId),
-    port: u8,
-    pose: &crate::placement::Placement,
+    shapes: &[((RecipeNodeId, crate::VarId), u8)],
+    map: Option<&Affine3<T>>,
     results: &Results<T>,
-    vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let value = value_of(results, of)?;
-    let mut contacts = Arc::clone(&value.contacts);
-    let mut carried = Arc::clone(&value.carried);
-    let (body, index) = match &value.payload {
-        ValuePayload::Boolean(BooleanValue::Empty) => {
+    // One shape's body, its table projected, its records.
+    let shape = |&((of, _), port): &((RecipeNodeId, crate::VarId), u8)| {
+        let value = value_of(results, of)?;
+        let mut contacts = Arc::clone(&value.contacts);
+        let mut carried = Arc::clone(&value.carried);
+        let (body, index) = match &value.payload {
+            ValuePayload::Boolean(BooleanValue::Empty) => return Ok(None),
+            ValuePayload::Boolean(BooleanValue::Body {
+                body,
+                contacts: records,
+                ..
+            }) => {
+                contacts = Arc::clone(records);
+                (Arc::clone(body), 0)
+            }
+            ValuePayload::Split { above, below } => {
+                let half = if port == 0 {
+                    SplitHalf::Above
+                } else {
+                    SplitHalf::Below
+                };
+                contacts = Arc::default();
+                carried = Arc::default();
+                match if port == 0 { above } else { below } {
+                    SplitSide::Body(b) => (Arc::clone(b), half.output_body()),
+                    SplitSide::Empty => return Err(NodeErrorKind::EmptyHalf { input: of, half }),
+                }
+            }
+            ValuePayload::Copies(copies) => {
+                contacts = Arc::default();
+                carried = Arc::default();
+                let body = copies.get(usize::from(port)).ok_or(NodeErrorKind::MissingInput {
+                    input: of,
+                })?;
+                (Arc::clone(body), u32::from(port))
+            }
+            _ => (read_body(results, of)?, 0),
+        };
+        let table = value
+            .name_table
+            .project(index)
+            .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
+        let placed = place(&body, map, tol)?;
+        Ok(Some((placed, table, contacts, carried, value.parts)))
+    };
+    if let [one] = shapes {
+        let read = one.0.1;
+        let Some((placed, table, contacts, carried, parts)) = shape(one)? else {
             return Ok(OpOut::plain(
                 ValuePayload::Boolean(BooleanValue::Empty),
                 names::empty(),
             ));
-        }
-        ValuePayload::Boolean(BooleanValue::Body {
-            body,
-            contacts: records,
-            ..
-        }) => {
-            contacts = Arc::clone(records);
-            (Arc::clone(body), 0)
-        }
-        ValuePayload::Split { above, below } => {
-            let half = if port == 0 {
-                SplitHalf::Above
-            } else {
-                SplitHalf::Below
-            };
-            contacts = Arc::default();
-            carried = Arc::default();
-            match if port == 0 { above } else { below } {
-                SplitSide::Body(b) => (Arc::clone(b), half.output_body()),
-                SplitSide::Empty => return Err(NodeErrorKind::EmptyHalf { input: of, half }),
-            }
-        }
-        _ => (read_body(results, of)?, 0),
-    };
-    let table = value
-        .name_table
-        .project(index)
-        .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
-    let map = pose.motion_kept(vals, band(tol)?)?.non_identity();
-    let placed = place(&body, map.as_ref(), tol)?;
-    let table = names::name_placed(id, &table, &placed).map_err(NodeErrorKind::Naming)?;
-    Ok(OpOut {
-        contacts: Arc::new(contacts.carried_from(0)),
-        carried,
-        ..OpOut::plain(ValuePayload::Body(Arc::new(placed)), table)
-            .carrying(value.parts)
-            .citing(vec![crate::coincide::CitedInput::Read(read)])
-    })
+        };
+        let table = names::name_placed(id, &table, &placed).map_err(NodeErrorKind::Naming)?;
+        return Ok(OpOut {
+            contacts: Arc::new(contacts.carried_from(0)),
+            carried,
+            ..OpOut::plain(ValuePayload::Body(Arc::new(placed)), table)
+                .carrying(parts)
+                .citing(vec![crate::coincide::CitedInput::Read(read)])
+        });
+    }
+    let mut copies: Vec<(Body<T>, names::NameTable)> = Vec::with_capacity(shapes.len());
+    let mut parts = 0;
+    for one in shapes {
+        let Some((placed, table, _, _, p)) = shape(one)? else {
+            return Err(NodeErrorKind::EmptyOperand { input: one.0.0 });
+        };
+        parts += p;
+        copies.push((placed, table));
+    }
+    let named: Vec<(&names::NameTable, &Body<T>)> =
+        copies.iter().map(|(body, table)| (table, body)).collect();
+    let table = names::name_placed_copies(id, &named).map_err(NodeErrorKind::Naming)?;
+    Ok(OpOut::plain(
+        ValuePayload::Copies(copies.into_iter().map(|(body, _)| Arc::new(body)).collect()),
+        table,
+    )
+    .carrying(parts)
+    .citing(
+        shapes
+            .iter()
+            .map(|((_, read), _)| crate::coincide::CitedInput::Read(*read))
+            .collect(),
+    ))
 }
 
 /// **What `node`'s slots read as written** ([`crate::Doc::slot_expansion`]),

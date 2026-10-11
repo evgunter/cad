@@ -762,14 +762,13 @@ pub enum SelectionRefusal {
         /// The name.
         name: Box<StableName>,
     },
-    /// The two selections live in different spaces (A9, A11 (2)): one
-    /// is in an unplaced group's own space, and nothing outside an
-    /// unplaced group is compared with it.
+    /// The two selections live in different spaces (D10, Spaces), and
+    /// nothing in one is compared with the other.
     AcrossSpaces {
-        /// The unplaced group, by its root.
-        group: RecipeNodeId,
-        /// Why nothing places it.
-        cause: crate::mate::Unplaced,
+        /// One selection's space.
+        a: crate::mate::Space,
+        /// The other's.
+        b: crate::mate::Space,
     },
 }
 
@@ -805,15 +804,22 @@ impl crate::spoken::Say for SelectionRefusal {
                 "{} resolves, but not to a face of the selected body",
                 by.name(name)
             ),
-            Self::AcrossSpaces { group, cause } => write!(
-                f,
-                "the two selections live in different spaces — one is in the own space of the \
-                 group rooted at {}, unplaced because {}, and nothing outside an \
-                 unplaced group is compared with it. {}",
-                by.node(*group),
-                crate::spoken::Said(cause, by),
-                crate::sentence::Recourse(crate::mate::UNPLACED_RECOURSE)
-            ),
+            Self::AcrossSpaces { a, b } => {
+                let space = |s: &crate::mate::Space| match s.loose() {
+                    None => "the world's space".to_owned(),
+                    Some(root) => format!("the space of the loose copy {}", by.node(root)),
+                };
+                write!(
+                    f,
+                    "the two selections live in different spaces, {} and {}, and nothing in \
+                     one is compared with the other. {}",
+                    space(a),
+                    space(b),
+                    crate::sentence::Recourse(
+                        "place one copy relative to the other, or measure within one space"
+                    )
+                )
+            }
         }
     }
 }
@@ -849,14 +855,12 @@ impl SelectionRefusal {
             }
             Self::Unresolved { name } => format!("unresolved {name:?}"),
             Self::NotAFace { name } => format!("not_a_face {name:?}"),
-            Self::AcrossSpaces { group, cause } => {
-                let cause = match cause {
-                    crate::mate::Unplaced::NoOffset => cause.word().to_owned(),
-                    crate::mate::Unplaced::DeadGauge { gauge } => {
-                        format!("{}={}", cause.word(), gauge.full())
-                    }
+            Self::AcrossSpaces { a, b } => {
+                let space = |s: &crate::mate::Space| match s.loose() {
+                    None => "world".to_owned(),
+                    Some(root) => format!("loose={}", root.full()),
                 };
-                format!("across_spaces group={} {cause}", group.full())
+                format!("across_spaces {} {}", space(a), space(b))
             }
         }
     }
@@ -1292,9 +1296,9 @@ pub fn clearance_with(
     };
     let ev: Evaluation<Interval> = evaluate(doc, None, &CancelToken::new(), &opts, query.tol);
 
-    if let Some((group, cause)) = ev.across_spaces(a.at, b.at) {
+    if let Some((a, b)) = ev.across_spaces(a.at, b.at) {
         return ClearanceReport::refused(ClearanceRefusal::Selection(
-            SelectionRefusal::AcrossSpaces { group, cause },
+            SelectionRefusal::AcrossSpaces { a, b },
         ));
     }
     let windows_a = match windows_of(&ev, a, Some(band)) {

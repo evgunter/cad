@@ -168,6 +168,8 @@ pub enum Minted {
     /// A variable's id, minted by `DeclareVar`, by an edit's lowering
     /// for an anonymous one, or by `InsertNode` for its node's outputs.
     Var(VarId),
+    /// A constraint's id, minted by `AddConstraint`.
+    Constraint(crate::node::ConstraintId),
 }
 
 impl Minted {
@@ -178,6 +180,7 @@ impl Minted {
             Self::Node(id) => id.0,
             Self::Step(step) => step.0,
             Self::Var(var) => var.0,
+            Self::Constraint(c) => c.0,
         }
     }
 }
@@ -190,6 +193,7 @@ impl core::fmt::Display for Minted {
             Self::Node(id) => write!(f, "node {id}"),
             Self::Step(step) => write!(f, "step {step}"),
             Self::Var(var) => write!(f, "variable {var}"),
+            Self::Constraint(c) => write!(f, "constraint {c}"),
         }
     }
 }
@@ -244,6 +248,14 @@ pub(crate) enum MintingEdit<'a, P, S: crate::Slot = crate::VarId> {
         kind: VarKind,
         /// What it holds.
         held: Held,
+    },
+    /// A constraint added to a placement: the placement and the
+    /// constraint as stored, its id aside.
+    AddConstraint {
+        /// The placement.
+        placement: RecipeNodeId,
+        /// The mate it holds.
+        mate: crate::mate::Mate,
     },
 }
 
@@ -337,6 +349,7 @@ const NODE_TAG: &[u8] = b"mint/node\0";
 const STEP_TAG: &[u8] = b"mint/step\0";
 const VAR_TAG: &[u8] = b"mint/var\0";
 const OUTPUT_TAG: &[u8] = b"mint/output\0";
+const CONSTRAINT_TAG: &[u8] = b"mint/constraint\0";
 
 impl Mint {
     /// A document's mint before anything is inserted: the zero chain
@@ -394,6 +407,31 @@ impl Mint {
         self.holds(Minted::Node(id))
     }
 
+    /// Whether the document minted `id` as a constraint's id.
+    #[must_use]
+    pub fn has_constraint(&self, id: crate::node::ConstraintId) -> bool {
+        self.holds(Minted::Constraint(id))
+    }
+
+    /// **The id an add of `mate` to `placement` mints**: the chain
+    /// extended by the add's canonical bytes, then once for the
+    /// constraint.
+    pub(crate) fn add_constraint(
+        &mut self,
+        placement: RecipeNodeId,
+        mate: &crate::mate::Mate,
+    ) -> crate::node::ConstraintId {
+        let edit = self.extended(&MintingEdit::<'_, ()>::AddConstraint {
+            placement,
+            mate: mate.clone(),
+        });
+        let (chain, id) = Self::draw(CONSTRAINT_TAG, edit, &self.log);
+        let id = crate::node::ConstraintId(id);
+        self.chain = chain;
+        self.log.push(Minted::Constraint(id));
+        id
+    }
+
     /// Whether the document minted `step` as a step's id.
     #[must_use]
     pub fn has_step(&self, step: StepId) -> bool {
@@ -410,7 +448,7 @@ impl Mint {
     pub fn vars(&self) -> impl Iterator<Item = VarId> + '_ {
         self.log.iter().filter_map(|entry| match *entry {
             Minted::Var(var) => Some(var),
-            Minted::Node(_) | Minted::Step(_) => None,
+            Minted::Node(_) | Minted::Step(_) | Minted::Constraint(_) => None,
         })
     }
 

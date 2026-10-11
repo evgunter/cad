@@ -122,18 +122,12 @@ pub struct Evaluation<T: Decide> {
     /// How many nodes were reused from the prior evaluation by
     /// content-key match.
     pub reused: usize,
-    /// **Every node whose value lives in an unplaced group's own
-    /// space** (A9, A11 (2)): the group, named by its root, and why
-    /// nothing places it. A node absent here lives in the world, or
-    /// denotes no geometry. [`crate::product::product`] gathers the
-    /// world alone, and the at-rest gate checks each space by itself.
-    pub unplaced: BTreeMap<RecipeNodeId, (RecipeNodeId, crate::mate::Unplaced)>,
-    /// **Every node whose value holds a part that leaves an unplaced
-    /// group out** (A9, A11 (2)): an instance whose part, or a part
-    /// below it, holds one, and every node that consumes such geometry,
-    /// with the groups as the instance carried them across the seam
-    /// ([`crate::CarriedUnplaced`]). A node absent here holds none.
-    pub unplaced_below: BTreeMap<RecipeNodeId, Vec<crate::assembly::CarriedUnplaced>>,
+    /// **Every node whose value lives in a loose copy's space** (D10,
+    /// Spaces), with the loose copy's placement. A node absent here
+    /// lives in the world's space, or denotes no geometry.
+    /// [`crate::product::product`] gathers the world's alone, and the
+    /// at-rest census checks each space by itself.
+    pub loose: BTreeMap<RecipeNodeId, RecipeNodeId>,
     /// How many REFERENCED documents this evaluation actually
     /// evaluated across the document seam (ASM-2A D-3's sharing
     /// evidence). N instances of one part contribute 1; a memo-hit
@@ -175,68 +169,38 @@ impl<T: Decide> Evaluation<T> {
         })
     }
 
-    /// **Whether two nodes' values live in different spaces** (A9,
-    /// A11 (2)) — the one predicate every door comparing two nodes'
-    /// geometry asks: `Some` naming the unplaced group (by its root,
-    /// with its cause) that one of them lives in and the other does
-    /// not, `None` when both live in one space. A node absent from
-    /// [`Evaluation::unplaced`] lives in the world.
+    /// **Whether two nodes' values live in different spaces** (D10,
+    /// Spaces) — the one predicate every door comparing two nodes'
+    /// geometry asks: `Some` naming the two spaces, `None` when both
+    /// live in one.
     pub fn across_spaces(
         &self,
         a: RecipeNodeId,
         b: RecipeNodeId,
-    ) -> Option<(RecipeNodeId, crate::mate::Unplaced)> {
+    ) -> Option<(crate::mate::Space, crate::mate::Space)> {
         let (sa, sb) = (self.space(a), self.space(b));
-        if sa == sb {
-            return None;
-        }
-        sa.own().or(sb.own())
+        (sa != sb).then_some((sa, sb))
     }
 
-    /// **The space `node`'s value lives in** (A9, A11 (2)), read off
-    /// [`Evaluation::unplaced`]: the world for a node absent there.
+    /// **The space `node`'s value lives in** (D10, Spaces), read off
+    /// [`Evaluation::loose`]: the world's for a node absent there.
     pub fn space(&self, node: RecipeNodeId) -> crate::mate::Space {
-        crate::mate::Space::of(self.unplaced.get(&node).copied())
+        self.loose
+            .get(&node)
+            .map_or(crate::mate::Space::World, |&root| crate::mate::Space::Loose {
+                root,
+            })
     }
 
-    /// **[`Evaluation::unplaced`] in id order**, as `(node, root,
-    /// cause)`: the order the nodes were inserted in, the one reading of
-    /// the map that a list, a report or a refusal takes.
-    pub fn unplaced_in_order(
-        &self,
-    ) -> impl Iterator<Item = (RecipeNodeId, RecipeNodeId, crate::mate::Unplaced)> + '_ {
-        self.unplaced
+    /// **Every loose copy**, by its placement, in id order: a loose
+    /// copy lives in its own space, so each is its own row of
+    /// [`Evaluation::loose`].
+    pub fn loose_roots(&self) -> Vec<RecipeNodeId> {
+        self.loose
             .iter()
-            .map(|(&node, &(root, cause))| (node, root, cause))
-    }
-
-    /// **Every unplaced group, by its root, with its cause**, in id
-    /// order ([`Evaluation::unplaced_in_order`]): a root lives in its
-    /// own group's space, so each group is its root's row.
-    pub fn unplaced_groups(&self) -> Vec<(RecipeNodeId, crate::mate::Unplaced)> {
-        self.unplaced_in_order()
-            .filter(|&(node, root, _)| node == root)
-            .map(|(_, root, cause)| (root, cause))
+            .filter(|&(node, root)| node == root)
+            .map(|(_, &root)| root)
             .collect()
-    }
-
-    /// **Every unplaced group in a document below this one** (A9,
-    /// A11 (2)), routed through the instance it arrived by
-    /// ([`crate::CarriedUnplaced`]), once each, in [`Self::order`]: what
-    /// the parts' world products leave out, which a door writing one
-    /// world must refuse over.
-    pub fn all_unplaced_below(&self) -> Vec<crate::assembly::CarriedUnplaced> {
-        let mut out: Vec<crate::assembly::CarriedUnplaced> = Vec::new();
-        let rows = self
-            .order
-            .iter()
-            .filter_map(|id| self.unplaced_below.get(id));
-        for row in rows.flatten() {
-            if !out.contains(row) {
-                out.push(row.clone());
-            }
-        }
-        out
     }
 
     /// The node's successful value, if it has one — [`Evaluation::usable`]
@@ -769,16 +733,13 @@ pub enum ValuePayload<T: Decide> {
     /// which (D3), so the asymmetry between the placers and the rest
     /// is the decision, not an omission.
     Instances(Vec<Arc<Body<T>>>),
-    /// A Mate node's ROLE in the solve (A11 rule 4; ASM-R2a D-1): a
-    /// tree mate determined its child, a non-tree mate declared and
-    /// solved nothing. Not body-denoting, so the product gather skips
-    /// it — which is what "an ordinary non-body root" means in code.
-    Mate(crate::mate::MateRole),
-    /// A [`crate::node::Node::Gauge`]: it DENOTES NO BODY (A11 (2)). Its
-    /// placement's slots evaluate as every node's do, so a slot that
-    /// does not refuses at the gauge; where it sits is read by the
-    /// instances on it, each in its own lane.
-    Gauge,
+    /// **The world** ([`crate::node::Node::World`]): it DENOTES NO
+    /// BODY and defines no variable; its node's value says so.
+    World,
+    /// **A placement's copies** where it copies more than one shape,
+    /// one per shape in list order, each read by its port. A placement
+    /// of one shape is a [`ValuePayload::Body`].
+    Copies(Vec<Arc<Body<T>>>),
     /// A `Measure` node's typed F1 quantity (E3): the measured value
     /// in kernel units with the dimension it was measured in. Not
     /// body-denoting — the product gather skips it exactly as it skips
@@ -848,11 +809,8 @@ macro_rules! family_word {
     (instances) => {
         "instances"
     };
-    (mate) => {
-        "mate"
-    };
-    (gauge) => {
-        "gauge"
+    (world) => {
+        "world"
     };
     (measure) => {
         "measure"
@@ -874,8 +832,7 @@ pub(crate) mod family {
     pub(crate) const BOOLEAN: &str = family_word!(boolean);
     pub(crate) const SPLIT: &str = family_word!(split);
     pub(crate) const INSTANCES: &str = family_word!(instances);
-    pub(crate) const MATE: &str = family_word!(mate);
-    pub(crate) const GAUGE: &str = family_word!(gauge);
+    pub(crate) const WORLD: &str = family_word!(world);
     pub(crate) const MEASURE: &str = family_word!(measure);
     pub(crate) const ASSERTION: &str = family_word!(assertion);
 }
@@ -975,8 +932,8 @@ impl<T: Decide> ValuePayload<T> {
             Self::Boolean(_) => family::BOOLEAN,
             Self::Split { .. } => family::SPLIT,
             Self::Instances(_) => family::INSTANCES,
-            Self::Mate(_) => family::MATE,
-            Self::Gauge => family::GAUGE,
+            Self::World => family::WORLD,
+            Self::Copies(_) => family::BODY,
             Self::Measure { .. } => family::MEASURE,
             // The SAME family name as a measure that has a value: the
             // node kind is what a typed operand mismatch is about, and
@@ -1085,8 +1042,7 @@ pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'sta
         Node::Subtract { .. } => (family::BOOLEAN, true),
         Node::Split { .. } => (family::SPLIT, false),
         Node::Pattern { .. } => (family::INSTANCES, true),
-        Node::Mate { .. } => (family::MATE, false),
-        Node::Gauge { .. } => (family::GAUGE, false),
+        Node::World => (family::WORLD, false),
         Node::Measure { .. } => (family::MEASURE, false),
         Node::Assertion { .. } => (family::ASSERTION, false),
         Node::Extrude { .. }
@@ -1102,7 +1058,7 @@ pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'sta
         | Node::Intersect { .. }
         | Node::PlacedUnion { .. }
         | Node::Part { .. }
-        | Node::PlaceInWorld { .. }
+        | Node::Place { .. }
         | Node::InstantiatePart { .. } => (family::BODY, true),
     };
     match placer {
@@ -1968,27 +1924,15 @@ pub enum NodeErrorKind {
     /// pose. The fault names its own subject — the pair, the residual
     /// subgroup, the failed predicate and its measured clash.
     Mate(Box<crate::mate::MateFault>),
-    /// **Geometry from an unplaced group's own space, beside geometry
-    /// from another space** (A9, A11 (2)): a node whose inputs lie in
-    /// two spaces — a boolean, a union, a measure, a pattern about a
-    /// world axis — would compare an unplaced group with something
-    /// outside it, and nothing outside the group is compared with it.
-    /// Also an instance whose gauge chain names a deleted gauge, read
-    /// where a world frame is needed.
-    Unplaced {
-        /// The unplaced group, named by its root.
-        group: RecipeNodeId,
-        /// Why nothing places it.
-        cause: crate::mate::Unplaced,
-    },
-    /// **A placement on an instance's frame did not evaluate**: a gauge
-    /// on its chain, or its group root's offset. The instance has no
-    /// pose in this lane; the refusal is that node's own, carried.
-    PlacementRefused {
-        /// The gauge, or the root instance whose offset refused.
-        node: RecipeNodeId,
-        /// Its refusal, unaltered.
-        error: NodeRefusal,
+    /// **A read across two spaces** (D10, Spaces): a node whose reads
+    /// lie in two kinds — a loose copy's and the world's, or two loose
+    /// copies' — would relate two raw coordinate systems, which only a
+    /// mate may do.
+    SpaceMismatch {
+        /// One space the node reads.
+        a: crate::mate::Space,
+        /// Another.
+        b: crate::mate::Space,
     },
     /// A crossing declaration on this instance no longer resolves
     /// against the pinned part (ASM-R2b D-4/D-5; A4's "does it
@@ -2153,21 +2097,19 @@ impl crate::spoken::Say for NodeErrorKind {
                 write!(f, "the profile's pieces have no names: {fault}")
             }
             Self::Mate(fault) => write!(f, "the mate solve refused: {}", Said(&**fault, by)),
-            Self::Unplaced { group, cause } => write!(
-                f,
-                "this reads the group rooted at {}, which is unplaced because {}, so \
-                 it lives in its own space and nothing outside it is compared with it. {}",
-                by.node(*group),
-                Said(cause, by),
-                crate::sentence::Recourse(crate::mate::UNPLACED_RECOURSE)
-            ),
-            // The refusal itself is drawn on its own line (`carried`).
-            Self::PlacementRefused { node, .. } => {
-                let p = by.node(*node);
+            Self::SpaceMismatch { a, b } => {
+                let space = |s: &crate::mate::Space| match s.loose() {
+                    None => "the world's space".to_owned(),
+                    Some(root) => format!("the space of the loose copy {}", by.node(root)),
+                };
                 write!(
                     f,
-                    "the placement at {p}, on this instance's frame, does not evaluate. {}",
-                    crate::sentence::Recourse(format_args!("repair {p}"))
+                    "this reads {} and {}, and only a mate relates two spaces. {}",
+                    space(a),
+                    space(b),
+                    crate::sentence::Recourse(
+                        "place one copy relative to the other, or read only one space"
+                    )
                 )
             }
             Self::CrossingUnverified {
@@ -2606,7 +2548,6 @@ impl NodeErrorKind {
         match self {
             Self::Part { fault, .. } => fault.carried(),
             Self::Mate(fault) => fault.carried(),
-            Self::PlacementRefused { node, error } => Some((*node, error)),
             _ => None,
         }
     }
@@ -3791,7 +3732,11 @@ where
     // result DAG — canceled prefixes resolve what completed and report
     // the rest as typed losses carrying their standing.
     let resolved_appearance = resolve_appearance(doc, &order, &nodes);
-    let unplaced_below = unplaced_below(doc, &order, &nodes);
+    let loose = spaces
+        .space
+        .iter()
+        .filter_map(|(&node, space)| Some((node, space.loose()?)))
+        .collect();
 
     Evaluation {
         epoch: opts.epoch,
@@ -3802,54 +3747,11 @@ where
         outcome,
         recomputed,
         reused,
-        unplaced: spaces.own,
-        unplaced_below,
+        loose,
         part_evaluations: parts.evaluations(),
         appearance: resolved_appearance,
         env,
     }
-}
-
-/// [`Evaluation::unplaced_below`]: each instance's carried groups, and
-/// every consumer of geometry holding them, in one pass in schedule
-/// order, which puts every input before its consumer. A node that
-/// denotes no geometry of its own — a mate, a declaration, a measure,
-/// an assertion, a gauge — holds none.
-fn unplaced_below<P: crate::ProfilePayload, T: Decide>(
-    doc: &Doc<P>,
-    order: &[RecipeNodeId],
-    nodes: &BTreeMap<RecipeNodeId, NodeResult<T>>,
-) -> BTreeMap<RecipeNodeId, Vec<crate::assembly::CarriedUnplaced>> {
-    let mut out: BTreeMap<RecipeNodeId, Vec<crate::assembly::CarriedUnplaced>> = BTreeMap::new();
-    for &id in order {
-        let Some(node) = doc.node(id) else { continue };
-        if matches!(
-            node,
-            crate::node::Node::Mate { .. }
-                | crate::node::Node::Measure { .. }
-                | crate::node::Node::Assertion { .. }
-                | crate::node::Node::Gauge { .. }
-        ) {
-            continue;
-        }
-        // A node with no value carries nothing up: its own refusal is
-        // the evaluation's to report.
-        let mut rows: Vec<crate::assembly::CarriedUnplaced> =
-            usable_in(nodes, id, || NodeStanding::NotEvaluated { node: id })
-                .map(|value| value.carried.unplaced.clone())
-                .unwrap_or_default();
-        for input in doc.upstream_of(id, node) {
-            for row in out.get(&input).into_iter().flatten() {
-                if !rows.contains(row) {
-                    rows.push(row.clone());
-                }
-            }
-        }
-        if !rows.is_empty() {
-            out.insert(id, rows);
-        }
-    }
-    out
 }
 
 /// **The operation an operand reads** — the node whose output `var`
@@ -3966,8 +3868,7 @@ where
         outcome: EvalOutcome::Completed,
         recomputed: 0,
         reused: 0,
-        unplaced: BTreeMap::new(),
-        unplaced_below: BTreeMap::new(),
+        loose: BTreeMap::new(),
         part_evaluations: 0,
         appearance: resolved_appearance,
         env: doc.var_env::<T>(),
@@ -4061,12 +3962,13 @@ where
         // Unreachable: the schedule only lists live nodes.
         return fail(bracket, NodeErrorKind::MissingInput { input: id });
     };
-    // A mate's log opens with what the solve decided about it: the
-    // solve ran before any frame was open and kept each decision for
-    // the one mate whose answer it decided
-    // (`mate::solve::SolvedPoses::take_recordings`), so the decision
-    // is on this mate's log whether the mate evaluates `Ok` or not.
-    let spliced = matches!(node, crate::node::Node::Mate { .. }).then(|| {
+    // A placement's log opens with what the solve decided about its
+    // bundle: the solve ran before any frame was open and kept each
+    // decision for the one placement whose bundle it decided
+    // (`mate::solve::SolvedPoses::take_recordings`), so the decision is
+    // on this placement's log whether it evaluates `Ok` or not.
+    let is_placement = crate::mate::solve::bundle_of(node).is_some();
+    let spliced = is_placement.then(|| {
         let mut kept = geom_core::k_stats::Recorded::default();
         for recording in op_env.poses.take_recordings(id) {
             kept.verdicts
@@ -4092,14 +3994,11 @@ where
     {
         return fail(bracket, NodeErrorKind::UnresolvedRead { slot, var });
     }
-    // A mate the solve faulted refuses in its own words even where the
-    // instances it reads failed with it: the solve's fault is about the
-    // mate, and the instances' is the same fault seen from the group,
-    // so poisoning the mate through them would lose the one sentence
-    // that names it.
-    if matches!(node, crate::node::Node::Mate { .. })
-        && let Some(fault) = op_env.poses.fault(id)
-    {
+    // A placement the solve faulted refuses in its own words even where
+    // the copies its constraints read failed with it: the solve's fault
+    // is about its bundle, so poisoning it through them would lose the
+    // one sentence that names it.
+    if is_placement && let Some(fault) = op_env.poses.fault(id) {
         return fail(bracket, NodeErrorKind::Mate(Box::new(fault.clone())));
     }
     let mut keys: BTreeMap<RecipeNodeId, (ContentKey, NamingKey)> = BTreeMap::new();
@@ -4178,18 +4077,16 @@ where
         Ok(words) => words,
         Err(kind) => return fail(bracket, kind),
     };
-    // A node whose inputs lie in two spaces compares an unplaced group
-    // with something outside it (A9), and refuses before it reads them.
-    if let Some(&(group, cause)) = op_env.across.get(&id) {
-        return fail(bracket, NodeErrorKind::Unplaced { group, cause });
+    // A node whose reads lie in two spaces relates two raw coordinate
+    // systems, which only a mate may do (D10), and refuses before it
+    // reads them.
+    if let Some(&(a, b)) = op_env.across.get(&id) {
+        return fail(bracket, NodeErrorKind::SpaceMismatch { a, b });
     }
     // An instance's group frame, in this lane: read before the key,
     // which it feeds, and again by the op (the profile program's
     // precedent below says why twice is right).
-    let group_frame = match wire::instance_frame(doc, id, op_env.poses, env, tol) {
-        Ok(frame) => frame,
-        Err(kind) => return fail(bracket, kind),
-    };
+    let group_frame = op_env.poses.frame(id);
 
     // Profile-program resolution (LIB-SWITCH §4b): program Exprs
     // resolve at f64 because they feed C6 structure selection, which
@@ -4694,6 +4591,14 @@ mod tag {
         mate_frame_base {
             PART = 1,
             FACE = 2,
+            WORLD = 3,
+        }
+        /// A constraint side's read, before its name: a face, the copy
+        /// itself, or the world.
+        side_read {
+            FACE = 1,
+            COPY = 2,
+            WORLD = 3,
         }
         /// **The word before a slot's NOMINAL — the one home of why a
         /// key holds one, and of every exception.** It is written
@@ -4942,7 +4847,7 @@ fn document_verb_tag(kind: verbs::VerbKind) -> u8 {
 /// key does not need is WHICH fault: a faulted mate evaluates to
 /// `Err` and the memo serves only `NodeResult::Ok` priors, so two
 /// different faults on one mate can never be confused through reuse.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct SolveAnswer<T: geom_core::Real> {
     /// The instance's pose around its group's frame, at this
     /// evaluation's scalar, `None` when the node is not an instance the
@@ -4953,23 +4858,19 @@ struct SolveAnswer<T: geom_core::Real> {
     /// space. `None` beside a `None` pose, and for a frame that did not
     /// evaluate, which refuses the node before its key is read.
     frame: Option<crate::placement::Motion<T>>,
-    /// The role the solve assigned. `None` covers BOTH "not a live
-    /// mate" and a live mate the solve never reached — a `Band`
-    /// refusal faults every mate in the document without writing a
-    /// role for any of them.
-    role: Option<crate::mate::MateRole>,
     /// Whether the solve recorded a fault against the node.
     faulted: bool,
-    /// **The part each face-based side of a mate resolves through**,
-    /// by reference — `None` for an authored side, for a side whose
-    /// walk reaches no member, and for every node that is not a mate.
+    /// **The part each face-based side of the placement's constraints
+    /// resolves through**, in bundle order, `a` before `b`, by
+    /// reference — `None` for a side on no face base, and for a side
+    /// whose walk reaches no instance.
     /// A face frame's value is the part's product, so the part's
     /// content pin is what the mate's key must carry for that side
     /// (a part edit that moves the face moves the pin; one that leaves
     /// the part alone leaves it): the pin over-approximates the face
     /// — an edit elsewhere in the part moves it too — in the direction
     /// that re-reads rather than serves a stale pose.
-    face_parts: [Option<crate::ident::DocRef>; 2],
+    face_parts: Vec<Option<crate::ident::DocRef>>,
 }
 
 impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
@@ -4981,29 +4882,35 @@ impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
         id: RecipeNodeId,
         frame: Option<crate::placement::Motion<T>>,
     ) -> Self {
-        let face_parts = match doc.node(id) {
-            Some(crate::node::Node::Mate {
-                a, b, alignment, ..
-            }) => {
-                // The solve's own derivation of the part a face side
-                // resolves against (`mate::solve::part_of`), so the key
-                // and the solve name one part for one side.
-                let part_of = |side: &crate::VarId, frame: &crate::mate::MateFrame| match frame.base
-                {
-                    crate::mate::FrameBase::Part => None,
-                    crate::mate::FrameBase::Face => {
-                        let member = crate::mate::member::member_of_side(doc, *side)?;
-                        crate::mate::solve::part_of(doc, &member).ok()
-                    }
-                };
-                [part_of(a, &alignment.a), part_of(b, &alignment.b)]
+        // The solve's own derivation of the part a face side resolves
+        // against (`mate::solve::part_of`), so the key and the solve
+        // name one part for one side.
+        let part_of = |read: &crate::mate::SideRead<crate::VarId>,
+                       frame: &crate::mate::MateFrame| match (read, frame.base) {
+            (crate::mate::SideRead::Face(side), crate::mate::FrameBase::Face) => {
+                let member = crate::mate::member::member_of_side(doc, *side)?;
+                crate::mate::solve::part_of(doc, &member).ok()
             }
-            _ => [None, None],
+            _ => None,
         };
+        let face_parts = doc
+            .node(id)
+            .and_then(crate::mate::solve::bundle_of)
+            .map(|bundle| {
+                bundle
+                    .iter()
+                    .flat_map(|c| {
+                        [
+                            part_of(&c.mate.a, &c.mate.alignment.a),
+                            part_of(&c.mate.b, &c.mate.alignment.b),
+                        ]
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         Self {
             pose: poses.pose(id).filter(|_| poses.fault(id).is_none()),
             frame,
-            role: poses.role(id),
             faulted: poses.fault(id).is_some(),
             face_parts,
         }
@@ -5012,12 +4919,12 @@ impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
     /// The face-based sides' parts, each as its content pin behind a
     /// presence word — read after the alignment, so a face frame's key
     /// carries the product it resolves against.
-    fn feed_face_parts(self, h: &mut KeyHasher) {
-        for part in self.face_parts {
+    fn feed_face_parts(&self, h: &mut KeyHasher) {
+        for part in &self.face_parts {
             match part {
                 Some(doc_ref) => {
                     h.write_tag(tag::presence::PRESENT);
-                    feed_doc_ref(h, &doc_ref);
+                    feed_doc_ref(h, doc_ref);
                 }
                 None => h.write_tag(tag::presence::ABSENT),
             }
@@ -5029,7 +4936,7 @@ impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
     /// the group's frame, each by its lane's exact representation
     /// ([`ContentBits`]): a dual's two channels, value then tangent, so
     /// a seeded pass's pose never meets an unseeded prior's entry.
-    fn feed_placement(self, h: &mut KeyHasher) {
+    fn feed_placement(&self, h: &mut KeyHasher) {
         // The linear part column by column, then the translation — the
         // order a stored frame's arrays hold them in.
         let frame_bits = |h: &mut KeyHasher, map: &geom_core::Affine3<T>| {
@@ -5061,16 +4968,9 @@ impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
         }
     }
 
-    /// The mate's tags: one per `MateRole` variant plus one for "no
-    /// role", and the fault flag.
-    fn feed_mate(self, h: &mut KeyHasher) {
-        use crate::mate::MateRole;
-        h.write_tag(match self.role {
-            None => 0,
-            Some(MateRole::Determining) => 1,
-            Some(MateRole::Declaring) => 2,
-            Some(MateRole::Refused) => 3,
-        });
+    /// The fault flag: whether the solve recorded a fault against the
+    /// placement.
+    fn feed_fault(&self, h: &mut KeyHasher) {
         h.write_tag(if self.faulted {
             tag::fault::FAULTED
         } else {
@@ -5207,9 +5107,6 @@ where
             PatternKind::Circular { .. } => 21,
             PatternKind::Explicit(_) => 22,
         },
-        // A fresh word — an existing one must never be reused for a
-        // new meaning.
-        Node::Mate { .. } => 23,
         // A chamfer and a fillet of the same size on the same edges are
         // different geometry, so they must not share a key. Same home
         // as the fillet's, for the same reason.
@@ -5254,12 +5151,11 @@ where
         // existing node kind reaches — so the format version does not
         // bump for it.
         Node::Shell { .. } => document_verb_tag(verbs::VerbKind::Shell),
-        // A fresh word: a gauge denotes no body, and its key is its
-        // slots and its chain's shape.
-        Node::Gauge { .. } => 36,
-        // A fresh word: a world placement's key is its body's upstream
-        // key, its pose's slots and its chain's shape.
-        Node::PlaceInWorld { .. } => 37,
+        // Fresh words: a placement's key is its shapes' upstream keys,
+        // its bundle and the pose its bundle solved to; the world's is
+        // its tag alone.
+        Node::Place { .. } => 38,
+        Node::World => 39,
     };
     // NODE-KIND-VOCABULARY END
     h.write_tag(kind);
@@ -5454,27 +5350,16 @@ where
         Node::InstantiatePart {
             doc_ref,
             interface,
-            gauge: _,
-            offset,
+            constraints,
         } => {
             feed_doc_ref(&mut h, doc_ref);
-            // The SOLVED pose and the group's frame in this lane (A11
-            // (5)): a mate edit or a gauge's parameter that moves this
-            // instance moves its key, and a group that refuses to solve
-            // keys DISTINCTLY from any pose — otherwise a repaired
-            // document could hit the memo on a stale success.
+            // The SOLVED pose and its anchor's frame in this lane: a
+            // constraint edit, or a parameter a target reads, that moves
+            // this copy moves its key, and a bundle that refuses keys
+            // DISTINCTLY from any pose — otherwise a repaired document
+            // could hit the memo on a stale success.
             solve_answer.feed_placement(&mut h);
-            // The instance's own offset, by the rule a transform's
-            // placement keys by: on a root it is inside the frame fed
-            // above, on another member it is the statement the solve
-            // checks.
-            match offset {
-                Some(offset) => {
-                    h.write_tag(tag::presence::PRESENT);
-                    feed_placement_shape(&mut h, offset);
-                }
-                None => h.write_tag(tag::presence::ABSENT),
-            }
+            feed_bundle(&mut h, constraints, selections, &solve_answer);
             h.write_u64(interface.crossings.len() as u64);
             for crossing in &interface.crossings {
                 let crate::node::InterfaceCrossing::Mate {
@@ -5487,31 +5372,17 @@ where
                 feed_stable_name(&mut h, inner);
             }
         }
-        // A mate's key is what the mate SAYS — its two faces, its class
-        // and its alignment — and the solve's answer for it, which is
-        // what the mate's value IS (`SolveAnswer` carries why the key
-        // reads that). Each side is a selection: its body is carried by
-        // the upstream keys, in side order, and its name feeds here, as
-        // a face frame's does.
-        Node::Mate {
-            a,
-            b,
-            class,
-            alignment,
+        // A placement's shapes are input edges; their count, its bundle
+        // and the pose it solved to feed here.
+        Node::Place {
+            shapes,
+            constraints,
         } => {
-            for side in [*a, *b] {
-                for name in selected(selections, side) {
-                    feed_stable_name(&mut h, name);
-                }
-            }
-            // The class's word is `ContactClass::content_tag` — the one
-            // spelling the crossing record and the mate both write, so
-            // the two cannot key a class inconsistently.
-            h.write_u64(class.content_tag());
-            feed_alignment(&mut h, alignment);
-            solve_answer.feed_face_parts(&mut h);
-            solve_answer.feed_mate(&mut h);
+            h.write_u64(shapes.len() as u64);
+            solve_answer.feed_placement(&mut h);
+            feed_bundle(&mut h, constraints, selections, &solve_answer);
         }
+        Node::World => {}
         // The operands and the members are input edges.
         Node::Subtract { from: _, tool: _ } => {}
         Node::Union { members } | Node::Intersect { members } => {
@@ -5731,14 +5602,6 @@ where
         Node::Transform {
             input: _,
             placement,
-        }
-        | Node::PlaceInWorld {
-            body: _,
-            pose: placement,
-        }
-        | Node::Gauge {
-            parent: _,
-            placement,
         } => {
             feed_placement_shape(&mut h, placement);
         }
@@ -5941,7 +5804,12 @@ const RETIRED_VERB_TAGS: &[(u8, &str)] = &[
 /// The tag numbers [`content_key`]'s node-kind match may not use:
 /// retired with the node kinds that held them, and dead for good.
 #[cfg(test)]
-const RETIRED_NODE_KIND_TAGS: &[(u8, &str)] = &[(14, "Declare")];
+const RETIRED_NODE_KIND_TAGS: &[(u8, &str)] = &[
+    (14, "Declare"),
+    (23, "Mate"),
+    (36, "Gauge"),
+    (37, "PlaceInWorld"),
+];
 
 /// The content-key tag of an arc mode — the ONE place a mode's key
 /// identity is chosen, keyed on [`profile::ArcMode`] rather than on an
@@ -6293,9 +6161,45 @@ fn feed_alignment(h: &mut KeyHasher, a: &crate::mate::Alignment) {
         h.write_tag(match base {
             crate::mate::FrameBase::Part => tag::mate_frame_base::PART,
             crate::mate::FrameBase::Face => tag::mate_frame_base::FACE,
+            crate::mate::FrameBase::World => tag::mate_frame_base::WORLD,
         });
         feed_placement_shape(h, offset);
     }
+}
+
+/// **A bundle's key**: each constraint's id, what it SAYS — each side's
+/// read (a face by its selection's names, the face's body carried by
+/// the upstream keys), its class and its alignment — then the parts its
+/// face-based sides resolve against and the solve's fault flag.
+fn feed_bundle<'d>(
+    h: &mut KeyHasher,
+    constraints: &[crate::mate::Constraint],
+    selections: &dyn Fn(crate::VarId) -> Option<&'d crate::var::Select>,
+    solve_answer: &SolveAnswer<impl Decide + ContentBits>,
+) {
+    h.write_u64(constraints.len() as u64);
+    for c in constraints {
+        h.write_u64(u64::from(c.id.0.ordinal()));
+        h.write_u64(c.id.0.digest());
+        for (_, read) in c.mate.sides() {
+            match read {
+                crate::mate::SideRead::Face(var) => {
+                    h.write_tag(tag::side_read::FACE);
+                    for name in selected(selections, *var) {
+                        feed_stable_name(h, name);
+                    }
+                }
+                crate::mate::SideRead::Copy => h.write_tag(tag::side_read::COPY),
+                crate::mate::SideRead::World => h.write_tag(tag::side_read::WORLD),
+            }
+        }
+        // The class's word is `ContactClass::content_tag` — the one
+        // spelling the crossing record and the constraint both write.
+        h.write_u64(c.mate.class.content_tag());
+        feed_alignment(h, &c.mate.alignment);
+    }
+    solve_answer.feed_face_parts(h);
+    solve_answer.feed_fault(h);
 }
 
 /// The names the selection `var` holds, as a content key feeds them:

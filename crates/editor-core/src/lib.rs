@@ -109,7 +109,7 @@ pub use appearance::{
 };
 pub use assembly::{
     Assembly, AssemblyError, AtRestBy, AtRestFinding, AtRestRow, Attribution, CarriedDeclaration,
-    CarriedDeclarations, CarriedRefusal, CarriedUnplaced, MintRefusal, MintedDeclaration,
+    CarriedDeclarations, CarriedRefusal, MintRefusal, MintedDeclaration,
     RefusedRef, Relation, Route, assemble, assemble_gathered,
 };
 pub use checks::at_rest::{CopyRef, FaceSite, InterferenceFinding, Overlap, Unlocalized};
@@ -211,7 +211,7 @@ pub use placement::{AxisRefusal, Frame, FrameFault, FrameSite, Placement, Step};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{
-    OwnSpace, Product, ProductError, ProductErrorKind, ProductRefusal, SourceFinding, own_spaces,
+    LooseSpace, Product, ProductError, ProductErrorKind, ProductRefusal, SourceFinding, loose_spaces,
     product, product_named, product_recorded,
 };
 pub use program::{

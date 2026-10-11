@@ -1268,6 +1268,13 @@ impl<'a> Speaker<'a> {
         let said = (self.subject != Some(id)).then(|| self.spoken(id));
         NodeAs(noun, said)
     }
+
+    /// **A constraint, said**: `constraint <id> of <placement>`, the
+    /// placement as [`Speaker::node`] says it.
+    #[must_use]
+    pub fn mate(self, mate: crate::mate::MateRef) -> String {
+        format!("constraint {} of {}", mate.id, self.node(mate.placement))
+    }
 }
 
 /// A name said ([`Speaker::name`]): the one spelling of a name in
@@ -1366,7 +1373,8 @@ pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Revolve { .. } => "Revolve",
         Node::Transform { .. } => "Transform",
         Node::Subtract { .. } => "Subtract",
-        Node::PlaceInWorld { .. } => "PlaceInWorld",
+        Node::Place { .. } => "Place",
+        Node::World => "World",
         Node::Union { .. } => "Union",
         Node::Intersect { .. } => "Intersect",
         Node::Split { .. } => "Split",
@@ -1386,8 +1394,6 @@ pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Loft { .. } => "Loft",
         Node::Sweep { .. } => "Sweep",
         Node::InstantiatePart { .. } => "InstantiatePart",
-        Node::Gauge { .. } => "Gauge",
-        Node::Mate { .. } => "Mate",
         Node::Measure { .. } => "Measure",
         Node::Assertion { .. } => "Assertion",
     }

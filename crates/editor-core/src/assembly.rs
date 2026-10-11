@@ -95,8 +95,8 @@ use geom_core::Tol;
 /// layer's bookkeeping, not a field the kernel should grow.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MintedDeclaration {
-    /// The mate node that authored the declaration.
-    pub mate: RecipeNodeId,
+    /// The constraint that authored the declaration.
+    pub mate: crate::mate::MateRef,
     /// The `a` reference.
     pub a: StableName,
     /// The `b` reference.
@@ -118,7 +118,7 @@ impl crate::spoken::Say for MintedDeclaration {
         write!(
             f,
             "{}'s declared {} contact",
-            by.node_as(self.mate, "mate"),
+            by.mate(self.mate),
             self.class.name()
         )
     }
@@ -351,85 +351,6 @@ pub struct CarriedDeclarations {
     pub refused: Vec<ValidationError>,
     /// The refusals, in the inner documents' own order.
     pub unminted: Vec<CarriedRefusal>,
-    /// The unplaced groups below, in the inner documents' own order.
-    pub unplaced: Vec<CarriedUnplaced>,
-}
-
-/// **An unplaced group in a document BELOW this one** (A9, A11 (2)),
-/// arriving across the instantiation seam. The part crosses as its
-/// world product, which leaves the group out; this row is how the
-/// document that instantiates it knows the group is there, so a door
-/// that writes one world (STEP export) refuses naming it rather than
-/// writing the part without it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CarriedUnplaced {
-    /// How it reached this document.
-    pub route: Route,
-    /// The group, by its root, in `route.of`'s id space.
-    pub group: RecipeNodeId,
-    /// Why nothing places it.
-    pub cause: crate::mate::Unplaced,
-    /// The group's and the cause's nodes, as `route.of` holds them.
-    pub held: Arc<HeldNodes>,
-}
-
-// A carried group as an author reads it: which document holds it, and
-// why it is unplaced. No recourse, for [`CarriedRefusal`]'s reason: the
-// repair is the same for every row, so the header that lists them
-// states it once. The speaker says the route's first instance; the group
-// is spelled in `route.of`'s ids, so `route.of` says it.
-impl crate::spoken::Say for CarriedUnplaced {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
-        write!(
-            f,
-            "{}: {}",
-            crate::spoken::Said(&self.route, by),
-            crate::spoken::Said(
-                &UnplacedGroup {
-                    group: self.group,
-                    cause: self.cause,
-                },
-                crate::spoken::Speaker::held(&self.held)
-            )
-        )
-    }
-}
-
-/// A group below and its cause, in its document's ids: what a
-/// [`CarriedUnplaced`] says of `route.of`, and what its `held` keeps.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct UnplacedGroup {
-    /// The group, by its root.
-    pub(crate) group: RecipeNodeId,
-    /// Why nothing places it.
-    pub(crate) cause: crate::mate::Unplaced,
-}
-
-impl crate::spoken::Say for UnplacedGroup {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
-        write!(
-            f,
-            "the group rooted at {} is unplaced, because {}",
-            by.node(self.group),
-            crate::spoken::Said(&self.cause, by)
-        )
-    }
-}
-
-/// The row where no document is at hand: its route's first instance
-/// by its tag.
-impl core::fmt::Display for CarriedUnplaced {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
-    }
 }
 
 /// What a kernel finding says about a declaration it names: the
@@ -732,7 +653,7 @@ pub enum MintRefusal {
     /// A mate's reference did not resolve to a product face.
     Reference {
         /// The mate.
-        mate: RecipeNodeId,
+        mate: crate::mate::MateRef,
         /// Which side.
         side: MateSide,
         /// The reference.
@@ -744,7 +665,7 @@ pub enum MintRefusal {
     /// of [`crate::mate::class_admission`].
     NoAtRestRecord {
         /// The mate.
-        mate: RecipeNodeId,
+        mate: crate::mate::MateRef,
         /// Its class.
         class: ContactClass,
         /// Why that class carries nothing at rest, in the class's own
@@ -759,7 +680,7 @@ pub enum MintRefusal {
     /// it no longer speaks for.
     Unevaluated {
         /// The mate.
-        mate: RecipeNodeId,
+        mate: crate::mate::MateRef,
         /// Why it has no value ([`crate::Evaluation::node_error`] answers
         /// a failed mate's typed cause).
         standing: crate::eval::NodeStanding,
@@ -769,7 +690,7 @@ pub enum MintRefusal {
 impl MintRefusal {
     /// The mate the refusal is about.
     #[must_use]
-    pub fn mate(&self) -> RecipeNodeId {
+    pub fn mate(&self) -> crate::mate::MateRef {
         match self {
             Self::Reference { mate, .. }
             | Self::NoAtRestRecord { mate, .. }
@@ -800,7 +721,7 @@ impl crate::spoken::Say for MintRefusal {
             } => write!(
                 f,
                 "{}'s {} reference ({}) does not name a face of the product: {}",
-                by.node_as(*mate, "mate"),
+                by.mate(*mate),
                 side.name(),
                 by.name(name),
                 crate::spoken::Said(why, by)
@@ -809,14 +730,14 @@ impl crate::spoken::Say for MintRefusal {
                 f,
                 "{}'s class {} has no at-rest kernel record — {why}; the record is \
                  not minted with an invented witness — {NO_AT_REST_RECORD_RECOURSE}",
-                by.node_as(*mate, "mate"),
+                by.mate(*mate),
                 class.name()
             ),
             Self::Unevaluated { mate, standing } => write!(
                 f,
                 "{} declares nothing about the product, since it has no value: {}",
-                by.node_as(*mate, "mate"),
-                crate::spoken::Said(standing, by.about(*mate))
+                by.mate(*mate),
+                crate::spoken::Said(standing, by.about(mate.placement))
             ),
         }
     }
@@ -844,14 +765,12 @@ impl MintRefusal {
 pub enum AssemblyError {
     /// The gather itself refused.
     Product(Box<ProductError>),
-    /// **An unplaced group's own space did not gather** (A11 (2)):
-    /// the group checks inside its own space, and the gather of that
-    /// space refused, so it is not at rest there.
+    /// **A loose copy's space did not gather** (D10, Spaces): the copies
+    /// pinned to it check inside its space, and the gather of that space
+    /// refused, so it is not at rest there.
     Space {
-        /// The group, by its root.
-        group: RecipeNodeId,
-        /// Why nothing places it.
-        cause: crate::mate::Unplaced,
+        /// The loose copy, by its placement.
+        root: RecipeNodeId,
         /// The space's gather refusal.
         refusal: Box<ProductError>,
     },
@@ -987,16 +906,10 @@ impl crate::spoken::Say for AssemblyError {
     ) -> core::fmt::Result {
         match self {
             Self::Product(e) => write!(f, "{}", crate::spoken::Said(&**e, by)),
-            Self::Space {
-                group,
-                cause,
-                refusal,
-            } => write!(
+            Self::Space { root, refusal } => write!(
                 f,
-                "the own space of the group rooted at {}, unplaced because {}, does not \
-                 gather: {}",
-                by.node(*group),
-                crate::spoken::Said(cause, by),
+                "the space of the loose copy {} does not gather: {}",
+                by.node(*root),
                 crate::spoken::Said(&**refusal, by)
             ),
             Self::Mint { refusals } => {
@@ -1139,12 +1052,9 @@ pub fn assemble<P: crate::ProfilePayload, T: crate::checks::at_rest::LocalizeLan
         // raised. A world that refused for a fault of its own is
         // answered first, as its verdict is when it gathers.
         Err(refusal) => {
-            if matches!(
-                refusal.kind(),
-                crate::ProductErrorKind::Unplaced | crate::ProductErrorKind::EmptyProduct
-            ) {
+            if refusal.kind() == crate::ProductErrorKind::EmptyProduct {
                 gate_spaces(
-                    crate::product::own_spaces(doc, evaluation, tol),
+                    crate::product::loose_spaces(doc, evaluation, tol),
                     tol,
                     &mut Vec::new(),
                 )?;
@@ -1154,12 +1064,12 @@ pub fn assemble<P: crate::ProfilePayload, T: crate::checks::at_rest::LocalizeLan
     }
 }
 
-/// **Each unplaced group checks as usual inside its own space**, and
-/// against nothing outside it (A11 (2)): the gate over each
-/// [`crate::OwnSpace`] in turn, a space whose roots denote no body
+/// **Each loose copy's space checks as usual inside itself**, and
+/// against nothing outside it (D10, Spaces): the gate over each
+/// [`crate::LooseSpace`] in turn, a space whose copies denote no body
 /// holding nothing to check.
 fn gate_spaces<T: crate::checks::at_rest::LocalizeLane>(
-    spaces: Vec<crate::OwnSpace<T>>,
+    spaces: Vec<crate::LooseSpace<T>>,
     tol: Tol,
     interference: &mut Vec<crate::checks::at_rest::InterferenceFinding>,
 ) -> Result<(), AssemblyError> {
@@ -1169,8 +1079,7 @@ fn gate_spaces<T: crate::checks::at_rest::LocalizeLane>(
             Err(refusal) if refusal.kind().means_no_body() => {}
             Err(refusal) => {
                 return Err(AssemblyError::Space {
-                    group: space.group,
-                    cause: space.cause,
+                    root: space.root,
                     refusal: Box::new(refusal),
                 });
             }
@@ -1355,10 +1264,20 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
         let member = crate::mate::member_of(doc, head.as_ref()?)?;
         Some(evaluation.space(member.instance))
     };
-    for id in doc.ids() {
-        let Some(Node::Mate { a, b, class, .. }) = doc.node(id) else {
+    let bundles = doc.placements().into_iter().filter_map(|placement| {
+        let bundle = doc.node(placement).and_then(crate::mate::solve::bundle_of)?;
+        Some((placement, bundle))
+    });
+    for (placement, constraint) in
+        bundles.flat_map(|(placement, bundle)| bundle.iter().map(move |c| (placement, c)))
+    {
+        let id = crate::mate::MateRef::new(placement, constraint.id);
+        // A side on the copy itself or on the world reads no face, and
+        // a constraint with one declares no contact.
+        let (Some(a), Some(b)) = (constraint.mate.a.face(), constraint.mate.b.face()) else {
             continue;
         };
+        let class = &constraint.mate.class;
         let (head_a, head_b) = (
             crate::mate::member::head_of(doc, *a),
             crate::mate::member::head_of(doc, *b),
@@ -1384,13 +1303,9 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
         }
         // A mate with no value declares nothing, and says so (see the
         // doc comment).
-        match evaluation.usable(id) {
-            Ok(value) if matches!(value.payload, ValuePayload::Mate(_)) => {}
-            Ok(_) => unreachable!("a mate evaluates to its role"),
-            Err(standing) => {
-                unminted.push(MintRefusal::Unevaluated { mate: id, standing });
-                continue;
-            }
+        if let Err(standing) = evaluation.usable(placement) {
+            unminted.push(MintRefusal::Unevaluated { mate: id, standing });
+            continue;
         }
         let (Some(head_a), Some(head_b)) = (head_a, head_b) else {
             unreachable!("a mate that evaluated reads two faces of live bodies")
@@ -1485,8 +1400,8 @@ pub struct AtRestRow {
 /// **Whose pair an [`AtRestRow`] decided.**
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AtRestBy {
-    /// The mate whose two faces the census read as one carrier.
-    Mate(RecipeNodeId),
+    /// The constraint whose two faces the census read as one carrier.
+    Mate(crate::mate::MateRef),
     /// Two copies the census found in contact where no record backs it
     /// (D1 (iii)): earlier in gather order first.
     Copies(
@@ -1513,7 +1428,7 @@ impl AtRestRows {
     /// citing it, or the census's finding.
     fn decide<T: Decide>(
         &mut self,
-        mate: RecipeNodeId,
+        mate: crate::mate::MateRef,
         body: &topo::Body<T>,
         (a, face_a, read_a): (&SitedFace, FaceKey, crate::VarId),
         (b, face_b, read_b): (&SitedFace, FaceKey, crate::VarId),
@@ -1573,7 +1488,7 @@ fn copy_face<'k, P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     copies: &dyn Fn(RecipeNodeId) -> Option<&'k topo::GraftKeys>,
-    mate: RecipeNodeId,
+    mate: crate::mate::MateRef,
     side: MateSide,
     read: crate::VarId,
     head: &SitedFace,
@@ -1615,12 +1530,16 @@ fn copy_face<'k, P: crate::ProfilePayload, T: Decide>(
                     && crate::expr::eval_var_count(*index, &env).ok() == Some(i64::from(ent.body))
             )
     };
+    // A placement's own output is its copy; a `Place` copies the
+    // shapes it reads.
     let placements: Vec<RecipeNodeId> = doc
         .placements()
         .into_iter()
-        .filter(
-            |&p| matches!(doc.node(p), Some(Node::PlaceInWorld { body, .. }) if copies_body(body.read)),
-        )
+        .filter(|&p| {
+            doc.operation_of(select.body) == Some(p)
+                || matches!(doc.node(p), Some(Node::Place { shapes, .. })
+                    if shapes.iter().any(|shape| copies_body(shape.read)))
+        })
         .collect();
     let placement = match placements.as_slice() {
         [] => return Ok(None),
@@ -1656,12 +1575,13 @@ fn side_placed<P: crate::ProfilePayload>(doc: &Doc<P>, read: crate::VarId) -> bo
         return true;
     };
     doc.placements().into_iter().any(|p| {
-        matches!(doc.node(p), Some(Node::PlaceInWorld { body, .. })
-        if body.read == select.body
-            || matches!(
-                doc.operation_of(body.read).and_then(|at| doc.node(at)),
-                Some(Node::Part { of, .. }) if *of == select.body
-            ))
+        doc.operation_of(select.body) == Some(p)
+            || matches!(doc.node(p), Some(Node::Place { shapes, .. })
+                if shapes.iter().any(|shape| shape.read == select.body
+                    || matches!(
+                        doc.operation_of(shape.read).and_then(|at| doc.node(at)),
+                        Some(Node::Part { of, .. }) if *of == select.body
+                    )))
     })
 }
 

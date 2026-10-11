@@ -1771,7 +1771,7 @@ impl crate::spoken::Say for MateFault {
         by: crate::spoken::Speaker<'_>,
     ) -> core::fmt::Result {
         use crate::spoken::Said;
-        let mate_ = |m: MateRef| format!("constraint {} of {}", m.id, by.node(m.placement));
+        let mate_ = |m: MateRef| by.mate(m);
         let ids = |ids: &[crate::node::ConstraintId]| {
             ids.iter()
                 .map(ToString::to_string)

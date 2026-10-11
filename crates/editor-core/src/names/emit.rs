@@ -888,6 +888,39 @@ pub(crate) fn name_placed<T: geom_core::Real>(
     Ok(Arc::new(t))
 }
 
+/// **A placement's copies of several shapes, named** (D10): copy `k`
+/// is body `k`, and every name of shape `k` is that copy's, qualified
+/// by the placement ([`super::role::RoleSeg::Placed`]) — its body name
+/// too, so each copy's body is named by the body it copies. A
+/// placement of one shape is [`name_placed`]'s.
+pub(crate) fn name_placed_copies<T: geom_core::Real>(
+    node: RecipeNodeId,
+    shapes: &[(&NameTable, &Body<T>)],
+) -> Result<Arc<NameTable>, NamingError> {
+    let mut t = NameTable::new();
+    for (k, (table, _)) in shapes.iter().enumerate() {
+        let k = output_body(k)?;
+        table.seal_order();
+        for (name, entry) in table.iter_refs() {
+            let wrapped = StableName {
+                kind: name.kind,
+                node,
+                path: vec![super::role::RoleSeg::Placed { of: name.clone() }],
+            };
+            match entry {
+                super::table::Entry::Unique(e) => t.insert(wrapped, ent(k, e.key))?,
+                super::table::Entry::Tied(es) => {
+                    t.insert_tied(wrapped, es.iter().map(|e| ent(k, e.key)).collect())?;
+                }
+            }
+        }
+    }
+    for (k, (_, body)) in shapes.iter().enumerate() {
+        check_total(&t, body, output_body(k)?)?;
+    }
+    Ok(Arc::new(t))
+}
+
 /// Per-body topology walk products the emitters share: half-edge
 /// incidence (vertex → edges, edge → faces) built in ONE deterministic
 /// arena-order pass — combinatorial wiring facts, not inspection.

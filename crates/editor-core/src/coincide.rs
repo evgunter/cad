@@ -537,7 +537,7 @@ pub fn construction<P>(
             SegOrigin::Unclassified => return Err(Unwalked::Unclassified(at)),
             SegOrigin::Carried(of, _) => of.clone(),
         };
-        read = carried_read(seg, node(at)?, at, &mut placed)?;
+        read = carried_read(doc, seg, node(at)?, at, &mut placed)?;
         at = operation(doc, at, read)?;
         name = of;
     }
@@ -564,6 +564,7 @@ fn operation<P>(
 ///
 /// [`Unwalked::Misplaced`] for a segment `at`'s kind does not carry.
 fn carried_read<P>(
+    doc: &crate::doc::Doc<P>,
     seg: &RoleSeg,
     node: &Node<P>,
     at: RecipeNodeId,
@@ -580,9 +581,15 @@ fn carried_read<P>(
             Ok(*input)
         }
         (RoleSeg::Instance { .. }, _) => Err(misplaced),
-        (RoleSeg::Placed { .. }, Node::PlaceInWorld { body, .. }) => {
+        (RoleSeg::Placed { of }, Node::Place { shapes, .. }) => {
             placed.push(Placed::World(at));
-            Ok(body.read)
+            // The copy of the shape whose name the segment carries.
+            let shape = shapes
+                .iter()
+                .find(|shape| doc.operation_of(shape.read) == Some(of.node))
+                .or_else(|| shapes.first())
+                .ok_or(misplaced)?;
+            Ok(shape.read)
         }
         // Every other carried segment is a split's, carried from its
         // target.

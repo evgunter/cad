@@ -577,7 +577,9 @@ pub(crate) fn output_body<T: Decide>(
                 SplitSide::Empty => Err(missing()),
             }
         }
-        ValuePayload::Instances(v) => v.get(index as usize).map(AsRef::as_ref).ok_or_else(missing),
+        ValuePayload::Instances(v) | ValuePayload::Copies(v) => {
+            v.get(index as usize).map(AsRef::as_ref).ok_or_else(missing)
+        }
         // The families that denote no body at all. A mate denotes
         // none, and interrogating one for geometry is the same category
         // error as interrogating a declaration — as is interrogating a
@@ -586,8 +588,7 @@ pub(crate) fn output_body<T: Decide>(
         // `ValuePayload::kind_name` speaks.
         ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
-        | ValuePayload::Mate(_)
-        | ValuePayload::Gauge
+        | ValuePayload::World
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => none(payload.kind_name()),

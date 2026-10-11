@@ -92,7 +92,7 @@ pub(crate) const MAX_DEPTH: usize = 1024;
 /// that says whose declaration each record is and which of the
 /// document's mates it could not mint at all.
 ///
-/// Each of the three row lists (`minted`, `unminted`, `unplaced`) is
+/// Each of the two row lists (`minted`, `unminted`) is
 /// the referenced document's OWN rows first, then what it carried up
 /// from ITS parts, each as a [`PartRow`] that already holds the
 /// document's nodes it names. Instantiation adds its own instance to
@@ -111,10 +111,6 @@ pub(crate) struct PartValue<T: Decide> {
     /// business — a part with an unverifiable contact is a broken part,
     /// and the document that instantiates it is not at rest over it.
     pub unminted: Arc<Vec<PartRow<crate::assembly::MintRefusal>>>,
-    /// The UNPLACED GROUPS, by root, with their causes, in their
-    /// documents' order: material a world product leaves out (A9),
-    /// which the instantiating document must still be able to name.
-    pub unplaced: Arc<Vec<PartRow<crate::assembly::UnplacedGroup>>>,
     /// The at-rest census's findings for the mated pairs the document
     /// refused, its own and those carried up, keyed as `contacts` are
     /// ([`crate::Product::refused_at_rest`]).
@@ -141,7 +137,6 @@ impl<T: Decide> Clone for PartValue<T> {
             contacts: Arc::clone(&self.contacts),
             minted: Arc::clone(&self.minted),
             unminted: Arc::clone(&self.unminted),
-            unplaced: Arc::clone(&self.unplaced),
             refused: Arc::clone(&self.refused),
             coincidences: Arc::clone(&self.coincidences),
             cited_inputs: Arc::clone(&self.cited_inputs),
@@ -738,32 +733,6 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             Ok(product) => product,
             Err(e) => return Err(product_fault(e, evaluation, doc)),
         };
-        // The part's unplaced groups are not in its product (A9), so
-        // they cross beside it: its own, and those its parts carried up
-        // to it, read off the evaluation rather than the product so a
-        // group below an instance no root gathers is named too.
-        let unplaced = evaluation
-            .unplaced_groups()
-            .into_iter()
-            .map(|(group, cause)| {
-                PartRow::own(
-                    doc,
-                    doc_ref.id,
-                    crate::assembly::UnplacedGroup { group, cause },
-                )
-            })
-            .chain(evaluation.all_unplaced_below().into_iter().map(|row| {
-                PartRow::below(
-                    doc,
-                    row.route,
-                    crate::assembly::UnplacedGroup {
-                        group: row.group,
-                        cause: row.cause,
-                    },
-                    row.held,
-                )
-            }))
-            .collect();
         // The whole product crosses the seam, not a slice of it: what
         // a document MEANS is its product, and its mates' identity and
         // mint health are as much part of that as its records are. The
@@ -816,7 +785,6 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
                     )
                     .collect(),
             ),
-            unplaced: Arc::new(unplaced),
         })
     }
 }
