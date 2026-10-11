@@ -128,15 +128,31 @@ pub const fn var_kind_tag(kind: pncad::document::VarKind) -> &'static str {
 }
 
 /// The stable tag for what an operand slot admits: a kind's own word
-/// ([`var_kind_tag`]), `placeable` (a body or a list of bodies), or
+/// ([`var_kind_tag`]), `placeable` (a body or a list of bodies),
 /// `measured` (what a measure's reference reads: a body, a face, an
-/// edge or a vertex).
+/// edge or a vertex), or the word of what a pose definition's read
+/// admits ([`pose_admits_tag`]).
 pub const fn slot_kind_tag(kind: pncad::document::SlotKind) -> &'static str {
     use pncad::document::SlotKind as K;
     match kind {
         K::Is(kind) => var_kind_tag(kind),
         K::Placeable => "placeable",
         K::Measured(_) => "measured",
+        K::Pose(admits) => pose_admits_tag(admits),
+    }
+}
+
+/// The stable tag for what a pose definition's read admits:
+/// `carrier` (a face or an edge, an axis is read off), `centre` (a
+/// face, an edge or a vertex, a point is read off), `sensed` (a pose
+/// with a sense) or `projected` (a pose with a coarser projection).
+pub const fn pose_admits_tag(admits: pncad::document::pose::PoseAdmits) -> &'static str {
+    use pncad::document::pose::PoseAdmits as A;
+    match admits {
+        A::Carrier => "carrier",
+        A::Centre => "centre",
+        A::Sensed => "sensed",
+        A::Projected => "projected",
     }
 }
 
