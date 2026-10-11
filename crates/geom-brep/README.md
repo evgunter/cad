@@ -191,8 +191,8 @@ jet system solved by SVD, Frenet choice of free coefficients, Newton
 refinement; all f64, libm-only, fixed iteration order). Two trace shapes
 are compile-time decisions per table arm: an implicit pair in ℝ³ (2×3
 SVD; `cylinder_sphere_ssi`) and a parametric pair in ℝ⁴ on
-`G₁(u₁,v₁) − G₂(u₂,v₂) = 0` (3×4 SVD; `plane_nurbs_ssi`, and
-`ssi::Section` on two NURBS charts), from which the
+`G₁(u₁,v₁) − G₂(u₂,v₂) = 0` (3×4 SVD; `ssi::PlaneSection` on a plane
+and a NURBS chart, `ssi::Section` on two NURBS charts), from which the
 3-D curve and both pcurves fall out as projections of one traced object
 on one shared parameter. A branch jump is a certificate refusal. The
 stepper guards the step where it mints it: no step is longer than the
@@ -416,6 +416,20 @@ not certified apart, at the seeding floor), and accounts every cell of
 the product, excluded or inside a tube, at the accounting floor, in
 chart units at the fastest of the four chart speeds
 (`exhaust::account_pair`). Exhaustiveness is `all()`'s obligation.
+The plane × NURBS lane is read through a handle of the same shape and
+contract (`ssi::PlaneSection::of`, which refuses a window short of the
+wall before any reading; `plane_nurbs_ssi` is its `all()`). Its
+boundary pass, the side-by-side pass above, runs once per handle at the
+first reading that needs it. `branch_at(seed)` settles the seed's feet
+on the plane's chart and the wall as the pair lane's does (outside the
+wall's rectangle it refuses `SeedOffDomain`), and what it proves, and
+its backstops, are the pair lane's. It answers what holds the settled
+seed (`ssi::SectionReading`): a `Side` or `Corner` region the pass
+reported, or the branch whose certified chart tube holds it.
+`all()` traces every open branch between the crossings no certified
+branch already ends at and every closed loop from the chart lane's
+seeds, and accounts every cell of the wall's knot rectangle, excluded,
+in a tube, or in a region.
 Hoffmann §6.5's tracing through singular points is deliberately not
 adopted. Subdivision is recursive bisection with a linear scan over
 tubes; the C10 tree is not wired in.
@@ -574,9 +588,10 @@ declared-equal cylinder×cylinder, axis-aligned plane×torus (its
 axis-parallel pose off the axis the `Spiric`) (rung 2); cylinder×sphere,
 plane×NURBS and plane×`Approx`, NURBS×NURBS and every pairing of
 `Approx` with NURBS or `Approx` (rung 3). The offset door reads
-NURBS×NURBS through `Section::branch_at` at the old edge's middle; the
-whole-section reading a boolean takes is `Section::all`, which no
-boolean reads yet (no boolean reads a rung-3 arm). `implemented` covers
+plane×NURBS through `PlaneSection::branch_at` and NURBS×NURBS through
+`Section::branch_at`, each at the old edge's middle; the whole-section
+readings a boolean takes are their `all()`, which no boolean reads yet
+(no boolean reads a rung-3 arm). `implemented` covers
 the whole operation. Every other pair refuses, most blocked on the cone
 and torus metres conversion (C2 limb 2).
 
@@ -902,7 +917,12 @@ shell's thin solid is single-shell (a hollow operand's other thin
 solids keep their two), and the invariant is closure, not genus (one
 opening is a cup, genus 0). Refusals: a wall past a curved face's reach
 at O1's floor, inverted cavity walls at edge re-attachment. A fitted
-face's edge with a plane is their section over the fit (C5), and a row
+face's edge with a plane is their section over the fit through the old
+edge's middle (`PlaneSection::branch_at`, C5): the branch there, the
+fit's boundary row where a `Side` region holds the middle (the plane
+holds that row within the band), a refusal by the corner where a
+`Corner` region does, and `NoBranch` where the middle settles outside
+the fit's window; and a row
 of its fit whose sides both move with it — a seam the face shares with
 itself, or a plane along whose normal every cross-row step of the old
 net's two rows at that end runs, all one way, the two rows' weights
@@ -914,15 +934,18 @@ fit itself is not rooted, and a corner no root of which lies on a moved
 fit refuses (`CornerSection`, naming the corner's vertex and an edge of
 the fit meeting it). A fitted face's edge with a spline face or another fit, moved or held,
 is their NURBS × NURBS section through the old edge's middle
-(`Section::branch_at`), in the old edge's sense. Measured: a crease
+(`Section::branch_at`), in the old edge's sense; a refusal of that
+trace is reported as from the old edge's middle (`FromMiddle`).
+Measured: a crease
 between two moved fits derives there (the shelled twisted loft's four
 wall–wall seams at ε = 1e-6), and a seam where the two are tangent (a
 smooth one) refuses by the section's transversality decision. A wall
 moved alone beside a held spline wall refuses at that seam, typed by
 whichever reading of the section meets it first: inward, the boundary
 pass does not resolve the side the section runs along
-(`PairBoundaryUnresolved`); outward, the seed settles outside the fit's
-window (`SeedOffDomain`), or, where the move is far inside ε, the
+(`PairBoundaryUnresolved`); outward, the old edge's middle settles
+outside the fit's window, the moved fit no longer meeting the held wall
+there (`NoBranch`, as at a plane), or, where the move is far inside ε, the
 boundary pass refuses as inward or the trace loses the section at the
 side (`CrossingUnmatched`, or the step-progress decision). A concave
 crease's section lies outside both fits' windows; no row measures its

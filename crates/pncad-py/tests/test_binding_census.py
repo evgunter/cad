@@ -620,8 +620,6 @@ BOUND_AS = {
     # `same_oriented` / `same_opposite` on `Coincidence.relation`.
     "PlaneRelation": "Coincidence.relation",
     "Unreplayed": "Coincidence.residual",
-    # One door, two passes: Python asks for the full one by a flag.
-    "SymbolicPass": "ChecksConfig.full_symbolic_pass",
     # A finding's subject crosses as its three attributes, each `None`
     # for the arm it is not: `root` and `output_ix`, or `node`.
     "FindingSubject": "CheckFinding.node",
@@ -3111,6 +3109,13 @@ NOT_BOUND = {
     "assemble_gathered": INTERIOR,
     "product_recorded": INTERIOR,
     "run_checks_on": INTERIOR,
+    # The registry with the coincidence door split off to run at rest,
+    # for a frame that redraws on every edit: Python's `run_checks` is
+    # synchronous and answers the door's verdict whole, so there is no
+    # job to hold and no pending check to settle.
+    "run_checks_at_rest_on": INTERIOR,
+    "DoorJob": INTERIOR,
+    "DoorFindings": INTERIOR,
     # The gather's debug-only witness: how many products this thread
     # has gathered, for a consumer asserting it gathers once per
     # operation. Not a question about a document at all.
@@ -3562,7 +3567,6 @@ NOT_BOUND = {
 #: reach what that member is about, at that spelling. Not the same shape, not
 #: the same receiver, and nothing about semantics.
 MEMBERS_BOUND_AS = {
-    "ChecksConfig::symbolic_pass": "ChecksConfig.full_symbolic_pass",
     # --- an interference finding's overlap and quieting assertion ---
     "InterferenceFinding::overlap": ("InterferenceFinding.faces", "InterferenceFinding.unlocalized"),
     "InterferenceFinding::quiet": "InterferenceFinding.quiet_by",
@@ -4244,6 +4248,10 @@ MEMBERS_NOT_BOUND = {
     # `ChecksReport` holds the evaluated document and speaks from it,
     # and `CheckRefusal` is raised with the message already spoken.
     "ChecksReport::document": SHAPE,
+    # Only a report split at rest pends on a check
+    # (`run_checks_at_rest_on`); Python's `run_checks` is synchronous,
+    # so its report never does.
+    "ChecksReport::pending": INTERIOR,
     "CheckRefusal::document": SHAPE,
     # The chain is authored through `Placement`'s constructors and
     # `then`, and read back only as its length: the steps are the

@@ -2204,7 +2204,7 @@ fn describe_worklist<T: Real>(
         merged.skipped.iter().flat_map(|s| s.faces.iter().copied()),
     )
     .ok_or(BooleanError::JoinDesync {
-        what: join_desync_text(EdgeDescribeFailure::NotWalkable),
+        what: "description worklist edge not walkable",
     })?;
     worklist.extend(skipped.into_iter().map(|(_, edge)| edge));
     Ok(worklist)
@@ -2239,29 +2239,54 @@ pub(crate) fn boundary_edges<T: Real>(
     Some(edges)
 }
 
-/// The boolean's words for what the describer could not do: a join
-/// desync, as its own description pass has always raised it.
-const fn join_desync_text(failure: EdgeDescribeFailure) -> &'static str {
-    match failure {
-        EdgeDescribeFailure::NotWalkable => "description worklist edge not walkable",
-        EdgeDescribeFailure::Intersection => "minted-edge description failed certification",
-        EdgeDescribeFailure::Tangency => "tangent-seam description failed certification",
-        EdgeDescribeFailure::NoConventionalLane => {
-            "stale CURVED smooth-seam description (no conventional re-description lane exists \
-             for this carrier kind)"
-        }
-        EdgeDescribeFailure::Arc => "stale arc description failed re-certification",
-        EdgeDescribeFailure::Line => "stale in-plane description failed re-certification",
+/// The boolean's refusal for an edge its describer could not describe.
+/// An exact carrier read in band of one of its faces is the input's (D9
+/// row 1); every other failure is the kernel's.
+pub(super) fn of_describe(refusal: DescribeRefusal) -> BooleanError {
+    match refusal {
+        DescribeRefusal::Failed {
+            edge,
+            failure,
+            cause,
+            fitted,
+        } => BooleanError::EdgeUndescribed {
+            edge,
+            failure,
+            cause,
+            fitted,
+        },
+        DescribeRefusal::Undecided { reading, diag, .. } => seam_refusal(reading, diag),
+        DescribeRefusal::OffFace { diag, .. } => BooleanError::Escalated {
+            decision: BooleanDecision::EdgeOnFaces,
+            diag,
+        },
     }
 }
 
-/// The boolean's refusal for an edge its describer could not describe.
-pub(super) fn of_describe(refusal: DescribeRefusal) -> BooleanError {
-    match refusal {
-        DescribeRefusal::Failed { failure, .. } => BooleanError::JoinDesync {
-            what: join_desync_text(failure),
-        },
-        DescribeRefusal::Undecided { reading, diag, .. } => seam_refusal(reading, diag),
+/// The describer's refusal for `edge` when the attachment gate refuses
+/// its description on `carrier`. The carrier's own residual against one
+/// of its faces' surfaces read in band is [`DescribeRefusal::OffFace`]
+/// where the carrier is exact: its ends are vertices placed on those
+/// faces, so its miss is theirs. On a fitted carrier the miss may be the
+/// fit's, and it fails the edge as every other refusal does, carrying
+/// the gate's.
+fn of_attachment<T: Real>(
+    edge: crate::entity::EdgeKey,
+    failure: EdgeDescribeFailure,
+    carrier: &geom::Curve3<T>,
+    cause: crate::euler::EulerOpError,
+) -> DescribeRefusal {
+    let fitted = matches!(carrier, geom::Curve3::Nurbs(_));
+    match cause {
+        crate::euler::EulerOpError::Certification {
+            error:
+                geom_brep::CertifyError::Escalated {
+                    check: geom_brep::CertCheck::SurfaceResidual { .. },
+                    cause: diag,
+                    ..
+                },
+        } if !fitted => DescribeRefusal::off_face(edge, diag),
+        cause => DescribeRefusal::refused(edge, failure, cause, fitted),
     }
 }
 
@@ -2341,12 +2366,11 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
             .map_err(|(reading, diag)| DescribeRefusal::undecided(edge, reading, diag))?
         {
             geom_brep::DihedralClass::Transverse => {
-                body.set_edge_curve(
-                    edge,
-                    draft.into_spec(geom_brep::SurfacePair::new(s1, s2)),
-                    tol,
-                )
-                .map_err(|_| DescribeRefusal::failed(edge, EdgeDescribeFailure::Intersection))?;
+                let spec = draft.into_spec(geom_brep::SurfacePair::new(s1, s2));
+                let carrier = spec.carrier.clone();
+                body.set_edge_curve(edge, spec, tol).map_err(|e| {
+                    of_attachment(edge, EdgeDescribeFailure::Intersection, &carrier, e)
+                })?;
             }
             geom_brep::DihedralClass::Smooth => {
                 // F1 (the declared-merge SKIP lane): a SURVIVING
@@ -2409,8 +2433,8 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                         param_start: t0,
                         param_end: t1,
                     };
-                    body.set_edge_curve(edge, spec, tol).map_err(|_| {
-                        DescribeRefusal::failed(edge, EdgeDescribeFailure::Tangency)
+                    body.set_edge_curve(edge, spec, tol).map_err(|e| {
+                        of_attachment(edge, EdgeDescribeFailure::Tangency, c.carrier(), e)
                     })?;
                 } else if stale {
                     if curved {
@@ -2436,15 +2460,16 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                             ));
                         };
                         body.set_edge_curve(edge, spec.at_rest_in_chart(s1, false), tol)
-                            .map_err(|_| DescribeRefusal::failed(edge, EdgeDescribeFailure::Arc))?;
+                            .map_err(|e| {
+                                of_attachment(edge, EdgeDescribeFailure::Arc, c.carrier(), e)
+                            })?;
                     } else {
-                        body.set_edge_curve(
-                            edge,
-                            geom_brep::EdgeCurveSpec::line_between(p0, p1)
-                                .at_rest_in_chart(s1, false),
-                            tol,
-                        )
-                        .map_err(|_| DescribeRefusal::failed(edge, EdgeDescribeFailure::Line))?;
+                        let spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
+                        let carrier = spec.carrier.clone();
+                        body.set_edge_curve(edge, spec.at_rest_in_chart(s1, false), tol)
+                            .map_err(|e| {
+                                of_attachment(edge, EdgeDescribeFailure::Line, &carrier, e)
+                            })?;
                     }
                 }
             }
@@ -7470,6 +7495,15 @@ mod tests {
             ),
             DescribeRefusal::undecided(strut, DihedralReading::Bend, diag),
         ];
+        let residual = crate::euler::EulerOpError::Certification {
+            error: geom_brep::CertifyError::ResidualExceeded {
+                check: geom_brep::CertCheck::SurfaceResidual {
+                    surface: crate::geometry::SurfaceKey::default(),
+                },
+                sample: 8,
+                margin: geom_core::MarginDiag::value(3.0 * band.escalate()),
+            },
+        };
         for failure in [
             EdgeDescribeFailure::NotWalkable,
             EdgeDescribeFailure::Intersection,
@@ -7479,17 +7513,188 @@ mod tests {
             EdgeDescribeFailure::Line,
         ] {
             every.push(DescribeRefusal::failed(strut, failure));
+            for fitted in [false, true] {
+                every.push(DescribeRefusal::refused(
+                    strut,
+                    failure,
+                    residual.clone(),
+                    fitted,
+                ));
+            }
         }
+        every.push(DescribeRefusal::off_face(strut, diag));
         for described in every {
             let worded = crate::merge_faces::MergeCoplanarError::of_kept_boundary(
                 &[(kept, strut)],
-                described,
+                described.clone(),
             );
             assert_eq!(
                 format!("{:?}", super::of_merge(worded)),
-                format!("{:?}", super::of_describe(described)),
+                format!("{:?}", super::of_describe(described.clone())),
                 "{described:?} passes through as the boolean's own"
             );
+        }
+    }
+
+    /// **An attachment refusal at the describe pass tells its own
+    /// story, the same at both doors.** An exact carrier's residual
+    /// against one of its faces read in band (the near-tangent census's
+    /// 12 witnesses, `sweep`'s `near_tangent_pierce_poses`) is the
+    /// input's, ending in the lever. The witness's residual, a definite
+    /// miss and any other refusal are the kernel's, ending in the defect
+    /// ending with the check, the sample and the miss and no arena key;
+    /// a fitted carrier's ends as the certification's table gives it.
+    #[test]
+    fn a_describe_refusal_carries_its_certification() {
+        use crate::euler::EulerOpError;
+        use crate::merge_faces::{EdgeDescribeFailure, MergeCoplanarError};
+        use geom_brep::{CertCheck, CertifyError};
+        use geom_core::{KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE, MarginDiag};
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let (edge, face, surface) = (
+            crate::entity::EdgeKey::default(),
+            crate::entity::FaceKey::default(),
+            crate::geometry::SurfaceKey::default(),
+        );
+        let line = geom::Curve3::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let fitted = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+                vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)],
+                vec![1.0, 1.0],
+            )
+            .unwrap(),
+        ));
+        let in_band = geom_core::Indeterminate {
+            margin: MarginDiag::value(band.zero() * (1.0 + 5e-8)),
+            band,
+            predicate: Some("carrier_on_surface_2"),
+            terminal_sliver: false,
+        };
+        let certification = |error| EulerOpError::Certification { error };
+        let escalated = |check| {
+            certification(CertifyError::Escalated {
+                check,
+                sample: 8,
+                cause: in_band,
+            })
+        };
+        let definite = certification(CertifyError::ResidualExceeded {
+            check: CertCheck::SurfaceResidual { surface },
+            sample: 8,
+            margin: MarginDiag::value(3e-8),
+        });
+        // Each door's text, the merge door's first.
+        let said = |carrier: &geom::Curve3<f64>, cause| {
+            let refusal =
+                super::of_attachment(edge, EdgeDescribeFailure::Intersection, carrier, cause);
+            let merged = MergeCoplanarError::of_kept_boundary(&[(face, edge)], refusal.clone());
+            let own = super::of_describe(refusal);
+            assert_eq!(
+                format!("{:?}", super::of_merge(merged.clone())),
+                format!("{own:?}"),
+                "the merge door's refusal comes back as the boolean's own"
+            );
+            (merged.to_string(), own)
+        };
+        let lever = "Recourse: move the geometry so each edge and vertex that meets a face lies \
+                     clearly on that face or clearly off it";
+
+        let (merged, err) = said(&line, escalated(CertCheck::SurfaceResidual { surface }));
+        assert!(
+            matches!(
+                err,
+                BooleanError::Escalated {
+                    decision: BooleanDecision::EdgeOnFaces,
+                    diag,
+                } if diag == in_band
+            ),
+            "an exact carrier read in band of its face is the edge's reading: {err:?}"
+        );
+        assert_eq!(
+            err.to_string(),
+            format!(
+                "whether an edge of the result lies on both faces it bounds is undecided: {}. \
+                 {lever}",
+                in_band.payload()
+            ),
+            "the Boolean: the decision's one sentence, ending in the lever alone"
+        );
+        assert_eq!(
+            merged,
+            format!(
+                "merge_coplanar_faces: re-describing kept face {face:?}'s boundary edge \
+                 {edge:?}, whether the edge lies on both faces it bounds is undecided: {}. \
+                 {lever}",
+                in_band.payload()
+            ),
+            "the merge door: the same reading and lever"
+        );
+
+        let undescribed = |payload: &str, ending: &str| {
+            (
+                format!(
+                    "merge_coplanar_faces: kept face {face:?}'s boundary edge {edge:?} cannot \
+                     be re-described against the two faces it now lies between: its two faces' \
+                     intersection does not certify on its curve ({payload}). The body is \
+                     untouched. {ending}"
+                ),
+                format!(
+                    "an edge of the result cannot be described against the two faces it lies \
+                     between: its two faces' intersection does not certify on its curve \
+                     ({payload}). {ending}"
+                ),
+            )
+        };
+        let witness_payload = format!(
+            "the witness point's residual against one of the edge's surfaces at sample 8 \
+             escalated: {}",
+            in_band.payload()
+        );
+        let miss_payload = "the residual against one of the edge's surfaces at sample 8 is \
+                            3e-8, definitely past the tolerance";
+        let surface_payload = format!(
+            "the residual against one of the edge's surfaces at sample 8 escalated: {}",
+            in_band.payload()
+        );
+        for (label, carrier, cause, payload, ending) in [
+            (
+                "the witness's residual, an exact construction",
+                &line,
+                escalated(CertCheck::WitnessSurfaceResidual { surface }),
+                witness_payload.as_str(),
+                KERNEL_DEFECT_ENDING,
+            ),
+            (
+                "a definite miss",
+                &line,
+                definite,
+                miss_payload,
+                KERNEL_DEFECT_ENDING,
+            ),
+            (
+                "a fitted carrier read in band, the fit's limit",
+                &fitted,
+                escalated(CertCheck::SurfaceResidual { surface }),
+                surface_payload.as_str(),
+                KERNEL_LIMIT_RECOURSE,
+            ),
+        ] {
+            let (merged, err) = said(carrier, cause);
+            let text = err.to_string();
+            assert!(
+                matches!(err, BooleanError::EdgeUndescribed { .. }),
+                "{label}: {err:?}"
+            );
+            assert_eq!(
+                (merged, text.clone()),
+                undescribed(payload, ending),
+                "{label}"
+            );
+            assert!(!text.contains("Key("), "{label}: no arena key: {text}");
         }
     }
 

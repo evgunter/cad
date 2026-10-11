@@ -57,12 +57,12 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pncad::document::{
-    Assembly, AssemblyError, AuthoredNode, ChecksConfig, ChecksReport, Dimension, DimensionError,
-    Doc, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeValue,
-    FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Node, Operand, OperandSlot, PartReach,
-    PartResolver, ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId,
-    Subject, VarId, VarName, apply, assemble_gathered, cascade_delete_order, parse_formula,
-    product_recorded, run_checks_on,
+    Assembly, AssemblyError, AuthoredNode, CheckId, ChecksConfig, ChecksReport, Dimension,
+    DimensionError, Doc, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula,
+    FreeValue, FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Node, Operand, OperandSlot,
+    PartReach, PartResolver, ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording,
+    SlotId, StepId, Subject, VarId, VarName, apply, assemble_gathered, cascade_delete_order,
+    parse_formula, product_recorded, run_checks_at_rest_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -74,7 +74,9 @@ use crate::blend::BlendKindChoice;
 use crate::combine::{self, DuplicateFault, PatternOutputChoice};
 use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver, NoFile};
-use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator};
+use crate::evalseam::{
+    DoorDone, DoorRequest, DoorService, EvalRequest, EvalService, InlineEvaluator, InlineProver,
+};
 use crate::g1;
 use crate::generation::Generation;
 use crate::history::History;
@@ -387,6 +389,10 @@ pub struct DocSession {
     tol: Tol,
     gesture: g1::Slot<Gesture, SlotValue>,
     eval: Box<dyn EvalService>,
+    /// **The coincidence door's seam**: the landed report's door runs
+    /// here, at rest, and the next request cancels it
+    /// ([`DocSession::request_eval`]).
+    door: Box<dyn DoorService>,
     generation: Generation,
     /// The document handed to the seam under [`DocSession::generation`]
     /// — kept so a landed result can be paired with the document it
@@ -833,6 +839,7 @@ impl DocSession {
             tol,
             gesture: g1::Slot::closed(),
             eval,
+            door: Box::new(InlineProver::new()),
             generation: Generation::FIRST,
             derived: Derived::none(),
             path: None,
@@ -842,6 +849,16 @@ impl DocSession {
         };
         session.request_eval();
         session
+    }
+
+    /// This session with its coincidence door run through `door`, in
+    /// place of the inline seam [`DocSession::new`] gives it, which runs
+    /// a landing's door inside [`DocSession::pump`]. Taken before the
+    /// first pump: a job the replaced seam holds is dropped with it.
+    #[must_use]
+    pub fn with_door(mut self, door: Box<dyn DoorService>) -> Self {
+        self.door = door;
+        self
     }
 
     /// A session running the seam inline — the shape a test and the
@@ -1145,10 +1162,12 @@ impl DocSession {
     }
 
     /// The advisory-check report for the landed pair — findings in
-    /// deterministic order, and the residents that were configured
-    /// `Off`. `None` before anything lands, or when the registry
-    /// refused (which is distinct from an empty report: "not checked"
-    /// and "checked and fine" are different answers).
+    /// deterministic order, the residents that were configured `Off`,
+    /// and the coincidence door while it runs at rest
+    /// ([`ChecksReport::pending`]). `None` before anything lands, or
+    /// when the registry refused (which is distinct from an empty
+    /// report: "not checked" and "checked and fine" are different
+    /// answers).
     pub fn checks(&self) -> Option<&ChecksReport> {
         self.derived.landed.as_ref()?.checks.as_ref()
     }
@@ -1353,7 +1372,36 @@ impl DocSession {
         while let Some(done) = self.eval.poll() {
             landings.push(self.land(done));
         }
+        while let Some(done) = self.door.poll() {
+            self.settle(done);
+        }
         landings
+    }
+
+    /// **Settles a door job into the landed report it was split from**
+    /// — only that one: an answer for a landing since replaced, or one
+    /// the next request canceled, is dropped, and a report whose door
+    /// was canceled goes on reading it pending until a landing answers
+    /// again. A second answer for a report already settled is dropped
+    /// too.
+    pub fn settle(&mut self, done: DoorDone) {
+        let Some(run) = self.derived.landed.as_mut() else {
+            return;
+        };
+        if run.generation != done.generation {
+            return;
+        }
+        if let (Some(report), Ok(findings)) = (run.checks.as_mut(), done.findings)
+            && report.pending.contains(&CheckId::UnprovenCoincidence)
+        {
+            report.settle(findings);
+        }
+    }
+
+    /// Whether the landed report's coincidence door is still running
+    /// at rest.
+    pub fn proving(&self) -> bool {
+        self.door.busy()
     }
 
     /// Decide one result's fate. Public so the staleness rule is
@@ -1403,7 +1451,7 @@ impl DocSession {
                 // otherwise. A refusal of the registry itself leaves
                 // no report rather than a clean one: "not checked" is
                 // not "checked and fine".
-                let checks = run_checks_on(
+                let checks = run_checks_at_rest_on(
                     doc,
                     &done.evaluation,
                     Subject::Product(&product),
@@ -1441,8 +1489,14 @@ impl DocSession {
                     .kind()
                     .means_no_body()
                     .then(|| {
-                        run_checks_on(doc, &done.evaluation, Subject::EmptyProduct, &cfg, self.tol)
-                            .ok()
+                        run_checks_at_rest_on(
+                            doc,
+                            &done.evaluation,
+                            Subject::EmptyProduct,
+                            &cfg,
+                            self.tol,
+                        )
+                        .ok()
                     })
                     .flatten();
                 (Err(fault), checks)
@@ -1455,6 +1509,16 @@ impl DocSession {
         } else {
             PartFiles::Unscanned
         };
+        // **The door runs at rest**: the report reads it pending until
+        // the job lands ([`DocSession::settle`]).
+        let (checks, door) = checks.map_or((None, None), |(report, door)| (Some(report), door));
+        if let Some(job) = door {
+            self.door.submit(DoorRequest {
+                generation: done.generation,
+                doc: Arc::clone(&self.requested_doc),
+                job,
+            });
+        }
         // The landed pair and its verdicts become the session's as ONE
         // value, which is the same value `Derived::none` clears.
         self.derived.landed = Some(LandedRun {
@@ -3400,6 +3464,8 @@ impl DocSession {
         // retained copy — the session keeps exactly one.
         self.requested_doc = Arc::new(self.doc().clone());
         self.requested_resolver = self.run_resolver();
+        // The landing this request will replace no longer wants its door.
+        self.door.cancel();
         self.eval.submit(EvalRequest {
             generation: self.generation,
             doc: self.requested_doc.as_ref().clone(),
@@ -3559,9 +3625,9 @@ fn session_dir(path: &Path) -> PathBuf {
 /// its members travel with their declaration rather than being listed
 /// a second time here.
 ///
-/// The four `_` arms, one reason each: `tol` is `Tol(())`, a ZST with
-/// no content to print; `eval` is a `dyn` service and implements no
-/// `Debug`; `requested_doc` is a whole recipe DAG; and `display` is
+/// The five `_` arms, one reason each: `tol` is `Tol(())`, a ZST with
+/// no content to print; `eval` and `door` are `dyn` services and
+/// implement no `Debug`; `requested_doc` is a whole recipe DAG; and `display` is
 /// not derived from the document, is as large as the document's hidden
 /// and moved sets, and has its own [`DocSession::display`] door to be
 /// dumped through.
@@ -3579,6 +3645,7 @@ impl core::fmt::Debug for DocSession {
             tol: _,
             gesture,
             eval: _,
+            door: _,
             generation,
             requested_doc: _,
             requested_resolver: _,
