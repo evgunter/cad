@@ -56,8 +56,9 @@ use crate::common::differential::{nt_cube, nt_prisms};
 /// ε row: `germ` the pierce germ, `coplanar` the coplanar lump, `recl`
 /// the ON sector pair, `describe` the minted edges' description, `edge`
 /// the edge-sector crossing, `twin` the reference's other twin,
-/// `reference` the reference read after a germ.
-const POSES: [(&str, usize, f64, f64); 52] = [
+/// `reference` the reference read after a germ, `shipped` contact
+/// records the result's geometry no longer confirmed.
+const POSES: [(&str, usize, f64, f64); 55] = [
     ("Lbot", 0, 12.0, -1e-9),    // germ, ε = 1e-9
     ("Lmirror", 0, 12.0, -1e-9), // germ, ε = 1e-9
     ("Ltop", 0, 12.0, -1e-9),    // germ, ε = 1e-9
@@ -110,6 +111,9 @@ const POSES: [(&str, usize, f64, f64); 52] = [
     ("vee300", 0, 11.75, -1e-7), // reference, ε = 1e-9 and 1e-12
     ("vee300", 0, 11.75, -2e-8), // reference, ε = 1e-12
     ("vee300", 0, 11.75, -2e-9), // reference, ε = 1e-12
+    ("w345", 1, 13.0, 1e-8),     // shipped, ε = 1e-12
+    ("w345", 1, 13.0, 1e-9),     // shipped, ε = 1e-12
+    ("w345", 1, 14.0, 1e-8),     // shipped, ε = 1e-12
 ];
 
 /// `(ε, prism, edge, sixteenths, tilt, run)`: the runs that build their
@@ -119,56 +123,7 @@ const POSES: [(&str, usize, f64, f64); 52] = [
 /// which the door does not see until it runs the census over its result
 /// (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`):
 /// either landing turns these red, to be re-pinned.
-const SHIPS_A_FINDING: [Shipped; 5] = [
-    (
-        1e-12,
-        "w345",
-        1,
-        13.0,
-        1e-8,
-        "prism ∩ cube",
-        &[
-            "StaleContactDeclaration { declaration: VertexOnFace { vertex: VertexKey(2v1), face: FaceKey(19v7) } }",
-            "StaleContactDeclaration { declaration: VertexOnFace { vertex: VertexKey(9v1), face: FaceKey(19v7) } }",
-        ],
-    ),
-    (
-        1e-12,
-        "w345",
-        1,
-        13.0,
-        1e-9,
-        "prism ∩ cube",
-        &[
-            "StaleContactDeclaration { declaration: VertexOnFace { vertex: VertexKey(2v1), face: FaceKey(19v9) } }",
-            "StaleContactDeclaration { declaration: VertexOnFace { vertex: VertexKey(9v1), face: FaceKey(19v9) } }",
-        ],
-    ),
-    (
-        1e-12,
-        "w345",
-        1,
-        14.0,
-        1e-8,
-        "cube ∩ prism",
-        &[
-            "StaleContactDeclaration { declaration: VertexOnFace { vertex: VertexKey(23v3), face: FaceKey(6v1) } }",
-            "StaleContactDeclaration { declaration: VertexOnFace { vertex: VertexKey(17v3), face: FaceKey(6v1) } }",
-        ],
-    ),
-    (
-        1e-12,
-        "w345",
-        1,
-        14.0,
-        1e-8,
-        "cube ∖ prism",
-        &[
-            r#"UndeclaredContact { contact: VertexOnFace { vertex: VertexKey(16v3), face: FaceKey(8v1) }, witness: "(2.0, 0.0, 1.0)" }"#,
-            r#"UndeclaredContact { contact: VertexOnFace { vertex: VertexKey(22v3), face: FaceKey(8v1) }, witness: "(2.0, 0.0, 0.0)" }"#,
-            r#"UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(20v7), face: FaceKey(8v1) }, witness: "(2.0, 0.0, 0.5)" }"#,
-        ],
-    ),
+const SHIPS_A_FINDING: [Shipped; 1] = [
     // The far end of the prism's edge `e1`, 2 m out, lies within ε of the
     // cube's face, where the cube's edge crosses the prism's top edge.
     (

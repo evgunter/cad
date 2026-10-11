@@ -155,3 +155,10 @@ CLEAVE orchestrator at PR 4630's review (a kernel-defect refusal on
 valid input traded for this class's finding), and pinned by
 `SHIPS_A_FINDING` (its ε row 1e-6) in
 `crates/sweep/tests/near_tangent_pierce_poses.rs`.
+
+Measured on main at `e7828dcb0e` (main's own `recl.rs`, ε = 1e-12): the
+four near-tangent runs above (`w345 nt e1 a13 d1e-8` and `d1e-9`
+prism ∩ cube, `a14 d1e-8` cube ∩ prism and cube ∖ prism) now build
+their closed form and ship no tier-3′ finding. `SHIPS_A_FINDING` drops
+them, and their poses stay in the pin's `POSES`, held to a clean tier
+3′.
