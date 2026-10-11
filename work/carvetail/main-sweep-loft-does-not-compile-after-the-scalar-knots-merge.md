@@ -2,7 +2,9 @@
 id: main-sweep-loft-does-not-compile-after-the-scalar-knots-merge
 kind: issue
 title: main does not compile: sweep's lift_loop_walls builds a NurbsSurface<T> from f64 knots and weights after #4591 moved them into the scalar
-status: open
+status: closed
+pr: 4700
+closed: 2026-10-11
 priority: P0
 cost: E
 opened: 2026-10-11
@@ -28,3 +30,7 @@ sits in `impl<T: SpanLocate>`, so `lift_loop_walls` (and its callers up
 `loft`'s generic chain) need `T: SpanLocate`, or the rebuild goes
 through a constructor that does not re-validate. Which is this
 program's call. (FLUX cone-vector-area lane)
+
+Closed: PR 4700 (`flux/main-compiles-sweep-loft`) fixed it — the
+`SpanLocate` bound is free, since loft's one caller is `T: Decide` and
+`Decide: SpanLocate`.

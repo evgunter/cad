@@ -416,7 +416,7 @@ fn an_open_loop_refuses_by_name() {
     assert!(
         matches!(
             got,
-            Err(PropsError::NotIsoRectangle {
+            Err(PropsError::ConeLoop {
                 what: "props_loop_closed"
             })
         ),
@@ -434,10 +434,253 @@ fn a_loop_winding_the_axis_twice_refuses_by_name() {
     assert!(
         matches!(
             got,
-            Err(PropsError::NotIsoRectangle {
+            Err(PropsError::ConeLoop {
                 what: "props_cone_loop_winding"
             })
         ),
         "a loop winding twice must refuse at props_cone_loop_winding; got {got:?}"
     );
+}
+
+/// **`loops` refuses with `want` under both senses.**
+fn refuses(name: &str, loops: &[Vec<LoopEdge<f64>>], want: &PropsError) {
+    for sense in [true, false] {
+        let got = measure(loops, sense);
+        assert_eq!(
+            got.as_ref().err(),
+            Some(want),
+            "{name} (sense {sense}): must refuse {want:?}; got {got:?}"
+        );
+    }
+}
+
+/// The chart rectangle `[0, 1] × [1, 2]`, chart-CCW: its low rim, the
+/// generator at `u = 1`, its high rim, the generator at `u = 0`.
+fn unit_wall() -> Vec<LoopEdge<f64>> {
+    chart_loop(&[(0.0, 1.0), (1.0, 1.0), (1.0, 2.0), (0.0, 2.0)])
+}
+
+/// The straight segment from `p` to `q`.
+fn chord(p: [f64; 3], q: [f64; 3], a: u32, b: u32) -> LoopEdge<f64> {
+    let d = [q[0] - p[0], q[1] - p[1], q[2] - p[2]];
+    let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
+    topo::edge(
+        Curve3::Line {
+            origin: p3(p[0], p[1], p[2]),
+            dir: v3(d[0] / l, d[1] / l, d[2] / l),
+        },
+        0.0,
+        l,
+        a,
+        b,
+    )
+}
+
+/// **An edge off the cone refuses as incidence, by the name the iso
+/// parse decides it under.** The form reads only the boundary, so a
+/// boundary that is not on the cone answers for a region that is not
+/// either: the wall with its rims replaced by straight chords closes
+/// and would measure the chords' vector area. A rim of the wrong radius
+/// and a line at the generator angle that misses the apex are refused
+/// as what they are, not as the gap they leave at a joint.
+#[test]
+fn an_edge_off_the_cone_refuses_as_incidence() {
+    let good = unit_wall();
+    let mut chords = good.clone();
+    chords[0] = chord(chart(0.0, 1.0), chart(1.0, 1.0), 0, 1);
+    chords[2] = chord(chart(1.0, 2.0), chart(0.0, 2.0), 2, 3);
+    refuses(
+        "rims replaced by chords",
+        &[chords],
+        &PropsError::OffSurface {
+            what: "props_meridian_generator",
+        },
+    );
+    let (s, c) = ALPHA.sin_cos();
+    let mut wide = good.clone();
+    wide[2] = topo::edge(
+        Curve3::Circle {
+            center: p3(APEX.0, APEX.1, APEX.2 + 2.0 * c),
+            axis: v3(0.0, 0.0, 1.0),
+            radius: 1.1 * 2.0 * s,
+            u_ref: v3(1.0, 0.0, 0.0),
+        },
+        1.0,
+        0.0,
+        2,
+        3,
+    );
+    refuses(
+        "a rim 10% too wide",
+        &[wide],
+        &PropsError::OffSurface {
+            what: "props_rim_fit",
+        },
+    );
+    let mut missing = good;
+    missing[1] = topo::edge(
+        Curve3::Line {
+            origin: p3(APEX.0, APEX.1 + 0.3, APEX.2),
+            dir: v3(s * 1.0_f64.cos(), s * 1.0_f64.sin(), c),
+        },
+        1.0,
+        2.0,
+        1,
+        2,
+    );
+    refuses(
+        "a generator that misses the apex",
+        &[missing],
+        &PropsError::OffSurface {
+            what: "props_meridian_apex",
+        },
+    );
+}
+
+/// The sector `[0, du] × [0, 1.5]` through the apex.
+fn sector(du: f64) -> Face {
+    Face {
+        loops: vec![vec![(0.0, 0.0), (du, 0.0), (du, 1.5), (0.0, 1.5)]],
+        rects: vec![((0.0, du), (0.0, 1.5), 1.0)],
+    }
+}
+
+/// **The slit cap — a loop through the apex that goes round to its own
+/// generator — sweeps exactly a turn and measures**: the cap
+/// `[0, 2π] × [0, 1.5]`, its seam generator traversed out and back.
+#[test]
+fn the_slit_cap_sweeping_exactly_a_turn_measures_exactly() {
+    measures_exactly("slit cap", &sector(TAU));
+}
+
+/// **A loop through the apex that sweeps past a turn refuses**, named
+/// `props_cone_apex_loop_sweep`: past a turn it covers part of the
+/// nappe twice, and the vector area counts that part twice. A sector of
+/// `2π + 0.1` pins the bound a hair past the slit cap, below every
+/// off-apex bound; the spiral steps outward as it goes round.
+#[test]
+fn a_loop_through_the_apex_sweeping_past_a_turn_refuses_by_name() {
+    let want = PropsError::ConeLoop {
+        what: "props_cone_apex_loop_sweep",
+    };
+    for du in [TAU + 0.1, TAU + 2.0, TAU + 2.9] {
+        let face = sector(du);
+        for verts in [face.loops[0].clone(), reversed(&face.loops[0])] {
+            refuses(&format!("sector of {du}"), &[chart_loop(&verts)], &want);
+        }
+    }
+    let spiral = [
+        (0.0, 0.0),
+        (0.0, 1.0),
+        (4.0, 1.0),
+        (4.0, 1.5),
+        (TAU + 1.0, 1.5),
+        (TAU + 1.0, 0.0),
+    ];
+    refuses("the spiral", &[chart_loop(&spiral)], &want);
+}
+
+/// **A loop that meets itself at a vertex refuses**, named
+/// `props_cone_loop_vertex`: the pinched figure-eight — lobes
+/// `[0, 1] × [1, 2]` and `[1, 2] × [2, 3]` meeting at `(1, 2)`, the
+/// second wound against the first — measures the difference of its
+/// lobes, and a loop stated twice measures double, off the apex and
+/// through it.
+#[test]
+fn a_loop_meeting_itself_at_a_vertex_refuses_by_name() {
+    let want = PropsError::ConeLoop {
+        what: "props_cone_loop_vertex",
+    };
+    let eight = [
+        (0.0, 1.0),
+        (1.0, 1.0),
+        (1.0, 2.0),
+        (1.0, 3.0),
+        (2.0, 3.0),
+        (2.0, 2.0),
+        (1.0, 2.0),
+        (0.0, 2.0),
+    ];
+    refuses("the figure-eight", &[chart_loop(&eight)], &want);
+    for (name, verts) in [
+        (
+            "a wall stated twice",
+            vec![(0.0, 1.0), (2.0, 1.0), (2.0, 2.0), (0.0, 2.0)],
+        ),
+        ("a sector stated twice", sector(1.2).loops[0].clone()),
+    ] {
+        let mut twice = chart_loop(&verts);
+        twice.extend(chart_loop(&verts));
+        refuses(name, &[twice], &want);
+    }
+}
+
+/// **A seam's two copies of one vertex are a period apart, not a
+/// pinch**: the full wall `[0, 2π] × [1, 2]` with its low rim split at
+/// `u = 2` passes its seam vertex `(0, 1) ≡ (2π, 1)` twice,
+/// non-adjacently, and measures — `props_cone_loop_vertex_sheet` reads
+/// the turn the loop makes between the two.
+#[test]
+fn a_seamed_wall_with_a_split_rim_measures_exactly() {
+    measures_exactly(
+        "seamed wall, low rim split",
+        &Face {
+            loops: vec![vec![
+                (0.0, 1.0),
+                (2.0, 1.0),
+                (TAU, 1.0),
+                (TAU, 2.0),
+                (0.0, 2.0),
+            ]],
+            rects: vec![((0.0, TAU), (1.0, 2.0), 1.0)],
+        },
+    );
+}
+
+/// **Holes that cover more than the outer loop refuse as such**, not
+/// as a ring wound with the face: two holes each wound against the wall
+/// `[0, 3] × [1, 2]` but overlapping, their areas summing past it, turn
+/// the whole's sign. One ring wound WITH the wall is the other refusal.
+#[test]
+fn holes_covering_more_than_the_face_refuse_by_name() {
+    let outer = [(0.0, 1.0), (3.0, 1.0), (3.0, 2.0), (0.0, 2.0)];
+    let h1 = [(0.1, 1.05), (2.0, 1.05), (2.0, 1.95), (0.1, 1.95)];
+    let h2 = [(1.0, 1.05), (2.9, 1.05), (2.9, 1.95), (1.0, 1.95)];
+    let o = chart_loop(&outer);
+    refuses(
+        "overlapping holes summing past the face",
+        &[
+            o.clone(),
+            chart_loop(&reversed(&h1)),
+            chart_loop(&reversed(&h2)),
+        ],
+        &PropsError::HolesExceedFace,
+    );
+    refuses(
+        "a ring wound with the face",
+        &[o, chart_loop(&h1)],
+        &PropsError::RingWoundWithFace,
+    );
+}
+
+/// **A wall a few escalation bands wide measures**: its rims are arcs a
+/// few `K·ε` long, short enough that a turn decided on the arc's own
+/// length would escalate. A rim turns through its stored span, so no
+/// decide reads the arc's length.
+#[test]
+fn a_wall_a_few_bands_wide_measures() {
+    let du = 4.0 * band().escalate() / ALPHA.sin();
+    let face = Face {
+        loops: vec![vec![(0.0, 1.0), (du, 1.0), (du, 2.0), (0.0, 2.0)]],
+        rects: vec![((0.0, du), (1.0, 2.0), 1.0)],
+    };
+    let (_, area) = oracle(&face.rects);
+    for verts in [face.loops[0].clone(), reversed(&face.loops[0])] {
+        let (_, got) = measure(&[chart_loop(&verts)], true)
+            .unwrap_or_else(|e| panic!("a wall {du:e} rad wide: refused {e:?}"));
+        assert!(
+            (got - area).abs() <= 1e-9 * area,
+            "a wall {du:e} rad wide: area {got:e} against {area:e}"
+        );
+    }
 }

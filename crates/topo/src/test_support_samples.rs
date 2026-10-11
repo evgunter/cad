@@ -668,6 +668,10 @@ fn props_errors() -> Vec<PropsError> {
         PropsError::SphereLoop {
             what: "props_loop_closed",
         },
+        PropsError::ConeLoop {
+            what: "props_loop_closed",
+        },
+        PropsError::HolesExceedFace,
         PropsError::SenseContradicted,
         PropsError::SenseInverted,
         PropsError::RingWoundWithFace,

@@ -34,9 +34,10 @@ use crate::shared::point::{p3 as p, v3};
 use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::props::LoopEdge;
+use geom_brep::props::{LoopEdge, curved_face};
 use geom_brep::require_iso_rectangle;
-use geom_core::k_stats::{self, Probe};
+use geom_core::Sign;
+use geom_core::k_stats::{self, Probe, SampleOutcome};
 
 // ---------------------------------------------------------------------
 // `props_rim_level` — the S58 iso-rectangle predicate (#714)
@@ -294,7 +295,7 @@ fn mm_scale_sphere_rim_level_margin_is_the_direction_chord() {
 /// a file that decides against the ambient one is a latent wrong test,
 /// not a comment defect. **S233.**
 #[test]
-fn an_interior_rim_inside_the_band_measures_and_outside_it_refuses() {
+fn an_interior_rim_inside_the_band_is_one_level_and_outside_it_refuses() {
     let scale = 1e-3;
     let cos_a = 0.5_f64.atan().cos();
     let slant_extent = scale / cos_a; // vb − va
@@ -309,6 +310,72 @@ fn an_interior_rim_inside_the_band_measures_and_outside_it_refuses() {
              wanted {want_refusal} (Band {{ zero {:e}, escalate {:e} }})",
             band.zero(),
             band.escalate()
+        );
+    }
+}
+
+// ---------------------------------------------------------------------
+// The cone flux lane's decides
+// ---------------------------------------------------------------------
+
+/// **The cone's flux lane decides lengths, at mm scale as at metre
+/// scale.** `cone_interior_rim`'s L — `cone_trunc`'s proportions —
+/// measures through the vector-area form, which decides the nappe, the
+/// side, each end off the apex, each rim's sense, the winding and the
+/// loop's vertices apart. Every one of those it decides definitely is
+/// a point deviation, so it scales LINEARLY between the twins (an
+/// arm-multiplied comparand answers 1e6) and clears the run's
+/// escalation threshold at mm scale.
+#[test]
+fn the_cone_flux_lane_decides_lengths_at_both_scales() {
+    const LENGTHS: &[&str] = &[
+        "props_cone_nappe",
+        "props_cone_area_side",
+        "props_cone_loop_off_apex",
+        "props_cone_arc_sense",
+        "props_cone_loop_winding",
+        "props_cone_loop_vertex",
+    ];
+    let run = |scale: f64| -> Vec<(&'static str, f64)> {
+        let (surface, edges) = cone_interior_rim(scale, 0.5);
+        k_stats::start_recording();
+        let got = curved_face(&surface, &edges, true, band());
+        let samples = k_stats::take_samples();
+        got.unwrap_or_else(|e| panic!("the L at {scale:e} measures: {e:?}"));
+        samples
+            .iter()
+            .filter(|s| LENGTHS.contains(&s.predicate))
+            .filter(|s| {
+                matches!(
+                    s.outcome,
+                    SampleOutcome::Definite(Sign::Positive | Sign::Negative)
+                )
+            })
+            .map(|s| (s.predicate, s.margin.abs()))
+            .collect()
+    };
+    let (mm, m) = (run(1e-3), run(1.0));
+    for name in LENGTHS {
+        assert!(
+            mm.iter().any(|(p, _)| p == name),
+            "{name} decides nothing definite on the L: {mm:?}"
+        );
+    }
+    assert_eq!(
+        mm.iter().map(|(p, _)| *p).collect::<Vec<_>>(),
+        m.iter().map(|(p, _)| *p).collect::<Vec<_>>(),
+        "the twins decide the same sequence"
+    );
+    let escalate = band().escalate();
+    for ((name, a), (_, b)) in mm.iter().zip(&m) {
+        let ratio = b / a;
+        assert!(
+            (ratio / 1e3 - 1.0).abs() < 1e-9,
+            "{name}: margin must scale linearly with the model, ratio {ratio:e}"
+        );
+        assert!(
+            *a > escalate,
+            "{name}: margin {a:e} must clear this run's escalation threshold {escalate:e} at mm scale"
         );
     }
 }

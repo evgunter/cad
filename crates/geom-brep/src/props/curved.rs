@@ -912,10 +912,8 @@ impl<T: Real> RimArms<T> {
     }
 }
 
-/// **The one spelling of "this rim level is one of these levels."**
-///
-/// [`require_rims_at_extremes`] decides it against the face's two
-/// extremes, on three axes:
+/// **Whether a rim level is one of the face's two extremes**, for
+/// [`require_rims_at_extremes`], on three axes:
 ///
 /// * **the metric.** A `Unit` pair's deviation is the CHORD
 ///   `√(Δs² + Δc²)` between the two directions, at `arms.level`.
@@ -1625,27 +1623,43 @@ fn min_max<T: Real>(levels: &[T]) -> Result<(T, T), PropsError> {
 /// a region whose closure holds the apex, where `n` is undefined on a
 /// set of no area. What it needs, each decided by name:
 ///
+/// - **edges on the cone** — generators through the apex, rims of the
+///   cone's own radius (the incidence premises, in [`cone_loops`]);
 /// - **one nappe** — the boundary does not cross the apex
 ///   (`props_cone_nappe`, in [`cone_loops`]);
 /// - **closed loops** that bound the region **once**: every joint
-///   closes (`props_loop_closed`, in [`cone_loops`]), the outer loop
-///   winds the axis at most once (`props_cone_loop_winding`), and every
+///   closes (`props_loop_closed`, in [`cone_loops`]); the outer loop
+///   goes round the axis at most once (`props_cone_loop_winding`, or
+///   `props_cone_apex_loop_sweep` for a loop through the apex —
+///   [`cone_loop_winding`] argues both bounds); no loop meets itself at
+///   a vertex ([`require_cone_loop_vertices_distinct`]); and every
 ///   ring is a hole — contractible on the nappe
-///   ([`require_cone_ring_contractible`]) and wound against the face
-///   (`props_ring_winding`, [`require_holes_against`]);
+///   ([`require_cone_ring_contractible`]), wound against the outer loop
+///   (`props_ring_winding`) and, together, inside it
+///   ([`require_cone_holes`]);
 /// - **a side** — the area `A⃗` encodes is not zero
 ///   (`props_cone_area_side`, in [`cone_loops`]), the side tier 3's
 ///   check 6 compares with `Face::sense`.
 ///
+/// **Not decided: a loop that crosses itself between vertices.** Two
+/// edges of one loop that cross at interior points bound lobes of
+/// opposite sign, and the vector area is their difference. No closed
+/// form here decides edge-edge crossing — the sphere's Gauss–Bonnet
+/// shares the residual — so it is the body validity's; nor is a ring
+/// decided to lie inside the outer loop, beyond the sum of the holes.
+///
 /// # Errors
 ///
 /// [`PropsError::Unimplemented`] for a spline or spiric edge;
+/// [`PropsError::OffSurface`] for an edge off the cone;
 /// [`PropsError::NappeSpanning`] for a face on both nappes;
 /// [`PropsError::DegenerateFace`] for a face of no area;
-/// [`PropsError::NotIsoRectangle`] naming the decide for a loop that
-/// does not close, winds the axis twice or more, or a ring that winds
-/// it; [`PropsError::RingWoundWithFace`] for a ring wound with the
-/// face; [`PropsError::Escalated`] for an in-band decision.
+/// [`PropsError::ConeLoop`] naming the decide for a loop that does not
+/// close, goes round the axis twice, meets itself at a vertex, or a
+/// ring that winds the axis or reaches the apex;
+/// [`PropsError::RingWoundWithFace`] for a ring wound with the face;
+/// [`PropsError::HolesExceedFace`] for holes that cover more than the
+/// outer loop; [`PropsError::Escalated`] for an in-band decision.
 pub fn cone_face_closed_form<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
@@ -1659,22 +1673,39 @@ pub fn cone_face_closed_form<T: Decide>(
         });
     };
     let read = cone_loops(apex, axis, half_angle, loops, band)?;
-    let (winding, arm) = cone_loop_winding(apex, axis, outer, AtApex::AlongGenerator, band)?;
-    if classify(
-        "props_cone_loop_winding",
-        Margin::levered(T::from_f64(3.0) * T::pi() - winding.abs(), arm),
-        band,
-        PropsCheck::Inventory,
-    )? != Sign::Positive
-    {
-        return Err(PropsError::NotIsoRectangle {
-            what: "props_cone_loop_winding",
+    let w = cone_loop_winding(apex, axis, outer, AtApex::AlongGenerator, band)?;
+    let once = if w.through_apex {
+        // The slit cap sweeps exactly a turn: Zero admits it.
+        classify(
+            "props_cone_apex_loop_sweep",
+            Margin::levered(T::tau() - w.total.abs(), w.arm),
+            band,
+            PropsCheck::Inventory,
+        )? != Sign::Negative
+    } else {
+        classify(
+            "props_cone_loop_winding",
+            Margin::levered(T::from_f64(3.0) * T::pi() - w.total.abs(), w.arm),
+            band,
+            PropsCheck::Inventory,
+        )? == Sign::Positive
+    };
+    if !once {
+        return Err(PropsError::ConeLoop {
+            what: if w.through_apex {
+                "props_cone_apex_loop_sweep"
+            } else {
+                "props_cone_loop_winding"
+            },
         });
     }
+    require_cone_loop_vertices_distinct(apex, axis, &w, band)?;
     for &ring in rings {
-        require_cone_ring_contractible(apex, axis, ring, band)?;
+        let wr = cone_loop_winding(apex, axis, ring, AtApex::Refuse, band)?;
+        require_cone_ring_contractible(&wr, band)?;
+        require_cone_loop_vertices_distinct(apex, axis, &wr, band)?;
     }
-    require_holes_against(read.side, &read.holes, band)?;
+    require_cone_holes(&read, band)?;
     Ok(FaceContribution {
         flux: (apex - Point3::origin()).dot(read.va),
         area: (axis.dot(read.va) / half_angle.sin()).abs(),
@@ -1687,14 +1718,23 @@ struct ConeLoops<T: Real> {
     va: Vec3<T>,
     /// The side the loops encode, definite.
     side: Sign,
-    /// Each ring's signed area and an upper bound on its length, the
-    /// area signed as `side` reads the whole's.
-    holes: Vec<(T, T)>,
+    /// Each loop's signed area and an upper bound on its length, the
+    /// area signed as `side` reads the whole's: the outer loop first.
+    per_loop: Vec<(T, T)>,
 }
 
 /// **The material side a cone face's loops encode**, and the vector
 /// area its flux reads ([`cone_face_closed_form`]): the sign of its
 /// area against the chart normal, off the axial vector area.
+///
+/// Every edge must lie on the cone, decided as incidence
+/// ([`PropsError::OffSurface`]): a line is a generator — at the
+/// generator angle to the axis (`props_meridian_generator`) and through
+/// the apex (`props_meridian_apex`) — and a circle is a rim, coaxial
+/// (`props_circle_axis_class`, `props_rim_axis_parallel`,
+/// `props_rim_center_on_axis`) at the cone's radius for its height
+/// (`props_rim_fit`). An ellipse is read as the plane section it is
+/// stated to be, its incidence undecided here.
 ///
 /// The chart normal makes `n·axis = −sin α` on the `v > 0` nappe and
 /// `+sin α` on the other, so a face whose traversal places it left of
@@ -1723,6 +1763,11 @@ fn cone_loops<T: Decide>(
 ) -> Result<ConeLoops<T>, PropsError> {
     let (sin_a, cos_a) = half_angle.sin_cos();
     let slant = |p: Point3<T>| (p - apex).dot(axis) / cos_a;
+    for &edges in loops {
+        for e in edges {
+            require_on_cone(apex, axis, sin_a, cos_a, e, band)?;
+        }
+    }
     let (mut ends, mut length, mut axial, mut va) =
         (Vec::new(), T::zero(), T::zero(), Vec3::zero());
     let mut per_loop = Vec::with_capacity(loops.len());
@@ -1734,7 +1779,8 @@ fn cone_loops<T: Decide>(
                 Margin::of((e.traversal_ends().1 - next.traversal_ends().0).norm()),
                 band,
                 Premise::Inventory,
-            )?;
+            )
+            .map_err(cone_loop_refusal)?;
             let l = cone_edge_length(e)?;
             length = length + l;
             loop_length = loop_length + l;
@@ -1768,12 +1814,78 @@ fn cone_loops<T: Decide>(
     Ok(ConeLoops {
         va,
         side,
-        holes: per_loop
+        per_loop: per_loop
             .iter()
-            .skip(1)
             .map(|&(a, l)| (-(nappe * a) / sin_a, l))
             .collect(),
     })
+}
+
+/// A cone loop premise's inventory refusal, as the cone's own
+/// ([`PropsError::ConeLoop`]).
+fn cone_loop_refusal(e: PropsError) -> PropsError {
+    match e {
+        PropsError::NotIsoRectangle { what } => PropsError::ConeLoop { what },
+        other => other,
+    }
+}
+
+/// **An edge lies on the cone** — the incidence premises the iso parse
+/// ([`cone_boundary`]) decides, under the same names: a line at the
+/// generator angle through the apex, a circle coaxial at the cone's
+/// radius for its height. An ellipse passes undecided ([`cone_loops`]).
+fn require_on_cone<T: Decide>(
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    sin_a: T,
+    cos_a: T,
+    e: &LoopEdge<T>,
+    band: Band,
+) -> Result<(), PropsError> {
+    match e.carrier {
+        Curve3::Line { dir, .. } => {
+            require_zero(
+                "props_meridian_generator",
+                Margin::levered(dir.dot(axis).abs() - cos_a, e.t1 - e.t0),
+                band,
+                Premise::OnSurface,
+            )?;
+            require_zero(
+                "props_meridian_apex",
+                Margin::norm3((apex - e.p0()).cross(dir)),
+                band,
+                Premise::OnSurface,
+            )
+        }
+        Curve3::Circle {
+            center,
+            axis: n_c,
+            radius: r_c,
+            ..
+        } => {
+            if classify(
+                "props_circle_axis_class",
+                Margin::levered(n_c.dot(axis), r_c),
+                band,
+                PropsCheck::Inventory,
+            )? == Sign::Zero
+            {
+                return Err(PropsError::OffSurface {
+                    what: "props_circle_axis_class",
+                });
+            }
+            let v = (center - apex).dot(axis) / cos_a;
+            require_zero(
+                "props_rim_fit",
+                Margin::of(r_c - v.abs() * sin_a),
+                band,
+                Premise::OnSurface,
+            )?;
+            require_rim_incidence(center - apex, n_c, r_c, axis, band, Premise::OnSurface)
+        }
+        Curve3::Ellipse { .. } => Ok(()),
+        Curve3::Nurbs(_) | Curve3::Spiric { .. } => Err(PropsError::Unimplemented),
+    }
 }
 
 /// An upper bound on a cone boundary edge's length: a conic's speed is
@@ -1802,6 +1914,36 @@ fn cone_material_sign<T: Decide>(
     ))
 }
 
+/// **A ringed cone face's rings are holes inside it.** Each ring is
+/// wound against the outer loop (`props_ring_winding` against the
+/// outer loop's side, `props_cone_outer_side`), and the face's side
+/// (`props_cone_area_side`) is the outer loop's: holes that cover more
+/// than the outer loop — overlapping one another or leaving it — turn
+/// the whole's sign, and that is [`PropsError::HolesExceedFace`], not a
+/// ring wound with the face.
+///
+/// Tier 3 reads a cone face's side off its outer loop alone
+/// ([`boundary_material_sign_loops`]), so this is the one check of a
+/// cone ring's orientation a body at rest gets.
+fn require_cone_holes<T: Decide>(read: &ConeLoops<T>, band: Band) -> Result<(), PropsError> {
+    let Some((&outer, holes)) = read.per_loop.split_first() else {
+        return Ok(());
+    };
+    if holes.is_empty() {
+        return Ok(());
+    }
+    let outer = match mean_width_side("props_cone_outer_side", outer, band)? {
+        Sign::Zero => return Err(PropsError::DegenerateFace),
+        side => side,
+    };
+    require_holes_against(outer, holes, band)?;
+    if read.side == outer {
+        Ok(())
+    } else {
+        Err(PropsError::HolesExceedFace)
+    }
+}
+
 /// **A cone ring winds the axis zero times**
 /// (`props_cone_ring_contractible`). A ring that winds it is a band's
 /// second rim: which of the band's two rims is the outer loop is not a
@@ -1822,23 +1964,76 @@ fn cone_material_sign<T: Decide>(
 /// the ring's widest radius, and not as a zero test, whose enclosure is
 /// the rounding itself.
 fn require_cone_ring_contractible<T: Decide>(
-    apex: Point3<T>,
-    axis: Vec3<T>,
-    ring: &[LoopEdge<T>],
+    w: &ConeWinding<T>,
     band: Band,
 ) -> Result<(), PropsError> {
-    let (winding, arm) = cone_loop_winding(apex, axis, ring, AtApex::Refuse, band)?;
     match classify(
         "props_cone_ring_contractible",
-        Margin::levered(T::pi() - winding.abs(), arm),
+        Margin::levered(T::pi() - w.total.abs(), w.arm),
         band,
         PropsCheck::Inventory,
     )? {
         Sign::Positive => Ok(()),
-        Sign::Zero | Sign::Negative => Err(PropsError::NotIsoRectangle {
+        Sign::Zero | Sign::Negative => Err(PropsError::ConeLoop {
             what: "props_cone_ring_contractible",
         }),
     }
+}
+
+/// **A cone loop meets itself at no vertex**
+/// (`props_cone_loop_vertex`). A loop that passes a vertex twice — a
+/// pinched figure-eight, whose vector area is the difference of its
+/// lobes, or a loop stated twice, whose is double — bounds no region
+/// once. Every two non-adjacent vertices (each edge's traversal start)
+/// are decided apart in space; two that coincide are the same vertex
+/// unless the loop has gone round the axis between them, which is a
+/// seam's two copies of one vertex, a period apart on the chart
+/// (`props_cone_loop_vertex_sheet`: the azimuth the loop turns between
+/// them, a whole number of turns, against half a turn, levered by the
+/// vertex's radius). A vertex on the apex has no azimuth, and a loop
+/// that passes the apex twice is pinched there.
+fn require_cone_loop_vertices_distinct<T: Decide>(
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    w: &ConeWinding<T>,
+    band: Band,
+) -> Result<(), PropsError> {
+    let refuse = || PropsError::ConeLoop {
+        what: "props_cone_loop_vertex",
+    };
+    let n = w.vertices.len();
+    for i in 0..n {
+        for j in i + 2..n {
+            if i == 0 && j == n - 1 {
+                continue;
+            }
+            let ((p, a), (q, b)) = (w.vertices[i], w.vertices[j]);
+            if classify(
+                "props_cone_loop_vertex",
+                Margin::of((p - q).norm()),
+                band,
+                PropsCheck::Inventory,
+            )? == Sign::Positive
+            {
+                continue;
+            }
+            let (Some(a), Some(b)) = (a, b) else {
+                return Err(refuse());
+            };
+            let r = p - apex;
+            let rho = (r - axis * r.dot(axis)).norm();
+            if classify(
+                "props_cone_loop_vertex_sheet",
+                Margin::levered((a - b).abs() - T::pi(), rho),
+                band,
+                PropsCheck::Inventory,
+            )? != Sign::Positive
+            {
+                return Err(refuse());
+            }
+        }
+    }
+    Ok(())
 }
 
 /// What [`cone_loop_winding`] does with an edge end on the apex, where
@@ -1852,44 +2047,63 @@ enum AtApex {
     AlongGenerator,
 }
 
-/// **The azimuth a cone loop turns through about the axis**, and its
-/// widest radius: the sum, piece by piece over the cycle of its edges'
-/// ends in traversal order, of each edge's turn and each joint's. A
-/// step turns through the principal angle between its ends' radial
-/// directions, or, on an arc piece running against that angle, that
-/// angle plus a whole turn:
+/// A cone loop's turn about the axis ([`cone_loop_winding`]).
+struct ConeWinding<T: Real> {
+    /// The azimuth the loop turns through, summed.
+    total: T,
+    /// Its widest radius.
+    arm: T,
+    /// Whether an edge end lies on the apex.
+    through_apex: bool,
+    /// Each edge's traversal start, with the azimuth the loop has
+    /// turned from its first vertex to it — `None` on the apex.
+    vertices: Vec<(Point3<T>, Option<T>)>,
+}
+
+/// **The azimuth a cone loop turns through about the axis**: the sum,
+/// piece by piece over the cycle of its edges' ends in traversal order,
+/// of each edge's turn and each joint's:
 ///
 /// - a segment on the cone is a generator, turning through nothing;
 /// - a joint closes within the band (`props_loop_closed`) between ends
-///   off the axis, so it turns through less than a quarter turn; a
-///   joint at the apex, where the azimuth is undefined, is skipped;
-/// - a circle or ellipse on a cone is a plane section that meets every
-///   generator of its nappe once, so its azimuth is monotone along it,
-///   in the sense its plane normal makes with the axis
-///   (`props_cone_arc_sense`). It is read in thirds of its parameter
-///   span, so a whole turn closed by one edge is no principal angle of
-///   zero and a rim's third, at most two thirds of a turn, sits clear
-///   of the principal angle's cut at a half turn; each third turns
-///   through the principal angle between its ends, taken the long way
-///   round when that angle runs against its sense
-///   (`props_cone_arc_turn`).
+///   off the axis, so it turns through less than a quarter turn — the
+///   principal angle between its ends' radial directions; a joint at
+///   the apex, where the azimuth is undefined, is skipped;
+/// - a circle on a cone is a rim, whose parameter IS the azimuth, in
+///   the sense its axis makes with the cone's (`props_cone_arc_sense`):
+///   it turns through its stored span, exactly, a whole turn or more
+///   included;
+/// - an ellipse on a cone is a plane section that meets every generator
+///   of its nappe once, so its azimuth is monotone along it, in that
+///   sense too — but its parameter is not the azimuth. It is read in
+///   thirds of its parameter span, so a whole turn closed by one edge is
+///   no principal angle of zero; each third turns through the principal
+///   angle between its ends, taken the long way round when that angle
+///   runs against its sense (`props_cone_arc_turn`). The long way is
+///   reachable: a third of a tilted section's parameter near the vertex
+///   the axis pierces closest to subtends more than half a turn.
 ///
 /// Every step is congruent, mod a whole turn, to the azimuth change
-/// between its ends, and the ends close up, so in exact arithmetic the
-/// sum over a loop off the apex is a whole number of turns: its
-/// winding. What is computed differs from it only by the rounding of a
-/// few angles, far below half a turn, so a caller decides it against an
-/// odd multiple of half a turn. A loop through the apex sums the turn
-/// of its edges alone: the sector it sweeps, within a turn of zero when
-/// it goes round once.
+/// between its ends, and the ends close up, so the sum over a loop off
+/// the apex is a whole number of turns up to the rounding of a few
+/// angles, far below half a turn: its winding. A loop that goes round
+/// once winds at most one turn, and one stated twice two, so its caller
+/// decides it against three half turns (`props_cone_loop_winding`).
+///
+/// A loop through the apex has no winding — the apex joint is skipped —
+/// and sums the azimuth its edges sweep: a sector's angle, a whole turn
+/// for the slit cap that goes round to its own generator, and more only
+/// for a loop that covers part of the nappe twice. Its caller decides
+/// that sweep against a whole turn, admitting the turn itself
+/// (`props_cone_apex_loop_sweep`).
 fn cone_loop_winding<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
     edges: &[LoopEdge<T>],
     at_apex: AtApex,
     band: Band,
-) -> Result<(T, T), PropsError> {
-    let refuse = |what| Err(PropsError::NotIsoRectangle { what });
+) -> Result<ConeWinding<T>, PropsError> {
+    let refuse = |what| Err(PropsError::ConeLoop { what });
     let radial = |p: Point3<T>| {
         let w = p - apex;
         w - axis * w.dot(axis)
@@ -1901,9 +2115,10 @@ fn cone_loop_winding<T: Decide>(
         classify(name, Margin::of(rho), band, PropsCheck::Inventory).map(|s| s == Sign::Positive)
     };
     let mut arm = T::zero();
-    // Each edge's radial directions at its traversal start and end.
-    let mut dirs = Vec::with_capacity(edges.len());
-    let mut winding = T::zero();
+    let mut through_apex = false;
+    // Each edge's step, and its radial directions (and whether on the
+    // apex) at its traversal start and end.
+    let mut steps = Vec::with_capacity(edges.len());
     for e in edges {
         let (mut a, mut b) = (radial(e.p0()), radial(e.p1()));
         let (mut a_apex, mut b_apex) = (false, false);
@@ -1927,23 +2142,28 @@ fn cone_loop_winding<T: Decide>(
                 }
             }
         }
+        through_apex = through_apex || a_apex || b_apex;
         arm = arm.max(a.norm()).max(b.norm());
+        let sense = |n: Vec3<T>, rho: T| match classify(
+            "props_cone_arc_sense",
+            Margin::levered(n.dot(axis), rho),
+            band,
+            PropsCheck::Inventory,
+        )? {
+            Sign::Positive => Ok(T::one()),
+            Sign::Negative => Ok(-T::one()),
+            Sign::Zero => Err(PropsError::ConeLoop {
+                what: "props_cone_arc_sense",
+            }),
+        };
         let step = match e.carrier {
-            Curve3::Circle { axis: n, .. } | Curve3::Ellipse { axis: n, .. } => {
+            Curve3::Circle { axis: n, .. } => sense(n, rho)? * (e.t1 - e.t0),
+            Curve3::Ellipse { axis: n, .. } => {
                 let third = (e.t1 - e.t0) / T::from_f64(3.0);
                 let m1 = radial(e.carrier.eval(e.t0 + third));
                 let m2 = radial(e.carrier.eval(e.t1 - third));
                 let rho = rho.min(m1.norm()).min(m2.norm());
-                let sense = match classify(
-                    "props_cone_arc_sense",
-                    Margin::levered(n.dot(axis), rho),
-                    band,
-                    PropsCheck::Inventory,
-                )? {
-                    Sign::Positive => T::one(),
-                    Sign::Negative => -T::one(),
-                    Sign::Zero => return refuse("props_cone_arc_sense"),
-                };
+                let sense = sense(n, rho)?;
                 let mut thirds = T::zero();
                 for (x, y) in [(a, m1), (m1, m2), (m2, b)] {
                     let principal = turn(x, y);
@@ -1963,18 +2183,33 @@ fn cone_loop_winding<T: Decide>(
             }
             _ => turn(a, b),
         };
-        winding = winding + if e.forward { step } else { -step };
         let ends = ((a, a_apex), (b, b_apex));
-        dirs.push(if e.forward { ends } else { (ends.1, ends.0) });
+        steps.push(if e.forward {
+            (step, ends)
+        } else {
+            (-step, (ends.1, ends.0))
+        });
     }
-    for (&(_, (end, end_apex)), &((start, start_apex), _)) in
-        dirs.iter().zip(dirs.iter().cycle().skip(1))
-    {
-        if !end_apex && !start_apex {
-            winding = winding + turn(end, start);
+    let mut total = T::zero();
+    let mut vertices = Vec::with_capacity(edges.len());
+    for (k, e) in edges.iter().enumerate() {
+        let (step, ((_, start_apex), (end, end_apex))) = steps[k];
+        vertices.push((
+            e.traversal_ends().0,
+            if start_apex { None } else { Some(total) },
+        ));
+        total = total + step;
+        let ((start, next_apex), _) = steps[(k + 1) % steps.len()].1;
+        if !end_apex && !next_apex {
+            total = total + turn(end, start);
         }
     }
-    Ok((winding, arm))
+    Ok(ConeWinding {
+        total,
+        arm,
+        through_apex,
+        vertices,
+    })
 }
 
 /// Classify a cone face's boundary into (rims, signed slant levels) —
@@ -2127,7 +2362,8 @@ fn cone_apex_level<T: Decide>(
 /// **The apex is interior to a rim only if the rim CLOSES around it**
 /// (`props_rim_only_closed`), decided on the `Δu` the rim spans sum to
 /// — [`cone_apex_level`]'s fold reads a traversal DIRECTION, which
-/// says nothing about how far the rim goes. Without it a lone half rim answered half the cap's area, and the
+/// says nothing about how far the rim goes. Without it a lone half rim
+/// answered half the cap's area, and the
 /// same full rim stated twice double.
 ///
 /// **A SUM is not a COVER.** The comparand is `(Δu − τ)` at the rim

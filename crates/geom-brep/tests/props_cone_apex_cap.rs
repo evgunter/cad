@@ -220,7 +220,7 @@ fn an_apex_cap_refuses_a_rim_that_does_not_close() {
                 );
                 answered.push(name);
             }
-            Err(PropsError::NotIsoRectangle { what }) => {
+            Err(PropsError::ConeLoop { what }) => {
                 println!("  {name:<44} REFUSE {what}");
                 assert_eq!(
                     what, flux_guard,
@@ -320,7 +320,7 @@ fn a_frustum_band_measures_with_its_seam() {
             band()
         )
         .map(|_| ()),
-        Err(PropsError::NotIsoRectangle {
+        Err(PropsError::ConeLoop {
             what: "props_loop_closed"
         }),
         "two rims in one loop do not chain"
@@ -377,24 +377,30 @@ fn verdict_multiset(edges: &[LoopEdge<f64>]) -> Vec<(String, usize)> {
     got
 }
 
-/// **The apex cap's own verdicts at the flux lane, named.** One closure
+/// **The apex cap's own verdicts at the flux lane, named.** The rim's
+/// incidence on the cone (`props_circle_axis_class`, `props_rim_fit`,
+/// `props_rim_axis_parallel`, `props_rim_center_on_axis`); one closure
 /// decide for the one joint (`props_loop_closed`); the nappe's two ends
 /// (`props_cone_nappe`); the side (`props_cone_area_side`); and the
 /// winding — the rim's two ends off the apex
-/// (`props_cone_loop_off_apex`), its sense (`props_cone_arc_sense`),
-/// its three thirds' turns (`props_cone_arc_turn`) and the once-round
-/// threshold (`props_cone_loop_winding`). No iso decide is asked.
+/// (`props_cone_loop_off_apex`), its sense (`props_cone_arc_sense`; a
+/// rim turns through its stored span, so no turn is decided) and the
+/// once-round threshold (`props_cone_loop_winding`). One edge has no
+/// two non-adjacent vertices, and no iso decide is asked.
 #[test]
 fn the_apex_cap_records_its_named_decides() {
     let got = verdict_multiset(&[rim(SL, 0.0, TAU, 0, 0)]);
     let want: Vec<(String, usize)> = [
+        ("props_circle_axis_class Positive", 1),
         ("props_cone_arc_sense Positive", 1),
-        ("props_cone_arc_turn Positive", 3),
         ("props_cone_area_side Negative", 1),
         ("props_cone_loop_off_apex Positive", 2),
         ("props_cone_loop_winding Positive", 1),
         ("props_cone_nappe Positive", 2),
         ("props_loop_closed Zero", 1),
+        ("props_rim_axis_parallel Zero", 1),
+        ("props_rim_center_on_axis Zero", 1),
+        ("props_rim_fit Zero", 1),
     ]
     .into_iter()
     .map(|(k, n)| (k.to_string(), n))
@@ -450,7 +456,7 @@ fn a_sum_that_makes_a_turn_is_not_a_cover() {
                 );
                 answered.push(name);
             }
-            Err(PropsError::NotIsoRectangle { what }) => {
+            Err(PropsError::ConeLoop { what }) => {
                 println!("  {name:<44} REFUSE {what}");
                 assert_eq!(
                     what, "props_loop_closed",
@@ -511,7 +517,7 @@ fn an_apex_cap_is_a_tiling_and_the_families_that_are_not_refuse() {
             other => panic!("{name}: the shape door finds no cap in it: {other:?}"),
         }
         match curved_face(&cone(), edges, true, band()) {
-            Err(PropsError::NotIsoRectangle { what })
+            Err(PropsError::ConeLoop { what })
                 if what == "props_loop_closed" || what == "props_cone_loop_winding" =>
             {
                 println!("  {name:<40} flux REFUSE {what}")
@@ -721,7 +727,7 @@ fn a_boundary_that_does_not_close_refuses_at_every_door() {
         for (which, got) in [("gate", &gate), ("flux", &flux)] {
             assert_eq!(
                 *got,
-                Err(PropsError::NotIsoRectangle {
+                Err(PropsError::ConeLoop {
                     what: "props_loop_closed"
                 }),
                 "{name}: the {which} refuses the open loop"

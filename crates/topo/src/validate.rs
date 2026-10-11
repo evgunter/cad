@@ -3077,6 +3077,16 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 DEFECT.into(),
                 true,
             ),
+            P::ConeLoop { .. } => reading(
+                "a cone face's boundary does not bound a region of its cone once",
+                DEFECT.into(),
+                true,
+            ),
+            P::HolesExceedFace => reading(
+                "a face's holes cover more area than its outer boundary encloses",
+                DEFECT.into(),
+                true,
+            ),
             P::RingWoundWithFace => reading(
                 "a hole in a face is wound the same way as the face",
                 DEFECT.into(),

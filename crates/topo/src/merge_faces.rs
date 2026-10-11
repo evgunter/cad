@@ -388,11 +388,12 @@ pub enum MergeCoplanarError {
     /// the exact-B-rep props cannot integrate yet, so the run refuses
     /// here and the driver records a loud skip (the operands'
     /// cut-carrying canonical form stays; sub-period re-merges — the
-    /// through-cut case — commit normally). FLIP NOTE: the du_of_rims
-    /// per-level-sum repair may already make the kept-cut seam form
-    /// integrable; re-evaluating this skip belongs to M5 PR 11 (the
-    /// tessellation/props unit), which owns the curved-face
-    /// quadrature story.
+    /// through-cut case — commit normally). FLIP NOTE: every
+    /// closed-form flux lane now integrates the region its loops bound
+    /// (the chart Green forms, the cone's vector area, the sphere's
+    /// Gauss–Bonnet), so the kept-cut seam form may already be
+    /// integrable; re-evaluating this skip belongs to the curved-face
+    /// props owner.
     PeriodClosure {
         /// The shared edge whose kill would close the period.
         edge: EdgeKey,

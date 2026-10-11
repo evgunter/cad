@@ -590,7 +590,7 @@ fn a_rim_free_cone_refuses_at_both_doors() {
     assert!(
         matches!(
             boundary_material_sign(&s, &edges, band),
-            Err(PropsError::NotIsoRectangle {
+            Err(PropsError::ConeLoop {
                 what: "props_loop_closed"
             })
         ),
@@ -599,7 +599,7 @@ fn a_rim_free_cone_refuses_at_both_doors() {
     assert!(
         matches!(
             curved_face(&s, &edges, true, band),
-            Err(PropsError::NotIsoRectangle {
+            Err(PropsError::ConeLoop {
                 what: "props_loop_closed"
             })
         ),

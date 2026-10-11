@@ -344,6 +344,21 @@ pub enum PropsError {
         /// Which premise failed (the predicate's name).
         what: &'static str,
     },
+    /// A cone face (`curved::cone_face_closed_form`) fails a premise of
+    /// its vector-area closed form: a loop that does not close, that
+    /// winds the axis twice or sweeps past a turn through the apex, that
+    /// meets itself at a vertex, or a ring that winds the axis or
+    /// touches the apex. Name-only, as [`Self::SphereLoop`]: `what` is
+    /// the deciding predicate's name.
+    ConeLoop {
+        /// Which premise failed (the predicate's name).
+        what: &'static str,
+    },
+    /// **A face's holes cover more than its region** (`props_cone_holes_within`):
+    /// every ring is wound against the outer loop, but their areas sum
+    /// past the outer loop's, so the face's area would come out
+    /// negative. Holes that overlap each other or leave the region.
+    HolesExceedFace,
     /// A one-loop sphere face's sense bit contradicts the side its
     /// boundary encodes (`curved::sphere_loop_side`), so its radial
     /// flux term — read off the bit — would measure the complement of
@@ -637,6 +652,17 @@ impl core::fmt::Display for PropsError {
                 "a sphere face's boundary does not bound a region of its sphere ({what}). \
                  Recourse: state its edges as circles ON the sphere, meeting end to end with \
                  no cusp, around an area short of the whole sphere"
+            ),
+            Self::ConeLoop { what } => write!(
+                f,
+                "a cone face's boundary does not bound a region of its cone once ({what}). \
+                 Recourse: state each loop as edges ON one nappe, meeting end to end, \
+                 going round the axis at most once and meeting itself nowhere"
+            ),
+            Self::HolesExceedFace => write!(
+                f,
+                "a face's holes cover more area than its outer boundary encloses, so they \
+                 overlap one another or leave the face. {KERNEL_OR_FILE_DEFECT_ENDING}"
             ),
             Self::SenseContradicted => write!(
                 f,
@@ -960,6 +986,10 @@ mod tests {
             PropsError::SphereLoop {
                 what: "props_sphere_loop_cusp",
             },
+            PropsError::ConeLoop {
+                what: "props_cone_loop_vertex",
+            },
+            PropsError::HolesExceedFace,
             PropsError::SenseContradicted,
             PropsError::SenseInverted,
             PropsError::RingWoundWithFace,
@@ -988,7 +1018,7 @@ mod tests {
             "state", "widen", "loosen", "report", "re-cut", "re-mint", "lie",
         ];
         let arms = props_error_arms();
-        assert_eq!(arms.len(), 14, "an arm was added without a row here");
+        assert_eq!(arms.len(), 16, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             assert_eq!(
