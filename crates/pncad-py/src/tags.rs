@@ -570,6 +570,7 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Selection => "selection",
         S::Open => "open",
         S::Face => "face",
+        S::Side(_) => "side",
         S::Measured(..) => "measured",
         S::Tool => "tool",
         S::From => "from",
@@ -1084,6 +1085,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MateBand => "mate_band",
         C::MateContradictory => "mate_contradictory",
         C::MateUnder => "mate_under",
+        C::MateSideUnresolved => "mate_side_unresolved",
         C::MateDanglingHead => "mate_dangling_head",
         C::MatePlacerRefused => "mate_placer_refused",
         C::MatePartSelectsAnotherCopy => "mate_part_selects_another_copy",
@@ -2464,8 +2466,6 @@ pub fn binary_header_error_tag(err: &BinaryHeaderError) -> &'static str {
 /// (the assembly gate's `Reference` arm rides one).
 pub fn refused_ref_tag(why: &RefusedRef) -> &'static str {
     match why {
-        RefusedRef::Vanished { .. } => "ref_vanished",
-        RefusedRef::MovedAbove { .. } => "ref_moved_above",
         RefusedRef::Ambiguous { .. } => "ref_ambiguous",
     }
 }
@@ -2507,6 +2507,7 @@ pub fn mint_refusal_tag(refusal: &MintRefusal) -> &'static str {
     match refusal {
         MintRefusal::Reference { .. } => "mate_reference_refused",
         MintRefusal::NoAtRestRecord { .. } => "no_at_rest_record",
+        MintRefusal::Unevaluated { .. } => "mate_unevaluated",
     }
 }
 
@@ -2589,7 +2590,6 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::PartIdCollides { .. } => "part_id_collides",
         SplitError::SeveredEdge { .. } => "severed_edge",
         SplitError::RemainderReadUncarried { .. } => "remainder_read_uncarried",
-        SplitError::OperandSeveredFromMate { .. } => "operand_severed_from_mate",
         SplitError::TornGroup { .. } => "torn_group",
         SplitError::SeveredGauge { .. } => "severed_gauge",
         SplitError::TwoAnchors { .. } => "two_anchors",

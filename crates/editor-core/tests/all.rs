@@ -775,6 +775,8 @@ mod intent_s2_c_world;
 mod intent_s2_d_measure;
 #[path = "intent_s2_e_select.rs"]
 mod intent_s2_e_select;
+#[path = "intent_s2_f_mates.rs"]
+mod intent_s2_f_mates;
 #[path = "intent_s3_a_poses.rs"]
 mod intent_s3_a_poses;
 #[path = "intent_s5_a_relation.rs"]

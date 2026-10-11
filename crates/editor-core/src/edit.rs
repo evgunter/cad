@@ -436,8 +436,7 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// The explicit name repair (N5, spec D3), addressed by body and
     /// name (D10): rewrite every selection of `body` that names `from`
     /// EXACTLY to name `to`; with no body, every site no selection holds
-    /// (declared pairs, mate heads, an instance's crossings, appearance
-    /// keys). A name is scoped by the body it is read in (N1), so the
+    /// (declared pairs, an instance's crossings, appearance keys). A name is scoped by the body it is read in (N1), so the
     /// body says which entity the repair is about.
     /// One-shot recorded intent — no alias table persists, nothing
     /// follows automatically afterwards (the ratified EMPTY policy
@@ -707,9 +706,10 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
     /// admission of the mate they wrote: the insert of a `Node::Mate`,
     /// and a slot edit (`SetParam`, `SetExpression`) addressed at one
     /// of a mate side's frame-offset steps ([`SlotId::MateFrameStep`],
-    /// an address only a mate carries). A `Rebind` moves a reference's
-    /// NAME (and, read at its own mint, its operand), never the datum,
-    /// and what it strands is N5's — the solve's at evaluation; a
+    /// an address only a mate carries). A `Rebind` moves a side's
+    /// NAME and a slot edit at a side ([`crate::OperandSlot::Side`]) its
+    /// read, never the datum, and what either strands is N5's — the
+    /// solve's at evaluation; a
     /// document parameter an offset reads moves a STATE, which is the
     /// solve's at evaluation too.
     ///
@@ -722,7 +722,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             Self::SetParam { slot, .. } => slot.is_mate_frame_step(),
             Self::SetExpression { path, .. } => path.slot.is_mate_frame_step(),
             // A reshaping rewrites no name and never touches a datum;
-            // a head whose piece it stops drawing is N5's, the solve's
+            // a side whose piece it stops drawing is N5's, the solve's
             // at evaluation.
             Self::SetProgram { .. } => false,
             Self::DeleteNode { .. }
@@ -1289,6 +1289,23 @@ fn lower_read<P: crate::ProfilePayload>(
         }
         crate::Operand::Pose(def) => mint_pose(doc, spoken, slot, def)?,
     };
+    // A selection read here is read in a body this seat admits, whoever
+    // authored it: a selection of a pattern's copies, authored at a mate
+    // side, is no reader's but a side's (`persist::check` holds the
+    // stored document to the same rule).
+    if let Some(select) = doc.selection(var) {
+        let body = select.body;
+        check_read(
+            doc,
+            spoken,
+            slot,
+            body,
+            None,
+            selection_body_kind(slot),
+            Reader::Observes,
+            unresolved,
+        )?;
+    }
     check_read(doc, spoken, slot, var, half, expected, reader, unresolved)
 }
 
@@ -1384,6 +1401,16 @@ fn mint_pose<P: crate::ProfilePayload>(
     mint_anonymous(doc, WrittenDef::Pose(kind, stored))
 }
 
+/// **What a selection authored at `slot` may be read in**: a `Body`, or
+/// at a mate side a `Bodies` too — a pattern's copies, the name's
+/// `Instance(i)` saying which one, as the member walk reads it.
+pub(crate) fn selection_body_kind(slot: SlotId) -> crate::SlotKind {
+    match slot {
+        SlotId::Operand(crate::OperandSlot::Side(_)) => crate::SlotKind::Placeable,
+        _ => crate::SlotKind::Is(VarKind::Body),
+    }
+}
+
 /// **A selection authored at a seat, minted** (D10): the body read
 /// lowered as a `Body` operand, the names checked live and in the
 /// stored form of the seat's selection kind, and one anonymous
@@ -1406,7 +1433,7 @@ fn mint_selection<P: crate::ProfilePayload>(
         slot,
         body,
         None,
-        crate::SlotKind::Is(VarKind::Body),
+        selection_body_kind(slot),
         Reader::Observes,
     )?;
     let shape = |fault| EditError::SelectionShape {
@@ -4795,10 +4822,10 @@ impl core::fmt::Display for Maintenance {
 /// measure's arguments), then store keys in the store's own
 /// `BTreeMap` order, which is `StableName`'s. Nothing is sorted here.
 ///
-/// [`Node::payload_read_sites`] — a mate's two operands — are NOT
+/// [`Node::payload_read_sites`] — a declared pair's sites — are NOT
 /// here. A read site is a node id rather than a name: no N5 ladder
 /// resolves it and `Rebind` cannot repair it, so a delete that strands
-/// one is the solve's to refuse (A12), not this door's to report.
+/// one is the evaluation's to refuse, not this door's to report.
 ///
 /// **Cost.** One pass over the document's name carriers per accepted
 /// delete, so a cascade of `n` nodes pays `n` passes. That is the
@@ -5875,8 +5902,8 @@ fn check_written_node<P: crate::ProfilePayload>(
             None,
         )?;
     }
-    // A gauge reference is a reading edge, as a mate's operand
-    // is: a never-live or wrong-kind one is a typo, refused here.
+    // A gauge reference is a placement chain, not a read: a
+    // never-live or wrong-kind one is a typo, refused here.
     check_gauge_ref(new, id, node.gauge_ref(), spoken)?;
     // ASM-R2a D-1, through `Node::has_non_finite_alignment` —
     // the one place a node is asked whether its alignment datum
@@ -6271,8 +6298,8 @@ fn regauges_for<P: Clone + crate::ProfilePayload>(
     let mut edits = Vec::new();
     if let Node::Mate { a, b, .. } = mate
         && let (Some(ma), Some(mb)) = (
-            crate::mate::member_of(doc, a),
-            crate::mate::member_of(doc, b),
+            crate::mate::member::member_authored(doc, a),
+            crate::mate::member::member_authored(doc, b),
         )
     {
         let gauge = doc.node(mb.instance).and_then(Node::gauge_ref);
@@ -7772,8 +7799,8 @@ fn mate_that_would_start_placing<P>(
             return false;
         };
         let (Some(x), Some(y)) = (
-            crate::mate::member_of(doc, a),
-            crate::mate::member_of(doc, b),
+            crate::mate::member::member_of_side(doc, *a),
+            crate::mate::member::member_of_side(doc, *b),
         ) else {
             return false;
         };
@@ -7998,8 +8025,8 @@ fn clear_joined_offsets<P: crate::ProfilePayload>(
         return Vec::new();
     };
     let (Some(ia), Some(ib)) = (
-        crate::mate::member_of(after, a).map(|m| m.instance),
-        crate::mate::member_of(after, b).map(|m| m.instance),
+        crate::mate::member::member_of_side(after, *a).map(|m| m.instance),
+        crate::mate::member::member_of_side(after, *b).map(|m| m.instance),
     ) else {
         return Vec::new();
     };
@@ -8231,13 +8258,15 @@ mod tests {
         let frame = crate::mate::MateFrame::from_face();
         let mate: DocEdit<ProfileProgram> = DocEdit::InsertNode {
             node: Box::new(crate::node::Node::Mate {
-                a: crate::node::SitedFace::at_mint(
+                a: (crate::node::SitedFace::at_mint(
                     crate::names::FaceName::new(name(id)).expect("a face"),
-                ),
-                b: crate::node::SitedFace::at_mint(
+                ))
+                .into(),
+                b: (crate::node::SitedFace::at_mint(
                     crate::names::FaceName::new(name(crate::node::RecipeNodeId::new(0, 2)))
                         .expect("a face"),
-                ),
+                ))
+                .into(),
                 class: crate::mate::ContactClass::Rest,
                 alignment: crate::mate::Alignment {
                     a: frame.clone(),
