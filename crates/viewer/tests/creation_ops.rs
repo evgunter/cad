@@ -187,7 +187,7 @@ fn a_creation_gesture_places_what_it_made_in_one_action() {
         matches!(
             doc.node(placement),
             Some(Node::PlaceInWorld { body, pose })
-                if Some(*body) == doc.output(extrude, 0) && pose.steps.is_empty()
+                if Some(body.read) == doc.output(extrude, 0) && pose.steps.is_empty()
         ),
         "the extrude's identity placement"
     );

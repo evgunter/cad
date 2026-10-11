@@ -82,7 +82,7 @@ fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDo
 /// standard N2 TIE source (`m4_pr5_declare.rs`'s fixture, verbatim
 /// geometry). Returns the document and the subtract node.
 fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
-    use editor_core::{BooleanOp, DocEdit, apply};
+    use editor_core::{DocEdit, apply};
     use fixture::on_frame;
     let mut doc = ProfileDoc::empty_derived("m6_5_selection_refusals", Tol::witness());
     let insert = |doc: &ProfileDoc, node: AuthoredNode| {
@@ -141,10 +141,9 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
     );
     let (d, us) = insert(
         &d,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: ua.into(),
-            b: ub.into(),
+        Node::Subtract {
+            from: ua.into(),
+            tool: ub.into(),
             declare: Vec::new(),
         },
     );

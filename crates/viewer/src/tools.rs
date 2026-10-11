@@ -55,7 +55,8 @@ vocabulary! {
         Mate,
         /// The revolve tool: a profile and an axis.
         Revolve,
-        /// The boolean tool: two bodies.
+        /// The boolean tool: any number of bodies for union and
+        /// intersect, two for subtract.
         Boolean,
         /// The split tool: a body and a datum plane.
         Split,
@@ -431,6 +432,16 @@ impl Tools {
     pub fn boolean(&self) -> Option<BooleanTool> {
         match &self.open {
             Some(OpenTool::Boolean(tool)) => Some(tool.clone()),
+            _ => None,
+        }
+    }
+
+    /// The open boolean tool, mutably — the door its operation choice
+    /// is made through, that being tool state (it decides what a pick
+    /// does) and not a document edit.
+    pub fn boolean_mut(&mut self) -> Option<&mut BooleanTool> {
+        match &mut self.open {
+            Some(OpenTool::Boolean(tool)) => Some(tool),
             _ => None,
         }
     }

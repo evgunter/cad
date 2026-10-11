@@ -21,9 +21,7 @@
 use crate::common;
 use pncad::document::ExtrudeSide;
 
-use pncad::document::{
-    BooleanOp, Doc, DocEdit, Node, ProfileProgram, RecipeNodeId, cascade_delete_order,
-};
+use pncad::document::{Doc, DocEdit, Node, ProfileProgram, RecipeNodeId, cascade_delete_order};
 use pncad::geom_core::Tol;
 use viewer::session::{DocSession, SessionOp};
 
@@ -87,10 +85,9 @@ fn die_shaped(tol: Tol) -> Die {
         );
         let (next, cut) = common::inserted(
             &next,
-            Node::Boolean {
-                op: BooleanOp::Subtract,
-                a: body.into(),
-                b: placed.into(),
+            Node::Subtract {
+                from: body.into(),
+                tool: placed.into(),
                 declare: Vec::new(),
             },
             tol,
@@ -243,13 +240,13 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
     assert_eq!(
         mid.label,
         format!(
-            "Delete Boolean {} and 12 dependent features",
+            "Delete Subtract {} and 12 dependent features",
             test_utils::refusal::tag(die.booleans[10].0.digest())
         )
     );
     assert_eq!(
         mid.hover.as_deref(),
-        Some("Also deletes 12 features that depend on it: 10 × Boolean, 2 × Fillet"),
+        Some("Also deletes 12 features that depend on it: 10 × Subtract, 2 × Fillet"),
         "grouped by kind, most numerous first"
     );
 
@@ -259,7 +256,7 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
     assert_eq!(
         blank_cascade.label,
         format!(
-            "Delete Boolean {} and 22 dependent features",
+            "Delete Subtract {} and 22 dependent features",
             test_utils::refusal::tag(die.booleans[0].0.digest())
         )
     );
