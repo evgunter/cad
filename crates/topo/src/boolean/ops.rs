@@ -2924,6 +2924,7 @@ impl Descendants {
             }
             i += 1;
         }
+        let family_len = family.len();
         if family.len() == 1 {
             return Ok(own);
         }
@@ -2939,6 +2940,13 @@ impl Descendants {
             .iter()
             .find(|&&p| super::records::incident(body, [Cell::Vertex(vertex), Cell::Face(p)]))
         {
+            if std::env::var_os("R2_HOLDER").is_some() {
+                eprintln!(
+                    "R2_HOLDER verdict family={} pieces={} incident -> {p:?}",
+                    family_len,
+                    pieces.len()
+                );
+            }
             return Ok(Some(Cell::Face(p)));
         }
         let q = body
@@ -2947,7 +2955,34 @@ impl Descendants {
             .copied()
             .ok_or_else(|| desync("a recorded vertex has no point"))?;
         let (mut held, mut unread) = (None, false);
-        for p in pieces {
+        let probe = std::env::var_os("R2_HOLDER").is_some();
+        for p in pieces.clone() {
+            if probe {
+                let f = proven(&body.faces, p, EntityId::Face);
+                let rings = f.rings.len();
+                let curved =
+                    !matches!(*body.face_surface_linked(p, f), geom::Surface::Plane { .. });
+                let detail = if curved {
+                    format!(
+                        "{:?}",
+                        super::contain::curved_face_placement(body, p, q, band)
+                            .map(|x| format!("{x:?}"))
+                    )
+                } else {
+                    match *body.face_surface_linked(p, f) {
+                        geom::Surface::Plane { normal, .. } => format!(
+                            "plane {:?}",
+                            contfp(body, p, normal, q, band).map(|x| format!("{x:?}"))
+                        ),
+                        _ => String::new(),
+                    }
+                };
+                eprintln!(
+                    "R2_HOLDER piece {p:?} own={} curved={curved} rings={rings} holds={:?} detail={detail}",
+                    own == Some(Cell::Face(p)),
+                    piece_holds(body, p, q, band)
+                );
+            }
             match piece_holds(body, p, q, band)? {
                 Some(true) => {
                     if held.replace(p).is_some() {
@@ -2960,11 +2995,19 @@ impl Descendants {
                 None => unread = true,
             }
         }
-        Ok(match held {
+        let out = match held {
             Some(p) => Some(Cell::Face(p)),
             None if unread => own,
             None => None,
-        })
+        };
+        if probe {
+            eprintln!(
+                "R2_HOLDER verdict family={} pieces={} unread={unread} own={own:?} -> {out:?}",
+                family_len,
+                pieces.len()
+            );
+        }
+        Ok(out)
     }
 
     /// [`Self::live`] without the chord rows.

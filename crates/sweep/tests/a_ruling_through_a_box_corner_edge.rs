@@ -256,3 +256,63 @@ fn a_prism_edge_along_a_cone_ruling_refuses_at_the_crossing_layer() {
         );
     }
 }
+
+/// Review r2 probe: the wall of [`wall_through`] (z edges) with a pocket
+/// through it on the near side, so the near piece carries a ring that
+/// the curved trim cannot read. Prints each op's record count, tier 3′
+/// verdict and volume; asserts nothing.
+#[test]
+#[ignore = "review r2 probe; run with --ignored --nocapture"]
+fn r2_probe_a_ringed_near_piece() {
+    let t = tol();
+    let b = the_box();
+    let [ru, rv] = Axis::Z.across();
+    let sign = |at: f64, (lo, _): (f64, f64)| if at == lo { 1.0 } else { -1.0 };
+    for u in [ru.0, ru.1] {
+        for v in [rv.0, rv.1] {
+            let (su, sv) = (sign(u, ru), sign(v, rv));
+            let w = wall_through(Axis::Z, (u, v), (su, sv));
+            let (x0, x1) = (u - su * 0.3, u - su * 0.02);
+            let (y0, y1) = (v + sv * 0.25, v + sv * 0.35);
+            let pocket = finished(
+                "pocket",
+                brick(
+                    (x0.min(x1), x0.max(x1)),
+                    (y0.min(y1), y0.max(y1)),
+                    (0.4, 0.6),
+                    t,
+                ),
+                t,
+            );
+            let holed = match topo::subtract(&w, &pocket, t) {
+                Ok(BooleanResult::Body(bb)) => bb.body,
+                other => {
+                    println!(
+                        "({u},{v}) holed wall: {:?}",
+                        other.map(|r| r.body().is_some())
+                    );
+                    continue;
+                }
+            };
+            for (op, r, _) in six(&holed, &b) {
+                match r {
+                    Ok(BooleanResult::Body(bb)) => {
+                        let vf = bb
+                            .contacts
+                            .kinds()
+                            .filter(|k| matches!(k, ContactKind::VertexFace(..)))
+                            .count();
+                        let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, t);
+                        let vol = topo::mass_properties(&bb.body, t).map(|m| m.volume);
+                        println!(
+                            "R2P ({u},{v}) {op}: vf={vf} all={} t3p={:?} vol={vol:?}",
+                            bb.contacts.len(),
+                            t3.map_err(|e| e.len())
+                        );
+                    }
+                    other => println!("R2P ({u},{v}) {op}: {:?}", other.map(|_| ())),
+                }
+            }
+        }
+    }
+}
