@@ -805,3 +805,17 @@ Signed (CLEAVE orchestrator).
   - HONE's two-homes germ-order row.
 - **PR 4581 merged** (near-tangent invariants; single FULL review, fix pass done). The 1e-12 trade is
   pinned as `SHIPS_A_FINDING` and points at FUSE's row and the door-census row.
+- **PR 4581 merged** after a green re-run on its main merge.
+- **PR 4565 merged** after a fresh run on a real main merge, which cleared GERM's random
+  `pn_apex_point_reach` fuzz red (its second seed is on GERM's row; the 403 stopped a re-run).
+- **PR 4607** (mints unit 3; single FULL review): APPROVE-WITH-FIXES, one MAJOR.
+  - C17's cause was inverted. The certified quartic count is wrong (rung 1's Δ rounding is
+    uncharged), and the construction is right.
+  - At R = 1e6, 10 rays get a certified, silent wrong `Miss`. Ruled: correct the texts, keep the
+    kernel-defect ending, and file the rung-1 defect on INSIDE (P1).
+- **PR 4609** (band-on residue): approved on an orchestrator read. It waits on a main merge and a
+  digest re-bless.
+- **Dispatched:**
+  - `a-crown-touching-the-plane-along-one-edge-panics-at-the-section-spur-check` (P1, a D9 panic on
+    exact input);
+  - `single-on-edge-crossing-without-a-flanking-record-at-1e-12` (P1).
