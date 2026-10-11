@@ -45,10 +45,14 @@ The ruling:
 
 `topo::record_at_rest` is the door: it runs the caller's census, mints
 each touch between groups as a `CensusAtRest` row and a record citing
-it, and reruns until no new touch appears (at most three passes). An
-edge lying in a face gets no record of its own (the census confirms one
-on no lane); its bounds' records back it on the next pass, as D1 says.
-`ValidationError::UnrecordedContact` carries `margin`, the Zero the
-census decided (`None` for a pierce and a same-key conformal patch).
+it, and reruns until nothing changes (at most four passes). A pair of
+groups the census finds interpenetrating, or cannot clear
+(`InstanceInterference`, a pierce, a `SameSide` or undecided crossing,
+a `CensusUndecidable` across them), has nothing recorded: the census
+reads an overlap off the touches, and recording them would erase it
+(review MAJOR, a flush-sided overlap certified with its volume counted
+twice). `ValidationError::UnrecordedContact` carries `margin`, the Zero
+the census decided (`None` for a pierce and a same-key conformal patch).
 Import records the kiss assembly's corner as one vertex–vertex record
-and ships it on `StepImport::Solid::contacts`.
+and ships it on `StepImport::Solid::contacts`; its rows stay unlinted
+(`step-import-anchor-rows-are-recorded-and-not-linted`, re-pointed).

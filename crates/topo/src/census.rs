@@ -6866,7 +6866,7 @@ pub struct RecordedAtRest {
 /// what it found: once to find the touches, once to confirm their
 /// records, and twice more for what a recorded touch exposes — a pair
 /// found interpenetrating whose touches were recorded on an earlier
-/// pass, or an edge in a face whose bounds those records back.
+/// pass.
 const RECORDING_PASSES: usize = 4;
 
 /// Two groups, the lesser first.
@@ -6876,9 +6876,7 @@ type GroupPair = (u32, u32);
 /// decides** (D1 (ii), (iii); D10): every touch it finds between cells
 /// of two different groups that no record backs is a row of its own
 /// Zero, and a record of that pair citing it, and the census runs again
-/// over the records so each is confirmed like any other; an edge lying
-/// in a face is recorded by its bounds alone, which back it on that next
-/// pass (D1). `group` is the caller's partition of the body's solids (a
+/// over the records so each is confirmed like any other. `group` is the caller's partition of the body's solids (a
 /// placement's copies, an import's solids); a solid it answers `None`
 /// for is in no group, and no touch of it is recorded. Where everything
 /// is one group nothing is recorded, and the census is an op's
@@ -6970,8 +6968,7 @@ fn cite_minted(
 
 /// A finding's touch between two groups, as the row recording it and
 /// the record of its pair: `None` for any finding but a coincidence
-/// [`census_contact_row`] reads, for a touch not between two groups,
-/// and for an edge lying in a face, which its bounds' records back.
+/// [`census_contact_row`] reads, and for a touch not between two groups.
 fn recordable(
     body: &Body<impl Real>,
     finding: &ValidationError,
@@ -6985,7 +6982,7 @@ fn recordable(
     let (x, y) = (x?, y?);
     let pair = groups(cell_solid(body, x)?, cell_solid(body, y)?)?;
     let contact = crate::Contact::new(body, x, y).ok()?;
-    (!matches!(contact.kind(), crate::ContactKind::EdgeFace(..))).then_some((pair, row, contact))
+    Some((pair, row, contact))
 }
 
 /// The two solids a finding says interpenetrate, or that the census
@@ -11884,7 +11881,7 @@ mod records_by_carrier {
         assert!(
             !errors
                 .iter()
-                .any(|e| matches!(e, ValidationError::UndeclaredContact {
+                .any(|e| matches!(e, ValidationError::UnrecordedContact {
                 contact: CensusContact::VertexOnFace { vertex: v, face }, ..
             } if *v == vertex[0] && *face == under)),
             "the record backs the vertex's touch: {errors:?}"
@@ -12271,7 +12268,7 @@ mod two_carrier_records {
         assert!(
             errors.iter().any(|e| matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::VertexOnFace { vertex, face },
                     ..
                 } if *vertex == v0 && *face == a_top
