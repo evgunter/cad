@@ -51,3 +51,11 @@ Closed by #4741: dissolved, as
 `a-loft-is-the-nominal-surface-in-every-generic-lane`'s ruling says.
 The document's loft reads each section's profile value, whose plane
 is its placement in `T`, so there is no `f64` placement input left.
+
+Its `Sym` measure (the `symbolic_zero` count this item gave for a
+placement parameter at `Sym`) was not re-taken. With the item closed it
+names no live code path, because a document's loft no longer takes an
+`f64` placement, so no file is owed for it. The `Sym` placement in `T`
+is pinned by `a_placement_in_t_stays_a_function_of_its_parameter`
+(`crates/sweep/tests/a_loft_computes_its_walls_in_t.rs`).
+
