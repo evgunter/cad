@@ -328,6 +328,7 @@ const IMPL_FILES_TODAY: [&str; 29] = [
     "crates/editor-core/src/refusal.rs",
     "crates/editor-core/src/report.rs",
     "crates/editor-core/src/resolve/pick.rs",
+    "crates/geom-brep/src/keys.rs",
     "crates/geom-core/src/spline/hull.rs",
     "crates/geom-core/src/spline/knots.rs",
     "crates/geom-core/src/sym/memo.rs",

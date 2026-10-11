@@ -43,8 +43,9 @@
 //! of the reals with no value read — and rules A/B per node close the
 //! ring, so the carrier against its scaffold pushforward
 //! (`carrier_matches_mapped_source`, 72 decisions), the cylinder
-//! residual at the carrier's samples (`carrier_on_surface_2`, 72) and
-//! at the strut witness (`witness_on_surface_2`, 8) go; and M10-10's
+//! residual at the carrier's samples (`carrier_on_surface_1` and `_2`,
+//! 72 between them) and at the strut witness (`witness_on_surface_1`
+//! and `_2`, 8 between them) go; and M10-10's
 //! amendment A1 folds the chart's own phase — `atan2(0, r²/sqrt(r²))`
 //! from the cylinder chart derivation is `atan2` of the zero form over
 //! a form non-negative BY SYNTAX, so it is the zero form, and on the
@@ -484,7 +485,7 @@ fn real_study(tol: Tol) {
                  registers the rim ‖q − c‖ = r and the span carrier.eval(|Δθ|) = \
                  q_to; M10-10's rule D writes sin/cos of q·atan(bulge) in closed form and \
                  rules A/B per node close the ring (carrier_matches_mapped_source 72, \
-                 carrier_on_surface_2 72, witness_on_surface_2 8 decisions); A1 folds the \
+                 carrier_on_surface_1/_2 72, witness_on_surface_1/_2 8 decisions); A1 folds the \
                  chart's phase atan2(0, r²/sqrt(r²)) to the zero form and cos π to −1 \
                  (pcurve_map_residual 36). No value was read by any of them. The reach: \
                  the unit bulge (this plate's circles) folds whole; at any other bulge, a \

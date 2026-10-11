@@ -137,7 +137,8 @@ use pncad::document::{
     NodeErrorClass, NodeErrorKind, NodeStanding, OffsetCheck, ParseError, PersistError,
     PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal, ReachRefusal,
     RecordedProgramError, RefusedRef, Relation, ResolveFault, ShellClassifyError, SlotId,
-    SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, Unplaced, UpdateError,
+    SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, Unlocalized, Unplaced,
+    UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
@@ -158,8 +159,8 @@ use pncad::sweep::blend::BlendError;
 use pncad::sweep::{ExtrudeError, LoftError, RevolveError, SkinError, TubeError};
 use pncad::topo::splitting::SplitError as SplitOpError;
 use pncad::topo::{
-    BooleanErrorKind, CensusContact, CensusSubject, EntityId, JoinRefusal, RingContact,
-    RingPairContact, ShellError, SplitFinishError, StaleDeclaration, TransformError,
+    BooleanErrorKind, CensusContact, CensusSubject, CrossingSideVerdict, EntityId, JoinRefusal,
+    RingContact, RingPairContact, ShellError, SplitFinishError, StaleDeclaration, TransformError,
     ValidationError,
 };
 use pncad::topo::{CoherenceCondition, Unexaminable};
@@ -2558,6 +2559,18 @@ pub fn attribution_tag(attribution: &Attribution) -> &'static str {
     }
 }
 
+/// The stable tag for why an interference has no site.
+pub fn unlocalized_tag(why: &Unlocalized) -> &'static str {
+    match why {
+        Unlocalized::Refused { .. } => "refused",
+        Unlocalized::Invalid { .. } => "invalid",
+        Unlocalized::Empty => "empty",
+        Unlocalized::Unnamed => "unnamed",
+        Unlocalized::Lane => "lane",
+        Unlocalized::Containment { .. } => "containment",
+    }
+}
+
 /// The stable tag for a split refusal.
 pub fn split_error_tag(err: &SplitError) -> &'static str {
     match err {
@@ -3260,6 +3273,18 @@ pub fn entity_kind_tag(kind: EntityKind) -> &'static str {
 
 /// The stable tag for WHICH coincidence the tier-3′ census found.
 ///
+/// The stable tag for an in-plane crossing's side verdict
+/// (`CensusContact::EdgeEdgeCross`'s `side`): a `same_side` crossing
+/// is interpenetration, an `opposite_sides` one a contact, and
+/// `undecided` neither.
+pub fn crossing_side_tag(side: &CrossingSideVerdict) -> &'static str {
+    match side {
+        CrossingSideVerdict::OppositeSides => "opposite_sides",
+        CrossingSideVerdict::SameSide => "same_side",
+        CrossingSideVerdict::Undecided => "undecided",
+    }
+}
+
 /// The arms are not one fact and the word is the difference between
 /// two opposite recourses: an `edge_face_pierce` is interpenetration
 /// and categorically undeclarable, while an `edge_edge_overlap` is

@@ -4203,8 +4203,7 @@ mod frame_dispatch_tests {
                 end,
                 geom_brep::EdgeCurveSpec {
                     description: geom_brep::EdgeDescriptionSpec::Intersection {
-                        s1: cyl,
-                        s2: plane,
+                        pair: geom_brep::SurfacePair::new(cyl, plane),
                         witness: carrier.eval(core::f64::consts::FRAC_PI_2),
                     },
                     carrier: carrier.clone(),
@@ -4483,8 +4482,7 @@ mod frame_dispatch_tests {
             carrier.eval(quarter),
             geom_brep::EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
-                    s1: cyl,
-                    s2: rim_plane,
+                    pair: geom_brep::SurfacePair::new(cyl, rim_plane),
                     witness: carrier.mid_point(0.0, quarter),
                 },
                 carrier,
@@ -5789,9 +5787,15 @@ mod radical_plane_rows {
             let witness = Point3::new(0.0, 0.0, 0.5);
             geom_brep::EdgeCurveSpec {
                 description: if tangent {
-                    geom_brep::EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+                    geom_brep::EdgeDescriptionSpec::TangentIntersection {
+                        pair: geom_brep::SurfacePair::new(s1, s2),
+                        witness,
+                    }
                 } else {
-                    geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness }
+                    geom_brep::EdgeDescriptionSpec::Intersection {
+                        pair: geom_brep::SurfacePair::new(s1, s2),
+                        witness,
+                    }
                 },
                 carrier: line.clone(),
                 param_start: 0.0,

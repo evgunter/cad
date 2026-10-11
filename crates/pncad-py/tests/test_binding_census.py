@@ -588,6 +588,13 @@ def audit_gap_ids():
 #:   next one.)
 BOUND_AS = {
     "CM": "cm",
+    # An interference finding's copies and site, flattened: a copy is
+    # its placement's variable beside its member index, and the overlap
+    # is the bounding faces or, where the kernel could not bound it, the
+    # tag saying why.
+    "CopyRef": ("InterferenceFinding.a", "InterferenceFinding.a_member"),
+    "Overlap": ("InterferenceFinding.faces", "InterferenceFinding.unlocalized"),
+    "Unlocalized": "InterferenceFinding.unlocalized",
     # The measure builder records one action and answers what it
     # recorded: Python's `Doc.measure` is the builder and takes the
     # outcome up in place, answering its `Measured`.
@@ -1194,6 +1201,7 @@ BOUND_AS = {
     # attribute is the contract, and a caller reads it the day a door
     # produces one.
     "CensusContact": "ValidationFinding.contact_kind",
+    "CrossingSideVerdict": "ValidationFinding.crossing_side",
     "CensusSubject": "ValidationFinding.subject_kind",
     "RingContact": "ValidationFinding.ring_contact_kind",
     # `ring_meets_ring`'s, the same words for the same shapes between
@@ -3591,6 +3599,9 @@ NOT_BOUND = {
 #: reach what that member is about, at that spelling. Not the same shape, not
 #: the same receiver, and nothing about semantics.
 MEMBERS_BOUND_AS = {
+    # --- an interference finding's overlap and quieting assertion ---
+    "InterferenceFinding::overlap": ("InterferenceFinding.faces", "InterferenceFinding.unlocalized"),
+    "InterferenceFinding::quiet": "InterferenceFinding.quiet_by",
     # --- a one-of subject spelled as its arms' attributes ---------
     # A finding is about one root output or one node; Python reads the
     # subject as three attributes, `None` for the arm it is not.
@@ -4319,6 +4330,10 @@ MEMBERS_NOT_BOUND = {
     # into the finding's `str()` — the flattened-payload bullet at the
     # door that renders rather than raises.
     "AtRestFinding::error": SHAPE,
+    # The census's verdicts on the pair are the kernel's own story, read
+    # through `ValidationFinding` where a body is validated; the finding
+    # names its copies and site, which is what a caller acts on.
+    "InterferenceFinding::evidence": SHAPE,
     # The replay structure is the lattice's own bookkeeping; no Python
     # value is ever one.
     "ClosedLoop::structure": INTERIOR,

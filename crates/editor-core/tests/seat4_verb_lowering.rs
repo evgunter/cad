@@ -239,12 +239,19 @@ fn both_blends_evaluate_in_one_document() {
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held untouched. Merged over stage 4 E, the two numbers were re-taken
 /// once more, where both changes meet.
+///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`), re-taken on the tree holding every
+/// change above: the digest feeds each edge's description `Debug`,
+/// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
+/// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
+/// pins and `m5_pr8_bvh_diff` held.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0xa1e2_f8a7_d3d5_1e02u64),
-        ("die_chamfer", 0x44a9_1795_eaad_befe),
+        ("die_fillet", 0xa2cc_a1d4_0619_11eau64),
+        ("die_chamfer", 0xe357_7e62_ae47_31f6),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -372,13 +379,20 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// each body's `Debug`. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
+///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`), re-taken on the tree holding every
+/// change above: the digest feeds each edge's description `Debug`,
+/// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
+/// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
+/// pins and `m5_pr8_bvh_diff` held.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x865e_1c1c_5190_ad36u64),
-        ("heat_sink", 0x1af3_a2d0_f8a0_8206),
-        ("kiss_carry", 0xf3b2_61df_d422_2210),
+        ("crossing_slots", 0xa4fa_0fe4_eea4_e854u64),
+        ("heat_sink", 0x593c_52d7_5e19_410c),
+        ("kiss_carry", 0xb223_11fc_e8b8_d98e),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -436,6 +450,13 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// and this digest feeds ids. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held untouched.
+///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`), re-taken on the tree holding every
+/// change above: the digest feeds each edge's description `Debug`,
+/// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
+/// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
+/// pins and `m5_pr8_bvh_diff` held.
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
@@ -480,7 +501,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xc6c201f363d7ba9c,
+        got, 0xb842_ec1f_ddcf_bdf0,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

@@ -206,8 +206,8 @@ use geom::Curve3;
 use geom::Surface;
 use geom::curves::boxes;
 use geom_brep::{
-    EdgeCurveSpec, EdgeDescriptionSpec, MustCarryDescription, MustCarryRefusal, edge_extent,
-    must_carry_over_edge,
+    EdgeCurveSpec, EdgeDescriptionSpec, MustCarryDescription, MustCarryRefusal, SurfacePair,
+    edge_extent, must_carry_over_edge,
 };
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{
@@ -309,7 +309,7 @@ pub(super) fn unbuilt_geometry(at: EntityId, detail: &'static str) -> BlendError
 pub(super) fn op(site: &'static str, source: topo::EulerOpError) -> BlendError {
     BlendError::Op {
         site,
-        source: source.from_driver(),
+        source: Box::new(source.from_driver()),
     }
 }
 
@@ -5184,7 +5184,10 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         // branch refuses it as the surgery contradicting its own
         // routing.
         let witness = curve.mid_point(t0, t1);
-        EdgeDescriptionSpec::Intersection { s1, s2, witness }
+        EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(s1, s2),
+            witness,
+        }
     } else {
         // The band meets its support tangentially along the contact
         // locus, and the corner ball meets the band the same way: a
@@ -5207,7 +5210,8 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
                 ));
             };
             let extent = edge_extent(&curve, t0, t1, p0.distance(p1));
-            must_carry_over_edge(surf1, surf2, &curve, t0, t1, extent, band)
+            let (_, [sa, sb]) = SurfacePair::sorted(s1, surf1, s2, surf2);
+            must_carry_over_edge(sa, sb, &curve, t0, t1, extent, band)
         };
         // In-band: a station certifiable as neither — a band a few K·ε
         // in radius, or a corner arc whose extent is the lever —
@@ -5237,7 +5241,10 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
                          transverse at a certification station",
             },
         };
-        match verdict.description(s1, s2, witness).map_err(refused)? {
+        match verdict
+            .description(SurfacePair::new(s1, s2), witness)
+            .map_err(refused)?
+        {
             MustCarryDescription::Intrinsic(description) => description,
             // No intrinsic tangency is demanded (a zero-side
             // station, or an all-positive pair outside the
