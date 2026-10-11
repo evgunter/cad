@@ -2864,12 +2864,12 @@ impl Descendants {
     ) -> Result<Option<Cell>, BooleanError> {
         let desync = |what| BooleanError::JoinDesync { what };
         let lineage =
-            super::fragments::Lineage::of(face, &self.fragments[usize::from(side == Operand::B)]);
-        if lineage.faces().nth(1).is_none() {
+            crate::lineage::Lineage::of(face, &self.fragments[usize::from(side == Operand::B)]);
+        if lineage.cells().nth(1).is_none() {
             return self.live(body, side, view, Cell::Face(face));
         }
         let mut pieces = Vec::new();
-        for f in lineage.faces() {
+        for f in lineage.cells() {
             if let Some(Cell::Face(p)) = self.live(body, side, view, Cell::Face(f))?
                 && !pieces.contains(&p)
             {

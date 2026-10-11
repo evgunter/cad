@@ -2,10 +2,11 @@
 id: an-unattributed-contact-at-rest-is-a-finding
 kind: issue
 title: D10 stage 4 PR J: A5's hard error on an unattributed contact becomes an unproven-coincidence finding; a contact between copies no mate attributes is recorded at the door
-status: dispatched
+status: closed
 priority: P0
 cost: M
 opened: 2026-10-09
+closed: 2026-10-11
 ---
 
 INTENT stage 4, PR J. Spec: `docs/INTENT-STAGE4-SPEC.md` §8b.
@@ -35,3 +36,21 @@ relation; rename them with it.
 ## `ImportOptions::declared_contacts` retires here (stage 4 F, 2026-10-11)
 
 F (`declared-pairs-retire`) kept `step-import`'s `ImportOptions::declared_contacts` (and `ImportContact`, `StepImportError::DeclarationUnresolved`) as a named interim: they are import-side contact records, not a boolean declaration, and they are what lets a touching STEP assembly pass the aggregate tier-3′ gate today. This PR deletes them together with the at-rest refusal they serve (spec §7, D1: an imported assembly's contacts are `unproven-coincidence` findings quieted by an assertion).
+
+## Closed
+
+The gather runs the tier-3′ census through the census's recording door
+(`topo::record_at_rest`, `the-census-records-what-it-decides`), each
+copy its own group, and keeps its findings on the product
+(`Product::census`). A touch between two copies that no record backs is
+a `CensusAtRest` row (`AtRestRow { by: AtRestBy::Copies(a, b) }`) and a
+record citing it. The `unproven-coincidence` check reports it against
+the two copies (`FindingSubject::Copies`), and `assemble` reads the
+kept census and refuses nothing for it. A record the census minted
+backs no mate, so `Separation` stays loud about the pair (interim,
+until I). `Attribution::Unattributed` retired: `AtRestFinding::attribution`
+is an `Option`. A5's hard-error sentence is replaced in ASSEMBLY.md.
+The vocabulary rename is `UnrecordedContact`. The recourse these rows
+carry is whatever the coincidence door computes; the assertion
+recourse for an opaque residual is the door lane's
+(`the-symbolic-door-proves-at-one-strength-at-rest`).

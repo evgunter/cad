@@ -755,3 +755,75 @@ fn an_undecided_pair_beside_the_press_fit_keeps_it_loud() {
         faces.len()
     );
 }
+
+/// **(B) A touch between an interfering pair keeps its finding loud**
+/// (D1 (iii), D10). `b` is a C wrapped around the unit block `a` clear
+/// of it but at two places: a tab whose −x wall sits 0.05 inside `a`'s
+/// +x wall (the slab overlap), and a foot resting flush on `a`'s −x
+/// wall, its face strictly inside that wall. The census records nothing
+/// for a pair it decided interfere (`topo::record_at_rest`), so the
+/// foot's touches ride the finding as evidence, and the holding
+/// `Gap ≤ −0.01` over the tab, which bounds the overlap, does not speak
+/// for them.
+///
+/// Red if a touch between the pair counts as covered by the overlap's
+/// assertion.
+#[test]
+fn a_touch_beside_a_quieted_overlap_keeps_it_loud() {
+    let doc = ProfileDoc::empty_derived("intent-s5-b-slab-touch", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 0.0, 0.0), 0.5, 1.0);
+    let (doc, profile) = on_frame(
+        doc,
+        [0.0, 0.0, 0.25],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        // The tab's −x wall is the last segment.
+        vec![vec![
+            (0.45, -0.3),
+            (1.05, -0.3),
+            (1.05, 1.0),
+            (-1.0, 1.0),
+            (-1.0, -0.25),
+            (-0.5, -0.25),
+            (-0.5, 0.25),
+            (-0.8, 0.25),
+            (-0.8, 0.8),
+            (0.75, 0.8),
+            (0.75, 0.3),
+            (0.45, 0.3),
+        ]],
+    );
+    let (doc, b) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(0.5),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (doc, p) = place(doc, a);
+    let (doc, q) = place(doc, b);
+    let (doc, assertion) = gap_at_copies(
+        doc.clone(),
+        (p, plus_x(&doc, a)),
+        (q, fname(b, wall(&doc, b, 11))),
+        AssertionRelation::AtMost,
+        -0.01,
+    );
+    let assembly = assembled(&doc);
+    let [finding] = assembly.interference.as_slice() else {
+        panic!("one overlap: {:?}", assembly.interference)
+    };
+    assert!(
+        finding
+            .evidence
+            .iter()
+            .any(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
+        "the lump's touches ride the pair's finding: {:?}",
+        finding.evidence
+    );
+    assert_eq!(
+        finding.quiet, None,
+        "the assertion {assertion:?} bounds the overlap and not the touch"
+    );
+}
