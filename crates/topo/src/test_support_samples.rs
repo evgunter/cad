@@ -537,6 +537,11 @@ fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
             limb: geom_brep::Rung3Limb::HullSup,
             margin: MarginDiag::value(7.5e-5),
         },
+        A::Limb {
+            operand: geom::SurfaceKind::Plane,
+            limb: geom_brep::Rung3Limb::HullValue,
+            margin: MarginDiag::value(7.5e-5),
+        },
         A::Escalated {
             operand: Some(geom::SurfaceKind::Cylinder),
             limb: geom_brep::Rung3Limb::HullSup,

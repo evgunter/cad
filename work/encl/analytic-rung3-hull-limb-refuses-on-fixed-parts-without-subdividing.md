@@ -2,11 +2,13 @@
 id: analytic-rung3-hull-limb-refuses-on-fixed-parts-without-subdividing
 kind: issue
 title: geom-brep: the AnalyticRung3 hull limb (net_offset_sup) refuses on its fixed INCIDENCE_CUTS parts, with no adaptive subdivision and no measured value at a break
-status: dispatched
+status: closed
 branch: encl/rung3-hull-refine
 opened: 2026-10-10
 priority: P3
 cost: H
+pr: 4675
+closed: 2026-10-11
 ---
 
 Filed by `encl/hull-bound-refine` (row `hull-bound-refusals-could-refine-the-composite-before-refusing`), which made the two SSI hull limbs (`ssi_hull_sup`, `ssi_hull_sup_chart` in `crates/geom-brep/src/ssi/certify.rs`) subdivide their composite under a budget before refusing.
