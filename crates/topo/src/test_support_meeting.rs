@@ -10,8 +10,6 @@
 //! across one another ([`leaned`], [`arch`]) they may cross above it.
 //! The poses ([`Pose`], [`poses`]) move the whole scene rigidly.
 
-use std::collections::BTreeMap;
-
 use crate::AtRestBody;
 use crate::body::Body;
 use crate::entity::{Face, HalfEdgeKey, LoopBoundary};
@@ -201,6 +199,71 @@ fn meander(path: &[(f64, f64)]) -> Vec<[f64; 3]> {
         .collect()
 }
 
+/// [`apex_pyramid`]'s base for one run above the top: a triangle with
+/// one corner above it.
+#[must_use]
+pub fn single_arch() -> Vec<[f64; 3]> {
+    meander(&[(0.0, -1.0), (2.0, -1.0), (1.0, 1.0)])
+}
+
+/// [`apex_pyramid`]'s base for two runs above the top, apart: a zigzag
+/// of two arches up, each run's germs neighbours along the top.
+#[must_use]
+pub fn zigzag() -> Vec<[f64; 3]> {
+    meander(&[
+        (0.0, -1.0),
+        (4.0, -1.0),
+        (3.0, 1.0),
+        (2.0, -0.5),
+        (1.0, 1.0),
+    ])
+}
+
+/// [`apex_pyramid`]'s base for three runs above the top, apart: a crown
+/// of three arches up.
+#[must_use]
+pub fn crown() -> Vec<[f64; 3]> {
+    meander(&[
+        (0.0, -1.0),
+        (6.0, -1.0),
+        (5.0, 1.0),
+        (4.0, -0.5),
+        (3.0, 1.0),
+        (2.0, -0.5),
+        (1.0, 1.0),
+    ])
+}
+
+/// The volume of [`apex_pyramid`] over `base`, and of its part below the
+/// top, in closed form: the base lies in the plane half a unit from the
+/// apex, so each is a sixth of the area its polygon bounds there, the
+/// part below the top over the polygon clipped to `z < 0`.
+#[must_use]
+pub fn pyramid_volumes(base: &[[f64; 3]]) -> (f64, f64) {
+    let area = |poly: &[(f64, f64)]| {
+        (0..poly.len())
+            .map(|i| {
+                let ((y0, z0), (y1, z1)) = (poly[i], poly[(i + 1) % poly.len()]);
+                y0 * z1 - y1 * z0
+            })
+            .sum::<f64>()
+            .abs()
+            / 2.0
+    };
+    let poly: Vec<(f64, f64)> = base.iter().map(|q| (q[1], q[2])).collect();
+    let mut below = Vec::new();
+    for i in 0..poly.len() {
+        let ((y0, z0), (y1, z1)) = (poly[i], poly[(i + 1) % poly.len()]);
+        if z0 < 0.0 {
+            below.push((y0, z0));
+        }
+        if (z0 < 0.0) != (z1 < 0.0) {
+            below.push((y0 + (y1 - y0) * z0 / (z0 - z1), 0.0));
+        }
+    }
+    (area(&poly) / 6.0, area(&below) / 6.0)
+}
+
 /// [`apex_pyramid`]'s base for three runs nested under one: above the
 /// top one wide arch over two narrow ones, which cut notches into it,
 /// and three legs below. Each run's two germs are neighbours along the
@@ -349,14 +412,16 @@ pub fn notch_rows() -> Vec<(&'static str, Vec<Hole>)> {
 /// or two loops through one vertex, pass their corners there without
 /// crossing. A corner sweeps counterclockwise from its leaving edge to
 /// its arriving one, the face on the left. Corners are grouped by
-/// point, rounded to a micron ([`at`]), so the corners of several
-/// vertices on one point (a pinch split per cone) are compared too.
+/// point, two corners lying on one point where they are no further
+/// apart than `tol`'s escalation distance `K·ε`, so the corners of
+/// several vertices on one point (a pinch split per cone) are compared
+/// too, and distinct vertices any further apart are not.
 ///
 /// It reads planar faces with straight edges of positive length, an
 /// outer loop that is a cycle and corners whose two edges leave along
 /// different directions, and refuses any other face rather than
 /// measure it.
-pub fn corners_disjoint(body: &Body<f64>) -> Result<(), String> {
+pub fn corners_disjoint(body: &Body<f64>, tol: Tol) -> Result<(), String> {
     use std::f64::consts::TAU;
     for (fk, f) in body.faces() {
         if !matches!(
@@ -415,7 +480,7 @@ pub fn corners_disjoint(body: &Body<f64>) -> Result<(), String> {
         let u = n.cross(seed).normalize();
         let v = n.cross(u);
         let angle = |d: geom_core::Vec3<f64>| d.dot(v).atan2(d.dot(u)).rem_euclid(TAU);
-        let mut corners: BTreeMap<Point, Vec<(f64, f64)>> = BTreeMap::new();
+        let mut corners: Vec<(Point3<f64>, f64, f64)> = Vec::new();
         for cycle in &cycles {
             let m = cycle.len();
             for i in 0..m {
@@ -438,15 +503,34 @@ pub fn corners_disjoint(body: &Body<f64>) -> Result<(), String> {
                         cycle[i]
                     ));
                 }
-                corners.entry(at(here)).or_default().push((from, sweep));
+                corners.push((here, from, sweep));
             }
         }
-        for (pk, cs) in corners {
-            for (i, &(a, sa)) in cs.iter().enumerate() {
-                for &(b, sb) in &cs[i + 1..] {
-                    if (b - a).rem_euclid(TAU) < sa - 1e-9 || (a - b).rem_euclid(TAU) < sb - 1e-9 {
-                        return Err(format!("{fk:?}: two corners at {pk:?} overlap"));
-                    }
+        // One point: corners chained within `K·ε` of one another.
+        let near = tol.eps() * tol.k();
+        let mut group: Vec<usize> = (0..corners.len()).collect();
+        let root = |g: &[usize], mut i: usize| {
+            while g[i] != i {
+                i = g[i];
+            }
+            i
+        };
+        for i in 0..corners.len() {
+            for j in i + 1..corners.len() {
+                if corners[i].0.distance(corners[j].0) <= near {
+                    let (a, b) = (root(&group, i), root(&group, j));
+                    group[a.max(b)] = a.min(b);
+                }
+            }
+        }
+        for i in 0..corners.len() {
+            for j in i + 1..corners.len() {
+                if root(&group, i) != root(&group, j) {
+                    continue;
+                }
+                let ((p, a, sa), (_, b, sb)) = (corners[i], corners[j]);
+                if (b - a).rem_euclid(TAU) < sa - 1e-9 || (a - b).rem_euclid(TAU) < sb - 1e-9 {
+                    return Err(format!("{fk:?}: two corners at {:?} overlap", at(p)));
                 }
             }
         }

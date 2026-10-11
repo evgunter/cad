@@ -637,10 +637,7 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   no caller is the dead-code pattern. It re-opens with its first
   consumer (variable-radius fillets).
 
-Unlettered standing entries: the both-sided zero-area pinch split
-(single-sided pinches succeed by the exact mirror identity
-`split(S, n) ≡ swap(split(S, −n))`; the `BOTH_SIDED` fixture pins the
-refusal); reflex-corner tilted crossings; the torus `Rest`
+Unlettered standing entries: reflex-corner tilted crossings; the torus `Rest`
 lane (#968) and full-period walls in the cylindrical `Rest` lane
 (#1415, #1416); the coincident-plane classes beyond the
 structural/anchored repertoire, where the anchor-exhaustion arm is

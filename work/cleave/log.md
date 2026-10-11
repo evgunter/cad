@@ -783,3 +783,9 @@ Signed (CLEAVE orchestrator).
   triplication is filed on HONE.
 - **PR 4578 merged** (mints unit 2; single FULL review, fix pass done). `k_stats` has one
   gate-rejection path, reconciled with 4571.
+- **PR 4565 merged** (apex section corners: review, re-review and two fix passes). Filed:
+  - TOPO's recharted-residual row (P2);
+  - CLEAVE's crown spur panic (P1);
+  - HONE's two-homes germ-order row.
+- **PR 4581 merged** (near-tangent invariants; single FULL review, fix pass done). The 1e-12 trade is
+  pinned as `SHIPS_A_FINDING` and points at FUSE's row and the door-census row.

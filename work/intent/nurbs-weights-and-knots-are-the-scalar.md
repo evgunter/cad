@@ -2,7 +2,7 @@
 id: nurbs-weights-and-knots-are-the-scalar
 kind: issue
 title: NURBS weights and knots are f64 by type, so every evaluation re-enters them into the symbolic lane as constants
-status: open
+status: dispatched
 opened: 2026-10-10
 priority: P0
 cost: H
