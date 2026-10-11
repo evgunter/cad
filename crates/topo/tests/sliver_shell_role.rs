@@ -293,3 +293,155 @@ fn a_sliver_beside_a_lump_refuses_in_band() {
     let refusal = topo::intersect(&both.body, &cube, tol).map(|_| ());
     assert_refuses_in_band("piece and block", refusal);
 }
+
+// ---- review probes (flush/sliver-only-result-refuses-review) ----
+
+fn outcome(r: &Result<topo::BooleanResult<f64>, BooleanError>) -> String {
+    match r {
+        Ok(res) => match res.body() {
+            None => "Ok(empty)".into(),
+            Some(b) => {
+                let solids: Vec<usize> = b.body.solids().map(|(_, s)| s.shells.len()).collect();
+                format!("Ok(solids {solids:?})")
+            }
+        },
+        Err(BooleanError::Escalated { decision, diag }) => format!(
+            "Escalated({decision:?}, terminal_sliver {}, margin {:?})",
+            diag.terminal_sliver, diag.margin
+        ),
+        Err(e) => {
+            let s = format!("{e:?}");
+            format!("Err({})", &s[..s.len().min(300)])
+        }
+    }
+}
+
+#[test]
+fn review_probe_wedge_sweep() {
+    let tol = Tol::witness();
+    if stood_down_off_1e9(tol) {
+        return;
+    }
+    let corner = [2.0, 1.0, 1.0];
+    let edge = [2.0, 1.0, 0.0];
+    for d in [
+        1e-10, 5e-10, 1e-9, 2e-9, 3e-9, 5e-9, 1e-8, 3e-8, 3.05e-8, 3.1e-8, 3.2e-8, 4e-8, 1e-7,
+    ] {
+        let (piece, cube) = corner_pose(&NOTCH307_PIECE, corner, edge, 3, d, tol);
+        let r = topo::intersect(&piece, &cube, tol);
+        println!("PROBE wedge d = {d:e}: {}", outcome(&r));
+    }
+}
+
+/// The two bricks' ∩ is a slab `t` thick, 1 m by 1 m: `V/A ≈ t/2`.
+#[test]
+fn review_probe_slab() {
+    let tol = Tol::witness();
+    if stood_down_off_1e9(tol) {
+        return;
+    }
+    for t in [
+        1.2e-9, 1.6e-9, 2.5e-9, 5e-9, 1e-8, 1.9e-8, 2.1e-8, 2.5e-8, 5e-8, 1e-7,
+    ] {
+        let a = AtRestBody::validate(
+            common::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+            tol,
+        )
+        .expect("a");
+        let b = AtRestBody::validate(
+            common::brick::<f64>((-1.0, 2.0), (-1.0, 2.0), (1.0 - t, 2.0), tol),
+            tol,
+        )
+        .expect("b");
+        let r = topo::intersect(&a, &b, tol);
+        println!("PROBE slab t = {t:e}: {}", outcome(&r));
+    }
+}
+
+/// Two solids: a unit brick and a taller one beside it; ∩ a slab from
+/// `1 - t` up. The first leaves a slab `t` thick alone in its solid,
+/// the second a lump half a metre thick.
+#[test]
+fn review_probe_slab_beside_lump() {
+    let tol = Tol::witness();
+    if stood_down_off_1e9(tol) {
+        return;
+    }
+    for t in [1.6e-9, 5e-9, 1e-8] {
+        let a = AtRestBody::validate(
+            common::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+            tol,
+        )
+        .expect("a");
+        let a2 = AtRestBody::validate(
+            common::brick::<f64>((2.0, 3.0), (0.0, 1.0), (0.0, 1.5), tol),
+            tol,
+        )
+        .expect("a2");
+        let both = topo::union(&a, &a2, tol).expect("union");
+        let both = both.body().expect("nonempty");
+        let b = AtRestBody::validate(
+            common::brick::<f64>((-1.0, 4.0), (-1.0, 2.0), (1.0 - t, 2.0), tol),
+            tol,
+        )
+        .expect("b");
+        let r = topo::intersect(&both.body, &b, tol);
+        println!("PROBE slab-beside-lump t = {t:e}: {}", outcome(&r));
+    }
+}
+
+/// A unit brick less a brick inset `δ` on every side: one solid of two
+/// shells, each role definite, the wall's `V/A ≈ δ/2`.
+#[test]
+fn review_probe_thin_hollow() {
+    let tol = Tol::witness();
+    if stood_down_off_1e9(tol) {
+        return;
+    }
+    for dl in [1.2e-9, 1.6e-9, 2.5e-9, 5e-9, 1e-8, 1.9e-8, 2.5e-8, 5e-8] {
+        let a = AtRestBody::validate(
+            common::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+            tol,
+        )
+        .expect("a");
+        let b = AtRestBody::validate(
+            common::brick::<f64>((dl, 1.0 - dl), (dl, 1.0 - dl), (dl, 1.0 - dl), tol),
+            tol,
+        )
+        .expect("b");
+        let r = topo::subtract(&a, &b, tol);
+        println!("PROBE hollow δ = {dl:e}: {}", outcome(&r));
+    }
+}
+
+/// Two unit bricks side by side, apart; ∩ a slab from `1 - t` up: two
+/// slab slivers, no lump.
+#[test]
+fn review_probe_two_slabs() {
+    let tol = Tol::witness();
+    if stood_down_off_1e9(tol) {
+        return;
+    }
+    let t = 1e-8;
+    let a = AtRestBody::validate(
+        common::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    )
+    .expect("a");
+    let a2 = AtRestBody::validate(
+        common::brick::<f64>((2.0, 3.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    )
+    .expect("a2");
+    let both = topo::union(&a, &a2, tol).expect("union");
+    let both = both.body().expect("nonempty");
+    let shells: Vec<usize> = both.body.solids().map(|(_, s)| s.shells.len()).collect();
+    println!("PROBE two-slabs operand solids {shells:?}");
+    let b = AtRestBody::validate(
+        common::brick::<f64>((-1.0, 4.0), (-1.0, 2.0), (1.0 - t, 2.0), tol),
+        tol,
+    )
+    .expect("b");
+    let r = topo::intersect(&both.body, &b, tol);
+    println!("PROBE two-slabs t = {t:e}: {}", outcome(&r));
+}
