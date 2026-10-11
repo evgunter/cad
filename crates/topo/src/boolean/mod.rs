@@ -131,6 +131,8 @@ mod surface_group;
 pub mod tables;
 #[cfg(test)]
 mod torn_hop_rows;
+#[cfg(test)]
+mod torus_frame_rows;
 pub mod voids;
 pub(crate) mod vtxfac;
 pub(crate) mod zip;
@@ -1766,6 +1768,33 @@ pub enum SectorRead {
     Pair(VertexKey),
 }
 
+/// **The loops a plane cuts on a ring torus**, as the section
+/// certificate classifies them ([`BooleanError::GermSectionSpiric`]).
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung; the disposition table cites this paragraph as its home).
+/// A Rust caller can already name and match it — `pncad` re-exports
+/// `topo` whole — and the refusal's sentence names the loops, while the
+/// recourse it states is the same for all three (cut the torus with a
+/// plane the frame serves). Carrying it would add the CUR3 property row
+/// and a Python word with no reader that acts on the difference.
+///
+/// **The falsifier is a caller whose recourse depends on which loops a
+/// slanted plane cuts**: the day the general rung serves one class (the
+/// loops round the axis have a proved frame), a caller must tell it from
+/// the others to know whether the cut builds. Then carry it and delete
+/// this paragraph and the disposition row with it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpiricLoops {
+    /// Two loops, each winding once round the torus's axis.
+    AroundAxis,
+    /// Two loops, each winding once round the tube.
+    AroundTube,
+    /// One loop on the tube that winds round neither.
+    Null,
+}
+
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
 #[derive(Debug)]
 pub enum BooleanError {
@@ -2597,6 +2626,27 @@ pub enum BooleanError {
         /// The section table's refusal, naming the conic.
         section: geom_brep::SectionError,
     },
+    /// **A germ pair whose plane cuts a torus face in a general spiric
+    /// quartic**: a plane neither through the torus's axis, nor square to
+    /// it, nor parallel to it short of its inner equator. The C5 table
+    /// routes that section to its general rung, which is unbuilt, and no
+    /// carrier holds the curve, so the pair is refused at its frame.
+    /// `loops` is the section certificate's own classification of the
+    /// section, and `section` the table's refusal.
+    GermSectionSpiric {
+        /// The A-side germ face.
+        a_face: FaceKey,
+        /// Its kind.
+        a_kind: geom::SurfaceKind,
+        /// The B-side germ face.
+        b_face: FaceKey,
+        /// Its kind.
+        b_kind: geom::SurfaceKind,
+        /// The loops the plane cuts.
+        loops: SpiricLoops,
+        /// The section table's refusal.
+        section: geom_brep::SectionError,
+    },
     /// **A germ pair of two cylinder walls whose axes definitely
     /// INTERSECT** — the frame dispatch's named sub-case of "no
     /// frame", and the door the intersecting equal-radius family
@@ -2947,6 +2997,8 @@ pub enum BooleanErrorKind {
     GermFrameUnsupported,
     /// [`BooleanError::GermSectionOutsideInventory`].
     GermSectionOutsideInventory,
+    /// [`BooleanError::GermSectionSpiric`].
+    GermSectionSpiric,
     /// [`BooleanError::GermFrameCylinderPinch`].
     GermFrameCylinderPinch,
     /// [`BooleanError::Euler`].
@@ -3170,6 +3222,7 @@ impl BooleanError {
             Self::GermSectionOutsideInventory { .. } => {
                 BooleanErrorKind::GermSectionOutsideInventory
             }
+            Self::GermSectionSpiric { .. } => BooleanErrorKind::GermSectionSpiric,
             Self::GermFrameCylinderPinch { .. } => BooleanErrorKind::GermFrameCylinderPinch,
             Self::Euler(_) => BooleanErrorKind::Euler,
             Self::Pcurves { .. } => BooleanErrorKind::Pcurves,
@@ -3512,6 +3565,17 @@ impl core::fmt::Display for BooleanError {
                     geom_brep::OutsideConic::Parabola => "a parabola",
                     geom_brep::OutsideConic::Hyperbola => "a hyperbola",
                 },
+            ),
+            Self::GermSectionSpiric { loops, .. } => write!(
+                f,
+                "a flat face of one part cuts a torus face of the other at a slant, along a \
+                 curve the Boolean cannot yet trace ({}). {}",
+                match loops {
+                    SpiricLoops::AroundAxis => "two loops round the axis",
+                    SpiricLoops::AroundTube => "two loops round the tube",
+                    SpiricLoops::Null => "one loop on the tube",
+                },
+                meeting_recourse(kind_word(geom::SurfaceKind::Torus)),
             ),
             // One sentence for BOTH radius cases: the walls may have
             // equal radii (the section crosses itself) or not (a space
@@ -5482,7 +5546,7 @@ fn verify_tangency_declaration<T: Decide>(
     let kinds = (sa.kind(), sb.kind());
     // 2. The witness locus.
     let mut overlap = None;
-    let (carrier, t0, t1, rim, margin) = match tangent_line((a, fa, &sa), (b, fb, &sb), band)? {
+    let (carrier, t0, t1, rim, located) = match tangent_line((a, fa, &sa), (b, fb, &sb), band)? {
         Ok(line) => {
             overlap = Some(line.overlap);
             (line.carrier, line.span.0, line.span.1, None, line.gap)
@@ -5501,7 +5565,7 @@ fn verify_tangency_declaration<T: Decide>(
             // An UNDECIDABLE rim identity escalates typed rather than
             // reading as "no rim here": only the second means the
             // geometry was examined and cleared.
-            let (rim, margin) = rim_wedge::shared_rim(a, fa, b, fb, band)
+            let (rim, identity) = rim_wedge::shared_rim(a, fa, b, fb, band)
                 .map_err(|diag| BooleanError::coincidence(Coincide::Rim, spent, diag))?
                 .ok_or_else(|| claim.unsupported())?;
             if claim == Tangency::Contact {
@@ -5520,7 +5584,7 @@ fn verify_tangency_declaration<T: Decide>(
                 T::zero(),
                 T::from_f64(core::f64::consts::TAU),
                 Some(rim),
-                margin,
+                identity,
             )
         }
     };
@@ -5528,15 +5592,17 @@ fn verify_tangency_declaration<T: Decide>(
     // for a seam.
     let sense_b = sense_b != (claim == Tangency::Seam);
     let table = match claim {
-        Tangency::Contact => contact_verify::tangent_locus_relation(
+        Tangency::Contact => contact_verify::tangent_locus_reading(
             &sa, sense_a, &sb, sense_b, &carrier, t0, t1, true, band,
         ),
-        Tangency::Seam => contact_verify::tangent_seam_relation(
-            &sa, sense_a, &sb, sense_b, &carrier, t0, t1, band,
-        ),
+        Tangency::Seam => {
+            contact_verify::tangent_seam_reading(&sa, sense_a, &sb, sense_b, &carrier, t0, t1, band)
+        }
     };
-    match table {
-        Ok(_) => {}
+    let margin = match table {
+        // The reading is the touch's; it is a theorem only where the
+        // locus it was read along is one too.
+        Ok((_, touch)) => touch.jointly(located),
         Err(crate::contact::ContactRefusal::Contradicted { diag, steer }) => {
             let margin = match (claim, diag.predicate) {
                 // The reversed bit's opposition IS the seam's alignment.
@@ -5555,7 +5621,7 @@ fn verify_tangency_declaration<T: Decide>(
         Err(crate::contact::ContactRefusal::NotCertifiable { .. }) => {
             return Err(claim.unsupported());
         }
-    }
+    };
     // 4. Which way a seam's two faces leave its locus, read at the locus.
     if claim == Tangency::Seam {
         let locus = match (rim, &carrier) {
@@ -5614,8 +5680,10 @@ fn verify_tangency_declaration<T: Decide>(
 /// What [`verify_tangency_declaration`] certified: the two carriers'
 /// kinds (A's first); for a `Tangent` along a line the operand whose
 /// plane face the locus runs through, or that read's refusal; and the
-/// margin that decided the tangency (the locus's gap, or the shared
-/// rim's).
+/// margin that decided the touch (the pair's separation along the
+/// witness, `contact_verify`'s `contact_tangent_touch`), standing jointly
+/// for the locus it was read along (the locus's gap, or the shared
+/// rim's identity).
 type TangencyVerified = (
     (geom::SurfaceKind, geom::SurfaceKind),
     Result<Option<Operand>, BooleanError>,
@@ -6746,6 +6814,17 @@ mod tests {
                     why: "a hyperbola",
                 },
             },
+            BooleanError::GermSectionSpiric {
+                a_face: face,
+                a_kind: geom::SurfaceKind::Plane,
+                b_face: face,
+                b_kind: geom::SurfaceKind::Torus,
+                loops: SpiricLoops::Null,
+                section: geom_brep::SectionError::RoutesToGeneralRung {
+                    pair: "plane×torus",
+                    why: "a folded loop",
+                },
+            },
             BooleanError::GermFrameCylinderPinch {
                 a_face: face,
                 b_face: face,
@@ -6876,6 +6955,7 @@ mod tests {
                 BooleanErrorKind::SpheresMeet => "SpheresMeet",
                 BooleanErrorKind::GermFrameUnsupported => "GermFrameUnsupported",
                 BooleanErrorKind::GermSectionOutsideInventory => "GermSectionOutsideInventory",
+                BooleanErrorKind::GermSectionSpiric => "GermSectionSpiric",
                 BooleanErrorKind::GermFrameCylinderPinch => "GermFrameCylinderPinch",
                 BooleanErrorKind::Euler => "Euler",
                 BooleanErrorKind::Pcurves => "Pcurves",

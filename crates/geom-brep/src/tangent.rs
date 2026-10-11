@@ -63,6 +63,12 @@ pub struct TangentJet<T: Real> {
     pub kappa_rel: T,
 }
 
+/// `sin θ` between two implicit gradients, `|g₁ × g₂| / (|g₁||g₂|)`:
+/// the jet's first-order defect, spelled once for every reader of it.
+pub(crate) fn normal_sine<T: Real>(g1: Vec3<T>, g2: Vec3<T>) -> T {
+    g1.cross(g2).norm() / (g1.norm() * g2.norm())
+}
+
 /// The jet of (`s1`, `s2`) at `p` along `tangent` (raw; docs above).
 /// Fixed evaluation order (D9). Poison propagates from singular
 /// gradients (cone apex/axis, torus axis) and `Nurbs` kinds.
@@ -76,7 +82,7 @@ pub fn tangent_jet<T: Real>(
     let g2 = implicit_gradient(s2, p);
     let n1 = g1.norm();
     let n2 = g2.norm();
-    let sin_theta = g1.cross(g2).norm() / (n1 * n2);
+    let sin_theta = normal_sine(g1, g2);
     // The shared normal (s1's side) and the transverse in-tangent-plane
     // direction d̂ = n̂ × τ̂.
     let n_hat = g1 / n1;
@@ -110,6 +116,12 @@ pub struct TangentSpanBounds<T: Real> {
     /// each span is bounded by its endpoints plus exactly this sag
     /// (the standard quadratic interpolation bound, exact in family).
     pub residual_sag: T,
+    /// Certified bound on the sag of the pair's separation
+    /// `s = r₁ − σ·r₂` between adjacent samples: `(Δt²/8)·sup|s″|`
+    /// with `sup|s″| ≤ sup|f₁″| + sup|f₂″|` (σ = ±1 is constant over a
+    /// span), so the two surfaces' terms add where the residual sag
+    /// takes the larger.
+    pub gap_sag: T,
     /// Certified bound on how far `|κ_rel|` can drift between
     /// adjacent samples: `Δstep · sup|dκ/dt|`, from the Gauss map's
     /// `1/arm` Lipschitz bound folded with the constant Hessians.
@@ -273,6 +285,7 @@ pub fn tangent_span_bounds<T: Real>(
     let (f2b, db) = bounds_of(s2)?;
     Some(TangentSpanBounds {
         residual_sag: crate::implicit::chord_dip_charge(f2a.max(f2b), step),
+        gap_sag: crate::implicit::chord_dip_charge(f2a + f2b, step),
         kappa_drift: step * (da + db),
     })
 }
@@ -514,6 +527,7 @@ fn circle_span_bounds<T: Real>(
     let (f2b, db) = bounds_of(s2)?;
     Some(TangentSpanBounds {
         residual_sag: crate::implicit::chord_dip_charge(f2a.max(f2b), step),
+        gap_sag: crate::implicit::chord_dip_charge(f2a + f2b, step),
         kappa_drift: step * (da + db),
     })
 }
