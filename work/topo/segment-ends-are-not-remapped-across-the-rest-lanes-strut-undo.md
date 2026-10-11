@@ -6,7 +6,7 @@ status: closed
 opened: 2026-10-05
 priority: P3
 cost: M
-refs: [torn-records-read-as-absent-in-the-rest-lane-and-the-split-gate, the-rest-lane-zips-no-pinch-apex, the-rest-lanes-glue-reads-its-correspondence-unfused, 4396]
+refs: [torn-records-read-as-absent-in-the-rest-lane-and-the-split-gate, 4396]
 pr: 4067
 branch: topo/rest-segment-end-remap
 closed: 2026-10-05

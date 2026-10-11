@@ -4,6 +4,8 @@ kind: issue
 title: Add a fillet then delete it and the body leaves the world: the add gesture re-points the target's placement, the delete cascades it
 status: open
 opened: 2026-10-08
+priority: P1
+cost: M
 ---
 
 Found by the review of INTENT stage 2 C (PR #4359, MINOR-4); filed on
@@ -26,3 +28,7 @@ add gesture re-pointed them forward, in the same action.
 
 `story_authoring`'s rook row was restated in C to expect the rook to
 leave the world when its merlon block is deleted.
+
+## Priced (2026-10-11)
+
+P1 M. A GUI defect Ev would meet in ordinary use (add a feature, delete it, the body leaves the viewport). The fix is local to the gesture, so it is not parked behind INTENT stage 3, though stage 3's `a-placement-is-the-bundle-of-mates` rewrites the placements it re-points.

@@ -427,7 +427,7 @@ impl OpChoice {
     /// the question [`roundtrip`] itself asks. The other two arms fall
     /// through to the kind, though both decide their skip from pre-kill
     /// reads too
-    /// (`work/topo/kef-and-kfmrh-fuse-roundtrip-skips-are-admitted-per-kind.md`).
+    /// (`work/probe/kef-and-kfmrh-fuse-roundtrip-skips-are-admitted-per-kind.md`).
     pub(crate) fn may_skip_roundtrip_at(&self, body: &Body<f64>) -> bool {
         // An unresolvable site is the operator's to refuse, not this
         // classifier's: both arms leave the skip permitted and let the
