@@ -364,7 +364,8 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             rung: Rung::General,
             implemented: true,
             note: "traced in ℝ⁴ on the PARAMETRIC PAIR (3×4 SVD, Hoffmann §6.3.2) by \
-                   geom_brep::ssi::plane_nurbs_ssi, which certifies the whole chain: \
+                   geom_brep::ssi::PlaneSection, read at a seed or whole, which \
+                   certifies the whole chain: \
                    the trace, the shared-parameter fit of the carrier and BOTH \
                    pcurves, the certified foot points, the chart uniqueness tube, \
                    the UV-domain exhaustiveness, and the between-samples SUP bound \
