@@ -1892,11 +1892,15 @@ fn cone_loop_refusal(e: PropsError) -> PropsError {
 ///   off the axis by at most `o·cos α`, both attained. The iso parse
 ///   asks instead whether it is the iso rim ([`require_rim_incidence`]);
 /// - an ellipse is the cone's section by its plane
-///   (`props_cone_ellipse_on_cone`): five points determine a conic, so
-///   five points of the carrier spread round its whole period, each on
-///   the cone (its elevation, [`cone_elevation`], the exact distance),
-///   make the carrier the section of the cone by its plane, and the
-///   decide does not degrade with a short span.
+///   (`props_cone_ellipse_on_cone`): the cone's quadric residual along
+///   a conic carrier is a trigonometric polynomial of degree 2 in its
+///   parameter, so it vanishes at five distinct parameters within a
+///   period only if it vanishes everywhere. The five are the midpoints
+///   of five equal pieces of the edge's span, each decided on the cone
+///   (its elevation, [`cone_elevation`], the exact distance): they make
+///   the carrier the section and bound the arc the lane reads, where
+///   points of the whole carrier can lie far outside the face, at a
+///   reach whose rounding alone exceeds the band.
 fn require_on_cone<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
@@ -1946,8 +1950,8 @@ fn require_on_cone<T: Decide>(
             )
         }
         Curve3::Ellipse { .. } => {
-            let fifth = T::tau() / T::from_f64(5.0);
-            let mut t = T::zero();
+            let fifth = (e.t1 - e.t0) / T::from_f64(5.0);
+            let mut t = e.t0 + fifth / T::from_f64(2.0);
             for _ in 0..5 {
                 require_zero(
                     "props_cone_ellipse_on_cone",
