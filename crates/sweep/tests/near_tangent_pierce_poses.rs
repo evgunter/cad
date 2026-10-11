@@ -110,9 +110,9 @@ const SHIPS_A_FINDING: [Shipped; 4] = [
         1e-8,
         "cube ∖ prism",
         &[
-            r#"UndeclaredContact { contact: VertexOnFace { vertex: VertexKey(16v3), face: FaceKey(8v1) }, witness: "(2.0, 0.0, 1.0)" }"#,
-            r#"UndeclaredContact { contact: VertexOnFace { vertex: VertexKey(22v3), face: FaceKey(8v1) }, witness: "(2.0, 0.0, 0.0)" }"#,
-            r#"UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(20v7), face: FaceKey(8v1) }, witness: "(2.0, 0.0, 0.5)" }"#,
+            r#"UnrecordedContact { contact: VertexOnFace { vertex: VertexKey(16v3), face: FaceKey(8v1) }, witness: "(2.0, 0.0, 1.0)" }"#,
+            r#"UnrecordedContact { contact: VertexOnFace { vertex: VertexKey(22v3), face: FaceKey(8v1) }, witness: "(2.0, 0.0, 0.0)" }"#,
+            r#"UnrecordedContact { contact: EdgeFaceOverlap { edge: EdgeKey(20v7), face: FaceKey(8v1) }, witness: "(2.0, 0.0, 0.5)" }"#,
         ],
     ),
 ];

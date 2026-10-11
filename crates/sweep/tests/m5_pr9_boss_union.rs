@@ -124,7 +124,7 @@ fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
             .expect_err("an undeclared touching assembly is the F1 hard error");
     assert!(
         errs.iter()
-            .any(|e| matches!(e, topo::ValidationError::UndeclaredContact { .. })),
+            .any(|e| matches!(e, topo::ValidationError::UnrecordedContact { .. })),
         "{errs:?}"
     );
     assert!(
@@ -382,7 +382,7 @@ fn r1_delta_probe_ball_cap_embedded_in_plate() {
         errs.iter().any(|e| matches!(
             e,
             topo::ValidationError::CensusUndecidable { .. }
-                | topo::ValidationError::UndeclaredContact { .. }
+                | topo::ValidationError::UnrecordedContact { .. }
         )),
         "loud somehow: {errs:?}"
     );

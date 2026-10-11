@@ -47,7 +47,7 @@ mints its declaration on the world copy of that body. `Node.mate` takes
 the node a side is read at, so a mate read at a transform that a
 `placed_union` consumes is authorable: no placement reads that
 transform, so the mate is no statement about the product, and the seat
-it would have declared is an undeclared contact (asserted below).
+it would have declared is an unrecorded contact (asserted below).
 `RefusedRef`'s one arm, `ref_ambiguous`, is a side whose body two
 placements copy; it is bound and tagged, and the kernel's own row
 (`intent_s2_f_mates`) reaches it.
@@ -1172,7 +1172,7 @@ class TestAssemblyRefusals(BenchWorkspace):
             assemble(doc, ev)
         err = caught.exception
         self.assertEqual(err.variant, "at_rest")
-        self.assertIn("is an undeclared contact", str(err))
+        self.assertIn("is a contact no record backs", str(err))
 
     def test_a_mate_head_that_is_not_a_face_refuses_where_the_mate_is_built(self):
         """A mate's declaration is a FACE-PAIR contact, and the kernel
@@ -1962,7 +1962,7 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         return doc, instance
 
     def carried(self, findings, relation):
-        return [f for f in findings if f.attribution.relation == relation]
+        return [f for f in findings if f.attribution and f.attribution.relation == relation]
 
     def test_a_refuted_carried_declaration_names_its_mate_and_route(self):
         # The post's mate frame is TILTED 30°, so the shelf seats at an

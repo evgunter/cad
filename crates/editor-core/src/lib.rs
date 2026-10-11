@@ -107,7 +107,7 @@ pub use appearance::{
     Attr, AttrKind, AttrSet, Rgba8,
 };
 pub use assembly::{
-    Assembly, AssemblyError, AtRestFinding, AtRestRow, Attribution, CarriedDeclaration,
+    Assembly, AssemblyError, AtRestBy, AtRestFinding, AtRestRow, Attribution, CarriedDeclaration,
     CarriedDeclarations, CarriedRefusal, CarriedUnplaced, MintRefusal, MintedDeclaration,
     RefusedRef, Relation, Route, assemble, assemble_gathered,
 };

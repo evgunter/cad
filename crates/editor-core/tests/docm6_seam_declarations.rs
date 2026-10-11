@@ -521,7 +521,7 @@ fn a_refuted_carried_declaration_names_its_mate_and_route() {
     assert!(
         findings.iter().any(|f| matches!(
             &f.attribution,
-            Attribution::Carried { route, declaration, relation: Relation::Refuted, .. }
+            Some(Attribution::Carried { route, declaration, relation: Relation::Refuted, .. })
                 if route.through == instances[0]
                     && route.of == inner_id
                     && route.via.is_empty()
@@ -532,7 +532,11 @@ fn a_refuted_carried_declaration_names_its_mate_and_route() {
     // The subject a reader sees says which file to open.
     let rendered = findings
         .iter()
-        .map(|f| f.attribution.to_string())
+        .map(|f| {
+            f.attribution
+                .as_ref()
+                .map_or_else(String::new, ToString::to_string)
+        })
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
@@ -585,7 +589,7 @@ fn a_carried_decline_reaches_the_frontier_arm_under_its_own_name() {
     assert!(
         findings.iter().all(|f| matches!(
             &f.attribution,
-            Attribution::Carried { route, declaration, relation: Relation::Declined, .. }
+            Some(Attribution::Carried { route, declaration, relation: Relation::Declined, .. })
                 if route.through == instances[0]
                     && route.of == inner_id
                     && route.via.is_empty()
@@ -595,18 +599,18 @@ fn a_carried_decline_reaches_the_frontier_arm_under_its_own_name() {
     );
 }
 
-/// A3: `Unattributed` means what it says. Over every fixture whose
-/// outer gate refuses, an unattributed finding is a contact NO
+/// A3: a finding with no attribution means what it says. Over every
+/// fixture whose outer gate refuses, such a finding is one NO
 /// declaration of the tree answers for — never a carried declaration's
 /// refutation or decline.
 ///
 /// The listed arms are `attribute`'s own unattributable vocabulary, and
 /// the row names them rather than accepting whatever turns up. Each
 /// fixture is held to its own floor: a fixture that stopped refusing,
-/// or stopped reaching an undeclared contact, is a moved baseline and
+/// or stopped reaching an unrecorded contact, is a moved baseline and
 /// says so here rather than hiding behind a sibling.
 #[test]
-fn unattributed_is_only_a_finding_no_declaration_answers_for() {
+fn no_attribution_is_only_a_finding_no_declaration_answers_for() {
     let mut store = PartStore::default();
     let (penetrating, ..) = stand(
         &mut store,
@@ -623,18 +627,20 @@ fn unattributed_is_only_a_finding_no_declaration_answers_for() {
         [0.0, 0.0, 1.0],
     );
 
-    // (fixture, does it reach an undeclared contact?)
+    // (fixture, does it reach an unrecorded contact?)
     let fixtures = [
         // The penetrating seat: the declared pair is refuted AND the
-        // interpenetration itself is a crowd of undeclared contacts.
+        // interpenetration itself is a crowd of unrecorded contacts.
         (row_of("docm6-a3-pen-row", penetrating, 1, 4.0), true),
         (row_of("docm6-a3-pen-pair", penetrating, 2, 4.0), true),
         // The gapped seat touches nothing: its ONE finding is the
         // refuted carried declaration, and nothing is unattributed.
         (row_of("docm6-a3-gap-row", gapped, 1, 4.0), false),
         // Two gapped stands one unit apart: their cubes meet on a face
-        // NO mate declared, the undeclared-contact hard error.
-        (row_of("docm6-a3-touching", gapped, 2, 1.0), true),
+        // no mate relates, which the gather records as rows of the two
+        // copies rather than a finding of the gate (D1 (iii)), so only
+        // the refuted carried declarations are left.
+        (row_of("docm6-a3-touching", gapped, 2, 1.0), false),
     ];
     for ((doc, _), undeclared_expected) in &fixtures {
         let ev = run(doc, &with_resolver(store.clone()));
@@ -643,7 +649,7 @@ fn unattributed_is_only_a_finding_no_declaration_answers_for() {
         assert!(!findings.is_empty(), "{doc:?} refuses: {result:?}");
         let mut undeclared = 0;
         for finding in &findings {
-            if !matches!(finding.attribution, Attribution::Unattributed) {
+            if finding.attribution.is_some() {
                 continue;
             }
             undeclared += 1;
@@ -653,7 +659,7 @@ fn unattributed_is_only_a_finding_no_declaration_answers_for() {
             // that pair as a mixed touch: no declaration answers for a
             // placement either.
             assert!(
-                ["UndeclaredContact", "CensusEscalated"]
+                ["UnrecordedContact", "CensusEscalated"]
                     .iter()
                     .any(|arm| rendered.contains(arm))
                     || matches!(
@@ -664,7 +670,7 @@ fn unattributed_is_only_a_finding_no_declaration_answers_for() {
                             what,
                         } if what.starts_with("one passes into the other where they touch")
                     ),
-                "an unattributed finding is one no declaration answers for: {rendered}"
+                "a finding with no attribution is one no declaration answers for: {rendered}"
             );
         }
         assert_eq!(
@@ -799,8 +805,8 @@ fn an_inner_mint_refusal_refuses_the_outer_gate_naming_document_and_mate() {
 
 /// A4's ORDER, pinned by three documents that differ in one thing
 /// each. The carried refusal is raised BEFORE this document's own
-/// unminted head and before the at-rest gate — and the two rows below
-/// it show those arms are live rather than absent.
+/// unminted head and before the at-rest gate — and the row below it
+/// shows the unminted head is live rather than absent.
 #[test]
 fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
     let mut store = PartStore::default();
@@ -808,9 +814,9 @@ fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
     let (good, _, _, _, cube_body) = resting(&mut store, "docm6-order-good");
 
     // The three documents share a shape: two instances a unit apart,
-    // so their cubes MEET on a face no mate declared (the at-rest
-    // gate's hard error), plus one `Tangent` mate of this document's
-    // own (its unminted head).
+    // so their cubes MEET on a face no mate relates (rows of the two
+    // copies, which the gate does not refuse), plus one `Tangent` mate
+    // of this document's own (its unminted head).
     let build = |label: &str, part: DocRef| row_of(label, part, 2, 1.0);
     // The instances here are of a STAND, so a face of one is named one
     // wrapper deeper: through the stand's own instance of the cube,
@@ -829,13 +835,11 @@ fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
         };
 
     // (a) The at-rest gate alone: good parts, no mate of this
-    // document's own — the undeclared contact is what refuses.
+    // document's own — the contact between the copies is a row, and
+    // the gate passes.
     let (doc, _) = build("docm6-order-atrest", good);
     let ev = run(&doc, &with_resolver(store.clone()));
-    assert!(matches!(
-        assemble(&doc, &ev, Tol::witness()),
-        Err(AssemblyError::AtRest { .. })
-    ));
+    assert!(assemble(&doc, &ev, Tol::witness()).is_ok());
 
     // (b) Add this document's own unminted mate: it preempts the gate.
     let (doc, ids) = build("docm6-order-own", good);
@@ -1525,11 +1529,11 @@ fn a_carried_attribution_says_the_parts_label_and_this_documents_own_is_spoken()
     let findings = findings_of(&result);
     let own = findings
         .iter()
-        .find(|f| matches!(f.attribution, Attribution::Refuted(_)))
+        .find(|f| matches!(f.attribution, Some(Attribution::Refuted(_))))
         .expect("the outer document's own rest is refuted");
     let carried = findings
         .iter()
-        .find(|f| matches!(f.attribution, Attribution::Carried { .. }))
+        .find(|f| matches!(f.attribution, Some(Attribution::Carried { .. })))
         .expect("the part's rest is refuted, carried");
     assert!(
         own.spoken(&outer)

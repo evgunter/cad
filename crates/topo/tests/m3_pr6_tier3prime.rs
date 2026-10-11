@@ -3,7 +3,7 @@
 //! at rest, negative controls, closure stress, and exports.
 //!
 //! Every promotion scenario tests BOTH directions: the boolean result
-//! is green under its carried contacts AND red (`UndeclaredContact`)
+//! is green under its carried contacts AND red (`UnrecordedContact`)
 //! when the declarations are withheld — the census never blesses
 //! (F1/F2). Scenarios are generic over `T` (f64 ε rows via CI; the
 //! explicit Interval lane at the bottom, per suite convention).
@@ -59,7 +59,7 @@ fn finished_brick<T: Decide + topo::AtRestPolicy>(
 }
 
 /// The green/red promotion pair: 3′ passes with the carried contacts,
-/// and withholding them yields `UndeclaredContact` (and nothing else).
+/// and withholding them yields `UnrecordedContact` (and nothing else).
 fn assert_promoted<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
     b: &BooleanBody<T>,
 ) {
@@ -72,8 +72,8 @@ fn assert_promoted<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
     assert!(!withheld.is_empty());
     for e in &withheld {
         assert!(
-            matches!(e, ValidationError::UndeclaredContact { .. }),
-            "withheld contacts must surface as UndeclaredContact, got {e:?}"
+            matches!(e, ValidationError::UnrecordedContact { .. }),
+            "withheld contacts must surface as UnrecordedContact, got {e:?}"
         );
     }
 }
@@ -317,7 +317,7 @@ fn tier3_equivalence_empty_contacts() {
 
 /// A tampered declaration (wrong vertex key) is a typed
 /// `StaleContactDeclaration` — and the real kiss, now unbacked,
-/// surfaces as `UndeclaredContact`: both certification directions
+/// surfaces as `UnrecordedContact`: both certification directions
 /// fire on one body.
 #[test]
 fn tampered_declaration_is_stale() {
@@ -343,13 +343,13 @@ fn tampered_declaration_is_stale() {
     assert!(
         errors
             .iter()
-            .any(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+            .any(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
         "{errors:?}"
     );
 }
 
 /// A hand-built genuine self-intersection — two interpenetrating cube
-/// shells in ONE body, no declarations — is `UndeclaredContact`, hard:
+/// shells in ONE body, no declarations — is `UnrecordedContact`, hard:
 /// the census's proper-crossing lanes (edge-face pierce / edge-edge
 /// cross) have no backing path by design. The instance arm finds each
 /// cube's corner inside the other.
@@ -371,7 +371,7 @@ fn hand_built_self_intersection_is_undeclared() {
     // cube has a corner inside the other.
     let rest: Vec<_> = errors
         .iter()
-        .filter(|e| !matches!(e, ValidationError::UndeclaredContact { .. }))
+        .filter(|e| !matches!(e, ValidationError::UnrecordedContact { .. }))
         .collect();
     assert!(
         !rest.is_empty()
@@ -383,7 +383,7 @@ fn hand_built_self_intersection_is_undeclared() {
     assert!(
         errors.iter().any(|e| matches!(
             e,
-            ValidationError::UndeclaredContact {
+            ValidationError::UnrecordedContact {
                 contact: topo::CensusContact::EdgeFacePierce { .. },
                 ..
             }
@@ -430,7 +430,7 @@ fn closure_kiss_vs_mover() {
     assert!(
         errors
             .iter()
-            .all(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+            .all(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
         "{errors:?}"
     );
 
@@ -444,7 +444,7 @@ fn closure_kiss_vs_mover() {
     assert!(
         errors
             .iter()
-            .all(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+            .all(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
         "{errors:?}"
     );
 
@@ -479,8 +479,8 @@ fn closure_kiss_vs_second_toucher() {
                     assert!(
                         errors
                             .iter()
-                            .all(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
-                        "gap must surface as UndeclaredContact only: {errors:?}"
+                            .all(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
+                        "gap must surface as UnrecordedContact only: {errors:?}"
                     );
                 }
             }

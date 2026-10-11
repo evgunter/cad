@@ -227,7 +227,7 @@ fn base_vertex_straddle() {
     report("vertex_straddle_undeclared", Err(errors.clone()));
     let mut records = ContactRecords::default();
     for e in &errors {
-        if let ValidationError::UndeclaredContact {
+        if let ValidationError::UnrecordedContact {
             contact: topo::CensusContact::VertexOnFace { vertex, face },
             ..
         } = e

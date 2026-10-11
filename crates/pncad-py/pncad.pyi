@@ -269,7 +269,7 @@ class ValidationFinding:
     A frozen value with no constructor: findings come off a refusal.
     Two that say the same thing compare equal and hash equal.
 
-    `variant` is which validator arm refused (`undeclared_contact`,
+    `variant` is which validator arm refused (`unrecorded_contact`,
     `census_undecidable`, `negative_volume`, …). The other five are
     that arm's payload and are `None` on an arm that carries none, so
     reading one never raises `AttributeError`:
@@ -685,7 +685,7 @@ class AssemblyError(PncadError):
 
     The two verdict arms are NOT interchangeable. `at_rest` is a
     finding AGAINST the document — a refuted declaration or an
-    undeclared contact. `uncertified` is the declared direction's
+    unrecorded contact. `uncertified` is the declared direction's
     FRONTIER: nothing refuted, nothing undeclared, the census simply
     declined to certify, so nothing was decided about the geometry
     either way. A gather refusal arrives under the GATHER's own tag
@@ -4807,7 +4807,7 @@ class Body:
         contract rather than a wrinkle: `assemble`'s at-rest body
         carries its mates' minted records and passes over its seats,
         while `product`, which gathers the same solids and declares
-        nothing, reports every seat as an undeclared contact. With no
+        nothing, reports every seat as an unrecorded contact. With no
         declarations at all this is simply the strictest rung — the
         census still runs, and on a body with no coincidences it finds
         nothing.
@@ -6480,9 +6480,7 @@ class Attribution:
         """`refuted` (the faces do not meet as declared — a finding
         against the document), `declined` (the census has no certifier
         lane for a face the declaration names, so nothing was decided
-        either way), or `unattributed` (no declaration of ANY document
-        in the tree answers — an UNDECLARED contact, the hard error by
-        definition).
+        either way).
 
         A declaration a document BELOW this one authored answers under
         `carried_refuted` and `carried_declined`: the same two
@@ -6491,9 +6489,9 @@ class Attribution:
         `via` are what say which document and by what path."""
 
     @property
-    def declaration(self) -> Optional[MintedDeclaration]:
-        """The declaration named, `None` for `unattributed`. Under a
-        `carried_*` relation its `mate` is a node of `of`."""
+    def declaration(self) -> MintedDeclaration:
+        """The declaration named. Under a `carried_*` relation its
+        `mate` is a node of `of`."""
 
     @property
     def of(self) -> Optional[str]:
@@ -6526,7 +6524,9 @@ class AtRestFinding:
     own story, which carries its own recourse."""
 
     @property
-    def attribution(self) -> Attribution: ...
+    def attribution(self) -> Optional[Attribution]:
+        """Which declaration the finding names, and in what relation;
+        `None` where it names none."""
 
 class MintRefusal:
     """One mate whose declaration the gather could not mint — a row of
@@ -7259,7 +7259,7 @@ def subject_body(
     same ones `Value.body` captures — so a subject reached through an
     attribution has the SAME tier-3′ verdict as the same body reached
     through its value, and a declared boolean's own certified seam is
-    not reported here as an undeclared contact."""
+    not reported here as an unrecorded contact."""
 
 def import_step(text: str, *, eps_in: Optional[Length] = None) -> ImportReport:
     """Parse a STEP text with the kernel's importer and adopt its

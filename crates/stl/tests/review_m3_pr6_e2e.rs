@@ -66,7 +66,7 @@ fn r6_pocketed_dice_kiss_e2e() {
     assert!(
         withheld
             .iter()
-            .all(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+            .all(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
         "{withheld:?}"
     );
     // Structure + exact oracles (the parts=2 discipline: shell count

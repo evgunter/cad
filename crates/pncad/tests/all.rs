@@ -365,7 +365,7 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
     }
 }
 
-/// `ValidationError::UndeclaredContact`'s payload. The branch that
+/// `ValidationError::UnrecordedContact`'s payload. The branch that
 /// matters is not "a census contact happened" but WHICH: an
 /// `EdgeFacePierce` is interpenetration and undeclarable, while an
 /// `EdgeEdgeOverlap` is certifiable through the D3 reconstruction. Same refusal, opposite advice.
@@ -569,7 +569,7 @@ fn profile_payloads_are_matchable(
 /// WHAT THIS DOES NOT PIN, stated rather than implied: none of these
 /// refusals is CONSTRUCTED from a façade door here. Reaching a real
 /// `UnsupportedCorner` needs a body with an out-of-scope trihedron,
-/// and reaching a real `UndeclaredContact` needs a census finding;
+/// and reaching a real `UnrecordedContact` needs a census finding;
 /// both belong to the kernel suites that already own them. What is
 /// pinned is the CURATION property and only that — the values are
 /// built by hand, and every one of them is built with a bare prelude

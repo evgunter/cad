@@ -584,7 +584,7 @@ pub enum Cell {
 /// typed outside the certifiable lane rather than sampling harder.
 /// Endpoints are bounded by vertex records or by the locus's own
 /// closure; a bound without a backing vertex record is
-/// `UndeclaredContact`, never inferred.
+/// `UnrecordedContact`, never inferred.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CurveContact {
     /// The A-side face.

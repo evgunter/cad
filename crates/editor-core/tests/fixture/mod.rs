@@ -2111,24 +2111,39 @@ pub fn relations(findings: &[editor_core::AtRestFinding]) -> Vec<(RecipeNodeId, 
     findings
         .iter()
         .map(|f| match &f.attribution {
-            editor_core::Attribution::Refuted(m) => (m.mate, "refuted"),
-            editor_core::Attribution::Declined(m) => (m.mate, "declined"),
-            editor_core::Attribution::Carried {
+            Some(editor_core::Attribution::Refuted(m)) => (m.mate, "refuted"),
+            Some(editor_core::Attribution::Declined(m)) => (m.mate, "declined"),
+            Some(editor_core::Attribution::Carried {
                 declaration,
                 relation,
                 ..
-            } => (
+            }) => (
                 declaration.mate,
                 match relation {
                     editor_core::Relation::Refuted => "carried_refuted",
                     editor_core::Relation::Declined => "carried_declined",
                 },
             ),
-            editor_core::Attribution::Unattributed => {
-                (RecipeNodeId::new(0, u64::MAX), "unattributed")
-            }
+            None => (RecipeNodeId::new(0, u64::MAX), "no declaration"),
         })
         .collect()
+}
+
+/// **The product's at-rest rows are all contacts between copies**, and
+/// there is at least one: a seat no mate speaks for is rows of the two
+/// copies it joins (D10), never a mate's.
+pub fn assert_copies_rows_alone(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>) {
+    let product =
+        editor_core::product_recorded(doc, ev, geom_core::Tol::witness()).expect("it gathers");
+    assert!(
+        !product.coincidences.is_empty()
+            && product
+                .coincidences
+                .iter()
+                .all(|r| matches!(r.by, editor_core::AtRestBy::Copies(..))),
+        "the seats are the copies' rows: {:?}",
+        product.coincidences
+    );
 }
 
 /// **No published merged face has a merged face among its

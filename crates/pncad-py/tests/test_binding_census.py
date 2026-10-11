@@ -1159,7 +1159,7 @@ BOUND_AS = {
     #
     # `ValidationError.findings` is a list of `ValidationFinding`s, one
     # per failure, `len(findings) == failure_count`. `CensusContact` is
-    # `UndeclaredContact`'s payload and its arm is `contact_kind`;
+    # `UnrecordedContact`'s payload and its arm is `contact_kind`;
     # `CensusSubject` is what `CensusUnsupported` and
     # `CensusLaneUnsupported` are ABOUT and its arm is `subject_kind`,
     # with `entity_kind` beside it for the `Entity` arm's carrier.
@@ -4100,7 +4100,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::ShellWinding": "ValidationFinding.variant",
     "ValidationError::SolidOuterShells": "ValidationFinding.variant",
     "ValidationError::ShellRoleUndecided": "ValidationFinding.variant",
-    "ValidationError::UndeclaredContact": "ValidationFinding.variant",
+    "ValidationError::UnrecordedContact": "ValidationFinding.variant",
     "ValidationError::StaleContactDeclaration": "ValidationFinding.variant",
     "ValidationError::ContactContradicted": "ValidationFinding.variant",
     "ValidationError::CensusEscalated": "ValidationFinding.variant",

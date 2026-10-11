@@ -288,6 +288,8 @@ pub enum Placed {
     Transform(RecipeNodeId),
     /// A pattern's (or a placed union's) instance `i`.
     Instance(RecipeNodeId, u32),
+    /// A world placement's copy.
+    World(RecipeNodeId),
 }
 
 /// **What separates an unproven row's two constructions**: each cell's
@@ -554,7 +556,7 @@ fn operation<P>(
 
 /// **The read a carried segment at `at` names its entity in**, by the
 /// segment and the node together: a `From`'s own read; a placing
-/// segment (`Instance`) adds its placement.
+/// segment (`Instance`, `Placed`) adds its placement.
 ///
 /// # Errors
 ///
@@ -576,6 +578,10 @@ fn carried_read<P>(
             Ok(*input)
         }
         (RoleSeg::Instance { .. }, _) => Err(misplaced),
+        (RoleSeg::Placed { .. }, Node::PlaceInWorld { body, .. }) => {
+            placed.push(Placed::World(at));
+            Ok(body.read)
+        }
         // Every other carried segment is a split's, carried from its
         // target.
         (_, Node::Split { target, .. }) => Ok(target.read),

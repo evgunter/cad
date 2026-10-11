@@ -57,15 +57,15 @@
 //!   A carried declaration the census merely declines therefore
 //!   reaches the frontier arm under its own name, naming the inner
 //!   document, the inner mate and the route this document reached it
-//!   by. [`Attribution::Unattributed`] is then what it says: a
-//!   finding no declaration this document holds a row for answers
-//!   for — its own or a part's, which today is every declaration in
-//!   the tree (the arm states the bound).
+//!   by. A finding no declaration this document holds a row for
+//!   answers for — its own or a part's, which today is every
+//!   declaration in the tree — carries no attribution
+//!   ([`AtRestFinding::attribution`]).
 //!
 //! Each says why at its own definition. The kernel's finding passes
 //! straight through either way — stated, never swallowed, never
 //! re-labelled — and the declaration still does its job: it is what
-//! suppresses the F1 `UndeclaredContact` refusal.
+//! suppresses the F1 `UnrecordedContact` refusal.
 
 use std::sync::Arc;
 
@@ -538,37 +538,18 @@ pub enum Attribution {
         /// The declaration's mate, as `route.of` holds it.
         held: Arc<HeldNodes>,
     },
-    /// The finding names no declaration this document holds a row for
-    /// — its own, or one a part carried up. An UNDECLARED contact is
-    /// exactly this: by definition no mate authored it, which is what
-    /// makes it the F1 hard error.
-    ///
-    /// **The bound on "no mate anywhere in the tree", stated where a
-    /// caller reads it.** Rows cross the seam at the INSTANTIATE op
-    /// and are re-keyed at each graft; a boolean over a source builds
-    /// its result's records through the kernel's own remap and carries
-    /// no rows, so a declaration reaching this product through a
-    /// boolean would be unattributed here. Today none can — an
-    /// instance carrying a declaration is a product of several parts,
-    /// whose count the placers and a sub-assembly carry through
-    /// (`NodeValue::parts`), and every op that fuses or reshapes one
-    /// body refuses a product (`NodeErrorKind::ProductOperand`; the acceptance suite's
-    /// `no_carried_declaration_can_reach_a_boolean_operand`) — so the
-    /// two readings coincide, and this is the one that will still be
-    /// true if that ever changes.
-    Unattributed,
 }
 
 impl Attribution {
-    /// The declaration named, for a finding that names one.
+    /// The declaration named.
     ///
     /// It may be ANOTHER document's: a [`Attribution::Carried`]
     /// finding's `declaration.mate` is a node of that document, and
     /// [`Attribution::route`] is what says which.
-    pub fn declaration(&self) -> Option<&MintedDeclaration> {
+    #[must_use]
+    pub fn declaration(&self) -> &MintedDeclaration {
         match self {
-            Self::Refuted(m) | Self::Declined(m) | Self::Carried { declaration: m, .. } => Some(m),
-            Self::Unattributed => None,
+            Self::Refuted(m) | Self::Declined(m) | Self::Carried { declaration: m, .. } => m,
         }
     }
 
@@ -579,19 +560,17 @@ impl Attribution {
     pub fn route(&self) -> Option<&Route> {
         match self {
             Self::Carried { route, .. } => Some(route),
-            Self::Refuted(_) | Self::Declined(_) | Self::Unattributed => None,
+            Self::Refuted(_) | Self::Declined(_) => None,
         }
     }
 
     /// The relation the finding bears to the declaration it names.
-    /// `None` for [`Attribution::Unattributed`], which names none.
     #[must_use]
-    pub fn relation(&self) -> Option<Relation> {
+    pub fn relation(&self) -> Relation {
         match self {
-            Self::Refuted(_) => Some(Relation::Refuted),
-            Self::Declined(_) => Some(Relation::Declined),
-            Self::Carried { relation, .. } => Some(*relation),
-            Self::Unattributed => None,
+            Self::Refuted(_) => Relation::Refuted,
+            Self::Declined(_) => Relation::Declined,
+            Self::Carried { relation, .. } => *relation,
         }
     }
 }
@@ -638,7 +617,6 @@ impl crate::spoken::Say for Attribution {
                 )?;
                 write!(f, " (carried from {})", crate::spoken::Said(route, by))
             }
-            Self::Unattributed => f.write_str("no mate declared this"),
         }
     }
 }
@@ -665,7 +643,10 @@ struct SaidFinding<'a>(&'a AtRestFinding, crate::spoken::Speaker<'a>);
 
 impl crate::finding::Finding for SaidFinding<'_> {
     fn subject(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", crate::spoken::Said(&self.0.attribution, self.1))
+        match &self.0.attribution {
+            Some(attribution) => write!(f, "{}", crate::spoken::Said(attribution, self.1)),
+            None => f.write_str("no declaration"),
+        }
     }
 
     fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -711,8 +692,11 @@ impl AtRestFinding {
 /// what the mates declared.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AtRestFinding {
-    /// Which declaration the finding names, and in what relation.
-    pub attribution: Attribution,
+    /// Which declaration the finding names, and in what relation; `None`
+    /// where it names none: a finding about the product's own structure
+    /// or geometry, an overlap inside one copy, or a pair the census
+    /// could not look at, none of which a mate's declaration speaks for.
+    pub attribution: Option<Attribution>,
     /// The kernel's own finding, verbatim.
     pub error: ValidationError,
 }
@@ -910,7 +894,7 @@ pub enum AssemblyError {
     },
     /// The kernel's tier-3′ door refused the assembled product with
     /// its records (A5): at least one finding is a verdict AGAINST the
-    /// document — a refuted declaration or an undeclared contact.
+    /// document — a refuted declaration or an unrecorded contact.
     /// Every finding travels, in the kernel's own deterministic sweep
     /// order, each carrying what it says about the declarations.
     ///
@@ -936,8 +920,8 @@ pub enum AssemblyError {
     /// declared by a PART and merely declined here lands on this arm
     /// under its own name ([`Attribution::Carried`] with
     /// [`Relation::Declined`]) exactly as one of this document's own
-    /// does. Before the seam carried the rows such a finding was
-    /// `Unattributed` and the whole refusal fell through to
+    /// does. Before the seam carried the rows such a finding named no
+    /// declaration and the whole refusal fell through to
     /// [`AssemblyError::AtRest`] — a verdict against the document over
     /// geometry nothing had decided anything about.
     ///
@@ -1269,12 +1253,12 @@ fn verdict<T: crate::checks::at_rest::LocalizeLane>(
             refusals: product.unminted.clone(),
         });
     }
-    // The gate's findings over the records, then the census's findings
-    // for the mated pairs it refused at the mint, which minted no
-    // record: the gate's own order, as when it read those pairs itself.
-    let mut errors = T::gate_at_rest_declared(&product.body, &product.contacts, tol)
-        .err()
-        .unwrap_or_default();
+    // The census's findings over the records, as the gather kept them,
+    // then its findings for the mated pairs it refused at the mint,
+    // which minted no record: the gate's own order, as when it read
+    // those pairs itself. A contact between copies is not among them:
+    // the gather recorded it as a row (D10).
+    let mut errors = product.census.clone();
     errors.extend(product.refused_at_rest.iter().cloned());
     if errors.is_empty() {
         return Ok(Vec::new());
@@ -1303,7 +1287,7 @@ fn verdict<T: crate::checks::at_rest::LocalizeLane>(
     if !findings.is_empty()
         && findings
             .iter()
-            .all(|f| f.attribution.relation() == Some(Relation::Declined))
+            .all(|f| f.attribution.as_ref().map(Attribution::relation) == Some(Relation::Declined))
     {
         Err(AssemblyError::Uncertified {
             contacts: Box::new(product.contacts.clone()),
@@ -1479,14 +1463,29 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
     (minted, unminted)
 }
 
-/// **One at-rest census decision a mate's record cites**, with the mate
-/// whose pair it decided ([`crate::Product::coincidences`]).
+/// **One at-rest census decision** ([`crate::Product::coincidences`]):
+/// a mated pair's, which the mate's record cites, or a contact between
+/// two copies that no record backs.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AtRestRow {
-    /// The mate whose two faces the census read as one carrier.
-    pub mate: RecipeNodeId,
-    /// The decision, each cell named as the mate's reference reads it.
+    /// Whose pair the census decided.
+    pub by: AtRestBy,
+    /// The decision, each cell named as the read it entered through
+    /// reads it: a mate's reference, or a copy's placement.
     pub row: crate::coincide::NamedCoincidence,
+}
+
+/// **Whose pair an [`AtRestRow`] decided.**
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AtRestBy {
+    /// The mate whose two faces the census read as one carrier.
+    Mate(RecipeNodeId),
+    /// Two copies the census found in contact where no record backs it
+    /// (D1 (iii)): earlier in gather order first.
+    Copies(
+        crate::checks::at_rest::CopyRef,
+        crate::checks::at_rest::CopyRef,
+    ),
 }
 
 /// **What the mint door writes at rest**: the records, the at-rest
@@ -1525,7 +1524,7 @@ impl AtRestRows {
                 };
                 let k = u32::try_from(self.coincidences.len()).unwrap_or(u32::MAX);
                 self.coincidences.push(AtRestRow {
-                    mate,
+                    by: AtRestBy::Mate(mate),
                     row: crate::coincide::NamedCoincidence {
                         cells: [cell(a, read_a), cell(b, read_b)],
                         relation: row.relation,
@@ -1656,6 +1655,15 @@ fn side_placed<P: crate::ProfilePayload>(doc: &Doc<P>, read: crate::VarId) -> bo
     })
 }
 
+/// Which home of the declaration vocabulary answered the pair lookup —
+/// this document's own mates, or a part's carried up across the seam.
+/// The two differ in WHO must edit the mate, never in what the kernel
+/// decided about it.
+enum Found<'a> {
+    Own(&'a MintedDeclaration),
+    Carried(&'a CarriedDeclaration),
+}
+
 /// **What a kernel finding says about what was minted** — which
 /// declaration it names, and whether it REFUTES that declaration or
 /// merely declines to certify it.
@@ -1666,9 +1674,7 @@ fn side_placed<P: crate::ProfilePayload>(doc: &Doc<P>, read: crate::VarId) -> bo
 ///
 /// INVARIANT: attribution is by ARENA KEY against what was minted —
 /// the same lineage discipline the record carry uses. A finding whose
-/// faces no declaration names is UNATTRIBUTED, and that is the honest
-/// answer for the F1 case: an undeclared contact has no mate, which
-/// is exactly what makes it the hard error.
+/// faces no declaration names answers `None`.
 ///
 /// **The match is EXHAUSTIVE, with no wildcard arm**, which is
 /// [`ValidationError`]'s own rule for a site that CLASSIFIES — one
@@ -1689,20 +1695,11 @@ fn side_placed<P: crate::ProfilePayload>(doc: &Doc<P>, read: crate::VarId) -> bo
 /// variant states something about the body's own structure or
 /// geometry, which no mate declared and none can answer for; sharing
 /// a face with a declaration is not being named by one.
-/// Which home of the declaration vocabulary answered the pair lookup —
-/// this document's own mates, or a part's carried up across the seam.
-/// The two differ in WHO must edit the mate, never in what the kernel
-/// decided about it.
-enum Found<'a> {
-    Own(&'a MintedDeclaration),
-    Carried(&'a CarriedDeclaration),
-}
-
 fn attribute(
     error: &ValidationError,
     minted: &[MintedDeclaration],
     carried: &[CarriedDeclaration],
-) -> Attribution {
+) -> Option<Attribution> {
     // ONE definition of the pair lookup, over both homes of a
     // declaration: what this document minted, and what its parts
     // carried up.
@@ -1732,18 +1729,19 @@ fn attribute(
     // document in this tree minted. The relation is the CALLER's — one
     // dispatch decides it — and it is the same relation whichever home
     // answered.
-    let named = |found: Option<Found<'_>>, relation: Relation| match found {
-        None => Attribution::Unattributed,
-        Some(Found::Own(m)) => match relation {
-            Relation::Refuted => Attribution::Refuted(m.clone()),
-            Relation::Declined => Attribution::Declined(m.clone()),
-        },
-        Some(Found::Carried(c)) => Attribution::Carried {
-            route: c.route.clone(),
-            declaration: c.declaration.clone(),
-            relation,
-            held: Arc::clone(&c.held),
-        },
+    let named = |found: Option<Found<'_>>, relation: Relation| {
+        Some(match found? {
+            Found::Own(m) => match relation {
+                Relation::Refuted => Attribution::Refuted(m.clone()),
+                Relation::Declined => Attribution::Declined(m.clone()),
+            },
+            Found::Carried(c) => Attribution::Carried {
+                route: c.route.clone(),
+                declaration: c.declaration.clone(),
+                relation,
+                held: Arc::clone(&c.held),
+            },
+        })
     };
     match error {
         // A declared pair the kernel CONTRADICTED: the declaration is
@@ -1807,13 +1805,14 @@ fn attribute(
         ValidationError::CensusUnsupported {
             subject: topo::CensusSubject::Entity(topo::EntityId::Face(_)),
             ..
-        } => Attribution::Unattributed,
+        } => None,
         // The rest of the tier-3′ contact vocabulary, each
         // unattributable for a reason of its own rather than by
         // default.
         //
-        // `UndeclaredContact` is the definition of unattributed: no
-        // mate authored it, which is what makes it F1's hard error.
+        // `UnrecordedContact` reaches here only inside one copy's body:
+        // between two copies the gather records it, and a contact no
+        // record backs inside one op's result is that op's defect.
         //
         // The VERTEX- and EDGE-granular staleness arms name a v-v,
         // v-on-f, v-on-e or e-e record, and [`mint`] makes `PatchContact` and nothing else
@@ -1823,8 +1822,8 @@ fn attribute(
         // a mate's declaration would not make it that mate's.
         //
         // `CensusEscalated` carries the classifier's diagnostic and
-        // NO entity, so there is nothing to attribute — and the
-        // relation would be `Unattributed` regardless: an escalation
+        // NO entity, so there is nothing to attribute — and it would
+        // name no declaration regardless: an escalation
         // is indeterminate geometry at rest, which the trilean
         // discipline refuses outright. It is not the census declining
         // a lane, and it must not be reported as an unrefuted
@@ -1853,7 +1852,7 @@ fn attribute(
         // answers for. Between two copies the gate takes it out first
         // (`checks::at_rest::partition`), so what reaches here is an
         // overlap inside one copy's body.
-        ValidationError::UndeclaredContact { .. }
+        ValidationError::UnrecordedContact { .. }
         | ValidationError::StaleContactDeclaration {
             declaration:
                 topo::StaleDeclaration::VertexVertex { .. }
@@ -1876,7 +1875,7 @@ fn attribute(
             ..
         }
         | ValidationError::CensusUndecidable { .. }
-        | ValidationError::InstanceInterference { .. } => Attribution::Unattributed,
+        | ValidationError::InstanceInterference { .. } => None,
         // Everything the tier-1/2/3 passes find: the body's own
         // structure and geometry. None of these is a statement about
         // a contact record, so none can be a verdict on a
@@ -1966,7 +1965,7 @@ fn attribute(
         | ValidationError::StaleNullFaceLoop { .. }
         | ValidationError::StaleNullFaceOwnership { .. }
         | ValidationError::NullEdgeAtRest { .. }
-        | ValidationError::NullFaceAtRest { .. } => Attribution::Unattributed,
+        | ValidationError::NullFaceAtRest { .. } => None,
     }
 }
 
@@ -1991,7 +1990,7 @@ mod attribution {
     //! body the kernel refused — and **the whole of `editor-core` goes
     //! green over it**: every integration row in the crate passes, and
     //! the one failure is
-    //! `a_structural_finding_on_a_declared_face_is_unattributed` here.
+    //! `a_structural_finding_on_a_declared_face_names_no_declaration` here.
     //! (A count would rot on an unrelated merge; the claim is the
     //! re-derivable part, by making that arm `Declined` and running
     //! the crate.) Relabelling `CensusUnsupported` `Refuted`, by contrast,
@@ -2063,7 +2062,7 @@ mod attribution {
     /// tree of one document is where each arm is stated most plainly.
     /// The carried half is driven end to end through [`assemble`] in
     /// `tests/docm6_seam_declarations.rs`.
-    fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attribution {
+    fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Option<Attribution> {
         super::attribute(error, minted, &[])
     }
 
@@ -2152,8 +2151,8 @@ mod attribution {
                 // `CensusEscalated` over a minted `Indeterminate`, so
                 // it is the one whose re-routing could have moved this
                 // classification — and the lone-FACE site below is
-                // where the census raises it. Both spellings answer
-                // `Unattributed`, which is why the re-routing moves no
+                // where the census raises it. Both spellings name no
+                // declaration, which is why the re-routing moves no
                 // `AtRest`/`Uncertified` verdict; the row is here so
                 // that stays true rather than stays believed.
                 topo::CensusUnsupportedCause::Containment(topo::ContainError::Uncrossable(
@@ -2178,7 +2177,7 @@ mod attribution {
         for cause in causes() {
             assert_eq!(
                 attribute(&unsupported_pair_because(a, b, cause.clone()), &minted),
-                Attribution::Declined(declared.clone()),
+                Some(Attribution::Declined(declared.clone())),
                 "pair arm: {cause:?}"
             );
         }
@@ -2201,7 +2200,7 @@ mod attribution {
                         },
                         &minted
                     ),
-                    Attribution::Unattributed,
+                    None,
                     "{label}: {cause:?}"
                 );
             }
@@ -2266,33 +2265,34 @@ mod attribution {
         for (x, y) in [(a, b), (b, a)] {
             assert!(matches!(
                 attribute(&contradicted(x, y), &minted),
-                Attribution::Refuted(m) if m.mate == RecipeNodeId::new(0, 7)
+                Some(Attribution::Refuted(m)) if m.mate == RecipeNodeId::new(0, 7)
             ));
         }
         assert_eq!(
             attribute(&contradicted(a, odd), &minted),
-            Attribution::Unattributed,
+            None,
             "a pair no mate declared has no declaration to refute"
         );
     }
 
-    /// An UNDECLARED contact is the definition of unattributed: by
-    /// definition no mate authored it, which is what makes it F1's
-    /// hard error. Held against a finding that names a face a mate DID
-    /// declare — the case a coarser rule would attribute, and the one
-    /// where attributing it would report the hard error as a frontier.
+    /// A contact no record backs names no declaration: the record a
+    /// declaration mints is what would back it. Held against a finding
+    /// that names a face a mate DID declare — the case a coarser rule
+    /// would attribute, and the one where attributing it would report a
+    /// refusal as a frontier.
     #[test]
-    fn an_undeclared_contact_is_unattributed_over_a_declared_face() {
+    fn an_unrecorded_contact_names_no_declaration_over_a_declared_face() {
         let (minted, a, _, _, vertex) = fixture();
         assert_eq!(
             attribute(
-                &ValidationError::UndeclaredContact {
+                &ValidationError::UnrecordedContact {
                     contact: CensusContact::VertexOnFace { vertex, face: a },
                     witness: String::new(),
+                    margin: None,
                 },
                 &minted
             ),
-            Attribution::Unattributed
+            None
         );
     }
 
@@ -2308,7 +2308,7 @@ mod attribution {
         for (x, y) in [(a, b), (b, a)] {
             assert!(matches!(
                 attribute(&unsupported_pair(x, y), &minted),
-                Attribution::Declined(m) if m.faces == minted[0].faces
+                Some(Attribution::Declined(m)) if m.faces == minted[0].faces
             ));
         }
     }
@@ -2331,7 +2331,7 @@ mod attribution {
         // 1. the declared pair.
         assert!(matches!(
             attribute(&unsupported_pair(a, b), &minted),
-            Attribution::Declined(m) if m.faces == (a, b)
+            Some(Attribution::Declined(m)) if m.faces == (a, b)
         ));
         // 2. one face declared (against the OTHER face of the
         // declaration), the other not — in both arena orders, because
@@ -2339,15 +2339,12 @@ mod attribution {
         for (x, y) in [(a, odd), (odd, a), (b, odd), (odd, b)] {
             assert_eq!(
                 attribute(&unsupported_pair(x, y), &minted),
-                Attribution::Unattributed,
+                None,
                 "no mate declared the pair ({x:?}, {y:?})"
             );
         }
         // 3. neither face declared.
-        assert_eq!(
-            attribute(&unsupported_pair(odd, other), &minted),
-            Attribution::Unattributed
-        );
+        assert_eq!(attribute(&unsupported_pair(odd, other), &minted), None);
     }
 
     /// **The item's consequence 1**: one face two mates declare, which
@@ -2388,7 +2385,7 @@ mod attribution {
             assert!(
                 matches!(
                     attribute(&unsupported_pair(pair.0, pair.1), &minted),
-                    Attribution::Declined(m) if m.mate == RecipeNodeId::new(0, mate)
+                    Some(Attribution::Declined(m)) if m.mate == RecipeNodeId::new(0, mate)
                 ),
                 "the pair {pair:?} is mate {mate}'s declaration, in either order"
             );
@@ -2397,7 +2394,7 @@ mod attribution {
         // of them name.
         assert_eq!(
             attribute(&unsupported_pair(g, h), &minted),
-            Attribution::Unattributed,
+            None,
             "no mate declared (g, h) — a shared third face does not make it theirs"
         );
     }
@@ -2416,7 +2413,7 @@ mod attribution {
     /// for both, which is why the row exists — no fixture reaches
     /// either.
     #[test]
-    fn an_unsupported_lone_face_is_unattributed_over_its_own_declaration() {
+    fn an_unsupported_lone_face_names_no_declaration_over_its_own_declaration() {
         let (minted, a, ..) = fixture();
         assert_eq!(
             attribute(
@@ -2426,7 +2423,7 @@ mod attribution {
                 },
                 &minted
             ),
-            Attribution::Unattributed
+            None
         );
     }
 
@@ -2435,7 +2432,7 @@ mod attribution {
     /// confirm pass, which names its witness edge — is a record a PART
     /// carried, not one this document minted.
     #[test]
-    fn an_unsupported_non_face_entity_is_unattributed() {
+    fn an_unsupported_non_face_entity_names_no_declaration() {
         let (minted, _, _, _, vertex) = fixture();
         assert_eq!(
             attribute(
@@ -2454,7 +2451,7 @@ mod attribution {
                 },
                 &minted
             ),
-            Attribution::Unattributed
+            None
         );
     }
 
@@ -2475,7 +2472,7 @@ mod attribution {
                     },
                     &minted
                 ),
-                Attribution::Refuted(m) if m.mate == RecipeNodeId::new(0, 7)
+                Some(Attribution::Refuted(m)) if m.mate == RecipeNodeId::new(0, 7)
             ));
         }
     }
@@ -2494,7 +2491,7 @@ mod attribution {
                 },
                 &minted
             ),
-            Attribution::Unattributed
+            None
         );
     }
 
@@ -2510,7 +2507,7 @@ mod attribution {
     /// red it. The arm's label is an ARGUMENT rather than a lookup,
     /// and this is where the argument is written down.
     #[test]
-    fn an_escalated_census_predicate_is_unattributed() {
+    fn an_escalated_census_predicate_names_no_declaration() {
         let (minted, ..) = fixture();
         assert_eq!(
             attribute(
@@ -2519,7 +2516,7 @@ mod attribution {
                 },
                 &minted
             ),
-            Attribution::Unattributed
+            None
         );
     }
 
@@ -2530,7 +2527,7 @@ mod attribution {
     /// report a pair the census could not even examine as an unrefuted
     /// frontier.
     #[test]
-    fn an_undecidable_pair_is_unattributed_even_when_declared() {
+    fn an_undecidable_pair_is_unnamed_even_when_declared() {
         let (minted, a, b, ..) = fixture();
         assert_eq!(
             attribute(
@@ -2541,18 +2538,18 @@ mod attribution {
                 },
                 &minted
             ),
-            Attribution::Unattributed
+            None
         );
     }
 
     /// A finding about the body's own geometry is not a verdict on any
     /// declaration, however many of its faces the declaration names.
     #[test]
-    fn a_structural_finding_on_a_declared_face_is_unattributed() {
+    fn a_structural_finding_on_a_declared_face_names_no_declaration() {
         let (minted, a, ..) = fixture();
         assert_eq!(
             attribute(&ValidationError::UncertifiableSurface { face: a }, &minted),
-            Attribution::Unattributed
+            None
         );
     }
 }

@@ -493,7 +493,7 @@ pub use topo::{
 // refusal and left its siblings a module hop away. These are
 // that inconsistency closed, not a new policy:
 //
-// - `CensusContact` is `UndeclaredContact`'s: which coincidence the
+// - `CensusContact` is `UnrecordedContact`'s: which coincidence the
 //   census found. The arms are not one fact — `EdgeFacePierce` is
 //   interpenetration and undeclarable, while `EdgeEdgeOverlap` is
 //   certifiable through the D3 reconstruction. A caller that cannot

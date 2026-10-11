@@ -771,17 +771,25 @@ pub struct Product<T: Decide> {
     /// record ([`Self::cited_inputs`]); a record a mate minted cites the
     /// at-rest census's row of [`Self::coincidences`].
     pub contacts: ContactRecords,
-    /// **The at-rest census's decisions the mates' records cite**
-    /// ([`topo::DecisionSite::CensusAtRest`]), in mint order, each cell
-    /// named as the mate's reference reads it. The
-    /// `unproven-coincidence` check reads them ([`crate::checks`]).
+    /// **The at-rest census's decisions** ([`topo::DecisionSite::CensusAtRest`]):
+    /// those the mates' records cite, in mint order, each cell named as
+    /// the mate's reference reads it; then the contacts between copies
+    /// no record backs, in the census's order, each cell named as its
+    /// copy's placement reads it. The `unproven-coincidence` check reads
+    /// them ([`crate::checks`]).
     pub coincidences: Vec<crate::assembly::AtRestRow>,
     /// The product's inputs a carried record cites, by position: the
     /// gathered sources, in gather order.
     pub cited_inputs: Vec<crate::coincide::CitedInput>,
+    /// **The tier-3′ census's findings over the product and its
+    /// records**, run once, by the gather, in the census's order: every
+    /// finding but the contacts between copies it recorded as rows
+    /// ([`Self::coincidences`]). The at-rest gate reads them and runs
+    /// no census of its own ([`crate::assemble_gathered`]).
+    pub census: Vec<ValidationError>,
     /// The census's findings for the mated pairs it refused to read as
     /// one carrier: those mates minted no record, and the at-rest gate
-    /// raises these beside its own ([`crate::assemble_gathered`]).
+    /// raises these beside the census's ([`crate::assemble_gathered`]).
     pub refused_at_rest: Vec<ValidationError>,
     /// Which placement contributed each of the aggregate's solids, in
     /// gather order (`crate::checks`'s separation resident is the
@@ -1187,9 +1195,23 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     );
     let crate::assembly::AtRestRows {
         contacts,
-        coincidences,
+        mut coincidences,
         refused: refused_at_rest,
     } = at_rest;
+    // The tier-3′ census over the product and its records, ONCE, here:
+    // its contacts between copies are rows of the product, which the
+    // `unproven-coincidence` check reads, and the rest is what the
+    // at-rest gate refuses or reports ([`Product::census`]).
+    let census = T::gate_at_rest_declared(&aggregate, &contacts, tol)
+        .err()
+        .unwrap_or_default();
+    let census = crate::checks::at_rest::contact_rows(
+        &aggregate,
+        &names,
+        &copies,
+        census,
+        &mut coincidences,
+    );
     let gap_assertions =
         crate::checks::at_rest::gap_assertions(doc, evaluation, &aggregate, &names, &copies, tol);
     let spaces = match space {
@@ -1203,6 +1225,7 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         contacts,
         coincidences,
         cited_inputs,
+        census,
         refused_at_rest,
         solid_copies,
         copies,

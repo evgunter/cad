@@ -4,7 +4,7 @@
 //! sides read. On the issue's document — a pattern over a transform
 //! over the shelf, the mate read AT the transform — no placement reads
 //! the transform, so the mate declares nothing, and the seat it would
-//! have declared reaches the gate as an undeclared contact: the badge
+//! have declared reaches the gate as an unrecorded contact: the badge
 //! turns red with the gate's own refusal.
 
 // Panicking is a test's failure mechanism (workspace lint note).
@@ -112,8 +112,8 @@ fn a_mate_read_below_a_pattern_declares_nothing_and_the_badge_turns_red() {
     );
     match session.at_rest() {
         Some(AtRestBadge::Refused { message }) => assert!(
-            message.contains("is an undeclared contact"),
-            "the seat the mate does not declare is the gate's undeclared contact: {message}"
+            message.contains("is a contact no record backs"),
+            "the seat the mate does not declare is the gate's unrecorded contact: {message}"
         ),
         other => panic!("a mate read below a pattern turns the badge red, got {other:?}"),
     }

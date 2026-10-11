@@ -107,9 +107,10 @@ fn crossings(errors: &[ValidationError]) -> Vec<(CensusContact, String)> {
     errors
         .iter()
         .filter_map(|e| match e {
-            ValidationError::UndeclaredContact {
+            ValidationError::UnrecordedContact {
                 contact: contact @ CensusContact::EdgeEdgeCross { .. },
                 witness,
+                ..
             } => Some((*contact, witness.clone())),
             _ => None,
         })

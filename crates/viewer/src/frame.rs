@@ -2390,6 +2390,10 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
             let node = match finding.subject {
                 FindingSubject::Output { root, .. } => crate::world::seat_of(landed, root),
                 FindingSubject::Node(node) => node,
+                // The earlier copy's placement: the row's cells name both.
+                FindingSubject::Copies { a, .. } => landed
+                    .operation_of(a.var)
+                    .unwrap_or_else(|| unreachable!("a gathered copy is a placement's output")),
             };
             CheckRow {
                 node,

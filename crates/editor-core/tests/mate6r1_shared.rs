@@ -305,13 +305,13 @@ fn r1_a_good_mate_after_a_bad_one() {
 /// fail the tier-3′ census. Two cubes are seated exactly touching by a
 /// `Tangent` mate — `Tangent` mints no at-rest record, so nothing
 /// declares the contact the mate itself created, and the census would
-/// answer `UndeclaredContact` if it ran.
+/// answer `UnrecordedContact` if it ran.
 ///
 /// Old order: `mint` returned `NoAtRestRecord` before
 /// `gate_at_rest_declared` was ever called. New order: the gather
 /// RECORDS the refusal and `assemble` raises it before the same gate.
 /// If precedence is preserved the verdict is `NoAtRestRecord` on both
-/// trees; if it inverted, this tree answers `AtRest(UndeclaredContact)`.
+/// trees; if it inverted, this tree answers `AtRest(UnrecordedContact)`.
 #[test]
 fn r1_mint_refusal_precedes_the_census() {
     let mut store = PartStore::default();
@@ -513,7 +513,7 @@ fn r1_no_mates_document_digest() {
 // ============ CLAIM 4: the red-first numbers, exactly ============
 
 /// PROBE (claim 4): issue 946's own shape at the size the PR quotes —
-/// an inner stand instantiated ×3. The PR claims 24 `UndeclaredContact`
+/// an inner stand instantiated ×3. The PR claims 24 `UnrecordedContact`
 /// findings on the merge base and a green gate after, with 6 solids and
 /// 3 carried patch records.
 #[test]

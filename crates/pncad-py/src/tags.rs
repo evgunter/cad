@@ -2564,7 +2564,6 @@ pub fn attribution_tag(attribution: &Attribution) -> &'static str {
             relation: Relation::Declined,
             ..
         } => "carried_declined",
-        Attribution::Unattributed => "unattributed",
     }
 }
 
@@ -3164,7 +3163,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::SolidOuterShells { .. } => "solid_outer_shells",
         ValidationError::VolumeSignUnresolved { .. } => "volume_sign_unresolved",
         ValidationError::ShellRoleUndecided { .. } => "shell_role_undecided",
-        ValidationError::UndeclaredContact { .. } => "undeclared_contact",
+        ValidationError::UnrecordedContact { .. } => "unrecorded_contact",
         ValidationError::StaleContactDeclaration { .. } => "stale_contact_declaration",
         ValidationError::ContactContradicted { .. } => "contact_contradicted",
         ValidationError::CensusEscalated { .. } => "census_escalated",

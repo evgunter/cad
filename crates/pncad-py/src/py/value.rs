@@ -411,7 +411,7 @@ impl MassProperties {
 /// kernel's own contract is that 3′ ≡ tier 3 plus the census actually
 /// run, which is the STRICTEST rung of the ladder — so a door that
 /// mints a body without records can only make this gate refuse
-/// (`UndeclaredContact`), never falsely pass.
+/// (`UnrecordedContact`), never falsely pass.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Body {
@@ -563,7 +563,7 @@ impl Body {
     /// certified against THIS body's own declared contacts.
     ///
     /// The census is a diff in both directions. Every coincidence it
-    /// finds must be backed by a declaration (`UndeclaredContact`
+    /// finds must be backed by a declaration (`UnrecordedContact`
     /// otherwise — no scan-to-bless) and every declaration must be
     /// geometrically confirmed (`StaleContactDeclaration` otherwise).
     /// There is no contacts argument because a body already carries

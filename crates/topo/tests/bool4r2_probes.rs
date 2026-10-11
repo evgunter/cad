@@ -59,7 +59,7 @@ fn crossings(errors: &[ValidationError]) -> Vec<&ValidationError> {
         .filter(|e| {
             matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::EdgeFacePierce { .. }
                         | CensusContact::EdgeEdgeCross { .. },
                     ..
@@ -155,7 +155,7 @@ fn the_straddle_declared_as_far_as_the_vocabulary_reaches() {
         .expect_err("the undeclared touches refuse");
     let mut records = ContactRecords::default();
     for e in &errors {
-        if let ValidationError::UndeclaredContact {
+        if let ValidationError::UnrecordedContact {
             contact: CensusContact::VertexOnFace { vertex, face },
             ..
         } = e
@@ -179,7 +179,7 @@ fn the_straddle_declared_as_far_as_the_vocabulary_reaches() {
         Err(errs) => errs
             .iter()
             .map(|e| match e {
-                ValidationError::UndeclaredContact { contact, .. } => {
+                ValidationError::UnrecordedContact { contact, .. } => {
                     format!("Undeclared:{}", contact_kind(contact))
                 }
                 other => format!("{other:?}").chars().take(40).collect(),
@@ -414,7 +414,7 @@ fn a_vertex_touching_straddler_is_decided_by_its_inside_corner() {
     let touches: Vec<VfContact> = errors
         .iter()
         .filter_map(|e| match e {
-            ValidationError::UndeclaredContact {
+            ValidationError::UnrecordedContact {
                 contact: CensusContact::VertexOnFace { vertex, face },
                 ..
             } => Some(VfContact {

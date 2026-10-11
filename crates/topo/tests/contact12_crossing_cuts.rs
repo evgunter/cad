@@ -48,9 +48,10 @@ fn overlaps_on(errors: &[ValidationError], face: FaceKey) -> Vec<String> {
     errors
         .iter()
         .filter_map(|e| match e {
-            ValidationError::UndeclaredContact {
+            ValidationError::UnrecordedContact {
                 contact: CensusContact::EdgeFaceOverlap { face: f, .. },
                 witness,
+                ..
             } if *f == face => Some(witness.clone()),
             _ => None,
         })

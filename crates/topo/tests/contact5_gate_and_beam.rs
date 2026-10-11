@@ -73,7 +73,7 @@ fn crosses(errors: &[ValidationError]) -> usize {
         .filter(|e| {
             matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::EdgeEdgeCross { .. },
                     ..
                 }
@@ -88,7 +88,7 @@ fn pierces(errors: &[ValidationError]) -> usize {
         .filter(|e| {
             matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::EdgeFacePierce { .. },
                     ..
                 }
@@ -340,7 +340,7 @@ fn a_lump_inside_the_other_instance_is_found_whatever_its_sibling_does() {
         assert_eq!(
             errors
                 .iter()
-                .any(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+                .any(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
             meets,
             "{errors:?}"
         );
@@ -350,7 +350,7 @@ fn a_lump_inside_the_other_instance_is_found_whatever_its_sibling_does() {
             b_on_a: errors
                 .iter()
                 .filter_map(|e| match e {
-                    ValidationError::UndeclaredContact {
+                    ValidationError::UnrecordedContact {
                         contact: CensusContact::VertexOnFace { vertex, face },
                         ..
                     } => Some(VfContact {
@@ -385,7 +385,7 @@ fn a_declared_rest_with_a_dipping_point_is_probed() {
         b_on_a: errors_of(&body)
             .iter()
             .filter_map(|e| match e {
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::VertexOnFace { vertex, face },
                     ..
                 } => Some(VfContact {

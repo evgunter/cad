@@ -295,7 +295,7 @@ fn the_chord_is_named_for_the_rims_it_lies_along() {
 /// every member order. On main, 62 of its cells refused
 /// `SharedRim(Several)`; every chord there lay within exactly one
 /// piece. What the other orders refuse with (a declaration that no
-/// longer resolves, an undeclared contact) is other rows' subject.
+/// longer resolves, an unrecorded contact) is other rows' subject.
 /// PR 3112's review corpus: `a` and `b` declared flush on all four
 /// families, plus one to three slabs; `(label, blocks, creation order)`.
 pub(crate) fn probe_corpus() -> Vec<(String, Vec<Bx>, Vec<usize>)> {

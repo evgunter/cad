@@ -51,7 +51,7 @@ use crate::tags::{check_evidence_tag, checks_error_tag};
 use pncad::document as d;
 use pncad::tolerance::Tol;
 
-use super::doc::{Doc, NodeId};
+use super::doc::{Doc, NodeId, Var};
 use super::value::{Body, Evaluation};
 
 /// Which check a finding came from — the registry's closed set.
@@ -582,7 +582,7 @@ impl CheckFinding {
     fn root(&self) -> Option<NodeId> {
         match self.finding.subject {
             d::FindingSubject::Output { root, .. } => Some(NodeId(root)),
-            d::FindingSubject::Node(_) => None,
+            d::FindingSubject::Node(_) | d::FindingSubject::Copies { .. } => None,
         }
     }
 
@@ -592,17 +592,31 @@ impl CheckFinding {
     fn output_ix(&self) -> Option<u32> {
         match self.finding.subject {
             d::FindingSubject::Output { output_ix, .. } => Some(output_ix),
-            d::FindingSubject::Node(_) => None,
+            d::FindingSubject::Node(_) | d::FindingSubject::Copies { .. } => None,
         }
     }
 
     /// The node the finding is about, root or not; `None` for a finding
-    /// about a root output.
+    /// about a root output or two copies.
     #[getter]
     fn node(&self) -> Option<NodeId> {
         match self.finding.subject {
             d::FindingSubject::Node(node) => Some(NodeId(node)),
-            d::FindingSubject::Output { .. } => None,
+            d::FindingSubject::Output { .. } | d::FindingSubject::Copies { .. } => None,
+        }
+    }
+
+    /// The two copies the finding is about, earlier in gather order
+    /// first, each as its placement's output and its member there, as
+    /// `InterferenceFinding.a` spells one; `None` for any other subject.
+    #[getter]
+    fn copies(&self) -> Option<((Var, u32), (Var, u32))> {
+        match self.finding.subject {
+            d::FindingSubject::Copies { a, b } => {
+                let copy = |c: d::CopyRef| (Var::of(&self.doc, c.var), c.member);
+                Some((copy(a), copy(b)))
+            }
+            d::FindingSubject::Output { .. } | d::FindingSubject::Node(_) => None,
         }
     }
 
@@ -632,6 +646,9 @@ impl CheckFinding {
                 format!("root {}, output {output_ix}", root.full())
             }
             d::FindingSubject::Node(node) => format!("node {}", node.full()),
+            d::FindingSubject::Copies { a, b } => {
+                format!("copies {} and {}", a.var, b.var)
+            }
         };
         format!(
             "CheckFinding({}, {subject}, {:?})",

@@ -627,7 +627,7 @@ fn r1_finding_retired_kiss_refuses_undeclared_and_certifies_declared() {
     assert!(
         errors
             .iter()
-            .any(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+            .any(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
         "the refusal is exactly the undeclared kiss: {errors:?}"
     );
     // WITH: the declared corner certifies — same file, same gate.

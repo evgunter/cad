@@ -82,12 +82,12 @@ fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
     }
 }
 
-/// Every undeclared-contact finding, by its census contact.
+/// Every unrecorded-contact finding, by its census contact.
 fn undeclared(errors: &[ValidationError]) -> Vec<CensusContact> {
     errors
         .iter()
         .filter_map(|e| match e {
-            ValidationError::UndeclaredContact { contact, .. } => Some(*contact),
+            ValidationError::UnrecordedContact { contact, .. } => Some(*contact),
             _ => None,
         })
         .collect()
@@ -163,7 +163,7 @@ fn pair_declined(errors: &[ValidationError], face_a: FaceKey, face_b: FaceKey) {
 /// trim edge as a touching boundary, and the interior-witness
 /// rung proves the disc. This is #943's whole repro, certified.
 #[test]
-fn a_declared_flush_seat_leaves_no_undeclared_contact() {
+fn a_declared_flush_seat_leaves_no_unrecorded_contact() {
     let (body, post_top, shelf_bottom) = flush_seat();
     let errors = errors(&body, &declared(post_top, shelf_bottom));
     assert!(

@@ -492,7 +492,7 @@ fn a_line_kiss_beside_a_tangent_site_ships_its_contact_undeclared() {
                 findings
                     .iter()
                     .filter(|e| {
-                        matches!(e, ValidationError::UndeclaredContact { contact, .. } if want(contact))
+                        matches!(e, ValidationError::UnrecordedContact { contact, .. } if want(contact))
                     })
                     .count()
             };

@@ -585,6 +585,14 @@ pub enum FindingSubject {
     },
     /// A node of the document, root or not.
     Node(RecipeNodeId),
+    /// Two copies of the product, earlier in gather order first: an
+    /// at-rest finding between them that no mate speaks for.
+    Copies {
+        /// The earlier copy.
+        a: crate::checks::at_rest::CopyRef,
+        /// The other copy.
+        b: crate::checks::at_rest::CopyRef,
+    },
 }
 
 // One story, one recourse, in one place, through the document layer's
@@ -599,6 +607,15 @@ pub enum FindingSubject {
 //   decision's ending read at rest ([`topo::props::SHELL_ROLE`] on
 //   [`ShellClassifyError::arm`]): the checks window reads a body at rest.
 // - StaleExpectation's pinned prose ends in its own ". Recourse:".
+/// A copy as a finding says it: its placement's output, and its member
+/// where the placement defines several.
+fn copy_said(copy: crate::checks::at_rest::CopyRef, by: crate::spoken::Speaker<'_>) -> String {
+    match copy.member {
+        0 => by.read(copy.var),
+        member => format!("{} member {member}", by.read(copy.var)),
+    }
+}
+
 impl crate::finding::Finding for SaidFinding<'_> {
     fn subject(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self(finding, by) = *self;
@@ -612,6 +629,13 @@ impl crate::finding::Finding for SaidFinding<'_> {
                 finding.check,
                 by.node_as(root, "placement"),
                 output_ix
+            ),
+            FindingSubject::Copies { a, b } => write!(
+                f,
+                "check {}: copies {} and {}",
+                finding.check,
+                copy_said(a, by),
+                copy_said(b, by)
             ),
         }
     }
@@ -1242,12 +1266,10 @@ pub fn run_checks_on<
     }
     if cfg.severity(CheckId::UnprovenCoincidence) == Severity::Off {
         report.skipped.push(CheckId::UnprovenCoincidence);
-    } else if let Subject::Unavailable { refusal } = &subject
-        && holds_a_mate(doc)
-    {
-        // The at-rest rows are the mates' and ride the product, so a
-        // document with a mate and no product has rows nobody can read.
-        // One with no mate has none, and its node rows need no product.
+    } else if let Subject::Unavailable { refusal } = &subject {
+        // The at-rest rows ride the product: a mated pair's, and every
+        // contact between two copies, so a document whose product did
+        // not gather has rows nobody can read.
         return Err(ChecksError::Product {
             refusal: refusal.clone(),
         });
@@ -1269,19 +1291,12 @@ pub fn run_checks_on<
     Ok(report)
 }
 
-/// Whether `doc` holds a mate: a node whose pair the at-rest census
-/// decides on the gathered product, as the mint walks them.
-fn holds_a_mate<P>(doc: &Doc<P>) -> bool {
-    doc.ids()
-        .into_iter()
-        .any(|id| matches!(doc.node(id), Some(crate::Node::Mate { .. })))
-}
-
 /// The `unproven-coincidence` resident's pass (D10): every evaluated
 /// node's rows, in evaluation order then decision order, then the
-/// at-rest census's rows on the gathered product, in mint order; each
-/// the door leaves unproven a finding attributed to the node that
-/// decided it, or to the mate whose pair the census decided.
+/// at-rest census's rows on the gathered product and on each unplaced
+/// group's own space, in their order; each the door leaves unproven a
+/// finding attributed to the node that decided it, to the mate whose
+/// pair the census decided, or to the two copies it found in contact.
 fn unproven_coincidence<P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
@@ -1290,10 +1305,41 @@ fn unproven_coincidence<P: crate::ProfilePayload, T: Decide>(
     pass: crate::coincide::SymbolicPass,
     report: &mut ChecksReport,
 ) {
-    let at_rest = match subject {
-        Subject::Product(gathered) => gathered.coincidences.as_slice(),
-        Subject::EmptyProduct | Subject::Unavailable { .. } => &[],
+    let at_rest: Vec<&crate::assembly::AtRestRow> = match subject {
+        Subject::Product(gathered) => gathered
+            .coincidences
+            .iter()
+            .chain(
+                gathered
+                    .spaces
+                    .iter()
+                    .filter_map(|space| space.gather.as_ref().ok())
+                    .flat_map(|space| space.coincidences.iter()),
+            )
+            .collect(),
+        Subject::EmptyProduct | Subject::Unavailable { .. } => Vec::new(),
     };
+    // A row of two copies is proved at the first copy's placement, which
+    // is no decision the replay retakes: the door replays no census row.
+    let at_rest_node = |by: &crate::assembly::AtRestBy| match *by {
+        crate::assembly::AtRestBy::Mate(mate) => mate,
+        crate::assembly::AtRestBy::Copies(a, _) => doc
+            .operation_of(a.var)
+            .unwrap_or_else(|| unreachable!("a gathered copy is a live placement's output")),
+    };
+    let subjects: Vec<FindingSubject> = ev
+        .order
+        .iter()
+        .filter(|&&node| {
+            ev.value(node)
+                .is_some_and(|value| !value.coincidences.is_empty())
+        })
+        .map(|&node| FindingSubject::Node(node))
+        .chain(at_rest.iter().map(|r| match r.by {
+            crate::assembly::AtRestBy::Mate(mate) => FindingSubject::Node(mate),
+            crate::assembly::AtRestBy::Copies(a, b) => FindingSubject::Copies { a, b },
+        }))
+        .collect();
     let nodes: Vec<(RecipeNodeId, &[crate::coincide::NamedCoincidence])> = ev
         .order
         .iter()
@@ -1302,24 +1348,23 @@ fn unproven_coincidence<P: crate::ProfilePayload, T: Decide>(
         .chain(
             at_rest
                 .iter()
-                .map(|r| (r.mate, core::slice::from_ref(&r.row))),
+                .map(|r| (at_rest_node(&r.by), core::slice::from_ref(&r.row))),
         )
         .collect();
     let proofs = crate::coincide::prove(doc, &nodes, tol, pass);
-    let rows = nodes
-        .iter()
-        .flat_map(|&(node, rows)| rows.iter().map(move |row| (node, row)));
-    for ((node, row), proof) in rows.zip(proofs.into_iter().flatten()) {
-        if let crate::coincide::Proof::Unproven { residual, recourse } = proof {
-            report.findings.push(CheckFinding {
-                check: CheckId::UnprovenCoincidence,
-                subject: FindingSubject::Node(node),
-                evidence: CheckEvidence::UnprovenCoincidence {
-                    row: Box::new(row.clone()),
-                    residual: Box::new(residual),
-                    recourse,
-                },
-            });
+    for ((subject, (_, rows)), proofs) in subjects.into_iter().zip(&nodes).zip(proofs) {
+        for (row, proof) in rows.iter().zip(proofs) {
+            if let crate::coincide::Proof::Unproven { residual, recourse } = proof {
+                report.findings.push(CheckFinding {
+                    check: CheckId::UnprovenCoincidence,
+                    subject,
+                    evidence: CheckEvidence::UnprovenCoincidence {
+                        row: Box::new(row.clone()),
+                        residual: Box::new(residual),
+                        recourse,
+                    },
+                });
+            }
         }
     }
 }
@@ -1648,7 +1693,7 @@ fn declared_pairs<T: Decide>(
 /// pair, and this door hands the whole pair on rather than dropping
 /// half of it. Splitting them again downstream re-opens the failure
 /// this signature closes: a subject that IS a declared boolean result
-/// reporting its own certified seam as an UNDECLARED contact under the
+/// reporting its own certified seam as an UNRECORDED contact under the
 /// tier-3′ gate, while the identical body read through its value
 /// passes. (That direction fails loud, never silently — an absent
 /// record set can only make the gate refuse — but a loud wrong answer

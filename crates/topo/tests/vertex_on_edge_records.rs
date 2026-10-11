@@ -87,7 +87,7 @@ fn a_vertex_on_edge_record_backs_its_event_and_the_overlap_it_bounds() {
     let on_edge = |es: &[ValidationError]| -> Vec<(VertexKey, EdgeKey)> {
         es.iter()
             .filter_map(|e| match e {
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::VertexOnEdge { vertex, edge },
                     ..
                 } => Some((*vertex, *edge)),
@@ -100,7 +100,7 @@ fn a_vertex_on_edge_record_backs_its_event_and_the_overlap_it_bounds() {
             .filter(|e| {
                 matches!(
                     e,
-                    ValidationError::UndeclaredContact {
+                    ValidationError::UnrecordedContact {
                         contact: CensusContact::EdgeEdgeOverlap { .. },
                         ..
                     }
@@ -217,7 +217,7 @@ fn a_vertex_on_edge_record_without_its_event_is_stale() {
 /// overlap's upper bound is the wedge's vertex there, backed by its
 /// `(vertex, edge)` record onto an edge that bounds the face. Red when
 /// the edge-on-face bound reads v-on-f and v-v records only: the
-/// overlap refuses `UndeclaredContact` with both records present.
+/// overlap refuses `UnrecordedContact` with both records present.
 #[test]
 fn an_edge_on_face_overlap_ending_on_the_faces_edge_is_bounded_by_the_record() {
     let tol = Tol::witness();
@@ -265,7 +265,7 @@ fn an_edge_on_face_overlap_ending_on_the_faces_edge_is_bounded_by_the_record() {
     assert!(
         es.iter().any(|e| matches!(
             e,
-            ValidationError::UndeclaredContact {
+            ValidationError::UnrecordedContact {
                 contact: CensusContact::VertexOnEdge { vertex, edge },
                 ..
             } if (*vertex, *edge) == (high, rim)
@@ -863,7 +863,7 @@ fn an_edge_edge_record_backs_its_crossing_and_is_stale_without_one() {
     assert!(
         es.iter().any(|e| matches!(
             e,
-            ValidationError::UndeclaredContact {
+            ValidationError::UnrecordedContact {
                 contact: CensusContact::EdgeEdgeCross { .. },
                 ..
             }

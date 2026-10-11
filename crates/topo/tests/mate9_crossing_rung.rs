@@ -113,9 +113,10 @@ fn crossings(errors: &[ValidationError]) -> Vec<(CensusContact, String)> {
     errors
         .iter()
         .filter_map(|e| match e {
-            ValidationError::UndeclaredContact {
+            ValidationError::UnrecordedContact {
                 contact: contact @ CensusContact::EdgeEdgeCross { .. },
                 witness,
+                ..
             } => Some((*contact, witness.clone())),
             _ => None,
         })
@@ -400,9 +401,10 @@ fn the_pierce_stays_categorical() {
         errors(&body, records)
             .iter()
             .filter_map(|e| match e {
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::EdgeFacePierce { edge, face },
                     witness,
+                    ..
                 } => Some(format!("{edge:?} through {face:?} at {witness}")),
                 _ => None,
             })
@@ -508,7 +510,7 @@ fn the_structural_door_at_a_dual_refuses_the_declared_seat_typed_and_backs_no_cr
         errors
             .iter()
             .map(|e| match e {
-                ValidationError::UndeclaredContact { contact, .. } => format!("{contact:?}"),
+                ValidationError::UnrecordedContact { contact, .. } => format!("{contact:?}"),
                 other => format!("{other:?}"),
             })
             .collect()

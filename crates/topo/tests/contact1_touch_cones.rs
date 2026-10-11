@@ -92,7 +92,7 @@ fn touch_kinds(errors: &[ValidationError]) -> Vec<&'static str> {
     let mut kinds: Vec<&'static str> = errors
         .iter()
         .filter_map(|e| match e {
-            ValidationError::UndeclaredContact { contact, .. } => Some(match contact {
+            ValidationError::UnrecordedContact { contact, .. } => Some(match contact {
                 CensusContact::VertexVertex { .. } => "VertexVertex",
                 CensusContact::VertexOnFace { .. } => "VertexOnFace",
                 CensusContact::VertexOnEdge { .. } => "VertexOnEdge",
@@ -258,7 +258,7 @@ fn a_tilted_block_touching_a_corner_clears_declared_or_not() {
     let (a, b) = errors
         .iter()
         .find_map(|e| match e {
-            ValidationError::UndeclaredContact {
+            ValidationError::UnrecordedContact {
                 contact: CensusContact::VertexVertex { a, b },
                 ..
             } => Some((*a, *b)),

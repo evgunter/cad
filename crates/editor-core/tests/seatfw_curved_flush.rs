@@ -207,7 +207,7 @@ fn a_bore_on_another_carrier_is_no_finding_at_either_seat() {
 // ------------------------------------------------------------------
 
 /// The declared round trip on a PURELY cylindrical mate: the findings
-/// declare, the declared rung VERIFIES them — no undeclared-contact
+/// declare, the declared rung VERIFIES them — no unrecorded-contact
 /// refusal, no contradiction, because the detector and the verifier
 /// are one door — and the union builds: the peg's rim arcs are edges of
 /// both solids, which the chord join copies. Sound at tiers 2 and 3,

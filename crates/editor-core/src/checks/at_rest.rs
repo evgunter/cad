@@ -280,11 +280,11 @@ fn interference_solids<T: Decide>(
     };
     match error {
         ValidationError::InstanceInterference { outer, inner, .. } => Some((*outer, *inner)),
-        ValidationError::UndeclaredContact {
+        ValidationError::UnrecordedContact {
             contact: CensusContact::EdgeFacePierce { edge, face },
             ..
         } => Some((of_edge(*edge)?, body.solid_of_face(*face)?)),
-        ValidationError::UndeclaredContact {
+        ValidationError::UnrecordedContact {
             contact:
                 CensusContact::EdgeEdgeCross {
                     a,
@@ -421,6 +421,84 @@ pub(crate) fn partition<T: LocalizeLane>(
         .flat_map(|((a, b), evidence)| T::localize(product, a, b, evidence, tol))
         .collect();
     (findings, kept)
+}
+
+/// **The census's contacts between two copies, as rows** (D1 (iii),
+/// D10): each coincidence the census found between cells of two
+/// different copies with no record behind it is an at-rest row of the
+/// product, its cells named as each copy's placement reads them, and
+/// leaves the findings; the `unproven-coincidence` check reports it
+/// unless the door proves it. Every other finding is kept, in order: a
+/// contact inside one copy is that copy's defect, and a pierce or a
+/// same-side crossing is interference evidence ([`partition`]).
+pub(crate) fn contact_rows<T: Decide>(
+    body: &Body<T>,
+    names: &NameTable,
+    copies: &[GatheredCopy<T>],
+    census: Vec<ValidationError>,
+    rows: &mut Vec<crate::assembly::AtRestRow>,
+) -> Vec<ValidationError> {
+    let copy_of: BTreeMap<SolidKey, usize> = copies
+        .iter()
+        .enumerate()
+        .flat_map(|(i, c)| c.keys.solids().iter().map(move |&s| (s, i)))
+        .collect();
+    let named = |cell: topo::Cell| {
+        let (key, solid) = match cell {
+            topo::Cell::Face(f) => (EntityKey::Face(f), body.solid_of_face(f)?),
+            topo::Cell::Edge(e) => (EntityKey::Edge(e), cell_solid(body, cell)?),
+            topo::Cell::Vertex(v) => (EntityKey::Vertex(v), cell_solid(body, cell)?),
+        };
+        let copy = *copy_of.get(&solid)?;
+        let name = names.name_of(&EntityRef { body: 0, key })?.clone();
+        Some((copy, name))
+    };
+    let mut kept = Vec::new();
+    for finding in census {
+        let row = topo::census_contact_row(&finding).and_then(|row| {
+            let [a, b] = row.cells.map(|cell| match cell {
+                topo::RowCell::Result { cell } => named(cell),
+                topo::RowCell::Input { .. } | topo::RowCell::Tool => None,
+            });
+            let ((ca, na), (cb, nb)) = (a?, b?);
+            (ca != cb).then(|| {
+                let cell = |copy: usize, name| crate::coincide::NamedCell::Entity {
+                    input: copies[copy].var,
+                    name,
+                };
+                let by = |x: usize| CopyRef {
+                    var: copies[x].var,
+                    member: copies[x].output,
+                };
+                crate::assembly::AtRestRow {
+                    by: crate::assembly::AtRestBy::Copies(by(ca.min(cb)), by(ca.max(cb))),
+                    row: crate::coincide::NamedCoincidence {
+                        cells: [cell(ca, na), cell(cb, nb)],
+                        relation: row.relation,
+                        site: row.site,
+                        margin: row.margin,
+                        discharge: row.discharge,
+                    },
+                }
+            })
+        });
+        match row {
+            Some(row) => rows.push(row),
+            None => kept.push(finding),
+        }
+    }
+    kept
+}
+
+/// The solid an edge or a vertex of `body` belongs to, through a
+/// half-edge of it; `None` for a lone vertex.
+fn cell_solid<T: Decide>(body: &Body<T>, cell: topo::Cell) -> Option<SolidKey> {
+    let he = match cell {
+        topo::Cell::Edge(e) => body.get_edge(e)?.he_plus,
+        topo::Cell::Vertex(v) => body.get_vertex(v)?.emanating?,
+        topo::Cell::Face(f) => return body.solid_of_face(f),
+    };
+    body.solid_of_face(body.face_of_half_edge(he)?)
 }
 
 /// The solid a census entity belongs to: itself, or a face's.
