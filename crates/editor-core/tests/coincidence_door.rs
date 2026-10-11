@@ -508,8 +508,9 @@ fn a_filleted_box_records_one_unproven_turn_per_corner() {
     );
     assert_eq!(
         recourses(&proved),
-        [Some(coincide::Recourse::Assert); 8],
-        "the feet distance freezes into opaque atoms, so the recourse is an assertion"
+        [Some(coincide::Recourse::OneConstruction); 8],
+        "the feet distance freezes on the door's budget, which is no value computed apart \
+         from the variables: no special recourse"
     );
     assert_eq!(unproven(&doc, &ev).len(), 8);
 }
@@ -1100,8 +1101,8 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
     }
     assert_eq!(
         recourses(&proved[2..]),
-        [Some(coincide::Recourse::Assert); 2],
-        "a joint's form freezes on the door's budget, so its recourse is an assertion"
+        [Some(coincide::Recourse::OneConstruction); 2],
+        "a joint's form freezes on the door's budget: no special recourse"
     );
     let findings = unproven(&doc, &ev);
     assert_eq!(

@@ -160,3 +160,89 @@ fn a_landings_door_reads_pending_until_its_own_answer_settles() {
     );
     assert!(pending_line(report).is_none());
 }
+
+/// **The threaded door seam answers the newest landing only.** Two jobs
+/// submitted back to back: the second cancels the first and waits
+/// behind it, the first's answer is dropped inside the seam when it
+/// comes back, and the one answer handed up is the second's, its
+/// findings whole. Dropping the seam then joins a worker with nothing
+/// left to do.
+#[cfg(not(target_family = "wasm"))]
+#[test]
+fn the_threaded_door_seam_answers_the_newest_landing() {
+    use pncad::document::{
+        ChecksConfig, EvalOptions, Subject, evaluate, product_recorded, run_checks_at_rest_on,
+    };
+    use viewer::evalseam::ThreadProver;
+    use viewer::generation::Generation;
+
+    let tol = Tol::witness();
+    let doc = Arc::new(
+        corpus::documents()
+            .into_iter()
+            .find(|c| c.name == "reshaped_rod")
+            .expect("a corpus document")
+            .doc,
+    );
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    let gathered = product_recorded(&doc, &ev, tol).expect("the product gathers");
+    let (_, job) = run_checks_at_rest_on(
+        &doc,
+        &ev,
+        Subject::Product(&gathered),
+        &ChecksConfig::default(),
+        tol,
+    )
+    .expect("the checks run");
+    let job = job.expect("a row asks for the door");
+    let (first, second) = (Generation::FIRST, Generation::FIRST.next());
+
+    let mut seam = ThreadProver::spawn().expect("the worker starts");
+    for generation in [first, second] {
+        seam.submit(DoorRequest {
+            generation,
+            doc: Arc::clone(&doc),
+            job: job.clone(),
+        });
+    }
+    let mut answers = Vec::new();
+    for _ in 0..60_000 {
+        answers.extend(seam.poll());
+        if !seam.busy() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert!(!seam.busy(), "the seam answered within a minute");
+    let [done] = &answers[..] else {
+        panic!("one answer, the newest landing's: {answers:?}")
+    };
+    assert_eq!(done.generation, second);
+    let findings = done.findings.as_ref().expect("an uncanceled door");
+    let mut report = pncad::document::run_checks_at_rest_on(
+        &doc,
+        &ev,
+        Subject::Product(&gathered),
+        &ChecksConfig::default(),
+        tol,
+    )
+    .expect("the checks run")
+    .0;
+    report.settle(findings.clone());
+    assert_eq!(
+        report
+            .findings
+            .iter()
+            .filter(|f| f.check == CheckId::UnprovenCoincidence)
+            .count(),
+        1,
+        "{report}"
+    );
+    drop(seam);
+}

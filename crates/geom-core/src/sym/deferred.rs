@@ -119,55 +119,62 @@ fn push(list: &mut std::collections::HashMap<u32, Pending>, entry: Pending) -> O
 /// a Zero, or outside the session that decided it.
 #[must_use]
 pub fn discharge(margin: MarginDiag) -> Option<Theorem> {
-    match margin.pending()? {
-        Pending::Proven(how) => Some(how),
-        entry => discharge_entry(entry),
-    }
+    discharged(margin, false).ok()
 }
 
-fn discharge_entry(first: Pending) -> Option<Theorem> {
+/// **Why a margin is not a theorem** ([`discharge_or_why`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Undischarged {
+    /// The Zero that did not discharge keeps an opaque value in its
+    /// early form: a value computed apart from the parameter symbols
+    /// ([`super::SymOp::Opaque`]), which no rebuilding of the variables
+    /// exposes.
+    KeepsAnOpaqueAtom,
+    /// Any other way: a Zero whose form is over the parameter symbols
+    /// alone and is not zero, or too big for the budget, a margin that
+    /// was not a Zero, or one outside the session that decided it.
+    Otherwise,
+}
+
+/// **[`discharge`], saying why not**: the theorem, or what the first
+/// Zero that did not discharge keeps ([`Undischarged`]). The Zeros a
+/// margin stands on are tried in [`discharge`]'s order, so a Zero that
+/// discharged is never the one read.
+///
+/// # Errors
+///
+/// [`Undischarged`] where `margin` is not a theorem.
+pub fn discharge_or_why(margin: MarginDiag) -> Result<Theorem, Undischarged> {
+    discharged(margin, true)
+}
+
+/// [`discharge_or_why`], reading the failed Zero's form only when
+/// `why`.
+fn discharged(margin: MarginDiag, why: bool) -> Result<Theorem, Undischarged> {
+    let first = match margin.pending() {
+        Some(Pending::Proven(how)) => return Ok(how),
+        Some(entry) => entry,
+        None => return Err(Undischarged::Otherwise),
+    };
     let mut stack = vec![first];
     let mut weakest = Theorem::SymbolicZero;
     while let Some(next) = stack.pop() {
         match next {
             Pending::Proven(how) => weakest = weakest.max(how),
-            Pending::Zero(node) => {
-                let (how, _) = super::discharge_retried(node)?;
-                weakest = weakest.max(how.theorem());
-            }
-            Pending::Both(a, b) => {
-                stack.push(entry(a)?);
-                stack.push(entry(b)?);
-            }
-        }
-    }
-    Some(weakest)
-}
-
-/// **Whether a Zero behind `margin` keeps an opaque atom** in its
-/// early form: a form the budget froze, or a value computed apart from
-/// the symbols ([`super::SymOp::Opaque`]). An identity that keeps one
-/// is past what the tier can see at this strength, and no rebuilding of
-/// the variables exposes it. `false` where the margin stands for no
-/// deferred Zero, or outside its session.
-#[must_use]
-pub fn keeps_an_opaque_atom(margin: MarginDiag) -> bool {
-    let Some(first) = margin.pending() else {
-        return false;
-    };
-    let mut stack = vec![first];
-    while let Some(next) = stack.pop() {
-        match next {
-            Pending::Zero(node) => {
-                if super::keeps_an_opaque_atom(node) == Some(true) {
-                    return true;
+            Pending::Zero(node) => match super::discharge_retried(node) {
+                Some((how, _)) => weakest = weakest.max(how.theorem()),
+                None if why && super::keeps_an_opaque_atom(node) == Some(true) => {
+                    return Err(Undischarged::KeepsAnOpaqueAtom);
                 }
-            }
-            Pending::Proven(_) => {}
-            Pending::Both(a, b) => stack.extend(entry(a).into_iter().chain(entry(b))),
+                None => return Err(Undischarged::Otherwise),
+            },
+            Pending::Both(a, b) => match (entry(a), entry(b)) {
+                (Some(a), Some(b)) => stack.extend([a, b]),
+                _ => return Err(Undischarged::Otherwise),
+            },
         }
     }
-    false
+    Ok(weakest)
 }
 
 /// The entry at `index` of the installed session's list.

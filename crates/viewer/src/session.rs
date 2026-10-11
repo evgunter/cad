@@ -57,12 +57,12 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pncad::document::{
-    Assembly, AssemblyError, AuthoredNode, ChecksConfig, ChecksReport, Dimension, DimensionError,
-    Doc, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeValue,
-    FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Node, Operand, OperandSlot, PartReach,
-    PartResolver, ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId,
-    Subject, VarId, VarName, apply, assemble_gathered, cascade_delete_order, parse_formula,
-    product_recorded, run_checks_at_rest_on,
+    Assembly, AssemblyError, AuthoredNode, CheckId, ChecksConfig, ChecksReport, Dimension,
+    DimensionError, Doc, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula,
+    FreeValue, FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Node, Operand, OperandSlot,
+    PartReach, PartResolver, ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording,
+    SlotId, StepId, Subject, VarId, VarName, apply, assemble_gathered, cascade_delete_order,
+    parse_formula, product_recorded, run_checks_at_rest_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -1381,7 +1381,8 @@ impl DocSession {
     /// — only that one: an answer for a landing since replaced, or one
     /// the next request canceled, is dropped, and a report whose door
     /// was canceled goes on reading it pending until a landing answers
-    /// again.
+    /// again. A second answer for a report already settled is dropped
+    /// too.
     pub fn settle(&mut self, done: DoorDone) {
         let Some(run) = self.derived.landed.as_mut() else {
             return;
@@ -1389,7 +1390,9 @@ impl DocSession {
         if run.generation != done.generation {
             return;
         }
-        if let (Some(report), Ok(findings)) = (run.checks.as_mut(), done.findings) {
+        if let (Some(report), Ok(findings)) = (run.checks.as_mut(), done.findings)
+            && report.pending.contains(&CheckId::UnprovenCoincidence)
+        {
             report.settle(findings);
         }
     }

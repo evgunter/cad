@@ -1600,7 +1600,7 @@ fn two_cubes_glued_on_a_wall() -> (ProfileDoc, RecipeNodeId, Vec<editor_core::Na
 /// **The coincidence door says when a row stands on a part.** The
 /// door's replay with every variable a symbol resolves no part (a
 /// symbolic run crosses no part seam), so each row says that, rather
-/// than that the replay refused.
+/// than that the replay refused, and names an assertion as its recourse.
 #[test]
 fn the_doors_replay_names_a_row_on_a_part() {
     let (doc, union, rows) = two_cubes_glued_on_a_wall();
@@ -1615,8 +1615,9 @@ fn the_doors_replay_names_a_row_on_a_part() {
         assert!(
             matches!(
                 &proof,
-                editor_core::Proof::Unproven { residual, .. }
+                editor_core::Proof::Unproven { residual, recourse }
                     if residual.replay == editor_core::Unreplayed::ThroughAPart
+                        && *recourse == editor_core::coincide::Recourse::Assert
             ),
             "{proof:?}"
         );

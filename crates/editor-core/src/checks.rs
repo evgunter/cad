@@ -861,18 +861,13 @@ impl ChecksReport {
             door.document, self.document,
             "a door job's findings settle only into its own document's report"
         );
-        let at = self
-            .pending
-            .iter()
-            .position(|c| *c == CheckId::UnprovenCoincidence);
+        let before = self.pending.len();
+        self.pending.retain(|c| *c != CheckId::UnprovenCoincidence);
         assert!(
-            at.is_some(),
+            self.pending.len() < before,
             "the report is not pending on the coincidence door"
         );
-        if let Some(at) = at {
-            self.pending.remove(at);
-            self.findings.splice(door.at..door.at, door.findings);
-        }
+        self.findings.splice(door.at..door.at, door.findings);
     }
 
     /// **The speaker for this report's roots**: each as `doc` holds it
@@ -1839,6 +1834,45 @@ pub fn enforce_checks(report: &ChecksReport, cfg: &ChecksConfig) -> Result<(), C
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{CheckEvidence, RecipeNodeId, Subject};
+
+    /// A stand-in finding, told apart by its count.
+    fn finding(check: super::CheckId, expected: u32) -> super::CheckFinding {
+        super::CheckFinding {
+            check,
+            subject: super::FindingSubject::Node(RecipeNodeId::new(0, 7)),
+            evidence: CheckEvidence::StaleExpectation { expected },
+        }
+    }
+
+    /// INVARIANT: a door job's findings settle where the synchronous
+    /// run puts them, after the residents before the door and before
+    /// those after it, and the check stops pending. Reds if `settle`
+    /// appends rather than splices.
+    #[test]
+    fn a_door_job_settles_its_findings_in_the_doors_place() {
+        use super::CheckId::{Connectedness, Separation, UnprovenCoincidence};
+        let document = crate::DocumentId(1);
+        let mut report = super::ChecksReport {
+            document,
+            findings: vec![finding(Connectedness, 1), finding(Separation, 3)],
+            skipped: Vec::new(),
+            pending: vec![UnprovenCoincidence],
+        };
+        report.settle(super::DoorFindings {
+            document,
+            at: 1,
+            findings: vec![finding(UnprovenCoincidence, 2)],
+        });
+        assert!(report.pending.is_empty());
+        assert_eq!(
+            report.findings,
+            [
+                finding(Connectedness, 1),
+                finding(UnprovenCoincidence, 2),
+                finding(Separation, 3)
+            ]
+        );
+    }
 
     /// The variant name `Debug` opens with.
     fn variant_of(debug: &str) -> String {

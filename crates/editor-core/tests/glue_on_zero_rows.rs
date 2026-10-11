@@ -68,13 +68,13 @@ fn an_undeclared_flush_rest_glues_and_records_one_unproven_row() {
             )
             .expect("an uncanceled door")[0][0],
             Proof::Unproven {
-                recourse: coincide::Recourse::Assert,
+                recourse: coincide::Recourse::OneConstruction,
                 ..
             }
         ),
         "two constructions, no proof; the offset's form freezes at the door's budget \
-         (declared-rest-rows-are-two-values-or-too-big-to-close), so the recourse is an \
-         assertion"
+         (declared-rest-rows-are-two-values-or-too-big-to-close), which is no value \
+         computed apart from the variables, so the recourse is to build one construction"
     );
 }
 

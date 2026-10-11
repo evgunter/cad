@@ -125,7 +125,9 @@ fn prove_row(
     band: Option<Band>,
     cancel: &crate::CancelToken,
 ) -> Result<Result<Rung, Left>, Canceled> {
-    let left = |why| Ok(Err((why, Recourse::OneConstruction)));
+    // A row the replay left with no form of its own: nothing the door
+    // could read, so the recourse is the assertion.
+    let left = |why| Ok(Err((why, Recourse::Assert)));
     if row.site == topo::DecisionSite::CensusAtRest {
         return left(Unreplayed::NotReplayed);
     }
@@ -152,12 +154,14 @@ fn prove_row(
     if cancel.is_canceled() {
         return Err(Canceled);
     }
-    Ok(match deferred::discharge(replayed.margin) {
-        Some(how) => Ok(Rung::MarginIdentity(how)),
-        None if deferred::keeps_an_opaque_atom(replayed.margin) => {
+    Ok(match deferred::discharge_or_why(replayed.margin) {
+        Ok(how) => Ok(Rung::MarginIdentity(how)),
+        Err(deferred::Undischarged::KeepsAnOpaqueAtom) => {
             Err((Unreplayed::Numeric, Recourse::Assert))
         }
-        None => Err((Unreplayed::Numeric, Recourse::OneConstruction)),
+        Err(deferred::Undischarged::Otherwise) => {
+            Err((Unreplayed::Numeric, Recourse::OneConstruction))
+        }
     })
 }
 

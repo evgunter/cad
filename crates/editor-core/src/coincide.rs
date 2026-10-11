@@ -324,12 +324,15 @@ impl Residual {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Recourse {
     /// Build the two cells as one construction of the same variables,
-    /// or assert the coincidence at its site.
+    /// or assert the coincidence at its site: the residual the replay
+    /// read is a function of the variables alone that the door did not
+    /// show zero.
     OneConstruction,
-    /// Assert the coincidence at its site: the deciding margin keeps an
-    /// opaque atom ([`geom_core::sym::deferred::keeps_an_opaque_atom`]),
-    /// a form the door's budget froze or a value computed apart from
-    /// the variables, which no symbolic reading sees through.
+    /// Assert the coincidence at its site: the door has no form of the
+    /// row's residual to read ([`Unreplayed`] other than
+    /// [`Unreplayed::Numeric`]), or the one it read keeps a value
+    /// computed apart from the variables
+    /// ([`geom_core::sym::deferred::Undischarged::KeepsAnOpaqueAtom`]).
     Assert,
 }
 
@@ -343,8 +346,8 @@ impl Recourse {
                  the coincidence holds whatever their values, or assert it at its site"
             }
             Self::Assert => {
-                "Recourse: assert the coincidence at its site; what decided it keeps a value the \
-                 symbols do not see through, so no rebuilding shows it holds"
+                "Recourse: assert the coincidence at its site; the door cannot read what decided it \
+                 as a function of the variables"
             }
         }
     }
@@ -416,7 +419,7 @@ pub fn prove<P: crate::ProfilePayload>(
             .iter()
             .map(|(_, rows)| {
                 rows.iter()
-                    .map(|_| Err((Unreplayed::NotReplayed, Recourse::OneConstruction)))
+                    .map(|_| Err((Unreplayed::NotReplayed, Recourse::Assert)))
                     .collect()
             })
             .collect(),
