@@ -248,12 +248,13 @@ fn arc_loft_natively_computes_its_rational_volume() {
     // re-measure it: (1) this native quadrature; (2) the at-rest gate
     // INSIDE `import_step` below — the tier-3′ door, which computes
     // the imported body's enclosure to decide its +V invariant and
-    // hands it back as `StepImport::Solid`'s `enclosure`, so the
-    // bit-identity assertion below reads THAT object and no second
-    // quadrature runs on the imported body; (3) the gate inside the
-    // reversed-DATA re-import. Three, not four and not one. The
-    // fourth — a `mass_properties` on the reordered body — was removed
-    // on 2026-08-22 in favour of a body-identity comparison; see that
+    // hands it back as `StepImport::Solid`'s `enclosure`, which the
+    // assertions below read; (3) the gate inside the
+    // reversed-DATA re-import; (4) `mass_properties` on the imported
+    // body, which the bit-identity claim below is made against (the
+    // native body's face order is not the import's). A
+    // `mass_properties` on the reordered body was removed on
+    // 2026-08-22 in favour of a body-identity comparison; see that
     // arm.
     //
     // Tier 3 consumes exactly this number through its +V invariant, and
@@ -362,28 +363,64 @@ fn arc_loft_natively_computes_its_rational_volume() {
             // that check decided on.
             let got = enclosure;
             let want = native_props.expect("the native side certified");
-            // **BIT identity, not overlap** (R1 MINOR-2). Overlap is
-            // what soundness needs — two certified enclosures of one
-            // solid must intersect — but it is not what actually
-            // happens, and asserting the weaker fact would let a real
-            // divergence hide inside a pad. The reader reconstructs the
-            // same chart and the same trim, so the same quadrature runs
-            // on the same bits: pin THAT, and let a single ulp of drift
-            // be a finding.
+            // **BIT identity where it holds, a stated bound where it
+            // cannot** (R1 MINOR-2, re-scoped by
+            // `work/exch/arc-loft-round-trip-volume-differs-by-face-order.md`).
+            // Overlap is what soundness needs, and it is too weak to pin:
+            // a real divergence would hide inside a pad. What the reader
+            // reproduces is every FACE: the same chart and trim, so each
+            // face's quadrature runs on the same bits and returns the
+            // same flux (measured face by face). What it does not
+            // reproduce is the face ARENA order: its Euler-operator
+            // assembly allocates faces in its own order, and the body
+            // fold sums the face terms in plain `f64` in arena order
+            // (`topo::props`' `fold_runs`). So:
+            //
+            // * the import's gate enclosure IS `mass_properties` of the
+            //   imported body, bit for bit (same body, same order);
+            let imported = topo::mass_properties(&body, Tol::witness())
+                .expect("the imported body measures where its gate certified");
             assert_eq!(
-                got.volume.to_bits(),
-                want.volume.to_bits(),
-                "the round trip must reproduce the volume BIT-identically: \
-                 imported {} ± {}, native {} ± {}",
+                (got.volume.to_bits(), got.volume_pad.to_bits()),
+                (imported.volume.to_bits(), imported.volume_pad.to_bits()),
+                "the gate's enclosure must BE the imported body's measurement: \
+                 gate {} ± {}, measured {} ± {}",
+                got.volume,
+                got.volume_pad,
+                imported.volume,
+                imported.volume_pad,
+            );
+            // * native against imported, the same terms summed in two
+            //   orders: recursive summation of `n` terms in any order is
+            //   within `(n − 1)·u·Σ|xᵢ|` of the exact sum (u = 2⁻⁵³), so
+            //   two orders are within twice that. Every face term the fold
+            //   sums here is non-negative (the caps 9.14 and 0, the walls
+            //   6.2 and the rational wall 9.74, measured), so
+            //   `Σ|xᵢ| = 3·V`; the `/3` adds at most an ulp on each side.
+            //   Measured since PR 4553 moved the rational wall's flux
+            //   bits: about 1 ulp apart at ε = 1e-6 and 2 at 1e-9, against
+            //   a bound of about 10; 0 before. The pads are sums of the
+            //   same half-widths and take the same bound.
+            let n = topo::query::all_faces(&native).len();
+            #[allow(clippy::cast_precision_loss)]
+            let fold = |v: f64| 2.0 * (n - 1) as f64 * (f64::EPSILON / 2.0) * 3.0 * v.abs() / 3.0;
+            let ulp = |v: f64| f64::from_bits(v.abs().to_bits() + 1) - v.abs();
+            let (dv, dp) = (
+                (got.volume - want.volume).abs(),
+                (got.volume_pad - want.volume_pad).abs(),
+            );
+            assert!(
+                dv <= fold(want.volume) + 2.0 * ulp(want.volume),
+                "the round trip must reproduce the volume up to the fold's order: \
+                 imported {} ± {}, native {} ± {}, {dv:e} apart",
                 got.volume,
                 got.volume_pad,
                 want.volume,
                 want.volume_pad,
             );
-            assert_eq!(
-                got.volume_pad.to_bits(),
-                want.volume_pad.to_bits(),
-                "and the same certified pad: imported {}, native {}",
+            assert!(
+                dp <= fold(want.volume_pad) + 2.0 * ulp(want.volume_pad),
+                "and the same certified pad up to the fold's order: imported {}, native {}",
                 got.volume_pad,
                 want.volume_pad,
             );

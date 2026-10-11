@@ -1,11 +1,12 @@
 ---
 id: main-slow-set-reds-on-two-rows-since-4553
 kind: issue
-title: Main's slow set is red on two rows since PR 4553 (knot algebra off the ring): the sweep serial-golden digest and the arc-loft import volume bits
-status: open
+title: Main's slow set red since PR 4553: the sweep digest moved for 4553's ring refinement (re-cut), and the arc-loft round trip sums its faces in another order (row re-scoped)
+status: closed
 opened: 2026-10-11
 priority: P0
 branch: nurbs/main-slow-set-reds-since-4553
+closed: 2026-10-11
 ---
 
 
@@ -69,23 +70,19 @@ arena order. 4553 changed the rational face's flux bits, and with them
 whether the two orders happen to round alike. No enclosure was lost:
 this is not a soundness finding.
 
-**Still open: the fix needs a decision.**
-- *Sum in the shells' stored face order* (tried on this branch). The
-  import row goes green, but two green rows go red:
-  `sweep::fillet_h5_hostless_rim::a_hostless_rim_composes_with_a_shared_wall_neighbour`
-  and `sweep::blend_tworims::a_seam_split_rim_pair_on_shared_half_band_walls_composes_in_one_call`.
-  Both pin a one-call result bit-identical to a sequential
-  composition, and those two bodies agree in arena order but not in
-  shell order. A storage order is canonical for one equivalence and not
-  another, so this was reverted.
-- *Sum exactly* (a correctly rounded sum of the face terms, so the bits
-  are a function of the multiset of faces). It makes all three rows
-  pass by construction, but it needs a per-scalar summation on
-  `geom_core`'s scalar traits (`f64` exact; `Interval` directed; the
-  others sequential), and it moves every mass-property golden where the
-  sequential sum differs from the exact one.
-- *Or* re-scope the import row's claim to the per-face bits, which are
-  identical, and the overlap of the body enclosures.
+**Resolved on this branch by re-scoping the row**, as ENCL's repair (b)
+proposed (`work/exch/arc-loft-round-trip-volume-differs-by-face-order.md`):
+- bit identity is kept where it holds: the import's gate enclosure
+  against `topo::mass_properties` of the imported body, the same body
+  in the same order;
+- native against imported is bounded by the recursive sum's reordering
+  error, `2(n − 1)·u·Σ|xᵢ|`, which is `Σ|xᵢ| = 3V` here because every face
+  term is non-negative, plus an ulp per side for the `/3`.
+
+Summing in the shells' stored face order was tried first and backed
+out: it reddened two sweep composition rows that agree in arena order
+and not in shell order. An order-independent fold is FLUX's question,
+`work/flux/whole-body-volume-fold-depends-on-face-order.md`.
 
 PR 4551's `quad-de-boor-through-the-blossom-breaks-the-import-bit-identity`
 (on its branch) reads as the same mechanism: one ulp on the same body,
