@@ -400,7 +400,7 @@ mod tests {
             Point3::new(2.0, 0.0, -0.3),
             Point3::new(2.0, 1.0, 0.1),
         ];
-        NurbsSurface::<f64>::new(ku, kv, control, vec![1.0; 6]).unwrap()
+        NurbsSurface::<f64>::new(ku, kv, control, vec![geom_core::Real::one(); 6]).unwrap()
     }
 
     /// A poison `u*` locates no span, so the collapsed row is poison in
@@ -417,7 +417,13 @@ mod tests {
             .iter()
             .map(|p| p.map(geom_core::Dual64::constant))
             .collect();
-        let dual = NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap();
+        let dual = NurbsSurface::new(
+            geom_core::spline::Knots::constant(ku),
+            geom_core::spline::Knots::constant(kv),
+            control,
+            vec![geom_core::Real::one(); 6],
+        )
+        .unwrap();
         let row = interior_iso_u(&dual, geom_core::Dual64::variable(f64::NAN))
             .expect("a separable net collapses");
         for p in row.control() {

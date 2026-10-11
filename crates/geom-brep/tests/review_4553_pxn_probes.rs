@@ -15,6 +15,7 @@ use geom::{NurbsCurve3, NurbsSurface, Surface};
 use geom_brep::{PlaneNurbsLimbs, SsiTube};
 use geom_core::interval::Interval;
 use geom_core::spline::KnotVector;
+use geom_core::spline::{Knots, SpanLocate};
 use geom_core::{Band, Bounds, Point3, Real, Tol, Vec3};
 
 /// A cross-section in z = 0: knots, degree, (x, y) control, weights.
@@ -99,7 +100,7 @@ fn decade_families() -> [(&'static str, Section); 4] {
 }
 
 /// The section extruded by a degree-1 `v` over `z ∈ [0, 1]`.
-fn wall<T: Real>(s: &Section) -> NurbsSurface<T> {
+fn wall<T: SpanLocate>(s: &Section) -> NurbsSurface<T> {
     let (k, p, ctl, w) = s;
     let ku = KnotVector::clamped(k.clone(), *p).unwrap();
     let kv = KnotVector::clamped(vec![0., 0., 1., 1.], 1).unwrap();
@@ -109,36 +110,36 @@ fn wall<T: Real>(s: &Section) -> NurbsSurface<T> {
     for (i, (x, y)) in ctl.iter().enumerate() {
         for z in [0.0, 1.0] {
             control.push(Point3::new(f(*x), f(*y), f(z)));
-            weights.push(w[i]);
+            weights.push(f(w[i]));
         }
     }
-    NurbsSurface::new(ku, kv, control, weights).unwrap()
+    NurbsSurface::new(Knots::constant(ku), Knots::constant(kv), control, weights).unwrap()
 }
 
 fn section_curve(s: &Section) -> NurbsCurve3<f64> {
     let (k, p, ctl, w) = s;
     let ku = KnotVector::clamped(k.clone(), *p).unwrap();
     let control = ctl.iter().map(|(x, y)| Point3::new(*x, *y, 0.0)).collect();
-    NurbsCurve3::new(ku, control, w.clone()).unwrap()
+    NurbsCurve3::new(Knots::constant(ku), control, w.clone()).unwrap()
 }
 
 /// The vertical ruling of the wall through `(x, y)`.
-fn ruling<T: Real>(x: f64, y: f64) -> NurbsCurve3<T> {
+fn ruling<T: SpanLocate>(x: f64, y: f64) -> NurbsCurve3<T> {
     let f = T::from_f64;
     let kv = KnotVector::clamped(vec![0., 0., 1., 1.], 1).unwrap();
     NurbsCurve3::new(
-        kv,
+        Knots::constant(kv),
         vec![
             Point3::new(f(x), f(y), f(0.0)),
             Point3::new(f(x), f(y), f(1.0)),
         ],
-        vec![1.0, 1.0],
+        vec![Real::one(); 2],
     )
     .unwrap()
 }
 
 /// The vertical plane through `(x, y)` whose normal is `(tx, ty, 0)`.
-fn vplane<T: Real>(x: f64, y: f64, tx: f64, ty: f64) -> Surface<T> {
+fn vplane<T: SpanLocate>(x: f64, y: f64, tx: f64, ty: f64) -> Surface<T> {
     let f = T::from_f64;
     Surface::Plane {
         origin: Point3::new(f(x), f(y), f(0.0)),

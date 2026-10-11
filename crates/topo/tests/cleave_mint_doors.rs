@@ -9,12 +9,13 @@
 
 use crate::common;
 use crate::fixture::m7_8::{edge_findings, m7_8_cube, m7_8_edges, nurbs_wall};
+use geom_core::spline::{Knots, SpanLocate};
 
 use geom_core::{Dual64, Point3, Real, Tol};
 use topo::{Body, EdgeKey, EulerOpError, FaceKey, Rechart};
 
 /// The M7-8 edges of `body` with their restated specs, in arena order.
-fn wall_edges<T: Real>(body: &Body<T>) -> Vec<(EdgeKey, geom_brep::EdgeCurveSpec<T>)> {
+fn wall_edges<T: SpanLocate>(body: &Body<T>) -> Vec<(EdgeKey, geom_brep::EdgeCurveSpec<T>)> {
     body.edges()
         .filter_map(|(k, e)| match body.get_curve_geom(e.curve) {
             Some(topo::CurveGeom::Certified(c))
@@ -199,7 +200,8 @@ where
             witness: p0.lerp(p1, T::from_f64(0.5)),
         },
         carrier: geom::Curve3::Nurbs(std::sync::Arc::new(
-            geom::NurbsCurve3::new(kv, vec![p0, p1], vec![1.0, 1.0]).unwrap(),
+            geom::NurbsCurve3::new(Knots::constant(kv), vec![p0, p1], vec![Real::one(); 2])
+                .unwrap(),
         )),
         param_start: T::zero(),
         param_end: T::one(),

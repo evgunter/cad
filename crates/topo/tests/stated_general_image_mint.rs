@@ -35,6 +35,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Real;
+use geom_core::spline::Knots;
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
@@ -67,13 +69,13 @@ fn lamina<T: AtRestPolicy>(carrier: Carrier) -> (Body<T>, [FaceKey; 2]) {
     // The identity chart: row-major over `u` then `v`.
     let unit = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let net = NurbsSurface::new(
-        unit(),
-        unit(),
+        Knots::constant(unit()),
+        Knots::constant(unit()),
         [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
             .into_iter()
             .map(pt)
             .collect(),
-        vec![1.0; 4],
+        vec![Real::one(); 4],
     )
     .unwrap();
     let chart = body
@@ -140,9 +142,9 @@ fn lamina<T: AtRestPolicy>(carrier: Carrier) -> (Body<T>, [FaceKey; 2]) {
         let at = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
         let (p, q) = (at(start), at(end));
         let image = NurbsCurve2::new(
-            unit(),
+            Knots::constant(unit()),
             vec![Point2::new(p.x, p.y), Point2::new(q.x, q.y)],
-            vec![1.0; 2],
+            vec![Real::one(); 2],
         )
         .unwrap();
         let line = EdgeCurveSpec::line_between(p, q);
@@ -150,7 +152,8 @@ fn lamina<T: AtRestPolicy>(carrier: Carrier) -> (Body<T>, [FaceKey; 2]) {
             Carrier::Line => (line.carrier, line.param_start, line.param_end),
             Carrier::Spline => (
                 Curve3::Nurbs(Arc::new(
-                    NurbsCurve3::new(unit(), vec![p, q], vec![1.0; 2]).unwrap(),
+                    NurbsCurve3::new(Knots::constant(unit()), vec![p, q], vec![Real::one(); 2])
+                        .unwrap(),
                 )),
                 T::zero(),
                 T::one(),

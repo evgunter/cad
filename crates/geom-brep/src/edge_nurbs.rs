@@ -1833,7 +1833,12 @@ mod tests {
         let (a, b) = (0.1, 0.55);
         let piece = edge_piece(&carrier, a, b).unwrap();
         assert_eq!(piece.domain(), (a, b));
-        assert!(piece.weights().iter().all(|&x| x.to_bits() == w.to_bits()));
+        assert!(
+            piece
+                .weight_channel()
+                .iter()
+                .all(|&x| x.to_bits() == w.to_bits())
+        );
         let exact: Vec<[Q; 3]> = exact_piece(&knots, p, &ctl, a, 0.3)
             .into_iter()
             .chain(exact_piece(&knots, p, &ctl, 0.3, b).into_iter().skip(1))
