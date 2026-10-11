@@ -44,6 +44,7 @@ pub mod basis;
 pub mod blossom;
 pub mod compose;
 pub mod hull;
+pub mod knot_values;
 pub mod knots;
 pub mod locate;
 pub mod net;
@@ -55,6 +56,7 @@ pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
 };
 pub use hull::{CoeffWindow, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf};
+pub use knot_values::{KnotSpan, Knots};
 pub use knots::{
     KnotMirrorError, KnotVector, KnotVectorIssue, Span, SplineError, derivative_knot_slice,
 };

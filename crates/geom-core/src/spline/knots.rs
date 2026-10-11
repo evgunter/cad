@@ -64,6 +64,22 @@ pub enum SplineError {
         /// The requested upper end.
         hi: f64,
     },
+    /// A breakpoint held in the scalar reads as no single `f64` point
+    /// (`SpanLocate::point_value`): poison, or an enclosure wider than a
+    /// point. The `f64` knot vector is the values' value channel, and
+    /// such a value names no knot structure.
+    KnotNotAPoint {
+        /// Index of the offending run.
+        index: usize,
+    },
+    /// A breakpoint's value channel is not strictly above the one
+    /// before it: equal, the two runs would merge into one and the
+    /// structure would not be the runs written; below, the vector
+    /// decreases.
+    KnotRunsNotIncreasing {
+        /// Index of the offending run.
+        index: usize,
+    },
 }
 
 impl core::fmt::Display for SplineError {
@@ -105,6 +121,19 @@ impl core::fmt::Display for SplineError {
                  whose ends are finite with lo < hi and whose width does not overflow",
                 Readable(*lo),
                 Readable(*hi)
+            ),
+            SplineError::KnotNotAPoint { index } => write!(
+                f,
+                "breakpoint {index} is not one point (poison, or an enclosure wider than a \
+                 point), so it names no knot structure for the spans to be located in. \
+                 Recourse: supply a breakpoint that is a single number there"
+            ),
+            SplineError::KnotRunsNotIncreasing { index } => write!(
+                f,
+                "breakpoint {index} does not lie strictly above the one before it, so the two \
+                 would merge into one run or reverse the vector. Recourse: supply one \
+                 breakpoint with the summed multiplicity where the two are one knot, or \
+                 breakpoints that increase"
             ),
         }
     }
@@ -1916,8 +1945,24 @@ mod tests {
                 control: 4,
             },
             SplineError::DomainInvalid { lo: 1.0, hi: 1.0 },
+            SplineError::KnotNotAPoint { index: 1 },
+            SplineError::KnotRunsNotIncreasing { index: 2 },
         ];
-        assert_eq!(arms.len(), 6, "an arm was added without a row here");
+        // Exhaustive by the compiler: a new arm fails to build here
+        // until it is listed above.
+        for e in &arms {
+            match e {
+                SplineError::KnotVectorInvalid { .. }
+                | SplineError::NonPositiveWeight { .. }
+                | SplineError::NonFiniteWeight { .. }
+                | SplineError::ControlCountMismatch { .. }
+                | SplineError::WeightCountMismatch { .. }
+                | SplineError::DomainInvalid { .. }
+                | SplineError::KnotNotAPoint { .. }
+                | SplineError::KnotRunsNotIncreasing { .. } => {}
+            }
+        }
+        assert_eq!(arms.len(), 8, "an arm was added without a row here");
         // The repair is labelled, once: a wrapper that forwards this
         // carrier whole and adds a `Recourse:` of its own is then two
         // to the checker, not one it cannot see.

@@ -98,10 +98,6 @@ impl Pose {
     }
 }
 
-fn log_uniform(rng: &mut Rng, lo: f64, hi: f64) -> f64 {
-    10f64.powf(rng.range(lo.log10(), hi.log10()))
-}
-
 fn arc(rng: &mut Rng) -> (f64, f64) {
     let (m, h) = (rng.range(-PI, PI), rng.range(0.01, PI));
     (m - h, m + h)
@@ -122,7 +118,7 @@ fn graze(rng: &mut Rng, (c, a, big, small): ([f64; 3], Vec3<f64>, f64, f64), rho
     let tangent = (along_phi * g.cos() + along_psi * g.sin()).normalize();
     let b = rng.range(0.0, TAU);
     let toward = (normal * b.cos() + normal.cross(tangent) * b.sin()).normalize();
-    let depth = if rng.unit() < 0.5 { -1.0 } else { 1.0 } * log_uniform(rng, 1e-11, 1e-3);
+    let depth = if rng.unit() < 0.5 { -1.0 } else { 1.0 } * rng.log_uniform(1e-11, 1e-3);
     let center = on + normal * depth - toward * rho;
     let axis = toward.cross(tangent).normalize();
     let (t0, t1) = arc(rng);
@@ -147,17 +143,17 @@ fn near_parallel(rng: &mut Rng) -> Pose {
     let h0 = if rng.unit() < 0.5 {
         rng.range(-small, small)
     } else {
-        (small - log_uniform(rng, 1e-11, 1e-3)) * if rng.unit() < 0.5 { -1.0 } else { 1.0 }
+        (small - rng.log_uniform(1e-11, 1e-3)) * if rng.unit() < 0.5 { -1.0 } else { 1.0 }
     };
     let off = rng.range(0.0, 2.0);
     let side = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
     let contour = 1.0 + side * (small * small - h0 * h0).max(0.0).sqrt();
-    let dd = if rng.unit() < 0.5 { -1.0 } else { 1.0 } * log_uniform(rng, 1e-11, 1e-3);
+    let dd = if rng.unit() < 0.5 { -1.0 } else { 1.0 } * rng.log_uniform(1e-11, 1e-3);
     let rho = (contour + dd + if rng.unit() < 0.5 { -off } else { off })
         .abs()
         .max(1e-3);
     let z = Vec3::new(0.0, 0.0, 1.0);
-    let tilt = log_uniform(rng, 1e-15, 1e-3);
+    let tilt = rng.log_uniform(1e-15, 1e-3);
     let towards = z.cross(crate::boolean::conic_oracle::unit(rng)).normalize();
     let axis = (z + towards * tilt).normalize();
     let u_ref = axis
@@ -182,7 +178,7 @@ fn near_parallel(rng: &mut Rng) -> Pose {
 fn draw(rng: &mut Rng, family: usize) -> Pose {
     match family {
         0 => {
-            let rho = log_uniform(rng, 0.05, 5.0);
+            let rho = rng.log_uniform(0.05, 5.0);
             graze(rng, ([0.0; 3], Vec3::new(0.0, 0.0, 1.0), 1.0, 0.25), rho)
         }
         1 => {
@@ -194,7 +190,7 @@ fn draw(rng: &mut Rng, family: usize) -> Pose {
             let a = crate::boolean::conic_oracle::unit(rng);
             let big = rng.range(0.3, 3.0);
             let small = big * rng.range(0.05, 0.6);
-            let rho = log_uniform(rng, 0.1, 10.0);
+            let rho = rng.log_uniform(0.1, 10.0);
             graze(rng, (c, a, big, small), rho)
         }
         _ => near_parallel(rng),

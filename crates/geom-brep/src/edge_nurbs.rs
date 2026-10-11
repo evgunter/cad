@@ -285,9 +285,10 @@ impl CarrierDomainRefusal {
     ///
     /// # Panics
     ///
-    /// On a weight or count arm of [`SplineError`], which the door
-    /// never returns: it re-expresses the knots alone and carries the
-    /// validated net and weights over verbatim.
+    /// On a weight, count or held-breakpoint arm of [`SplineError`],
+    /// which the door never returns: it re-expresses an `f64` knot
+    /// vector alone and carries the validated net and weights over
+    /// verbatim.
     fn of(lo: f64, hi: f64, e: &SplineError) -> Self {
         let fault = match e {
             SplineError::DomainInvalid { .. } => CarrierDomainFault::Interval,
@@ -295,9 +296,11 @@ impl CarrierDomainRefusal {
             SplineError::NonPositiveWeight { .. }
             | SplineError::NonFiniteWeight { .. }
             | SplineError::ControlCountMismatch { .. }
-            | SplineError::WeightCountMismatch { .. } => unreachable!(
-                "the domain door re-expresses knots only, so it cannot refuse a weight or a \
-                 count: {e:?}"
+            | SplineError::WeightCountMismatch { .. }
+            | SplineError::KnotNotAPoint { .. }
+            | SplineError::KnotRunsNotIncreasing { .. } => unreachable!(
+                "the domain door re-expresses an f64 knot vector, so it cannot refuse a \
+                 weight, a count or a held breakpoint: {e:?}"
             ),
         };
         Self { lo, hi, fault }

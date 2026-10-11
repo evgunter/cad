@@ -837,6 +837,11 @@ impl crate::spline::SpanLocate for Interval {
     ) -> Vec<Self> {
         crate::spline::blossom::restrict_window(window, span, piece)
     }
+
+    fn point_value(self) -> Option<f64> {
+        let (lo, hi) = (Bounds::lo(self), Bounds::hi(self));
+        (lo == hi && !lo.is_nan()).then_some(lo)
+    }
 }
 
 /// Certified sign classification of an enclosure `[lo, hi]` against a
