@@ -12133,3 +12133,169 @@ mod edge_face_residual {
         );
     }
 }
+
+/// Delta probes (PR 4604 fix pass, R2): the material-crescent sign.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod r2_delta_sign {
+    use crate::boolean::contact_verify::tangent_locus_relation;
+    use geom::Surface;
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    fn cyl(cx: f64, r: f64) -> Surface<f64> {
+        Surface::Cylinder {
+            origin: Point3::new(cx, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            radius: r,
+            u_ref: Vec3::unit_x(),
+        }
+    }
+    fn plane(nx: f64) -> Surface<f64> {
+        Surface::Plane {
+            origin: Point3::new(1.0, 0.0, 0.0),
+            normal: Vec3::new(nx, 0.0, 0.0),
+            u_ref: Vec3::unit_y(),
+        }
+    }
+    fn read(s1: &Surface<f64>, k1: bool, s2: &Surface<f64>, k2: bool) -> String {
+        let line = geom::Curve3::Line {
+            origin: Point3::new(1.0, 0.0, 0.0),
+            dir: Vec3::unit_z(),
+        };
+        let band = Band::linear(Tol::witness()).unwrap();
+        let ab = tangent_locus_relation(s1, k1, s2, k2, &line, 0.0, 1.0, true, band);
+        let ba = tangent_locus_relation(s2, k2, s1, k1, &line, 0.0, 1.0, true, band);
+        let f = |r: Result<crate::contact::ContactVerdict, crate::contact::ContactRefusal>| match r
+        {
+            Ok(_) => "OK".to_owned(),
+            Err(crate::contact::ContactRefusal::Contradicted { diag, .. }) => {
+                format!("X:{}", diag.predicate.unwrap_or("?"))
+            }
+            Err(e) => format!("E:{e:?}"),
+        };
+        format!("{} / {}", f(ab), f(ba))
+    }
+
+    #[test]
+    fn table() {
+        let rows: Vec<(&str, Surface<f64>, bool, Surface<f64>, bool, &str)> = vec![
+            // plane x = 1; chart +x. Cylinder r = 1 at origin.
+            (
+                "plane material x>1 (out -x), rod (in)",
+                plane(1.0),
+                false,
+                cyl(0.0, 1.0),
+                true,
+                "OK",
+            ),
+            (
+                "same, plane chart -x",
+                plane(-1.0),
+                true,
+                cyl(0.0, 1.0),
+                true,
+                "OK",
+            ),
+            (
+                "plane material x<1 (out +x), bore (out of cyl)",
+                plane(1.0),
+                true,
+                cyl(0.0, 1.0),
+                false,
+                "X",
+            ),
+            (
+                "same, plane chart -x",
+                plane(-1.0),
+                false,
+                cyl(0.0, 1.0),
+                false,
+                "X",
+            ),
+            (
+                "plane out +x, rod",
+                plane(1.0),
+                true,
+                cyl(0.0, 1.0),
+                true,
+                "X",
+            ),
+            (
+                "plane out -x, bore",
+                plane(1.0),
+                false,
+                cyl(0.0, 1.0),
+                false,
+                "X",
+            ),
+            // internal: R = 1 at origin, r = 0.5 at 0.5.
+            (
+                "peg in hole: pin in, bore out",
+                cyl(0.5, 0.5),
+                true,
+                cyl(0.0, 1.0),
+                false,
+                "OK",
+            ),
+            (
+                "crescent: pin out, big in",
+                cyl(0.5, 0.5),
+                false,
+                cyl(0.0, 1.0),
+                true,
+                "X",
+            ),
+            (
+                "internal both in",
+                cyl(0.5, 0.5),
+                true,
+                cyl(0.0, 1.0),
+                true,
+                "X",
+            ),
+            (
+                "internal both out",
+                cyl(0.5, 0.5),
+                false,
+                cyl(0.0, 1.0),
+                false,
+                "X",
+            ),
+            // external: r = 1 at origin and at 2.
+            (
+                "external rods",
+                cyl(0.0, 1.0),
+                true,
+                cyl(2.0, 1.0),
+                true,
+                "OK",
+            ),
+            (
+                "external both bores",
+                cyl(0.0, 1.0),
+                false,
+                cyl(2.0, 1.0),
+                false,
+                "X",
+            ),
+            (
+                "external rod + bore",
+                cyl(0.0, 1.0),
+                true,
+                cyl(2.0, 1.0),
+                false,
+                "X",
+            ),
+        ];
+        let mut bad = Vec::new();
+        for (name, s1, k1, s2, k2, want) in rows {
+            let got = read(&s1, k1, &s2, k2);
+            eprintln!("{name}: {got}");
+            let ok = got.split(" / ").all(|g| g.starts_with(want));
+            if !ok {
+                bad.push(format!("{name}: want {want}, got {got}"));
+            }
+        }
+        assert!(bad.is_empty(), "{bad:#?}");
+    }
+}
