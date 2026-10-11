@@ -2042,15 +2042,17 @@ pub fn cylinder_sphere_section<T: Decide>(
 /// outside the conic inventory (R1).
 #[derive(Clone, Debug)]
 pub enum PlaneConeSection<T: Real> {
-    /// Apex on the plane, plane cutting inside the cone: two generator
-    /// lines through the apex.
+    /// Apex on the plane, plane cutting inside the cone, and the real
+    /// plane's section starting within the zero band of the apex on both
+    /// nappes: two generator lines through the apex.
     ApexLinePair {
         /// The generator at azimuth `φ + δ`.
         l1: Curve3<T>,
         /// The generator at azimuth `φ − δ`.
         l2: Curve3<T>,
     },
-    /// Apex on the plane, plane tangent along one generator —
+    /// Apex on the plane, plane tangent along one generator, and the
+    /// real plane's section starting within the zero band of the apex —
     /// classification data, not a constructible edge (C7 / M5 PR 9).
     ApexTangentLine(Curve3<T>),
     /// Apex on the plane, plane through it clearing the cone, and the
@@ -2096,14 +2098,32 @@ pub enum PlaneConeSection<T: Real> {
 ///    discriminant, here at its degenerate column: positive exactly when
 ///    the plane dips inside the cone), read with step 1's apex gap
 ///    beside it ([`decide_across`]; `pn_apex_section_floor` decides the
-///    definite side): Positive ⇒
-///    [`PlaneConeSection::ApexLinePair`], Zero ⇒
-///    [`PlaneConeSection::ApexTangentLine`], Negative ⇒ step 2a.
+///    definite side): Positive ⇒ step 2b, Zero ⇒ step 2c, Negative ⇒
+///    step 2a.
 ///
-///    2a. `pn_apex_point_reach` — margin `|δ|/|D|` (δ the apex gap of
-///    step 1), the farthest the real plane's ellipse reaches from the
-///    apex: Zero ⇒ [`PlaneConeSection::ApexPoint`]; Positive ⇒ the
-///    ellipse is the section, steps 3–4.
+///    **Where the real plane's section lies from the apex.** A unit
+///    generator `g` meets the real plane `−δ/(g·n)` from the apex (δ
+///    the apex gap of step 1), on the nappe the sign names, and `g·n`
+///    runs over `[−D, M]` with `M = sin α·‖axis×normal‖ +
+///    cos α·|axis·normal|` (mirrored where `axis·normal < 0`). So where
+///    `D > 0` one nappe's section starts `|δ|/M` from the apex and the
+///    other's `|δ|/D`, with `D ≤ M`; where `D < 0` the section is an
+///    ellipse on one nappe, whose farthest point stands `|δ|/|D|` off.
+///    Each step below decides one of these distances as a magnitude,
+///    levered by `|δ|`: Zero serves the apex outcome, Positive leaves
+///    the section to steps 3–4.
+///
+///    2a. `pn_apex_point_reach` — margin `|δ|/|D|`, the farthest the
+///    ellipse reaches: Zero ⇒ [`PlaneConeSection::ApexPoint`].
+///
+///    2b. `pn_apex_pair_reach` — margin `|δ|/D`: the pair runs through
+///    the apex on both nappes, so it is bounded by the farther start.
+///    Zero ⇒ [`PlaneConeSection::ApexLinePair`].
+///
+///    2c. `pn_apex_tangent_reach` — margin `|δ|/M`: the tangent
+///    generator stands in for a touching whose clearing nappe may carry
+///    no section, so it is bounded by the nearer start. Zero ⇒
+///    [`PlaneConeSection::ApexTangentLine`].
 /// 3. `pn_axis_normal` — margin `‖axis×normal‖·arm`, arm the larger of
 ///    the would-be circle's radius `|δ/c|·tan α` (δ the apex's distance
 ///    from the plane, `c = axis·normal`) and `extent`, the reach over
@@ -2209,67 +2229,60 @@ pub fn plane_cone_section<T: Decide>(
             band,
         )
         .map_err(SectionError::Escalated)?;
-        match verdict {
-            Sign::Positive | Sign::Zero => {
-                let v_ref = a.cross(cone_u);
-                let (nu, nv) = (cone_u.dot(n), v_ref.dot(n));
-                let phi = nv.atan2(nu);
-                // Clamped acos argument (outward-rounding can push
-                // it a hair past ±1 at the tangency boundary —
-                // min/max are Real lattice ops, evaluation-legal).
-                let arg = ((T::zero() - cos_a * c) / (sin_a * s))
-                    .min(T::one())
-                    .max(T::zero() - T::one());
-                let delta = arg.acos();
-                let gen_at = |u: T| -> Curve3<T> {
-                    let (su, cu) = u.sin_cos();
-                    Curve3::Line {
-                        origin: apex,
-                        dir: a * cos_a + (cone_u * cu + v_ref * su) * sin_a,
-                    }
-                };
-                return if verdict == Sign::Zero {
-                    Ok(PlaneConeSection::ApexTangentLine(gen_at(phi + delta)))
-                } else {
-                    Ok(PlaneConeSection::ApexLinePair {
-                        l1: gen_at(phi + delta),
-                        l2: gen_at(phi - delta),
-                    })
-                };
+        // Where the real plane's section starts or reaches from the apex
+        // (step 2's doc): the apex outcome stands in for it only within
+        // the zero band.
+        let (name, slope) = match verdict {
+            Sign::Positive => ("pn_apex_pair_reach", discr),
+            Sign::Zero => ("pn_apex_tangent_reach", sin_a * s + cos_a * c.abs()),
+            Sign::Negative => ("pn_apex_point_reach", discr.abs()),
+        };
+        let reach = Margin::levered(T::one() / slope, apex_gap.abs());
+        if decide_magnitude(name, reach, band).map_err(SectionError::Escalated)? == Magnitude::Zero
+        {
+            if verdict == Sign::Negative {
+                return Ok(PlaneConeSection::ApexPoint(apex));
             }
-            // The plane through the apex clears the cone, but the real
-            // plane, `apex_gap` off it, cuts the ellipse the off-apex
-            // lane builds: on a generator `g` it lies `|δ|/|g·n|` from
-            // the apex, and `min |g·n| = cos α·|c| − sin α·s = −D`
-            // (`D` definitely negative here), so the section's farthest
-            // point stands `|δ|/|D|` from the apex and every other is
-            // nearer. The apex point stands in for that ellipse only
-            // where this reach is inside the zero band; past it, the
-            // ellipse is the section, built below.
-            Sign::Negative => {
-                let reach = Margin::levered(T::one() / discr.abs(), apex_gap.abs());
-                if decide_magnitude("pn_apex_point_reach", reach, band)
-                    .map_err(SectionError::Escalated)?
-                    == Magnitude::Zero
-                {
-                    return Ok(PlaneConeSection::ApexPoint(apex));
+            let v_ref = a.cross(cone_u);
+            let (nu, nv) = (cone_u.dot(n), v_ref.dot(n));
+            let phi = nv.atan2(nu);
+            // Clamped acos argument (outward-rounding can push
+            // it a hair past ±1 at the tangency boundary —
+            // min/max are Real lattice ops, evaluation-legal).
+            let arg = ((T::zero() - cos_a * c) / (sin_a * s))
+                .min(T::one())
+                .max(T::zero() - T::one());
+            let delta = arg.acos();
+            let gen_at = |u: T| -> Curve3<T> {
+                let (su, cu) = u.sin_cos();
+                Curve3::Line {
+                    origin: apex,
+                    dir: a * cos_a + (cone_u * cu + v_ref * su) * sin_a,
                 }
-            }
+            };
+            return Ok(if verdict == Sign::Zero {
+                PlaneConeSection::ApexTangentLine(gen_at(phi + delta))
+            } else {
+                PlaneConeSection::ApexLinePair {
+                    l1: gen_at(phi + delta),
+                    l2: gen_at(phi - delta),
+                }
+            });
         }
     }
-    // The section of a plane off the apex, or of one whose ellipse
-    // reaches past the band from it (step 2a): axis-normal circle,
-    // else the conic the tilt makes. A Zero here stands the circle in
-    // for the plane's true section, so the tilt's sine is levered
-    // at the longest reach over which that stand-in is read: the
-    // circle's own radius, and the extent the conic type is
-    // metered at. Tilting the plane by `s` about the circle's
-    // centre moves it by at most `s` times the reach, so a Zero
-    // at the larger of the two keeps every point the section is
-    // read at within the zero band. Both are read off the plane's
-    // NORMAL, never its stored origin: a plane along the axis
-    // (`s = 1`) reads definite at the extent wherever its origin
-    // sits, however close it passes the apex.
+    // The section of a plane off the apex, or of one whose section
+    // starts or reaches past the band from it (steps 2a–2c): the
+    // axis-normal circle, else the conic the tilt makes. A Zero here
+    // stands the circle in for the plane's true section, so the tilt's
+    // sine is levered at the longest reach over which that stand-in is
+    // read: the circle's own radius, and the extent the conic type is
+    // metered at. Tilting the plane by `s` about the circle's centre
+    // moves it by at most `s` times the reach, so a Zero at the larger
+    // of the two keeps every point the section is read at within the
+    // zero band. Both are read off the plane's NORMAL, never its stored
+    // origin: a plane along the axis (`s = 1`) reads definite at the
+    // extent wherever its origin sits, however close it passes the
+    // apex.
     //
     // The circle is built where the axis meets the plane, at
     // `t = −δ/c` from the apex (`c` is ±1 within the band here).
