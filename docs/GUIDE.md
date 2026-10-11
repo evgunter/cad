@@ -1926,7 +1926,6 @@ let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p.into(), distance: 
 doc = next;
 let (next, solid) = insert(&doc, Node::Union {
     members: Bodies::Spelled(vec![plate.into(), tab.into()]),
-    declare: Vec::new(),
 });
 doc = next;
 
