@@ -73,8 +73,6 @@ LETTERS = ("H", "M", "L", "S")
 MISSES = ("no", "holdout", "escape")
 REQUIRED = ("arm", "letter", "tallied", "major", "excluded", "miss")
 ORDER = ("dr", *REQUIRED)
-FULL_READOUT_UNITS = 20     # rule 9: a full readout at twenty M-tier units
-FULL_READOUT_MISSES = 2     # rule 9: or at the second M-tier miss
 OLD_ROW = re.compile(r"^\|\s*(DR-[^|]*?)\s*\|")
 
 
@@ -290,9 +288,7 @@ def render_foot(foot: Foot) -> str:
     unit_bits = []
     for w in foot.units:
         if w.through is None:
-            owed = " A full readout is owed (rule 9)." if len(w.rows) >= FULL_READOUT_UNITS else ""
-            unit_bits.append(f"toward the next full readout ({FULL_READOUT_UNITS}, or {FULL_READOUT_MISSES} "
-                             f"M-tier misses), {_span(w)}: {len(w.rows)} ({_list(w.rows, dup)}).{owed}")
+            unit_bits.append(f"since the last full readout, {_span(w)}: {len(w.rows)} ({_list(w.rows, dup)})")
         else:
             unit_bits.append(f"{_span(w)}: {len(w.rows)} ({_list(w.rows, dup)})")
     parts.append("**M-tier units under rule 1's arms, " + "; ".join(unit_bits) + "**")
@@ -300,8 +296,7 @@ def render_foot(foot: Foot) -> str:
     for w in foot.misses:
         listed = ", ".join(f"{_label(r, dup)} ({r.miss})" for r in w.rows) or "none"
         if w.through is None:
-            owed = " A full readout is owed (rule 9)." if len(w.rows) >= FULL_READOUT_MISSES else ""
-            miss_bits.append(f"{_span(w)}: {len(w.rows)} ({listed}).{owed}")
+            miss_bits.append(f"since the last full readout, {_span(w)}: {len(w.rows)} ({listed})")
         else:
             miss_bits.append(f"{_span(w)}: {listed}")
     parts.append("**M-tier misses, " + "; ".join(miss_bits) + "**")
@@ -569,7 +564,10 @@ def selftest() -> int:
     check("duplicates", {k: sorted(r.pr for r in v) for k, v in foot.duplicates.items()}
           == {149: [4554, 4583], 150: [4540, 4557]}, foot.duplicates)
     text = render_foot(foot)
-    check("foot text: owed", text.count("A full readout is owed (rule 9).") == 1, text)
+    check("foot text: no threshold", "owed" not in text and "toward" not in text, text)
+    check("foot text: open window", "since the last full readout, after readout 4's trigger (DR-144): 12 (" in text
+          and "since the last full readout, after readout 4's trigger (DR-144): 2 (DR-147 (holdout), "
+              "DR-165 (holdout))" in text, text)
     check("foot text: duplicate labels", "DR-149 (#4583)" in text and "DR-150 (#4540)" in text, text)
 
     # 2. Row validation.

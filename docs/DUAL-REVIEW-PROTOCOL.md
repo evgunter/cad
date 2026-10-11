@@ -118,14 +118,10 @@ under.
    `docs/DUAL-REVIEW-LOG.md`, which is generated and never
    hand-edited. No PR assigns a number, and a row already numbered is
    never renumbered.
-9. **Readout point.** Two kinds of readout are owed (Ev, 2026-10-08,
-   PR 4283):
-   - a **full readout** when TWENTY M-tier units have been recorded
-     under rule 1's arms (holdout and sequential together), or at the
-     second M-TIER MISS after the last full readout's trigger,
-     whichever comes first;
-   - a **short readout** at any other M-tier miss: an FYI to Ev naming
-     the miss, with no options.
+9. **Readout point.** Two kinds of readout (Ev, 2026-10-11, PR 4645):
+   - a **short readout** at EVERY M-tier miss: an FYI to Ev naming
+     the miss, with no options;
+   - a **full readout** only when Ev requests one.
 
    An M-tier miss is either
    - a tallied finding in a holdout pair whose other review raised no
@@ -134,15 +130,15 @@ under.
    - a later escape (rule 11) traced to a sequential unit that meets
      rule 6(b) and (d) and that no review of the unit raised as MAJOR.
 
-   This is a readout, not a stop — the arms continue until Ev rules
-   on the result. The orchestrator recording the triggering row asks
-   Ev per `CLAUDE.md` "Asking Ev". The running tally, the count of
-   fair pairs that found any MAJOR, the count of M-tier units toward
-   twenty and the M-tier misses are computed from the rows' front
-   matter and rendered at the foot of the log's rows table; a full
-   readout's trigger, once Ev has ruled on it, is recorded in
-   `docs/dual-review-log/readouts.md`, which closes the counting
-   window.
+   A readout is not a stop — the arms continue until Ev rules
+   otherwise. The orchestrator recording a row that is an M-tier miss
+   sends the short readout per `CLAUDE.md` "Asking Ev". The running
+   tally, the count of fair pairs that found any MAJOR, the M-tier
+   units and the M-tier misses since the last full readout are
+   computed from the rows' front matter and rendered at the foot of
+   the log's rows table; a full readout, once Ev has ruled on it, is
+   recorded in `docs/dual-review-log/readouts.md` by its trigger,
+   which closes the counting window.
 10. **Readouts are off-file**, on the standing A/B rule: a directional
     result ("the second review rarely finds anything") creates
     expectancy effects on how pairs are adjudicated and triaged. They
