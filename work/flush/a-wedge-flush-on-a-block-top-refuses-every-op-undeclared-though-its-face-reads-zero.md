@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-11
 priority: P1
 cost: M
+branch: flush/wedge-flush-reads-zero
 ---
 
 
@@ -75,3 +76,80 @@ The pre-PR-3866 history of this fixture is in the closed row
 `a-declared-flush-wedge-sunk-in-a-block-refuses-its-intersect-join-desync`,
 and its volume-backstop residue in
 `work/reachhold/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`.
+
+## Measured after F (`flush/wedge-flush-reads-zero`)
+
+On main `121741a2b` (F merged), release build, the fixture's poses
+through the plain booleans: both orders, every op, `k ∈ {±1.2, ±2}`,
+standing and sunk. **All 48 runs per ε row refuse, at ε 1e-9, 1e-6
+and 1e-12 alike** (144 runs), each `Escalated { decision:
+Coincidence(Sectors, ..) }` quoting the bounds' margin `|θ|·sin 5°`
+(1.046e-10 at 1.2ε, 1.743e-10 at 2ε, ε 1e-9). Same outcome as the
+declared spelling's undeclared twin before F.
+
+The row's premise misses one reading: **the glue door
+(`glue::decided_declarations` → `carrier_pair_relation`) reads the pair
+in the sliver band at every pose**: `bool_plane_parallel` 3.25ε at
+`k = ±1.2`, 5.42ε at `k = ±2` (band `(ε, 10ε)`), at every ε row. The
+pair's consumed extent is both faces (`carrier_pair::pair_extent`, the
+ball enclosing them), and the block's top reaches ~2.3 m from the
+wedge's hinge, so the block's far corners stand off the wedge's plane by
+~2.3θ: in band in exact arithmetic too, not a lever artefact. The
+wedge's face stands off the block's plane by a Zero margin, but the
+block's face stands off the wedge's by an in-band one.
+
+## The reading
+
+- **The refusal is right under the ratified design.** topo README C2:
+  "conformality is decided by the carrier ladder's margins over the
+  consumed extent — Zero is one carrier, in band escalates unless a
+  declaration bridges it"; D10 (Booleans) refuses what falls in the
+  sliver band and retires the declaration that bridged it. The declared
+  spelling built only because a `Rest`/continuation declaration bridged
+  the in-band residue (C4: "bridged only where that displacement's upper
+  bound is in band at every consumed point"). F's premise that a
+  declaration moves no body fails here because this bridge was real, and
+  D10 retires it on purpose.
+- **The corner's reason is true, and its offer executes.** With θ fixed
+  at 2e-9 (the 1e-9 row's `k = ±2`): at ε 5.3e-10 (just under the
+  offer the glue door's 5.4e-9 margin would make) every op still refuses
+  at the corner; at ε 1.7e-11 (just under the corner's offer, 1.74e-11)
+  the glue door reads Distinct and the ops build sound (tier 3′ clean)
+  or refuse `CrossingInsertion` (`NotTransverse`) with an offer of their
+  own, 1.5e-12. So the corner names the margin a smaller tolerance has
+  to clear, and the glue door's reading does not.
+- **The span lever (`ReadOn::FirstBounds`, `s1.span()`) stands in for
+  the sector's region, not the faces'**, and it over-reaches a thin
+  convex sector: a ball of radius `span` about the corner holds points
+  `span / sin 5°` farther from the hinge than the sector's own bounds.
+  Read over the sector itself, the corner would read Zero, and then
+  refuse as `carrier_unglued_coincidence`, since the glue door did not
+  glue the pair. So the lever moves the route, not the outcome: the
+  outcome is fixed by the glue door's in-band verdict.
+- **The build-instead option changes a ratified clause.** Building
+  needs a pair read over only the face that moves (the wedge's, the
+  overlap), with the merged face keeping the description the other face
+  lies on. D10 says "keeping one fixed operand's description for a
+  merged face", and C2 reads conformality over the consumed extent (both
+  faces). With A the wedge and the sunk pose's union, the merged top face
+  would sit on the wedge's carrier with the block's far corners in band
+  off it. That is a design fork (designers, then Ev), not built here.
+
+## Pinned
+
+- `crates/topo/tests/wedge_flush_on_a_block_top.rs`: every pose, both
+  orders, every op refuses `Coincidence(Sectors)` quoting `|θ|·sin 5°`,
+  and the glue door reads the pair in band (`PlaneRung::Parallel`,
+  margin in `(zero, escalate)`), at every ε row.
+- `boolean/offer_rows.rs`: `thin_wedge_in_band_over_its_faces` executes
+  the corner's offer on a pose the glue door reads in band (T1, passes
+  at 1.57e-11), beside `thin_wedge_on_a_block`, whose glue door reads
+  Distinct; `the_in_band_wedge_is_in_band_at_the_glue_door` holds that
+  difference.
+
+No kernel change. INTENT's
+`an-in-band-glue-verdict-is-refused-as-the-corner-arms-unglued-coincidence`
+is the same structure (glue door in band, the corner reports its own
+reading) but not one fix: its owed fix, refusing with the glue door's
+reading wherever a later arm meets the pair, would quote a false offer
+on these poses (evidence added to that row).

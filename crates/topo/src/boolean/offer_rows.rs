@@ -233,6 +233,11 @@ cases! {
     // its bounds still read On: the bounds' margin decides it.
     thinner_wedge_tilted_past_the_band: "Coincidence(Sectors)", 1.5e-8 * sin_deg(2.0), Public,
         Valued => wedge_on_a_block(super::super::BooleanOp::Union, 2.0, 1.5e-8);
+    // Tilted in band over the two faces, so the glue door leaves the pair
+    // unglued: the corner's bounds' margin, not the glue door's, is the
+    // one a smaller tolerance clears.
+    thin_wedge_in_band_over_its_faces: "Coincidence(Sectors)", 2e-9 * sin_deg(5.0), Public,
+        Valued => wedge_on_a_block(super::super::BooleanOp::Union, 5.0, 2e-9);
     // The coincfr4 review's wedges (W1–W4), on its own poses: turned,
     // scaled, hanging from the bottom face, and tilted into the block,
     // each through the three public ops.
@@ -1048,6 +1053,47 @@ fn lane_wedge(opening_deg: f64, tilt: f64) -> (crate::AtRestBody<f64>, crate::At
         ),
         finished("the lane's wedge", wedge, tol),
     )
+}
+
+/// `thin_wedge_in_band_over_its_faces`' glue door reads its pair in band
+/// over the two faces, and `thin_wedge_on_a_block`'s reads it apart: the
+/// two cases are the corner's refusal with and without an in-band glue
+/// verdict before it.
+#[test]
+fn the_in_band_wedge_is_in_band_at_the_glue_door() {
+    use super::super::carrier_pair::carrier_pair_relation;
+    let band = design_band();
+    let read = |tilt: f64| {
+        let (block, wedge) = lane_wedge(5.0, tilt);
+        let face = |body: &crate::Body<f64>, up: bool| {
+            body.faces()
+                .map(|(k, _)| k)
+                .find(|&k| {
+                    matches!(crate::face_carrier(body, k),
+                        Some(crate::CarrierDesc::Plane { normal, .. }) if (normal.z > 0.99) == up
+                            && normal.z.abs() > 0.99)
+                })
+                .unwrap()
+        };
+        carrier_pair_relation(
+            &block,
+            face(&block, true),
+            &wedge,
+            face(&wedge, false),
+            false,
+            band,
+        )
+    };
+    assert!(
+        matches!(read(2e-9), Ok(Err(crate::CarrierEqError::Escalated { .. }))),
+        "in band at 2e-9: {:?}",
+        read(2e-9)
+    );
+    assert!(
+        matches!(read(D), Ok(Ok(crate::CarrierRelation::Distinct))),
+        "apart at D: {:?}",
+        read(D)
+    );
 }
 
 /// Two corners sharing an edge along `z`, one flanked by a cylinder

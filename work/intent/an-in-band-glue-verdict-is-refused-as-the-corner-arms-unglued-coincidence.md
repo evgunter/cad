@@ -42,3 +42,25 @@ the tolerance as recourse) wherever a later arm meets it. Do not have
 the corner arm report an unglued Zero for such a pair. The a7 ε/16 rung
 is the witness, pinned as `Rung::Escalates { node: union, predicate:
 "carrier_unglued_coincidence" }`, and that pin moves with the fix.
+
+## Evidence from FLUSH (`flush/wedge-flush-reads-zero`, 2026-10-11)
+
+FLUSH's
+`work/flush/a-wedge-flush-on-a-block-top-refuses-every-op-undeclared-though-its-face-reads-zero`
+is the same structure: the glue door reads a planar pair in band over
+both faces (`bool_plane_parallel` 3.25ε to 5.42ε) and leaves it unglued,
+and the corner arm then refuses with its own reading
+(`Coincidence(Sectors)` via `recl.rs` `unglued_tilt`, quoting the
+wedge's bounds' Zero margin). There, the corner's reading is the one a
+smaller tolerance has to clear: with the geometry fixed, the ops still
+refuse at the corner just under the offer the glue door's margin would
+make (ε 5.3e-10), and just under the corner's (1.7e-11) they build or meet a
+refusal with its own offer. So "refuse
+with the glue door's reading wherever a later arm meets the pair" would
+quote a false offer on those poses. A fix here should quote whichever
+reading's offer is the smaller (both decisions have to clear for the op
+to pass), or keep the corner's reading where it carries a nonzero margin
+and use the glue door's only where the corner's is an exact Zero, as at
+a7's ε/16 rung. Pinned in FLUSH's PR:
+`crates/topo/tests/wedge_flush_on_a_block_top.rs` and `offer_rows`'
+`thin_wedge_in_band_over_its_faces`.
