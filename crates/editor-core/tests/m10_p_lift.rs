@@ -403,9 +403,12 @@ fn the_evaluation_door_runs_the_lift_at_dual() {
 
 /// **A lofted body at `Interval` is the same under both lifts.** A loft
 /// reads its sections' profile values, and at `Interval` it encloses
-/// the `f64` skin of their value channel (`sweep::loft_profiles`); with
-/// no parameter box the two lifts' profile values hold the same points,
-/// so the lofted body is bit for bit one body. The profile node's own
+/// the `f64` skin of their value channel (`sweep::loft_profiles`). The
+/// loft prism's sections are polygons on unrotated frames, so with no
+/// parameter box the two lifts' profile values hold the same points,
+/// and the lofted body is bit for bit one body. An arc section or a
+/// rotated authored frame is not such a document: under the guided lift
+/// its values are a few ulps wide, and the loft refuses. The profile node's own
 /// payload under the guided lift is elaborated at the lane (its vertex
 /// enclosures are the lane's own).
 #[test]

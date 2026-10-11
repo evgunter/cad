@@ -976,10 +976,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // recourse is "seed at a scalar with a tangent channel" (or
         // name a continuous parameter), not the box's.
         C::Seed => "seed",
-        // The seed stopped at a C6/D9-pinned section: its own tag,
-        // because the recourse ("this parameter cannot be seeded
-        // through a loft or sweep section") is neither the box's nor
-        // the scalar's.
         C::WrongOperand => "wrong_operand",
         // An operand reads a variable its operation no longer defines:
         // the delete that removed it reported the strand.
@@ -1023,8 +1019,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::Shell => "shell",
         C::ShellLaneUnsupported => "shell_lane_unsupported",
         // The derived sketch frame's refusals (DOCM-1): one
-        // carrier-kind refusal, one read-back refusal, and the section
-        // refusal DM1c adds.
+        // carrier-kind refusal and one read-back refusal.
         C::FaceFrameNotPlanar => "face_frame_not_planar",
         C::FaceFrameReadback => "face_frame_readback",
         // **No new word.** A carried frame refusal is the SAME fact

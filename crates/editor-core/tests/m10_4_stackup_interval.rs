@@ -1606,6 +1606,30 @@ fn a_loft_section_seed_rides_the_section_to_the_measure() {
         }
         other => panic!("a section seed must reach the measure: {other:?}"),
     }
+
+    // The drive is where the box meets the section, and at `Interval` a
+    // section with a width is no point: every leaf's loft refuses
+    // `SectionNotAPoint`, so nothing certifies and the driver bisects to
+    // its budget (that refusal is not one a smaller box can lift, and
+    // the drive has no terminal class for it). The `Interval` loft over
+    // a boxed section waits on
+    // `work/inlane/the-skin-at-interval-encloses-the-nominal-skin.md`;
+    // this pins where it stands, so the day it lands this row moves.
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let verdict = drive(&doc, &analyzed, &config(256), Tol::witness()).expect("builds");
+    assert!(
+        verdict.certified().is_empty(),
+        "a boxed section certifies nothing at Interval yet: {:?}",
+        verdict.receipt()
+    );
+    assert!(
+        verdict
+            .refused()
+            .iter()
+            .all(|leaf| matches!(leaf.reason, editor_core::drive::RefusalReason::Budget(_))),
+        "every leaf is refused mass under the budget: {:?}",
+        verdict.refused().first().map(|l| &l.reason)
+    );
 }
 
 /// **DATUM — an untoleranced parameter is no axis, and blocks nothing.**

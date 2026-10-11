@@ -127,8 +127,19 @@ clauses are rewritten.
 - At `Dual`, a seed on a section's radius moves the lofted wall
   (`eval10_section_reads_the_nominal`'s
   `a_seed_on_a_section_radius_moves_the_lofted_wall`).
-- At `Interval`, a box reaching a section refuses typed
-  (`SectionNotAPoint`), and never lofts the nominal over the box.
+- At `Interval` under the guided lift, a box reaching a section
+  refuses typed (`SectionNotAPoint`) rather than lofting the nominal
+  over the box. So does a section with no box whose values are a few
+  ulps wide: an arc's sweep, and the plane of a rotated authored frame
+  (`PlacementNotAPoint`). Main lofted both, and the E6 drive over such a
+  document now bisects to its budget on refused leaves.
+- Under the pinned lift a section's values are its `f64` form lifted,
+  as an extrude's profile is: a box still lofts the nominal, and a
+  `Dual` seed on a section gives a zero derivative where main refused
+  typed (`SeedPinnedSection`). Both belong to
+  `the-pinned-profile-lift-launders-at-sym`.
+- The Monte Carlo lane (guided, one box per sample) now lofts each
+  sample's sections rather than the nominal.
 - A face-frame loft evaluates at `Dual` and `Sym`. At `Interval` it
   refuses `PlacementNotAPoint`, because the frame's landed placement
   is an enclosure.

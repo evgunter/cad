@@ -1156,8 +1156,7 @@ pub(crate) fn mint_frame_placement(
 /// [`NodeErrorKind::WrongOperand`] when the reference does not name a
 /// frame; [`NodeErrorKind::FrameDirection`] where the frame carried a
 /// direction refusal ([`FramePlacement::Unreadable`]), naming BOTH
-/// `profile` and the frame because the section seam raises it on the
-/// loft; and [`NodeErrorKind::MissingInput`] for a reference with no
+/// `profile` and the frame; and [`NodeErrorKind::MissingInput`] for a reference with no
 /// value.
 pub(crate) fn profile_plane_f64<T: Decide>(
     doc: &crate::doc::Doc<ProfileProgram>,

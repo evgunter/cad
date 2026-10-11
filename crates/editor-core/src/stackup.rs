@@ -53,7 +53,7 @@
 //! lift refuses that the build path builds: a guided elaboration can
 //! refuse a decision it cannot re-confirm. That refusal is typed at
 //! the node (`NodeErrorKind::ProfileLaneReplay`) and
-//! the pairing recognises them BY KIND: the entry becomes
+//! the pairing recognises it BY KIND: the entry becomes
 //! [`SensitivityOutcome::Unliftable`] — the spec's typed valve, never a
 //! finite zero and never a `PairingViolation` — and every node poisoned
 //! through that refusal is accounted to it. Any other disagreement

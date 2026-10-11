@@ -43,6 +43,50 @@ fn var(doc: &ProfileDoc) -> editor_core::VarId {
 /// xy frame; a circle of radius one on a frame one unit up; the loft
 /// between them. Returns the document and the loft's id.
 fn loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
+    let circle = |radius| LoopProgram::Circle {
+        centre: [fixture::len(0.0), fixture::len(0.0)],
+        radius,
+    };
+    loft_doc_of(
+        nominal,
+        circle(Formula::named(p(), Dimension::Length)),
+        circle(fixture::len(1.0)),
+    )
+}
+
+/// [`loft_doc`] with rectangles for circles: the lower section
+/// `[0, p] × [0, 1]`, the upper the unit square. Every value is a line
+/// endpoint, so at `Interval` with no box the sections are points.
+fn square_loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
+    let rect = |w: Formula| {
+        let at = |x: Formula, y: f64| {
+            editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Point([
+                x,
+                fixture::len(y),
+            ]))
+        };
+        LoopProgram::Chain(vec![
+            editor_core::ProgramStep::At([fixture::len(0.0), fixture::len(0.0)]),
+            at(w.clone(), 0.0),
+            at(w, 1.0),
+            at(fixture::len(0.0), 1.0),
+            editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Start),
+        ])
+    };
+    loft_doc_of(
+        nominal,
+        rect(Formula::named(p(), Dimension::Length)),
+        rect(fixture::len(1.0)),
+    )
+}
+
+/// `p` at `nominal`; `lower` on the xy frame, `upper` on a frame one
+/// unit up, and the loft between them.
+fn loft_doc_of(
+    nominal: f64,
+    lower: LoopProgram<Formula>,
+    upper: LoopProgram<Formula>,
+) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("eval10_section_reads_the_nominal", Tol::witness());
     let doc = doc
         .apply(
@@ -60,10 +104,7 @@ fn loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Profile(ProfileProgram {
             frame: lower_frame.into(),
-            loops: vec![LoopProgram::Circle {
-                centre: [fixture::len(0.0), fixture::len(0.0)],
-                radius: Formula::named(p(), Dimension::Length),
-            }],
+            loops: vec![lower],
             ids: Vec::new(),
         }),
     );
@@ -75,10 +116,7 @@ fn loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Profile(ProfileProgram {
             frame: upper_frame.into(),
-            loops: vec![LoopProgram::Circle {
-                centre: [fixture::len(0.0), fixture::len(0.0)],
-                radius: fixture::len(1.0),
-            }],
+            loops: vec![upper],
             ids: Vec::new(),
         }),
     );
@@ -199,16 +237,74 @@ fn a_seed_on_a_section_radius_moves_the_lofted_wall() {
     );
 }
 
-/// **A box over a section's radius is refused, never the nominal over
-/// the box.** At `Interval` under the guided lift (the drive's), a `p`
-/// widened by ε/16 still validates as a profile, but its value is wider
-/// than a point, and the loft refuses `SectionNotAPoint` naming the
-/// section. While a section was resolved at the nominal, this loft
-/// built its nominal wall and the lane certified it over the whole box.
+/// **Under the pinned lift the same seed reaches no wall.** A section is
+/// its profile's value, and the pinned lift's profile value is the `f64`
+/// form lifted, so the rim's derivative is a zero rather than the typed
+/// refusal a pinned section gave before. This is the extrude's
+/// behaviour under the same lift, and
+/// `work/inlane/the-pinned-profile-lift-launders-at-sym.md` owns it;
+/// this row pins it so the fix there shows up here.
 #[test]
-fn a_box_over_a_section_radius_refuses_rather_than_lofting_the_nominal() {
-    use geom_core::Interval;
+fn under_the_pinned_lift_a_section_seed_reaches_no_wall() {
+    use geom_core::Dual64;
     let (doc, loft) = loft_doc(0.5);
+    let ev = editor_core::evaluate::<Dual64>(
+        &doc,
+        None,
+        &editor_core::CancelToken::new(),
+        &EvalOptions {
+            profile_lift: editor_core::ProfileLift::Pinned,
+            seed: Some(var(&doc)),
+            ..EvalOptions::default()
+        },
+        Tol::witness(),
+    );
+    assert!(ev.node_error(loft).is_none(), "{:?}", ev.node_error(loft));
+    let Some(editor_core::ValuePayload::Body(body)) = ev.value(loft).map(|v| &v.payload) else {
+        panic!("the loft is a body");
+    };
+    let moved: Vec<f64> = body
+        .points()
+        .map(|(_, p)| p.x.deriv.hypot(p.y.deriv).hypot(p.z.deriv))
+        .collect();
+    assert!(!moved.is_empty(), "the loft has vertices");
+    assert!(
+        moved.iter().all(|d| *d == 0.0),
+        "the pinned lift carries no section derivative: {moved:?}"
+    );
+}
+
+/// **A box over a section's width is refused, never the nominal over
+/// the box.** At `Interval` under the guided lift (the drive's), the
+/// rectangle sections loft with no box: every value is a point. With
+/// `p` widened by ε/16 the lower section still validates as a profile,
+/// but its value is wider than a point, and the loft refuses
+/// `SectionNotAPoint` naming the section. While a section was resolved
+/// at the nominal, this loft built its nominal wall and the lane
+/// certified it over the whole box.
+#[test]
+fn a_box_over_a_section_width_refuses_rather_than_lofting_the_nominal() {
+    use geom_core::Interval;
+    let (doc, loft) = square_loft_doc(0.5);
+    let run = |param_box| {
+        editor_core::evaluate::<Interval>(
+            &doc,
+            None,
+            &editor_core::CancelToken::new(),
+            &EvalOptions {
+                profile_lift: editor_core::ProfileLift::Guided,
+                param_box,
+                ..EvalOptions::default()
+            },
+            Tol::witness(),
+        )
+    };
+    let unboxed = run(None);
+    assert!(
+        unboxed.node_error(loft).is_none(),
+        "with no box the sections are points, and the loft builds: {:?}",
+        unboxed.node_error(loft)
+    );
     let mut axes = BTreeMap::new();
     axes.insert(
         var(&doc),
@@ -217,17 +313,7 @@ fn a_box_over_a_section_radius_refuses_rather_than_lofting_the_nominal() {
             hi: Tol::witness().get().eps / 16.0,
         },
     );
-    let ev = editor_core::evaluate::<Interval>(
-        &doc,
-        None,
-        &editor_core::CancelToken::new(),
-        &EvalOptions {
-            profile_lift: editor_core::ProfileLift::Guided,
-            param_box: Some(Arc::new(ParamBox::from_axes(axes))),
-            ..EvalOptions::default()
-        },
-        Tol::witness(),
-    );
+    let ev = run(Some(Arc::new(ParamBox::from_axes(axes))));
     match ev.node_error(loft).map(|e| &e.kind) {
         Some(editor_core::NodeErrorKind::Loft(sweep::LoftError::SectionNotAPoint {
             section: 0,

@@ -231,11 +231,17 @@ plain replay bitwise (`tests/m10_p_fence.rs`,
   lane scalar, as an extrude reads its profile: the loops and plane the
   profile node produced under this lift, and its pass-1 pieces for naming.
   Nothing is re-resolved and no section has a second placement path. The
-  skin's structure is selected on the sections' value channel and verified
-  at the lane scalar (`sweep::loft_profiles`), so a seed on a parameter a
-  section reads rides to the walls; a section wider than a point refuses
-  typed (`LoftError::SectionNotAPoint`) rather than standing for the nominal
-  over its box.
+  skin's structure is selected on the sections' value channel
+  (`sweep::loft_profiles`). At a projective scalar the walls are computed
+  from the section values themselves, so a seed on a parameter a section
+  reads rides to the walls under the guided lift. At `Interval` the loft is
+  the `f64` skin of that value channel, enclosed, so a section or plane with
+  any value wider than a point refuses typed (`LoftError::SectionNotAPoint`,
+  `LoftError::PlacementNotAPoint`) rather than standing for the nominal over
+  its box. Under the guided lift that includes values a few ulps wide with
+  no box at all: an arc's sweep, and the plane of a rotated authored frame.
+  Under the pinned lift a section's values are its `f64` form lifted, so
+  neither a seed nor a box reaches them.
 - **The sketch plane, by frame kind.** An authored frame's plane is the f64
   plane embedded under the pinned lift (`mint_frame_placement`, from the frame
   node's own slots, carried on its value and read by `profile_plane_f64`), so

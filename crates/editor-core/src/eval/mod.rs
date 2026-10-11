@@ -999,8 +999,7 @@ pub(crate) type Seated = Box<(RecipeNodeId, NodeErrorKind)>;
 /// [`ValuePayload::kind_name`]'s own words — the RECIPE-side reading
 /// of the same question, for the roads that never hold a value: a
 /// reference read straight out of the document (the mate solve's
-/// derived offset refusing a circular rule's `axis` operand, and the
-/// wire's `node_operand` door).
+/// derived offset refusing a circular rule's `axis` operand).
 ///
 /// It is that match written a second time over node kinds, with a
 /// walk down the placer chain in front of it, which is a

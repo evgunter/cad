@@ -512,7 +512,9 @@ fn stacking_fold<T: Decide>(
     Ok(())
 }
 
-/// The shared engine of [`loft_body`] and [`sweep_body`]: validate the
+/// The shared engine of [`loft_body`] and [`sweep_body`] (whose
+/// sections are loops; [`loft_profiles`] enters the same two halves
+/// with sections already validated): validate the
 /// sections, decide the stacking fold, skin, assemble — in that order.
 ///
 /// The sections' structure is decided once, on their value channel at
@@ -534,12 +536,7 @@ fn build<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>>(
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
-    if let Some(section) = channel_places
-        .iter()
-        .position(|p| !p.components().iter().all(|c| c.is_finite()))
-    {
-        return Err(LoftError::PlacementNotAPoint { section });
-    }
+    placements_are_points(channel_places)?;
     let channel_sections: Vec<Section<L::Channel>> = sections
         .iter()
         .map(|s| s.iter().map(SectionLoop::channel).collect())
@@ -572,7 +569,8 @@ enum SectionsAtT<'a, T: Real, L> {
     Validated(&'a [ValidatedProfile<T>]),
 }
 
-/// [`build`]'s two halves, after the sections' structure is decided.
+/// The two halves of [`fn@build`] and [`loft_profiles`], after the
+/// sections' structure is decided.
 struct LoftBuild<'a, T: Real, L> {
     at_t: SectionsAtT<'a, T, L>,
     places: &'a [Affine3<T>],
@@ -586,8 +584,9 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
     type Out = Result<Lofted<T>, LoftError>;
 
     /// **The loft in `T`.** Each section is validated at `T` along its
-    /// `f64` record ([`validate_guided`]), so its canonical form is the
-    /// one decided and its values are the caller's; the fold, the skin
+    /// `f64` record ([`validate_guided`]), or arrives so validated
+    /// ([`loft_profiles`]), so its canonical form is the one decided
+    /// and its values are the caller's; the fold, the skin
     /// ([`skin_validated`]: the section curves, their compatibility,
     /// the parameters and the solve) and the caps all read those, so a
     /// section or placement value that is a function of the variables
@@ -632,9 +631,11 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
     /// and the fold read the `f64` canonical form lifted onto the
     /// placements the skin was selected on, themselves lifted
     /// ([`ValidatedProfile::lift_onto`]). A section whose values are
-    /// wider than a point refuses at the `f64` validation, whose value
-    /// channel is then NaN, and a placement wider than a point refuses
-    /// in [`fn@build`] ([`LoftError::PlacementNotAPoint`]).
+    /// wider than a point refuses before this half runs: at the `f64`
+    /// validation in [`fn@build`], whose value channel is then NaN, or
+    /// as [`LoftError::SectionNotAPoint`] in [`loft_profiles`]; a
+    /// placement wider than a point refuses in both
+    /// ([`LoftError::PlacementNotAPoint`]).
     fn enclosure(self) -> Self::Out {
         let band = Band::linear(self.tol).map_err(LoftError::Band)?;
         // The placements the `f64` skin was selected on, entered as the
@@ -1107,13 +1108,8 @@ pub fn loft_profiles<T: Decide + topo::AtRestPolicy>(
         .map(ValidatedProfile::value_channel)
         .collect();
     let channel_places: Vec<Affine3<f64>> = canonical.iter().map(|c| c.plane().placement).collect();
+    placements_are_points(&channel_places)?;
     check_counts(sections.len(), places.len(), v_degree).map_err(LoftError::Skin)?;
-    if let Some(section) = channel_places
-        .iter()
-        .position(|p| !p.components().iter().all(|c| c.is_finite()))
-    {
-        return Err(LoftError::PlacementNotAPoint { section });
-    }
     if let Some(section) = canonical.iter().position(|c| !profile_is_finite(c)) {
         return Err(LoftError::SectionNotAPoint { section });
     }
@@ -1126,6 +1122,18 @@ pub fn loft_profiles<T: Decide + topo::AtRestPolicy>(
         v_degree,
         tol,
     })
+}
+
+/// The placement refusal both loft doors make first: a placement whose
+/// value channel is not finite was no single point at `T`.
+fn placements_are_points(channel_places: &[Affine3<f64>]) -> Result<(), LoftError> {
+    match channel_places
+        .iter()
+        .position(|p| !p.components().iter().all(|c| c.is_finite()))
+    {
+        Some(section) => Err(LoftError::PlacementNotAPoint { section }),
+        None => Ok(()),
+    }
 }
 
 /// Whether every value of an `f64` canonical form is finite.

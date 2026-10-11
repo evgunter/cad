@@ -1,7 +1,8 @@
 //! Sweep operations: solids from validated 2-D profiles —
-//! [`fn@extrude`], [`fn@revolve`], [`loft_body`], [`sweep_body`] (path
-//! sweep), [`fn@skin`], [`tube_along_arc`], and the blend family
-//! ([`mod@fillet`], [`mod@chamfer`], [`mod@blend`]).
+//! [`fn@extrude`], [`fn@revolve`], [`loft_body`] and
+//! [`loft_profiles`], [`sweep_body`] (path sweep), [`fn@skin`],
+//! [`tube_along_arc`], and the blend family ([`mod@fillet`],
+//! [`mod@chamfer`], [`mod@blend`]).
 //!
 //! This crate sits on top of the whole M2 stack: it consumes the
 //! `profile` crate's [`profile::ValidatedProfile`] (the only accepted
