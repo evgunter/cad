@@ -178,9 +178,7 @@ pub use ops::{
 };
 pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
 pub(crate) use records::incident;
-pub use records::{
-    CarryRefusal, Contact, ContactKind, ContactPairError, ContactRecords,
-};
+pub use records::{CarryRefusal, Contact, ContactKind, ContactPairError, ContactRecords};
 #[cfg(feature = "sweep-testing")]
 pub use reduce::PlantedDegradation;
 pub use reduce::{SweepStrategy, SweepTrace};
