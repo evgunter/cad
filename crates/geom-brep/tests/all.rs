@@ -224,6 +224,8 @@ mod review_r1_rational_probes;
 mod revolved_point_anchor;
 #[path = "rim_dim_review_probes.rs"]
 mod rim_dim_review_probes;
+#[path = "review_4696_probes.rs"]
+mod review_4696_probes;
 #[path = "rim_dim_scale_twins.rs"]
 mod rim_dim_scale_twins;
 #[path = "s58_iso_rectangle.rs"]
