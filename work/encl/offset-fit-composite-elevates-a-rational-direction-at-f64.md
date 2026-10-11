@@ -2,10 +2,12 @@
 id: offset-fit-composite-elevates-a-rational-direction-at-f64
 kind: issue
 title: offset_fit::Composite::build elevates degree-1 directions at f64 before the ring composite; a rational net's elevation ratio rounds
-status: open
+status: dispatched
 opened: 2026-10-10
 priority: P3
 cost: E
+rides_with: offset-fit-refuses-every-degree-1-base-direction
+branch: encl/offset-fit-degree-1
 ---
 
 Found by NURBS fork3 (designer B), off its question. The finding is unverified: nobody has checked whether the composite pads for it.
