@@ -969,3 +969,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The 4646 fix pass pushed `f964b07ec` and is polling hosted CI.
   - U-T2 (4743) is red on test, gate and demos; its lane is mid-fix (main merged; a demo wall pin and tour rows).
   - Main's slow-set red belongs to others: NURBS's P0 on the u4 Sym serial golden (`mass_props_are_thread_count_invariant`, filed 14:50) and FUSE's `near_tangent_pierce_poses` at 1e-6. Not U-T1's.
+- 2026-10-11 23:16 — PR 4646's fix pass is done (head `f964b07ec`, lane idle). Hosted test and gate are red; the lane says that is main's slow-set red, and the reviewer names every failing row against main. The SECOND review r4646b is dispatched on the frozen `f964b07ec` (brief sha256 `75b88e240bd2`, in its own lane dir). It verifies the MAJOR's repro and searches for sign flips independently. U-T2 (4743) pushed `259973b7`; CI is running and the lane is running local gates.
