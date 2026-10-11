@@ -77,7 +77,7 @@ caller's, per `Reading`. Three render the whole escalation
 `under(NO_DECLARATION_RECOURSE)`), so their tail is `IndeterminateUnder`'s
 ` — {advice}; {ending}`, per-kind levers included.
 
-**Done: the topo slice, in PR TOPO_PR.** Its fourteen sentences spell
+**Done: the topo slice, in PR 4745.** Its fourteen sentences spell
 the verdict through the rule: `props.rs`, `splitting/mod.rs`
 (`SliverSector`), `splitting/containment.rs` (two) and `chord_join.rs`
 (`RayExhausted`) through `geom_core::undecided!`; `splitting/finish.rs`
