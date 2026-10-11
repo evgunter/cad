@@ -44,7 +44,33 @@ one clause at a time:
 
 > The verbs' README states the ruled semantics
 
-CLAUSE-1-PLACEHOLDER
+**Met once this PR's README edits land; four were missing or stale and
+are fixed here.** "The verbs' README" is the shell and offset design
+page: `crates/geom-brep/README.md`'s OFFSET-DESIGN clauses (O1–O6),
+which `crates/topo/README.md`'s "Shell and offset surgery" row points
+to. Each of Ev's shell/offset rulings was checked against that text and
+against the code:
+
+| ruling | stated | in the code |
+| --- | --- | --- |
+| a hollow body thickens every boundary: the outer shell inward, each void outward, `k + 1` solids | **was only implied**, and O4 still said "a two-shell solid": O4 now states it | `shell.rs` (step 3, `move_shells_to_new_solid`) |
+| a chart is body-wide (PR 3412): each solid's faces grouped by chart | **was not named**: O4 now says it | `ChartGroups::within` per solid |
+| the doors are construction steps, finished only through `AtRestBody::validate` (unit 10's `## Decided`) | yes, topo README's surgery row | `shell`/`shell_open` take `AtRestBody` |
+| the cone nappe's home (`mint-offset-ignores-cone-mirror-nappe`) | yes, O1 (`offset_nappe::face_nappe`) | yes |
+| PR 4515: NURBS × NURBS is one complete `Section` (`branch_at`, `all()`); the plane × NURBS door takes `branch_at`, and a region holding the seed is the answer | yes, O4 and the section lane (C3/C5) | `ssi/pair.rs`, `ssi/plane.rs` |
+| #1737, ruled B: the clearance engine's body-level half moves into `topo` behind the interval scalar for the curved gate | **was stale**: the Open item routed it to ERROR-DESIGN; it now states the ruling and CLEAR's two rows | not built; the gate is planar only, which the Open item and the shell module docs say |
+
+O4's refusal list also lacked the two planar clearance refusals
+(`WallClearance`, `OffsetsCross`); it now names them and points at the
+curved Open item.
+
+Three other rulings in the log are not shell semantics: Ev on PR 3352
+(certification recourse), on `[ev]` PR 3402 (`Decided { sign, margin }`)
+and D1 (PR 3480, the sense stated at the mint). They are stated in
+`docs/DESIGN.md`. Checking D1 turned up one divergence in shell's own
+code: the rim glue still mints its face with `FaceSurface::Inherit` and
+sets the sense afterwards. It is filed on SHELF as
+`the-rim-glue-sets-its-face-sense-after-minting-it` (P3).
 
 > and every item above has landed;
 
@@ -79,7 +105,7 @@ open is left in `work/shell/` when the directory is swept.
 
 Every live row moves to SHELF in this PR (`git mv`, ids kept; SHELF's
 log records the hand-over): the six above and nine more filed during
-the units. All are P3.
+the units, plus the rim-glue row this walk filed. All are P3.
 - `a-move-past-a-fitted-solids-reach-refuses-op-not-the-collapse`
 - `axial-corner-nearly-tangent-refusal-has-no-row`
 - `axial-corner-solves-no-circle-circle-pair`
