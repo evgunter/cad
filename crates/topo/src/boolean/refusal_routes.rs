@@ -326,6 +326,20 @@ pub enum BooleanDecision {
     /// positive margin, the conventional description on zero). Asked of
     /// the result, after every declaration was spent, so none is read.
     SeamJet,
+    /// Whether an edge of the result lies on both faces it bounds: its
+    /// exact carrier's residual against one of the two faces' surfaces,
+    /// at the attachment gate that certifies its description. A residual
+    /// passes only at zero, so no tolerance is its recourse. Its ends are
+    /// vertices an earlier reading placed on the faces they meet, so a
+    /// carrier read in band of a face says that an edge or a vertex of
+    /// one solid lies within the band of a face of the other and not
+    /// clearly on it. At the band's edge which way the reading falls
+    /// depends on the edge's orientation: a chord certifies its start
+    /// as its own origin and its end as `carrier(t₁)`, one rounding off
+    /// the vertex (`work/cleave/a-chords-end-sample-reads-carrier-t1-not-its-vertex.md`).
+    /// Asked of the result, after every declaration was spent, so none
+    /// is read.
+    EdgeOnFaces,
     /// Whether a shell of the result bounds material or a cavity, at the
     /// finished-body gate: its volume over its area, the mean thickness
     /// it stands for (`chk_shell_volume_sign`), either definite sign a
@@ -1084,8 +1098,9 @@ pub enum SelfCheck {
     /// The carrier ladder's contradiction arm, which its detector
     /// posture (nothing declared) cannot reach.
     CarrierLadder,
-    /// Where a carried contact record lands on the pieces of an edge the
-    /// op split (`ops::ledger`): whether a point lies on a piece's
+    /// Where a contact record lands on the pieces of an edge the op
+    /// split (`ops::ledger`) or a face it divided
+    /// (`ops::Descendants::holder`): whether a point lies on a piece's
     /// interior, or two pieces' interiors meet, asked as the census
     /// confirms the record. The record certified at rest, so an
     /// undecided answer is a contact the census could not confirm
@@ -1109,7 +1124,9 @@ impl SelfCheck {
             Self::ArcFacing => "which way a germ turns about the section it lies on",
             Self::RingWinding => "which way a ring run of the section winds",
             Self::CarrierLadder => "whether a face of each solid lies on one surface",
-            Self::CarriedLineage => "where a carried contact lands on the pieces of a split edge",
+            Self::CarriedLineage => {
+                "where a contact lands on the pieces of a split edge or a divided face"
+            }
             Self::SeamSense => "which way a seam that closes at one vertex runs",
         }
     }
@@ -1437,6 +1454,7 @@ impl BooleanDecision {
                 "whether the two faces touching along a seam edge curve apart there or share \
                  their curvature"
             }
+            Self::EdgeOnFaces => "whether an edge of the result lies on both faces it bounds",
             Self::ShellRole { .. } => "whether a shell of the result bounds material or a cavity",
             Self::Sphere(question) => question.subject(),
             Self::SelfCheck(check) => check.subject(),
@@ -1628,6 +1646,7 @@ impl BooleanDecision {
             Self::BisectorSide => Ending::Lever(CORNER_EDGES),
             Self::SeamWedge => Ending::Sized(SEAM_WEDGE),
             Self::SeamJet => Ending::Sized(SEAM_JET),
+            Self::EdgeOnFaces => Ending::Lever(crate::merge_faces::EDGE_ON_FACES_LEVER),
             Self::ShellRole { .. } => Ending::Sized(RESULT_SHELL),
             Self::Sphere(question) => question.ending(),
             // A broken invariant, as the check's definite refusal says.
@@ -1948,6 +1967,7 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::BisectorSide => vec![BooleanDecision::BisectorSide],
                 BooleanDecisionKind::SeamWedge => vec![BooleanDecision::SeamWedge],
                 BooleanDecisionKind::SeamJet => vec![BooleanDecision::SeamJet],
+                BooleanDecisionKind::EdgeOnFaces => vec![BooleanDecision::EdgeOnFaces],
                 BooleanDecisionKind::ShellRole => vec![BooleanDecision::ShellRole {
                     solid: crate::entity::SolidKey::default(),
                     shell: crate::entity::ShellKey::default(),
@@ -2314,6 +2334,13 @@ pub(in crate::boolean) mod tests {
                     SizedPass::NonNegative,
                 ),
             ),
+            BooleanDecision::EdgeOnFaces => (
+                "whether an edge of the result lies on both faces it bounds",
+                Ending::Lever(
+                    "Recourse: move the geometry so each edge and vertex that meets a face lies \
+                     clearly on that face or clearly off it",
+                ),
+            ),
             BooleanDecision::ShellRole { .. } => (
                 "whether a shell of the result bounds material or a cavity",
                 Ending::Sized(
@@ -2374,7 +2401,7 @@ pub(in crate::boolean) mod tests {
                 Ending::Defect,
             ),
             BooleanDecision::SelfCheck(SelfCheck::CarriedLineage) => (
-                "where a carried contact lands on the pieces of a split edge",
+                "where a contact lands on the pieces of a split edge or a divided face",
                 Ending::Defect,
             ),
             BooleanDecision::SelfCheck(SelfCheck::SeamSense) => (

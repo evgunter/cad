@@ -19,3 +19,26 @@ The hosted run is job 114293690503 (run 38079214860). The row draws a fresh seed
 ## Repair shape
 
 Reproduce it with the seed. The classifier gives two Null components where the trace gives one. Find out which side is wrong for parallel cones (coaxial-direction, distinct apex), and fix that side. Then pin the seed's pair as a fixed row.
+
+## More seeds, on more arms (2026-10-11)
+
+A hunt of 200 fresh seeds on `cleave/section-cert-axis-pose` (PR 4657)
+failed twice, and a third seed failed during that PR's review mutation
+runs; each reproduces with `CAD_FUZZ_EFFORT=1`. The failing poses are a
+tilted cone pair and an oblique cylinder, which `axis_pose` routes to
+the ruling charts exactly as main does, and a parallel cone pair, the
+same shape as above. So the arm at fault is not the parallel one alone:
+
+- `0xc70ed950ae541691`, **parallel cone**: on the partner's chart
+  traced [Null], classified [Null, Null], and a Null part's witness on
+  no traced component.
+- `0x36a100199db4330e`, **tilted cone** (apex `(-0.0374, 0.7404,
+  -0.8717)`, α `0.9444` against apex `(-0.8757, -0.2863, 0.5784)`,
+  α `0.0845`, the axes about 28° apart): on the cone's chart traced
+  [Null], classified [Null, Null].
+- `0x8cb02b1f1a051f77`, **oblique cylinder** (a cone of α `0.076` at
+  scale 114 against a wall of radius `14.14`): on the partner's chart a
+  Null part's witness on no traced component.
+
+About 1% of fresh seeds fail, so a red can land on any PR that runs this
+row.

@@ -40,6 +40,11 @@ impl Lineage {
     pub(super) fn contains(&self, face: FaceKey) -> bool {
         self.0.contains(&face)
     }
+
+    /// The lineage's faces, the root among them, in key order.
+    pub(super) fn faces(&self) -> impl Iterator<Item = FaceKey> + '_ {
+        self.0.iter().copied()
+    }
 }
 
 /// The one face in both `xs` and `ys`; `None` when not exactly one is.

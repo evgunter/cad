@@ -95,3 +95,26 @@ and no more (`sweep/tests/operand_gate_support_plates.rs`): a support
 on the 270° frustum's cut under the torus's cut-cap rule, and the
 frustum's `∩` at any rim touch (40 of the 52 `Empty` fall off the cut,
 23 of them on the full turn). This item's question covers both.
+
+## 2026-10-11, the question is answered: an Assembly with a record (CLEAVE)
+
+`docs/DESIGN.md` D1 answers this item's question. Pieces that only touch
+are distinct solids, and every pair of cells whose interiors meet is
+recorded. So a point touch on a rim circle, on a cut or not, is right
+as two solids and a record: an `Assembly` whose contacts hold the touch.
+PR 4604 (commit `08ba4968fa`) retired `CurvedRestUnrecorded` and records
+the curved edge resting on a face. Since then, the frustum's off-cut rim
+touches no longer refuse. ∪ builds them too, and each result holds one
+`EdgeFace(rim circle, plate face)` record.
+
+Measured on main `9e06497716` at ε 1e-9, 1e-6 and 1e-12. Every ∪
+`Assembly` at `δ ≤ 0` has 2 solids and at least one record, and no
+sampled point is wrong. The support-plates row now excludes every
+frustum rim touch under ∪ and ∩ alike, and keeps the rule that an
+excluded ∪ which records no contact is wrong. That rule is a working
+gate: a mutant that drops `EdgeFace` records in `ops.rs::record` turns
+the row red at 90 rows (branch `cleave/support-plates-main-red`).
+
+`validate_pseudomanifold` refuses these results `CensusUndecidable`,
+because the census over boolean results is parked (D1). Closing this
+item is TALLY's call.
