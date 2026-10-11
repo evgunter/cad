@@ -4547,6 +4547,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             .collect();
         let only: Vec<_> = plans.iter().map(|&(_, plan)| plan).collect();
         if std::env::var_os("R2_RING_PROBE").is_some() {
+            eprintln!("R2PASS {operand:?} plans={}", only.len());
             for group in vtxfac::ring_groups(&only, band)? {
                 let members: Vec<_> = group.iter().map(|&k| plans[k].1).collect();
                 if members.len() > 1 && std::env::var_os("R2_RING_PROBE").is_some() {
@@ -4562,7 +4563,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                         "R2GROUP n={} one_point_key={} bitwise={} keys={keys:?}",
                         members.len(),
                         keys.iter().all(|k| k.is_some() && *k == keys[0]),
-                        members.iter().all(|m| m.point == members[0].point)
+                        members
+                            .iter()
+                            .all(|m| format!("{:?}", m.point) == format!("{:?}", members[0].point))
                     );
                 }
             }

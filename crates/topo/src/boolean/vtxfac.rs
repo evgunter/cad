@@ -1176,7 +1176,7 @@ pub(super) fn ring_groups<T: Decide>(
                 if std::env::var_os("R2_RING_PROBE").is_some() {
                     eprintln!(
                         "R2RING bitwise={} same_vertex={} lead={:?} member={:?}",
-                        lead.point == plan.point,
+                        format!("{:?}", lead.point) == format!("{:?}", plan.point),
                         lead.contact.vertex == plan.contact.vertex,
                         lead.contact.vertex,
                         plan.contact.vertex
