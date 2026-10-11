@@ -76,3 +76,16 @@ All from `crates/editor-core/tests/union_pinch_member_order.rs`
 
 Same class as `transform-and-pattern-drop-a-values-contact-records`: a
 node hands on a body without the records that certify it.
+
+## 2026-10-11, one witness was a different defect (FLUSH, PR 4650)
+
+`three_solids_on_one_line.rs`'s `a_prism_whose_face_holds_the_line_builds_or_refuses_typed`
+pinned two on-line refusals when the face prism folds last. Those were
+not operand-own records: they were the last step's own vertex-on-face
+records, dropped because their face was chased by key through the
+section's division (`boolean::ops::carry_rows`). FLUSH's
+`a-box-and-a-cylinder-through-its-corner-edge-intersect-past-tier-3-prime`
+lands them on the piece that holds the vertex, and all twelve building
+orders now pass tier 3′; the pin is `[0, 0, 0, 0]`. The test's other
+`DROPPED_RECORDS` pins did not move (the full `topo` suite passes), so
+this row's own defect stands.

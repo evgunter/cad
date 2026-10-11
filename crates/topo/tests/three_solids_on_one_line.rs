@@ -530,7 +530,10 @@ const ON_A_BISECTOR: &str = "a contact line's ray holds a subdivision bisector (
 /// bisector, and refuses typed (unbuilt). Nine orders refuse at a step
 /// that meets one edge of the line in the third's face,
 /// `ResultInvalid { RingMeetsRing }` or `VertexReadTwice`, as on main
-/// (`work/tang/an-edge-lying-in-a-face-at-a-pierce-refuses-ring-meets-ring.md`). The other twelve build.
+/// (`work/tang/an-edge-lying-in-a-face-at-a-pierce-refuses-ring-meets-ring.md`). The other twelve build,
+/// and pass tier 3′ against the last step's records whichever member
+/// folds last: the step that folds the third last records the others'
+/// corners resting on its face on the piece of it that holds them.
 #[test]
 fn a_prism_whose_face_holds_the_line_builds_or_refuses_typed() {
     let face = Prism {
@@ -557,7 +560,7 @@ fn a_prism_whose_face_holds_the_line_builds_or_refuses_typed() {
         &prisms,
         true,
         [20, 47, 30],
-        &[0, 0, 0, 2],
+        &[0; 4],
         &refuses,
     );
 }
