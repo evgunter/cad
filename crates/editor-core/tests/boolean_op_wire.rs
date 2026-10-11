@@ -17,8 +17,8 @@
 use editor_core::AuthoredNode;
 use editor_core::{Bodies, Node, RecipeNodeId};
 
-/// The three kinds, each over the operands `0:1` and `0:2`, declaring
-/// nothing, with the exact bytes each writes. Written as whole-node
+/// The three kinds, each over the operands `0:1` and `0:2`, with the
+/// exact bytes each writes. Written as whole-node
 /// literals so a change to the ENCLOSING shape (a renamed field, a new
 /// key, a tagging change) fails here too, not just a change to the
 /// kind's spelling.
@@ -30,14 +30,14 @@ fn rows() -> [(&'static str, AuthoredNode, &'static str); 3] {
             Node::Union {
                 members: Bodies::Spelled(vec![a.into(), b.into()]),
             },
-            r#"{"Union":{"members":{"Spelled":[{"Node":"0:0000000000000001"},{"Node":"0:0000000000000002"}]},"declare":[]}}"#,
+            r#"{"Union":{"members":{"Spelled":[{"Node":"0:0000000000000001"},{"Node":"0:0000000000000002"}]}}}"#,
         ),
         (
             "intersect",
             Node::Intersect {
                 members: Bodies::Spelled(vec![a.into(), b.into()]),
             },
-            r#"{"Intersect":{"members":{"Spelled":[{"Node":"0:0000000000000001"},{"Node":"0:0000000000000002"}]},"declare":[]}}"#,
+            r#"{"Intersect":{"members":{"Spelled":[{"Node":"0:0000000000000001"},{"Node":"0:0000000000000002"}]}}}"#,
         ),
         (
             "subtract",
@@ -45,7 +45,7 @@ fn rows() -> [(&'static str, AuthoredNode, &'static str); 3] {
                 from: a.into(),
                 tool: b.into(),
             },
-            r#"{"Subtract":{"from":{"Node":"0:0000000000000001"},"tool":{"Node":"0:0000000000000002"},"declare":[]}}"#,
+            r#"{"Subtract":{"from":{"Node":"0:0000000000000001"},"tool":{"Node":"0:0000000000000002"}}}"#,
         ),
     ]
 }
@@ -67,7 +67,7 @@ fn a_family_union_rides_the_wire_as_one_read() {
     };
     assert_eq!(
         serde_json::to_string(&node).unwrap(),
-        r#"{"Union":{"members":{"Family":{"Node":"0:0000000000000001"}},"declare":[]}}"#
+        r#"{"Union":{"members":{"Family":{"Node":"0:0000000000000001"}}}}"#
     );
 }
 
@@ -85,7 +85,7 @@ fn every_boolean_kind_round_trips() {
 /// could not read, rather than reading as some other node.
 #[test]
 fn the_retired_boolean_spelling_refuses() {
-    let text = r#"{"Boolean":{"op":"Union","a":{"Node":"0:0000000000000001"},"b":{"Node":"0:0000000000000002"},"declare":[]}}"#;
+    let text = r#"{"Boolean":{"op":"Union","a":{"Node":"0:0000000000000001"},"b":{"Node":"0:0000000000000002"}}}"#;
     let err = serde_json::from_str::<AuthoredNode>(text)
         .expect_err("the retired Boolean spelling must refuse");
     assert!(

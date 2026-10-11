@@ -17,7 +17,7 @@ use editor_core::{
     RecipeNodeId, RoleSeg, StableName, evaluate,
 };
 use fixture::{
-    ang, declare_x_offset_flush, declare_x_offset_flush_at, insert, len, minted, on_frame, out,
+    ang, insert, len, minted, on_frame, out,
     scl, table,
 };
 use geom_core::Tol;

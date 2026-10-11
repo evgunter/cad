@@ -33,9 +33,9 @@ use std::time::Instant;
 use crate::corpus::Recorder;
 use crate::fixture::{self, len, scl};
 use editor_core::{
-    BooleanCoincidence, CapEnd, Datum, EntityKey, EntityKind, EntityRef, EvalOptions, ExtrudeSide,
+    CapEnd, Datum, EntityKey, EntityKind, EntityRef, EvalOptions, ExtrudeSide,
     MeasurePrimitive, NameRef, NameTable, NameTables, Node, NodeResult, PieceRole, ProfileEdgeRef,
-    Qualifier, RecipeNodeId, RoleSeg, SitedRef, Speaker, SplitHalf, StableName, StepId, VarId,
+    Qualifier, RecipeNodeId, RoleSeg, Speaker, SplitHalf, StableName, StepId, VarId,
 };
 use test_utils::fuzz;
 
@@ -677,7 +677,6 @@ fn failure_of(r: &Recorder, node: RecipeNodeId) -> String {
 /// holds its name**: a reference is (site, name), and two references
 /// can hold one name at two sites — here the block's end cap at the
 /// block, which resolves, and at a split that cuts it, which does not.
-/// A measure's references, and a Boolean's declared pair.
 #[test]
 fn a_resolve_row_names_the_slot_that_failed() {
     let mut r = Recorder::new();
@@ -695,35 +694,6 @@ fn a_resolve_row_names_the_slot_that_failed() {
     assert!(
         said.contains("this measure's reference 1 "),
         "the measure's row names reference 1, the one at the split: {said}"
-    );
-
-    let mut r = Recorder::new();
-    let (block, split) = block_and_split(&mut r);
-    let cap = fixture::fname(block, RoleSeg::Cap(CapEnd::End));
-    let union = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![
-            block.into(),
-            editor_core::Operand::Output {
-                node: split,
-                port: 0,
-            }
-            .into(),
-        ]),
-        declare: vec![(
-            (
-                SitedRef::new(fixture::out(&r.doc, block), cap.clone()),
-                SitedRef::new(
-                    r.doc.output(split, 0).expect("the split's port 0"),
-                    cap.clone(),
-                ),
-            ),
-            BooleanCoincidence::REST,
-        )],
-    });
-    let said = failure_of(&r, union);
-    assert!(
-        said.contains("this union's declared pair 0's second face "),
-        "the union's row names the pair's second side, the one at the split: {said}"
     );
 }
 
@@ -850,32 +820,6 @@ fn a_resolve_row_names_a_payload_slot_above_zero() {
     assert!(
         said.contains("this shell's open face 1 "),
         "the shell's row names open face 1: {said}"
-    );
-}
-
-/// **A union's declared pair names its second side** where the side
-/// that fails is the second: the block's start cap held at the block
-/// and at a Subtract of it, which carries the cap under a name of its
-/// own, read through the union's member space.
-#[test]
-fn a_union_resolve_row_names_its_declared_pairs_second_side() {
-    let mut r = Recorder::new();
-    let (block, cut) = block_and_cut(&mut r);
-    let cap = fixture::fname(block, RoleSeg::Cap(CapEnd::Start));
-    let union = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![block.into(), cut.into()]),
-        declare: vec![(
-            (
-                SitedRef::new(fixture::out(&r.doc, block), cap.clone()),
-                SitedRef::new(fixture::out(&r.doc, cut), cap),
-            ),
-            BooleanCoincidence::REST,
-        )],
-    });
-    let said = failure_of(&r, union);
-    assert!(
-        said.contains("this union's declared pair 0's second face "),
-        "the union's row names the pair's second side: {said}"
     );
 }
 

@@ -926,25 +926,7 @@ fn dm5_is_over_the_variables_read() {
     );
     // Admitted, the union keys each member by its read (DM4), so two
     // halves of one operation are two members: their union is the
-    // block. The section is a contact, so it is declared.
-    let (above, below) = (
-        crate::corpus::part_select::section_face(split, editor_core::SplitHalf::Above),
-        crate::corpus::part_select::section_face(split, editor_core::SplitHalf::Below),
-    );
-    let halves = (
-        doc.output(split, 0).expect("above"),
-        doc.output(split, 1).expect("below"),
-    );
-    let (doc, _) = fixture::step(
-        doc,
-        DocEdit::SetDeclare {
-            node: union,
-            pairs: editor_core::declare_rest(vec![(
-                editor_core::SitedRef::new(halves.0, above),
-                editor_core::SitedRef::new(halves.1, below),
-            )]),
-        },
-    );
+    // block, the section a rest it glues.
     let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
     assert!(ev.value(union).is_some(), "{:?}", ev.node_error(union));
     assert!(
@@ -1000,98 +982,6 @@ fn dm5_is_over_the_variables_read() {
                 step: fixture::ang(1.0),
             },
         },
-    );
-}
-
-/// **Each of a split's two halves is read as itself, and a pair
-/// declared across them is sited at each half's read.** The two halves
-/// are two reads of one split, so two members in either order (DM4).
-/// Under a declared rest named in either order their union is the whole
-/// block; undeclared, it glues the rest the margins decide and is that
-/// same block. A side naming what its half does not hold — a wall of the
-/// block the cut renamed in both — refuses as a name its site's table
-/// does not answer.
-#[test]
-fn a_pair_declared_across_one_splits_halves_is_sited_by_read() {
-    let (doc, split, _) = split_block("s2b-split-siding");
-    let before = fixture::run(&doc, &editor_core::EvalOptions::default());
-    let target = doc
-        .operation_of(doc.output(split, 0).expect("the upper half"))
-        .and_then(|_| match doc.node(split) {
-            Some(Node::Split { target, .. }) => doc.operation_of(target.read),
-            _ => None,
-        })
-        .expect("the split's target");
-    let held = |id| before.value(id).expect("a value").name_table.clone();
-    let (whole, cut) = (held(target), held(split));
-    let wall = whole
-        .iter()
-        .map(|(name, _)| name.clone())
-        .find(|name| name.kind == editor_core::EntityKind::Face && cut.lookup(name).is_none())
-        .expect("a wall the cut renamed");
-    let section = |side| crate::corpus::part_select::section_face(split, side);
-    let half = |h: editor_core::SplitHalf| Operand::output(split, h.port()).into();
-    let read = |h: editor_core::SplitHalf| doc.output(split, h.port()).expect("a half's read");
-    let pair = |(h0, first), (h1, second)| {
-        editor_core::declare_rest(vec![(
-            editor_core::SitedRef::new(read(h0), first),
-            editor_core::SitedRef::new(read(h1), second),
-        )])
-    };
-    let (up, down) = (editor_core::SplitHalf::Above, editor_core::SplitHalf::Below);
-    let (above, below) = (
-        section(editor_core::SplitHalf::Above),
-        section(editor_core::SplitHalf::Below),
-    );
-    let union = |declare| Node::Union {
-        members: editor_core::Bodies::Spelled(vec![
-            half(editor_core::SplitHalf::Above),
-            half(editor_core::SplitHalf::Below),
-        ]),
-        declare,
-    };
-    let reversed = |declare| Node::Union {
-        members: editor_core::Bodies::Spelled(vec![
-            half(editor_core::SplitHalf::Below),
-            half(editor_core::SplitHalf::Above),
-        ]),
-        declare,
-    };
-    let joined_pairs = pair((down, below.clone()), (up, above.clone()));
-    let flipped_pairs = pair((up, above.clone()), (down, below.clone()));
-    let fused_pairs = pair((up, above.clone()), (down, below));
-    let stray_pairs = pair((up, above), (down, wall));
-    let (doc, undeclared) = insert(doc, union(Vec::new()));
-    let (doc, joined) = insert(doc, union(joined_pairs));
-    let (doc, flipped) = insert(doc, union(flipped_pairs));
-    let (doc, fused) = insert(doc, reversed(fused_pairs));
-    let (doc, stray_union) = insert(doc, union(stray_pairs));
-    let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
-    // Undeclared, the two section faces are one plane by margin, so the
-    // pair glues them as the declared `Rest` they are (D10).
-    assert_eq!(
-        format!("{:?}", crate::corpus::body_of(&ev, undeclared)),
-        format!("{:?}", crate::corpus::body_of(&ev, joined)),
-        "the undeclared union is the declared one"
-    );
-    for id in [joined, flipped, fused] {
-        assert!(ev.value(id).is_some(), "{:?}", ev.node_error(id));
-        let body = crate::corpus::body_of(&ev, id);
-        let volume = topo::mass_properties(body, Tol::witness())
-            .expect("mass properties")
-            .volume;
-        assert!(
-            (volume - 1.0).abs() < 1e-12,
-            "the union of the two halves is the whole block: {volume}"
-        );
-    }
-    assert!(
-        matches!(
-            ev.node_error(stray_union).map(|e| &e.kind),
-            Some(NodeErrorKind::DeclareResolve { .. })
-        ),
-        "{:?}",
-        ev.node_error(stray_union)
     );
 }
 

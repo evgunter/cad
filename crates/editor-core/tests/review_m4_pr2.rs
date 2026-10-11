@@ -11,9 +11,8 @@ use std::fmt::Write as _;
 
 use editor_core::{
     BooleanValue, CancelToken, DocEdit, EvalOptions, EvalOutcome, Evaluation, Formula, Node,
-    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SitedRef, SlotId, ValuePayload, evaluate,
+    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SlotId, ValuePayload, evaluate,
 };
-use editor_core::{CapEnd, RoleSeg};
 use fixture::{
     ang, axis_in_plane, die, insert, len, on_frame, on_frame_keeping, scl, square, step,
 };
@@ -104,18 +103,7 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
         },
     );
     let (x, y) = if swap { (b, a) } else { (a, b) };
-    // The flush start caps are declared; sides resolve per operand,
-    // so one pair serves both operand orders.
-    let decl = editor_core::declare_continuation(vec![(
-        SitedRef::new(
-            fixture::out(&doc, a),
-            fixture::fname(a, RoleSeg::Cap(CapEnd::Start)),
-        ),
-        SitedRef::new(
-            fixture::out(&doc, b),
-            fixture::fname(b, RoleSeg::Cap(CapEnd::Start)),
-        ),
-    )]);
+    // The start caps are flush.
     let (doc, s) = insert(
         doc,
         Node::Subtract {
@@ -741,19 +729,7 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
                 )
             },
         );
-        // The pip's outer cap lies ON the cube's top —
-        // declared (the rotational variant maps the SAME names). The
-        // B side is read at the TRANSFORM, the subtract's operand.
-        let decl = editor_core::declare_continuation(vec![(
-            SitedRef::new(
-                fixture::out(&doc, cube),
-                fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
-            ),
-            SitedRef::new(
-                fixture::out(&doc, tr),
-                fixture::fname(pip, RoleSeg::Cap(CapEnd::Start)),
-            ),
-        )]);
+        // The pip's outer cap lies ON the cube's top.
         let (doc, sub) = insert(
             doc,
             Node::Subtract {

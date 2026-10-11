@@ -2094,17 +2094,16 @@ pub(in crate::boolean) mod tests {
     }
 
     /// Each settleable coincidence's ending where a declaration read
-    /// ahead of it would settle it: the declaration, then its own lever,
+    /// ahead of it would settle it: its own lever,
     /// and the tolerance only where its own pass set holds a nonzero
     /// sign. `None` for a question no declaration settles.
     fn coincide_settled(which: Coincide) -> Option<Ending> {
         match which {
-            Coincide::OnPlanes | Coincide::Carriers => Some(Ending::Lever(
-                "Recourse: declare the coincidence, or move the geometry",
-            )),
+            Coincide::OnPlanes | Coincide::Carriers => {
+                Some(Ending::Lever("Recourse: move the geometry"))
+            }
             Coincide::Sectors => Some(Ending::Sized(
-                "Recourse: declare the coincidence, or move the parts so they clearly meet or \
-                 clearly stand apart there",
+                "Recourse: move the parts so they clearly meet or clearly stand apart there",
                 SizedPass::AnySign,
             )),
             Coincide::Planes
@@ -2530,15 +2529,9 @@ pub(in crate::boolean) mod tests {
                     "{label}: the routing name stays out: {text}"
                 );
                 let readable = !margin.is_invalid();
-                assert_eq!(
-                    text.contains("declare the coincidence"),
-                    readable
-                        && matches!(
-                            decision,
-                            BooleanDecision::Coincidence(_, DeclarationRead::Settles(_))
-                        ),
-                    "{label}: only a coincidence a declaration read ahead would settle offers \
-                     one, and never on a margin no declaration reads: {text}"
+                assert!(
+                    !text.contains("declare the"),
+                    "{label}: no escalation offers a declaration: {text}"
                 );
                 let (subject, ending) = want(decision, readable);
                 let head = format!("{subject} is undecided: {}. ", diag.payload());
@@ -2738,41 +2731,6 @@ pub(in crate::boolean) mod tests {
                 "senses {senses:?}"
             );
         }
-    }
-
-    /// **A read settles only the question the lookup minted it for** (the
-    /// coincfr3 review's MINOR-2 probe, which carried an `OnPlanes` read
-    /// to `FlankSense` and rendered "declare"): every settling read,
-    /// carried to every other question, renders that question unsettled.
-    ///
-    /// Mutant: `BooleanDecision::ending` settling on any `Settles` read.
-    #[test]
-    fn a_settling_read_carried_to_another_question_offers_no_declaration() {
-        use crate::boolean::{Glue, GluedPairs};
-        let face = crate::entity::FaceKey::default();
-        let pair = [(Operand::A, face, Operand::B, face)];
-        let none = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
-        let diag = diag_of(MarginDiag::value((band().zero() + band().escalate()) / 2.0));
-        let mut carried_any = 0;
-        for minted in Coincide::iter() {
-            for &class in GlueClass::ALL {
-                let read = none.read(&pair, minted, &[class]);
-                if !matches!(read, DeclarationRead::Settles(_)) {
-                    continue;
-                }
-                for carried in Coincide::iter() {
-                    let decision = BooleanDecision::Coincidence(carried, read);
-                    let text = BooleanError::Escalated { decision, diag }.to_string();
-                    assert_eq!(
-                        text.contains("declare the coincidence"),
-                        carried == minted,
-                        "{minted:?}'s {class:?} read carried to {carried:?}: {text}"
-                    );
-                    carried_any += usize::from(carried != minted);
-                }
-            }
-        }
-        assert!(carried_any > 0, "the lookup mints a settling read to carry");
     }
 
     /// **A containment escalation on a residual rung names no
@@ -3628,21 +3586,19 @@ pub(in crate::boolean) mod tests {
     }
 
     /// **The two definite arms, and the maximal-faces gate's, pass the
-    /// refusal-shape guard and offer a declaration only where their
-    /// door takes one**: the curved pierce frontier (the declared-cover
-    /// rung reads a declaration of the edge's face against the curved
-    /// one) ends in the coincidence's levers without the tolerance; the
+    /// refusal-shape guard and offer no declaration**: the curved pierce
+    /// frontier ends in the coincidence's lever without the tolerance; the
     /// pierce curvature, on both refused verdicts, names its lever, with
     /// the tolerance a zero-band margin gives.
     #[test]
-    fn the_definite_arms_offer_a_declaration_only_where_their_door_takes_one() {
+    fn the_definite_arms_offer_no_declaration() {
         use crate::entity::FaceKey;
         use geom_brep::recourse::Refused;
         let b = band();
         let zero_margin = 0.5 * b.zero();
         let diag = diag_of(MarginDiag::value((b.zero() + b.escalate()) / 2.0));
         let face = FaceKey::default();
-        let rows: [(&str, BooleanError, bool, Option<f64>); 4] = [
+        let rows: [(&str, BooleanError, Option<f64>); 4] = [
             (
                 "curved pierce",
                 BooleanError::CurvedPierceUnsupported {
@@ -3651,7 +3607,6 @@ pub(in crate::boolean) mod tests {
                     edge: EdgeKey::default(),
                     band: b,
                 },
-                true,
                 None,
             ),
             (
@@ -3662,7 +3617,6 @@ pub(in crate::boolean) mod tests {
                         band: b,
                     }),
                 },
-                false,
                 Some(zero_margin / k()),
             ),
             (
@@ -3672,7 +3626,6 @@ pub(in crate::boolean) mod tests {
                         margin: MarginDiag::value(-1e-3),
                     },
                 },
-                false,
                 None,
             ),
             (
@@ -3682,15 +3635,14 @@ pub(in crate::boolean) mod tests {
                     faces: [face, face],
                     offset: diag,
                 },
-                false,
                 Some(point_margin(&diag) / k()),
             ),
         ];
-        for (name, err, declares, offer) in rows {
+        for (name, err, offer) in rows {
             let text = err.to_string();
             let problems = short_of_the_guard(&text, &[]);
             assert!(problems.is_empty(), "{name}: {problems:?}: {text}");
-            assert_eq!(text.contains("declare the"), declares, "{name}: {text}");
+            assert!(!text.contains("declare"), "{name}: {text}");
             assert_eq!(offered_below(&text), offer.map(Some), "{name}: {text}");
         }
         let pierce = BooleanError::CurvedPierceUnsupported {
@@ -3701,7 +3653,7 @@ pub(in crate::boolean) mod tests {
         }
         .to_string();
         assert!(
-            pierce.ends_with("Recourse: declare the coincidence, or move the geometry"),
+            pierce.ends_with("Recourse: move the geometry"),
             "the frontier's definite half keeps its in-band sibling's levers, less the \
              tolerance: {pierce}"
         );

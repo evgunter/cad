@@ -6613,9 +6613,8 @@ mod tests {
 
     /// S6 (two-tolerance, D4 ¶1 addendum): the boolean coincidence
     /// refusals — the plane-identity escalation and the undecided
-    /// carrier pair rung 4 leaves to a site — offer the declaration
-    /// exactly once per message, and only on a margin a declaration
-    /// reads.
+    /// carrier pair rung 4 leaves to a site — carry one recourse per
+    /// message, and none offers a declaration.
     #[test]
     fn coincidence_pair_carries_the_shared_recourse_once() {
         let diag = |margin| Indeterminate {
@@ -6636,14 +6635,11 @@ mod tests {
                 ),
                 Some(PlaneRelation::SameOpposite),
             );
-        for (margin, offers) in [(MarginDiag::value(5e-9), 1), (MarginDiag::INVALID, 0)] {
+        for margin in [MarginDiag::value(5e-9), MarginDiag::INVALID] {
             let msg =
                 BooleanError::plane_identity(PlaneRung::Parallel, door, diag(margin)).to_string();
-            assert_eq!(
-                msg.matches("declare the coincidence").count(),
-                offers,
-                "{msg}"
-            );
+            assert_eq!(msg.matches("Recourse:").count(), 1, "{msg}");
+            assert!(!msg.contains("declare"), "{msg}");
         }
         // The undecided arm, in both shapes rung 4 leaves to a site:
         // an in-band margin and a poisoned one — one message, one

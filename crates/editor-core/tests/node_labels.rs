@@ -345,9 +345,8 @@ fn the_spoken_node_says_kind_label_and_tag_as_the_document_holds_them() {
 }
 
 /// **An edit refusal speaks each node it names at the raise**, from the
-/// document the door holds: kind, label and tag for a held node, and
-/// kind and tag for the node an insert is minting, which carries no
-/// label. The typed field keeps the id a caller matches on.
+/// document the door holds: kind, label and tag for a held node. The
+/// typed field keeps the id a caller matches on.
 #[test]
 fn an_edit_refusal_names_each_node_as_the_document_holds_it() {
     let doc = ProfileDoc::empty_derived("node-labels-refusals", Tol::witness());
@@ -375,108 +374,6 @@ fn an_edit_refusal_names_each_node_as_the_document_holds_it() {
             .to_string()
             .starts_with(&format!("Extrude \"base plate\" ({e})'s profile reads")),
         "{wrong}"
-    );
-
-    // A union over the extrude declaring a side read through the
-    // profile, which is no operand of it.
-    let wall = fixture::fname(extrude, fixture::wall(&doc, extrude, 0));
-    let stray = refusal(
-        &doc,
-        DocEdit::InsertNode {
-            node: Box::new(stray_union(&doc, profile, extrude)),
-            fresh: Vec::new(),
-        },
-    );
-    let EditError::DeclaredSiteNotAnOperand { node, name, .. } = &stray else {
-        panic!("a side read through a non-operand refuses DeclaredSiteNotAnOperand, got {stray:?}");
-    };
-    assert_eq!(
-        (node.kind(), node.label(), name),
-        (Some("Union"), None, &doc.spoken_name(&wall)),
-        "the minted node by its kind alone, the name as the document holds it"
-    );
-    assert!(
-        stray
-            .to_string()
-            .contains(&format!("Extrude \"base plate\" ({e})")),
-        "{stray}"
-    );
-}
-
-/// A one-member union over `extrude` whose declared pair puts one side
-/// at `profile`'s read — a read the union does not take, so every door
-/// that writes the pair refuses it `DeclaredSiteNotAnOperand`.
-fn stray_union(
-    doc: &ProfileDoc,
-    profile: RecipeNodeId,
-    extrude: RecipeNodeId,
-) -> editor_core::AuthoredNode {
-    Node::Union {
-        members: editor_core::Bodies::Spelled(vec![extrude.into()]),
-        declare: editor_core::declare_rest(vec![(
-            editor_core::SitedRef::new(
-                fixture::out(doc, profile),
-                fixture::fname(extrude, fixture::wall(doc, extrude, 0)),
-            ),
-            editor_core::SitedRef::new(
-                fixture::out(doc, extrude),
-                fixture::fname(extrude, fixture::wall(doc, extrude, 1)),
-            ),
-        )]),
-    }
-}
-
-/// **A held node an edit rewrites is spoken with its label**: a
-/// `SetDeclare` that reads a side through a non-operand refuses about
-/// the union as the document holds it, label and all, not as the insert
-/// door's kind-and-tag spelling of a node being minted.
-#[test]
-fn a_set_declare_refusal_names_the_labelled_union_it_rewrites() {
-    let doc = ProfileDoc::empty_derived("node-labels-set-members", Tol::witness());
-    let (doc, [_, left_profile, left]) = block(doc, 0.0);
-    let (doc, [_, _, right]) = block(doc, 2.0);
-    let (doc, union) = insert(
-        doc,
-        Node::Union {
-            members: editor_core::Bodies::Spelled(vec![left.into(), right.into()]),
-        },
-    );
-    let doc = set_label(doc, union, Some("pair"));
-    let doc = set_label(doc, left, Some("left"));
-
-    // `left`'s wall, read through `left`'s profile rather than `left`.
-    let wall = fixture::fname(left, fixture::wall(&doc, left, 0));
-    let stray = refusal(
-        &doc,
-        DocEdit::SetDeclare {
-            node: union,
-            pairs: editor_core::declare_rest(vec![(
-                editor_core::SitedRef::new(fixture::out(&doc, left_profile), wall.clone()),
-                editor_core::SitedRef::new(
-                    fixture::out(&doc, right),
-                    fixture::fname(right, fixture::wall(&doc, right, 0)),
-                ),
-            )]),
-        },
-    );
-    let EditError::DeclaredSiteNotAnOperand { node, name, .. } = &stray else {
-        panic!("a side read through a non-operand refuses DeclaredSiteNotAnOperand, got {stray:?}");
-    };
-    assert_eq!(
-        (node, name),
-        (&doc.spoken(union), &doc.spoken_name(&wall)),
-        "the union and the name as the document holds them"
-    );
-    assert_eq!(
-        node.label(),
-        Some(&label("pair")),
-        "the rewritten union keeps its label"
-    );
-    assert!(
-        stray
-            .to_string()
-            .contains(&format!("Extrude \"left\" ({})", tag(left.0.digest()))),
-        "{stray}"
     );
 }
 
@@ -1332,8 +1229,8 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
 /// says each node as that version holds it** (`EditError::respoken`): a
 /// rename since the refusal is the label it says, in a node arm, a root
 /// arm and a name arm. A node the later version does not hold is said as
-/// the door said it — the node a refused insert was minting keeps its
-/// kind, a node deleted since keeps its label — and `LabelUnchanged`,
+/// the door said it — a node deleted since keeps its label — and
+/// `LabelUnchanged`,
 /// whose sentence is about the label the node held at the refusal, stays
 /// as raised. Red if a renamed node keeps its old label, if a node the
 /// later version lacks drops to its tag, or if `LabelUnchanged` takes
@@ -1352,14 +1249,6 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
             node: extrude,
             slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Profile),
             value: editor_core::SlotValue::Read(frame.into()),
-            fresh: Vec::new(),
-        },
-    );
-    let wall = fixture::fname(extrude, fixture::wall(&doc, extrude, 0));
-    let stray = refusal(
-        &doc,
-        DocEdit::InsertNode {
-            node: Box::new(stray_union(&doc, profile, extrude)),
             fresh: Vec::new(),
         },
     );
@@ -1387,14 +1276,6 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
     assert!(
         said.starts_with(&format!("Extrude \"slab\" ({e})'s profile reads ")),
         "a node arm says its node's new label: {said}"
-    );
-    let EditError::DeclaredSiteNotAnOperand { node, name, .. } = stray.respoken(&later) else {
-        panic!("respoken keeps the arm, got {stray:?}");
-    };
-    assert_eq!(
-        (node.kind(), node.label(), name),
-        (Some("Union"), None, later.spoken_name(&wall)),
-        "the minted node, which no version holds, by its kind; the name as renamed"
     );
     assert_eq!(
         rebind.respoken(&later),

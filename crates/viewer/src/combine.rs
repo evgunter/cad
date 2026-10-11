@@ -238,9 +238,7 @@ impl BooleanTool {
     ///
     /// [`BooleanTool::spec`]'s.
     pub fn op(&self) -> Result<SessionOp, SeatError> {
-        Ok(SessionOp::AddBoolean {
-            spec: self.spec()?,
-        })
+        Ok(SessionOp::AddBoolean { spec: self.spec()? })
     }
 }
 

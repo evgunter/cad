@@ -15,7 +15,7 @@ use editor_core::{
     CancelToken, Datum, Entry, EvalOptions, Evaluation, Node, PartSelect, ProfileDoc, RecipeNodeId,
     SplitHalf, evaluate,
 };
-use fixture::{declare_x_offset_flush, insert, len, on_frame, scl, wall};
+use fixture::{insert, len, on_frame, scl, wall};
 use geom_core::Interval;
 use geom_core::Tol;
 

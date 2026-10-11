@@ -442,9 +442,7 @@ fn the_boolean_door_refuses_a_non_body_operand_and_glues_a_repeated_body() {
                 tool: wrong,
             },
         ] {
-            let refused = session.perform(SessionOp::AddBoolean {
-                spec,
-            });
+            let refused = session.perform(SessionOp::AddBoolean { spec });
             assert!(
                 matches!(
                     &refused.refusal,

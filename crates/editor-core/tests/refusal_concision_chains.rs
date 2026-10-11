@@ -202,10 +202,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "SelectResolve/Vanished",
     "CrossingUnverified",
     "CurvedSolidFrontier",
-    "DeclareResolve/Ambiguous",
-    "DeclareResolve/Vanished",
-    "DeclareSiteNotAnOperand",
-    "DeclareUnsupportedPair",
     "DegenerateDirection",
     "DerivedFrameSection",
     "EmptyHalf",
@@ -1205,22 +1201,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::SeedPinnedSection {
                 section: RecipeNodeId::new(0, tagged(3)),
                 param: editor_core::VarId::new(0, tagged(7)),
-            },
-        ),
-        row(
-            "DeclareSiteNotAnOperand",
-            NodeErrorKind::DeclareSiteNotAnOperand {
-                at: editor_core::VarId::new(0, tagged(3)),
-            },
-        ),
-        row(
-            "DeclareUnsupportedPair",
-            NodeErrorKind::DeclareUnsupportedPair {
-                kinds: (
-                    editor_core::EntityKind::Edge,
-                    editor_core::EntityKind::Vertex,
-                ),
-                cross_operand: true,
             },
         ),
         row(
@@ -3459,11 +3439,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         rows.push(row(&format!("Naming/{n}"), NodeErrorKind::Naming(e)));
     }
     type Wrap = fn(Box<ResolveError>) -> NodeErrorKind;
-    let wraps: [(&str, Wrap); 2] = [
-        ("DeclareResolve", |error| NodeErrorKind::DeclareResolve {
-            error,
-            reference: 0,
-        }),
+    let wraps: [(&str, Wrap); 1] = [
         ("SelectResolve", |error| NodeErrorKind::SelectResolve {
             slot: editor_core::OperandSlot::Selection,
             var: editor_core::VarId::new(0, 7),

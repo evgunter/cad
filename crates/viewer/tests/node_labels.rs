@@ -586,9 +586,10 @@ fn a_kept_refusal_speaks_its_node_and_a_rename_retires_it() {
 /// **An edit the kernel door refuses speaks its node on the line as the
 /// document the batch leaves holds it** (`EditError::respoken`): the
 /// door spoke the node at the refusal, and a rename later in the same
-/// batch is the label the line says. The refusal is an angle typed
-/// into the block's length slot, which the edit door refuses. Red if
-/// the line says the label from before the rename.
+/// batch is the label the line says. The refusal is an expression
+/// typed into a slot the block (an extrude) does not have, which the
+/// edit door refuses. Red if the line says the label from before the
+/// rename.
 #[test]
 fn an_edit_door_refusal_says_a_rename_later_in_its_batch() {
     let tol = Tol::witness();
@@ -602,7 +603,7 @@ fn an_edit_door_refusal_says_a_rename_later_in_its_batch() {
         &[
             SessionOp::SetSlotExpression {
                 node: block,
-                slot: SlotId::Distance,
+                slot: SlotId::RotationAngle,
                 text: "1 rad".to_owned(),
             },
             SessionOp::SetLabel {

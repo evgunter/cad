@@ -7,7 +7,7 @@
 use crate::fixture::{ang, len, scl};
 use editor_core::ExtrudeSide;
 use editor_core::{
-    Dimension, DocEdit, EditError, Formula, FreeVar, RecipeNodeId, SitedRef, SlotId, VarEnv,
+    Dimension, DocEdit, EditError, Formula, FreeVar, RecipeNodeId, SlotId, VarEnv,
     VarName, eval, eval_count,
 };
 use geom_core::Tol;
@@ -507,126 +507,6 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
     check(&d);
 }
 
-/// R4 (RULED, spec D3 carve-out) — `StableName.node` is a REFERENCE,
-/// not a DAG edge (a boolean's reads are its operands, never what
-/// its declared pairs name), so:
-/// (1) DeleteNode of a node referenced ONLY by a boolean's declared
-///     pairs is ACCEPTED → the pairs strand (N5 dangling semantics:
-///     loud `NodeGone` at resolution, `Rebind` repairs);
-/// (2) declared pairs naming a node that does not EXIST at edit time
-///     are a TYPED REFUSAL (a never-existed id is a typo, caught at the
-///     best-diagnostics door).
-#[test]
-fn r4_stablename_node_refs_escape_ref_validation() {
-    use editor_core::{EntityKind, Node, StableName};
-    let doc = Doc::empty_derived("review_m4_pr1", Tol::witness());
-    let (doc, a) = body(doc);
-    let (doc, b) = body(doc);
-    // The node the name will denote: a body the boolean reads while its
-    // pairs are written (D10: a pair names what its node reads).
-    let (doc, target) = body(doc);
-    // Each side is read at an operand; the name is `node`'s.
-    let read = |node: RecipeNodeId| doc.output(node, 0).expect("a body defines its output");
-    let pairs = |node, second: RecipeNodeId| {
-        let name = StableName {
-            kind: EntityKind::Face,
-            node,
-            path: vec![],
-        };
-        editor_core::declare_rest(vec![(
-            SitedRef::new(read(a), name.clone()),
-            SitedRef::new(read(second), name),
-        )])
-    };
-    let boolean = |node, second: RecipeNodeId| Edit::InsertNode {
-        node: Box::new(Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), second.into()]),
-            declare: pairs(node, second),
-        }),
-        fresh: Vec::new(),
-    };
-    let inserted = doc
-        .apply(
-            &boolean(target, target),
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .unwrap();
-    let boolean_id = inserted.record.minted.unwrap();
-    // Re-pointed off the target: the name is reported out of reach,
-    // never refused, and the target is now read by nothing.
-    let inserted = inserted
-        .doc
-        .apply(
-            &Edit::SetParam {
-                node: boolean_id,
-                slot: SlotId::Operand(editor_core::OperandSlot::Member(1)),
-                value: editor_core::Operand::Node(b).into(),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .unwrap();
-    // (1) Delete the named node — ACCEPTED despite the live boolean.
-    let after = inserted.doc.apply(
-        &Edit::DeleteNode { id: target },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    );
-    let after = after.expect("WITNESS: delete of name-referenced node accepted");
-    assert!(after.doc.node(target).is_none());
-    // The boolean survives, holding a stale id.
-    match after.doc.node(boolean_id).unwrap() {
-        Node::Union { declare, .. } => {
-            assert_eq!(declare[0].0.0.name.node, target, "stale RecipeNodeId held");
-        }
-        n => panic!("expected Union, got {n:?}"),
-    }
-    // (2) Declared pairs naming an id that never existed: REFUSED, at
-    // the insert and at `SetDeclare` alike.
-    let phantom = RecipeNodeId::new(0, 9999);
-    let inserting = doc.apply(
-        &boolean(phantom, b),
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    );
-    let setting = inserted.doc.apply(
-        &Edit::SetDeclare {
-            node: boolean_id,
-            pairs: pairs(phantom, b),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    );
-    for (door, res) in [("insert", inserting), ("SetDeclare", setting)] {
-        match res {
-            Err(EditError::DeclareNamesMissingNode { name }) => {
-                assert_eq!(
-                    name.name().node,
-                    phantom,
-                    "{door}: refusal names the typo'd id"
-                );
-            }
-            other => panic!("{door}: phantom StableName.node must be refused, got {other:?}"),
-        }
-    }
-    // Contrast: a DAG-edge ref to the same phantom is refused.
-    let res2 = Doc::empty_derived("review_m4_pr1", Tol::witness()).apply(
-        &Edit::InsertNode {
-            node: Box::new(Node::Extrude {
-                profile: phantom.into(),
-                distance: len(1.0),
-                side: ExtrudeSide::Along,
-            }),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    );
-    assert!(matches!(res2, Err(EditError::UnresolvedInput { .. })));
-}
-
 /// R4 — cycles via multi-edit sequences: the v1 edit vocabulary has
 /// NO arm that rewires a node's inputs after insertion (SetParam /
 /// SetExpression touch expression slots only; Circular pattern's axis
@@ -1034,30 +914,6 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     )
     .unwrap();
     assert_eq!(n_before, n_after);
-    // FALSE POSITIVE witness: `SetDeclare` re-setting a boolean's empty
-    // declared-pair list (no geometry, no slots, no inputs move) is
-    // flagged structural under the wide reading.
-    let (doc, other) = body(a2.doc);
-    let (doc, boolean) = apply_all(
-        doc,
-        &[Edit::InsertNode {
-            node: Box::new(Node::Union {
-                members: editor_core::Bodies::Spelled(vec![input.into(), other.into()]),
-            }),
-            fresh: Vec::new(),
-        }],
-    );
-    let a3 = doc
-        .apply(
-            &Edit::SetDeclare {
-                node: boolean[0],
-                pairs: Vec::new(),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .unwrap();
-    assert!(a3.record.structural, "SetDeclare flags structural");
 }
 
 /// BIT-compare two docs: structure via PartialEq fields, floats via

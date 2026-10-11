@@ -540,16 +540,6 @@ fn refusals(
             .spoken(doc, tables),
         ),
         (
-            "SelectRefusal::PairInBand",
-            SelectRefusal::PairInBand {
-                pair: Box::new((a.clone(), b.clone())),
-                at: (a.node, b.node),
-                predicate: "bool_plane_offset",
-                source: band(),
-            }
-            .spoken(doc, tables),
-        ),
-        (
             "NodeErrorKind::CrossingUnverified",
             NodeError {
                 node: instance,
@@ -585,20 +575,16 @@ fn moved(r: &mut Recorder, input: RecipeNodeId, by: [f64; 3]) -> RecipeNodeId {
 }
 
 fn boolean(r: &mut Recorder, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> RecipeNodeId {
-    let declare = Vec::new();
     r.insert(match op {
         BooleanOp::Subtract => Node::Subtract {
             from: a.into(),
             tool: b.into(),
-            declare,
         },
         BooleanOp::Union => Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare,
         },
         BooleanOp::Intersect => Node::Intersect {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare,
         },
     })
 }
@@ -898,8 +884,8 @@ fn each_boolean_join_says_its_operation() {
 
 /// **Two copies of one body read apart where a sentence names a face of
 /// each**: the copies' faces carry names alike, since a name says the
-/// node that made it and not the node holding it, so the flush query's
-/// in-band pair and the pick's tie say each face's node.
+/// node that made it and not the node holding it, so the pick's tie
+/// says each face's node.
 #[test]
 fn two_copies_of_one_body_read_apart_where_a_sentence_names_both() {
     let mut r = Recorder::new();
@@ -909,28 +895,10 @@ fn two_copies_of_one_body_read_apart_where_a_sentence_names_both() {
     let two = moved(&mut r, block, [0.5, 0.0, 0.0]);
     let doc = r.doc;
     let ev = fixture::run(&doc, &EvalOptions::default());
-    let findings = editor_core::find_flush_candidates(&ev, &doc, one, two, fixture::tol())
-        .expect("the copies' flush faces are decided");
-    let alike = findings
-        .iter()
-        .find(|finding| finding.pair.0.name == finding.pair.1.name)
-        .expect("the copies' end caps lie flush, and carry one name");
-    let face = alike.pair.0.name.clone();
+    // The copies' end caps carry one name: the extrude's.
+    let face = fixture::fname(block, editor_core::RoleSeg::Cap(editor_core::CapEnd::End));
     let by = Speaker::of(&doc).within(&ev);
     let (at_one, at_two) = (doc.spoken(one).to_string(), doc.spoken(two).to_string());
-    let band = geom_core::Indeterminate {
-        margin: geom_core::MarginDiag::value(3e-11),
-        band: geom_core::Band::new(1e-12, 1e-9).expect("zero < escalate"),
-        predicate: Some("bool_plane_offset"),
-        terminal_sliver: false,
-    };
-    let pair = SelectRefusal::PairInBand {
-        pair: Box::new((face.clone(), face.clone())),
-        at: (one, two),
-        predicate: "bool_plane_offset",
-        source: band,
-    }
-    .spoken(&doc, &ev);
     let hit = |node| PickHit {
         name: face.clone(),
         node,
@@ -945,13 +913,10 @@ fn two_copies_of_one_body_read_apart_where_a_sentence_names_both() {
     }
     .spoken(&doc, &ev);
     let said = by.name(&face).to_string();
-    for text in [&pair, &tie] {
-        assert!(
-            text.contains(&format!("{said} on {at_one}"))
-                && text.contains(&format!("{said} on {at_two}")),
-            "each face is said with the copy holding it: {text}"
-        );
-    }
+    assert!(
+        tie.contains(&format!("{said} on {at_one}")) && tie.contains(&format!("{said} on {at_two}")),
+        "each face is said with the copy holding it: {tie}"
+    );
 }
 
 /// **A failed row said within the largest corpus table costs no search
