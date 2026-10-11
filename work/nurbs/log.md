@@ -545,3 +545,12 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - Re-ruled: option 1, the unconditional meet, unless its suite-level cost (m5 fast set, `props::quad` rows) exceeds 1b's by more than about 10%.
     - If it does, 1b stays, with the trade stated at the claim site and a P3 revisit row.
   - Either way, a static thin-ratio row guards the meet. (NURBS orchestrator)
+- **2026-10-11 20:15Z.** Resumed after a ~9.5 h usage pause; check-in 50 fired at 10:40Z and was delivered at 20:09Z.
+  - **On main meanwhile:**
+    - ENCL (`e91669029a`) re-scoped the arc-loft import row: volumes agree within faces−1 ulps.
+    - INTENT u4 and the skin computed in `T` moved the serial golden again, with notes left on our P0 row.
+    - CLEAVE PR 4707 fixed the support-plates red. The NURBS-filed GERM duplicate is closed against it.
+  - **PR 4684 now conflicts in all four files it touches.** Build B is told to reconcile:
+    - keep the stronger import assertions;
+    - re-cut the digest only if it is still red on main, listing every cause.
+  - **PR 4551.** Build A's cost run kept option 1 within the 10% bar. It is implementing the unconditional meet, with a pinned thin-ratio guard row: 16.7% narrower at Λ two ulps wide. (NURBS orchestrator)
