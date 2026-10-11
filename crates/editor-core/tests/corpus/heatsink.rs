@@ -29,9 +29,7 @@
 //! the base half of the DAG is reused).
 
 use editor_core::ExtrudeSide;
-use editor_core::{
-    BooleanOp, Dimension, DocEdit, Formula, FreeVar, Node, PatternKind, SlotId, VarName,
-};
+use editor_core::{Dimension, DocEdit, Formula, FreeVar, Node, PatternKind, SlotId, VarName};
 
 use crate::fixture::{ang, len, scl};
 
@@ -106,10 +104,8 @@ pub fn document() -> CorpusDoc {
                 angle: ang(0.0),
             },
         ));
-        acc = r.insert(Node::Boolean {
-            op: BooleanOp::Union,
-            a: acc.into(),
-            b: tr.into(),
+        acc = r.insert(Node::Union {
+            members: editor_core::Bodies::Spelled(vec![acc.into(), tr.into()]),
             declare: Vec::new(),
         });
     }

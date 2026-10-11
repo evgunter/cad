@@ -148,10 +148,8 @@ fn boolean_part(label: &str) -> ProfileDoc {
     );
     let (doc, fused) = insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: plate.into(),
-            b: boss.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
             declare: Vec::new(),
         },
     );

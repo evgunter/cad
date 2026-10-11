@@ -63,7 +63,8 @@ use super::table::{EntityRef, Entry};
 /// boolean emitter minted" without naming eleven variants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum OpGroup {
-    /// Shared across body-producing ops ([`RoleSeg::OutputBody`]).
+    /// Shared across body-producing ops ([`RoleSeg::OutputBody`], and
+    /// [`RoleSeg::From`], an entity carried in through a read).
     Shared,
     /// Extrude — and the loft, a swept solid of the same shape, whose
     /// caps, rims and cap vertices are the extrude's roles and whose
@@ -92,9 +93,9 @@ pub enum OpGroup {
     /// A world placement's copy.
     PlaceInWorld,
     /// Shell (the hollowing verb's cavity, rim and hole-rim roles).
-    /// Its outer wall speaks as [`SegTag::FromTarget`], which groups
-    /// under [`OpGroup::Fillet`]: the tag names the SHAPE (an entity
-    /// carried through one op), and the minting node says which op.
+    /// Its outer wall speaks as [`SegTag::From`], which groups under
+    /// [`OpGroup::Shared`]: the tag names the SHAPE (an entity carried
+    /// in through a read), and the minting node says which op.
     Shell,
 }
 
@@ -131,6 +132,7 @@ macro_rules! seg_tags {
 seg_tags! {
     // Shared
     OutputBody,
+    From,
     // Extrude
     Cap,
     Lateral,
@@ -151,9 +153,6 @@ seg_tags! {
     Pole,
     AxisEdge,
     // Boolean
-    FromA,
-    FromB,
-    FromMember,
     Seam,
     Crossing,
     EdgeCrossing,
@@ -167,7 +166,6 @@ seg_tags! {
     CrossingVertex,
     OnToolVertex,
     // Fillet
-    FromTarget,
     BlendFace,
     CornerFace,
     TrimEdge,
@@ -253,9 +251,7 @@ impl SegTag {
             RoleSeg::RevolveCap(..) => Self::RevolveCap,
             RoleSeg::Pole(..) => Self::Pole,
             RoleSeg::AxisEdge(..) => Self::AxisEdge,
-            RoleSeg::FromA(..) => Self::FromA,
-            RoleSeg::FromB(..) => Self::FromB,
-            RoleSeg::FromMember { .. } => Self::FromMember,
+            RoleSeg::From { .. } => Self::From,
             RoleSeg::Seam { .. } => Self::Seam,
             RoleSeg::Crossing { .. } => Self::Crossing,
             RoleSeg::EdgeCrossing { .. } => Self::EdgeCrossing,
@@ -267,7 +263,6 @@ impl SegTag {
             RoleSeg::SplitFragment { .. } => Self::SplitFragment,
             RoleSeg::CrossingVertex { .. } => Self::CrossingVertex,
             RoleSeg::OnToolVertex { .. } => Self::OnToolVertex,
-            RoleSeg::FromTarget(..) => Self::FromTarget,
             RoleSeg::BlendFace(..) => Self::BlendFace,
             RoleSeg::CornerFace(..) => Self::CornerFace,
             RoleSeg::TrimEdge { .. } => Self::TrimEdge,
@@ -293,7 +288,7 @@ impl SegTag {
     /// Which op minted segments with this tag.
     pub fn group(self) -> OpGroup {
         match self {
-            Self::OutputBody => OpGroup::Shared,
+            Self::OutputBody | Self::From => OpGroup::Shared,
             Self::Cap
             | Self::Lateral
             | Self::RimEdge
@@ -310,25 +305,16 @@ impl SegTag {
             | Self::RevolveCap
             | Self::Pole
             | Self::AxisEdge => OpGroup::Revolve,
-            Self::FromA
-            | Self::FromB
-            // The n-ary union is a boolean in the vocabulary's sense —
-            // the group is the naming CONTRACT the segment versions
-            // with, and this segment versions with the union's.
-            | Self::FromMember
-            | Self::Seam
-            | Self::Crossing
-            | Self::EdgeCrossing
-            | Self::Merged
-            | Self::Fragment => OpGroup::Boolean,
+            Self::Seam | Self::Crossing | Self::EdgeCrossing | Self::Merged | Self::Fragment => {
+                OpGroup::Boolean
+            }
             Self::SplitBody
             | Self::SectionFace
             | Self::SectionEdge
             | Self::SplitFragment
             | Self::CrossingVertex
             | Self::OnToolVertex => OpGroup::Split,
-            Self::FromTarget
-            | Self::BlendFace
+            Self::BlendFace
             | Self::CornerFace
             | Self::TrimEdge
             | Self::FootVertex
@@ -378,9 +364,7 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::BandPi(_)
         | RoleSeg::Pole(_)
         | RoleSeg::AxisEdge(_)
-        | RoleSeg::FromA(_)
-        | RoleSeg::FromB(_)
-        | RoleSeg::FromMember { .. }
+        | RoleSeg::From { .. }
         | RoleSeg::Seam { .. }
         | RoleSeg::Crossing { .. }
         | RoleSeg::EdgeCrossing { .. }
@@ -391,7 +375,6 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
             | Qualifier::Ends(_)
             | Qualifier::OrderAlong { .. },
         )
-        | RoleSeg::FromTarget(_)
         | RoleSeg::BlendFace(_)
         | RoleSeg::CornerFace(_)
         | RoleSeg::TrimEdge { .. }
@@ -425,19 +408,16 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
 /// added to [`crate::names::name_free_seg`], which is the one place
 /// that answer is written for every match that shares it.
 ///
-/// **Only NAMES.** [`RoleSeg::FromMember`] contributes its `of` and not
-/// its `member`, exactly as [`RoleSeg::Instance`] contributes its `of`
-/// and not its `i`: a bare [`crate::RecipeNodeId`] is not a name and a
-/// walk over names cannot see it. The consumers that need the member
-/// edge — the content key, the re-map, and `derivation_nodes` — reach
-/// it through [`crate::names::member_edge`], which is where "which
-/// segments carry a bare recipe-node id" is answered.
+/// **Only NAMES.** [`RoleSeg::From`] contributes its `of` and not its
+/// `read`, exactly as [`RoleSeg::Instance`] contributes its `of` and not
+/// its `i`: a bare [`crate::VarId`] is not a name and a walk over names
+/// cannot see it. The consumers that need the read — the content key,
+/// the re-map, and `derivation_nodes` — reach it through
+/// [`crate::names::read_edge`], which is where "which segments carry a
+/// bare id" is answered.
 fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
     match seg {
-        RoleSeg::FromA(n)
-        | RoleSeg::FromB(n)
-        | RoleSeg::FromMember { of: n, .. }
-        | RoleSeg::FromTarget(n)
+        RoleSeg::From { of: n, .. }
         | RoleSeg::BlendFace(n)
         | RoleSeg::CornerFace(n)
         | RoleSeg::Mitre { vertex: n }

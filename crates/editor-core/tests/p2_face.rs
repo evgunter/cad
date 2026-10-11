@@ -611,7 +611,7 @@ fn renamed(base: &ProfileDoc, body: RecipeNodeId, height: f64) -> (ProfileDoc, R
         .into_iter()
         .filter(|&at| {
             matches!(base.node(at), Some(Node::PlaceInWorld { body: read, .. })
-                if base.operation_of(*read) == Some(body))
+                if base.operation_of(read.read) == Some(body))
         })
         .collect();
     let base = old_copies

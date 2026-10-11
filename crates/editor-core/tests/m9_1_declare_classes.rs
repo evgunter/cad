@@ -13,8 +13,8 @@
 use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanCoincidence, BooleanOp, CancelToken, CapEnd, DocEdit, EvalOptions, Node, NodeResult,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, evaluate, find_flush_candidates,
+    BooleanCoincidence, CancelToken, CapEnd, DocEdit, EvalOptions, Node, NodeResult, ProfileDoc,
+    RecipeNodeId, RoleSeg, SitedRef, evaluate, find_flush_candidates,
 };
 
 use crate::fixture;
@@ -54,10 +54,10 @@ fn stacked() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     (doc, a, b)
 }
 
-/// One cap of one block, sited at the node that mints it — what a
+/// One cap of one block, sited at the block's read — what a
 /// declaration between two blocks names.
-fn cap(node: RecipeNodeId, end: CapEnd) -> SitedRef {
-    SitedRef::new(node, fname(node, RoleSeg::Cap(end)))
+fn cap(doc: &ProfileDoc, node: RecipeNodeId, end: CapEnd) -> SitedRef<editor_core::VarId> {
+    SitedRef::new(fixture::out(doc, node), fname(node, RoleSeg::Cap(end)))
 }
 
 /// **The class-preservation row.**
@@ -82,7 +82,8 @@ fn declared_pairs_preserves_the_findings_class() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    let detected = find_flush_candidates(&ev, a, b, Tol::witness()).expect("the detector runs");
+    let detected =
+        find_flush_candidates(&ev, &doc, a, b, Tol::witness()).expect("the detector runs");
     assert!(!detected.is_empty(), "the stack has a flush cap to find");
 
     // A finding the detector cannot mint today, carrying a class the
@@ -120,17 +121,15 @@ fn declared_pairs_preserves_the_findings_class() {
 #[test]
 fn an_authored_class_is_what_the_node_holds() {
     let (doc, a, b) = stacked();
-    let node: AuthoredNode = Node::Boolean {
-        op: BooleanOp::Union,
-        a: a.into(),
-        b: b.into(),
+    let node: AuthoredNode = Node::Union {
+        members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         declare: vec![
             (
-                (cap(a, CapEnd::End), cap(b, CapEnd::Start)),
+                (cap(&doc, a, CapEnd::End), cap(&doc, b, CapEnd::Start)),
                 BooleanCoincidence::REST,
             ),
             (
-                (cap(a, CapEnd::Start), cap(b, CapEnd::End)),
+                (cap(&doc, a, CapEnd::Start), cap(&doc, b, CapEnd::End)),
                 BooleanCoincidence::TANGENT,
             ),
         ],
@@ -146,8 +145,8 @@ fn an_authored_class_is_what_the_node_holds() {
         )
         .expect("the declaring union inserts");
     let id = applied.record.minted.unwrap();
-    let Some(Node::Boolean { declare: pairs, .. }) = applied.doc.node(id) else {
-        panic!("the node is a Boolean");
+    let Some(Node::Union { declare: pairs, .. }) = applied.doc.node(id) else {
+        panic!("the node is a Union");
     };
     assert_eq!(pairs[0].1, BooleanCoincidence::REST);
     assert_eq!(pairs[1].1, BooleanCoincidence::TANGENT);
@@ -173,11 +172,12 @@ fn a_wrong_class_declaration_refuses_at_the_op() {
         let applied = doc
             .apply(
                 &DocEdit::InsertNode {
-                    node: Box::new(Node::Boolean {
-                        op: BooleanOp::Union,
-                        a: a.into(),
-                        b: b.into(),
-                        declare: vec![((cap(a, CapEnd::End), cap(b, CapEnd::Start)), class)],
+                    node: Box::new(Node::Union {
+                        members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+                        declare: vec![(
+                            (cap(&doc, a, CapEnd::End), cap(&doc, b, CapEnd::Start)),
+                            class,
+                        )],
                     }),
                     fresh: Vec::new(),
                 },
@@ -227,7 +227,8 @@ fn the_detectors_class_is_the_kernels_enum() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    let findings = find_flush_candidates(&ev, a, b, Tol::witness()).expect("the detector runs");
+    let findings =
+        find_flush_candidates(&ev, &doc, a, b, Tol::witness()).expect("the detector runs");
     for f in &findings {
         assert_eq!(f.class, BooleanCoincidence::REST);
         // Same type, spelled through the kernel path: this would not

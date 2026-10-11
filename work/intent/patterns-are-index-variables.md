@@ -7,7 +7,7 @@ opened: 2026-10-08
 priority: P0
 cost: H
 refs: [interference-at-rest-is-a-finding, a-placement-is-the-bundle-of-mates, intent-stage3-is-built]
-blocked_on: [transform-retires-into-a-placement, a-union-member-is-keyed-by-its-read]
+blocked_on: [transform-retires-into-a-placement]
 ---
 
 FORK-PAT (fork log row 99). Ev, 2026-10-08, on interference between a
