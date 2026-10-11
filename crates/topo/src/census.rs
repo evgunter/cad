@@ -170,10 +170,13 @@
 //! the entities it holds even where that event lies outside the
 //! pair's own overlap region.
 //! Continuous overlaps — two collinear edges sharing a positive-length
-//! segment, an edge resting in a face's region — are certified by
+//! segment, an edge resting in a face's region — are confirmed by
 //! **reconstruction from their bounding vertex events**:
 //!
-//! - An **edge-edge collinear overlap** is certified iff each of its
+//! - An **edge-edge collinear overlap** is a pair whose interiors meet,
+//!   so it is owed its edge-edge record (D1), or a declared face pair
+//!   whose interface it lies on, or both its bounds structural (each
+//!   one point key); it is certified iff that holds and each of its
 //!   two bounds is backed. Where both edges hold a vertex at the bound,
 //!   that means the pair is v-v-declared, or backed by a declared face
 //!   pair holding the two vertices on its two boundaries
@@ -188,9 +191,8 @@
 //!   an endpoint of at least one span, so one of the two arms applies
 //!   at every bound. Between two backed bounds the carriers coincide
 //!   identically (two lines sharing two points are one line), so the
-//!   interior overlap is exactly the convex closure of the bounded
-//!   events on both carriers — no interior record can carry more
-//!   information than the bounds on the planar corpus.
+//!   bounds confirm the record: the interior overlap is exactly the
+//!   convex closure of the bounded events on both carriers.
 //! - An **edge-on-face overlap** is certified iff each of its two
 //!   bounds is backed. A bound is a point where the edge ends or where
 //!   the face's region ends along it, and the region ends only on the
@@ -972,6 +974,18 @@ impl Declared {
     fn ee_recorded(&self, a: EdgeKey, b: EdgeKey) -> bool {
         self.ee.contains(&(a, b))
     }
+
+    /// The face rung for a collinear overlap: some declared face pair
+    /// names a face `a` bounds on one side and a face `b` bounds on the
+    /// other, so the overlap is an event of that pair's interface, at
+    /// [`Declared::ve_face_backed`]'s structural-incidence strength.
+    fn ee_face_backed<T: Real>(&self, a: &EdgeGeo<T>, b: &EdgeGeo<T>) -> bool {
+        [a.f_plus, a.f_minus].iter().any(|&fa| {
+            [b.f_plus, b.f_minus]
+                .iter()
+                .any(|&fb| self.faces.contains(&(fa, fb)))
+        })
+    }
 }
 
 /// The planar snapshot entry for a face, or `None` for a curved one.
@@ -1159,7 +1173,7 @@ fn pair_verified<T: Decide>(
 /// further copies of the same match live outside the census
 /// (`merge_faces`, `validate`, `boolean::ops`); each answers its own
 /// question, not the snapshot's.
-fn edge_is_line<T: Real>(body: &Body<T>, ek: crate::entity::EdgeKey) -> bool {
+pub(crate) fn edge_is_line<T: Real>(body: &Body<T>, ek: crate::entity::EdgeKey) -> bool {
     body.edges
         .get(ek)
         .and_then(|e| body.curves.get(e.curve))
@@ -2421,7 +2435,7 @@ fn conic_crossings<T: Decide>(
 
 /// Census pass 5: edge × edge — proper interior crossings (backable
 /// at the unified strength through [`ee_cross_backed`]) and collinear
-/// positive-length overlaps (D3-certified at both bounds).
+/// positive-length overlaps ([`ee_collinear_lane`]).
 #[allow(clippy::too_many_arguments)] // the census's fixed sweep signature plus the region door the rung consults
 fn sweep_edge_edge<T: Decide>(
     body: &Body<T>,
@@ -2767,10 +2781,6 @@ fn ee_crossing_lane<T: Decide>(
     }
 }
 
-/// Parallel pair: if collinear, the span overlap `[lo, hi]` on `ea`'s
-/// axis is a finding when positive-length; certified iff both bounds
-/// carry a coincident vertex pair that is v-v-declared, one vertex, or
-/// two on one point (structural) — the D3 rule.
 /// The positive-length overlap `[lo, hi]` of two parallel edges on
 /// `ea`'s axis, where they are collinear: `None` where they are not, the
 /// overlap is a point or empty (pass 1's territory), or a decision
@@ -2810,6 +2820,16 @@ fn collinear_overlap<T: Decide>(
     }
 }
 
+/// **A collinear overlap of two line edges**: a pair whose interiors
+/// meet, so it is owed its edge-edge record (D1), or a declared face
+/// pair whose interface it lies on ([`Declared::ee_face_backed`]), and
+/// the record is confirmed by reconstruction from its bounds: between
+/// two backed bounds, two lines sharing two points are one line. Two
+/// edges ending at one point key at both bounds run between the same
+/// two points by key, which is structural sharing and owes no record
+/// (D1). An overlap with no record, or with a bound [`ee_bound_backed`]
+/// does not back, is an `UndeclaredContact`; a bound is never
+/// inferred.
 fn ee_collinear_lane<T: Decide>(
     ea: &EdgeGeo<T>,
     eb: &EdgeGeo<T>,
@@ -2821,9 +2841,16 @@ fn ee_collinear_lane<T: Decide>(
     let Some((lo, hi)) = collinear_overlap(ea, eb, band, errors) else {
         return;
     };
-    let backed = ee_bound_backed(ea, eb, lo, geo, declared, band, errors)
-        && ee_bound_backed(ea, eb, hi, geo, declared, band, errors);
-    if !backed {
+    let low = ee_bound_backed(ea, eb, lo, geo, declared, band, errors);
+    let high = match low {
+        Bound::Unbacked => Bound::Unbacked,
+        _ => ee_bound_backed(ea, eb, hi, geo, declared, band, errors),
+    };
+    let backed = low != Bound::Unbacked && high != Bound::Unbacked;
+    let recorded = (low, high) == (Bound::Shared, Bound::Shared)
+        || declared.ee_recorded(ea.key, eb.key)
+        || declared.ee_face_backed(ea, eb);
+    if !(backed && recorded) {
         errors.push(ValidationError::UndeclaredContact {
             contact: CensusContact::EdgeEdgeOverlap {
                 a: ea.key,
@@ -2856,16 +2883,15 @@ fn ee_bound_backed<T: Decide>(
     declared: &Declared,
     band: Band,
     errors: &mut Vec<ValidationError>,
-) -> bool {
+) -> Bound {
     let va = edge_vertex_at(ea, s, band, errors);
     let q = ea.p0 + ea.dir * s;
     let sb = (q - eb.p0).dot(eb.dir);
     let vb = edge_vertex_at(eb, sb, band, errors);
-    match (va, vb) {
+    let backed = match (va, vb) {
+        (Some(va), Some(vb)) if geo.same_point(va, vb) => return Bound::Shared,
         (Some(va), Some(vb)) => {
-            geo.same_point(va, vb)
-                || declared.vv.contains(&(va, vb))
-                || declared.vv_face_backed(geo, va, vb)
+            declared.vv.contains(&(va, vb)) || declared.vv_face_backed(geo, va, vb)
         }
         (Some(va), None) => {
             declared.ve_recorded(va, eb.key) || declared.ve_face_backed(geo, va, eb)
@@ -2876,7 +2902,23 @@ fn ee_bound_backed<T: Decide>(
         // Neither edge resolves a vertex at the bound: an escalated
         // span (already pushed), never a backing.
         (None, None) => false,
+    };
+    if backed {
+        Bound::Backed
+    } else {
+        Bound::Unbacked
     }
+}
+
+/// How [`ee_bound_backed`] backs one bound of a collinear overlap.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Bound {
+    /// Both edges end there, at one point key: structural sharing.
+    Shared,
+    /// A record or a declared face pair backs it.
+    Backed,
+    /// Nothing backs it.
+    Unbacked,
 }
 
 /// **The conformal face-pair arm** (M9-2, C2's structural rung run as

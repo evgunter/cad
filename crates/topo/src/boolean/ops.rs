@@ -3128,6 +3128,7 @@ pub(super) fn ledger<T: Decide>(
                 clone,
                 side,
                 &red.edge_splits,
+                &red.null_edges,
                 row,
                 carried,
                 &mut pending,
@@ -3239,10 +3240,12 @@ fn pieces<T: Real>(
 /// [`BooleanError::Escalated`] (`VertexOnVertex`) where a segment
 /// question is in band; [`BooleanError::JoinDesync`] where a logged key
 /// does not resolve in its clone.
+#[allow(clippy::too_many_arguments)]
 fn ee_lineage<T: Decide>(
     clone: &Body<T>,
     side: Operand,
     splits: &[super::EdgeSplit],
+    null_edges: &[super::BoolNullEdgeRecord<T>],
     row: Cited<EeContact>,
     carried: &mut Rows,
     pending: &mut Vec<PendingRow>,
@@ -3316,11 +3319,12 @@ fn ee_lineage<T: Decide>(
                         if apart == geom_core::k_stats::Magnitude::Zero {
                             // The minted vertex decided one with the other
                             // piece's end: this op's decision, cited
-                            // beside the carried record.
+                            // beside the carried record, naming the
+                            // vertex the end is a null-edge copy of.
                             let fresh = decide_one(
                                 pending,
                                 (side, Cell::Vertex(v)),
-                                (side, Cell::Vertex(w)),
+                                (side, Cell::Vertex(uncopied(null_edges, side, w))),
                                 margin,
                             );
                             push_cited(
@@ -3335,6 +3339,29 @@ fn ee_lineage<T: Decide>(
         }
     }
     Ok(())
+}
+
+/// The vertex `v` of operand `side`'s clone is a copy of: where a null
+/// edge minted `v` at another vertex, that vertex, read back through
+/// every null edge that hangs at a copy; `v` itself where none did. A
+/// decision's cells name the op's input, which holds no copy.
+fn uncopied<T: Real>(
+    null_edges: &[super::BoolNullEdgeRecord<T>],
+    side: Operand,
+    mut v: VertexKey,
+) -> VertexKey {
+    for _ in 0..=null_edges.len() {
+        let minted = null_edges.iter().find(|r| {
+            r.operand == side
+                && r.at_vertex != v
+                && (r.attr.below_end == v || r.attr.above_end == v)
+        });
+        match minted {
+            Some(r) => v = r.at_vertex,
+            None => return v,
+        }
+    }
+    v
 }
 
 /// One operand's own records re-entering an op, in its keys: the cell
@@ -3875,8 +3902,9 @@ fn carry_rows<T: Decide>(
             record(body, &mut out, (vs, x), (fs, y), cites.clone());
         }
     }
-    // Records of two edges or faces: the joins' (no reduction mints
-    // one) and each operand's carried ones, both cells chased.
+    // Records of two edges or faces: the reduction's touches along a
+    // line, the joins' and each operand's carried ones, both cells
+    // chased.
     for ([(xs, xc), (ys, yc)], cites) in cell_rows {
         if let (Some(x), Some(y)) = (
             desc.live(body, xs, view(xs), xc)?,
@@ -6615,6 +6643,7 @@ mod tests {
                 crate::Cites::decided(0),
             )],
             b_on_a: vec![],
+            ee: vec![],
         };
         // Without the descendant row: the record drops (pre-D5 loss).
         let out = found(
@@ -6649,6 +6678,7 @@ mod tests {
             )],
             a_on_b: vec![],
             b_on_a: vec![],
+            ee: vec![],
         };
         let mut desc = Descendants::default();
         desc.vertices.push((dead_vertex, live_vertex)).unwrap();
@@ -7096,6 +7126,7 @@ mod tests {
                 VfContact { vertex: v, face },
                 crate::Cites::decided(0),
             )],
+            ee: vec![],
         };
         let remap = |c: &ReductionContacts| {
             found(&body, c, [&KeyView::Direct; 2], &desc)

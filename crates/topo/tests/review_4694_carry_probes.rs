@@ -114,11 +114,13 @@ fn undeclared_at(what: &str, refused: Result<(), Vec<topo::ValidationError>>, at
 }
 
 /// **A split across an edge kiss refuses both sides, loudly.** The
-/// kiss's two vertex–vertex records bound its edge overlap; the cut
-/// mints a new vertex on each kissing edge at z = 1/2, one pair at one
-/// point, which no decision of the op cites, so each side's half of the
-/// overlap is unbacked: each end record lands, and each side still
-/// refuses the new pair undeclared. Residue:
+/// kiss's two vertex–vertex records bound its edge overlap, and its
+/// edge–edge record names it; the cut mints a new vertex on each
+/// kissing edge at z = 1/2, one pair at one point, which no decision of
+/// the op cites, so each side's half of the overlap is unbacked: each
+/// end record lands, the edge–edge record lands on the side whose
+/// pieces kept the edges' keys, and each side still refuses the new
+/// pair undeclared. Residue:
 /// `work/contacthold/surgery-carry-keeps-a-divided-cells-record-on-the-piece-that-kept-its-key.md`.
 #[test]
 fn a_split_across_an_edge_kiss_refuses_both_sides() {
@@ -126,8 +128,11 @@ fn a_split_across_an_edge_kiss_refuses_both_sides() {
     let b = box_of((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), "b");
     let base = union_of(&a, &b);
     assert_eq!(
-        base.contacts.vertex_vertex().count(),
-        2,
+        (
+            base.contacts.vertex_vertex().count(),
+            base.contacts.edge_edge().count()
+        ),
+        (2, 1),
         "{:?}",
         base.contacts
     );
@@ -139,7 +144,7 @@ fn a_split_across_an_edge_kiss_refuses_both_sides() {
     let split = topo::split(&base.body, &plane, tol()).expect("the edge kiss splits");
     let sides = split.carry_contacts(&base.contacts);
     let sides = sides.expect("each record lands");
-    assert_eq!((sides.above.len(), sides.below.len()), (1, 1), "{sides:?}");
+    assert_eq!((sides.above.len(), sides.below.len()), (1, 2), "{sides:?}");
     for (what, body, recs) in [
         ("above", split.above.body(), &sides.above),
         ("below", split.below.body(), &sides.below),

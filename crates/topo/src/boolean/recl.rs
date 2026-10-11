@@ -635,6 +635,10 @@ fn mark_germ(rec: &mut PairRecord) -> Result<(), BooleanError> {
 /// An edge-edge germ along an edge in `reversed` goes on that solid's
 /// other flanker, folding the edge into the run on its Out side
 /// ([`Reversed`]).
+///
+/// An edge-edge event that reads a touch ([`EdgeEdge::Touch`]) puts
+/// its two half-edges at this vertex, A's then B's, on `touches`, for
+/// the reduction's edge-edge row.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn recl_edges<T: Decide>(
     records: &mut Vec<PairRecord>,
@@ -647,6 +651,7 @@ pub(super) fn recl_edges<T: Decide>(
     declared: &super::GluedPairs<T>,
     band: Band,
     reversed: &Reversed,
+    touches: &mut Vec<[crate::entity::HalfEdgeKey; 2]>,
 ) -> Result<(), BooleanError> {
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
 
@@ -736,8 +741,11 @@ pub(super) fn recl_edges<T: Decide>(
         let a_ms: Vec<Mention<T>> = group.iter().filter(|m| m.a_side).copied().collect();
         let b_ms: Vec<Mention<T>> = group.iter().filter(|m| !m.a_side).copied().collect();
         // One real edge of each solid on the ray: the edge-edge rule.
+        // The common edge's half-edge at this vertex: the start bound
+        // of the start holder is the next sector's own chord.
+        let bound = |secs: &[BoolSector<T>], f_s: usize| secs[(f_s + 1) % secs.len()].he;
         let mut edge_edge = |am: Mention<T>, bm: Mention<T>| {
-            resolve_edge_edge(
+            let germ = match resolve_edge_edge(
                 records,
                 a_sectors,
                 b_sectors,
@@ -748,11 +756,19 @@ pub(super) fn recl_edges<T: Decide>(
                 band,
                 am.start_holder,
                 bm.start_holder,
-            )?
-            .map(|germ| match germ {
+            )? {
+                EdgeEdge::Germ(germ) => Some(germ),
+                EdgeEdge::Touch => {
+                    touches.push([
+                        bound(a_sectors, am.start_holder),
+                        bound(b_sectors, bm.start_holder),
+                    ]);
+                    None
+                }
+                EdgeEdge::Dropped => None,
+            };
+            germ.map(|germ| match germ {
                 EdgeGerm::Folded(mut germ) => {
-                    let bound =
-                        |secs: &[BoolSector<T>], f_s: usize| secs[(f_s + 1) % secs.len()].he;
                     if reversed.a.contains(&bound(a_sectors, am.start_holder)) {
                         (germ.a, germ.sa) = reflank(germ.a, germ.sa, n_a);
                     }
@@ -953,6 +969,20 @@ fn reflank(idx: usize, codes: (SideCode, SideCode), n: usize) -> (usize, (SideCo
     }
 }
 
+/// What an edge-edge event reads ([`resolve_edge_edge`]).
+#[derive(Clone, Copy, Debug)]
+pub(super) enum EdgeEdge {
+    /// The boundaries cross along the common line: its germ.
+    Germ(EdgeGerm),
+    /// No germ, and the op keeps all four flanking faces: both edges
+    /// stay on the result's boundary, the result's material there two
+    /// wedges touching along them.
+    Touch,
+    /// No germ, and the op drops a flanking face, so one edge leaves the
+    /// result's boundary there.
+    Dropped,
+}
+
 /// Where an on-edge event's germ goes.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum EdgeGerm {
@@ -1127,6 +1157,10 @@ impl Half {
 /// representative lies on both planes, along one flank and away from
 /// the other: the wedge is a half-turn, and the flank it lies along
 /// decides.
+///
+/// With no germ, the event is a touch where the op keeps every
+/// flanking face, which leaves both edges on the result's boundary
+/// ([`EdgeEdge`]).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn resolve_edge_edge<T: Decide>(
     records: &[PairRecord],
@@ -1139,7 +1173,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
     band: Band,
     fa_s: usize,
     fb_s: usize,
-) -> Result<Option<EdgeGerm>, BooleanError> {
+) -> Result<EdgeEdge, BooleanError> {
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
     let fa_e = (fa_s + 1) % n_a;
     let fb_e = (fb_s + 1) % n_b;
@@ -1389,7 +1423,20 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             });
         }
         if !germ_a {
-            return Ok(None);
+            // A flanking face the op keeps: one outside the other solid
+            // under a union, inside it under an intersection, and under a
+            // subtraction A's outside B and B's inside A.
+            let kept = |inside: bool, own_is_a: bool| match op {
+                BooleanOp::Union => !inside,
+                BooleanOp::Intersect => inside,
+                BooleanOp::Subtract => inside != own_is_a,
+            };
+            let both = a_in.iter().all(|&i| kept(i, true)) && b_in.iter().all(|&i| kept(i, false));
+            return Ok(if both {
+                EdgeEdge::Touch
+            } else {
+                EdgeEdge::Dropped
+            });
         }
         Some((a_fl, b_fl, a_in, b_in))
     };
@@ -1415,7 +1462,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         };
         let (a, sa) = pick(&a_fl, a_in)?;
         let (b, sb) = pick(&b_fl, b_in)?;
-        return Ok(Some(EdgeGerm::Folded(PairRecord {
+        return Ok(EdgeEdge::Germ(EdgeGerm::Folded(PairRecord {
             a,
             b,
             sa,
@@ -1435,7 +1482,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         .into_iter()
         .filter_map(|(a, b)| find_on_record(records, a, b))
         .find(|&g| other_out(records[g].sa) && other_out(records[g].sb))
-        .map(|g| Some(EdgeGerm::Held(g)))
+        .map(|g| EdgeEdge::Germ(EdgeGerm::Held(g)))
         .ok_or(BooleanError::ClassificationInvariant {
             what: "a declared-Tangent edge-edge germ with no flanking record that folds the \
                    edge In on both solids",
@@ -1947,7 +1994,7 @@ mod tests {
             far: o + z,
         };
         assert!(
-            matches!(resolve(edge), Ok(None)),
+            matches!(resolve(edge), Ok(EdgeEdge::Touch)),
             "along a common edge, neither wedge holds a flanker of the other: {:?}",
             resolve(edge)
         );
@@ -2225,6 +2272,7 @@ mod tests {
             &declared,
             band,
             &Reversed::default(),
+            &mut Vec::new(),
         )
         .expect_err("the sense at an in-band arm refuses");
         let BooleanError::Escalated { decision, diag } = &err else {
