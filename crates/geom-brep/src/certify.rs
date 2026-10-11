@@ -1519,14 +1519,15 @@ pub struct NurbsLane<T: Real> {
         )
             -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal>,
     /// [`crate::nurbs_pair_limbs`] at `T`.
-    pair_limbs: fn(
-        &geom::NurbsCurve3<T>,
-        &geom::NurbsSurface<T>,
-        &geom::NurbsSurface<T>,
-        T,
-        Band,
-    )
-        -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal>,
+    pair_limbs:
+        fn(
+            &geom::NurbsCurve3<T>,
+            &geom::NurbsSurface<T>,
+            &geom::NurbsSurface<T>,
+            T,
+            Band,
+        )
+            -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal>,
     /// [`crate::analytic_rung3`] at `T`.
     analytic_rung3: fn(
         &geom::NurbsCurve3<T>,
