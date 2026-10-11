@@ -837,3 +837,11 @@ Signed (CLEAVE orchestrator).
 - 2026-10-11 — PR 4607 merged (mints unit 3: point_in_solid's C13–C18 mint no INVALID) on a green head. The re-run after the GERM fuzz red came back clean; main's moves since were disjoint. Its row was closed and the seal's `blocked_on` pruned in the PR.
 - 2026-10-11 — PR 4630 review: APPROVE-WITH-FIXES. Over 280k runs at all three ε, including off-grid and sub-band shifts, the new mint arm gave no wrong answer. But the sweep missed two reachable siblings of the lookup-refuses-if-absent class, both pre-existing. `resolve_bisector_graze` never retries the reference's other twin: `ClassificationInvariant` on 126 runs at 1e-6, and this PR moves 18 runs into it. `find_ref_sector`'s refusal is reachable at 1e-12 and is operand-order asymmetric (vee300 e0 a11.75). Fix pass sent: twin retry in the bisector graze; root-cause the reference-sector refusal and fix or file it; a 1e-6 witness for the off-grid firing; style. The lane is warned that 4613 edits the same `recl.rs` neighbourhood.
 - 2026-10-11 — `bool-pair-gap-is-eps-coupled-…` came back as a design fork with no code change. The recorder is right: the margin is `gap − 2·sweep_pad`, the margin the decision decides on, ε-coupled by construction at `2(K+2)·ε`. Rostering it needs a ruling on k-lint rule (4) (one shared floor at 150·ε vs per-family floors, plus a new committed era), which is INSTR's territory (`tools/k-lint`, `docs/K-REPORT.md`). Re-homed the row to `work/instr/` with the measurement, `design: true`.
+- 2026-10-11 — PR 4625 review: APPROVE-WITH-FIXES. `Escalated` is honest: exact rationals put the input on the band edge, the move is sub-ulp, and the lever builds both ways. Fix pass sent:
+  - document the edge-orientation dependence at d = ε, and file the endpoint-sample re-pose;
+  - `WitnessSurfaceResidual` and fitted carriers keep their defect or fit endings, and only exact carriers' `SurfaceResidual` takes `OffFace`;
+  - the merge door's definite failure takes the defect ending;
+  - `check_pose` uses `offer_key`'s defect rule;
+  - text and skip style.
+
+  The shared disk briefly hit 100% during the reviews. Running lanes are warned to rerun anything that died with ENOSPC, and the orchestrator's target dir and main worktree are freed (19G free).
