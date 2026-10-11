@@ -160,6 +160,11 @@ pub enum CertCheck {
     /// where the second-order margin refuses and so no such lever
     /// exists, at the folded lever arm, as the cause of that refusal.
     TangentParallel,
+    /// TangentIntersection: the two surfaces' separation along their
+    /// shared normal at a sample, `s = r₁ − σ·r₂` (σ the sign of the
+    /// two implicit gradients' alignment) — the touch itself, a fact
+    /// about the pair rather than the carrier (C7).
+    TangentGap,
     /// TangentIntersection: the second-order margin at an interior
     /// sample — the relative transverse normal curvature `|κ_rel|`
     /// metered as the displacement it induces at the folded lever arm
@@ -286,6 +291,7 @@ impl core::fmt::Display for CertCheck {
             Self::TransversalityArm => "the length its faces' angle is measured over",
             Self::TangentPlanes => "the surfaces' tangent planes",
             Self::TangentParallel => "the normal-parallelism defect",
+            Self::TangentGap => "the surfaces' separation along their shared normal",
             Self::TangentSecondOrder => "the second-order margin",
             Self::TangentHull => "the between-samples sag bound",
             Self::TangentTube => "the second-order tube bound",
@@ -886,12 +892,15 @@ impl CertCheck {
             // Exact constructions: the endpoints and witness the kernel
             // placed, the seam and the declared source it restates, the
             // closed-form chart image and its coefficients, the tangent
-            // carrier's own normals.
+            // carrier's own normals, and the touch of the two surfaces a
+            // tangency places (the gap reads the pair, not the carrier,
+            // so no fit is in it).
             Self::EndpointStart
             | Self::EndpointEnd
             | Self::WitnessSurfaceResidual { .. }
             | Self::WitnessMidpoint
             | Self::TangentParallel
+            | Self::TangentGap
             | Self::MappedSource
             | Self::ChartResidual => Ending::Residual(Unsized::Defect),
             Self::ChartImage => Ending::Unsized(Unsized::Defect),
@@ -2171,6 +2180,57 @@ fn check_residual<T: Decide>(
     }
 }
 
+/// **σ, the orientation of the shared normal** at a tangent sample: the
+/// sign of the two unit implicit gradients' alignment, metered at the
+/// folded lever arm as the opposed-senses reading of
+/// `topo::boolean::contact_verify` is. At a tangency the normals are
+/// parallel, so the reading is `±arm`, as far from the band as the
+/// geometry allows. A reading that does not decide a sign means there
+/// is no shared normal to read the separation along: it escalates under
+/// [`CertCheck::TangentGap`] carrying the reading, its margin included
+/// where it decided the normals perpendicular.
+fn gap_orientation<T: Decide>(
+    surf1: &Surface<T>,
+    surf2: &Surface<T>,
+    p: Point3<T>,
+    extent: T,
+    sample: u32,
+    band: Band,
+) -> Result<T, CertifyError> {
+    let n1 = crate::implicit::implicit_gradient(surf1, p).normalize();
+    let n2 = crate::implicit::implicit_gradient(surf2, p).normalize();
+    let arm = crate::folded_lever_arm(surf1, surf2, p, extent);
+    let escalated = |cause| CertifyError::Escalated {
+        check: CertCheck::TangentGap,
+        sample,
+        cause,
+    };
+    match decide_reported(
+        "tangent_gap_orientation",
+        Margin::levered(n1.dot(n2), arm),
+        band,
+    ) {
+        Ok(Decided {
+            sign: Sign::Positive,
+            ..
+        }) => Ok(T::from_f64(1.0)),
+        Ok(Decided {
+            sign: Sign::Negative,
+            ..
+        }) => Ok(T::from_f64(-1.0)),
+        Ok(Decided {
+            sign: Sign::Zero,
+            margin,
+        }) => Err(escalated(Indeterminate {
+            margin,
+            band,
+            predicate: Some("tangent_gap_orientation"),
+            terminal_sliver: false,
+        })),
+        Err(cause) => Err(escalated(cause)),
+    }
+}
+
 /// The plane × NURBS lane's refusal in this module's vocabulary: a
 /// per-sample transversality refusal or escalation keeps its sample, and a limb's
 /// escalation or the poisoned aggregate, which no schedule point
@@ -2630,6 +2690,8 @@ fn run_checks<T: Decide>(
     // sampled residual for the C2.2 hull statement, and the weakest
     // sampled second-order data for the tube statement.
     let mut tangent_resid_max = T::zero();
+    let mut tangent_gap_max = T::zero();
+    let mut tangent_prev: Option<(T, T, T)> = None;
     let mut tangent_kappa_min = T::from_f64(f64::MAX);
     let mut tangent_arm_min = T::from_f64(f64::MAX);
     for i in 0..CERT_SAMPLES {
@@ -2695,8 +2757,10 @@ fn run_checks<T: Decide>(
                     }
                 }
             }
-            // The C7 jet schedule, per sample: both implicit residuals
-            // within ε; at interior samples the second-order margin
+            // The C7 jet schedule, per sample: the pair's separation
+            // along the shared normal within ε (the touch, read before
+            // the witness), both implicit residuals within ε; at
+            // interior samples the second-order margin
             // definitely positive FIRST (the IFT denominator — and the
             // parallelism lever arm's own validity gate), then normal
             // parallelism within the derived threshold at lever arm
@@ -2717,7 +2781,26 @@ fn run_checks<T: Decide>(
                 };
                 let r1 = implicit_residual(surf1, p);
                 let r2 = implicit_residual(surf2, p);
+                let sigma = gap_orientation(surf1, surf2, p, extent, i, band)?;
+                // The span line reads `s` under ONE σ per span: under each
+                // end's σ, at both ends, so the bound holds over the span
+                // under whichever orientation the shared normal has there.
+                for sg in core::iter::once(sigma).chain(tangent_prev.map(|(.., sg)| sg)) {
+                    tangent_gap_max = tangent_gap_max.max((r1 - sg * r2).abs());
+                    if let Some((p1, p2, _)) = tangent_prev {
+                        tangent_gap_max = tangent_gap_max.max((p1 - sg * p2).abs());
+                    }
+                }
+                tangent_prev = Some((r1, r2, sigma));
                 tangent_resid_max = tangent_resid_max.max(r1.abs()).max(r2.abs());
+                check_residual(
+                    "tangent_gap",
+                    CertCheck::TangentGap,
+                    i,
+                    Margin::of(r1 - sigma * r2),
+                    band,
+                    &mut max_residual,
+                )?;
                 check_residual(
                     "tangent_on_surface_1",
                     CertCheck::SurfaceResidual { surface: *k1 },
@@ -2979,6 +3062,14 @@ fn run_checks<T: Decide>(
             CertCheck::TangentHull,
             NOT_A_SAMPLE,
             Margin::of(tangent_resid_max + bounds.residual_sag),
+            band,
+            &mut max_residual,
+        )?;
+        check_residual(
+            "tangent_gap_hull_sup",
+            CertCheck::TangentHull,
+            NOT_A_SAMPLE,
+            Margin::of(tangent_gap_max + bounds.gap_sag),
             band,
             &mut max_residual,
         )?;
@@ -3351,7 +3442,7 @@ mod tests {
     /// below. Held total against the enum by
     /// [`all_is_the_whole_taxonomy`]'s compile-time visit, not by
     /// review.
-    fn all_checks() -> [CertCheck; 26] {
+    fn all_checks() -> [CertCheck; 27] {
         let surface = SurfaceKey::default();
         [
             CertCheck::ParamSpan,
@@ -3366,6 +3457,7 @@ mod tests {
             CertCheck::TransversalityArm,
             CertCheck::TangentPlanes,
             CertCheck::TangentParallel,
+            CertCheck::TangentGap,
             CertCheck::TangentSecondOrder,
             CertCheck::TangentHull,
             CertCheck::TangentTube,
@@ -3398,32 +3490,33 @@ mod tests {
     #[test]
     fn all_is_the_whole_taxonomy() {
         let rows = match CertCheck::ParamSpan {
-            CertCheck::ParamSpan => 26,
-            CertCheck::ParamSpanMeter => 26,
-            CertCheck::ParamWinding => 26,
-            CertCheck::EndpointStart => 26,
-            CertCheck::EndpointEnd => 26,
-            CertCheck::SurfaceResidual { .. } => 26,
-            CertCheck::WitnessSurfaceResidual { .. } => 26,
-            CertCheck::WitnessMidpoint => 26,
-            CertCheck::Transversality => 26,
-            CertCheck::TransversalityArm => 26,
-            CertCheck::TangentPlanes => 26,
-            CertCheck::TangentParallel => 26,
-            CertCheck::TangentSecondOrder => 26,
-            CertCheck::TangentHull => 26,
-            CertCheck::TangentTube => 26,
-            CertCheck::MappedSource => 26,
-            CertCheck::ChartImage => 26,
-            CertCheck::ChartResidual => 26,
-            CertCheck::PlaneNurbsOnLocus => 26,
-            CertCheck::PlaneNurbsHull => 26,
-            CertCheck::PlaneNurbsHullValue => 26,
-            CertCheck::AnalyticBreakResidual => 26,
-            CertCheck::AnalyticHull => 26,
-            CertCheck::PlaneNurbsReportedTransversality => 26,
-            CertCheck::PlaneNurbsChartSpeed => 26,
-            CertCheck::PlaneNurbsChartSpeedBound => 26,
+            CertCheck::ParamSpan => 27,
+            CertCheck::ParamSpanMeter => 27,
+            CertCheck::ParamWinding => 27,
+            CertCheck::EndpointStart => 27,
+            CertCheck::EndpointEnd => 27,
+            CertCheck::SurfaceResidual { .. } => 27,
+            CertCheck::WitnessSurfaceResidual { .. } => 27,
+            CertCheck::WitnessMidpoint => 27,
+            CertCheck::Transversality => 27,
+            CertCheck::TransversalityArm => 27,
+            CertCheck::TangentPlanes => 27,
+            CertCheck::TangentParallel => 27,
+            CertCheck::TangentGap => 27,
+            CertCheck::TangentSecondOrder => 27,
+            CertCheck::TangentHull => 27,
+            CertCheck::TangentTube => 27,
+            CertCheck::MappedSource => 27,
+            CertCheck::ChartImage => 27,
+            CertCheck::ChartResidual => 27,
+            CertCheck::PlaneNurbsOnLocus => 27,
+            CertCheck::PlaneNurbsHull => 27,
+            CertCheck::PlaneNurbsHullValue => 27,
+            CertCheck::AnalyticBreakResidual => 27,
+            CertCheck::AnalyticHull => 27,
+            CertCheck::PlaneNurbsReportedTransversality => 27,
+            CertCheck::PlaneNurbsChartSpeed => 27,
+            CertCheck::PlaneNurbsChartSpeedBound => 27,
         };
         for (i, check) in all_checks().iter().enumerate() {
             assert!(
@@ -5878,6 +5971,7 @@ mod tests {
             (CertCheck::TangentPlanes, Undefined),
             (CertCheck::TangentSecondOrder, Sized(Positive)),
             (CertCheck::TangentParallel, Miss(Unsized::Defect)),
+            (CertCheck::TangentGap, Miss(Unsized::Defect)),
             (CertCheck::TangentHull, Miss(Unsized::Bound)),
             (CertCheck::TangentTube, Sized(Positive)),
             (CertCheck::MappedSource, Miss(Unsized::Defect)),

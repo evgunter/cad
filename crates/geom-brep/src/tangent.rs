@@ -110,6 +110,12 @@ pub struct TangentSpanBounds<T: Real> {
     /// each span is bounded by its endpoints plus exactly this sag
     /// (the standard quadratic interpolation bound, exact in family).
     pub residual_sag: T,
+    /// Certified bound on the sag of the pair's separation
+    /// `s = r₁ − σ·r₂` between adjacent samples: `(Δt²/8)·sup|s″|`
+    /// with `sup|s″| ≤ sup|f₁″| + sup|f₂″|` (σ = ±1 is constant over a
+    /// span), so the two surfaces' terms add where the residual sag
+    /// takes the larger.
+    pub gap_sag: T,
     /// Certified bound on how far `|κ_rel|` can drift between
     /// adjacent samples: `Δstep · sup|dκ/dt|`, from the Gauss map's
     /// `1/arm` Lipschitz bound folded with the constant Hessians.
@@ -273,6 +279,7 @@ pub fn tangent_span_bounds<T: Real>(
     let (f2b, db) = bounds_of(s2)?;
     Some(TangentSpanBounds {
         residual_sag: crate::implicit::chord_dip_charge(f2a.max(f2b), step),
+        gap_sag: crate::implicit::chord_dip_charge(f2a + f2b, step),
         kappa_drift: step * (da + db),
     })
 }
@@ -514,6 +521,7 @@ fn circle_span_bounds<T: Real>(
     let (f2b, db) = bounds_of(s2)?;
     Some(TangentSpanBounds {
         residual_sag: crate::implicit::chord_dip_charge(f2a.max(f2b), step),
+        gap_sag: crate::implicit::chord_dip_charge(f2a + f2b, step),
         kappa_drift: step * (da + db),
     })
 }
