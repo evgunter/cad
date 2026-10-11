@@ -95,3 +95,16 @@ section face.** `|(0.75, 0.1875, 1)| = 1.264`, and before PR 3768 the
 split stored the caller's normal verbatim on every section face it
 minted. Once PR 3768 is on main, the "What" section's demos-job
 measurement wants re-taking before it is cited.
+
+## Evidence from the split's section chart (CLEAVE, 2026-10-11)
+
+The `bool1` plane whose `u_ref` was `1.6e-11` off `⊥ normal` was a split
+section face. `splitting::section_loops::chord_u_ref` took the face's
+`u_ref` as the loop's first chord without projecting it into the plane,
+and a chord from a crossing minted on the plane to an ON corner δ off
+it leaned δ per unit length. With nothing at rest to catch it, the
+lean surfaced as a chart residual of `L·δ` along an `L`-long section,
+and the split refused valid near-flush cuts in kernel-defect voice.
+The minter now projects (branch `cleave/band-on-pinch-residue`), so
+that measurement no longer stands. The convention is still certified
+nowhere at rest, and that question remains open.
