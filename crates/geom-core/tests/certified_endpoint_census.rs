@@ -296,6 +296,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          finite centre and the widened hulls report the trouble",
     ),
     ("crates/geom-brep/src/pcurve_cache.rs", 2, 2, ""),
+    ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     (
         "crates/geom-brep/src/props/quad.rs",
         12,

@@ -801,7 +801,7 @@ fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
     );
     sweep_conformal_patches(body, &geo, &declared, band, region, &mut errors);
     sweep_cross_solid_backstop(body, &geo, &declared, band, tol, &cands, trace, &mut errors);
-    confirm_declarations(body, &geo, contacts, band, region, &mut errors);
+    confirm_records(body, &geo, contacts, band, region, &mut errors);
     errors
 }
 
@@ -1101,7 +1101,7 @@ fn pair_holds_edges<T: Decide>(
 /// and that asymmetry (loud doors at the confirm pass, a silent
 /// `false` here) is argued rather than accidental: every pair this
 /// rung consults comes out of `Declared::faces`, which is built from
-/// exactly the records [`confirm_declarations`] walks, so the same
+/// exactly the records [`confirm_records`] walks, so the same
 /// doors run on the same pair once per validation with full typed
 /// reporting there; a second report from inside a backing consult
 /// would duplicate every refusal once per crossing the pair is asked
@@ -2550,7 +2550,7 @@ enum CrossingBacking {
     /// refuses. The finding must NAME it.
     Refused(CrossingSideVerdict),
     /// No declared pair answers for the crossing point at all: the
-    /// plain hard finding, exactly as an undeclared seat has always
+    /// plain hard finding, exactly as an unrecorded seat has always
     /// read.
     Unanswered,
 }
@@ -3583,8 +3583,8 @@ pub(crate) enum Undecided {
     TouchDegenerate,
     /// Arm 2: a touch at a corner whose edge length is not a number.
     TouchChordScale,
-    /// Arm 2: a declared face-pair record backing sideless events.
-    DeclaredFacePair,
+    /// Arm 2: a face-pair contact record backing sideless events.
+    RecordedFacePair,
     /// Arm 2: every vertex of the contained instance on the boundary.
     AllOn,
     /// Arm 2: the contained instance has no vertex.
@@ -3755,9 +3755,9 @@ impl Undecided {
                  Recourse: rescale the model so every edge length is an ordinary number, \
                  or move them until their bounding boxes no longer overlap"
             }
-            Self::DeclaredFacePair => {
-                "a declared contact between their faces touches only at corners the check \
-                 cannot yet place. There is no way through yet for this declared contact"
+            Self::RecordedFacePair => {
+                "a contact record between their faces touches only at corners the check \
+                 cannot yet place. There is no way through yet for this record"
             }
             Self::AllOn => {
                 "every corner of one lies on the other's boundary, so the corners cannot \
@@ -3903,7 +3903,7 @@ impl Named {
     }
 }
 
-/// A declared record naming one entity of each of a solid pair, as
+/// A contact record naming one entity of each of a solid pair, as
 /// arm 2 reads it.
 #[derive(Clone, Copy, Debug)]
 enum Recorded {
@@ -4067,7 +4067,7 @@ impl TouchVerdict {
 
 /// Where a touch between two solids is, as the analysis reads it: the
 /// one mapping from a touch kind to the two stars it compares, shared
-/// by undeclared findings and declared records.
+/// by unrecorded findings and contact records.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TouchSite {
     VertexVertex(VertexKey, VertexKey),
@@ -5432,7 +5432,7 @@ fn backstop_apart<T: Decide>(
 /// holds it, and a cap can rest on another face with nothing to see
 /// at vertex/line granularity. Such a pair is THIS arm's: the conformal
 /// arm takes same-carrier CURVED faces only, and the confirm pass
-/// takes declared pairs only, so the undeclared cap pair has no other
+/// takes declared pairs only, so the unrecorded cap pair has no other
 /// home. Its plane is boxable ([`crate::boolean::boxes::FaceBoxRule`]
 /// hulls the boundary's certified edge reaches, arcs included), so
 /// this arm can clear the separated majority instead of refusing
@@ -5937,8 +5937,8 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         )
     };
     // ---- Whether the two boundaries MEET on record: a standing
-    // finding naming one entity of each solid, or a declared record
-    // naming one of each (a declared event leaves no finding, so its
+    // finding naming one entity of each solid, or a contact record
+    // naming one of each (a recorded event leaves no finding, so its
     // record is the only trace of it).
     let meets_found = |standing_errors: &[ValidationError], sa: SolidKey, sb: SolidKey| -> bool {
         standing_errors.iter().any(|e| match Named::of(e) {
@@ -5946,7 +5946,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             Named::One(_) | Named::Nothing => false,
         })
     };
-    // The declared records naming one entity of each solid, as the one
+    // The contact records naming one entity of each solid, as the one
     // mapping every reader of them shares: a v-on-f or v-v record is a
     // touch site the analysis reads; a curve or patch face pair backs
     // events without a side.
@@ -6046,7 +6046,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             }
         }
         if !records_on_their_word && records.iter().any(|r| matches!(r, Recorded::FacePair)) {
-            return Some(Undecided::DeclaredFacePair);
+            return Some(Undecided::RecordedFacePair);
         }
         undecided_touch
     };
@@ -6295,7 +6295,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
 /// The confirmation direction of the certification diff: every
 /// declaration must have a geometric witness — dead keys, equal keys,
 /// and coincidence-free records are stale, typed.
-fn confirm_declarations<T: Decide>(
+fn confirm_records<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     contacts: &ContactRecords,
@@ -6748,6 +6748,61 @@ fn segment<T: Real>((p0, p1): (Point3<T>, Point3<T>)) -> EdgeGeo<T> {
         len: chord.norm(),
         f_plus: FaceKey::default(),
         f_minus: FaceKey::default(),
+    }
+}
+
+/// **A record's confirm pass, one pair at a time**: whether two cells'
+/// interiors meet in `body`, decided as [`confirm_records`]
+/// decides a record of them, so a record placed by this answer is one
+/// the census confirms. The body is read once, at [`Self::of`]. The
+/// chart-region door is the caller's, as at every census door: without
+/// it a face–face pair is outside the confirm's lanes.
+pub(crate) struct RecordConfirm<'b, T: Decide> {
+    body: &'b Body<T>,
+    geo: Geo<T>,
+    band: Band,
+    region: Option<RegionLane<T>>,
+}
+
+impl<'b, T: Decide> RecordConfirm<'b, T> {
+    pub(crate) fn of(body: &'b Body<T>, band: Band, region: Option<RegionLane<T>>) -> Self {
+        Self {
+            body,
+            geo: snapshot(body),
+            band,
+            region,
+        }
+    }
+
+    /// Whether a record of `pair` is confirmed: `Ok(false)` where the
+    /// census reads it stale.
+    ///
+    /// # Errors
+    ///
+    /// The first finding that is not staleness: an escalated decision,
+    /// or a pair outside the census's lanes.
+    pub(crate) fn meets(&self, pair: crate::Contact) -> Result<bool, ValidationError> {
+        let one: ContactRecords = core::iter::once(crate::coincidence::Cited::new(
+            pair,
+            crate::coincidence::Cites::decided(0),
+        ))
+        .collect();
+        let mut errors = Vec::new();
+        confirm_records(
+            self.body,
+            &self.geo,
+            &one,
+            self.band,
+            self.region,
+            &mut errors,
+        );
+        match errors
+            .iter()
+            .find(|e| !matches!(e, ValidationError::StaleContactDeclaration { .. }))
+        {
+            Some(finding) => Err(finding.clone()),
+            None => Ok(errors.is_empty()),
+        }
     }
 }
 
@@ -7590,7 +7645,7 @@ mod tests {
     }
 
     #[test]
-    fn the_conformal_arm_finds_an_undeclared_pair_and_carries_the_finding() {
+    fn the_conformal_arm_finds_an_unrecorded_pair_and_carries_the_finding() {
         let (body, w1, w2) = conformal_pair();
         let errors = census_and_certify(
             &body,
@@ -7925,7 +7980,7 @@ mod tests {
     /// same conformal pair the arm finds UNDECLARED with the region door
     /// in hand is, with the pass holding `None`, exactly one
     /// [`ValidationError::CensusLaneUnsupported`] naming the pair — the
-    /// typed refusal, never a silent skip, and never the undeclared
+    /// typed refusal, never a silent skip, and never the unrecorded
     /// finding (nothing was examined).
     #[test]
     fn a_pass_holding_no_region_door_refuses_the_conformal_pair_typed() {
@@ -7948,7 +8003,7 @@ mod tests {
             !errors
                 .iter()
                 .any(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
-            "nothing was examined, so nothing is found undeclared: {errors:?}"
+            "nothing was examined, so nothing is found unrecorded: {errors:?}"
         );
     }
 
@@ -7958,7 +8013,7 @@ mod tests {
     /// door in hand and backs the seat's two edge crossings; with the
     /// pass holding `None` the record is exactly one
     /// [`ValidationError::CensusLaneUnsupported`] naming the pair, and
-    /// the two crossings are the hard findings the undeclared seat has
+    /// the two crossings are the hard findings the unrecorded seat has
     /// — the backing consult folded to `false`, so the declaration
     /// backs nothing, exactly as a scalar with no door would see it.
     #[test]
@@ -8005,7 +8060,7 @@ mod tests {
         );
         assert!(
             !crossings(&bare).is_empty(),
-            "the undeclared seat's crossings are hard findings: {bare:?}"
+            "the unrecorded seat's crossings are hard findings: {bare:?}"
         );
         assert!(
             !bare
@@ -8396,7 +8451,7 @@ mod tests {
     // ================= R1 review probes (m9-2b-r1) =================
 
     /// R1 probe (claim 2): an IN-BAND sliver overlap must escalate at
-    /// BOTH doors — the conformal arm (undeclared direction) and the
+    /// BOTH doors — the conformal arm (unrecorded direction) and the
     /// patch-record certifier (declared direction) — never decide.
     #[test]
     fn r1_probe_in_band_sliver_overlap_escalates_both_directions() {
@@ -8440,7 +8495,7 @@ mod tests {
                     ..
                 }
             )),
-            "an in-band sliver must never DECIDE undeclared: {arm:?}"
+            "an in-band sliver must never DECIDE unrecorded: {arm:?}"
         );
         let mut records = ContactRecords::default();
         records.push(crate::Cited::new(
@@ -8470,7 +8525,7 @@ mod tests {
     /// R1 probe (claim 1): a same-key pair AUTHORED one period apart
     /// (u-windows on the "next branch") cannot slip the sweep — the
     /// pcurve mint normalizes the branch, the windows overlap, and
-    /// the arm reports the undeclared conformal contact; the same
+    /// the arm reports the unrecorded conformal contact; the same
     /// pair backed by its patch record certifies clean. (The probe
     /// originally expected the seam-branch typed refusal here; the
     /// mint normalizes first, so the refusal is unreachable from
@@ -9198,7 +9253,7 @@ mod tests {
     #[test]
     fn planted_degradation_is_caught() {
         // The second cube's corner rests in the interior of the first's
-        // x = 1 face: a vertex-on-face event, undeclared.
+        // x = 1 face: a vertex-on-face event, unrecorded.
         let flush = two_cubes(Vec3::new(1.0, 0.25, 0.25));
         let records = ContactRecords::default();
         let (_, ideal) = census_traces(
@@ -9236,7 +9291,7 @@ mod tests {
 
     #[test]
     fn flush_and_far_cubes_decide_identically_through_either_strategy() {
-        // Flush: the second cube's x = 1 face on the first's, undeclared
+        // Flush: the second cube's x = 1 face on the first's, unrecorded
         // — findings on every shared-boundary event; the far faces and
         // vertices of each cube are pruned against the other's.
         let flush = two_cubes(Vec3::new(1.0, 0.0, 0.0));
@@ -10566,7 +10621,7 @@ mod tests {
     /// **Ordinary rests stay rests** (the delta review's battery — the
     /// cost direction). Each pose, under the
     /// identity and two generic rotations, reads a rest at every touch
-    /// site and carries no finding but the undeclared touches.
+    /// site and carries no finding but the unrecorded touches.
     #[test]
     fn ordinary_rests_stay_rests() {
         const L: [(f64, f64); 6] = [
@@ -11736,7 +11791,7 @@ mod tests {
     /// block's pinch half clears with no records while its tip copies
     /// share the cut vertex's point; rebinding one copy to a fresh,
     /// bit-equal point leaves a coincidence of values, which the
-    /// census refuses as an undeclared vertex–vertex contact.
+    /// census refuses as an unrecorded vertex–vertex contact.
     #[test]
     fn a_tip_copy_on_its_own_bit_equal_point_is_an_unrecorded_contact() {
         let notched = [
@@ -11848,7 +11903,7 @@ mod tests {
         );
         let none = ContactRecords::default();
         let errors = crate::validate_pseudomanifold(&body, &none, tol)
-            .expect_err("on distinct points the touch is undeclared");
+            .expect_err("on distinct points the touch is unrecorded");
         assert!(
             errors.iter().any(|e| matches!(
                 e,
@@ -12526,7 +12581,7 @@ mod two_carrier_records {
     /// the second brick's bottom edge lies in the first's top over
     /// x in (0.5, 1), and its end (0.5, 0.25, 1) rests on that top's
     /// interior. With the edge-face record alone that vertex's touch is
-    /// still undeclared. Red when the record backs its edge's end
+    /// still unrecorded. Red when the record backs its edge's end
     /// vertices (a `conventional_vertices` that drops its filter is
     /// green on every other census, tier-3 and ops row).
     #[test]

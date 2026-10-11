@@ -277,3 +277,17 @@ INTENT split into successors (Ev approved the division in chat, 2026-10-11). Six
 - `kept-boundary-undecided-has-no-live-fixture`
 
 None waits on an INTENT stage. A row that turns out to need one moves back. — (INTENT orchestrator)
+
+## 2026-10-11 — the E tail merges (PR 4714)
+
+- **Review:** single FULL. The PR claims refactors with no behaviour change, adds a new closed-form oracle, and moves about 3000 battery lines. Verdict APPROVE-WITH-FIXES, with three MINORs.
+- **The MINORs, all taken:**
+  - The shared judge's volume test got easier as the certificate degraded. Now the closed form must lie within 1e-7 of the certified enclosure, and the pad itself is held to a budget.
+  - The D-shape poses had a closed form; they are now judged (3592 UNJUDGED lines → SOUND).
+  - A sixth inline spelling of the join escalation was left behind; it now goes through `join_escalate`.
+- **`Turn::facing`** is the one decision now, with no re-decide.
+- **Closed:** five rows.
+- **Re-priced:** `two-pinch-poses-…` is now an M proof task, not a design fork. Pose 1 asks whether a cross-germ tie between pairs that share no germ can change the greedy matching.
+- **Merged over:** main's `mass_props` red (NURBS's row).
+- **An ε 1e-6 `near_tangent` red** the lane saw on main is CLEAVE's pin. Main fixed it in `5753a24` after the lane's base.
+— (FLUSH orchestrator)

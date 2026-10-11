@@ -1768,6 +1768,34 @@ impl<T: Decide> Profile<T> {
         recording_loops(self.plane, &self.loops, tol, Consistency::Decide)
     }
 
+    /// **Guided validation** of a table:
+    /// [`ConstructedProfile::validate_guided`]'s pass, consuming
+    /// `structure`'s decisions at this scalar, except that a table's
+    /// arcs were verified by nothing, so their three consistency checks
+    /// are decided here, at this scalar, as [`validate`](Self::validate)
+    /// decides them.
+    ///
+    /// # Errors
+    ///
+    /// [`ProfileError`], as [`ConstructedProfile::validate_guided`].
+    pub fn validate_guided(
+        &self,
+        tol: Tol,
+        structure: &CanonicalStructure,
+    ) -> Result<ValidatedProfile<T>, ProfileError> {
+        if structure.loops.len() != self.loops.len() {
+            return Err(ProfileError::Structure(StructureRefusal::shape(
+                structure.loops.len(),
+                self.loops.len(),
+            )));
+        }
+        self.validate_with(
+            tol,
+            &mut CanonGuide::Guided(structure.clone()),
+            Consistency::Decide,
+        )
+    }
+
     fn validate_with(
         &self,
         tol: Tol,

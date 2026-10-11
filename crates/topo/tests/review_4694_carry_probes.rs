@@ -117,11 +117,11 @@ fn undeclared_at(what: &str, refused: Result<(), Vec<topo::ValidationError>>, at
 /// kiss's two vertex–vertex records bound its edge overlap, and its
 /// edge–edge record names it; the cut mints a new vertex on each
 /// kissing edge at z = 1/2, one pair at one point, which no decision of
-/// the op cites, so each side's half of the overlap is unbacked: each
-/// end record lands, the edge–edge record lands on the side whose
-/// pieces kept the edges' keys, and each side still refuses the new
-/// pair undeclared. Residue:
-/// `work/contacthold/surgery-carry-keeps-a-divided-cells-record-on-the-piece-that-kept-its-key.md`.
+/// the op cites. Each end record lands on its side, and the edge–edge
+/// record on the divided edges lands on both, on each side's pair of
+/// pieces that still meet; each side still refuses the new pair
+/// undeclared. Residue:
+/// `work/contacthold/a-cut-through-a-recorded-touch-mints-a-pair-no-record-backs.md`.
 #[test]
 fn a_split_across_an_edge_kiss_refuses_both_sides() {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
@@ -142,9 +142,13 @@ fn a_split_across_an_edge_kiss_refuses_both_sides() {
     );
     let plane = common::split_plane(Point3::new(0.0, 0.0, 0.5), Vec3::new(0.0, 0.0, 1.0), tol());
     let split = topo::split(&base.body, &plane, tol()).expect("the edge kiss splits");
-    let sides = split.carry_contacts(&base.contacts);
+    let sides = split.carry_contacts(
+        &base.contacts,
+        geom_core::Band::linear(tol()).unwrap(),
+        Some(topo::RegionLane::certified()),
+    );
     let sides = sides.expect("each record lands");
-    assert_eq!((sides.above.len(), sides.below.len()), (1, 2), "{sides:?}");
+    assert_eq!((sides.above.len(), sides.below.len()), (2, 2), "{sides:?}");
     for (what, body, recs) in [
         ("above", split.above.body(), &sides.above),
         ("below", split.below.body(), &sides.below),
@@ -174,7 +178,11 @@ fn a_split_through_a_corner_kiss_carries_it_onto_both_sides() {
     let plane = common::split_plane(Point3::new(1.0, 1.0, 1.0), Vec3::new(1.0, -1.0, 0.0), tol());
     let split = topo::split(&base.body, &plane, tol()).expect("the kiss splits");
     let sides = split
-        .carry_contacts(&base.contacts)
+        .carry_contacts(
+            &base.contacts,
+            geom_core::Band::linear(tol()).unwrap(),
+            Some(topo::RegionLane::certified()),
+        )
         .expect("the record lands");
     for (what, body, recs) in [
         ("above", split.above.body(), &sides.above),

@@ -492,27 +492,41 @@ fn row2_b_a_declaring_mate_mints_identically() {
 
 // ---- Row 3: the F1 pair, both directions ----
 
-/// INVARIANT (the scan-to-bless ban, UNDECLARED direction): two
-/// instances that touch with NOTHING declared are the A5 hard error.
-/// F1 executes across the document seam exactly as it does within it.
+/// INVARIANT (the unmated direction, D1 (iii), D10): two instances that
+/// touch with no mate between them are no refusal. The gather records
+/// each touch as a row of the two copies and a record citing it, which
+/// the census's next pass confirms; the gate assembles, and the
+/// `unproven-coincidence` check reads the rows. Red if a record cites
+/// anything but a row of the two copies, or if the pair refuses.
 #[test]
-fn row3_a_an_undeclared_touching_pair_is_the_hard_error() {
+fn row3_a_an_unmated_touching_pair_is_rows_of_the_two_copies() {
     // The same touching geometry, with the mate DELETED after the
     // pose it solved was stated as the member's offset — the offset is
-    // document data, so the instances still touch and nothing declares
-    // it.
+    // document data, so the instances still touch and no mate relates
+    // them.
     let (doc, ids, mate, store, _) = stacked("asm-r2b-row3a", 1.0);
     let o = with_resolver(store);
     let doc = crate::fixture::offsets_where_solved(doc, &o);
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: mate });
     let ev = run(&doc, &o);
-    let result = assemble(&doc, &ev, Tol::witness());
-    let errs = findings(&result);
+    let product =
+        editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("the pair gathers");
     assert!(
-        errs.iter().any(|e| e.contains("UnrecordedContact")),
-        "an undeclared cross-instance contact refuses, naming the \
-         finding: {errs:?} (instances {ids:?})"
+        !product.coincidences.is_empty()
+            && product
+                .coincidences
+                .iter()
+                .all(|r| matches!(r.by, editor_core::AtRestBy::Copies(..))),
+        "the contact is rows of the two copies: {:?} (instances {ids:?})",
+        product.coincidences
     );
+    let rows = u32::try_from(product.coincidences.len()).expect("few rows");
+    assert!(
+        !product.contacts.is_empty() && product.contacts.decided().iter().all(|&k| k < rows),
+        "each record cites one of those rows: {:?}",
+        product.contacts
+    );
+    assemble(&doc, &ev, Tol::witness()).expect("an unmated touching pair assembles");
 }
 
 /// INVARIANT (the scan-to-bless ban, DECLARED direction): the same
@@ -641,7 +655,7 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
     };
     let named = findings
         .iter()
-        .find_map(|f| f.attribution.declaration().cloned())
+        .find_map(|f| f.attribution.as_ref().map(|a| a.declaration().clone()))
         .expect("the refusal names its mate");
     assert_eq!(named.mate, mate, "the MATE NODE is named");
     assert_eq!(
@@ -1139,9 +1153,10 @@ fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
         panic!("expected the at-rest verdict, got {err}");
     };
     assert!(
-        findings
-            .iter()
-            .any(|f| f.attribution.declaration().is_some_and(|m| m.mate == mate)),
+        findings.iter().any(|f| f
+            .attribution
+            .as_ref()
+            .is_some_and(|a| a.declaration().mate == mate)),
         "the at-rest door catches the geometry change and NAMES the \
          mate whose declaration it broke: {findings:?}"
     );
@@ -1826,29 +1841,69 @@ fn a_flush_seat_certifies_at_the_gate() {
     );
 }
 
-/// INVARIANT (the scan-to-bless ban, F1): the backing consults the
-/// DECLARATION, never the geometry's agreement with itself. The same
-/// flush seat with its mate removed is the hard error — the events
-/// nothing declared are `UnrecordedContact`, unattributed.
+/// **Discovery is never a record** (F1/F2(iii)), and between copies
+/// it is a finding rather than a refusal (D1 (iii), D10): the same
+/// flush seat with its mate removed assembles, the gather records each
+/// contact the census finds between the two instances as a row of the
+/// product, and the `unproven-coincidence` check reports every one,
+/// against the two copies; the records citing those rows quiet no
+/// `Separation` finding, since no mate stated the touch. Red if the
+/// seat refuses, if a contact reaches the product with no row, if the
+/// check proves one, or if a census-minted record quiets Separation.
 #[test]
-fn the_same_flush_seat_undeclared_is_the_hard_error() {
+fn the_same_flush_seat_unmated_is_a_finding_not_a_refusal() {
     let (doc, mate, store) = flush_seat("asm-r2b-flush-bare");
     // The seat the mate solved, stated as the member's offset, and the
-    // mate then deleted: the instances still touch, and nothing
-    // declares it.
+    // mate then deleted: the instances still touch, and no record
+    // backs it.
     let o = with_resolver(store);
     let doc = crate::fixture::offsets_where_solved(doc, &o);
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: mate });
     let ev = run(&doc, &o);
-    let errors = findings(&assemble(&doc, &ev, Tol::witness()));
+    let product =
+        editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("the seat gathers");
     assert!(
-        errors.iter().any(|e| e.contains("VertexOnEdge")),
-        "the seat's induced vertex-on-edge event has no declaration to \
-         back it: {errors:?}"
+        product.census.is_empty(),
+        "every finding was a contact between the copies: {:?}",
+        product.census
     );
     assert!(
-        errors.iter().all(|e| e.contains("UnrecordedContact")),
-        "and every finding is that hard error: {errors:?}"
+        !product.coincidences.is_empty()
+            && product.coincidences.iter().all(|r| matches!(
+                r.by,
+                editor_core::AtRestBy::Copies(..)
+            ) && r.row.site
+                == topo::DecisionSite::CensusAtRest),
+        "the seat's contacts are the copies' rows: {:?}",
+        product.coincidences
+    );
+    let rows = product.coincidences.len();
+    assemble(&doc, &ev, Tol::witness()).expect("an unmated seat assembles");
+    let report = editor_core::run_checks(
+        &doc,
+        &ev,
+        &editor_core::ChecksConfig::default(),
+        Tol::witness(),
+    )
+    .expect("checks run over the seat");
+    let reported = report
+        .findings
+        .iter()
+        .filter(|f| {
+            f.check == editor_core::CheckId::UnprovenCoincidence
+                && matches!(f.subject, editor_core::FindingSubject::Copies { .. })
+        })
+        .count();
+    assert_eq!(reported, rows, "each row is reported: {report}");
+    // The records the census minted for those rows back no mate, so
+    // they quiet no separation finding: the two copies still touch
+    // where nobody said they would.
+    assert!(
+        report
+            .findings
+            .iter()
+            .any(|f| f.check == editor_core::CheckId::Separation),
+        "a census-minted record does not quiet Separation: {report}"
     );
 }
 
@@ -1886,9 +1941,9 @@ fn the_refusal_renders_attribution_prose_never_debug_guts() {
     };
     let msg = AssemblyError::AtRest {
         findings: vec![
-            finding(Attribution::Refuted(minted.clone())),
-            finding(Attribution::Declined(minted)),
-            finding(Attribution::Unattributed),
+            finding(Some(Attribution::Refuted(minted.clone()))),
+            finding(Some(Attribution::Declined(minted))),
+            finding(None),
         ],
     }
     .to_string();
@@ -1905,7 +1960,7 @@ fn the_refusal_renders_attribution_prose_never_debug_guts() {
         msg.contains("mate 000000000004's declared Rest contact, declined:"),
         "{msg}"
     );
-    assert!(msg.contains("no mate declared this:"), "{msg}");
+    assert!(msg.contains("no declaration:"), "{msg}");
     // The kernel's story rides each line, forwarded through its own
     // `Display`.
     assert!(
@@ -1918,7 +1973,7 @@ fn the_refusal_renders_attribution_prose_never_debug_guts() {
         "{",
         "Refuted",
         "Declined",
-        "Unattributed",
+        "None",
         "NegativeVolume",
         "AtRestFinding",
         "StableName",
@@ -2077,8 +2132,10 @@ fn twinned_part(label: &str) -> ProfileDoc {
 /// The fixture is an instantiated part whose own product has two
 /// co-located copies, so the instance's one placement is a single
 /// `(placement, output)` subject carrying two COINCIDENT solids. Nothing else can suppress:
-/// a gather discovers no contacts (F1 — no scan-to-bless), so the
-/// declared set is empty, which the row asserts rather than assumes.
+/// the only records are the part's own, carried up from its gather (the
+/// touches between its two copies, which its census recorded), and a
+/// carried record suppresses no separation finding, so no mate's record
+/// is here — which the row asserts rather than assumes.
 #[test]
 fn two_solids_of_one_subject_are_skipped_by_the_guard_not_by_geometry() {
     let mut store = PartStore::default();
@@ -2113,15 +2170,16 @@ fn two_solids_of_one_subject_are_skipped_by_the_guard_not_by_geometry() {
          passes, this row stops proving anything about the guard"
     );
 
-    // And nothing is DECLARED between them either, so the suppression
-    // under test is the subject check and only the subject check.
+    // And no mate's record relates them either: every record rode up
+    // from the part, so the suppression under test is the subject check
+    // and only the subject check.
     let contacts = &product.contacts;
     assert!(
-        contacts.vertex_vertex().next().is_none()
-            && contacts.vertex_face().next().is_none()
-            && contacts.edge_face().next().is_none()
-            && contacts.face_face().next().is_none(),
-        "the gather discovers no contacts (F1), so nothing here is declared: {contacts:?}"
+        contacts.rows().iter().all(|record| record
+            .cites
+            .iter()
+            .all(|backing| matches!(backing, topo::Backing::Carried { .. }))),
+        "every record is the part's, carried: {contacts:?}"
     );
 
     // Therefore: silent, and the guard is the only reason.

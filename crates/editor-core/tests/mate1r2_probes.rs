@@ -395,7 +395,7 @@ fn r2_consistent_loop_still_verifies_under_a_placed_group_frame() {
             assert!(
                 findings
                     .iter()
-                    .all(|f| matches!(f.attribution, editor_core::Attribution::Declined(_))),
+                    .all(|f| matches!(f.attribution, Some(editor_core::Attribution::Declined(_)))),
                 "declines only: {findings:?}"
             );
         }

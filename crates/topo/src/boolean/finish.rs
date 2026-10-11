@@ -35,7 +35,6 @@ use slotmap::SecondaryMap;
 
 use super::combine::{GraftMap, graft_solid};
 use super::discard::{DiscardRow, HeldInto, discard_row};
-use super::fragments::Lineage;
 use super::join::CompletedPolygonPair;
 use super::sectors;
 use super::shell_witness::{
@@ -49,6 +48,7 @@ use super::{
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, ShellKey, SolidKey, VertexKey};
 use crate::euler::FaceSurface;
+use crate::lineage::Lineage;
 use crate::live::{BoundaryMember, proven};
 use crate::splitting::finish::{carve, single_solid};
 use crate::validate::decide;
