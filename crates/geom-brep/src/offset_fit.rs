@@ -2886,12 +2886,9 @@ mod tests {
     /// unrotated frame's, each against its own largest value over the
     /// patch.
     /// Read from the coefficient vectors' norms they move by rounding
-    /// alone (measured worst `5.6e-13`, on `‖Y‖`); a box of three
-    /// channel hulls folded into a norm reads up to `√3`× the vector's
-    /// reach depending on how it sits against the axes, and moves `‖Y‖`
-    /// by `8.7e-2` here, the rational speeds by `1.3e-2` and the
-    /// meters' `sup‖S_u × S_v‖` by `1.7e-4` (integral) and `2.9e-2`
-    /// (rational) on the meters' first rung.
+    /// alone; a box of three channel hulls folded into a norm reads up
+    /// to `√3`× the vector's reach depending on how it sits against the
+    /// axes, and moves `‖Y‖` by `8.7e-2` here.
     ///
     /// The fit is deliberately crude — the base lifted by `d` along
     /// `z` — so that `Y` is a real vector, the normal's tilt times `d`,
@@ -2901,7 +2898,12 @@ mod tests {
         // `Y`'s coefficients cancel products of size `|d|·‖M̃‖ ≈ 0.05` down
         // to `≈ 8e-4`, so each carries ~1e-17 of rounding per term, ~1e-14
         // of its scale, compounded over the products' terms to the measured
-        // 5.6e-13; 1e-10 is ~200× that and nine decades under a box fold.
+        // 5.6e-13 (7.5e-13 through `cell_bound`). The other columns are
+        // norms of uncancelled vectors, a few products deep, and measure
+        // 2e-15 to 4e-15: `sup‖M̃‖` 3.6e-15, both patches' speeds 2.0e-15
+        // and 2.1e-15, the meters' `sup‖S_u × S_v‖` 2.2e-15 (integral) and
+        // 4.0e-15 (rational). 1e-10 is ~130× the worst and nine decades
+        // under a box fold.
         const DRIFT: f64 = 1e-10;
         let splits = [0.25, 0.5, 0.75];
         let base = bowed_patch()
@@ -2933,10 +2935,7 @@ mod tests {
         let meters = |n: &geom::NurbsSurface<f64>| {
             let cells = crate::patch_bound::patch_cells_refined(n, 1).unwrap();
             let reg = crate::offset_meters::patch_regularity(&cells);
-            let normal = cells
-                .iter()
-                .map(|c| crate::offset_meters::cell_normal(c).sup)
-                .collect::<Vec<_>>();
+            let normal = cells.iter().map(|c| c.m_sup).collect::<Vec<_>>();
             (vec![reg.speed_u.get(), reg.speed_v.get()], normal)
         };
         let reading = |base: &geom::NurbsSurface<f64>,

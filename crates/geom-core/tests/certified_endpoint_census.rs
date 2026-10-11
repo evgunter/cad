@@ -285,27 +285,26 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/patch_bound.rs",
-        5,
-        4,
-        "three are in `rational_cells`, and the `is_certified()` this counts guards \
-         two of them — blind spot 2: the refined weight licence, which asks by name \
-         before reading `lo`, and the cell's weight hull `w_cell.lo()`, read only \
-         after `w_cell` and both weight-partial hulls have asked. `upper` asks by \
-         name. Two are CENTRES, safe because a centre is a translation choice and \
-         no enclosure rests on it: `rational_cells`' cell centroid and \
-         `cross_norm_sup`'s vector centres (the remainder) each take midpoints and \
-         contribute `0` for a non-finite one, so a refused input still yields a \
-         finite centre and the reach about it reports the trouble",
+        3,
+        2,
+        "two are in `rational_cells`, guarded by the `is_certified()` this counts: \
+         the refined weight licence, which asks by name before reading `lo`, and the \
+         cell's weight hull `w_cell.lo()`, read only after `w_cell` and both \
+         weight-partial hulls have asked. The remainder is `centre`, safe because a \
+         centre is a translation choice and no enclosure rests on it: it takes \
+         midpoints, contributes `0` for a non-finite one and answers `0` for a \
+         non-finite mean, so a refused input still yields a finite centre and the \
+         reach about it reports the trouble",
     ),
     ("crates/geom-brep/src/pcurve_cache.rs", 2, 2, ""),
     (
         "crates/geom-brep/src/props/quad.rs",
-        12,
-        7,
+        11,
+        6,
         "the remaining 5 are safe by construction: `cos_step`/`sin_step` and the two \
          half-angle clamps build from `pt` of a finite f64 with nonzero exact divisors, \
          so no operand can leave a domain (argued at each). Every other read goes \
-         through `lo_or_refuse`/`hi_or_refuse`/`mid`, which are the guarded ones",
+         through `lo_or_refuse`/`certified_hi`/`mid`, which are the guarded ones",
     ),
     (
         "crates/geom-brep/src/props/spiric.rs",

@@ -147,11 +147,11 @@
 use geom_core::Bounds;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{div_down, max_bound, min_bound, norm_sq, norm_sup};
+use geom_core::interval::{cross, div_down, dot, max_bound, min_bound, norm_sq, norm_sup};
 use geom_core::{Band, Indeterminate, Margin, SupSpeed};
 
 use crate::dihedral::decide_reported;
-use crate::patch_bound::{PatchBoundError, PatchCell, cross, patch_cells_refined};
+use crate::patch_bound::{PatchBoundError, PatchCell, patch_cells_refined};
 use crate::recourse::{
     AtZero, Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
 };
@@ -431,14 +431,9 @@ pub fn mig(i: Interval) -> f64 {
     }
 }
 
-/// Interval dot product, fixed ascending order (D9): the borrow-shaped
-/// pair's other half beside [`crate::patch_bound::cross`].
-fn dot(a: &[Interval; 3], b: &[Interval; 3]) -> Interval {
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-}
-
-/// One cell's chart-normal facts: the enclosure of `S_u × S_v` and
-/// certified bounds on its magnitude (module docs, meter 1).
+/// One cell's chart-normal facts: the enclosure of `S_u × S_v` and a
+/// certified lower bound on its magnitude (module docs, meter 1); the
+/// upper bound is the cell's own [`PatchCell::m_sup`].
 #[derive(Clone, Copy, Debug)]
 pub struct CellNormal {
     /// Componentwise enclosure of `m = S_u × S_v` on the cell.
@@ -448,10 +443,6 @@ pub struct CellNormal {
     /// area) — the regularity floor. Exactly `0.0` when neither
     /// assembly could separate the cell's normal from zero.
     pub floor: f64,
-    /// Certified UPPER bound on `‖m‖` over the cell, same units:
-    /// [`PatchCell::m_sup`], read from coefficient vectors (D4 ¶2)
-    /// rather than from [`Self::m`]'s box. NaN when refused.
-    pub sup: f64,
 }
 
 /// Meter 1, per cell: the three-assembly join (module docs).
@@ -532,7 +523,6 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     CellNormal {
         m,
         floor: if floor > c { floor } else { c },
-        sup: cell.m_sup,
     }
 }
 
@@ -545,7 +535,7 @@ pub struct PatchRegularity {
     /// unit and the module docs' one spelling of it.
     pub floor: f64,
     /// `sup ‖S_u × S_v‖` from above, in [`PatchRegularity::floor`]'s
-    /// units; NaN when any cell's [`CellNormal::sup`] is.
+    /// units; NaN when any cell's [`PatchCell::m_sup`] is.
     pub sup: f64,
     /// `sup ‖S_u‖` (m per unit parameter) — a [`SupSpeed`] by
     /// signature: every consumer of it meters an overshoot (the
@@ -616,7 +606,7 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
         if n.floor < floor {
             floor = n.floor;
         }
-        sup = max_bound(sup, n.sup);
+        sup = max_bound(sup, cell.m_sup);
         speed_u = speed_u.max(SupSpeed::new(cell.s_u_sup));
         speed_v = speed_v.max(SupSpeed::new(cell.s_v_sup));
     }
@@ -731,13 +721,13 @@ pub struct PatchCollapse {
 fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     let n = cell_normal(cell);
     #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    if !(n.floor > 0.0) || !n.sup.is_finite() {
+    if !(n.floor > 0.0) || !cell.m_sup.is_finite() {
         return None;
     }
     // The normalized normal, componentwise: `n_c = m_c / ‖m‖` with
     // `‖m‖ ∈ [floor, sup]` — meter 1's floor is exactly what makes
     // this division legal (interval arithmetic refuses a zero-touching divisor).
-    let mag = Interval::from_bounds(n.floor, n.sup);
+    let mag = Interval::from_bounds(n.floor, cell.m_sup);
     let unit = [n.m[0] / mag, n.m[1] / mag, n.m[2] / mag];
     let (l, m, nn) = (
         dot(&unit, &cell.s_uu),
@@ -751,7 +741,7 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
         l,
         m,
         n: nn,
-        a: Interval::from_bounds(n.floor, n.sup).sqr(),
+        a: Interval::from_bounds(n.floor, cell.m_sup).sqr(),
     };
     // Assembly A — the closed form `κ± = H ± √(H² − K)`.
     let (h, k) = (forms.mean(), forms.gauss());

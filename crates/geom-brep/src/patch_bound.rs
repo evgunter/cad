@@ -97,11 +97,10 @@ use geom_core::Bounds;
 use std::ops::RangeInclusive;
 
 use geom::surfaces::NurbsSurface;
-use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
+use geom_core::interval::{Interval, certified_hi, cross, max_bound, norm_sup};
 use geom_core::spline::KnotVector;
 use geom_core::spline::algebra::equal_split_points;
-use geom_core::spline::compose::tensor::coefficient_norm_sup;
 use geom_core::spline::net::{TensorChannels, TensorCoeffs, TensorNet};
 
 /// The fixed refinement schedule of the RATIONAL arm: every nonempty
@@ -438,7 +437,7 @@ pub fn window_tilde_hull(
     let mut acc: Option<Interval> = None;
     for i in wu.clone() {
         for j in wv.clone() {
-            let e = a.get(i, j) - c * w.get(i, j);
+            let e = tilde_entry(a, w, c, i, j);
             acc = Some(match acc {
                 None => e,
                 Some(h) => Interval::hull(h, e),
@@ -446,6 +445,13 @@ pub fn window_tilde_hull(
         }
     }
     acc.unwrap_or_else(Interval::refused)
+}
+
+/// One entry of the recentred homogeneous net, `a[i][j] − c·w[i][j]` —
+/// the coefficient [`window_tilde_hull`] hulls and the rational cells'
+/// vector readings take norms of.
+fn tilde_entry(a: &Net, w: &Net, c: Interval, i: usize, j: usize) -> Interval {
+    a.get(i, j) - c * w.get(i, j)
 }
 
 /// The signed hull of `net[i][j]` over the window `wu × wv` —
@@ -630,13 +636,16 @@ fn window_vectors(
 }
 
 /// A certified upper bound on `‖x‖` over every `x` in the convex hull of
-/// `vectors`: the largest norm of one of them ([`coefficient_norm_sup`]),
-/// the norm being convex. On one knot span a VECTOR B-spline is a convex
-/// combination of its active control vectors, so this bounds the form's
-/// norm over the cell. `NaN` for no vectors.
+/// `vectors`: the largest norm of one of them, the norm being convex. On
+/// one knot span a VECTOR B-spline is a convex combination of its active
+/// control vectors, so this bounds the form's norm over the cell. `NaN`
+/// for no vectors, or when one is refused.
 fn vectors_norm_sup(vectors: &[[Interval; 3]]) -> f64 {
-    let rows: [Vec<Interval>; 3] = core::array::from_fn(|c| vectors.iter().map(|v| v[c]).collect());
-    coefficient_norm_sup([&rows[0], &rows[1], &rows[2]])
+    vectors
+        .iter()
+        .map(norm_sup)
+        .reduce(max_bound)
+        .unwrap_or(f64::NAN)
 }
 
 /// [`vectors_norm_sup`] over the vector B-spline whose coordinates are
@@ -661,18 +670,6 @@ fn window_norm_sup(nets: [&Net; 3], wu: &RangeInclusive<usize>, wv: &RangeInclus
 /// value being sound — and a non-finite one is taken as `0`. `NaN` when
 /// either list is empty or a term is refused.
 fn cross_norm_sup(a: &[[Interval; 3]], b: &[[Interval; 3]]) -> f64 {
-    let centre = |vs: &[[Interval; 3]]| -> [Interval; 3] {
-        core::array::from_fn(|c| {
-            let sum: f64 = vs
-                .iter()
-                .map(|v| (v[c].lo() + v[c].hi()) / 2.0)
-                .map(|m| if m.is_finite() { m } else { 0.0 })
-                .sum();
-            #[allow(clippy::cast_precision_loss)]
-            let m = sum / vs.len() as f64;
-            Interval::point(if m.is_finite() { m } else { 0.0 })
-        })
-    };
     let reach = |vs: &[[Interval; 3]], c: &[Interval; 3]| {
         let about: Vec<[Interval; 3]> = vs
             .iter()
@@ -680,41 +677,51 @@ fn cross_norm_sup(a: &[[Interval; 3]], b: &[[Interval; 3]]) -> f64 {
             .collect();
         vectors_norm_sup(&about)
     };
-    let (ca, cb) = (centre(a), centre(b));
+    let (ca, cb) = (
+        centre(a).map(Interval::point),
+        centre(b).map(Interval::point),
+    );
     let terms = [
-        vectors_norm_sup(&[cross(&ca, &cb)]),
-        vectors_norm_sup(&[ca]),
+        norm_sup(&cross(&ca, &cb)),
+        norm_sup(&ca),
         reach(b, &cb),
         reach(a, &ca),
-        vectors_norm_sup(&[cb]),
+        norm_sup(&cb),
     ];
     if terms.iter().any(|t| !t.is_finite()) {
         return f64::NAN;
     }
     let [m, na, eb, da, nb] = terms.map(Interval::point);
-    upper(m + na * eb + da * nb + da * eb)
+    certified_hi(m + na * eb + da * nb + da * eb)
 }
 
-/// The upper end of a certified enclosure, `NaN` when it is refused.
-fn upper(i: Interval) -> f64 {
-    if i.is_certified() { i.hi() } else { f64::NAN }
+/// A centre for `vectors` — a translation CHOICE, so any finite value is
+/// sound and none of it has to be enclosed: per coordinate, the mean of
+/// the vectors' midpoints in their order. A non-finite midpoint (an
+/// overflowed or refused enclosure) contributes `0`, and a non-finite
+/// mean is taken as `0`, so the centre is always finite and the reach
+/// about it is what reports the trouble.
+fn centre(vectors: &[[Interval; 3]]) -> [f64; 3] {
+    core::array::from_fn(|c| {
+        let sum: f64 = vectors
+            .iter()
+            .map(|v| (v[c].lo() + v[c].hi()) / 2.0)
+            .map(|m| if m.is_finite() { m } else { 0.0 })
+            .sum();
+        #[allow(clippy::cast_precision_loss)]
+        let m = sum / vectors.len() as f64;
+        if m.is_finite() { m } else { 0.0 }
+    })
 }
 
-/// Interval cross product, fixed component order (D9).
-///
-/// Component-for-component `ssi::enclose::cross3`, which is private
-/// to that module and takes its operands by value. This and
-/// `offset_meters`' dot product are the borrow-shaped pair, both read
-/// by the offset meters; if a third consumer ever wants them, the pair
-/// collapses into one `geom_core` home beside
-/// [`geom_core::interval::norm_sq`], which already has — noted at both
-/// sites so the duplication is a decision rather than an accident.
-pub(crate) fn cross(a: &[Interval; 3], b: &[Interval; 3]) -> [Interval; 3] {
-    [
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    ]
+/// The signed hull of coordinate `c` over `vectors`, folded in their
+/// order; refused for none.
+fn coordinate_hull(vectors: &[[Interval; 3]], c: usize) -> Interval {
+    vectors
+        .iter()
+        .map(|v| v[c])
+        .reduce(Interval::hull)
+        .unwrap_or_else(Interval::refused)
 }
 
 /// The INTEGRAL arm (all weights bitwise `1.0`): the plain hull
@@ -922,27 +929,19 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                     .get(comp)
                     .map_or_else(Interval::refused, |p| p.get(i, j))
             };
-            // The cell centroid — a translation CHOICE, so ANY finite
-            // value is sound and none of it has to be enclosed. Taken
-            // from the midpoint of each enclosed control point, in a
-            // fixed order; a non-finite midpoint (an overflowed or
-            // refused enclosure) contributes `0`, which is still a
-            // finite centre and leaves the widened hulls to report the
-            // trouble.
-            let mut c = [0.0f64; 3];
-            for (comp, slot) in c.iter_mut().enumerate() {
-                let mut sum = 0.0f64;
-                let mut count = 0.0f64;
-                for i in *w.u_val.start()..=*w.u_val.end() {
-                    for j in *w.v_val.start()..=*w.v_val.end() {
-                        let p = point_at(comp, i, j);
-                        let mid = (p.lo() + p.hi()) / 2.0;
-                        sum += if mid.is_finite() { mid } else { 0.0 };
-                        count += 1.0;
-                    }
-                }
-                *slot = sum / count;
-            }
+            // The cell centroid ([`centre`]) of the active control
+            // points, and every reading below recentred on it: the
+            // active `P − c`, whose hull holds `S − c` (positive weights
+            // make the rational basis a nonnegative partition of unity
+            // over them), and the active coefficients of `Ã_u` and `Ã_v`.
+            let cc = centre(&window_vectors(&w.u_val, &w.v_val, point_at)).map(Interval::point);
+            let about = window_vectors(&w.u_val, &w.v_val, |k, i, j| point_at(k, i, j) - cc[k]);
+            let au = window_vectors(&w.u_d1, &w.v_val, |k, i, j| {
+                tilde_entry(&a_nets[k].d10, &w_nets.d10, cc[k], i, j)
+            });
+            let av = window_vectors(&w.u_val, &w.v_d1, |k, i, j| {
+                tilde_entry(&a_nets[k].d01, &w_nets.d01, cc[k], i, j)
+            });
             // The cell's weight hull — the divisor (module docs).
             let w_cell = window_hull(w_grid, &w.u_val, &w.v_val);
             // Weight-net hulls on the cell.
@@ -961,30 +960,15 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
             let mut s_uv = [zero; 3];
             let mut s_vv = [zero; 3];
             for (comp, a) in a_nets.iter().enumerate() {
-                let cc = Interval::point(c[comp]);
-                // The rational VALUE hull on the cell: positive
-                // weights make the rational basis a nonnegative
-                // partition of unity over the ACTIVE control points,
-                // so `S − c` lies in the hull of `P − c`.
-                let mut v0h: Option<Interval> = None;
-                for i in *w.u_val.start()..=*w.u_val.end() {
-                    for j in *w.v_val.start()..=*w.v_val.end() {
-                        let e = point_at(comp, i, j) - cc;
-                        v0h = Some(match v0h {
-                            None => e,
-                            Some(h) => Interval::hull(h, e),
-                        });
-                    }
-                }
-                let v0s = v0h.unwrap_or_else(Interval::refused);
+                let v0s = coordinate_hull(&about, comp);
                 // Recentred homogeneous derivative hulls
                 // `Ã_kl = A_kl − c·w_kl` on the cell.
                 let at =
                     |an: &Net, wn: &Net, wu: &RangeInclusive<usize>, wv: &RangeInclusive<usize>| {
-                        window_tilde_hull(an, wn, cc, wu, wv)
+                        window_tilde_hull(an, wn, cc[comp], wu, wv)
                     };
-                let a10s = at(&a.d10, &w_nets.d10, &w.u_d1, &w.v_val);
-                let a01s = at(&a.d01, &w_nets.d01, &w.u_val, &w.v_d1);
+                let a10s = coordinate_hull(&au, comp);
+                let a01s = coordinate_hull(&av, comp);
                 let a11s = at(&a.d11, &w_nets.d11, &w.u_d1, &w.v_d1);
                 // `A` and `w` are channels of one pair, so their second
                 // partials are both `Zero` or both nets.
@@ -1014,21 +998,16 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                 s_vv[comp] = (a02s - two * s1v * w01s - v0s * w02s) / w_cell;
                 s_uv[comp] = (a11s - s1u * w01s - s1v * w10s - v0s * w11s) / w_cell;
             }
-            // The vector readings, over coefficient-vector norms. `Ã_u`'s
-            // and `Ã_v`'s active vectors, recentred as the hulls above
-            // are; `S − c` in the hull of the active `P − c`.
-            let cc = c.map(Interval::point);
-            let au = window_vectors(&w.u_d1, &w.v_val, |k, i, j| {
-                a_nets[k].d10.get(i, j) - cc[k] * w_nets.d10.get(i, j)
-            });
-            let av = window_vectors(&w.u_val, &w.v_d1, |k, i, j| {
-                a_nets[k].d01.get(i, j) - cc[k] * w_nets.d01.get(i, j)
-            });
-            let reach = vectors_norm_sup(&window_vectors(&w.u_val, &w.v_val, |k, i, j| {
-                point_at(k, i, j) - cc[k]
-            }));
-            let (au_sup, av_sup) = (vectors_norm_sup(&au), vectors_norm_sup(&av));
-            let vectors = [au_sup, av_sup, reach, cross_norm_sup(&au, &av)];
+            // The vector readings over coefficient-vector norms (the
+            // fields' docs): the quotient rule for the speeds, and the
+            // cross term with the two `w_d·Ã_d × (S − c)` terms over
+            // `inf w²` for `‖S_u × S_v‖`.
+            let vectors = [
+                vectors_norm_sup(&au),
+                vectors_norm_sup(&av),
+                vectors_norm_sup(&about),
+                cross_norm_sup(&au, &av),
+            ];
             let weights = [w_cell, w10s, w01s];
             let sups = if vectors.iter().all(|t| t.is_finite())
                 && weights.iter().all(|i| i.is_certified())
@@ -1037,9 +1016,11 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                 let (w_u, w_v) = (Interval::point(w10s.mag()), Interval::point(w01s.mag()));
                 let w_lo = Interval::point(w_cell.lo());
                 [
-                    upper((au_sup + reach * w_u) / w_lo),
-                    upper((av_sup + reach * w_v) / w_lo),
-                    upper((cross_sup + au_sup * reach * w_v + reach * av_sup * w_u) / w_lo.sqr()),
+                    certified_hi((au_sup + reach * w_u) / w_lo),
+                    certified_hi((av_sup + reach * w_v) / w_lo),
+                    certified_hi(
+                        (cross_sup + au_sup * reach * w_v + reach * av_sup * w_u) / w_lo.sqr(),
+                    ),
                 ]
             } else {
                 [f64::NAN; 3]
@@ -1198,23 +1179,44 @@ mod tests {
         }
     }
 
-    /// **The meters' vector sups bound every sampled magnitude, on
-    /// both arms and through a degree-1 direction.** Each cell's
+    /// **The meters' vector sups bound every sampled magnitude, and sit
+    /// within a measured factor of the box readings they replace**, on
+    /// both arms and through a degree-1 direction. Each cell's
     /// `s_u_sup`, `s_v_sup` and `m_sup` is checked against `‖S_u‖`,
-    /// `‖S_v‖` and `‖S_u × S_v‖` evaluated on a 5×5 grid over the cell.
-    /// The fixtures: an integral biquadratic with interior knots, its
-    /// rational twin with weights varying along both directions, and a
-    /// rational patch of bidegree `(2, 1)` whose weights vary along the
-    /// degree-1 direction, which a Möbius reparameterization makes
-    /// genuinely curve in parameter. A form missing a quotient term, or
-    /// a degree-1 partial read as anything but its constant, reads
-    /// under the sampled magnitude on the rational cells.
+    /// `‖S_v‖` and `‖S_u × S_v‖` evaluated on a 5×5 grid over the cell,
+    /// and against the cell's box readings in the fixture's own frame
+    /// (`norm_sup` of the componentwise enclosures, and for `m` the
+    /// smaller of the box cross product's and the Gram determinant's upper
+    /// end).
     ///
-    /// The samples are `f64` evaluations, so each comparison allows
-    /// `1e-12` of the sampled value for their rounding, decades under
-    /// what a dropped term would cost.
+    /// The fixtures: an integral biquadratic with interior knots, its
+    /// rational twin with weights varying along both directions, a
+    /// rational biquadratic whose weights vary strongly along `v` and
+    /// whose `S − c` is not collinear with `Ã_u`, and a rational patch of
+    /// bidegree `(2, 1)` whose weights vary along the degree-1 direction,
+    /// which a Möbius reparameterization makes genuinely curve in
+    /// parameter. Dropping the `(S − c)·w_d` term of either rational
+    /// speed, either `w_d·Ã_d × (S − c)` term of `m_sup`, or any of the
+    /// centred cross bound's three spread terms reads under a sampled
+    /// magnitude; a speed or `m_sup` loosened by half reads over its box
+    /// ceiling.
+    ///
+    /// The samples are `f64` evaluations, so the soundness comparison
+    /// allows `1e-12` of the sampled value for their rounding, decades
+    /// under what a dropped term costs.
     #[test]
     fn the_meter_sups_bound_every_sampled_magnitude() {
+        use geom_core::interval::{dot, norm_sq};
+        // Measured worst over the fixtures at four splits per span, against
+        // the box reading in the fixture's own frame: the speeds at `1.125`×
+        // (the strong-`v` fixture; the integral arm's at `1.0`), `m_sup` at
+        // `1.24`× (the degree-1 fixture; `1.18`× strong-`v`, `1.12`× the
+        // rational twin, `1.02`× integral). The rational readings take the
+        // triangle inequality where the box keeps the cancellation between
+        // `Ã_d` and the `S − c` terms. Each ceiling is that worst with
+        // about a tenth to spare.
+        const SPEED_CEILING: f64 = 1.25;
+        const M_CEILING: f64 = 1.35;
         let biquadratic = |rational: bool| {
             let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0], 2)
                 .expect("valid");
@@ -1237,6 +1239,30 @@ mod tests {
             }
             NurbsSurface::new(kv.clone(), kv, control, weights).expect("valid")
         };
+        // Found by a seeded search for a patch on which the `w_v` term of
+        // `m_sup` is what keeps the bound above the sample (the corner
+        // `(0, 1)` at four splits). The middle `v` column carries the
+        // large weights.
+        let strong_v = {
+            let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("valid");
+            let control = [
+                (-0.891, -0.073, -0.646),
+                (0.257, -0.311, -0.081),
+                (0.577, -0.584, 0.283),
+                (-0.841, -0.157, 0.184),
+                (0.203, 0.789, 0.876),
+                (0.146, 0.698, 0.284),
+                (0.739, -0.405, 0.519),
+                (0.801, -0.122, -0.214),
+                (0.903, -0.323, -0.794),
+            ]
+            .map(|(x, y, z)| geom_core::Point3::new(x, y, z))
+            .to_vec();
+            let weights = vec![
+                0.287, 2.163, 0.446, 0.227, 0.857, 0.908, 0.399, 7.160, 0.861,
+            ];
+            NurbsSurface::new(kv.clone(), kv, control, weights).expect("valid")
+        };
         let ruled = {
             let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("valid");
             let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("valid");
@@ -1253,31 +1279,54 @@ mod tests {
             let weights = vec![1.0, 2.5, 0.7, 1.6, 1.0, 0.5];
             NurbsSurface::new(ku, kv, control, weights).expect("valid")
         };
+        let names = ["‖S_u‖", "‖S_v‖", "‖S_u × S_v‖"];
         for (name, n) in [
             ("integral", biquadratic(false)),
             ("rational", biquadratic(true)),
+            ("rational strong v", strong_v),
             ("rational degree-1 v", ruled),
         ] {
             let cells = patch_cells_refined(&n, 4).expect("covered");
             assert!(cells.len() >= 16, "{name}: {} cells", cells.len());
             for c in &cells {
+                let sups = [c.s_u_sup, c.s_v_sup, c.m_sup];
                 for a in 0..5u32 {
                     for b in 0..5u32 {
                         let u = c.u.0 + (c.u.1 - c.u.0) * f64::from(a) / 4.0;
                         let v = c.v.0 + (c.v.1 - c.v.0) * f64::from(b) / 4.0;
                         let jet = n.window_at(u, v).expect("in domain").ders_in_span(u, v);
-                        let m = jet.du.cross(jet.dv);
-                        for (what, got, sup) in [
-                            ("‖S_u‖", jet.du.norm(), c.s_u_sup),
-                            ("‖S_v‖", jet.dv.norm(), c.s_v_sup),
-                            ("‖S_u × S_v‖", m.norm(), c.m_sup),
-                        ] {
+                        let got = [jet.du.norm(), jet.dv.norm(), jet.du.cross(jet.dv).norm()];
+                        for (q, g) in got.iter().enumerate() {
                             assert!(
-                                got <= sup + 1e-12 * got,
-                                "{name}: {what} = {got:e} at ({u}, {v}) above the cell's sup {sup:e}"
+                                *g <= sups[q] + 1e-12 * g,
+                                "{name}: {} = {g:e} at ({u}, {v}) above the cell's sup {:e}",
+                                names[q],
+                                sups[q]
                             );
                         }
                     }
+                }
+                let gram = (norm_sq(&c.s_u) * norm_sq(&c.s_v) - dot(&c.s_u, &c.s_v).sqr())
+                    .clamped_to(0.0, f64::INFINITY)
+                    .sqrt()
+                    .hi();
+                let boxed = [
+                    norm_sup(&c.s_u),
+                    norm_sup(&c.s_v),
+                    norm_sup(&cross(&c.s_u, &c.s_v)).min(gram),
+                ];
+                for q in 0..3 {
+                    let ceiling = if q == 2 { M_CEILING } else { SPEED_CEILING };
+                    assert!(
+                        sups[q] <= ceiling * boxed[q],
+                        "{name}: sup {} = {:e} is {}× the box reading {:e} on {:?} × {:?}",
+                        names[q],
+                        sups[q],
+                        sups[q] / boxed[q],
+                        boxed[q],
+                        c.u,
+                        c.v
+                    );
                 }
             }
         }

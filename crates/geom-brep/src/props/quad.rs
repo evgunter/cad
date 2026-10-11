@@ -152,8 +152,8 @@
 //! documented slack there, unchanged).
 
 use geom_core::Bounds;
-use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
+use geom_core::interval::{Interval, certified_hi};
 use geom_core::spline::algebra;
 use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
@@ -618,11 +618,6 @@ pub(super) fn lo_or_refuse(x: Interval) -> f64 {
     if !x.is_certified() { f64::NAN } else { x.lo() }
 }
 
-/// [`lo_or_refuse`] for the upper end.
-fn hi_or_refuse(x: Interval) -> f64 {
-    if !x.is_certified() { f64::NAN } else { x.hi() }
-}
-
 /// Midpoint of a bracket (structure selection for integration limits;
 /// the bracket's width is repaid by the endpoint pad). A refused
 /// bracket has no midpoint, and says so.
@@ -974,7 +969,7 @@ fn require_no_period_jump<T: Decide>(
             let gap = radius * (u1 - u0).abs_enclosure() + (v1 - v0).abs_enclosure();
             if classify_len::<T>(
                 "props_quad_junction_period",
-                Margin::of(hi_or_refuse(gap - pt(core::f64::consts::PI) * radius)),
+                Margin::of(certified_hi(gap - pt(core::f64::consts::PI) * radius)),
                 band,
                 PropsCheck::Inventory,
             )? != Sign::Negative
@@ -2326,7 +2321,7 @@ fn fold_terms(terms: &[(Interval, RVec3)]) -> RVec3 {
 
 /// An upper bound on `|v|` (2-norm) of a bracketed 3-vector.
 fn norm_hi(v: RVec3) -> f64 {
-    hi_or_refuse((v[0].sqr() + v[1].sqr() + v[2].sqr()).sqrt())
+    certified_hi((v[0].sqr() + v[1].sqr() + v[2].sqr()).sqrt())
 }
 
 /// Componentwise sum of two bracketed 3-vectors.
@@ -2820,7 +2815,7 @@ fn area_midpoint_taylor<E>(
             // keeps the arithmetic over that tiling enclosing too.
             let cell_area = (pt(c_uhi) - pt(c_ulo)) * (pt(c_vhi) - pt(c_vlo));
             let mean = widen(c.g_mid, 0.5 * hu * c.g_u + 0.5 * hv * c.g_v)
-                .clamped_to(lo_or_refuse(c.g_hull), hi_or_refuse(c.g_hull));
+                .clamped_to(lo_or_refuse(c.g_hull), certified_hi(c.g_hull));
             acc = acc + cell_area * mean;
         }
     }
@@ -5002,7 +4997,7 @@ fn chord_polygon_area(
                     area_at(su, sv, Collapse::At(um), Collapse::At(vm)),
                     0.5 * hu * cell_gu + 0.5 * hv * cell_gv,
                 )
-                .clamped_to(lo_or_refuse(cell_g), hi_or_refuse(cell_g));
+                .clamped_to(lo_or_refuse(cell_g), certified_hi(cell_g));
                 col = col + (pt(c1) - pt(c0)) * mean;
             }
             if top < v0 {

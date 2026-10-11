@@ -56,7 +56,12 @@ vector norms for the rational speeds, and a centred bound on the cross
 product of the active derived control-vector hulls for
 `PatchCell::m_sup` (rational: over `Ã_u × Ã_v − w_v·Ã_u × (S − c) −
 w_u·(S − c) × Ã_v`, divided by `w²`). The product forms (`PatchSpans`
-products, `M̃/w³`) were built and measured first. They were sound, but one
-meter reading at the first rung cost 4× (integral) and 25× (rational)
-the box assembly, and the debug meter tests took 20–70× longer, so they
-were not kept. The measured move is in the PR body.
+products, `M̃/w³`) were built and measured first. They were sound, but
+one meter reading at the first rung cost 4× (integral) and 25×
+(rational) the box assembly, and the debug meter tests took 20–70×
+longer, so they were not kept. Those numbers come from code that was
+not kept, so they cannot be re-measured from the tree; the route stays
+available if a consumer needs sups tighter than the box. The measured
+move is in the PR body. The rational speed's second reading, in
+`ssi::enclose`, is
+`the-rational-chart-speed-is-read-twice-in-patch-bound-and-enclose`.

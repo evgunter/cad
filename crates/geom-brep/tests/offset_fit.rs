@@ -429,7 +429,7 @@ fn the_collapse_meter_brackets_the_sphere_s_known_curvature() {
         let mut worst: Option<(f64, String)> = None;
         for c in &cells {
             let n = geom_brep::offset_meters::cell_normal(c);
-            let mag = RI::from_bounds(n.floor, n.sup);
+            let mag = RI::from_bounds(n.floor, c.m_sup);
             let unit = [n.m[0] / mag, n.m[1] / mag, n.m[2] / mag];
             let (e, f, g) = (nsq(&c.s_u), dot3(&c.s_u, &c.s_v), nsq(&c.s_v));
             let (l, m, nn) = (
@@ -446,7 +446,7 @@ fn the_collapse_meter_brackets_the_sphere_s_known_curvature() {
                  W11=[{:.3},{:.3}]",
                 c.u,
                 n.floor,
-                n.sup,
+                c.m_sup,
                 e.lo(),
                 e.hi(),
                 f.lo(),
