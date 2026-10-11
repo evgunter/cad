@@ -77,6 +77,8 @@ mod a_ring_on_a_sphere_face;
 mod a_ruling_lying_on_a_wall;
 #[path = "a_ruling_through_a_box_corner_edge.rs"]
 mod a_ruling_through_a_box_corner_edge;
+#[path = "a_split_through_a_wrap_edges_vertex.rs"]
+mod a_split_through_a_wrap_edges_vertex;
 #[path = "a_swaying_loft_corner_meters.rs"]
 mod a_swaying_loft_corner_meters;
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
