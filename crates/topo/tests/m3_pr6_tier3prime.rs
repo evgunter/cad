@@ -17,32 +17,18 @@ use geom_core::Tol;
 use geom_core::{Decide, Point3, Vec3};
 use topo::{
     AtRestBody, BooleanBody, BooleanError, BooleanResult, ContactRecords, ValidationError,
-    intersect_with, mass_properties, subtract_with, union, union_with, validate_geometric,
-    validate_pseudomanifold,
+    intersect, mass_properties, subtract, union, validate_geometric, validate_pseudomanifold,
 };
 
-type BoolOp<T> = fn(
-    &AtRestBody<T>,
-    &AtRestBody<T>,
-    &topo::BooleanDeclarations,
-    Tol,
-) -> Result<BooleanResult<T>, BooleanError>;
+type BoolOp<T> = fn(&AtRestBody<T>, &AtRestBody<T>, Tol) -> Result<BooleanResult<T>, BooleanError>;
 
-/// Runs one declared op (M4 PR 5: the corpus declares its intended
-/// flush contacts — the recipe intent, test form).
+/// Runs one op, which must build a body.
 fn run_body<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
     op: BoolOp<T>,
     a: &AtRestBody<T>,
     b: &AtRestBody<T>,
 ) -> BooleanBody<T> {
-    match op(
-        a,
-        b,
-        &common::flush_declarations(a, b, Tol::witness()),
-        Tol::witness(),
-    )
-    .unwrap()
-    {
+    match op(a, b, Tol::witness()).unwrap() {
         BooleanResult::Body(body) => body,
         BooleanResult::Empty => panic!("expected a non-empty boolean result"),
     }
@@ -86,7 +72,7 @@ fn assert_promoted<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
 fn corner_kiss_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
     let a = finished_brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = finished_brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
-    let body = run_body(union_with as BoolOp<T>, &a, &b);
+    let body = run_body(union as BoolOp<T>, &a, &b);
     assert_eq!(body.contacts.vertex_vertex().count(), 1);
     assert_promoted(&body);
 }
@@ -104,7 +90,7 @@ fn corner_kiss_promoted() {
 fn tangent_edge_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
     let a = finished_brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = finished_brick::<T>((1.0, 2.0), (0.0, 1.0), (1.0, 2.0));
-    let body = run_body(union_with as BoolOp<T>, &a, &b);
+    let body = run_body(union as BoolOp<T>, &a, &b);
     assert_eq!(body.contacts.vertex_vertex().count(), 2);
     assert_promoted(&body);
 }
@@ -126,7 +112,7 @@ fn tangent_edge_promoted() {
 fn skew_edges_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
     let a = finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = finished_brick::<T>((1.5, 3.5), (0.5, 2.5), (2.0, 4.0));
-    let body = run_body(union_with as BoolOp<T>, &a, &b);
+    let body = run_body(union as BoolOp<T>, &a, &b);
     assert!(body.contacts.vertex_vertex().next().is_none());
     assert!(body.contacts.vertex_face().next().is_none());
     assert_eq!(
@@ -139,16 +125,10 @@ fn skew_edges_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPoli
         "3′ ≡ tier 3 here"
     );
     assert!(matches!(
-        intersect_with(
-            &a,
-            &b,
-            &common::flush_declarations(&a, &b, Tol::witness()),
-            Tol::witness()
-        )
-        .unwrap(),
+        intersect(&a, &b, Tol::witness()).unwrap(),
         BooleanResult::Empty
     ));
-    let sub = run_body(subtract_with as BoolOp<T>, &a, &b);
+    let sub = run_body(subtract as BoolOp<T>, &a, &b);
     assert!(sub.contacts.is_empty());
     assert_eq!(
         validate_pseudomanifold(&sub.body, &sub.contacts, Tol::witness()),
@@ -186,7 +166,7 @@ fn vertex_on_face_kiss_promoted() {
         Tol::witness(),
     );
     let tilted = finished("the tilted cube", tilted, Tol::witness());
-    let body = run_body(union_with as BoolOp<f64>, &tilted, &slab);
+    let body = run_body(union as BoolOp<f64>, &tilted, &slab);
     assert_eq!(
         body.contacts.kinds().count(),
         body.contacts.vertex_face().count(),
@@ -213,7 +193,7 @@ fn vertex_on_face_kiss_promoted() {
 fn edge_rest_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
     let a = finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = finished_brick::<T>((1.0, 3.0), (-2.0, 0.0), (2.0, 4.0));
-    let body = run_body(union_with as BoolOp<T>, &a, &b);
+    let body = run_body(union as BoolOp<T>, &a, &b);
     // Two joined records: B's corner (1,0,2) on A's edge interior;
     // A's corner (2,0,2) on B's edge interior.
     assert_eq!(
@@ -240,15 +220,14 @@ fn edge_rest_promoted_d4_pin() {
 /// "interior-rest flush contact") and consumes every rest record into
 /// structure: the consumed class, census agrees, 3′ ≡ tier 3.
 /// Corner-flush (contact-square edges collinear with the slab's own
-/// rim, the boundary-on-boundary class (iii)): the declared ∪ BUILDS
-/// through the same consumed class, and the
-/// undeclared door glues the same way (D10). ∖ returns
+/// rim, the boundary-on-boundary class (iii)): the ∪ BUILDS through
+/// the same consumed class. ∖ returns
 /// operand A at tier 3, as before — pure REST subtracts never reach
 /// a join door.
 fn flush_rests_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
     let slab = finished_brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
     let pillar = finished_brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 3.0));
-    let body = run_body(union_with as BoolOp<T>, &slab, &pillar);
+    let body = run_body(union as BoolOp<T>, &slab, &pillar);
     assert!(body.contacts.is_empty());
     assert_eq!(
         validate_pseudomanifold(&body.body, &body.contacts, Tol::witness()),
@@ -257,11 +236,10 @@ fn flush_rests_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPol
     assert_eq!(validate_geometric(&body.body, Tol::witness()), Ok(()));
 
     let corner = finished_brick::<T>((0.0, 1.0), (0.0, 1.0), (1.0, 3.0));
-    // The join builds the corner-flush mate, declared or not (the
-    // same frontier as the crosslap; `crosslap_rest.rs` holds the
-    // headline pins, `m5_s1_rest_zip.rs` the exact-volume row and the
-    // undeclared row for this shape).
-    let glued = run_body(union_with as BoolOp<T>, &slab, &corner);
+    // The join builds the corner-flush mate (the same frontier as the
+    // crosslap; `crosslap_rest.rs` holds the headline pins,
+    // `m5_s1_rest_zip.rs` the exact-volume row for this shape).
+    let glued = run_body(union as BoolOp<T>, &slab, &corner);
     assert!(
         glued.contacts.vertex_vertex().next().is_none()
             && glued.contacts.vertex_face().next().is_none(),
@@ -272,7 +250,7 @@ fn flush_rests_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPol
         Ok(())
     );
     assert_eq!(validate_geometric(&glued.body, Tol::witness()), Ok(()));
-    let sub = run_body(subtract_with as BoolOp<T>, &slab, &corner);
+    let sub = run_body(subtract as BoolOp<T>, &slab, &corner);
     assert_eq!(
         validate_pseudomanifold(&sub.body, &sub.contacts, Tol::witness()),
         Ok(())
@@ -315,7 +293,7 @@ fn tier3_equivalence_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtR
     );
     let a = finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = finished_brick::<T>((1.0, 3.0), (1.0, 3.0), (1.0, 3.0));
-    let body = run_body(union_with as BoolOp<T>, &a, &b);
+    let body = run_body(union as BoolOp<T>, &a, &b);
     assert!(body.contacts.vertex_vertex().next().is_none());
     assert_eq!(validate_geometric(&body.body, Tol::witness()), Ok(()));
     assert_eq!(
@@ -341,7 +319,7 @@ fn tier3_equivalence_empty_contacts() {
 fn tampered_declaration_is_stale() {
     let a = finished_brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = finished_brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
-    let body = run_body(union_with as BoolOp<f64>, &a, &b);
+    let body = run_body(union as BoolOp<f64>, &a, &b);
     let (real_a, real_b) = body.contacts.vertex_vertex().next().unwrap();
     let wrong = body
         .body
@@ -428,7 +406,7 @@ fn hand_built_self_intersection_is_undeclared() {
 fn kiss_base<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -> BooleanBody<T> {
     let a = finished_brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = finished_brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
-    run_body(union_with as BoolOp<T>, &a, &b)
+    run_body(union as BoolOp<T>, &a, &b)
 }
 
 /// Closure vs a generic mover crossing one shell away from the kiss.
@@ -441,7 +419,7 @@ fn closure_kiss_vs_mover() {
     // kiss is operand-internal — undeclared in the new result's
     // records — and the 3′ gate refuses it LOUDLY (the documented
     // closure gap; row 1 of the table).
-    let r = run_body(union_with as BoolOp<f64>, &base.body, &mover);
+    let r = run_body(union as BoolOp<f64>, &base.body, &mover);
     assert_eq!(
         mass_properties(&r.body, Tol::witness()).unwrap().volume,
         2.875
@@ -455,7 +433,7 @@ fn closure_kiss_vs_mover() {
     );
 
     // ∖: same shape — closes, kiss persists, gate refuses loudly.
-    let r = run_body(subtract_with as BoolOp<f64>, &base.body, &mover);
+    let r = run_body(subtract as BoolOp<f64>, &base.body, &mover);
     assert_eq!(
         mass_properties(&r.body, Tol::witness()).unwrap().volume,
         1.875
@@ -470,7 +448,7 @@ fn closure_kiss_vs_mover() {
 
     // ∩: the kiss shell drops out of the result — certified 3′ green
     // with the exact volume (row 3: closes cleanly).
-    let r = run_body(intersect_with as BoolOp<f64>, &base.body, &mover);
+    let r = run_body(intersect as BoolOp<f64>, &base.body, &mover);
     assert_eq!(
         mass_properties(&r.body, Tol::witness()).unwrap().volume,
         0.125
@@ -521,13 +499,13 @@ fn closure_kiss_vs_second_toucher() {
 fn closure_consumed_base_stays_certified() {
     let slab = finished_brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
     let pillar = finished_brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 3.0));
-    let boss = run_body(union_with as BoolOp<f64>, &slab, &pillar);
+    let boss = run_body(union as BoolOp<f64>, &slab, &pillar);
     assert_eq!(
         mass_properties(&boss.body, Tol::witness()).unwrap().volume,
         18.0
     );
     let cutter = finished_brick::<f64>((3.0, 3.5), (3.0, 3.5), (0.5, 1.5));
-    let r = run_body(subtract_with as BoolOp<f64>, &boss.body, &cutter);
+    let r = run_body(subtract as BoolOp<f64>, &boss.body, &cutter);
     assert_eq!(
         mass_properties(&r.body, Tol::witness()).unwrap().volume,
         18.0 - 0.125

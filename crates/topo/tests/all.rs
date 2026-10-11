@@ -293,8 +293,6 @@ mod rigid_map_near_eps_plane_nurbs;
 mod rim_dim_boolean_twins;
 #[path = "rim_dim_review_probes.rs"]
 mod rim_dim_review_probes;
-#[path = "seat3_flush_detector.rs"]
-mod seat3_flush_detector;
 #[path = "shell_operand_gate.rs"]
 mod shell_operand_gate;
 #[path = "shell_roles.rs"]
@@ -376,8 +374,6 @@ mod a_whole_villarceau_circle_bounds_a_torus_face;
 mod certified_enclosure_impl_census;
 #[path = "cleave_mint_doors.rs"]
 mod cleave_mint_doors;
-#[path = "door_backstop_settled_residue.rs"]
-mod door_backstop_settled_residue;
 #[path = "holes_meeting_at_a_vertex.rs"]
 mod holes_meeting_at_a_vertex;
 #[path = "pierce_strut_at_a_pinch.rs"]

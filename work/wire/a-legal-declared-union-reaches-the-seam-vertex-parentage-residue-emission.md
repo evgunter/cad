@@ -97,3 +97,7 @@ only `(a, b)` is declared, and `row` and `rowids` now reach this
 residue in `[a, h, b, g]` and `[h, a, b, g]`. That is the same pair of
 orders the declared row measured. The test admits it by name
 (`RESIDUES`).
+
+## More orders reach it (stage 4 F, 2026-10-11)
+
+With declarations retired, the member orders that used to refuse `DeclareResolve` first now run, and more of them reach this residue. `emit_seam_junction`'s four members: 2 orders → 8 (every order that folds `a` and `h` before `b`). `emit_union_rim_piece_ranks`' covered contact: 2 → 8. `row` and `rowids`: 2 → 8 each. In each of these the order refused before and refuses now, and no order that fused moved (`emit_shared_rim_several`'s 256 fused cells hold).

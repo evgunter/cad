@@ -130,8 +130,8 @@ use super::solid_contain::{SolidContainment, closed_sphere_group};
 use super::voids;
 use super::zip::{Fusions, SeamCorrespondence, zip_seam};
 use super::{
-    BooleanDeclarations, BooleanError, BooleanOp, BooleanReduction, CarriedContacts, Cell, Contact,
-    ContactRecords, EeContact, FacePairDeclaration, Operand, ReductionContacts, SelfCheck,
+    BooleanError, BooleanInputs, BooleanOp, BooleanReduction, Cell, Contact, ContactRecords,
+    EeContact, Glue, GluedPair, Operand, OperandRecords, ReductionContacts, SelfCheck,
     SweepStrategy, VeContact, VfContact, VvContact,
 };
 use crate::body::Body;
@@ -422,7 +422,7 @@ pub fn union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         BooleanOp::Union,
         a,
         b,
-        &BooleanDeclarations::none(),
+        &BooleanInputs::default(),
         SweepStrategy::Realized,
         tol,
     )
@@ -442,7 +442,7 @@ pub fn intersect<T: Decide + Bounds + crate::props::AtRestPolicy>(
         BooleanOp::Intersect,
         a,
         b,
-        &BooleanDeclarations::none(),
+        &BooleanInputs::default(),
         SweepStrategy::Realized,
         tol,
     )
@@ -462,64 +462,7 @@ pub fn subtract<T: Decide + Bounds + crate::props::AtRestPolicy>(
         BooleanOp::Subtract,
         a,
         b,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        tol,
-    )
-}
-
-/// A ∪* B with declared coincidence intents (F5, M4 PR 5) — see
-/// [`BooleanDeclarations`].
-///
-/// # Errors
-///
-/// [`BooleanError`].
-pub fn union_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
-    a: &AtRestBody<T>,
-    b: &AtRestBody<T>,
-    decls: &BooleanDeclarations,
-    tol: Tol,
-) -> Result<BooleanResult<T>, BooleanError> {
-    boolean_op_with(BooleanOp::Union, a, b, decls, SweepStrategy::Realized, tol)
-}
-
-/// A ∩* B with declared coincidence intents ([`union_with`]).
-///
-/// # Errors
-///
-/// [`BooleanError`].
-pub fn intersect_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
-    a: &AtRestBody<T>,
-    b: &AtRestBody<T>,
-    decls: &BooleanDeclarations,
-    tol: Tol,
-) -> Result<BooleanResult<T>, BooleanError> {
-    boolean_op_with(
-        BooleanOp::Intersect,
-        a,
-        b,
-        decls,
-        SweepStrategy::Realized,
-        tol,
-    )
-}
-
-/// A ∖* B with declared coincidence intents ([`union_with`]).
-///
-/// # Errors
-///
-/// [`BooleanError`].
-pub fn subtract_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
-    a: &AtRestBody<T>,
-    b: &AtRestBody<T>,
-    decls: &BooleanDeclarations,
-    tol: Tol,
-) -> Result<BooleanResult<T>, BooleanError> {
-    boolean_op_with(
-        BooleanOp::Subtract,
-        a,
-        b,
-        decls,
+        &BooleanInputs::default(),
         SweepStrategy::Realized,
         tol,
     )
@@ -539,13 +482,13 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &AtRestBody<T>,
     b: &AtRestBody<T>,
-    decls: &BooleanDeclarations,
+    inputs: &BooleanInputs,
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     #[cfg(feature = "door-tier3-meter")]
     let door_from = std::time::Instant::now();
-    let result = boolean_door(op, a, b, decls, strategy, tol);
+    let result = Glue::of(inputs).and_then(|glue| boolean_door(op, a, b, &glue, strategy, tol));
     #[cfg(feature = "door-tier3-meter")]
     super::door_meter::record(op, &result, door_from.elapsed(), [a.outcome(), b.outcome()]);
     result
@@ -556,7 +499,7 @@ fn boolean_door<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &AtRestBody<T>,
     b: &AtRestBody<T>,
-    decls: &BooleanDeclarations,
+    decls: &Glue,
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
@@ -636,7 +579,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
-    decls: &BooleanDeclarations,
+    decls: &Glue,
     strategy: SweepStrategy,
     recut: bool,
     tol: Tol,
@@ -796,7 +739,7 @@ pub(super) enum Joined<T: Real> {
         interior_loops: Result<(), BooleanError>,
         /// The declarations the pipeline ran on: the caller's, and the
         /// pairs the glue door decided ([`super::glue`]).
-        decls: Box<BooleanDeclarations>,
+        decls: Box<Glue>,
     },
 }
 
@@ -817,7 +760,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
-    decls: &BooleanDeclarations,
+    decls: &Glue,
     strategy: SweepStrategy,
     recut: bool,
     tol: Tol,
@@ -938,7 +881,7 @@ fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     red: &BooleanReduction<T>,
-    decls: &BooleanDeclarations,
+    decls: &Glue,
     band: Band,
 ) -> Result<(), BooleanError> {
     let events = event_pairs(red);
@@ -947,7 +890,7 @@ fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
         b,
         band,
         SectionPath::Crossings,
-        Exempt::Declared(decls),
+        Exempt::Glued(decls),
         |fa, fb| events.contains(&(fa, fb)),
         true,
     )?;
@@ -968,14 +911,11 @@ fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
 }
 
-/// Does a declaration speak for EXACTLY the pair `(A face, B face)`?
-/// A declaration covers its own pair and no other: a face declared
-/// against one partner meets every other partner undeclared.
-pub(crate) fn declares_pair(decls: &BooleanDeclarations, fa: FaceKey, fb: FaceKey) -> bool {
-    decls
-        .coincident_faces
-        .iter()
-        .any(|d| d.a == fa && d.b == fb)
+/// Does the glue hold EXACTLY the pair `(A face, B face)`? A glued
+/// pair covers itself and no other: a face glued to one partner meets
+/// every other partner as any face does.
+pub(crate) fn glues_pair(decls: &Glue, fa: FaceKey, fb: FaceKey) -> bool {
+    decls.pairs.iter().any(|d| d.a == fa && d.b == fb)
 }
 
 /// **`chart_boundary`'s verdict per face, asked once.** Keyed by the
@@ -1424,9 +1364,9 @@ pub(crate) enum Exempt<'r> {
     /// sweep-testing doors' spelling, which no production path takes.
     #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
     Nothing,
-    /// The crossings path: a DECLARED pair, whose contact is the
-    /// verified carrier the declared rungs walk along its edges.
-    Declared(&'r BooleanDeclarations),
+    /// The crossings path: a GLUED pair, whose contact is the carrier
+    /// the glued rungs walk along its edges.
+    Glued(&'r Glue),
     /// The no-crossings path: a `Rest` declaration the declaration door
     /// verified one carrier with opposed senses (the reduction's
     /// `rest_contacts`). Its section lies on the one carrier, where
@@ -1445,7 +1385,7 @@ impl Exempt<'_> {
         match self {
             #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
             Self::Nothing => false,
-            Self::Declared(decls) => declares_pair(decls, fa, fb),
+            Self::Glued(decls) => glues_pair(decls, fa, fb),
             Self::Rest(pairs) => pairs.contains(&(fa, fb)),
         }
     }
@@ -1504,7 +1444,7 @@ pub(crate) fn section_report<T: Decide + Bounds + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Vec<PairVerdict>, BooleanError> {
     let band = Band::linear(tol)?;
-    let decls = BooleanDeclarations::default();
+    let decls = Glue::default();
     let red =
         super::boolean_reduce_declared_strategy(op, a, b, &decls, SweepStrategy::Realized, tol)?;
     let events = event_pairs(&red);
@@ -2934,13 +2874,13 @@ impl Descendants {
 /// not resolve in its clone.
 pub(super) fn ledger<T: Decide>(
     red: &BooleanReduction<T>,
-    decls: &BooleanDeclarations,
+    decls: &Glue,
     band: Band,
 ) -> Result<Ledger, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let mut out = [
-        Rows::of(&decls.carried_a, Operand::A),
-        Rows::of(&decls.carried_b, Operand::B),
+        Rows::of(&decls.records_a, Operand::A),
+        Rows::of(&decls.records_b, Operand::B),
     ];
     let mut pending = red.pending.clone();
     for ((side, clone), carried) in [(Operand::A, &red.a), (Operand::B, &red.b)]
@@ -3244,18 +3184,18 @@ pub(super) struct Rows {
 }
 
 impl Rows {
-    pub(super) fn of(carried: &CarriedContacts, side: Operand) -> Self {
-        let CarriedContacts { vv, vf, ve, ee } = carried;
+    pub(super) fn of(carried: &OperandRecords, side: Operand) -> Self {
+        let OperandRecords { vv, vf, ve, ee } = carried;
         let input = u32::from(side == Operand::B);
         let cite = |record| Cites::one(Backing::Carried { input, record });
         Self {
             vv: vv
                 .iter()
-                .map(|c| Cited::new(c.pair, cite(c.record)))
+                .map(|c| Cited::new(c.contact, cite(c.record)))
                 .collect(),
             vf: vf
                 .iter()
-                .map(|c| Cited::new(c.rest, cite(c.record)))
+                .map(|c| Cited::new(c.contact, cite(c.record)))
                 .collect(),
             ve: ve
                 .iter()
@@ -3805,14 +3745,14 @@ pub(super) fn declared_surface_pairs<T: Real>(
     result: &Body<T>,
     a: &Body<T>,
     b: &Body<T>,
-    decls: &BooleanDeclarations,
+    decls: &Glue,
     graft: &GraftMap,
 ) -> Vec<(SurfaceKey, SurfaceKey)> {
     decls
-        .coincident_faces
+        .pairs
         .iter()
         .filter_map(
-            |&FacePairDeclaration {
+            |&GluedPair {
                  a: fa,
                  b: fb,
                  class,
@@ -5413,7 +5353,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     a_pristine: &Body<T>,
     b_pristine: &Body<T>,
-    decls: &BooleanDeclarations,
+    decls: &Glue,
     band: Band,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
@@ -5556,7 +5496,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     op: BooleanOp,
     body: Body<T>,
     red: &BooleanReduction<T>,
-    decls: &BooleanDeclarations,
+    decls: &Glue,
     kind: BooleanResultKind,
     band: Band,
     tol: Tol,
@@ -5707,7 +5647,7 @@ mod tests {
     /// The door over carried records alone.
     fn carried_in<T: geom_core::Real>(
         body: &crate::Body<T>,
-        decls: &crate::boolean::BooleanDeclarations,
+        decls: &crate::boolean::Glue,
         views: [&super::KeyView<'_>; 2],
         desc: &super::Descendants,
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::BooleanError> {
@@ -5715,8 +5655,8 @@ mod tests {
             body,
             &[],
             [
-                &super::Rows::of(&decls.carried_a, crate::boolean::Operand::A),
-                &super::Rows::of(&decls.carried_b, crate::boolean::Operand::B),
+                &super::Rows::of(&decls.records_a, crate::boolean::Operand::A),
+                &super::Rows::of(&decls.records_b, crate::boolean::Operand::B),
             ],
             views,
             desc,
@@ -6552,10 +6492,7 @@ mod tests {
     #[test]
     fn a_dead_end_drops_and_a_refused_fusion_fails_its_absorb() {
         use super::{Descendants, KeyView};
-        use crate::boolean::{
-            BooleanDeclarations, CarriedContacts, CarriedVv, ContactClass, ReductionContacts,
-            VvContact,
-        };
+        use crate::boolean::{CarriedRecord, Glue, OperandRecords, ReductionContacts, VvContact};
         use crate::entity::VertexKey;
 
         let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
@@ -6569,16 +6506,15 @@ mod tests {
             vv: vec![crate::Cited::new(pair, crate::Cites::decided(0))],
             ..ReductionContacts::default()
         };
-        let decls = BooleanDeclarations {
-            carried_a: CarriedContacts {
-                vv: vec![CarriedVv {
-                    pair,
-                    class: ContactClass::Rest,
+        let decls = Glue {
+            records_a: OperandRecords {
+                vv: vec![CarriedRecord {
+                    contact: pair,
                     record: 0,
                 }],
-                ..CarriedContacts::default()
+                ..OperandRecords::default()
             },
-            ..BooleanDeclarations::default()
+            ..Glue::default()
         };
 
         let mut dead_end = Descendants::default();
@@ -6666,10 +6602,7 @@ mod tests {
     #[test]
     fn a_cycling_absorption_row_refuses_where_a_dead_end_drops() {
         use super::{Descendants, KeyView};
-        use crate::boolean::{
-            BooleanDeclarations, CarriedContacts, CarriedVf, ContactClass, ReductionContacts,
-            VfContact,
-        };
+        use crate::boolean::{CarriedRecord, Glue, OperandRecords, ReductionContacts, VfContact};
         use crate::entity::FaceKey;
 
         let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
@@ -6707,16 +6640,15 @@ mod tests {
         );
 
         // The carried lane reads the same chase.
-        let decls = BooleanDeclarations {
-            carried_a: CarriedContacts {
-                vf: vec![CarriedVf {
-                    rest: VfContact { vertex, face: d0 },
-                    class: ContactClass::Rest,
+        let decls = Glue {
+            records_a: OperandRecords {
+                vf: vec![CarriedRecord {
+                    contact: VfContact { vertex, face: d0 },
                     record: 0,
                 }],
-                ..CarriedContacts::default()
+                ..OperandRecords::default()
             },
-            ..BooleanDeclarations::default()
+            ..Glue::default()
         };
         let carry = |desc: &Descendants| carried_in(&body, &decls, [&KeyView::Direct; 2], desc);
         let carried = carry(&dead_end).expect("a chain that ends is not corrupt");
@@ -7080,7 +7012,7 @@ mod tests {
                 brick::<f64>((0.5, 1.5), (0.5, 1.5), (0.5, 1.5), tol),
             ),
         ] {
-            let decls = super::BooleanDeclarations::none();
+            let decls = super::Glue::none();
             let Joined::Connected { red, connected, .. } = through_the_join(
                 BooleanOp::Union,
                 &a,

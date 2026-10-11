@@ -271,7 +271,6 @@ fn arc_shapes() -> Vec<(&'static str, Vec<(f64, f64, f64)>)> {
 #[test]
 #[ignore = "differential battery; run with --ignored"]
 fn d2_arc_battery() {
-    use topo::flush::{declare_all, find_flush_candidates};
     let shapes = arc_shapes();
     let offsets = [(0.0, 0.0), (0.5, 0.0), (-0.5, 0.0), (0.0, 0.5), (1.0, 0.0)];
     let za = (0.0, 2.0);
@@ -292,35 +291,16 @@ fn d2_arc_battery() {
                     let b = zprism(pb, d, zb);
                     let vb = area(&polyb) * (zb.1 - zb.0);
                     let vi = ab * (za.1.min(zb.1) - za.0.max(zb.0)).max(0.0);
-                    for decl in [false, true] {
-                        let d_ = if decl {
-                            match find_flush_candidates(&a, &b, tol()) {
-                                Ok(f) => Some(declare_all(&f)),
-                                Err(e) => {
-                                    println!(
-                                        "ARC {na} {nb} d={d:?} zb={zb:?} decl FLUSHERR {:?}",
-                                        e
-                                    );
-                                    continue;
-                                }
-                            }
-                        } else {
-                            None
+                    for (op, want) in [("U", va + vb - vi), ("S", va - vi), ("I", vi)] {
+                        let res = match op {
+                            "U" => topo::union(&a, &b, tol()),
+                            "S" => topo::subtract(&a, &b, tol()),
+                            _ => topo::intersect(&a, &b, tol()),
                         };
-                        for (op, want) in [("U", va + vb - vi), ("S", va - vi), ("I", vi)] {
-                            let res = match (&d_, op) {
-                                (None, "U") => topo::union(&a, &b, tol()),
-                                (None, "S") => topo::subtract(&a, &b, tol()),
-                                (None, _) => topo::intersect(&a, &b, tol()),
-                                (Some(dd), "U") => topo::union_with(&a, &b, dd, tol()),
-                                (Some(dd), "S") => topo::subtract_with(&a, &b, dd, tol()),
-                                (Some(dd), _) => topo::intersect_with(&a, &b, dd, tol()),
-                            };
-                            println!(
-                                "ARC {na} {nb} d={d:?} zb={zb:?} decl={decl} {op} => {}",
-                                outcome(res, want, 1e-6)
-                            );
-                        }
+                        println!(
+                            "ARC {na} {nb} d={d:?} zb={zb:?} {op} => {}",
+                            outcome(res, want, 1e-6)
+                        );
                     }
                 }
             }
@@ -329,13 +309,11 @@ fn d2_arc_battery() {
 }
 
 /// Brick against brick: corners, edges and faces shared, caps resting
-/// and overlapping, undeclared and
-/// flush-declared, every op in both orders.
+/// and overlapping, every op in both orders.
 #[test]
 #[ignore = "differential battery; run with --ignored"]
 fn d2_brick_battery() {
     use sweep::test_support::brick;
-    use topo::flush::{declare_all, find_flush_candidates};
     let coords = [-0.5, 0.0, 0.5, 1.0, 1.5];
     let mut ranges = Vec::new();
     for i in 0..coords.len() {
@@ -356,36 +334,18 @@ fn d2_brick_battery() {
                 let b = finished("the brick", brick(x, y, z, tol()), tol());
                 let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
                 let vi = ov((0.0, 1.0), x) * ov((0.0, 1.0), y) * ov((0.0, 1.0), z);
-                for decl in [false, true] {
-                    for (order, l, r) in [("AB", &a, &b), ("BA", &b, &a)] {
-                        let d_ = if decl {
-                            match find_flush_candidates(l, r, tol()) {
-                                Ok(f) => Some(declare_all(&f)),
-                                Err(e) => {
-                                    println!(
-                                        "BRICK x={x:?} y={y:?} z={z:?} {order} FLUSHERR {e:?}"
-                                    );
-                                    continue;
-                                }
-                            }
-                        } else {
-                            None
+                for (order, l, r) in [("AB", &a, &b), ("BA", &b, &a)] {
+                    let (vl, vr) = if order == "AB" { (1.0, vb) } else { (vb, 1.0) };
+                    for (op, want) in [("U", vl + vr - vi), ("S", vl - vi), ("I", vi)] {
+                        let res = match op {
+                            "U" => topo::union(l, r, tol()),
+                            "S" => topo::subtract(l, r, tol()),
+                            _ => topo::intersect(l, r, tol()),
                         };
-                        let (vl, vr) = if order == "AB" { (1.0, vb) } else { (vb, 1.0) };
-                        for (op, want) in [("U", vl + vr - vi), ("S", vl - vi), ("I", vi)] {
-                            let res = match (&d_, op) {
-                                (None, "U") => topo::union(l, r, tol()),
-                                (None, "S") => topo::subtract(l, r, tol()),
-                                (None, _) => topo::intersect(l, r, tol()),
-                                (Some(dd), "U") => topo::union_with(l, r, dd, tol()),
-                                (Some(dd), "S") => topo::subtract_with(l, r, dd, tol()),
-                                (Some(dd), _) => topo::intersect_with(l, r, dd, tol()),
-                            };
-                            println!(
-                                "BRICK x={x:?} y={y:?} z={z:?} decl={decl} {order} {op} => {}",
-                                outcome(res, want, 1e-9)
-                            );
-                        }
+                        println!(
+                            "BRICK x={x:?} y={y:?} z={z:?} {order} {op} => {}",
+                            outcome(res, want, 1e-9)
+                        );
                     }
                 }
             }

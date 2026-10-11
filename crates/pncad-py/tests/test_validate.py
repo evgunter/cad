@@ -38,15 +38,15 @@ construction (`bench_scene.py` is the one definition of it).
 
 ONE THING MEASURED AND NOT PINNED
 ---------------------------------
-A DECLARED glue — two slabs resting face to face, unioned through
-`Node.union(declare=...)` — comes out with an EMPTY record set: the
-union welds the declared faces, so no coincidence survives into the
+A glue — two slabs resting face to face, unioned through
+`Node.union` — comes out with an EMPTY record set: the union welds
+the coincident faces, so no coincidence survives into the
 result for a record to back. Its 3′ pass is therefore the empty-record
 case, not the certified-seam case, and this file does not pretend
 otherwise. The certified-seam case is the assembly's, below. There is
 no Python door that reads a body's record count, so the distinction
 cannot be asserted from here; it is stated because a reader would
-otherwise take `test_a_declared_glue_passes_the_fourth_rung` for
+otherwise take `test_a_glued_rest_passes_the_fourth_rung` for
 evidence it is not.
 """
 
@@ -105,8 +105,7 @@ def two_slabs_resting():
 
     The upper slab's four bottom corners land strictly inside the
     lower's top face, so the coincidence is real and its class is a
-    REST — the shape `find_flush_candidates` reports and a boolean's
-    `declare=` records.
+    REST, which a union glues.
     """
     doc = Doc()
     lower = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
@@ -161,9 +160,9 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         doc.place(b)
         product(doc, evaluate(doc)).validate_pseudomanifold()
 
-    def test_an_interpenetrating_union_has_no_coincidence_to_declare(self):
-        """A union whose operands genuinely overlap needs no
-        declaration and leaves no seam — so the strictest rung passes
+    def test_an_interpenetrating_union_has_no_coincidence_to_record(self):
+        """A union whose operands genuinely overlap meets on no
+        surface and leaves no seam — so the strictest rung passes
         a boolean result on the ordinary path."""
         doc = Doc()
         base = slab(doc, (0 * m, 3 * m), (0 * m, 2 * m), (0 * m, 1 * m))
@@ -171,20 +170,16 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         fused = doc.insert(Node.union([base, post]))
         evaluate(doc).value(fused).body().validate_pseudomanifold()
 
-    def test_a_declared_glue_passes_the_fourth_rung(self):
-        """The declare protocol's result, through the fourth rung.
+    def test_a_glued_rest_passes_the_fourth_rung(self):
+        """A glued rest, through the fourth rung.
 
-        See the module header: the union WELDS the declared faces, so
+        See the module header: the union WELDS the coincident faces, so
         this is the empty-record case. It is here because the door a
         caller reaches a glued body through must answer, not because
         it demonstrates the capture.
         """
         doc, lower, upper = two_slabs_resting()
-        findings = evaluate(doc).find_flush_candidates(lower, upper)
-        self.assertEqual(len(findings), 1)
-        glued = doc.insert(
-            Node.union([lower, upper], declare=findings)
-        )
+        glued = doc.insert(Node.union([lower, upper]))
         body = evaluate(doc).value(glued).body()
         body.validate_pseudomanifold()
         # The glue is a glue: the exact dyadic volume of the two parts.
@@ -515,27 +510,6 @@ class TestTheRefusalsShape(unittest.TestCase):
         self.assertNotIn("census_lane_unsupported", reached)
         self.assertNotIn("stale_contact_declaration", reached)
         self.assertNotIn("ring_meets_outer", reached)
-
-    def test_a_declared_glue_leaves_no_record_for_the_census_to_miss(self):
-        """The nearest a Python scene gets to a stale declaration, and
-        why it is not one.
-
-        A declared rest between two slabs, wired into the union that
-        welds it: the seam the declaration names is consumed by the
-        boolean, so the result carries no record that could lose its
-        witness, and the fourth rung passes. This is the row behind
-        the reason `stale_kind` is pinned in Rust rather than driven
-        from here — the scene reaches the declare/boolean pair, which
-        is the only door that hands Python a body carrying records it
-        did not gate, and it still cannot mint an unwitnessed one.
-        """
-        doc, lower, upper = two_slabs_resting()
-        findings = evaluate(doc).find_flush_candidates(lower, upper)
-        self.assertEqual(len(findings), 1)
-        glued = doc.insert(Node.union([lower, upper]))
-        doc.declare(glued, findings[0])
-        body = evaluate(doc).value(glued).body()
-        body.validate_pseudomanifold()  # raises if a record went stale
 
 
 def stacked_loft(doc, sections, length, radius):

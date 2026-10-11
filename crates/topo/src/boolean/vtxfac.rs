@@ -84,7 +84,7 @@ use super::{
 };
 use super::{Coincide, Contradiction, DeclarationRead};
 use crate::body::{Body, WALKS_CLOSE};
-use crate::contact::BooleanCoincidence;
+use crate::contact::GlueClass;
 use crate::entity::{EntityId, HalfEdgeKey, VertexKey};
 use crate::euler::{MevSite, RunSite};
 use crate::live::{Proven, linked, proven};
@@ -415,7 +415,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     piercing: Operand,
     contact: VfContact,
     op: BooleanOp,
-    declared: &super::DeclaredPairs<T>,
+    declared: &super::GluedPairs<T>,
     contacts: &super::ReductionContacts,
     reread: Option<SectorRead>,
     band: Band,
@@ -601,11 +601,11 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 terminal_sliver: false,
             };
             return Err(match class {
-                BooleanCoincidence::Continuation => {
+                GlueClass::Continuation => {
                     BooleanError::ContinuationContradicted { a, b, fact, margin }
                 }
-                BooleanCoincidence::Seam => BooleanError::SeamContradicted { a, b, fact, margin },
-                BooleanCoincidence::Contact(class) => BooleanError::ContactContradicted {
+                GlueClass::Seam => BooleanError::SeamContradicted { a, b, fact, margin },
+                GlueClass::Contact(class) => BooleanError::ContactContradicted {
                     declaration: crate::contact::DeclaredContact { a, b, class },
                     steer: fact.and_then(super::contact_verify::fit_steer),
                     fact,
@@ -619,8 +619,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // one does.
         let refused = match (&tilt, class) {
             (Ok(Sign::Zero), _) => false,
-            (Err(_), Some(BooleanCoincidence::Seam) | None)
-            | (Ok(Sign::Positive | Sign::Negative), _) => true,
+            (Err(_), Some(GlueClass::Seam) | None) | (Ok(Sign::Positive | Sign::Negative), _) => {
+                true
+            }
             (Err(_), Some(_)) => false,
         };
         if refused {
@@ -667,12 +668,12 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 .is_some()
                 .then(|| {
                     super::plane_eq::senses(s.normal.vec(), n_pierced.vec(), s.arm, band)
-                        .and_then(BooleanCoincidence::of_senses)
+                        .and_then(GlueClass::of_senses)
                 })
                 .flatten();
-            let admitted: Vec<BooleanCoincidence> = one_carrier
+            let admitted: Vec<GlueClass> = one_carrier
                 .into_iter()
-                .chain(tangent.then_some(BooleanCoincidence::TANGENT))
+                .chain(tangent.then_some(GlueClass::TANGENT))
                 // A decided tilt admits no class: no declaration settles it.
                 .filter(|_| !decided_tilt)
                 .collect();
@@ -709,7 +710,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // band too, so the two `On`s are the consecutive-`On` refusal
         // (`work/hone/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`;
         // pinned by `m9_3_zip::a_tangent_curved_sector_on_a_face_lumps_whole`).
-        if class == Some(BooleanCoincidence::TANGENT) {
+        if class == Some(GlueClass::TANGENT) {
             let surface_of = |body: &Body<T>, f| {
                 body.get_face(f)
                     .and_then(|face| body.get_surface(face.surface))
@@ -2195,7 +2196,7 @@ mod tests {
     #[test]
     fn a_bisector_run_after_the_other_run_keeps_its_corner() {
         use crate::test_support_fixtures::{mapped_cube, prism};
-        use crate::{AtRestBody, BooleanDeclarations, mass_properties};
+        use crate::{AtRestBody, mass_properties};
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let profile = [
@@ -2242,7 +2243,6 @@ mod tests {
             .expect("the cube's near face, outward along -m");
         let cube_body = cube.clone();
         let cube = AtRestBody::validate(cube, tol).unwrap();
-        let decls = BooleanDeclarations::default();
         let built = prism::<f64>(&profile, 1.0, tol);
         let corner = built.top[3];
         let orbit = built.body.vertex_orbit_linked(corner);
@@ -2261,7 +2261,7 @@ mod tests {
                     face: near,
                 },
                 super::super::BooleanOp::Union,
-                &super::super::DeclaredPairs::default(),
+                &super::super::GluedPairs::default(),
                 &super::super::ReductionContacts::default(),
                 None,
                 band,
@@ -2283,12 +2283,12 @@ mod tests {
                     .map_or(0.0, |b| mass_properties(&b.body, tol).unwrap().volume)
             };
             volumes.push([
-                volume(crate::union_with(&body, &cube, &decls, tol)),
-                volume(crate::intersect_with(&body, &cube, &decls, tol)),
-                volume(crate::subtract_with(&body, &cube, &decls, tol)),
-                volume(crate::union_with(&cube, &body, &decls, tol)),
-                volume(crate::intersect_with(&cube, &body, &decls, tol)),
-                volume(crate::subtract_with(&cube, &body, &decls, tol)),
+                volume(crate::union(&body, &cube, tol)),
+                volume(crate::intersect(&body, &cube, tol)),
+                volume(crate::subtract(&body, &cube, tol)),
+                volume(crate::union(&cube, &body, tol)),
+                volume(crate::intersect(&cube, &body, tol)),
+                volume(crate::subtract(&cube, &body, tol)),
             ]);
         }
         let fan_first = vec![false, true];

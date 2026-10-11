@@ -321,10 +321,10 @@ impl MintedDeclaration {
     }
 
     /// The declared contact class (trailing underscore: `class` is a
-    /// Python keyword — the `FlushFinding.class_` precedent).
+    /// Python keyword — the `or_` precedent).
     #[getter]
-    fn class_(&self, py: Python<'_>) -> PyResult<super::flush::ContactClass> {
-        super::flush::contact_class(py, self.0.class)
+    fn class_(&self, py: Python<'_>) -> PyResult<super::contact::ContactClass> {
+        super::contact::contact_class(py, self.0.class)
     }
 
     fn __repr__(&self) -> String {
@@ -515,10 +515,10 @@ impl MintRefusal {
 
     /// The class that carries no kernel record at rest.
     #[getter]
-    fn class_(&self, py: Python<'_>) -> PyResult<Option<super::flush::ContactClass>> {
+    fn class_(&self, py: Python<'_>) -> PyResult<Option<super::contact::ContactClass>> {
         match &self.0 {
             d::MintRefusal::NoAtRestRecord { class, .. } => {
-                super::flush::contact_class(py, *class).map(Some)
+                super::contact::contact_class(py, *class).map(Some)
             }
             d::MintRefusal::Reference { .. } | d::MintRefusal::Unevaluated { .. } => Ok(None),
         }

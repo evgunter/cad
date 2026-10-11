@@ -7,13 +7,13 @@
 
 use crate::common;
 
-use common::{brick, finished, flush_declarations, prism_z};
+use common::{brick, finished, prism_z};
 use geom_core::Decide;
 use geom_core::Tol;
 use topo::test_support::arena_counts;
 use topo::{
     AtRestBody, Body, BooleanError, BooleanOp, BooleanReduction, ValidationError, boolean_reduce,
-    boolean_reduce_declared, validate,
+    validate,
 };
 
 fn reduce_ok<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
@@ -24,14 +24,7 @@ fn reduce_ok<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let before = (arena_counts(a), arena_counts(b));
     // M4 PR 5: intended flush contacts are DECLARED (the test author's
     // recipe intent); value-equality alone no longer classifies.
-    let red = boolean_reduce_declared(
-        op,
-        a,
-        b,
-        &flush_declarations(a, b, Tol::witness()),
-        Tol::witness(),
-    )
-    .unwrap();
+    let red = boolean_reduce(op, a, b, Tol::witness()).unwrap();
     // Operands functionally untouched: every topology arena, not a
     // three-component sample of them.
     assert_eq!((arena_counts(a), arena_counts(b)), before);

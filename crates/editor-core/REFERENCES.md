@@ -29,8 +29,7 @@ The recipe admits three reference shapes, and every node is built from them:
   `Datum::FaceFrame`'s face, a `Plane { face }` pose's face, a
   `Measure`'s refs, a `Mate`'s two sides. The N5 ladder runs in the
   selection's evaluation and nowhere else for these. A **payload** is a
-  name a node holds itself: a `Union`'s, `Intersect`'s or `Subtract`'s
-  declared pairs and an `InstantiatePart`'s interface crossings'
+  name a node holds itself: an `InstantiatePart`'s interface crossings'
   `outer`s (a crossing's `inner` is not a name of this document; the
   list's arm says why). The payload list has two homes, this clause and
   `Node::payload_names`' own doc; every other site points at the latter
@@ -38,8 +37,8 @@ The recipe admits three reference shapes, and every node is built from them:
   on one: `InsertNode`'s liveness check (the selection's door,
   `mint_selection`, runs the same check on its names), and `split`'s
   `PartNameReachesRemainder` precondition, which refuses a cut whose taken
-  node carries a name reaching the kept remainder (a selection's, a
-  declared pair's, an instance's crossing `outer`). A
+  node carries a name reaching the kept remainder (a selection's or
+  an instance's crossing `outer`). A
   later delete strands a name (N5) and says so (DM7).
 - **An `Expr` literal** in a slot, bit-pinned (D7).
 
@@ -177,10 +176,10 @@ member; new authoring writes `xs[i]`.*
 
 ## DM4 — Flat operators before splice: union and intersect are lists, subtract a pair
 
-`Node::Union { members, declare }` fuses its members into one body, and
-names each entity by the read it came through. `Node::Intersect { members,
-declare }` keeps the material in every member, the same shape over the
-kernel's intersection verb. `Node::Subtract { from, tool, declare }` cuts
+`Node::Union { members }` fuses its members into one body, and
+names each entity by the read it came through. `Node::Intersect { members }`
+keeps the material in every member, the same shape over the
+kernel's intersection verb. `Node::Subtract { from, tool }` cuts
 one body by another and is the one pair: difference neither commutes nor
 associates, and nothing is a unary "not", so its two seats are named, and
 several tools are `Subtract { from: a, tool: Union([tools…]) }`, the one
@@ -289,123 +288,36 @@ faces each judgement merged or covered stay the union's face links (N2).
 An intersect's members are judged the same way, over the pair verb's
 intersection.
 
-- Before the fold, each pair of members `m`, `n` is judged by the pair verb,
-  as the two-member union `m ∪ n` with the declared pairs whose sites are `m`
-  and `n`. A pair carrying a declaration is judged whatever its boxes: the
-  declaration is a claim to verify, so its names resolve at their sites and a
-  contradicted one refuses `ContactContradicted` in every member order. Only
-  an undeclared pair whose closed bounding boxes are disjoint is skipped,
-  because it cannot touch. The judgement costs up to n(n−1)/2 two-member
-  unions, bounded by that pruning; if it becomes a measured performance
-  problem, it is raised to Ev, not optimized around the rule.
-- A pair that touches with the contact undeclared refuses `UnrecordedContact`
-  exactly as the two-member union's operands do, in every member order.
-- A declared pair that the geometry contradicts refuses as a subtract's
-  does.
-- Any other refusal the pair verb raises on a judged pair is the union's
-  refusal too, and so is order-free: a pair whose contact the pair verb
-  cannot decide inside the tolerance grey band refuses `Escalated` in every
-  member order, even where a third member covers it.
-- A declared pair that survives the judgement is certified.
+- Before the fold, each pair of members `m`, `n` whose closed bounding boxes
+  meet is judged by the pair verb, as the two-member union `m ∪ n`; a pair
+  whose boxes are disjoint cannot touch and is skipped. The judgement costs
+  up to n(n−1)/2 two-member unions, bounded by that pruning; if it becomes a
+  measured performance problem, it is raised to Ev, not optimized around the
+  rule.
+- A judged pair glues what its margins decide one carrier or tangent, and
+  its rows, in member space, are the union's coincidence rows.
+- Any refusal the pair verb raises on a judged pair is the union's refusal
+  too, and so is order-free: a pair whose coincidence the pair verb cannot
+  decide inside the tolerance grey band refuses `Escalated` in every member
+  order, even where a third member covers it.
 
-A certified pair authorizes its contact wherever the fold meets it; it is not
-a demand that the fold meet it. A contact another member covers, whose region
-lies in a third member's interior, is still a contact of its pair and needs
-the declaration; where the fold has consumed the pair's faces before the
-pair's step, the declaration is satisfied, not refused. Every contact the
-fold meets is between two members, because the accumulation's boundary is
-made of member faces, so every contact the fold meets was judged here and the
-fold mints no contact verdict of its own.
+**One verdict per carrier pair.** The fold reads the pass's verdict for each
+carrier pair through each face's member parents (its lineage, not its name)
+and decides no pair again, so a piece is never judged at its own extent.
+Every contact the fold meets is between two members, because the
+accumulation's boundary is made of member faces, so every contact the fold
+meets was judged here and the fold mints no contact verdict of its own.
 
-### The declaration channel, sited at the members
+**A row names member cells.** A coincidence is judged between two members,
+so its row sites both of its sides at member cells, and a three-member row
+is spelled by its member cells too. No row names a cell the fold minted,
+such as a `Fragment`.
 
-Union, intersect and subtract carry one recourse. Each holds its declared
-pairs, `declare: Vec<DeclaredPair>`, as the node's own payload (empty is
-undeclared). Each pair names sited entities — `SitedRef { at, name }`, the
-entity `name` as it stands in the variable `at`, where `at` is the
-member's read (for a subtract, a seat's) — so a declaration says "this face
-of member `m` meets that face of member `n`" by naming the face in the
-member with the member beside it, and never names the union.
-
-- **Writing pairs.** Every door that writes a pair (the insert door,
-  `SetDeclare`, `Rebind`, the load door) refuses, typed, a name not minted
-  before the node in document order and a site that is not one of the node's
-  operands, so a declaration names only what exists before the node does. The
-  load door asks the site of a subtract only, since a union's site can be
-  stranded afterwards (below). A declaration is a parameter, not an operand:
-  it carries no material and mints no names, so `SetDeclare { node, pairs }`
-  replaces a live subtract's, union's or intersect's whole list,
-  `SetMembers`' shape with nothing inferred, and moves no DAG edge.
-- **Feeding pairs to the fold.** Each certified pair is fed to the fold step
-  at which both its sites are in the accumulation: the later member's step in
-  list order, with the earlier side as the accumulator's operand and the
-  later side as the joining member's. A pair whose two sites are one member
-  is that member's carried contact at its own step; a pair sited at a read
-  spelled twice sites both of its members, by the same rule. No fold
-  position is
-  recorded anywhere.
-- **Consumed faces.** A pair a face of which the fold consumed whole before
-  that step is satisfied, not `Vanished`: no row of the accumulation descends
-  from the face, because another member contains it, so the contact has
-  nothing left to back. A face that survives at its step only in pieces —
-  split by another member, or inside a merged row a later step fragmented —
-  is not consumed whole: rows do descend from it, and which of them carry the
-  contact is not decidable from the names, so the pair refuses (Merges and
-  order, below).
-- **Resolution.** A name not in its site's table refuses typed through one
-  resolver, which union, intersect and subtract share (one definition of
-  "resolve a declared name at its site"); the site is the side, so a name
-  carried by both operands is not ambiguous. What the node publishes is
-  unchanged — `From { read, of }` is what it mints; a sited pair is what it
-  consumes.
-- **Members leaving.** `SetMembers` leaves `declare` as it was; a pair whose
-  site left the list refuses at the next evaluation as a vanished name does
-  (N5), never silently.
-- The "disjoint-only" reading is not taken: the common modelling case (a
-  boss on a plate) would keep the pairwise chain alive.
-
-**Merges and order.** A merged face's name is a flat constituent set (N3) —
-whatever mints a `Merged` mints it flat, and a nested `Merged` is an emission
-bug, never something a consumer flattens — so the accumulation's rows carry
-no fold tree. A member-space name resolves at its step through whatever
-merges the fold has performed (the union rewrites it to the flat `Merged` row
-containing it before the shared resolver), so a declaration set whose faces
-are consumed by merges fuses in every member order, and one whose face a
-member contains is satisfied (above). A merge is the one consumption with a
-unique successor, so it is the one looked through. A face split by a later
-member, or inside a merged row a later step fragmented, has none, and a pair
-naming it at a later step refuses while any piece of it survives: `Vanished`,
-diagnosed `ConsumedByFold` with the composition read off the rows that
-descend from the face (fragments of it, or fragments of a merged row covering
-it, each bare or merged again), never by measuring it again. It offers
-nothing, because which fragment the pair meant is the geometric question the
-routing step does not ask. A face split and then contained whole in every
-piece before the pair's step has no piece left, and its pair is satisfied
-like any face consumed whole. So the outcome is not monotone in what the
-later members cover: with `a`'s top cap split by `s` and a pair naming that
-cap fed at `p`'s step, `[a, s, half, p]` refuses the split when `half`
-contains one piece, while `[a, s, big, p]` fuses when `big` contains both.
-
-**The refusal names member faces.** A contact is judged between two members,
-so an `UnrecordedContact` finding sites both of its sides at member faces,
-and the caller declares exactly what the refusal names. No refusal names a
-row the fold minted, such as a `Fragment` (a `Seam` mints edges and vertices,
-never a face). A fold step never meets an undeclared contact: a certified
-pair is fed to its step, satisfied because its face was consumed whole, or
-refused at that step, as a vanished name or naming the composition that left
-it in pieces (above). A fold step that refuses a contact anyway is an emission
-bug, because the fold mints no contact verdict, and a contact refusal from it
-would tell the user to declare a pair the judgement already passed. The
-refusal menu of `docs/SELECT-DESIGN.md` §3d keeps its two arms for every
-`UnrecordedContact`.
-
-*Built: the node, its naming and `SetMembers`, DOCM-3 (PR 1803); the
-member-space declaration channel, DOCM-7 (PR 2028), sited at the members
-(#2795) and made the node's own payload (#3587); the flat `Merged` mint and
-the look-through, DOCM-8 (PR 2073); the typed refusal past the merges,
-ruled on PR 2677; the pairwise contact rule (#3200, built in PR 3213); the
-three nodes over one `Bodies` argument, keyed by the read, FORK-DM4 unit 1
-(PR 4527).*
+*Built: the node, its naming and `SetMembers`, DOCM-3 (PR 1803); the flat
+`Merged` mint, DOCM-8 (PR 2073); the pairwise contact rule (#3200, built in
+PR 3213); the three nodes over one `Bodies` argument, keyed by the read,
+FORK-DM4 unit 1 (PR 4527); one verdict per carrier pair, read through
+lineage (#4323).*
 
 ## DM5 — A read repeated is answered by the operation
 
@@ -490,17 +402,15 @@ id (`names/README.md`, "N1, the profile pieces"), so:
 **The appearance store is the other carrier.** The report covers every
 reference the document holds under N5 semantics, not only the node payloads.
 An appearance attachment is keyed by a `StableName` in the document's
-appearance store (`DocEdit::SetAppearance` gives it a declared pair's
+appearance store (`DocEdit::SetAppearance` gives it a payload name's
 semantics, `Rebind` repairs it, evaluation reports its loss as
 `AppearanceLoss`), so an edit that strands one reports it too, as its own
 `Maintenance` arm (`StrandedAppearance { name }`) rather than a `Strand` with
 no carrying node. `Node::payload_names` stays the one list of node carriers.
 
 - **Why not an edge.** A full edge over payload names reverses the carve-out
-  (D3: a name is a reference, not an edge). The case that argued for one, a
-  union whose declaration named the union's own space — a cycle
-  `cascade_delete_order` could not see — is gone with declarations sited at
-  the members (DM4), so the carve-out stands on D3's own ground.
+  (D3: a name is a reference, not an edge), and the carve-out stands on D3's
+  own ground.
 - **Why not as-is.** A legal edit whose consequence is invisible until
   evaluation is what the maintenance column exists to end.
 - The chrome's cascade affordance shows the strand count beside its
