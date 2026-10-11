@@ -39,7 +39,7 @@ tangent pair (measured on `contacthold/flush-quarter-round`):
 - its ∪ builds a two-solid `Assembly` at `vs + vr`;
 - the external kiss's ∪ builds the same kind of result (two solids at
   2π);
-- in the full battery only two pins move: `wedge_end_doors`' kiss row
+- over topo, sweep and editor-core (both reviewers' always-off runs; R1's also covered pncad, mesh, stl and step-import) only two pins move: `wedge_end_doors`' kiss row
   and `verbs_cylcyl_r1_review_probes`' externally tangent walls;
 - the m9_3 rims and the capsule stay green.
 
@@ -71,3 +71,9 @@ line, with the composed material at wedge 0/2π?
 
 Whichever of (A) or (B) is chosen, the short-circuit goes. TANG's
 kissing-disc row and the two pins re-baseline to that answer.
+
+The `bool_dir_same` side test inside the short-circuit, and its
+`Coincide::CurvedFlankSense` escalation (unreachable today, unpinned),
+belong to the same code. Whatever replaces the short-circuit decides
+whether a same-side test survives at all, and that escalation goes or
+gets its own decision route with it.

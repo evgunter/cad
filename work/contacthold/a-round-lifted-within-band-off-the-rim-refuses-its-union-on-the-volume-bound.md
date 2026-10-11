@@ -31,7 +31,7 @@ The result comes out about `2·θ` over `vs + vr`:
 | 1e-9 | 1e-12 | 31.1415926535918 | 31.141592653589793 |
 | 1e-6 | 1e-7 | 31.14159285358979 | 31.141592653589793 |
 
-The ops glue the near-coincident bottom onto the top, as an in-band
-pair should be glued, and the union's volume then counts the in-band
-gap. The volume backstop's bound carries no allowance for an in-band
-glue, so a legitimate glue fails it.
+The cause is not measured. The overshoot is about 2θ, which matches
+neither the in-band gap wedge (about 4.5·tan θ) nor a glue, which would
+close a gap rather than count it. Measure which body the union builds,
+and what the volume backstop's bound allows, before acting on a theory.

@@ -22,8 +22,8 @@
 //! its subtract and intersect stop at the fallback extent; the
 //! one-profile capsule's
 //! sphere × cylinder strut, met by a coaxial rod, refuses at the
-//! crossing layer, save the rod ending on the joint, whose two member
-//! orders part. The `#[ignore]`d row meters the covered stack against
+//! crossing layer, save the rod ending on the joint, which unions at its
+//! closed form in both member orders. The `#[ignore]`d row meters the covered stack against
 //! point probes through its mesh, which the tessellation refuses; run
 //! it with `cargo nextest run -p sweep --run-ignored only -E
 //! 'test(strut_cover_on_cylinder_pairs)'`.
