@@ -2123,6 +2123,21 @@ pub enum SectorRead {
 
 /// **The loops a plane cuts on a ring torus**, as the section
 /// certificate classifies them ([`BooleanError::GermSectionSpiric`]).
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung; the disposition table cites this paragraph as its home).
+/// A Rust caller can already name and match it — `pncad` re-exports
+/// `topo` whole — and the refusal's sentence names the loops, while the
+/// recourse it states is the same for all three (cut the torus with a
+/// plane the frame serves). Carrying it would add the CUR3 property row
+/// and a Python word with no reader that acts on the difference.
+///
+/// **The falsifier is a caller whose recourse depends on which loops a
+/// slanted plane cuts**: the day the general rung serves one class (the
+/// loops round the axis have a proved frame), a caller must tell it from
+/// the others to know whether the cut builds. Then carry it and delete
+/// this paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SpiricLoops {
     /// Two loops, each winding once round the torus's axis.
