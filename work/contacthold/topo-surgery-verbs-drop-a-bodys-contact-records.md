@@ -2,13 +2,14 @@
 id: topo-surgery-verbs-drop-a-bodys-contact-records
 kind: issue
 title: No non-boolean topo op carries ContactRecords in or out, so a fillet, shell or replace_face of a touching boolean result loses its declarations and refuses at rest downstream
-status: review
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [transform-and-pattern-drop-a-values-contact-records, 3856]
 branch: contacthold/surgery-carries-records
 pr: 4694
+closed: 2026-10-11
 ---
 
 
@@ -92,3 +93,7 @@ Residue:
 `surgery-carry-keeps-a-divided-cells-record-on-the-piece-that-kept-its-key`,
 and the design question
 `a-blend-or-shell-that-consumes-a-recorded-cell-refuses-the-record`.
+
+## Closed 2026-10-11 (PR 4694)
+
+Topo's surgery verbs carry records through `ContactRecords::carried_through` and per-verb `carry_contacts`, refusing typed. The residue is filed: `surgery-carry-keeps-a-divided-cells-record-on-the-piece-that-kept-its-key` (now including the edge-kiss split) and `a-blend-or-shell-that-consumes-a-recorded-cell-refuses-the-record` (design).

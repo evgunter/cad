@@ -364,7 +364,7 @@ class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
     door dropped the `ContactRecords` `product::sources_of` had built
     beside it one line earlier — so a subject whose declarations were
     the whole reason its seam is legal reported that seam as an
-    undeclared contact, while the identical body read off its own
+    unrecorded contact, while the identical body read off its own
     `Value` passed. The narrowing failed loud rather than silently (an
     absent record set can only make the gate REFUSE), which is what
     made it a diagnosis a caller could not act on rather than a wrong

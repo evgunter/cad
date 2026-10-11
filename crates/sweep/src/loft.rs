@@ -63,11 +63,12 @@
 //! the section chains — is selected at `f64` ([`fn@crate::skin`]'s
 //! contract) and lifted exactly into the requested scalar, so every
 //! lane builds the SAME body and the interval lane encloses the very
-//! geometry the `f64` lane defines. Knots and weights stay `f64`
-//! fields, and the section chains are the profile's own lift. The
-//! walls' control points and the section placements are computed
-//! values, so they enter through `from_computed` (an unknown each at
-//! `Sym`), each lifted once and shared by every reader: a placement by
+//! geometry the `f64` lane defines. The section chains are the
+//! profile's own lift. The walls' control points, knots and weights
+//! and the section placements are computed values, so they enter
+//! through `from_computed` (an unknown each at `Sym`;
+//! `work/intent/the-skin-computes-its-values-in-t.md` owes computing
+//! them in `T`), each lifted once and shared by every reader: a placement by
 //! the stacking fold and the assembly, a seam column by both walls
 //! that end on it.
 

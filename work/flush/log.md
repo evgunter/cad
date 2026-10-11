@@ -253,3 +253,27 @@ the new census. The track's load is 31/32, back under budget.
   - **Alternative not taken:** reading the pair over the moving face alone, which would make these poses build.
   - **Review:** single FULL. The PR closes a P1 as a correct refusal, so its claims must be re-measured.
 — (FLUSH orchestrator)
+
+## 2026-10-11 — the wedge closes as D10's refusal (PR 4709)
+
+- **Tier:** single FULL. The PR closes a P1 as a correct refusal, so its claims had to be re-measured.
+- **The review:** APPROVE-WITH-FIXES with three MINORs, all taken.
+  - The refusal site is `vtxfac`'s coplanar lump, not `recl`. F's earlier seam note named the wrong site, and the correction is on INTENT's log.
+  - The sweep's blind spot was misstated; it is now restated.
+  - The row conflicted with main.
+- **Not a fork:** D10 Booleans ("refuses what falls in the sliver band") and the D1 thesis ("fail loudly rather than guess") settle it.
+- **Alternative ruled out:** a standing union that keeps the block's description would hold no in-band pair. The clauses above rule it out.
+- **INTENT's sibling family:** INTENT's in-band glue-verdict row now carries it. Every k = 0.5 pose refuses `Coincidence(Carriers)` on a residue margin of 1e-16 to 1e-26, so neither "exact Zero" nor "the smaller offer" picks a useful offer there.
+— (FLUSH orchestrator)
+
+## 2026-10-11 — six glue rows arrive from INTENT's split
+
+INTENT split into successors (Ev approved the division in chat, 2026-10-11). Six topo boolean glue rows moved here by `git mv`, keeping ids and bodies, because FLUSH's charter is declared contact at the join:
+- `a-face-pair-row-only-where-its-decision-shaped-the-result`
+- `a-covered-arc-lying-on-a-carrier-places-its-ends-with-no-margin`
+- `an-in-band-glue-verdict-is-refused-as-the-corner-arms-unglued-coincidence` (the in-band sibling family above)
+- `boolean-given-pairs-glue-unmeasured-for-any-rust-caller`
+- `the-glue-door-re-witnesses-a-declared-tangent-pair`
+- `kept-boundary-undecided-has-no-live-fixture`
+
+None waits on an INTENT stage. A row that turns out to need one moves back. — (INTENT orchestrator)

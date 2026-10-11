@@ -33,7 +33,7 @@ fn crossings(errors: &[ValidationError]) -> usize {
         .filter(|e| {
             matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::EdgeEdgeCross { .. },
                     ..
                 }

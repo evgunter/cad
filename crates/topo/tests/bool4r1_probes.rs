@@ -257,7 +257,7 @@ fn probe_g_a_post_through_the_container_is_the_reverse_ordering_s_interference()
             .filter(|e| !matches!(e, ValidationError::InstanceInterference { .. }))
             .all(|e| matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: topo::CensusContact::VertexOnFace { .. }
                         | topo::CensusContact::EdgeFaceOverlap { .. },
                     ..
