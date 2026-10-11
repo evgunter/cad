@@ -2,11 +2,13 @@
 id: seam-cover-reads-a-boundary-point-as-the-face-interior
 kind: issue
 title: seam cover reads a touch piece on a face's boundary as its interior, and ships a decided SeamFaceRunsOn contradiction
-status: dispatched
+status: closed
 opened: 2026-10-11
 priority: P2
 cost: E
 branch: cleave/seam-cover-boundary
+closed: 2026-10-11
+pr: 4734
 ---
 
 Found by the review of PR 4613 (CLEAVE mints unit 4).
@@ -77,3 +79,7 @@ three ε.
 No public operation surfaced the contradiction: the declaration door's
 only production caller, `glue::tangency`, reads any refusal as "not
 glued", before and after.
+
+## Closed (PR 4734, 2026-10-11)
+
+`rim_wedge::contains` maps a boundary placement to "not read", so the piece goes to `EdgeKindUnread` and the claim refuses typed, the same route the arc-end case takes. The seam check no longer manufactures a decided `SeamFaceRunsOn`. There is no defect arm: the walk's span ends and the door's corner vertices can differ by the band with no bug. Pinned on lines, corners, a rim and end-to-end, at every ε.
