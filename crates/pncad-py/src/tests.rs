@@ -3926,7 +3926,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
 /// [`reads_as_prose`], and every door in this crate obeys the rule the
 /// assertion stands for — the binding never authors a `Debug` dump.
 /// Three `ValidationError` arms once broke that rule from the OTHER
-/// side, the kernel wording them out of `Debug`: `UndeclaredContact`
+/// side, the kernel wording them out of `Debug`: `UnrecordedContact`
 /// rendered its `CensusContact` as `{contact:?}`, `StaleContactDeclaration`
 /// its `StaleDeclaration` the same way, and the `witness` the kernel
 /// built with `format!("{p:?}")` carried a `Point3`'s field braces.
@@ -3950,7 +3950,7 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
     // Both arms are built here rather than by evaluating a document:
     // this row is about the RENDERING, and a default arena key is
     // enough to render one — nothing dereferences it.
-    let census = ValidationError::UndeclaredContact {
+    let census = ValidationError::UnrecordedContact {
         contact: CensusContact::VertexOnFace {
             vertex: VertexKey::default(),
             face: FaceKey::default(),
@@ -3958,6 +3958,7 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
         // The kernel builds this field as a coordinate triple
         // (`census::witness`), so it carries no braces of its own.
         witness: "(0.0, 0.0, 0.0)".to_owned(),
+        margin: None,
     };
     let stale = ValidationError::StaleContactDeclaration {
         declaration: StaleDeclaration::VertexOnFace {
@@ -3992,7 +3993,7 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
     );
     assert!(
         message.ends_with("Recourse: declare the named contact class, or move the geometry"),
-        "the undeclared-contact recourse is the actionable half: {message}"
+        "the unrecorded-contact recourse is the actionable half: {message}"
     );
 }
 
@@ -4071,12 +4072,13 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
     // unit closes was raised about: declare-this versus
     // you-cannot-declare-this, off one refusal.
     assert_eq!(
-        project(&ValidationError::UndeclaredContact {
+        project(&ValidationError::UnrecordedContact {
             contact: CensusContact::EdgeFacePierce {
                 edge: Default::default(),
                 face: FaceKey::default(),
             },
             witness: "(0.0, 0.0, 0.0)".to_owned(),
+            margin: None,
         })
         .contact_kind,
         Some("edge_face_pierce")
@@ -5023,7 +5025,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "carrier_ladder",
             "census_at_rest",
             "coaxial_sphere",
-            "import_anchor",
             "plane_ladder",
             "profile_junction",
             "split_on",
@@ -6286,7 +6287,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "adoption",
             "assembly",
             "dangling_reference",
-            "declaration_unresolved",
             "instance",
             "invalid_eps_override",
             "join",
@@ -6524,8 +6524,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "tangent_not_intrinsic",
             "transverse_not_intrinsic",
             "uncertifiable_surface",
-            "undeclared_contact",
             "unreachable_half_edge",
+            "unrecorded_contact",
             "unrepresentable_curve_datum",
             "unrepresentable_surface_datum",
             "vertex_orbit_overrun",

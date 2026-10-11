@@ -787,27 +787,9 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             tolerance: 0.0,
         },
         OffsetFitError::NonFiniteSample { uv: (0.5, 0.25) },
-        OffsetFitError::BudgetExhausted {
-            budget: 4096,
-            grid: (64, 64),
-            achieved: 3e-6,
-            tolerance: 1e-6,
-            last_round: geom_brep::LastRound::Improved,
-            best: geom_brep::BestBound {
-                bound: 2e-6,
-                grid: (48, 64),
-            },
-        },
-        OffsetFitError::BudgetExhausted {
-            budget: 4096,
-            grid: (64, 64),
-            achieved: 3e-6,
-            tolerance: 1e-6,
-            last_round: geom_brep::LastRound::DidNotImprove,
-            best: geom_brep::BestBound {
-                bound: 2e-6,
-                grid: (48, 64),
-            },
+        OffsetFitError::SeedOverCap {
+            cap: 4096,
+            grid: (65, 64),
         },
         OffsetFitError::SampleCapReached {
             cap: 4096,
@@ -1467,8 +1449,12 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             _ => "(0.4375, 0.5, 0.25)".to_owned(),
         };
         s.push((
-            label("UndeclaredContact", &contact),
-            ValidationError::UndeclaredContact { contact, witness },
+            label("UnrecordedContact", &contact),
+            ValidationError::UnrecordedContact {
+                contact,
+                witness,
+                margin: Some(geom_core::MarginDiag::value(0.0)),
+            },
         ));
     }
     for declaration in stale_declarations() {

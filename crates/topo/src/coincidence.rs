@@ -166,15 +166,10 @@ pub enum DecisionSite {
     /// vertex on a vertex the reduction minted, whose touch survives
     /// into the result.
     VertexFusion,
-    /// The at-rest census: two faces of placed copies decided one
-    /// carrier, opposed.
+    /// The at-rest census: two cells of different groups of a body at
+    /// rest (two copies, two imported instances) decided one, or two
+    /// placed faces decided one carrier, opposed.
     CensusAtRest,
-    /// An imported file's vertex anchor: two of the body's vertices each
-    /// read within the file's ε_in of the anchor's point. The margin is
-    /// the farther vertex's distance from that point, not the two
-    /// vertices' distance from each other, and it is read against the
-    /// file's ε_in rather than classified against the band.
-    ImportAnchor,
 }
 
 /// **How a row's Zero was discharged**: against the band, or, in a
