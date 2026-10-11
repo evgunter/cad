@@ -2,11 +2,13 @@
 id: joindesync-swallows-the-certification-payload
 kind: issue
 title: boolean::ops describe_minted_edges drops a Certification { ResidualExceeded } payload into a bare JoinDesync - the refusal a user sees for the zip's chord-on-cylinder defect
-status: open
+status: closed
 opened: 2026-09-13
 refs: [declared-surface-pairs-emits-duplicate-pairs, 2105]
 priority: P1
 cost: E
+closed: 2026-10-11
+pr: 4625
 ---
 
 
@@ -49,3 +51,10 @@ last resort), with the edge in its `Debug` (`JoinDesync`'s `&'static str` has
 named). An exact carrier's in-band surface residual is the input's and
 refuses as `Escalated { EdgeOnFaces }` (`work/cleave/a-minted-edge-along-a-folded-graze-refuses-join-desync.md`).
 Pinned by `boolean::ops` `a_describe_refusal_carries_its_certification`.
+
+## Closed (PR 4625, 2026-10-11)
+
+`describe_edges` now keeps the certification payload. An in-band surface
+residual on an exact carrier is `EdgeOnFaces`; every other failure is
+`EdgeUndescribed { edge, failure, cause }` with the defect (or fit)
+ending, at both the Boolean and merge doors.

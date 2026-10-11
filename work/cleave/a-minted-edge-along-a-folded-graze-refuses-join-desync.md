@@ -2,10 +2,12 @@
 id: a-minted-edge-along-a-folded-graze-refuses-join-desync
 kind: issue
 title: A pierce run minted along a bound read On at the band's edge fails its edge's certification and refuses JoinDesync (12 near-tangent runs at 1e-9)
-status: open
+status: closed
 opened: 2026-10-10
 priority: P1
 cost: M
+closed: 2026-10-11
+pr: 4625
 ---
 
 
@@ -117,3 +119,10 @@ Filed: `an-in-band-certification-of-a-minted-edge-other-than-its-face-residual-r
 `boolean-structural-refusals-drop-their-payload`,
 `a-chords-end-sample-reads-carrier-t1-not-its-vertex`,
 `boolean-defect-displays-end-three-ways`.
+
+## Closed (PR 4625, 2026-10-11)
+
+The 12 runs at 1e-9 sit on the band edge (exact rationals: vertex − ε =
+±1e-26), with a sub-ulp evaluation move. They now refuse `Escalated
+EdgeOnFaces`, and its lever builds both ways. The orientation dependence
+at d = ε is filed as `a-chords-end-sample-reads-carrier-t1-not-its-vertex`.
