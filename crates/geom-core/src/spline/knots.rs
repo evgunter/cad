@@ -347,8 +347,9 @@ impl core::fmt::Display for KnotMirrorError {
 impl core::error::Error for KnotMirrorError {}
 
 /// A validated **clamped** knot vector with its degree — the structural
-/// half of every B-spline/NURBS entity (knots and degree are `f64`/
-/// `usize` structure per C6; generic scalar types never appear here).
+/// half of every B-spline/NURBS entity: `f64`/`usize` structure per C6,
+/// the value channel of the knots a carrier holds in its scalar
+/// ([`super::Knots`]); generic scalar types never appear here.
 ///
 /// # Invariants (established at construction, relied on by indexing)
 ///

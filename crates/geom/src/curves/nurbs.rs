@@ -4,10 +4,16 @@
 //!
 //! # Data model (binding conventions)
 //!
-//! Knots, weights, and degree are **f64 structure** (C6); control
-//! points are the only generically-typed data. Construction is
-//! validated and typed-error: **clamped-v1** knot vectors
-//! ([`geom_core::spline::KnotVector`] carries the exact invariants),
+//! Control points, weights and knots are **held in the scalar** `T`
+//! (C6): the knots as [`geom_core::spline::Knots`], a breakpoint per
+//! run, and the weights as `Vec<T>`. The **structure** (degree, counts,
+//! multiplicities, which span a parameter lies in, and every decision
+//! the knot algebra takes) is decided in `f64` on the values' value
+//! channel: the [`geom_core::spline::KnotVector`] the held knots carry,
+//! and the weights' channel read off them at construction. Construction
+//! is validated and typed-error: **clamped-v1** knot vectors (the
+//! [`KnotVector`] carries the exact invariants), weights that are each
+//! one point,
 //! **strictly positive weights** (the convex-hull property every C9
 //! hull bound stands on), and count coherence. Unlike the analytic
 //! variants' public conventional fields, these invariants are
@@ -147,13 +153,15 @@
 //! # Fixed association (D9)
 //!
 //! Homogeneous combination is a **single ascending-index pass**: for
-//! each basis index `j` (ascending), `cw = N_j · from_f64(w_j)`, then
+//! each basis index `j` (ascending), `cw = N_j · w_j`, then
 //! each homogeneous accumulator adds its term in the written order
 //! (`acc = acc + cw · coord`), followed by **one division per
 //! coordinate** by the accumulated weight. Rational derivative
 //! corrections are evaluated exactly as parenthesized at each method.
 //! Knot-algebra point combinations are `lerp(x, y, λ) = x + (y − x)·λ`
-//! with `λ` lifted once per combination.
+//! with `λ` and the new weight formed at `T` from the held knots and
+//! weights, once per combination
+//! ([`geom_core::spline::CurvePlan::apply_rational`]).
 
 use core::num::NonZeroUsize;
 use geom_core::spline::ProjectiveScalar;
@@ -264,7 +272,7 @@ macro_rules! nurbs_curve {
         /// Equality is address equality on the curve, plus the span
         /// (itself address-equal on its vector): a window is a proof
         /// about *that* control net, and a curve is not [`Eq`] — its
-        /// knots and weights are `f64`.
+        /// data is held in a scalar that has no equality.
         ///
         /// **This walk and the `Debug` beside it destructure `Self`
         /// exhaustively**, so a field added to the declaration is an
@@ -1003,8 +1011,8 @@ macro_rules! nurbs_curve {
             /// bounds on `‖C′‖`; neither is a claim about the curve's
             /// shape beyond its speed.
             ///
-            /// The arm is chosen on **f64 structure** (`w_j == 1.0`
-            /// exactly), never on an evaluation scalar.
+            /// The arm is chosen on the weights' **value channel**
+            /// (`w_j == 1.0` exactly), never on an evaluation scalar.
             ///
             /// # Rounding posture
             ///

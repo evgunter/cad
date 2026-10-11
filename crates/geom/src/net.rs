@@ -178,10 +178,10 @@ pub(crate) fn any_poison<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool {
 /// — `[x, y]` for a plane net, `[x, y, z]` for a space net, each in
 /// the net's own flat index order.
 ///
-/// **The bracket seam.** Knots, weights and degree are `f64`
-/// structure, so the only scalar-typed data in a payload is the
-/// control net — and a control point enters certification arithmetic through its
-/// own bracket, never through an evaluation. At `f64` the bracket is
+/// **The bracket seam.** A control point enters certification
+/// arithmetic through its own bracket, never through an evaluation.
+/// (The weights and knots a payload holds in `T` enter the certificate
+/// on their value channel, the `f64` structure it is stated over.) At `f64` the bracket is
 /// the value (`lo` = `hi`), so this is bitwise what an `f64`-only form
 /// produces; at the interval scalar each coefficient carries its
 /// enclosure into the hull, which is what makes a composite bound over

@@ -160,8 +160,9 @@ pub struct SurfaceWindow<'a, T: Real> {
 
 /// Equality is address equality on the surface, plus the two spans
 /// (themselves address-equal on their vectors): a window is a proof
-/// about *that* net, and `NurbsSurface` is not [`Eq`] — its knots and
-/// weights are `f64` — so a by-value derive is not available either.
+/// about *that* net, and `NurbsSurface` is not [`Eq`] — its data is
+/// held in a scalar that has no equality — so a by-value derive is not
+/// available either.
 /// The borrow is printed as an ADDRESS, never followed. A derived
 /// `Debug` would dump the whole control net, both knot vectors and the
 /// weights through the reference at every `{:?}`.
