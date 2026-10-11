@@ -26,10 +26,11 @@ The recipe admits three reference shapes, and every node is built from them:
   are frozen, and it defines a set (`Faces`, `Edges`) or a singleton
   (`Face`, `Edge`, `Vertex`) that a node reads like any variable — a
   `Fillet`'s or `Chamfer`'s edges, a `Shell`'s open faces, a
-  `Datum::FaceFrame`'s face, a `Measure`'s refs. The N5 ladder runs in the
+  `Datum::FaceFrame`'s face, a `Measure`'s refs, a `Mate`'s two sides. The
+  N5 ladder runs in the
   selection's evaluation and nowhere else for these. A **payload** is a
   name a node holds itself: a `Union`'s, `Intersect`'s or `Subtract`'s
-  declared pairs, `Mate` heads, an `InstantiatePart`'s interface crossings'
+  declared pairs and an `InstantiatePart`'s interface crossings'
   `outer`s (a crossing's `inner` is not a name of this document; the
   list's arm says why). The payload list has two homes, this clause and
   `Node::payload_names`' own doc; every other site points at the latter
@@ -38,7 +39,7 @@ The recipe admits three reference shapes, and every node is built from them:
   `mint_selection`, runs the same check on its names), and `split`'s
   `PartNameReachesRemainder` precondition, which refuses a cut whose taken
   node carries a name reaching the kept remainder (a selection's, a
-  declared pair's, a `Mate` head's, an instance's crossing `outer`). A
+  declared pair's, an instance's crossing `outer`). A
   later delete strands a name (N5) and says so (DM7).
 - **An `Expr` literal** in a slot, bit-pinned (D7).
 

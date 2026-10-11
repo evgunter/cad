@@ -151,8 +151,8 @@ fn mate(
     alignment: Alignment<Formula>,
 ) -> AuthoredNode {
     Node::Mate {
-        a: fixture::head(in_part(a, body, CapEnd::Start)),
-        b: fixture::head(in_part(b, body, CapEnd::Start)),
+        a: fixture::head(in_part(a, body, CapEnd::Start)).into(),
+        b: fixture::head(in_part(b, body, CapEnd::Start)).into(),
         class: ContactClass::Rest,
         alignment,
     }
@@ -1095,8 +1095,8 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
             .apply(
                 &DocEdit::InsertNode {
                     node: Box::new(Node::Mate {
-                        a: cap(ids[x]),
-                        b: cap(ids[y]),
+                        a: cap(ids[x]).into(),
+                        b: cap(ids[y]).into(),
                         class: ContactClass::Rest,
                         // A literal step: no band forms to author
                         // vectors through.
