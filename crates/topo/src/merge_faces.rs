@@ -526,7 +526,14 @@ pub enum MergeCoplanarError {
 }
 
 /// What the edge describer could not do at one edge
-/// ([`MergeCoplanarError::KeptBoundaryUndescribed`]).
+/// ([`MergeCoplanarError::KeptBoundaryUndescribed`],
+/// [`crate::BooleanError::EdgeUndescribed`]).
+///
+/// **Not carried by the façade.** Every refusal it rides ends in the
+/// kernel-defect ending: whichever arm, a caller's one recourse is to
+/// report it, so nothing branches on the arm. Falsifier: an arm a move
+/// of the geometry reaches, which would owe its own decision and lever
+/// rather than a carry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EdgeDescribeFailure {
     /// The edge carries no certified curve to re-describe, or its
