@@ -66,12 +66,14 @@ When you do run locally:
   inside one call) until it concludes, then report in the same turn.
 - When the build queue is busy, a blocking foreground wait is the correct state
   — re-issue a timed-out call rather than parking.
-- **Use your own `CARGO_TARGET_DIR`, never one shared with another lane.** A
-  shared target directory clobbers across git worktrees and will serve you
-  another lane's binary — observed twice in one wave, once reporting a test
-  count from sources that were not yours, once behind a green claim over ten
-  broken assertions. Confirm a `Compiling <crate>` line appears before trusting
-  any run.
+- **Use one `CARGO_TARGET_DIR` per worktree, never one shared with another
+  lane or with another of your own worktrees.** Cargo hashes a workspace
+  member the same in every checkout of this repo, so a shared target directory
+  will serve one worktree's build to another — observed twice in one wave
+  across lanes (a test count from sources that were not yours; a green claim
+  over ten broken assertions), and twice in one day within a lane comparing
+  its branch against a main worktree (a false "bit-identical to main"). Confirm
+  a `Compiling <crate>` line appears before trusting any run.
 - **Keep that target directory OUTSIDE the worktree** (`/home/user/<lane>-target`,
   not `.lane-target/` inside the checkout): the repo's `.gitignore` covers
   `/target` and a few named roots, not an arbitrary in-tree name, and a lane
