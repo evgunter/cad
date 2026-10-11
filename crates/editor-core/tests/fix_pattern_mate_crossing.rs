@@ -3,7 +3,7 @@
 //!
 //! The collector that fills an instance's [`InterfaceRecord`] asks ONE
 //! predicate for "is this reference a member reference" — the same one
-//! A12's reading edges and A11's groups ask. These rows pin what that
+//! the solve's member walk and A11's groups ask. These rows pin what that
 //! identity buys, on the two shapes a pattern brings:
 //!
 //! - a mate whose end is a pattern-placed instance IS an edge, so it
@@ -95,8 +95,8 @@ fn mate_frame(origin: [f64; 3]) -> MateFrame<Formula> {
 /// A determining `Rest` mate seating `b`'s bottom onto `a`.
 fn seat(a: StableName, b: StableName) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(a),
-        b: crate::fixture::head(b),
+        a: crate::fixture::head(a).into(),
+        b: crate::fixture::head(b).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: mate_frame([0.0, 0.0, 1.0]),
@@ -207,15 +207,15 @@ fn crossings(
     interface
 }
 
-/// INVARIANT: a pattern-placed mate end is a member end, so the mate is
-/// an A12 EDGE and welds the pattern's INPUT instance to the other
+/// INVARIANT: a pattern-placed mate end is a member end, so the mate
+/// welds the pattern's INPUT instance to the other
 /// member — which is what puts a pattern-headed mate under AQ8's
 /// unreachability with plain edges rather than beside it.
 #[test]
 fn a_pattern_headed_mate_is_an_edge_and_welds_the_pattern_input_instance() {
     let (doc, leg, _pattern, top, mate, _) = four_legs("fix-xs-edge");
     assert_eq!(
-        editor_core::reading_edges(&doc),
+        crate::fixture::mate_members(&doc),
         vec![(mate, leg), (mate, top)],
         "the pattern-placed head reads through the pattern's input instance"
     );
@@ -296,6 +296,7 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
         consumer,
         input,
         consumer_is_cut,
+        ..
     } = severed
     else {
         panic!("cutting the pattern alone severs its input edge: {severed:?}");
@@ -350,8 +351,9 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
     let Some(Node::Mate { a, .. }) = out.part.node(new_mate) else {
         panic!("the mate moved into the part");
     };
+    let a = crate::fixture::side_head(&out.part, *a);
     assert_eq!(
-        *a,
+        a,
         crate::fixture::head(in_copy(
             new_pattern,
             COPY,
@@ -436,8 +438,8 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
         top_body,
     );
 
-    // Not an edge: no reading edge at the nested head, and the two
-    // members stay singleton groups.
+    // No member at the nested head, so the two instances stay singleton
+    // groups.
     assert_eq!(
         editor_core::groups(&doc),
         vec![vec![leg], vec![top]],
@@ -494,7 +496,7 @@ fn a_stranded_operand_over_an_instance_head_refuses_at_the_door() {
     let Node::Mate { a, .. } = &mut node else {
         panic!("a seat is a mate");
     };
-    *a = crate::fixture::head_at(stranger, (*a.name).clone());
+    *a = crate::fixture::head_at(stranger, (*crate::fixture::authored_head(a).name).clone()).into();
     let err = doc
         .apply(
             &DocEdit::InsertNode {

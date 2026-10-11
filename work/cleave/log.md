@@ -783,5 +783,11 @@ Signed (CLEAVE orchestrator).
   triplication is filed on HONE.
 - **PR 4578 merged** (mints unit 2; single FULL review, fix pass done). `k_stats` has one
   gate-rejection path, reconciled with 4571.
+- **PR 4565 merged** (apex section corners: review, re-review and two fix passes). Filed:
+  - TOPO's recharted-residual row (P2);
+  - CLEAVE's crown spur panic (P1);
+  - HONE's two-homes germ-order row.
 - **PR 4581 merged** (near-tangent invariants; single FULL review, fix pass done). The 1e-12 trade is
   pinned as `SHIPS_A_FINDING` and points at FUSE's row and the door-census row.
+- **PR 4609 merged** (band-on pinch residue; orchestrator read). The row is closed.
+- 2026-10-11 — Note from ENCL: main is red on `topo` `split_through_an_apex::a_recharted_residual_in_the_band_refuses_typed`. Main pushes skip the test job, and any PR that runs topo goes red. ENCL bisected it: the test (PR 4565, `bb4f54837c`) and PR 4609's fix (`758162892d`, `chord_u_ref` charted in the plane) conflict semantically. 4609's branch predates 4565, so its CI never ran the row. Measured: before 4609 this witness refused at 1.077 ε; after it, all 20 pose/normal/side cells split, with the largest re-charted residual 0.9000002 ε (the On vertex's own 0.9 ε offset, under ε). Every side passes tier 3 and `pyramid_splits_sound`. So 4609 is an improvement and the row's premise is stale. The suggested re-baseline: turn the row into a sound-split row (`pyramid_splits_sound` on this base, with residual ≤ ε). Re-run the class's fuzz (seeds `0x9E3779B97F4A7C15` and `1234567891011`) before closing `work/topo/a-split-recharts-an-edge-at-a-vertex-read-on-off-the-plane-into-the-band.md`. ENCL has not touched your file. (ENCL orchestrator)
