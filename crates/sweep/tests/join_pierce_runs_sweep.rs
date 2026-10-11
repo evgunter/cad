@@ -2754,3 +2754,75 @@ fn eight_crossings_with_a_pinched_cube_battery() {
         }
     }
 }
+
+/// Every op of `x` (volume `vx`) and `y` (`vy`) sharing `common`, in
+/// both orders, through the plain booleans.
+fn plain_runs(x: &AtRestBody<f64>, y: &AtRestBody<f64>, vx: f64, vy: f64, common: f64) -> Vec<Run> {
+    let t = tol();
+    vec![
+        ("ab U".into(), topo::union(x, y, t), vx + vy - common),
+        ("ab I".into(), topo::intersect(x, y, t), common),
+        ("ab S".into(), topo::subtract(x, y, t), vx - common),
+        ("ba U".into(), topo::union(y, x, t), vx + vy - common),
+        ("ba I".into(), topo::intersect(y, x, t), common),
+        ("ba S".into(), topo::subtract(y, x, t), vy - common),
+    ]
+}
+
+/// **An edge lying exactly in the partner's face plane, its ends
+/// resting on a piece of that face the section divides off, records
+/// the rests where the result keeps them**, in every op and order:
+/// `SOUND` by [`outcome`], tier 3′ included. Two witnesses:
+///
+/// - `corner_pairs_battery`'s exact-tie turn `i=0 j=1 psi=0` of each
+///   wedge pair, B's corner edge in A's top-face plane
+///   (`work/flush/a-corner-pair-with-an-edge-in-the-partners-face-plane-builds-with-undeclared-contacts.md`);
+/// - the L-prism's top edge in the near face plane of the cube turned
+///   `1.9` about Fibonacci direction 0 of 120, which has no `y` part
+///   (`work/flush/an-l-prism-top-edge-exactly-in-the-cube-face-plane-ships-an-undeclared-contact.md`).
+///
+/// Red when a vertex-on-face record follows its face's key through the
+/// division instead of the piece that holds the vertex
+/// (`boolean::ops::Descendants::holder`): `ab U` of each wedge pair and
+/// `ba U` of `w350-w200` fail tier 3′, and so do the L-prism's `ab U`,
+/// `ab S` and `ba U`.
+#[test]
+fn an_edge_in_the_partners_face_plane_records_its_rests_where_the_result_keeps_them() {
+    let t = tol();
+    let pairs: [CornerPair; 3] = [
+        ("w343-w330", || wedge(343.0), || wedge(330.0)),
+        ("w300-w270", || wedge(300.0), || wedge(270.0)),
+        ("w350-w200", || wedge(350.0), || wedge(200.0)),
+    ];
+    let mut runs = Vec::new();
+    for (name, a, b) in pairs {
+        let (a, b) = (a(), b());
+        let f = frame(direction(0, 1), 0.0);
+        let x = finished("a corner", fixtures::prism::<f64>(&a.profile, 1.0, t).body);
+        let (y, _) = posed(&b, f, a.v);
+        let (va, vb, common) = corner_pair_volumes(&a, &b, f);
+        runs.extend(
+            plain_runs(&x, &y, va, vb, common)
+                .into_iter()
+                .map(|(op, r, want)| (format!("{name} {op}"), r, want)),
+        );
+    }
+    let n = 120.0_f64;
+    let z = 1.0 - 1.0 / n;
+    let m = [(1.0 - z * z).sqrt(), 0.0, z];
+    let prism = finished("the L-prism", fixtures::prism::<f64>(&PROFILE, 1.0, t).body);
+    let cube = finished("the cube", cube_at(V, frame(m, 1.9), [0.0, -2.0, 0.0]));
+    // The probe's convex-piece oracle, to its printed nine places.
+    let common = 0.062_429_284;
+    runs.extend(
+        plain_runs(&prism, &cube, 3.0, SIDE.powi(3), common)
+            .into_iter()
+            .map(|(op, r, want)| (format!("Ltop {op}"), r, want)),
+    );
+    let bad: Vec<String> = runs
+        .into_iter()
+        .map(|(tag, r, want)| format!("{tag}: {}", outcome(r, want, t)))
+        .filter(|l| !l.contains(": OK SOUND") && !l.contains(": EMPTY ok"))
+        .collect();
+    assert!(bad.is_empty(), "every run SOUND:\n{}", bad.join("\n"));
+}

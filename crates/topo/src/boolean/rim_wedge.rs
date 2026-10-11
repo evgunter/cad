@@ -225,9 +225,10 @@ pub(crate) enum Departure {
     /// meets no curve of contact.
     Untouched,
     /// A boundary edge of one face is a curve the read does not place
-    /// against the locus (an ellipse, a spline): the touch is not read,
-    /// and the claim is refused as outside the envelope rather than
-    /// answered.
+    /// against the locus (an ellipse, a spline), or a touch piece its
+    /// boundary pass does not place (at an arc's end its corners
+    /// disagree with): the touch is not read, and the claim is refused
+    /// as outside the envelope rather than answered.
     EdgeKindUnread,
 }
 
@@ -334,6 +335,7 @@ pub(crate) fn departures<T: Decide>(
         }
         touched = true;
         match (ca, cb) {
+            (Cover::Unread, _) | (_, Cover::Unread) => return Ok(Departure::EdgeKindUnread),
             (Cover::RidesBothWays, _) | (_, Cover::RidesBothWays) => {
                 return Ok(Departure::Mixed);
             }
@@ -412,6 +414,9 @@ enum Cover {
     RidesBothWays,
     /// No riding edge covers it; the face contains the piece or not.
     Contains(bool),
+    /// No riding edge covers it, and the face's boundary pass does not
+    /// place the piece (an arc's end its corners disagree with).
+    Unread,
 }
 
 impl Cover {
@@ -469,7 +474,10 @@ impl<T: Decide> Reach<T> {
         }
         Ok(match seen {
             Some(sign) => Cover::Rides(sign),
-            None => Cover::Contains(contains(body, face, locus_point(locus, s), band)?),
+            None => match contains(body, face, locus_point(locus, s), band)? {
+                Some(inside) => Cover::Contains(inside),
+                None => Cover::Unread,
+            },
         })
     }
 }
@@ -505,7 +513,7 @@ fn contains<T: Decide>(
     face: FaceKey,
     p: Point3<T>,
     band: Band,
-) -> Result<bool, Indeterminate> {
+) -> Result<Option<bool>, Indeterminate> {
     let unread = Indeterminate {
         margin: geom_core::MarginDiag::INVALID,
         band,
@@ -520,14 +528,22 @@ fn contains<T: Decide>(
     let f = body.get_face(face).ok_or(unread)?;
     let read = match body.get_surface(f.surface) {
         Some(geom::Surface::Plane { normal, .. }) => {
-            Some(super::contain::contfp(body, face, *normal, p, band).map_err(lift)?)
+            super::contain::contfp(body, face, *normal, p, band).map(Some)
         }
-        Some(_) => super::contain::curved_face_containment(body, face, p, band).map_err(lift)?,
+        Some(_) => super::contain::curved_face_containment(body, face, p, band),
         None => return Err(unread),
     };
+    // The boundary pass placed the point at an arc's end and clear of
+    // its corners, two definite readings no verdict reconciles at this
+    // band: the read does not place the point, as it does not place a
+    // boundary curve outside its envelope.
+    let read = match read {
+        Err(super::contain::ContainError::ArcEndClearOfCorners(_)) => return Ok(None),
+        read => read.map_err(lift)?,
+    };
     match read {
-        Some(super::contain::FaceContainment::Out) => Ok(false),
-        Some(_) => Ok(true),
+        Some(super::contain::FaceContainment::Out) => Ok(Some(false)),
+        Some(_) => Ok(Some(true)),
         None => Err(unread),
     }
 }
@@ -1444,6 +1460,94 @@ mod r2_probes {
             up.expect("the routing answers"),
             down.expect("the routing answers"),
             "a stored sign cannot change a first-order verdict"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod arc_end_rows {
+    use super::*;
+    use crate::test_support_fixtures::{half_disc_cap, prism_z};
+    use geom_core::{Tol, Vec3};
+
+    /// The point the band `(ε, 1.25ε)` reads at the half-disc cap's arc
+    /// end and clear of its corner: outside the circle and along it, each
+    /// by `0.95ε`, so `≈ 1.34ε` from the corner and as far from the chord.
+    fn beside_the_arc_end(end: Point3<f64>, zero: f64) -> Point3<f64> {
+        end + Vec3::new(-0.95 * zero, 0.95 * zero, 0.0)
+    }
+
+    /// **A touch piece at an arc's end its corners disagree with is not
+    /// read**: the boundary pass places the point at the end and clear of
+    /// the corner, so `contains` has no verdict, and the seam cover
+    /// refuses the claim as outside its envelope
+    /// ([`Departure::EdgeKindUnread`], the claim's `unsupported`) rather
+    /// than reading the piece as the face's interior (`NoEdge`, a decided
+    /// contradiction downstream).
+    ///
+    /// - At `contains`, both arms of the finding, on half-disc caps the
+    ///   public operators built: an end off both corners (read at a band
+    ///   finer than the run's) and the band's own parting (`K = 1.25`).
+    /// - Through `departures`, the band's parting: a line along `x`
+    ///   through the point, which crosses the cap's arc just past it; a
+    ///   second face, a block's top in the cap's plane, whose left edge
+    ///   stands the same distance before it, so the one touch piece's
+    ///   midpoint is the point.
+    #[test]
+    fn a_touch_at_an_arc_end_clear_of_its_corners_is_not_read() {
+        let tol = Tol::witness();
+        let zero = Band::linear(tol).unwrap().zero();
+        let off = zero / 2.0;
+        let (body, cap, end) = half_disc_cap(off, tol);
+        let fine = Band::new(off / 50.0, off / 5.0).unwrap();
+        assert!(
+            matches!(
+                crate::boolean::contfp(&body, cap, Vec3::unit_z(), end, fine),
+                Err(crate::boolean::ContainError::ArcEndClearOfCorners(ref g)) if g.off_corner()
+            ),
+            "the end lies off both corners at the finer band"
+        );
+        assert_eq!(contains(&body, cap, end, fine), Ok(None), "off its corner");
+        let (body, cap, end) = half_disc_cap(0.0, tol);
+        let q = beside_the_arc_end(end, zero);
+        let narrow = Band::new(zero, 1.25 * zero).unwrap();
+        assert!(
+            matches!(
+                crate::boolean::contfp(&body, cap, Vec3::unit_z(), q, narrow),
+                Err(crate::boolean::ContainError::ArcEndClearOfCorners(ref g)) if !g.off_corner()
+            ),
+            "the band's own parting"
+        );
+        assert_eq!(
+            contains(&body, cap, q, narrow),
+            Ok(None),
+            "the band's parting"
+        );
+        // The line crosses the unit circle at `x = -sqrt(1 - y²)`, `delta`
+        // past the point; the block's left edge stands `delta` before it.
+        let delta = -(1.0 - q.y * q.y).sqrt() - q.x;
+        let h = 0.1;
+        let block = prism_z::<f64>(
+            &[
+                (q.x - delta, q.y - h),
+                (q.x + h, q.y - h),
+                (q.x + h, q.y + h),
+                (q.x - delta, q.y + h),
+            ],
+            -1.0,
+            0.0,
+            tol,
+        );
+        let locus = Locus::Line {
+            origin: q,
+            dir: Vec3::unit_x(),
+        };
+        let got = departures(&body, cap, &block.body, block.top_face, locus, narrow);
+        assert_eq!(
+            got,
+            Ok(Departure::EdgeKindUnread),
+            "the touch piece at the arc's end is not read"
         );
     }
 }

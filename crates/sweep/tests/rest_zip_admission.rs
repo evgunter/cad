@@ -413,19 +413,17 @@ fn the_tangent_site_keeps_building_pure_contacts() {
 }
 
 /// **A line kiss beside the tangent site builds at its closed form and
-/// ships its contact unrecorded** (shape 2 of
+/// records its contact** (shape 2 of
 /// `work/fuse/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate`).
 /// At these poses one of `b`'s cap edges from the reflex corner lies in
 /// `a`'s top, with the cap above it elsewhere: `v∩ = 0`, and `b` kisses
 /// `a` along that edge and at its far vertex. Each union, in both
-/// orders, builds at `vol a + vol b′` and passes tier 2; tier 3′ finds
-/// the kiss's vertex on `a`'s top and its edge along it, and no record
-/// backs either. The glue records face pairs, and no face pair meets
-/// here; the dropped records are
-/// `work/fuse/a-kissing-convex-corner-result-ships-an-undeclared-vertex-on-face.md`.
+/// orders, builds at `vol a + vol b′`, passes tier 2, and passes tier 3′
+/// against its own records: the kiss's vertex rests on the piece of
+/// `a`'s top the section divides off, and the record lands there. The
+/// glue records face pairs, and no face pair meets here.
 #[test]
-fn a_line_kiss_beside_a_tangent_site_ships_its_contact_undeclared() {
-    use topo::{CensusContact, ValidationError};
+fn a_line_kiss_beside_a_tangent_site_records_its_contact() {
     for (profile, sx, sy) in [
         ("dUp", 0.25, 0.25),
         ("dUp", 0.5, 0.5),
@@ -452,22 +450,10 @@ fn a_line_kiss_beside_a_tangent_site_ships_its_contact_undeclared() {
             let v = vol(&bb.body);
             assert!((v - want).abs() < 1e-9, "{what}: volume {v} against {want}");
             assert_eq!(topo::validate_closed(&bb.body), Ok(()), "{what}: tier 2");
-            let findings = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
-                .expect_err("tier 3′ finds the kiss undeclared");
-            let kind = |want: fn(&CensusContact) -> bool| {
-                findings
-                    .iter()
-                    .filter(|e| {
-                        matches!(e, ValidationError::UnrecordedContact { contact, .. } if want(contact))
-                    })
-                    .count()
-            };
-            let on_face = kind(|c| matches!(c, CensusContact::VertexOnFace { .. }));
-            let along = kind(|c| matches!(c, CensusContact::EdgeFaceOverlap { .. }));
-            assert!(
-                on_face > 0 && along > 0 && on_face + along == findings.len(),
-                "{what}: the kiss's vertex on a's top and its edge along it, nothing else: \
-                 {findings:?}"
+            assert_eq!(
+                topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
+                Ok(()),
+                "{what}: tier 3′ against its records"
             );
         }
     }

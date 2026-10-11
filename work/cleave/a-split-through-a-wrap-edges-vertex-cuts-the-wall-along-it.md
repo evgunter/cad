@@ -2,10 +2,11 @@
 id: a-split-through-a-wrap-edges-vertex-cuts-the-wall-along-it
 kind: issue
 title: A split or boolean whose section loop meets a one-face wall's wrap edge at one vertex leaves that wall's piece as two faces on one surface across the wrap edge: a cut the author did not write
-status: open
+status: dispatched
 opened: 2026-10-06
 priority: P2
 cost: M
+branch: cleave/wrap-edge-split
 ---
 
 

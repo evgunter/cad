@@ -4872,6 +4872,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "point_in_face_refused",
             "point_split_carrier_unsupported",
             "poisoned_carrier_datum",
+            "rest_piece_unread",
             "result_invalid",
             "result_volume_implausible",
             "rim_cusp_arm_unbuilt",
@@ -6443,6 +6444,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "approx_certification",
             "approx_lane_unsupported",
+            "arc_end_off_corner",
             "back_pointer_mismatch",
             "band",
             "census_escalated",
