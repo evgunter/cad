@@ -907,9 +907,14 @@ fn a_rim_in_band_of_the_partners_wall_escalates() {
 ///   merge certifies the second operand's row against it: on the tube's
 ///   wall in one order, on the dome's sphere in the other. Each row's
 ///   envelope reads the offset once, so both clear the zero band.
-/// - `k ∈ {−¼, −½}`: the dome's disc overhangs the tube's. The union
-///   refuses at the volume backstop's tight bound, both orders
-///   (`work/reachhold/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`).
+/// - `k ∈ {−¼, −½}`: the dome's disc overhangs the tube's, by a lamina
+///   of no volume, so the union sits exactly on the volume backstop's
+///   tight bound `vol(A ∪ B) ≤ vol(A) + vol(B)`, and the rounding of
+///   the faces' fluxes decides which side of it the result lands
+///   (`work/reachhold/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`,
+///   which measures the same at ε = 1e-12). Either reading is pinned:
+///   the backstop's refusal at that bound, or the union built within
+///   `zero · A` of the closed form.
 /// - `k = ±0.9`: the dome's meridian meets the tube's wall `√2·|k|·zero`
 ///   along its arc from the rim, and the crossing layer escalates on that
 ///   arc length, both orders
@@ -958,6 +963,19 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
                     rim_radius(&b),
                     vec![kept; 2],
                     "{label}: the rim keeps the first operand's circle"
+                );
+                continue;
+            }
+            if (-0.5..0.0).contains(&k)
+                && let Ok(BooleanResult::Body(b)) = &r
+            {
+                let p = topo::mass_properties(&b.body, tol).unwrap();
+                let want = PI * tube_rim * tube_rim * H + cap;
+                assert!(
+                    (p.volume - want).abs() <= band.zero() * p.surface_area,
+                    "{label}: built on the tight bound, the union is the tube and the dome: \
+                     {} vs {want}",
+                    p.volume
                 );
                 continue;
             }
