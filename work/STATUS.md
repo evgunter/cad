@@ -297,7 +297,7 @@ area `api`; prefix `intent/`; tag `(INTENT orchestrator)`; ab_band `10800-10899`
 | P1 | `the-at-rest-containment-check-has-no-sphere-lane` | issue | M | open | the at-rest quieting rule's containment check has no lane for a sphere Gap pair or a non-planar, non-cylindrical overlap face |  |  |
 | P1 | `the-door-names-its-residual` | issue | M | open | The coincidence door's recourse names the residual: two free variables of one kind and equal value read as one, two placed poses placed one relative to the other |  |  |
 | P1 | `the-symbolic-door-proves-at-one-strength-at-rest` | unit | M | dispatched | The coincidence door proves at one strength, a kernel constant; the viewer runs it at rest; the resident/full switch goes |  |  |
-| P1 | `the-skin-computes-its-values-in-t` | issue | H | parked | The skin computes its sections' values in f64 and lifts them as constants, so no lofted or swept carrier is a function of its variables | nurbs-weights-and-knots-are-the-scalar, sweep-keeps-computed-values-in-t |  |
+| P1 | `the-skin-computes-its-values-in-t` | issue | H | parked | The skin computes its sections' values in f64 and lifts them as constants, so no lofted or swept carrier is a function of its variables | nurbs-weights-and-knots-are-the-scalar |  |
 | P2 | `a-declared-union-refuses-where-its-undeclared-twin-glues` | issue | M | open | A union whose rest is declared refuses DeclareResolve where its undeclared twin glues |  |  |
 | P2 | `a-face-read-as-a-plane-has-no-stated-sense` | issue | M | open | "A face reads as a plane" does not fix the plane's sense: angle reads the chart normal, gap and FaceFrame the outward normal |  |  |
 | P2 | `a-loft-takes-its-placements-as-f64` | issue | M | open | loft_body and sweep_body take their placements as f64, so at Sym a document's placement parameters reach the loft as unknowns |  |  |
@@ -2863,7 +2863,7 @@ area `kernel`; prefix `walks/`; tag `(WALKS orchestrator)`; ab_band `6600-6699`.
 | `placement-step-slots-are-spelled-three-ways` | intent | parked | intent-stage3-is-built |
 | `the-at-rest-census-is-a-check` | intent | parked | mates-declare-no-contact, a-mate-on-a-pinned-copy-refuses |
 | `the-census-reads-each-mated-patchs-decision-twice` | intent | parked | mates-declare-no-contact |
-| `the-skin-computes-its-values-in-t` | intent | parked | nurbs-weights-and-knots-are-the-scalar, sweep-keeps-computed-values-in-t |
+| `the-skin-computes-its-values-in-t` | intent | parked | nurbs-weights-and-knots-are-the-scalar |
 | `the-world-still-speaks-of-roots` | intent | parked | a-placement-is-the-bundle-of-mates |
 | `transform-retires-into-a-placement` | intent | parked | a-mate-relates-two-poses |
 | `a-box-independent-mate-fault-bisects-the-whole-leaf-budget` | msolve | parked | intent-stage3-is-built, the-box-driver-carries-no-part-resolver |
