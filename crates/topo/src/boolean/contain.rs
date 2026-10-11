@@ -13,7 +13,7 @@
 //! on its oval, and a spline edge, which has no crossing row, refuses
 //! typed wherever it could matter.
 
-use geom_brep::recourse::{LeverOnly, Reading, SizedPass};
+use geom_brep::recourse::{LeverOnly, Reading, RefusedArm, SizedPass};
 use geom_core::k_stats::Magnitude;
 use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
@@ -199,11 +199,20 @@ pub fn placement_ending(
 ) -> String {
     match decision {
         Some(decision) => decision.ending(escalation, diag, reading),
-        None => LeverOnly {
-            lever: placement_lever(None),
-        }
-        .recourse(escalation.arm(diag), reading),
+        None => unnamed_placement_ending(escalation.arm(diag), reading),
     }
+}
+
+/// The unnamed placement's ending on `arm`, read at `reading`: its lever
+/// alone, with the unreadable-margin note on a poisoned margin — the
+/// `None` arm of [`placement_ending`], for a refusal that holds its
+/// readings in a shape of its own rather than as one escalation.
+#[must_use]
+pub fn unnamed_placement_ending(arm: RefusedArm<'_>, reading: Reading) -> String {
+    LeverOnly {
+        lever: placement_lever(None),
+    }
+    .recourse(arm, reading)
 }
 
 /// Typed refusal of [`contfp`].
@@ -1178,7 +1187,7 @@ fn cone_face_containment<T: Decide>(
     }
 }
 
-fn solid_err(e: super::solid_contain::PointInSolidError) -> ContainError {
+pub(super) fn solid_err(e: super::solid_contain::PointInSolidError) -> ContainError {
     match e {
         super::solid_contain::PointInSolidError::Escalated { diag, .. } => {
             ContainError::Escalated {

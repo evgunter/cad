@@ -305,6 +305,22 @@ A replay that refuses or escalates proves nothing, and the row stays `Unproven`.
 
 **Goldens.** None move. The mitre rows in B's goldens become proven.
 
+## 5b. After D — `the-symbolic-door-proves-at-one-strength-at-rest` (cost M)
+
+Ev, 2026-10-11 (PR 4644):
+
+- The door proves at **one strength**, a kernel constant with no
+  setting. Synchronous callers get its verdict.
+- The **viewer runs it at rest**, off the draw path, cancelled by the
+  next edit. Its rows read *pending* until it lands.
+- An unproven row is **one finding**. Where the residual keeps an
+  opaque atom, its recourse is an assertion. Ev: "it's pretty fair to
+  ask the user to assert that the two things are identical rather than
+  making a special undecided case for it".
+- The box mitre's frozen feet distance is SYM's to fix
+  (`the-mitres-feet-distance-freezes-at-sym`). The per-node theorem
+  cache stays parked behind it.
+
 ## 6. PR E — `booleans-glue-on-zero` (cost H; ~120 files, 4–6k lines)
 
 **The refusal sites become glue plus a record.** Rung 4 of each ladder (Zero, with neither source nor declaration) stops refusing:
