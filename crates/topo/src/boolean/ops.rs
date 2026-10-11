@@ -3126,15 +3126,7 @@ pub(super) fn ledger<T: Decide>(
             }
         }
         for row in core::mem::take(&mut carried.ee) {
-            ee_lineage(
-                clone,
-                side,
-                &red.edge_splits,
-                row,
-                carried,
-                &mut pending,
-                band,
-            )?;
+            ee_lineage(red, side, row, carried, &mut pending, band)?;
         }
     }
     Ok(Ledger {
@@ -3192,25 +3184,40 @@ type Piece = (EdgeKey, VertexKey, VertexKey);
 /// with every vertex a split minted on it: a split keeps the parent's
 /// leading span, so its child is the piece right after the parent.
 fn pieces<T: Real>(
-    clone: &Body<T>,
+    red: &BooleanReduction<T>,
     side: Operand,
-    splits: &[super::EdgeSplit],
     edge: EdgeKey,
 ) -> Result<(Vec<Piece>, Vec<VertexKey>), BooleanError> {
+    let clone = match side {
+        Operand::A => &red.a,
+        Operand::B => &red.b,
+    };
     let mut keys = vec![edge];
     let mut minted = Vec::new();
-    for split in splits.iter().filter(|s| s.operand == side) {
+    for split in red.edge_splits.iter().filter(|s| s.operand == side) {
         if let Some(i) = keys.iter().position(|&k| k == split.parent) {
             keys.insert(i + 1, split.child);
             minted.push(split.vertex);
         }
     }
+    // A null edge's insertion moves a piece's end onto the copy it
+    // minted; the piece ends at the vertex the copy was minted at.
+    let minted_at = |mut v: VertexKey| {
+        while let Some(r) = red.null_edges.iter().find(|r| {
+            r.operand == side
+                && r.at_vertex != v
+                && (r.attr.below_end == v || r.attr.above_end == v)
+        }) {
+            v = r.at_vertex;
+        }
+        v
+    };
     let ends = |e: EdgeKey| {
         let edge = clone.get_edge(e)?;
         Some((
             e,
-            clone.get_half_edge(edge.he_plus)?.start,
-            clone.get_half_edge(edge.he_minus)?.start,
+            minted_at(clone.get_half_edge(edge.he_plus)?.start),
+            minted_at(clone.get_half_edge(edge.he_minus)?.start),
         ))
     };
     let pieces = keys
@@ -3231,27 +3238,33 @@ fn pieces<T: Real>(
 /// piece it rests on (or the vertex it meets). An edge-edge record
 /// names no vertex, so where the contact lies is decided against the
 /// pieces themselves, by the census's own segment questions
-/// ([`crate::census`]), so what lands is what the census confirms. Only
-/// the record's own lineage is read: its two edges' pieces, never
+/// ([`crate::census`]), so what lands is what the census confirms. They
+/// are asked only of a point or piece not decided past the other
+/// piece's ends, and two pieces are read along the longer one's line.
+/// Only the record's own lineage is read: its two edges' pieces, never
 /// another cell of the body. A bound the record already had is a vertex
 /// record of its own, carried by its own lineage, and is not restated.
 ///
 /// # Errors
 ///
-/// [`BooleanError::Escalated`] (`VertexOnVertex`) where a segment
-/// question is in band; [`BooleanError::JoinDesync`] where a logged key
-/// does not resolve in its clone.
+/// [`BooleanError::Escalated`]: `SelfCheck(CarriedLineage)` where a
+/// segment question is in band, `VertexOnVertex` where a split vertex's
+/// coincidence is; [`BooleanError::JoinDesync`] where a logged key does
+/// not resolve in its clone.
 fn ee_lineage<T: Decide>(
-    clone: &Body<T>,
+    red: &BooleanReduction<T>,
     side: Operand,
-    splits: &[super::EdgeSplit],
     row: Cited<EeContact>,
     carried: &mut Rows,
     pending: &mut Vec<PendingRow>,
     band: Band,
 ) -> Result<(), BooleanError> {
-    let (a, a_minted) = pieces(clone, side, splits, row.a)?;
-    let (b, b_minted) = pieces(clone, side, splits, row.b)?;
+    let clone = match side {
+        Operand::A => &red.a,
+        Operand::B => &red.b,
+    };
+    let (a, a_minted) = pieces(red, side, row.a)?;
+    let (b, b_minted) = pieces(red, side, row.b)?;
     if a.len() == 1 && b.len() == 1 {
         carried.ee.push(row);
         return Ok(());
@@ -3274,10 +3287,33 @@ fn ee_lineage<T: Decide>(
             })
     };
     let segment = |&(_, v0, v1): &Piece| Ok::<_, BooleanError>((point(v0)?, point(v1)?));
+    // A point decided past either end of a piece is not on it, and a
+    // piece wholly past either end of another does not meet it, whatever
+    // the piece's line reads there: a short piece's line, read far along
+    // it, levers the piece's own tilt.
+    let past = |(p0, p1): (Point3<T>, Point3<T>), qs: &[Point3<T>]| {
+        let dir = (p1 - p0).normalize();
+        let len = (p1 - p0).norm();
+        let mut ends = [true, true];
+        for &q in qs {
+            let s = (q - p0).dot(dir);
+            for (end, m) in ends.iter_mut().zip([s, len - s]) {
+                *end &= decide("bool_carried_ee_piece_span", Margin::of(m), band)
+                    .map_err(lineage)?
+                    == Sign::Negative;
+            }
+        }
+        Ok::<_, BooleanError>(ends.contains(&true))
+    };
+    let within = |q, seg| past(seg, &[q]).map(|p| !p);
+    let reach = |sa, (b0, b1)| past(sa, &[b0, b1]).map(|p| !p);
     for pa in &a {
         for pb in &b {
             let (sa, sb) = (segment(pa)?, segment(pb)?);
-            if crate::census::segment_interiors_meet(sa, sb, band).map_err(lineage)? {
+            let [long, short] = longer_first(sa, sb, band);
+            if reach(long, short)?
+                && crate::census::segment_interiors_meet(long, short, band).map_err(lineage)?
+            {
                 push_cited(
                     &mut carried.ee,
                     Cited::new(EeContact { a: pa.0, b: pb.0 }, row.cites.clone()),
@@ -3290,7 +3326,10 @@ fn ee_lineage<T: Decide>(
             {
                 for v in [mine.1, mine.2].into_iter().filter(|v| minted.contains(v)) {
                     let q = point(v)?;
-                    if crate::census::on_segment_interior(q, their_seg, band).map_err(lineage)? {
+                    if within(q, their_seg)?
+                        && crate::census::on_segment_interior(q, their_seg, band)
+                            .map_err(lineage)?
+                    {
                         push_cited(
                             &mut carried.ve,
                             Cited::new(
@@ -3337,6 +3376,22 @@ fn ee_lineage<T: Decide>(
         }
     }
     Ok(())
+}
+
+/// Two segments, the longer first: the census reads a collinear pair
+/// along the first one's line, which the second's tilt levers least
+/// when the first is the longer. The order is a preference, not a
+/// verdict: two lengths within the band lever alike.
+type Segment<T> = (Point3<T>, Point3<T>);
+fn longer_first<T: Decide>(a: Segment<T>, b: Segment<T>, band: Band) -> [Segment<T>; 2] {
+    match decide(
+        "bool_longer_segment_first",
+        Margin::of((a.1 - a.0).norm() - (b.1 - b.0).norm()),
+        band,
+    ) {
+        Ok(Sign::Negative) => [b, a],
+        _ => [a, b],
+    }
 }
 
 /// One operand's own records re-entering an op, in its keys: the cell
@@ -3451,7 +3506,7 @@ pub(super) fn carry<T: Decide>(
     band: Band,
 ) -> Result<(ContactRecords, Vec<crate::Coincidence>), BooleanError> {
     let [a, b] = &ledger.carried;
-    let records = carry_rows(
+    let mut records = carry_rows(
         body,
         &tagged(&ledger.discovered),
         [a, b],
@@ -3460,6 +3515,7 @@ pub(super) fn carry<T: Decide>(
         false,
         band,
     )?;
+    record_spans(body, &mut records, band)?;
     cite_rows(records, ledger)
 }
 
@@ -3888,6 +3944,247 @@ fn carry_rows<T: Decide>(
         }
     }
     Ok(out)
+}
+
+/// A point where a line edge's span may begin or end: its parameter
+/// along the edge, the point, the cells it touches there, and the
+/// citations of the records that put it there (none for the edge's own
+/// end, which bounds by structure).
+struct Bound<T: Real> {
+    at: T,
+    point: Point3<T>,
+    touches: Vec<Cell>,
+    cites: Option<Cites>,
+}
+
+/// **The spans a line edge's records bound** (D1: every pair whose
+/// interiors meet is recorded, an edge lying in a face or along an edge
+/// included). A record bounds a line edge where it names a point of it:
+/// a vertex on its interior, a line edge crossing it, or one of its own
+/// ends touching a cell; an edge some record bounds is also bounded by
+/// its own ends, by structure. Between two consecutive bounds the
+/// edge's span lies in each cell both bounds touch that holds it: a
+/// plane face whose interior holds the span's midpoint (two points of
+/// its plane hold the line), or a line edge whose interior the span's
+/// overlaps, read as the census confirms an edge-edge record. That pair
+/// is recorded, citing the two bounds' records. A curved face is not
+/// read: a line between two of its points need not lie in it. A record
+/// naming a cell the body does not hold bounds nothing; the census
+/// reads it stale.
+///
+/// # Errors
+///
+/// [`BooleanError::Escalated`] (`SelfCheck(CarriedLineage)`) where a
+/// question is in band; [`BooleanError::RestPieceUnread`] where the
+/// containment door cannot place a midpoint in a face.
+fn record_spans<T: Decide>(
+    body: &Body<T>,
+    out: &mut ContactRecords,
+    band: Band,
+) -> Result<(), BooleanError> {
+    let in_band = |diag| BooleanError::Escalated {
+        decision: BooleanDecision::SelfCheck(SelfCheck::CarriedLineage),
+        diag,
+    };
+    let point = |v: VertexKey| {
+        body.get_vertex(v)
+            .and_then(|d| body.get_point(d.point))
+            .copied()
+    };
+    let segment = |e: EdgeKey| {
+        let d = body.get_edge(e)?;
+        let v0 = body.get_half_edge(d.he_plus)?.start;
+        let v1 = body.half_edge_end(d.he_plus)?;
+        Some(((v0, v1), (point(v0)?, point(v1)?)))
+    };
+    let edge_cells = |g: EdgeKey| {
+        let (f0, f1) = crate::readback::edge_sides(body, g).ok()?.faces();
+        Some(vec![Cell::Edge(g), Cell::Face(f0), Cell::Face(f1)])
+    };
+    let star = |w: VertexKey| {
+        let edges = body.edges_of_vertex(w)?;
+        let faces = body.faces_of_vertex(w)?;
+        Some(
+            core::iter::once(Cell::Vertex(w))
+                .chain(edges.into_iter().map(Cell::Edge))
+                .chain(faces.into_iter().map(Cell::Face))
+                .collect::<Vec<_>>(),
+        )
+    };
+    let union = |a: &Option<Cites>, b: &Option<Cites>| match (a, b) {
+        (Some(a), Some(b)) => Some(a.union(b)),
+        (Some(c), None) | (None, Some(c)) => Some(c.clone()),
+        (None, None) => None,
+    };
+    // The line edges a record names, or meets at one of their ends.
+    let mut lines: BTreeSet<EdgeKey> = BTreeSet::new();
+    for (x, y) in out.cell_pairs() {
+        for c in [x, y] {
+            match c {
+                Cell::Edge(e) => {
+                    lines.insert(e);
+                }
+                Cell::Vertex(v) => lines.extend(body.edges_of_vertex(v).unwrap_or_default()),
+                Cell::Face(_) => {}
+            }
+        }
+    }
+    lines.retain(|&e| crate::census::edge_is_line(body, e));
+    let mut spans: Vec<Cited<Contact>> = Vec::new();
+    for e in lines {
+        let Some(((v0, v1), (p0, p1))) = segment(e) else {
+            continue;
+        };
+        let dir = (p1 - p0).normalize();
+        let mut bounds: Vec<Bound<T>> = Vec::new();
+        for c in out.rows() {
+            let read = match c.record.cells() {
+                [Cell::Edge(a), other] | [other, Cell::Edge(a)] if a == e => {
+                    match other {
+                        Cell::Vertex(w) => point(w).zip(star(w)),
+                        // A line edge crossing it: one along it is the
+                        // record of its own overlap.
+                        Cell::Edge(g) if crate::census::edge_is_line(body, g) => {
+                            match segment(g) {
+                                Some((_, (q0, q1))) => {
+                                    let gdir = (q1 - q0).normalize();
+                                    let n = dir.cross(gdir);
+                                    let (parallel, _) =
+                                        geom_core::k_stats::decide_magnitude_reported(
+                                            "bool_span_ee_parallel",
+                                            Margin::levered(
+                                                n.norm(),
+                                                (p1 - p0).norm().min((q1 - q0).norm()),
+                                            ),
+                                            band,
+                                        )
+                                        .map_err(in_band)?;
+                                    if parallel == geom_core::k_stats::Magnitude::Zero {
+                                        None
+                                    } else {
+                                        // The point of the edge's line nearest the other's.
+                                        let s = (q0 - p0).cross(gdir).dot(n) / n.dot(n);
+                                        edge_cells(g).map(|t| (p0 + dir * s, t))
+                                    }
+                                }
+                                None => None,
+                            }
+                        }
+                        _ => None,
+                    }
+                }
+                [Cell::Vertex(v), other] | [other, Cell::Vertex(v)] if v == v0 || v == v1 => {
+                    let touches = match other {
+                        Cell::Vertex(w) => star(w),
+                        Cell::Edge(g) => edge_cells(g),
+                        Cell::Face(f) => Some(vec![Cell::Face(f)]),
+                    };
+                    point(v).zip(touches)
+                }
+                _ => None,
+            };
+            if let Some((q, touches)) = read {
+                bounds.push(Bound {
+                    at: (q - p0).dot(dir),
+                    point: q,
+                    touches,
+                    cites: Some(c.cites.clone()),
+                });
+            }
+        }
+        if bounds.is_empty() {
+            continue;
+        }
+        for (v, p) in [(v0, p0), (v1, p1)] {
+            if let Some(touches) = star(v) {
+                bounds.push(Bound {
+                    at: (p - p0).dot(dir),
+                    point: p,
+                    touches,
+                    cites: None,
+                });
+            }
+        }
+        // In order along the edge, bounds at one point one bound.
+        let mut merged: Vec<Bound<T>> = Vec::new();
+        for b in bounds {
+            let mut place = None;
+            for (k, m) in merged.iter().enumerate() {
+                match decide("bool_span_bound_order", Margin::of(b.at - m.at), band)
+                    .map_err(in_band)?
+                {
+                    Sign::Positive => {}
+                    Sign::Negative => {
+                        place = Some(Err(k));
+                        break;
+                    }
+                    Sign::Zero => {
+                        place = Some(Ok(k));
+                        break;
+                    }
+                }
+            }
+            match place {
+                Some(Ok(k)) => {
+                    let m = &mut merged[k];
+                    m.touches.extend(b.touches);
+                    m.cites = union(&m.cites, &b.cites);
+                }
+                Some(Err(k)) => merged.insert(k, b),
+                None => merged.push(b),
+            }
+        }
+        let half = T::from_f64(0.5);
+        for pair in merged.windows(2) {
+            let [lo, hi] = pair else { continue };
+            let Some(cites) = union(&lo.cites, &hi.cites) else {
+                continue;
+            };
+            let mid = lo.point + (hi.point - lo.point) * half;
+            let mut held: Vec<Cell> = Vec::new();
+            for &c in lo.touches.iter().filter(|c| hi.touches.contains(c)) {
+                if held.contains(&c) {
+                    continue;
+                }
+                let Ok(contact) = Contact::new(body, Cell::Edge(e), c) else {
+                    continue;
+                };
+                let holds = match c {
+                    Cell::Face(f)
+                        if matches!(
+                            body.get_face(f).and_then(|d| body.get_surface(d.surface)),
+                            Some(geom::Surface::Plane { .. })
+                        ) =>
+                    {
+                        match piece_holds(body, f, mid, band)? {
+                            PieceRead::In => true,
+                            PieceRead::NotIn => false,
+                            PieceRead::Unread(refusal) => {
+                                return Err(BooleanError::RestPieceUnread { face: f, refusal });
+                            }
+                        }
+                    }
+                    Cell::Edge(g) if crate::census::edge_is_line(body, g) => match segment(g) {
+                        Some((_, s)) => {
+                            let [long, short] = longer_first((lo.point, hi.point), s, band);
+                            crate::census::segment_interiors_meet(long, short, band)
+                                .map_err(in_band)?
+                        }
+                        None => false,
+                    },
+                    _ => false,
+                };
+                if holds {
+                    held.push(c);
+                    spans.push(Cited::new(contact, cites.clone()));
+                }
+            }
+        }
+    }
+    for span in spans {
+        out.push(span);
+    }
+    Ok(())
 }
 
 /// Records the cell pair `x`, `y` (result keys), once, backed by

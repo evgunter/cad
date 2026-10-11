@@ -202,3 +202,23 @@ the pinch, or a planar face carrying an arc edge, does not clear.
 Pinned by `a_curved_notch_at_a_corner_pinch_builds_bodies_two_lanes_cannot_read_yet`
 (poses `0 0 0 ab I` and `9 4 4 ab S` undecidable, `0 0 0 ab U` one
 solid and clean): when this lane lands, flip those two expectations.
+
+## 2026-10-11 — touching pieces, where no separation clears (FLUSH)
+
+`sweep` `join1_delta_probes::join1_delta_arc_battery` (ignored,
+release): `ARC tri {half, quarter, shallow} d=(0.0, 0.5)
+zb=(0.5, 1.5) U` build at their closed forms, tiers 2 and the
+certificate green, a legal operand, and fail tier 3′ on this arm alone
+(main `bef9a8f1`, and `b65bc54d` before PR 4613). The triangle prism's
+apex edge `x = 0, y = 0.5` lies along the partner's face `y = 0.5`
+over `z ∈ [0.5, 1.5]`, so the two solids TOUCH along that segment, and
+every census finding is `CensusUndecidable { CurvedWithinReach }`: the
+triangle's two slanted faces against the partner's arc-bounded caps,
+and its cylinder wall (planar but not line-bounded counts as curved
+here). These pairs meet at the apex segment's ends, so no box or
+turned direction separates them at any pose: the arm needs a contact
+read for curved or arc-bounded faces, not a sharper separation test.
+The all-planar twin `ARC tri tri` passes 3′. The op's records of the
+touch are complete since FLUSH's `an-apex-edge-…` (PR on
+`flush/apex-edge-in-face-plane`): the bound records plus the apex
+edge's span against the face (or the collinear edge, `quarter`).

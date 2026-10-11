@@ -386,7 +386,7 @@ fn an_elliptical_ring_beside_a_hole_rim_refuses_unmetered() {
 /// the wall, which the subtract places as an ON event: in either order
 /// it builds at its closed form (the cube less the bore and the pocket's
 /// `0.02 × 0.2`), valid at tiers 3 and 3′, the pocket's floor vertex
-/// recorded touching the ruling. Its top face's boundary then passes
+/// recorded touching the ruling and its edge recorded along it. Its top face's boundary then passes
 /// through the rim vertex twice, so the rim's ring carries the pocket's
 /// edges, and a fillet of the rim alone refuses on that chain.
 #[test]
@@ -454,7 +454,7 @@ fn a_ring_pinched_to_a_rim_vertex_builds_and_its_rim_fillet_refuses() {
                 bb.contacts.vertex_edge().count(),
                 bb.contacts.edge_edge().count(),
             ),
-            (0, 0, 1, 0),
+            (0, 0, 1, 1),
             "{what}: [v-v, v-f, v-e, e-e] records"
         );
         let rim = rim_at(&body, 1.0, 0.2);

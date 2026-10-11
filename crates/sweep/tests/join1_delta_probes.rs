@@ -312,6 +312,79 @@ fn overlapping_lens_prisms_union_builds() {
     sweep::test_support::assert_legal_operand("lens ∪", &r.body().unwrap().body, tol());
 }
 
+/// **An edge lying in a face or along an edge is recorded** (D1): the
+/// triangle prism's apex edge `x = 0, y = 0.5` against a partner
+/// standing on `y = 0.5` over `z ∈ [0.5, 1.5]`. The partner's cap edges
+/// bound the apex edge's span on it, and the union records the span
+/// against what holds it: the partner's face `y = 0.5` (`tri`, `half`),
+/// or its corner edge along the apex (`quarter`). All planar, `tri tri`
+/// passes tier 3′ with the record confirmed; a curved partner's tier 3′
+/// is the cross-solid backstop's
+/// (`census-cross-solid-curved-pairs-undecidable-on-shell-results`).
+#[test]
+fn an_apex_edge_in_the_partners_face_is_recorded() {
+    let tri = [(0.5, 0.0, 0.0), (0.0, 0.5, 0.0), (-0.5, 0.0, 0.0)];
+    let half = [(0.5, 0.0, bulge(180.0)), (-0.5, 0.0, 0.0)];
+    let quarter = [(0.0, 0.0, 0.0), (0.5, 0.0, bulge(90.0)), (0.0, 0.5, 0.0)];
+    let a = zprism(&tri, (0.0, 0.0), (0.0, 2.0));
+    let on_apex = |p: geom_core::Point3<f64>| p.x.abs() < 1e-12 && (p.y - 0.5).abs() < 1e-12;
+    for (name, pb, along) in [
+        ("tri", &tri[..], false),
+        ("half", &half[..], false),
+        ("quarter", &quarter[..], true),
+    ] {
+        let b = zprism(pb, (0.0, 0.5), (0.5, 1.5));
+        let r = topo::union(&a, &b, tol()).unwrap();
+        let bb = r.body().unwrap();
+        let body = &bb.body;
+        let ends = |e| {
+            let d = body.get_edge(e).unwrap();
+            let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+            (
+                p(body.get_half_edge(d.he_plus).unwrap().start),
+                p(body.half_edge_end(d.he_plus).unwrap()),
+            )
+        };
+        let apex = |e| {
+            let (p, q) = ends(e);
+            on_apex(p) && on_apex(q) && (p.z - q.z).abs() > 2.0 - 1e-12
+        };
+        let holder = |c| match c {
+            topo::Cell::Face(f) => match body.get_surface(body.get_face(f).unwrap().surface) {
+                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                    !along && normal.x.abs() < 1e-12 && (origin.y - 0.5).abs() < 1e-12
+                }
+                _ => false,
+            },
+            topo::Cell::Edge(g) => {
+                let (p, q) = ends(g);
+                along && on_apex(p) && on_apex(q) && (p.z - q.z).abs() > 1.0 - 1e-12
+            }
+            topo::Cell::Vertex(_) => false,
+        };
+        let spans = bb
+            .contacts
+            .cell_pairs()
+            .filter(|&(x, y)| match (x, y) {
+                (topo::Cell::Edge(e), c) | (c, topo::Cell::Edge(e)) => apex(e) && holder(c),
+                _ => false,
+            })
+            .count();
+        assert_eq!(
+            spans, 1,
+            "tri ∪ {name}: one record of the apex edge's span against what holds it, in {:?}",
+            bb.contacts
+        );
+        if name == "tri" {
+            assert_eq!(
+                topo::validate_pseudomanifold(body, &bb.contacts, tol()),
+                Ok(()),
+                "tri ∪ tri: tier 3′ confirms the record"
+            );
+        }
+    }
+}
+
 /// The hexagon ∪ box corner-edge pose (`join1_r1_rows`) builds on the
 /// head with the minted chord restated on a smooth seam between two
 /// coplanar faces of different keys (`y = −0.5`). The row reads that

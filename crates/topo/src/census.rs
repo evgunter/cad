@@ -1159,7 +1159,7 @@ fn pair_verified<T: Decide>(
 /// further copies of the same match live outside the census
 /// (`merge_faces`, `validate`, `boolean::ops`); each answers its own
 /// question, not the snapshot's.
-fn edge_is_line<T: Real>(body: &Body<T>, ek: crate::entity::EdgeKey) -> bool {
+pub(crate) fn edge_is_line<T: Real>(body: &Body<T>, ek: crate::entity::EdgeKey) -> bool {
     body.edges
         .get(ek)
         .and_then(|e| body.curves.get(e.curve))

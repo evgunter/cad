@@ -43,3 +43,21 @@ lie at one point (the pinch's two kept vertices) and the edges'
 overlap. That comes from the carried record's lineage through the clip,
 not from geometry (the substitution door, `boolean::ops::carry`). When
 it does, the four pins turn green.
+
+## 2026-10-11 — the four witnesses pass 3′ (FLUSH, `flush/apex-edge-in-face-plane`)
+
+FLUSH's `an-apex-edge-…` made the carry record a line edge's span
+between two of its recorded bounds (`boolean::ops::record_spans`). So a
+body holding the contact as two coincident edges now carries their
+edge-edge record, not just its vertex bounds. The pair boolean's lineage
+of that record (`boolean::ops::ee_lineage`) splits it at the pierce and
+records the two kept vertices and the edges' overlap past the pinch,
+which is this row's owed record "from the carried record's lineage
+through the clip". Two lineage defects that the newly carried record
+reached are fixed in the same PR: a piece's end read off a null edge's
+copy, and two levered segment reads.
+
+`union_pinch_member_order`'s four pins (`plate ∩ blocks`, `plate ∖ X`,
+`X ∪ plate`, `plate ∪ X`) now assert `Ok` at 3′, and the helper that
+pinned the refusal is gone. Nothing of this row is left open by that
+measurement; its closing is WIRE's call.
