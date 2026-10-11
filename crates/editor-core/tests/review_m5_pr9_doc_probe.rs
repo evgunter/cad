@@ -18,9 +18,8 @@ use crate::fixture::{frame, len, len2, xy_frame};
 use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, DocEdit, EvalOptions, LoopProgram, Node, ProfileDoc,
-    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, ValuePayload, apply, evaluate, load,
-    save,
+    BooleanValue, CancelToken, DocEdit, EvalOptions, LoopProgram, Node, ProfileDoc, ProfileProgram,
+    ProgramStep, ProgramTarget, RecipeNodeId, ValuePayload, apply, evaluate, load, save,
 };
 use geom_core::Tol;
 
@@ -88,10 +87,8 @@ fn boss_union_doc() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>, RecipeNodeId) 
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
-    let union = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: plate.into(),
-        b: boss.into(),
+    let union = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
         declare: Vec::new(),
     });
     (r.doc, r.edits, union)

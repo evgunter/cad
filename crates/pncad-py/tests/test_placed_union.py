@@ -18,7 +18,6 @@ import unittest
 from pathlib import Path
 
 from pncad import (
-    BooleanOp,
     Bulge,
     Doc,
     DocEdit,
@@ -132,7 +131,7 @@ class TestTheFinGroup(unittest.TestCase):
             acc = (
                 placed
                 if acc is None
-                else chain_doc.insert(Node.boolean(BooleanOp.Union, acc, placed))
+                else chain_doc.insert(Node.union([acc, placed]))
             )
 
         group_doc = Doc()
@@ -294,7 +293,7 @@ def die_tool_document():
     # ---- the whole cutting tool, in ONE node ----
     tool = doc.insert(Node.placed_union_at(doc.output(ball, 0), pip_placements()))
     pipped = doc.insert(
-        Node.boolean(BooleanOp.Subtract, cube, tool)
+        Node.subtract(cube, tool)
     )
     # The pipped die is the product: placed once, last, as the corpus
     # document places it.
@@ -346,7 +345,7 @@ class TestTheDieTool(unittest.TestCase):
         # The claim itself, counted BY KIND — the mirror of
         # `crates/editor-core/tests/lib_placedunion.rs`'s
         # `the_die_tool_is_one_node_and_still_cuts`, which counts
-        # `Node::PlacedUnion` / `Node::Boolean{Union}` /
+        # `Node::PlacedUnion` / `Node::Union` /
         # `Node::Transform` over `doc.order()` and asserts (1, 0, 0).
         # The byte pin below still holds and its text still names
         # every node's kind; it is no longer what settles this, and a
@@ -356,13 +355,13 @@ class TestTheDieTool(unittest.TestCase):
         self.assertEqual(
             (
                 kinds.count("placed_union"),
-                kinds.count("boolean_union"),
+                kinds.count("union"),
                 kinds.count("transform"),
             ),
             (1, 0, 0),
         )
         self.assertEqual(doc.node_kind(tool), "placed_union")
-        self.assertEqual(doc.node_kind(pipped), "boolean_subtract")
+        self.assertEqual(doc.node_kind(pipped), "subtract")
 
         # An ordinary BODY out of the group — the property that lets a
         # boolean consume it at all.

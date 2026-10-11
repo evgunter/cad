@@ -42,7 +42,7 @@
 //!
 //! **The fillet is the last node**, so the count edit re-runs it on the
 //! part it changed. Its twelve edges are the union's edges that came
-//! through from the plate (`FromA`), selected once at five fins and
+//! through from the plate's read, selected once at five fins and
 //! stored by name. The fins' feet are rectangular rings of the plate's
 //! top face, and the blend meters each ring edge against each band's
 //! trimline before it carves: the fins stand 1/8 inside the long edges
@@ -63,7 +63,7 @@ use pncad::prelude::AuthoredNode;
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
+    Bodies, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
     LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId, RefusingReach, SlotId,
     ValuePayload, apply, evaluate, parse_formula,
 };
@@ -268,7 +268,7 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
     let declare = match seat {
         Seat::Sunk => Vec::new(),
         Seat::Flush => {
-            let found = find_flush_candidates(&eval(&doc, None, tol), base, group, tol)
+            let found = find_flush_candidates(&eval(&doc, None, tol), &doc, base, group, tol)
                 .expect("the fin feet are definite flush pairs");
             // The inspection: one resting contact per fin, the base top
             // against that fin's foot.
@@ -285,20 +285,21 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
     };
     let union = insert(
         &mut doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: base.into(),
-            b: group.into(),
+        Node::Union {
+            members: Bodies::Spelled(vec![base.into(), group.into()]),
             declare,
         },
         tol,
     );
     // The plate's twelve edges on the unioned part: the union's edges
-    // that came through from operand A.
+    // that came through from the plate's read.
     let edges = select(
         &eval(&doc, None, tol),
         union,
-        &Selector::of(NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::FromA))),
+        &Selector::of(
+            NamePat::of_kind(EntityKind::Edge)
+                .seg(SegPat::tag(SegTag::From).of([NamePat::any().node(base)])),
+        ),
     );
     assert_eq!(edges.len(), 12, "the plate's edges: {edges:#?}");
     let solid = insert(&mut doc, Node::fillet(union, pe(RADIUS), edges), tol);
