@@ -58,7 +58,9 @@ pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
     sub_segment,
 };
-pub use hull::{CoeffWindow, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf};
+pub use hull::{
+    CoeffWindow, Derived, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf,
+};
 pub use knot_values::{KnotSpan, Knots};
 pub use knots::{
     KnotMirrorError, KnotVector, KnotVectorIssue, Span, SplineError, derivative_knot_slice,

@@ -3645,7 +3645,7 @@ pub(crate) mod tests {
     /// different surface's bound. The rational arm never had a
     /// whole-net counterpart — it has always been a fold.
     pub(crate) fn whole_net_bound(s: &NurbsSurface<f64>) -> Option<NurbsFaceBound> {
-        use geom_core::spline::TensorCoeffs;
+        use geom_core::spline::{Derived, KnotVector, TensorCoeffs, TensorNet};
         assert!(
             !patch_bound::is_rational(s),
             "the whole-net spelling is the integral arm's; a rational face has no such arm"
@@ -3656,6 +3656,17 @@ pub(crate) mod tests {
         let nv = kv_v.control_count();
         let zero = Interval::zero();
         let mut sq = [zero; 5];
+        // Past `check_direction`, a derivative is a vector or one
+        // span's constant, whose second partial is zero; a
+        // discontinuous one is a broken premise, said loudly.
+        let (der_u, der_v) = (kv_u.derived(), kv_v.derived());
+        let second = |d: &Derived<'_>, diff: &dyn Fn(&KnotVector) -> TensorNet| match d {
+            Derived::Vector(k) => diff(k).hull(),
+            Derived::SpanConstant(_) => zero,
+            Derived::Discontinuous(_) => {
+                panic!("a discontinuous derivative past check_direction")
+            }
+        };
         for c in 0..3 {
             let base = TensorCoeffs::from_fn(kv_u, kv_v, |i, j| {
                 let p = s.control()[i * nv + j];
@@ -3665,27 +3676,9 @@ pub(crate) mod tests {
                     _ => p.z,
                 })
             });
-            // `check_direction` admits a degree-1 direction only without
-            // interior knots and a higher one only below full
-            // multiplicity, so on this unrefined net `derivative_*` is
-            // `None` exactly at degree 1, where the second partial is
-            // zero. Any other `None` is a broken premise, said loudly.
-            let second = |h: Option<Interval>, degree: usize| match h {
-                Some(h) => h,
-                None if degree == 1 => zero,
-                None => {
-                    panic!("a degree-{degree} direction past check_direction has no derived vector")
-                }
-            };
             let (d10, d01, d11) = (base.diff_u(), base.diff_v(), base.diff_uv());
-            let g20 = second(
-                base.derivative_u().map(|d| d.diff_u().hull()),
-                kv_u.degree(),
-            );
-            let g02 = second(
-                base.derivative_v().map(|d| d.diff_v().hull()),
-                kv_v.degree(),
-            );
+            let g20 = second(&der_u, &|k| d10.diff_u(|l| k.difference_coeffs(l)));
+            let g02 = second(&der_v, &|k| d01.diff_v(|l| k.difference_coeffs(l)));
             for (slot, h) in sq
                 .iter_mut()
                 .zip([g20, d11.hull(), g02, d10.hull(), d01.hull()])

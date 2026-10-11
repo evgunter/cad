@@ -99,10 +99,10 @@ use std::ops::RangeInclusive;
 use geom::surfaces::NurbsSurface;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, norm_sup};
-use geom_core::spline::KnotVector;
 use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::compose::tensor::coefficient_norm_sup;
 use geom_core::spline::net::{TensorChannels, TensorCoeffs, TensorNet};
+use geom_core::spline::{Derived, KnotVector};
 
 /// The fixed refinement schedule of the RATIONAL arm: every nonempty
 /// span of every direction splits into this many equal pieces before
@@ -376,21 +376,15 @@ fn refine_split<'s, const C: usize>(
 /// [`PatchBoundError::DegreeZero`], [`PatchBoundError::Degree1Crease`],
 /// [`PatchBoundError::Crease`].
 pub fn check_direction(kv: &KnotVector) -> Result<(), PatchBoundError> {
-    let p = kv.degree();
-    if p == 0 {
+    if kv.degree() == 0 {
         return Err(PatchBoundError::DegreeZero);
     }
-    if p == 1 {
-        return if kv.interior_knots().next().is_none() {
-            Ok(())
-        } else {
-            Err(PatchBoundError::Degree1Crease)
-        };
+    match kv.derived() {
+        Derived::Vector(_) => Ok(()),
+        Derived::SpanConstant(breaks) if breaks.len() == 2 => Ok(()),
+        Derived::SpanConstant(_) => Err(PatchBoundError::Degree1Crease),
+        Derived::Discontinuous(_) => Err(PatchBoundError::Crease),
     }
-    if kv.interior_knots().any(|(_, m)| m > p - 1) {
-        return Err(PatchBoundError::Crease);
-    }
-    Ok(())
 }
 
 /// The interior split points of the fixed rational refinement
@@ -511,21 +505,24 @@ enum Second {
 }
 
 impl Second {
-    /// The second partial along a direction of degree `degree`, from
-    /// its derivative pair's differenced net (`None` where that pair
-    /// does not exist).
+    /// The second partial along a direction whose derivative is
+    /// `derived`, `diff` differencing the first partial's net along that
+    /// derivative's vector.
     ///
     /// # Errors
     ///
-    /// [`PatchBoundError::DerivedKnots`] when `degree ≥ 2` and the
-    /// derived vector is not clamped — a multiplicity the C¹ gate never
-    /// saw, which equal-split refinement can raise when its split points
-    /// collide on a span a few ulps wide.
-    fn of(degree: usize, derived: Option<Net>) -> Result<Self, PatchBoundError> {
+    /// [`PatchBoundError::DerivedKnots`] at [`Derived::Discontinuous`]
+    /// — a multiplicity the C¹ gate never saw, which equal-split
+    /// refinement can raise when its split points collide on a span a
+    /// few ulps wide.
+    fn of(
+        derived: Derived<'_>,
+        diff: impl FnOnce(&KnotVector) -> Net,
+    ) -> Result<Self, PatchBoundError> {
         match derived {
-            Some(net) => Ok(Self::Net(net)),
-            None if degree == 1 => Ok(Self::Zero),
-            None => Err(PatchBoundError::DerivedKnots),
+            Derived::Vector(kv) => Ok(Self::Net(diff(&kv))),
+            Derived::SpanConstant(_) => Ok(Self::Zero),
+            Derived::Discontinuous(_) => Err(PatchBoundError::DerivedKnots),
         }
     }
 
@@ -558,18 +555,19 @@ impl DNets {
     ///
     /// As [`Second::of`].
     fn build(base: &TensorCoeffs<'_>) -> Result<Self, PatchBoundError> {
+        let (d10, d01) = (base.diff_u(), base.diff_v());
+        let d20 = Second::of(base.knots_u().derived(), |k| {
+            d10.diff_u(|line| k.difference_coeffs(line))
+        })?;
+        let d02 = Second::of(base.knots_v().derived(), |k| {
+            d01.diff_v(|line| k.difference_coeffs(line))
+        })?;
         Ok(Self {
-            d10: base.diff_u(),
-            d01: base.diff_v(),
+            d10,
+            d01,
             d11: base.diff_uv(),
-            d20: Second::of(
-                base.knots_u().degree(),
-                base.derivative_u().map(|t| t.diff_u()),
-            )?,
-            d02: Second::of(
-                base.knots_v().degree(),
-                base.derivative_v().map(|t| t.diff_v()),
-            )?,
+            d20,
+            d02,
         })
     }
 }

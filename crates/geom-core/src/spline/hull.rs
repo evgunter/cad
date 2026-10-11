@@ -544,35 +544,67 @@ impl KnotVector {
         })
     }
 
-    /// The vector of this one's derivative — the outer knot pair
-    /// dropped, degree one less ([`KnotVector::derivative_knot_slice`])
-    /// — or `None` when that is not a clamped vector: degree 1 (a
-    /// degree-0 vector is refused; the partial is
-    /// [`KnotVector::span_constant_breaks`]'s instead), or an interior
-    /// knot of multiplicity equal to the degree, where the derivative
-    /// is discontinuous.
-    pub fn derivative(&self) -> Option<KnotVector> {
-        KnotVector::clamped(self.derivative_knot_slice().to_vec(), self.degree() - 1).ok()
+    /// This vector's derivative, by cause: [`Derived`].
+    pub fn derived(&self) -> Derived<'_> {
+        let slice = self.derivative_knot_slice();
+        if self.degree() == 1 {
+            return Derived::SpanConstant(slice);
+        }
+        match KnotVector::clamped(slice.to_vec(), self.degree() - 1) {
+            Ok(kv) => Derived::Vector(kv),
+            Err(_) => Derived::Discontinuous(slice),
+        }
     }
 
-    /// **A degree-1 vector's partial, as per-span constants** — the
-    /// derivative [`KnotVector::derivative`] has no vector for. Its
-    /// value on `breaks[i] .. breaks[i + 1]` is difference coefficient
-    /// `i` ([`KnotVector::difference_coeffs`]), where `breaks` is the
-    /// returned slice ([`KnotVector::derivative_knot_slice`]): the
-    /// vector's breakpoints, strictly ascending (a degree-1 interior
-    /// multiplicity is 1), one more than the difference coefficients.
-    /// `None` at degree ≥ 2.
-    #[must_use]
-    pub fn span_constant_breaks(&self) -> Option<&[f64]> {
-        (self.degree() == 1).then(|| self.derivative_knot_slice())
+    /// The vector of this one's derivative, where it has one
+    /// ([`Derived::Vector`]).
+    pub fn derivative(&self) -> Option<KnotVector> {
+        self.derived().vector()
+    }
+}
+
+/// A derivative, by the structure of its knots. The outer knot pair
+/// dropped and the degree one less
+/// ([`KnotVector::derivative_knot_slice`]) is a clamped vector, or one
+/// of the two structures [`KnotVector::clamped`] refuses.
+#[derive(Clone, Debug)]
+pub enum Derived<'a, V = KnotVector> {
+    /// A clamped vector, or what a door builds on it.
+    Vector(V),
+    /// Degree 1: the derivative is constant on each span. Difference
+    /// coefficient `i` is its value on `breaks[i] .. breaks[i + 1]`,
+    /// `breaks` strictly ascending.
+    SpanConstant(&'a [f64]),
+    /// Degree ≥ 2 with an interior knot of multiplicity equal to the
+    /// degree: a degree `p − 1` spline on this raw knot list,
+    /// discontinuous at that knot.
+    Discontinuous(&'a [f64]),
+}
+
+impl<'a, V> Derived<'a, V> {
+    /// The [`Derived::Vector`] payload, `None` at the other two.
+    pub fn vector(self) -> Option<V> {
+        match self {
+            Self::Vector(v) => Some(v),
+            Self::SpanConstant(_) | Self::Discontinuous(_) => None,
+        }
+    }
+
+    /// The same cause, with `f` applied to a [`Derived::Vector`]
+    /// payload.
+    pub fn map<W>(self, f: impl FnOnce(V) -> W) -> Derived<'a, W> {
+        match self {
+            Self::Vector(v) => Derived::Vector(f(v)),
+            Self::SpanConstant(b) => Derived::SpanConstant(b),
+            Self::Discontinuous(k) => Derived::Discontinuous(k),
+        }
     }
 }
 
 /// A [`SplineCoeffs`] that owns both halves: the coefficient array and
 /// the knot vector it is a proof about, held together so a derivative
 /// level travels as one value. Minted only by
-/// [`SplineCoeffs::derivative`], whose coefficients have the derivative
+/// [`SplineCoeffs::derived`], whose coefficients have the derivative
 /// vector's control count by the knot-difference formula — so
 /// [`SplineCoeffsBuf::pair`] needs no check.
 #[derive(Clone)]
@@ -621,8 +653,14 @@ impl<'a, E: CertifiedBounds> SplineCoeffs<'a, E> {
     /// derivative). A caller that wants the coefficients regardless
     /// reads [`SplineCoeffs::derivative_coeffs`].
     pub fn derivative(self) -> Option<SplineCoeffsBuf<Interval>> {
-        Some(SplineCoeffsBuf {
-            knots: self.knots.derivative()?,
+        self.derived().vector()
+    }
+
+    /// The derivative by cause ([`KnotVector::derived`]), the
+    /// [`Derived::Vector`] arm carrying the pair.
+    pub fn derived(self) -> Derived<'a, SplineCoeffsBuf<Interval>> {
+        self.knots.derived().map(|knots| SplineCoeffsBuf {
+            knots,
             coeffs: self.derivative_coeffs(),
         })
     }
@@ -928,5 +966,57 @@ impl<E: CertifiedBounds> RationalWindow<'_, E> {
             span: self.span,
         }
         .hull()
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::{Derived, KnotVector};
+    use crate::interval::certification::Certification;
+
+    fn kv(knots: &[f64], p: usize) -> KnotVector {
+        KnotVector::clamped(knots.to_vec(), p).unwrap()
+    }
+
+    /// **Each cause of a derivative is its own variant.** On the
+    /// polyline through `(0, 0), (0.5, 1), (1, 1)` the breaks are the
+    /// vector's own breakpoints and difference coefficient `i` is the
+    /// slope on span `i` — 2, then 0; a C¹ quadratic has a clamped
+    /// derived vector; a quadratic with a double interior knot is
+    /// discontinuous there, on the raw list with one outer pair dropped.
+    #[test]
+    fn a_derivative_splits_into_vector_span_constant_and_discontinuous() {
+        let line = kv(&[0.0, 0.0, 0.5, 1.0, 1.0], 1);
+        let Derived::SpanConstant(breaks) = line.derived() else {
+            panic!("degree 1 read as {:?}", line.derived());
+        };
+        assert_eq!(breaks, [0.0, 0.5, 1.0], "the breaks");
+        let slopes = line.difference_coeffs(&[0.0, 1.0, 1.0]);
+        assert_eq!(slopes.len() + 1, breaks.len(), "one constant per span");
+        for (i, want) in [2.0, 0.0].into_iter().enumerate() {
+            assert!(
+                slopes[i].contains(want),
+                "span {i}: {:?} misses slope {want}",
+                slopes[i]
+            );
+        }
+
+        let smooth = kv(&[0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2);
+        let Derived::Vector(d) = smooth.derived() else {
+            panic!("a C¹ quadratic read as {:?}", smooth.derived());
+        };
+        assert_eq!(
+            (d.knots(), d.degree()),
+            (&[0.0, 0.0, 0.5, 1.0, 1.0][..], 1),
+            "the derived vector"
+        );
+
+        let kinked = kv(&[0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2);
+        let Derived::Discontinuous(raw) = kinked.derived() else {
+            panic!("a double knot at degree 2 read as {:?}", kinked.derived());
+        };
+        assert_eq!(raw, [0.0, 0.0, 0.5, 0.5, 1.0, 1.0], "the raw list");
+        assert!(kinked.derivative().is_none(), "no clamped vector");
     }
 }

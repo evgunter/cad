@@ -158,8 +158,8 @@ use geom_core::spline::algebra;
 use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{
-    CoeffWindow, KnotVector, Param, ParamRange, RingRefinement, SplineCoeffs, SplineCoeffsBuf,
-    TensorChannels, last_at_or_below,
+    CoeffWindow, Derived, KnotVector, Param, ParamRange, RingRefinement, SplineCoeffs,
+    SplineCoeffsBuf, TensorChannels, last_at_or_below,
 };
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
@@ -1111,10 +1111,17 @@ enum Level {
 impl Level {
     /// The derivative of `pair`, as a level.
     fn of(pair: SplineCoeffs<'_, Interval>) -> Self {
-        match pair.derivative() {
-            Some(buf) => Self::Spline(buf),
-            None => Self::Loose(Loose::below(pair.knots()), pair.derivative_coeffs()),
-        }
+        let loose = match pair.derived() {
+            Derived::Vector(buf) => return Self::Spline(buf),
+            Derived::SpanConstant(breaks) => Loose::Const {
+                knots: breaks.to_vec(),
+            },
+            Derived::Discontinuous(raw) => Loose::Raw {
+                knots: raw.to_vec(),
+                degree: pair.knots().degree() - 1,
+            },
+        };
+        Self::Loose(loose, pair.derivative_coeffs())
     }
 
     /// The level below, where this one is not per-span constant.
@@ -1447,22 +1454,16 @@ enum Loose {
 }
 
 impl Loose {
-    /// The structure of a derivative of degree `degree` on the raw knot
-    /// list `knots`, where no clamped vector spells it: [`Loose::Raw`]
-    /// at degree ≥ 1, [`Loose::Const`] at 0. The one place that is
-    /// decided.
+    /// The structure of a [`Loose::Raw`] level's derivative, of degree
+    /// `degree` on the raw knot list `knots`: [`Loose::Raw`] at degree
+    /// ≥ 1, [`Loose::Const`] at 0. A [`KnotVector`]'s own derivative is
+    /// [`KnotVector::derived`]'s.
     fn of(knots: Vec<f64>, degree: usize) -> Self {
         if degree >= 1 {
             Self::Raw { knots, degree }
         } else {
             Self::Const { knots }
         }
-    }
-
-    /// The derivative structure of `kv` where [`KnotVector::derivative`]
-    /// has none.
-    fn below(kv: &KnotVector) -> Self {
-        Self::of(kv.derivative_knot_slice().to_vec(), kv.degree() - 1)
     }
 
     /// The structure one derivative down and the line step onto it, or
@@ -1680,9 +1681,16 @@ impl PatchGrid {
     fn step(dir: &Dir) -> Option<(Dir, DerivTake)> {
         match dir {
             Dir::Kv(kv) => {
-                let below = kv
-                    .derivative()
-                    .map_or_else(|| Dir::Loose(Loose::below(kv)), Dir::Kv);
+                let below = match kv.derived() {
+                    Derived::Vector(k) => Dir::Kv(k),
+                    Derived::SpanConstant(breaks) => Dir::Loose(Loose::Const {
+                        knots: breaks.to_vec(),
+                    }),
+                    Derived::Discontinuous(raw) => Dir::Loose(Loose::Raw {
+                        knots: raw.to_vec(),
+                        degree: kv.degree() - 1,
+                    }),
+                };
                 let kv = kv.clone();
                 // The one knot-vector step (`TensorCoeffs`'s too).
                 Some((
