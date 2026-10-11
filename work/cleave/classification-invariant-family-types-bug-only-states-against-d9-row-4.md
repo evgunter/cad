@@ -89,3 +89,20 @@ branch:
     reaches `Distinct` at that reach. That is now a typed refusal on the
     bounds' margin (`recl::unglued_tilt`). Its own `Ok` arm ("a sector
     bound read On departs definitely from the other's plane") is bug-only.
+
+## Evidence: the fourth near-tangent site (branch `cleave/single-on-edge-record`, 2026-10-11)
+
+`boolean/recl.rs` `resolve_edge_sector`, "single-on-edge crossing
+without a flanking record": 36 runs of the `w345` prism at ε = 1e-12
+(`single-on-edge-crossing-without-a-flanking-record-at-1e-12`), and the
+census's only `ClassificationInvariant` left after PR 4581. Reachable by
+valid input, not bug-only: the fold rule names the flanker nearly
+coplanar with the reference, and `pair_search` reads that pair off its
+planes' common line, which swings off the shared edge by the edge's
+in-band offset over the planes' sine. The `Yes` cell now mints the
+pair's record, as the edge-edge rule does, so that arm no longer
+refuses. The arm left (a `Rule` or `NotRule` cell with no record of
+its flanker) is reached by no census row, and the minting argument does
+not hold there, because a flanker coplanar with the reference holds the
+bound without the ray needing to lie in the reference. It is a row 4
+candidate.

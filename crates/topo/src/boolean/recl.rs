@@ -25,7 +25,9 @@
 //! the rule to its OWN flankers' membership keys, apart: the germ's
 //! record is the pair of the two solids' transition flankers, minted
 //! when `pair_search` met no such pair (two coplanar flankers touching
-//! along the edge never make a record of their own). An edge two
+//! along the edge never make a record of their own). An edge-sector
+//! crossing's record is minted the same way where the search did not
+//! meet the fold flanker (`resolve_edge_sector`). An edge two
 //! crossing pairs at one vertex both run a germ along folds Out in
 //! each ([`Reversed`]).
 //!
@@ -796,7 +798,9 @@ pub(super) fn recl_edges<T: Decide>(
                     true,
                     am.start_holder,
                     bm.map(|m| m.start_holder),
-                )?,
+                )?
+                .map(|germ| germ.place(records, first_read, &marked))
+                .transpose()?,
                 (am, Some(bm)) if bm.real => resolve_edge_sector(
                     records,
                     a_sectors,
@@ -809,7 +813,9 @@ pub(super) fn recl_edges<T: Decide>(
                     false,
                     bm.start_holder,
                     am.map(|m| m.start_holder),
-                )?,
+                )?
+                .map(|germ| germ.place(records, first_read, &marked))
+                .transpose()?,
                 (am, bm) => resolve_bisector_graze(
                     records,
                     a_sectors,
@@ -927,18 +933,32 @@ fn reflank(idx: usize, codes: (SideCode, SideCode), n: usize) -> (usize, (SideCo
     }
 }
 
-/// Where an edge-edge event's germ goes.
+/// Where an on-edge event's germ goes.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum EdgeGerm {
-    /// On this flanking record as it stands (a declared-`Tangent`
-    /// flank, whose records carry the second-order sides).
+    /// On this flanking record as it stands.
     Held(usize),
-    /// On the record of this sector pair with these codes as read: each
-    /// solid's own fold flanker, the edge On at its bound.
+    /// On the record of this sector pair with these codes as read: the
+    /// fold flanker, the edge On at its bound.
     Folded(PairRecord),
 }
 
-/// Puts an edge-edge germ on the record of its sector pair, minting the
+impl EdgeGerm {
+    /// The index of the record the germ goes on ([`place_germ`]).
+    fn place(
+        self,
+        records: &mut Vec<PairRecord>,
+        first_read: &mut Vec<PairRecord>,
+        marked: &[usize],
+    ) -> Result<usize, BooleanError> {
+        match self {
+            Self::Held(g) => Ok(g),
+            Self::Folded(germ) => place_germ(records, first_read, marked, germ),
+        }
+    }
+}
+
+/// Puts a folded germ on the record of its sector pair, minting the
 /// record when `pair_search` met no such pair, with its codes as read
 /// (the edge On at its bound) in both arrays; `mark_germ` folds them.
 /// Returns the record's index.
@@ -958,7 +978,7 @@ fn place_germ(
 ) -> Result<usize, BooleanError> {
     match records.iter().position(|r| r.a == germ.a && r.b == germ.b) {
         Some(g) if marked.contains(&g) => Err(BooleanError::ClassificationInvariant {
-            what: "an edge-edge germ's sector pair already holds another event's germ",
+            what: "a germ's sector pair already holds another event's germ",
         }),
         Some(g) => {
             records[g] = germ;
@@ -1364,7 +1384,7 @@ fn resolve_edge_sector<T: Decide>(
     a_side: bool,
     f_s: usize,
     other_holder: Option<usize>,
-) -> Result<Option<usize>, BooleanError> {
+) -> Result<Option<EdgeGerm>, BooleanError> {
     let (own_secs, ref_secs): (&[BoolSector<T>], &[BoolSector<T>]) = if a_side {
         (a_sectors, b_sectors)
     } else {
@@ -1436,22 +1456,40 @@ fn resolve_edge_sector<T: Decide>(
     for (flank, verdict) in [(f_s, v1), (f_e, v2)] {
         if resolve_verdict(verdict, op, comparison, relation) {
             let flank = germ_flank(flank, verdict);
-            let (ra, rb) = if a_side {
-                (flank, ref_idx)
-            } else {
-                (ref_idx, flank)
-            };
+            let pair = |r: usize| if a_side { (flank, r) } else { (r, flank) };
             // The germ may live on either twin of a subdivided
             // reference; try the recorded twin then its partner.
             let n_ref = ref_secs.len();
             let alt = (ref_idx + n_ref - 1) % n_ref;
-            let g = find_on_record(records, ra, rb).or_else(|| {
-                let (ra2, rb2) = if a_side { (flank, alt) } else { (alt, flank) };
-                find_on_record(records, ra2, rb2)
+            let held = [ref_idx, alt].into_iter().find_map(|r| {
+                let (ra, rb) = pair(r);
+                find_on_record(records, ra, rb)
             });
-            return g.map(Some).ok_or(BooleanError::ClassificationInvariant {
-                what: "single-on-edge crossing without a flanking record",
-            });
+            if let Some(g) = held {
+                return Ok(Some(EdgeGerm::Held(g)));
+            }
+            // Both of a `Yes` cell's flankers read their other bound off
+            // the reference's plane, and the reference met one of them
+            // along the on-bound they share, so it meets the other there
+            // too. `pair_search` reads that pair off its planes' common
+            // line, which for a flanker nearly coplanar with the
+            // reference swings off the bound by the bound's in-band
+            // offset over the planes' sine: the record is the pair as
+            // its codes read it, whether or not the search met it.
+            if verdict != super::tables::TableIiVerdict::Yes {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "single-on-edge crossing without a flanking record",
+                });
+            }
+            let (a, b) = pair(ref_idx);
+            let (sa, sb) = super::sectors::pair_codes(&a_sectors[a], &b_sectors[b], band)?;
+            return Ok(Some(EdgeGerm::Folded(PairRecord {
+                a,
+                b,
+                sa,
+                sb,
+                intersect: true,
+            })));
         }
     }
     Ok(None)

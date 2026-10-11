@@ -8,6 +8,14 @@
 //! input, at ε = 1e-9, 1e-6 and 1e-12: a static fixture, so each row's
 //! own poses are in the list whichever row runs it.
 //!
+//! - **A crossing along an edge folded onto a flanker the search never
+//!   paired** (`boolean/recl.rs` `resolve_edge_sector`): the wedge's face
+//!   holds the cube's edge, and the cube face beside it lies `d` rad off
+//!   that face. The fold rule puts the crossing on that nearly coplanar
+//!   flanker, whose pair with the wedge's face `pair_search` reads off the
+//!   two planes' common line, which swings off the edge by the edge's
+//!   in-band offset over `d`. The record is that pair as its codes read it.
+//!
 //! - **An unglued corner pair read one carrier at the corner and apart
 //!   at the origin** (`boolean/recl.rs` `require_same`,
 //!   `boolean/vtxfac.rs`' coplanar lump). The pair is read about the
@@ -30,8 +38,8 @@ use crate::common::differential::{nt_cube, nt_prisms};
 /// `(prism, edge, sixteenths, tilt)`: the census's `"{prism} nt e{edge}
 /// a{sixteenths} d{tilt}"`, each beside the site it refused at and the
 /// ε row: `germ` the pierce germ, `coplanar` the coplanar lump, `recl`
-/// the ON sector pair.
-const POSES: [(&str, usize, u32, f64); 28] = [
+/// the ON sector pair, `edge` the edge-sector crossing.
+const POSES: [(&str, usize, u32, f64); 37] = [
     ("Lbot", 0, 12, -1e-9),    // germ, ε = 1e-9
     ("Lmirror", 0, 12, -1e-9), // germ, ε = 1e-9
     ("Ltop", 0, 12, -1e-9),    // germ, ε = 1e-9
@@ -60,6 +68,15 @@ const POSES: [(&str, usize, u32, f64); 28] = [
     ("w60", 1, 11, -1e-7),     // recl, ε = 1e-12
     ("convex", 0, 4, 1e-5),    // recl, ε = 1e-9
     ("Ltop", 0, 12, 1e-9),     // germ, ε = 1e-9
+    ("w345", 1, 12, 1e-7),     // edge, ε = 1e-12
+    ("w345", 1, 12, 1e-8),     // edge, ε = 1e-12
+    ("w345", 1, 12, 1e-9),     // edge, ε = 1e-12
+    ("w345", 1, 3, -1e-7),     // edge, ε = 1e-12
+    ("w345", 1, 3, -1e-8),     // edge, ε = 1e-12
+    ("w345", 1, 3, -1e-9),     // edge, ε = 1e-12
+    ("w345", 1, 11, -1e-7),    // edge, ε = 1e-12
+    ("w345", 1, 11, -1e-8),    // edge, ε = 1e-12
+    ("w345", 1, 11, -1e-9),    // edge, ε = 1e-12
 ];
 
 /// `(prism, edge, sixteenths, tilt, run)` at ε = 1e-12: the runs that
@@ -127,6 +144,12 @@ const GERM_WITNESSES: [(&str, usize, u32, f64); 5] = [
     ("Ltop", 0, 12, 1e-9),
     ("Lbot", 0, 12, -1e-6),
 ];
+
+/// The census's poses where the crossing along the cube's edge folds onto
+/// the flanker `pair_search` never paired, and every run builds sound at
+/// ε = 1e-12: a germ left off that flanker's record refuses them, and one
+/// recorded with codes read off another pair ships them wrong.
+const EDGE_WITNESSES: [(&str, usize, u32, f64); 2] = [("w345", 1, 12, 1e-7), ("w345", 1, 12, 1e-8)];
 
 /// A pose, one of its runs, and the findings that run ships.
 type Shipped = (
@@ -268,6 +291,26 @@ fn near_tangent_pierce_poses_build_their_closed_form_or_refuse_typed() {
 fn the_pierce_germs_witnesses_build_every_run() {
     let tol = Tol::witness();
     for pose in GERM_WITNESSES {
+        let (wrong, built) = check_pose(pose, tol);
+        assert!(
+            wrong.is_empty() && built == 6,
+            "{pose:?}: {built} of 6 built:\n{}",
+            wrong.join("\n")
+        );
+    }
+}
+
+#[test]
+fn the_edge_sector_witnesses_build_every_run_at_1e_12() {
+    let tol = Tol::witness();
+    if (tol.eps() - 1e-12).abs() > 1e-24 {
+        println!(
+            "SKIPPED at this ε: the edge-sector witnesses fold their crossing onto an unpaired \
+             flanker at ε = 1e-12 only"
+        );
+        return;
+    }
+    for pose in EDGE_WITNESSES {
         let (wrong, built) = check_pose(pose, tol);
         assert!(
             wrong.is_empty() && built == 6,

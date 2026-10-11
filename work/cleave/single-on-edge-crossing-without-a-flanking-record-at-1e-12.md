@@ -40,3 +40,46 @@ bound `(0, −0.995, −0.098)` that the near face holds to within 1e-8 rad.
 Find which of the two readings of that bound is wrong (the flank keys'
 `side_code` at its reach, or the record `pair_search` minted), and make
 them one; PR 4177 changed this file's flanker decisions on 2026-10-06.
+
+## Built (branch `cleave/single-on-edge-record`)
+
+Re-measured on main at `6a304186a8` (after PR 4581): the census's only
+`ClassificationInvariant` left, at any of ε = 1e-9, 1e-6 and 1e-12, is
+this one, the same 36 runs at 1e-12.
+
+**Cause: the record `pair_search` minted was the wrong reading.** At
+`w345 nt e1 a12 d1e-8 pc`, both vertices are edge points: the prism's
+vertical edge crosses the cube's edge, the prism face `a2` (`x = 2`)
+holds the cube's edge to 8.8e-16 m (read On), and the cube face `b3`
+lies 1e-8 rad off `a2`. `pair_search` reads the pair `(a2, b3)` off
+`n̂_a × n̂_b`, which at that tilt swings 4.5e-8 rad off the edge (the
+edge's offset over the planes' sine), and `within(b3, ±d)` reads it
+definitely outside at the arm (`−6.6e-8`). So the only record carrying
+the edge is `(a2, b0)`, Table II's named flanker, while the fold rule
+puts the crossing on `b3`, where both flankers' keys say it is.
+
+**Fix** (`boolean/recl.rs` `resolve_edge_sector`): a `Yes` cell whose
+fold flanker has no record mints it, the pair's codes read by
+`pair_codes`, through `place_germ`, as the edge-edge rule already
+does. Both flankers hold the on-bound, and the reference met one of
+them along it, so it meets the other there too.
+
+Census after, every ε row against main: only the 36 runs move. 12
+build sound at their closed forms (`a12 d1e-7`, `d1e-8`, every op and
+order), 18 refuse `Escalated Coincidence(Carriers)` as their other
+order already did on main (`a3`, `a11` at `d = −1e-7…−1e-9`, `cp`), and
+6 refuse `Escalated Coincidence(SectorSide)` (`a12 d1e-9`: the wedge's
+bisector reads 5.2e-11 m off the cube face, within the band).
+
+Pinned in `crates/sweep/tests/near_tangent_pierce_poses.rs`: the nine
+poses join `POSES` (every row: closed form, tier 3′, no kernel-defect
+refusal), and `the_edge_sector_witnesses_build_every_run_at_1e_12`
+requires `a12 d1e-7` and `d1e-8` to build all six runs.
+
+Not taken: reading the common line off a bound read On inside
+`pair_search` itself. Measured, it moved 240 runs at ε = 1e-6 that
+built or answered empty to `Escalated Coincidence(Sectors)` (the On bound's membership is
+read in band where `d`'s was definite) and 24 at 1e-12 to
+`ClassificationInvariant "germ direction not uniquely within its
+sector pair"` (`insert::germ_dir` re-reads the noisy `d` on the extra
+records).
