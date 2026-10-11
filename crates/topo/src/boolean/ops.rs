@@ -8100,7 +8100,7 @@ mod holder_rows {
     #[test]
     fn a_rest_in_band_of_the_plane_escalates() {
         let (mut body, top, other) = divided();
-        let v = lone(&mut body, 1.5, 0.5, 1.0 + 3e-9);
+        let v = lone(&mut body, 1.5, 0.5, 1.0 + 3.0 * band().zero());
         assert!(
             matches!(
                 carried(&body, v, top, vec![(other, top)]),
