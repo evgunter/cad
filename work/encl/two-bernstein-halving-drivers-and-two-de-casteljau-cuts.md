@@ -2,7 +2,8 @@
 id: two-bernstein-halving-drivers-and-two-de-casteljau-cuts
 kind: issue
 title: Two Bernstein halving drivers with different stop rules, and two de Casteljau sub-row cuts
-status: review
+status: closed
+closed: 2026-10-11
 branch: encl/one-halving-driver
 opened: 2026-10-10
 refs: [refined-sign-and-limb-two-subdivide-halve-by-two-loops]
