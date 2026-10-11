@@ -1519,7 +1519,7 @@ pub struct NurbsLane<T: Real> {
         )
             -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal>,
     /// [`crate::nurbs_pair_limbs`] at `T`.
-    pair: fn(
+    pair_limbs: fn(
         &geom::NurbsCurve3<T>,
         &geom::NurbsSurface<T>,
         &geom::NurbsSurface<T>,
@@ -1551,7 +1551,7 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
     pub const fn certified() -> Self {
         Self {
             limbs: crate::edge_nurbs::plane_nurbs_limbs::<T>,
-            pair: crate::edge_nurbs::nurbs_pair_limbs::<T>,
+            pair_limbs: crate::edge_nurbs::nurbs_pair_limbs::<T>,
             analytic_rung3: crate::edge_nurbs::analytic_rung3::<T>,
             foot: Self::seeded_foot,
         }
@@ -1584,7 +1584,7 @@ impl<T: Real> NurbsLane<T> {
 
     /// The lane's limbs for a declared carrier between two spline charts
     /// ([`crate::nurbs_pair_limbs`]).
-    fn pair(
+    fn pair_limbs(
         self,
         carrier: &geom::NurbsCurve3<T>,
         a: &geom::NurbsSurface<T>,
@@ -1592,7 +1592,7 @@ impl<T: Real> NurbsLane<T> {
         extent: T,
         band: Band,
     ) -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal> {
-        (self.pair)(carrier, a, b, extent, band)
+        (self.pair_limbs)(carrier, a, b, extent, band)
     }
 
     /// The between-samples certificate of a rung-3 carrier between two
@@ -3057,7 +3057,7 @@ fn run_checks<T: Decide>(
             return Err(CertifyError::Unimplemented);
         };
         let limbs = lane
-            .pair(carrier, a, b, extent, band)
+            .pair_limbs(carrier, a, b, extent, band)
             .map_err(from_plane_nurbs)?;
         max_residual = max_residual
             .max(limbs.on_locus_max.abs())
@@ -3302,10 +3302,10 @@ mod wiring_rows {
             return Err("analytic_rung3 is not `edge_nurbs::analytic_rung3`");
         }
         if !std::ptr::fn_addr_eq(
-            lane.pair,
+            lane.pair_limbs,
             crate::edge_nurbs::nurbs_pair_limbs::<T> as fn(_, _, _, _, _) -> _,
         ) {
-            return Err("pair is not `edge_nurbs::nurbs_pair_limbs`");
+            return Err("pair_limbs is not `edge_nurbs::nurbs_pair_limbs`");
         }
         Ok(())
     }
