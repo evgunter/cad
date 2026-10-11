@@ -2,10 +2,12 @@
 id: continuation-scan-box-fallback-reads-a-world-axis-run
 kind: issue
 title: The undeclared-continuation scan's box fallback reads a long world-axis overlap of two ellipse or spline edge boxes as a shared curve, so its refusal depends on the pose
-status: open
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: M
+closed: 2026-10-11
+pr: 4626
 ---
 
 
@@ -81,3 +83,9 @@ identity has 0).
 
 Filed: `cleave/a-tilted-plug-in-its-hole-refuses-at-the-ellipse-rims`.
 Added evidence to `restread/at-infinity-probe-measures-in-closed-form-only`.
+
+## Closed (PR 4626, 2026-10-11)
+
+The scan no longer exists (glue-on-Zero, PR 4496), so this does not
+reproduce. The pose-independence it asked for is pinned by
+`crates/sweep/tests/continuation_pose.rs` (above).
