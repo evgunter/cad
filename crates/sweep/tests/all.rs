@@ -871,6 +871,8 @@ mod fillet_h5_r2_probes;
 #[path = "review_fillet_h5_r1_probes.rs"]
 mod review_fillet_h5_r1_probes;
 
+#[path = "blend_carries_records.rs"]
+mod blend_carries_records;
 #[path = "blend_per_shell.rs"]
 mod blend_per_shell;
 #[path = "blend_per_shell_carry.rs"]
@@ -879,6 +881,8 @@ mod blend_per_shell_carry;
 mod blend_recourse_followability;
 #[path = "review_blend3_r3_probes.rs"]
 mod review_blend3_r3_probes;
+#[path = "shell_carries_records.rs"]
+mod shell_carries_records;
 
 #[path = "review_fillet_e2_probes.rs"]
 mod review_fillet_e2_probes;
