@@ -14,12 +14,12 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Alignment, AssertionRelation, AxisSense, BooleanOp, CancelToken, CapEnd, ContactClass,
-    ContentPin, Datum, Dimension, DocEdit, DocRef, DocumentId, EditError, EvalOptions, ExprPath,
-    Formula, Frame, FreeVar, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, Node,
-    NodeErrorKind, NodeResult, PartSelect, PatternKind, Placement, ProfileDoc, ProfileProgram,
-    ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId,
-    SplitHalf, Step, StepArg, TubeWindow, ValuePayload, VarName, evaluate,
+    Alignment, AssertionRelation, AxisSense, CancelToken, CapEnd, ContactClass, ContentPin, Datum,
+    Dimension, DocEdit, DocRef, DocumentId, EditError, EvalOptions, ExprPath, Formula, Frame,
+    FreeVar, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, Node, NodeErrorKind,
+    NodeResult, PartSelect, PatternKind, Placement, ProfileDoc, ProfileProgram, ProgramArcData,
+    ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId, Step, StepArg,
+    TubeWindow, ValuePayload, VarName, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -566,8 +566,9 @@ test_utils::f6_variants! {
         Chamfer,
         Shell,
         Split,
-        Boolean,
+        Subtract,
         Union,
+        Intersect,
         Transform,
         PlaceInWorld,
         Pattern,
@@ -582,12 +583,11 @@ test_utils::f6_variants! {
 }
 
 test_utils::f6_variants! {
-    /// **Every datum kind**, welded the same way: the six shapes carry
-    /// six different slot lists (a plane's origin and normal, a point's
-    /// position alone, an in-plane axis's X and Y with no Z), so the
-    /// node-level roster above would pass over a disagreement inside
-    /// one of them.
-    const DATUM_KIND: Datum = [Plane, Axis, Point, AxisInPlane, Frame, FaceFrame];
+    /// **Every datum kind**, welded the same way: the five shapes carry
+    /// five different slot lists (a plane's origin and normal, a
+    /// point's position alone, a face frame's spin), so the node-level
+    /// roster above would pass over a disagreement inside one of them.
+    const DATUM_KIND: Datum = [Plane, Axis, Point, Frame, FaceFrame];
 }
 
 type ProfileNode = AuthoredNode;
@@ -609,11 +609,6 @@ fn datum_shapes() -> Vec<Datum<Formula>> {
         Datum::Point {
             position: [len(0.0), len(0.0), len(0.0)],
         },
-        Datum::AxisInPlane {
-            frame: nid(0).into(),
-            origin: [len(0.0), len(0.0)],
-            direction: [scl(1.0), scl(0.0)],
-        },
         Datum::Frame {
             origin: [len(0.0), len(0.0), len(0.0)],
             u: [scl(1.0), scl(0.0), scl(0.0)],
@@ -630,7 +625,7 @@ fn datum_shapes() -> Vec<Datum<Formula>> {
 }
 
 /// One value per node SHAPE — every kind of the roster above, and
-/// every payload shape that answers a different slot list: the six
+/// every payload shape that answers a different slot list: the five
 /// datums, a tube window open and closed, the three pattern kinds, a
 /// part selected two ways, and a placed union with and without its
 /// count.
@@ -649,7 +644,8 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         },
         Node::Revolve {
             profile: nid(1).into(),
-            axis: nid(0).into(),
+            axis_origin: [len(0.0), len(0.0)],
+            axis_direction: [scl(1.0), scl(0.0)],
             angle: ang(1.0),
         },
         Node::Tube {
@@ -697,14 +693,17 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             target: nid(1).into(),
             tool: nid(2).into(),
         },
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: nid(1).into(),
-            b: nid(2).into(),
+        Node::Subtract {
+            from: nid(1).into(),
+            tool: nid(2).into(),
             declare: Vec::new(),
         },
         Node::Union {
-            members: vec![nid(1).into(), nid(2).into()],
+            members: editor_core::Bodies::Spelled(vec![nid(1).into(), nid(2).into()]),
+            declare: Vec::new(),
+        },
+        Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![nid(1).into(), nid(2).into()]),
             declare: Vec::new(),
         },
         Node::transform(
@@ -789,10 +788,6 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             of: nid(1).into(),
             select: PartSelect::Instance(Formula::count(0)),
         },
-        Node::Part {
-            of: nid(1).into(),
-            select: PartSelect::SplitHalf(SplitHalf::Above),
-        },
         Node::InstantiatePart {
             doc_ref: DocRef {
                 id: DocumentId::derive("switch-slots-census"),
@@ -817,8 +812,8 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             },
         ),
         Node::Mate {
-            a: crate::fixture::head(fixture::fname(nid(1), RoleSeg::Cap(CapEnd::Start))),
-            b: crate::fixture::head(fixture::fname(nid(2), RoleSeg::Cap(CapEnd::End))),
+            a: crate::fixture::head(fixture::fname(nid(1), RoleSeg::Cap(CapEnd::Start))).into(),
+            b: crate::fixture::head(fixture::fname(nid(2), RoleSeg::Cap(CapEnd::End))).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: MateFrame::authored(

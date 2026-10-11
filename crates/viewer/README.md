@@ -812,7 +812,7 @@ neither.
 
 | Module | Holds |
 |---|---|
-| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `DatumKindChoice`, `ShapeKind`, `PatternKindChoice`, `PartSelectChoice`, `MATE_PRIMITIVES` — mirror a kernel or session enum, and the MIRROR is what is hand-maintained: the four enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum, while `MATE_PRIMITIVES` mirrors an enum in another crate deliberately partially and says so. A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match, the projection form does the same over `select::SplitHalf::ALL` (`split_half_label`, declared in `tree` because an empty half's readout names the half with the same word), and the path form does the same over `profile::Verb::ALL` (whose `Display` is its word), `profile::ArcMode::ALL` and `profile::TargetKind::ALL`, editing the kernel's own `Step` rather than a copy of it. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
+| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `DatumKindChoice`, `ShapeKind`, `PatternKindChoice`, `MATE_PRIMITIVES` — mirror a kernel or session enum, and the MIRROR is what is hand-maintained: the three enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum, while `MATE_PRIMITIVES` mirrors an enum in another crate deliberately partially and says so. A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match, a body seat holding a split picked in the tree does the same over `select::SplitHalf::ALL` (`split_half_label`, declared in `tree` because an empty half's readout names the half with the same word), and the path form does the same over `profile::Verb::ALL` (whose `Display` is its word), `profile::ArcMode::ALL` and `profile::TargetKind::ALL`, editing the kernel's own `Step` rather than a copy of it. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
 | `drafts` | `Drafts`, `ProfileEdit`, `RowEdit` and `CommitFault`: the in-flight form state (`ProfileEdit` is the add-profile form's editor held over a committed profile, for the edit door, and `RowEdit` a change to the shape of one of its step lists), its defaults, and its lowering of typed field values to `Expr`, `LoopProgram` and the add-datum form's `session::DatumSpec` — the same layer as `session::author`, and today the larger half of it |
 | `frame` | The per-frame policies the viewport runs, as values: hand one the values a frame holds and it answers the same way every time, with no window, no session and no process around it — which is what makes a rule about the chrome testable at all, and why the frame loop still decides WHEN to call one and no longer decides what it MEANS. What the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `RankedVerdict`, `Badge`, the doors that build one and the two that spend one — `deliver` for a policy's `StatusUpdate`, `apply` for the ranking's `RankedVerdict`, each taking only its own type, so the compiler rejects a policy's verdict at the ranked door — though a hand-built `RankedVerdict::Show` still passes, which is `work/vnews/the-status-field-is-lent-bare-so-a-pane-can-write-around-both-doors.md`), `frame_status`'s ranking over a frame's news, the badge family including `product_badge`, the draft and the offer a refused batch leaves behind (`retype_draft`, `creation_offer`) and the one a failed instance makes (`version_offer`), what a folded event stream amounts to (`folded_moved`, `fold_status`), and what a frame says about work outstanding (`progress`). **The charter's exclusions are the half that was missing**: a concern that reads ambient process state is a function of the machine and lives in `platform`; a concern that carries state across frames is not a function of one frame and lives in `idpass`. Both are consumed here (`cursor_status` takes an `idpass::IdStep`) and neither is decided here. This row used to say the charter argues for taking each concern out of `app` and **not** for their being one module — `work/view/frame-module-has-eight-concerns-and-no-holds-row.md` owned the split that sentence deferred, and the split is taken: the charter above is now true of what is here, so the row covers the module rather than confessing that it cannot |
 | `platform` | What the environment the process was started in offers the shell, read once before the first frame. Each value here — the chooser-backend verdict (`ChooserBackend`, whose `unusable` answers the reason a dialog the environment cannot put up gives for being disabled; `chooser_backend`; `chooser_backend_of` over `Zenity` and `SessionBus`), the XDG preferences path (`prefs_path`, `prefs_path_in`) and the WSL probe (`running_under_wsl`) — takes the environment as its ARGUMENT, so none is a function of anything this crate holds and none can be replayed from a value a test builds. That is why they are not `frame`'s and why they are one module: `scripts/gates/no-ambient-env.sh` ratifies that the viewer's runtime environment reads have ONE home and allowlists this file as that home, and its argument against the gate's four rows is an argument about exactly these probes. A module that exists FOR the door is what makes that entry a door rather than a region inside something else |
@@ -1182,7 +1182,8 @@ between items of its own and is NOT a consumer by it, because it
 reaches no `frame::Message` and nothing counts or introduces its items:
 `seats::picks_line`, which composes the seated panels' and the mate
 panel's held-picks line — every seated panel reaches it through
-`seats::seat_line` and the mate panel through `MateToolState::line`;
+`seats::seat_line`, the boolean panel's member list through
+`BooleanTool::line` and the mate panel through `MateToolState::line`;
 the blend panel's held-picks line is drawn in its own panel and lists
 nothing. Its doc comment carries
 the argument, and why the mark earns no constant of its own either.
@@ -1864,6 +1865,34 @@ it against the list are gone with the hand-written list they existed to
 check. `ALL` stays `pub`: the suites that read it are integration
 tests, which see only this crate's public surface, and a suite-local
 copy would be the hand-written list again with nothing forcing it.
+
+### The boolean tool takes N picks, or two seats
+
+The boolean tool commits one `Node::Union`, `Node::Intersect` or
+`Node::Subtract` through `SessionOp::AddBoolean`, whose payload is a
+`session::BooleanSpec` — a member list for union and intersect, a
+`from`/`tool` pair for subtract — so a subtraction of the wrong count
+has no spelling. The operation choice is the kernel's own
+`topo::BooleanOp`, one radio button per entry of its `ALL`.
+
+**The operation is tool state, because it decides what a pick does.**
+Under union and intersect every pick appends a member, in pick order,
+and the panel lists them as `member 1`, `member 2`, …; the commit
+button commits whatever is held from one member on, and refuses typed
+(`SeatError::Empty` naming `Seat::Member`) while none is. Under subtract
+the tool holds two role-typed seats on the `seats` rule — the body kept
+(`from`), then the body removed (`tool`), a further pick replacing the
+removed one, a drop emptying its seat without promoting the survivor —
+and both are needed to commit. Changing the operation re-seats what is
+held in pick order: a member list becomes the two seats from its first
+two members, and two seats become a member list of what they hold.
+`Clear picks` empties the tool and keeps the operation.
+
+**A body picked twice is not refused anywhere.** A repeated read
+glues — `A ∪ A` and `A ∩ A` are `A`, `A ∖ A` the typed empty body — so
+the tool lists it twice and the session door commits it like any other
+document; the door's only per-operand check is the node kind
+(`Refusal::WrongNodeKind`), at every operand.
 
 ### Closed vocabularies are declared once
 

@@ -143,4 +143,4 @@ Over a box wide enough to matter, the mated instance's body meets
 `topo`'s rigid-transform certification refusal, as a `Transform` node
 over the same box does (pinned by
 `a2_over_a_wide_box_the_bolts_refusal_is_the_placement_doors`; evidence
-added to `work/topo/a-boxed-rotation-refuses-not-rigid-at-every-placer.md`).
+added to `work/topotail/a-boxed-rotation-refuses-not-rigid-at-every-placer.md`).

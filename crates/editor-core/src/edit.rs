@@ -120,26 +120,27 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The node to delete.
         id: RecipeNodeId,
     },
-    /// **Replace a node's whole LIST input** (DM4) — a union's members,
-    /// a loft's sections ([`Node::list_input`]): the slot door
-    /// ([`DocEdit::SetParam`] with a [`SlotValue::Read`]) on a list. The new list is stated in full, so nothing
-    /// is inferred about which of the old entries survived, moved or
-    /// was meant.
+    /// **Replace a node's whole LIST input** (DM4) — a union's or an
+    /// intersect's `Bodies` argument, a loft's sections: the slot door
+    /// ([`DocEdit::SetParam`] with a [`SlotValue::Read`]) on a list. The
+    /// new list is stated in full, so nothing is inferred about which of
+    /// the old entries survived, moved or was meant.
     ///
     /// Every check the insert door makes of a node's reads is made
     /// here, of the REWRITTEN node, through the same functions: each
     /// entry's lowering at its seat's kind ([`EditError::UnresolvedInput`],
-    /// [`EditError::SlotVarKind`]), acyclicity
-    /// ([`EditError::WouldCycle`]), pairwise distinctness
-    /// ([`EditError::DuplicateInput`]) and the list's own floor
-    /// ([`EditError::TooFewMembers`]). A node with no list input
+    /// [`EditError::SlotVarKind`], which a family read beside a member
+    /// meets) and acyclicity ([`EditError::WouldCycle`]). A loft's
+    /// sections are spelled, so a family there refuses
+    /// [`EditError::LoftSectionsSpelled`]; a node with no list input
     /// refuses [`EditError::SetMembersOnNonList`].
     SetMembers {
         /// The node whose list is replaced.
         node: RecipeNodeId,
-        /// The whole new list, in order (D9: the order is data), each
-        /// entry lowered as [`DocEdit::SetParam`]'s read is.
-        members: Vec<crate::Operand>,
+        /// The whole new argument, in order (D9: the order is data),
+        /// each read lowered as [`DocEdit::SetParam`]'s read is, and
+        /// each index of an indexed member as a slot's formula.
+        members: crate::Bodies<crate::BodyRead<Formula>>,
     },
     /// **Replace a live Boolean's or Union's whole DECLARED PAIRS**
     /// ([`crate::DeclaredPair`]) — [`DocEdit::SetMembers`]'s shape: the
@@ -435,8 +436,7 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// The explicit name repair (N5, spec D3), addressed by body and
     /// name (D10): rewrite every selection of `body` that names `from`
     /// EXACTLY to name `to`; with no body, every site no selection holds
-    /// (declared pairs, mate heads, an instance's crossings, appearance
-    /// keys). A name is scoped by the body it is read in (N1), so the
+    /// (declared pairs, an instance's crossings, appearance keys). A name is scoped by the body it is read in (N1), so the
     /// body says which entity the repair is about.
     /// One-shot recorded intent — no alias table persists, nothing
     /// follows automatically afterwards (the ratified EMPTY policy
@@ -688,7 +688,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
     /// `None`. Nothing places but this; Python's `Doc.place` is the
     /// same edit.
     pub fn place(
-        body: impl Into<crate::Operand>,
+        body: impl Into<crate::BodyRead<Formula>>,
         pose: Option<crate::placement::Placement<Formula>>,
     ) -> Self {
         Self::InsertNode {
@@ -706,9 +706,10 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
     /// admission of the mate they wrote: the insert of a `Node::Mate`,
     /// and a slot edit (`SetParam`, `SetExpression`) addressed at one
     /// of a mate side's frame-offset steps ([`SlotId::MateFrameStep`],
-    /// an address only a mate carries). A `Rebind` moves a reference's
-    /// NAME (and, read at its own mint, its operand), never the datum,
-    /// and what it strands is N5's — the solve's at evaluation; a
+    /// an address only a mate carries). A `Rebind` moves a side's
+    /// NAME and a slot edit at a side ([`crate::OperandSlot::Side`]) its
+    /// read, never the datum, and what either strands is N5's — the
+    /// solve's at evaluation; a
     /// document parameter an offset reads moves a STATE, which is the
     /// solve's at evaluation too.
     ///
@@ -721,7 +722,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             Self::SetParam { slot, .. } => slot.is_mate_frame_step(),
             Self::SetExpression { path, .. } => path.slot.is_mate_frame_step(),
             // A reshaping rewrites no name and never touches a datum;
-            // a head whose piece it stops drawing is N5's, the solve's
+            // a side whose piece it stops drawing is N5's, the solve's
             // at evaluation.
             Self::SetProgram { .. } => false,
             Self::DeleteNode { .. }
@@ -1173,13 +1174,6 @@ fn lower_reads<P: crate::ProfilePayload>(
     fixed: Option<VarKind>,
     spoken: &impl Fn() -> SpokenNode,
 ) -> Result<Vec<VarId>, EditError> {
-    let half = match node {
-        Node::Part {
-            select: crate::PartSelect::SplitHalf(half),
-            ..
-        } => Some(*half),
-        _ => None,
-    };
     let mut reads = Vec::new();
     node.try_map_slots(
         |p, g, r| P::lower(p, g, r),
@@ -1187,9 +1181,9 @@ fn lower_reads<P: crate::ProfilePayload>(
         &mut |slot, read| {
             let expected = match (slot, fixed) {
                 (crate::OperandSlot::Input, Some(kind)) => crate::SlotKind::Is(kind),
-                _ => slot.kind(),
+                _ => node.seat_kind(slot),
             };
-            let var = lower_operand(doc, spoken, SlotId::Operand(slot), read, half, expected)?;
+            let var = lower_operand(doc, spoken, SlotId::Operand(slot), read, expected)?;
             reads.push(var);
             Ok(var)
         },
@@ -1204,25 +1198,15 @@ fn lower_reads<P: crate::ProfilePayload>(
 /// (`expected`). A node with several outputs (a revolve's body and
 /// axis, a split's two halves) refuses the sugar
 /// ([`EditError::AmbiguousOutput`], naming its ports): the read spells
-/// its port. A part projection's selected half (`half`) refuses a read
-/// of the split's other half.
+/// its port.
 fn lower_operand<P: crate::ProfilePayload>(
     doc: &mut Doc<P>,
     spoken: &impl Fn() -> SpokenNode,
     slot: SlotId,
     read: &crate::Operand,
-    half: Option<crate::SplitHalf>,
     expected: crate::SlotKind,
 ) -> Result<VarId, EditError> {
-    lower_read(
-        doc,
-        spoken,
-        slot,
-        read,
-        half,
-        expected,
-        Reader::of(expected),
-    )
+    lower_read(doc, spoken, slot, read, expected, Reader::of(expected))
 }
 
 /// [`lower_operand`] read as `reader` reads: the seat's own reader,
@@ -1232,7 +1216,6 @@ fn lower_read<P: crate::ProfilePayload>(
     spoken: &impl Fn() -> SpokenNode,
     slot: SlotId,
     read: &crate::Operand,
-    half: Option<crate::SplitHalf>,
     expected: crate::SlotKind,
     reader: Reader,
 ) -> Result<VarId, EditError> {
@@ -1286,8 +1269,127 @@ fn lower_read<P: crate::ProfilePayload>(
         crate::Operand::Select { body, names } => {
             mint_selection(doc, spoken, slot, body, names, expected)?
         }
+        crate::Operand::Pose(def) => mint_pose(doc, spoken, slot, def)?,
     };
-    check_read(doc, spoken, slot, var, half, expected, reader, unresolved)
+    // A selection read here is read in a body this seat admits, whoever
+    // authored it: a selection of a pattern's copies, authored at a mate
+    // side, is no reader's but a side's (`persist::check` holds the
+    // stored document to the same rule).
+    if let Some(select) = doc.selection(var) {
+        let body = select.body;
+        check_read(
+            doc,
+            spoken,
+            slot,
+            body,
+            selection_body_kind(slot),
+            Reader::Observes,
+            unresolved,
+        )?;
+    }
+    check_read(doc, spoken, slot, var, expected, reader, unresolved)
+}
+
+/// **A pose defined at a seat, minted** (D10): each read lowered at the
+/// kinds it admits, as an operand of the seat (a selection authored in
+/// it minted there), each formula to the scalar its slot stores at the
+/// slot's dimension, and one anonymous pose variable minted for the
+/// seat to read, of the definition's kind (a flip's is its read's). A
+/// flip of a flip is the pose it flips, normalised here rather than
+/// minted; a projection with no arm refuses ([`EditError::PoseShape`]).
+/// A pose defined at two seats is two variables; a seat shares one by
+/// reading it by id or name.
+fn mint_pose<P: crate::ProfilePayload>(
+    doc: &mut Doc<P>,
+    spoken: &impl Fn() -> SpokenNode,
+    slot: SlotId,
+    def: &crate::pose::PoseDef<crate::Operand, Formula>,
+) -> Result<VarId, EditError> {
+    use crate::pose::{PoseDef, PoseFault};
+    let shape = |fault| EditError::PoseShape {
+        node: spoken(),
+        slot,
+        fault,
+    };
+    // A flip of a flip is the pose it flips: an involution the door
+    // normalises to one side (FORK-S3M), so the twice-flipped read is
+    // lowered where the inner flip's read would have been, at what a
+    // flip admits — a point, which has no sense, still refuses.
+    if let PoseDef::Flip {
+        pose: crate::Operand::Pose(inner),
+    } = def
+        && let PoseDef::Flip { pose: twice } = inner.as_ref()
+    {
+        let sensed = crate::SlotKind::Pose(crate::pose::PoseAdmits::Sensed);
+        return lower_operand(doc, spoken, slot, twice, sensed);
+    }
+    let admits: Vec<crate::SlotKind> = def.reads().into_iter().map(|(_, _, k)| k).collect();
+    let mut at = admits.into_iter();
+    // Two passes, the reads then the formulas, each holding the document
+    // alone: the reads mint first, as a node's operands do.
+    let read: PoseDef<VarId, Formula> = def.try_map(
+        &mut |_, read| {
+            let expected = at
+                .next()
+                .unwrap_or_else(|| unreachable!("one admitted kind per read, in one order"));
+            lower_operand(doc, spoken, slot, read, expected)
+        },
+        &mut |_, formula| Ok::<_, EditError>(formula.clone()),
+    )?;
+    let stored: PoseDef = read.try_map(&mut |_, &var| Ok(var), &mut |pose_slot, formula| {
+        let var = Lowering::none()
+            .slot(doc, formula)
+            .map_err(|fault| fault.at(doc, spoken(), ExprSite::Slot(slot)))?;
+        let found = doc.var(var).map_or(VarKind::Scalar, Var::kind);
+        let expected = VarKind::from(pose_slot.dimension());
+        if found != expected {
+            return Err(EditError::SlotVarKind {
+                var: Box::new(doc.spoken_var(var)),
+                node: spoken(),
+                slot,
+                found,
+                expected: crate::SlotKind::Is(expected),
+            });
+        }
+        Ok(var)
+    })?;
+    let kind = match &stored {
+        PoseDef::Flip { pose } => {
+            // A flip of a flip defined elsewhere is its read, the same
+            // normalisation over a variable.
+            if let Some(VarDef::Pose(PoseDef::Flip { pose: twice })) = doc.var(*pose).map(Var::def)
+            {
+                return Ok(*twice);
+            }
+            doc.var(*pose)
+                .map(Var::kind)
+                .unwrap_or_else(|| unreachable!("a lowered read is live"))
+        }
+        PoseDef::Project { of, to } => {
+            let from = doc
+                .var(*of)
+                .map(Var::kind)
+                .unwrap_or_else(|| unreachable!("a lowered read is live"));
+            if !crate::pose::projects(from, *to) {
+                return Err(shape(PoseFault::Projection { from, to: *to }));
+            }
+            *to
+        }
+        other => other
+            .kind()
+            .unwrap_or_else(|| unreachable!("every arm but a flip states its kind")),
+    };
+    mint_anonymous(doc, WrittenDef::Pose(kind, stored))
+}
+
+/// **What a selection authored at `slot` may be read in**: a `Body`, or
+/// at a mate side a `Bodies` too — a pattern's copies, the name's
+/// `Instance(i)` saying which one, as the member walk reads it.
+pub(crate) fn selection_body_kind(slot: SlotId) -> crate::SlotKind {
+    match slot {
+        SlotId::Operand(crate::OperandSlot::Side(_)) => crate::SlotKind::Placeable,
+        _ => crate::SlotKind::Is(VarKind::Body),
+    }
 }
 
 /// **A selection authored at a seat, minted** (D10): the body read
@@ -1311,8 +1413,7 @@ fn mint_selection<P: crate::ProfilePayload>(
         spoken,
         slot,
         body,
-        None,
-        crate::SlotKind::Is(VarKind::Body),
+        selection_body_kind(slot),
         Reader::Observes,
     )?;
     let shape = |fault| EditError::SelectionShape {
@@ -1374,7 +1475,6 @@ fn check_read<P: crate::ProfilePayload>(
     spoken: &impl Fn() -> SpokenNode,
     slot: SlotId,
     var: VarId,
-    half: Option<crate::SplitHalf>,
     expected: crate::SlotKind,
     reader: Reader,
     unresolved: impl Fn() -> EditError,
@@ -1382,7 +1482,7 @@ fn check_read<P: crate::ProfilePayload>(
     let Some(held) = doc.var(var) else {
         return Err(unresolved());
     };
-    match doc.read_fault(held, expected, half, reader) {
+    match doc.read_fault(held, expected, reader) {
         None => Ok(var),
         Some(crate::doc::ReadFault::Kind { found }) => Err(EditError::SlotVarKind {
             var: Box::new(doc.spoken_var(var)),
@@ -1390,11 +1490,6 @@ fn check_read<P: crate::ProfilePayload>(
             slot,
             found,
             expected,
-        }),
-        Some(crate::doc::ReadFault::OtherHalf { half }) => Err(EditError::PartHalfPort {
-            node: spoken(),
-            half,
-            var: Box::new(doc.spoken_var(var)),
         }),
         Some(crate::doc::ReadFault::WorldCopy { placement }) => Err(EditError::ReadsWorldCopy {
             node: spoken(),
@@ -1453,6 +1548,32 @@ pub fn selection_into<P>(
             names: names.to_vec(),
         },
     );
+    let id = doc.mint.declare_anonymous(&def);
+    doc.vars.insert(id, Var::written(def));
+    id
+}
+
+/// **A pose definition minted into `doc` as given**, outside any edit:
+/// of the definition's kind (a flip's is its read's), reading what it
+/// reads, with no door around it. The test support's rows build their
+/// poses through it.
+///
+/// # Panics
+///
+/// If a flip's read is not live.
+#[doc(hidden)]
+#[track_caller]
+#[allow(clippy::expect_used)]
+pub fn pose_into<P>(doc: &mut Doc<P>, def: crate::pose::PoseDef) -> VarId {
+    let kind = def.kind().unwrap_or_else(|| {
+        let crate::pose::PoseDef::Flip { pose } = &def else {
+            unreachable!("every arm but a flip states its kind")
+        };
+        doc.var(*pose)
+            .map(Var::kind)
+            .expect("a flip reads a live pose")
+    });
+    let def = WrittenDef::Pose(kind, def);
     let id = doc.mint.declare_anonymous(&def);
     doc.vars.insert(id, Var::written(def));
     id
@@ -1880,16 +2001,6 @@ pub enum EditError {
         /// The slot.
         slot: SlotId,
     },
-    /// A part projection over a split reads the split's other half: the
-    /// read and the selection name one half.
-    PartHalfPort {
-        /// The part projection.
-        node: SpokenNode,
-        /// The half it selects.
-        half: crate::SplitHalf,
-        /// The output it reads, boxed so the refusal stays a small `Err`.
-        var: Box<SpokenVar>,
-    },
     /// A construction seat reads a world placement's copy (D10:
     /// construction never reads the world; a measure observes a copy's
     /// placed geometry), so a slot reads the body the placement reads.
@@ -1908,22 +2019,6 @@ pub enum EditError {
         /// A node on the detected cycle.
         at: SpokenNode,
     },
-    /// **A node's inputs are not pairwise distinct** (DM5): one node
-    /// reached twice through one node's edges.
-    ///
-    /// It is one structural rule over a node's operand reads
-    /// ([`Node::operand_rows`]), not a rule per node kind, so it covers
-    /// a boolean whose two operands coincide and a list with a repeated
-    /// entry alike — and it is stated once, at [`Node::input_fault`],
-    /// with this door,
-    /// [`DocEdit::SetMembers`] and the load validator as its three
-    /// callers.
-    DuplicateInput {
-        /// The node whose input list repeats.
-        node: SpokenNode,
-        /// The input it reaches twice.
-        input: SpokenNode,
-    },
     /// A selection this edit authors at `slot` is not one the
     /// document can store ([`crate::var::SelectionFault`]): names of an
     /// entity kind the seat reads no selection of, a singleton not
@@ -1941,21 +2036,51 @@ pub enum EditError {
         /// Why.
         fault: crate::var::SelectionFault,
     },
-    /// `SetMembers` aimed at a node that has no list input
-    /// ([`Node::list_input`]) — a boolean's operands are named slots,
+    /// A pose this edit defines at `slot` ([`crate::Operand::Pose`]) is
+    /// not one the document can store ([`crate::pose::PoseFault`]): a
+    /// projection its source has no arm to. (A flip of a flip is the
+    /// pose it flips, which the door normalises rather than refuses.) A
+    /// read of a kind the definition does not admit is the read's own
+    /// [`EditError::SlotVarKind`].
+    PoseShape {
+        /// The node whose seat the pose is defined at.
+        node: SpokenNode,
+        /// The seat.
+        slot: SlotId,
+        /// Why.
+        fault: crate::pose::PoseFault,
+    },
+    /// The node this edit writes carries an indexed read its family
+    /// cannot take ([`crate::node::InputFault::IndexedFamily`],
+    /// [`crate::node::InputFault::IndexRank`]).
+    IndexedRead {
+        /// The node whose read it is.
+        node: SpokenNode,
+        /// What is wrong with the read.
+        fault: crate::node::InputFault,
+    },
+    /// `SetMembers` aimed at a node that has no list input — a
+    /// subtract's operands are named slots,
     /// and replacing "the list" of a node that has none is not a
     /// smaller version of this edit, it is a different sentence.
     SetMembersOnNonList {
         /// The node that carries no list.
         node: SpokenNode,
     },
+    /// `SetMembers` handed a loft a family read: a loft's sections are
+    /// spelled, one read each.
+    LoftSectionsSpelled {
+        /// The loft.
+        node: SpokenNode,
+    },
     /// `SetDeclare` aimed at a node that declares no contacts — only a
-    /// [`Node::Boolean`] and a [`Node::Union`] carry declared pairs.
+    /// [`Node::Subtract`], a [`Node::Union`] and a [`Node::Intersect`]
+    /// carry declared pairs.
     SetDeclareOnNonDeclaring {
         /// The node that carries no declaration.
         node: SpokenNode,
     },
-    /// A declared pair's side is READ AT a node that is not one of the
+    /// A declared pair's side stands in a read that is not one of the
     /// declaring node's operands ([`crate::DeclaredPair`], DM4): the
     /// site is the side, and a site the node does not have is a table
     /// it cannot read the name in. Asked by every door that writes a
@@ -1965,8 +2090,8 @@ pub enum EditError {
         node: SpokenNode,
         /// The side's name.
         name: SpokenName,
-        /// The node the side is read at.
-        site: SpokenNode,
+        /// The read the side stands in.
+        site: crate::spoken::SpokenVar,
     },
     /// A declared pair's name is minted by a node the declaring node
     /// does not read, directly or through what it reads — itself, a
@@ -2006,16 +2131,6 @@ pub enum EditError {
         node: SpokenNode,
         /// What is wrong with the ids.
         fault: crate::program::StepIdFault,
-    },
-    /// A list input left with fewer than two entries. A union of one
-    /// body is that body and a loft through one section is not a skin:
-    /// either is a node whose meaning is its own input, spelled as an
-    /// operator.
-    TooFewMembers {
-        /// The node whose list is short.
-        node: SpokenNode,
-        /// How many entries it would have had.
-        found: usize,
     },
     /// The node does not carry the named slot.
     UnknownSlot {
@@ -3060,12 +3175,18 @@ impl EditError {
                 slot: _,
                 fault: _,
             }
+            | Self::PoseShape {
+                node,
+                slot: _,
+                fault: _,
+            }
+            | Self::IndexedRead { node, fault: _ }
             | Self::SetMembersOnNonList { node }
+            | Self::LoftSectionsSpelled { node }
             | Self::SetDeclareOnNonDeclaring { node }
             | Self::SetProgramOnNonProfile { node }
             | Self::SetExtrudeSideOnNonExtrude { node }
             | Self::StepIdsRefused { node, fault: _ }
-            | Self::TooFewMembers { node, found: _ }
             | Self::SlotUnknownVarName {
                 node,
                 name: _,
@@ -3178,8 +3299,7 @@ impl EditError {
             Self::WouldCycle { at } => {
                 *at = at.respoken(doc);
             }
-            Self::DuplicateInput { node, input }
-            | Self::PromoteNonRoot { node, root: input }
+            Self::PromoteNonRoot { node, root: input }
             | Self::PromoteMemberOffset {
                 node,
                 member: input,
@@ -3193,10 +3313,6 @@ impl EditError {
                 slot: _,
                 read: _,
             } => *node = node.respoken(doc),
-            Self::PartHalfPort { node, half: _, var } => {
-                *node = node.respoken(doc);
-                **var = var.respoken(doc);
-            }
             Self::ReadsWorldCopy {
                 node,
                 slot: _,
@@ -3338,32 +3454,12 @@ impl EditError {
                     ),
                 )
             }
-            // Forwarded, not restated: `InputFault` owns this
-            // vocabulary (`node::duplicate_input`, which takes the
-            // input as this door speaks it). The door adds its own
-            // frame — which edit the fault is about — and joins it with
-            // a colon, because the forwarded sentence carries an em-dash
-            // of its own and two in a row read as a dump.
-            //
-            // **The frame does not name `node`.** From `InsertNode` it
-            // is spoken by its kind and the tag the mint drew
-            // ([`SpokenNode::entering`]), and that tag names nothing
-            // once the edit is refused, so naming it would send a
-            // reader looking for a node that does not exist. The node
-            // the reader CAN act on is `input`, which the sentence
-            // names, and it is live on both paths (`InsertNode` and
-            // `SetMembers`).
-            //
-            // The action is the door's to add: `InputFault` states the
-            // rule ("pairwise distinct"), which says what is wrong and
-            // not what to do about it.
-            Self::DuplicateInput { input, .. } => {
-                f.write_str("the node this edit writes would be invalid: ")?;
-                crate::node::duplicate_input(f, input)?;
-                tail.recourse(
+            Self::LoftSectionsSpelled { node } => {
+                write!(
                     f,
-                    format_args!("replace one of the two with a different node"),
-                )
+                    "{node} is a loft, whose sections are spelled one read each"
+                )?;
+                tail.recourse(f, format_args!("list the sections the loft passes through"))
             }
             Self::SetMembersOnNonList { node } => {
                 write!(
@@ -3391,7 +3487,8 @@ impl EditError {
             Self::DeclaredSiteNotAnOperand { node, name, site } => {
                 write!(
                     f,
-                    "the declaration names {name}, read at {site}, which is not an operand of {node}"
+                    "the declaration names {name}, read through {site}, which is not an operand of \
+                 {node}"
                 )?;
                 tail.recourse(
                     f,
@@ -3433,13 +3530,28 @@ impl EditError {
                 )?;
                 step_ids_recourse(f, tail, fault)
             }
-            Self::TooFewMembers { found, .. } => {
+            Self::IndexedRead { node, fault } => {
+                write!(f, "{node} cannot read that member: {fault}")?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "read the family whole, or spell its members in a list with one index \
+                         each"
+                    ),
+                )
+            }
+            Self::PoseShape { slot, fault, .. } => {
                 write!(
                     f,
-                    "the node this edit writes would be invalid: {}",
-                    crate::node::InputFault::TooFew { found: *found }
+                    "the pose defined at {slot} is not one a document stores: {fault}"
                 )?;
-                tail.recourse(f, format_args!("list two or more entries"))
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "project a frame to its plane, axis or origin, or a plane or an axis to \
+                         its direction"
+                    ),
+                )
             }
             Self::SelectionShape { slot, fault, .. } => {
                 write!(
@@ -3478,10 +3590,6 @@ impl EditError {
             Self::DefinesNothing { input, slot } => {
                 write!(f, "{input} defines nothing a {slot} could read")?;
                 tail.recourse(f, format_args!("read an operation that defines a value"))
-            }
-            Self::PartHalfPort { node, half, var } => {
-                write!(f, "{node} selects the {} half but reads {var}", half.name())?;
-                tail.recourse(f, format_args!("read the split's {} output", half.name()))
             }
             Self::ReadsWorldCopy {
                 node,
@@ -4670,10 +4778,10 @@ impl core::fmt::Display for Maintenance {
 /// measure's arguments), then store keys in the store's own
 /// `BTreeMap` order, which is `StableName`'s. Nothing is sorted here.
 ///
-/// [`Node::payload_read_sites`] — a mate's two operands — are NOT
+/// [`Node::payload_read_sites`] — a declared pair's sites — are NOT
 /// here. A read site is a node id rather than a name: no N5 ladder
 /// resolves it and `Rebind` cannot repair it, so a delete that strands
-/// one is the solve's to refuse (A12), not this door's to report.
+/// one is the evaluation's to refuse, not this door's to report.
 ///
 /// **Cost.** One pass over the document's name carriers per accepted
 /// delete, so a cascade of `n` nodes pays `n` passes. That is the
@@ -5479,7 +5587,7 @@ fn standing_var<P>(
         VarDef::Free(free) => Ok((id, doc.spoken_var(id), free.clone())),
         VarDef::Output { .. } => Err(EditError::output_refusal(doc, id, door)
             .unwrap_or_else(|| unreachable!("an output's refusal is the output's"))),
-        VarDef::Defined(_) | VarDef::Select(_) => Err(EditError::NotAFreeVar {
+        VarDef::Defined(_) | VarDef::Select(_) | VarDef::Pose(_) => Err(EditError::NotAFreeVar {
             var: doc.spoken_var(id),
             door,
         }),
@@ -5596,17 +5704,12 @@ fn check_node_inputs<P: crate::ProfilePayload>(
     };
     let subject = written(doc, id, node);
     Err(match fault {
-        crate::node::InputFault::Duplicate { input } => EditError::DuplicateInput {
-            node: subject,
-            input: doc.defined_by(input).map_or_else(
-                || unreachable!("an operand the door wrote reads a live output"),
-                |(at, _)| doc.spoken(at),
-            ),
-        },
-        crate::node::InputFault::TooFew { found } => EditError::TooFewMembers {
-            node: subject,
-            found,
-        },
+        crate::node::InputFault::IndexedFamily | crate::node::InputFault::IndexRank { .. } => {
+            EditError::IndexedRead {
+                node: subject,
+                fault,
+            }
+        }
     })
 }
 
@@ -5653,15 +5756,19 @@ fn check_declared_sides<'p, P: crate::ProfilePayload>(
     doc: &Doc<P>,
     new: &Doc<P>,
     node: &Node<P>,
-    sides: impl IntoIterator<Item = &'p crate::SitedRef>,
+    sides: impl IntoIterator<Item = &'p crate::SitedRef<crate::VarId>>,
     carrier: impl Fn() -> SpokenNode,
     at: Option<RecipeNodeId>,
 ) -> Result<(), EditError> {
-    // A declared site is a node whose output this node reads.
-    let operands: Vec<RecipeNodeId> = node
+    // A declared site is one of this node's reads.
+    let reads: Vec<crate::VarId> = node
         .operand_rows()
         .into_iter()
-        .filter_map(|(_, read)| new.defined_by(read).map(|(site, _)| site))
+        .map(|(_, read)| read)
+        .collect();
+    let operands: Vec<RecipeNodeId> = reads
+        .iter()
+        .filter_map(|&read| new.defined_by(read).map(|(site, _)| site))
         .collect();
     // A name its carrier's operands could hold is minted by a node the
     // carrier reads, directly or through what it reads (D10: reading is
@@ -5676,13 +5783,13 @@ fn check_declared_sides<'p, P: crate::ProfilePayload>(
             .collect(),
     };
     let upstream = |minter: RecipeNodeId| reach.contains(&minter);
-    match crate::node::declared_side_fault(sides, Some(&operands), upstream) {
+    match crate::node::declared_side_fault(sides, Some(&reads), upstream) {
         None => Ok(()),
         Some((side, crate::node::DeclaredSideFault::SiteNotAnOperand)) => {
             Err(EditError::DeclaredSiteNotAnOperand {
                 node: carrier(),
                 name: doc.spoken_name(&side.name),
-                site: doc.spoken(side.at),
+                site: new.spoken_var(side.at),
             })
         }
         Some((side, crate::node::DeclaredSideFault::NameNotUpstream)) => {
@@ -5751,8 +5858,8 @@ fn check_written_node<P: crate::ProfilePayload>(
             None,
         )?;
     }
-    // A gauge reference is a reading edge, as a mate's operand
-    // is: a never-live or wrong-kind one is a typo, refused here.
+    // A gauge reference is a placement chain, not a read: a
+    // never-live or wrong-kind one is a typo, refused here.
     check_gauge_ref(new, id, node.gauge_ref(), spoken)?;
     // ASM-R2a D-1, through `Node::has_non_finite_alignment` —
     // the one place a node is asked whether its alignment datum
@@ -5805,13 +5912,12 @@ fn set_operand<P: Clone + crate::ProfilePayload>(
             slot: SlotId::Operand(slot),
         });
     }
-    let half = current.selected_half();
     let expected = match (&current, new.output(node, 0).and_then(|v| new.var(v))) {
         (Node::Transform { .. }, Some(output)) => crate::SlotKind::Is(output.kind()),
-        _ => slot.kind(),
+        _ => current.seat_kind(slot),
     };
     let spoken = || doc.spoken(node);
-    let var = lower_operand(new, &spoken, SlotId::Operand(slot), read, half, expected)?;
+    let var = lower_operand(new, &spoken, SlotId::Operand(slot), read, expected)?;
     let mut rewritten = current;
     for (at, held) in rewritten.operand_rows_mut() {
         if at == slot {
@@ -6147,8 +6253,8 @@ fn regauges_for<P: Clone + crate::ProfilePayload>(
     let mut edits = Vec::new();
     if let Node::Mate { a, b, .. } = mate
         && let (Some(ma), Some(mb)) = (
-            crate::mate::member_of(doc, a),
-            crate::mate::member_of(doc, b),
+            crate::mate::member::member_authored(doc, a),
+            crate::mate::member::member_authored(doc, b),
         )
     {
         let gauge = doc.node(mb.instance).and_then(Node::gauge_ref);
@@ -6567,31 +6673,65 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     id: SpokenNode::absent(*node),
                 });
             };
-            let at = match current {
-                Node::Union { .. } => crate::OperandSlot::Member,
-                Node::Loft { .. } => crate::OperandSlot::Section,
-                _ => {
-                    return Err(EditError::SetMembersOnNonList {
-                        node: doc.spoken(*node),
-                    });
-                }
-            };
             let spoken = || doc.spoken(*node);
-            let mut list = Vec::with_capacity(members.len());
-            for (i, member) in members.iter().enumerate() {
-                let slot = at(u32::try_from(i).unwrap_or(u32::MAX));
-                list.push(lower_operand(
-                    new,
-                    &spoken,
-                    SlotId::Operand(slot),
-                    member,
-                    None,
-                    slot.kind(),
-                )?);
-            }
+            let lower =
+                |new: &mut Doc<P>, slot: crate::OperandSlot, member: &crate::BodyRead<Formula>| {
+                    lower_operand(
+                        new,
+                        &spoken,
+                        SlotId::Operand(slot),
+                        &member.read,
+                        member.kind(slot),
+                    )
+                };
             let mut rewritten = current.clone();
-            if !rewritten.set_list_input(list) {
-                unreachable!("a union and a loft hold a list")
+            match &mut rewritten {
+                Node::Union { members: list, .. } | Node::Intersect { members: list, .. } => {
+                    let reads = members.try_map(|slot, member| lower(new, slot, member))?;
+                    let mut indices = Vec::new();
+                    for (seat, member) in members.rows() {
+                        let mut at = Vec::new();
+                        for (k, formula) in member.rows() {
+                            at.push(lower_index(
+                                new,
+                                &spoken(),
+                                SlotId::Index { seat, k },
+                                formula,
+                            )?);
+                        }
+                        indices.push(at);
+                    }
+                    let mut indices = indices.into_iter();
+                    *list = reads.try_map(|_, &read| {
+                        Ok::<_, EditError>(crate::BodyRead {
+                            read,
+                            at: indices.next().unwrap_or_default(),
+                        })
+                    })?;
+                }
+                Node::Loft { profiles, .. } => {
+                    let crate::Bodies::Spelled(sections) = members else {
+                        return Err(EditError::LoftSectionsSpelled { node: spoken() });
+                    };
+                    *profiles = sections
+                        .iter()
+                        .enumerate()
+                        .map(|(i, section)| {
+                            let slot =
+                                crate::OperandSlot::Section(u32::try_from(i).unwrap_or(u32::MAX));
+                            if section.is_indexed() {
+                                return Err(EditError::UnknownSlot {
+                                    id: spoken(),
+                                    slot: SlotId::Index { seat: slot, k: 0 },
+                                });
+                            }
+                            lower(new, slot, section)
+                        })
+                        .collect::<Result<_, _>>()?;
+                }
+                _ => {
+                    return Err(EditError::SetMembersOnNonList { node: spoken() });
+                }
             }
             write_reads(doc, new, reported, *node, rewritten, tol)?
         }
@@ -6604,7 +6744,9 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 }
                 Some(current) => current.clone(),
             };
-            let (Node::Boolean { declare, .. } | Node::Union { declare, .. }) = &mut rewritten
+            let (Node::Subtract { declare, .. }
+            | Node::Union { declare, .. }
+            | Node::Intersect { declare, .. }) = &mut rewritten
             else {
                 return Err(EditError::SetDeclareOnNonDeclaring {
                     node: doc.spoken(*node),
@@ -6755,7 +6897,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 // is.
                 (_, SlotValue::Read(read)) => {
                     let spoken = || doc.spoken(*node);
-                    let var = lower_operand(new, &spoken, *slot, read, None, slot.kind())?;
+                    let var = lower_operand(new, &spoken, *slot, read, slot.kind())?;
                     std::borrow::Cow::Owned(Formula::var(
                         var,
                         slot.dimension()
@@ -6931,7 +7073,9 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         outputs: Vec::new(),
                     }
                 }
-                WrittenDef::Select(..) => unreachable!("a declaration lowers to no selection"),
+                WrittenDef::Select(..) | WrittenDef::Pose(..) => {
+                    unreachable!("a declaration lowers to no selection and no pose")
+                }
             };
             EditRecord {
                 fresh: lowering.finish(new)?,
@@ -7609,8 +7753,8 @@ fn mate_that_would_start_placing<P>(
             return false;
         };
         let (Some(x), Some(y)) = (
-            crate::mate::member_of(doc, a),
-            crate::mate::member_of(doc, b),
+            crate::mate::member::member_of_side(doc, *a),
+            crate::mate::member::member_of_side(doc, *b),
         ) else {
             return false;
         };
@@ -7835,8 +7979,8 @@ fn clear_joined_offsets<P: crate::ProfilePayload>(
         return Vec::new();
     };
     let (Some(ia), Some(ib)) = (
-        crate::mate::member_of(after, a).map(|m| m.instance),
-        crate::mate::member_of(after, b).map(|m| m.instance),
+        crate::mate::member::member_of_side(after, *a).map(|m| m.instance),
+        crate::mate::member::member_of_side(after, *b).map(|m| m.instance),
     ) else {
         return Vec::new();
     };
@@ -7908,6 +8052,39 @@ fn check_profile_after_slot_edit<P: crate::ProfilePayload>(
 /// matches, the formula lowers and its reads hold — then the slot
 /// stores the variable it lowers to (VR4), its fresh table minted
 /// first.
+/// **One index of an indexed read as the door writes it**
+/// ([`SlotId::Index`]): a `Count` formula, lowered as a slot's is and
+/// held to the reads a slot's are.
+fn lower_index<P>(
+    new: &mut Doc<P>,
+    spoken: &SpokenNode,
+    slot: SlotId,
+    formula: &Formula,
+) -> Result<VarId, EditError> {
+    if let Some(SlotDimensionFault {
+        slot,
+        expected,
+        found,
+    }) = slot.dimension_fault(formula)
+    {
+        return Err(EditError::SlotDimensionMismatch {
+            slot,
+            expected,
+            found,
+        });
+    }
+    let var = Lowering::none()
+        .slot(new, formula)
+        .map_err(|fault| fault.at(new, spoken.clone(), ExprSite::Slot(slot)))?;
+    check_reads(
+        new,
+        spoken,
+        ExprSite::Slot(slot),
+        &Expr::var(var, slot.expr_dimension()),
+    )?;
+    Ok(var)
+}
+
 fn set_slot<P: Clone + crate::ProfilePayload>(
     new: &mut Doc<P>,
     before: &Doc<P>,
@@ -8035,13 +8212,15 @@ mod tests {
         let frame = crate::mate::MateFrame::from_face();
         let mate: DocEdit<ProfileProgram> = DocEdit::InsertNode {
             node: Box::new(crate::node::Node::Mate {
-                a: crate::node::SitedFace::at_mint(
+                a: (crate::node::SitedFace::at_mint(
                     crate::names::FaceName::new(name(id)).expect("a face"),
-                ),
-                b: crate::node::SitedFace::at_mint(
+                ))
+                .into(),
+                b: (crate::node::SitedFace::at_mint(
                     crate::names::FaceName::new(name(crate::node::RecipeNodeId::new(0, 2)))
                         .expect("a face"),
-                ),
+                ))
+                .into(),
                 class: crate::mate::ContactClass::Rest,
                 alignment: crate::mate::Alignment {
                     a: frame.clone(),

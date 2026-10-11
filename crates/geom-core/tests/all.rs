@@ -152,6 +152,8 @@ mod sym11_witness_kind_interval_rows;
 mod sym11_witness_kind_rows;
 #[path = "sym_9_retry_rows.rs"]
 mod sym_9_retry_rows;
+#[path = "sym_deferred_rows.rs"]
+mod sym_deferred_rows;
 #[path = "sym_drive_memo.rs"]
 mod sym_drive_memo;
 #[path = "sym_root_rows.rs"]

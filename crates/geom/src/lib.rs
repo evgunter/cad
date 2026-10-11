@@ -73,8 +73,8 @@
 //!   rather than with a stored datum. A spline's stored datum is its
 //!   control net, and the same check refuses a net — a face's or an
 //!   edge carrier's — carrying a control point that is not a finite
-//!   number (NaN or `±∞`); its weights and knots are `f64` structure,
-//!   refused non-finite at construction.
+//!   number (NaN or `±∞`); its weights and knots are refused
+//!   non-finite on their value channel at construction.
 //!
 //! # Totality and poison (geom-core's policy, inherited)
 //!
@@ -154,7 +154,7 @@ mod scalar_lift;
 pub mod surfaces;
 // Test fixtures; see the module's docs. `doc(hidden)` because the
 // rustdoc gate runs `--all-features`.
-#[cfg(feature = "test-support")]
+#[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 pub mod test_support;
 

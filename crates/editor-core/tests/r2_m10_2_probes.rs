@@ -19,11 +19,11 @@ use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionRelation, AssertionVerdict, Axis3, BooleanOp, CancelToken, Dimension, DocEdit,
-    DocumentId, EntityKind, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, GeomPred,
-    LoopProgram, MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, PersistError,
-    ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector,
-    SitedRef, SnapshotError, StableName, SurfaceKindSet, ValuePayload, VarName, apply, evaluate,
+    AssertionRelation, AssertionVerdict, Axis3, CancelToken, Dimension, DocEdit, DocumentId,
+    EntityKind, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, GeomPred, LoopProgram,
+    MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, PersistError, ProfileDoc,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef,
+    SnapshotError, StableName, SurfaceKindSet, ValuePayload, VarName, apply, evaluate,
     select_where,
 };
 use fixture::{ang, len, scl};
@@ -221,17 +221,6 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
         },
     );
     let plane = crate::fixture::newest(&doc);
-    // The frame's v is world +Z and its origin sits ON the world Z
-    // axis, so the pole axis is this frame's own +y through (0, 0) —
-    // and it is minted AFTER the frame it names.
-    let doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0))),
-            fresh: Vec::new(),
-        },
-    );
-    let axis = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -247,11 +236,15 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Revolve {
-                profile: p.into(),
-                axis: axis.into(),
-                angle: ang(std::f64::consts::TAU),
-            }),
+            // The frame's v is world +Z and its origin sits ON the world
+            // Z axis, so the pole axis is this frame's own +y through
+            // (0, 0).
+            node: Box::new(fixture::revolve_about(
+                p,
+                (0.0, 0.0),
+                (0.0, 1.0),
+                ang(std::f64::consts::TAU),
+            )),
             fresh: Vec::new(),
         },
     );
@@ -839,19 +832,16 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
         let attempts: Vec<(&str, AuthoredNode)> = vec![
             (
                 "boolean-a",
-                Node::Boolean {
-                    op: BooleanOp::Union,
-                    a: victim.into(),
-                    b: b.into(),
+                Node::Union {
+                    members: editor_core::Bodies::Spelled(vec![victim.into(), b.into()]),
                     declare: Vec::new(),
                 },
             ),
             (
                 "boolean-b",
-                Node::Boolean {
-                    op: BooleanOp::Subtract,
-                    a: b.into(),
-                    b: victim.into(),
+                Node::Subtract {
+                    from: b.into(),
+                    tool: victim.into(),
                     declare: Vec::new(),
                 },
             ),

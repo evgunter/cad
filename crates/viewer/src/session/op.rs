@@ -16,8 +16,8 @@
 use std::path::PathBuf;
 
 use pncad::document::{
-    Alignment, BooleanOp, DocEdit, DocumentId, Formula, Frame, FreeVar, Label, LoopProgram,
-    Maintenance, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId, VarId, VarName,
+    Alignment, DocEdit, DocumentId, Formula, Frame, FreeVar, Label, LoopProgram, Maintenance,
+    Operand, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId, VarId, VarName,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
@@ -595,40 +595,42 @@ pub enum SessionOp {
         /// The extrusion depth (`Length`).
         distance: Formula,
     },
-    /// Insert one revolve of an existing profile node about an
-    /// existing axis datum, and its identity world placement (A10) —
-    /// the revolve tool's one committed action.
-    /// Either seat's wrong-kind pick refuses
-    /// [`Refusal::WrongNodeKind`] at the door.
+    /// Insert one revolve of an existing profile node about an axis
+    /// line in the profile's own plane, and its identity world
+    /// placement (A10) — the revolve tool's one committed action.
+    /// A wrong-kind profile pick refuses [`Refusal::WrongNodeKind`] at
+    /// the door.
     AddRevolve {
         /// The profile node revolved.
         profile: RecipeNodeId,
-        /// The `Datum::AxisInPlane` node revolved about — an axis
-        /// written in the same sketch frame the profile is drawn on.
-        axis: RecipeNodeId,
+        /// A point on the axis, in the profile's 2-D coordinates
+        /// (`Length`).
+        axis_origin: [Formula; 2],
+        /// The axis direction in the same coordinates (`Scalar`).
+        axis_direction: [Formula; 2],
         /// The sweep angle (`Angle`); the chrome's default is a full
         /// turn.
         angle: Formula,
     },
-    /// Insert one regularized boolean of two existing bodies — the
-    /// boolean tool's one committed action (GAUTH-4).
+    /// Insert one boolean of existing bodies — the boolean tool's one
+    /// committed action (GAUTH-4).
+    ///
+    /// **The spec is the node's shape** ([`super::BooleanSpec`]): a
+    /// union or an intersect of a list of members, any count, or a
+    /// subtraction of exactly two operands whose order is data — `from`
+    /// is kept and `tool` removed. Any operand's non-body pick refuses
+    /// [`Refusal::WrongNodeKind`] at this layer. A node listed twice is
+    /// not refused: a repeated read glues, so it is a document like any
+    /// other.
     ///
     /// **The result takes the operands' place in the world** (A10, Ev's
     /// residue 1): the placements of the first operand the world
-    /// places, in seat order, are re-pointed to the boolean through the
-    /// slot door, and the other operand's placements are deleted, in
-    /// the same action — so `a ∘ b` with both placed leaves the world
-    /// `[result]`, and one undo restores `[a, b]`. Operands nothing
-    /// places place nothing.
-    ///
-    /// **The operand order is data**: `Subtract` keeps `a` and removes
-    /// `b`, so the two seats are not interchangeable and the form says
-    /// which pick is which. Either seat's non-body pick refuses
-    /// [`Refusal::WrongNodeKind`] at this layer; one node in BOTH
-    /// seats is refused by the edit door, as
-    /// `EditError::DuplicateInput` — the pairwise-distinct rule is a
-    /// fact about any node's inputs, not about booleans, so it is
-    /// stated once where every node kind reaches it.
+    /// places, in the spec's order, are re-pointed to the boolean
+    /// through the slot door, and every other operand's placements are
+    /// deleted, in the same action — so a combine of placed bodies
+    /// leaves the world `[result]`, and one undo restores them. A
+    /// repeated operand counts once; operands nothing places place
+    /// nothing.
     ///
     /// **The findings become the boolean's own declared pairs**: an
     /// empty `declare` authors an undeclared boolean, and a non-empty
@@ -636,28 +638,24 @@ pub enum SessionOp {
     /// insert, one undo. The door declares what it is handed and
     /// guesses nothing.
     AddBoolean {
-        /// The operation — the KERNEL's enum, which the recipe node
-        /// carries unconverted.
-        op: BooleanOp,
-        /// The first operand: the body a subtraction keeps.
-        a: RecipeNodeId,
-        /// The second operand: the body a subtraction removes.
-        b: RecipeNodeId,
-        /// The contacts declared, in the refusals' own finding shape.
+        /// The operation and its operands.
+        spec: super::BooleanSpec,
+        /// The contacts declared, in the refusals' own finding shape,
+        /// each sited at the operand READS it names.
         declare: Vec<FlushFinding>,
     },
     /// Insert one split of an existing body by an existing datum
     /// plane — the split tool's one committed edit. A split defines two
-    /// bodies, and it changes nothing in the world: the target's
-    /// placements keep reading the target, and a half reaches the world
-    /// through its projection (`SessionOp::AddPart`).
+    /// bodies, its `above` and `below` outputs, and it changes nothing
+    /// in the world: the target's placements keep reading the target,
+    /// and a half is read by its port wherever a body seat takes one.
     ///
     /// The tool seat is a PLANE and not a body: `Node::Split`'s tool
     /// operand is the plane the cut is taken on. Both seats refuse
     /// [`Refusal::WrongNodeKind`] for the wrong kind.
     AddSplit {
         /// The body split.
-        target: RecipeNodeId,
+        target: Operand,
         /// The `Datum::Plane` node it is cut by.
         tool: RecipeNodeId,
     },
@@ -667,7 +665,7 @@ pub enum SessionOp {
     /// the editor for every slot afterwards.
     AddTransform {
         /// The body placed.
-        input: RecipeNodeId,
+        input: Operand,
         /// Translation components (`Length`).
         translation: [Formula; 3],
         /// Rotation-axis components (`Scalar`).
@@ -689,7 +687,7 @@ pub enum SessionOp {
     /// hand-written documents.
     AddPattern {
         /// The body replicated.
-        input: RecipeNodeId,
+        input: Operand,
         /// Instance count.
         count: i64,
         /// The replication rule, with the axis a circular rule was
@@ -728,7 +726,7 @@ pub enum SessionOp {
     /// node says whether it can be built.
     AddPlacedUnion {
         /// The prototype placed at every placement.
-        input: RecipeNodeId,
+        input: Operand,
         /// Placement count.
         count: i64,
         /// The placement rule, with the axis a circular rule was
@@ -848,7 +846,7 @@ pub enum SessionOp {
     /// in the property panel afterwards.
     Duplicate {
         /// The body duplicated.
-        input: RecipeNodeId,
+        input: Operand,
     },
     /// Commit **exactly one** `DocEdit` inserting an instance of
     /// another document — the assembly-authoring door, and the second

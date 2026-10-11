@@ -200,6 +200,8 @@ pub mod query;
 pub(crate) mod ray_walk;
 pub mod readback;
 pub mod replace_face;
+#[cfg(test)]
+pub(crate) mod revalue_pin;
 pub mod revert;
 #[cfg(test)]
 mod review_d18;
@@ -307,15 +309,36 @@ pub mod test_support {
         plant_disc_face, plant_ring_face, prism, prism_ops, prism_z, split_plane, straddle_seat,
     };
     pub use crate::test_support_impl::ArenaCounts;
+
+    /// A test's hand-built contact records: each pair of `body`'s cells
+    /// as a record citing row 0 of the producing op's coincidences.
+    ///
+    /// # Panics
+    ///
+    /// Where a pair is not a record ([`crate::Contact::new`]).
+    #[allow(clippy::panic)]
+    pub fn records<T: Real>(
+        body: &Body<T>,
+        pairs: impl IntoIterator<Item = (crate::Cell, crate::Cell)>,
+    ) -> crate::ContactRecords {
+        pairs
+            .into_iter()
+            .map(|(x, y)| match crate::Contact::new(body, x, y) {
+                Ok(c) => crate::Cited::new(c, crate::Cites::decided(0)),
+                Err(e) => panic!("{x:?}, {y:?} is not a contact record: {e:?}"),
+            })
+            .collect()
+    }
     /// Holes meeting at one vertex of a plate's top
     /// ([`crate::test_support_meeting`]).
     pub mod meeting {
         pub use crate::test_support_meeting::{
             Hole, MEET, PLATE, Point, Pose, apex_pyramid, arch, arch_cone, at, bearing,
-            branching_cone, comb, corners, corners_disjoint, cycles_of, ell, ell_and_wedges, fin,
-            four_wedges, inner_rows, leaned, mix, near_flat, nest, nest_polygon, notch, notch_rows,
-            orders, posed_box, posed_boxes, posed_crown, posed_prism, posed_pyramid, poses, shape,
-            three_wedges, two_wedges, wedge, wedges_on_one_side,
+            branching_cone, comb, corners, corners_disjoint, crown, cycles_of, ell, ell_and_wedges,
+            fin, four_wedges, inner_rows, leaned, mix, near_flat, nest, nest_polygon, notch,
+            notch_rows, orders, posed_box, posed_boxes, posed_crown, posed_prism, posed_pyramid,
+            poses, pyramid_volumes, shape, single_arch, three_wedges, two_wedges, wedge,
+            wedges_on_one_side, zigzag,
         };
     }
 
@@ -816,20 +839,21 @@ pub use boolean::{
     BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
     CarriedContacts, CarriedRecord, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError,
     CarrierRelation, Cell, Coincide, CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent,
-    ContactRecords, ContainDecision, ContainError, Contradiction, CurveContact, DeclarationRead,
-    DiscardRow, EdgeJoin, EdgePieceClass, EeContact, FaceContainment, FacePairDeclaration, Fusions,
-    HeldEdge, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided, LeverArm,
-    NullEdgePairRecord, Operand, OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread,
-    PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation,
-    PlaneRung, PointInSolidError, SectorRead, SectorRung, SelfCheck, Settling, ShellOrientation,
-    SideCode, SolidContainment, SolidFaces, SphereQuestion, SweepStrategy, SweepTrace,
-    TorusConvention, VeContact, Verdicts, VfContact, VoidContainment, VoidEvidence,
-    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce,
-    boolean_reduce_declared, carrier_eq, contfp, curved_face_containment, decision_words,
-    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect, intersect_with,
-    is_conventional_vertex, join_covers, joinable_vertices, joined_edge, lineage_root,
-    oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, subtract,
-    subtract_with, tangent_pair_relation, union, union_with,
+    Contact, ContactKind, ContactPairError, ContactRecords, ContainDecision, ContainError,
+    Contradiction, DeclarationRead, DiscardRow, EdgeJoin, EdgePieceClass, EeContact,
+    FaceContainment, FacePairDeclaration, Fusions, HeldEdge, JOIN_LEVER, JOIN_SUBJECT, JoinReading,
+    JoinRefusal, JoinUndecided, LeverArm, NullEdgePairRecord, Operand, OperandKeys, PairFace,
+    PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError,
+    PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts, RekeyRefusal,
+    SectorRead, SectorRung, SelfCheck, Settling, ShellOrientation, SideCode, SolidContainment,
+    SolidFaces, SphereQuestion, SpiricLoops, SweepStrategy, SweepTrace, TorusConvention, VeContact,
+    Verdicts, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact,
+    WallRung, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq, contfp,
+    curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
+    insert_voids, intersect, intersect_with, is_conventional_vertex, join_covers,
+    joinable_vertices, joined_edge, lineage_root, oriented_plane_eq, point_in_solid,
+    point_in_solid_faces, point_in_solid_of, subtract, subtract_with, tangent_pair_relation, union,
+    union_with,
 };
 pub use joint::{Deck, JointElement};
 pub use surgery::Surgery;
@@ -916,8 +940,7 @@ pub use provenance::{Provenance, SplitLineageCycle};
 pub use face_boxes::{FaceBox, FaceBoxes};
 pub use pieces::PieceSortError;
 pub use query::{
-    CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimBreak, RimError, SEL_DATUM_DISTANCE,
-    SurfaceKind, SurfaceKindSet,
+    CurveKind, CurveKindSet, DATUM_UNIT_NORM, RimBreak, RimError, SurfaceKind, SurfaceKindSet,
 };
 pub use readback::{EdgeSide, EdgeSides, EulerCounts, EulerParityError, Pose, ReadbackError};
 pub use replace_face::{
@@ -926,7 +949,8 @@ pub use replace_face::{
 #[cfg(any(feature = "test-support", feature = "sweep-testing"))]
 #[doc(hidden)]
 pub use replace_face::{
-    offset_corner_arms_for_tests, offset_edge_plans_for_tests, offset_edge_specs_for_tests,
+    offset_charts_edge_plans_for_tests, offset_corner_arms_for_tests, offset_edge_plans_for_tests,
+    offset_edge_specs_for_tests,
 };
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
 pub use shell::{
@@ -936,11 +960,11 @@ pub use split::SplitEdgeCreated;
 pub use splitting::{
     ConicCrossingsCase, ConicRootFault, CrossingDecision, Escalation, KnifeEdge, KnifeEdgeSite,
     LoopContainment, LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide,
-    PointInLoopError, Section, SectionEdge, SectionError, SectionPolygon, SectionRegion,
-    SectorEntry, SectorEntryKind, SectorReading, SplitError, SplitFinishError, SplitJoinError,
-    SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult, TangencyReadings,
-    Uncrossable, UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split,
-    split_reduce, vertex_sides,
+    PointInLoopError, Section, SectionEdge, SectionError, SectionGermFault, SectionGermReading,
+    SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SectorReading, SplitError,
+    SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction,
+    SplitResult, TangencyReadings, Uncrossable, UncrossableCarrier, classify_neighborhood,
+    plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
 pub use transform::{TransformError, check_rigid, not_rigid_reading, transform_rigid};
 pub use validate::{

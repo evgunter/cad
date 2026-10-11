@@ -44,9 +44,9 @@ use crate::fixture::xy_frame;
 use corpus::{documents, eval, failures};
 use editor_core::eval::KeyHasher;
 use editor_core::{
-    AssertionVerdict, BooleanValue, CancelToken, ContentKey, Datum, DatumValue, Dimension,
-    EvalOptions, Evaluation, LoopProgram, Node, NodeResult, ProductError, ProfileProgram,
-    SplitSide, ValuePayload, assemble, evaluate, product_recorded,
+    AssertionVerdict, BooleanValue, CancelToken, ContentKey, Datum, Dimension, EvalOptions,
+    Evaluation, LoopProgram, Node, NodeResult, PoseValue, ProductError, ProfileProgram, SplitSide,
+    ValuePayload, assemble, evaluate, product_recorded,
 };
 use geom::{Curve3, Surface};
 use geom_core::{Bounds, Decide, Dual64, Tol};
@@ -140,7 +140,7 @@ impl Fnv {
                 for p in n.control() {
                     self.p3(p);
                 }
-                for w in n.weights() {
+                for w in n.weight_channel() {
                     self.u64(w.to_bits());
                 }
                 for k in n.knots().knots() {
@@ -220,7 +220,7 @@ impl Fnv {
                 for p in n.control() {
                     self.p3(p);
                 }
-                for w in n.weights() {
+                for w in n.weight_channel() {
                     self.u64(w.to_bits());
                 }
                 for k in n.knots_u().knots() {
@@ -275,41 +275,29 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
             Some(NodeResult::Ok(v)) => {
                 d.u64(3);
                 match &v.payload {
-                    ValuePayload::Datum(DatumValue::Plane { origin, normal }) => {
+                    ValuePayload::Datum(PoseValue::Plane { origin, normal }) => {
                         d.u64(10);
                         d.p3(origin);
                         d.v3(&normal.get());
                     }
-                    ValuePayload::Datum(DatumValue::Axis { origin, dir }) => {
+                    ValuePayload::Datum(PoseValue::Axis { origin, dir }) => {
                         d.u64(11);
                         d.p3(origin);
                         d.v3(&dir.get());
                     }
-                    ValuePayload::Datum(DatumValue::Point { position }) => {
+                    ValuePayload::Datum(PoseValue::Point { position }) => {
                         d.u64(12);
                         d.p3(position);
                     }
-                    ValuePayload::Datum(DatumValue::Frame(f)) => {
+                    ValuePayload::Datum(PoseValue::Frame(f)) => {
                         d.u64(23);
                         d.p3(&f.origin());
                         d.v3(&f.u().get());
                         d.v3(&f.v().get());
                     }
-                    // Tag 24, appended: both spellings of an in-plane
-                    // axis, so a drift in the numbers a revolve
-                    // actually consumes cannot hide behind the lift.
-                    ValuePayload::Datum(DatumValue::AxisInPlane {
-                        plane_origin,
-                        plane_dir,
-                        origin,
-                        dir,
-                    }) => {
-                        d.u64(24);
-                        d.s(plane_origin.x);
-                        d.s(plane_origin.y);
-                        d.s(plane_dir.x);
-                        d.s(plane_dir.y);
-                        d.p3(origin);
+                    // Tag 24 is retired with the in-plane axis datum.
+                    ValuePayload::Datum(PoseValue::Direction { dir }) => {
+                        d.u64(26);
                         d.v3(&dir.get());
                     }
                     ValuePayload::Profile(p) => {

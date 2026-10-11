@@ -39,8 +39,8 @@ use geom_core::Tol;
 /// on their own head faces, outward normals opposed.
 fn face_mate(a: SitedFace, b: SitedFace) -> AuthoredNode {
     Node::Mate {
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::from_face(),
@@ -119,6 +119,7 @@ fn side_world(
         MateSide::A => (a, &alignment.a),
         MateSide::B => (b, &alignment.b),
     };
+    let head = &crate::fixture::side_head(doc, *head);
     assert_eq!(
         *frame,
         MateFrame::from_face(),
@@ -255,7 +256,8 @@ fn a_face_side_reading_a_non_root_member_crosses_split_and_inline_unmoved() {
     };
     assert_eq!(alignment.a, MateFrame::from_face());
     assert_eq!(
-        a.name.node, out.instance,
+        crate::fixture::side_head(&out.remainder, *a).name.node,
+        out.instance,
         "the head re-anchors through the instance"
     );
     assert_eq!(
@@ -281,7 +283,7 @@ fn a_face_side_reading_a_non_root_member_crosses_split_and_inline_unmoved() {
         .unwrap_or_else(|e| panic!("inline(split(d)) is d up to node ids:\n{e}"));
 
     // The authored twin is held to (a), (b) and (c): the top is no root.
-    let Some(face_side) = doc.node(m).map(|n| n.authored(&doc)) else {
+    let Some(face_side) = doc.node(m).map(|n| n.written(&doc)) else {
         panic!("the mate");
     };
     let (twin, twin_m) = {
@@ -372,7 +374,7 @@ fn a_face_side_on_a_pattern_copy_crosses_split_and_inline_unmoved() {
         .unwrap_or_else(|e| panic!("inline(split(d)) is d up to node ids:\n{e}"));
 
     // The authored twin is held to (a): it reads a copy.
-    let Some(face_side) = doc.node(m).map(|n| n.authored(&doc)) else {
+    let Some(face_side) = doc.node(m).map(|n| n.written(&doc)) else {
         panic!("the mate");
     };
     let (twin, twin_m) = {
@@ -501,8 +503,8 @@ fn a_face_side_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
     let doc = fixture::place(doc, mover).0;
     let copy_cap = in_copy(pattern, 2, p.top_upper_cap(leg));
     let node = Node::Mate {
-        a: head(in_part(mover, p.base_body, CapEnd::Start)),
-        b: head(copy_cap.clone()),
+        a: head(in_part(mover, p.base_body, CapEnd::Start)).into(),
+        b: head(copy_cap.clone()).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::authored(
@@ -524,6 +526,7 @@ fn a_face_side_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
     let Some(Node::Mate { b, .. }) = doc.node(m) else {
         panic!("the mate");
     };
+    let b = &crate::fixture::side_head(&doc, *b);
     let member = editor_core::member_of(&doc, b).expect("a copy is a member");
     assert_eq!(member.copy(), vec![(pattern, 2)]);
     let master = editor_core::head_face(&doc, b).expect("the strip");
@@ -611,7 +614,7 @@ fn renamed(base: &ProfileDoc, body: RecipeNodeId, height: f64) -> (ProfileDoc, R
         .into_iter()
         .filter(|&at| {
             matches!(base.node(at), Some(Node::PlaceInWorld { body: read, .. })
-                if base.operation_of(*read) == Some(body))
+                if base.operation_of(read.read) == Some(body))
         })
         .collect();
     let base = old_copies
@@ -637,8 +640,8 @@ fn renamed(base: &ProfileDoc, body: RecipeNodeId, height: f64) -> (ProfileDoc, R
 /// head: the top's origin lands on the cap's canonical origin.
 fn on_base_cap(top: SitedFace, base_cap: SitedFace) -> AuthoredNode {
     Node::Mate {
-        a: top,
-        b: base_cap,
+        a: top.into(),
+        b: base_cap.into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::authored(
@@ -723,10 +726,11 @@ fn a_rename_update_and_rebind_carry_the_face_side_with_the_head() {
         "{fault:?}"
     );
 
+    let base_out = doc.output(base, 0).expect("the base's body");
     let (doc, _) = step_with(
         doc,
         DocEdit::Rebind {
-            body: None,
+            body: Some(base_out),
             from: old_head,
             to: in_part(base, new_body, CapEnd::End),
         },
@@ -745,10 +749,11 @@ fn a_rename_update_and_rebind_carry_the_face_side_with_the_head() {
     );
 }
 
-/// **A head rebound onto another part's instance reads that part's
+/// **A side re-pointed onto another part's instance reads that part's
 /// face.** Two bases built alike — the same node ids, one cap name
 /// row for row — at different heights and places; the top seated on
-/// the first's cap, then its head rebound onto the second's. The frame
+/// the first's cap, then its side re-pointed by its slot door onto the
+/// second's. The frame
 /// reads the second base's cap, in the second part: the top lands
 /// there, at the second's height and place, and nowhere a name read in
 /// the wrong part could put it.
@@ -781,12 +786,14 @@ fn a_head_rebound_onto_another_parts_instance_reads_the_new_heads_face() {
     assert_eq!(on_low[2], 1.0_f64.to_bits());
 
     let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    let _ = low_head;
     let (doc, _) = step_with(
         doc,
-        DocEdit::Rebind {
-            body: None,
-            from: low_head,
-            to: in_part(high, high_body, CapEnd::End),
+        DocEdit::SetParam {
+            node: m,
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Side(MateSide::B)),
+            value: editor_core::SlotValue::Read(head(in_part(high, high_body, CapEnd::End)).into()),
+            fresh: Vec::new(),
         },
         &reach,
     );

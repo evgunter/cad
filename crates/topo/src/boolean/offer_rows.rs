@@ -205,6 +205,7 @@ cases! {
         sector_side(Vec3::new(1.0, 0.0, -D), Reach::Extent(1.0));
     pierce_curvature_short_of_its_bend: "PierceCurvature", D, SECTOR_SITE, Valued =>
         pierce_curvature(D);
+    conic_bend_short_of_the_band: "ConicBend", D, SECTOR_SITE, Valued => conic_bend(D);
     joined_vertex_off_a_pole: "JoinUndecided", D, EDGE_JOIN_SITE, Valued => vertex_off_a_pole(D);
     tangent_side_in_band: "Coincidence(TangentSide)", -D, TANGENT_SITE, Valued =>
         tangent_side(false);
@@ -778,6 +779,33 @@ fn pierce_curvature(margin: f64) -> Result<(), BooleanError> {
     side_code(dir, Reach::Bisector(0.5), n, 1.0, band()).map(|_| ())
 }
 
+/// A unit-radius arc leaving a plane along it, short enough that the
+/// least lift its bend gives it at its extent, `2·sin²(extent/2)`, is
+/// `margin`.
+fn conic_bend(margin: f64) -> Result<(), BooleanError> {
+    use super::super::sectors::{Bend, BendBounds, FaceShape, pierce_side};
+    let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+    let extent = 2.0 * (margin / 2.0).sqrt().asin();
+    let bend = Bend {
+        curvature: Vec3::new(0.0, 0.0, 1.0),
+        bounds: BendBounds::Planar {
+            least: 1.0,
+            most: 1.0,
+            reach: core::f64::consts::FRAC_PI_2,
+            rise: 1.0,
+        },
+    };
+    pierce_side(
+        Vec3::new(1.0, 0.0, 0.0),
+        Reach::Conic { extent, bend },
+        n,
+        FaceShape::Plane,
+        NO_CURVATURE(),
+        band(),
+    )
+    .map(|_| ())
+}
+
 // The join's regularity readings share one refusal. The pole distance
 // is rostered at its door below; the pair's wedge is reachable from
 // operands, and is not rostered: `classify_dihedral` is levered by the
@@ -1169,7 +1197,13 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
         normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
         arm: 1.0,
     };
-    super::super::vtxfac::pierce_germ_dir(&s, Vec3::new(D.sin(), 0.0, D.cos()), band()).map(|_| ())
+    super::super::vtxfac::pierce_germ_dir(
+        &s,
+        Vec3::new(D.sin(), 0.0, D.cos()),
+        super::super::vtxfac::OutBound::Start,
+        band(),
+    )
+    .map(|_| ())
 }
 
 /// `A` a block `[0, 2]² × [0, 1]`, `B` a unit block standing over its
@@ -1628,11 +1662,11 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
         end: z,
         start_reach: Reach::Chord {
             base: o,
-            far: o + y,
+            far: o + y * arm,
         },
         end_reach: Reach::Chord {
             base: o,
-            far: o + z,
+            far: o + z * arm,
         },
         face,
         normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true),
@@ -1648,6 +1682,7 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
         Operand::B,
         &sector(pb.side_faces[3]),
         &declared,
+        super::super::recl::ReadOn::Faces,
         arm,
         band(),
     )
@@ -2256,10 +2291,10 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::FallbackExtentUnsupported
         | BooleanErrorKind::GermFrameUnsupported
         | BooleanErrorKind::GermSectionOutsideInventory
+        | BooleanErrorKind::GermSectionSpiric
         | BooleanErrorKind::GermFrameCylinderPinch
         | BooleanErrorKind::JoinDesync
         | BooleanErrorKind::JoinCarrierUnsupported
-        | BooleanErrorKind::CurvedRestUnrecorded
         | BooleanErrorKind::TornComponent
         | BooleanErrorKind::ShellWitnessExhausted
         | BooleanErrorKind::CoincidentShell
@@ -2593,14 +2628,20 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "conic_quadric/mod.rs",
         "conic_quadric_roots",
+        "BooleanDecision::ArcSphereRoots",
+        1,
+    ),
+    (
+        "conic_quadric/mod.rs",
+        "quadric_ladder",
         "BooleanDecision::ArcCylinderRoots",
         1,
     ),
     (
         "conic_quadric/mod.rs",
-        "conic_quadric_roots",
+        "quadric_ladder",
         "BooleanDecision::ArcSphereRoots",
-        2,
+        1,
     ),
     ("finish.rs", "corner_holds", "Coincide::Sectors", 1),
     (
@@ -2614,6 +2655,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("insert.rs", "record_germ_dir", "Coincide::TangentLocus", 2),
     ("insert.rs", "strut_order", "Coincide::Sectors", 1),
     ("insert.rs", "walks_after", "Coincide::Sectors", 1),
+    ("join.rs", "at", "Coincide::Join", 1),
     ("join.rs", "bool_connect", "Coincide::Section", 1),
     ("join.rs", "frame_refusal", "BooleanDecision::Radius", 1),
     ("join.rs", "frame_refusal", "Coincide::Section", 1),
@@ -2711,12 +2753,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
-    (
-        "ops.rs",
-        "finished_body_refusal",
-        "BooleanDecision::ShellRole",
-        1,
-    ),
+    ("ops.rs", "escalated", "BooleanDecision::ShellRole", 1),
     ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),
     ("ops.rs", "sphere_extent_scan", "BooleanDecision::Sphere", 1),
     (
@@ -2756,6 +2793,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("recl.rs", "resolve_edge_edge", "Coincide::FlankSense", 1),
     ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),
+    ("recl.rs", "unglued_tilt", "Coincide::Sectors", 2),
     ("recl.rs", "wedge_is_reflex", "Coincide::Sectors", 1),
     (
         "reduce.rs",
@@ -2859,6 +2897,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "build_sectors", "BooleanDecision::Corner", 1),
+    ("sectors.rs", "conic_side", "BooleanDecision::ConicBend", 1),
     ("sectors.rs", "in_sector", "Coincide::Sectors", 1),
     (
         "sectors.rs",
@@ -2868,15 +2907,15 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("sectors.rs", "pair_search", "Coincide::Sectors", 1),
     ("sectors.rs", "parallel_same", "Coincide::Sectors", 1),
-    ("sectors.rs", "runs_in", "Coincide::EdgeOnPlane", 1),
     (
         "sectors.rs",
-        "side_code",
+        "read_side",
         "BooleanDecision::PierceCurvature",
         1,
     ),
-    ("sectors.rs", "side_code", "Coincide::SectorSide", 1),
-    ("sectors.rs", "side_code", "LeverArm::SectorSide", 1),
+    ("sectors.rs", "read_side", "Coincide::SectorSide", 1),
+    ("sectors.rs", "read_side", "LeverArm::SectorSide", 1),
+    ("sectors.rs", "runs_in", "Coincide::EdgeOnPlane", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentLocus", 1),
     (
         "sectors.rs",
@@ -2889,6 +2928,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "sphere_region.rs",
         "-",
         "BooleanDecision::CONTAINMENT_UNNAMED",
+        1,
+    ),
+    (
+        "vtxfac.rs",
+        "classify_vertex_on_face",
+        "BooleanDecision::ConicBend",
         1,
     ),
     (

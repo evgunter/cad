@@ -48,7 +48,7 @@ impl FaceSelection {
     /// the entity the name denotes, read off the name's own
     /// carry-through segments (`pncad::select::attribute`).
     ///
-    /// A fillet's `FromTarget(f)` face is still the target's face `f`,
+    /// A fillet's `From { of: f }` face is still the target's face `f`,
     /// so clicking a flat on a filleted body reaches the feature that
     /// swept the flat and not the fillet that shrank it. That is the
     /// question the feature tree's highlight, the property panel's
@@ -228,13 +228,23 @@ impl Selection {
     ///
     /// A pick is on a world placement's copy (A10), and a seat takes the
     /// body that placement places: [`crate::seats::Seats::pick`] reads
-    /// it through [`crate::world::seat_of`].
+    /// it through [`crate::world::seat_read`].
     pub fn seat_node(&self) -> Option<RecipeNodeId> {
         match self {
             Self::Node(id) => Some(*id),
             Self::Face(face) => Some(face.node),
             Self::Edge(edge) => Some(edge.node),
             Self::None | Self::Variable(_) => None,
+        }
+    }
+
+    /// **The output body a viewport pick hit** ([`FaceSelection::body`]),
+    /// beside [`Selection::seat_node`]; a tree click names none.
+    pub fn seat_body(&self) -> Option<u32> {
+        match self {
+            Self::Face(face) => Some(face.body),
+            Self::Edge(edge) => Some(edge.body),
+            Self::None | Self::Node(_) | Self::Variable(_) => None,
         }
     }
 

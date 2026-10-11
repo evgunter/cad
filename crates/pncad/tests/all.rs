@@ -476,15 +476,10 @@ fn stale_declaration_and_ring_contact_are_matchable(
             named::<EdgeKey>(b);
             "edge_edge"
         }
-        StaleDeclaration::CurveLocus {
-            face_a,
-            face_b,
-            witness,
-        } => {
-            named::<FaceKey>(face_a);
-            named::<FaceKey>(face_b);
-            named::<EdgeKey>(witness);
-            "curve_locus"
+        StaleDeclaration::EdgeFace { edge, face } => {
+            named::<EdgeKey>(edge);
+            named::<FaceKey>(face);
+            "edge_face"
         }
         StaleDeclaration::Patch { .. } => "patch",
     };
@@ -2161,7 +2156,7 @@ fn box_doc(
 /// one placing door, `DocEdit::place` — returning the placement's id.
 fn place(
     doc: pncad::document::ProfileDoc,
-    body: impl Into<pncad::document::Operand>,
+    body: impl Into<pncad::document::BodyRead<pncad::document::Formula>>,
 ) -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
     let applied = pncad::document::apply(
         &doc,
@@ -2185,7 +2180,7 @@ fn placement_of(
         .find(|&placement| {
             matches!(
                 doc.node(placement),
-                Some(pncad::document::Node::PlaceInWorld { body, .. }) if Some(*body) == output
+                Some(pncad::document::Node::PlaceInWorld { body, .. }) if Some(body.read) == output
             )
         })
         .expect("the node is placed")
@@ -2598,19 +2593,16 @@ fn the_export_door_refuses_typed_not_vaguely() {
     );
     let (doc, cut) = insert(
         doc,
-        Node::Boolean {
-            op: pncad::document::BooleanOp::Subtract,
-            a: first_box.into(),
-            b: second_box.into(),
+        Node::Subtract {
+            from: first_box.into(),
+            tool: second_box.into(),
             declare: Vec::new(),
         },
     );
     let (doc, downstream) = insert(
         doc,
-        Node::Boolean {
-            op: pncad::document::BooleanOp::Union,
-            a: cut.into(),
-            b: first_box.into(),
+        Node::Union {
+            members: pncad::document::Bodies::Spelled(vec![cut.into(), first_box.into()]),
             declare: Vec::new(),
         },
     );
@@ -2679,7 +2671,7 @@ fn expr_literal_refusals_are_matchable_through_the_facade() {
 /// §3.2 pinned with a `compile_fail` doctest (now flipped to the same
 /// authoring as a passing one).
 fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
-    use pncad::document::{BooleanOp, FreeVar, VarName};
+    use pncad::document::{FreeVar, VarName};
     let hole = |cx: f64, cy: f64| LoopProgram::Circle {
         centre: [len(cx), len(cy)],
         radius: Formula::named(VarName::from_static("hole_r"), Dimension::Length),
@@ -2753,10 +2745,8 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     );
     let (doc, solid) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: plate.into(),
-            b: tab.into(),
+        Node::Union {
+            members: pncad::document::Bodies::Spelled(vec![plate.into(), tab.into()]),
             declare: Vec::new(),
         },
     );
@@ -3635,7 +3625,7 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
         .placements()
         .into_iter()
         .map(|placement| match doc.node(placement) {
-            Some(pncad::document::Node::PlaceInWorld { body, .. }) => Some(*body),
+            Some(pncad::document::Node::PlaceInWorld { body, .. }) => Some(body.read),
             _ => None,
         })
         .collect();
@@ -3804,9 +3794,8 @@ fn asm2a_spawn_probe(tag: &str) -> String {
 /// frame-coincidence mate 30 along +x (the part spans 2, so the pair
 /// stays disjoint and the product is a clean two-solid gather).
 ///
-/// The instance names are the A12 shape — an `InPart`-headed name whose
-/// HEAD is the instantiate node, which is exactly what the reading edge
-/// is recomputed from, wearing the part's product name of the face;
+/// The instance names are an `InPart`-headed name whose HEAD is the
+/// instantiate node, wearing the part's product name of the face;
 /// `body` is the part's body. Each instance is placed in the world.
 fn asm_r2a_mated_assembly(
     label: &str,
@@ -3853,8 +3842,8 @@ fn asm_r2a_mated_assembly(
         // The second instance is the mate's first operand: the mate
         // places its group on the first's.
         Node::Mate {
-            a: face_head(name(ids[1])),
-            b: face_head(name(ids[0])),
+            a: face_head(name(ids[1])).into(),
+            b: face_head(name(ids[0])).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: axis([0.0, 0.0, 0.0]),
@@ -4918,7 +4907,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 96] = [
+const NOT_CARRIED: [&str; 97] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4997,6 +4986,7 @@ const NOT_CARRIED: [&str; 96] = [
     "body_name",
     "certified_range",
     "derivation_nodes",
+    "derivation_reads",
     "diff_summaries",
     "diff_verdicts",
     "enrich_appearance_loss",
@@ -6455,12 +6445,12 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
 }
 
 /// A user's program through the façade, holding the unit-vector
-/// witness: datum nodes evaluate, their `DatumValue` fields ARE the
+/// witness: datum nodes evaluate, their `PoseValue` fields ARE the
 /// witnesses, and the doors that take or mint the type are reached
 /// without naming a second crate.
 mod unit_vector_witness_through_the_facade {
     use pncad::document::{
-        CancelToken, Datum, DatumValue, Doc, EvalOptions, Node, NodeResult, ProfileProgram,
+        CancelToken, Datum, Doc, EvalOptions, Node, NodeResult, PoseValue, ProfileProgram,
         RecipeNodeId, ValuePayload, evaluate,
     };
     use pncad::geom_core::linalg::frame::{mirror_across_plane, path_start_frame, point_at};
@@ -6469,7 +6459,7 @@ mod unit_vector_witness_through_the_facade {
 
     type ProfileDoc = Doc<ProfileProgram>;
 
-    fn datum_of(doc: &ProfileDoc, node: RecipeNodeId) -> DatumValue<f64> {
+    fn datum_of(doc: &ProfileDoc, node: RecipeNodeId) -> PoseValue<f64> {
         let ev = evaluate::<f64>(
             doc,
             None,
@@ -6512,10 +6502,10 @@ mod unit_vector_witness_through_the_facade {
                 direction: [super::scl(3.0), super::scl(4.0), super::scl(0.0)],
             }),
         );
-        let DatumValue::Plane { origin, normal } = datum_of(&doc, plane) else {
+        let PoseValue::Plane { origin, normal } = datum_of(&doc, plane) else {
             panic!("a plane datum");
         };
-        let DatumValue::Axis { origin: ao, dir } = datum_of(&doc, axis) else {
+        let PoseValue::Axis { origin: ao, dir } = datum_of(&doc, axis) else {
             panic!("an axis datum");
         };
         assert_eq!(bits(normal.get()), bits(Vec3::new(0.0, 0.0, 1.0)));
@@ -6547,7 +6537,7 @@ mod unit_vector_witness_through_the_facade {
     }
 
     /// The funnel-site name is the caller's: a direction minted under
-    /// ANY name builds a `DatumValue`, so "a datum's direction is
+    /// ANY name builds a `PoseValue`, so "a datum's direction is
     /// decided under `datum_unit_norm`" is `editor-core`'s convention
     /// at its `datum_unit` door, not a property of the type. The
     /// refusals under the datum name are the constructor's typed ones.
@@ -6560,11 +6550,11 @@ mod unit_vector_witness_through_the_facade {
             band,
         )
         .unwrap();
-        let d = DatumValue::<f64>::Plane {
+        let d = PoseValue::<f64>::Plane {
             origin: Point3::origin(),
             normal: n,
         };
-        let DatumValue::Plane { normal, .. } = d else {
+        let PoseValue::Plane { normal, .. } = d else {
             panic!("a plane datum");
         };
         assert_eq!(bits(normal.get()), bits(Vec3::new(0.0, 0.0, 1.0)));

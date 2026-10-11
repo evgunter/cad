@@ -145,6 +145,11 @@ solid: NodeId = doc.insert(
 # dimensionless, so it is not a length.
 Node.extrude(solid, 1.0)  # ty: error
 
+# An index reads one member of a family, which is a body: no seat but a
+# body seat takes one, and an index is a count.
+Node.extrude(solid[0], Formula.length_in(1, m))  # ty: error
+solid[0.5]  # ty: error
+
 # A fillet selection is NAMES — the text a materializer answered with,
 # never node ids.
 Node.fillet(solid, Formula.length_in(1, m), [solid])  # ty: error
@@ -266,12 +271,10 @@ Node.placed_union(solid, 5 * m, PatternKind.linear((Formula.literal(1.0), Formul
 # The narrowed count edit takes a VarName, never bare text.
 DocEdit.bind_count_param(solid, "fins")  # ty: error
 
-# LIB-B-PART. A HALF IS NOT AN INSTANCE, and this is the pair of lines
-# that says so: the two arms of one selector take different types, and
-# neither accepts the other's, so the confusion the kernel refuses at
-# evaluation is refused here at authoring.
+# LIB-B-PART. A HALF IS NOT AN INSTANCE: a split's half is its output,
+# never a selector.
 PartSelect.instance(SplitHalf.Above)  # ty: error
-PartSelect.split_half(0)  # ty: error
+PartSelect.split_half(SplitHalf.Above)  # ty: error
 
 # The selector is a VALUE with its own type: a bare half is not one,
 # any more than a `Frame` is a `PatternKind`.
@@ -736,10 +739,12 @@ for _placed in _import.instances:
 
 # A role-name door mints a name from a NODE and a profile `Piece`. A
 # name is not a node, a piece is not an index nor its text, the piece
-# is not optional, and the end vocabulary is closed: `MeridianEnd` names a
+# is not optional, `carried`'s read is a `Var` and not a node, and the end vocabulary is closed: `MeridianEnd` names a
 # revolve's ends and a `CapEnd` is an extrude's.
 _names_doc = Doc()
 _names_node: NodeId = _names_doc.sketch_frame()
+_names_read = _names_doc.output(_names_node, 0)
+assert _names_read is not None
 _piece: Piece = _names_doc.pieces(_names_node)[0][0]
 _text: str = str(_piece)
 _from_text: str = band(_names_node, _text)  # ty: error
@@ -748,5 +753,6 @@ _from_a_name: str = band(_minted, _piece)  # ty: error
 _from_an_index: str = band(_names_node, 0)  # ty: error
 _the_piece_is_not_optional: str = band(_names_node)  # ty: error
 _wrong_vocabulary: str = meridian_vertex(CapEnd.End, _names_node, _piece)  # ty: error
-_a_node_is_not_a_name: str = carried(_names_node, _names_node)  # ty: error
-_a_name_is_not_a_node: str = carried(_minted, _minted)  # ty: error
+_a_node_is_not_a_name: str = carried(_names_node, _names_read, _names_node)  # ty: error
+_a_name_is_not_a_node: str = carried(_minted, _names_read, _minted)  # ty: error
+_a_node_is_not_a_read: str = carried(_names_node, _names_node, _minted)  # ty: error

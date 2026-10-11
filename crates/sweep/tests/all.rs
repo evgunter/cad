@@ -55,6 +55,10 @@ mod common;
 mod mate2_common;
 mod revolve_common;
 
+#[path = "a_flank_touch_at_a_shared_corner.rs"]
+mod a_flank_touch_at_a_shared_corner;
+#[path = "a_flipped_shallow_dimple.rs"]
+mod a_flipped_shallow_dimple;
 #[path = "a_move_through_a_neighbour_inverts_the_body.rs"]
 mod a_move_through_a_neighbour_inverts_the_body;
 #[path = "a_plane_across_a_one_face_wall.rs"]
@@ -73,10 +77,16 @@ mod a_ruling_lying_on_a_wall;
 mod a_swaying_loft_corner_meters;
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
+#[path = "a_tangent_arc_at_other_boolean_vertices.rs"]
+mod a_tangent_arc_at_other_boolean_vertices;
+#[path = "a_thin_cap_keeps_its_digits.rs"]
+mod a_thin_cap_keeps_its_digits;
 #[path = "a_tube_ending_on_a_ball.rs"]
 mod a_tube_ending_on_a_ball;
 #[path = "an_annular_tube_through_a_plate.rs"]
 mod an_annular_tube_through_a_plate;
+#[path = "an_arc_tangent_at_a_boolean_vertex.rs"]
+mod an_arc_tangent_at_a_boolean_vertex;
 #[path = "at_rest_pcurve_faces.rs"]
 mod at_rest_pcurve_faces;
 #[path = "band_apart_partners_on_a_steep_ellipse.rs"]
@@ -117,6 +127,8 @@ mod carved_sphere_operand;
 mod cone_join_lane;
 #[path = "cone_operand_rows.rs"]
 mod cone_operand_rows;
+#[path = "continuation_pose.rs"]
+mod continuation_pose;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
 #[path = "four_crossings_on_one_section_circle.rs"]
@@ -732,6 +744,8 @@ mod germ_coplanar_conic;
 mod germ_interior_oval;
 #[path = "germ_interior_saddle.rs"]
 mod germ_interior_saddle;
+#[path = "germ_plane_torus_frame.rs"]
+mod germ_plane_torus_frame;
 #[path = "germ_radial_hole.rs"]
 mod germ_radial_hole;
 #[path = "germ_sphere_no_crossings.rs"]
@@ -782,6 +796,8 @@ mod mate7a_r1_probes;
 mod mate7a_r2_probes;
 #[path = "mate7a_torus_rest.rs"]
 mod mate7a_torus_rest;
+#[path = "near_tangent_pierce_poses.rs"]
+mod near_tangent_pierce_poses;
 #[path = "pi_seam_and_kiss_through_the_boolean.rs"]
 mod pi_seam_and_kiss_through_the_boolean;
 #[path = "pierce_tangent_off_face.rs"]
@@ -1047,6 +1063,8 @@ mod rest_nested_strut;
 #[path = "rest_zip_admission.rs"]
 mod rest_zip_admission;
 
+#[path = "letterform_intersects_in_every_order.rs"]
+mod letterform_intersects_in_every_order;
 #[path = "pole_ball_shells.rs"]
 mod pole_ball_shells;
 #[path = "shell_curved_mouth.rs"]

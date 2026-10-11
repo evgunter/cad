@@ -17,9 +17,11 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::Bodies;
 use pncad::document::ExtrudeSide;
+use viewer::session::BooleanSpec;
 
-use pncad::document::{BooleanOp, CancelToken, EvalOptions, NodeResult, evaluate};
+use pncad::document::{CancelToken, EvalOptions, NodeResult, evaluate};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use viewer::frame::Tone;
@@ -426,9 +428,7 @@ fn a_boolean_over_a_refused_groups_instances_points_at_the_mate() {
     let boolean = common::session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: bench.post_a,
-            b: bench.shelf_i,
+            spec: BooleanSpec::Union(vec![bench.post_a.into(), bench.shelf_i.into()]),
             declare: Vec::new(),
         },
     );
@@ -524,9 +524,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
     let boolean = common::session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: bench.post_a,
-            b: bench.shelf_i,
+            spec: BooleanSpec::Union(vec![bench.post_a.into(), bench.shelf_i.into()]),
             declare: Vec::new(),
         },
     );
@@ -643,13 +641,13 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
         }
         other => panic!("the seat refuses on the standing, got {other:?}"),
     }
-    match viewer::combine::duplicate_step(doc, ev, bench.post_a, tol) {
+    match viewer::combine::duplicate_step(doc, ev, &bench.post_a.into(), tol) {
         Err(DuplicateFault::NoValue { standing, .. }) => {
             assert_eq!(standing, post_a, "the duplicate door, post_a");
         }
         other => panic!("the duplicate door refuses post_a, got {other:?}"),
     }
-    match viewer::combine::duplicate_step(doc, ev, boolean, tol) {
+    match viewer::combine::duplicate_step(doc, ev, &boolean.into(), tol) {
         Err(DuplicateFault::NoValue { standing, .. }) => {
             assert_eq!(standing, two_hop, "the duplicate door, the boolean");
         }
@@ -1041,8 +1039,8 @@ fn child_band_refusal_rows() {
         &asm,
         &DocEdit::InsertNode {
             node: Box::new(Node::Mate {
-                a: face_of(a),
-                b: face_of(b),
+                a: face_of(a).into(),
+                b: face_of(b).into(),
                 class: ContactClass::Rest,
                 alignment: Alignment {
                     a: frame.clone(),
@@ -1327,8 +1325,7 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
 /// One document, built up: an intersect of two blocks that do not
 /// meet, first alone and then under a transform; a
 /// split whose tool plane clears the block, with a `Part` reading its
-/// empty side; a `Part` indexed past a pattern's count; and a revolve
-/// whose axis lives on another frame than its profile.
+/// empty side; and a `Part` indexed past a pattern's count.
 #[test]
 fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     use pncad::document::{
@@ -1364,10 +1361,8 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     let (doc, far) = block(&doc, 0.1);
     let (doc, apart) = common::inserted(
         &doc,
-        Node::Boolean {
-            op: BooleanOp::Intersect,
-            a: near.into(),
-            b: far.into(),
+        Node::Intersect {
+            members: Bodies::Spelled(vec![near.into(), far.into()]),
             declare: Vec::new(),
         },
         tol,
@@ -1417,7 +1412,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     );
 
     // A tool plane above the block: the split's above side is empty,
-    // and a `Part` reading it refuses `EmptyHalf`.
+    // and a transform reading it refuses `EmptyHalf`.
     let (doc, tool) = common::inserted(
         &doc,
         Node::Datum(Datum::Plane {
@@ -1436,10 +1431,14 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     );
     let (doc, above) = common::inserted(
         &doc,
-        Node::Part {
-            of: pncad::document::Operand::output(split, SplitHalf::Above.port()),
-            select: PartSelect::SplitHalf(SplitHalf::Above),
-        },
+        Node::transform(
+            pncad::document::Operand::output(split, SplitHalf::Above.port()),
+            pncad::document::Step::Rigid {
+                translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
+                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                angle: common::ang(0.0),
+            },
+        ),
         tol,
     );
 
@@ -1447,10 +1446,9 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     // body, and a split whose tool plane cuts the block in two.
     let (doc, kept) = common::inserted(
         &doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: near.into(),
-            b: far.into(),
+        Node::Subtract {
+            from: near.into(),
+            tool: far.into(),
             declare: Vec::new(),
         },
         tol,
@@ -1490,34 +1488,6 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         Node::Part {
             of: pattern.into(),
             select: PartSelect::Instance(pncad::document::Formula::count(3)),
-        },
-        tol,
-    );
-
-    // A revolve whose axis lives on a second frame, parallel to the
-    // profile's and a metre up.
-    let (doc, other_plane) = common::inserted(
-        &doc,
-        common::frame([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-        tol,
-    );
-    let (doc, stranger) = common::inserted(
-        &doc,
-        Node::Datum(Datum::AxisInPlane {
-            frame: other_plane.into(),
-            origin: [common::len(-0.01), common::len(0.0)],
-            direction: [common::scl(0.0), common::scl(1.0)],
-        }),
-        tol,
-    );
-    let (doc, section) =
-        common::inserted(&doc, common::rectangle(plane, [0.0, 0.0], 0.01, 0.01), tol);
-    let (doc, revolved) = common::inserted(
-        &doc,
-        Node::Revolve {
-            profile: section.into(),
-            axis: stranger.into(),
-            angle: common::ang(std::f64::consts::PI),
         },
         tol,
     );
@@ -1603,19 +1573,17 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         "a split with two bodies says everything its value does"
     );
 
-    // The arm each row raised, among the four under test.
+    // The arm each row raised, among the three under test.
     let raised = |id| match ev.node_error(id).map(|error| &error.kind) {
         Some(NodeErrorKind::EmptyOperand { .. }) => Some("EmptyOperand"),
         Some(NodeErrorKind::EmptyHalf { .. }) => Some("EmptyHalf"),
         Some(NodeErrorKind::InstanceOutOfRange { .. }) => Some("InstanceOutOfRange"),
-        Some(NodeErrorKind::AxisInDifferentPlane { .. }) => Some("AxisInDifferentPlane"),
         _ => None,
     };
     let arms = [
         (moved, "EmptyOperand"),
         (above, "EmptyHalf"),
         (past, "InstanceOutOfRange"),
-        (revolved, "AxisInDifferentPlane"),
     ];
     for (id, arm) in arms {
         assert_eq!(
@@ -1764,8 +1732,8 @@ fn snapshot_mate(
     // unit-length, and its re-minted axis does not clear a band of 16).
     let frame = MateFrame::on_part(pncad::document::Placement::IDENTITY);
     Node::Mate {
-        a: face_of(a),
-        b: face_of(b),
+        a: face_of(a).into(),
+        b: face_of(b).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame.clone(),

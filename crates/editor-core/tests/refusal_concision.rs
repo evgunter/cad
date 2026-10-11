@@ -9,10 +9,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::eval;
-use crate::fixture::{Recorder, ang, axis_in_plane, frame, len};
+use crate::fixture::{Recorder, ang, frame, len, revolve_about};
 use editor_core::ExtrudeSide;
 
-use editor_core::{BooleanOp, LoopProgram, Node, NodeResult, ProfileProgram};
+use editor_core::{LoopProgram, Node, NodeResult, ProfileProgram};
 
 /// A cone frustum (a full revolve about `y`) unioned with a block that
 /// straddles its slanted wall: the block's faces along the axis cut the
@@ -28,12 +28,12 @@ fn cone_block_union_refusal() -> String {
         ],
         ids: Vec::new(),
     }));
-    let axis = r.insert(axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
-    let cone = r.insert(Node::Revolve {
-        profile: cone_p.into(),
-        axis: axis.into(),
-        angle: ang(std::f64::consts::TAU),
-    });
+    let cone = r.insert(revolve_about(
+        cone_p,
+        (0.0, 0.0),
+        (0.0, 1.0),
+        ang(std::f64::consts::TAU),
+    ));
     let block_plane = r.insert(frame([0.0, 0.0, -0.25], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let block_p = r.insert(Node::Profile(ProfileProgram {
         frame: block_plane.into(),
@@ -47,10 +47,11 @@ fn cone_block_union_refusal() -> String {
         distance: len(0.5),
         side: ExtrudeSide::Along,
     });
-    let union = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: editor_core::Operand::output(cone, 0),
-        b: block.into(),
+    let union = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![
+            editor_core::Operand::output(cone, 0).into(),
+            block.into(),
+        ]),
         declare: Vec::new(),
     });
     let ev = eval::<f64>(&r.doc);
@@ -387,6 +388,20 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 section: geom_brep::SectionError::RoutesToGeneralRung {
                     pair: "plane×cone",
                     why: "the plane meets both nappes, so the section is a HYPERBOLA",
+                },
+            },
+        ),
+        (
+            "GermSectionSpiric",
+            BooleanError::GermSectionSpiric {
+                a_face: face,
+                a_kind: SurfaceKind::Plane,
+                b_face: face,
+                b_kind: SurfaceKind::Torus,
+                loops: topo::SpiricLoops::AroundTube,
+                section: geom_brep::SectionError::RoutesToGeneralRung {
+                    pair: "plane×torus",
+                    why: "generic tilt cuts a spiric quartic",
                 },
             },
         ),
@@ -733,6 +748,26 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         (
             "Containment(WallOutlineUnsupported)",
             PointInSolidError::WallOutlineUnsupported { face },
+        ),
+        (
+            "Containment(JunctionSidesDisagree)",
+            PointInSolidError::JunctionSidesDisagree {
+                face,
+                sides: (MarginDiag::value(2.0e-9), MarginDiag::value(-1.6e-9)),
+                band: Band::new(1e-9, 1.5e-9).unwrap(),
+            },
+        ),
+        (
+            "Containment(NarrowWindowUnread)",
+            PointInSolidError::NarrowWindowUnread { face, diag },
+        ),
+        (
+            "Containment(RootCountDisagrees)",
+            PointInSolidError::RootCountDisagrees {
+                face,
+                certified: 2,
+                constructed: 4,
+            },
         ),
         (
             "Containment(NoSuchSolid)",

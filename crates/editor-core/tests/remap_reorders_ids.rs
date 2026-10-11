@@ -5,7 +5,7 @@
 //! keep their order (the split's map follows document order). Every
 //! name-ordered position may then come out reordered — including one
 //! written in a name the re-mapped name EMBEDS: a pair boolean's pieces
-//! of a union's seam are `[FromA(<union seam>), Ends]`, and reordering
+//! of a union's seam are `[From(<union seam>), Ends]`, and reordering
 //! the union's members reorders that embedded seam and the ends.
 //!
 //! Each scenario builds one document with its blocks created in one
@@ -22,10 +22,20 @@ use crate::fixture::{ends, face_vertices, insert, point, table};
 use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::{
-    BooleanOp, EntityKey, Entry, Evaluation, Node, NodeMap, ProfileDoc, RecipeNodeId, RoleSeg,
-    StableName, StepMap, remap_name,
+    EntityKey, Entry, Evaluation, Node, NodeMap, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
+    StepMap, remap_name,
 };
 use geom_core::Tol;
+
+/// The pair booleans a scenario builds.
+#[derive(Clone, Copy)]
+enum BooleanOp {
+    Union,
+    Subtract,
+}
+
+/// The re-map between two builds' reads (`refactor::ReadMap`).
+type ReadMap = BTreeMap<editor_core::VarId, editor_core::VarId>;
 
 type B = ((f64, f64), (f64, f64), (f64, f64));
 
@@ -79,13 +89,18 @@ fn build(blocks: &[B], ops: &[Op], creation: &[usize]) -> Built {
         let before = doc.clone();
         let node = match *op {
             Op::Union(ms) => Node::Union {
-                members: ms.iter().map(|&m| r(m, &out).into()).collect(),
+                members: editor_core::Bodies::Spelled(
+                    ms.iter().map(|&m| r(m, &out).into()).collect(),
+                ),
                 declare: Vec::new(),
             },
-            Op::Pair(op, a, b) => Node::Boolean {
-                op,
-                a: (r(a, &out)).into(),
-                b: (r(b, &out)).into(),
+            Op::Pair(BooleanOp::Union, a, b) => Node::Union {
+                members: editor_core::Bodies::Spelled(vec![r(a, &out).into(), r(b, &out).into()]),
+                declare: Vec::new(),
+            },
+            Op::Pair(BooleanOp::Subtract, a, b) => Node::Subtract {
+                from: r(a, &out).into(),
+                tool: r(b, &out).into(),
                 declare: Vec::new(),
             },
         };
@@ -155,10 +170,16 @@ fn orders(n: usize) -> Vec<Vec<usize>> {
 /// Whether `n` is a union's seam (its sides are its own node's names)
 /// whose sides the re-map to `n2` swapped: the scenario is shown to
 /// reorder something, and the union's seams to be read by name.
-fn union_seam_swapped(n: &StableName, n2: &StableName, map: &NodeMap, steps: &StepMap) -> bool {
+fn union_seam_swapped(
+    n: &StableName,
+    n2: &StableName,
+    map: &NodeMap,
+    steps: &StepMap,
+    reads: &ReadMap,
+) -> bool {
     match (n.path.first(), n2.path.first()) {
         (Some(RoleSeg::Seam { a, b }), Some(RoleSeg::Seam { a: a2, .. })) if a.node == n.node => {
-            remap_name(b, map, steps).expect("covered") == **a2 && a != b
+            remap_name(b, map, steps, reads).expect("covered") == **a2 && a != b
         }
         _ => false,
     }
@@ -166,10 +187,16 @@ fn union_seam_swapped(n: &StableName, n2: &StableName, map: &NodeMap, steps: &St
 
 /// Whether `n` is a PAIR boolean's seam whose sides the re-map to `n2`
 /// swapped. Never: a pair's seam is sided.
-fn pair_seam_swapped(n: &StableName, n2: &StableName, map: &NodeMap, steps: &StepMap) -> bool {
+fn pair_seam_swapped(
+    n: &StableName,
+    n2: &StableName,
+    map: &NodeMap,
+    steps: &StepMap,
+    reads: &ReadMap,
+) -> bool {
     match (n.path.first(), n2.path.first()) {
         (Some(RoleSeg::Seam { a, .. }), Some(RoleSeg::Seam { a: a2, .. })) if a.node != n.node => {
-            remap_name(a, map, steps).expect("covered") != **a2
+            remap_name(a, map, steps, reads).expect("covered") != **a2
         }
         _ => false,
     }
@@ -194,9 +221,13 @@ fn remap_every_order(blocks: &[B], ops: &[Op]) -> (Vec<String>, Vec<String>, boo
         let ev2 = run(&b2.doc);
         let mut map = NodeMap::new();
         let mut steps = StepMap::new();
+        let mut reads = ReadMap::new();
         for (k, v1) in &b1.keyed {
             for (x, y) in v1.iter().zip(&b2.keyed[k]) {
                 map.insert(*x, *y);
+                // A node's outputs are the same reads in both builds,
+                // port for port.
+                reads.extend(b1.doc.outputs(*x).into_iter().zip(b2.doc.outputs(*y)));
                 // A profile's steps are the same steps in both builds,
                 // minted in a different order.
                 if let (Some(Node::Profile(p1)), Some(Node::Profile(p2))) =
@@ -216,23 +247,23 @@ fn remap_every_order(blocks: &[B], ops: &[Op]) -> (Vec<String>, Vec<String>, boo
             assert!(failure(&ev1, t1).is_none() && failure(&ev2, t2).is_none());
             let (tab1, tab2) = (table(&ev1, t1), table(&ev2, t2));
             for (n, e) in tab1.iter() {
-                let n2 = remap_name(n, &map, &steps).expect("the map covers every node");
-                union_swapped |= union_seam_swapped(n, &n2, &map, &steps);
+                let n2 = remap_name(n, &map, &steps, &reads).expect("the map covers every node");
+                union_swapped |= union_seam_swapped(n, &n2, &map, &steps, &reads);
                 assert!(
-                    !pair_seam_swapped(n, &n2, &map, &steps),
+                    !pair_seam_swapped(n, &n2, &map, &steps, &reads),
                     "{order:?}: a pair boolean's seam swapped its sides: {n:?} -> {n2:?}"
                 );
                 // A piece, named by its ends, of a union seam whose
                 // sides the re-map swapped inside it.
                 if let (
                     [
-                        RoleSeg::FromA(x) | RoleSeg::FromB(x),
+                        RoleSeg::From { of: x, .. },
                         RoleSeg::Fragment(editor_core::Qualifier::Ends(_)),
                     ],
-                    [RoleSeg::FromA(x2) | RoleSeg::FromB(x2), _],
+                    [RoleSeg::From { of: x2, .. }, _],
                 ) = (n.path.as_slice(), n2.path.as_slice())
                 {
-                    ends_moved |= union_seam_swapped(x, x2, &map, &steps);
+                    ends_moved |= union_seam_swapped(x, x2, &map, &steps, &reads);
                 }
                 match tab2.lookup(&n2) {
                     None => dangle.push(format!("{order:?}: {n:?} -> {n2:?}")),

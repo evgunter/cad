@@ -436,9 +436,10 @@ impl std::fmt::Display for Emptiness {
     }
 }
 
-/// The word for a half of the KERNEL's [`SplitHalf`]: the part form's
-/// radio row draws one button per entry of `SplitHalf::ALL` with it,
-/// and an empty half's readout ([`Emptiness`]) names the half with it.
+/// The word for a half of the KERNEL's [`SplitHalf`]: a body seat
+/// holding a split draws one button per entry of `SplitHalf::ALL` with
+/// it, and an empty half's readout ([`Emptiness`]) names the half with
+/// it.
 ///
 /// **A match, not a table**, for the reason `forms::boolean_op_label`
 /// is: the enum is declared in `topo`, so no list written here can be
@@ -630,12 +631,7 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
                 None => "on a face of a deleted body".to_owned(),
             },
         ),
-        Node::Datum(
-            Datum::Plane { .. }
-            | Datum::Axis { .. }
-            | Datum::Point { .. }
-            | Datum::AxisInPlane { .. },
-        )
+        Node::Datum(Datum::Plane { .. } | Datum::Axis { .. } | Datum::Point { .. })
         | Node::Profile(_)
         | Node::Extrude { .. }
         | Node::Revolve { .. }
@@ -647,8 +643,9 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
         | Node::Chamfer { .. }
         | Node::Shell { .. }
         | Node::Split { .. }
-        | Node::Boolean { .. }
+        | Node::Subtract { .. }
         | Node::Union { .. }
+        | Node::Intersect { .. }
         | Node::Transform { .. }
         | Node::Pattern { .. }
         | Node::Part { .. }
@@ -844,8 +841,9 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
         | Node::Chamfer { .. }
         | Node::Shell { .. }
         | Node::Split { .. }
-        | Node::Boolean { .. }
+        | Node::Subtract { .. }
         | Node::Union { .. }
+        | Node::Intersect { .. }
         | Node::Transform { .. }
         | Node::Pattern { .. }
         | Node::Part { .. }
@@ -1188,10 +1186,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // The named input evaluated to a legal value that the failing
         // node's own choice does not fit — a family the operand does
         // not take, an empty body or split side, an index outside the
-        // pattern's instances, an axis on another frame than the
-        // profile's — and nothing on it refused. The frames
-        // `AxisInDifferentPlane` names are evidence of which frame each
-        // sits on.
+        // pattern's instances — and nothing on it refused.
         NodeErrorKind::WrongOperand { .. }
         // An operand reads an output its operation no longer defines:
         // the repair is a re-point at the reading node itself.
@@ -1199,9 +1194,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::ProductOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }
-        | NodeErrorKind::MembersShareAnOperation { .. }
-        | NodeErrorKind::InstanceOutOfRange { .. }
-        | NodeErrorKind::AxisInDifferentPlane { .. } => None,
+        | NodeErrorKind::InstanceOutOfRange { .. } => None,
         // Names an id no live node holds, so there is no row to go to.
         NodeErrorKind::MissingInput { .. } => None,
         // The input's door shipped a body that does not finish: a
@@ -1239,6 +1232,9 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         NodeErrorKind::UnionFoldStep { .. } => None,
         // Name no node beside the failing one.
         NodeErrorKind::Expr { .. }
+        | NodeErrorKind::PoseRead { .. }
+        | NodeErrorKind::PoseDegenerate { .. }
+        | NodeErrorKind::PoseScalar { .. }
         | NodeErrorKind::Profile(_)
         | NodeErrorKind::ProfileReplay { .. }
         | NodeErrorKind::ProfileLaneReplay { .. }
@@ -1301,6 +1297,8 @@ fn repaired_at(fault: &MateFault) -> Option<RecipeNodeId> {
         MateFault::PlacerRefused { placer, .. } => Some(*placer),
         // Named beside the mate, and not the repair (module header).
         MateFault::DanglingHead { .. } | MateFault::PartSelectsAnotherCopy { .. } => None,
+        // The side's read is repaired at the mate itself.
+        MateFault::SideUnresolved { .. } => None,
         // Name no node beside the mate, or name one only as evidence
         // of where the refusal held.
         MateFault::Frame { .. }
@@ -1363,6 +1361,7 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::TableLacks { mate, .. }
         | MateFault::Indeterminate { mate, .. }
         | MateFault::Under { mate, .. }
+        | MateFault::SideUnresolved { mate, .. }
         | MateFault::DanglingHead { mate, .. }
         | MateFault::PlacerRefused { mate, .. }
         | MateFault::SelfMate { mate, .. }

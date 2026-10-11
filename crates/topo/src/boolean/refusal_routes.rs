@@ -294,6 +294,13 @@ pub enum BooleanDecision {
     /// Whether an edge leaves a curved face steeply enough, against the
     /// face's own bend, to read which side of it the edge goes.
     PierceCurvature,
+    /// Whether an arc that leaves a corner along a plane face bends off
+    /// it clearly enough to read which side it goes: the margin is a
+    /// lower bound on how far the arc's bend carries it off the plane,
+    /// less the residue its tangent's first-order reading leaves, and a
+    /// definitely positive one passes. A spiric arc's bend carries no
+    /// bound, so its margin never passes.
+    ConicBend,
     /// Whether two directions at a corner, read parallel, point the same
     /// way or opposite ways (`bool_dir_same`): the cosine levered at the
     /// corner's arm, `|cos| ≈ 1` once parallelism read zero, so what it
@@ -1201,6 +1208,20 @@ pub(crate) const PIERCE_CURVATURE: SizedDecision = SizedDecision {
     at_zero: None,
 };
 
+/// Whether an arc that leaves a corner along a plane face bends off it
+/// clearly enough to read its side ([`BooleanDecision::ConicBend`]): the
+/// margin is the least lift the arc's bend gives it off the plane, less
+/// the residue of its tangent's first-order reading, and a definitely
+/// positive one passes. Only a circle or an ellipse can bend off more
+/// sharply; a spiric arc's way through is the angle.
+pub(crate) const CONIC_BEND: SizedDecision = SizedDecision {
+    lever: "tilt the arc off the face, or bend a circular or elliptic arc more sharply",
+    size: "lift beyond the residue",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
 /// Whether two neighbouring faces of one operand lie on one plane, as
 /// the maximal-faces gate reads the offset between their planes (F7):
 /// either definite sign passes, a decided zero is a pair the producing
@@ -1405,6 +1426,10 @@ impl BooleanDecision {
                 "whether an edge leaves a curved face steeply enough against its bend to read \
                  which side it goes"
             }
+            Self::ConicBend => {
+                "whether an arc leaving a corner along a face bends off it clearly enough to read \
+                 which side it goes"
+            }
             Self::DirectionSense => {
                 "whether two parallel directions at a corner point the same way or opposite ways"
             }
@@ -1599,6 +1624,7 @@ impl BooleanDecision {
                 "move the parts so the arc clearly crosses the cone or clearly misses it",
             ),
             Self::PierceCurvature => Ending::Sized(PIERCE_CURVATURE),
+            Self::ConicBend => Ending::Sized(CONIC_BEND),
             Self::DirectionSense => Ending::Sized(CORNER_SENSE),
             // Its escalation carries the zero band's own enclosure, not a
             // measured margin; a longer arm lengthens every reading of the
@@ -1921,6 +1947,7 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::ConeRoots => vec![BooleanDecision::ConeRoots],
                 BooleanDecisionKind::ArcConeRoots => vec![BooleanDecision::ArcConeRoots],
                 BooleanDecisionKind::PierceCurvature => vec![BooleanDecision::PierceCurvature],
+                BooleanDecisionKind::ConicBend => vec![BooleanDecision::ConicBend],
                 BooleanDecisionKind::DirectionSense => vec![BooleanDecision::DirectionSense],
                 BooleanDecisionKind::BisectorSide => vec![BooleanDecision::BisectorSide],
                 BooleanDecisionKind::SeamWedge => vec![BooleanDecision::SeamWedge],
@@ -2363,6 +2390,15 @@ pub(in crate::boolean) mod tests {
                 "whether an edge leaves a curved face steeply enough against its bend to read \
                  which side it goes",
                 Ending::Sized(PIERCE_LEVER, SizedPass::Positive),
+            ),
+            BooleanDecision::ConicBend => (
+                "whether an arc leaving a corner along a face bends off it clearly enough to read \
+                 which side it goes",
+                Ending::Sized(
+                    "Recourse: tilt the arc off the face, or bend a circular or elliptic arc \
+                     more sharply",
+                    SizedPass::Positive,
+                ),
             ),
             BooleanDecision::Corner(SectorRung::Arm) => (
                 "whether a corner's edges are long enough to measure its angle over",
@@ -3511,6 +3547,96 @@ pub(in crate::boolean) mod tests {
             offered_below(&text),
             Some(Some(point_margin(&diag) / k())),
             "{text}"
+        );
+    }
+
+    /// **The maximal-faces gate reads a pair at the edge they share,
+    /// wherever the operand stands** (F7): the split top's half tilted
+    /// about the diagonal by an angle whose sweep over the edge's extent
+    /// reads zero is one plane with its neighbour, on the unit prism and
+    /// on the prism moved hundreds of metres across the diagonal, where
+    /// the planes part by many bands at the world origin.
+    #[test]
+    fn the_maximal_faces_gate_reads_a_tilted_neighbour_alike_wherever_it_stands() {
+        let (b, tol) = (band(), Tol::witness());
+        for share in [0.5, 0.9] {
+            let body = top_split_redescribed(|p0, along, diagonal| {
+                let theta = share * b.zero() / diagonal;
+                let up = Vec3::new(0.0, 0.0, 1.0);
+                crate::Surface::Plane {
+                    origin: p0,
+                    normal: up * theta.cos() + along.cross(up) * theta.sin(),
+                    u_ref: along,
+                }
+            });
+            for shift in [
+                Vec3::new(0.0, 0.0, 0.0),
+                Vec3::new(600.0, -400.0, 250.0),
+                Vec3::new(-300.0, 0.0, 0.0),
+            ] {
+                let moved = crate::transform::transform_rigid(
+                    &body,
+                    &geom_core::Affine3::translation(shift),
+                    tol,
+                )
+                .expect("a translation is rigid");
+                let read = super::super::reduce::gate_maximal_faces(&moved, Operand::A, b);
+                assert!(
+                    matches!(read, Err(BooleanError::NonMaximalFaces { .. })),
+                    "a {share} band tilt moved by {shift:?}: {read:?}"
+                );
+            }
+        }
+    }
+
+    /// **The maximal-faces gate levers a bend at a ball holding the
+    /// shared edge** (F7): a disc on a block's top, its circle split
+    /// into arcs of 270° and 90°, the disc bent about its diameter
+    /// along `x` by an angle whose sweep reads just past the zero band
+    /// over the circle's diameter. The 270° arc reaches the diameter from
+    /// its start, so the gate reads the bend in band and refuses it as
+    /// its own escalation, where the arc's chord or sagitta (1.71 r)
+    /// would read it zero and call the two faces one plane.
+    #[test]
+    fn the_maximal_faces_gate_reads_an_arc_past_a_half_turn_at_its_diameter() {
+        let (b, tol) = (band(), Tol::witness());
+        let square = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)];
+        let prism = crate::test_support_fixtures::prism_z::<f64>(&square, 0.0, 1.0, tol);
+        let mut body = prism.body;
+        let outer = body.get_face(prism.top_face).unwrap().outer;
+        let crate::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("the top face's outer loop is a cycle");
+        };
+        let (center, radius) = (Point3::new(1.0, 1.0, 1.0), 0.5);
+        let disc =
+            crate::test_support_fixtures::plant_disc_face(&mut body, first, center, radius, tol);
+        body.split_edge(disc.edge, 1.5 * std::f64::consts::PI, tol)
+            .expect("the circle splits at three quarters of a turn");
+        let sin = 1.1 * b.zero() / (2.0 * radius);
+        let (up, along) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
+        body.set_face_surface_unvouched_for_tests(
+            disc.face,
+            crate::euler::FaceSurface::New {
+                surface: crate::Surface::Plane {
+                    origin: center,
+                    normal: up * (1.0 - sin * sin).sqrt() + along.cross(up) * sin,
+                    u_ref: along,
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+        let err = super::super::reduce::gate_maximal_faces(&body, Operand::A, b)
+            .expect_err("a bend in band refuses");
+        assert!(
+            matches!(
+                err,
+                BooleanError::Escalated {
+                    decision: BooleanDecision::Neighbours(PlaneRung::Parallel),
+                    ..
+                }
+            ),
+            "the bend reads in band over the arc's diameter: {err:?}"
         );
     }
 

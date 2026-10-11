@@ -195,7 +195,6 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
 pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     // work/wire/wire-refusals-short-of-the-shape-guard.md
     "AssertionDimension",
-    "AxisInDifferentPlane",
     "BlendSelectionEmpty",
     "SelectKind",
     "SelectResolve/Ambiguous",
@@ -1135,11 +1134,25 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
-            "AxisInDifferentPlane",
-            NodeErrorKind::AxisInDifferentPlane {
-                axis: RecipeNodeId::new(0, tagged(3)),
-                axis_plane: Some(RecipeNodeId::new(0, tagged(1))),
-                profile_plane: Some(RecipeNodeId::new(0, tagged(2))),
+            "PoseRead",
+            NodeErrorKind::PoseRead {
+                pose: editor_core::VarKind::Axis,
+                fault: editor_core::pose::PoseReadFault::NoAxis {
+                    carrier: editor_core::pose::Carrier::Surface(geom::SurfaceKind::Plane),
+                },
+            },
+        ),
+        row(
+            "PoseDegenerate",
+            NodeErrorKind::PoseDegenerate {
+                construction: editor_core::pose::PoseConstruction::Meet,
+            },
+        ),
+        row(
+            "PoseScalar",
+            NodeErrorKind::PoseScalar {
+                var: editor_core::VarId::new(0, tagged(4)),
+                source: editor_core::EvalError::NonFiniteResult,
             },
         ),
         row(
@@ -1210,7 +1223,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "DeclareSiteNotAnOperand",
             NodeErrorKind::DeclareSiteNotAnOperand {
-                at: RecipeNodeId::new(0, tagged(3)),
+                at: editor_core::VarId::new(0, tagged(3)),
             },
         ),
         row(
@@ -1243,7 +1256,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             "DerivedFrameSection",
             NodeErrorKind::DerivedFrameSection {
                 profile: RecipeNodeId::new(0, tagged(3)),
-                frame: RecipeNodeId::new(0, tagged(2)),
+                frame: Some(RecipeNodeId::new(0, tagged(2))),
             },
         ),
         row(
@@ -1641,6 +1654,50 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         (
             "UnderflowedSectorChord",
             R::UnderflowedSectorChord { vertex, face },
+        ),
+        (
+            "SectionGermsEscalated(Line)",
+            R::SectionGermsEscalated {
+                vertex,
+                reading: topo::SectionGermReading::Line,
+                diag: diag(),
+            },
+        ),
+        (
+            "SectionGermsEscalated(Order)",
+            R::SectionGermsEscalated {
+                vertex,
+                reading: topo::SectionGermReading::Order,
+                diag: diag(),
+            },
+        ),
+        (
+            "SectionGermsUnordered(NoLine)",
+            R::SectionGermsUnordered {
+                vertex,
+                fault: topo::SectionGermFault::NoLine,
+            },
+        ),
+        (
+            "SectionGermsUnordered(Coincident)",
+            R::SectionGermsUnordered {
+                vertex,
+                fault: topo::SectionGermFault::Coincident,
+            },
+        ),
+        (
+            "SectionGermsUnordered(Alternation)",
+            R::SectionGermsUnordered {
+                vertex,
+                fault: topo::SectionGermFault::Alternation,
+            },
+        ),
+        (
+            "SectionGermsUnordered(Crossing)",
+            R::SectionGermsUnordered {
+                vertex,
+                fault: topo::SectionGermFault::Crossing,
+            },
         ),
         ("ConsecutiveOnSectors", R::ConsecutiveOnSectors { vertex }),
         ("StaleVertex", R::StaleVertex { vertex }),
@@ -2213,10 +2270,10 @@ fn wall_endings() -> [(&'static str, String); 2] {
 /// - **The transform op** (`Transform/ApproxRecertify/…`) raises the
 ///   certifier's arms on the image — `certify_offset_over` runs the
 ///   meters and the certificate limbs on a fit it did not make, so
-///   `Meter`, `PatchBound`, `WindowUnsupported`, `Limb` and
-///   `Elevation` — and the mint's arms on a re-fit, when a sound face's
-///   image refuses a limb and the map fits the mapped description
-///   afresh: every arm the shell route raises. So every arm but `Band`.
+///   `Meter`, `PatchBound`, `WindowUnsupported` and `Limb` — and the
+///   mint's arms on a re-fit, when a sound face's image refuses a limb
+///   and the map fits the mapped description afresh: every arm the
+///   shell route raises. So every arm but `Band`.
 ///
 /// `Band` reaches neither route. The door derives the run's band from
 /// the witness, and both ops derive the same band before they reach the
@@ -2270,7 +2327,6 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
         ("WindowUnsupported", 1),
         ("Limb", 2),
         ("MintLimb", 2),
-        ("Elevation/", 1),
     ] {
         let have = roster.iter().filter(|(n, _)| n.starts_with(arm)).count();
         assert!(
@@ -3509,7 +3565,8 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "UnionFoldStep",
             NodeErrorKind::UnionFoldStep {
-                member: RecipeNodeId::new(0, tagged(2)),
+                member: 2,
+                read: editor_core::VarId::new(0, tagged(2)),
                 refusal: Box::new(NodeErrorKind::Boolean(topo::BooleanError::Escalated {
                     decision: topo::BooleanDecision::Coincidence(
                         topo::Coincide::Carriers,
@@ -5033,6 +5090,29 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
         (
             "WallOutlineUnsupported",
             PointInSolidError::WallOutlineUnsupported { face },
+        ),
+        (
+            "JunctionSidesDisagree",
+            PointInSolidError::JunctionSidesDisagree {
+                face,
+                sides: (
+                    geom_core::MarginDiag::value(2.0e-9),
+                    geom_core::MarginDiag::value(-1.6e-9),
+                ),
+                band: geom_core::Band::new(1e-9, 1.5e-9).unwrap(),
+            },
+        ),
+        (
+            "NarrowWindowUnread",
+            PointInSolidError::NarrowWindowUnread { face, diag: diag() },
+        ),
+        (
+            "RootCountDisagrees",
+            PointInSolidError::RootCountDisagrees {
+                face,
+                certified: 2,
+                constructed: 4,
+            },
         ),
         (
             "NoSuchSolid",

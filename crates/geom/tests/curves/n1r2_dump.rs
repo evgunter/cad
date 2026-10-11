@@ -22,9 +22,7 @@ fn n1r2_dump_curve_evaluators() {
     let mut out = std::fs::File::create(path).unwrap();
     let mut n = 0usize;
     for (name, c) in curves3() {
-        let ctrl = c.control().iter().map(|p| p.map(Dual::constant)).collect();
-        let cd: NurbsCurve3<Dual64> =
-            NurbsCurve3::new(c.knots().clone(), ctrl, c.weights().to_vec()).unwrap();
+        let cd: NurbsCurve3<Dual64> = c.map_scalar(Dual::constant);
         let kv = c.knots();
         for t in params(kv) {
             let p = c.eval(t);

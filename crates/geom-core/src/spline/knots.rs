@@ -6,7 +6,20 @@
 use super::range::{Param, ParamRange, last_at_or_below};
 use crate::exact::two_sum;
 use crate::readable::Readable;
+use crate::real::Real;
 use core::num::NonZeroUsize;
+
+/// `hi − lo` for two stored `f64` knots, the difference taken in `T`:
+/// each knot lifted, then subtracted at the scalar. At `Interval` that is
+/// an outward enclosure of the exact difference, which
+/// `T::from_f64(hi - lo)` is not when the `f64` subtraction rounds (two
+/// knots more than a factor of two apart, Sterbenz's lemma failing); at
+/// `f64` the two are the same number. The one spelling of a knot
+/// difference at a scalar.
+#[must_use]
+pub fn knot_difference<T: Real>(lo: f64, hi: f64) -> T {
+    T::from_f64(hi) - T::from_f64(lo)
+}
 
 /// A typed construction failure for spline structure — fail-loud per
 /// D4: every invalid input is a named refusal, never a silent repair.
@@ -64,6 +77,32 @@ pub enum SplineError {
         /// The requested upper end.
         hi: f64,
     },
+    /// A breakpoint held in the scalar reads as no single `f64` point
+    /// (`SpanLocate::point_value`): poison, or an enclosure wider than a
+    /// point. The `f64` knot vector is the values' value channel, and
+    /// such a value names no knot structure.
+    KnotNotAPoint {
+        /// Index of the offending run.
+        index: usize,
+    },
+    /// A breakpoint's value channel is not strictly above the one
+    /// before it: equal, the two runs would merge into one and the
+    /// structure would not be the runs written; below, the vector
+    /// decreases.
+    KnotRunsNotIncreasing {
+        /// Index of the offending run.
+        index: usize,
+    },
+    /// A weight held in the scalar is an enclosure wider than a point
+    /// (`SpanLocate::point_value` reads none, and it is not poison,
+    /// which refuses as a non-positive weight). The weights' value
+    /// channel is what every structure decision on them reads
+    /// (positivity, the knot algebra's plans), and such a value gives
+    /// it nothing to read.
+    WeightNotAPoint {
+        /// Index of the offending weight.
+        index: usize,
+    },
 }
 
 impl core::fmt::Display for SplineError {
@@ -105,6 +144,25 @@ impl core::fmt::Display for SplineError {
                  whose ends are finite with lo < hi and whose width does not overflow",
                 Readable(*lo),
                 Readable(*hi)
+            ),
+            SplineError::KnotNotAPoint { index } => write!(
+                f,
+                "breakpoint {index} is not one point (poison, or an enclosure wider than a \
+                 point), so it names no knot structure for the spans to be located in. \
+                 Recourse: supply a breakpoint that is a single number there"
+            ),
+            SplineError::KnotRunsNotIncreasing { index } => write!(
+                f,
+                "breakpoint {index} does not lie strictly above the one before it, so the two \
+                 would merge into one run or reverse the vector. Recourse: supply one \
+                 breakpoint with the summed multiplicity where the two are one knot, or \
+                 breakpoints that increase"
+            ),
+            SplineError::WeightNotAPoint { index } => write!(
+                f,
+                "weight {index} is an enclosure wider than a point, so no positivity or \
+                 knot-algebra decision can read it. Recourse: supply a weight that is a \
+                 single number there"
             ),
         }
     }
@@ -289,8 +347,9 @@ impl core::fmt::Display for KnotMirrorError {
 impl core::error::Error for KnotMirrorError {}
 
 /// A validated **clamped** knot vector with its degree — the structural
-/// half of every B-spline/NURBS entity (knots and degree are `f64`/
-/// `usize` structure per C6; generic scalar types never appear here).
+/// half of every B-spline/NURBS entity: `f64`/`usize` structure per C6,
+/// the value channel of the knots a carrier holds in its scalar
+/// ([`super::Knots`]); generic scalar types never appear here.
 ///
 /// # Invariants (established at construction, relied on by indexing)
 ///
@@ -1247,6 +1306,36 @@ mod tests {
         KnotVector::clamped(knots.to_vec(), p).unwrap()
     }
 
+    /// **A knot difference at `Interval` encloses the exact difference**
+    /// of its two `f64` knots, decided exactly: `hi − lo = s + e` with
+    /// `s` the rounded difference and `e` its TwoSum error, and the
+    /// enclosure's ends are floats, so each end is compared with `s` and
+    /// `e`'s sign. On these non-dyadic knots the subtraction rounds, and
+    /// the thin `T::from_f64(hi - lo)` the speed meter once took held
+    /// `s` alone, missing `s + e`. At `f64` the difference is `s`.
+    #[test]
+    fn a_knot_difference_encloses_the_exact_difference_of_non_dyadic_knots() {
+        use crate::real::Bounds;
+        let mut inexact = 0;
+        for (lo, hi) in [(0.1, 0.7), (0.1, 0.3), (1e-3, 0.9), (0.3, 0.9), (0.05, 0.7)] {
+            let (s, e) = two_sum(hi, -lo);
+            if e != 0.0 {
+                inexact += 1;
+            }
+            let d: crate::Interval = knot_difference(lo, hi);
+            let below = d.lo() < s || (d.lo() == s && e >= 0.0);
+            let above = d.hi() > s || (d.hi() == s && e <= 0.0);
+            assert!(
+                below && above,
+                "[{lo}, {hi}]: [{:e}, {:e}] misses {s:e} + {e:e}",
+                d.lo(),
+                d.hi()
+            );
+            assert_eq!(knot_difference::<f64>(lo, hi).to_bits(), s.to_bits());
+        }
+        assert!(inexact >= 4, "the row's knots must round: {inexact} did");
+    }
+
     /// A domain stored reversed or collapsed is not mintable, so a
     /// consumer metering `d1 - d0` (certify's span meter) sees a positive
     /// width. The reversal here is in the END runs, which an interior
@@ -1906,8 +1995,26 @@ mod tests {
                 control: 4,
             },
             SplineError::DomainInvalid { lo: 1.0, hi: 1.0 },
+            SplineError::KnotNotAPoint { index: 1 },
+            SplineError::KnotRunsNotIncreasing { index: 2 },
+            SplineError::WeightNotAPoint { index: 1 },
         ];
-        assert_eq!(arms.len(), 6, "an arm was added without a row here");
+        // Exhaustive by the compiler: a new arm fails to build here
+        // until it is listed above.
+        for e in &arms {
+            match e {
+                SplineError::KnotVectorInvalid { .. }
+                | SplineError::NonPositiveWeight { .. }
+                | SplineError::NonFiniteWeight { .. }
+                | SplineError::ControlCountMismatch { .. }
+                | SplineError::WeightCountMismatch { .. }
+                | SplineError::DomainInvalid { .. }
+                | SplineError::KnotNotAPoint { .. }
+                | SplineError::KnotRunsNotIncreasing { .. }
+                | SplineError::WeightNotAPoint { .. } => {}
+            }
+        }
+        assert_eq!(arms.len(), 9, "an arm was added without a row here");
         // The repair is labelled, once: a wrapper that forwards this
         // carrier whole and adds a `Recourse:` of its own is then two
         // to the checker, not one it cannot see.

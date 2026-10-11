@@ -364,6 +364,10 @@ pub struct ChecksConfig {
     /// per-run choice and never a document's: turning it off removes
     /// reports, never changes a body (DS3).
     pub unproven_coincidence: Advisory,
+    /// How hard that check's door tries to prove a row
+    /// ([`crate::coincide::SymbolicPass`]): the resident budget by
+    /// default, the full one on request.
+    pub symbolic_pass: crate::coincide::SymbolicPass,
 }
 
 impl Default for ChecksConfig {
@@ -374,6 +378,7 @@ impl Default for ChecksConfig {
             separation: Advisory::Warn,
             chart_coherence: Advisory::Off,
             unproven_coincidence: Advisory::Warn,
+            symbolic_pass: crate::coincide::SymbolicPass::Resident,
         }
     }
 }
@@ -700,7 +705,7 @@ impl crate::finding::Finding for SaidFinding<'_> {
                 let cell = |c: &crate::coincide::NamedCell| match c {
                     crate::coincide::NamedCell::Entity { name, .. } => by.name(name).to_string(),
                     crate::coincide::NamedCell::Tool { input } => {
-                        format!("the plane of {}", by.node_as(*input, "node"))
+                        format!("the plane of {}", by.read(*input))
                     }
                     crate::coincide::NamedCell::Piece { profile, piece } => {
                         crate::names::words::piece(piece, *profile, by)
@@ -1247,7 +1252,7 @@ pub fn run_checks_on<
             refusal: refusal.clone(),
         });
     } else {
-        unproven_coincidence(doc, ev, &subject, &mut report);
+        unproven_coincidence(doc, ev, &subject, tol, cfg.symbolic_pass, &mut report);
     }
     if cfg.severity(CheckId::Separation) == Severity::Off {
         report.skipped.push(CheckId::Separation);
@@ -1277,26 +1282,35 @@ fn holds_a_mate<P>(doc: &Doc<P>) -> bool {
 /// at-rest census's rows on the gathered product, in mint order; each
 /// the door leaves unproven a finding attributed to the node that
 /// decided it, or to the mate whose pair the census decided.
-fn unproven_coincidence<P, T: Decide>(
+fn unproven_coincidence<P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     subject: &Subject<'_, T>,
+    tol: Tol,
+    pass: crate::coincide::SymbolicPass,
     report: &mut ChecksReport,
 ) {
     let at_rest = match subject {
         Subject::Product(gathered) => gathered.coincidences.as_slice(),
         Subject::EmptyProduct | Subject::Unavailable { .. } => &[],
     };
-    let rows = ev
+    let nodes: Vec<(RecipeNodeId, &[crate::coincide::NamedCoincidence])> = ev
         .order
         .iter()
-        .filter_map(|&node| ev.value(node).map(|value| (node, value)))
-        .flat_map(|(node, value)| value.coincidences.iter().map(move |row| (node, row)))
-        .chain(at_rest.iter().map(|r| (r.mate, &r.row)));
-    for (node, row) in rows {
-        if let crate::coincide::Proof::Unproven { residual, recourse } =
-            crate::coincide::prove(doc, row)
-        {
+        .filter_map(|&node| ev.value(node).map(|value| (node, &*value.coincidences)))
+        .filter(|(_, rows)| !rows.is_empty())
+        .chain(
+            at_rest
+                .iter()
+                .map(|r| (r.mate, core::slice::from_ref(&r.row))),
+        )
+        .collect();
+    let proofs = crate::coincide::prove(doc, &nodes, tol, pass);
+    let rows = nodes
+        .iter()
+        .flat_map(|&(node, rows)| rows.iter().map(move |row| (node, row)));
+    for ((node, row), proof) in rows.zip(proofs.into_iter().flatten()) {
+        if let crate::coincide::Proof::Unproven { residual, recourse } = proof {
             report.findings.push(CheckFinding {
                 check: CheckId::UnprovenCoincidence,
                 subject: FindingSubject::Node(node),

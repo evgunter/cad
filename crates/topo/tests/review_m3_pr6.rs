@@ -11,9 +11,8 @@ use common::{brick, cube_into, finished, mapped_cube, prism, prism_z};
 use geom_core::Tol;
 use geom_core::{Decide, Point3, Vec3};
 use topo::{
-    Body, BooleanError, BooleanResult, ContactRecords, SplitError, SplitJoinError, SplitPart,
-    SplitPlane, ValidationError, intersect, mass_properties, split, subtract, union,
-    validate_pseudomanifold,
+    Body, BooleanError, BooleanResult, ContactRecords, SplitPart, SplitPlane, ValidationError,
+    intersect, mass_properties, split, subtract, union, validate_pseudomanifold,
 };
 
 fn plane_y<T: Decide>(c: f64, ny: f64) -> SplitPlane<T> {
@@ -29,7 +28,7 @@ fn body_of<T: geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
 }
 
 // =================================================================
-// R1 — the D7 mirror-identity pinch lane.
+// R1 — pinches, and the mirror identity split(S, n) ≡ swap(split(S, −n)).
 // =================================================================
 
 /// The PR-3 pinch profiles, verbatim (below-pinch under +n / above-
@@ -59,12 +58,10 @@ const NOTCHED: &[(f64, f64)] = &[
 
 /// A profile pinching on BOTH sides of y = 1: a bottom notch with apex
 /// (4,1) pinches the BELOW pieces (MIRRORED's class) and a top notch
-/// with apex (9,1) pinches the ABOVE pieces (NOTCHED's class). A valid
-/// decomposition exists (2 shells above pinched at (9,1) + 2 shells
-/// below pinched at (4,1) — each side is exactly what the orientation
-/// table produces one-sided), but the mirror lane refuses: the direct
-/// run dies at the below pinch, the mirrored rerun dies at the
-/// (now-below) above pinch.
+/// with apex (9,1) pinches the ABOVE pieces (NOTCHED's class). Its
+/// decomposition is 2 shells above pinched at (9,1) + 2 shells below
+/// pinched at (4,1), each side what the orientation table produces
+/// one-sided.
 const BOTH_SIDED: &[(f64, f64)] = &[
     (0.0, 0.0),
     (3.0, 0.0),
@@ -78,8 +75,7 @@ const BOTH_SIDED: &[(f64, f64)] = &[
     (0.0, 2.0),
 ];
 /// Single-sided controls carved out of BOTH_SIDED (same plane, same
-/// tips) — these must succeed, proving the both-sided decomposition is
-/// made of two independently-deliverable halves.
+/// tips).
 const BUMP_ONLY: &[(f64, f64)] = &[
     (0.0, 0.0),
     (3.0, 0.0),
@@ -99,45 +95,41 @@ const NOTCH_ONLY: &[(f64, f64)] = &[
     (0.0, 2.0),
 ];
 
-/// R1(a)+(c): the both-sided pinch class. VERDICT recorded in the
-/// review report: the lane REFUSES (typed `DegenerateSection`, no
-/// panic, no wrong body) a body whose valid pinch decomposition exists
-/// — the mirror rerun only relocates the refusal, falsifying the
-/// documented "double refusal = genuine both-sided zero-area residue"
-/// reading. Controls: each single-sided half succeeds under the SAME
-/// plane with exact volume conservation.
+/// R1(a)+(c): the both-sided pinch class splits, as each single-sided
+/// half does under the same plane: tier 3 on both sides, two shells on
+/// each side of the both-sided profile, and the volume conserved. Each
+/// tip mints a copy for the side its pieces meet on, whichever side of
+/// the plane that is.
 fn both_sided_pinch_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
-    for (profile, must_succeed) in [(BUMP_ONLY, true), (NOTCH_ONLY, true), (BOTH_SIDED, false)] {
+    for (profile, shells) in [
+        (BUMP_ONLY, [1, 2]),
+        (NOTCH_ONLY, [2, 1]),
+        (BOTH_SIDED, [2, 2]),
+    ] {
         let fx = prism::<T>(profile, 1.0, Tol::witness());
         let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
         let v0 = mass_properties(&fx.body, Tol::witness()).unwrap().volume;
-        match split(&operand, &plane_y::<T>(1.0, 1.0), Tol::witness()) {
-            Ok(r) => {
-                assert!(must_succeed, "BOTH_SIDED unexpectedly split — re-examine");
-                let (va, vb) = (
-                    mass_properties(body_of(&r.above), Tol::witness())
-                        .unwrap()
-                        .volume,
-                    mass_properties(body_of(&r.below), Tol::witness())
-                        .unwrap()
-                        .volume,
-                );
-                let d = (va + vb - v0).abs();
-                assert!(d.hi() <= 1e-9, "volume conservation: {d:?}");
-            }
-            Err(e) => {
-                assert!(!must_succeed, "single-sided control refused: {e:?}");
-                // The double-refusal path must be TYPED (the direct
-                // run's DegenerateSection), never a panic/wrong body.
-                assert!(
-                    matches!(
-                        e,
-                        SplitError::Join(SplitJoinError::DegenerateSection { .. })
-                    ),
-                    "double refusal must surface DegenerateSection, got {e:?}"
-                );
-            }
+        let r = split(&operand, &plane_y::<T>(1.0, 1.0), Tol::witness())
+            .unwrap_or_else(|e| panic!("{profile:?}: refused: {e:?}"));
+        for (side, want) in [(&r.above, shells[0]), (&r.below, shells[1])] {
+            let b = body_of(side);
+            assert_eq!(
+                topo::validate_geometric(b, Tol::witness()),
+                Ok(()),
+                "{profile:?}: tier 3"
+            );
+            assert_eq!(b.shells().count(), want, "{profile:?}: shells");
         }
+        let (va, vb) = (
+            mass_properties(body_of(&r.above), Tol::witness())
+                .unwrap()
+                .volume,
+            mass_properties(body_of(&r.below), Tol::witness())
+                .unwrap()
+                .volume,
+        );
+        let d = (va + vb - v0).abs();
+        assert!(d.hi() <= 1e-9, "{profile:?}: volume conservation: {d:?}");
     }
 }
 
@@ -148,7 +140,7 @@ fn r1_both_sided_pinch_f64() {
 
 /// R1(b): structural comparison of the two paths of the identity —
 /// `split(S, +n)` vs swap(`split(S, −n)`) — on both pinch profiles
-/// (each orientation exercises the mirror lane for one of them).
+/// (under each orientation one of them is pinched below the normal).
 /// Compares volumes, shell/face/edge/vertex counts per assigned side,
 /// and the section-face normal convention (above section m = −n,
 /// below m = +n) that the doc claims survives the swap.
@@ -326,13 +318,17 @@ fn r2_flush_stack_full_overlap() {
             ..
         } = e
         {
-            contacts.vv.push(topo::Cited::new(
-                topo::VvContact { a: *a, b: *b },
+            contacts.extend([topo::Cited::new(
+                topo::Contact::new(&body, topo::Cell::Vertex(*a), topo::Cell::Vertex(*b)).unwrap(),
                 topo::Cites::decided(0),
-            ));
+            )]);
         }
     }
-    assert_eq!(contacts.vv.len(), 4, "expected the 4 corner kisses");
+    assert_eq!(
+        contacts.vertex_vertex().count(),
+        4,
+        "expected the 4 corner kisses"
+    );
     let verdict = validate_pseudomanifold(&body, &contacts, Tol::witness());
     // Executed outcome recorded in the report: if Ok, a full-area
     // flush contact is certifiable from 4 vv records (skeleton
@@ -589,22 +585,23 @@ fn r7_vf_tamper_distinguishes_stale_vs_undeclared() {
         validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()),
         Ok(())
     );
-    let mut tampered = r.contacts.clone();
-    let rests = tampered.a_on_b.len() + tampered.b_on_a.len();
-    assert_eq!(rests, 1, "expected exactly one vf record");
-    let rec = tampered
-        .a_on_b
-        .first_mut()
-        .or(tampered.b_on_a.first_mut())
-        .unwrap();
-    let right = rec.face;
+    let rests: Vec<_> = r.contacts.vertex_face().collect();
+    assert_eq!(rests.len(), 1, "expected exactly one vf record");
+    let (vertex, right) = rests[0];
     let wrong = r
         .body
         .faces()
         .map(|(k, _)| k)
-        .find(|&k| k != right)
+        .find(|&k| {
+            k != right
+                && topo::Contact::new(&r.body, topo::Cell::Vertex(vertex), topo::Cell::Face(k))
+                    .is_ok()
+        })
         .unwrap();
-    rec.record.face = wrong;
+    let tampered = topo::test_support::records(
+        &r.body,
+        [(topo::Cell::Vertex(vertex), topo::Cell::Face(wrong))],
+    );
     let errors = validate_pseudomanifold(&r.body, &tampered, Tol::witness()).unwrap_err();
     assert!(
         errors

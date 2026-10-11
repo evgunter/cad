@@ -70,6 +70,13 @@
 //! order**, so a change to how the mint draws ids moves all three
 //! numbers with no point moving.
 //!
+//! **THE `f64` AND `Interval` NUMBERS MOVED AT FORK-DM4 BY IDS ALONE.**
+//! The three boolean nodes replaced `Boolean { op, a, b }`, and a node's
+//! variant feeds its mint preimage, so every node from the first boolean
+//! on re-minted and the stream reorders. No point moved: the id-free
+//! row, `the_corpus_geometry_is_bit_identical_with_ids_masked`, held
+//! across the change without a re-bless.
+//!
 //! THE INTERVAL NUMBER MOVED ONCE FOR THE AZIMUTH CONSOLIDATION, and
 //! the `f64` one did not. Point parameter recovery on a periodic
 //! carrier used to be spelled three times, two of them SELECTING a `2π`
@@ -127,6 +134,13 @@
 //! moved anywhere. Merged with stage 5 A's `relation`, the numbers were
 //! re-taken once more; only `measured_web`'s rows moved, where both
 //! changes meet.
+//!
+//! **ALL FOUR NUMBERS MOVED WHEN A SPLIT'S HALF BECAME ITS PORT**,
+//! through `part_select` alone: the document's two `Part` projections
+//! of a split's halves are gone and its union reads the split's two
+//! ports. Two nodes fewer is two outcomes fewer, so the id-masked fence
+//! moved too; `lib_g16_corpus_name_digests` moved that row and no
+//! other, and every point of the bodies that remain is where it was.
 //!
 //! A whole-corpus scalar is a blunt instrument for "did an existing
 //! document move", and there is now a SECOND, finer measurement to
@@ -549,6 +563,24 @@
 //! at worst before, 8.9e-16 after). Turning a revolved description by
 //! the same spelling at evaluation moved no corpus point at either
 //! scalar.
+//!
+//! **EVERY NUMBER MOVED, THE ID-FREE ONE TOO, FOR INTENT STAGE 3 PR A
+//! (a revolve's axis is a line on the node).** The in-plane axis datum
+//! left the vocabulary: each revolve writes its axis as four slots of
+//! its own, so four corpus documents hold one node fewer, every later
+//! id re-mints, and the id-free digest loses one pointless `datum`
+//! outcome per document. Measured rather than argued: the id-free
+//! digest with every pointless `datum` outcome dropped is the same on
+//! the base tree and on this one — `(0x2370_478e_c993_590d,
+//! 0xe9da_67e7_5e7d_f009)` before the turned-vertex change above
+//! merged, `(0xbb6f_8c13_2eb3_f98d, 0xe3ef_0697_8aaf_ef89)` after —
+//! so no point and no other outcome moved.
+//! Re-taken merged over FORK-DM4 unit 1 (PR 4527); the id-free digest
+//! held there.
+//! Re-taken again merged over the split-half retirement (PR 4618),
+//! which drops two `Part` outcomes of its own: the id-free digest with
+//! pointless `datum` outcomes dropped is `(0x77f4_6374_c6b8_bb0d,
+//! 0xf303_efdf_51fc_fb09)` on that main and on this tree alike.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -844,7 +876,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x62bd_b0ba_9320_ac64, 0x53f1_0a2c_6d2e_b258),
+        (0x3bb7_b249_74e8_5e75, 0x33c3_7a07_6a41_a5b1),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -870,7 +902,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x2ddc_3dcf_bc77_f4ec, 0x7a07_f29a_0243_60f8),
+        (0x8021_d9d2_c17a_6bb9, 0xa074_6d1d_6a1e_351d),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -894,7 +926,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x62bd_b0ba_9320_ac64, 0x53f1_0a2c_6d2e_b258),
+        (0x3bb7_b249_74e8_5e75, 0x33c3_7a07_6a41_a5b1),
         "the corpus's Probe evaluation moved"
     );
 }
@@ -972,7 +1004,7 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
     println!("m10-p fence id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0x4e83_a4d8_b6bd_ee50, 0x37d4_cb01_e189_8fac),
+        (0xf613_9d62_68dd_3931, 0xe6b3_fef9_f9f8_90fd),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );

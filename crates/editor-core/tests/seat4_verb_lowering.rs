@@ -250,8 +250,8 @@ fn both_blends_evaluate_in_one_document() {
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x30fc_7464_088d_cdfau64),
-        ("die_chamfer", 0x095a_5061_7f3d_34a0),
+        ("die_fillet", 0xa2cc_a1d4_0619_11eau64),
+        ("die_chamfer", 0xe357_7e62_ae47_31f6),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -386,13 +386,19 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
 /// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
 /// pins and `m5_pr8_bvh_diff` held.
+///
+/// RE-BLESSED, every row, for CONTACTHOLD's at-rest record (contact
+/// records are one list of unordered cell pairs): the digest feeds each
+/// value's `Debug`, and the records' `Debug` shape moved from seven
+/// per-kind lists to one list of canonical pairs. No outcome, count or
+/// point moved: every other row of these suites held.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x679a_b9ce_cc06_b405u64),
-        ("heat_sink", 0x5713_b028_b9ac_d844),
-        ("kiss_carry", 0x54fc_4959_a4f8_846a),
+        ("crossing_slots", 0x14b0_b373_a5ef_2fc2u64),
+        ("heat_sink", 0x1118_b961_66a7_c4e6),
+        ("kiss_carry", 0x3cb3_44b9_f8f5_7d86),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -484,10 +490,8 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
         distance: len(L),
         side: ExtrudeSide::Along,
     });
-    let boolean = r.insert(Node::Boolean {
-        op: editor_core::BooleanOp::Intersect,
-        a: a.into(),
-        b: b.into(),
+    let boolean = r.insert(Node::Intersect {
+        members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         declare: Vec::new(),
     });
     let ev = corpus::eval::<f64>(&r.doc);
@@ -503,7 +507,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xeb78_27e3_3c65_83ea,
+        got, 0xb842_ec1f_ddcf_bdf0,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

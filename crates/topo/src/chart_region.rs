@@ -1,5 +1,5 @@
 //! **Chart-region overlap** — the trim-region intersection predicate a
-//! `PatchContact` certifies through (CONTACT-DESIGN C3): two faces on
+//! face–face record certifies through (CONTACT-DESIGN C3): two faces on
 //! ONE chart, their trim loops read in `(u, v)`, the overlap answered
 //! as *definitely-positive area* / *empty* / *typed refusal or
 //! escalation* — never a guess (M9-2 PR-1; the census consumer is
@@ -156,7 +156,7 @@ use crate::validate::decide;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChartOverlap {
     /// The trim regions' intersection has **definitely-positive
-    /// model-space area** — the `PatchContact` blessing direction.
+    /// model-space area** — the patch record's blessing direction.
     ///
     /// # Exactly what the margin behind this says, and about what
     ///
@@ -194,7 +194,7 @@ pub enum ChartOverlap {
     /// on the contracted copy that bounds the model's only after the
     /// `ρ/√T` factor.
     PositiveArea,
-    /// The trim regions are definitely disjoint — a `PatchContact`
+    /// The trim regions are definitely disjoint — a patch record
     /// claiming this pair is stale.
     Empty,
 }
@@ -756,7 +756,7 @@ pub fn chart_region_overlap<T: Decide + CertifiedBounds>(
     )
 }
 
-/// **The declared pair's overlap door** — what a `PatchContact` whose
+/// **The declared pair's overlap door** — what a face–face record whose
 /// chart authority may be a VERIFIED DECLARATION (rung 3) certifies
 /// through, in the fixed order structural-identity-first.
 ///
@@ -1915,7 +1915,7 @@ fn interior_witness<T: Decide + Bounds>(
     }
     // Stage 2: the pair's own arrangement.
     decomposition_witness(uv_a, uv_b, |x, y| {
-        strictly_inside_both(T::from_f64(x), T::from_f64(y))
+        strictly_inside_both(T::from_computed(x), T::from_computed(y))
     })
 }
 
@@ -4938,7 +4938,7 @@ mod inf_arms {
     /// `[0, su] × [0, sv]`: `|S_u| = su`, `|S_v| = sv`, `S_u·S_v = 0`.
     /// At any scalar, the corners lifted componentwise from `f64`, so
     /// `inf_arms_interval` reads the same chart at `Interval`.
-    pub(super) fn flat_chart<T: geom_core::Real>(su: f64, sv: f64) -> Surface<T> {
+    pub(super) fn flat_chart<T: geom_core::spline::SpanLocate>(su: f64, sv: f64) -> Surface<T> {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let f = T::from_f64;
         let control = vec![
@@ -4948,7 +4948,13 @@ mod inf_arms {
             Point3::new(f(su), f(sv), f(0.0)),
         ];
         Surface::Nurbs(Arc::new(
-            NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap(),
+            NurbsSurface::new(
+                geom_core::spline::Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
+                control,
+                vec![geom_core::Real::one(); 4],
+            )
+            .unwrap(),
         ))
     }
 
@@ -4969,7 +4975,13 @@ mod inf_arms {
             Point3::new(0.0, 1.0, 0.0),
         ];
         Surface::Nurbs(Arc::new(
-            NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap(),
+            NurbsSurface::new(
+                geom_core::spline::Knots::from(ku).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
+                control,
+                vec![geom_core::Real::one(); 6],
+            )
+            .unwrap(),
         ))
     }
 
@@ -5089,7 +5101,13 @@ mod inf_arms {
             Point3::new(4.25, 1.0, 0.0),
         ];
         let s: Surface<f64> = Surface::Nurbs(Arc::new(
-            NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap(),
+            NurbsSurface::new(
+                geom_core::spline::Knots::from(ku).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
+                control,
+                vec![geom_core::Real::one(); 6],
+            )
+            .unwrap(),
         ));
         let inf_u = geom_brep::chart_stretch_inf(&s).inf_u;
         let sup_u = geom_brep::chart_stretch_sup(&s).unwrap().0.get();
@@ -5163,7 +5181,13 @@ mod inf_arms {
             control.push(Point3::new(x, 1.0, 0.0));
         }
         let s: Surface<f64> = Surface::Nurbs(Arc::new(
-            NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap(),
+            NurbsSurface::new(
+                geom_core::spline::Knots::from(ku).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
+                control,
+                vec![geom_core::Real::one(); 8],
+            )
+            .unwrap(),
         ));
         let inf = geom_brep::chart_stretch_inf(&s);
         // The u stretch spans three orders on ONE chart: the middle
@@ -5352,7 +5376,13 @@ mod inf_arms_interval {
             p(0.0, 1.0),
         ];
         let s: Surface<Interval> = Surface::Nurbs(Arc::new(
-            NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap(),
+            NurbsSurface::new(
+                geom_core::spline::Knots::from(ku).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
+                control,
+                vec![geom_core::Real::one(); 6],
+            )
+            .unwrap(),
         ));
         // The interval quotient divides by a bracket straddling zero,
         // so the floor is 0 and the bracket is wide — the honest
@@ -5686,5 +5716,82 @@ mod r2_mate8_probes {
         });
         assert_eq!(found, WitnessOutcome::Declined);
         assert!(calls > 0, "the arrangement was actually walked");
+    }
+}
+
+#[cfg(test)]
+mod from_computed_rows {
+    #![allow(clippy::unwrap_used)]
+    use geom_core::{Band, Point3, Real, Tol};
+
+    use super::{ChartOverlap, declared_pair_overlap};
+    use crate::Body;
+    use crate::contact::ContactVerdict;
+    use crate::revalue_pin::{Revalued, S, revalued};
+    use crate::test_support_fixtures::{FaceGeometry, prism_ops};
+
+    /// The interior witness enters as computed values: the thin
+    /// overhang seat (`mate8_witness_schedule.rs`) at `Sym<f64>`, every
+    /// coordinate scaled by the parameter, its region walk refusing on
+    /// the touching boundary and the witness rung certifying a point its
+    /// `f64` decomposition chose. The scale is a power of two, so both
+    /// builds decompose alike, and no decision re-values to the point
+    /// `p0` chose.
+    #[test]
+    fn the_interior_witness_enters_as_computed() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let cap = [
+            (0.20, 0.20),
+            (0.40, 0.30),
+            (0.60, 0.42),
+            (0.70, 0.30),
+            (0.80, 0.42),
+            (0.85, 0.50),
+            (0.15, 0.50),
+            (0.25, 0.30),
+        ];
+        let shelf = [(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)];
+        let found = revalued([1.0, 2.0], |_, s| {
+            let at = |x: f64, y: f64, z: f64| Point3::new(x, y, z).map(|c| S::from_f64(c) * s);
+            let (mut post, mut over) = (Body::<S>::new(), Body::<S>::new());
+            let top = prism_ops(
+                &mut post,
+                &cap,
+                (0.0, 0.5),
+                at,
+                FaceGeometry::Certified,
+                tol,
+            )
+            .seed
+            .face;
+            let under = prism_ops(
+                &mut over,
+                &shelf,
+                (0.5, 0.54),
+                at,
+                FaceGeometry::Certified,
+                tol,
+            )
+            .bottom
+            .face;
+            let got =
+                declared_pair_overlap(&post, top, &over, under, ContactVerdict::Definite, band);
+            assert_eq!(
+                got,
+                Ok(ChartOverlap::PositiveArea),
+                "the witness rung certifies the seat"
+            );
+            Vec::new()
+        });
+        assert_eq!(
+            found,
+            Revalued {
+                kept: 1189,
+                opaque: 186,
+                laundered: 0,
+            },
+            "the decisions at the witness are opaque, and the rest re-value with the scale"
+        );
     }
 }

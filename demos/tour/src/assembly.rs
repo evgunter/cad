@@ -102,10 +102,10 @@ use std::path::Path;
 use std::sync::Arc;
 
 use pncad::document::{
-    Alignment, Assembly, AssemblyError, AxisSense, CONTRADICTORY_RECOURSE, CancelToken, Datum,
-    Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
-    FreeVar, InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, MateReach, MateRole,
-    MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, Operand, PartReach, PartResolver, PartSelect,
+    Alignment, Assembly, AssemblyError, AxisSense, BodyRead, CONTRADICTORY_RECOURSE, CancelToken,
+    Datum, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame,
+    FreeValue, FreeVar, InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, MateReach,
+    MateRole, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, PartReach, PartResolver, PartSelect,
     PatternKind, Placement, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedFace,
     Step, UNDER_RECOURSE, ValuePayload, VarName, apply, assemble, content_pin, evaluate, inline,
     load, mixed_pins, parse_formula, product_named, regauge_then_mate, save, solve_document, split,
@@ -279,7 +279,7 @@ fn insert_through(
 
 /// Places one copy of `body` in the world at the identity, and returns
 /// the placement's id.
-fn place(doc: &mut ProfileDoc, body: impl Into<Operand>, tol: Tol) -> RecipeNodeId {
+fn place(doc: &mut ProfileDoc, body: impl Into<BodyRead<Formula>>, tol: Tol) -> RecipeNodeId {
     let applied = apply(doc, &DocEdit::place(body, None), tol, &RefusingReach)
         .unwrap_or_else(|err| panic!("the placement applies: {err:?}"));
     *doc = applied.doc;
@@ -515,7 +515,7 @@ fn placement_reading(doc: &ProfileDoc, body: RecipeNodeId) -> RecipeNodeId {
         .into_iter()
         .filter(|&p| {
             matches!(doc.node(p), Some(Node::PlaceInWorld { body: read, .. })
-                if doc.operation_of(*read) == Some(body))
+                if doc.operation_of(read.read) == Some(body))
         })
         .collect();
     let [one] = reading[..] else {
@@ -533,7 +533,9 @@ fn placed_body(doc: &ProfileDoc) -> (RecipeNodeId, RecipeNodeId) {
     let Some(Node::PlaceInWorld { body, .. }) = doc.node(placement) else {
         unreachable!("a placement is a world placement")
     };
-    let node = doc.operation_of(*body).expect("the placed body is live");
+    let node = doc
+        .operation_of(body.read)
+        .expect("the placed body is live");
     (placement, node)
 }
 
@@ -746,8 +748,8 @@ fn stand_doc(
     let mate_1 = mate_onto(
         &mut doc,
         Node::Mate {
-            a: head(shelf_i, shelf_bottom),
-            b: head(post_a, post_top),
+            a: head(shelf_i, shelf_bottom).into(),
+            b: head(post_a, post_top).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(SEAT_A, tol),
@@ -767,8 +769,8 @@ fn stand_doc(
     let mate_2 = mate_onto(
         &mut doc,
         Node::Mate {
-            a: head(post_b, post_top),
-            b: head(shelf_i, shelf_bottom),
+            a: head(post_b, post_top).into(),
+            b: head(shelf_i, shelf_bottom).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: MateFrame::from_face(),
@@ -821,8 +823,8 @@ fn bench(stand: &Stand, parts: &Parts, tol: Tol, reach: &dyn MateReach) -> Bench
     let crate_mate = mate_onto(
         &mut doc,
         Node::Mate {
-            a: head(crate_i, &parts.crate_bottom),
-            b: head(stand.shelf_i, &parts.shelf_top),
+            a: head(crate_i, &parts.crate_bottom).into(),
+            b: head(stand.shelf_i, &parts.shelf_top).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: MateFrame::from_face(),
@@ -1162,8 +1164,9 @@ fn poses(
         println!("   [pose] {counters}");
         // WHICH nodes re-ran, not only how many: the ones whose content
         // key the edit moved. The turntable reads `swing`, an
-        // instance's key carries its whole gauge chain, and a
-        // placement's carries its body's; a mate's reads no gauge.
+        // instance's key carries its whole gauge chain, a placement's
+        // carries its body's, and a mate's carries the bodies its sides
+        // read (D10), so the three mates re-key with their instances.
         let moved: BTreeSet<RecipeNodeId> = doc
             .ids()
             .iter()
@@ -1184,9 +1187,12 @@ fn poses(
                 placement_reading(&doc, stand.shelf_i),
                 placement_reading(&doc, stand.post_b),
                 placement_reading(&doc, bench.crate_i),
+                stand.mate_1,
+                stand.mate_2,
+                bench.crate_mate,
             ]),
-            "a swing re-keys the turntable, the four instances on its chain and their four \
-             placements, and nothing else"
+            "a swing re-keys the turntable, the four instances on its chain, their four \
+             placements and the three mates reading them, and nothing else"
         );
         assert_eq!(
             (ev.recomputed, ev.reused),
@@ -1411,7 +1417,7 @@ impl AtRest {
     /// set the gate was handed, which is what a mate's minting
     /// produces (A3) and the one quantity both arms carry.
     fn minted(&self) -> usize {
-        self.contacts.patches.len()
+        self.contacts.face_face().count()
     }
 }
 
@@ -1531,8 +1537,8 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     let clash = insert_mate(
         &mut contra.doc,
         Node::Mate {
-            a: head(contra.post_a, post_top),
-            b: head(contra.shelf_i, shelf_bottom),
+            a: head(contra.post_a, post_top).into(),
+            b: head(contra.shelf_i, shelf_bottom).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: MateFrame::from_face(),
@@ -1564,11 +1570,10 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
 
     // (3) OUTSIDE v1's VOCABULARY. `Tangent` solves — a tangency pins
     // a coset like any other primitive — and then has nowhere to go
-    // at rest: its kernel record is a `CurveContact` keyed by the
-    // witness EDGE along which the two surfaces touch, and an assembly
-    // at rest has no such edge, because nothing zipped the instances
-    // together. The mint door refuses typed and says so in the class's
-    // own terms.
+    // at rest: its kernel record is a face–face pair on two carriers,
+    // and the census at rest decides nothing along their locus for the
+    // record to cite. The mint door refuses typed and says so in the
+    // class's own terms.
     let mut tangent = stand_doc(
         post,
         shelf,
@@ -1595,11 +1600,15 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
             tol,
             &reach,
         );
+        // Each side re-authored as the face it read: the deleted mate's
+        // selections went with it.
+        let side =
+            |read| pncad::document::head_of(&tangent.doc, read).expect("the mate read two faces");
         insert_mate(
             &mut swapped,
             Node::Mate {
-                a,
-                b,
+                a: side(a).into(),
+                b: side(b).into(),
                 class: ContactClass::Tangent,
                 alignment: alignment.authored(),
             },

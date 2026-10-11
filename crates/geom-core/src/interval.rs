@@ -829,6 +829,28 @@ impl crate::spline::SpanLocate for Interval {
         // poison).
         Self(enclosure_hull_of(self.0, other.0))
     }
+
+    fn refine_homogeneous(
+        refinement: &crate::spline::RingRefinement,
+        _knots: &crate::spline::Knots<Self>,
+        channel: &[Self],
+    ) -> Vec<Self> {
+        refinement.refine(channel)
+    }
+
+    fn refine_weights(
+        refinement: &crate::spline::RingRefinement,
+        _knots: &crate::spline::Knots<Self>,
+        weights: &[Self],
+    ) -> Option<Vec<Self>> {
+        let refined = refinement.refine(weights);
+        crate::spline::algebra::certainly_positive(&refined).then_some(refined)
+    }
+
+    fn point_value(self) -> Option<f64> {
+        let (lo, hi) = (Bounds::lo(self), Bounds::hi(self));
+        (lo == hi && !lo.is_nan()).then_some(lo)
+    }
 }
 
 /// Certified sign classification of an enclosure `[lo, hi]` against a

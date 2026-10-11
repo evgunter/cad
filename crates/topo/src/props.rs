@@ -118,9 +118,16 @@ impl<T: Real> MassProperties<T> {
     /// would move a margin the reporting door's telemetry pins.
     #[must_use]
     pub fn enclosure(&self) -> VolumeEnclosure<T> {
+        // A body with no quadrature face has no pad, structurally rather
+        // than as a measured zero; any other pad is the quadrature's.
+        let pad = if self.volume_pad == 0.0 {
+            T::zero()
+        } else {
+            T::from_computed(self.volume_pad)
+        };
         VolumeEnclosure {
-            volume_lo: self.volume - T::from_f64(self.volume_pad),
-            volume_hi: self.volume + T::from_f64(self.volume_pad),
+            volume_lo: self.volume - pad,
+            volume_hi: self.volume + pad,
             surface_area: self.surface_area,
         }
     }
@@ -205,8 +212,8 @@ pub enum MassPropsError {
     /// a cylinder wall (its closed form and its quadrature both read
     /// every loop: `geom_brep::props::curved_face_loops`,
     /// `geom_brep::props::quad::cylinder_cut_face`), nor a torus wall
-    /// bounded by rims and rulings. A boolean pierce leaves a ring in the
-    /// wall it pierces.
+    /// bounded by rims and rulings, nor a sphere face bounded by
+    /// circles. A boolean pierce leaves a ring in the wall it pierces.
     RingOnCurvedFace {
         /// The offending face.
         face: FaceKey,
@@ -240,9 +247,10 @@ impl fmt::Display for MassPropsError {
             Self::RingOnCurvedFace { .. } => write!(
                 f,
                 "the kernel cannot yet measure the volume of a curved face with a hole, \
-                 other than a cone wall, a cylinder wall, or a torus wall bounded by \
-                 circles about its axis and its own meridians. Recourse: move the cut so \
-                 it crosses the face's edge instead of closing inside the face"
+                 other than a cone wall, a cylinder wall, a sphere face bounded by \
+                 circles, or a torus wall bounded by circles about its axis and its own \
+                 meridians. Recourse: move the cut so it crosses the face's edge instead of \
+                 closing inside the face"
             ),
             Self::Corrupt { what } => write!(
                 f,
@@ -890,6 +898,12 @@ impl RoleUnread {
     /// The escalation either end hit, the high end's first.
     pub(crate) fn escalation(&self) -> Option<Indeterminate> {
         self.hi.err().or(self.lo.err())
+    }
+
+    /// The certified reading's verdict, where it lies wholly in band
+    /// ([`Self::certified_by`]'s).
+    pub(crate) fn sliver(&self) -> Option<CertifiedSliver> {
+        self.sliver
     }
 
     /// `shell`'s refusal for this read: the walk's ends pick its words
@@ -2500,9 +2514,8 @@ fn edges_of<T: Decide>(loops: &[FlatLoop<T>]) -> Vec<Vec<LoopEdge<T>>> {
 }
 
 /// **A face's closed form**, at whatever scalar its geometry is read
-/// at: a plane, a cylinder, a torus and a cone over every loop, a
-/// sphere over its outer loop and its sense (a ring there is refused
-/// before this is reached, `RingOnCurvedFace`). The face walk runs it
+/// at, over every loop: a plane, a cylinder, a torus, a cone, and a
+/// sphere (which also reads its sense). The face walk runs it
 /// at the walk's scalar, and [`QuadLane`]'s `closed_form` at the
 /// interval scalar over the same geometry lifted.
 fn closed_form_of<U: Decide>(
@@ -2576,13 +2589,14 @@ fn face_flux<T: Decide>(
             // loop's vector area, whatever trims it), the cylinder's
             // closed form and quadrature alike (each a Green form summed
             // over every loop), and the torus's closed form over rims
-            // and rulings, and the spiric lane every loop of a
+            // and rulings, the sphere's over circles (Gauss–Bonnet over
+            // every loop), and the spiric lane every loop of a
             // spiric-bounded plane. No other kind reads one.
             let reads_rings = match surface {
                 // A plane reaches this arm only bounded by a spiric, and
                 // the spiric lane reads every loop of its face.
                 Surface::Cone { .. } | Surface::Cylinder { .. } | Surface::Plane { .. } => true,
-                Surface::Torus { .. } => !trimmed,
+                Surface::Torus { .. } | Surface::Sphere { .. } => !trimmed,
                 _ => false,
             };
             if loops.len() > 1 && !reads_rings {
@@ -2633,15 +2647,11 @@ fn face_flux<T: Decide>(
                             bounds
                         }
                     };
-                    let (fc, fp) = quad_lane::mid_pad(bounds.flux);
-                    let (ac, ap) = quad_lane::mid_pad(bounds.area);
+                    let (at, fp, ap) = quadrature_contribution(bounds.flux, bounds.area);
                     flux_pad += fp;
                     area_pad += ap;
                     enclosure = Some((bounds.flux, bounds.area));
-                    FaceContribution {
-                        flux: T::from_f64(fc),
-                        area: T::from_f64(ac),
-                    }
+                    at
                 }
                 // Either an iso boundary (the closed forms — the
                 // face's S10 sense entering at `curved_face`'s one
@@ -2670,6 +2680,22 @@ fn face_flux<T: Decide>(
         converged_at,
         refusal,
     })
+}
+
+/// A face's contribution as its two quadrature enclosures' midpoints,
+/// and their half-widths: each midpoint is an `f64` the quadrature
+/// computed, so it enters as a computed value.
+fn quadrature_contribution<T: Real>(
+    flux: Interval,
+    area: Interval,
+) -> (FaceContribution<T>, f64, f64) {
+    let (fc, fp) = quad_lane::mid_pad(flux);
+    let (ac, ap) = quad_lane::mid_pad(area);
+    let at = FaceContribution {
+        flux: T::from_computed(fc),
+        area: T::from_computed(ac),
+    };
+    (at, fp, ap)
 }
 
 /// Flatten one loop's half-edge cycle into [`LoopEdge`]s (traversal
@@ -4925,5 +4951,61 @@ mod shell_role_refusal_tests {
             assert_eq!(got.sliver.is_some(), want, "{name}");
             assert_eq!(got.hi, walk.hi, "{name}: the walk's own reading stays");
         }
+    }
+}
+
+#[cfg(test)]
+mod from_computed_rows {
+    use super::{MassProperties, quadrature_contribution};
+    use crate::revalue_pin::{Revalued, S, revalued};
+    use geom_core::Real;
+    use geom_core::interval::Interval;
+
+    /// The bracket's ends take the quadrature's pad as a computed value:
+    /// built at `Sym<f64>` with the volume a function of the parameter
+    /// and the pad the `f64` the quadrature computed from it, neither end
+    /// re-values to the pad `p0` measured.
+    #[test]
+    fn the_volume_bracket_takes_its_pad_as_computed() {
+        let found = revalued([1.0, 1.0 + 1.0e-3], |p, x| {
+            let props = MassProperties {
+                volume: x * x * x,
+                surface_area: S::from_f64(6.0) * x * x,
+                volume_pad: 1.0e-6 * p * p,
+                area_pad: 0.0,
+            };
+            let e = props.enclosure();
+            vec![e.volume_lo, e.volume_hi]
+        });
+        assert_eq!(
+            found,
+            Revalued {
+                kept: 0,
+                opaque: 2,
+                laundered: 0,
+            },
+            "each end is the volume's expression and one unknown for the pad"
+        );
+    }
+
+    /// The quadrature's midpoints enter as computed values: built at
+    /// `Sym<f64>` from enclosures the lane would measure off geometry
+    /// the parameter moves, neither re-values to the midpoint `p0`
+    /// measured.
+    #[test]
+    fn the_quadrature_midpoints_enter_as_computed() {
+        let found = revalued([1.0, 1.0 + 1.0e-3], |p, _| {
+            let x = Interval::from_f64(p);
+            let (at, _, _) = quadrature_contribution::<S>(x * x * x, x * x);
+            vec![at.flux, at.area]
+        });
+        assert_eq!(
+            found,
+            Revalued {
+                kept: 0,
+                opaque: 2,
+                laundered: 0,
+            }
+        );
     }
 }

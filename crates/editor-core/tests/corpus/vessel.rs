@@ -38,7 +38,7 @@ use editor_core::{
     ProgramStep, ProgramTarget, RecipeNodeId, SlotId, StableName, band,
 };
 
-use crate::fixture::{ang, axis_in_plane, frame, len, len2};
+use crate::fixture::{ang, frame, len, len2, revolve_about};
 
 use super::{CorpusDoc, Recorder};
 
@@ -96,17 +96,17 @@ pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>
     // u = +X (the radius), v = +Z (the axis): the meridian's own axis
     // is its +v through the origin, written in the frame it turns.
     let plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
-    let axis = r.insert(axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let profile = r.insert(Node::Profile(ProfileProgram {
         frame: plane.into(),
         loops: vec![meridian()],
         ids: Vec::new(),
     }));
-    let pot = r.insert(Node::Revolve {
-        profile: profile.into(),
-        axis: axis.into(),
-        angle: ang(std::f64::consts::TAU),
-    });
+    let pot = r.insert(revolve_about(
+        profile,
+        (0.0, 0.0),
+        (0.0, 1.0),
+        ang(std::f64::consts::TAU),
+    ));
     let open = open(&r.doc, pot);
     let vessel = r.insert(Node::shell(
         editor_core::Operand::output(pot, 0),
@@ -177,17 +177,17 @@ pub fn capped_meridian() -> LoopProgram<Formula> {
 pub fn capped_document() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     let plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
-    let axis = r.insert(axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let profile = r.insert(Node::Profile(ProfileProgram {
         frame: plane.into(),
         loops: vec![capped_meridian()],
         ids: Vec::new(),
     }));
-    let pot = r.insert(Node::Revolve {
-        profile: profile.into(),
-        axis: axis.into(),
-        angle: ang(std::f64::consts::TAU),
-    });
+    let pot = r.insert(revolve_about(
+        profile,
+        (0.0, 0.0),
+        (0.0, 1.0),
+        ang(std::f64::consts::TAU),
+    ));
     let cap = crate::fixture::piece(&r.doc, pot, 0, SEG_CAP as usize);
     let open = vec![band(pot, cap), editor_core::band_pi(pot, cap)];
     let shell = r.insert(Node::shell(
