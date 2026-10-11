@@ -1251,7 +1251,7 @@ BOUND_AS = {
     # The two enums are one attribute between them, and the merge is
     # deliberate rather than a shortcut: `Resolution.variant` is
     # WHICH arm, and which vocabulary it is drawn from is already said
-    # by `status`. `vanished` / `ambiguous` / `node_gone` under a
+    # by `status`. `vanished` / `ambiguous` / `read_gone` / `node_gone` under a
     # failure, `target_failed` / `target_poisoned` /
     # `target_not_evaluated` under an indeterminate, `None` when
     # resolved. Two attributes would have made a caller read `status`
@@ -1259,6 +1259,13 @@ BOUND_AS = {
     # this file's every-attribute-always-present rule exists to avoid.
     "ResolveError": "Resolution.variant",
     "ResolveIndeterminate": "Resolution.variant",
+    # `ReadGone`'s deleted-or-foreign word is the sentence's, as the
+    # recipe-edit reference inside `node_gone` is: `detail` says it, and
+    # the repair (re-site the reference) does not branch on it.
+    "ReadEdit": "Resolution.detail",
+    # A resolve the door refuses — a read with no table, a gone node
+    # handle — crosses as the select door's own refusal, by `reason`.
+    "ResolveRefusal": "SelectRefusal.reason",
     # `ResolutionFailure` is the struct that pairs one of those arms
     # with the repair candidates, and `offers` is what it ADDS — the
     # error half is `variant` plus `detail` above. So it crosses at the
