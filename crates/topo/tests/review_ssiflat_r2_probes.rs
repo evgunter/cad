@@ -62,7 +62,7 @@ fn general_circle<T: Real>(radius: f64) -> Curve3<T> {
 /// The arc as a RUNG-3 carrier at `T` (`fixture::arc_chain`): these
 /// probes are about the SSI certificate's payloads, which only a fitted
 /// carrier runs.
-fn rung3<T: Real>(radius: f64, (f0, f1): (f64, f64)) -> NurbsCurve3<T> {
+fn rung3<T: geom_core::spline::SpanLocate>(radius: f64, (f0, f1): (f64, f64)) -> NurbsCurve3<T> {
     arc_chain::chain(&general_circle::<T>(radius), f0, f1)
 }
 

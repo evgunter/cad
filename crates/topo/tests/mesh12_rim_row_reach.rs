@@ -31,9 +31,10 @@
 //! face whose one loop is two rim arcs and no meridian. With the gap
 //! inside the band, the shape door and the flux lane answer on the same
 //! undecidable gap (the shape door on `props_rim_side`, the flux lane
-//! on `props_rim_only_extent`); at `Δv = 0` the door admits the face
-//! and the flux lane measures it — the two caps sum to the sphere's
-//! closed forms. `mesh::tessellate` refuses it typed either way: in the
+//! on its loop's closure, `props_loop_closed`); at `Δv = 0` the
+//! door admits the face and the flux lane measures it under its bit —
+//! the two caps sum to the sphere's closed forms. `mesh::tessellate`
+//! refuses it typed either way: in the
 //! band on the shape door's escalation (`UnsupportedCurvedShape`), and
 //! at `Δv = 0` as `MeridianFreeCurvedFace`, the walk's own refusal of a
 //! loop with no meridian. So the finding these rows pin is real and is
@@ -255,26 +256,20 @@ fn the_remint_admits_the_gaps_the_examination_reports() {
 /// GAP, which is the coordinate this unit's row is about:
 ///
 /// * **`Δv = 0`** — the two arcs state ONE rim circle, so the body is a
-///   sphere split by one rim into two caps, and each face MEASURES.
-///   Its levels hold one latitude and carry no extent, so the missing
-///   extreme is the pole the rims' shared traversal points at
-///   (`props_rim_interior_side`'s σ; issue 1250, PROPS
-///   sphere-pole-side). The two caps sum to `4πR³/3`, which is what
-///   `topo/tests/props_sphere_cap_door.rs` weighs directly. The shape
-///   door admits it: with `lo == hi` no rim sits at an extreme rather
-///   than the other, so its rim-side companion has nothing to compare
-///   and extent is not a shape question.
-/// * **`R·Δv` inside the ambiguity band** — the levels carry an extent
-///   that is neither definitely zero nor definitely positive, so
-///   whether this is a cap whose pole should be folded in or a zone of
-///   sub-band height is exactly what cannot be decided. **Both** the
-///   shape door and the flux lane say so, one predicate apart: the
-///   door's rim-side unanimity asks which extreme each rim sits at and
-///   escalates `props_rim_side` typed, and the flux lane escalates
-///   `props_rim_only_extent` typed before any pole is pushed. One
-///   undecidable gap read at one lever under three names — the third
-///   being `props_face_extent`, which would have read it one step
-///   later still.
+///   sphere split by one rim into two caps, each holding a pole in its
+///   interior. The rim has a pole on each side, so its loop encodes no
+///   side and each cap measures under its bit by Gauss–Bonnet: the two
+///   sum to `4πR³/3`, which `topo/tests/props_sphere_cap_door.rs`
+///   weighs directly. The shape door admits
+///   it: with `lo == hi` no rim sits at an extreme rather than the
+///   other, so its rim-side companion has nothing to compare and extent
+///   is not a shape question.
+/// * **`R·Δv` inside the ambiguity band** — the two arcs end a sub-band
+///   gap apart, so whether they meet is exactly what cannot be decided.
+///   **Both** the shape door and the flux lane say so: the door's
+///   rim-side unanimity asks which extreme each rim sits at and
+///   escalates `props_rim_side` typed, and the flux lane escalates its
+///   closure decide `props_loop_closed` typed.
 ///
 /// What `mesh::tessellate` answers for the same two bodies is the next
 /// row.
@@ -305,7 +300,7 @@ fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
                     matches!(
                         &flux,
                         Err(PropsError::Escalated { cause, .. })
-                            if cause.predicate == Some("props_rim_only_extent")
+                            if cause.predicate == Some("props_loop_closed")
                     ),
                     "{flux:?}"
                 );
@@ -316,8 +311,7 @@ fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
         }
     }
     // The two caps of one sphere: their areas sum to `4πR²` and their
-    // fluxes to `3V = 4πR³`, which is the closed form the gap was
-    // hiding.
+    // fluxes to `3V = 4πR³`.
     let area: f64 = caps.iter().map(|c| c.area).sum();
     let flux: f64 = caps.iter().map(|c| c.flux).sum();
     let tau = core::f64::consts::TAU;

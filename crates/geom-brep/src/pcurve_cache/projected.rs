@@ -439,8 +439,11 @@ fn rotate_box<T: Real>(m: i32, x: (T, T), y: (T, T)) -> ((T, T), (T, T)) {
 /// `B(a^{p−m}, b^m)`, `m = 0…p`, in homogeneous coordinates
 /// (de Boor's recursion with the arguments taken in turn). Each control
 /// is a convex combination of the span's, so the weights stay positive.
-/// The recursion's ratios are formed in the scalar, so at an enclosure
-/// scalar the controls enclose the true restriction's.
+/// The recursion's ratios are formed in the scalar over the net's held
+/// knots, so at an enclosure scalar the controls enclose the true
+/// restriction's; a piece end that is one of the net's breakpoints is
+/// that breakpoint's held value, and any other end is entered as the
+/// caller's `f64` parameter.
 ///
 /// The span is the one `a` locates in. Inside one knot span's closure
 /// with `a < b` that is the span holding the piece; at `a == b` on a
@@ -454,11 +457,14 @@ pub(crate) fn piece_controls<T: Real>(
     let p = kv.degree();
     let (span, _) = kv.span_range(piece);
     let j = span.index();
-    let knots = kv.knots();
+    let held = net.knot_values();
+    let knots = held.values();
+    let end = |v: f64| held.value_at(v).unwrap_or_else(|| T::from_f64(v));
+    let (a, b) = (end(a), end(b));
     let base: Vec<(Vec3<T>, T)> = span
         .window()
         .map(|i| {
-            let w = T::from_f64(net.weights()[i]);
+            let w = net.weights()[i];
             ((net.control()[i] - Point3::origin()) * w, w)
         })
         .collect();
@@ -466,10 +472,9 @@ pub(crate) fn piece_controls<T: Real>(
         .map(|m| {
             let mut d = base.clone();
             for r in 1..=p {
-                let u = T::from_f64(if r <= p - m { a } else { b });
+                let u = if r <= p - m { a } else { b };
                 for i in (r..=p).rev() {
-                    let lo = T::from_f64(knots[j - p + i]);
-                    let hi = T::from_f64(knots[j + 1 + i - r]);
+                    let (lo, hi) = (knots[j - p + i], knots[j + 1 + i - r]);
                     let alpha = (u - lo) / (hi - lo);
                     let beta = T::one() - alpha;
                     d[i] = (
@@ -2005,7 +2010,7 @@ pub(super) fn run_projected_checks<T: Decide>(
             // The structure is the carrier's, exactly (C6): one knot
             // vector and one weight vector, so the stored net and the
             // carrier's differ control point for control point.
-            if net.knots() != c.knots() || net.weights() != c.weights() {
+            if net.knots() != c.knots() || net.weight_channel() != c.weight_channel() {
                 return Err(refuse(
                     "the stored net's knots or weights are not the carrier's",
                 ));
