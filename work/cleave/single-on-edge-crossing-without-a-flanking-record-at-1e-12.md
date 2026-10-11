@@ -2,11 +2,13 @@
 id: single-on-edge-crossing-without-a-flanking-record-at-1e-12
 kind: issue
 title: A wedge's edge crossing a cube face near-tangent refuses ClassificationInvariant 'single-on-edge crossing without a flanking record' at eps 1e-12 (36 runs)
-status: dispatched
+status: closed
 opened: 2026-10-10
 priority: P1
 cost: M
 branch: cleave/single-on-edge-record
+closed: 2026-10-11
+pr: 4630
 ---
 
 
@@ -118,3 +120,11 @@ invariant to `Escalated Carriers`; at 1e-6, 21 twin-invariant runs move,
 refusals; at 1e-12, 9 reference-invariant runs move to `Escalated
 Carriers` and 12 twin-invariant runs to 9 sound builds and 3 typed
 refusals. The integer grid does not move.
+
+## Closed (PR 4630, 2026-10-11)
+
+No `ClassificationInvariant` remains in the near-tangent census on or off
+the integer grid at any ε. The missing fold-flanker record is minted, the
+bisector graze retries the reference's twins, and the reference sector is
+read from `first_read`. One pose ships a FUSE-class tier-3′ finding where
+main refused (accepted, pinned in `SHIPS_A_FINDING`).
