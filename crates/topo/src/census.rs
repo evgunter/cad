@@ -11706,3 +11706,149 @@ mod incident_after_an_edit {
         }
     }
 }
+
+/// Reviewer probes (PR 4604, R1): what a face–face record on two
+/// carriers confirms through `boolean::tangent_pair_at_rest`. Each row
+/// asserts the sound reading and is red on `ad6cff3bf3`, hence ignored.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod review_4604_r1 {
+    use super::*;
+    use crate::boolean::{Cell, ContactRecords};
+    use crate::test_support_fixtures::{CylFrame, brick, cyl_wall_sheet};
+    use geom_core::Tol;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn one(body: &Body<f64>, x: Cell, y: Cell) -> ContactRecords {
+        [crate::Cited::new(
+            crate::Contact::new(body, x, y).unwrap(),
+            crate::Cites::decided(0),
+        )]
+        .into_iter()
+        .collect()
+    }
+
+    /// Whether any finding names the pair `a`, `b` (either order).
+    fn names(errors: &[ValidationError], a: FaceKey, b: FaceKey) -> bool {
+        let is = |x: FaceKey, y: FaceKey| (x, y) == (a, b) || (x, y) == (b, a);
+        errors.iter().any(|e| match e {
+            ValidationError::ContactContradicted { declaration, .. } => {
+                is(declaration.a, declaration.b)
+            }
+            ValidationError::CensusUnsupported {
+                subject: CensusSubject::FacePair(x, y),
+                ..
+            } => is(*x, *y),
+            ValidationError::StaleContactDeclaration {
+                declaration: StaleDeclaration::Patch { face_a, face_b },
+            } => is(*face_a, *face_b),
+            ValidationError::CensusUndecidable {
+                a: EntityId::Face(x),
+                b: EntityId::Face(y),
+                ..
+            } => is(*x, *y),
+            _ => false,
+        })
+    }
+
+    /// A cylinder sheet (radius 1 about z, angles `u`, heights `v`) and
+    /// a brick whose face x = 1 lies on the plane tangent to the
+    /// cylinder along the ruling through (1, 0), the brick spanning
+    /// heights `bz`; the census of the face-face record of the two.
+    fn tangent_plane(
+        u: (f64, f64),
+        v: (f64, f64),
+        bz: (f64, f64),
+    ) -> (Vec<ValidationError>, FaceKey, FaceKey) {
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        let wall = cyl_wall_sheet(&mut body, CylFrame::canonical(1.0), u, v, tol);
+        let block = brick::<f64>((1.0, 2.0), (-0.5, 0.5), bz, tol);
+        let keys = crate::graft_disjoint_all_keyed(&mut body, &block).unwrap();
+        let side = block
+            .faces()
+            .find(|(_, f)| match block.get_surface(f.surface) {
+                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                    normal.x.abs() > 0.5 && (origin.x - 1.0).abs() < 1e-12
+                }
+                _ => false,
+            })
+            .and_then(|(k, _)| keys.face(k))
+            .unwrap();
+        let errors = census_and_certify(
+            &body,
+            &one(&body, Cell::Face(wall), Cell::Face(side)),
+            band(),
+            tol,
+            None,
+        );
+        (errors, wall, side)
+    }
+
+    /// The sheet and the brick span disjoint heights (0..1 and 5..6):
+    /// the two faces are four metres apart and their interiors never
+    /// meet, yet nothing names the record. `witness_span`'s UNION of the
+    /// two extents is what the table is run over.
+    #[test]
+    #[ignore = "red on ad6cff3bf3 (R1): a stale two-carrier record confirms"]
+    fn a_two_carrier_record_of_faces_four_metres_apart_is_not_confirmed() {
+        let (errors, wall, side) = tangent_plane((-0.5, 0.5), (0.0, 1.0), (5.0, 6.0));
+        assert!(names(&errors, wall, side), "{errors:?}");
+    }
+
+    /// The sheet on the cylinder's far side (angles 2..3 rad), about two
+    /// metres from the brick face: the tangent ruling is in neither face.
+    #[test]
+    #[ignore = "red on ad6cff3bf3 (R1): a stale two-carrier record confirms"]
+    fn a_two_carrier_record_of_faces_two_metres_apart_is_not_confirmed() {
+        let (errors, wall, side) = tangent_plane((2.0, 3.0), (0.0, 1.0), (0.0, 1.0));
+        assert!(names(&errors, wall, side), "{errors:?}");
+    }
+
+    /// Two sheets of two solids, internally tangent along x = 1: radius
+    /// 1 about the z axis, its material inside (sense true), and radius
+    /// 0.5 about (0.5, 0), its material OUTSIDE (sense false) — the
+    /// cusp's senses (`tier3_tests::cusp_prism`) on two parts. The two
+    /// materials overlap in the crescent between the circles. The
+    /// normals at the line are opposed, so the Tangent table (which
+    /// reads `|κ_rel|`, never its sign against the material sides)
+    /// passes, and the record clears the backstop's finding for exactly
+    /// that pair.
+    #[test]
+    #[ignore = "red on ad6cff3bf3 (R1): the record clears an interpenetrating pair"]
+    fn an_interpenetrating_internal_tangency_is_not_confirmed() {
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        let a = cyl_wall_sheet(
+            &mut body,
+            CylFrame::canonical(1.0),
+            (-0.5, 0.5),
+            (0.0, 1.0),
+            tol,
+        );
+        let mut frame = CylFrame::canonical(0.5);
+        frame.origin = geom_core::Point3::new(0.5, 0.0, 0.0);
+        let b = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), (0.0, 1.0), tol);
+        body.get_face_mut(a).unwrap().sense = true;
+        body.get_face_mut(b).unwrap().sense = false;
+        let bare = census_and_certify(&body, &ContactRecords::default(), band(), tol, None);
+        assert!(
+            names(&bare, a, b),
+            "unrecorded, the backstop names the pair: {bare:?}"
+        );
+        let recorded = census_and_certify(
+            &body,
+            &one(&body, Cell::Face(a), Cell::Face(b)),
+            band(),
+            tol,
+            None,
+        );
+        assert!(
+            names(&recorded, a, b),
+            "recorded, nothing names it: {recorded:?}"
+        );
+    }
+}
