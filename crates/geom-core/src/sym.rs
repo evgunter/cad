@@ -5198,6 +5198,10 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
     fn enclosure_hull(self, other: Self) -> Self {
         self.binary(other, self.value.enclosure_hull(other.value), SymOp::Hull)
     }
+
+    fn point_value(self) -> Option<f64> {
+        self.value.point_value()
+    }
 }
 
 /// **The whole of the tier's effect on decision-making** (E12): the

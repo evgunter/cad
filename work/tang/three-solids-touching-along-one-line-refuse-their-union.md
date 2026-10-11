@@ -52,7 +52,7 @@ plane of another's (0° with 180°, and likewise for the other two
 pairs), touching along the line, which is an undeclared flush
 continuation. Every order refuses `UndeclaredCoincidence` before the
 join, and D10's `unproven-coincidence` finding replaces that refusal
-when D10 is built (`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`).
+when D10 is built (`work/intent/d10-one-way-to-say-intent-is-unbuilt.md`).
 This row is about the 50° fixture, which has no coincidence and only
 contact.
 

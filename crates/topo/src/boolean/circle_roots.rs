@@ -147,9 +147,10 @@
 //! rounding estimate on `f64`, run on every scalar; the `Interval` lane
 //! carries its own enclosure.
 //!
-//! The ladder meters the same noise before it runs, and passes a reading
-//! in the band's gap (`work/germ/circle-torus-meters-accept-an-unreadable-reading.md`);
-//! the rounding of its own later stages (the anchor rotation, the pole
+//! The ladder meters the same noise before it runs: a reading definitely
+//! past the band keeps it from running, and any other — one in the band's
+//! gap, or none — lets it run, because all it can add is an escalation.
+//! The rounding of its own later stages (the anchor rotation, the pole
 //! division, the rescale, the depression) is left to its band decisions.
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
@@ -329,6 +330,14 @@ pub(super) struct HalfAngleFrame<T> {
     pub(super) lever: T,
 }
 
+impl<T: Decide> HalfAngleFrame<T> {
+    /// The ladder's noise meter's reading: the harmonics' evaluation
+    /// error, `noise / f_per_metre`, in metres of residual.
+    pub(super) fn noise_reading(&self) -> T {
+        self.walk.noise / self.walk.f_per_metre
+    }
+}
+
 /// The rounding charged against a term bound `terms`
 /// ([`geom_brep::rounding_charge`], [`geom_brep::HARMONIC_NOISE_ULPS`]
 /// half-ulps of it) — the meters' one spelling of the charge. The
@@ -394,14 +403,7 @@ fn ladder_roots<T: Decide>(
     band: Band,
 ) -> Result<(), BooleanError> {
     let HalfAngleFrame {
-        walk:
-            SubdivisionFrame {
-                t0,
-                t1,
-                noise,
-                f_per_metre,
-                ..
-            },
+        walk: SubdivisionFrame { t0, t1, .. },
         speed_lo,
         lever,
     } = *frame;
@@ -410,11 +412,13 @@ fn ladder_roots<T: Decide>(
     // the harmonics' evaluation error, `noise / f_per_metre` metres, is
     // definitely past the band's escalation threshold, the ladder does
     // not run, so it cannot escalate on its own rounding; the
-    // subdivision, which charges that noise, answers alone. The stages
-    // after it (rotation, pole division, rescale, depression,
-    // discriminant) round again; those are left to the ladder's own band
-    // decisions, which is the premise the module docs state.
-    match decide(rows.noise, Margin::of(noise / f_per_metre), band) {
+    // subdivision, which charges that noise, answers alone. A reading in
+    // the gap, or none, runs it: it answers nothing, so running it can
+    // only refuse. The stages after it (rotation, pole division, rescale,
+    // depression, discriminant) round again; those are left to the
+    // ladder's own band decisions, which is the premise the module docs
+    // state.
+    match decide(rows.noise, Margin::of(frame.noise_reading()), band) {
         Ok(Sign::Positive) => return Ok(()),
         Ok(Sign::Zero | Sign::Negative) | Err(_) => {}
     }
