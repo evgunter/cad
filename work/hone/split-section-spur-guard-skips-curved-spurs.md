@@ -60,6 +60,10 @@ Its spur is real. The check is now `Sweep::strip_spurs`: an exact
 straight spur is legal as a strut on one loop (the edge itself, which
 the join kills) paired with a slit on the other (two distinct chords,
 the other side touching itself), and an unpaired one panics. The curved
-blind spot stands for the pairing, which reads straight tips only. The
-strut kill reads topology (`join::strut_turn`), so it takes a curved
-strut too.
+blind spot stands for the pairing, which counts straight tips only.
+The strut kill reads topology (`join::strut_turn`), so it takes a
+curved strut too, and `join::spur_tips` reads a curved slit (two conic
+arcs that agree at the ends and at a quarter, a half and three quarters
+of the way along) for the section query, which takes it out of the
+outline (`sweep/tests/a_curved_keel_in_the_plane.rs`). What this row
+still owes is counting the curved ones in the pairing.

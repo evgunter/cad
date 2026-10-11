@@ -55,6 +55,8 @@ mod common;
 mod mate2_common;
 mod revolve_common;
 
+#[path = "a_curved_keel_in_the_plane.rs"]
+mod a_curved_keel_in_the_plane;
 #[path = "a_flipped_shallow_dimple.rs"]
 mod a_flipped_shallow_dimple;
 #[path = "a_move_through_a_neighbour_inverts_the_body.rs"]

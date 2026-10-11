@@ -307,7 +307,8 @@ fn a_crown_with_one_corner_in_the_plane_splits_sound() {
 
 /// `plane_section` through `MEET` at `pose`, either way up, reads one
 /// region of `area` (closed form) whose outline has `corners` corners,
-/// all at distinct points: no spur runs out from it and back.
+/// no two within the escalation distance `K·ε` of one another: no spur
+/// runs out from it and back.
 fn section_is(what: &str, u: &AtRestBody<f64>, pose: &Pose, area: f64, corners: usize) {
     for up in [true, false] {
         let what = format!("{what}, {}, the plane's normal up {up}", pose.label);
@@ -321,11 +322,15 @@ fn section_is(what: &str, u: &AtRestBody<f64>, pose: &Pose, area: f64, corners: 
             "{what}: section area {}, closed form {area}",
             region.area()
         );
-        let points: Vec<_> = region.outline.points().iter().map(|&p| at(p)).collect();
-        let distinct: std::collections::BTreeSet<_> = points.iter().collect();
+        let points = region.outline.points();
+        // Two corners closer than the escalation distance are one.
+        let near = t().eps() * t().k();
+        let repeated = (0..points.len())
+            .any(|i| (i + 1..points.len()).any(|j| points[i].distance(points[j]) <= near));
         assert!(
-            points.len() == corners && distinct.len() == corners,
-            "{what}: the outline {points:?}, not {corners} distinct corners"
+            points.len() == corners && !repeated,
+            "{what}: the outline {:?}, not {corners} distinct corners",
+            points.iter().map(|&p| at(p)).collect::<Vec<_>>()
         );
     }
 }

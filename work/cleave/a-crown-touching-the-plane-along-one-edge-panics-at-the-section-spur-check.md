@@ -70,7 +70,9 @@ bypassed, every cell refused `ResultInvalid` with
   Below's section face is then the plain polygon, Below keeps no vertex
   at `MEET`, and the finish and `plane_section` read one loop.
 - `plane_section` takes each slit out of its outline
-  (`section::drop_slits`): the slit lies inside the region.
+  (`section::drop_slits`): the slit lies inside the region. A slit is
+  read straight or curved: two conic arcs that agree at the ends and at
+  a quarter, a half and three quarters of the way along are one.
 - `meeting::corners_disjoint` reads a slit's tip as a full turn where
   the face lies round it, and refuses a spur out of the face
   (`corner_sweep`, with a unit row for both).
@@ -87,5 +89,12 @@ Pins, in `split_through_an_apex`:
   trench (`topo::subtract`) whose keel runs from `MEET` out through the
   box's side, at every pose: the same assertions against the closed
   form.
+
+- `sweep` `a_curved_keel_in_the_plane_splits_sound_and_sections_with_no_spur`:
+  a 270° annulus revolve less a 150° V revolve turned −20° or ±160°,
+  its keel an arc in the plane `y = 1`, the tip at 0, ±0.6 ε and
+  ±0.9 ε, both normals: the halves' volumes sum to the body's, tier 3,
+  and `plane_section` reads one region, the sector, with 5 distinct
+  corners.
 
 All pass at the three ε.
