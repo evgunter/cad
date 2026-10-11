@@ -76,9 +76,9 @@
       "cone": 5
     },
     "part_select": {
-      "about": "DOCM-2: a split's two halves and a pattern's middle instance as bodies (Node::Part)",
-      "nodes": 13,
-      "cone": 6
+      "about": "DOCM-2: a split's two halves read by port, and a pattern's middle instance (Node::Part)",
+      "nodes": 11,
+      "cone": 4
     },
     "heat_sink": {
       "about": "parametric fin strip: Pattern instances + explicit union chain",

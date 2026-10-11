@@ -28,7 +28,7 @@ use crate::corpus;
 
 use std::collections::BTreeSet;
 
-use corpus::{body_of, documents};
+use corpus::{documents, read_body};
 use editor_core::{CancelToken, EvalOptions, Evaluation, Node, evaluate};
 use geom_core::Tol;
 use topo::{SweepStrategy, SweepTrace, sweep_traces};
@@ -146,12 +146,10 @@ fn corpus_boolean_operands_superset_pin() {
                 ) if members.len() == 2 => (&members[0], &members[1]),
                 _ => continue,
             };
-            let at = |read| {
-                d.doc
-                    .operation_of(read)
-                    .expect("a boolean reads live operands")
-            };
-            let (body_a, body_b) = (body_of(&ev, at(a.read)), body_of(&ev, at(b.read)));
+            let (body_a, body_b) = (
+                read_body(&ev, &d.doc, a.read),
+                read_body(&ev, &d.doc, b.read),
+            );
             let (r_ab, r_ba) = sweep_traces(
                 body_a,
                 body_b,
