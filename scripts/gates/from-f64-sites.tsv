@@ -74,7 +74,7 @@ crates/geom-brep/src/props/loop_area.rs	1	stored-carrier-data(nurbs-weights-and-
 crates/geom-brep/src/props/loop_area.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	kv.knots()[index]	a stored knot
 crates/geom-brep/src/ssi/certify.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	0.5 * (a + b)	a window's midpoint on the traced carrier's knots
 crates/geom-brep/src/ssi/certify.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	w.mid	a window's midpoint on the traced carrier's knots
-crates/geom-brep/src/ssi/certify.rs	4	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	t	a sample on the traced carrier's knot domain (a fitted NURBS)
+crates/geom-brep/src/ssi/certify.rs	8	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	t	a sample on the traced carrier's knot domain (a fitted NURBS), and on the two pcurves' shared knot domain in the two-chart tube (a run's midpoint, a carrier end)
 crates/geom-brep/src/ssi/enclose.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	um	a window's midpoint on the stored knots
 crates/geom-brep/src/ssi/enclose.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	vm	a window's midpoint on the stored knots
 crates/geom-brep/src/tangent.rs	1	constant	f64::from(crate::certify::CERT_SAMPLES - 1)	a sample count

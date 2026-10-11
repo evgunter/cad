@@ -1433,52 +1433,96 @@ pub fn offset_edge_specs_for_tests<T: Decide + crate::props::AtRestPolicy>(
         .collect()
 }
 
+/// **Each boundary edge's planned verdict** for moving the non-cone
+/// charts `moves` together, each its faces and its distance: the
+/// simultaneous door's mint and `plan_edge` over every chart's boundary,
+/// one entry per edge in the door's order, read as
+/// [`offset_edge_plans_for_tests`] reads one face's. A row about one
+/// edge of a solid moved whole reads it here rather than behind
+/// whichever edge or corner the door answers first.
+///
+/// # Panics
+///
+/// As [`offset_edge_plans_for_tests`], for any chart of `moves`.
 #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
-#[allow(clippy::panic, clippy::expect_used, clippy::type_complexity)]
+#[doc(hidden)]
+#[allow(clippy::type_complexity)]
+pub fn offset_charts_edge_plans_for_tests<T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    moves: &[(&[FaceKey], T)],
+    tol: Tol,
+) -> Vec<(
+    EdgeKey,
+    Result<Option<ReplaceFaceError<T>>, ReplaceFaceError<T>>,
+)> {
+    planned_charts(body, moves, tol)
+        .into_iter()
+        .map(|(edge, plan)| (edge, plan.map(|p| p.refused)))
+        .collect()
+}
+
+#[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
+#[allow(clippy::type_complexity)]
 fn planned_edges<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     face: FaceKey,
     d: T,
     tol: Tol,
 ) -> Vec<(EdgeKey, Result<EdgePlan<T>, ReplaceFaceError<T>>)> {
+    planned_charts(body, &[(&[face], d)], tol)
+}
+
+#[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
+#[allow(clippy::panic, clippy::expect_used, clippy::type_complexity)]
+fn planned_charts<T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    moves: &[(&[FaceKey], T)],
+    tol: Tol,
+) -> Vec<(EdgeKey, Result<EdgePlan<T>, ReplaceFaceError<T>>)> {
     let band = Band::linear(tol).expect("the witness band");
-    let face_data = body.get_face(face).expect("a live face");
-    let old_key = face_data.surface;
-    let old_surface = body.face_surface_linked(face, face_data).clone();
-    assert!(
-        !matches!(old_surface, Surface::Cone { .. }),
-        "a cone's nappe and apex window are the door's"
-    );
-    let new_surface = mint_offset(
-        face,
-        &old_surface,
-        d,
-        band,
-        tol,
-        <T as crate::props::AtRestPolicy>::offset_fit_lane(),
-    )
-    .unwrap_or_else(|e| panic!("the offset mints: {e}"));
-    let faces = [face];
-    let chart = MovedChart {
-        faces: &faces,
-        old_key,
-        shift: apex_shift(&old_surface, d),
-        old_surface,
-        new_surface,
-        nappe: Nappe::Opening,
-        d,
-    };
-    group_boundary(body, &faces)
-        .into_iter()
-        .map(|edge| {
-            let plan = plan_edge(
-                body,
-                edge,
-                core::slice::from_ref(&chart),
+    let charts: Vec<MovedChart<'_, T>> = moves
+        .iter()
+        .map(|&(faces, d)| {
+            let face = faces[0];
+            let face_data = body.get_face(face).expect("a live face");
+            let old_key = face_data.surface;
+            let old_surface = body.face_surface_linked(face, face_data).clone();
+            assert!(
+                !matches!(old_surface, Surface::Cone { .. }),
+                "a cone's nappe and apex window are the door's"
+            );
+            let new_surface = mint_offset(
+                face,
+                &old_surface,
+                d,
                 band,
                 tol,
-                T::section_lane(),
-            );
+                <T as crate::props::AtRestPolicy>::offset_fit_lane(),
+            )
+            .unwrap_or_else(|e| panic!("the offset mints: {e}"));
+            MovedChart {
+                faces,
+                old_key,
+                shift: apex_shift(&old_surface, d),
+                old_surface,
+                new_surface,
+                nappe: Nappe::Opening,
+                d,
+            }
+        })
+        .collect();
+    let mut boundary: Vec<EdgeKey> = Vec::new();
+    for chart in &charts {
+        for edge in group_boundary(body, chart.faces) {
+            if !boundary.contains(&edge) {
+                boundary.push(edge);
+            }
+        }
+    }
+    boundary
+        .into_iter()
+        .map(|edge| {
+            let plan = plan_edge(body, edge, &charts, band, tol, T::section_lane());
             (edge, plan)
         })
         .collect()
@@ -2899,17 +2943,23 @@ fn derive_edge<T: Decide>(
         }
         _ => None,
     };
-    let section = match plane_wall {
-        Some((plane, wall)) => {
-            let lane = section_lane.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
-                edge,
-                scalar: T::NAME,
-            })?;
-            lane.section(plane, wall, old, (t0, t1), extent, band)
-                .map_err(esc)?
-                .map(|c| Curve3::Nurbs(Arc::new(c)))
-        }
-        None => crate::offset_derive::section_closed(
+    let spline_pair = new_surface.spline_chart().zip(neighbour.spline_chart());
+    let lane = || {
+        section_lane.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
+            edge,
+            scalar: T::NAME,
+        })
+    };
+    let section = match (plane_wall, spline_pair) {
+        (Some((plane, wall)), _) => lane()?
+            .section(plane, wall, old, (t0, t1), extent, band)
+            .map_err(esc)?
+            .map(|c| Curve3::Nurbs(Arc::new(c))),
+        (None, Some((a, b))) => lane()?
+            .pair(a, b, old, (t0, t1), extent, band)
+            .map_err(esc)?
+            .map(|c| Curve3::Nurbs(Arc::new(c))),
+        (None, None) => crate::offset_derive::section_closed(
             new_surface,
             neighbour,
             old,

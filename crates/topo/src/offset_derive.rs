@@ -129,6 +129,14 @@ pub struct SectionLane<T: Real> {
         Band,
     ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate>,
     root: fn(&Surface<T>, &NurbsCurve3<T>, T, T, Band) -> Result<SplineRoot, CornerVerdict<T>>,
+    pair: fn(
+        &NurbsSurface<T>,
+        &NurbsSurface<T>,
+        &Curve3<T>,
+        (T, T),
+        T,
+        Band,
+    ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate>,
 }
 
 impl<T: Real> core::fmt::Debug for SectionLane<T> {
@@ -138,12 +146,14 @@ impl<T: Real> core::fmt::Debug for SectionLane<T> {
 }
 
 impl SectionLane<f64> {
-    /// The lane: [`plane_wall_section`] and [`plane_spline_root`].
+    /// The lane: [`plane_wall_section`], [`plane_spline_root`] and
+    /// [`pair_section`].
     #[must_use]
     pub fn f64() -> Self {
         Self {
             section: plane_wall_section,
             root: plane_spline_root,
+            pair: pair_section,
         }
     }
 }
@@ -162,6 +172,20 @@ impl<T: Real> SectionLane<T> {
         band: Band,
     ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate> {
         (self.section)(plane, wall, old, span, extent, band)
+    }
+
+    /// The section of two spline charts through `old`'s middle, running
+    /// with it.
+    pub(crate) fn pair(
+        self,
+        a: &NurbsSurface<T>,
+        b: &NurbsSurface<T>,
+        old: &Curve3<T>,
+        span: (T, T),
+        extent: T,
+        band: Band,
+    ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate> {
+        (self.pair)(a, b, old, span, extent, band)
     }
 
     /// The root of `plane` along the spline `carrier` nearest `seed`.
@@ -756,8 +780,16 @@ fn plane_wall_section(
             }
         }
     };
-    // Its sense: the old carrier's, read where the section passes
-    // nearest the old middle.
+    running_as(carrier, (mid, tangent), band)
+}
+
+/// `carrier` in the old carrier's sense, read where it passes nearest
+/// the old middle `mid`, whose tangent is `tangent`.
+fn running_as(
+    carrier: NurbsCurve3<f64>,
+    (mid, tangent): (Point3<f64>, Vec3<f64>),
+    band: Band,
+) -> Result<Result<NurbsCurve3<f64>, SectionVerdict>, Indeterminate> {
     let (at, _) = nearest_sample(&carrier, mid);
     let along = carrier.deriv(at);
     let cosine = along.dot(tangent) / (along.norm() * tangent.norm());
@@ -770,6 +802,40 @@ fn plane_wall_section(
             }),
         },
     )
+}
+
+/// **The section of two spline charts** through the old carrier's
+/// middle: [`geom_brep::Section`]'s branch at that point, the one whose
+/// certified tube holds where the middle settles, in the old carrier's
+/// sense. A pair tangent at the seed refuses by the section's own
+/// transversality decision, and a section outside either chart's window
+/// there by the seed's.
+fn pair_section(
+    a: &NurbsSurface<f64>,
+    b: &NurbsSurface<f64>,
+    old: &Curve3<f64>,
+    (t0, t1): (f64, f64),
+    extent: f64,
+    band: Band,
+) -> Result<Result<NurbsCurve3<f64>, SectionVerdict>, Indeterminate> {
+    let mid = old.mid_point(t0, t1);
+    let tangent = old.deriv(0.5 * (t0 + t1));
+    // The rectangles bound the search; the window a plane would need
+    // is the extent about the middle, and bounds nothing here.
+    let domain = SsiDomain {
+        center: mid,
+        half_extent: extent,
+        extent,
+        floor_scale: 1.0,
+    };
+    let carrier = match geom_brep::Section::of(a, b, domain, band)
+        .and_then(|mut s| s.branch_at(mid).map(|branch| branch.carrier.clone()))
+    {
+        Ok(Curve3::Nurbs(c)) => (*c).clone(),
+        Ok(_) => unreachable!("an `SsiBranch`'s carrier is a fitted `Curve3::Nurbs` (C1 rung 3)"),
+        Err(e) => return Ok(Err(SectionVerdict::Ssi(e))),
+    };
+    running_as(carrier, (mid, tangent), band)
 }
 
 /// The parameter of `c`'s sample nearest `p` on a fixed schedule, and
@@ -997,7 +1063,7 @@ fn plane_spline_root(
 
 #[cfg(test)]
 mod wiring {
-    use super::{SectionLane, plane_spline_root, plane_wall_section};
+    use super::{SectionLane, pair_section, plane_spline_root, plane_wall_section};
 
     /// `Ok(())` when every field holds its routine; otherwise the name
     /// of the first field that does not.
@@ -1012,6 +1078,9 @@ mod wiring {
         if !std::ptr::fn_addr_eq(lane.root, plane_spline_root as fn(_, _, _, _, _) -> _) {
             return Err("root is not `plane_spline_root`");
         }
+        if !std::ptr::fn_addr_eq(lane.pair, pair_section as fn(_, _, _, _, _, _) -> _) {
+            return Err("pair is not `pair_section`");
+        }
         Ok(())
     }
 
@@ -1020,7 +1089,7 @@ mod wiring {
         assert_eq!(
             holds_the_section_lane(),
             Ok(()),
-            "`SectionLane::f64()` holds something other than its two routines"
+            "`SectionLane::f64()` holds something other than its three routines"
         );
     }
 }
