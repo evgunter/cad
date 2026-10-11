@@ -14,7 +14,7 @@
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use topo::test_support as fixtures;
-use topo::{AtRestBody, Body, BooleanDeclarations, BooleanResult, LoopBoundary};
+use topo::{AtRestBody, Body, BooleanResult, LoopBoundary};
 
 type V3 = [f64; 3];
 
@@ -331,7 +331,6 @@ fn a_face_through_two_vertices_on_one_point_tessellates() {
             1.0,
         ),
     ];
-    let decls = BooleanDeclarations::default();
     for (tag, prism, other, prism_first, op, delta) in rows {
         let prism = finished(
             "the prism",
@@ -343,8 +342,8 @@ fn a_face_through_two_vertices_on_one_point_tessellates() {
             (&other, &prism)
         };
         let run = match op {
-            "U" => topo::union_with(x, y, &decls, tol()),
-            _ => topo::subtract_with(x, y, &decls, tol()),
+            "U" => topo::union(x, y, tol()),
+            _ => topo::subtract(x, y, tol()),
         };
         // At ε 1e-6 these poses read a margin in band ([`REFUSES_AT_1E6`]).
         if tol().eps() == 1e-6

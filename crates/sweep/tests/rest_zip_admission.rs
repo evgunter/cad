@@ -12,14 +12,13 @@
 //! without its site. The last two rows take each site off the pins'
 //! poses: more overlaps and pure contacts for the reflex site, and the
 //! pure contacts the tangent site must keep building. The last pins a
-//! line kiss beside the site, which builds with its contact undeclared.
+//! line kiss beside the site, which builds with its contact unrecorded.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{OrthoFrame, Point3, Tol};
 use sweep::test_support::{brick, extruded, finished, sketch_at};
-use topo::test_support::flush_declarations;
-use topo::{AtRestBody, BooleanDeclarations, BooleanError, BooleanResult};
+use topo::{AtRestBody, BooleanError, BooleanResult};
 
 use crate::common::differential::{ReflexPose, reflex_pose};
 use crate::common::rounded;
@@ -45,9 +44,9 @@ fn union(p: &AtRestBody<f64>, q: &AtRestBody<f64>) -> AtRestBody<f64> {
     }
 }
 
-/// Whether the join alone refuses `p ∪ q` under `d`.
-fn join_refuses(p: &AtRestBody<f64>, q: &AtRestBody<f64>, d: &BooleanDeclarations) -> bool {
-    topo::test_support::boolean_join_refusal(topo::BooleanOp::Union, p, q, d, tol())
+/// Whether the join alone refuses `p ∪ q`.
+fn join_refuses(p: &AtRestBody<f64>, q: &AtRestBody<f64>) -> bool {
+    topo::test_support::boolean_join_refusal(topo::BooleanOp::Union, p, q, tol())
         .expect("the reduction runs")
         .is_some()
 }
@@ -136,8 +135,7 @@ fn a_reflex_union_at_a_tangent_site_never_ships_the_overlap_twice() {
         let (p, b, want) = reflex_beside_a_post(profile, sx, sy, -2.0);
         for (order, x, y) in [("a ∪ b′", &p.a, &b), ("b′ ∪ a", &b, &p.a)] {
             let what = format!("{profile} ({sx}, {sy}) {order}");
-            let d = flush_declarations(x, y, tol());
-            match topo::union_with(x, y, &d, tol()) {
+            match topo::union(x, y, tol()) {
                 Err(BooleanError::Join(_)) => {}
                 Err(e) => panic!("{what}: refused, but not by the join: {e:?}"),
                 built => {
@@ -162,10 +160,9 @@ fn a_tangent_sites_controls_build_sound() {
         let (p, b, want) = reflex_beside_a_post(profile, sx, sy, x0);
         for (order, x, y) in [("a ∪ b′", &p.a, &b), ("b′ ∪ a", &b, &p.a)] {
             let what = format!("{profile} ({sx}, {sy}), post at {x0}, {order}");
-            let d = flush_declarations(x, y, tol());
-            assert!(!join_refuses(x, y, &d), "{what}: the join connects");
+            assert!(!join_refuses(x, y), "{what}: the join connects");
             assert!(
-                never_twice(&what, topo::union_with(x, y, &d, tol()), want, p.want[0]),
+                never_twice(&what, topo::union(x, y, tol()), want, p.want[0]),
                 "{what}: refused"
             );
         }
@@ -210,12 +207,11 @@ fn a_box_dipping_into_a_plate_at_a_tangent_site_never_ships_the_overlap_twice() 
             ("plate ∪ upper", &plate, &upper),
         ] {
             let what = format!("{name}, {order}");
-            let d = flush_declarations(p, q, t);
             assert!(
-                !control || !join_refuses(p, q, &d),
+                !control || !join_refuses(p, q),
                 "{what}: the control's join connects"
             );
-            let built = never_twice(&what, topo::union_with(p, q, &d, t), want, overlap);
+            let built = never_twice(&what, topo::union(p, q, t), want, overlap);
             assert!(built, "{what}: refused");
         }
     }
@@ -233,8 +229,7 @@ fn both_orders(
     let mut built = 0;
     for (order, x, y) in [("p ∪ q", p, q), ("q ∪ p", q, p)] {
         let what = format!("{what}, {order}");
-        let d = flush_declarations(x, y, tol());
-        if never_twice(&what, topo::union_with(x, y, &d, tol()), want, overlap) {
+        if never_twice(&what, topo::union(x, y, tol()), want, overlap) {
             built += 1;
         }
     }
@@ -300,8 +295,8 @@ fn rounded_at(at: (f64, f64, f64), w: f64, h: f64, r: f64, height: f64) -> AtRes
     )
 }
 
-fn declared_union(p: &AtRestBody<f64>, q: &AtRestBody<f64>) -> AtRestBody<f64> {
-    match topo::union_with(p, q, &flush_declarations(p, q, tol()), tol()) {
+fn stacked_union(p: &AtRestBody<f64>, q: &AtRestBody<f64>) -> AtRestBody<f64> {
+    match topo::union(p, q, tol()) {
         Ok(BooleanResult::Body(bb)) => bb.body,
         other => panic!("an operand's own union: {other:?}"),
     }
@@ -339,11 +334,11 @@ fn the_tangent_site_keeps_building_pure_contacts() {
         ),
         (
             "a post on the slab",
-            declared_union(&slab, &box_of((1.0, 2.0), (1.0, 2.0), (1.9, 3.0))),
+            stacked_union(&slab, &box_of((1.0, 2.0), (1.0, 2.0), (1.9, 3.0))),
         ),
         (
             "a rounded post on the slab",
-            declared_union(&slab, &rounded_at((1.0, 1.0, 1.9), 1.0, 1.0, 0.4, 1.0)),
+            stacked_union(&slab, &rounded_at((1.0, 1.0, 1.9), 1.0, 1.0, 0.4, 1.0)),
         ),
     ] {
         let what = format!("pure: {name}");
@@ -378,12 +373,12 @@ fn the_tangent_site_keeps_building_pure_contacts() {
             (0.8, 1.5),
         ),
     ] {
-        let u = declared_union(&slab, &box_of(x, y, z));
+        let u = stacked_union(&slab, &box_of(x, y, z));
         let o = ov(x, y, z);
         both_orders(&format!("dip {name}"), &u, &plate, vol(&u) + pv - o, o);
     }
     let foot = 1.0 - (4.0 - core::f64::consts::PI) * 0.16;
-    let u = declared_union(&slab, &rounded_at((1.5, 1.5, 0.8), 1.0, 1.0, 0.4, 0.7));
+    let u = stacked_union(&slab, &rounded_at((1.5, 1.5, 0.8), 1.0, 1.0, 0.4, 0.7));
     both_orders(
         "dip a rounded peg",
         &u,
@@ -391,12 +386,12 @@ fn the_tangent_site_keeps_building_pure_contacts() {
         vol(&u) + pv - 0.2 * foot,
         0.2 * foot,
     );
-    let u = declared_union(
-        &declared_union(&slab, &box_of((0.5, 1.0), (1.5, 2.0), (0.8, 1.5))),
+    let u = stacked_union(
+        &stacked_union(&slab, &box_of((0.5, 1.0), (1.5, 2.0), (0.8, 1.5))),
         &box_of((2.0, 2.5), (2.0, 2.5), (0.8, 1.5)),
     );
     both_orders("two dips", &u, &plate, vol(&u) + pv - 0.1, 0.1);
-    let lower = declared_union(&plate, &box_of((1.5, 2.5), (1.5, 2.5), (0.5, 1.2)));
+    let lower = stacked_union(&plate, &box_of((1.5, 2.5), (1.5, 2.5), (0.5, 1.2)));
     both_orders(
         "the plate's boss into the slab",
         &slab,
@@ -404,7 +399,7 @@ fn the_tangent_site_keeps_building_pure_contacts() {
         vol(&slab) + vol(&lower) - 0.2,
         0.2,
     );
-    let u = declared_union(
+    let u = stacked_union(
         &box_of((0.0, 5.0), (m1, 3.0), (1.0, 2.0)),
         &box_of((4.0, 4.5), (2.5, 4.5), (0.5, 1.5)),
     );
@@ -417,27 +412,6 @@ fn the_tangent_site_keeps_building_pure_contacts() {
     );
 }
 
-/// Each record's cells, with the rows it cites, read through its op's
-/// list: a declaration's own rows come first in a declared op's list,
-/// so two ops recording one decision cite it at different positions.
-fn cited_rows(r: &topo::BooleanBody<f64>) -> Vec<String> {
-    r.contacts
-        .rows()
-        .iter()
-        .map(|c| (c.cells(), &c.cites))
-        .map(|(cells, cites)| {
-            let rows: Vec<String> = cites
-                .iter()
-                .map(|b| match b {
-                    topo::Backing::Decided(k) => format!("{:?}", r.coincidences[k as usize]),
-                    carried @ topo::Backing::Carried { .. } => format!("{carried:?}"),
-                })
-                .collect();
-            format!("{cells:?} {rows:?}")
-        })
-        .collect()
-}
-
 /// **A line kiss beside the tangent site builds at its closed form and
 /// records its contact** (shape 2 of
 /// `work/fuse/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate`).
@@ -447,8 +421,7 @@ fn cited_rows(r: &topo::BooleanBody<f64>) -> Vec<String> {
 /// orders, builds at `vol a + vol b′`, passes tier 2, and passes tier 3′
 /// against its own records: the kiss's vertex rests on the piece of
 /// `a`'s top the section divides off, and the record lands there. The
-/// glue records face pairs, and no face pair meets here, so the union
-/// undeclared is the declared one, records and all (D10).
+/// glue records face pairs, and no face pair meets here.
 #[test]
 fn a_line_kiss_beside_a_tangent_site_records_its_contact() {
     for (profile, sx, sy) in [
@@ -470,22 +443,13 @@ fn a_line_kiss_beside_a_tangent_site_records_its_contact() {
         );
         for (order, x, y) in [("a ∪ b′", &p.a, &b), ("b′ ∪ a", &b, &p.a)] {
             let what = format!("{profile} ({sx}, {sy}) {order}");
-            let d = flush_declarations(x, y, tol());
-            let bb = match topo::union_with(x, y, &d, tol()) {
+            let bb = match topo::union(x, y, tol()) {
                 Ok(BooleanResult::Body(bb)) => bb,
                 other => panic!("{what}: the kiss does not build: {other:?}"),
             };
             let v = vol(&bb.body);
             assert!((v - want).abs() < 1e-9, "{what}: volume {v} against {want}");
             assert_eq!(topo::validate_closed(&bb.body), Ok(()), "{what}: tier 2");
-            let Ok(BooleanResult::Body(bare)) = topo::union(x, y, tol()) else {
-                panic!("{what}: the undeclared union builds");
-            };
-            assert_eq!(
-                (format!("{:?}", bare.body), cited_rows(&bare)),
-                (format!("{:?}", bb.body), cited_rows(&bb)),
-                "{what}: undeclared, the declared body and records"
-            );
             assert_eq!(
                 topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
                 Ok(()),

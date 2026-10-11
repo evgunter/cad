@@ -164,8 +164,9 @@ fn nurbs_vector_area<T: SpanLocate>(
         let Some(span) = curve.span(index) else {
             continue;
         };
-        let lo = t0.max(T::from_f64(kv.knots()[index]));
-        let hi = t1.min(T::from_f64(kv.knots()[index + 1]));
+        let held = curve.knot_values().values();
+        let lo = t0.max(held[index]);
+        let hi = t1.min(held[index + 1]);
         let half_len = ((hi - lo) * half).max(T::zero());
         let mid = (lo + hi) * half;
         for (x, w) in nodes.iter().zip(weights) {

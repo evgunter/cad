@@ -391,7 +391,7 @@ fn a_split_whose_section_is_nearly_a_circle_offers_the_splits_levers() {
         text.starts_with(
             "whether the curve is a circle or an ellipse is undecided for the section through \
              a curved face: "
-        ) && text.ends_with(&format!("Recourse: {}", geom_core::NO_DECLARATION_RECOURSE)),
+        ) && text.ends_with(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE)),
         "{text}"
     );
     assert!(

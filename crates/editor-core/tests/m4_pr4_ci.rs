@@ -54,7 +54,7 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// whose ids re-minted. Every row keeps its shape (`PredicateFlip`,
 /// `Cascade`, `StructuralParam`, `NodeGone`, `Ambiguous`): a spelling
 /// change.
-const DIAGNOSIS_DIGEST: u64 = 0xa18f_603e_f72a_4033;
+const DIAGNOSIS_DIGEST: u64 = 0x8da0_07c7_0dd7_3c17;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

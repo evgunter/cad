@@ -528,14 +528,13 @@ fn a_zero_on_the_rejected_side_offers_no_tolerance() {
     assert!(text.contains("tighten the tolerance below"), "{text}");
 }
 
-/// **A sign-certain rejection offers no declaration.** A margin decided
-/// past the band is no coincidence, and no declaration changes it, so
-/// its refusal names the geometry alone (D4 ¶1 (i)).
+/// **A sign-certain rejection names the geometry.** A margin decided
+/// past the band is no coincidence, so its refusal's recourse is the
+/// geometry (D4 ¶1 (i)).
 #[test]
 fn a_past_band_rejection_offers_no_declaration() {
     let rejected = decide_positive("gate_certain", Margin::of(-1.0f64), band()).unwrap_err();
     assert_eq!(rejected.margin.rejected_sign(), Some(Sign::Negative));
     let text = rejected.to_string();
-    assert!(!text.contains("declare the coincidence"), "{text}");
     assert!(text.contains("move the geometry"), "{text}");
 }
