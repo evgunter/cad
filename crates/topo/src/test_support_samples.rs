@@ -906,10 +906,9 @@ fn stale_declarations() -> Vec<StaleDeclaration> {
             a: EdgeKey::default(),
             b: EdgeKey::default(),
         },
-        StaleDeclaration::CurveLocus {
-            face_a: face,
-            face_b: face,
-            witness: EdgeKey::default(),
+        StaleDeclaration::EdgeFace {
+            edge: EdgeKey::default(),
+            face,
         },
         StaleDeclaration::Patch {
             face_a: face,
@@ -1455,21 +1454,13 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             ValidationError::StaleContactDeclaration { declaration },
         ));
     }
-    // Door 1's whole-surface verdict (a Rest record) and the curve
-    // record's witnessing edge (a Tangent record), each with and
-    // without the designed-clearance steer.
-    for (class, witness, predicate) in [
-        (
-            ContactClass::Rest,
-            crate::census::CARRIER_COMPARISON_WITNESS,
-            "carrier_sphere_radius",
-        ),
-        (
-            ContactClass::Tangent,
-            crate::census::CURVE_RECORD_WITNESS,
-            "contact_tangent_opposed",
-        ),
-    ] {
+    // Door 1's whole-surface verdict (a Rest record), with and without
+    // the designed-clearance steer.
+    for (class, witness, predicate) in [(
+        ContactClass::Rest,
+        crate::census::CARRIER_COMPARISON_WITNESS,
+        "carrier_sphere_radius",
+    )] {
         for steer in [None, Some(FIT_DEFERRAL)] {
             s.push((
                 format!(

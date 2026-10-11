@@ -224,7 +224,7 @@ fn quarter_pinch(
         panic!("a union of two bricks came back empty");
     };
     assert_eq!(
-        pinch.contacts.vv.len(),
+        pinch.contacts.vertex_vertex().count(),
         2,
         "the edge contact records a v-v row at each end"
     );
@@ -449,7 +449,7 @@ fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), shear: (f64
     let pinch = wedges[2..].iter().fold(two, |acc, next| fold(&acc, next));
     let n = spans.len();
     assert_eq!(
-        pinch.contacts.vv.len(),
+        pinch.contacts.vertex_vertex().count(),
         n * (n - 1),
         "{n} vertices at each end of the pinch line, a row per two"
     );

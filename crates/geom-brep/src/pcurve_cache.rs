@@ -2756,6 +2756,41 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     // the refusal asks for. The rule is `certify_branch`'s own, in its
     // words: the first operand's NURBS limbs have no traced pcurve, and
     // a NURBS second operand's chart tube is written against a plane.
+    // Two spline charts: the mate's image is derived from the carrier
+    // by the one producer of such images, and the pair certifies with
+    // both, its tube the two-chart one.
+    if let (Some(mate_chart), true) = (mate.spline_chart(), spline_operand(surface)) {
+        let mate_image = crate::edge_nurbs::chart_image(carrier, mate_chart, |_, _| Ok(()))
+            .map_err(|e| {
+                ssi_refusal(match e {
+                    crate::edge_nurbs::PlaneNurbsRefusal::FootPointInconclusive {
+                        last_distance,
+                        ..
+                    } => crate::ssi::SsiError::FootPointInconclusive {
+                        t: f64::NAN,
+                        last_distance,
+                    },
+                    _ => crate::ssi::SsiError::UnsupportedCertificate {
+                        what: "the mate chart's image of the carrier could not be derived",
+                    },
+                })
+            })?;
+        let ssi = crate::ssi::certify::certify_branch(
+            carrier,
+            crate::ssi::certify::Lane::AtRest {
+                a: &operand(mate)?,
+                b: &operand(surface)?,
+                pcurve_a: Some(&mate_image),
+                pcurve_b: Some(image),
+            },
+            arm,
+            band,
+            crate::ssi::certify::Limbs::All,
+            &mut crate::ssi::certify::Refused::default(),
+        )
+        .map_err(ssi_refusal)?;
+        return Ok(FittedEnvelope { ssi });
+    }
     let routing = if spline_operand(mate) {
         Some(crate::ssi::certify::NURBS_LIMBS_NEED_PCURVE)
     } else if spline_operand(surface) && !matches!(mate, Surface::Plane { .. }) {
@@ -2892,6 +2927,8 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::SideSignBudget { .. }
         | E::EndNotOnLocus { .. }
         | E::CrossingUnmatched { .. }
+        | E::PairBoundaryUnresolved { .. }
+        | E::SeedOutsideTube { .. }
         | E::ShortBranchUncertified { .. }
         | E::MarchStepInBand { .. }
         | E::MarchShortOfFit { .. }
@@ -10193,9 +10230,10 @@ mod fitted_lane_routing_tests {
     /// **A pairing the certificate is not written for refuses as that,
     /// ahead of a degenerate face's chart speeds.** Mending the face
     /// would still meet the routing boundary, so the boundary answers
-    /// first: a NURBS mate (whose limbs have no traced pcurve) and a
-    /// non-plane analytic mate of a NURBS face, each against the point
-    /// wall.
+    /// first: a NURBS mate of an analytic face (whose limbs have no
+    /// traced pcurve) and a non-plane analytic mate of a NURBS face, each
+    /// with the point wall. Two spline charts are no routing boundary:
+    /// they certify with the two-chart tube.
     #[test]
     fn the_routing_boundary_answers_before_the_chart_mint() {
         let lin = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -10221,8 +10259,8 @@ mod fitted_lane_routing_tests {
         let carrier = Curve3::Nurbs(Arc::new(carrier));
         for (name, surface, mate, want) in [
             (
-                "NURBS × NURBS",
-                point_wall(),
+                "NURBS × cylinder",
+                cylinder.clone(),
                 point_wall(),
                 NURBS_LIMBS_NEED_PCURVE,
             ),

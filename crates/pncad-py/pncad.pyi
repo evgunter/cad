@@ -292,7 +292,7 @@ class ValidationFinding:
       `"undecided"` neither; `None` on every other finding.
     - `stale_kind` — which contact record the tier-3′ census could
       not confirm (`"vertex_vertex"`, `"vertex_on_face"`,
-      `"vertex_on_edge"`, `"edge_edge"`, `"curve_locus"`, `"patch"`).
+      `"vertex_on_edge"`, `"edge_edge"`, `"edge_face"`, `"patch"`).
       A record a declaration made is withdrawn or re-seated at that
       granularity, and withdrawing another one leaves the refusal
       standing. `"vertex_on_edge"` and `"edge_edge"` are records an op
@@ -5504,10 +5504,14 @@ class Evaluation:
         `min_clearance` at this point scalar); an evaluation over the
         bound values that refuses raises `ExprError`."""
 
-    def coincidences(self, node: NodeId) -> list[Coincidence]:
+    def coincidences(
+        self, node: NodeId, full_symbolic_pass: bool = False
+    ) -> list[Coincidence]:
         """The coincidences `node` decided from values (D10), in
         decision order, each with what the coincidence door decided
-        about it. A node with no value raises as `value` does."""
+        about it: at the resident budget, or at the full one with
+        `full_symbolic_pass`. A node with no value raises as `value`
+        does."""
 
     def succeeded(self, node: NodeId) -> bool: ...
     def order(self) -> list[NodeId]: ...
@@ -6992,7 +6996,11 @@ class ChecksConfig:
     not in the default pass. It reads every face of every rest body,
     and it reports a trimmed face's loops as out of its reach, which
     is true and is not actionable; ask for it rather than pay for it
-    on every run. `Off` is visible in `ChecksReport.skipped`."""
+    on every run. `Off` is visible in `ChecksReport.skipped`.
+
+    `full_symbolic_pass` runs the coincidence door's symbolic rungs at
+    the full budget; by default they run at the resident one, cheap
+    enough for every evaluation."""
 
     def __init__(
         self,
@@ -7001,6 +7009,7 @@ class ChecksConfig:
         separation: Advisory = ...,
         chart_coherence: Advisory = ...,
         unproven_coincidence: Advisory = ...,
+        full_symbolic_pass: bool = False,
     ) -> None: ...
     @property
     def connectedness(self) -> Severity: ...
@@ -7010,6 +7019,11 @@ class ChecksConfig:
     def chart_coherence(self) -> Advisory: ...
     @property
     def unproven_coincidence(self) -> Advisory: ...
+    @property
+    def full_symbolic_pass(self) -> bool:
+        """Whether the `unproven_coincidence` lint's door runs its
+        symbolic rungs at the full budget rather than the resident one,
+        which leaves a row it does not discharge saying so."""
     @property
     def expected_components(self) -> list[tuple[NodeId, int, int]]:
         """The stated expectations, ascending by subject."""
@@ -7116,8 +7130,10 @@ class Coincidence:
     and `same_oriented` where its two pieces continue one carrier; a
     `tangent_witness` row is `tangent_contact` (the outward sides
     opposed) or `seam` (one face carried on into the other). `rung` is the door's rung that proved
-    it structural (`same_construction`), or `None`, and then `residual` says
-    what separates the two constructions."""
+    it structural (`same_construction`, `carrier_verdict` or
+    `margin_identity`), or `None`, and then `residual` says what separates
+    the two constructions and what the replay with every variable a
+    symbol made of the row."""
 
     @property
     def cells(self) -> list[tuple[Var | NodeId, Optional[str]]]: ...

@@ -240,13 +240,24 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// point moved: the id-free fence with the pointless datum outcomes
 /// dropped is equal on the base tree and this one. Re-taken merged over
 /// FORK-DM4 unit 1 (PR 4527) and the split-half retirement (PR 4618).
+///
+/// RE-BLESSED, `part_select` only, where the at-rest records' cell-pair
+/// shape met the split's ports: each moved it alone, and the merged
+/// tree is neither value. `m4_pr8_corpus`'s exact mass pins,
+/// `m5_pr8_bvh_diff` and `m10_p_fence`'s id-masked geometry held.
+///
+/// RE-BLESSED, `kitchen_sink`, beside `part_select` above,, merging main's INTENT stage 3 A
+/// re-pin with the at-rest records' cell-pair shape: each moved it
+/// alone, and the merged tree is neither value. `m4_pr8_corpus`'s exact
+/// mass pins, `m5_pr8_bvh_diff` and `m10_p_fence`'s id-masked geometry
+/// held.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("cut_cylinder", 0xa6c1_1622_9a6f_5245u64),
-        ("part_select", 0x023e_8e17_7f50_25c3),
-        ("kitchen_sink", 0x6b95_5c68_645c_448d),
+        ("part_select", 0x4679_9015_ec06_98b9),
+        ("kitchen_sink", 0x5447_b24c_1bdd_7c39),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
