@@ -8,6 +8,7 @@ priority: P1
 cost: H
 refs: [4139, a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face]
 branch: flush/pinch-cluster
+pr: 4728
 ---
 
 

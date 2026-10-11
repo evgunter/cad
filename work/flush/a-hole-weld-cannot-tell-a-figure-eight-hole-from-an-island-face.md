@@ -7,6 +7,7 @@ opened: 2026-10-04
 priority: P2
 cost: M
 branch: flush/pinch-cluster
+pr: 4728
 ---
 
 
