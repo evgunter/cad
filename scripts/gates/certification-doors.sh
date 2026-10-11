@@ -219,6 +219,7 @@ CERT_IMPORTERS=(
   crates/geom-brep/src/ssi/boundary.rs
   crates/geom-brep/src/ssi/enclose.rs
   crates/geom-brep/src/ssi/exhaust.rs
+  crates/geom-brep/src/ssi/four.rs
   crates/geom-brep/src/ssi/section.rs
   crates/geom-core/src/spline/algebra.rs
   crates/geom-core/src/spline/blossom.rs

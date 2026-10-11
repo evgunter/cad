@@ -325,17 +325,19 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/certify.rs",
-        9,
+        11,
         2,
         "the 2 that ask are the chart tube's span-hull window (`chart_tube_windows` \
          refuses either window hull by name before padding it — a refused hull is NaI, \
-         and its NaN ends name no window). The other 7 are `T: Bounds` reads on the \
+         and its NaN ends name no window). The other 9 are `T: Bounds` reads on the \
          evaluation scalar and not certification endpoints at all — blind spot 1: two \
          of them are `probe_tube_chart`'s reads of the pcurve's tangent, which select \
          a direction (structure, not a bound) and whose norm the probe refuses unless \
          positive finite, and one is `probe_tube_analytic`'s midpoint of the box \
          chain's axis at each end, which selects the axis the end's slice is cut \
-         across (structure)",
+         across (structure), and two are `probe_tube_pair`'s reads of the two \
+         pcurves, their tangents (a direction the probe refuses unless positive \
+         finite) and their end states (where an end's slice is cut, structure)",
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
@@ -350,6 +352,17 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          refuses every term and offset by name before any is centred",
     ),
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
+    (
+        "crates/geom-brep/src/ssi/four.rs",
+        5,
+        4,
+        "the 4 that ask are the Krawczyk test's preconditioner midpoint, image, \
+         containment and miss reads, which refuse a piece unless every image row is \
+         certified. The 1 that does not ask is `mean_value_excludes`' column midpoints, \
+         which select an exclusion direction: any fixed direction is sound, and the form \
+         built along it is read only through `sign`, which refuses an uncertified \
+         enclosure by name",
+    ),
     (
         "crates/geom-brep/src/ssi/one_arc.rs",
         18,
