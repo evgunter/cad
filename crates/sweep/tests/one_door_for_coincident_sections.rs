@@ -184,7 +184,8 @@ fn a_sweep_whose_two_stations_coincide_refuses_at_the_fold() {
         other => panic!("f64: expected DegenerateStacking at slab 0, got {other:?}"),
     }
     // The start frame is computed, so it enters the lane as computed.
-    let lane_profile = &sweep::test_support::lift_sections::<Interval>(&[profile.clone()])[0];
+    let lane_profile =
+        &sweep::test_support::lift_sections::<Interval>(core::slice::from_ref(&profile))[0];
     let lane_place = place.map(Interval::from_computed);
     match sweep_body::<Interval>(lane_profile, lane_place, &path, 2, 1, tol) {
         Err(LoftError::DegenerateStacking { slab: 0 }) => {}

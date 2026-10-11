@@ -29,3 +29,18 @@ from their `f64` values, so a placement the document computed stays
 the function it was; `sweep_body`'s `sweep_places` output is genuinely
 computed and keeps `from_computed`. A public signature change: run
 `demos/tour` and `demos/wild` clippy.
+
+**The library half landed** with `the-skin-computes-its-values-in-t`:
+`loft_body` takes `&[Affine3<T>]` and `sweep_body` an `Affine3<T>`
+start frame, and the loft skins from their value channel, so a library
+caller's placement stays the function it was (`sweep_places` enters
+only the path's offsets, turn axes and angles through
+`from_computed`, and composes the caller's frame in `T`).
+
+**What editor-core still owes**: its Loft node reads the placement out
+of its lane as `f64` (`section_of`, DM1c) and lifts it at the door
+through `Real::from_computed` (`wire_loft`), so in a document the
+placements still reach the loft as unknowns at `Sym`. Feeding them in
+`T` is the document lane of
+`a-loft-is-the-nominal-surface-in-every-generic-lane`, parked with it
+on the `[ev]` question that revises DM1c.

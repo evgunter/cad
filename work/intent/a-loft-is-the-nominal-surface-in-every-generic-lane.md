@@ -32,3 +32,22 @@ Interval lanes, which stands until it lands. Owed: a pin, red today,
 at each of `Dual` and `Interval`. A loft over a section whose radius is
 a dual variable shows a nonzero wall derivative. A loft over a widened
 radius encloses the radius's family at a sample.
+
+**Owed: the document lane.** The library half landed with
+`the-skin-computes-its-values-in-t`: `sweep::loft_body` and
+`sweep::sweep_body` take their sections and placements in `T` and skin
+them there at every projective scalar, so a library loft at `Dual` over
+a dual bulge carries the wall's derivative
+(`sweep/tests/a_loft_computes_its_walls_in_t.rs`,
+`a_lofted_arc_walls_weight_carries_the_bulges_derivative`). At
+`Interval` the library loft encloses the `f64` skin of its sections'
+value channel, and a section wider than a point refuses
+(`a_loft_over_a_section_wider_than_a_point_refuses_at_interval`)
+instead of standing for the nominal over its family. What is left is
+editor-core's Loft node: `section_of` resolves each section at the
+lane's nominal (DM1c, `crates/editor-core/REFERENCES.md`) and
+`wire_loft` lifts it at the door through `Real::from_computed`, so in
+a document every section value still reaches the loft as an unknown at
+`Sym` and a dual constant at `Dual`. Feeding the document's sections in
+`T` revises DM1c (and likely PP6), which is Ev's call: parked on that
+`[ev]` question.

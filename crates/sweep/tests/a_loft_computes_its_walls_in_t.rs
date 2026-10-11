@@ -131,3 +131,28 @@ fn a_lofted_arc_walls_weight_carries_the_bulges_derivative() {
         w.deriv
     );
 }
+
+/// At `Interval` the loft encloses the `f64` skin of its sections'
+/// value channel, so a section wider than a point has no skin to
+/// enclose: it refuses at the structure pass, rather than standing for
+/// the nominal surface over the family it spans.
+#[test]
+fn a_loft_over_a_section_wider_than_a_point_refuses_at_interval() {
+    use geom_core::Interval;
+    let b = Interval::from_bounds(0.19, 0.21);
+    let places = [
+        Affine3::identity(),
+        Affine3::translation(Vec3::new(
+            Interval::zero(),
+            Interval::zero(),
+            Interval::one(),
+        )),
+    ];
+    match loft_body::<Interval>(&[section(b), section(b)], &places, 1, Tol::witness()) {
+        Err(sweep::LoftError::Skin(sweep::SkinError::SectionProfile { section: 0, .. })) => {}
+        other => panic!(
+            "expected section 0's profile refusal, got {:?}",
+            other.map(|_| ())
+        ),
+    }
+}
