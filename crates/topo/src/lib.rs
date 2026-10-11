@@ -332,10 +332,11 @@ pub mod test_support {
     pub mod meeting {
         pub use crate::test_support_meeting::{
             Hole, MEET, PLATE, Point, Pose, apex_pyramid, arch, arch_cone, at, bearing,
-            branching_cone, comb, corners, corners_disjoint, cycles_of, ell, ell_and_wedges, fin,
-            four_wedges, inner_rows, leaned, mix, near_flat, nest, nest_polygon, notch, notch_rows,
-            orders, posed_box, posed_boxes, posed_crown, posed_prism, posed_pyramid, poses, shape,
-            three_wedges, two_wedges, wedge, wedges_on_one_side,
+            branching_cone, comb, corners, corners_disjoint, crown, cycles_of, ell, ell_and_wedges,
+            fin, four_wedges, inner_rows, leaned, mix, near_flat, nest, nest_polygon, notch,
+            notch_rows, orders, posed_box, posed_boxes, posed_crown, posed_prism, posed_pyramid,
+            poses, pyramid_volumes, shape, single_arch, three_wedges, two_wedges, wedge,
+            wedges_on_one_side, zigzag,
         };
     }
 
@@ -957,11 +958,11 @@ pub use split::SplitEdgeCreated;
 pub use splitting::{
     ConicCrossingsCase, ConicRootFault, CrossingDecision, Escalation, KnifeEdge, KnifeEdgeSite,
     LoopContainment, LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide,
-    PointInLoopError, Section, SectionEdge, SectionError, SectionPolygon, SectionRegion,
-    SectorEntry, SectorEntryKind, SectorReading, SplitError, SplitFinishError, SplitJoinError,
-    SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult, TangencyReadings,
-    Uncrossable, UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split,
-    split_reduce, vertex_sides,
+    PointInLoopError, Section, SectionEdge, SectionError, SectionGermFault, SectionGermReading,
+    SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SectorReading, SplitError,
+    SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction,
+    SplitResult, TangencyReadings, Uncrossable, UncrossableCarrier, classify_neighborhood,
+    plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
 pub use transform::{TransformError, check_rigid, not_rigid_reading, transform_rigid};
 pub use validate::{

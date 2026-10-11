@@ -12,9 +12,9 @@
 use crate::docm7_union_declare::block;
 use crate::fixture;
 use editor_core::{
-    BooleanOp, Dimension, Distribution, DocEdit, DocumentId, EditError, Formula, FreeVar, Node,
-    PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SplitError, UnitSym, UpstreamCause,
-    VarKind, VarName, apply,
+    Dimension, Distribution, DocEdit, DocumentId, EditError, Formula, FreeVar, Node, PatternKind,
+    ProfileDoc, ProfileProgram, RecipeNodeId, SplitError, UnitSym, UpstreamCause, VarKind, VarName,
+    apply,
 };
 use fixture::{fname, insert, len, run, scl, step, wall};
 use geom_core::{Sign, Tol};
@@ -357,10 +357,9 @@ fn every_predicate_a_subtract_logs_has_words_or_a_reason() {
     let (doc, m) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, _cut) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: a.into(),
-            b: m.into(),
+        Node::Subtract {
+            from: a.into(),
+            tool: m.into(),
             declare: Vec::new(),
         },
     );

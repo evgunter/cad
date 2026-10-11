@@ -225,18 +225,16 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
 /// pins and `m5_pr8_bvh_diff` held.
 ///
-/// RE-BLESSED, every row, for CONTACTHOLD's at-rest record (contact
-/// records are one list of unordered cell pairs): the digest feeds each
-/// value's `Debug`, and the records' `Debug` shape moved from seven
-/// per-kind lists to one list of canonical pairs. No outcome, count or
-/// point moved: every other row of these suites held.
+/// RE-BLESSED, `cut_cylinder` only, when a split's section face came to
+/// take its chart axis as its first chord projected into the plane: the
+/// tilted section's `u_ref` moved by one ulp in `z`, and nothing else did.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x2f75_0d41_c9ca_4e19u64),
-        ("part_select", 0xf814_0be7_909f_d317),
-        ("kitchen_sink", 0x85ff_813c_10fc_b28f),
+        ("cut_cylinder", 0xa6c1_1622_9a6f_5245u64),
+        ("part_select", 0x34a7_8b59_cce5_b801),
+        ("kitchen_sink", 0x16d4_ac3d_977a_1477),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

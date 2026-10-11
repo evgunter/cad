@@ -138,10 +138,9 @@ fn transform_node(pip: RecipeNodeId, p: &([f64; 3], [f64; 3], f64)) -> Node<Fake
 }
 
 fn subtract_node(a: RecipeNodeId, b: RecipeNodeId) -> Node<FakeProfile, Formula> {
-    Node::Boolean {
-        op: editor_core::BooleanOp::Subtract,
-        a: a.into(),
-        b: b.into(),
+    Node::Subtract {
+        from: a.into(),
+        tool: b.into(),
         declare: Vec::new(),
     }
 }

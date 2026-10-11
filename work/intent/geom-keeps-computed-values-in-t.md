@@ -2,12 +2,14 @@
 id: geom-keeps-computed-values-in-t
 kind: unit
 title: from_f64 audit, geom: every listed launders site keeps its value in T or enters it through from_computed
-status: dispatched
+status: closed
 opened: 2026-10-10
 priority: P0
 cost: M
 refs: [carriers-compare-in-canonical-form]
 branch: intent/from-f64-geom
+pr: 4589
+closed: 2026-10-10
 ---
 
 
@@ -33,3 +35,14 @@ with them (`chart_region.rs`'s `the_wrap_band_keeps_its_corners_in_t`
 is the shape), red on the code before the fix. A move to
 `from_computed` can only lose symbolic `Zero`s, never geometry: say
 which `symbolic_zero` counts moved.
+
+## Closed
+
+Landed in PR 4589. All eight geom rows were point-projection parameters
+(`curves/projection.rs`, `surfaces/projection.rs`), and every one now
+enters `T` through `Real::from_computed`; the rows are off the list.
+Pins: the foot and its residuals re-value to no claim at `Sym<f64>` on
+both exits, and the seed sweeps and the stagnation step mint their
+unknowns by exact count (`SymProfile::opaque_ids`).
+Each lift, reverted alone, reds a pin.
+No `symbolic_zero` count moved in the corpus, which reaches no projection.

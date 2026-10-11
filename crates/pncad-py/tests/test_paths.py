@@ -28,7 +28,6 @@ import pncad
 from pncad import (
     ArcSide,
     ArcSweep,
-    BooleanOp,
     Bulge,
     Center,
     Doc,
@@ -545,7 +544,7 @@ class TestTheProfileNode(unittest.TestCase):
                 Formula.length_in(1, m),
             )
         )
-        fused = doc.insert(Node.boolean(BooleanOp.Union, plate, boss))
+        fused = doc.insert(Node.union([plate, boss]))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(fused))
         volume = ev.value(fused).body().mass_properties().volume

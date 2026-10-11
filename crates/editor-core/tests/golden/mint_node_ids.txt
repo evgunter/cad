@@ -16,8 +16,9 @@ Fillet 3:0e2ded6ce073357a
 Chamfer 3:5acb8221e82f6652
 Shell 3:f5f9ee44d7ae3357
 Split 1:363b3cf61ca9b8b1
-Boolean 1:f03474b3feed6d4e
-Union 1:ccd1186c5d3ffc93
+Subtract 1:5474c7e3e7c07536
+Union 1:f755409332e8f5cc
+Intersect 1:aca0938825d7ca12
 Transform 8:d6db91cbf9fbbd1d
 Transform 15:290e34a337ad0034
 Transform 1:ec3e03a281b7e37b
@@ -36,6 +37,6 @@ Part 2:1f8ee0d754d2e01e
 Part 1:e59557703615f3f8
 InstantiatePart 8:1e58c21bab8525f2
 Gauge 8:8169e9c9fbdcbd7e
-Mate 8:e09e8b68c2c657de
+Mate 10:665a3697b717434e
 Measure 3:c56a63f809c915d7
 Assertion 3:5e435f9e700dd9cf

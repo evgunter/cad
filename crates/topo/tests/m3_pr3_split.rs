@@ -452,6 +452,117 @@ fn a_split_records_its_pinch_and_nothing_where_it_only_cuts() {
     );
 }
 
+/// **A plane within ε of a pinch cuts as one through it does**, at every
+/// offset inside ε and from either side: the vertices it misses read ON,
+/// the halves come out valid with the pinch recorded, and each section
+/// face's chart lies in the plane. The family is the four pinch
+/// presentations — the pinch above or below the cut (`NOTCHED` and
+/// `MIRRORED`, each under `±n`) — at offsets from an eighth of ε to
+/// just under it.
+///
+/// A section face is charted by its loop's first chord, which can run
+/// from a crossing minted on the plane to a corner `δ` off it; a chart
+/// axis read off that chord unprojected leans `δ` per unit length out of
+/// the plane, and the image of an edge `L` along it misses its carrier
+/// by `L·δ`, so this fixture's 8-long section refused as soon as `8δ`
+/// passed ε. In the `y = c` plane the in-plane axis has no `y` part at
+/// all, which is what the chart check pins.
+#[test]
+fn a_plane_within_eps_of_a_pinch_cuts_it_and_records_the_pinch() {
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    for (label, profile) in [("NOTCHED", NOTCHED), ("MIRRORED", MIRRORED)] {
+        let fx = prism::<f64>(profile, 1.0, tol);
+        let operand = topo::test_support::finished("the fixture", fx.body.clone(), tol);
+        let v0 = mass_properties(&fx.body, tol).unwrap().volume;
+        for up in [1.0, -1.0] {
+            let n = Vec3::new(0.0, up, 0.0);
+            for k in [0.13, 0.5, 0.9, 0.99, -0.13, -0.5, -0.9, -0.99] {
+                let at = format!("{label}, n = {up:+}y, δ = {k}ε");
+                let o = Point3::new(0.0, 1.0 + k * eps, 0.0);
+                let plane = topo::test_support::split_plane(o, n, tol);
+                let r = split(&operand, &plane, tol).unwrap_or_else(|e| panic!("{at}: {e}"));
+                assert_eq!(r.coincidences.len(), 2, "{at}: the pinch is recorded");
+                let mut volume = 0.0;
+                let mut sections = 0;
+                for part in [&r.above, &r.below] {
+                    let body = body_of(part);
+                    assert_eq!(validate_closed(body), Ok(()), "{at}");
+                    assert_eq!(validate_geometric(body, tol), Ok(()), "{at}");
+                    volume += mass_properties(body, tol).unwrap().volume;
+                    for face in [n, -n]
+                        .into_iter()
+                        .flat_map(|m| section_faces_with(body, o, m))
+                    {
+                        let surface = body.get_face(face).unwrap().surface;
+                        let Some(Surface::Plane { u_ref, .. }) = body.get_surface(surface) else {
+                            panic!("{at}: a section face is a plane")
+                        };
+                        assert_eq!(u_ref.y, 0.0, "{at}: the section chart's u axis {u_ref:?}");
+                        sections += 1;
+                    }
+                }
+                assert!(sections > 0, "{at}: the halves carry section faces");
+                assert!(
+                    (volume - v0).abs() <= 1e-12 * v0,
+                    "{at}: the halves hold the operand's volume ({volume} vs {v0})"
+                );
+            }
+        }
+    }
+}
+
+/// **A vertex beyond ε of the split plane but inside the band refuses as
+/// undecided**, naming its margin: the refusal says the question is
+/// open and why, never that the vertex lies within tolerance. The
+/// `NOTCHED` tip line and floor sit at `y = 1`; the plane misses them by
+/// `|δ|` from just past ε to just short of the band's edge, on either
+/// side.
+#[test]
+fn a_vertex_in_the_band_of_the_split_plane_refuses_as_undecided() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let (eps, k_eps) = (band.zero(), band.escalate());
+    let fx = prism::<f64>(NOTCHED, 1.0, tol);
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), tol);
+    for k in [1.01, 2.0, 5.0, 9.9, -1.01, -2.0, -5.0, -9.9] {
+        let delta = k * eps;
+        let err = split(&operand, &plane_y(1.0 + delta), tol).unwrap_err();
+        let SplitError::Reduce(SplitReduceError::SliverVertex { vertex, diag }) = &err else {
+            panic!("δ = {k}ε: {err:?}")
+        };
+        let p = fx
+            .body
+            .vertex_points()
+            .find(|(v, _)| v == vertex)
+            .unwrap()
+            .1;
+        assert_eq!(p.y, 1.0, "δ = {k}ε: the vertex named sits on y = 1");
+        let margin = diag
+            .margin
+            .diagnostic_f64_for_error_text()
+            .value()
+            .expect("a point margin");
+        assert!(
+            eps < margin.abs() && margin.abs() < k_eps,
+            "δ = {k}ε: margin {margin:e} lies beyond ε, inside the band"
+        );
+        assert!(
+            (margin + delta).abs() <= 4.0 * f64::EPSILON,
+            "δ = {k}ε: the margin is the vertex's offset from the plane ({margin:e})"
+        );
+        assert_eq!(
+            err.to_string(),
+            format!(
+                "whether a vertex lies on the split plane is undecided: margin {margin:e} lies \
+                 inside the ambiguity band ({eps:e}, {k_eps:e}). Recourse: {}",
+                geom_core::SPLIT_PLANE_RECOURSE
+            ),
+            "δ = {k}ε"
+        );
+    }
+}
+
 /// **Moving one copy parts it from its twin**: offsetting the middle
 /// wedge's tip-side flank inward moves that wedge's tip copies through
 /// the door that mints a fresh point for every moved vertex, so the
@@ -543,18 +654,14 @@ fn one_sided_tangency_classifies_with_its_material() {
     }
 }
 
-/// The BOB mirror (PR 2 carry-forward 1b), CLOSED by M3 PR 6a's D7:
-/// full split of the touching-wedge fixture now SUCCEEDS in BOTH
-/// orientations — the below-side pinch (whose below fans share the
-/// one original vertex under ch. 14's above-only copy minting) gets
-/// its below-vertex copies through the pinch lane (`split`'s mirror
-/// identity; see the splitting module docs), and the former
-/// orientation-dependent `DegenerateSection` refusal is gone for the
-/// pinch class. This test pins the two presentations that used to
-/// refuse — (MIRRORED, +n) and (NOTCHED, −n) — with the equal-volume
-/// oracle and the piece-assignment check (pinched pieces land on the
-/// correct SIDE for this call's normal, wherever the copies were
-/// minted).
+/// The BOB mirror (PR 2 carry-forward 1b): full split of the
+/// touching-wedge fixture succeeds in both orientations — the pinch
+/// below the normal gets its below-vertex copies from the reduction's
+/// tree of corners (`splitting::insert`). This test pins the two
+/// presentations whose pinch lies below the normal — (MIRRORED, +n) and
+/// (NOTCHED, −n) — with the equal-volume oracle and the piece-assignment
+/// check (pinched pieces land on the correct SIDE for this call's
+/// normal).
 #[test]
 fn bob_mirror_pinch_refuses_typed() {
     // MIRRORED under +n: pinched floor pieces are BELOW.

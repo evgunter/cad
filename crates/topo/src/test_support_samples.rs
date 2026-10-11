@@ -497,17 +497,17 @@ fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
     vec![
         A::Limb {
             operand: geom::SurfaceKind::Plane,
-            limb: geom_brep::SsiLimb::HullSup,
+            limb: geom_brep::Rung3Limb::HullSup,
             margin: MarginDiag::value(7.5e-5),
         },
         A::Escalated {
             operand: Some(geom::SurfaceKind::Cylinder),
-            limb: geom_brep::SsiLimb::HullSup,
+            limb: geom_brep::Rung3Limb::HullSup,
             cause: diag(),
         },
         A::Escalated {
             operand: None,
-            limb: geom_brep::SsiLimb::Tube,
+            limb: geom_brep::Rung3Limb::Tube,
             cause: diag(),
         },
         A::NoOffsetBound {
@@ -652,6 +652,8 @@ fn props_errors() -> Vec<PropsError> {
             what: "props_sphere_loop_closed",
         },
         PropsError::SenseContradicted,
+        PropsError::RingWoundWithFace,
+        PropsError::ChartPeriodJump,
         PropsError::NotOneChartBranch {
             edge: 2,
             what: "the edge crosses the seam",

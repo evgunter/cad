@@ -839,10 +839,9 @@ fn r1_ops_refuse_measurement_operands_typed() {
     // Boolean over the ASSERTION: an assertion defines nothing.
     let refusal = crate::fixture::insert_refused(
         &doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Subtract,
-            a: slab.into(),
-            b: a.into(),
+        Node::Subtract {
+            from: slab.into(),
+            tool: a.into(),
             declare: Vec::new(),
         },
     );
