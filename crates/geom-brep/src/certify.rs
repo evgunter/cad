@@ -159,6 +159,9 @@ pub enum CertCheck {
     /// (D2's derived angular threshold ε·κ_rel; C7 jet schedule), or,
     /// where the second-order margin refuses and so no such lever
     /// exists, at the folded lever arm, as the cause of that refusal.
+    /// The folded-arm reading also names a refused orientation of the
+    /// shared normal ([`CertCheck::TangentGap`]) at any sample, ends
+    /// included.
     TangentParallel,
     /// TangentIntersection: the two surfaces' separation along their
     /// shared normal at a sample, `s = r₁ − σ·r₂` (σ the sign of the
@@ -171,10 +174,11 @@ pub enum CertCheck {
     /// (D4 ¶1), which must be definitely positive (the jet system's
     /// IFT denominator).
     TangentSecondOrder,
-    /// TangentIntersection: the C2.2 between-samples statement — the
+    /// TangentIntersection: the C2.2 between-samples statements — the
     /// worst sampled residual plus the certified quadratic sag bound
-    /// must stay within ε (a sup bound, never a sampled max
-    /// pretending to be one).
+    /// (`tangent_hull_sup`), and the worst sampled separation plus the
+    /// sum of both surfaces' sags (`tangent_gap_hull_sup`), each within
+    /// ε (a sup bound, never a sampled max pretending to be one).
     TangentHull,
     /// TangentIntersection: the C2.3-style tube statement on the JET
     /// system — the sampled `|κ_rel|` minus its certified
@@ -2203,8 +2207,11 @@ fn gap_orientation<T: Decide>(
     sample: u32,
     band: Band,
 ) -> Result<T, CertifyError> {
-    let n1 = crate::implicit::implicit_gradient(surf1, p).normalize();
-    let n2 = crate::implicit::implicit_gradient(surf2, p).normalize();
+    let (g1, g2) = (
+        crate::implicit::implicit_gradient(surf1, p),
+        crate::implicit::implicit_gradient(surf2, p),
+    );
+    let (n1, n2) = (g1.normalize(), g2.normalize());
     let (oriented, orientation) = geom_core::k_stats::detached(|| {
         geom_core::k_stats::decide_nonzero(
             "tangent_gap_orientation",
@@ -2223,21 +2230,7 @@ fn gap_orientation<T: Decide>(
         Err(cause) => cause,
     };
     let arm = crate::folded_lever_arm(surf1, surf2, p, extent);
-    let (renamed, naming) = geom_core::k_stats::detached(|| {
-        match decide_reported(
-            "tangent_normal_parallel",
-            Margin::levered(n1.cross(n2).norm(), arm),
-            band,
-        ) {
-            Ok(Decided {
-                sign: Sign::Positive | Sign::Negative,
-                margin,
-            }) => Some(margin),
-            Ok(_) | Err(_) => None,
-        }
-    });
-    geom_core::k_stats::splice_superseded(naming);
-    if let Some(margin) = renamed {
+    if let Some(margin) = named_by_parallelism(crate::tangent::normal_sine(g1, g2), arm, band) {
         geom_core::k_stats::splice_superseded(orientation);
         return Err(CertifyError::ResidualExceeded {
             check: CertCheck::TangentParallel,
@@ -2251,6 +2244,42 @@ fn gap_orientation<T: Decide>(
         sample,
         cause,
     })
+}
+
+/// **The parallelism defect at the folded lever arm**: `sin θ` metered
+/// over [`crate::folded_lever_arm`], the length the normals' angle is
+/// consumed over where no lever `1/κ_rel` exists. One spelling for its
+/// three readers: the certificate's two refusal namings
+/// ([`named_by_parallelism`]) and the declared-contact verifier's
+/// first-order fallback (`topo::boolean::contact_verify`), where it is
+/// the verdict itself.
+#[must_use]
+pub fn folded_parallelism<T: Real>(sin_theta: T, arm: T) -> Margin<T> {
+    Margin::levered(sin_theta, arm)
+}
+
+/// **A refusal already made, named by a definite parallelism defect**
+/// ([`folded_parallelism`], `tangent_normal_parallel`): the margin where
+/// the defect is definite, `None` otherwise. The reading never refuses,
+/// it only names, so it runs detached and its log is spliced as
+/// superseded whatever it reads; the caller supersedes the refusal it
+/// names where it names one.
+fn named_by_parallelism<T: Decide>(sin_theta: T, arm: T, band: Band) -> Option<MarginDiag> {
+    let (renamed, naming) = geom_core::k_stats::detached(|| {
+        match decide_reported(
+            "tangent_normal_parallel",
+            folded_parallelism(sin_theta, arm),
+            band,
+        ) {
+            Ok(Decided {
+                sign: Sign::Positive | Sign::Negative,
+                margin,
+            }) => Some(margin),
+            Ok(_) | Err(_) => None,
+        }
+    });
+    geom_core::k_stats::splice_superseded(naming);
+    renamed
 }
 
 /// The plane × NURBS lane's refusal in this module's vocabulary: a
@@ -2804,14 +2833,15 @@ fn run_checks<T: Decide>(
                 let r1 = implicit_residual(surf1, p);
                 let r2 = implicit_residual(surf2, p);
                 let sigma = gap_orientation(surf1, surf2, p, extent, i, band)?;
-                // The span line reads `s` under ONE σ per span: under each
-                // end's σ, at both ends, so the bound holds over the span
-                // under whichever orientation the shared normal has there.
-                for sg in core::iter::once(sigma).chain(tangent_prev.map(|(.., sg)| sg)) {
-                    tangent_gap_max = tangent_gap_max.max((r1 - sg * r2).abs());
-                    if let Some((p1, p2, _)) = tangent_prev {
-                        tangent_gap_max = tangent_gap_max.max((p1 - sg * p2).abs());
-                    }
+                // The span line reads `s` under one σ per span: each end
+                // under its own σ and under the other end's, so the bound
+                // holds over the span whichever orientation the shared
+                // normal has there.
+                tangent_gap_max = tangent_gap_max.max((r1 - sigma * r2).abs());
+                if let Some((p1, p2, prev_sigma)) = tangent_prev {
+                    tangent_gap_max = tangent_gap_max
+                        .max((p1 - sigma * p2).abs())
+                        .max((r1 - prev_sigma * r2).abs());
                 }
                 tangent_prev = Some((r1, r2, sigma));
                 tangent_resid_max = tangent_resid_max.max(r1.abs()).max(r2.abs());
@@ -2884,29 +2914,12 @@ fn run_checks<T: Decide>(
                             // osculating pair: `crate::TangentJet`). An
                             // in-band or zero reading is no more definite
                             // than the second-order one, which stands.
-                            // `topo::boolean::contact_verify`'s tangency
-                            // ladder spells the same fallback lever; the
-                            // one deliberate difference is its role here,
-                            // where it only names a refusal already made.
-                            let (renamed, naming) = geom_core::k_stats::detached(|| {
-                                match decide_reported(
-                                    "tangent_normal_parallel",
-                                    Margin::levered(jet.sin_theta, arm),
-                                    band,
-                                ) {
-                                    Ok(Decided {
-                                        sign: Sign::Positive | Sign::Negative,
-                                        margin,
-                                    }) => Some(margin),
-                                    Ok(_) | Err(_) => None,
-                                }
-                            });
+                            let renamed = named_by_parallelism(jet.sin_theta, arm, band);
                             if renamed.is_some() {
                                 geom_core::k_stats::splice_superseded(second_order);
                             } else {
                                 geom_core::k_stats::splice(second_order);
                             }
-                            geom_core::k_stats::splice_superseded(naming);
                             return Err(match (renamed, refused) {
                                 (Some(margin), _) => CertifyError::ResidualExceeded {
                                     check: CertCheck::TangentParallel,

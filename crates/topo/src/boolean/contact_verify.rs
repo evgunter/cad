@@ -47,9 +47,11 @@
 //! contradiction sitting across all five arms.
 //!
 //! **What this lane does NOT check, named** (C4's "definite crossing
-//! (II_rel definitely indefinite)"): crossing is decided here only
-//! through the transverse `κ_rel` the jet computes along the locus
-//! tangent's perpendicular. A full second-fundamental-form
+//! (II_rel definitely indefinite)"): a crossing at first order, the
+//! surfaces running into each other's material at a sample, is the
+//! touch's negative side (`touching`); a crossing at second order is
+//! decided only through the transverse `κ_rel` the jet computes along
+//! the locus tangent's perpendicular. A full second-fundamental-form
 //! indefiniteness test over all tangent directions needs machinery
 //! that does not exist yet. The honest consequence, stated in the
 //! direction the code actually takes: a declared tangency whose
@@ -209,20 +211,25 @@ pub(crate) fn rest_pair_reading<T: Decide>(
 /// Per sample on the certification schedule (the same 9 parameters,
 /// through `geom_brep::sample_param`):
 ///
-/// - **must-verify-DEFINITE**: the locus lies on BOTH surfaces (each
-///   implicit residual not definitely nonzero), and the two outward
-///   normals are definitely OPPOSED and parallel within the derived
-///   angle at lever arm `1/κ_rel` — the C7 threshold verbatim;
-/// - **contradicts**: definite separation (a residual definitely
-///   nonzero), definite normal independence (`sin θ` definitely
-///   nonzero at that arm), or aligned normals (containment, not
-///   tangency);
+/// - **must-verify-DEFINITE**: the two surfaces touch, their
+///   separation along the shared normal within ε (`touching`, and the
+///   span line after the loop); the witness lies within ε of each
+///   surface (`on_surface`); and the two outward normals are definitely
+///   OPPOSED and parallel within the derived angle at lever arm
+///   `1/κ_rel`, the C7 threshold verbatim;
+/// - **contradicts**: definite separation or definite crossing (the
+///   separation definitely positive or negative, with the `Fit` steer),
+///   a bad witness (a residual definitely nonzero where the pair
+///   touches, no steer), definite normal independence (`sin θ`
+///   definitely nonzero at that arm), or aligned normals (containment,
+///   not tangency);
 /// - **bridges** (declared only): the second-order margin and ONLY it
 ///   — in-band `κ_rel`, and exact zeros at isolated neutral points
 ///   (module docs, the #175 clause);
-/// - **escalates**: an in-band margin on ANY must-verify arm
-///   (residual, opposition, first-order parallelism), declared or not,
-///   and the second-order residue when undeclared.
+/// - **escalates**: an in-band margin on ANY must-verify arm (the
+///   touch at a sample or across a span, a residual, opposition,
+///   first-order parallelism), declared or not, and the second-order
+///   residue when undeclared.
 ///
 /// The span bounds between samples come from the same
 /// `tangent_span_bounds` the edge certifier uses, so the hull
@@ -362,10 +369,14 @@ pub(crate) fn tangent_locus_reading<T: Decide>(
         // (the C1 lemma, one dimension down from C3's patch clause).
         let n1: Vec3<T> = implicit_outward_normal(s1, sense1, p).vec();
         let n2: Vec3<T> = implicit_outward_normal(s2, sense2, p).vec();
+        // Which way the shared normal points is metered over the
+        // extent, as the edge certifier reads it (`tangent_gap_orientation`):
+        // a surface curving on a scale near ε still has an orientation,
+        // and its refusal is the second-order arm's, below.
         let arm = geom_brep::folded_lever_arm(s1, s2, p, extent);
         match crate::validate::decide(
             "contact_tangent_opposed",
-            Margin::levered(n1.dot(n2), arm),
+            Margin::levered(n1.dot(n2), extent),
             band,
         ) {
             Ok(Sign::Negative) => {}
@@ -432,18 +443,14 @@ pub(crate) fn tangent_locus_reading<T: Decide>(
         // usable lever) the lever is C7's own 1/κ_rel (`levered_inv`, verbatim what the edge
         // certifier uses). Without one the derived angle is unbounded,
         // which would make the test vacuous, so the margin falls back
-        // to the ordinary angular door: the defect metered at the
-        // extent over which the verdict is consumed. Both spellings
-        // answer the same question and carry the same predicate name.
-        // `geom_brep::certify`'s tangent arm spells the same fallback
-        // lever; the one deliberate difference is its role there, where
-        // it reads only after the second-order margin has refused and
-        // only a definite defect names that refusal, while here it is
-        // the first-order verdict itself, so an in-band reading escalates.
+        // to the folded arm (`geom_brep::folded_parallelism`, the one
+        // spelling the edge certifier's namings read too). Here it is
+        // the first-order verdict itself, so an in-band reading
+        // escalates; there it only names a refusal already made.
         let parallel = if matches!(second_order, Ok(Sign::Positive)) {
             Margin::levered_inv(jet.sin_theta, jet.kappa_rel.abs())
         } else {
-            Margin::levered(jet.sin_theta, arm)
+            geom_brep::folded_parallelism(jet.sin_theta, arm)
         };
         let (first_order, first_order_log) = geom_core::k_stats::detached(|| {
             crate::validate::decide("contact_tangent_parallel", parallel, band)
