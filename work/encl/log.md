@@ -1424,3 +1424,4 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-11 — Dispatched `the-meters-sup-side-still-reads-boxes-where-the-cell-carries-no-coefficient-form` (`encl/meters-sup-coefficients`).
 - 2026-10-11 — Merged ENCL's test-only fix for main's red arc-loft row (PR 4682, `d46cdaa15b`) and ported it into PR 4629.
 - 2026-10-11 — PR 4629 (Indeterminate ending levers) merged at `61c7b75033`, after a full review, a fix pass, a delta review and the ported arc-loft fix. Row closed. Seam notes posted on sweep, topo, exch, restfront and tang. Gap: the build-door JoinRefusal unreadable text is unpinned. The topo slice of `too-close-to-call-remainder` is now dispatchable.
+- 2026-10-11 — Dispatched the topo slice of `too-close-to-call-remainder` (`encl/undecided-topo`). It touches text in CLEAVE- and TOPO-held files, so seam notes are due at merge.
