@@ -362,6 +362,10 @@ pub struct ChecksConfig {
     /// per-run choice and never a document's: turning it off removes
     /// reports, never changes a body (DS3).
     pub unproven_coincidence: Advisory,
+    /// How hard that check's door tries to prove a row
+    /// ([`crate::coincide::SymbolicPass`]): the resident budget by
+    /// default, the full one on request.
+    pub symbolic_pass: crate::coincide::SymbolicPass,
 }
 
 impl Default for ChecksConfig {
@@ -372,6 +376,7 @@ impl Default for ChecksConfig {
             separation: Advisory::Warn,
             chart_coherence: Advisory::Off,
             unproven_coincidence: Advisory::Warn,
+            symbolic_pass: crate::coincide::SymbolicPass::Resident,
         }
     }
 }
@@ -1245,7 +1250,7 @@ pub fn run_checks_on<
             refusal: refusal.clone(),
         });
     } else {
-        unproven_coincidence(doc, ev, &subject, tol, &mut report);
+        unproven_coincidence(doc, ev, &subject, tol, cfg.symbolic_pass, &mut report);
     }
     if cfg.severity(CheckId::Separation) == Severity::Off {
         report.skipped.push(CheckId::Separation);
@@ -1280,6 +1285,7 @@ fn unproven_coincidence<P: crate::ProfilePayload, T: Decide>(
     ev: &Evaluation<T>,
     subject: &Subject<'_, T>,
     tol: Tol,
+    pass: crate::coincide::SymbolicPass,
     report: &mut ChecksReport,
 ) {
     let at_rest = match subject {
@@ -1297,7 +1303,7 @@ fn unproven_coincidence<P: crate::ProfilePayload, T: Decide>(
                 .map(|r| (r.mate, core::slice::from_ref(&r.row))),
         )
         .collect();
-    let proofs = crate::coincide::prove(doc, &nodes, tol);
+    let proofs = crate::coincide::prove(doc, &nodes, tol, pass);
     let rows = nodes
         .iter()
         .flat_map(|&(node, rows)| rows.iter().map(move |row| (node, row)));

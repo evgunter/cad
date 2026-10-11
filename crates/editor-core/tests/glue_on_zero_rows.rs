@@ -62,7 +62,12 @@ fn an_undeclared_flush_rest_glues_and_records_one_unproven_row() {
     );
     assert!(
         matches!(
-            coincide::prove(&doc, &[(union, &rows[..])], Tol::witness())[0][0],
+            coincide::prove(
+                &doc,
+                &[(union, &rows[..])],
+                Tol::witness(),
+                editor_core::SymbolicPass::Full
+            )[0][0],
             Proof::Unproven { .. }
         ),
         "two constructions, no proof"

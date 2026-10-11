@@ -134,6 +134,27 @@ pub enum Rung {
     MarginIdentity(geom_core::Theorem),
 }
 
+/// **How far the door goes**: one door, two passes. The resident pass
+/// is what the `unproven-coincidence` check runs after every evaluation
+/// by default: the first rung alone, which costs nothing. It leaves
+/// every row the first rung does not prove saying so
+/// ([`Unreplayed::ResidentBudget`]), never plain unproven. The full pass
+/// replays the document at `Sym` and runs the symbolic rungs.
+///
+/// The resident pass replays nothing because a small budget proved no
+/// row of the corpus and cost what the full pass costs on the documents
+/// that dominate it. At 64 terms with no retry ladder, in debug, it
+/// proved 0 rows and cost 58 s on `die_composed_tour`; it added 25 % to
+/// the tour gallery's test.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum SymbolicPass {
+    /// The first rung alone.
+    #[default]
+    Resident,
+    /// Every rung, the symbolic ones on a replay at `Sym`.
+    Full,
+}
+
 /// **Why the replay at `Sym` proved nothing about a row.**
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Unreplayed {
@@ -143,10 +164,12 @@ pub enum Unreplayed {
     /// The replay produced a value, and took other decisions there: no
     /// row of its own at that site and ordinal names these cells.
     OtherDecisions,
-    /// The replay took the decision, and neither the carrier-pair
-    /// verdict nor the margin is identically zero: it is a coincidence
-    /// of values.
+    /// The full pass took the decision, and neither the carrier-pair
+    /// verdict nor the margin is identically zero within its budget: it
+    /// is a coincidence of values, as far as the door can tell.
     Numeric,
+    /// The resident pass did not replay the row; the full pass decides.
+    ResidentBudget,
     /// The row is not replayed: the at-rest census's rows ride the
     /// gathered product, which the door does not replay, and a
     /// document of a payload the evaluator does not read is not
@@ -164,6 +187,9 @@ impl fmt::Display for Unreplayed {
             Self::Numeric => {
                 "with every variable a symbol, neither the carriers' verdict nor the deciding \
                  margin is identically zero"
+            }
+            Self::ResidentBudget => {
+                "unproven at the resident budget; the full symbolic pass decides"
             }
             Self::NotReplayed => "the row is not replayed with every variable a symbol",
         })
@@ -353,25 +379,33 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
 /// decision order, as its value carries them (a mate stands for the
 /// at-rest census's rows on its pair); the answer is one [`Proof`] per
 /// row, in the same shape. The rungs are tried in order (module
-/// docs), and the document is replayed once, at `tol`, only where a
-/// row the first rung leaves asks for it.
+/// docs); at the full pass the document is replayed once, at `tol`,
+/// only where a row the first rung leaves asks for it.
 #[must_use]
 pub fn prove<P: crate::ProfilePayload>(
     doc: &crate::doc::Doc<P>,
     nodes: &[(RecipeNodeId, &[NamedCoincidence])],
     tol: geom_core::Tol,
+    pass: SymbolicPass,
 ) -> Vec<Vec<Proof>> {
     let walked: Vec<Vec<[Result<Construction, Unwalked>; 2]>> = nodes
         .iter()
         .map(|(_, rows)| rows.iter().map(|row| constructions(doc, row)).collect())
         .collect();
     let asks = walked.iter().flatten().any(|c| !one_construction(c));
-    let replayed = match P::evaluable(doc) {
-        Some(doc) if asks => replay::rungs(doc, nodes, tol),
-        _ => nodes
+    let unreplayed = |why: fn(&NamedCoincidence) -> Unreplayed| {
+        nodes
             .iter()
-            .map(|(_, rows)| vec![Err(Unreplayed::NotReplayed); rows.len()])
-            .collect(),
+            .map(|(_, rows)| rows.iter().map(|row| Err(why(row))).collect())
+            .collect()
+    };
+    let replayed = match (P::evaluable(doc), pass) {
+        (Some(doc), SymbolicPass::Full) if asks => replay::rungs(doc, nodes, tol),
+        (Some(_), SymbolicPass::Resident) => unreplayed(|row| match row.site {
+            topo::DecisionSite::CensusAtRest => Unreplayed::NotReplayed,
+            _ => Unreplayed::ResidentBudget,
+        }),
+        _ => unreplayed(|_| Unreplayed::NotReplayed),
     };
     walked
         .into_iter()

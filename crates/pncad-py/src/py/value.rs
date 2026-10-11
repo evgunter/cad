@@ -1377,14 +1377,31 @@ impl Evaluation {
 
     /// **The coincidences `node` decided from values** (D10), in
     /// decision order, each with what the coincidence door decided
-    /// about it. A node with no value raises as [`Self::value`] does.
-    fn coincidences(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<Coincidence>> {
+    /// about it, at the resident budget or, with `full_symbolic_pass`,
+    /// the full one. A node with no value raises as [`Self::value`]
+    /// does.
+    #[pyo3(signature = (node, full_symbolic_pass = false))]
+    fn coincidences(
+        &self,
+        py: Python<'_>,
+        node: &NodeId,
+        full_symbolic_pass: bool,
+    ) -> PyResult<Vec<Coincidence>> {
         self.value(py, node)?;
         let Some(value) = self.inner.value(node.0) else {
             return Ok(Vec::new());
         };
-        let proofs =
-            d::coincide::prove(&self.doc, &[(node.0, &*value.coincidences)], Tol::witness());
+        let pass = if full_symbolic_pass {
+            d::SymbolicPass::Full
+        } else {
+            d::SymbolicPass::Resident
+        };
+        let proofs = d::coincide::prove(
+            &self.doc,
+            &[(node.0, &*value.coincidences)],
+            Tol::witness(),
+            pass,
+        );
         value
             .coincidences
             .iter()

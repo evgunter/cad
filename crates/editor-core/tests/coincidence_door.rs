@@ -14,7 +14,7 @@ use editor_core::{
     EntityKey, EntityKind, Entry, Evaluation, FindingSubject, Formula, LoopProgram, NamedCell,
     NamedCoincidence, Node, PartSelect, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
     ProgramTarget, Proof, RecipeNodeId, RoleSeg, Rung, Severity, SitedRef, SplitHalf, StableName,
-    ValuePayload, coincide, spoken_by,
+    SymbolicPass, ValuePayload, coincide, spoken_by,
 };
 use geom_core::{MarginDiag, Point3, Tol};
 use topo::{DecisionSite, Relation};
@@ -47,11 +47,32 @@ fn rows(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
 }
 
 /// The door's proof of each of `node`'s `rows`, given in its decision
-/// order.
-fn proofs(doc: &ProfileDoc, node: RecipeNodeId, rows: &[NamedCoincidence]) -> Vec<Proof> {
-    coincide::prove(doc, &[(node, rows)], Tol::witness())
+/// order, at `pass`.
+fn proofs_at(
+    doc: &ProfileDoc,
+    node: RecipeNodeId,
+    rows: &[NamedCoincidence],
+    pass: SymbolicPass,
+) -> Vec<Proof> {
+    coincide::prove(doc, &[(node, rows)], Tol::witness(), pass)
         .pop()
         .expect("one node asked")
+}
+
+/// [`proofs_at`] the full pass.
+fn proofs(doc: &ProfileDoc, node: RecipeNodeId, rows: &[NamedCoincidence]) -> Vec<Proof> {
+    proofs_at(doc, node, rows, SymbolicPass::Full)
+}
+
+/// What each proof left the replay saying, `None` for a proven row.
+fn replays(proofs: &[Proof]) -> Vec<Option<coincide::Unreplayed>> {
+    proofs
+        .iter()
+        .map(|p| match p {
+            Proof::Structural(_) => None,
+            Proof::Unproven { residual, .. } => Some(residual.replay),
+        })
+        .collect()
 }
 
 /// The door's proof of `row`, as the first of `node`'s rows at its site.
@@ -437,18 +458,86 @@ fn a_filleted_box_records_one_unproven_turn_per_corner() {
             );
         }
     }
-    for proof in proofs(&doc, fillet, &got) {
-        let Proof::Unproven { residual, .. } = proof else {
-            panic!("the mitre's feet distance freezes at Sym: {proof:?}")
-        };
-        assert_eq!(
-            residual.replay,
-            coincide::Unreplayed::Numeric,
-            "the replay takes the turn, and its margin is not the zero polynomial \
-             (work/sym/the-mitres-feet-distance-freezes-at-sym.md)"
-        );
-    }
+    assert_eq!(
+        replays(&proofs(&doc, fillet, &got)),
+        [Some(coincide::Unreplayed::Numeric); 8],
+        "the full pass takes each turn, and its margin is not the zero polynomial \
+         (work/sym/the-mitres-feet-distance-freezes-at-sym.md)"
+    );
+    assert_eq!(
+        replays(&proofs_at(&doc, fillet, &got, SymbolicPass::Resident)),
+        [Some(coincide::Unreplayed::ResidentBudget); 8],
+        "the resident pass leaves each turn to the full pass"
+    );
     assert_eq!(unproven(&doc, &ev).len(), 8);
+}
+
+/// **The half of the mitre the algebra closes.** Replayed with every
+/// variable a symbol, a box mitre's margin
+/// `max(|cos₁ − cos₂|·arm, |y₂ − y₁|)` reduces to `max(0, …)`: the
+/// angle term is the zero polynomial, so the isosceles fact itself is
+/// an identity of the output definitions, and the distance between the
+/// two bands' feet is what freezes
+/// (`work/sym/the-mitres-feet-distance-freezes-at-sym.md`).
+#[test]
+fn a_box_mitres_angle_term_is_the_zero_polynomial() {
+    let doc = ProfileDoc::empty_derived("coincide-mitre", Tol::witness());
+    let (doc, the_box) = block(doc, (0.0, 2.0), (0.0, 1.5), 0.0, 1.0);
+    let ev = run(&doc);
+    let (doc, fillet) = insert(
+        doc,
+        Node::fillet(
+            the_box,
+            len(0.1),
+            vec![
+                edge_named(&ev, the_box, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]),
+                edge_named(&ev, the_box, [2.0, 0.0, 1.0], [2.0, 1.5, 1.0]),
+            ],
+        ),
+    );
+    let form = turn_form(&doc, fillet);
+    assert!(
+        form.starts_with("1·max(0, "),
+        "the angle term is identically zero, the feet distance is what freezes: {form}"
+    );
+}
+
+/// `node`'s first row's deciding margin, replayed with every variable
+/// a symbol and rendered with the tier's rules applied per node, at
+/// the drive's budget.
+fn turn_form(doc: &ProfileDoc, node: RecipeNodeId) -> String {
+    use geom_core::sym::deferred;
+    use geom_core::{Sym, SymBudget, SymRules};
+    let opts = editor_core::EvalOptions {
+        symbols: true,
+        profile_lift: editor_core::ProfileLift::Guided,
+        ..editor_core::EvalOptions::default()
+    };
+    let budget = SymBudget {
+        max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
+        max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+    };
+    deferred::with_deferred_session(
+        budget,
+        SymRules::shipped(),
+        geom_core::SymRetry::none(),
+        || {
+            let ev: Evaluation<Sym<f64>> = editor_core::evaluate(
+                doc,
+                None,
+                &editor_core::CancelToken::new(),
+                &opts,
+                Tol::witness(),
+            );
+            ev.value(node)
+                .expect("the node replays")
+                .coincidences
+                .iter()
+                .flat_map(|r| deferred::render(r.margin))
+                .collect()
+        },
+    )
+    .0
 }
 
 /// `profile` extruded one unit and split by the plane `y = at`.
@@ -959,8 +1048,17 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
             "a joint's form outgrows the door's budget: {proof:?}"
         );
     }
+    assert_eq!(
+        replays(&proofs_at(&doc, fillet, &got, SymbolicPass::Resident)),
+        [Some(coincide::Unreplayed::ResidentBudget); 4],
+        "the resident pass discharges none of the four, and leaves each to the full pass"
+    );
     let findings = unproven(&doc, &ev);
-    assert_eq!(findings.len(), 2, "the joints: {findings:?}");
+    assert_eq!(
+        findings.len(),
+        4,
+        "the default report is the resident's: {findings:?}"
+    );
     let said: Vec<String> = findings.iter().map(|f| spoken_by(f, &doc)).collect();
     assert!(
         said.iter()
@@ -1242,7 +1340,12 @@ fn census_the_door_over_the_corpus() {
             .filter(|(_, rows)| !rows.is_empty())
             .collect();
         let t = std::time::Instant::now();
-        let proofs = coincide::prove(&cd.doc, &nodes, Tol::witness());
+        let pass = if std::env::var_os("RESIDENT").is_some() {
+            SymbolicPass::Resident
+        } else {
+            SymbolicPass::Full
+        };
+        let proofs = coincide::prove(&cd.doc, &nodes, Tol::witness(), pass);
         let mut tally: std::collections::BTreeMap<String, usize> = Default::default();
         for ((_, rows), proofs) in nodes.iter().zip(&proofs) {
             for (row, proof) in rows.iter().zip(proofs) {
@@ -1272,4 +1375,21 @@ fn measure_a_corpus_document_at_sym() {
             measure_rows(&cd.doc, node);
         }
     }
+}
+
+/// **The door's three words for a row it did not prove**, each its own:
+/// the full pass found no identity, the resident pass left the row to
+/// the full one, and the row was not replayed at all.
+#[test]
+fn an_unproven_row_says_which_pass_left_it() {
+    use coincide::Unreplayed as U;
+    assert_eq!(
+        [U::Numeric, U::ResidentBudget, U::NotReplayed].map(|u| u.to_string()),
+        [
+            "with every variable a symbol, neither the carriers' verdict nor the deciding \
+             margin is identically zero",
+            "unproven at the resident budget; the full symbolic pass decides",
+            "the row is not replayed with every variable a symbol",
+        ]
+    );
 }

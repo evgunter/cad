@@ -48,14 +48,14 @@ use crate::names::{EntityKey, EntityRef, Entry};
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
 
-/// **The tier's budget at the door**, with the drive's retry ladder: a
-/// margin whose form outgrows it is not proved, and fails fast.
-/// Measured in release: a filleted disc's two coaxial supports prove
-/// here and its two joints only from 1024 terms; a filleted box's eight
-/// mitres prove at no budget
+/// **The tier's budget at the door's full pass**, with the drive's
+/// retry ladder: a margin whose form outgrows it is not proved, and
+/// fails fast. Measured in release: a filleted disc's two coaxial
+/// supports prove here and its two joints only from 1024 terms; a
+/// filleted box's eight mitres prove at no budget
 /// (`work/sym/the-mitres-feet-distance-freezes-at-sym.md`), and cost
-/// 0.9 s here against 172 s at 1024.
-const DOOR_BUDGET: SymBudget = SymBudget {
+/// 0.9 s here against 172 s at 1024 terms.
+const BUDGET: SymBudget = SymBudget {
     max_terms: 256,
     max_degree: crate::drive::DEFAULT_SYM_MAX_DEGREE,
 };
@@ -79,7 +79,7 @@ pub(super) fn rungs(
         ..EvalOptions::default()
     };
     let (out, _) = deferred::with_deferred_session(
-        DOOR_BUDGET,
+        BUDGET,
         SymRules::shipped(),
         crate::drive::DEFAULT_SYM_RETRY,
         || {
@@ -114,6 +114,9 @@ fn prove_row(
     at: usize,
     band: Option<Band>,
 ) -> Result<Rung, Unreplayed> {
+    if row.site == topo::DecisionSite::CensusAtRest {
+        return Err(Unreplayed::NotReplayed);
+    }
     let value = ev.value(node).ok_or(Unreplayed::Refused)?;
     let replayed = value
         .coincidences
