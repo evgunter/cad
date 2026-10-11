@@ -358,9 +358,12 @@ impl Certification for Interval {
                 .unwrap_or_else(|| from.0.decoration());
             return Self(from.0.with_dec_capped(weakest));
         }
+        let point_ratio = t.0.lo() == t.0.hi();
+        let rest = <Self as Certification>::one() - t;
         let corner = |a: f64, b: f64| {
-            let a = Self::point(a);
-            a + (Self::point(b) - a) * t
+            let (a, b) = (Self::point(a), Self::point(b));
+            let lerp = a + (b - a) * t;
+            if point_ratio { lerp.meet(a * rest + b * t) } else { lerp }
         };
         let low = corner(from.0.lo(), to.0.lo());
         // Two point sources have one corner.
