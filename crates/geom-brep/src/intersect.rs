@@ -111,7 +111,9 @@ use geom::Surface;
 use geom::{Curve3, EllipseInvalid, SpiricInvalid, SurfaceKind};
 use geom_core::{Band, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 
-use crate::dihedral::{decide, decide_magnitude, decide_nonzero, decide_reported};
+use crate::dihedral::{
+    decide, decide_magnitude, decide_magnitude_reported, decide_nonzero, decide_reported,
+};
 use crate::extent::Reach;
 use crate::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
 use geom_core::Decide;
@@ -1809,8 +1811,14 @@ pub(crate) fn parallel_cylinder_gap_reported<T: Decide>(
 ///   the gate.
 ///
 /// The two terms are never decided one at a time: each just inside the
-/// band would sum to nearly twice it.
-pub(crate) fn decide_across<T: Decide>(
+/// band would sum to nearly twice it. `topo`'s section certificate reads
+/// its axis rows through this door too.
+///
+/// # Errors
+///
+/// The [`Indeterminate`] of the row left undecided, naming it: the far
+/// row in its band, or a floor decided Zero beside a definite far row.
+pub fn decide_across<T: Decide>(
     names: [&'static str; 2],
     datum: T,
     swing: T,
@@ -1829,20 +1837,16 @@ pub(crate) fn decide_across_reported<T: Decide>(
     band: Band,
 ) -> Result<(Sign, MarginDiag), Indeterminate> {
     let swing = swing.abs();
-    let Decided { sign, margin } = decide_reported(far, Margin::of(datum.abs() + swing), band)?;
-    match sign {
-        Sign::Zero => Ok((Sign::Zero, margin)),
-        Sign::Positive => {
+    let (far_side, margin) = decide_magnitude_reported(far, Margin::of(datum.abs() + swing), band)?;
+    match far_side {
+        Magnitude::Zero => Ok((Sign::Zero, margin)),
+        Magnitude::Positive => {
             let near = (datum - swing).max(T::zero()) + (datum + swing).min(T::zero());
             Ok(match decide_nonzero(floor, Margin::of(near), band)? {
                 NonzeroSign::Positive => (Sign::Positive, margin),
                 NonzeroSign::Negative => (Sign::Negative, margin),
             })
         }
-        Sign::Negative => unreachable!(
-            "`{far}` decided a magnitude Negative: `|datum| + |swing|` is nonnegative by \
-             construction"
-        ),
     }
 }
 

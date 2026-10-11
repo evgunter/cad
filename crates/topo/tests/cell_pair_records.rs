@@ -192,9 +192,10 @@ fn rekeyed_refuses_an_incident_pair_and_merges_a_duplicate() {
     });
     assert_eq!(
         refused,
-        Err(topo::RekeyRefusal::Pair(topo::ContactPairError::Incident(
-            [Cell::Vertex(on[0]), Cell::Face(face)]
-        ))),
+        Err(topo::CarryRefusal::Pair {
+            record: 0,
+            error: topo::ContactPairError::Incident([Cell::Vertex(on[0]), Cell::Face(face)])
+        }),
         "a pair the map makes incident refuses"
     );
 }

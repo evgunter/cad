@@ -39,12 +39,12 @@ use std::collections::BTreeMap;
 use geom::SurfaceKind;
 use geom::{NetState, Surface};
 use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized};
-use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Tol};
+use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Real, Tol};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
 use crate::boolean::{
-    PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, oriented_plane_eq,
+    Cell, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, oriented_plane_eq,
 };
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
@@ -73,8 +73,9 @@ pub struct MergedGroup {
     /// each the free end of a shared edge the glue left dangling inside
     /// the merged face (the argument that this changes no region is
     /// stated once, at the pruning in `merge_group`), or the vertex of a
-    /// closed shared edge the glue killed. A contact record
-    /// citing one is consumed and drops.
+    /// closed shared edge the glue killed. It lay in the merged face's
+    /// interior, so a contact record citing one is carried onto
+    /// [`Self::kept`] ([`Self::substitutions`]).
     ///
     /// Recorded rather than left implicit because this is the one
     /// thing the op destroys that no other field names: `absorbed`
@@ -82,6 +83,23 @@ pub struct MergedGroup {
     /// without this a caller reconciling the Euler delta would find a
     /// `v −1` with nothing accounting for it.
     pub killed_vertices: Vec<VertexKey>,
+}
+
+impl MergedGroup {
+    /// **The merge's lineage**: each cell the group killed — an absorbed
+    /// face, a killed shared edge, a killed seam vertex — with the cell
+    /// holding its interior now, the kept face. The one home both the
+    /// boolean's descendant map and [`MergeCoplanarOutcome::carry_contacts`]
+    /// read.
+    pub fn substitutions(&self) -> impl Iterator<Item = (Cell, Cell)> + '_ {
+        let kept = Cell::Face(self.kept);
+        self.absorbed
+            .iter()
+            .map(|&f| Cell::Face(f))
+            .chain(self.killed_edges.iter().map(|&e| Cell::Edge(e)))
+            .chain(self.killed_vertices.iter().map(|&v| Cell::Vertex(v)))
+            .map(move |dead| (dead, kept))
+    }
 }
 
 /// One record: a curved merge GROUP that was NOT glued (its shape is
@@ -141,6 +159,32 @@ pub struct MergeCoplanarOutcome {
     /// [`Body::merge_coplanar_faces_declared`]'s *The placeholder is
     /// a third kind, not a curved one*.
     pub placeholders: Vec<FaceKey>,
+}
+
+impl MergeCoplanarOutcome {
+    /// `records`, the body's before the merge, carried onto `result`, the
+    /// body after it: each cell a group killed is the face it kept
+    /// ([`MergedGroup::substitutions`]), a joined-away cell is the edge
+    /// its join made, and every other cell is itself
+    /// ([`crate::ContactRecords::carried_through`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::ContactRecords::carried_through`].
+    pub fn carry_contacts<T: Real>(
+        &self,
+        records: &crate::boolean::ContactRecords,
+        result: &Body<T>,
+    ) -> Result<crate::boolean::ContactRecords, crate::boolean::CarryRefusal> {
+        records.carried_through(0, result, |c| {
+            let merged = self
+                .groups
+                .iter()
+                .flat_map(MergedGroup::substitutions)
+                .find_map(|(dead, by)| (dead == c).then_some(by));
+            Some(merged.unwrap_or_else(|| crate::boolean::joined_cell(&self.joins, c)))
+        })
+    }
 }
 
 /// One half-edge resolved to the facts the merge's scans read through
@@ -3022,11 +3066,13 @@ impl<T: Decide> Body<T> {
                     sign: geom_core::Sign::Positive,
                     ..
                 }) => positive.push((slot, l)),
-                LoopWinding::Wound(Decided {
-                    sign: geom_core::Sign::Zero,
-                    margin,
-                }) => {
-                    zero.get_or_insert(margin);
+                LoopWinding::Wound(
+                    decided @ Decided {
+                        sign: geom_core::Sign::Zero,
+                        ..
+                    },
+                ) => {
+                    zero.get_or_insert(decided);
                 }
                 LoopWinding::Wound(Decided {
                     sign: geom_core::Sign::Negative,
@@ -3043,15 +3089,15 @@ impl<T: Decide> Body<T> {
             ([_, _, ..], _, _) => OutlineVerdict::SeveralPositive {
                 loops: positive.iter().map(|&(_, l)| l).collect(),
             },
-            ([], Some(margin), _) => {
+            ([], Some(decided), _) => {
                 return Err(MergeCoplanarError::Escalated {
                     decision: MergeDecision::LoopWinding,
-                    diag: Indeterminate {
-                        margin,
+                    diag: geom_core::k_stats::gate_rejection(
+                        WINDING_PREDICATE,
+                        decided,
                         band,
-                        predicate: Some(WINDING_PREDICATE),
-                        terminal_sliver: false,
-                    },
+                        LOOP_WINDING.passes,
+                    ),
                 });
             }
             ([], None, Some(r#loop)) => OutlineVerdict::UnsupportedWinding { r#loop },
@@ -5247,54 +5293,76 @@ mod winding_arm_tests {
 
     /// **A zero winding that leaves the merged face no outline tells
     /// the winding decision's in-band story**, with the tolerance its
-    /// own margin gives.
+    /// own margin gives, and is the gate's rejection on the frame's log.
     ///
     /// The fixture: one triangle `(0,0) → (2,0) → (1,h)`, the merged
-    /// face's only loop, with `h` the band's zero threshold. Its
+    /// face's only loop, with `h` within the band's zero threshold. Its
     /// margin `2A/P = 2h/P ≈ h/2` is nonzero and lies within the zero
     /// band at every tolerance row, so the winding classifies zero and
     /// no loop is an outline. [`LOOP_WINDING`] passes on either
     /// nonzero sign, so a smaller tolerance decides this margin: the
-    /// ending offers `m/K`, read here off the loop's own geometry.
+    /// ending offers `m/K`, read here off the loop's own geometry. The
+    /// refusal carries that decided margin tagged Zero, and it is the
+    /// one escalation the frame records.
     #[test]
     fn a_zero_winding_that_leaves_no_outline_tells_the_winding_story() {
         let tol = Tol::witness();
         let band = band(tol);
-        let h = band.zero();
-        let t = tri(
-            Point3::new(0.0, 0.0, 0.0),
-            Point3::new(2.0, 0.0, 0.0),
-            Point3::new(1.0, h, 0.0),
-            tol,
-        );
-        let face = t.body.get_loop(t.r#loop).unwrap().face;
-        let survivor = t.body.get_face(face).unwrap().clone();
-        let text = t
-            .body
-            .merged_outline_ring(face, &survivor, tol)
-            .expect_err("a face whose one loop winds zero has no outline")
-            .to_string();
-        assert_one_story(&text);
-        assert!(
-            text.starts_with(
-                "which way a loop of the merged face winds about its normal is undecided: \
-                 margin "
-            ) && text.contains("lies within the zero band")
-                && text.contains(LOOP_WINDING.lever),
-            "{text}"
-        );
-        let margin = 2.0 * h / (2.0 + 2.0 * (1.0 + h * h).sqrt());
-        let want = margin / (band.escalate() / band.zero());
-        let offered: f64 = text
-            .split_once("tighten the tolerance below ")
-            .and_then(|(_, tail)| tail.strip_suffix(" m"))
-            .and_then(|v| v.parse().ok())
-            .unwrap_or_else(|| panic!("a valued tolerance offer ends the text: {text}"));
-        assert!(
-            (offered - want).abs() <= 1e-9 * want,
-            "the offer is the zero winding's own margin over K: offered {offered:e}, \
-             want {want:e}: {text}"
-        );
+        for h in [0.25, 0.5, 1.0].map(|f| f * band.zero()) {
+            let t = tri(
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(2.0, 0.0, 0.0),
+                Point3::new(1.0, h, 0.0),
+                tol,
+            );
+            let face = t.body.get_loop(t.r#loop).unwrap().face;
+            let survivor = t.body.get_face(face).unwrap().clone();
+            let bracket = geom_core::k_stats::Bracket::open();
+            let err = t
+                .body
+                .merged_outline_ring(face, &survivor, tol)
+                .expect_err("a face whose one loop winds zero has no outline");
+            let log = bracket.finish();
+            let MergeCoplanarError::Escalated {
+                decision: MergeDecision::LoopWinding,
+                diag,
+            } = &err
+            else {
+                panic!("h {h:e}: the winding decision refuses: {err:?}");
+            };
+            assert_eq!(
+                diag.margin.rejected_sign(),
+                Some(geom_core::Sign::Zero),
+                "h {h:e}: the gate's rejection of a decided zero"
+            );
+            assert_eq!(
+                log.escalations.iter().map(|e| e.source).collect::<Vec<_>>(),
+                vec![*diag],
+                "h {h:e}: the rejection is the one escalation on the log"
+            );
+            let text = err.to_string();
+            assert_one_story(&text);
+            assert!(
+                text.starts_with(
+                    "which way a loop of the merged face winds about its normal is undecided: \
+                     margin "
+                ) && text.contains("lies within the zero band")
+                    && text.contains(LOOP_WINDING.lever),
+                "{text}"
+            );
+            let margin = 2.0 * h / (2.0 + 2.0 * (1.0 + h * h).sqrt());
+            let want = margin / (band.escalate() / band.zero());
+            let offered: f64 = text
+                .split_once("tighten the tolerance below ")
+                .and_then(|(_, tail)| tail.strip_suffix(" m"))
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_else(|| panic!("a valued tolerance offer ends the text: {text}"));
+            assert!(
+                (offered - want).abs() <= 1e-9 * want,
+                "the offer is the zero winding's own margin over K: offered {offered:e}, \
+                 want {want:e}: {text}"
+            );
+        }
     }
 
     /// **Several positive windings end in their own story**: two

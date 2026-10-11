@@ -1614,6 +1614,26 @@ pub struct OffsetOutcome {
     pub joins: Vec<crate::boolean::EdgeJoin>,
 }
 
+impl OffsetOutcome {
+    /// `records`, the moved body's before the door, carried onto
+    /// `result`, the body after it: the door keeps every key and kills
+    /// only what its joins name, so each cell is itself or the edge a
+    /// join made of it ([`crate::ContactRecords::carried_through`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::ContactRecords::carried_through`].
+    pub fn carry_contacts<T: Real>(
+        &self,
+        records: &crate::boolean::ContactRecords,
+        result: &Body<T>,
+    ) -> Result<crate::boolean::ContactRecords, crate::boolean::CarryRefusal> {
+        records.carried_through(0, result, |c| {
+            Some(crate::boolean::joined_cell(&self.joins, c))
+        })
+    }
+}
+
 /// The join an offset door ends with where `join` is set, on its staged
 /// body before it is adopted, over the vertices `within` holds: the
 /// door's own scope, so a vertex of an entity the call does not write
