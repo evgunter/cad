@@ -74,7 +74,7 @@
 use geom::{NurbsSurface, Surface, SurfaceWindow};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{div_down, max_bound, min_bound, norm_sq, norm_sup};
+use geom_core::interval::{cross, div_down, dot, max_bound, min_bound, norm_sq, norm_sup};
 use geom_core::spline::algebra::certainly_positive;
 use geom_core::spline::{KnotVector, ParamRange, RingRefinement, Span, TensorNet};
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
@@ -278,22 +278,6 @@ fn pad_interval<T: CertifiedEnclosure>(r: T) -> Interval {
     }
 }
 
-fn dot3(a: [Interval; 3], b: [Interval; 3]) -> Interval {
-    // Ascending association (D9), matching `Vec3::dot`.
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-}
-
-/// (Component-for-component `offset_meters::cross`, which is the
-/// borrow-shaped twin one crate module over; noted at both sites so
-/// the duplication is a decision. A third consumer collapses them.)
-fn cross3(a: [Interval; 3], b: [Interval; 3]) -> [Interval; 3] {
-    [
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    ]
-}
-
 fn constv<T: CertifiedBounds>(v: Vec3<T>) -> [Interval; 3] {
     [
         Interval::from_certified(v.x),
@@ -326,7 +310,7 @@ fn subp<T: CertifiedBounds>(b: Box3, p: Point3<T>) -> [Interval; 3] {
 pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Box3) -> Interval {
     let two = Interval::point(2.0);
     match *surface {
-        Surface::Plane { origin, normal, .. } => dot3(subp(b, origin), constv(normal)),
+        Surface::Plane { origin, normal, .. } => dot(&subp(b, origin), &constv(normal)),
         Surface::Sphere { center, radius, .. } => {
             // `sqr`, never `r * r`: the radius enclosure is one
             // operand, and squaring it as two independent ones widens
@@ -343,7 +327,7 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Bo
         } => {
             let q = subp(b, origin);
             let a = constv(axis);
-            let h = dot3(q, a);
+            let h = dot(&q, &a);
             // |w|² from the radial vector itself, NOT as |q|² − (q·â)².
             //
             // The algebraic identity is exact in ℝ and catastrophic in
@@ -398,7 +382,7 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
             // the enclosure is as tight as the unit form's.
             let q = subp(b, origin);
             let a = constv(axis);
-            let h = dot3(q, a) * (Interval::from_bounds(2.0, 2.0) - norm_sq(&a));
+            let h = dot(&q, &a) * (Interval::from_bounds(2.0, 2.0) - norm_sq(&a));
             let r = Interval::from_certified(radius);
             [
                 (q[0] - a[0] * h) / r,
@@ -426,7 +410,7 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
 ) -> Interval {
     let g1 = implicit_gradient_enclosure(s1, b);
     let g2 = implicit_gradient_enclosure(s2, b);
-    dot3(cross3(g1, g2), constv(e))
+    dot(&cross(&g1, &g2), &constv(e))
 }
 
 /// The plane × NURBS chart probe's transversality margin over one
@@ -1346,12 +1330,12 @@ impl CellNet {
         // extreme at the ends of the hull of their `d`, where they are
         // read.
         let dots = |a: &[Affine]| -> Vec<(Interval, Interval)> {
-            a.iter().map(|t| (dot3(n, t.k), t.g)).collect()
+            a.iter().map(|t| (dot(&n, &t.k), t.g)).collect()
         };
         let (du, dv) = (dots(&au), dots(&bv));
         let along = qs
             .iter()
-            .map(|q| dot3(n, *q))
+            .map(|q| dot(&n, q))
             .reduce(Interval::hull)
             .filter(|d| d.is_certified())
             .and_then(|d| {
