@@ -12,11 +12,14 @@ cost: M
 ## What
 
 Found by the sweep of `cleave/folded-graze-join-desync`. That branch
-types a minted edge's carrier read in band of one of its faces
-(`CertCheck::SurfaceResidual` / `WitnessSurfaceResidual` escalated) as
+types a minted edge's exact carrier read in band of one of its faces
+(`CertCheck::SurfaceResidual` escalated) as
 `Escalated { BooleanDecision::EdgeOnFaces }` at `boolean/ops.rs`
 `of_attachment`, the one in-band certification the near-tangent census
-measured. Two neighbours of it are unmeasured:
+measured. (`WitnessSurfaceResidual` stays a defect: the witness is an
+exact construction, as certify's ending table types it; a fitted
+carrier's residual takes the table's own last resort.) Two neighbours
+of it are unmeasured:
 
 - **The describe pass's other in-band checks.** `describe_edges` sends
   every other `CertifyError::Escalated` (`Transversality`,

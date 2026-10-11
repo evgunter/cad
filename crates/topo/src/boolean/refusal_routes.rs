@@ -327,21 +327,19 @@ pub enum BooleanDecision {
     /// the result, after every declaration was spent, so none is read.
     SeamJet,
     /// Whether an edge of the result lies on both faces it bounds: its
-    /// carrier's residual against `surface`, one of the two faces'
-    /// surfaces, at the attachment gate that certifies its description.
-    /// A residual passes only at zero, so no tolerance is its recourse.
-    /// Its ends are vertices an earlier reading placed on the faces they
-    /// meet, so a carrier read in band of a face says that an edge or a
-    /// vertex of one solid lies within the band of a face of the other
-    /// and not clearly on it. Asked of the result, after every
-    /// declaration was spent, so none is read. The result is never
-    /// returned, so `edge` and `surface` locate nothing a caller holds.
-    EdgeOnFaces {
-        /// The edge.
-        edge: crate::entity::EdgeKey,
-        /// The surface its carrier was read against.
-        surface: crate::geometry::SurfaceKey,
-    },
+    /// exact carrier's residual against one of the two faces' surfaces,
+    /// at the attachment gate that certifies its description. A residual
+    /// passes only at zero, so no tolerance is its recourse. Its ends are
+    /// vertices an earlier reading placed on the faces they meet, so a
+    /// carrier read in band of a face says that an edge or a vertex of
+    /// one solid lies within the band of a face of the other and not
+    /// clearly on it. At the band's edge which way the reading falls
+    /// depends on the edge's orientation: a chord certifies its start
+    /// as its own origin and its end as `carrier(t₁)`, one rounding off
+    /// the vertex (`work/cleave/a-chords-end-sample-reads-carrier-t1-not-its-vertex.md`).
+    /// Asked of the result, after every declaration was spent, so none
+    /// is read.
+    EdgeOnFaces,
     /// Whether a shell of the result bounds material or a cavity, at the
     /// finished-body gate: its volume over its area, the mean thickness
     /// it stands for (`chk_shell_volume_sign`), either definite sign a
@@ -913,11 +911,6 @@ const SEAM_JET: SizedDecision = SizedDecision {
     at_zero: None,
 };
 
-/// The lever of [`BooleanDecision::EdgeOnFaces`]: where the solids meet,
-/// an edge or vertex of one lies within the band of a face of the other.
-const EDGE_ON_FACES_LEVER: &str = "move the parts so each edge and vertex of one that meets a \
-                                   face of the other lies clearly on that face or clearly off it";
-
 /// **The sense of two directions read parallel at a corner**: a
 /// cosine of unit directions levered at the corner's arm, `≈ ±arm`, so
 /// what it measures is the arm, and either definite sign passes. One
@@ -1462,9 +1455,7 @@ impl BooleanDecision {
                 "whether the two faces touching along a seam edge curve apart there or share \
                  their curvature"
             }
-            Self::EdgeOnFaces { .. } => {
-                "whether an edge of the result lies on both faces it bounds"
-            }
+            Self::EdgeOnFaces => "whether an edge of the result lies on both faces it bounds",
             Self::ShellRole { .. } => "whether a shell of the result bounds material or a cavity",
             Self::Sphere(question) => question.subject(),
             Self::SelfCheck(check) => check.subject(),
@@ -1656,7 +1647,7 @@ impl BooleanDecision {
             Self::BisectorSide => Ending::Lever(CORNER_EDGES),
             Self::SeamWedge => Ending::Sized(SEAM_WEDGE),
             Self::SeamJet => Ending::Sized(SEAM_JET),
-            Self::EdgeOnFaces { .. } => Ending::Lever(EDGE_ON_FACES_LEVER),
+            Self::EdgeOnFaces => Ending::Lever(crate::merge_faces::EDGE_ON_FACES_LEVER),
             Self::ShellRole { .. } => Ending::Sized(RESULT_SHELL),
             Self::Sphere(question) => question.ending(),
             // A broken invariant, as the check's definite refusal says.
@@ -1977,10 +1968,7 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::BisectorSide => vec![BooleanDecision::BisectorSide],
                 BooleanDecisionKind::SeamWedge => vec![BooleanDecision::SeamWedge],
                 BooleanDecisionKind::SeamJet => vec![BooleanDecision::SeamJet],
-                BooleanDecisionKind::EdgeOnFaces => vec![BooleanDecision::EdgeOnFaces {
-                    edge: crate::entity::EdgeKey::default(),
-                    surface: crate::geometry::SurfaceKey::default(),
-                }],
+                BooleanDecisionKind::EdgeOnFaces => vec![BooleanDecision::EdgeOnFaces],
                 BooleanDecisionKind::ShellRole => vec![BooleanDecision::ShellRole {
                     solid: crate::entity::SolidKey::default(),
                     shell: crate::entity::ShellKey::default(),
@@ -2348,11 +2336,11 @@ pub(in crate::boolean) mod tests {
                     SizedPass::NonNegative,
                 ),
             ),
-            BooleanDecision::EdgeOnFaces { .. } => (
+            BooleanDecision::EdgeOnFaces => (
                 "whether an edge of the result lies on both faces it bounds",
                 Ending::Lever(
-                    "Recourse: move the parts so each edge and vertex of one that meets a face of \
-                     the other lies clearly on that face or clearly off it",
+                    "Recourse: move the geometry so each edge and vertex that meets a face lies \
+                     clearly on that face or clearly off it",
                 ),
             ),
             BooleanDecision::ShellRole { .. } => (

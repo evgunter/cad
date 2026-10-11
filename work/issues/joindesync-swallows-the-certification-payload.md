@@ -41,10 +41,11 @@ dual's adjudication.
 `describe_minted_edges`' refusals carry the attachment gate's refusal:
 `DescribeRefusal::Failed` and `MergeCoplanarError::KeptBoundaryUndescribed`
 hold it as `cause`, and the Boolean refuses a definite failure as
-`BooleanError::EdgeUndescribed { edge, failure, cause }`, whose text
-names the edge, the check, the sample, the surface and the miss and
-ends in the kernel-defect ending (`JoinDesync`'s `&'static str` has
+`BooleanError::EdgeUndescribed { edge, failure, cause, fitted }`,
+whose text names the check, the sample and the miss and ends in the
+kernel-defect ending (a fitted carrier's in the certification's own
+last resort), with the edge in its `Debug` (`JoinDesync`'s `&'static str` has
 ~100 construction sites, so the payload rides the sibling this issue
-named). An in-band surface residual is the input's and refuses as
-`Escalated { EdgeOnFaces }` (`work/cleave/a-minted-edge-along-a-folded-graze-refuses-join-desync.md`).
+named). An exact carrier's in-band surface residual is the input's and
+refuses as `Escalated { EdgeOnFaces }` (`work/cleave/a-minted-edge-along-a-folded-graze-refuses-join-desync.md`).
 Pinned by `boolean::ops` `a_describe_refusal_carries_its_certification`.

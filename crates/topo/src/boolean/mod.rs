@@ -3048,18 +3048,23 @@ pub enum BooleanError {
     /// An edge the Boolean minted, or a boundary edge of a face its
     /// merge left in place, could not be described against the two
     /// faces it lies between: its halves did not walk, or the
-    /// attachment gate refused its description on a definite verdict,
-    /// or on a reading no move of the parts reaches (a kernel bug,
-    /// loudly). A carrier read in band of one of its faces is an
-    /// [`BooleanError::Escalated`] of [`BooleanDecision::EdgeOnFaces`].
+    /// attachment gate refused its description on a reading no move of
+    /// the parts reaches. It ends in the defect ending (a kernel bug,
+    /// loudly), or, on a fitted carrier, in the certification's own
+    /// last resort. An exact carrier read in band of one of its faces
+    /// is an [`BooleanError::Escalated`] of
+    /// [`BooleanDecision::EdgeOnFaces`].
     EdgeUndescribed {
-        /// The edge.
+        /// The edge, diagnostic only: the result is never returned.
         edge: EdgeKey,
         /// What the describer could not do.
         failure: crate::merge_faces::EdgeDescribeFailure,
         /// The attachment gate's refusal, where a description was
         /// offered to it.
         cause: Option<Box<EulerOpError>>,
+        /// Whether that description was offered on a fitted (spline)
+        /// carrier.
+        fitted: bool,
     },
     /// One distributed component carries section faces of both sides
     /// (kernel bug, loudly).
@@ -4135,20 +4140,25 @@ impl core::fmt::Display for BooleanError {
                  reduction)"
             ),
             Self::EdgeUndescribed {
-                edge,
                 failure,
                 cause,
+                fitted,
+                ..
             } => {
                 write!(
                     f,
-                    "edge {edge:?} of the result cannot be described against the two faces it \
-                     lies between: {}",
+                    "an edge of the result cannot be described against the two faces it lies \
+                     between: {}",
                     failure.clause()
                 )?;
                 if let Some(cause) = cause {
                     write!(f, " ({})", crate::merge_faces::refusal_payload(cause))?;
                 }
-                write!(f, ". {KERNEL_DEFECT_ENDING}")
+                write!(
+                    f,
+                    ". {}",
+                    crate::merge_faces::undescribed_ending(cause.as_deref(), *fitted)
+                )
             }
             Self::TornComponent { operand, shell } => write!(
                 f,
@@ -7015,6 +7025,7 @@ mod tests {
                 edge: EdgeKey::default(),
                 failure: crate::merge_faces::EdgeDescribeFailure::NotWalkable,
                 cause: None,
+                fitted: false,
             },
             BooleanError::TornComponent {
                 operand: Operand::A,

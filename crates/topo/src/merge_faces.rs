@@ -494,19 +494,21 @@ pub enum MergeCoplanarError {
         /// The attachment gate's refusal of the description, where one
         /// was offered.
         cause: Option<Box<EulerOpError>>,
+        /// Whether that description was offered on a fitted (spline)
+        /// carrier, whose miss may be the fit's limit
+        /// ([`undescribed_ending`]).
+        fitted: bool,
     },
-    /// Whether a kept face's boundary edge lies on one of the two faces
-    /// it bounds could not be decided at this tolerance: its carrier
-    /// reads within the band of that face's surface and not clearly on
-    /// it, so the edge has no certified description. Refused, never
+    /// Whether a kept face's boundary edge lies on both faces it bounds
+    /// could not be decided at this tolerance: its exact carrier reads
+    /// within the band of one of their surfaces and not clearly on it,
+    /// so the edge has no certified description. Refused, never
     /// guessed.
     KeptBoundaryOffFace {
         /// The kept face.
         face: FaceKey,
         /// Its boundary edge.
         edge: EdgeKey,
-        /// The surface the edge's carrier was read against.
-        surface: SurfaceKey,
         /// Its diagnostics.
         diag: Indeterminate,
     },
@@ -530,10 +532,11 @@ pub enum MergeCoplanarError {
 /// [`crate::BooleanError::EdgeUndescribed`]).
 ///
 /// **Not carried by the façade.** Every refusal it rides ends in the
-/// kernel-defect ending: whichever arm, a caller's one recourse is to
-/// report it, so nothing branches on the arm. Falsifier: an arm a move
-/// of the geometry reaches, which would owe its own decision and lever
-/// rather than a carry.
+/// kernel's own ending ([`undescribed_ending`]): the defect ending, or a
+/// fitted carrier's last resort. Neither is a move of the geometry, so
+/// nothing branches on the arm. Falsifier: an arm a move of the geometry
+/// reaches, which would owe its own decision and lever rather than a
+/// carry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EdgeDescribeFailure {
     /// The edge carries no certified curve to re-describe, or its
@@ -616,6 +619,7 @@ pub(crate) enum DescribeRefusal {
         edge: EdgeKey,
         failure: EdgeDescribeFailure,
         cause: Option<Box<EulerOpError>>,
+        fitted: bool,
     },
     /// A reading of its two faces could not decide.
     Undecided {
@@ -623,42 +627,53 @@ pub(crate) enum DescribeRefusal {
         reading: DihedralReading,
         diag: Indeterminate,
     },
-    /// Its carrier reads within the band of `surface`, one of its two
-    /// faces' surfaces, and not clearly on it.
-    OffFace {
-        edge: EdgeKey,
-        surface: SurfaceKey,
-        diag: Indeterminate,
-    },
+    /// Its exact carrier reads within the band of one of its two faces'
+    /// surfaces, and not clearly on it.
+    OffFace { edge: EdgeKey, diag: Indeterminate },
 }
 
-/// The lever of [`MergeCoplanarError::KeptBoundaryOffFace`]: the edge's
-/// residual passes only at zero, so no tolerance is its recourse.
-const KEPT_BOUNDARY_ON_FACES: &str =
-    "move the geometry so that edge clearly lies on both faces it bounds";
+/// The lever of an edge whose exact carrier reads in band of a face it
+/// bounds, at both doors ([`MergeCoplanarError::KeptBoundaryOffFace`],
+/// the Boolean's `EdgeOnFaces`): its ends are vertices an earlier
+/// reading placed on the faces they meet, and its residual passes only
+/// at zero, so no tolerance is its recourse.
+pub(crate) const EDGE_ON_FACES_LEVER: &str = "move the geometry so each edge and vertex that meets \
+                                              a face lies clearly on that face or clearly off it";
 
-/// An attachment refusal's payload without its ending: a certification
-/// refusal's own words ([`geom_brep::CertifyError`]'s `Display`), with
-/// the surface a residual was read against and the miss a definite
-/// verdict kept; any other refusal's whole text. The door reporting it
-/// gives the ending.
+/// An attachment refusal's payload without its ending: a definite
+/// residual's check, sample and miss; any other certification
+/// refusal's own words ([`geom_brep::CertifyError`]'s `Display`); any
+/// other refusal's whole text. The door reporting it gives the ending.
 pub(crate) fn refusal_payload(cause: &EulerOpError) -> String {
-    use core::fmt::Write as _;
-    let EulerOpError::Certification { error } = cause else {
-        return cause.to_string();
-    };
-    let mut text = error.to_string();
-    if let Some((check, arm)) = error.decision() {
-        if let geom_brep::CertCheck::SurfaceResidual { surface }
-        | geom_brep::CertCheck::WitnessSurfaceResidual { surface } = check
-        {
-            let _ = write!(text, ", read against surface {surface:?}");
+    match cause {
+        EulerOpError::Certification {
+            error:
+                geom_brep::CertifyError::ResidualExceeded {
+                    check,
+                    sample,
+                    margin,
+                },
+        } if *sample != geom_brep::certify::NOT_A_SAMPLE => {
+            format!("{check} at sample {sample} is {margin:e}, definitely past the tolerance")
         }
-        if let RefusedArm::SignCertain(Some(margin)) = arm {
-            let _ = write!(text, ", missing by {margin}");
-        }
+        EulerOpError::Certification { error } => error.to_string(),
+        other => other.to_string(),
     }
-    text
+}
+
+/// The ending of an edge the describer could not describe, at both
+/// doors: the certification table's own, read at a build, where the
+/// description was offered on a fitted carrier, whose miss may be the
+/// fit's limit (`geom_brep::recourse::Unsized::Fit`); otherwise the
+/// defect ending, since the kernel placed an exact carrier, or its walk
+/// broke.
+pub(crate) fn undescribed_ending(cause: Option<&EulerOpError>, fitted: bool) -> String {
+    match cause {
+        Some(EulerOpError::Certification { error }) if fitted => error
+            .ending(Reading::Build)
+            .unwrap_or_else(|| geom_core::KERNEL_DEFECT_ENDING.to_owned()),
+        _ => geom_core::KERNEL_DEFECT_ENDING.to_owned(),
+    }
 }
 
 impl DescribeRefusal {
@@ -667,6 +682,7 @@ impl DescribeRefusal {
             edge,
             failure,
             cause: None,
+            fitted: false,
         }
     }
 
@@ -674,20 +690,18 @@ impl DescribeRefusal {
         edge: EdgeKey,
         failure: EdgeDescribeFailure,
         cause: EulerOpError,
+        fitted: bool,
     ) -> Self {
         Self::Failed {
             edge,
             failure,
             cause: Some(Box::new(cause)),
+            fitted,
         }
     }
 
-    pub(crate) const fn off_face(edge: EdgeKey, surface: SurfaceKey, diag: Indeterminate) -> Self {
-        Self::OffFace {
-            edge,
-            surface,
-            diag,
-        }
+    pub(crate) const fn off_face(edge: EdgeKey, diag: Indeterminate) -> Self {
+        Self::OffFace { edge, diag }
     }
 
     pub(crate) const fn undecided(
@@ -730,11 +744,13 @@ impl MergeCoplanarError {
                 edge,
                 failure,
                 cause,
+                fitted,
             } => Self::KeptBoundaryUndescribed {
                 face,
                 edge,
                 failure,
                 cause,
+                fitted,
             },
             DescribeRefusal::Undecided {
                 edge,
@@ -746,16 +762,9 @@ impl MergeCoplanarError {
                 reading,
                 diag,
             },
-            DescribeRefusal::OffFace {
-                edge,
-                surface,
-                diag,
-            } => Self::KeptBoundaryOffFace {
-                face,
-                edge,
-                surface,
-                diag,
-            },
+            DescribeRefusal::OffFace { edge, diag } => {
+                Self::KeptBoundaryOffFace { face, edge, diag }
+            }
         }
     }
 
@@ -767,11 +776,13 @@ impl MergeCoplanarError {
                 edge,
                 failure,
                 cause,
+                fitted,
                 ..
             } => Some(DescribeRefusal::Failed {
                 edge: *edge,
                 failure: *failure,
                 cause: cause.clone(),
+                fitted: *fitted,
             }),
             Self::KeptBoundaryUndecided {
                 edge,
@@ -779,12 +790,9 @@ impl MergeCoplanarError {
                 diag,
                 ..
             } => Some(DescribeRefusal::undecided(*edge, *reading, *diag)),
-            Self::KeptBoundaryOffFace {
-                edge,
-                surface,
-                diag,
-                ..
-            } => Some(DescribeRefusal::off_face(*edge, *surface, *diag)),
+            Self::KeptBoundaryOffFace { edge, diag, .. } => {
+                Some(DescribeRefusal::off_face(*edge, *diag))
+            }
             _ => None,
         }
     }
@@ -1121,6 +1129,7 @@ impl core::fmt::Display for MergeCoplanarError {
                 edge,
                 failure,
                 cause,
+                fitted,
             } => {
                 write!(
                     f,
@@ -1131,21 +1140,20 @@ impl core::fmt::Display for MergeCoplanarError {
                 if let Some(cause) = cause {
                     write!(f, " ({})", refusal_payload(cause))?;
                 }
-                f.write_str(". The body is untouched")
+                write!(
+                    f,
+                    ". The body is untouched. {}",
+                    undescribed_ending(cause.as_deref(), *fitted)
+                )
             }
-            Self::KeptBoundaryOffFace {
-                face,
-                edge,
-                surface,
-                diag,
-            } => write!(
+            Self::KeptBoundaryOffFace { face, edge, diag } => write!(
                 f,
                 "merge_coplanar_faces: re-describing kept face {face:?}'s boundary edge {edge:?}, \
                  {}",
                 diag.undecided(
-                    format_args!("whether it lies on surface {surface:?}, one of its two faces'"),
+                    "whether the edge lies on both faces it bounds",
                     geom_brep::recourse::LeverOnly {
-                        lever: KEPT_BOUNDARY_ON_FACES,
+                        lever: EDGE_ON_FACES_LEVER,
                     }
                     .recourse(RefusedArm::Undecided(diag), Reading::Build)
                 )

@@ -20,17 +20,18 @@
 //! - **A section edge read in band of a face it bounds**
 //!   (`boolean/ops.rs` `describe_edges`): the cube's near face lies
 //!   `d` rad off the prism's vertical edge, so at `|d| = ε` the edge's
-//!   far vertex reads on the face at the zero band's edge, and the
-//!   section edge ending there reads its carrier's residual against the
-//!   face just in band. That is the input's, refused typed
-//!   ([`EDGE_ON_FACES`]), never a desync.
+//!   far vertex lies on the zero band's edge. A run whose section chord
+//!   starts at that vertex certifies it as the chord's own origin, in
+//!   the zero band, and builds; a run whose chord ends there certifies
+//!   `carrier(t₁)`, one rounding off the vertex and just in band, and
+//!   refuses typed as the input's ([`EDGE_ON_FACES`]), never a desync.
 //!
 //! [`NtPrism::near_normal`]: crate::common::differential::NtPrism::near_normal
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{KERNEL_DEFECT_ENDING, Tol};
-use topo::{BooleanDecision, BooleanError, BooleanErrorKind, BooleanResult, ValidationError};
+use geom_core::Tol;
+use topo::{BooleanDecision, BooleanError, BooleanResult, ValidationError};
 
 use crate::common::differential::{nt_cube, nt_prisms};
 
@@ -139,10 +140,15 @@ const GERM_WITNESSES: [(&str, usize, u32, f64); 5] = [
     ("Lbot", 0, 12, -1e-6),
 ];
 
-/// The census's poses whose section edge, minted from the prism's
-/// vertical edge's far vertex across its bottom or top face, ends at
-/// a vertex `|d|` m off the cube's near face, read on it at the zero
-/// band's edge; the carrier's residual there reads ~5e-17 m past it.
+/// The census's poses whose section edge across the prism's bottom or
+/// top face meets the far vertex of its vertical edge, `|d|` m off the
+/// cube's near face: on the zero band's edge at ε = 1e-9. Which runs
+/// refuse depends on the chord's orientation: where it runs from the
+/// pierce to the vertex, the end sample `carrier(t₁)` lands one
+/// rounding off the vertex, ~5e-17 m past the band's edge, and refuses
+/// in band; where it runs from the vertex, the vertex is its origin,
+/// read in the zero band, and the run builds
+/// (`work/cleave/a-chords-end-sample-reads-carrier-t1-not-its-vertex.md`).
 /// `(prism, edge, sixteenths, tilt, runs refusing in band at ε = 1e-9)`.
 const EDGE_ON_FACES: [(&str, usize, u32, f64, [&str; 3]); 4] = [
     (
@@ -190,8 +196,8 @@ type Run = (&'static str, Result<BooleanResult<f64>, BooleanError>, f64);
 
 /// A pose's six runs, every op in both orders, against the clipping
 /// oracle's closed forms: what is wrong with them, and how many built.
-/// A refusal is wrong where it is a kernel defect, a lockstep desync
-/// among them. A built body is
+/// A refusal is wrong where it is a kernel defect, as the executed-offer
+/// harness reads one (`topo::test_support::offer_key`). A built body is
 /// wrong off its closed form by more than ε over its area, or failing
 /// tier 3′ on more than an in-band census escalation, unless it ships
 /// what [`SHIPS_A_FINDING`] pins at ε = 1e-12. An empty result is wrong
@@ -245,11 +251,7 @@ fn check_pose((name, edge, a, d): (&str, usize, u32, f64), tol: Tol) -> (Vec<Str
             .map(|&(.., findings)| findings);
         let bb = match &r {
             Err(e) => {
-                if matches!(
-                    e.kind(),
-                    BooleanErrorKind::ClassificationInvariant | BooleanErrorKind::JoinDesync
-                ) || e.to_string().ends_with(KERNEL_DEFECT_ENDING)
-                {
+                if topo::test_support::offer_key(e).1 {
                     wrong.push(format!("{tag}: a kernel defect: {e:?}"));
                 }
                 continue;
@@ -330,16 +332,13 @@ fn the_pierce_germs_witnesses_build_every_run() {
 /// **A section edge read in band of its face refuses as the input's**:
 /// at ε = 1e-9 each [`EDGE_ON_FACES`] pose's named runs refuse
 /// `Escalated` on [`BooleanDecision::EdgeOnFaces`] with the lever, and
-/// its other runs do not refuse it; at ε = 1e-6 and 1e-12 the vertex
-/// reads clearly on or off the face and no run refuses it.
+/// its other runs do not refuse it; at ε = 1e-6 and 1e-12, where the
+/// census measured none, the vertex reads clearly on or off the face
+/// and no run refuses it.
 #[test]
 fn a_section_edge_read_in_band_of_its_face_refuses_typed() {
     let tol = Tol::witness();
-    let at = |e: f64| (tol.eps() - e).abs() < e * 1e-9;
-    if !(at(1e-9) || at(1e-6) || at(1e-12)) {
-        println!("SKIPPED at this ε: the census measured the in-band runs at 1e-9, 1e-6 and 1e-12");
-        return;
-    }
+    let at_1e9 = (tol.eps() - 1e-9).abs() < 1e-18;
     let prisms = nt_prisms();
     let mut wrong = Vec::new();
     for (name, edge, a, d, want) in EDGE_ON_FACES {
@@ -358,14 +357,14 @@ fn a_section_edge_read_in_band_of_its_face_refuses_typed() {
             let in_band = match &r {
                 Err(
                     e @ BooleanError::Escalated {
-                        decision: BooleanDecision::EdgeOnFaces { .. },
+                        decision: BooleanDecision::EdgeOnFaces,
                         ..
                     },
                 ) => {
                     let text = e.to_string();
                     if !text.ends_with(
-                        "Recourse: move the parts so each edge and vertex of one that meets a \
-                         face of the other lies clearly on that face or clearly off it",
+                        "Recourse: move the geometry so each edge and vertex that meets a face lies \
+                         clearly on that face or clearly off it",
                     ) {
                         wrong.push(format!("{name} {op}: ends otherwise: {text}"));
                     }
@@ -373,7 +372,7 @@ fn a_section_edge_read_in_band_of_its_face_refuses_typed() {
                 }
                 _ => false,
             };
-            if in_band != (at(1e-9) && want.contains(&op)) {
+            if in_band != (at_1e9 && want.contains(&op)) {
                 wrong.push(format!(
                     "{name} nt e{edge} a{a} d{d:e}, {op}: in band {in_band}: {:?}",
                     r.err()

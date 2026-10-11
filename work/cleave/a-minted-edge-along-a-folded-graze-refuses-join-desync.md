@@ -78,26 +78,42 @@ vertex, 5e-17 or 2e-17 past it at the sample. Both readings are of one
 point ε off the face, split by less than the residual's own rounding
 (~1e-16 on unit coordinates). The geometry is at the band's edge.
 
-**Ruling: in band, mistyped as a defect.** Building them would trust
-the vertex's on-face read over the certification, a coincidence the
-D10 hold forbids; the certification is not loosened. D9 row 1: an
-`Indeterminate` with a `Value` margin is the input's.
+**Which runs refuse depends on the chord's orientation.** Three of
+each pose's six runs build: where the section chord runs vertex →
+pierce, the vertex is the carrier's origin, the start sample reads it
+bit for bit in the zero band, and the edge certifies. The other three
+run pierce → vertex and read the vertex as `carrier(t₁)`, one rounding
+off, just in band. Filed as
+`a-chords-end-sample-reads-carrier-t1-not-its-vertex` (certify.rs is
+not changed here).
+
+**Ruling: in band, mistyped as a defect.** The input lies on the zero
+band's edge, so both verdicts are readings of it; the refusing runs'
+`Indeterminate` carries a `Value` margin, the input's (D9 row 1), and
+the certification is not loosened.
 
 **What landed.**
 - `describe_edges`' four attachment arms (Intersection, Tangency,
   Arc, Line) no longer discard the gate's refusal (`of_attachment`).
-  A `SurfaceResidual` or `WitnessSurfaceResidual` escalation is
+  An exact carrier's `SurfaceResidual` read in band is
   `DescribeRefusal::OffFace`, which the Boolean refuses as
-  `Escalated { BooleanDecision::EdgeOnFaces { edge, surface } }`
-  ending in its lever, and the merge door as
-  `MergeCoplanarError::KeptBoundaryOffFace`.
-- Every other failure is `BooleanError::EdgeUndescribed { edge,
-  failure, cause }`, in the defect voice, its text carrying the
-  check, the sample, the surface and the miss.
+  `Escalated { BooleanDecision::EdgeOnFaces }` ending in its lever,
+  and the merge door as `MergeCoplanarError::KeptBoundaryOffFace`
+  with the same lever.
+- Every other failure (the witness's residual, an exact construction;
+  a definite miss; any other refusal) is `BooleanError::EdgeUndescribed`
+  at the Boolean and `KeptBoundaryUndescribed` at the merge door, both
+  ending in the defect ending with the check, the sample and the miss,
+  and no arena key in the Boolean's text. On a fitted (spline) carrier,
+  whose miss may be the fit's limit, they end in the certification's
+  own last resort instead.
 - The pin `near_tangent_pierce_poses` holds the four poses at every ε
-  row and now counts a `JoinDesync` as a defect (it let one pass);
+  row, counting a refusal as a defect by `topo::test_support::offer_key`
+  (it let `JoinDesync` pass);
   `a_section_edge_read_in_band_of_its_face_refuses_typed` holds the 12
   runs refusing `EdgeOnFaces` at 1e-9 and none at 1e-6 or 1e-12.
 
 Filed: `an-in-band-certification-of-a-minted-edge-other-than-its-face-residual-reads-as-a-defect`,
-`boolean-structural-refusals-drop-their-payload`.
+`boolean-structural-refusals-drop-their-payload`,
+`a-chords-end-sample-reads-carrier-t1-not-its-vertex`,
+`boolean-defect-displays-end-three-ways`.
