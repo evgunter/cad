@@ -935,3 +935,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **U-T1 (4614): R2 (r4614b) is in.** NOT-MERGEABLE-AS-IS, MAJOR (executed): on a one-face torus, `wrap_site_segments`' shared-locus check (`join.rs:751`) turns main's typed refusal into `JoinDesync` for every meridian, concentric and spiric half-space pose, at all ε. Report saved at `scratchpad/dr4614/R2.md`.
   - R1 (r4614a) is still running. When it is in, code the pair. If R1 raised no MAJOR, this is an M-tier miss, the second after DR-144, which makes a FULL readout due under rule 9.
   - **The apex-reach P1 is up as PR 4646** (+1639/−257, 26 files). Hosted `test` is still running and the lane is waiting on it. I'll freeze and send the single review next check-in.
+- 2026-10-11 06:57 — **U-T1 (4614) pair is in.** Both reviews were NOT-MERGEABLE-AS-IS, for ONE MAJOR that each found independently on a different fixture (one-face torus [R2], y=0-seamed torus [R1]).
+  - The MAJOR: with two loops on one face pair, `wrap_site_segments`' shared-locus check (`join.rs:751`, premise :680/:715) turns main's typed refusal into `JoinDesync`.
+  - Coded (`scratchpad/dr4614/coding.md`): **0 tallied**, since the MAJOR is bilateral. The pair found a MAJOR; no M-tier miss. Fair but flagged: R1 saw the other lane's target-dir name in a build-slot holder's pid environment.
+  - Everything else held: 0 wrong frames over millions of sites, the classification agrees, `plane_cut` is byte-identical, and the e2e bodies are identical to main's.
+  - Fix pass: cloud session `session_01GZQytELR4GZAbuXGMuXstu`. It must sweep every reader of the one-conic-per-face-pair premise and add rows on both fixtures.
+  - **Brief hygiene:** the build-slot lockfiles expose lane names through pid environments. Future briefs should tell reviewers not to inspect slot holders' environments.
