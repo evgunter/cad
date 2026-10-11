@@ -1043,8 +1043,9 @@ fn require_holes_wound_against(
 /// extension past it has no blossom), step-import's
 /// `arc_loft_natively_computes_its_rational_volume` reads the imported
 /// arc loft's volume one ulp off the native one, where the affine form
-/// reproduces it bit for bit. The cause is not isolated
-/// (`work/nurbs/quad-de-boor-through-the-blossom-breaks-the-import-bit-identity.md`).
+/// reproduces it bit for bit. That ulp is the whole-body fold's face
+/// order, not this step (`work/nurbs/quad-de-boor-through-the-blossom-breaks-the-import-bit-identity.md`),
+/// so routing it is open there.
 fn de_boor(win: CoeffWindow<'_, Interval>, t: Interval) -> Interval {
     let span = win.span();
     let kv = span.knots();

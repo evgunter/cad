@@ -469,6 +469,49 @@ fn digest() -> String {
 /// leaves are unknowns rather than constants; which freeze cause each
 /// added count is, is not measured. Decisions, discharges (`sz`),
 /// shapes, verdicts and every f64 row are unchanged.
+///
+/// **Re-cut at all three ε when the rational patch lane's knot
+/// refinement moved into the certification ring** (`geom_brep::props::
+/// quad`'s `refine_dir`, PR 4553: each homogeneous channel refined by
+/// the convex certified step, where `ring_lerp` combined points through
+/// the plan's rounded `f64` λ). Only `arc_loft_1e9eps` moves, the one
+/// body whose walls are rational patches: `v`, `a`, `vpad` and `apad`
+/// in their last bits at every ε. Each new volume and area enclosure
+/// lies inside the old one; the volume pads fall by 7e-6 of themselves
+/// and the area pads by 4e-10. Bisected: PR 4553's parent `afabd44061`
+/// reads the old line and its merge `98e620a195` the new. Verdicts,
+/// refusals, the other rows and the sym-session counts are unchanged.
+///
+/// **Re-cut at all three ε when the skin began computing its values in
+/// `T`** (`8054ec236f`, PR 4726: the projective split, the banded solve
+/// and the loft run in the sections' scalar). Bisected at ε = 1e-9: its
+/// parent `cb58e63b8b` reads the line above for `arc_loft_1e9eps`, and
+/// the commit reads this one. Two things move:
+/// * **`arc_loft_1e9eps`'s pads**, and `a` by one ulp at ε = 1e-6. The
+///   skin's arc conversion now calls `Real`'s sines and cosines (the
+///   pure-Rust `libm` D9 prescribes) where it called `f64`'s inherent
+///   ones, so an arc's weight or tangent pole moves by an ulp: the body
+///   itself moves, not the quadrature. Every pad moves by at most
+///   1.1e-9 of itself and every old and new enclosure nest, one inside
+///   the other. The new one is the inner one except for the volume at
+///   ε = 1e-9 (pad +1.06e-9 relative) and the area at 1e-6, where the
+///   old one is.
+/// * **the `Sym` rows' `validate_geometric` `frozen` column**, down:
+///   `sym_arc_loft` 1254 → 1062 / 1244 → 1060 / 1253 → 1061 and
+///   `sym_thin_strip` 1257 → 1178 / 1268 → 1177 / 1256 → 1177 at
+///   ε = 1e-6 / 1e-9 / 1e-12. The walls are computed in `T` instead of
+///   lifted as opaque unknowns. This also undoes the movement PR 4708
+///   (`nurbs-weights-and-knots-are-the-scalar` u4) made on main without
+///   a re-cut: its parent reads `sz=40 num=612 frozen=3732` and
+///   `sz=36 num=624 frozen=2792`, which this commit returns to `sz=48`
+///   and `num=604` / `612`, the committed counts. Decisions, shapes and
+///   verdicts are unchanged.
+///
+/// These lines are ported from PR 4684 into PR 4551, whose certified
+/// step (`Certification::between`, the monotone corner met with its
+/// convex form) `refine_dir` reaches through `apply_certified`. Measured
+/// on PR 4551's tree, the table reads these lines at all three ε,
+/// unchanged by the step.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

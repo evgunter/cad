@@ -1,7 +1,7 @@
 ---
 id: quad-de-boor-through-the-blossom-breaks-the-import-bit-identity
 kind: issue
-title: props/quad's de_boor routed through the blossom reads step-import's arc-loft volume one ulp apart native vs imported
+title: props/quad's de_boor stays off the blossom for a reason since refuted (the arc-loft round trip's one ulp is the face-sum order), so routing it is open
 status: open
 opened: 2026-10-10
 ---
@@ -32,7 +32,29 @@ Measured on a bisection worktree at opt-level 1:
 
 So PR 4551 ships `de_boor` unrouted, as its per-site table says.
 
-## What is not known
+## Corrected (2026-10-11): the one ulp is the face-sum order
+
+PR 4684's measurement refutes the "inputs differ" premise below. The
+native and imported walks hand the quadrature identical bits on every
+face and get the same flux back. The whole-body fold (`topo::props`'
+`fold_runs`, face-arena order) sums the same six terms in two orders,
+and the reader allocates faces in its own order. The blossom route
+moved the rational wall's flux bits, and with them whether the two
+orders happen to round alike. It is FLUX's design row
+`work/flux/the-whole-body-property-fold-depends-on-face-order.md`
+(filed on PR 4684's branch). Main's row now bounds native against
+imported at `faces − 1` ulps with the pad bit-identical (ENCL's PR
+4682), so it no longer reddens on this.
+
+## Next
+
+Route `de_boor` through the blossom for nodes inside the span, with
+the affine step kept past the domain (Q10's vertex pad puts nodes
+there), and re-baseline what moves with that cause: on the fix pass's
+tree, the step-export sidecars (`loft_prism`, `nonuniform_loft`,
+`swept_elbow`) and the sweep thread-count digest moved under the route.
+
+## Superseded: what was not known
 
 Why the two sides differ. Equal inputs give equal outputs in either
 form, so the native and imported walks hand `de_boor` inputs that
@@ -45,7 +67,7 @@ or scaled by the reader, a signed zero. A trace of every call (about
 inside a 10-minute run, so the next attempt should aggregate in
 process: hash each call's inputs per phase and diff the two multisets.
 
-## Next
+The original next step, now moot:
 
 Find the differing inputs; then either make the reader reproduce the
 native chart bit for bit (the row's premise), or show that the
