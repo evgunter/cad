@@ -2,6 +2,8 @@
 //! stress a span's bounds, printed one line per run so base and head
 //! diff. Run with `--ignored --nocapture`.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{brick, finished};

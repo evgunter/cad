@@ -3249,10 +3249,8 @@ fn line_ends<T: Real>(body: &Body<T>, e: EdgeKey) -> Option<(VertexKey, VertexKe
 /// along it, levers the piece's own tilt. A reading in band routes to
 /// the interior question itself, which decides it or escalates.
 fn decided_past<T: Decide>(s: (Point3<T>, Point3<T>), qs: &[Point3<T>], band: Band) -> bool {
-    match crate::census::segment_past(s, qs, band) {
-        Ok(past) => past,
-        Err(_) => false,
-    }
+    // In band: not decided past, so the interior question is asked.
+    matches!(crate::census::segment_past(s, qs, band), Ok(true))
 }
 
 /// **Edge-split lineage of an edge-edge record**: where the reduction
@@ -4107,6 +4105,10 @@ fn span_bounds<T: Decide>(
     Ok(bounds)
 }
 
+/// A point a record puts on a line edge, and the cells it touches
+/// there.
+type BoundReading<T> = (Point3<T>, Vec<Cell>);
+
 /// Where a record of `cells` bounds the line edge `edge` (its key, end
 /// vertices and their points), and the cells of the other side it
 /// touches there: a vertex on the edge's interior, at its point; a
@@ -4122,7 +4124,7 @@ fn bound_reading<T: Decide>(
     (e, v0, v1, p0, p1): (EdgeKey, VertexKey, VertexKey, Point3<T>, Point3<T>),
     cells: [Cell; 2],
     band: Band,
-) -> Result<Option<(Point3<T>, Vec<Cell>)>, BooleanError> {
+) -> Result<Option<BoundReading<T>>, BooleanError> {
     Ok(match cells {
         [Cell::Edge(a), other] | [other, Cell::Edge(a)] if a == e => match other {
             Cell::Vertex(w) => vertex_point(body, w).zip(vertex_star(body, w)),
