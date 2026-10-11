@@ -220,6 +220,8 @@ mod resolve_piece_ladder;
 mod resolve_upstream_scope;
 #[path = "revalue_corpus.rs"]
 mod revalue_corpus;
+#[path = "review_cell_pairs_r1_digest.rs"]
+mod review_cell_pairs_r1_digest;
 #[path = "rv_dm7_probes.rs"]
 mod rv_dm7_probes;
 

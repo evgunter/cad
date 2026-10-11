@@ -223,6 +223,8 @@ mod readback_sense_kind;
 mod records_cite_their_decision;
 #[path = "result_gate_sites.rs"]
 mod result_gate_sites;
+#[path = "review_cell_pairs_r1_probes.rs"]
+mod review_cell_pairs_r1_probes;
 #[path = "review_cleave_farplane.rs"]
 mod review_cleave_farplane;
 #[path = "review_cleave_nurbs_lane.rs"]
