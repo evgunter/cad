@@ -140,10 +140,9 @@ fn probe_exact_tangency_from_inside_refuses_typed() {
 /// point's sector side certifies, and the section passes through the
 /// ball's face as a ring, whose island the join winds without a chart
 /// (`chord_join::path_island_winding`). The union keeps that ring as a
-/// hole of the ball's face, which the result gate refuses typed
-/// (`VolumeUncomputable { RingOnCurvedFace }`,
-/// `work/flux/sphere-face-with-a-hole-has-no-closed-form.md`); the pose's
-/// other ops are `a_ring_on_a_sphere_face`'s. The scan's near-boundary
+/// hole of the ball's face, which the sphere arm measures over both its
+/// loops, so the union builds and passes tier 3; its volume and the
+/// pose's other ops are `a_ring_on_a_sphere_face`'s. The scan's near-boundary
 /// arm remains as certified-enclosure defense-in-depth behind that door
 /// (its residual live width is the box pad; the shadowing is structural
 /// — the reduction runs before any fallback — so this pin is stable).
@@ -154,19 +153,13 @@ fn probe_edge_escape_lands_a_ring_before_the_scan() {
         finished("the slab", slab(), Tol::witness()),
         finished("the ball", b, Tol::witness()),
     );
-    let err = topo::union(&slab, &b, Tol::witness()).expect_err("edge escape must not certify");
-    let BooleanError::ResultInvalid { errors } = &err else {
-        panic!("expected the pierce to land as a ring the result gate refuses, got {err:?}");
-    };
-    assert!(
-        matches!(
-            errors.as_slice(),
-            [topo::ValidationError::VolumeUncomputable {
-                source: topo::MassPropsError::RingOnCurvedFace { .. },
-                ..
-            }]
-        ),
-        "expected the ringed ball face's volume refusal, got {errors:?}"
+    let out = topo::union(&slab, &b, Tol::witness())
+        .unwrap_or_else(|e| panic!("the pierce lands as a ring and the union builds: {e:?}"));
+    let body = &out.body().expect("a body").body;
+    assert_eq!(
+        topo::validate_geometric(body, Tol::witness()),
+        Ok(()),
+        "the ringed ball face passes tier 3"
     );
 }
 

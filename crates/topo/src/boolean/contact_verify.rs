@@ -286,6 +286,14 @@ pub fn tangent_pair_relation<T: Decide>(
 /// without building a body around a configuration whose whole point is
 /// the surface pair. One ladder, two entry points.
 ///
+/// A CONTACT claims two materials touching along the locus, so where
+/// `κ_rel` is definitely nonzero its sign is read against the material
+/// sides too ([`geom_brep::material_kappa_rel`]): the two sheets must
+/// leave the locus apart, the gap between them void, never crossing so
+/// that their materials overlap (an internal tangency whose senses put
+/// both materials in the crescent between the walls). A definite
+/// overlap contradicts (`contact_tangent_overlap`).
+///
 /// # Errors
 ///
 /// [`ContactRefusal`] — see [`tangent_pair_relation`].
@@ -299,6 +307,48 @@ pub fn tangent_locus_relation<T: Decide>(
     t0: T,
     t1: T,
     declared: bool,
+    band: Band,
+) -> Result<ContactVerdict, ContactRefusal> {
+    tangent_table(
+        s1, sense1, s2, sense2, carrier, t0, t1, declared, true, band,
+    )
+}
+
+/// [`tangent_locus_relation`]'s table for a SEAM, B's sense bit already
+/// reversed by the caller: one material continuing across the locus,
+/// whose two faces leave it on opposite sides, so no material crescent
+/// between the sheets is read.
+///
+/// # Errors
+///
+/// [`ContactRefusal`] — see [`tangent_pair_relation`].
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn tangent_seam_relation<T: Decide>(
+    s1: &geom::Surface<T>,
+    sense1: bool,
+    s2: &geom::Surface<T>,
+    sense2: bool,
+    carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
+    band: Band,
+) -> Result<ContactVerdict, ContactRefusal> {
+    tangent_table(s1, sense1, s2, sense2, carrier, t0, t1, true, false, band)
+}
+
+/// The C4 `Tangent` table along `carrier`, the material crescent read
+/// where `contact` ([`tangent_locus_relation`]).
+#[allow(clippy::too_many_arguments)]
+fn tangent_table<T: Decide>(
+    s1: &geom::Surface<T>,
+    sense1: bool,
+    s2: &geom::Surface<T>,
+    sense2: bool,
+    carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
+    declared: bool,
+    contact: bool,
     band: Band,
 ) -> Result<ContactVerdict, ContactRefusal> {
     // The lane gate FIRST: the demanded set is the certifiable set,
@@ -449,6 +499,28 @@ pub fn tangent_locus_relation<T: Decide>(
         // exact zero at an isolated neutral point is what a
         // declaration carries and what a detector refuses.
         match second_order {
+            // A definite κ_rel has a definite sign: the sheets leave the
+            // locus one above the other, and a contact's materials must
+            // be on the outer sides of that pair, not between it.
+            Ok(Sign::Positive) if contact => {
+                let crescent =
+                    Margin::sagitta(geom_brep::material_kappa_rel(jet.kappa_rel, sense1), arm);
+                match crate::validate::decide("contact_tangent_overlap", crescent, band) {
+                    Ok(Sign::Negative) => {}
+                    Ok(Sign::Positive | Sign::Zero) => {
+                        return Err(ContactRefusal::Contradicted {
+                            diag: Indeterminate {
+                                margin: geom_core::MarginDiag::INVALID,
+                                band,
+                                predicate: Some("contact_tangent_overlap"),
+                                terminal_sliver: false,
+                            },
+                            steer: None,
+                        });
+                    }
+                    Err(diag) => return Err(ContactRefusal::Escalated { diag }),
+                }
+            }
             Ok(Sign::Positive) => {}
             residue => {
                 if !declared {
