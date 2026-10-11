@@ -1446,3 +1446,4 @@ parked on D10's build with the rest. Every live row is now parked, and
 built. When it is, the parked rows are re-cut against D10, MSOLVE-15
 first: its spec on `msolve/15-frame-offset-carries-the-roll` is stale.
 The orchestrator's scheduled check-in is deleted.
+- 2026-10-11 — RECIPE closed; `a-measure-merges-free-instances-into-one-relative-freedom-component` moved here (`mate/solve.rs` is MSOLVE's) and is open. Its trigger fired, but by a code read the measure's reads are still walked; the row says to re-run its probe first.
