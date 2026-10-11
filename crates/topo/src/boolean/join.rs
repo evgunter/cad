@@ -1017,17 +1017,23 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // No wired join arm for this germ pair (cyl×sphere's rung-3
         // fitted chords off any edge, a coaxial cylinder pair, which the
         // section door owns, plane×NURBS behind PR 7b): typed, citing
-        // the kind whose join arm is missing.
+        // the kind whose join arm is missing and the face that holds the
+        // segment's entry half now. The germ's recorded face may be one
+        // an earlier segment's `mef` divided; its fragments keep its
+        // surface, so the kind reads the same from either.
         let no_arm = || {
-            let (operand, face, s) = if matches!(ga, Sf::Plane { .. }) {
-                (Operand::B, germ.b_face, &gb)
+            let (operand, body, he, s) = if matches!(ga, Sf::Plane { .. }) {
+                (Operand::B, &red.b, eb, &gb)
             } else {
-                (Operand::A, germ.a_face, &ga)
+                (Operand::A, &red.a, ea, &ga)
             };
-            BooleanError::CurvedBooleanUnsupported {
-                operand,
-                face,
-                kind: s.kind(),
+            match crate::chord_join::he_face(body, he) {
+                Ok(face) => BooleanError::CurvedBooleanUnsupported {
+                    operand,
+                    face,
+                    kind: s.kind(),
+                },
+                Err(e) => BooleanError::Join(e),
             }
         };
         // A segment along a conic edge of one solid, inside the other's

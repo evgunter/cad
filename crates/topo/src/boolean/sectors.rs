@@ -1617,14 +1617,14 @@ pub(super) fn direction_sense<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    match crate::validate::decide_nonzero("bool_dir_same", Margin::levered(u.dot(v), arm), band) {
-        Ok(NonzeroSign::Positive) => Ok(true),
-        Ok(NonzeroSign::Negative) => Ok(false),
-        Err(diag) => Err(BooleanError::Escalated {
-            decision: BooleanDecision::DirectionSense,
-            diag,
-        }),
-    }
+    Ok(
+        crate::validate::decide_nonzero("bool_dir_same", Margin::levered(u.dot(v), arm), band)
+            .map_err(|diag| BooleanError::Escalated {
+                decision: BooleanDecision::DirectionSense,
+                diag,
+            })?
+            == NonzeroSign::Positive,
+    )
 }
 
 /// `sectoroverlap` — coplanar sectors overlap test (module docs).

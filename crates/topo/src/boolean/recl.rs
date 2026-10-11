@@ -1017,19 +1017,13 @@ fn wedge_is_reflex<T: Decide>(
     band: Band,
 ) -> Result<bool, BooleanError> {
     let ((first, _), (_, (second, _))) = (fl[0], fl[1]);
-    match crate::validate::decide_nonzero(
+    Ok(crate::validate::decide_nonzero(
         "bool_wedge_reflex",
         Margin::levered(second.dot(secs[first].normal.vec()), arm),
         band,
-    ) {
-        Ok(NonzeroSign::Positive) => Ok(true),
-        Ok(NonzeroSign::Negative) => Ok(false),
-        Err(diag) => Err(BooleanError::coincidence(
-            Coincide::Sectors,
-            DeclarationRead::Moot,
-            diag,
-        )),
-    }
+    )
+    .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))?
+        == NonzeroSign::Positive)
 }
 
 /// Edge-edge coincidence — the DERIVED membership rule (subsumes TOG's
@@ -1139,35 +1133,32 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                     };
                     let own_sec = &own_secs[own_idx];
                     let other_sec = &other_secs[oi];
-                    let same = match crate::validate::decide_nonzero(
+                    let same = crate::validate::decide_nonzero(
                         "bool_dir_same",
                         Margin::levered(w.dot(ow), arm),
                         band,
-                    ) {
-                        Ok(NonzeroSign::Positive) => true,
-                        Ok(NonzeroSign::Negative) => false,
-                        Err(diag) => {
-                            let planar = [(own_body, own_sec.face), (other_body, other_sec.face)]
-                                .iter()
-                                .all(|&(body, face)| {
-                                    body.get_face(face)
-                                        .and_then(|f| body.get_surface(f.surface))
-                                        .map(geom::Surface::kind)
-                                        == Some(geom::SurfaceKind::Plane)
-                                });
-                            let which = if planar {
-                                Coincide::FlankSense
-                            } else {
-                                Coincide::CurvedFlankSense
-                            };
-                            let read = declared.read(
-                                &[(own_op, own_sec.face, other_op, other_sec.face)],
-                                which,
-                                &[],
-                            );
-                            return Err(BooleanError::coincidence(which, read, diag));
-                        }
-                    };
+                    )
+                    .map_err(|diag| {
+                        let planar = [(own_body, own_sec.face), (other_body, other_sec.face)]
+                            .iter()
+                            .all(|&(body, face)| {
+                                body.get_face(face)
+                                    .and_then(|f| body.get_surface(f.surface))
+                                    .map(geom::Surface::kind)
+                                    == Some(geom::SurfaceKind::Plane)
+                            });
+                        let which = if planar {
+                            Coincide::FlankSense
+                        } else {
+                            Coincide::CurvedFlankSense
+                        };
+                        let read = declared.read(
+                            &[(own_op, own_sec.face, other_op, other_sec.face)],
+                            which,
+                            &[],
+                        );
+                        BooleanError::coincidence(which, read, diag)
+                    })? == NonzeroSign::Positive;
                     if !same {
                         *inside = false; // touching, not overlapping
                     } else {
