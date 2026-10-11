@@ -1080,7 +1080,7 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         payload.knots_u(),
         payload.knots_v(),
         &control,
-        payload.weights(),
+        payload.weight_channel(),
         (u0, u1, v0, v1),
         perimeter,
         boundary_defect,
@@ -1219,7 +1219,7 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
                         .iter()
                         .map(|p| (ring(p.x), ring(p.y)))
                         .collect(),
-                    weights: image.weights().to_vec(),
+                    weights: image.weight_channel().to_vec(),
                 })
             }
             Pcurve::Fitted(_) => {
@@ -1304,7 +1304,7 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
         payload.knots_u(),
         payload.knots_v(),
         &control,
-        payload.weights(),
+        payload.weight_channel(),
         &chords,
         tol.eps(),
         band,
