@@ -2,10 +2,13 @@
 id: an-ellipse-trimmed-ring-on-a-cylinder-wall-has-no-volume-lane
 kind: issue
 title: A cylinder wall carrying a ring trimmed by ellipse arcs (a tilted bar through a pipe) has no volume lane: RingOnCurvedFace
-status: open
+status: closed
+pr: 4557
+branch: flux/ellipse-ring
 opened: 2026-10-02
 priority: P0
 cost: H
+closed: 2026-10-11
 ---
 
 
@@ -69,3 +72,14 @@ refused the same lines earlier, `Euler(SelfLoopEdge)`.
 - Its review r2 (`r2_pinch_probes cyl`, on
   `join/pierce-pinch-families-review-r2`): 76 cube ∖ prism lines, e.g.
   `Ltop cyl fib33 psi=0.9 off cp S`.
+
+## Closed (2026-10-11, PR 4557)
+
+(FLUX orchestrator) The cylinder quadrature now reads every loop of a
+ringed wall. It went through dual review, a fix pass and an independent
+verifier, which confirmed every item by execution. The DR row is in
+`docs/DUAL-REVIEW-LOG.md`.
+
+The item's witness now builds at the exact volume: a tilted bar unioned
+with, or subtracted from, a pipe. None of the 1,099 battery runs that
+used to end at `RingOnCurvedFace` does so any more.

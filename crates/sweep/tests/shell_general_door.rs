@@ -114,7 +114,9 @@ fn a_spline_capped_box_moves_every_chart_onto_its_closed_form() {
 /// planes, the four bottom corners on the moved floor, and the four top
 /// corners `T` from the cap, within the fit's certified ε. Tighter, the cap's offset fit certifies at 1e-9, and the side
 /// plane's section of it, which is no row of the fit, refuses at the
-/// plane × NURBS certificate's limb 2
+/// plane × NURBS certificate's limb 2: on its bound, or, once the
+/// subdivision reaches a break past the band, on that break's value
+/// (`HullValueChart`, about 4.4e-7 m at 1e-9)
 /// (`work/ssiedge/plane-nurbs-limb-two-refuses-a-non-row-section.md`).
 /// At 1e-12 the fit stops short, at about 1.7e-10 m.
 #[test]
@@ -156,7 +158,8 @@ fn a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold() {
                     error: topo::EulerOpError::RechartFalsifies {
                         error: geom_brep::CertifyError::PlaneNurbs(
                             geom_brep::PlaneNurbsRefusal::Limb {
-                                limb: geom_brep::ssi::SsiLimb::HullSup,
+                                limb: geom_brep::ssi::SsiLimb::HullSup
+                                    | geom_brep::ssi::SsiLimb::HullValueChart,
                                 ..
                             }
                         ),
