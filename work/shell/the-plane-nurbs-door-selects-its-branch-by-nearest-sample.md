@@ -6,6 +6,7 @@ status: closed
 opened: 2026-10-10
 closed: 2026-10-11
 branch: shell/plane-nurbs-branch-at
+pr: 4677
 priority: P2
 cost: M
 refs: [a-wall-seam-between-two-fits-has-no-section]
