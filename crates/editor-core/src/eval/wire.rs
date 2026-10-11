@@ -3999,7 +3999,7 @@ fn wire_loft<T: Decide + topo::AtRestPolicy + geom_core::Bounds + super::Section
         sections.push(
             chain
                 .iter()
-                .map(|lp| lp.map_scalar(T::from_computed))
+                .map(|lp| lp.lift_computed())
                 .collect::<sweep::Section<_>>(),
         );
         places.push(place.map(T::from_computed));

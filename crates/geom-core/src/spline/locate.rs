@@ -205,6 +205,14 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// midpoint would invent one.
     fn point_value(self) -> Option<f64>;
 
+    /// [`SpanLocate::point_value`], or NaN where there is none: the
+    /// `f64` a structure decision reads, so that a value with no point
+    /// (poison, an enclosure wider than a point) takes every
+    /// NaN-catching refusal arm.
+    fn value_channel(self) -> f64 {
+        self.point_value().unwrap_or(f64::NAN)
+    }
+
     /// **Which side of the projective partition this scalar is on**,
     /// answered by running one of `arm`'s two halves: its
     /// [`projective`](super::ProjectiveSplit::projective) half, which

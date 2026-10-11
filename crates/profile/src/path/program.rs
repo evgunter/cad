@@ -2838,7 +2838,11 @@ pub fn replay_guided<T: ArcCarrierScalar>(
 /// Minted only at the lattice's closing — a chain's `finish` and the
 /// `circle` and `circle_split` forms — which the builder and every
 /// replay ([`replay`], [`replay_recording`], [`replay_guided`]) go
-/// through; the fields are private to the `path` module. It is the loop
+/// through; the fields are private to the `path` module. It crosses
+/// scalars only by two doors that keep the points its facts were
+/// verified at: [`ConstructedLoop::value_channel`] (its `f64` value
+/// channel) and [`ConstructedLoop::lift_computed`] (an `f64` loop
+/// entered at another scalar as the computed values it is). It is the loop
 /// [`crate::ConstructedProfile`] is built from, so a table cannot reach
 /// the validation that consumes those facts. It reads as its loop
 /// ([`Deref`](core::ops::Deref)), and gives the provenance up only by
@@ -2879,19 +2883,35 @@ impl<T: Real> ConstructedLoop<T> {
     pub fn into_loop(self) -> ProfileLoop<T> {
         self.loop_
     }
+}
 
-    /// The same loop at another scalar, its provenance kept:
-    /// [`ProfileLoop::map_scalar`] over the loop, and the same
-    /// constructed joints. The facts the lattice verified are about the
-    /// values `f` is handed, so `f` is a lift that keeps them: the
-    /// value channel read across (`T` to `f64`, for an `f64`
-    /// structure pass), or an `f64` construction entered at a lane
-    /// scalar as the computed values it is
-    /// ([`Real::from_computed`](geom_core::Real::from_computed)).
+impl<T: geom_core::spline::SpanLocate> ConstructedLoop<T> {
+    /// This loop's value channel: each value's one `f64`
+    /// ([`SpanLocate::value_channel`](geom_core::spline::SpanLocate::value_channel),
+    /// NaN where there is none, which validation refuses), the
+    /// constructed joints kept. The facts were verified at these
+    /// values' points, so they hold of the channel as they hold of the
+    /// loop.
     #[must_use]
-    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> ConstructedLoop<U> {
+    pub fn value_channel(&self) -> ConstructedLoop<f64> {
         ConstructedLoop {
-            loop_: self.loop_.map_scalar(f),
+            loop_: self
+                .loop_
+                .map_scalar(geom_core::spline::SpanLocate::value_channel),
+            joints: self.joints.clone(),
+        }
+    }
+}
+
+impl ConstructedLoop<f64> {
+    /// This loop at the scalar `U`, every value entered as the computed
+    /// value it is ([`Real::from_computed`](geom_core::Real::from_computed):
+    /// the same point, an unknown at `Sym`), the constructed joints
+    /// kept, which hold of the points they were verified at.
+    #[must_use]
+    pub fn lift_computed<U: Real>(&self) -> ConstructedLoop<U> {
+        ConstructedLoop {
+            loop_: self.loop_.map_scalar(U::from_computed),
             joints: self.joints.clone(),
         }
     }

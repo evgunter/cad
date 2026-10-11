@@ -51,7 +51,11 @@
 //! a section whose arc sweep is a function of a document's variables
 //! gives a wall whose weights, knots and poles are functions of them
 //! too. At `f64` the arithmetic is the one this module has always run,
-//! operation for operation, so the produced bits are the same. The knot
+//! operation for operation, with one exception: the arc conversion's
+//! sines and cosines are `Real`'s, the pure-Rust `libm` D9 prescribes,
+//! where they were `f64`'s inherent (platform libm) ones, so an arc's
+//! weight or tangent-intersection pole can differ from those builds by
+//! an ulp. The knot
 //! algebra is the projective one, so the generic doors that run it are
 //! bounded by [`ProjectiveScalar`]; at an enclosure scalar the loft
 //! body encloses the `f64` skin instead (`crate::loft`). No topology
@@ -333,7 +337,7 @@ pub fn segment_curve<T: SpanLocate>(
     );
     match seg {
         SketchSegment::Line { a, b } => {
-            if !(channel(a.distance(b)) > 0.0) {
+            if !(a.distance(b).value_channel() > 0.0) {
                 return Err(degenerate("zero-length chord"));
             }
             let knots = Knots::new(vec![(T::zero(), two), (T::one(), two)], 1)?;
@@ -349,7 +353,7 @@ pub fn segment_curve<T: SpanLocate>(
                 sweep: theta,
                 ..
             } = arc;
-            let sweep = channel(theta);
+            let sweep = theta.value_channel();
             if !sweep.is_finite() || sweep == 0.0 {
                 return Err(degenerate("zero or non-finite sweep"));
             }
@@ -357,7 +361,7 @@ pub fn segment_curve<T: SpanLocate>(
             // turns, and converts only as ONE (D1's full turn): its
             // sweep is nearer one turn than none or two. An arc between
             // two points stops short of a turn.
-            if channel(a.distance(b)) > 0.0 {
+            if a.distance(b).value_channel() > 0.0 {
                 if !(sweep.abs() < TAU) {
                     return Err(degenerate("a full turn or more between two points"));
                 }
@@ -367,7 +371,7 @@ pub fn segment_curve<T: SpanLocate>(
                 ));
             }
             let spoke = a - centre;
-            let rim = channel(spoke.norm());
+            let rim = spoke.norm().value_channel();
             if !(rim > 0.0) || !rim.is_finite() {
                 return Err(degenerate(
                     "arc start is not a finite, positive distance from its centre",
@@ -418,12 +422,6 @@ pub fn segment_curve<T: SpanLocate>(
             Ok(NurbsCurve3::new(Knots::new(runs, 2)?, control, weights)?)
         }
     }
-}
-
-/// The value channel a structure decision reads: `x`'s one `f64`, or
-/// NaN where it has none, which every comparison here refuses.
-fn channel<T: SpanLocate>(x: T) -> f64 {
-    x.point_value().unwrap_or(f64::NAN)
 }
 
 // ---------------------------------------------------------------------
@@ -551,7 +549,7 @@ fn chord_length_parameters<T: SpanLocate>(
         // A row that never moves (a corner pinned across every
         // section) carries no parameterization information — it is not
         // an error, it simply abstains from the average.
-        if !(channel(total) > 0.0) {
+        if !(total.value_channel() > 0.0) {
             continue;
         }
         counted += 1;
@@ -575,7 +573,7 @@ fn chord_length_parameters<T: SpanLocate>(
     let mut params: Vec<T> = shares
         .iter_mut()
         .map(|s| {
-            s.sort_by(|a, b| channel(*a).total_cmp(&channel(*b)));
+            s.sort_by(|a, b| (*a).value_channel().total_cmp(&(*b).value_channel()));
             let lo = s.first().copied().unwrap_or_else(T::zero);
             lo + s.iter().fold(T::zero(), |acc, x| acc + (*x - lo)) / denom
         })
@@ -586,7 +584,7 @@ fn chord_length_parameters<T: SpanLocate>(
     params[0] = T::zero();
     params[k - 1] = T::one();
     for j in 1..k {
-        if !(channel(params[j - 1]) < channel(params[j])) {
+        if !(params[j - 1].value_channel() < params[j].value_channel()) {
             return Err(SkinError::NoParameterStep { section: j });
         }
     }
@@ -896,7 +894,7 @@ impl<T: Decide> SectionLoop<T> for ProfileLoop<T> {
     type Channel = ProfileLoop<f64>;
 
     fn channel(&self) -> ProfileLoop<f64> {
-        self.map_scalar(channel)
+        self.map_scalar(SpanLocate::value_channel)
     }
 
     fn validate_recording(
@@ -921,7 +919,7 @@ impl<T: Decide> SectionLoop<T> for ConstructedLoop<T> {
     type Channel = ConstructedLoop<f64>;
 
     fn channel(&self) -> ConstructedLoop<f64> {
-        self.map_scalar(channel)
+        self.value_channel()
     }
 
     fn validate_recording(

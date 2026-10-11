@@ -149,7 +149,7 @@ fn spring<S: Scalar>(
     // as the computed values they are.
     let wire: Vec<_> = wire
         .iter()
-        .map(|lp| lp.map_scalar(S::from_computed))
+        .map(|lp| lp.lift_computed())
         .collect();
     let place = start_frame(&path).map(S::from_computed);
     sweep_body::<S>(&wire, place, &path, stations, 3, tol).map(|l| l.body)

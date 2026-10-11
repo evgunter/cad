@@ -69,7 +69,8 @@
 //!
 //! [`factor`] and [`BandedLu::solve`] run at any [`SpanLocate`] scalar
 //! (the skin's solve in its sections' scalar, `sweep::skin`), with
-//! every decision read off the value channel ([`channel`]): the band's
+//! every decision read off the value channel
+//! ([`SpanLocate::value_channel`]): the band's
 //! shape is the `first` indices, which are structure, and a pivot or
 //! factor entry refuses when its value channel is zero or not finite.
 //! The arithmetic is the `f64` solve's, operation for operation, so at
@@ -81,12 +82,6 @@
 
 use geom_core::linalg::lsq::LsqError;
 use geom_core::spline::SpanLocate;
-
-/// The value channel every decision here reads: `x`'s one `f64`, or
-/// NaN where it has none (poison, a wide enclosure).
-fn channel<T: SpanLocate>(x: T) -> f64 {
-    x.point_value().unwrap_or(f64::NAN)
-}
 
 /// A factored collocation matrix ([`factor`]); `L` below the diagonal
 /// (unit diagonal implied) and `U` on and above it, row `i`'s window at
@@ -166,10 +161,10 @@ pub(crate) fn factor<T: SpanLocate>(
             }
             let pivot = lu[q * width + q - first[q]];
             let l = s / pivot;
-            if !channel(l).is_finite() {
+            if !l.value_channel().is_finite() {
                 return Err(LsqError::LsqDegenerate {
                     pivot_index: q,
-                    pivot: channel(pivot),
+                    pivot: pivot.value_channel(),
                 });
             }
             lu[row + q - f] = l;
@@ -181,15 +176,15 @@ pub(crate) fn factor<T: SpanLocate>(
                     s = s - lu[row + t - f] * lu[t * width + j - first[t]];
                 }
             }
-            if !channel(s).is_finite() {
+            if !s.value_channel().is_finite() {
                 return Err(LsqError::LsqDegenerate {
                     pivot_index: i,
-                    pivot: channel(s),
+                    pivot: s.value_channel(),
                 });
             }
             lu[row + j - f] = s;
         }
-        let pivot = channel(lu[row + i - f]);
+        let pivot = lu[row + i - f].value_channel();
         if pivot == 0.0 {
             return Err(LsqError::LsqDegenerate {
                 pivot_index: i,
@@ -253,10 +248,10 @@ impl<T: SpanLocate> BandedLu<T> {
                 let f = self.first[i];
                 while dropped < f {
                     let y = x[dropped][c];
-                    let l = 0.0f64.copysign(channel(at(dropped, dropped)));
-                    if !channel(y).is_finite() {
+                    let l = 0.0f64.copysign(at(dropped, dropped).value_channel());
+                    if !y.value_channel().is_finite() {
                         poison = poison.or(Some((l, y)));
-                    } else if (l * channel(y)).is_sign_negative() {
+                    } else if (l * y.value_channel()).is_sign_negative() {
                         flips = true;
                     }
                     dropped += 1;
@@ -282,9 +277,9 @@ impl<T: SpanLocate> BandedLu<T> {
                 while kept > end {
                     kept -= 1;
                     let v = x[kept][c];
-                    if !channel(v).is_finite() {
+                    if !v.value_channel().is_finite() {
                         poison = Some(v);
-                    } else if channel(v).is_sign_negative() {
+                    } else if v.value_channel().is_sign_negative() {
                         flips = true;
                     }
                 }

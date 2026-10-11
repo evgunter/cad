@@ -970,7 +970,7 @@ fn leaf<S: Scalar>(
     let outline: Vec<_> = section
         .outline(tol)
         .iter()
-        .map(|lp| lp.map_scalar(S::from_computed))
+        .map(|lp| lp.lift_computed())
         .collect();
     sweep_body::<S>(&outline, place, &path, LEAF_STATIONS, BLADE_V_DEGREE, tol)
         .expect("the leaf sweeps along its spine")
@@ -1359,7 +1359,7 @@ fn loft_plan<S: Scalar>(
     // Built in `f64`, so they enter `S` as the computed values they are.
     let sections: Vec<Vec<_>> = sections
         .iter()
-        .map(|s| s.iter().map(|lp| lp.map_scalar(S::from_computed)).collect())
+        .map(|s| s.iter().map(|lp| lp.lift_computed()).collect())
         .collect();
     let places: Vec<Affine3<S>> = places.iter().map(|p| p.map(S::from_computed)).collect();
     loft_body::<S>(&sections, &places, BLADE_V_DEGREE, tol)

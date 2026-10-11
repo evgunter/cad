@@ -413,10 +413,8 @@ pub fn interpolate_columns(
 /// operation for operation (a unit weight's product `n · 1` is `n`,
 /// bit for bit), so at `f64` the two answer the same bits.
 ///
-/// The averaged knots are held one breakpoint per run ([`Knots::new`]):
-/// two interior averages that round onto one value refuse
-/// ([`FitError::Structure`]) rather than merge into a run that would
-/// keep one of them.
+/// Interior averages that round onto one value merge into one run, as
+/// [`interpolate_columns`]' vector holds them (`averaged_knots_in`).
 ///
 /// # Errors
 ///
@@ -449,10 +447,7 @@ pub fn interpolate_columns_in<T: SpanLocate>(
             return Err(FitError::NonFinitePoint { index });
         }
     }
-    let channel: Vec<f64> = params
-        .iter()
-        .map(|u| u.point_value().unwrap_or(f64::NAN))
-        .collect();
+    let channel: Vec<f64> = params.iter().map(|u| u.value_channel()).collect();
     check_ordered(&channel)?;
     check_degree(n, degree)?;
     let knots = averaged_knots_in(params, degree)?;
@@ -465,6 +460,13 @@ pub fn interpolate_columns_in<T: SpanLocate>(
 
 /// [`averaged_knots`] in `T`: the same sums, ascending, divided by the
 /// degree, with the clamped ends the constants `0` and `1`.
+///
+/// Averages that round onto one value on the value channel are one
+/// breakpoint repeated, as [`averaged_knots`]' vector holds them: one
+/// run, whose multiplicity is their count and whose held value is the
+/// first of them. The others' values are dropped there, a held-value
+/// equality decided on the value channel
+/// (`work/inlane/held-value-equalities-decided-on-the-value-channel.md`).
 fn averaged_knots_in<T: SpanLocate>(params: &[T], degree: usize) -> Result<Knots<T>, FitError> {
     let n = params.len();
     let end = NonZeroUsize::new(degree + 1).unwrap_or(NonZeroUsize::MIN);
@@ -476,9 +478,18 @@ fn averaged_knots_in<T: SpanLocate>(params: &[T], degree: usize) -> Result<Knots
         for u in &params[j..j + degree] {
             s = s + *u;
         }
-        runs.push((s / p, NonZeroUsize::MIN));
+        let knot = s / p;
+        match runs.last_mut() {
+            Some((held, m)) if held.value_channel() == knot.value_channel() => {
+                *m = m.saturating_add(1);
+            }
+            _ => runs.push((knot, NonZeroUsize::MIN)),
+        }
     }
-    runs.push((T::one(), end));
+    match runs.last_mut() {
+        Some((held, m)) if held.value_channel() == 1.0 => *m = m.saturating_add(degree + 1),
+        _ => runs.push((T::one(), end)),
+    }
     Knots::new(runs, degree).map_err(FitError::Structure)
 }
 
@@ -1340,5 +1351,14 @@ mod tests {
             assert_eq!(held.structure().knots(), kv.knots(), "degree {degree}");
             assert_eq!(bits(&in_t), bits(&plain), "degree {degree}");
         }
+        // Averages that round onto one value: one run, repeated, as the
+        // f64 vector holds them.
+        let d = f64::EPSILON / 2.0;
+        let params = [0.0, 0.5 + d, 0.5 + 2.0 * d, 0.5 + 3.0 * d, 1.0];
+        let rows: Vec<Vec<f64>> = params.iter().map(|u| vec![*u, 1.0 - u]).collect();
+        let (kv, plain) = interpolate_columns(&params, 2, &rows).unwrap();
+        let (held, in_t) = interpolate_columns_in(&params, 2, &rows).unwrap();
+        assert_eq!(held.structure().knots(), kv.knots(), "a repeated average");
+        assert_eq!(bits(&in_t), bits(&plain), "a repeated average");
     }
 }

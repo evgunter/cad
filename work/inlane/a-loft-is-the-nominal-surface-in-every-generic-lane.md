@@ -104,11 +104,13 @@ Both answered yes. This item is the document half, after the skin unit.
   (`SpanLocate::split_projective`). A section wider than a point
   therefore refuses at the structure pass
   (`a_loft_over_a_section_wider_than_a_point_refuses_at_interval`).
-  Enclosing the family over a box still needs a nominal witness for
-  the structure. `SectionLoop::channel` is the one place a section
-  type can supply one: a section carrying its `T` loops and its nominal
-  could answer `channel()` with the nominal. The placements' channel
-  is read off `point_value` in `build`.
+  A placement wider than a point refuses by name
+  (`LoftError::PlacementNotAPoint`). Enclosing the family over a box
+  is `the-skin-at-interval-encloses-the-nominal-skin`. A nominal
+  witness alone would not do it: in the enclosure half the `f64`
+  skin of the channel is the walls' VALUES, not only their structure,
+  so a section answering `SectionLoop::channel()` with its nominal
+  would certify the nominal over the box, the defect this item names.
 - The library keeps a separate `places` argument (Python, demos, the
   test corpus). A document section that carries its own plane composes
   onto it: the plane's placement is the `places[i]` it passes.

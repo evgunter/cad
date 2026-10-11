@@ -53,22 +53,24 @@ Decisions, shapes and verdicts are unchanged, and the `f64` lines are
 byte-identical. Re-cut the golden on a tree that carries PR 4708.
 
 PR 4726 (`the-skin-computes-its-values-in-t`) moves the serial-golden
-row again, in two ways.
-- **One `f64` line moves.** `arc_loft_1e9eps` goes from
-  `v=4022487ed6a9da05 a=403995a3b53c3c54 vpad=3eb0783c2ee00000
-  apad=3fb5fb0bfc379cc0` to `v=4022487ed6a9d899 a=403995a3b53c3c57
-  vpad=3eb0783424400000 apad=3fb5fb0bfc12a660`, with its verdicts
-  unchanged. The skin's arc conversion used to call `f64`'s inherent
-  `cos`/`sin_cos`, which go to the system libm. Generic over the
-  scalar, it now calls `Real`'s, which at `f64` is the pure-Rust
-  `libm` that D9 prescribes. The inherent call was a latent D9
-  platform dependence, and the ulp it moves is that dependence.
-- **The `Sym` lines' `frozen` column falls.** `sym_arc_loft
-  validate_geometric` goes from 1244 to 1060 and `sym_thin_strip` from
-  1268 to 1177, because the walls are computed in `T` instead of
-  lifted as opaque unknowns. Decisions, `sz`, shapes and verdicts are
-  unchanged.
+row again. Measured against main's own output for that row
+(`work/nurbs/the-arc-loft-thread-count-digest-is-red-on-main.md`'s
+table at ε = 1e-9), not the committed digest:
+- **`arc_loft_1e9eps`**: `v` and `a` are main's (`…d899`, `…3c57`), and
+  only the pads move, `vpad` `3eb0783423f55555` → `3eb0783424400000`
+  and `apad` `3fb5fb0bfc12a5e0` → `3fb5fb0bfc12a660`. Its verdicts are
+  unchanged. The likely cause is that the skin's arc conversion now
+  calls `Real`'s sines and cosines, the pure-Rust `libm` D9 prescribes,
+  where it called `f64`'s inherent (platform libm) ones. That moves an
+  arc's weight or tangent pole by an ulp on a few per cent of sweeps.
+- **The `Sym` lines' `frozen` column** reads 1060 (`sym_arc_loft
+  validate_geometric`) and 1177 (`sym_thin_strip`) at the PR's head,
+  against the committed 1244 and 1268. Main's own counts were not
+  re-measured here. The walls are computed in `T` instead of lifted as
+  opaque unknowns, and the fixture placements are constants rather
+  than `from_computed` unknowns. Decisions, `sz`, shapes and verdicts
+  read as the committed ones.
 
 The import row (`arc_loft_natively_computes_its_rational_volume`)
-builds the same arc loft, so it may move for the same libm reason. Re-cut
-on a tree that carries PR 4726.
+builds an arc loft too, so it may move for the same libm reason.
+Re-cut on a tree that carries PR 4726.
