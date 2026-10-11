@@ -458,6 +458,12 @@ pub(crate) struct RingStrut {
 /// starts at the root's corner whose next germ is the lowest run's.
 /// `None` where `order` pairs crossing chords, or `root` names no
 /// region.
+///
+/// The split reads the same tree with the two circles swapped
+/// (`splitting::insert`): its `order` is an ON vertex's cuts in orbit
+/// order, its chords the corners of the section there, and its regions
+/// the pieces of material round the vertex, rooted at the one the
+/// vertex keeps.
 pub(crate) fn ring_tree(order: &[usize], root: Option<usize>) -> Option<Vec<RingStrut>> {
     let m = order.len();
     let k = m / 2;

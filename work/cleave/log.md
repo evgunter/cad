@@ -783,5 +783,45 @@ Signed (CLEAVE orchestrator).
   triplication is filed on HONE.
 - **PR 4578 merged** (mints unit 2; single FULL review, fix pass done). `k_stats` has one
   gate-rejection path, reconciled with 4571.
+- **PR 4605 merged** (tracker only). The sliver-operand row is parked on FLUXTAIL's new
+  `a-sphere-faces-flux-cancels-r-times-its-area-against-its-vector-area` (P1). The re-pose is the
+  fix under the ratified Q1 premise, not a result-gate refusal, which PR 4335's honesty condition
+  forbids. Option (B) is noted on TALLY's typing row.
+- **PR 4578 merged** after a green re-run on the main merge.
+- **PR 4565** (apex section) re-review: APPROVE-WITH-FIXES. Across about 63k fuzz cells head ships 0
+  crossed corners, against base's about 1,500.
+  - About 0.5% of cells now refuse an existing `pcurve_map_residual` certification class that base
+    escaped only through the retired mirror rerun. Ruled: accept the trade, disclose it, and file
+    the class on its owner.
+  - `ArcSides` becomes `unreachable!`.
+  - File the pre-existing crown `join.rs` panic as a CLEAVE P1.
+- **Dispatched:**
+  - mints unit 4, `boolean-gate-mints-route-through-the-funnel`;
+  - `split-band-on-at-a-concave-edge-may-mint-a-pinch-from-near-coincidence`, its post-D10 residue
+    (kernel-defect voice at δ = 5e-10, and `SliverVertex` text beyond ε).
+- **PR 4565 merged** (apex section corners: review, re-review and two fix passes). Filed:
+  - TOPO's recharted-residual row (P2);
+  - CLEAVE's crown spur panic (P1);
+  - HONE's two-homes germ-order row.
 - **PR 4581 merged** (near-tangent invariants; single FULL review, fix pass done). The 1e-12 trade is
   pinned as `SHIPS_A_FINDING` and points at FUSE's row and the door-census row.
+- **PR 4581 merged** after a green re-run on its main merge.
+- **PR 4565 merged** after a fresh run on a real main merge, which cleared GERM's random
+  `pn_apex_point_reach` fuzz red (its second seed is on GERM's row; the 403 stopped a re-run).
+- **PR 4607** (mints unit 3; single FULL review): APPROVE-WITH-FIXES, one MAJOR.
+  - C17's cause was inverted. The certified quartic count is wrong (rung 1's Δ rounding is
+    uncharged), and the construction is right.
+  - At R = 1e6, 10 rays get a certified, silent wrong `Miss`. Ruled: correct the texts, keep the
+    kernel-defect ending, and file the rung-1 defect on INSIDE (P1).
+- **PR 4609** (band-on residue): approved on an orchestrator read. It waits on a main merge and a
+  digest re-bless.
+- **Dispatched:**
+  - `a-crown-touching-the-plane-along-one-edge-panics-at-the-section-spur-check` (P1, a D9 panic on
+    exact input);
+  - `single-on-edge-crossing-without-a-flanking-record-at-1e-12` (P1).
+- **PR 4609 merged** (band-on pinch residue; orchestrator read). The row is closed.
+- 2026-10-11 — PR 4613 (mints unit 4) review: APPROVE-WITH-FIXES, no MAJOR. Fix pass sent: C10's at-rest defect arm is unreachable at the census (tier 3 certifies endpoint pinning first), so it goes to D9 `unreachable!` or is pinned through a real caller, with the K ≤ 3 lever move pinned on geometry; C11's hand-built `Decided` carries vtxfac's margin or is pinned and listed on the ratchet row; the `wall_crossing`/`ball_off_face` moves get pinned; `rim_wedge::contains`' lift is typed by cause (in-band → Escalated); style sweep (stale coarser-band text, Display order, the definite finding out of `CensusUnsupported`, the editor-core attribution row, unit 3's stale `Decided` prescription).
+- 2026-10-11 — `continuation-scan-box-fallback-reads-a-world-axis-run` → PR 4626 (tests and tracker only). The scan was deleted by glue-on-Zero (PR 4496), and the row's premise was false even against the deleted code (an ellipse never reached the fallback; a poison box read "shares a curve" at every pose). Pinned with a 13-pose rotation family (apart and plugged) at all three ε, with the `glue::touched` mutation red. Orchestrator read: accepted. Filed P2 `a-tilted-plug-in-its-hole-refuses-at-the-ellipse-rims` (its open point: whether the one-carrier arms' `LinesAndCircles` reach is still D10-held now that they serve value-decided pairs). Merges once the 4609 P123 red on main is fixed.
+- 2026-10-11 — Note from ENCL: main is red on `topo` `split_through_an_apex::a_recharted_residual_in_the_band_refuses_typed`. Main pushes skip the test job, and any PR that runs topo goes red. ENCL bisected it: the test (PR 4565, `bb4f54837c`) and PR 4609's fix (`758162892d`, `chord_u_ref` charted in the plane) conflict semantically. 4609's branch predates 4565, so its CI never ran the row. Measured: before 4609 this witness refused at 1.077 ε; after it, all 20 pose/normal/side cells split, with the largest re-charted residual 0.9000002 ε (the On vertex's own 0.9 ε offset, under ε). Every side passes tier 3 and `pyramid_splits_sound`. So 4609 is an improvement and the row's premise is stale. The suggested re-baseline: turn the row into a sound-split row (`pyramid_splits_sound` on this base, with residual ≤ ε). Re-run the class's fuzz (seeds `0x9E3779B97F4A7C15` and `1234567891011`) before closing `work/topo/a-split-recharts-an-edge-at-a-vertex-read-on-off-the-plane-into-the-band.md`. ENCL has not touched your file. (ENCL orchestrator)
+- 2026-10-11 — PR 4631 merged (main red fix): P123 builds after 4609's `chord_u_ref` projection. The cause was confirmed by reverting the projection. The pin now holds P123 sound against the closed form in every cell, and the TOPO re-chart row is closed (every fuzz re-chart refusal now splits sound). Ruling: the in-band tier-3′ census escalation on these bodies does not count against "sound". It is an Escalated reading, not a falsification, and it matches the file's existing bar; RESTREAD P2 tracks it. Closed the P0 `main-reds-on-a-recharted-residual-in-the-band-since-4609`. Merged on a green head: main's moves since were disjoint from the split code (two comment-only topo lines).
+- 2026-10-11 — PR 4626 state-sync: `continuation-scan-box-fallback-reads-a-world-axis-run` closed (does not reproduce; pinned across 13 poses). Merged main with the 4631 fix for a green gate.

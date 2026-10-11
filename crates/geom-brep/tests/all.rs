@@ -192,6 +192,8 @@ mod pcurve_villarceau;
 mod r1_pxn_probes;
 #[path = "r2_cert3_e2e.rs"]
 mod r2_cert3_e2e;
+#[path = "review_4553_pxn_probes.rs"]
+mod review_4553_pxn_probes;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
 #[path = "review_flux_probes_r1.rs"]

@@ -128,7 +128,7 @@
 //! refusal route: it is refused at the mint, before there is a door to
 //! answer.
 
-use super::knots::{KnotVector, Span};
+use super::knots::{KnotVector, Span, knot_difference};
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
 use crate::real::CertifiedBounds;
@@ -685,7 +685,7 @@ impl<'a, E: CertifiedBounds> SplineCoeffs<'a, E> {
         if i + 1 >= coeffs.len() || i + p + 1 >= u.len() {
             return Interval::refused();
         }
-        let du = Interval::point(u[i + p + 1]) - Interval::point(u[i + 1]);
+        let du = knot_difference::<Interval>(u[i + 1], u[i + p + 1]);
         let dc = Interval::from_certified(coeffs[i + 1]) - Interval::from_certified(coeffs[i]);
         #[allow(clippy::cast_precision_loss)]
         let scale = Interval::point(p as f64);

@@ -136,6 +136,14 @@ impl PatchSpans {
         super::tensor::coefficient_norm_sup([na, nb, nc])
     }
 
+    /// Cell `(su, sv)`'s coefficients, row-major in `u`, `None` out of
+    /// range: one coefficient's enclosure, which [`Self::cell_hull`]
+    /// folds into the cell's.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn cell_coeffs(&self, su: usize, sv: usize) -> Option<&[Interval]> {
+        self.block(su, sv)
+    }
+
     /// Cell `(su, sv)`'s coefficients, `None` out of range.
     fn block(&self, su: usize, sv: usize) -> Option<&[Interval]> {
         self.cells

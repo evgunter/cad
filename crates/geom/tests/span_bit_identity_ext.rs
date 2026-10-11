@@ -429,16 +429,12 @@ const ROW_COUNT: usize = 11_151;
 
 /// FNV-1a 64 over `"{label} {bits:#018x}\n"` for every row in order.
 ///
-/// **Re-captured when certification arithmetic became a newtype over the backend**
-/// (`0x606f_ae2d_7244_63e4` before): interval arithmetic padded one representable
-/// step outward on every operation and the backend pads only where the
-/// operation was inexact. Exactly 28 of these 11 151 rows moved, all of
-/// them a `derivative_span_hull` or `derivative_domain_hull` endpoint
-/// and all of them TIGHTER — a derivative hull is a fold of exact
-/// differences, which is where the retired pad had nothing to cover, so
-/// each one lands on the exact value the reals give (`-6`, `4.5`, `1.5`,
-/// `12`). None moved looser.
-const DIGEST: u64 = 0xd572_6f5c_cd9a_ef62;
+/// At `Interval` the basis takes every knot difference and every
+/// derivative coefficient in interval arithmetic over the lifted knots,
+/// so each enclosure contains the real basis value, not the value over
+/// `f64`-rounded knot gaps (`basis.rs`'s
+/// `an_interval_coefficient_encloses_the_unrounded_knot_gap`).
+const DIGEST: u64 = 0x1836_e357_1f82_1ae6;
 
 #[test]
 fn the_extended_corpus_is_bit_identical_to_the_retired_spellings() {

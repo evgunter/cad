@@ -81,4 +81,4 @@ it for shape only.
 
 The derivation and certification per op are now constant. What still
 grows with the loop is reads, filed rather than disclosed here:
-`work/topo/the-site-mints-plan-reads-the-rewired-loop-whole-on-every-op`.
+`work/topotail/the-site-mints-plan-reads-the-rewired-loop-whole-on-every-op`.
