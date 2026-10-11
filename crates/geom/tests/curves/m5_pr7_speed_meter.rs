@@ -40,6 +40,7 @@
 use geom::NurbsCurve3;
 use geom_core::Point3;
 use geom_core::spline::KnotVector;
+use geom_core::spline::Knots;
 use test_utils::tightness::Meter;
 
 #[test]
@@ -480,9 +481,12 @@ fn the_interval_meter_brackets_the_f64_meter() {
         )
     };
     let ci = NurbsCurve3::<Interval>::new(
-        kv,
+        Knots::from(kv).lift(geom_core::Real::from_f64),
         vec![pt(0.0, 0.0, 0.0), pt(0.5, 0.3, 0.0), pt(1.0, 0.0, 0.0)],
-        weights,
+        weights
+            .iter()
+            .map(|w| Interval::from_bounds(*w, *w))
+            .collect(),
     )
     .unwrap();
     let mi = ci.speed_lower_bound().get();
@@ -523,11 +527,11 @@ fn a_carrier_on_non_dyadic_knots_meters_at_both_scalars() {
     let mf = cf.speed_lower_bound().get();
     let pt = |x: f64| Interval::from_bounds(x, x);
     let ci = NurbsCurve3::<Interval>::new(
-        kv,
+        Knots::from(kv).lift(geom_core::Real::from_f64),
         ctl.iter()
             .map(|&(x, y, z)| Point3::new(pt(x), pt(y), pt(z)))
             .collect(),
-        weights,
+        weights.iter().map(|w| pt(*w)).collect(),
     )
     .unwrap();
     let mi = ci.speed_lower_bound().get();

@@ -32,3 +32,11 @@ Owed: root-cause both against 4553's change. If a digest moved for a
 stated reason, re-baseline it and say what moved. If the bits now
 differ because the two sides compute the knots differently, make them
 compute them the same way.
+
+The serial-golden row's `Sym` lines also move under PR 4662
+(nurbs-weights-and-knots-are-the-scalar u2): the `validate_geometric`
+rows' `frozen` column is +2 (`sym_arc_loft`) and +1 (`sym_thin_strip`)
+against main, because the carriers' knots and weights are held as nodes,
+with decisions, discharges, shapes and verdicts unchanged and the `f64`
+lines byte-identical to main's red output. Re-cut that golden on a tree
+that carries PR 4662.

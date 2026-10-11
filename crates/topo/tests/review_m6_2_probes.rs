@@ -65,7 +65,7 @@ fn a_between_samples_net_corruption_is_refused_at_the_envelope() {
     let mid = control.len() / 2;
     control[mid].z = control[mid].z + Interval::from_bounds(1e-3, 1e-3);
     let moved = geom::NurbsCurve3::new(
-        built.carrier.knots().clone(),
+        built.carrier.knot_values().clone(),
         control,
         built.carrier.weights().to_vec(),
     )

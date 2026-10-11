@@ -131,3 +131,24 @@ now pins the ∩ `OK SOUND … operand=true`. The `b ∩ a` residue at
 the fan does not touch: FLUXTAIL's
 `a-sphere-faces-flux-cancels-r-times-its-area-against-its-vector-area`
 still owns it.
+
+## Planar witnesses, and a hypothesis about the margin (FLUSH, 2026-10-11)
+
+These are from the FLUSH thin-hollow design fork (fork log row 113),
+measured by a designer lane on main at ε = 1e-9 after PR 4636. Each
+body below was built at rest, then unioned with a cube at `(5..6)³`:
+- a slab `t = 1.5e-8` thick refuses `ShellWitnessExhausted`;
+- a closed hollow with walls `δ = 1.5e-8` refuses the same way;
+- a 1 m cube carrying one fin of the same thickness builds, and a bar
+  cut through the fin's wall builds too.
+
+The designer reads the failing witness's in-band margin as `t/2`, half
+the wall's thickness, for a test point 5 m from the body. The question
+"which side is that point on" is not in doubt there.
+**Hypothesis (not traced line by line):** `point_in_solid` / the ray
+walk takes its margin from the operand's wall thickness, not from the
+point's distance to the boundary. That would be the same family as
+`point-in-solid-reads-in-band-against-a-face-plane-far-from-the-face`
+(closed by PR 3866). If so, a body thin everywhere is not a legal
+operand because of a measuring defect, not because of its geometry.
+FLUSH's fork row 113 depends on the answer.
