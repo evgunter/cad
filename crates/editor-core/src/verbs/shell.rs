@@ -71,6 +71,7 @@ use crate::node::{RecipeNodeId, SlotId};
 pub(crate) type ShellEmitter<T> = fn(
     RecipeNodeId,
     RecipeNodeId,
+    crate::VarId,
     &NameTable,
     &Body<T>,
     &ShellNaming,

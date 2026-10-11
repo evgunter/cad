@@ -156,13 +156,6 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "DuplicateInput",
-            EditError::DuplicateInput {
-                node: s(5, "Union"),
-                input: s(3, "Extrude"),
-            },
-        ),
-        (
             "SelectionShape(Repeated)",
             EditError::SelectionShape {
                 node: s(5, "Shell"),
@@ -197,13 +190,6 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "TooFewMembers",
-            EditError::TooFewMembers {
-                node: s(5, "Union"),
-                found: 1,
-            },
-        ),
-        (
             "OperandUnresolved",
             EditError::OperandUnresolved {
                 node: s(5, "Extrude"),
@@ -215,7 +201,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             "AmbiguousOutput",
             EditError::AmbiguousOutput {
                 input: s(3, "Split"),
-                slot: SlotId::Operand(pncad::document::OperandSlot::A),
+                slot: SlotId::Operand(pncad::document::OperandSlot::From),
                 ports: vec!["above", "below"],
             },
         ),

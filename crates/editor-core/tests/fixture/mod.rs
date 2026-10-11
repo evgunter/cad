@@ -66,7 +66,7 @@ use editor_core::{
     AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, EntityKey, EntityKind, Entry,
     EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, MateReach, NameTable, Node, ProfileDoc,
     ProfileEdgeRef, ProfilePieces, ProfileProgram, ProfileVertexRef, RecipeNodeId, RefusingReach,
-    RoleSeg, SitedRef, SolvedPoses, StableName, VarName, assemble, evaluate, mate_reach,
+    RoleSeg, SitedRef, SolvedPoses, StableName, VarId, VarName, assemble, evaluate, mate_reach,
     solve_document,
 };
 use geom_core::{Point3, Tol};
@@ -627,7 +627,9 @@ pub fn with_placements(
     let mut out = cut.clone();
     for placement in doc.placements() {
         if let Some(Node::PlaceInWorld { body, .. }) = doc.node(placement)
-            && doc.operation_of(*body).is_some_and(|at| cut.contains(&at))
+            && doc
+                .operation_of(body.read)
+                .is_some_and(|at| cut.contains(&at))
         {
             out.insert(placement);
         }
@@ -740,7 +742,9 @@ pub fn union_over(
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: inserted.clone().into_iter().map(Into::into).collect(),
+            members: editor_core::Bodies::Spelled(
+                inserted.clone().into_iter().map(Into::into).collect(),
+            ),
             declare,
         },
     );
@@ -751,7 +755,9 @@ pub fn union_over(
         doc,
         DocEdit::SetMembers {
             node: union,
-            members: members.iter().copied().map(Into::into).collect(),
+            members: editor_core::Bodies::Spelled(
+                members.iter().copied().map(Into::into).collect(),
+            ),
         },
     );
     (doc, union)
@@ -762,12 +768,13 @@ pub fn union_over(
 /// can set an undeclared document beside its declared twin.
 pub fn findings_declared(
     ev: &Evaluation<f64>,
+    doc: &ProfileDoc,
     members: &[RecipeNodeId],
 ) -> Vec<editor_core::DeclaredPair> {
     let mut pairs = Vec::new();
     for (i, &a) in members.iter().enumerate() {
         for &b in &members[i + 1..] {
-            let found = editor_core::find_flush_candidates(ev, a, b, tol())
+            let found = editor_core::find_flush_candidates(ev, doc, a, b, tol())
                 .unwrap_or_else(|e| panic!("the detector answers {a:?} × {b:?}: {e:?}"));
             pairs.extend(editor_core::declared_pairs(&found));
         }
@@ -1449,14 +1456,14 @@ pub fn die() -> Die {
             // sketch plane, which IS the cube face's plane), and it
             // faces out of the cube as that face does: a continuation.
             let pip_cap = face_name(ext, RoleSeg::Cap(CapEnd::Start));
+            let (acc_read, tr_read) = (out(&r.doc, acc), out(&r.doc, tr));
             let decl = editor_core::declare_continuation(vec![(
-                SitedRef::new(acc, cube_face_names[face_idx].clone()),
-                SitedRef::new(tr, pip_cap),
+                SitedRef::new(acc_read, cube_face_names[face_idx].clone()),
+                SitedRef::new(tr_read, pip_cap),
             )]);
-            let sub = r.insert(Node::Boolean {
-                op: editor_core::BooleanOp::Subtract,
-                a: acc.into(),
-                b: tr.into(),
+            let sub = r.insert(Node::Subtract {
+                from: acc.into(),
+                tool: tr.into(),
                 declare: decl,
             });
             acc = sub;
@@ -1464,7 +1471,13 @@ pub fn die() -> Die {
             // Every A-side face name wraps once per boolean (N1
             // derivation paths through the new subtract node).
             for name in &mut cube_face_names {
-                *name = face_name(sub, RoleSeg::FromA(name.clone().into()));
+                *name = face_name(
+                    sub,
+                    RoleSeg::From {
+                        read: acc_read,
+                        of: name.clone().into(),
+                    },
+                );
             }
         }
     }
@@ -1585,10 +1598,9 @@ pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
     );
     insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Subtract,
-            a: target.into(),
-            b: cutter.into(),
+        Node::Subtract {
+            from: target.into(),
+            tool: cutter.into(),
             declare: Vec::new(),
         },
     )
@@ -1909,17 +1921,26 @@ pub fn flush_pairs(
     doc: &ProfileDoc,
     (a_at, a_ext): (RecipeNodeId, RecipeNodeId),
     (b_at, b_ext): (RecipeNodeId, RecipeNodeId),
-) -> Vec<(SitedRef, SitedRef)> {
+) -> Vec<(SitedRef<VarId>, SitedRef<VarId>)> {
+    let (a_read, b_read) = (out(doc, a_at), out(doc, b_at));
     flush_segs(doc, a_ext)
         .into_iter()
         .zip(flush_segs(doc, b_ext))
         .map(|(a, b)| {
             (
-                SitedRef::new(a_at, fname(a_ext, a)),
-                SitedRef::new(b_at, fname(b_ext, b)),
+                SitedRef::new(a_read, fname(a_ext, a)),
+                SitedRef::new(b_read, fname(b_ext, b)),
             )
         })
         .collect()
+}
+
+/// **The read of `node`'s one output** — what an operand reading the
+/// node holds, and so what a declared pair is sited at and a carried
+/// name is keyed by (`RoleSeg::From`).
+pub fn out(doc: &ProfileDoc, node: RecipeNodeId) -> VarId {
+    doc.output(node, 0)
+        .unwrap_or_else(|| panic!("{node} defines an output"))
 }
 
 /// **One ENTITY of one member, in the UNION's own name space** — the
@@ -1931,15 +1952,15 @@ pub fn flush_pairs(
 /// and a suite that writes an expected row spell the rule once.
 pub fn member_entity(
     union: RecipeNodeId,
-    member: RecipeNodeId,
+    member: VarId,
     of: StableName,
     kind: EntityKind,
 ) -> StableName {
     StableName {
         kind,
         node: union,
-        path: vec![RoleSeg::FromMember {
-            member,
+        path: vec![RoleSeg::From {
+            read: member,
             of: of.into(),
         }],
     }
@@ -1947,7 +1968,7 @@ pub fn member_entity(
 
 /// The same, for the FACE case every row but a carried-contact one
 /// wants.
-pub fn member_face(union: RecipeNodeId, member: RecipeNodeId, of: StableName) -> StableName {
+pub fn member_face(union: RecipeNodeId, member: VarId, of: StableName) -> StableName {
     member_entity(union, member, of, EntityKind::Face)
 }
 
@@ -2047,7 +2068,7 @@ pub fn assert_no_nested_merged<T: geom_core::Decide>(ev: &editor_core::Evaluatio
     }
 }
 
-/// True iff `name`, read through its `FromA`/`FromB` descent chain,
+/// True iff `name`, read through its `From` descent chain,
 /// is a bare merged face — the shape a flat constituent set never
 /// holds. A FRAGMENT of a merged face (`Merged` head with a
 /// `Fragment` tail at the foot) is a fragment, not a merge, and is a
@@ -2055,7 +2076,7 @@ pub fn assert_no_nested_merged<T: geom_core::Decide>(ev: &editor_core::Evaluatio
 fn is_merged_face(name: &StableName) -> bool {
     match name.path.as_slice() {
         [RoleSeg::Merged(_)] => true,
-        [RoleSeg::FromA(inner) | RoleSeg::FromB(inner)] => is_merged_face(inner),
+        [RoleSeg::From { of: inner, .. }] => is_merged_face(inner),
         _ => false,
     }
 }
@@ -2085,9 +2106,7 @@ fn merged_sets(name: &StableName) -> Vec<&[StableName]> {
 fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
     use editor_core::Qualifier;
     match seg {
-        RoleSeg::FromA(x)
-        | RoleSeg::FromB(x)
-        | RoleSeg::FromMember { of: x, .. }
+        RoleSeg::From { of: x, .. }
         | RoleSeg::SectionEdge { face: x, .. }
         | RoleSeg::SplitFragment { parent: x, .. }
         | RoleSeg::CrossingVertex { edge: x, .. }
@@ -2095,7 +2114,6 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::Instance { of: x, .. }
         | RoleSeg::InPart { of: x }
         | RoleSeg::Placed { of: x }
-        | RoleSeg::FromTarget(x)
         | RoleSeg::BlendFace(x)
         | RoleSeg::CornerFace(x)
         | RoleSeg::Mitre { vertex: x }
@@ -2199,10 +2217,8 @@ pub fn two_blocks_and_their_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let (doc, b) = block(doc, [0.5, 0.25, 0.5]);
     insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     )
