@@ -249,6 +249,33 @@ fn a_circle_of_radius_1500_reading_its_noise_in_the_gap_is_answered_truly() {
     }
 }
 
+/// **A root whose slack reads in the band's gap is refused**: a crossing
+/// of the ρ = 1500 family `5.4e-8` m deep at `ε = 1e-9`, whose bisected
+/// roots read ON the wall but whose slack meter cannot place them inside
+/// the zero band. The answer is `Uncertain`; a meter that accepted the
+/// gap reading certifies both roots `2.05e-9` m from the truth.
+#[test]
+fn a_root_whose_slack_reads_in_the_gap_is_refused() {
+    let band = Band::new(1e-9, 1e-8).unwrap();
+    let c = tangent_circle(
+        1.0,
+        1500.0,
+        -5.443_654_349_587_092_4e-8,
+        1.326_311_202_638_081_4,
+        0.083_739_547_232_657_34,
+    );
+    assert_eq!(
+        exact::truth(&c, &wall(1.0)).roots.len(),
+        2,
+        "the pose crosses the wall twice"
+    );
+    let got = conic_quadric_roots(&c, -1.0, 1.0, &wall(1.0), band);
+    assert!(
+        matches!(got, Ok(CircleRoots::Uncertain)),
+        "refused, got {got:?}"
+    );
+}
+
 /// **A circle of radius 1500 against a unit wall places every certified
 /// root within the zero band of a true one** (module docs), at depths
 /// from a hundredth of the zero band to 0.1 m either side and at any
@@ -282,18 +309,19 @@ fn a_circle_of_radius_1500_places_its_roots_within_the_zero_band() {
         for _ in 0..n {
             let side = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
             let depth = side * rng.log_uniform(1e-2 * eps, 1e-1);
-            let c = tangent_circle(1.0, rho, depth, rng.range(0.0, TAU), rng.range(0.0, TAU));
+            let (g, b) = (rng.range(0.0, TAU), rng.range(0.0, TAU));
+            let c = tangent_circle(1.0, rho, depth, g, b);
             let truth = exact::truth(&c, &wall(1.0));
             let got = conic_quadric_roots(&c, -1.0, 1.0, &wall(1.0), band);
             match got {
                 Ok(CircleRoots::Miss) if !truth.roots.is_empty() => wrong.push(format!(
-                    "ε {eps:e}, depth {depth:e}: Miss on {} true roots",
+                    "ε {eps:e}, depth {depth:e}, g {g}, b {b}: Miss on {} true roots",
                     truth.roots.len()
                 )),
                 Ok(CircleRoots::Certified { count, thetas }) => {
                     if count != truth.roots.len() {
                         wrong.push(format!(
-                            "ε {eps:e}, depth {depth:e}: {count} certified, {} true",
+                            "ε {eps:e}, depth {depth:e}, g {g}, b {b}: {count} certified, {} true",
                             truth.roots.len()
                         ));
                     }
@@ -305,7 +333,8 @@ fn a_circle_of_radius_1500_places_its_roots_within_the_zero_band() {
                             .fold(f64::INFINITY, f64::min);
                         if off > eps + judge {
                             wrong.push(format!(
-                                "ε {eps:e}, depth {depth:e}: root {t} lies {off:e} m from the truth"
+                                "ε {eps:e}, depth {depth:e}, g {g}, b {b}: root {t} lies {off:e} m \
+                                 from the truth"
                             ));
                         }
                     }
