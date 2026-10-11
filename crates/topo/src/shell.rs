@@ -905,6 +905,27 @@ pub struct Shelled<T: Real> {
     pub naming: ShellNaming,
 }
 
+impl<T: Real> Shelled<T> {
+    /// `records`, the operand's, carried onto the thin solid: the outer
+    /// walls keep their operand keys, so each cell is itself or the edge
+    /// the closing join made of it, and a cell the construction retired
+    /// ([`ShellNaming::dead`]) is refused
+    /// ([`crate::ContactRecords::carried_through`]). The cavity twins are
+    /// new cells and no operand record names one.
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::ContactRecords::carried_through`].
+    pub fn carry_contacts(
+        &self,
+        records: &crate::boolean::ContactRecords,
+    ) -> Result<crate::boolean::ContactRecords, crate::boolean::CarryRefusal> {
+        records.carried_through(0, &self.body, |c| {
+            Some(crate::boolean::joined_cell(&self.naming.edge_joins, c))
+        })
+    }
+}
+
 /// Mint-time naming facts of one shell (source keys ← the operand,
 /// result keys ← the returned body). Rows are written as the doors
 /// act, in the deterministic order the construction visits entities

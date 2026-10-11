@@ -2,11 +2,12 @@
 id: an-apex-edge-in-the-partners-face-plane-fails-tier-3-prime-on-one-edge-face-overlap
 kind: issue
 title: A triangle prism's apex edge in the partner's face plane builds and fails tier 3' on one EdgeFaceOverlap the boolean neither refuses nor records
-status: open
+status: dispatched
 opened: 2026-10-11
 priority: P0
 cost: M
 refs: [a-corner-pair-with-an-edge-in-the-partners-face-plane-builds-with-undeclared-contacts, 4650]
+branch: flush/apex-edge-in-face-plane
 ---
 
 

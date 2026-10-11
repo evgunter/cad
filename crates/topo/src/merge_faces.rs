@@ -39,12 +39,12 @@ use std::collections::BTreeMap;
 use geom::SurfaceKind;
 use geom::{NetState, Surface};
 use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized};
-use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Tol};
+use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Real, Tol};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
 use crate::boolean::{
-    PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, oriented_plane_eq,
+    Cell, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, oriented_plane_eq,
 };
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
@@ -73,8 +73,9 @@ pub struct MergedGroup {
     /// each the free end of a shared edge the glue left dangling inside
     /// the merged face (the argument that this changes no region is
     /// stated once, at the pruning in `merge_group`), or the vertex of a
-    /// closed shared edge the glue killed. A contact record
-    /// citing one is consumed and drops.
+    /// closed shared edge the glue killed. It lay in the merged face's
+    /// interior, so a contact record citing one is carried onto
+    /// [`Self::kept`] ([`Self::substitutions`]).
     ///
     /// Recorded rather than left implicit because this is the one
     /// thing the op destroys that no other field names: `absorbed`
@@ -82,6 +83,23 @@ pub struct MergedGroup {
     /// without this a caller reconciling the Euler delta would find a
     /// `v −1` with nothing accounting for it.
     pub killed_vertices: Vec<VertexKey>,
+}
+
+impl MergedGroup {
+    /// **The merge's lineage**: each cell the group killed — an absorbed
+    /// face, a killed shared edge, a killed seam vertex — with the cell
+    /// holding its interior now, the kept face. The one home both the
+    /// boolean's descendant map and [`MergeCoplanarOutcome::carry_contacts`]
+    /// read.
+    pub fn substitutions(&self) -> impl Iterator<Item = (Cell, Cell)> + '_ {
+        let kept = Cell::Face(self.kept);
+        self.absorbed
+            .iter()
+            .map(|&f| Cell::Face(f))
+            .chain(self.killed_edges.iter().map(|&e| Cell::Edge(e)))
+            .chain(self.killed_vertices.iter().map(|&v| Cell::Vertex(v)))
+            .map(move |dead| (dead, kept))
+    }
 }
 
 /// One record: a curved merge GROUP that was NOT glued (its shape is
@@ -141,6 +159,32 @@ pub struct MergeCoplanarOutcome {
     /// [`Body::merge_coplanar_faces_declared`]'s *The placeholder is
     /// a third kind, not a curved one*.
     pub placeholders: Vec<FaceKey>,
+}
+
+impl MergeCoplanarOutcome {
+    /// `records`, the body's before the merge, carried onto `result`, the
+    /// body after it: each cell a group killed is the face it kept
+    /// ([`MergedGroup::substitutions`]), a joined-away cell is the edge
+    /// its join made, and every other cell is itself
+    /// ([`crate::ContactRecords::carried_through`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::ContactRecords::carried_through`].
+    pub fn carry_contacts<T: Real>(
+        &self,
+        records: &crate::boolean::ContactRecords,
+        result: &Body<T>,
+    ) -> Result<crate::boolean::ContactRecords, crate::boolean::CarryRefusal> {
+        records.carried_through(0, result, |c| {
+            let merged = self
+                .groups
+                .iter()
+                .flat_map(MergedGroup::substitutions)
+                .find_map(|(dead, by)| (dead == c).then_some(by));
+            Some(merged.unwrap_or_else(|| crate::boolean::joined_cell(&self.joins, c)))
+        })
+    }
 }
 
 /// One half-edge resolved to the facts the merge's scans read through
