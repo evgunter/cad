@@ -310,8 +310,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    plus **two-directional contact-record certification**:
    - The census is exact on the planar inventory and admits every
      carrier kind: same-key opposed-sense curved pairs certify through
-     the conformal arm, curve/patch records through the jet
-     schedule and the patch certifier, cross-solid pairs with a curved
+     the conformal arm, face–face records through the patch
+     certifier, cross-solid pairs with a curved
      side in reach refuse as undecidable, and same-solid distinct-key
      curved pairs stay undetected until C9/C6 (`topo::census` module
      docs). A record or candidate outside a certifier's lane refuses

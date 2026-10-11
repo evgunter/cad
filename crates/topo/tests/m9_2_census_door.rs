@@ -4,7 +4,7 @@
 //! arms: the exact planar sweeps (unchanged), the conformal face-pair
 //! arm (shared-carrier opposed-sense curved pairs through the
 //! chart-region predicate), face-granularity backing from
-//! curve/patch records, the patch-record certifier, and the
+//! face–face records, the patch-record certifier, and the
 //! closed-form tangent-locus helper (the M9-1 PR-2 DEV-1 ruling).
 //! Three-outcome ε honesty on every new row; nothing blesses from
 //! discovery (F1).

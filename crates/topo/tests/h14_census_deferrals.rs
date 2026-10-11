@@ -4,11 +4,10 @@
 //! sits relative to another. It used to SKIP any solid pair linked by
 //! a contact record, justified by *"under the confirm pass's
 //! examination"*. The confirm pass asks of each record whether that
-//! record's own coincidence is geometrically real — vv a coincident
-//! vertex pair, v-on-f a vertex in a face's region, `curves` a tangent
-//! locus, `patches` a conformal overlap. None of the four is a
-//! question about placement, and no variant of `ContactRecords` states
-//! one, so the pass the arm deferred to never asked the arm's
+//! record's own coincidence is geometrically real — two vertices at
+//! one point, a vertex in a face's region, two faces' overlap, and so
+//! on for every kind. None is a question about placement, and no
+//! record states one, so the pass the arm deferred to never asked the arm's
 //! question.
 //!
 //! The consequence was live: an instance sitting inside another's

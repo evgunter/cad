@@ -339,6 +339,12 @@ fn both_sweeps_evaluate_in_one_document() {
 /// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
 /// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
 /// pins and `m5_pr8_bvh_diff` held.
+///
+/// RE-BLESSED, every row, for CONTACTHOLD's at-rest record (contact
+/// records are one list of unordered cell pairs): the digest feeds each
+/// value's `Debug`, and the records' `Debug` shape moved from seven
+/// per-kind lists to one list of canonical pairs. No outcome, count or
+/// point moved: every other row of these suites held.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [

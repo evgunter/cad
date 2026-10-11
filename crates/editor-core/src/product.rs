@@ -1131,8 +1131,13 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         };
         let input = u32::try_from(cited_inputs.len()).unwrap_or(u32::MAX);
         cited_inputs.push(crate::coincide::CitedInput::Read(*read));
-        carry_contacts(&mut at_rest.contacts, &records.carried_from(input), keys)
-            .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
+        carry_contacts(
+            &aggregate,
+            &mut at_rest.contacts,
+            &records.carried_from(input),
+            keys,
+        )
+        .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
         carry_declarations(&mut carried, &rows.minted, keys)
             .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
         for finding in &rows.refused {
@@ -1282,8 +1287,9 @@ pub(crate) type Source0<T> = (
 /// lineage the graft recorded. Nothing is looked up by position, by
 /// name, or by re-measuring the aggregate.
 ///
-/// The bridge is total over a source it grafted, so a missing image is
-/// a bridge bug, not a dropped declaration: it refuses typed rather
+/// The bridge is total and incidence-keeping over a source it grafted,
+/// so a missing image, or a pair the bridge made one cell or incident
+/// in the aggregate, is a bridge bug, not a dropped declaration: it refuses typed rather
 /// than silently weakening the at-rest gate the records feed.
 ///
 /// [`ProductError::ContactLineage`] is therefore DEFENSIVE and has no
@@ -1291,22 +1297,24 @@ pub(crate) type Source0<T> = (
 /// own key-bridge contract. Stated rather than left to be discovered —
 /// an arm that cannot be exercised is worth knowing about, and the
 /// alternative (dropping the record) is the failure this guards.
-fn carry_contacts(
+fn carry_contacts<T: geom_core::Real>(
+    body: &Body<T>,
     into: &mut ContactRecords,
     from: &ContactRecords,
     keys: &topo::GraftKeys,
 ) -> Result<(), &'static str> {
     use topo::Cell;
     let moved = from
-        .rekeyed(|cell| match cell {
+        .rekeyed(body, |cell| match cell {
             Cell::Vertex(v) => keys.vertex(v).map(Cell::Vertex),
             Cell::Edge(e) => keys.edge(e).map(Cell::Edge),
             Cell::Face(f) => keys.face(f).map(Cell::Face),
         })
-        .map_err(|cell| match cell {
-            Cell::Vertex(_) => "vertex",
-            Cell::Edge(_) => "edge",
-            Cell::Face(_) => "face",
+        .map_err(|refusal| match refusal {
+            topo::RekeyRefusal::Unmapped(Cell::Vertex(_)) => "vertex",
+            topo::RekeyRefusal::Unmapped(Cell::Edge(_)) => "edge",
+            topo::RekeyRefusal::Unmapped(Cell::Face(_)) => "face",
+            topo::RekeyRefusal::Pair(_) => "cell pair",
         })?;
     into.extend(moved.rows().iter().cloned());
     Ok(())
