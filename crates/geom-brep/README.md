@@ -784,8 +784,8 @@ not the side that holds a pole on no member's loop
 (`sphere_region_material_sign`). A region with no boundary is a whole
 sphere, whose side is its shell's orientation. A region whose boundary
 carries both poles encodes no side; for a region of one face, the
-flipped bit describes the complement, another valid body. A loop with a pole off it on each side encodes no
-side: under either sense its face holds a pole, which is validity's to
+flipped bit describes the complement, another valid body. A loop with
+a pole off it on each side encodes no side: under either sense its face holds a pole, which is validity's to
 refuse. Nor does a loop whose poles both read undecided: a pole within
 the ambiguity band of a great or near-great carrier's plane has its
 antipode there too, so a face whose loop passes that close to a pole
