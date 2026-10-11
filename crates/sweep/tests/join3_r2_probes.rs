@@ -15,8 +15,11 @@
 //!   arcs. Oracle: inclusion–exclusion across the three ops, and the
 //!   oblique-prism closed form `S / cos θ` where the cutter crosses the
 //!   slab whole.
-//! - `j3r2_rand`: R2's random z-prism battery with the certificate and
-//!   a legal-operand column added.
+//! - `j3r2_rand`: R2's random z-prism battery.
+//!
+//! Every line is [`judged_with_seams`]: a pose with no closed form
+//! (an off-centre pocket, a tilted blind cutter) reads `UNJUDGED` at
+//! best, and is checked by inclusion–exclusion across its ops.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -24,6 +27,8 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{ExtrudeSide, Extrusion, extrude};
 use topo::{AtRestBody, Body};
+
+use crate::common::differential::judged_with_seams;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -141,58 +146,6 @@ fn shapes_raw() -> Vec<(String, Shape)> {
     v
 }
 
-fn outcome(
-    r: Result<topo::BooleanResult<f64>, topo::BooleanError>,
-    want: Option<f64>,
-) -> (String, Option<f64>) {
-    match r {
-        Err(e) => {
-            let s = format!("{e:?}");
-            let cut: String = s.chars().take(110).collect();
-            (format!("ERR {cut}"), None)
-        }
-        Ok(r) => match r.body() {
-            None => (
-                match want {
-                    Some(w) if w.abs() > 1e-9 => format!("EMPTY WRONG want={w}"),
-                    _ => "EMPTY ok".into(),
-                },
-                Some(0.0),
-            ),
-            Some(bb) => {
-                let t2 = topo::validate_closed(&bb.body).is_ok();
-                let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()).is_ok();
-                let cert = topo::validate_geometric_certificate(&bb.body, tol()).is_ok();
-                let far = far_brick();
-                let legal = match topo::union(&bb.body, &far, tol()) {
-                    Ok(_) => "legal".to_string(),
-                    Err(e) => format!("NONOPERAND {:?}", e.kind()),
-                };
-                match topo::mass_properties(&bb.body, tol()).map(|m| m.volume) {
-                    Ok(v) => {
-                        let good = want.is_none_or(|w| (v - w).abs() < 1e-7);
-                        (
-                            format!(
-                                "OK {} t2={t2} t3p={t3} cert={cert} {legal} v={v:.9} want={want:?}",
-                                if good && t2 && t3 && cert {
-                                    "SOUND"
-                                } else {
-                                    "BAD"
-                                }
-                            ),
-                            Some(v),
-                        )
-                    }
-                    Err(e) => (
-                        format!("OK-UNMEASURED t2={t2} t3p={t3} cert={cert} {legal} {e:?}"),
-                        None,
-                    ),
-                }
-            }
-        },
-    }
-}
-
 fn block() -> Body<f64> {
     body_of(
         SketchPlane::xy(),
@@ -245,7 +198,7 @@ fn run_ops(tag: &str, a: &Body<f64>, b: &Body<f64>, va: f64, vb: f64, vi: Option
                 "S" => topo::subtract(l, r, tol()),
                 _ => topo::intersect(l, r, tol()),
             };
-            let (line, v) = outcome(res, want);
+            let (line, v) = judged_with_seams(res, want, tol());
             got.insert((op, order), v);
             println!("J3R2 {tag} {op} {order} => {line}");
         }

@@ -770,8 +770,6 @@ mod join2_r1_probes;
 mod join2_r2_probes;
 #[path = "join3_r2_probes.rs"]
 mod join3_r2_probes;
-#[path = "join3_r2_r1copy.rs"]
-mod join3_r2_r1copy;
 #[path = "join3_review_r1.rs"]
 mod join3_review_r1;
 #[path = "join_pierce_runs_sweep.rs"]
@@ -1052,8 +1050,6 @@ mod witness_ladder;
 mod boss_flush_with_a_block_edge;
 #[path = "far_thin_disc_sign.rs"]
 mod far_thin_disc_sign;
-#[path = "join1_delta2_harness.rs"]
-mod join1_delta2_harness;
 #[path = "pinch_faces_tessellate.rs"]
 mod pinch_faces_tessellate;
 #[path = "rest_nested_strut.rs"]

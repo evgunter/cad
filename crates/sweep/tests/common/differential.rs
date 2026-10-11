@@ -87,29 +87,47 @@ pub fn clip_convex(poly: &[(f64, f64)], clipper: &[(f64, f64)]) -> Vec<(f64, f64
     out
 }
 
-/// The signed area between the chord `a → b` and the origin.
-fn chord_triangle(a: (f64, f64), b: (f64, f64)) -> f64 {
-    (a.0 * b.1 - a.1 * b.0) / 2.0
+/// The signed area of the triangle `origin, a, b` and its first
+/// moments `(area, ∫x, ∫y)`.
+fn chord_triangle(a: (f64, f64), b: (f64, f64)) -> (f64, f64, f64) {
+    let area = (a.0 * b.1 - a.1 * b.0) / 2.0;
+    (area, area * (a.0 + b.0) / 3.0, area * (a.1 + b.1) / 3.0)
 }
 
 /// The signed area of the circular sector of radius `r` from `a`'s
-/// direction to `b`'s, the turn read in `(−π, π]`.
-fn sector(r: f64, a: (f64, f64), b: (f64, f64)) -> f64 {
-    let cross = a.0 * b.1 - a.1 * b.0;
-    let dot = a.0 * b.0 + a.1 * b.1;
-    r * r * cross.atan2(dot) / 2.0
+/// direction to `b`'s, the turn read in `(−π, π]`, and its first
+/// moments `(area, ∫x, ∫y)`.
+fn sector(r: f64, a: (f64, f64), b: (f64, f64)) -> (f64, f64, f64) {
+    let turn = (a.0 * b.1 - a.1 * b.0).atan2(a.0 * b.0 + a.1 * b.1);
+    let from = a.1.atan2(a.0);
+    let to = from + turn;
+    let r3 = r * r * r / 3.0;
+    (
+        r * r * turn / 2.0,
+        r3 * (to.sin() - from.sin()),
+        r3 * (from.cos() - to.cos()),
+    )
 }
 
 /// **The area of the disc of radius `r` about the origin against the
-/// polygon `poly`**, closed form: each edge contributes the area its
-/// own chord or arc sweeps about the origin — a chord triangle where the
-/// edge is inside the disc, a sector where it is outside, and the split
-/// of the two at the edge's crossings, which are the roots of a
-/// quadratic. The sum over a closed polygon is the enclosed area,
-/// signed by the winding.
+/// polygon `poly`**, closed form ([`disc_clip_moments`]).
 pub fn disc_clip_area(r: f64, poly: &[(f64, f64)]) -> f64 {
+    disc_clip_moments(r, poly).0
+}
+
+/// **The disc of radius `r` about the origin against the polygon
+/// `poly`: its area and first moments `(area, ∫x, ∫y)`**, closed form.
+/// Each edge contributes what its own chord or arc sweeps about the
+/// origin — a chord triangle where the edge is inside the disc, a
+/// sector where it is outside, and the split of the two at the edge's
+/// crossings, which are the roots of a quadratic. The sum over a closed
+/// polygon is the enclosed region's, signed by the winding.
+pub fn disc_clip_moments(r: f64, poly: &[(f64, f64)]) -> (f64, f64, f64) {
     let n = poly.len();
-    let mut total = 0.0;
+    let mut total = (0.0, 0.0, 0.0);
+    let mut add = |(a, x, y): (f64, f64, f64)| {
+        total = (total.0 + a, total.1 + x, total.2 + y);
+    };
     for i in 0..n {
         let (a, b) = (poly[i], poly[(i + 1) % n]);
         let d = (b.0 - a.0, b.1 - a.1);
@@ -142,11 +160,11 @@ pub fn disc_clip_area(r: f64, poly: &[(f64, f64)]) -> f64 {
         let mut inside = ra <= r;
         for t in hits {
             let p = at(t);
-            total += piece(from, p, inside);
+            add(piece(from, p, inside));
             from = p;
             inside = !inside;
         }
-        total += piece(from, b, inside);
+        add(piece(from, b, inside));
     }
     total
 }
@@ -157,15 +175,34 @@ pub fn disc_clip_area(r: f64, poly: &[(f64, f64)]) -> f64 {
 /// and its volume against `want`. `SOUND` is all five; anything else
 /// that builds is `BAD`.
 pub fn outcome(r: Result<BooleanResult<f64>, BooleanError>, want: f64, tol: Tol) -> String {
+    judged(r, Some(want), tol).0
+}
+
+/// [`outcome`] where a pose may have no closed form (`want` `None`),
+/// with the volume the result measured (zero for an empty one) for a
+/// battery that checks it across ops. A body passing the other four
+/// checks against no closed form reads `UNJUDGED`, never `SOUND`.
+pub fn judged(
+    r: Result<BooleanResult<f64>, BooleanError>,
+    want: Option<f64>,
+    tol: Tol,
+) -> (String, Option<f64>) {
+    let want_col = want.map_or("want=none".to_string(), |w| format!("want={w:.9}"));
     match r {
         Err(e) => {
             let s = format!("{e:?}");
             let cut: String = s.chars().take(110).collect();
-            format!("ERR {cut}")
+            (format!("ERR {cut}"), None)
         }
         Ok(r) => match r.body() {
-            None if want.abs() < 1e-9 => "EMPTY ok".into(),
-            None => format!("EMPTY WRONG want={want}"),
+            None => (
+                match want {
+                    None => "EMPTY unjudged".into(),
+                    Some(w) if w.abs() < 1e-9 => "EMPTY ok".into(),
+                    Some(w) => format!("EMPTY WRONG want={w}"),
+                },
+                Some(0.0),
+            ),
             Some(bb) => {
                 let t2 = topo::validate_closed(&bb.body).is_ok();
                 let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol).is_ok();
@@ -178,23 +215,93 @@ pub fn outcome(r: Result<BooleanResult<f64>, BooleanError>, want: f64, tol: Tol)
                 let operand = topo::union(&bb.body, &far, tol).is_ok();
                 match topo::mass_properties(&bb.body, tol).map(|m| m.volume) {
                     Ok(v) => {
-                        let good = (v - want).abs() < 1e-7;
-                        format!(
-                            "OK {} t2={t2} t3p={t3} cert={cert} operand={operand} v={v:.9} \
-                             want={want:.9}",
-                            if good && t2 && t3 && cert && operand {
-                                "SOUND"
-                            } else {
-                                "BAD"
-                            }
+                        let verdict = match want {
+                            _ if !(t2 && t3 && cert && operand) => "BAD",
+                            None => "UNJUDGED",
+                            Some(w) if (v - w).abs() < 1e-7 => "SOUND",
+                            Some(_) => "BAD",
+                        };
+                        (
+                            format!(
+                                "OK {verdict} t2={t2} t3p={t3} cert={cert} operand={operand} \
+                                 v={v:.9} {want_col}"
+                            ),
+                            Some(v),
                         )
                     }
-                    Err(e) => format!(
-                        "OK-UNMEASURED t2={t2} t3p={t3} cert={cert} operand={operand} {e:?}"
+                    Err(e) => (
+                        format!(
+                            "OK-UNMEASURED t2={t2} t3p={t3} cert={cert} operand={operand} {e:?}"
+                        ),
+                        None,
                     ),
                 }
             }
         },
+    }
+}
+
+/// The seams a restated scaffold could hide: (edges between two faces
+/// of one planar surface key, edges between two faces on one plane,
+/// zero-length open edges).
+pub fn seams(body: &Body<f64>) -> (usize, usize, usize) {
+    let (mut same_key, mut coplanar, mut zero) = (0, 0, 0);
+    for (_, e) in body.edges() {
+        let ends = (
+            body.get_half_edge(e.he_plus).map(|h| h.start),
+            body.half_edge_end(e.he_plus),
+        );
+        if let (Some(a), Some(b)) = ends
+            && a != b
+        {
+            let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+            if (p(a) - p(b)).norm() < 1e-9 {
+                zero += 1;
+            }
+        }
+        let (Some(f1), Some(f2)) = (
+            body.face_of_half_edge(e.he_plus),
+            body.face_of_half_edge(e.he_minus),
+        ) else {
+            continue;
+        };
+        if f1 == f2 {
+            continue;
+        }
+        let (k1, k2) = (
+            body.get_face(f1).unwrap().surface,
+            body.get_face(f2).unwrap().surface,
+        );
+        let plane = |k| match body.get_surface(k) {
+            Some(geom::Surface::Plane { origin, normal, .. }) => Some((*origin, *normal)),
+            _ => None,
+        };
+        if let (Some((o1, n1)), Some((o2, n2))) = (plane(k1), plane(k2)) {
+            if k1 == k2 {
+                same_key += 1;
+            } else if n1.cross(n2).norm() < 1e-9 && (o2 - o1).dot(n1).abs() < 1e-9 {
+                coplanar += 1;
+            }
+        }
+    }
+    (same_key, coplanar, zero)
+}
+
+/// [`judged`], and where the op built, the body's [`seams`] as columns.
+pub fn judged_with_seams(
+    r: Result<BooleanResult<f64>, BooleanError>,
+    want: Option<f64>,
+    tol: Tol,
+) -> (String, Option<f64>) {
+    let seams = r
+        .as_ref()
+        .ok()
+        .and_then(BooleanResult::body)
+        .map(|bb| seams(&bb.body));
+    let (line, v) = judged(r, want, tol);
+    match seams {
+        Some((sk, cp, z)) => (format!("{line} samekey={sk} coplanar={cp} zero={z}"), v),
+        None => (line, v),
     }
 }
 
