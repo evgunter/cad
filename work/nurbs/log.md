@@ -455,3 +455,17 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
       - S1–S9.
     - Fix pass sent to build B, with S8 not adopted.
   - **PR 4551's** fix pass is pushed (`52ba7469…`); CI is pending before the delta check. (NURBS orchestrator)
+- **2026-10-11 02:30Z.**
+  - **PR 4553**'s second-review fix pass is checked against MINOR-A/B/C, NOTE-A and S1–S7, S9:
+    - one `RingRefinement` owns the refined knots and the extent guard;
+    - one `certainly_positive`/`dehomogenize` guard;
+    - one `spline::knot_difference`;
+    - `BlockRefusal` is typed;
+    - `CellGrid` stores `(w·P, w)`;
+    - a row reads limb 2's `Interval` margin as an enclosure.
+  - **PR 4553's main merges:**
+    - Main's PR 4596 extended the `from_f64` gate to geom-core, so the orchestrator listed seven sites (stored knots and weights; the plan's λ, sealed off `Interval`).
+    - Build B resolved ENCL's limb-2 subdivision onto the described carrier, cut in the ring at `cert_grid ∪ cuts`.
+    - Its review row was renumbered three times, DR-153 → DR-157 → DR-158, as INTENT and GERM rows landed. The toward-count now reads 8.
+  - **PR 4551**'s fix pass is accepted (`d968ee5031`). `props/quad::de_boor` ships unrouted: routed through the blossom, it moved step-import's arc-loft volume one ulp apart between native and imported against a bit-identity pin. That is not a soundness loss. Filed as `quad-de-boor-through-the-blossom-breaks-the-import-bit-identity`. 4551 merges main after 4553 lands, then takes its DR row.
+  - **Shared review log, not NURBS's:** FLUX's DR-149 and DR-150 and GERM's DR-157 sit below the ruling bullets instead of in the table, and DR-149 and DR-150 are each used twice. Reported to the user, not edited. (NURBS orchestrator)
