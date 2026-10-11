@@ -3,9 +3,9 @@
 mod analysis;
 mod assembly;
 pub(crate) mod checks;
+mod contact;
 pub(crate) mod doc;
 mod expr;
-mod flush;
 mod mate;
 mod measure;
 mod mesh;
@@ -332,7 +332,7 @@ pyo3::create_exception!(
      it.\n\n\
      **The two verdict arms are NOT interchangeable.** `at_rest` is a \
      finding AGAINST the document — a refuted declaration or an \
-     undeclared contact. `uncertified` is the declared direction's \
+     unrecorded contact. `uncertified` is the declared direction's \
      FRONTIER: nothing was refuted and nothing was undeclared, the \
      census simply has no certifier lane for the faces a declaration \
      names, so nothing was decided about the geometry either way. A \
@@ -946,7 +946,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     mate::register(m)?;
     assembly::register(m)?;
     refactor::register(m)?;
-    flush::register(m)?;
+    contact::register(m)?;
     checks::register(m)?;
     mesh::register(m)?;
     value::register(m)?;

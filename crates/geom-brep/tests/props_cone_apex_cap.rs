@@ -1,19 +1,21 @@
 //! **A cone face bounded by one rim and nothing else is the apex cap**
 //! (`work/props/cone-apex-cap-refuses-degenerateface.md`).
 //!
-//! Its levels hold one signed slant, so `min_max` gave `lo == hi` and
-//! `require_extent` refused `DegenerateFace` for a face that plainly
-//! has an area. The missing extreme is the APEX — level `0`, the only
-//! candidate a cone has, where the sphere's rim-only cap chooses
-//! between two poles and needs the face's sense bit to do it. So the
-//! fold reads no bit, and these rows pin what it must and must not
-//! admit:
+//! The flux lane reads the boundary's vector area, which is the cap's
+//! whatever the boundary's shape. The shape door's iso parse has an
+//! extent to find: its levels hold one signed slant, and the missing
+//! extreme is the APEX — level `0`, the only candidate a cone has,
+//! where the sphere's rim-only cap chooses between two poles and needs
+//! the face's sense bit to do it. So the fold reads no bit, and these
+//! rows pin what both must and must not admit:
 //!
 //! * the cap measures `sin α·Δu·|v_hi² − v_lo²|/2` on both nappes and
 //!   both traversals;
-//! * a rim that does not CLOSE around the apex bounds no cap —
-//!   `props_rim_only_closed`, the sphere's guard at the cone's own
-//!   azimuthal arm, red-first on a partial rim and a doubled one;
+//! * a rim that does not CLOSE around the apex bounds no cap — at the
+//!   flux lane a loop that does not close (`props_loop_closed`) or
+//!   winds the axis twice (`props_cone_loop_winding`), at the shape
+//!   door `props_rim_only_closed` and `props_rim_only_join`, the
+//!   sphere's guard at the cone's own azimuthal arm;
 //! * rims at one level traversed OPPOSITE ways point at opposite sides
 //!   and keep `DegenerateFace`;
 //! * the traversal that bounds the rest of the nappe — unbounded, no
@@ -151,7 +153,7 @@ fn the_apex_cap_measures_the_cone_on_both_nappes_and_traversals() {
 
 /// **The rim split into several arcs is the same face** — a
 /// boolean-cut or re-merged rim legitimately arrives as several arcs
-/// at one level, and `du_of_rims` sums their spans per group.
+/// at one level, and each arc's vector area is its share.
 #[test]
 fn an_apex_cap_whose_rim_is_three_arcs_measures_the_same() {
     let third = TAU / 3.0;
@@ -168,33 +170,47 @@ fn an_apex_cap_whose_rim_is_three_arcs_measures_the_same() {
 
 /// **The apex is interior to a rim only if the rim CLOSES around it.**
 ///
-/// The fold pushes level `0` on a traversal DIRECTION's say-so, and
-/// nothing else on the arm watches how far the rim goes: the levels
-/// hold one slant however much of it the boundary states,
-/// `props_rim_level` places a rim at an extreme whatever its span, and
-/// `du_of_rims` sums a group's spans without comparing the sum to a
-/// whole turn. Unguarded, the four shapes the sphere's arm was caught
-/// on answer a definite AREA here too — half a rim at half the cap's,
-/// a quarter at a quarter, the same full rim stated twice at double,
-/// and a full rim plus a half arc at 1.5×. `props_rim_only_closed`
-/// decides `(Δu − τ)` at the cone's own azimuthal arm (the rim's
-/// radius), and each of them refuses by that name.
+/// Unguarded, the four shapes the sphere's arm was caught on answer a
+/// definite AREA here too — half a rim at half the cap's, a quarter at
+/// a quarter, the same full rim stated twice at double, and a full rim
+/// plus a half arc at 1.5×. The flux lane refuses a loop whose joints
+/// do not close (`props_loop_closed`) and one that winds the axis
+/// twice (`props_cone_loop_winding`); the shape door's fold decides
+/// `(Δu − τ)` at the cone's own azimuthal arm (`props_rim_only_closed`).
+/// Each shape refuses at both, by name.
 #[test]
 fn an_apex_cap_refuses_a_rim_that_does_not_close() {
     let cap = closed_form(0.0, SL, TAU);
     let mut answered = Vec::new();
-    for (name, edges) in [
-        ("half a rim only (du = pi)", vec![rim(SL, 0.0, PI, 0, 1)]),
-        ("quarter rim only", vec![rim(SL, 0.0, PI / 2.0, 0, 1)]),
+    for (name, edges, flux_guard) in [
+        (
+            "half a rim only (du = pi)",
+            vec![rim(SL, 0.0, PI, 0, 1)],
+            "props_loop_closed",
+        ),
+        (
+            "quarter rim only",
+            vec![rim(SL, 0.0, PI / 2.0, 0, 1)],
+            "props_loop_closed",
+        ),
         (
             "the same full rim stated twice",
             vec![rim(SL, 0.0, TAU, 0, 0), rim(SL, 0.0, TAU, 0, 0)],
+            "props_cone_loop_winding",
         ),
         (
             "full rim + an extra half arc, same direction",
             vec![rim(SL, 0.0, TAU, 0, 0), rim(SL, 0.0, PI, 0, 1)],
+            "props_loop_closed",
         ),
     ] {
+        assert_eq!(
+            require_iso_rectangle(&cone(), &edges, band()),
+            Err(PropsError::NotIsoRectangle {
+                what: "props_rim_only_closed"
+            }),
+            "{name}: the shape door's closure guard is what must refuse it"
+        );
         match curved_face(&cone(), &edges, true, band()) {
             Ok(fc) => {
                 println!(
@@ -204,11 +220,11 @@ fn an_apex_cap_refuses_a_rim_that_does_not_close() {
                 );
                 answered.push(name);
             }
-            Err(PropsError::NotIsoRectangle { what }) => {
+            Err(PropsError::ConeLoop { what }) => {
                 println!("  {name:<44} REFUSE {what}");
                 assert_eq!(
-                    what, "props_rim_only_closed",
-                    "{name}: the closure guard is what must refuse it"
+                    what, flux_guard,
+                    "{name}: the flux lane's closure guard is what must refuse it"
                 );
             }
             Err(e) => panic!("{name}: refused by something else: {e:?}"),
@@ -245,20 +261,29 @@ fn cone_rims_at_one_level_with_opposite_traversals_stay_degenerate() {
     );
 }
 
-/// **A zero-extent cone face with GENERATORS is not folded either.**
-/// Two rims at one level joined by zero-length generators states its
-/// own `v`-domain — the generators are in the levels — so the fold does
-/// not apply and `require_extent` keeps its verdict. The fold's
-/// premise is *a boundary of rims alone*, and this is the row that
-/// says the generator test is load-bearing rather than decorative.
+/// **Zero-length generators change nothing.** Two half rims at one
+/// level, run the same way and joined by generators of no length, are
+/// the full rim: the cap. The flux lane reads the vector area, to which
+/// a generator of no length contributes nothing; run opposite ways the
+/// same edges bound nothing and stay degenerate.
 #[test]
-fn a_generator_bearing_zero_extent_cone_face_stays_degenerate() {
+fn zero_length_generators_between_rims_at_one_level_change_nothing() {
+    measures(
+        "two half rims joined by zero-length generators",
+        &[
+            rim(SL, 0.0, PI, 0, 1),
+            generator(PI, SL, SL, 1, 2),
+            rim(SL, PI, TAU, 2, 3),
+            generator(0.0, SL, SL, 3, 0),
+        ],
+        closed_form(0.0, SL, TAU),
+    );
     let got = curved_face(
         &cone(),
         &[
             rim(SL, 0.0, PI, 0, 1),
             generator(PI, SL, SL, 1, 2),
-            rim(SL, PI, TAU, 2, 3),
+            rim(SL, PI, 0.0, 2, 3),
             generator(0.0, SL, SL, 3, 0),
         ],
         true,
@@ -266,21 +291,39 @@ fn a_generator_bearing_zero_extent_cone_face_stays_degenerate() {
     );
     assert!(
         matches!(got, Err(PropsError::DegenerateFace)),
-        "a generator-bearing boundary states its own extent; got {got:?}"
+        "opposite traversals bound nothing; got {got:?}"
     );
 }
 
-/// **A frustum band is untouched by the fold** — two rims at DIFFERENT
-/// levels carry their own extent, so nothing is pushed and the closed
-/// form is the frustum's. The negative control for the fold's
-/// coincidence test.
+/// **A frustum band measures with its seam, and two rims in one loop
+/// are no loop.** The seam generator closes the walk; without it the
+/// two circles do not chain, and the vector area of edges that do not
+/// chain is no region's (`props_loop_closed`).
 #[test]
-fn a_two_rim_frustum_band_is_unchanged() {
+fn a_frustum_band_measures_with_its_seam() {
     let (v0, v1) = (SL, 3.0 * SL);
     measures(
-        "seamless frustum band",
-        &[rim(v0, 0.0, TAU, 0, 0), rim(v1, TAU, 0.0, 1, 1)],
+        "frustum band with its seam",
+        &[
+            rim(v0, 0.0, TAU, 0, 0),
+            generator(0.0, v0, v1, 0, 1),
+            rim(v1, TAU, 0.0, 1, 1),
+            generator(0.0, v1, v0, 1, 0),
+        ],
         closed_form(v0, v1, TAU),
+    );
+    assert_eq!(
+        curved_face(
+            &cone(),
+            &[rim(v0, 0.0, TAU, 0, 0), rim(v1, TAU, 0.0, 1, 1)],
+            true,
+            band()
+        )
+        .map(|_| ()),
+        Err(PropsError::ConeLoop {
+            what: "props_loop_closed"
+        }),
+        "two rims in one loop do not chain"
     );
 }
 
@@ -334,33 +377,35 @@ fn verdict_multiset(edges: &[LoopEdge<f64>]) -> Vec<(String, usize)> {
     got
 }
 
-/// **The apex cap's own verdicts, named.** The fold decides
-/// `props_rim_only_extent` once per generator-free rim boundary, and
-/// per folded apex `props_rim_only_closed` once and
-/// `props_rim_only_join` once per arc. Only the last reads a
-/// comparand the arm did not already have — a point deviation between
-/// two vertices, which is `require_rim_incidence`'s dimension, not a
-/// new one. `props_rim_only_extent` is `require_extent`'s own cone
-/// comparand (the bare slant difference) asked one step earlier, hence
-/// the two records here, and `props_rim_only_closed` is the `Δu` angle
-/// at the azimuthal arm `props_du_consistent` already meters. `Δu`
-/// itself costs nothing to agree on: one rim is one group, so neither
-/// `props_rim_level_group` nor `props_du_consistent` is asked.
+/// **The apex cap's own verdicts at the flux lane, named.** The rim's
+/// incidence on the cone (`props_circle_axis_class`, `props_rim_fit`,
+/// `props_rim_axis_parallel`, `props_rim_center_on_axis`); one closure
+/// decide for the one joint (`props_loop_closed`); the nappe's two ends
+/// (`props_cone_nappe`); the side (`props_cone_area_side`); and the
+/// winding — the rim's two ends off the apex
+/// (`props_cone_loop_off_apex`), its sense (`props_cone_arc_sense`; a
+/// rim turns through its stored span, so no turn is decided) and the
+/// once-round threshold (`props_cone_loop_winding`). The rim's span is
+/// decided once, under certification's span bound, a full period
+/// sitting AT it (`props_rim_span_forward` Positive,
+/// `props_rim_span_winding` Zero). One edge has no two non-adjacent
+/// vertices, and no iso decide is asked.
 #[test]
 fn the_apex_cap_records_its_named_decides() {
     let got = verdict_multiset(&[rim(SL, 0.0, TAU, 0, 0)]);
     let want: Vec<(String, usize)> = [
         ("props_circle_axis_class Positive", 1),
-        ("props_cone_nappe Positive", 1),
-        ("props_cone_nappe Zero", 1),
-        ("props_face_extent Positive", 1),
+        ("props_cone_arc_sense Positive", 1),
+        ("props_cone_area_side Negative", 1),
+        ("props_cone_loop_off_apex Positive", 2),
+        ("props_cone_loop_winding Positive", 1),
+        ("props_cone_nappe Positive", 2),
+        ("props_loop_closed Zero", 1),
         ("props_rim_axis_parallel Zero", 1),
         ("props_rim_center_on_axis Zero", 1),
         ("props_rim_fit Zero", 1),
-        ("props_rim_level Zero", 1),
-        ("props_rim_only_closed Zero", 1),
-        ("props_rim_only_extent Zero", 1),
-        ("props_rim_only_join Zero", 1),
+        ("props_rim_span_forward Positive", 1),
+        ("props_rim_span_winding Zero", 1),
     ]
     .into_iter()
     .map(|(k, n)| (k.to_string(), n))
@@ -380,7 +425,8 @@ fn the_apex_cap_records_its_named_decides() {
 /// cap's area, and two overlapping arcs totalling a turn covered three
 /// quarters and answered the same. Both are the sphere unit's own
 /// MAJOR — an area answered for a rim that does not close — reached
-/// past the sum. `props_rim_only_join` requires the arcs to TILE: each
+/// past the sum. The shape door's `props_rim_only_join` and the flux
+/// lane's `props_loop_closed` each require the arcs to TILE: each
 /// edge's traversal end is the next one's traversal start, cyclically.
 #[test]
 fn a_sum_that_makes_a_turn_is_not_a_cover() {
@@ -399,6 +445,13 @@ fn a_sum_that_makes_a_turn_is_not_a_cover() {
             ],
         ),
     ] {
+        assert_eq!(
+            require_iso_rectangle(&cone(), &edges, band()),
+            Err(PropsError::NotIsoRectangle {
+                what: "props_rim_only_join"
+            }),
+            "{name}: the tiling half of the shape door's guard is what must refuse it"
+        );
         match curved_face(&cone(), &edges, true, band()) {
             Ok(fc) => {
                 println!(
@@ -408,11 +461,11 @@ fn a_sum_that_makes_a_turn_is_not_a_cover() {
                 );
                 answered.push(name);
             }
-            Err(PropsError::NotIsoRectangle { what }) => {
+            Err(PropsError::ConeLoop { what }) => {
                 println!("  {name:<44} REFUSE {what}");
                 assert_eq!(
-                    what, "props_rim_only_join",
-                    "{name}: the tiling half of the guard is what must refuse it"
+                    what, "props_loop_closed",
+                    "{name}: the flux lane's closure decide is what must refuse it"
                 );
             }
             Err(e) => panic!("{name}: refused by something else: {e:?}"),
@@ -459,15 +512,24 @@ fn an_apex_cap_is_a_tiling_and_the_families_that_are_not_refuse() {
             ),
             Err(e) => panic!("{name}: a tiling of the rim bounds the cap, got {e:?}"),
         };
-    let refuses =
-        |name: &str, edges: &[LoopEdge<f64>]| match curved_face(&cone(), edges, true, band()) {
+    let refuses = |name: &str, edges: &[LoopEdge<f64>]| {
+        match require_iso_rectangle(&cone(), edges, band()) {
             Err(PropsError::NotIsoRectangle { what })
                 if what == "props_rim_only_closed" || what == "props_rim_only_join" =>
             {
-                println!("  {name:<40} REFUSE {what}")
+                println!("  {name:<40} door REFUSE {what}")
+            }
+            other => panic!("{name}: the shape door finds no cap in it: {other:?}"),
+        }
+        match curved_face(&cone(), edges, true, band()) {
+            Err(PropsError::ConeLoop { what })
+                if what == "props_loop_closed" || what == "props_cone_loop_winding" =>
+            {
+                println!("  {name:<40} flux REFUSE {what}")
             }
             other => panic!("{name}: a boundary that does not tile bounds no cap: {other:?}"),
-        };
+        }
+    };
 
     for n in 1..=6usize {
         let full = tiling(n);
@@ -638,11 +700,10 @@ fn the_apex_cap_measures_on_a_general_cone() {
 // ---------------------------------------------------------------------
 
 /// **A boundary that does not close is refused at every door.** The
-/// apex fold lives in the shared parse and refuses there, so the flux
-/// lane and the shape door refuse by the fold's guard. The
-/// material-side gate reads the boundary's vector area, which is the
-/// region's only for a closed loop, and refuses on its own closure
-/// decide. Left unchecked, a half rim answered a definite `Encoded`
+/// shape door's apex fold refuses by its own guard. The material-side
+/// gate and the flux lane read the boundary's vector area, which is the
+/// region's only for a closed loop, and refuse on the closure decide
+/// they share. Left unchecked, a half rim answered a definite `Encoded`
 /// side at the gate for a boundary `curved_face` refused — an unpaired
 /// derivation, which is what raises `CurvedSenseInverted` on a face
 /// whose honest answer is a refusal.
@@ -659,24 +720,24 @@ fn a_boundary_that_does_not_close_refuses_at_every_door() {
         let gate = boundary_material_sign(&cone(), &edges, band()).map(|_| ());
         let flux = curved_face(&cone(), &edges, true, band()).map(|_| ());
         println!("  {name:<24} door={door:?} gate={gate:?} flux={flux:?}");
-        for (which, got) in [("door", &door), ("flux", &flux)] {
-            assert!(
-                matches!(
-                    got,
-                    Err(PropsError::NotIsoRectangle {
-                        what: "props_rim_only_closed" | "props_rim_only_join"
-                    })
-                ),
-                "{name}: the {which} must refuse by the guard's own name, got {got:?}"
+        assert!(
+            matches!(
+                door,
+                Err(PropsError::NotIsoRectangle {
+                    what: "props_rim_only_closed" | "props_rim_only_join"
+                })
+            ),
+            "{name}: the door must refuse by the fold's guard, got {door:?}"
+        );
+        for (which, got) in [("gate", &gate), ("flux", &flux)] {
+            assert_eq!(
+                *got,
+                Err(PropsError::ConeLoop {
+                    what: "props_loop_closed"
+                }),
+                "{name}: the {which} refuses the open loop"
             );
         }
-        assert_eq!(
-            gate,
-            Err(PropsError::NotIsoRectangle {
-                what: "props_loop_closed"
-            }),
-            "{name}: the gate refuses the open loop"
-        );
     }
     // The floor, unmoved: the true zero-extent patch is not folded at
     // all (its rims run opposite ways), so the door still admits it —

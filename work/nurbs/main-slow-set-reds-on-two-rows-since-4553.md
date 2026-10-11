@@ -1,7 +1,7 @@
 ---
 id: main-slow-set-reds-on-two-rows-since-4553
 kind: issue
-title: Main's slow set red since PR 4553: the sweep digest moved for 4553's ring refinement (re-cut), and the arc-loft round trip sums its faces in another order (row re-scoped)
+title: Main's slow set red since PR 4553: the sweep digest moved for 4553's ring refinement and the skin in T (re-cut), and the arc-loft round trip sums its faces in another order (row re-scoped)
 status: closed
 opened: 2026-10-11
 priority: P0
@@ -35,6 +35,48 @@ Owed: root-cause both against 4553's change. If a digest moved for a
 stated reason, re-baseline it and say what moved. If the bits now
 differ because the two sides compute the knots differently, make them
 compute them the same way.
+
+The serial-golden row's `Sym` lines also move under PR 4662
+(nurbs-weights-and-knots-are-the-scalar u2): the `validate_geometric`
+rows' `frozen` column is +2 (`sym_arc_loft`) and +1 (`sym_thin_strip`)
+against main, because the carriers' knots and weights are held as nodes,
+with decisions, discharges, shapes and verdicts unchanged and the `f64`
+lines byte-identical to main's red output. Re-cut that golden on a tree
+that carries PR 4662.
+
+PR 4708 (`nurbs-weights-and-knots-are-the-scalar` u4) moves the
+serial-golden row's `Sym` lines again, against its merge base
+`fe323f24d0` (whose own lines had already moved under main's
+`from_computed` loft lift, 9618d84fd8). `sym_arc_loft validate_geometric`
+goes from `sz=28 num=624 frozen=3706` to `sz=40 num=612 frozen=3732`, and
+`sym_thin_strip validate_geometric` from `sz=24 num=636 frozen=3430` to
+`sz=36 num=624 frozen=2792`. Twelve more decisions per row discharge as
+theorems, because topo now reads the carriers' held domain ends.
+Decisions, shapes and verdicts are unchanged, and the `f64` lines are
+byte-identical. Re-cut the golden on a tree that carries PR 4708.
+
+PR 4726 (`the-skin-computes-its-values-in-t`) moves the serial-golden
+row again. Measured against main's own output for that row
+(`work/nurbs/the-arc-loft-thread-count-digest-is-red-on-main.md`'s
+table at ε = 1e-9), not the committed digest:
+- **`arc_loft_1e9eps`**: `v` and `a` are main's (`…d899`, `…3c57`), and
+  only the pads move, `vpad` `3eb0783423f55555` → `3eb0783424400000`
+  and `apad` `3fb5fb0bfc12a5e0` → `3fb5fb0bfc12a660`. Its verdicts are
+  unchanged. The likely cause is that the skin's arc conversion now
+  calls `Real`'s sines and cosines, the pure-Rust `libm` D9 prescribes,
+  where it called `f64`'s inherent (platform libm) ones. That moves an
+  arc's weight or tangent pole by an ulp on a few per cent of sweeps.
+- **The `Sym` lines' `frozen` column** reads 1060 (`sym_arc_loft
+  validate_geometric`) and 1177 (`sym_thin_strip`) at the PR's head,
+  against the committed 1244 and 1268. Main's own counts were not
+  re-measured here. The walls are computed in `T` instead of lifted as
+  opaque unknowns, and the fixture placements are constants rather
+  than `from_computed` unknowns. Decisions, `sz`, shapes and verdicts
+  read as the committed ones.
+
+The import row (`arc_loft_natively_computes_its_rational_volume`)
+builds an arc loft too, so it may move for the same libm reason.
+Re-cut on a tree that carries PR 4726.
 
 ## Root-caused (NURBS, branch `nurbs/main-slow-set-reds-since-4553`)
 
@@ -71,24 +113,39 @@ arena order. 4553 changed the rational face's flux bits, and with them
 whether the two orders happen to round alike. No enclosure was lost:
 this is not a soundness finding.
 
-**Resolved on this branch by re-scoping the row** along ENCL's repair
-(b) (`work/exch/arc-loft-round-trip-volume-differs-by-face-order.md`),
-in the form the orchestrator ruled:
-- per-face flux terms and half-widths bit-identical native against
-  imported, read off the same walk as `mass_properties` through a new
-  test door, `topo::test_support::mass_properties_with_face_terms`;
-- each body's own paths bit-identical: the import's gate enclosure
-  against the imported body's measurement;
-- native against imported bodies: enclosures overlapping, midpoints
-  within the recursive sum's reordering error, `2(n − 1)·u·Σ|xᵢ|` with
-  `Σ|xᵢ| = 3V` (every face term is non-negative), plus an ulp a side
-  for the `/3`. About 10 ulp; 1 and 2 measured.
+**What moved the digest, in full** (re-cut on this branch at all three
+ε, after merging main at `18555d6eca`):
+- **PR 4553**, above: `arc_loft_1e9eps`'s `v`, `a` and pads. The
+  enclosures nest inside the old ones.
+- **PR 4662 and PR 4708** (u2, u4), per the notes above: the `Sym`
+  rows. u4's movement (`sz=40 num=612 frozen=3732`,
+  `sz=36 num=624 frozen=2792`) was never re-cut on main, and the skin
+  in `T` undid it.
+- **`8054ec236f`** (PR 4726, the skin in `T`), bisected at ε = 1e-9
+  against its parent `cb58e63b8b`:
+  - `arc_loft_1e9eps`'s pads move by at most 1.1e-9 of themselves, and
+    `a` by an ulp at 1e-6. The body moves, by `libm`'s sines and
+    cosines, so old and new enclosures nest one inside the other but
+    not always new inside old.
+  - The `Sym` `frozen` column falls to 1062 / 1060 / 1061
+    (`sym_arc_loft`) and 1178 / 1177 / 1177 (`sym_thin_strip`) at
+    ε = 1e-6 / 1e-9 / 1e-12, with `sz=48` as committed.
+  - The full list is in `expected()`'s re-cut log.
 
-Summing in the shells' stored face order was tried first and backed
-out: it reddened two sweep composition rows that agree in arena order
-and not in shell order. Whether the fold should be order-independent
-is FLUX's design row,
-`work/flux/the-whole-body-property-fold-depends-on-face-order.md`,
-which also carries the note on PR 4551's
-`quad-de-boor-through-the-blossom-breaks-the-import-bit-identity`:
-the same fold, its "inputs differ" premise refuted.
+**The import row.** It was resolved on main first by ENCL's PR 4682 (a
+`faces − 1` ulp bound on the volumes, the pad bit-identical). This
+branch keeps those assertions and adds two bit identities:
+- every face's flux term and half-width, native against imported, read
+  off the same walk as `mass_properties` through
+  `topo::test_support::mass_properties_with_face_terms`;
+- the import's gate enclosure against the imported body's own
+  measurement.
+
+Summing in the shells' stored face order was tried and backed out: it
+reddened two sweep composition rows that agree in arena order and not
+in shell order. Whether the fold should be order-independent is FLUX's
+design row,
+`work/flux/the-whole-body-property-fold-depends-on-face-order.md`. That
+row also carries the note on PR 4551's
+`quad-de-boor-through-the-blossom-breaks-the-import-bit-identity`: the
+same fold, with its "inputs differ" premise refuted.

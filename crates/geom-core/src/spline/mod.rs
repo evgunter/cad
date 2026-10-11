@@ -20,9 +20,12 @@
 //! - **Clamped-v1**: end-knot multiplicity exactly `degree + 1`;
 //!   interior multiplicity ≤ `degree`. Periodic and unclamped forms
 //!   are a **designed absence** until a consumer exists.
-//! - **Structure vs payload**: knots, weights, degrees, and every
-//!   combination coefficient are `f64` (C6: cache shape is an f64-lane
-//!   artifact); control points are the only generically-typed data.
+//! - **Structure vs values**: degrees, multiplicities, spans and every
+//!   decision a plan takes are `f64` structure, read off the values'
+//!   value channel; a carrier's knots ([`Knots`]), weights and control
+//!   points are values, held in the scalar (C6). A plan's combination
+//!   coefficients are formed at the applier's scalar from the values
+//!   ([`CurvePlan::apply_rational`]).
 //! - **Positive weights**: `w > 0`, enforced at construction — the
 //!   convex-hull property every C9 hull bound stands on.
 //! - **The span contract**: a [`Span`] borrows the [`KnotVector`] it is
@@ -63,5 +66,5 @@ pub use knots::{
 };
 pub use locate::{SpanLocate, SpanSet, poison_from};
 pub use net::{TensorChannels, TensorCoeffs, TensorNet};
-pub use projective::{ProjectivePoint, ProjectiveScalar};
+pub use projective::{ProjectivePoint, ProjectiveScalar, ProjectiveSplit};
 pub use range::{Param, ParamRange, last_at_or_below};

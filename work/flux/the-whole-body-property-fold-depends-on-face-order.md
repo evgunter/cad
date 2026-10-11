@@ -38,12 +38,11 @@ It surfaced on the STEP round trip:
 - PR 4553 changed the rational wall's flux bits, and with them whether
   the two orders happen to round alike: 0 ulp apart before, 1 at
   ε = 1e-6 and 2 at 1e-9 after. No enclosure was lost.
-- PR 4684 re-scoped that row: per-face terms bit-identical native
-  against imported (through `topo::test_support::mass_properties_with_face_terms`),
-  each body's own paths bit-identical (the import's gate against
-  `mass_properties` of the imported body), and native against imported
-  bodies overlapping and within the reordering bound,
-  `2(n − 1)·u·Σ|xᵢ|` plus an ulp a side.
+- ENCL's PR 4682 re-scoped that row on main to a `faces − 1` ulp bound
+  on the volumes with the pad bit-identical; PR 4684 added, on top,
+  per-face terms bit-identical native against imported (through
+  `topo::test_support::mass_properties_with_face_terms`) and the
+  import's gate bit-identical to the imported body's own measurement.
 
 **PR 4551's row `quad-de-boor-through-the-blossom-breaks-the-import-bit-identity`
 (on its branch) is this same fold.** It reports one ulp on the same
@@ -93,4 +92,4 @@ Its cost:
 
 Should the whole-body fold be order-independent ((b)), or is
 order-dependence the contract, with cross-representation claims stated
-as bounds (the status quo PR 4684 adopts on the round-trip row)?
+as bounds (the status quo PRs 4682 and 4684 adopt on the round-trip row)?

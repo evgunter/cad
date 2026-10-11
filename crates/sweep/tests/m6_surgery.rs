@@ -19,7 +19,7 @@ use sweep::test_support::{ball_poled, cube, finished};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::{self, SurfaceKindSet};
 use topo::readback::euler_counts;
-use topo::{AtRestBody, Body, BooleanDeclarations, EdgeKey};
+use topo::{AtRestBody, Body, EdgeKey};
 
 /// The die's side, meters.
 const DIE_L: f64 = 1.0;
@@ -111,7 +111,7 @@ fn pip_tool() -> AtRestBody<f64> {
             BooleanOp::Union,
             &tool,
             &pip(*c, *n),
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         )
@@ -129,7 +129,7 @@ fn subtract(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Body<f64> {
         BooleanOp::Subtract,
         a,
         b,
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )

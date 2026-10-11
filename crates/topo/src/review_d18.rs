@@ -3728,6 +3728,7 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
             Ok(_)
             | Err(
                 ContainError::Escalated { .. }
+                | ContainError::ArcEndClearOfCorners(_)
                 | ContainError::RayExhausted
                 | ContainError::EmptyLoop(_)
                 | ContainError::Uncrossable(_)

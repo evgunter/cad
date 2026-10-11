@@ -134,26 +134,19 @@ pub enum Rung {
     MarginIdentity(geom_core::Theorem),
 }
 
-/// **How far the door goes**: one door, two passes. The resident pass
-/// is what the `unproven-coincidence` check runs after every evaluation
-/// by default: the first rung alone, which costs nothing. It leaves
-/// every row the first rung does not prove saying so
-/// ([`Unreplayed::ResidentBudget`]), never plain unproven. The full pass
-/// replays the document at `Sym` and runs the symbolic rungs.
-///
-/// The resident pass replays nothing because a small budget proved no
-/// row of the corpus and cost what the full pass costs on the documents
-/// that dominate it. At 64 terms with no retry ladder, in debug, it
-/// proved 0 rows and cost 58 s on `die_composed_tour`; it added 25 % to
-/// the tour gallery's test.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum SymbolicPass {
-    /// The first rung alone.
-    #[default]
-    Resident,
-    /// Every rung, the symbolic ones on a replay at `Sym`.
-    Full,
+/// **The door was canceled** before it decided every row: the token
+/// [`prove`] was handed was canceled, in the replay or between the
+/// rows it discharges. It decided nothing it can report.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Canceled;
+
+impl fmt::Display for Canceled {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("the coincidence door was canceled")
+    }
 }
+
+impl core::error::Error for Canceled {}
 
 /// **Why the replay at `Sym` proved nothing about a row.**
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -164,12 +157,11 @@ pub enum Unreplayed {
     /// The replay produced a value, and took other decisions there: no
     /// row of its own at that site and ordinal names these cells.
     OtherDecisions,
-    /// The full pass took the decision, and neither the carrier-pair
-    /// verdict nor the margin is identically zero within its budget: it
-    /// is a coincidence of values, as far as the door can tell.
+    /// The replay took the decision, and neither the carrier-pair
+    /// verdict nor the margin is identically zero within the door's
+    /// budget: it is a coincidence of values, as far as the door can
+    /// tell.
     Numeric,
-    /// The resident pass did not replay the row; the full pass decides.
-    ResidentBudget,
     /// The row stands on a part instance, and the replay resolves no
     /// part: a symbolic run crosses no part seam
     /// ([`crate::analysis::ParamBoxError::SymbolsAcrossAPartSeam`]).
@@ -190,14 +182,11 @@ impl fmt::Display for Unreplayed {
             }
             Self::Numeric => {
                 "with every variable a symbol, neither the carriers' verdict nor the deciding \
-                 margin is shown identically zero within the full pass's budget"
+                 margin is shown identically zero within the door's budget"
             }
             Self::ThroughAPart => {
                 "the row stands on a part, and the replay with every variable a symbol resolves \
                  no part"
-            }
-            Self::ResidentBudget => {
-                "unproven at the resident budget; the full symbolic pass decides"
             }
             Self::NotReplayed => "the row is not replayed with every variable a symbol",
         })
@@ -335,8 +324,16 @@ impl Residual {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Recourse {
     /// Build the two cells as one construction of the same variables,
-    /// or assert the coincidence at its site.
+    /// or assert the coincidence at its site: the residual the replay
+    /// read is a function of the variables alone that the door did not
+    /// show zero.
     OneConstruction,
+    /// Assert the coincidence at its site: the door has no form of the
+    /// row's residual to read ([`Unreplayed`] other than
+    /// [`Unreplayed::Numeric`]), or the one it read keeps a value
+    /// computed apart from the variables
+    /// ([`geom_core::sym::deferred::Undischarged::KeepsAnOpaqueAtom`]).
+    Assert,
 }
 
 impl Recourse {
@@ -347,6 +344,10 @@ impl Recourse {
             Self::OneConstruction => {
                 "Recourse: build the two cells as one construction of the same variables, so \
                  the coincidence holds whatever their values, or assert it at its site"
+            }
+            Self::Assert => {
+                "Recourse: assert the coincidence at its site; the door cannot read what decided it \
+                 as a function of the variables"
             }
         }
     }
@@ -382,8 +383,7 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
             "a blend's two supports read as sharing the axis its band is minted on"
         }
         topo::DecisionSite::VertexFusion => "a vertex its margin read on another operand's cell",
-        topo::DecisionSite::CensusAtRest => "two placed faces the at-rest census read as one",
-        topo::DecisionSite::ImportAnchor => "two imported vertices an anchor read as one",
+        topo::DecisionSite::CensusAtRest => "two cells at rest the census read as one",
         topo::DecisionSite::ProfileJunction => "a profile junction no constructor made",
     }
 }
@@ -392,36 +392,38 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
 /// structurally. `nodes` holds each deciding node with its rows in
 /// decision order, as its value carries them (a mate stands for the
 /// at-rest census's rows on its pair); the answer is one [`Proof`] per
-/// row, in the same shape. The rungs are tried in order (module
-/// docs); at the full pass the document is replayed once, at `tol`,
-/// only where a row the first rung leaves asks for it.
-#[must_use]
+/// row, in the same shape. The rungs are tried in order (module docs)
+/// at the door's one strength ([`replay`]'s budget): the document is
+/// replayed once, at `tol`, only where a row the first rung leaves asks
+/// for it.
+///
+/// # Errors
+///
+/// [`Canceled`] once `cancel` is canceled, which the replay checks
+/// between nodes and the door between the margins it discharges.
 pub fn prove<P: crate::ProfilePayload>(
     doc: &crate::doc::Doc<P>,
     nodes: &[(RecipeNodeId, &[NamedCoincidence])],
     tol: geom_core::Tol,
-    pass: SymbolicPass,
-) -> Vec<Vec<Proof>> {
+    cancel: &crate::CancelToken,
+) -> Result<Vec<Vec<Proof>>, Canceled> {
     let walked: Vec<Vec<[Result<Construction, Unwalked>; 2]>> = nodes
         .iter()
         .map(|(_, rows)| rows.iter().map(|row| constructions(doc, row)).collect())
         .collect();
     let asks = walked.iter().flatten().any(|c| !one_construction(c));
-    let unreplayed = |why: fn(&NamedCoincidence) -> Unreplayed| {
-        nodes
+    let replayed = match P::evaluable(doc) {
+        Some(doc) if asks => replay::rungs(doc, nodes, tol, cancel)?,
+        _ => nodes
             .iter()
-            .map(|(_, rows)| rows.iter().map(|row| Err(why(row))).collect())
-            .collect()
+            .map(|(_, rows)| {
+                rows.iter()
+                    .map(|_| Err((Unreplayed::NotReplayed, Recourse::Assert)))
+                    .collect()
+            })
+            .collect(),
     };
-    let replayed = match (P::evaluable(doc), pass) {
-        (Some(doc), SymbolicPass::Full) if asks => replay::rungs(doc, nodes, tol),
-        (Some(_), SymbolicPass::Resident) => unreplayed(|row| match row.site {
-            topo::DecisionSite::CensusAtRest => Unreplayed::NotReplayed,
-            _ => Unreplayed::ResidentBudget,
-        }),
-        _ => unreplayed(|_| Unreplayed::NotReplayed),
-    };
-    walked
+    Ok(walked
         .into_iter()
         .zip(replayed)
         .map(|(walked, replayed)| {
@@ -434,18 +436,18 @@ pub fn prove<P: crate::ProfilePayload>(
                     }
                     match replayed {
                         Ok(rung) => Proof::Structural(rung),
-                        Err(replay) => Proof::Unproven {
+                        Err((replay, recourse)) => Proof::Unproven {
                             residual: Residual {
                                 constructions,
                                 replay,
                             },
-                            recourse: Recourse::OneConstruction,
+                            recourse,
                         },
                     }
                 })
                 .collect()
         })
-        .collect()
+        .collect())
 }
 
 /// Each cell's construction.
@@ -616,43 +618,6 @@ pub(crate) struct RowInputs<'a> {
     pub b: Option<(crate::VarId, &'a NameTable)>,
     /// The tool read, for an operation that cuts with one.
     pub tool: Option<crate::VarId>,
-}
-
-/// **The rows `records` cite, published**: each row of `rows` a record
-/// cites ([`topo::Backing::Decided`]), named in `inputs` and appended to
-/// `published` in decision order, and the records renumbered onto the
-/// published rows. For a node whose records come from a step whose rows
-/// it does not publish whole (an n-ary union's last fold step).
-///
-/// # Errors
-///
-/// As [`name_rows`].
-pub(crate) fn publish_cited(
-    records: &topo::ContactRecords,
-    rows: &[topo::Coincidence],
-    inputs: &RowInputs<'_>,
-    published: &mut Vec<NamedCoincidence>,
-) -> Result<topo::ContactRecords, NamingError> {
-    let used = records.decided();
-    let cited: Vec<topo::Coincidence> = used
-        .iter()
-        .map(|&k| {
-            rows.get(k as usize).copied().ok_or(NamingError::Emission {
-                what: "a contact record cites a row its step did not decide",
-            })
-        })
-        .collect::<Result<_, _>>()?;
-    let base = published.len();
-    published.extend(name_rows(&cited, inputs)?);
-    Ok(records
-        .clone()
-        .renumbered(|k| {
-            let rank = used
-                .binary_search(&k)
-                .unwrap_or_else(|_| unreachable!("every decided citation is in `used`"));
-            Some(u32::try_from(base + rank).unwrap_or(u32::MAX))
-        })
-        .unwrap_or_else(|_| unreachable!("every decided citation renumbers")))
 }
 
 /// **The kernel's rows, named**: each cell by its name in the input

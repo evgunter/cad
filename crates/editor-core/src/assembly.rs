@@ -65,7 +65,7 @@
 //! Each says why at its own definition. The kernel's finding passes
 //! straight through either way — stated, never swallowed, never
 //! re-labelled — and the declaration still does its job: it is what
-//! suppresses the F1 `UndeclaredContact` refusal.
+//! suppresses the F1 `UnrecordedContact` refusal.
 
 use std::sync::Arc;
 
@@ -539,7 +539,7 @@ pub enum Attribution {
         held: Arc<HeldNodes>,
     },
     /// The finding names no declaration this document holds a row for
-    /// — its own, or one a part carried up. An UNDECLARED contact is
+    /// — its own, or one a part carried up. An UNRECORDED contact is
     /// exactly this: by definition no mate authored it, which is what
     /// makes it the F1 hard error.
     ///
@@ -910,7 +910,7 @@ pub enum AssemblyError {
     },
     /// The kernel's tier-3′ door refused the assembled product with
     /// its records (A5): at least one finding is a verdict AGAINST the
-    /// document — a refuted declaration or an undeclared contact.
+    /// document — a refuted declaration or an unrecorded contact.
     /// Every finding travels, in the kernel's own deterministic sweep
     /// order, each carrying what it says about the declarations.
     ///
@@ -1669,7 +1669,7 @@ fn side_placed<P: crate::ProfilePayload>(doc: &Doc<P>, read: crate::VarId) -> bo
 /// INVARIANT: attribution is by ARENA KEY against what was minted —
 /// the same lineage discipline the record carry uses. A finding whose
 /// faces no declaration names is UNATTRIBUTED, and that is the honest
-/// answer for the F1 case: an undeclared contact has no mate, which
+/// answer for the F1 case: an unrecorded contact has no mate, which
 /// is exactly what makes it the hard error.
 ///
 /// **The match is EXHAUSTIVE, with no wildcard arm**, which is
@@ -1807,7 +1807,7 @@ fn attribute(
         // unattributable for a reason of its own rather than by
         // default.
         //
-        // `UndeclaredContact` is the definition of unattributed: no
+        // `UnrecordedContact` is the definition of unattributed: no
         // mate authored it, which is what makes it F1's hard error.
         //
         // The VERTEX- and EDGE-granular staleness arms name a v-v,
@@ -1847,7 +1847,7 @@ fn attribute(
         // answers for. Between two copies the gate takes it out first
         // (`checks::at_rest::partition`), so what reaches here is an
         // overlap inside one copy's body.
-        ValidationError::UndeclaredContact { .. }
+        ValidationError::UnrecordedContact { .. }
         | ValidationError::StaleContactDeclaration {
             declaration:
                 topo::StaleDeclaration::VertexVertex { .. }
@@ -1871,6 +1871,8 @@ fn attribute(
             ..
         }
         | ValidationError::CensusUndecidable { .. }
+        // A kernel defect in one face's boundary reading, about no pair.
+        | ValidationError::ArcEndOffCorner { .. }
         | ValidationError::InstanceInterference { .. } => Attribution::Unattributed,
         // Everything the tier-1/2/3 passes find: the body's own
         // structure and geometry. None of these is a statement about
@@ -2165,6 +2167,10 @@ mod attribution {
                 topo::CensusUnsupportedCause::Containment(topo::ContainError::LoopUnreadable(
                     Default::default(),
                 )),
+                // The census reaches it only on the band's own parting.
+                topo::CensusUnsupportedCause::Containment(
+                    topo::test_support::arc_end_clear_of_corners(false),
+                ),
             ]
         };
         // Site 1 — the pair arm. `a`/`b` is `fixture`'s own minted
@@ -2271,19 +2277,20 @@ mod attribution {
         );
     }
 
-    /// An UNDECLARED contact is the definition of unattributed: by
+    /// An UNRECORDED contact is the definition of unattributed: by
     /// definition no mate authored it, which is what makes it F1's
     /// hard error. Held against a finding that names a face a mate DID
     /// declare — the case a coarser rule would attribute, and the one
     /// where attributing it would report the hard error as a frontier.
     #[test]
-    fn an_undeclared_contact_is_unattributed_over_a_declared_face() {
+    fn an_unrecorded_contact_is_unattributed_over_a_declared_face() {
         let (minted, a, _, _, vertex) = fixture();
         assert_eq!(
             attribute(
-                &ValidationError::UndeclaredContact {
+                &ValidationError::UnrecordedContact {
                     contact: CensusContact::VertexOnFace { vertex, face: a },
                     witness: String::new(),
+                    margin: None,
                 },
                 &minted
             ),

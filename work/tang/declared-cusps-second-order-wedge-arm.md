@@ -2,13 +2,12 @@
 id: declared-cusps-second-order-wedge-arm
 kind: issue
 title: Implementation - declared cusps, the second-order wedge arm (#131 ruling)
-status: parked
+status: open
 opened: 2026-08-23
 github: 941
 refs: [131, 1423, 1439]
 priority: P1
 cost: H
-blocked_on: [declared-pairs-retire]
 ---
 
 ## From GitHub issue 941
@@ -99,3 +98,7 @@ builds the same strut (`sweep/tests/a_swept_cusp_is_legal_at_rest.rs`,
 `a_raw_authored_cusp_is_legal_like_the_door`). What is left is the
 boolean's half (items 3 and 4: a Tangent declaration routing a definite
 tangency), which waits on stage 4 E (`booleans-glue-on-zero`).
+
+## Released by stage 4 F (2026-10-11)
+
+Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.

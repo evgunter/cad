@@ -30,16 +30,24 @@ On main (reproduced at `084e223a6e`), `crates/step-import/tests/nurbs_import.rs:
 - **(b) quick unblock, here.** Keep the bit identity where it holds: the import's gate enclosure against `topo::mass_properties(&imported)`, same face order, which is bit-identical. Compare native against imported within the order-dependent rounding, a few ulp, and say why in the comment.
 - **(a) the kernel question, FLUX's.** Make the whole-body fold independent of face order, for example with an exact two-sum expansion of the per-face terms, rounded once. Every volume golden moves. D9 idiom 2's wording ("accumulates in the runs' order") is involved, so check whether it is ratified before changing it.
 
+## Repair (b) taken (ENCL, PR 4682, to unblock main)
+
+The test now asserts the volumes agree within `faces − 1` ulps, keeps the pad bit-identical, and says why in its comment.
+
 ## Closed (NURBS, PR 4684)
 
-Repair (b), strengthened. The row now asserts every face's flux term
-bit-identical native against imported (through
-`topo::test_support::mass_properties_with_face_terms`), keeps bit
-identity between the import's gate enclosure and the imported body's
-own measurement, and asserts native against imported enclosures
-overlapping, with midpoints within the recursive sum's reordering
-error. The
-mechanism was confirmed by execution: per-face quadrature inputs and
-outputs are identical native against imported, and the six terms arrive
-in two arena orders. Repair (a) is
-`work/flux/the-whole-body-property-fold-depends-on-face-order.md`.
+PR 4684 confirmed the mechanism by execution and strengthened the row
+on top of PR 4682's bound:
+- per-face quadrature inputs and outputs are identical native against
+  imported, and the six terms arrive in two arena orders;
+- the row now also asserts every face's flux term and half-width
+  bit-identical native against imported (through
+  `topo::test_support::mass_properties_with_face_terms`), and the
+  import's gate enclosure bit-identical to the imported body's own
+  measurement;
+- PR 4682's `faces − 1` ulp bound and bit-identical pad stay as the
+  body-level claim.
+
+Repair (a), an order-independent fold, moves to FLUX's design row
+`work/flux/the-whole-body-property-fold-depends-on-face-order.md`, so
+this row closes.

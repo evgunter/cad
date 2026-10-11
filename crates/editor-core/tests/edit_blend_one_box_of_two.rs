@@ -49,7 +49,6 @@ fn two_boxes(label: &str) -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     )
 }

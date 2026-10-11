@@ -609,7 +609,9 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
 /// Applies the rigid map to every geometric datum of `body`, returning
 /// a NEW body with identical topology and identical arena keys (the
 /// three geometry arenas are rewritten in place of the clone; nothing
-/// is re-minted, so downstream key handles remain meaningful).
+/// is re-minted, so downstream key handles remain meaningful). The
+/// operand's contact records therefore carry as
+/// [`crate::ContactRecords::carried_from`]`(0)`.
 ///
 /// Every edge carrier is re-certified against the mapped endpoints and
 /// mapped surfaces — see the module docs for the contract and the

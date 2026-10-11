@@ -749,11 +749,7 @@ fn a_witness_off_a_plane_carrier_has_no_verdict() {
         })
         .map(|(k, _)| k)
         .expect("the brick's top");
-    let surface = b
-        .get_surface(b.get_face(top).unwrap().surface)
-        .unwrap()
-        .clone();
-    let at = |q| ops::place_witness(&b, top, &surface, q, band());
+    let at = |q| ops::place_witness(&b, top, q, band());
     assert_eq!(at(p(0.2, 0.3, 0.5)), IN);
     assert_eq!(at(p(0.2, 0.3, 0.51)), None);
 }

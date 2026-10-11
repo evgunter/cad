@@ -32,7 +32,7 @@ fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 /// PROBE (claim 6 / instance.rs language): a unit cube strictly INSIDE
 /// a 4-cube — two instances whose material definitely overlaps with NO
 /// boundary proximity. instance.rs claims "an inter-instance overlap
-/// surfaces as the undeclared-contact hard error"; the census sweeps
+/// surfaces as the unrecorded-contact hard error"; the census sweeps
 /// are boundary-pair sweeps, so a NESTED overlap produces no event.
 /// This probe records which way the gate actually answers.
 #[test]
@@ -110,7 +110,7 @@ fn probe_bogus_planar_patch_record_never_silently_blesses() {
     println!("fabricated patch verdict: {errors:?}");
     // Asserted by KIND, not by `is_err()`. A bare `is_err()` here cannot
     // FAIL for the reason its message names: this fixture's two stacked
-    // cubes touch, so an undeclared interface leaves `UndeclaredContact`
+    // cubes touch, so an undeclared interface leaves `UnrecordedContact`
     // findings whatever the record does, and the row would survive a
     // mutant that blessed the fabrication silently. The claim is that
     // the RECORD is refused, so the assertion has to name the record's

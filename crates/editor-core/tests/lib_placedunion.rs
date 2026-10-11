@@ -143,7 +143,6 @@ fn the_fin_group_equals_the_transform_union_chain() {
                     &DocEdit::InsertNode {
                         node: Box::new(Node::Union {
                             members: editor_core::Bodies::Spelled(vec![a.into(), placed.into()]),
-                            declare: Vec::new(),
                         }),
                         fresh: Vec::new(),
                     },
@@ -913,7 +912,6 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
                     &DocEdit::InsertNode {
                         node: Box::new(Node::Union {
                             members: editor_core::Bodies::Spelled(vec![a.into(), placed.into()]),
-                            declare: Vec::new(),
                         }),
                         fresh: Vec::new(),
                     },

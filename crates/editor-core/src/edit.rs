@@ -142,31 +142,6 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// each index of an indexed member as a slot's formula.
         members: crate::Bodies<crate::BodyRead<Formula>>,
     },
-    /// **Replace a live Boolean's or Union's whole DECLARED PAIRS**
-    /// ([`crate::DeclaredPair`]) — [`DocEdit::SetMembers`]'s shape: the
-    /// new list is stated in full and nothing is inferred about the old
-    /// one. An empty list clears the declaration.
-    ///
-    /// A declaration is a parameter, not an operand: it carries no
-    /// material and mints no names, and its sites are the node's own
-    /// operands. So this edit moves no DAG edge, and DM6's rule that no
-    /// edit rewires a live node's inputs is untouched by it.
-    ///
-    /// The pairs are checked exactly as an insert checks them: names
-    /// and sites live ([`EditError::DeclareNamesMissingNode`],
-    /// [`EditError::NameStepNeverMinted`], [`EditError::ReadSiteMissingNode`]),
-    /// each site one of the node's operands
-    /// ([`EditError::DeclaredSiteNotAnOperand`]), and each name minted
-    /// by a node the declaring node reads, directly or through what it
-    /// reads ([`EditError::DeclaredNameNotUpstream`]). A node
-    /// of any other kind refuses [`EditError::SetDeclareOnNonDeclaring`].
-    SetDeclare {
-        /// The Boolean or Union whose declaration is replaced.
-        node: RecipeNodeId,
-        /// The whole new list of declared pairs.
-        #[serde(with = "crate::persist::kernel_wire::contact_class::pairs")]
-        pairs: Vec<crate::DeclaredPair>,
-    },
     /// **Replace a live profile node's PROGRAM whole** — its loops,
     /// their verbs, order and count, arc modes, sides, windings,
     /// target forms, a split circle's `n` — validated once, as one
@@ -436,11 +411,11 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// The explicit name repair (N5, spec D3), addressed by body and
     /// name (D10): rewrite every selection of `body` that names `from`
     /// EXACTLY to name `to`; with no body, every site no selection holds
-    /// (declared pairs, an instance's crossings, appearance keys). A name is scoped by the body it is read in (N1), so the
+    /// (an instance's crossings, appearance keys). A name is scoped by the body it is read in (N1), so the
     /// body says which entity the repair is about.
     /// One-shot recorded intent — no alias table persists, nothing
     /// follows automatically afterwards (the ratified EMPTY policy
-    /// menu). Validation mirrors Declare's edit-time carve-out: node
+    /// menu). Validation is the name-carrying edits' carve-out: node
     /// existence NOW (`to`'s node must be live; `from`'s node must at
     /// least have once existed — a never-minted id is a typo);
     /// name-level resolution stays an evaluation-time concern.
@@ -483,13 +458,13 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     },
     /// Attach (or replace) one appearance attribute on a face or body
     /// stable name (M4 PR 7; [`crate::appearance`] module docs).
-    /// Validation mirrors declared pairs' ruled carve-out: the name's
+    /// Validation is the name-carrying edits' carve-out: the name's
     /// NODE must be live at edit time (a never-existed id is a typo,
     /// refused at the best-diagnostics door); name-LEVEL resolution
     /// happens at evaluation, where a non-resolving name surfaces as
     /// a typed [`crate::appearance::AppearanceLoss`] — never a silent
     /// drop. A later `DeleteNode` MAY strand the attachment (N5
-    /// dangling semantics, same as Declare), and reports it where it
+    /// dangling semantics), and reports it where it
     /// happens as a [`Maintenance::StrandedAppearance`] (DM7).
     SetAppearance {
         /// The face or body name attributed.
@@ -727,7 +702,6 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             Self::SetProgram { .. } => false,
             Self::DeleteNode { .. }
             | Self::SetMembers { .. }
-            | Self::SetDeclare { .. }
             | Self::Rebind { .. }
             | Self::SetOffset { .. }
             | Self::SetGauge { .. }
@@ -2073,38 +2047,6 @@ pub enum EditError {
         /// The loft.
         node: SpokenNode,
     },
-    /// `SetDeclare` aimed at a node that declares no contacts — only a
-    /// [`Node::Subtract`], a [`Node::Union`] and a [`Node::Intersect`]
-    /// carry declared pairs.
-    SetDeclareOnNonDeclaring {
-        /// The node that carries no declaration.
-        node: SpokenNode,
-    },
-    /// A declared pair's side stands in a read that is not one of the
-    /// declaring node's operands ([`crate::DeclaredPair`], DM4): the
-    /// site is the side, and a site the node does not have is a table
-    /// it cannot read the name in. Asked by every door that writes a
-    /// pair — the insert door, `SetDeclare` and `Rebind`.
-    DeclaredSiteNotAnOperand {
-        /// The node whose declaration it is.
-        node: SpokenNode,
-        /// The side's name.
-        name: SpokenName,
-        /// The read the side stands in.
-        site: crate::spoken::SpokenVar,
-    },
-    /// A declared pair's name is minted by a node the declaring node
-    /// does not read, directly or through what it reads — itself, a
-    /// node downstream of it, or one beside it: a declaration names
-    /// only what its operands could hold ([`crate::DeclaredPair`]),
-    /// decided by the read relation alone (D10). Asked by the same
-    /// doors as [`EditError::DeclaredSiteNotAnOperand`].
-    DeclaredNameNotUpstream {
-        /// The node whose declaration it is.
-        node: SpokenNode,
-        /// The name.
-        name: SpokenName,
-    },
     /// `SetProgram` aimed at a node that holds no profile program: a
     /// node of another kind, or a `Node::Profile` over a payload that
     /// carries no program ([`crate::ProfilePayload::loops`] answers
@@ -2492,12 +2434,11 @@ pub enum EditError {
     },
     /// Replacing the subtree broke an ancestor's dimension check.
     Dimension(DimensionError),
-    /// A name-referencing payload — a boolean's declared pairs or a
-    /// `Fillet`'s selection (M6-5) — names a node that does not exist
-    /// at edit time (spec D3 carve-out, ruled): a never-existed id is
-    /// a TYPO, refused at the best-diagnostics door. (A later
-    /// `DeleteNode` stranding a name is ALLOWED — N5 dangling
-    /// semantics; see [`crate::DeclaredPair`].)
+    /// A name-referencing payload — a mate's heads or a selection —
+    /// names a node that does not exist at edit time (spec D3
+    /// carve-out, ruled): a never-existed id is a TYPO, refused at the
+    /// best-diagnostics door. (A later `DeleteNode` stranding a name is
+    /// ALLOWED — N5 dangling semantics.)
     DeclareNamesMissingNode {
         /// The name whose node is not live.
         name: SpokenName,
@@ -3183,7 +3124,6 @@ impl EditError {
             | Self::IndexedRead { node, fault: _ }
             | Self::SetMembersOnNonList { node }
             | Self::LoftSectionsSpelled { node }
-            | Self::SetDeclareOnNonDeclaring { node }
             | Self::SetProgramOnNonProfile { node }
             | Self::SetExtrudeSideOnNonExtrude { node }
             | Self::StepIdsRefused { node, fault: _ }
@@ -3365,15 +3305,6 @@ impl EditError {
             Self::GaugeNotLive { node, gauge: _ } => {
                 *node = node.respoken(doc);
             }
-            Self::DeclaredSiteNotAnOperand { node, name, site } => {
-                *node = node.respoken(doc);
-                *name = name.respoken(doc);
-                *site = site.respoken(doc);
-            }
-            Self::DeclaredNameNotUpstream { node, name } => {
-                *node = node.respoken(doc);
-                *name = name.respoken(doc);
-            }
             Self::NotAGauge { node, gauge } | Self::GaugeCycle { node, gauge } => {
                 *node = node.respoken(doc);
                 *gauge = gauge.respoken(doc);
@@ -3472,38 +3403,6 @@ impl EditError {
                         "set the members of a node that takes a list, or insert a new node \
                          over the inputs you want"
                     ),
-                )
-            }
-            Self::SetDeclareOnNonDeclaring { node } => {
-                write!(
-                    f,
-                    "{node} is not a boolean or a union, so it has no contacts to declare"
-                )?;
-                tail.recourse(
-                    f,
-                    format_args!("declare on the boolean or union that joins the pair"),
-                )
-            }
-            Self::DeclaredSiteNotAnOperand { node, name, site } => {
-                write!(
-                    f,
-                    "the declaration names {name}, read through {site}, which is not an operand of \
-                 {node}"
-                )?;
-                tail.recourse(
-                    f,
-                    format_args!("read it at the operand of {node} whose entity it is"),
-                )
-            }
-            Self::DeclaredNameNotUpstream { node, name } => {
-                write!(
-                    f,
-                    "the declaration names {name}, which is not minted upstream of {node}, so \
-                     none of its operands can hold it"
-                )?;
-                tail.recourse(
-                    f,
-                    format_args!("declare an entity of one of {node}'s operands"),
                 )
             }
             // A document's profile node always holds a program; the
@@ -4547,7 +4446,7 @@ pub enum Maintenance {
     /// node's payload, so there is no surviving carrier to name and
     /// this is an arm of its own rather than a [`Self::Strand`] with
     /// a sentinel. Everything else is the payload strand's:
-    /// [`DocEdit::SetAppearance`] gives the key Declare's N5
+    /// [`DocEdit::SetAppearance`] gives the key N5's dangling
     /// semantics, evaluation answers
     /// [`crate::appearance::AppearanceLoss`], and [`DocEdit::Rebind`]
     /// is the repair — [`DocEdit::ClearAppearance`] is the other one,
@@ -4778,8 +4677,8 @@ impl core::fmt::Display for Maintenance {
 /// measure's arguments), then store keys in the store's own
 /// `BTreeMap` order, which is `StableName`'s. Nothing is sorted here.
 ///
-/// [`Node::payload_read_sites`] — a declared pair's sites — are NOT
-/// here. A read site is a node id rather than a name: no N5 ladder
+/// [`Node::payload_read_sites`] — none of today's payloads has one —
+/// are NOT here. A read site is a node id rather than a name: no N5 ladder
 /// resolves it and `Rebind` cannot repair it, so a delete that strands
 /// one is the evaluation's to refuse, not this door's to report.
 ///
@@ -5747,60 +5646,6 @@ fn check_payload_refs<P: crate::ProfilePayload>(
     Ok(())
 }
 
-/// [`crate::node::declared_side_fault`] asked of the sides `sides` a
-/// door writes onto `node`, refused typed. `carrier` speaks the node
-/// and `at` is its id (`None` for a node being inserted): every door
-/// that writes a pair asks this, so a pair no door admits is one no
-/// document holds.
-fn check_declared_sides<'p, P: crate::ProfilePayload>(
-    doc: &Doc<P>,
-    new: &Doc<P>,
-    node: &Node<P>,
-    sides: impl IntoIterator<Item = &'p crate::SitedRef<crate::VarId>>,
-    carrier: impl Fn() -> SpokenNode,
-    at: Option<RecipeNodeId>,
-) -> Result<(), EditError> {
-    // A declared site is one of this node's reads.
-    let reads: Vec<crate::VarId> = node
-        .operand_rows()
-        .into_iter()
-        .map(|(_, read)| read)
-        .collect();
-    let operands: Vec<RecipeNodeId> = reads
-        .iter()
-        .filter_map(|&read| new.defined_by(read).map(|(site, _)| site))
-        .collect();
-    // A name its carrier's operands could hold is minted by a node the
-    // carrier reads, directly or through what it reads (D10: reading is
-    // the only dependency, so no position decides it): the carrier's
-    // strict ancestors, or — for a node not yet inserted — the
-    // operations it reads and theirs.
-    let reach: std::collections::BTreeSet<RecipeNodeId> = match at {
-        Some(at) => crate::doc::strict_ancestors(new, at),
-        None => operands
-            .iter()
-            .flat_map(|&site| std::iter::once(site).chain(crate::doc::strict_ancestors(new, site)))
-            .collect(),
-    };
-    let upstream = |minter: RecipeNodeId| reach.contains(&minter);
-    match crate::node::declared_side_fault(sides, Some(&reads), upstream) {
-        None => Ok(()),
-        Some((side, crate::node::DeclaredSideFault::SiteNotAnOperand)) => {
-            Err(EditError::DeclaredSiteNotAnOperand {
-                node: carrier(),
-                name: doc.spoken_name(&side.name),
-                site: new.spoken_var(side.at),
-            })
-        }
-        Some((side, crate::node::DeclaredSideFault::NameNotUpstream)) => {
-            Err(EditError::DeclaredNameNotUpstream {
-                node: carrier(),
-                name: doc.spoken_name(&side.name),
-            })
-        }
-    }
-}
-
 /// What of a node a door writes ([`check_written_node`]).
 #[derive(Clone, Copy)]
 enum Writes {
@@ -5823,9 +5668,8 @@ enum Writes {
 /// [`DocEdit::SetMembers`]) of the node it rewrites, so no door admits
 /// a node another refuses:
 ///
-/// - its payload's names and read sites live ([`check_payload_refs`])
-///   and its declared pairs ([`check_declared_sides`]), where the door
-///   writes the payload (`writes`);
+/// - its payload's names and read sites live ([`check_payload_refs`]),
+///   where the door writes the payload (`writes`);
 /// - DM5 and the list floor ([`check_node_inputs`]);
 /// - a gauge reference live and of a gauge ([`check_gauge_ref`]);
 /// - a decidable alignment, and a mate's frame offsets;
@@ -5848,16 +5692,6 @@ fn check_written_node<P: crate::ProfilePayload>(
         check_payload_refs(doc, new, node)?;
     }
     check_node_inputs(doc, id, node)?;
-    if let Writes::Node = writes {
-        check_declared_sides(
-            doc,
-            new,
-            node,
-            crate::node::declared_sides(node.declared_pairs()),
-            spoken,
-            None,
-        )?;
-    }
     // A gauge reference is a placement chain, not a read: a
     // never-live or wrong-kind one is a typo, refused here.
     check_gauge_ref(new, id, node.gauge_ref(), spoken)?;
@@ -6735,45 +6569,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             }
             write_reads(doc, new, reported, *node, rewritten, tol)?
         }
-        DocEdit::SetDeclare { node, pairs } => {
-            let mut rewritten = match new.nodes.get(node) {
-                None => {
-                    return Err(EditError::UnknownNode {
-                        id: SpokenNode::absent(*node),
-                    });
-                }
-                Some(current) => current.clone(),
-            };
-            let (Node::Subtract { declare, .. }
-            | Node::Union { declare, .. }
-            | Node::Intersect { declare, .. }) = &mut rewritten
-            else {
-                return Err(EditError::SetDeclareOnNonDeclaring {
-                    node: doc.spoken(*node),
-                });
-            };
-            declare.clone_from(pairs);
-            // The pairs are payload names and read sites, checked by the
-            // insert door's own functions; no edge moved, so neither
-            // acyclicity nor the root set is asked again.
-            check_payload_refs(doc, new, &rewritten)?;
-            check_declared_sides(
-                doc,
-                new,
-                &rewritten,
-                crate::node::declared_sides(pairs),
-                || doc.spoken(*node),
-                Some(*node),
-            )?;
-            new.nodes.insert(*node, rewritten);
-            EditRecord {
-                minted: None,
-                minted_var: None,
-                structural: true,
-                fresh: Vec::new(),
-                outputs: Vec::new(),
-            }
-        }
         DocEdit::SetProgram {
             node,
             loops,
@@ -7234,34 +7029,14 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             // `Node::rebind_payload_names` is its rewriting twin, so no
             // payload carrier can be repaired here and missed there).
             // Zero sites = nothing to repair, refused.
-            let mut declare_sites = 0usize;
+            let mut name_sites = 0usize;
             let mut appearance_sites = 0usize;
             if let Some(body) = body {
-                declare_sites += new
+                name_sites += new
                     .rewrite_selection_names(*body, &mut |name| (name == from).then(|| to.clone()));
             } else {
-                let mut redeclared = Vec::new();
-                for (&id, node) in &mut new.nodes {
-                    let before = node.declared_pairs().to_vec();
-                    declare_sites += node.rebind_payload_names(from, to);
-                    if node.declared_pairs() != before.as_slice() {
-                        redeclared.push((id, before));
-                    }
-                }
-                // A rewritten declared side is one this door writes, so
-                // it answers the rule every such door asks — of the
-                // sides the rebind moved only, so a strand a union
-                // already held, even the other side of a pair it
-                // rewrites, does not block an unrelated repair.
-                for (id, before) in redeclared {
-                    let Some(node) = new.nodes.get(&id) else {
-                        continue;
-                    };
-                    let moved = crate::node::declared_sides(node.declared_pairs())
-                        .zip(crate::node::declared_sides(&before))
-                        .filter(|(after, was)| after != was)
-                        .map(|(after, _)| after);
-                    check_declared_sides(doc, new, node, moved, || doc.spoken(id), Some(id))?;
+                for node in new.nodes.values_mut() {
+                    name_sites += node.rebind_payload_names(from, to);
                 }
                 // Appearance keys are rebind sites (the attribute rides
                 // the name). A per-kind collision with an attribute
@@ -7273,7 +7048,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     move_appearance_record(doc, &mut new.appearance, moved, to)?;
                 }
             }
-            if declare_sites + appearance_sites == 0 {
+            if name_sites + appearance_sites == 0 {
                 return Err(EditError::RebindNoReferences {
                     name: doc.spoken_name(from),
                 });
@@ -7286,7 +7061,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 // carrier held it. An appearance-only rebind is
                 // presentation motion: no content key moves, nothing
                 // recomputes.
-                structural: declare_sites > 0,
+                structural: name_sites > 0,
                 fresh: Vec::new(),
                 outputs: Vec::new(),
             }

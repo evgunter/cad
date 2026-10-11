@@ -51,6 +51,7 @@
 //! the ring operations come with it).
 
 use super::algebra::RingRefinement;
+use super::knot_values::Knots;
 use super::knots::{KnotVector, Span};
 use crate::real::Real;
 
@@ -133,38 +134,67 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// other's — unsound for a straddling enclosure).
     fn enclosure_hull(self, other: Self) -> Self;
 
-    /// One homogeneous channel (`w`, or one coordinate of `w·P`) through
-    /// `refinement` at this scalar, per scalar as the locator is. At
-    /// `Interval` it is the certification ring's refinement
-    /// ([`RingRefinement::refine`]), so the result encloses the
-    /// described curve's refined channel through the ring's one step.
-    /// At every other scalar it is [`CurvePlan::apply_homogeneous`](super::CurvePlan::apply_homogeneous) per
-    /// plan, both Boehm ratios formed in the scalar. Either way a
-    /// channel that is not one entry per source control point refuses:
-    /// every entry of the refined length is poison.
-    fn refine_homogeneous(refinement: &RingRefinement, channel: &[Self]) -> Vec<Self> {
-        if channel.len() != refinement.source_count() {
+    /// One homogeneous channel (`w`, or one coordinate of `w·P`) of a
+    /// curve whose knots are `knots` through `refinement` at this
+    /// scalar, per scalar as the locator is. At `Interval` it is the
+    /// certification ring's refinement ([`RingRefinement::refine`]),
+    /// so the result encloses the described curve's refined channel
+    /// through the ring's one step; the ring reads the knots off the
+    /// value channel, which at `Interval` is every held knot exactly (a
+    /// held knot is a point). At every other scalar it is
+    /// [`CurvePlan::apply_homogeneous_in`](super::CurvePlan::apply_homogeneous_in)
+    /// per plan, both Boehm ratios formed in the scalar from the held
+    /// knots, carried plan to plan by [`Knots::restructure`] (a point
+    /// the schedule inserts is its constant). Either way a channel that
+    /// is not one entry per source control point refuses: every entry
+    /// of the refined length is poison.
+    fn refine_homogeneous(
+        refinement: &RingRefinement,
+        knots: &Knots<Self>,
+        channel: &[Self],
+    ) -> Vec<Self> {
+        if channel.len() != refinement.source_count()
+            || knots.structure().control_count() != refinement.source_count()
+        {
             return vec![Self::from_f64(f64::NAN); refinement.knots().control_count()];
         }
-        refinement
-            .plans()
-            .iter()
-            .fold(channel.to_vec(), |c, plan| plan.apply_homogeneous(&c))
+        let mut held = knots.clone();
+        let mut c = channel.to_vec();
+        for plan in refinement.plans() {
+            c = plan.apply_homogeneous_in(held.values(), &c);
+            held = held.restructure(plan.knots().clone(), Self::from_f64);
+        }
+        c
     }
 
-    /// A rational curve's stored `weights` through `refinement` at this
-    /// scalar, or `None` unless every refined weight is certainly
-    /// positive: the weights a de-homogenization divides by, and the
-    /// licence of a rational hull. One refinement at `f64` (the check
-    /// reads the weights it returns) and at `Interval` (the ring's,
-    /// checked by [`certainly_positive`](super::algebra::certainly_positive)). At every other scalar the
-    /// check reads the `f64` refinement, the scalar's own value, and
-    /// the weights are [`SpanLocate::refine_homogeneous`]'s.
-    fn refine_weights(refinement: &RingRefinement, weights: &[f64]) -> Option<Vec<Self>> {
-        f64::refine_weights(refinement, weights)?;
-        let lifted: Vec<Self> = weights.iter().map(|w| Self::from_f64(*w)).collect();
-        Some(Self::refine_homogeneous(refinement, &lifted))
+    /// A rational curve's `weights`, over its `knots`, through
+    /// `refinement` at this scalar, or `None` unless every refined
+    /// weight is certainly positive: the weights a de-homogenization
+    /// divides by, and the licence of a rational hull. One refinement at
+    /// `f64` (the check reads the weights it returns) and at `Interval`
+    /// (the ring's, checked by
+    /// [`certainly_positive`](super::algebra::certainly_positive)). At
+    /// every other scalar the check reads the `f64` refinement of the
+    /// weights' value channel ([`SpanLocate::point_value`]; a weight
+    /// that is no point refuses), and the weights are
+    /// [`SpanLocate::refine_homogeneous`]'s.
+    fn refine_weights(
+        refinement: &RingRefinement,
+        knots: &Knots<Self>,
+        weights: &[Self],
+    ) -> Option<Vec<Self>> {
+        let channel: Vec<f64> = weights
+            .iter()
+            .map(|w| w.point_value())
+            .collect::<Option<_>>()?;
+        f64::refine_weights(
+            refinement,
+            &Knots::from(knots.structure().clone()),
+            &channel,
+        )?;
+        Some(Self::refine_homogeneous(refinement, knots, weights))
     }
+
     /// The one `f64` this value locates by, or `None` when it is no
     /// single point: poison, or an enclosure wider than a point.
     ///
@@ -174,6 +204,25 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// bracket, because a wide one names no knot structure, and a
     /// midpoint would invent one.
     fn point_value(self) -> Option<f64>;
+
+    /// [`SpanLocate::point_value`], or NaN where there is none: the
+    /// `f64` a structure decision reads, so that a value with no point
+    /// (poison, an enclosure wider than a point) takes every
+    /// NaN-catching refusal arm.
+    fn value_channel(self) -> f64 {
+        self.point_value().unwrap_or(f64::NAN)
+    }
+
+    /// **Which side of the projective partition this scalar is on**,
+    /// answered by running one of `arm`'s two halves: its
+    /// [`projective`](super::ProjectiveSplit::projective) half, which
+    /// may call the projective knot algebra, at `f64`, `Probe`, and
+    /// `Dual` and `Sym` over them; its
+    /// [`enclosure`](super::ProjectiveSplit::enclosure) half at
+    /// `Interval` and the wrappers over it. A wrapper answers by its
+    /// base, so the dispatch is the type's and no value is read.
+    /// Declared, never defaulted: a new scalar says which half it runs.
+    fn split_projective<A: super::ProjectiveSplit<Self>>(arm: A) -> A::Out;
 }
 
 impl SpanLocate for f64 {
@@ -191,8 +240,12 @@ impl SpanLocate for f64 {
         f64::NAN
     }
 
-    fn refine_weights(refinement: &RingRefinement, weights: &[f64]) -> Option<Vec<Self>> {
-        let w = Self::refine_homogeneous(refinement, weights);
+    fn refine_weights(
+        refinement: &RingRefinement,
+        knots: &Knots<Self>,
+        weights: &[f64],
+    ) -> Option<Vec<Self>> {
+        let w = Self::refine_homogeneous(refinement, knots, weights);
         // `!(w > 0.0)` catches NaN too.
         #[allow(clippy::neg_cmp_op_on_partial_ord)]
         let refused = w.iter().any(|w| !(*w > 0.0) || !w.is_finite());
@@ -201,6 +254,10 @@ impl SpanLocate for f64 {
 
     fn point_value(self) -> Option<f64> {
         (!self.is_nan()).then_some(self)
+    }
+
+    fn split_projective<A: super::ProjectiveSplit<Self>>(arm: A) -> A::Out {
+        arm.projective()
     }
 }
 
