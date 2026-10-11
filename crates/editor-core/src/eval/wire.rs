@@ -250,12 +250,12 @@ where
 {
     use crate::OperandSlot as O;
     let unprojected = results;
-    // A boolean's or a union's operands are projected one by one: two
-    // ports of one split are two bodies, which one map keyed by the
-    // split cannot hold. Every other node reads at most one body.
+    // A boolean's, a union's and a measure's reads are projected one by
+    // one: two ports of one split are two bodies, which one map keyed by
+    // the split cannot hold. Every other node reads at most one body.
     let per_operand = matches!(
         node,
-        Node::Subtract { .. } | Node::Union { .. } | Node::Intersect { .. }
+        Node::Subtract { .. } | Node::Union { .. } | Node::Intersect { .. } | Node::Measure { .. }
     );
     let projected = if per_operand {
         None
@@ -420,7 +420,15 @@ where
                 wire_placed_union(id, input, kind, doc, &written(doc, id), results, vals, tol)
             }
         },
-        Node::Measure { primitive } => wire_measure(primitive, doc, results, tol),
+        Node::Measure { primitive } => {
+            let each = project_each(&body_rows(node, doc))?;
+            let at = |reference: usize| {
+                each.get(reference)
+                    .and_then(Option::as_ref)
+                    .unwrap_or(unprojected)
+            };
+            wire_measure(primitive, doc, &at, tol)
+        }
         Node::Assertion { value, .. } => {
             // Which endpoints this assertion may read: structural, off
             // the measures under its value, so the same at every scalar.
@@ -2287,15 +2295,18 @@ impl<'v, T: Decide> Measured<'v, T> {
 /// states. The body
 /// read is what makes the answer the placed carrier: a selection of a
 /// transform's output names the moved geometry.
-fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
+fn wire_measure<'r, T: Decide + crate::measure::MinClearanceLane>(
     primitive: &crate::measure::MeasurePrimitive<crate::VarId>,
     doc: &crate::doc::Doc<ProfileProgram>,
-    results: &Results<T>,
+    results_at: &dyn Fn(usize) -> &'r Results<T>,
     tol: Tol,
 ) -> OpResult<T> {
     let dim = primitive.dim();
     let mut sides = Vec::with_capacity(2);
     for (index, &var) in primitive.refs().into_iter().enumerate() {
+        // Each reference reads its own body: two ports of one split are
+        // two bodies (`reads_projected`).
+        let results = results_at(index);
         let slot = crate::OperandSlot::Measured(
             primitive.kind(),
             u8::try_from(index).unwrap_or_else(|_| unreachable!("a primitive reads two")),
@@ -2629,7 +2640,7 @@ fn reads_projected<T: Decide>(
     results: &Results<T>,
     vals: &SlotValues<T>,
 ) -> Result<Option<Results<T>>, NodeErrorKind> {
-    let mut replaced: Vec<(RecipeNodeId, super::NodeValue<T>)> = Vec::new();
+    let mut replaced: Vec<(RecipeNodeId, u32, super::NodeValue<T>)> = Vec::new();
     for &(seat, var) in rows {
         let projected = |of: RecipeNodeId,
                          value: &super::NodeValue<T>,
@@ -2643,6 +2654,7 @@ fn reads_projected<T: Decide>(
             names::check_total(&table, &body, 0).map_err(NodeErrorKind::Naming)?;
             Ok((
                 of,
+                index,
                 super::NodeValue {
                     payload: ValuePayload::Body(body),
                     name_table: Arc::new(table),
@@ -2673,9 +2685,7 @@ fn reads_projected<T: Decide>(
         else {
             continue;
         };
-        let half = SplitHalf::ALL
-            .into_iter()
-            .find(|h| h.output_body() == u32::from(port))
+        let half = SplitHalf::of_output_body(u32::from(port))
             .unwrap_or_else(|| unreachable!("a split defines a port per half"));
         let value = value_of(results, split)?;
         let ValuePayload::Split { above, below } = &value.payload else {
@@ -2686,6 +2696,13 @@ fn reads_projected<T: Decide>(
     }
     if replaced.is_empty() {
         return Ok(None);
+    }
+    // One map holds one body per operation: a node reading two bodies of
+    // one operation is projected read by read (`run_op`'s `per_operand`).
+    for (i, (at, index, _)) in replaced.iter().enumerate() {
+        if replaced[..i].iter().any(|(a, b, _)| a == at && b != index) {
+            unreachable!("a node read two bodies of {at:?} into one map: project it read by read");
+        }
     }
     // The values this op can read: every entry that stands, cloned (a
     // value's geometry and tables are shared, not copied). The failed
@@ -2701,7 +2718,7 @@ fn reads_projected<T: Decide>(
             _ => None,
         })
         .collect();
-    for (at, value) in replaced {
+    for (at, _, value) in replaced {
         local.insert(at, NodeResult::Ok(value));
     }
     Ok(Some(local))

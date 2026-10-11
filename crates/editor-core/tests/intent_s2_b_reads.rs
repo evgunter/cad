@@ -492,7 +492,7 @@ fn a_split_port_read_is_its_half() {
         },
     );
     let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
-    let volume = volume_of(&ev, by_port);
+    let volume = volume(&ev, by_port);
     assert!(
         (volume - 1.5).abs() < 1e-12,
         "the half (0.5) and the block (1): {volume}"
@@ -527,13 +527,6 @@ fn a_split_port_read_is_its_half() {
         carried.iter().all(|n| above_rows.contains(n)),
         "every name carried through the port is an upper-half row: {carried:?}"
     );
-}
-
-/// The volume of a node's one body.
-fn volume_of(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
-    topo::mass_properties(crate::corpus::body_of(ev, id), Tol::witness())
-        .expect("mass properties")
-        .volume
 }
 
 /// **The comparator reads a read as the input it names**, so a document

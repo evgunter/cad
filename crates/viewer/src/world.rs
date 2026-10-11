@@ -119,6 +119,28 @@ pub fn placements_of_target(doc: &Doc<ProfileProgram>, target: RecipeNodeId) -> 
         .unwrap_or_default()
 }
 
+/// **The output `read` names**: its operation, and the port where the
+/// read names one. `None` for a selection, which is no output, and for
+/// a variable the document does not define.
+pub fn read_output(
+    doc: &Doc<ProfileProgram>,
+    read: &Operand,
+) -> Option<(RecipeNodeId, Option<u8>)> {
+    let defined = |var: VarId| {
+        doc.var(var)?
+            .def()
+            .output()
+            .map(|(node, port)| (node, Some(port)))
+    };
+    match read {
+        Operand::Node(node) => Some((*node, None)),
+        Operand::Output { node, port } => Some((*node, Some(*port))),
+        Operand::Var(var) => defined(*var),
+        Operand::Name(name) => defined(doc.var_named(name.as_str())?),
+        Operand::Select { .. } => None,
+    }
+}
+
 /// **The world placements reading the body `read` names**: a node
 /// named alone reads its one output, a port the output it names.
 pub fn placements_of_read(doc: &Doc<ProfileProgram>, read: &Operand) -> Vec<RecipeNodeId> {

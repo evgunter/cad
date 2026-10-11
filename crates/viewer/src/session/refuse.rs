@@ -333,6 +333,13 @@ pub enum Refusal {
         /// The kind the seat requires.
         wanted: NodeKindWanted,
     },
+    /// A body seat's read names no output of the document: a selection,
+    /// or a variable name nothing defines. A seat reads a node or one of
+    /// its outputs.
+    NotABodyRead {
+        /// The read, as the session op held it.
+        read: Box<Operand>,
+    },
     /// A duplicate could not be placed — its input's landed value is
     /// not one body with a width ([`combine::DuplicateFault`]).
     Duplicate(combine::DuplicateFault),
@@ -487,6 +494,7 @@ impl Refusal {
                 notation,
             },
             unspoken @ (Self::NoSuchVariable(_)
+            | Self::NotABodyRead { .. }
             | Self::EmptyName
             | Self::Dimension(_)
             | Self::Parse(_)
@@ -518,6 +526,7 @@ impl Refusal {
             | Self::OfferIsNamed(_)
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
+            | Self::NotABodyRead { .. }
             | Self::Duplicate(_)
             | Self::Edit(_)
             | Self::Dimension(_)
@@ -561,6 +570,7 @@ impl Refusal {
             | Self::OfferIsNamed(_)
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
+            | Self::NotABodyRead { .. }
             | Self::Duplicate(_)
             | Self::Edit(_)
             | Self::Dimension(_)
@@ -815,6 +825,13 @@ impl core::fmt::Display for Refusal {
             Self::WrongNodeKind { node, wanted } => {
                 write!(f, "{node} is not {} in this document", wanted.name())
             }
+            Self::NotABodyRead { read } => match &**read {
+                Operand::Name(name) => write!(f, "no variable is named {name} in this document"),
+                _ => f.write_str(
+                    "a selection names cells of a body, not the body: a body seat reads a node \
+                     or one of its outputs",
+                ),
+            },
             // The frame is layer 3's and the sentence is the door's.
             // Nothing is doubled: `EditError`'s arms state the problem
             // and carry no category prefix of their own, so this reads

@@ -749,13 +749,7 @@ impl PartTool {
         self.seats.pick_at(doc, node, body);
     }
 
-    /// The half seat `i` reads, when it holds a split picked alone
-    /// ([`Seats::choose_half`]).
-    pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
-        self.seats.choose_half(i, half);
-    }
-
-    /// Empty both seats.
+    /// Empty the seat.
     pub fn clear(&mut self) {
         self.seats.clear();
     }
@@ -952,6 +946,14 @@ pub enum DuplicateFault {
         /// The node picked, as the landed document held it.
         input: SpokenNode,
     },
+    /// The input reads a split's half that holds no material: the
+    /// split's plane misses the body on that side.
+    EmptyHalf {
+        /// The split, as the landed document held it.
+        input: SpokenNode,
+        /// The half read.
+        half: SplitHalf,
+    },
     /// The measuring tessellation refused.
     Unmeasured {
         /// The node picked, as the landed document held it.
@@ -986,6 +988,11 @@ impl core::fmt::Display for DuplicateFault {
                 f,
                 "{input}'s value is several bodies; a duplicate copies ONE — project the one \
                  you mean first"
+            ),
+            Self::EmptyHalf { input, half } => write!(
+                f,
+                "{input}'s {} half holds no material: its plane misses the body on that side",
+                half.name()
             ),
             Self::Unmeasured { input, error } => write!(
                 f,
@@ -1043,36 +1050,30 @@ pub fn duplicate_step(
     input: &Operand,
     tol: Tol,
 ) -> Result<f64, DuplicateFault> {
-    let (node, port) = match input {
-        Operand::Output { node, port } => (*node, Some(*port)),
-        Operand::Node(node) => (*node, None),
-        Operand::Var(_) | Operand::Name(_) | Operand::Select { .. } => {
-            unreachable!("a seat holds a node or one of its ports")
-        }
-    };
+    // The session door's kind gate ran first and refused a read naming
+    // no output.
+    let (node, port) = crate::world::read_output(doc, input)
+        .unwrap_or_else(|| unreachable!("a body read the session admitted names an output"));
     let value = eval.usable(node).map_err(|standing| {
         let standing = crate::tree::standing_as_drawn(standing, eval);
         let held = held_by(&standing, doc);
         DuplicateFault::NoValue { standing, held }
     })?;
     let spoken = || doc.spoken(node);
-    let half = |port: u8| {
-        match &value.payload {
-            pncad::document::ValuePayload::Split { above, below } => {
-                Some(match SplitHalf::of_output_body(u32::from(port))? {
-                    SplitHalf::Above => above,
-                    SplitHalf::Below => below,
-                })
-            }
-            _ => None,
-        }
-        .and_then(|side| match side {
-            pncad::document::SplitSide::Body(body) => Some(body.as_ref()),
-            pncad::document::SplitSide::Empty => None,
-        })
-    };
     let body = match port {
-        Some(port) => half(port),
+        Some(port) => match value.payload.output_body(u32::from(port)) {
+            Ok(body) => Some(body),
+            // A port the value holds no body at is a split's empty half.
+            Err(_) => match (&value.payload, SplitHalf::of_output_body(u32::from(port))) {
+                (pncad::document::ValuePayload::Split { .. }, Some(half)) => {
+                    return Err(DuplicateFault::EmptyHalf {
+                        input: spoken(),
+                        half,
+                    });
+                }
+                _ => None,
+            },
+        },
         None => one_body(&value.payload),
     }
     .ok_or_else(|| DuplicateFault::NotOneBody { input: spoken() })?;
@@ -1115,6 +1116,10 @@ impl DuplicateFault {
             },
             Self::NotOneBody { input } => Self::NotOneBody {
                 input: again(input),
+            },
+            Self::EmptyHalf { input, half } => Self::EmptyHalf {
+                input: again(input),
+                half,
             },
             Self::Unmeasured { input, error } => Self::Unmeasured {
                 input: again(input),
@@ -1197,9 +1202,9 @@ pub fn part_node(of: RecipeNodeId, select: PartSelectSpec) -> AuthoredNode {
 /// and a transform of one is too, read off its operand at minting. A
 /// seat filled with one refuses at the door rather than after the edit
 /// lands. The recipe's way of saying which of several is meant is
-/// [`Node::Part`] (`crates/editor-core/REFERENCES.md` DM3): a
-/// projection of one half or one instance, which defines ONE `Body`
-/// and is admitted here for exactly that reason.
+/// a read of one of its outputs (`crates/editor-core/REFERENCES.md`
+/// DM3: a split's half by its port), or [`Node::Part`] of one copy of a
+/// pattern; either is ONE `Body`.
 ///
 /// A node this admits may still refuse downstream — an empty boolean
 /// result is a typed success that is not a body, and `wire_sweep`

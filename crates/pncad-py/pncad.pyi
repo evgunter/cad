@@ -2417,7 +2417,10 @@ class Node:
     @staticmethod
     def split(target: _BodyArg, tool: _Operand) -> Node:
         """Split `target` by `tool` (a `datum_plane`). The value is a
-        split — read it with `Value.split()`, not `Value.body()`."""
+        split — read it with `Value.split()`, not `Value.body()`. Its two
+        outputs are its halves, read by port (`doc.output(split, 0)` is
+        the half above the plane's normal); a read of a half the cut left
+        with no material refuses at `evaluate` (`empty_half`)."""
 
     @staticmethod
     def transform(

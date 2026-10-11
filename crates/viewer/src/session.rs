@@ -3089,16 +3089,18 @@ impl DocSession {
         if admits_read(doc, read, wanted) {
             return Ok(());
         }
-        let node = match read {
-            Operand::Node(node) | Operand::Output { node, .. } => *node,
-            Operand::Var(_) | Operand::Name(_) | Operand::Select { .. } => {
-                unreachable!("a seat holds a node or one of its ports")
-            }
-        };
-        Err(Refusal::WrongNodeKind {
-            node: doc.spoken(node),
-            wanted,
-        })
+        match crate::world::read_output(doc, read) {
+            Some((node, _)) => Err(Refusal::WrongNodeKind {
+                node: doc.spoken(node),
+                wanted,
+            }),
+            None => match read {
+                Operand::Var(var) => Err(Refusal::NoSuchVariable(*var)),
+                _ => Err(Refusal::NotABodyRead {
+                    read: Box::new(read.clone()),
+                }),
+            },
+        }
     }
 
     /// The node-kind gate every creation seat shares: the named node

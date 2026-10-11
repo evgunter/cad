@@ -89,3 +89,76 @@ fn doctor(value: &mut serde_json::Value, count: &mut usize) {
         _ => {}
     }
 }
+
+/// **A measure whose two references read the two halves of one split
+/// reads each half by its own port**, in either order: the far caps of
+/// a 1 × 1 × 4 column split at z = 2 are 4 apart. Red while a measure's
+/// reads were projected into one map keyed by the split, where the
+/// later read overwrote the earlier and its name vanished.
+#[test]
+fn a_measure_across_one_splits_two_halves_reads_each_by_its_port() {
+    use editor_core::{
+        CapEnd, Datum, EntityKind, MeasurePrimitive, NamePat, NodeResult, Operand, SegPat, SegTag,
+        Selector, SplitHalf, ValuePayload, select,
+    };
+    let mut r = fixture::Recorder::new();
+    let profile = r.profile(
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+    );
+    let column = r.insert(Node::Extrude {
+        profile: profile.into(),
+        distance: len(4.0),
+        side: editor_core::ExtrudeSide::Along,
+    });
+    let tool = r.insert(Node::Datum(Datum::Plane {
+        origin: [len(0.0), len(0.0), len(2.0)],
+        normal: [scl(0.0), scl(0.0), scl(1.0)],
+    }));
+    let split = r.insert(Node::Split {
+        target: column.into(),
+        tool: tool.into(),
+    });
+    let ev = fixture::run(&r.doc, &editor_core::EvalOptions::default());
+    let cap = |end: CapEnd| {
+        let found = select(
+            &ev,
+            split,
+            &Selector::of(
+                NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end)),
+            ),
+        );
+        let [name] = found.as_slice() else {
+            panic!("one {end:?} cap on the split: {found:?}")
+        };
+        name.clone()
+    };
+    let on = |half: SplitHalf, end: CapEnd| Operand::Select {
+        body: Box::new(Operand::output(split, half.port())),
+        names: vec![cap(end)],
+    };
+    let top = on(SplitHalf::Above, CapEnd::End);
+    let bottom = on(SplitHalf::Below, CapEnd::Start);
+    for (label, refs) in [
+        ("above first", [top.clone(), bottom.clone()]),
+        ("below first", [bottom, top]),
+    ] {
+        let (doc, m) = fixture::measure(
+            r.doc.clone(),
+            &[MeasurePrimitive::Distance { a: 0, b: 1 }],
+            &refs,
+        );
+        let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
+        match ev.nodes.get(&m.measures[0]) {
+            Some(NodeResult::Ok(v)) => match &v.payload {
+                ValuePayload::Measure { value, .. } => {
+                    assert!((value - 4.0).abs() < 1e-9, "{label}: distance {value}");
+                }
+                other => panic!("{label}: {}", other.kind_name()),
+            },
+            other => panic!("{label}: the measure did not evaluate: {other:?}"),
+        }
+    }
+}

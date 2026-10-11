@@ -127,18 +127,23 @@ pub(crate) fn seats_row(
         (0..2)
             .filter(|&i| seats.awaits_half(i))
             .map(|i| (i, seats.role(i).name().to_owned())),
+        theme,
     )
 }
 
 /// **One row per pick still waiting for its half**, each offering the
 /// two: `waiting` names the pick's index and how the panel calls it,
-/// and the answer is the pick and the half a click chose.
+/// and the answer is the pick and the half a click chose. Under the
+/// rows, which side is which.
 pub(crate) fn half_rows(
     ui: &mut egui::Ui,
     waiting: impl IntoIterator<Item = (usize, String)>,
+    theme: &Theme,
 ) -> Option<(usize, SplitHalf)> {
     let mut chosen = None;
+    let mut any = false;
     for (i, said) in waiting {
+        any = true;
         ui.horizontal(|ui| {
             ui.label(format!("{said}: read the"));
             // One button per half the KERNEL has, in its order: the row
@@ -150,6 +155,14 @@ pub(crate) fn half_rows(
             }
             ui.label("half");
         });
+    }
+    if any {
+        crate::widgets::message_toned(
+            ui,
+            "the split plane's normal side is above",
+            theme,
+            Tone::Advisory,
+        );
     }
     chosen
 }
@@ -1392,7 +1405,7 @@ impl ViewerBehavior<'_> {
             &self.theme,
             Tone::Advisory,
         );
-        if let Some((pick, half)) = half_rows(ui, boolean_waiting(&tool)) {
+        if let Some((pick, half)) = half_rows(ui, boolean_waiting(&tool), &self.theme) {
             self.tools.choose_half(pick, half);
         }
         let Some(tool) = self.tools.boolean() else {

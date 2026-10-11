@@ -59,8 +59,18 @@
 //! There is exactly one seat such a pick can have been meant for, so
 //! it goes there. [`Seats::pick`] states the rule; the kinds
 //! themselves come from [`Seat::wants`], and the classification is
-//! [`crate::session::admits`] — the SAME one the commit door refuses
-//! by.
+//! the commit door's ([`crate::session::admits_read`] of the read the
+//! pick makes), widened by one case: a split picked alone may still
+//! become either half, so a body seat can hold it.
+//!
+//! # A seat holds a read
+//!
+//! A pick is a node and the output of it the seat reads (`Port`): the
+//! node alone, one output of a node that defines several, or a split's
+//! half by its port. A viewport pick names the output it hit; a tree
+//! pick of a split names none, so a body seat holding it waits for its
+//! half ([`Seats::choose_half`]) and its commit refuses
+//! [`SeatError::HalfUnchosen`] until then.
 //!
 //! **What is shared is the classifier, not the table.** Which kind a
 //! seat wants is stated here AND at each door's own `require_kind`
@@ -283,16 +293,20 @@ pub struct Seats {
 pub(crate) enum Port {
     /// The node read alone: its one output.
     Alone,
-    /// The output at this port — a split's half.
-    At(u8),
+    /// One output of a node that defines several and is not a split (a
+    /// revolve's body).
+    Output(u8),
+    /// A split's half, read by its port.
+    Half(SplitHalf),
     /// A split picked in the tree, its half not chosen yet.
     HalfPending,
 }
 
 impl Port {
     /// **The port a pick of `node` reads at a seat wanting `wanted`**:
-    /// the output `port` names, else a split's half still to choose
-    /// when the seat takes a body, else the node alone.
+    /// the output `port` names (a split's half, by its port), else a
+    /// split's half still to choose when the seat takes a body, else the
+    /// node alone.
     pub(crate) fn of_pick(
         doc: &Doc<ProfileProgram>,
         node: RecipeNodeId,
@@ -301,7 +315,10 @@ impl Port {
     ) -> Self {
         let split = matches!(doc.node(node), Some(Node::Split { .. }));
         match port {
-            Some(port) => Self::At(port),
+            Some(port) if split => {
+                SplitHalf::of_output_body(u32::from(port)).map_or(Self::Output(port), Self::Half)
+            }
+            Some(port) => Self::Output(port),
             None if split && wanted == NodeKindWanted::Body => Self::HalfPending,
             None => Self::Alone,
         }
@@ -310,23 +327,16 @@ impl Port {
     /// The read of `node` at this port.
     pub(crate) fn read(self, node: RecipeNodeId) -> Operand {
         match self {
-            Self::At(port) => Operand::output(node, port),
+            Self::Output(port) => Operand::output(node, port),
+            Self::Half(half) => Operand::output(node, half.port()),
             Self::Alone | Self::HalfPending => Operand::Node(node),
-        }
-    }
-
-    /// The half this port is, when it is one.
-    pub(crate) fn half(self) -> Option<SplitHalf> {
-        match self {
-            Self::At(port) => SplitHalf::of_output_body(u32::from(port)),
-            Self::Alone | Self::HalfPending => None,
         }
     }
 
     /// This port with its half chosen, where it waits for one.
     pub(crate) fn chosen(self, half: SplitHalf) -> Self {
         match self {
-            Self::HalfPending => Self::At(half.port()),
+            Self::HalfPending => Self::Half(half),
             other => other,
         }
     }
@@ -336,10 +346,10 @@ impl Port {
 /// the half it reads or still waits for.
 pub(crate) fn pick_said(doc: &Doc<ProfileProgram>, node: RecipeNodeId, port: Port) -> String {
     let node_said = doc.spoken(node).to_string();
-    match (port.half(), port) {
-        (Some(half), _) => format!("{node_said}, {} half", half.name()),
-        (None, Port::HalfPending) => format!("{node_said}, half not chosen"),
-        (None, _) => node_said,
+    match port {
+        Port::Half(half) => format!("{node_said}, {} half", half.name()),
+        Port::HalfPending => format!("{node_said}, half not chosen"),
+        Port::Alone | Port::Output(_) => node_said,
     }
 }
 
@@ -405,12 +415,7 @@ impl Seats {
 
     /// Whether seat `i` holds a split whose half is still to choose.
     pub fn awaits_half(&self, i: usize) -> bool {
-        self.ports[i] == Port::HalfPending
-    }
-
-    /// The half seat `i` reads, when it reads one.
-    pub fn half(&self, i: usize) -> Option<SplitHalf> {
-        self.ports[i].half()
+        self.ports.get(i) == Some(&Port::HalfPending)
     }
 
     /// Seat `i`'s role.

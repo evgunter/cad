@@ -6,7 +6,7 @@
 //! the bar's four long edges: a long edge's last piece sits `k` cuts
 //! deep, and its ends are crossings of its line. Two chains build the
 //! trims: a boolean subtract of a block past each cut, and a Split by a
-//! plane at each cut with a Part keeping the inner half. Every trim's
+//! plane at each cut, the next cut reading the inner half. Every trim's
 //! table is read off one evaluation of the deepest chain.
 //!
 //! On each chain the longest name's serialized bytes grow at most
@@ -63,11 +63,11 @@ fn bar(label: &str) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-/// The bar trimmed `DEEPEST` times by subtracting a block past each cut:
-/// the document and each trim's node in order.
 /// One trim: the node whose table holds it, and its output body there.
 type Trim = (RecipeNodeId, u32);
 
+/// The bar trimmed `DEEPEST` times by subtracting a block past each cut:
+/// the document and each trim's node in order.
 fn boolean_chain() -> (ProfileDoc, Vec<Trim>) {
     let (mut doc, mut body) = bar("trim-chain-boolean");
     let mut trims = Vec::with_capacity(DEEPEST);

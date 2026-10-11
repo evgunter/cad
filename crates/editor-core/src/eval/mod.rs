@@ -960,6 +960,20 @@ pub(crate) mod phrase {
 }
 
 impl<T: Decide> ValuePayload<T> {
+    /// **The body at output `index`**: a one-body value's at 0, a
+    /// split's half at its port ([`crate::SplitHalf::output_body`]), a
+    /// family's member at its place. The one answer to "which body does
+    /// a read of this output hold".
+    ///
+    /// # Errors
+    ///
+    /// [`crate::InterrogateError::NoSuchBody`] for an index the value
+    /// has no body at (an empty half among them),
+    /// [`crate::InterrogateError::NoBodies`] for a value that holds none.
+    pub fn output_body(&self, index: u32) -> Result<&Body<T>, crate::InterrogateError> {
+        crate::names::interrogate::output_body(self, index)
+    }
+
     /// The payload family, for typed operand mismatches: the `family`
     /// word the value lands in.
     pub fn kind_name(&self) -> &'static str {

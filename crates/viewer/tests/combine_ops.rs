@@ -3563,3 +3563,119 @@ fn a_union_across_two_flush_contacts_lands_as_one_action() {
         "channelled block plus boss: {got} vs {want}"
     );
 }
+
+/// **The boolean tool's picks carry their ports.** Two tree picks of a
+/// split wait for their halves (`HalfUnchosen` until chosen); the chosen
+/// ports survive a change of operation both ways, members to seats and
+/// back; a pending pick survives the change too; and the union of the
+/// two halves commits.
+#[test]
+fn the_boolean_tools_picks_carry_their_ports_across_the_operation() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = common::xy_box_in(&mut session, B);
+    let plane = session_insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::Plane {
+                origin: len3([0.0, 0.0, B[2] / 4.0]),
+                normal: scl3([0.0, 0.0, 1.0]),
+            },
+        },
+    );
+    let split = session_insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: body.into(),
+            tool: plane,
+        },
+    );
+    let doc = session.committed_doc().clone();
+    let port = |h: SplitHalf| Operand::output(split, h.port());
+    let mut tool = BooleanTool::new();
+    tool.pick(&doc, split);
+    tool.pick(&doc, split);
+    assert_eq!(tool.awaiting_half(), vec![0, 1], "both picks wait");
+    assert!(matches!(
+        tool.spec(),
+        Err(SeatError::HalfUnchosen { seat: Seat::Member })
+    ));
+    tool.choose_half(1, SplitHalf::Below);
+    assert_eq!(tool.awaiting_half(), vec![0], "the second chose");
+    tool.choose_half(0, SplitHalf::Above);
+    assert_eq!(
+        tool.spec().expect("both chosen"),
+        BooleanSpec::Union(vec![port(SplitHalf::Above), port(SplitHalf::Below)])
+    );
+    tool.set_operation(BooleanOp::Subtract);
+    assert_eq!(
+        tool.spec().expect("seated"),
+        BooleanSpec::Subtract {
+            from: port(SplitHalf::Above),
+            tool: port(SplitHalf::Below),
+        },
+        "members to seats keep their ports"
+    );
+    tool.set_operation(BooleanOp::Intersect);
+    assert_eq!(
+        tool.spec().expect("members"),
+        BooleanSpec::Intersect(vec![port(SplitHalf::Above), port(SplitHalf::Below)]),
+        "seats to members keep their ports"
+    );
+    let mut pending = BooleanTool::new();
+    pending.pick(&doc, split);
+    pending.set_operation(BooleanOp::Subtract);
+    assert_eq!(
+        pending.awaiting_half(),
+        vec![0],
+        "a pending pick stays pending"
+    );
+    pending.choose_half(0, SplitHalf::Below);
+    pending.pick(&doc, body);
+    assert_eq!(
+        pending.spec().expect("both seated"),
+        BooleanSpec::Subtract {
+            from: port(SplitHalf::Below),
+            tool: body.into(),
+        }
+    );
+    let outcome = session.perform(SessionOp::AddBoolean {
+        spec: BooleanSpec::Union(vec![port(SplitHalf::Above), port(SplitHalf::Below)]),
+        declare: Vec::new(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+}
+
+/// **A session op's body read that names a variable is read as that
+/// variable's output, and one that names no output refuses typed**: a
+/// duplicate of a body read by its variable lands, and a transform of a
+/// selection refuses `NotABodyRead`.
+#[test]
+fn a_body_read_by_variable_lands_and_a_selection_refuses_typed() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = common::xy_box_in(&mut session, A);
+    session.pump();
+    let var = session
+        .committed_doc()
+        .read_of_node(body)
+        .expect("a box defines one body");
+    let duplicated = session.perform(SessionOp::Duplicate {
+        input: Operand::Var(var),
+    });
+    assert!(duplicated.refusal.is_none(), "{:?}", duplicated.refusal);
+    let refused = session.perform(SessionOp::AddTransform {
+        input: Operand::Select {
+            body: Box::new(body.into()),
+            names: Vec::new(),
+        },
+        translation: len3([0.0, 0.0, 0.0]),
+        rotation_axis: scl3([0.0, 0.0, 1.0]),
+        rotation_angle: ang(0.0),
+    });
+    assert!(
+        matches!(refused.refusal, Some(Refusal::NotABodyRead { .. })),
+        "{:?}",
+        refused.refusal
+    );
+}

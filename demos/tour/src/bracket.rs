@@ -236,20 +236,14 @@ fn trimmed_and_broken(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -
     }
 }
 
-/// The split's `half`, read off its value.
+/// The split's `half`, read off its value at the half's port.
 fn half_at(ev: &Evaluation<f64>, split: RecipeNodeId, half: SplitHalf) -> Body<f64> {
-    let ValuePayload::Split { above, below } =
-        &ev.value(split).expect("the split evaluated").payload
-    else {
-        panic!("a split value");
-    };
-    match match half {
-        SplitHalf::Above => above,
-        SplitHalf::Below => below,
-    } {
-        pncad::document::SplitSide::Body(b) => (**b).clone(),
-        pncad::document::SplitSide::Empty => panic!("the {half:?} half holds material"),
-    }
+    ev.value(split)
+        .expect("the split evaluated")
+        .payload
+        .output_body(u32::from(half.port()))
+        .unwrap_or_else(|e| panic!("the {half:?} half holds material: {e}"))
+        .clone()
 }
 
 fn body_at<S: Scalar>(ev: &Evaluation<S>, id: RecipeNodeId) -> Body<S> {
