@@ -450,7 +450,9 @@ fn deleting_the_minting_node_strands_the_attribute_loudly() {
     assert_eq!(ev.appearance.losses.len(), 1);
     let loss = &ev.appearance.losses[0];
     assert_eq!(loss.name, cap);
-    assert_eq!(loss.cause, AppearanceLossCause::NodeGone);
+    // The extrude took the entry's read with it, and the read answers
+    // first (N5's `ReadGone`, ahead of the name's `NodeGone`).
+    assert_eq!(loss.cause, AppearanceLossCause::ReadGone);
     // Nothing silently dropped: the payload rides the loss and the
     // store still holds the entry.
     assert_eq!(loss.attrs.get(&AttrKind::Color), Some(&red()));

@@ -1309,7 +1309,9 @@ fn enrich_impl<T: Decide, P: PriorCtx>(
     // The entry's body read is its site (NAMES N1): rung 0 first, then
     // the rungs. The edit and load doors hold a key's read to a body
     // output while the document holds it, so a held read is one.
-    if let Some(error) = ResolveError::read_gone(&loss.name, loss.body, new.doc) {
+    if new.eval.read_port(loss.body).is_none()
+        && let Some(error) = ResolveError::read_gone(&loss.name, loss.body, new.doc)
+    {
         return Resolution::Failed(ResolutionFailure {
             error,
             offers: Vec::new(),
@@ -1633,8 +1635,13 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
     site: crate::VarId,
     name: &StableName,
 ) -> Result<Resolution, ResolveRefusal> {
-    // 0. ReadGone: the site read is not the document's any more.
-    if let Some(error) = ResolveError::read_gone(name, site, new.doc) {
+    // 0. ReadGone: the site read is not the document's any more, and
+    // the evaluation of it holds no table there (an evaluation is of
+    // its document, so it holds a read the document does not only
+    // where it was assembled by hand).
+    if new.eval.read_port(site).is_none()
+        && let Some(error) = ResolveError::read_gone(name, site, new.doc)
+    {
         return Ok(Resolution::Failed(ResolutionFailure {
             error,
             offers: Vec::new(),
@@ -1643,7 +1650,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
     // A live read that is no output holding a body — a scalar, a
     // selection, a datum's — has no table to ask: the question is
     // refused, never answered.
-    if !new.doc.holds_body(site) {
+    if new.doc.var(site).is_some() && !new.doc.holds_body(site) {
         return Err(ResolveRefusal::ReadNotAnOutput { read: site });
     }
     Ok(resolve_rungs(new, prior, site, name))
