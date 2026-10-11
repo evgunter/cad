@@ -625,4 +625,37 @@ fn a_large_ball_near_external_tangency_is_pinned() {
             "r 50, {op}: the sliver, {line}"
         );
     }
+    // `outcome`'s volume test is absolute (`1e-7`), which a lens of
+    // `1.2e-11` passes whatever it reads, so the sliver's volume is held
+    // here RELATIVE to the exact lens, per order and per gap. Measured at
+    // most `2.9e-9`. The `b ∩ a` sliver at a `1e-5` gap reads `2.5e-3`
+    // off: that is the flux's own `R·Area` against `c·A⃗` cancellation,
+    // FLUXTAIL's `a-sphere-faces-flux-cancels-r-times-its-area-against-its-vector-area`
+    // (`work/cleave/a-built-sliver-is-not-a-legal-operand.md` has the
+    // table), held at its measured size so it cannot grow unseen.
+    for gap in [2e-6, 3e-6, 5e-6, 1e-5] {
+        let d = 51.0 - gap;
+        let (a, b) = (unit(), ball(50.0, Vec3::new(0.0, 0.0, d)));
+        let want = lens(1.0, 50.0, d);
+        for (op, out) in [
+            ("a ∩ b", topo::intersect_with(&a, &b, &none, tol)),
+            ("b ∩ a", topo::intersect_with(&b, &a, &none, tol)),
+        ] {
+            let body = out
+                .ok()
+                .and_then(|r| r.body().map(|b| b.body.clone()))
+                .unwrap_or_else(|| panic!("gap {gap:e}, {op}: the sliver builds"));
+            let v = topo::mass_properties(&body, tol).unwrap().volume;
+            let rel = (v - want).abs() / want;
+            let bound = if gap == 1e-5 && op == "b ∩ a" {
+                3e-3
+            } else {
+                4e-9
+            };
+            assert!(
+                rel <= bound,
+                "gap {gap:e}, {op}: volume {v:e} against the lens {want:e}, {rel:e} relative"
+            );
+        }
+    }
 }
