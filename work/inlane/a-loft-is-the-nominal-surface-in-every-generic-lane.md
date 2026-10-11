@@ -131,8 +131,12 @@ clauses are rewritten.
   refuses typed (`SectionNotAPoint`) rather than lofting the nominal
   over the box. So does a section with no box whose values are a few
   ulps wide: an arc's sweep, and the plane of a rotated authored frame
-  (`PlacementNotAPoint`). Main lofted both, and the E6 drive over such a
-  document now bisects to its budget on refused leaves.
+  (`PlacementNotAPoint`). Main lofted both. The E6 drive over such a
+  document now bisects to its budget on refused leaves. Main certified
+  none of these lofts either: it refused in one leaf as a
+  `FlipCrossing` on a predicate-count divergence. An unrotated polygon
+  loft now certifies where main refused it
+  (`e6_drive_over_a_loft_at_interval`).
 - Under the pinned lift a section's values are its `f64` form lifted,
   as an extrude's profile is: a box still lofts the nominal, and a
   `Dual` seed on a section gives a zero derivative where main refused
