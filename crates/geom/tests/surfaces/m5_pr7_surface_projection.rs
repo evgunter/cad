@@ -239,3 +239,113 @@ fn an_overflowing_residual_refuses_rather_than_reporting_an_infinite_foot() {
         Ok(pr) => panic!("an overflowed residual was reported as a foot point: {pr:?}"),
     }
 }
+
+/// The foot is a function of the query point only through the selected
+/// parameters, which a numerical search produced: at `Sym<f64>`, with
+/// the query point's `z` a parameter, the foot and its distance carry
+/// them as unknowns and so re-value to no claim at all, never to the
+/// foot of the stale parameters. The crown query takes the cosine exit
+/// and the one off the `u = 0` edge the stagnation exit.
+///
+/// The carrier is built inside the session: `revalue` answers `None`
+/// for a node the session never interned, so a carrier built outside it
+/// would pass this row on any code. The control (a point of the same
+/// carrier at constant parameters re-values to a number) holds that.
+#[test]
+fn selected_parameters_enter_the_foot_as_unknowns() {
+    use geom_core::sym::revalue::revalue;
+    use geom_core::sym::with_session;
+    use geom_core::{ParamSymbol, Real, Sym, SymBudget};
+    type S = Sym<f64>;
+    let lift = ParamSymbol::new(1);
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    for (label, (x, y, z)) in [
+        ("crown foot", (0.5, 0.5, 2.0)),
+        ("clamped edge", (-4.0, 0.5, 0.0)),
+    ] {
+        let ((control, revalued), _) = with_session(budget, || {
+            let s = bump_patch().map_scalar(S::from_f64);
+            let p = Point3::new(
+                S::from_f64(x),
+                S::from_f64(y),
+                S::from_f64(z) + S::param(lift, 0.0),
+            );
+            let pr = s.project(p).unwrap();
+            let at = |_: ParamSymbol| Some(0.25);
+            (
+                revalue(s.eval(S::from_f64(0.5), S::from_f64(0.5)).z.node(), &at),
+                (
+                    revalue(pr.foot.z.node(), &at),
+                    revalue(pr.distance.node(), &at),
+                ),
+            )
+        });
+        assert!(
+            control.is_some(),
+            "{label}: the carrier's own nodes re-value, so a None below is the parameters'"
+        );
+        assert_eq!(
+            revalued,
+            (None, None),
+            "{label}: the foot and its distance re-value through unknowns, not constant parameters"
+        );
+    }
+}
+
+/// The `Opaque` unknowns the profiled sessions minted.
+fn opaques(profile: &geom_core::sym::profile::SymProfile) -> u64 {
+    profile.opaque_ids.iter().map(|s| s.len() as u64).sum()
+}
+
+/// The seeding sweep's samples and Newton's stagnation step feed only
+/// `mid` comparisons, so no payload carries them; each still enters `T`
+/// as its own unknown, which the session profile counts at the
+/// session's end. The sweep
+/// mints one per `u` row and one per sample; each Newton pass mints two
+/// for its jet and two for its step, and an accepted foot two more.
+#[test]
+fn the_sweep_and_the_stagnation_step_mint_their_unknowns() {
+    use geom::PROJECT_SEEDS_PER_SPAN;
+    use geom_core::sym::profile::{start_profile, take_profile};
+    use geom_core::sym::with_session;
+    use geom_core::{Real, Sym, SymBudget};
+    type S = Sym<f64>;
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    let point =
+        |(x, y, z): (f64, f64, f64)| Point3::new(S::from_f64(x), S::from_f64(y), S::from_f64(z));
+    start_profile();
+    let _ = with_session(budget, || {
+        bump_patch()
+            .map_scalar(S::from_f64)
+            .project_seed(point((0.5, 0.5, 2.0)))
+    });
+    let n = PROJECT_SEEDS_PER_SPAN as u64;
+    assert_eq!(
+        opaques(&take_profile()),
+        n + n * n,
+        "the bump is one window: one unknown per u row and one per sample"
+    );
+    for (label, q) in [
+        ("crown foot", (0.5, 0.5, 2.0)),
+        ("clamped edge", (-4.0, 0.5, 0.0)),
+    ] {
+        start_profile();
+        let (iterations, _) = with_session(budget, || {
+            let s = bump_patch().map_scalar(S::from_f64);
+            s.project(point(q)).unwrap().iterations
+        });
+        let atoms = opaques(&take_profile());
+        assert!(iterations > 0, "{label}: the fixture takes a Newton step");
+        assert_eq!(
+            atoms,
+            n + n * n + 4 * iterations as u64 + 2,
+            "{label}: the sweep's samples, every pass's jet and step, and the accepted foot are unknowns"
+        );
+    }
+}
