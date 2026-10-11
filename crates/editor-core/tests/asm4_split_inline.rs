@@ -1998,3 +1998,57 @@ fn r1_p5_split_reanchors_the_appearance_key_onto_a_live_read() {
     );
     assert!(ev2.appearance.is_lossless(), "the paint still lands");
 }
+
+/// R1 probe P5b: the same for inline — a host key painted on the
+/// instance's output, re-anchored onto the spliced local name, must
+/// read a live output of the inlined document.
+#[test]
+fn r1_p5b_inline_reanchors_the_appearance_key_onto_a_live_read() {
+    let (_store, doc, ids) = two_group_assembly("asm4-r1p5b");
+    let cut = BTreeSet::from([ids[1]]);
+    let out = split(
+        &doc,
+        &cut,
+        DocumentId::derive("asm4-r1p5b-new"),
+        Tol::witness(),
+        None,
+    )
+    .expect("legal");
+    let mut store2 = PartStore::default();
+    store2.insert(part("asm4-r1p5b-part", 0.0, 1.0), Tol::witness());
+    store2.insert(out.part.clone(), Tol::witness());
+    let opts = with_resolver(store2.clone());
+    let ev = run(&out.remainder, &opts);
+    let face = ev
+        .table_at(out.instance)
+        .expect("the instance evaluated")
+        .iter()
+        .map(|(n, _)| n.clone())
+        .find(|n| n.kind == editor_core::EntityKind::Face)
+        .expect("a face name");
+    let read = out
+        .remainder
+        .read_of_node(out.instance)
+        .expect("the instance's read");
+    let (host, _) = step(
+        out.remainder.clone(),
+        DocEdit::SetAppearance {
+            body: read,
+            name: face.clone(),
+            attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(1, 2, 3)),
+        },
+    );
+    assert!(run(&host, &opts).appearance.is_lossless(), "premise");
+    let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store2);
+    let inlined = inline(&host, out.instance, &resolver, Tol::witness()).expect("legal");
+    for key in inlined.doc.appearance().keys() {
+        println!(
+            "P5b key read {:?} defined by {:?}",
+            key.at,
+            inlined.doc.operation_of(key.at)
+        );
+    }
+    let ev2 = run(&inlined.doc, &opts);
+    println!("P5b losses after inline: {:?}", ev2.appearance.losses);
+    assert!(ev2.appearance.is_lossless(), "the paint still lands");
+}
