@@ -623,10 +623,7 @@ fn sweep_loop<S: Scalar>(
     let (start, tangent) = spine.ders1(t0);
     let place =
         path_start_frame(start, tangent, tol).expect("the spine's start tangent fixes a frame");
-    let section: Vec<ConstructedLoop<S>> = section
-        .iter()
-        .map(|lp| lp.lift_computed())
-        .collect();
+    let section: Vec<ConstructedLoop<S>> = section.iter().map(|lp| lp.lift_computed()).collect();
     sweep_body::<S>(
         &section,
         place.map(S::from_computed),

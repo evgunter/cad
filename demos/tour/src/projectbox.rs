@@ -147,10 +147,7 @@ fn spring<S: Scalar>(
     let stations = usize::try_from(TURNS * per_turn + 1).expect("a station count");
     // The wire and its start frame are built in `f64`, so they enter `S`
     // as the computed values they are.
-    let wire: Vec<_> = wire
-        .iter()
-        .map(|lp| lp.lift_computed())
-        .collect();
+    let wire: Vec<_> = wire.iter().map(|lp| lp.lift_computed()).collect();
     let place = start_frame(&path).map(S::from_computed);
     sweep_body::<S>(&wire, place, &path, stations, 3, tol).map(|l| l.body)
 }
