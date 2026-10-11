@@ -1942,3 +1942,59 @@ fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
         other => panic!("expected NameOnDroppedStep, got {other:?}"),
     }
 }
+
+/// R1 probe P5 (PR #4674 review): the re-anchored appearance key's body
+/// read must be one the remainder defines, so the paint still lands.
+#[test]
+fn r1_p5_split_reanchors_the_appearance_key_onto_a_live_read() {
+    let (store, doc, ids) = two_group_assembly("asm4-r1p5");
+    let opts = with_resolver(store);
+    let ev = run(&doc, &opts);
+    let face = ev
+        .table_at(ids[1])
+        .expect("the instance evaluated")
+        .iter()
+        .map(|(n, _)| n.clone())
+        .find(|n| n.kind == editor_core::EntityKind::Face)
+        .expect("a face name");
+    let read = crate::fixture::painted_in(&doc, &face);
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetAppearance {
+            body: read,
+            name: face.clone(),
+            attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(1, 2, 3)),
+        },
+    );
+    assert!(run(&doc, &opts).appearance.is_lossless(), "premise");
+    let cut = BTreeSet::from([ids[1]]);
+    let out = split(
+        &doc,
+        &cut,
+        DocumentId::derive("asm4-r1p5-new"),
+        Tol::witness(),
+        None,
+    )
+    .expect("legal");
+    let keys: Vec<_> = out.remainder.appearance().keys().cloned().collect();
+    println!("P5 painted read before: {read:?}; instance {:?}", out.instance);
+    for key in &keys {
+        println!(
+            "P5 key read {:?} defined by {:?}; name {:?}",
+            key.at,
+            out.remainder.operation_of(key.at),
+            key.name
+        );
+    }
+    let mut store2 = PartStore::default();
+    store2.insert(part("asm4-r1p5-part", 0.0, 1.0), Tol::witness());
+    store2.insert(out.part.clone(), Tol::witness());
+    let ev2 = run(&out.remainder, &with_resolver(store2));
+    println!("P5 losses after split: {:?}", ev2.appearance.losses);
+    assert!(
+        keys.iter()
+            .all(|k| out.remainder.operation_of(k.at).is_some()),
+        "every key reads a live output of the remainder"
+    );
+    assert!(ev2.appearance.is_lossless(), "the paint still lands");
+}
