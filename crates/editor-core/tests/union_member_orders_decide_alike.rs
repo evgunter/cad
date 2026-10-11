@@ -170,7 +170,10 @@ enum Decided {
 }
 
 /// The union of `members` in `order`, evaluated, read as [`Decided`].
-fn decide(fixture: Members, order: &[usize]) -> Decided {
+fn decide(
+    fixture: &dyn Fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>),
+    order: &[usize],
+) -> Decided {
     let doc = ProfileDoc::empty_derived("union-member-orders", Tol::witness());
     let (doc, members) = fixture(doc);
     let (doc, union) = insert(
@@ -299,9 +302,9 @@ fn every_union_decides_alike_in_every_member_order() {
             .1
             .len();
         let orders = orders(n);
-        let first = decide(fixture, &orders[0]);
+        let first = decide(&fixture, &orders[0]);
         for order in &orders[1..] {
-            if let Err(why) = compare(&first, &decide(fixture, order)) {
+            if let Err(why) = compare(&first, &decide(&fixture, order)) {
                 failures.push(format!("{what}, {:?} vs {order:?}: {why}", orders[0]));
             }
         }
@@ -319,7 +322,7 @@ fn the_corpus_reaches_its_classes() {
         let n = fixture(ProfileDoc::empty_derived("count", Tol::witness()))
             .1
             .len();
-        let got = decide(fixture, &(0..n).collect::<Vec<_>>());
+        let got = decide(&fixture, &(0..n).collect::<Vec<_>>());
         let sliver = what == "a sliver beside a rest";
         assert_eq!(
             matches!(got, Decided::Built { .. }),
@@ -337,4 +340,40 @@ fn the_corpus_reaches_its_classes() {
             assert_eq!(!rows.is_empty(), glued, "{what}: {rows:#?}");
         }
     }
+}
+
+/// The emit corpus's unions that reach an emitter residue in some
+/// member orders, owned where their rows say and pinned in
+/// `emit_shared_rim_several`: `row` and `rowids` the seam-vertex
+/// parentage residue
+/// (`work/wire/a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission.md`),
+/// `cross` the held-edge residue
+/// (`work/emit/a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere.md`).
+const EMIT_RESIDUES: [&str; 3] = ["row", "rowids", "cross"];
+
+/// **Every union of the emit corpus decides alike in every member
+/// order** (`emit_shared_rim_several::probe_corpus`: blocks flush on
+/// each other, slabs cutting them and faces cut and merged by one
+/// step), but for [`EMIT_RESIDUES`]. Each is compared as
+/// [`every_union_decides_alike_in_every_member_order`] compares its own.
+#[test]
+fn every_union_of_the_emit_corpus_decides_alike_in_every_member_order() {
+    let mut failures = Vec::new();
+    let mut compared = 0;
+    for (label, blocks, creation) in crate::emit_shared_rim_several::probe_corpus() {
+        if EMIT_RESIDUES.contains(&label.as_str()) {
+            continue;
+        }
+        let fixture = |_: ProfileDoc| crate::emit_shared_rim_several::document(&blocks, &creation);
+        let orders = orders(blocks.len());
+        let first = decide(&fixture, &orders[0]);
+        for order in &orders[1..] {
+            compared += 1;
+            if let Err(why) = compare(&first, &decide(&fixture, order)) {
+                failures.push(format!("{label}, {:?} vs {order:?}: {why}", orders[0]));
+            }
+        }
+    }
+    assert!(compared > 0, "the emit corpus holds unions to compare");
+    assert!(failures.is_empty(), "{failures:#?}");
 }
