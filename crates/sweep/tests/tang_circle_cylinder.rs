@@ -85,16 +85,6 @@ fn segment(a: f64) -> f64 {
 }
 
 fn run(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Result<Body<f64>, BooleanError> {
-    run_with(op, a, b, &topo::BooleanInputs::default())
-}
-
-/// [`run`] under `decls`.
-fn run_with(
-    op: BooleanOp,
-    a: &Body<f64>,
-    b: &Body<f64>,
-    decls: &topo::BooleanDeclarations,
-) -> Result<Body<f64>, BooleanError> {
     let tol = Tol::witness();
     let (a, b) = (
         &finished("operand A", a.clone(), tol),
@@ -277,49 +267,25 @@ fn a_tilted_rod_through_a_rim_reaches_the_germ_frame() {
 }
 
 /// **A rim circle on a parallel wall tangent to its own, or crossing or
-/// clearing it by less than the zero band, is the declared tangency.**
+/// clearing it by less than the zero band, is a tangency.**
 /// Two parallel unit cylinders `2 + δ` apart, staggered, `|δ|` at most
 /// half the zero band: each rim circle's extreme residual against the
 /// other wall is `δ`, and the two walls touch along a ruling within the
-/// zero band. The boolean verifies that tangency
-/// by its witness and declares it itself, so each op is the op with the
-/// walls declared `Tangent`, bit for bit (D10), which reaches the join
-/// and refuses there, `CurvedBooleanUnsupported` naming B's wall: the
+/// zero band. The boolean verifies that tangency by its witness, and
+/// each op reaches the join and refuses there, `CurvedBooleanUnsupported` naming B's wall: the
 /// join has no arm for the tangent wall pair. The half-angle ladder,
 /// which does not decide on the residual's range and can certify an
 /// in-band configuration as a miss
 /// (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`),
 /// is not what answers.
 #[test]
-fn a_rim_circle_within_the_band_of_a_parallel_wall_is_the_declared_tangency() {
+fn a_rim_circle_within_the_band_of_a_parallel_wall_is_a_tangency() {
     let half_zero = geom_core::Band::linear(Tol::witness()).unwrap().zero() / 2.0;
     let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
-    let walls = |b: &Body<f64>| -> Vec<topo::FaceKey> {
-        b.faces()
-            .filter(|(_, f)| {
-                matches!(
-                    b.get_surface(f.surface),
-                    Some(geom::Surface::Cylinder { .. })
-                )
-            })
-            .map(|(k, _)| k)
-            .collect()
-    };
     for delta in [0.0, -half_zero, half_zero] {
         let b = cyl(2.0 + delta, 0.0, 1.0, 0.5, 2.5);
-        for fa in walls(&a) {
-            for fb in walls(&b) {
-                tangent
-                    .coincident_faces
-                    .push(topo::FacePairDeclaration::new(
-                        fa,
-                        fb,
-                        topo::ContactClass::Tangent,
-                    ));
-            }
-        }
         for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
-            let want = run_with(op, &a, &b, &tangent);
+            let want = run(op, &a, &b);
             assert!(
                 matches!(
                     want,
@@ -330,11 +296,6 @@ fn a_rim_circle_within_the_band_of_a_parallel_wall_is_the_declared_tangency() {
                     })
                 ),
                 "δ {delta}, {op:?}: the join has no arm for the tangent wall pair: {want:?}"
-            );
-            assert_eq!(
-                format!("{:?}", run(op, &a, &b)),
-                format!("{want:?}"),
-                "δ {delta}, {op:?}: the declared tangency"
             );
         }
     }

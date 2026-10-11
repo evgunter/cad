@@ -53,9 +53,7 @@ use profile::{ProfileLoop, test_support::bulge_loop};
 use revolve_common::{axis_y, validated};
 use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
-use topo::{
-    AtRestBody, Body, BooleanError, FaceContainment, FaceKey,
-};
+use topo::{AtRestBody, Body, BooleanError, FaceContainment, FaceKey};
 
 /// The waist's tube.
 const MAJOR: f64 = 0.8;
@@ -754,8 +752,7 @@ fn a_near_perpendicular_bar_through_the_tube_never_comes_back_disjoint() {
     let floor = 100.0 * Tol::witness().get().eps;
     for w in [1e-6, 1e-3].into_iter().filter(|&w| w > floor) {
         let b = finished("the bar", framed_bar(o, d, -4.6, -0.1, w), Tol::witness());
-        if let Ok(r) = topo::union(&donut(), &b, Tol::witness())
-        {
+        if let Ok(r) = topo::union(&donut(), &b, Tol::witness()) {
             panic!(
                 "a bar through the tube is not disjoint (w = {w}): {:?}",
                 r.body().map(|x| x.kind)

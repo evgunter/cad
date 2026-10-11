@@ -420,8 +420,7 @@ fn census_contact_is_matchable(contact: CensusContact) -> bool {
 /// An `Entity` subject is one carrier outside the certifiable
 /// inventory: simplify that carrier, or certify it through a
 /// supported lane. A `FacePair` is a candidate CONTACT, so the
-/// recourse is the declaration protocol — declare the coincidence, or
-/// separate the two faces. Both payload types are on the prelude, so
+/// recourse concerns the pair: separate the two faces. Both payload types are on the prelude, so
 /// the answer is read out whole rather than bound and re-rendered.
 ///
 /// The pair is UNORDERED as a subject, which a caller resolving a

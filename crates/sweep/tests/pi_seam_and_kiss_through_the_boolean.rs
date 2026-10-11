@@ -169,10 +169,7 @@ fn unions_both_ways(
     cap: &AtRestBody<f64>,
 ) -> [Result<BooleanResult<f64>, BooleanError>; 2] {
     let tol = Tol::witness();
-    [
-        topo::union(tube, cap, tol),
-        topo::union(cap, tube, tol),
-    ]
+    [topo::union(tube, cap, tol), topo::union(cap, tube, tol)]
 }
 
 /// The tube and a cap whose walls meet the tube's along the rim in a
@@ -625,10 +622,7 @@ fn a_lens_of_two_domes_builds() {
             topo::transform_rigid(&dome, &turn, tol).unwrap(),
             tol,
         );
-        for (order, r) in unions_both_ways(&bowl, &turned)
-            .into_iter()
-            .enumerate()
-        {
+        for (order, r) in unions_both_ways(&bowl, &turned).into_iter().enumerate() {
             let label = format!("turned {angle}, order {order}");
             let (v, c, k) = built(&label, r);
             assert_eq!(k, [0; 6], "{label}: no contact records");

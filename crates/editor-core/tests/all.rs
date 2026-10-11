@@ -51,8 +51,8 @@
 //
 // There is no `#![allow(clippy::duplicate_mod)]` here because no file is
 // loaded twice any more; if one ever is, the lint is meant to fire.
-mod corpus;
 mod blocks;
+mod corpus;
 mod fixture;
 // The wire-surgery helper, editor-core's alone — `tests/fixture/` and
 // `tests/corpus/` are symlinked into `crates/viewer/tests/`, and this
@@ -539,6 +539,8 @@ mod product_gate_attribution;
 #[path = "props_verdict_shapes.rs"]
 mod props_verdict_shapes;
 
+#[path = "peg_in_bore_union.rs"]
+mod peg_in_bore_union;
 #[path = "r1_bool11_ec_probe.rs"]
 mod r1_bool11_ec_probe;
 #[path = "r1_dual_probes.rs"]
@@ -593,8 +595,6 @@ mod seat4_verb_lowering;
 mod seat7_sweep_lowering;
 #[path = "seat8_split_lowering.rs"]
 mod seat8_split_lowering;
-#[path = "peg_in_bore_union.rs"]
-mod peg_in_bore_union;
 #[path = "step_handle_binding.rs"]
 mod step_handle_binding;
 #[path = "switch_display_units.rs"]

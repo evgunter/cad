@@ -14,8 +14,7 @@ use crate::blocks::{block, failure, run};
 use crate::fixture::{insert, table};
 
 use editor_core::{
-    EntityKind, Node, ProfileDoc, Qualifier, Resolution, RoleSeg, RunCtx, StableName,
-    resolve,
+    EntityKind, Node, ProfileDoc, Qualifier, Resolution, RoleSeg, RunCtx, StableName, resolve,
 };
 use geom_core::Tol;
 

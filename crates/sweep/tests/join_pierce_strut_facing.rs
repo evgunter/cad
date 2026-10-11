@@ -41,10 +41,7 @@
 use geom_core::{Point3, Tol};
 use topo::test_support as fixtures;
 use topo::validate::validate_geometric;
-use topo::{
-    AtRestBody, Body, BooleanError, BooleanResult, LoopBoundary,
-    mass_properties,
-};
+use topo::{AtRestBody, Body, BooleanError, BooleanResult, LoopBoundary, mass_properties};
 
 use crate::common::differential::outcome;
 use crate::common::pinch_cones::{
@@ -191,11 +188,7 @@ fn finished(what: &str, body: Body<f64>) -> AtRestBody<f64> {
         .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }
 
-type Op = fn(
-    &AtRestBody<f64>,
-    &AtRestBody<f64>,
-    Tol,
-) -> Result<BooleanResult<f64>, BooleanError>;
+type Op = fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
 
 /// Builds every op in both operand orders.
 /// Each body is `SOUND` by [`outcome`] (tiers 2 and 3′, the
@@ -219,12 +212,7 @@ fn assert_pose(pose: &str, m: [f64; 3]) {
         let ops: [(&str, Op, f64, Cones); 3] = [
             ("union", topo::union, va + vb - shared, Cones::Union),
             ("intersect", topo::intersect, shared, Cones::Intersect),
-            (
-                "subtract",
-                topo::subtract,
-                vx - shared,
-                Cones::Subtract,
-            ),
+            ("subtract", topo::subtract, vx - shared, Cones::Subtract),
         ];
         for (op, run, want, cones) in ops {
             let what = format!("{pose}: {order} {op}");

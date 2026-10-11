@@ -177,7 +177,11 @@ fn dist_to_stem_center_arc(p: Point3<f64>) -> f64 {
 #[test]
 fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
     let (s, a) = (stem(), arch());
-    assert_eq!(weld_cap_pairs(&s, &a), 1, "exactly one coplanar cross cap pair at the fork");
+    assert_eq!(
+        weld_cap_pairs(&s, &a),
+        1,
+        "exactly one coplanar cross cap pair at the fork"
+    );
 
     let err = topo::union(&s, &a, Tol::witness())
         .expect_err("the stem glue still refuses, two doors further on");
@@ -328,4 +332,3 @@ fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
          8 mm annular gap, measured {min_wall:.4} m"
     );
 }
-

@@ -16,11 +16,11 @@
 
 use editor_core::ExtrudeSide;
 
+use crate::fixture::{insert, len, on_frame};
 use editor_core::{
     BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, RecipeNodeId, ValuePayload, evaluate,
     load, save,
 };
-use crate::fixture::{insert, len, on_frame};
 use geom_core::Tol;
 
 /// An axis-aligned (0..2)² block at height z0, extruded dz.

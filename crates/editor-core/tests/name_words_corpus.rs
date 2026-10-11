@@ -142,7 +142,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 ///
 /// The three boolean nodes moved it with [`NAME_WORDS`]: every member
 /// says its join, and a carry said by tag says the read it came through.
-const SAID_DIGEST: u64 = 0x923c_f479_cf51_72a7;
+const SAID_DIGEST: u64 = 0xd0e3_bf06_fc28_37cd;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -914,7 +914,8 @@ fn two_copies_of_one_body_read_apart_where_a_sentence_names_both() {
     .spoken(&doc, &ev);
     let said = by.name(&face).to_string();
     assert!(
-        tie.contains(&format!("{said} on {at_one}")) && tie.contains(&format!("{said} on {at_two}")),
+        tie.contains(&format!("{said} on {at_one}"))
+            && tie.contains(&format!("{said} on {at_two}")),
         "each face is said with the copy holding it: {tie}"
     );
 }

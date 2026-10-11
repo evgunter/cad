@@ -309,7 +309,7 @@ fn two_arc_circles_agree_with_one_segment_ones() {
 
 /// **The uncut-shell witness reads a one-vertex disc**: a one-segment
 /// plug of radius 0.5 flush in a bore through the plate, both vertices
-/// at azimuth 0, the flush pairs declared. The plug is an uncut shell
+/// at azimuth 0, the flush pairs glued. The plug is an uncut shell
 /// every vertex and edge of which lies on the bore's wall, so only a
 /// point inside a cap decides its side, and a cap is a disc of one
 /// vertex. `∩` is empty and `∖` is either operand, in both orders, at

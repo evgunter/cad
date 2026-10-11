@@ -23,8 +23,8 @@
 use editor_core::ExtrudeSide;
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::corpus::body_of;
 use crate::blocks::{block, failure, run};
+use crate::corpus::body_of;
 use crate::emit_shared_rim_several::permutations;
 use crate::emit_union_flush_names::parent_of;
 use crate::fixture::{ang, face_vertices, frame, insert, len, on_frame, out, scl, step, table};

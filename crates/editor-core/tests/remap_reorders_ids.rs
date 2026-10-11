@@ -15,8 +15,8 @@
 //! geometry in the second.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::corpus::body_of;
 use crate::blocks::{block, failure, run};
+use crate::corpus::body_of;
 use crate::fixture::{ends, face_vertices, insert, point, table};
 
 use std::collections::{BTreeMap, BTreeSet};

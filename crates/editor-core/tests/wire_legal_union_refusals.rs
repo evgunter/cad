@@ -14,8 +14,8 @@
 //! judgement passed.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::corpus::body_of;
 use crate::blocks::{block, failure, run};
+use crate::corpus::body_of;
 use crate::docm8_flat_merged::split_fixture;
 
 use editor_core::{NamingError, NodeErrorKind, ProfileDoc, RecipeNodeId};

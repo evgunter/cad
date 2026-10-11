@@ -91,11 +91,7 @@ fn the_skip_takes_the_locus_edge_for_the_segment() {
     let c = finished("the collar", collar_at(0.0), tol());
     let p = finished("the flush peg", peg_at(0.0, 1.0, 1.0), tol());
     let want = volume(&c) + volume(&p);
-    assert_sound(
-        "flush peg ∪ collar",
-        topo::union(&c, &p, tol()),
-        want,
-    );
+    assert_sound("flush peg ∪ collar", topo::union(&c, &p, tol()), want);
 }
 
 /// **The OnEdge incidence check reads the whole site** (the dual

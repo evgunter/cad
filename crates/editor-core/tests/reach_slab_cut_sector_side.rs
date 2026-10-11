@@ -17,8 +17,8 @@ use core::f64::consts::PI;
 use editor_core::ExtrudeSide;
 use editor_core::Formula;
 
-use crate::corpus::body_of;
 use crate::blocks::{block, failure, run};
+use crate::corpus::body_of;
 use crate::emit_shared_rim_several::permutations;
 use crate::fixture::{frame, insert, len};
 use editor_core::{Evaluation, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId};

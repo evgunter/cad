@@ -148,8 +148,8 @@ fn accepted_against_torus(
 #[test]
 fn the_lily_stem_glue_is_past_the_circle_torus_pairs() {
     let (s, a) = (stem(), arch());
-    let err = topo::union(&s, &a, Tol::witness())
-        .expect_err("the stem glue still refuses, in the join");
+    let err =
+        topo::union(&s, &a, Tol::witness()).expect_err("the stem glue still refuses, in the join");
     let BooleanError::CurvedBooleanUnsupported {
         operand: topo::Operand::B,
         face,
@@ -549,7 +549,7 @@ fn a_planar_face_holding_the_arch_rim_is_no_edge_plane_holder() {
     let t = Tol::witness();
     for (label, x, y) in [("stem ∪ arch", &s, &a), ("arch ∪ stem", &a, &s)] {
         let refusal = topo::test_support::boolean_join_refusal(topo::BooleanOp::Union, x, y, t)
-                .unwrap_or_else(|e| panic!("{label}: the reduction refused {e:?}"));
+            .unwrap_or_else(|e| panic!("{label}: the reduction refused {e:?}"));
         assert!(
             matches!(
                 refusal,

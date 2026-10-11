@@ -13,8 +13,8 @@
 
 use std::collections::BTreeMap;
 
-use crate::corpus::body_of;
 use crate::blocks::{block, failure, run};
+use crate::corpus::body_of;
 use crate::fixture::{edge_of, out, table};
 
 use editor_core::{
@@ -491,9 +491,7 @@ fn a_retired_rim_piece_is_offered_its_joined_edge() {
 /// to [`every_member_edge_lies_on_its_source`]. An order that refuses
 /// with a naming error fails the row; the others may refuse for reasons
 /// other rows own.
-fn fused_tables(
-    blocks: &[Bx],
-) -> Vec<(Vec<usize>, RecipeNodeId, BTreeMap<StableName, String>)> {
+fn fused_tables(blocks: &[Bx]) -> Vec<(Vec<usize>, RecipeNodeId, BTreeMap<StableName, String>)> {
     let creation: Vec<usize> = (0..blocks.len()).collect();
     let (doc, ids) = document(blocks, &creation);
     let mut out = Vec::new();

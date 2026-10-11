@@ -33,9 +33,9 @@ use std::time::Instant;
 use crate::corpus::Recorder;
 use crate::fixture::{self, len, scl};
 use editor_core::{
-    CapEnd, Datum, EntityKey, EntityKind, EntityRef, EvalOptions, ExtrudeSide,
-    MeasurePrimitive, NameRef, NameTable, NameTables, Node, NodeResult, PieceRole, ProfileEdgeRef,
-    Qualifier, RecipeNodeId, RoleSeg, Speaker, SplitHalf, StableName, StepId, VarId,
+    CapEnd, Datum, EntityKey, EntityKind, EntityRef, EvalOptions, ExtrudeSide, MeasurePrimitive,
+    NameRef, NameTable, NameTables, Node, NodeResult, PieceRole, ProfileEdgeRef, Qualifier,
+    RecipeNodeId, RoleSeg, Speaker, SplitHalf, StableName, StepId, VarId,
 };
 use test_utils::fuzz;
 

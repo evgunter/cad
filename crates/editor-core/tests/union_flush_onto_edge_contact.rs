@@ -5,8 +5,8 @@
 //! volume — the kernel rows are `topo`'s suite of the same name.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::corpus::body_of;
 use crate::blocks::{block, failure, run};
+use crate::corpus::body_of;
 use crate::fixture::insert;
 use editor_core::{Node, ProfileDoc, RecipeNodeId, RoleSeg};
 use geom_core::Tol;

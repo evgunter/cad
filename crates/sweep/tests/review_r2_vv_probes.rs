@@ -264,11 +264,7 @@ fn center(name: &str) -> Option<V3> {
     }
 }
 
-type Op = fn(
-    &AtRestBody<f64>,
-    &AtRestBody<f64>,
-    Tol,
-) -> Result<BooleanResult<f64>, BooleanError>;
+type Op = fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
 
 const EDGE: V3 = [0.0, -2.0, 0.0];
 const CORNER: V3 = [0.0, 0.0, 0.0];

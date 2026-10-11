@@ -61,10 +61,24 @@ fn cap(r: f64, h: f64) -> f64 {
 fn both_lanes(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     let a = &finished("operand A", a.clone(), Tol::witness());
     let b = &finished("operand B", b.clone(), Tol::witness());
-    let realized = boolean_op_with(op, a, b, &topo::BooleanInputs::default(), SweepStrategy::Realized, Tol::witness())
-        .unwrap_or_else(|e| panic!("{op:?} (realized): {e}"));
-    let idealized = boolean_op_with(op, a, b, &topo::BooleanInputs::default(), SweepStrategy::Idealized, Tol::witness())
-        .unwrap_or_else(|e| panic!("{op:?} (idealized): {e}"));
+    let realized = boolean_op_with(
+        op,
+        a,
+        b,
+        &topo::BooleanInputs::default(),
+        SweepStrategy::Realized,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("{op:?} (realized): {e}"));
+    let idealized = boolean_op_with(
+        op,
+        a,
+        b,
+        &topo::BooleanInputs::default(),
+        SweepStrategy::Idealized,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("{op:?} (idealized): {e}"));
     let rb = realized.body().expect("a body").body.clone().into_body();
     let ib = idealized.body().expect("a body").body.clone().into_body();
     assert_eq!(

@@ -12,9 +12,7 @@
 //! The batteries: `join1_r1_battery` (z-prisms: diamond, hexagon,
 //! triangle, rod, against boxes), `join1_r1_seam_battery` (a revolved
 //! ball and a revolved solid cylinder — the latter refused at the
-//! operand gate, `NonMaximalFaces`), `join1_r1_declared_battery`
-//! (flush-declared z-prisms against boxes, coplanar caps and sides),
-//! `join1_r1_reflex_battery` (the reflex-corner issue's probe rebuilt
+//! operand gate, `NonMaximalFaces`), `join1_r1_reflex_battery` (the reflex-corner issue's probe rebuilt
 //! from its text), `join1_r1_tube_battery` (a bored revolve whose ONE
 //! outer wall face carries its seam meridian, against boxes and wedges
 //! along that seam) and `join1_r1_bored_capsule_battery` (a crease
@@ -515,9 +513,7 @@ fn ccw(mut p: Vec<(f64, f64)>) -> Vec<(f64, f64)> {
 #[test]
 #[ignore = "differential battery; run with --ignored"]
 fn j3r2_r1_reflex_battery() {
-    use topo::test_support::{
-        FaceGeometry, describe_as_intersections, prism_ops, prism_z,
-    };
+    use topo::test_support::{FaceGeometry, describe_as_intersections, prism_ops, prism_z};
     let a_prof = ccw(vec![
         (0.0, 0.0),
         (2.0, 2.0),

@@ -17,8 +17,8 @@
 
 use std::collections::BTreeSet;
 
-use crate::corpus::body_of;
 use crate::blocks::{failure, run};
+use crate::corpus::body_of;
 use crate::emit_shared_rim_several::{Bx, document, permutations};
 use crate::emit_union_rim_piece_ranks::{Case, cases, runs, signature};
 use crate::fixture::{face_vertices, insert, table};
@@ -573,11 +573,7 @@ fn one_table(faces: &std::collections::BTreeMap<String, BTreeSet<StableName>>) {
 #[test]
 fn a_boss_on_one_piece_of_a_covered_face_is_cited_in_no_order() {
     const PILLAR: Bx = ((0.1, 0.2), (0.4, 0.6), (0.5, 2.0));
-    let case = Case::flat(
-        "nearpillar",
-        vec![A, B, NEAR, PILLAR],
-        vec![0, 1, 2, 3],
-    );
+    let case = Case::flat("nearpillar", vec![A, B, NEAR, PILLAR], vec![0, 1, 2, 3]);
     let (faces, ids) = face_tables(&case);
     assert!(
         faces.len() >= 8,

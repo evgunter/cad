@@ -25,8 +25,8 @@
 //!   walls in member space, so each piece has one name.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::corpus::body_of;
 use crate::blocks::{block, run};
+use crate::corpus::body_of;
 use crate::emit_boolean_vertex_keys::{
     edge_touch_outside, ell_and_tip, face_touch, named_geometry, nested, seamed_touch,
 };
@@ -453,7 +453,7 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
 /// same face.
 #[test]
 fn a_fragments_borders_walls_are_one_spelling_in_every_member_order() {
-        let tables: Vec<std::collections::BTreeMap<String, String>> = [[0usize, 1, 2], [1, 0, 2]]
+    let tables: Vec<std::collections::BTreeMap<String, String>> = [[0usize, 1, 2], [1, 0, 2]]
         .into_iter()
         .map(|p| {
             let doc = ProfileDoc::empty_derived("emit_union_member_order_abys", Tol::witness());

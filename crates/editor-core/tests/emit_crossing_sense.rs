@@ -9,12 +9,10 @@
 //! stores them.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::corpus::body_of;
 use crate::blocks::{block, failure, run};
+use crate::corpus::body_of;
 use crate::fixture::{ends, insert, point, table};
-use editor_core::{
-    EntityKey, Entry, Node, ProfileDoc, RecipeNodeId, RoleSeg, Sense, StableName,
-};
+use editor_core::{EntityKey, Entry, Node, ProfileDoc, RecipeNodeId, RoleSeg, Sense, StableName};
 use geom_core::Tol;
 
 /// A closed rectangle in plan, `(x0, x1, y0, y1)`.

@@ -14,9 +14,7 @@
 
 use geom_core::{Point3, Tol};
 use sweep::test_support::finished;
-use topo::test_support::{
-    FaceGeometry, describe_as_intersections, prism_ops, prism_z,
-};
+use topo::test_support::{FaceGeometry, describe_as_intersections, prism_ops, prism_z};
 use topo::{AtRestBody, Body, BooleanError, BooleanResult};
 
 /// The signed area of a simple polygon (positive counter-clockwise).

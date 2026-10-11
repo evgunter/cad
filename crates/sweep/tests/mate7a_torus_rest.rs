@@ -170,10 +170,7 @@ fn torus_faces(body: &Body<f64>, minor: f64) -> Vec<FaceKey> {
 ///
 /// The chord join builds it at every ε (each strut's half beside a
 /// germ's locus edge faces it).
-fn peg_in_socket_union_holds(
-    s: &AtRestBody<f64>,
-    p: &AtRestBody<f64>,
-) {
+fn peg_in_socket_union_holds(s: &AtRestBody<f64>, p: &AtRestBody<f64>) {
     let r = topo::union(s, p, Tol::witness())
         .unwrap_or_else(|e| panic!("the peg-in-socket union builds: {e:?}"));
     let bb = r.body().expect("a union of two solids is not empty");
@@ -333,7 +330,7 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures() {
     ];
     for ((op, r), (_, want)) in subtract_both_orders_and_intersect(&s, &p)
         .into_iter()
-    .zip(wants)
+        .zip(wants)
     {
         let what = format!("socket and peg, {op}");
         match (r, want) {
@@ -471,4 +468,3 @@ fn the_rim_routing_reads_the_second_faces_sense_and_not_the_firsts() {
     walls.sort();
     assert_eq!(inverted, walls, "the gate names each reversed wall once");
 }
-

@@ -24,9 +24,7 @@
 //! plus both subtracts).
 
 use editor_core::ExtrudeSide;
-use editor_core::{
-    CapEnd, DocEdit, EntityKind, Node, RecipeNodeId, RoleSeg, SlotId, StableName,
-};
+use editor_core::{CapEnd, DocEdit, EntityKind, Node, RecipeNodeId, RoleSeg, SlotId, StableName};
 
 use crate::fixture::len;
 

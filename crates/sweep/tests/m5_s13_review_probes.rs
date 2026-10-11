@@ -383,8 +383,15 @@ fn probe_two_nonparallel_escapes_refuse_typed() {
         finished("the turned ball", b, Tol::witness()),
     );
     for strat in [SweepStrategy::Realized, SweepStrategy::Idealized] {
-        let err = boolean_op_with(BooleanOp::Union, &slab, &b, &topo::BooleanInputs::default(), strat, Tol::witness())
-            .expect_err("two non-parallel escapes must refuse");
+        let err = boolean_op_with(
+            BooleanOp::Union,
+            &slab,
+            &b,
+            &topo::BooleanInputs::default(),
+            strat,
+            Tol::witness(),
+        )
+        .expect_err("two non-parallel escapes must refuse");
         let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
             panic!("{strat:?}: expected the multi-escape refusal, got {err:?}");
         };

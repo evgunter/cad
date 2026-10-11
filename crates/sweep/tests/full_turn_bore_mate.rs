@@ -378,10 +378,7 @@ fn intersect_and_differences_answer_the_closed_form() {
                     };
                     for (order, a, b) in [("c ∩ p", &c, &p), ("p ∩ c", &p, &c)] {
                         assert!(
-                            matches!(
-                                run(BooleanOp::Intersect, a, b),
-                                Ok(BooleanResult::Empty)
-                            ),
+                            matches!(run(BooleanOp::Intersect, a, b), Ok(BooleanResult::Empty)),
                             "{tag}: {order} is empty"
                         );
                     }

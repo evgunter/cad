@@ -26,8 +26,8 @@
 use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 
-use crate::corpus::body_of;
 use crate::blocks::{block, failure, run};
+use crate::corpus::body_of;
 use crate::fixture::{
     ang, ename, ends, face_vertices, insert, len, on_frame, out, point, scl, table, vertex_of,
     vname,

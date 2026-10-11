@@ -94,10 +94,7 @@ fn the_tangent_rest<T: geom_core::Decide + geom_core::Bounds + AtRestPolicy>(
         other => panic!("subtract: the plate, got {:?}", other.map(|_| ())),
     }
     assert!(
-        matches!(
-            intersect(&a, &b, tol),
-            Ok(BooleanResult::Empty)
-        ),
+        matches!(intersect(&a, &b, tol), Ok(BooleanResult::Empty)),
         "intersect: empty"
     );
 }

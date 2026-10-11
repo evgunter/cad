@@ -280,11 +280,7 @@ fn shape(name: &str) -> Shape {
     }
 }
 
-type Op = fn(
-    &AtRestBody<f64>,
-    &AtRestBody<f64>,
-    Tol,
-) -> Result<BooleanResult<f64>, BooleanError>;
+type Op = fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
 
 /// B: a cube placed with its edge midpoint or corner on A's corner, or a
 /// second shape's corner.
@@ -681,9 +677,8 @@ fn review_sixx_pinch() {
             ("cp S", s, &cube, p, &ba, vb - common),
         ];
         for (tag, op, x, y, d, want) in runs {
-            let run = |x, y, tol| {
-                topo::boolean_op_with(op, x, y, d, topo::SweepStrategy::Realized, tol)
-            };
+            let run =
+                |x, y, tol| topo::boolean_op_with(op, x, y, d, topo::SweepStrategy::Realized, tol);
             if std::env::var("SX_THREADS").is_ok_and(|t| t == "1") {
                 eprintln!("SXRUN pinch {what} {tag}");
             }

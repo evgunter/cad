@@ -10,9 +10,7 @@
 //! The batteries: `join1_r1_battery` (z-prisms: diamond, hexagon,
 //! triangle, rod, against boxes), `join1_r1_seam_battery` (a revolved
 //! ball and a revolved solid cylinder — the latter refused at the
-//! operand gate, `NonMaximalFaces`), `join1_r1_declared_battery`
-//! (flush-declared z-prisms against boxes, coplanar caps and sides),
-//! `join1_r1_reflex_battery` (the reflex-corner issue's probe rebuilt
+//! operand gate, `NonMaximalFaces`), `join1_r1_reflex_battery` (the reflex-corner issue's probe rebuilt
 //! from its text), `join1_r1_tube_battery` (a bored revolve whose ONE
 //! outer wall face carries its seam meridian, against boxes and wedges
 //! along that seam) and `join1_r1_bored_capsule_battery` (a crease
@@ -356,7 +354,7 @@ fn join1_r1_hex_detail() {
 /// The `reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap`
 /// probe, rebuilt from its issue text: `a` the 315° reflex prism, `b` a
 /// prism over z ∈ (1, 3) sheared `z' = z + sx·x + sy·y`, its bottom cap
-/// through `a`'s reflex corner `(0, 0, 1)`; flush-declared.
+/// through `a`'s reflex corner `(0, 0, 1)`.
 #[test]
 #[ignore = "differential battery; run with --ignored"]
 fn join1_r1_reflex_battery() {

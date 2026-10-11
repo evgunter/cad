@@ -52,11 +52,7 @@ fn block(
 
 /// The document's node for the kernel verb `op` over `a` and `b`: a
 /// two-member union or intersect, or `a` cut by `b`.
-fn boolean_node(
-    op: BooleanOp,
-    a: RecipeNodeId,
-    b: RecipeNodeId,
-) -> editor_core::AuthoredNode {
+fn boolean_node(op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> editor_core::AuthoredNode {
     match op {
         BooleanOp::Union => Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),

@@ -176,16 +176,8 @@ fn assert_six(
 ) {
     let tol = Tol::witness();
     let ops = [
-        (
-            "a ∪ b",
-            va + vb - shared,
-            topo::union(a, b, tol),
-        ),
-        (
-            "b ∪ a",
-            va + vb - shared,
-            topo::union(b, a, tol),
-        ),
+        ("a ∪ b", va + vb - shared, topo::union(a, b, tol)),
+        ("b ∪ a", va + vb - shared, topo::union(b, a, tol)),
         ("a ∖ b", va - shared, topo::subtract(a, b, tol)),
         ("b ∖ a", vb - shared, topo::subtract(b, a, tol)),
         ("a ∩ b", shared, topo::intersect(a, b, tol)),

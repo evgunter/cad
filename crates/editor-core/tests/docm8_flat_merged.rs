@@ -3,9 +3,9 @@
 //! order and over a boolean of a boolean.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::blocks::{block, failure, run};
 use crate::corpus;
 use crate::corpus::body_of;
-use crate::blocks::{block, failure, run};
 use crate::fixture;
 use crate::fixture::{Recorder, flush_segs, fname, insert, len, member_face, table};
 use editor_core::ExtrudeSide;

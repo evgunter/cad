@@ -91,27 +91,11 @@ fn a_hexagon_unions_a_box_on_its_corner_edge_soundly() {
     let vi = 0.25 * 0.125 / 2.0 * 2.0;
     // It builds, and the merge stage glues the `y = −0.5` faces, one
     // carrier by margin: a legal operand.
-    assert_sound(
-        "hex ∪ box",
-        topo::union(&hex, &b, tol()),
-        va + vb - vi,
-    );
-    assert_sound(
-        "box ∪ hex",
-        topo::union(&b, &hex, tol()),
-        va + vb - vi,
-    );
+    assert_sound("hex ∪ box", topo::union(&hex, &b, tol()), va + vb - vi);
+    assert_sound("box ∪ hex", topo::union(&b, &hex, tol()), va + vb - vi);
     // The ∖ and ∩ of the same pose build soundly too.
-    assert_sound(
-        "hex ∖ box",
-        topo::subtract(&hex, &b, tol()),
-        va - vi,
-    );
-    assert_sound(
-        "hex ∩ box",
-        topo::intersect(&hex, &b, tol()),
-        vi,
-    );
+    assert_sound("hex ∖ box", topo::subtract(&hex, &b, tol()), va - vi);
+    assert_sound("hex ∩ box", topo::intersect(&hex, &b, tol()), vi);
 }
 
 /// `review_m3_pr55`'s multi-spike corner pose, which the head now

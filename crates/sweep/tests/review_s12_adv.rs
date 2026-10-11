@@ -4,12 +4,8 @@
 //! on a body the boolean itself built:
 //!
 //! - the TORUS gate: `union` has no per-class door of its own, so an
-//!   UNDECLARED torus must refuse at `reduce::gate_operand_pairs` —
-//!   this is what scopes the containment-fallback finding to the sphere
-//!   class. The qualifier is load-bearing: the gate reads declarations
-//!   now, and a pair they cover is admitted past it (the covered-pair
-//!   rung, `mate7a_torus_rest`). These fixtures declare nothing, so the
-//!   claim holds for them exactly as written;
+//!   torus must refuse at `reduce::gate_operand_pairs` — this is what
+//!   scopes the containment-fallback finding to the sphere class;
 //! - the RADIAL POKE: a cylinder wall escaping between its own seam
 //!   vertices, the shape that defeats a vertex probe — exact or typed,
 //!   never silent;

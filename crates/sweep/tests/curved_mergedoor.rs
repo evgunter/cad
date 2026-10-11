@@ -30,8 +30,8 @@ use sweep::ExtrudeSide;
 use sweep::test_support::finished;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{
-    AtRestBody, Body, BooleanBody, FaceSurface, MergeCoplanarError, Rechart, SkippedMerge, validate_closed, validate_geometric,
-    validate_pseudomanifold,
+    AtRestBody, Body, BooleanBody, FaceSurface, MergeCoplanarError, Rechart, SkippedMerge,
+    validate_closed, validate_geometric, validate_pseudomanifold,
 };
 
 const BORE_R: f64 = 0.5;
@@ -42,10 +42,7 @@ fn scene_a() -> (AtRestBody<f64>, AtRestBody<f64>) {
     let c = collar();
     let p = peg_at(0.0, 1.5, 1.0);
     let tol = Tol::witness();
-    (
-        finished("the collar", c, tol),
-        finished("the peg", p, tol),
-    )
+    (finished("the collar", c, tol), finished("the peg", p, tol))
 }
 
 /// Scene B: the peg ends mid-bore (z ∈ [0.5, 1.5]).
@@ -53,10 +50,7 @@ fn scene_b() -> (AtRestBody<f64>, AtRestBody<f64>) {
     let c = collar_at(0.0);
     let p = peg_at(0.0, 0.5, 1.0);
     let tol = Tol::witness();
-    (
-        finished("the collar", c, tol),
-        finished("the peg", p, tol),
-    )
+    (finished("the collar", c, tol), finished("the peg", p, tol))
 }
 
 /// Scene C: flush at the bottom, proud at the top (z ∈ [1, 2.5]).
@@ -64,10 +58,7 @@ fn scene_c() -> (AtRestBody<f64>, AtRestBody<f64>) {
     let c = collar_at(0.0);
     let p = peg_at(0.0, 1.0, 1.5);
     let tol = Tol::witness();
-    (
-        finished("the collar", c, tol),
-        finished("the peg", p, tol),
-    )
+    (finished("the collar", c, tol), finished("the peg", p, tol))
 }
 
 /// Scene D: partial engagement — a plate with a peg reaching halfway up
@@ -99,11 +90,7 @@ fn scene_d() -> (AtRestBody<f64>, AtRestBody<f64>) {
 /// The union must run, be exactly additive, and be tier-3 and
 /// 3′-clean — the skip has exposed the zip's body, and that body has
 /// to be right on its own.
-fn union_honest(
-    label: &str,
-    a: &AtRestBody<f64>,
-    b: &AtRestBody<f64>,
-) -> BooleanBody<f64> {
+fn union_honest(label: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> BooleanBody<f64> {
     let bb = boolean_body(
         topo::union(a, b, Tol::witness())
             .unwrap_or_else(|e| panic!("{label}: the door must not refuse: {e:?}")),

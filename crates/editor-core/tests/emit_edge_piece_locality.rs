@@ -9,8 +9,8 @@
 
 use std::collections::BTreeMap;
 
-use crate::corpus::body_of;
 use crate::blocks::{block, failure, run};
+use crate::corpus::body_of;
 use crate::fixture::{ang, insert, len, point, scl, step, table};
 use editor_core::{
     Axis3, DocEdit, EntityKey, Entry, Node, ProfileDoc, Qualifier, RoleSeg, SlotId, StableName,

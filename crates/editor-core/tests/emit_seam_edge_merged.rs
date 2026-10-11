@@ -12,8 +12,8 @@
 //! and named as the rim they share, because it lies within that rim.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::corpus::body_of;
 use crate::blocks::{block, failure, run};
+use crate::corpus::body_of;
 use crate::emit_shared_rim_several::is_rim_piece;
 use crate::fixture::{edge_of, table};
 
@@ -190,8 +190,7 @@ fn no_order_of_the_rows_documents_refuses_with_an_emission() {
     ] {
         let (doc, ids) = document(&rest);
         for order in permutations(&ids) {
-            let (docx, union) =
-                crate::fixture::union_over(doc.clone(), &order);
+            let (docx, union) = crate::fixture::union_over(doc.clone(), &order);
             let ev = run(&docx);
             if let Some(e) = failure(&ev, union) {
                 assert!(

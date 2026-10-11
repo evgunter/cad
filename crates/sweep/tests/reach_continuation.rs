@@ -114,23 +114,12 @@ fn is_cylinder(body: &Body<f64>, f: topo::FaceKey) -> bool {
     )
 }
 
-fn is_plane(body: &Body<f64>, f: topo::FaceKey) -> bool {
-    matches!(
-        body.get_face(f).and_then(|x| body.get_surface(x.surface)),
-        Some(geom::Surface::Plane { .. })
-    )
-}
-
 fn volume(body: &Body<f64>) -> f64 {
     topo::mass_properties(body, tol()).unwrap().volume
 }
 
 /// The union, which must build, be additive and valid at tier 3 and 3′.
-fn union_honest(
-    label: &str,
-    a: &AtRestBody<f64>,
-    b: &AtRestBody<f64>,
-) -> BooleanBody<f64> {
+fn union_honest(label: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> BooleanBody<f64> {
     let out = topo::union(a, b, tol()).unwrap_or_else(|e| panic!("{label}: {e:?}"));
     let BooleanResult::Body(bb) = out else {
         panic!("{label}: a stack is not empty");
@@ -563,15 +552,9 @@ fn a_covered_touch_no_vertex_splits_refuses_in_both_orders() {
 #[test]
 fn the_settle_stage_writes_the_accepted_trace() {
     let (a, b) = (plate(sharp(), 1.0), plate(rounded(R), 0.0));
-    let (ab, _) = topo::sweep_traces_with_pad(
-        &a,
-        &b,
-        topo::SweepStrategy::Realized,
-        None,
-        None,
-        tol(),
-    )
-    .expect("the traced sweep runs");
+    let (ab, _) =
+        topo::sweep_traces_with_pad(&a, &b, topo::SweepStrategy::Realized, None, None, tol())
+            .expect("the traced sweep runs");
     let fillets: Vec<_> = b
         .faces()
         .map(|(k, _)| k)
@@ -606,11 +589,7 @@ fn the_stack_is_a_legal_operand() {
             panic!("{label}: not empty");
         };
         let third = plate(outline(), 2.0);
-        union_honest(
-            &format!("{label}, third plate"),
-            &stack,
-            &third,
-        );
+        union_honest(&format!("{label}, third plate"), &stack, &third);
     }
 }
 
@@ -691,14 +670,8 @@ fn builds(
 fn a_kiss_or_a_gap_is_no_continuation() {
     let p = brick((0.0, W), (0.0, H), (0.0, 1.0));
     for (label, q) in [
-        (
-            "corner kiss",
-            brick((W, 2.0 * W), (H, 2.0 * H), (0.0, 1.0)),
-        ),
-        (
-            "vertex kiss",
-            brick((W, 2.0 * W), (H, 2.0 * H), (1.0, 2.0)),
-        ),
+        ("corner kiss", brick((W, 2.0 * W), (H, 2.0 * H), (0.0, 1.0))),
+        ("vertex kiss", brick((W, 2.0 * W), (H, 2.0 * H), (1.0, 2.0))),
         ("gap", brick((W + 1.0, 2.0 * W), (0.0, H), (0.0, 1.0))),
     ] {
         builds(
@@ -722,11 +695,7 @@ type ContinuationRow = (
 );
 
 /// The three ops, by name.
-type Op = fn(
-    &AtRestBody<f64>,
-    &AtRestBody<f64>,
-    Tol,
-) -> Result<BooleanResult<f64>, BooleanError>;
+type Op = fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
 const OPS: [(&str, Op); 3] = [
     ("union", topo::union::<f64>),
     ("subtract", topo::subtract::<f64>),

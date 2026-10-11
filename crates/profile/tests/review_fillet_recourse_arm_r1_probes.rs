@@ -312,8 +312,8 @@ fn the_lever_gate_is_reachable_in_band_on_the_lens_and_renders_its_sentence() {
 /// an in-band fillet gate.** `StructureRefusal`'s indeterminate arm
 /// prints the `Indeterminate` whole, and that Display ends in
 /// `COINCIDENCE_RECOURSE` — so through `replay_guided` the caller
-/// reads "declare the coincidence" at a fillet they asked for, and the
-/// gate's own sentence is nowhere in the text. A characterization.
+/// reads the shared recourse at a fillet they asked for, and the gate's
+/// own sentence is nowhere in the text. A characterization.
 #[test]
 fn a_guided_replay_still_renders_the_coincidence_recourse_for_a_fillet_gate() {
     let eps = tol().eps();

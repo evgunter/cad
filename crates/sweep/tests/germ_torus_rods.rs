@@ -75,10 +75,9 @@ fn random_rods_through_the_tube_never_answer_a_wrong_body() {
             )
         };
         let mut vols = [None; 3];
-        for (k, (op, r)) in
-            subtract_both_orders_and_intersect(&donut, &rod)
-                .into_iter()
-                .enumerate()
+        for (k, (op, r)) in subtract_both_orders_and_intersect(&donut, &rod)
+            .into_iter()
+            .enumerate()
         {
             let want_p = op == "A ∩ B";
             match r {

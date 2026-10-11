@@ -36,9 +36,9 @@ use geom_core::{Band, Bounds, Decide, Dual64, Interval, Point2, Point3, Real, To
 use sweep::Revolution;
 use sweep::test_support::{finished, revolved_about_y_at};
 use topo::{
-    AtRestPolicy, Body, BooleanError, BooleanOp, BooleanResult,
-    SolidContainment, SplitError, SplitReduceError, SweepStrategy, ValidationError,
-    face_azimuth_window_traces, point_in_solid, validate, validate_closed,
+    AtRestPolicy, Body, BooleanError, BooleanOp, BooleanResult, SolidContainment, SplitError,
+    SplitReduceError, SweepStrategy, ValidationError, face_azimuth_window_traces, point_in_solid,
+    validate, validate_closed,
 };
 
 fn f<T: Real>(x: f64) -> T {

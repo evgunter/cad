@@ -11,7 +11,7 @@ use editor_core::ExtrudeSide;
 use editor_core::{
     Attr, BifurcationKind, BranchCertification, BranchMarginEvidence, CancelToken, CapEnd,
     Diagnosis, DocEdit, EditError, EntityKind, EvalOptions, Evaluation, Implicated, Node,
-    ProfileDoc, RecipeNodeId, Resolution, RoleSeg, RunCtx, Rgba8, StableName, WitnessAge,
+    ProfileDoc, RecipeNodeId, Resolution, Rgba8, RoleSeg, RunCtx, StableName, WitnessAge,
     WitnessBifurcation, WitnessDatum, evaluate, resolve,
 };
 use fixture::{insert, len, on_frame, step};
@@ -160,7 +160,13 @@ fn rebind_repairs_a_stranded_name_after_node_gone() {
     assert!(doc.appearance_of(&cap(t.c)).is_some());
     let ev = run(&doc, None);
     assert!(matches!(
-        resolve(RunCtx { doc: &doc, eval: &ev }, &cap(t.c)),
+        resolve(
+            RunCtx {
+                doc: &doc,
+                eval: &ev
+            },
+            &cap(t.c)
+        ),
         Resolution::Resolved(_)
     ));
 }

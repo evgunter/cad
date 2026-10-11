@@ -22,9 +22,7 @@ use sweep::test_support::{
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::rim_of;
 use topo::readback::edge_sides;
-use topo::{
-    Body, EdgeKey, HalfEdgeKey, RimError, SurfaceKey, validate_geometric,
-};
+use topo::{Body, EdgeKey, HalfEdgeKey, RimError, SurfaceKey, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()

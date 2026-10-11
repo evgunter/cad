@@ -264,11 +264,14 @@ fn az_coupled_flush_is_one_exact_body() {
     };
     let pairs = y_planes(&a)
         .iter()
-        .flat_map(|&(_, da)| y_planes(&z_flush).into_iter().filter(move |&(_, db)| da == db))
+        .flat_map(|&(_, da)| {
+            y_planes(&z_flush)
+                .into_iter()
+                .filter(move |&(_, db)| da == db)
+        })
         .count();
     assert_eq!(
-        pairs,
-        6,
+        pairs, 6,
         "A's two feet × Z's two y=0 bar ends + A's apex × Z's two y=2.5 bar ends"
     );
     match topo::intersect(&a, &z_flush, Tol::witness()) {

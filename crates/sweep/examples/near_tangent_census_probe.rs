@@ -32,8 +32,8 @@ use geom_core::{Band, Point3, Tol};
 use topo::entity::{EntityId, LoopBoundary};
 use topo::test_support as fixtures;
 use topo::{
-    AtRestBody, Body, BooleanBody, BooleanDecision, BooleanError,
-    BooleanResult, CensusStrategy, RegionLane, ValidationError, mass_properties,
+    AtRestBody, Body, BooleanBody, BooleanDecision, BooleanError, BooleanResult, CensusStrategy,
+    RegionLane, ValidationError, mass_properties,
 };
 
 type V3 = [f64; 3];
@@ -512,11 +512,7 @@ fn dump(tag: &str, body: &BooleanBody<f64>) -> Vec<String> {
     out
 }
 
-type Op = fn(
-    &AtRestBody<f64>,
-    &AtRestBody<f64>,
-    Tol,
-) -> Result<BooleanResult<f64>, BooleanError>;
+type Op = fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
 
 fn run_all(
     tag: &str,

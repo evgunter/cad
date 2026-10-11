@@ -63,7 +63,10 @@ fn assert_built(tag: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f6
 #[test]
 fn the_boss_unions_at_its_closed_form() {
     let (block, boss) = scene();
-    for (order, a, b) in [("block ∪ boss", &block, &boss), ("boss ∪ block", &boss, &block)] {
+    for (order, a, b) in [
+        ("block ∪ boss", &block, &boss),
+        ("boss ∪ block", &boss, &block),
+    ] {
         assert_built(order, topo::union(a, b, Tol::witness()), 8400.0);
     }
 }

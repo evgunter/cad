@@ -6,12 +6,10 @@
 
 use crate::blocks::{block, failure, run};
 use crate::corpus::body_of;
-use crate::fixture::{
-    self, ang, flush_pairs, fname, insert, len, member_face, scl, step, table,
-};
+use crate::fixture::{self, ang, flush_pairs, fname, insert, len, member_face, scl, step, table};
 use editor_core::{
-    BooleanValue, DocEdit, EntityKind, Entry, Evaluation, Node, ProfileDoc, RecipeNodeId,
-    RoleSeg, StableName, ValuePayload, VarId,
+    BooleanValue, DocEdit, EntityKind, Entry, Evaluation, Node, ProfileDoc, RecipeNodeId, RoleSeg,
+    StableName, ValuePayload, VarId,
 };
 use geom_core::Tol;
 
@@ -365,7 +363,6 @@ fn a_kiss_record_cites_its_vertex_fusion_row_at_the_pair_and_the_union() {
         "the pair cites its inputs by its reads"
     );
 }
-
 
 /// **A contact against what the fold merges glues in every member
 /// order.** `a` and `c` are flush, so the fold merges their tops into

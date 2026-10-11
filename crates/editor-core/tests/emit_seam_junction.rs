@@ -15,13 +15,13 @@
 
 use std::collections::BTreeSet;
 
-use crate::corpus::body_of;
 use crate::blocks::{block, failure, run};
+use crate::corpus::body_of;
 use crate::fixture::{ename, fname, member_entity, member_face, table, vertex_of, wall};
 
 use editor_core::{
-    CapEnd, EntityKind, NameTable, NamingError, NodeErrorKind, ProfileDoc,
-    RecipeNodeId, RoleSeg, Sense, StableName,
+    CapEnd, EntityKind, NameTable, NamingError, NodeErrorKind, ProfileDoc, RecipeNodeId, RoleSeg,
+    Sense, StableName,
 };
 use geom_core::Tol;
 
@@ -214,7 +214,7 @@ fn a_crossing_of_a_merged_rim_is_named_the_same_in_every_order_that_fuses() {
         ),
     ] {
         let f = fixture(g_z, with_h);
-            let Fixture { doc, a, b, g, h } = f;
+        let Fixture { doc, a, b, g, h } = f;
         let members: Vec<_> = [a, b, g].into_iter().chain(h).collect();
         let (mut ab_first, mut g_between) = (0, 0);
         let mut residue = BTreeSet::new();

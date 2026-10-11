@@ -732,10 +732,7 @@ pub fn renoded(name: &StableName, from: RecipeNodeId, to: RecipeNodeId) -> Stabl
 /// so one node under one id — an insert mints its id from its node,
 /// the members' order included (N1) — which is what a row comparing
 /// member orders compares.
-pub fn union_over(
-    doc: ProfileDoc,
-    members: &[RecipeNodeId],
-) -> (ProfileDoc, RecipeNodeId) {
+pub fn union_over(doc: ProfileDoc, members: &[RecipeNodeId]) -> (ProfileDoc, RecipeNodeId) {
     let mut inserted = members.to_vec();
     inserted.sort();
     let (doc, union) = insert(

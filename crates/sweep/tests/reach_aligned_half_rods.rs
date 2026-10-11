@@ -129,12 +129,7 @@ fn a_half_rod_stack_keeps_its_intersect_and_subtract_refusals() {
 fn a_half_rod_stack_takes_a_third_rod() {
     for (label, theta) in POSES {
         let (a, b) = (rod(0.0, 0.0), rod(1.0, theta));
-        let stack = builds(
-            label,
-            topo::union(&a, &b, tol()),
-            2.0 * PI,
-        )
-        .body;
+        let stack = builds(label, topo::union(&a, &b, tol()), 2.0 * PI).body;
         let c = rod(2.0, 0.0);
         builds(
             &format!("{label}, third rod"),
@@ -143,4 +138,3 @@ fn a_half_rod_stack_takes_a_third_rod() {
         );
     }
 }
-

@@ -9,8 +9,8 @@
 
 use geom_core::{Dual64, Point3, Real, Tol, Vec3};
 use topo::{
-    AtRestPolicy, BooleanError, BooleanOp, Operand, SplitError,
-    SplitReduceError, SweepStrategy, ValidationError,
+    AtRestPolicy, BooleanError, BooleanOp, Operand, SplitError, SplitReduceError, SweepStrategy,
+    ValidationError,
 };
 
 fn f(x: f64) -> Dual64 {

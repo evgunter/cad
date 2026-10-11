@@ -22,11 +22,7 @@ use topo::{Body, BooleanResult};
 /// exactly additive (4-ULP relative, the unit's own oracle — tightened
 /// from 8 once these probes measured the real distance) AND tier-3
 /// valid AND pseudomanifold-clean. Each operand is finished once.
-fn never_silent(
-    label: &str,
-    a: &Body<f64>,
-    b: &Body<f64>,
-) -> Option<topo::BooleanError> {
+fn never_silent(label: &str, a: &Body<f64>, b: &Body<f64>) -> Option<topo::BooleanError> {
     let a = &finished(&format!("{label}: A"), a.clone(), Tol::witness());
     let b = &finished(&format!("{label}: B"), b.clone(), Tol::witness());
     match topo::union(a, b, Tol::witness()) {
@@ -179,12 +175,8 @@ fn r2_full_period_peg_unions() {
     )
     .unwrap()
     .body;
-    let join = topo::test_support::boolean_join_refusal(
-        topo::BooleanOp::Union,
-        &c,
-        &p,
-        Tol::witness(),
-    );
+    let join =
+        topo::test_support::boolean_join_refusal(topo::BooleanOp::Union, &c, &p, Tol::witness());
     assert!(
         join.as_ref().is_ok_and(Option::is_none),
         "the join homes the pierce rings at the peg's ruling azimuth and connects, got {join:?}"

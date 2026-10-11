@@ -24,8 +24,8 @@ use crate::blocks::block;
 
 use editor_core::{
     DocEdit, DocumentId, EvalOptions, Formula, FreeVar, InlineError, Node, ProfileDoc,
-    RecipeNodeId, ResolveFault, RoleSeg, SplitError, StableName, VarName, content_pin,
-    inline, load, product_named, save,
+    RecipeNodeId, ResolveFault, RoleSeg, SplitError, StableName, VarName, content_pin, inline,
+    load, product_named, save,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{desc, insert, len, on_frame, run, split_world as split, square, step, xy_frame};

@@ -63,11 +63,7 @@ fn the_flush_boss_unions() {
     if let Some(refusal) = failure(&ev, union) {
         panic!("the union refuses {refusal:?}");
     }
-    let volume = match &ev
-        .value(union)
-        .expect("the union evaluated")
-        .payload
-    {
+    let volume = match &ev.value(union).expect("the union evaluated").payload {
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
             topo::mass_properties(body, Tol::witness())
                 .expect("the union measures")

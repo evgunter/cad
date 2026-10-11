@@ -10,11 +10,11 @@ use crate::blocks::{block, failure, run};
 use crate::fixture::{ang, fname, insert, len, len2, on_frame, out, scl, table};
 
 use editor_core::{
-    Advisory, CapEnd, CheckEvidence, CheckId, ChecksConfig, Datum, EntityKey,
-    EntityKind, Entry, Evaluation, FindingSubject, Formula, LoopProgram, NamedCell,
-    NamedCoincidence, Node, PartSelect, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, Proof, RecipeNodeId, RoleSeg, Rung, Severity, SplitHalf, StableName,
-    ValuePayload, VarId, coincide, spoken_by,
+    Advisory, CapEnd, CheckEvidence, CheckId, ChecksConfig, Datum, EntityKey, EntityKind, Entry,
+    Evaluation, FindingSubject, Formula, LoopProgram, NamedCell, NamedCoincidence, Node,
+    PartSelect, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, Proof,
+    RecipeNodeId, RoleSeg, Rung, Severity, SplitHalf, StableName, ValuePayload, VarId, coincide,
+    spoken_by,
 };
 use geom_core::{MarginDiag, Point3, Tol};
 use topo::{DecisionSite, Relation};
@@ -245,8 +245,7 @@ fn a_unions_rows_follow_its_member_order() {
     let n = crate::fixture::flush_segs(&doc, a).len();
     let mut seen = Vec::new();
     for members in [[a, b], [b, a]] {
-        let (doc, union) =
-            crate::fixture::union_over(doc.clone(), &members);
+        let (doc, union) = crate::fixture::union_over(doc.clone(), &members);
         let ev = run(&doc);
         let got = rows(&ev, union);
         assert_eq!(got.len(), n, "{members:?}: one row per flush family");

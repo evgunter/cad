@@ -16,10 +16,7 @@ use editor_core::{
     CancelToken, CapEnd, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc, Qualifier,
     RecipeNodeId, RoleSeg, StableName, evaluate,
 };
-use fixture::{
-    ang, insert, len, minted, on_frame, out,
-    scl, table,
-};
+use fixture::{ang, insert, len, minted, on_frame, out, scl, table};
 use geom_core::Tol;
 
 /// Evaluates, and holds every table the run produced to the N3

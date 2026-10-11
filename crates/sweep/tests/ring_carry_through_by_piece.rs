@@ -415,8 +415,8 @@ fn a_ring_pinched_to_a_rim_vertex_builds_and_its_rim_fillet_refuses() {
         ("pocket first", &pocketed, &hole),
     ] {
         use sweep::test_support::finished;
-        use topo::boolean::{SweepStrategy, boolean_op_with};
         use topo::BooleanResult;
+        use topo::boolean::{SweepStrategy, boolean_op_with};
         let r = boolean_op_with(
             BooleanOp::Subtract,
             &finished("a", a.clone(), tol()),

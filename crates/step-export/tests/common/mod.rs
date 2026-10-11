@@ -681,7 +681,7 @@ pub fn die_pips() -> Body<f64> {
             BooleanOp::Union,
             &tool,
             &poled(*c, *n),
-            &topo::BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         )
@@ -698,7 +698,7 @@ pub fn die_pips() -> Body<f64> {
         BooleanOp::Subtract,
         &cube,
         &tool,
-        &topo::BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )

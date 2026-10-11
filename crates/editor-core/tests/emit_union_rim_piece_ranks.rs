@@ -21,14 +21,12 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::corpus::body_of;
 use crate::blocks::{failure, run};
+use crate::corpus::body_of;
 use crate::emit_shared_rim_several::{Bx, document, permutations, probe_corpus};
 use crate::fixture::{ang, face_vertices, insert, len, scl, table};
 
-use editor_core::{
-    CapEnd, EntityKey, EntityKind, Entry, Node, RecipeNodeId, RoleSeg, StableName,
-};
+use editor_core::{CapEnd, EntityKey, EntityKind, Entry, Node, RecipeNodeId, RoleSeg, StableName};
 
 /// A rounded point, comparable across two evaluations.
 type P = (i64, i64, i64);
@@ -402,10 +400,10 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
 /// an id became its mint ordinal and digest, with the counts PR 4228
 /// left (six: `Ends` on every piece) held.
 const KNOWN_ABSENT: &[(&str, &str, usize, u64)] = &[
-    ("cross", "U", 168, 2906534777410230525),
-    ("r1three", "U", 480, 8711303547924378341),
-    ("r5poke", "U", 6, 6637619498228346639),
-    ("r5pokehi", "U", 6, 16233991649437586511),
+    ("cross", "U", 266, 4963523226727653737),
+    ("r1three", "U", 480, 7402196657749732725),
+    ("r5poke", "U", 6, 12580799565770351611),
+    ("r5pokehi", "U", 6, 14713691768203790935),
 ];
 
 /// One fused order and every entity it publishes, as sorted geometry.

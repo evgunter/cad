@@ -9,12 +9,11 @@
 //!   the census reads them.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::corpus::{body_of, failures};
 use crate::blocks::{block, failure, run};
+use crate::corpus::{body_of, failures};
 use crate::fixture::insert;
 use editor_core::{
-    BooleanValue, Node, NodeErrorKind, ProfileDoc, Proof, RecipeNodeId, ValuePayload,
-    coincide,
+    BooleanValue, Node, NodeErrorKind, ProfileDoc, Proof, RecipeNodeId, ValuePayload, coincide,
 };
 use geom_core::Tol;
 use topo::{DecisionSite, Relation};
@@ -94,4 +93,3 @@ fn a_zero_glued_union_passes_tier_three_prime() {
         "tier 3′"
     );
 }
-

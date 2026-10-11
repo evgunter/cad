@@ -15,9 +15,9 @@ use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
+use topo::Body;
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query;
-use topo::Body;
 
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let lp = bulge_loop(

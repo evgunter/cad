@@ -24,9 +24,8 @@ use editor_core::eval::WitnessSlot;
 use editor_core::{
     CancelToken, CapEnd, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
     EvalOutcome, Evaluation, NameTable, NamingKey, Node, ProfileDoc, Qualifier, RecipeEditRef,
-    RecipeNodeId, Resolution, ResolveError, ResolveIndeterminate, RoleSeg, RunCtx,
-    SlotId, StableName, apply_with_names, evaluate, rebind_suggestions, resolve,
-    resolve_with_prior,
+    RecipeNodeId, Resolution, ResolveError, ResolveIndeterminate, RoleSeg, RunCtx, SlotId,
+    StableName, apply_with_names, evaluate, rebind_suggestions, resolve, resolve_with_prior,
 };
 use fixture::{ang, insert, len, minted, on_frame, scl, step};
 use geom_core::Tol;

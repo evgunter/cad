@@ -41,19 +41,13 @@ fn probe_misaligned_azimuth_split_unions() {
         (3, 3),
         "3 bore faces against 3"
     );
-    let join = topo::test_support::boolean_join_refusal(
-        topo::BooleanOp::Union,
-        &c,
-        &p,
-        Tol::witness(),
-    );
+    let join =
+        topo::test_support::boolean_join_refusal(topo::BooleanOp::Union, &c, &p, Tol::witness());
     assert!(
         join.as_ref().is_ok_and(Option::is_none),
         "the join homes the pierce rings at the peg's ruling azimuth and connects, got {join:?}"
     );
-    let bb = boolean_body(
-        topo::union(&c, &p, Tol::witness()).expect("the misaligned mate unions"),
-    );
+    let bb = boolean_body(topo::union(&c, &p, Tol::witness()).expect("the misaligned mate unions"));
     let pi = core::f64::consts::PI;
     let want = pi * (1.5f64.powi(2) - 0.5f64.powi(2)) + pi * 0.5f64.powi(2) * 2.0;
     let got = volume(&bb.body);

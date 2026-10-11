@@ -267,11 +267,7 @@ fn finished(what: &str, body: Body<f64>) -> AtRestBody<f64> {
 /// One run of an op: its tag, its result and the oracle's volume.
 type Run = (String, Result<BooleanResult<f64>, BooleanError>, f64);
 
-type Op = fn(
-    &AtRestBody<f64>,
-    &AtRestBody<f64>,
-    Tol,
-) -> Result<BooleanResult<f64>, BooleanError>;
+type Op = fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
 
 /// The placements: `v` inside the near face, on its edge along `w`
 /// (four turns about the face normal), at its corner (four turns).
@@ -1224,9 +1220,7 @@ fn a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies() 
         ("subtract", topo::subtract, va - common, false),
     ];
     for (op, run, want, apart) in ops {
-        let Ok(BooleanResult::Body(bb)) =
-            run(&prism, &cube, tol())
-        else {
+        let Ok(BooleanResult::Body(bb)) = run(&prism, &cube, tol()) else {
             panic!("{op}: the near-tangent pose did not build");
         };
         assert_eq!(topo::validate_closed(&bb.body), Ok(()), "{op}: tier 2");
@@ -1866,9 +1860,7 @@ fn a_run_turned_at_a_shared_vertex_holds_two_siblings() {
     let w = wedge(50.0);
     let (b1, p1) = posed(&w, f, v);
     let (b2, p2) = posed(&w, g, v);
-    let BooleanResult::Body(pinch) =
-        topo::union(&b1, &b2, tol()).unwrap()
-    else {
+    let BooleanResult::Body(pinch) = topo::union(&b1, &b2, tol()).unwrap() else {
         panic!("the wedges' union is empty");
     };
     let pinch_pieces: Pieces = p1.into_iter().chain(p2).collect();
@@ -2240,7 +2232,7 @@ fn the_join_stage_leaves_a_pinchs_cones_their_vertices() {
 /// orders builds at the pieces' clipped volume, holds one vertex per
 /// cone at `v`, and meshes: the unions and cube ∖
 /// operand `SOUND`; the rest fail tier 3′ only, on the vertices the cones
-/// leave at `v`, a contact no declaration names (D10). Red if the weld
+/// leave at `v`, a contact no record names. Red if the weld
 /// joins the second pierce to the other copy: its fan then reads two
 /// cones where cube ∖ operand has one, and the split's loops wind
 /// inside out (`LoopRoleInverted`).
@@ -2372,9 +2364,7 @@ fn a_pinchs_unions_from_every_root_of_the_ring() {
         for root in 0..3 {
             let pose = format!("{names} seed={seed} fib{fib}, rooted at region {root}");
             for (order, x, y) in [("xy", &d.pinched, &d.cube), ("yx", &d.cube, &d.pinched)] {
-                let r = fixtures::with_ring_root(root, || {
-                    topo::union(x, y, tol())
-                });
+                let r = fixtures::with_ring_root(root, || topo::union(x, y, tol()));
                 let line = outcome(r, want, tol());
                 assert!(line.starts_with("OK SOUND"), "{pose} {order} U: {line}");
             }
