@@ -131,8 +131,8 @@ pub use drive::{
 };
 pub use edit::{
     Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, Maintenance,
-    MaintenanceNet, MeasureOutcome, Measured, Recorded, Recording, RegaugeThenMateOutcome,
-    SlotValue, Took, apply, apply_replayed, cascade_delete_order, measure, regauge_then_mate,
+    MaintenanceNet, MeasureOutcome, Measured, Recorded, Recording,
+    SlotValue, Took, apply, apply_replayed, cascade_delete_order, measure,
 };
 pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{

@@ -602,6 +602,30 @@ pub struct Mate<S: crate::Slot = crate::VarId> {
     pub alignment: Alignment<S>,
 }
 
+impl<S: crate::Slot + Clone> Mate<S> {
+    /// **A copy pinned to the world at `pose`**: one coincidence of the
+    /// world's frame, moved by `pose`, with the copy's own frame. The
+    /// world is the `a` side, so the copy sits at `pose` bit for bit.
+    #[must_use]
+    pub fn world_pin(pose: Placement<S>) -> Self {
+        Self {
+            a: SideRead::World,
+            b: SideRead::Copy,
+            class: ContactClass::Rest,
+            alignment: Alignment {
+                a: MateFrame {
+                    base: FrameBase::World,
+                    offset: pose,
+                },
+                b: MateFrame::on_part(Placement::IDENTITY),
+                primitive: MatePrimitive::FrameCoincidence,
+                sense: AxisSense::Aligned,
+                clocking: None,
+            },
+        }
+    }
+}
+
 impl<S: crate::Slot> Mate<S> {
     /// Each side's read with its side, `a` first.
     pub fn sides(&self) -> [(MateSide, &SideRead<S::Read>); 2] {

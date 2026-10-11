@@ -487,7 +487,6 @@ fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
     match kind {
         K::EmptyProduct
         | K::StrandedPlacement
-        | K::Unplaced
         | K::Graft
         | K::RootInvalid
         | K::ProductInvalid => ProductRecourse::Carried,

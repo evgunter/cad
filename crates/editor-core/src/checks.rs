@@ -1453,7 +1453,7 @@ fn door_rows<P, T: Decide>(
     // A row of two copies is proved at the first copy's placement, which
     // is no decision the replay retakes: the door replays no census row.
     let at_rest_node = |by: &crate::assembly::AtRestBy| match *by {
-        crate::assembly::AtRestBy::Mate(mate) => mate,
+        crate::assembly::AtRestBy::Mate(mate) => mate.placement,
         crate::assembly::AtRestBy::Copies(a, _) => doc
             .operation_of(a.var)
             .unwrap_or_else(|| unreachable!("a gathered copy is a live placement's output")),
@@ -1468,7 +1468,7 @@ fn door_rows<P, T: Decide>(
         .map(|(node, rows)| (FindingSubject::Node(node), node, rows))
         .chain(at_rest.into_iter().map(|r| {
             let subject = match r.by {
-                crate::assembly::AtRestBy::Mate(mate) => FindingSubject::Node(mate),
+                crate::assembly::AtRestBy::Mate(mate) => FindingSubject::Node(mate.placement),
                 crate::assembly::AtRestBy::Copies(a, b) => FindingSubject::Copies { a, b },
             };
             (subject, at_rest_node(&r.by), vec![r.row.clone()])

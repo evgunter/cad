@@ -1868,7 +1868,7 @@ pub(crate) fn solve_with_env<P: crate::ProfilePayload, T: SolveScalar>(
 
 /// **The constraints a placement holds**, `None` for a node that is no
 /// placement.
-pub(crate) fn bundle_of<P>(node: &Node<P>) -> Option<&[super::Constraint]> {
+pub(crate) fn bundle_of<P, S: crate::Slot>(node: &Node<P, S>) -> Option<&[super::Constraint<S>]> {
     match node {
         Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
             Some(constraints)

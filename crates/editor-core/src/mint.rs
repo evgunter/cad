@@ -380,7 +380,7 @@ impl Mint {
     pub fn steps(&self) -> impl Iterator<Item = StepId> + '_ {
         self.log.iter().filter_map(|entry| match *entry {
             Minted::Step(step) => Some(step),
-            Minted::Node(_) | Minted::Var(_) => None,
+            Minted::Node(_) | Minted::Var(_) | Minted::Constraint(_) => None,
         })
     }
 

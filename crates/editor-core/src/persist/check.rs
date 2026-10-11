@@ -1135,12 +1135,11 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::SetAppearance { .. }
         | DocEdit::ClearAppearance { .. }
         | DocEdit::ClearAppearanceMeta { .. }
-        | DocEdit::SetOffset { .. }
-        // A gauge reference is a node id, and so is what a promote or a
-        // fold names.
-        | DocEdit::SetGauge { .. }
-        | DocEdit::Promote { .. }
-        | DocEdit::Fold { .. }
+        // A constraint's floats are an inserted node's: its alignment
+        // datum and its offsets' literal frames, held by the door.
+        | DocEdit::AddConstraint { .. }
+        // A constraint's id is minted, not a float.
+        | DocEdit::RemoveConstraint { .. }
         // A label is text.
         | DocEdit::SetLabel { .. }
         | DocEdit::UpdateReference { .. } => None,

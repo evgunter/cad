@@ -2207,6 +2207,13 @@ pub fn apply_with_names<T: Decide>(
             ..
         } => names.extend(read.selected_names()),
         DocEdit::Rebind { to, .. } => names.push(to),
+        DocEdit::AddConstraint { mate, .. } => {
+            for (_, read) in mate.sides() {
+                if let Some(read) = read.face() {
+                    names.extend(read.selected_names());
+                }
+            }
+        }
         // Name-carrying and deliberately unchecked here: an appearance
         // name resolves at evaluation, where a miss is a typed
         // `AppearanceLoss` rather than a silent drop, and clearing is
@@ -2238,10 +2245,7 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::ReWitness { .. }
         | DocEdit::ReWitnessBulk { .. }
         | DocEdit::SetTolerance { .. }
-        | DocEdit::SetOffset { .. }
-        | DocEdit::SetGauge { .. }
-        | DocEdit::Promote { .. }
-        | DocEdit::Fold { .. }
+        | DocEdit::RemoveConstraint { .. }
         | DocEdit::SetLabel { .. }
         | DocEdit::UpdateReference { .. } => {}
     }
