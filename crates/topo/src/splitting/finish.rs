@@ -1092,7 +1092,8 @@ fn kill_section_struts<T: Decide>(
             let next = body
                 .get_half_edge(he_data.next)
                 .ok_or(SplitFinishError::Corrupt)?;
-            if next.edge == he_data.edge {
+            // A closed curve's one edge is its own successor, not a strut.
+            if he_data.next != he && next.edge == he_data.edge {
                 strut = Some(he);
                 break;
             }
