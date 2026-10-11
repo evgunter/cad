@@ -1462,7 +1462,12 @@ fn cylinder_holes<T: Decide>(
 /// (`props_ring_winding`), each read as its mean width `2·A/P`: an
 /// `(area, length)` pair in m² and m, the length an upper bound on the
 /// boundary's. A hole wound the same way would be ADDED to the face's
-/// area, silently.
+/// area, silently ([`PropsError::RingWoundWithFace`]); a whole or a
+/// hole of no width is a degenerate face.
+///
+/// The cylinder quadrature reads its rings through this same decision at
+/// the interval scalar (`quad::cylinder_cut_face_rounds`), where an
+/// enclosure that straddles the band escalates rather than takes a side.
 ///
 /// Which rings are holes is the caller's to say, and the kinds differ
 /// on purpose: the cylinder passes over a ring that winds it
@@ -1470,7 +1475,7 @@ fn cylinder_holes<T: Decide>(
 /// check; the cone refuses one ([`require_cone_ring_contractible`]);
 /// the torus's every loop already closes in its lift. The whole is
 /// read under `whole_name`, the predicate its kind meters a side with.
-fn require_holes_wound_against<T: Decide>(
+pub(super) fn require_holes_wound_against<T: Decide>(
     whole_name: &'static str,
     whole: (T, T),
     holes: &[(T, T)],
@@ -1479,10 +1484,11 @@ fn require_holes_wound_against<T: Decide>(
     let whole = mean_width_side(whole_name, whole, band)?;
     for &hole in holes {
         let side = mean_width_side("props_ring_winding", hole, band)?;
-        if side == Sign::Zero || whole == Sign::Zero || side == whole {
-            return Err(PropsError::NotIsoRectangle {
-                what: "props_ring_winding",
-            });
+        if side == Sign::Zero || whole == Sign::Zero {
+            return Err(PropsError::DegenerateFace);
+        }
+        if side == whole {
+            return Err(PropsError::RingWoundWithFace);
         }
     }
     Ok(())

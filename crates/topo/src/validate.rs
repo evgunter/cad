@@ -1394,9 +1394,9 @@ pub enum ValidationError {
     ///   `props_rim_level`, S58) and the certified-quadrature lane
     ///   consumes only conic/NURBS trims.
     /// * `RingOnCurvedFace` — **row 2** as well: a ringed curved face
-    ///   other than a cone wall or a cylinder, torus or sphere face
-    ///   bounded by lines and circles, which a boolean pierce leaves in
-    ///   the face it pierces.
+    ///   other than a cone wall, a cylinder wall, a rim-and-ruling
+    ///   torus wall or a sphere face bounded by circles, which a boolean
+    ///   pierce leaves in the face it pierces.
     /// * `Corrupt`, `NullScaffoldEdge` — **row 1** by their own docs:
     ///   unresolvable structure and a mid-surgery body carrying M3
     ///   null-edge scaffolding.
@@ -3081,6 +3081,16 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             ),
             P::SenseInverted => reading(
                 "a sphere face with holes is inside-out against its own boundary",
+                DEFECT.into(),
+                true,
+            ),
+            P::RingWoundWithFace => reading(
+                "a hole in a face is wound the same way as the face",
+                DEFECT.into(),
+                true,
+            ),
+            P::ChartPeriodJump => reading(
+                "a face's stored boundary images do not meet on its chart",
                 DEFECT.into(),
                 true,
             ),
@@ -11154,6 +11164,37 @@ mod tests {
                 "{e:?}"
             );
         }
+    }
+
+    /// **A straddle's enclosure is a margin that was read**: the census's
+    /// escalation of two decided bounds straddling the band (a crossing
+    /// cut's `pm_census_ef_cross_arc_straddle`) ends in the coincidence
+    /// menu, where the poisoned margin it carried before the enclosure
+    /// ended in the defect ending.
+    #[test]
+    fn too_close_reads_a_straddle_as_a_margin_that_was_read() {
+        use geom_core::{Decided, Sign};
+        let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+        let straddle = geom_core::k_stats::straddle(
+            "pm_census_ef_cross_arc_straddle",
+            Decided {
+                sign: Sign::Zero,
+                margin: geom_core::MarginDiag::value(0.5 * band.zero()),
+            },
+            Decided {
+                sign: Sign::Positive,
+                margin: geom_core::MarginDiag::value(3.0 * band.escalate()),
+            },
+            band,
+        );
+        assert_eq!(
+            super::too_close(&straddle.margin),
+            format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE)
+        );
+        assert_eq!(
+            super::too_close(&geom_core::MarginDiag::INVALID),
+            super::DEFECT
+        );
     }
 
     /// `too_close` spells the shared coincidence menu, once in

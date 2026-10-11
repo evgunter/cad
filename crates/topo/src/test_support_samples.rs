@@ -653,6 +653,8 @@ fn props_errors() -> Vec<PropsError> {
         },
         PropsError::SenseContradicted,
         PropsError::SenseInverted,
+        PropsError::RingWoundWithFace,
+        PropsError::ChartPeriodJump,
         PropsError::NotOneChartBranch {
             edge: 2,
             what: "the edge crosses the seam",
