@@ -962,3 +962,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - `lever_from`'s Face doc contradicts the code.
   - Held: the derivation, the R term (7 over against main's 114), and e2e unions right in 24/24 per ε against main's 4/24.
   - Per rule 1's SEQUENTIAL arm, a MAJOR means a fix pass, then a SECOND review. Fix pass: cloud session `session_014SQNMgXS5CuJTwS7YqkWGd`. Report saved at `scratchpad/dr4646/R1.md`.
+- 2026-10-11 10:14 — Check-in: nothing ready. The 4646 fix pass started at 10:06; U-T2 has no PR yet.
