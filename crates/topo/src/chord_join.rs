@@ -31,7 +31,7 @@
 //!   face that still owns rings, the rings are re-homed by trilean
 //!   containment ([`crate::splitting::containment`] on a plane,
 //!   [`chart_ring_side`] on a cylinder wall's chart,
-//!   [`path_ring_side`] on a sphere or a cone) +
+//!   [`path_ring_side`] on a sphere, a cone or a torus) +
 //!   [`Body::ring_move`] — the `laringmv` step (lkemr/ring-placement
 //!   mirror site);
 //! - two halves of one null edge making up a ring alone (a one-site
@@ -2482,7 +2482,7 @@ fn ring_island_unread<T: Real>(face: FaceKey, surface: &geom::Surface<T>) -> Spl
 /// (`R·A_chart`) and `P` an upper bound on the boundary length in
 /// metres (`R·|Δu|` plus the axial variation, per piece).
 ///
-/// A sphere or a cone face winds without a chart
+/// A sphere, a cone or a torus face winds without a chart
 /// ([`path_island_winding`]); any other curved kind refuses typed
 /// ([`ring_island_unread`]).
 pub(crate) fn chart_island_winding<T: Decide>(
@@ -2576,20 +2576,25 @@ pub(crate) fn chart_island_winding<T: Decide>(
 
 /// The loop arc of an edge on `quadric` over `params`; `None` on a
 /// carrier its loops do not carry: on a sphere any but a circle (a
-/// cylinder's or a torus's section), on a cone a spiric or a spline.
+/// cylinder's or a torus's section), on a cone a spiric or a spline, on
+/// a torus any but a meridian or a parallel
+/// ([`Quadric::torus_circle_arc`]: a spiric oval is a ring the lane
+/// does not read yet).
 fn quadric_loop_arc<T: Decide>(
     quadric: &Quadric<T>,
     carrier: &geom::Curve3<T>,
     params: (T, T),
-) -> Option<LoopArc<T>> {
-    match (quadric, carrier) {
+    band: Band,
+) -> Result<Option<LoopArc<T>>, Indeterminate> {
+    Ok(match (quadric, carrier) {
         (Quadric::Sphere { .. }, geom::Curve3::Circle { .. })
         | (
             Quadric::Cone { .. },
             geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } | geom::Curve3::Line { .. },
         ) => LoopArc::of(carrier, params),
+        (Quadric::Torus { .. }, _) => quadric.torus_circle_arc(carrier, params, band)?,
         _ => None,
-    }
+    })
 }
 
 /// The loop arcs of the half-edges `run` on the face `face` of
@@ -2602,6 +2607,7 @@ fn run_loop_arcs<T: Decide>(
     face: FaceKey,
     (surface, quadric): (&geom::Surface<T>, &Quadric<T>),
     run: &[HalfEdgeKey],
+    band: Band,
 ) -> Result<Vec<LoopArc<T>>, SplitJoinError> {
     let mut arcs = Vec::with_capacity(run.len());
     for &he in run {
@@ -2611,7 +2617,8 @@ fn run_loop_arcs<T: Decide>(
             continue;
         };
         arcs.push(
-            quadric_loop_arc(quadric, curve.carrier(), curve.params())
+            quadric_loop_arc(quadric, curve.carrier(), curve.params(), band)
+                .map_err(|diag| SplitJoinError::Escalated { face, diag })?
                 .ok_or_else(|| ring_island_unread(face, surface))?,
         );
     }
@@ -2652,7 +2659,8 @@ fn loop_points<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Point3<T>>, 
         .collect())
 }
 
-/// **The winding of a ring-lane island on a sphere or a cone face**,
+/// **The winding of a ring-lane island on a sphere, a cone or a torus
+/// face**,
 /// about the face's OUTWARD normal, read without a chart: whether the
 /// open run `h1 → h2` (`next` order, through `h2`), closed by `closing`
 /// (the chord from `h2`'s site back to `h1`'s; `None`, the straight
@@ -2698,19 +2706,20 @@ pub(crate) fn path_island_winding<T: Decide>(
         .iter()
         .position(|&he| he == h2)
         .ok_or_else(|| corrupt_he(h2))?;
-    let mut arcs = run_loop_arcs(body, face, (surface, &quadric), &cycle[..=end])?;
+    let mut arcs = run_loop_arcs(body, face, (surface, &quadric), &cycle[..=end], band)?;
     let (chord, q, travel) = match closing {
         Some(spec) => {
             let (t0, t1) = (spec.param_start, spec.param_end);
-            let chord = quadric_loop_arc(&quadric, &spec.carrier, (t0, t1))
+            let chord = quadric_loop_arc(&quadric, &spec.carrier, (t0, t1), band)
+                .map_err(|diag| SplitJoinError::Escalated { face, diag })?
                 .ok_or_else(|| ring_island_unread(face, surface))?;
             let travel = spec.carrier.deriv(geom::mid_param(t0, t1)) * (t1 - t0);
             (chord, spec.carrier.mid_point(t0, t1), travel)
         }
-        None if matches!(quadric, Quadric::Sphere { .. }) => {
+        None if matches!(quadric, Quadric::Sphere { .. } | Quadric::Torus { .. }) => {
             return Err(invariant(
-                "a sphere ring run is closed by a straight chord (the section lanes mint an arc \
-                 on a sphere)",
+                "a sphere or torus ring run is closed by a straight chord (the section lanes mint \
+                 an arc on a sphere or a torus)",
             ));
         }
         None => {
@@ -2820,9 +2829,9 @@ fn quadric_paths<T: Decide>(
     }
 }
 
-/// [`ring_side`] on a sphere or a cone face, without a chart: whether
-/// `ring` lies inside `newf`'s outer loop (the run a `mef` just walled
-/// off `oldf`), by the parity of a path ([`Quadric::paths`]) from a ring
+/// [`ring_side`] on a sphere, a cone or a torus face, without a chart:
+/// whether `ring` lies inside `newf`'s outer loop (the run a `mef` just
+/// walled off `oldf`), by the parity of a path ([`Quadric::paths`]) from a ring
 /// vertex to a point outside the new face: a vertex of `oldf`'s outer
 /// loop, or the midpoint of one of its edges the run does not share,
 /// which lies off the run even where every vertex of that loop is a
@@ -2845,7 +2854,7 @@ fn path_ring_side<T: Decide>(
         face: newf,
         what: "ring re-homing on a sphere or a cone: the run is not a cycle",
     })?;
-    let arcs = run_loop_arcs(body, newf, (surface, quadric), &cycle)?;
+    let arcs = run_loop_arcs(body, newf, (surface, quadric), &cycle, band)?;
     let run_edges = cycle
         .iter()
         .map(|&he| Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge))
@@ -3511,7 +3520,7 @@ impl ChordJoiner {
             .cloned()
             .ok_or_else(|| corrupt_face(oldf))?;
         // How a ring's side is read: off the plane, on a cylinder's
-        // chart, or by a path on a sphere or a cone.
+        // chart, or by a path on a sphere, a cone or a torus.
         enum Homing<T: geom_core::Real> {
             Plane(Vec3<T>),
             Chart,
@@ -3758,12 +3767,13 @@ fn ring_vertices<T: Decide>(
 /// [`RingSide::Undecided`], never [`RingSide::OnRun`]: a pierce strut at a
 /// pinch, whose point is a run vertex, always reads so here, and refuses
 /// rather than waiting.
-/// A sphere or a cone face reads without a chart ([`path_ring_side`]);
-/// [`ChordJoiner::rehome_rings`] sends no other kind here.
+/// A sphere, a cone or a torus face reads without a chart
+/// ([`path_ring_side`]); [`ChordJoiner::rehome_rings`] sends no other
+/// kind here.
 ///
 /// It is one of several point-in-region routines, beside [`ring_side`]
-/// (on a plane), [`path_ring_side`] (on a sphere or a cone), `solid_contain`'s
-/// wall outline (a point against a whole wall face's outline, inside the
+/// (on a plane), [`path_ring_side`] (on a sphere, a cone or a torus),
+/// `solid_contain`'s wall outline (a point against a whole wall face's outline, inside the
 /// containment gate) and `boolean::sphere_region` (a point against a
 /// trimmed sphere face): a known split, each reading the region it is
 /// handed in its own terms
@@ -3921,6 +3931,9 @@ mod sibling_escalation_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod sphere_island_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torus_ring_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

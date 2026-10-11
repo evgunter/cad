@@ -268,11 +268,11 @@ enum KindArm {
 
 /// The kind arm of a germ face pair, A's kind first.
 fn kind_arm(a: geom::SurfaceKind, b: geom::SurfaceKind) -> KindArm {
-    use geom::SurfaceKind::{Cone, Cylinder, Plane, Sphere};
+    use geom::SurfaceKind::{Cone, Cylinder, Plane, Sphere, Torus};
     match (a, b) {
         (Plane, Plane) => KindArm::Planar,
-        (Plane, Sphere | Cylinder | Cone) => KindArm::PlaneWall,
-        (Sphere | Cylinder | Cone, Plane) => KindArm::WallPlane,
+        (Plane, Sphere | Cylinder | Cone | Torus) => KindArm::PlaneWall,
+        (Sphere | Cylinder | Cone | Torus, Plane) => KindArm::WallPlane,
         (Sphere, Sphere) => KindArm::Spheres,
         (Cylinder, Cylinder) => KindArm::Cylinders,
         _ => KindArm::None,
@@ -289,8 +289,8 @@ enum RingClosure<T: geom_core::Real> {
     /// segment's curve.
     Planar,
     /// A curved face: a cylinder's island closes along this section
-    /// plane, on the face's chart; a sphere's or a cone's by the
-    /// segment's curve.
+    /// plane, on the face's chart; a sphere's, a cone's or a torus's by
+    /// the segment's curve.
     Wall((Point3<T>, UnitVec3<T>)),
     /// A segment along an edge of this solid (the named operand), of
     /// both solids or of this one alone, reads no section on this side:
@@ -310,8 +310,8 @@ enum IslandClosing<'a, T: geom_core::Real> {
     /// A wall face: closed along the section plane its chords lie in,
     /// on the face's chart.
     Wall((Point3<T>, UnitVec3<T>)),
-    /// A sphere or a cone face: closed by the segment's curve, an arc of
-    /// a plane section or a cone's ruling
+    /// A sphere, a cone or a torus face: closed by the segment's curve,
+    /// an arc of a plane section or a cone's ruling
     /// ([`crate::chord_join::path_island_winding`]).
     Quadric(&'a SegmentCurve<T>),
 }
@@ -3366,9 +3366,9 @@ fn choose_roles<T: Decide>(
             .map(RoleLane::Decided)
             .ok_or(desync("every chord arc separates a loose scaffolding pair"));
     }
-    // Ring lane: decided by the run's winding. A planar, sphere or cone
-    // face's run is closed by the segment's curve, so it waits on that
-    // curve ([`RoleLane::resolve`]); a cylinder face's closes along its section
+    // Ring lane: decided by the run's winding. A planar, sphere, cone or
+    // torus face's run is closed by the segment's curve, so it waits on
+    // that curve ([`RoleLane::resolve`]); a cylinder face's closes along its section
     // plane on its chart, decided here, before the curve is computed in
     // the order it decides. An along-edge segment reads no section: a
     // curved face there refuses typed, before any chord is computed.
@@ -3460,7 +3460,7 @@ enum RoleLane<T: geom_core::Real> {
     Decided((HalfEdgeKey, HalfEdgeKey)),
     /// A ring of the planar `face`, with its outward `normal`.
     Ring { face: FaceKey, normal: Vec3<T> },
-    /// A ring of the sphere or cone `face`.
+    /// A ring of the sphere, cone or torus `face`.
     QuadricRing { face: FaceKey },
 }
 
@@ -3547,8 +3547,8 @@ fn ring_order<T: Decide>(
 ///
 /// A wall face ([`IslandClosing::Wall`]) asks the same question on its
 /// own chart, [`crate::chord_join::chart_island_winding`], with the run
-/// closed along the plane this solid's chords lie in; a sphere or cone
-/// face ([`IslandClosing::Quadric`]) asks it without a chart,
+/// closed along the plane this solid's chords lie in; a sphere, cone or
+/// torus face ([`IslandClosing::Quadric`]) asks it without a chart,
 /// [`crate::chord_join::path_island_winding`], closed by the curve.
 fn ring_run_ccw<T: Decide>(
     body: &Body<T>,
@@ -6360,9 +6360,11 @@ mod kind_arm_rows {
             ((Plane, Sphere), KindArm::PlaneWall),
             ((Plane, Cylinder), KindArm::PlaneWall),
             ((Plane, Cone), KindArm::PlaneWall),
+            ((Plane, Torus), KindArm::PlaneWall),
             ((Sphere, Plane), KindArm::WallPlane),
             ((Cylinder, Plane), KindArm::WallPlane),
             ((Cone, Plane), KindArm::WallPlane),
+            ((Torus, Plane), KindArm::WallPlane),
             ((Sphere, Sphere), KindArm::Spheres),
             ((Cylinder, Cylinder), KindArm::Cylinders),
         ];

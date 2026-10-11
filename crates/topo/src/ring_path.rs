@@ -1,4 +1,5 @@
-//! **A ring lane's chart-free reading on a sphere or a cone face**: the
+//! **A ring lane's chart-free reading on a sphere, a cone or a torus
+//! face**: the
 //! parity of a path on the face's surface across a closed curve of loop
 //! arcs, which says whether the path's ends lie on one side of the curve
 //! or on opposite sides.
@@ -7,12 +8,24 @@
 //! form: on a sphere, the short great-circle arc between its ends; on a
 //! cone, a segment of a ruling and an arc of a parallel (the circle at
 //! one height), in either order, on the ends' nappe and never through
-//! the apex. Every loop arc is a plane section of the surface (a circle
-//! or an ellipse: no lane mints another conic) or, on a cone, a ruling.
-//! So a piece meets a section arc only where it crosses the arc's plane,
-//! which a circle piece does at most twice and a segment once, and it
-//! meets a ruling only where the ruling crosses a parallel's plane. Two
-//! rulings meet only at the apex, which no piece reaches.
+//! the apex; on a torus, an arc of a meridian (the tube's circle at one
+//! azimuth) and an arc of a parallel, in either order, after a segment
+//! that moves the start onto the tube through the end, so the pieces
+//! meet exactly. Every loop arc is a plane section of the surface (a
+//! circle or an ellipse: no lane mints another conic) or, on a cone, a
+//! ruling. So a piece meets a section arc only where it crosses the
+//! arc's plane, which a circle piece does at most twice and a segment
+//! once, and it meets a ruling only where the ruling crosses a
+//! parallel's plane. Two rulings meet only at the apex, which no piece
+//! reaches.
+//!
+//! A plane cuts a torus in up to two loops, so on a torus a crossing of
+//! an arc's plane lies on the arc's own circle only on that circle's
+//! side of the split between the two ([`ArcLoop`]): a loop arc on a
+//! torus is a meridian or a parallel, whose plane's other loop is the
+//! meridian across the axis or the parallel across the tube. The split
+//! is decided at the crossing, **`split_ring_path_torus_loop`**, as the
+//! boolean join's section loops are told apart.
 //!
 //! The parity does not depend on the path because the curve is
 //! null-homotopic where the paths run. Every closed curve on a sphere
@@ -22,7 +35,13 @@
 //! outer loop spans a full period or whose loop wraps
 //! (`PcurveMintError::{OuterSpansPeriod, LoopWraps}`), so a face that
 //! reaches round the axis is cut by its seam, and no curve on it winds
-//! round the apex.
+//! round the apex. On a torus, the paths run anywhere on it and the
+//! curve bounds a disc: it lies on one face, and tier 3's pcurve mint
+//! refuses a loop whose chart walk closes only by a period in either
+//! direction (`LoopWraps`), so a face lifts to a disc of the chart
+//! plane and a closed curve on it lifts closed. The parity of a path
+//! across a curve that bounds is its ends' sides of the disc, whichever
+//! way round the tube or the axis it goes.
 //!
 //! Each decision is a named trilean metered in metres. The raw picks
 //! that remain — the nearer root on the arrival arc, a parameter's
@@ -52,6 +71,12 @@ pub(crate) enum Quadric<T: Real> {
         axis: Vec3<T>,
         half_angle: T,
     },
+    Torus {
+        centre: Point3<T>,
+        axis: Vec3<T>,
+        major: T,
+        minor: T,
+    },
 }
 
 impl<T: Decide> Quadric<T> {
@@ -72,6 +97,18 @@ impl<T: Decide> Quadric<T> {
                 axis,
                 half_angle,
             }),
+            geom::Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                ..
+            } => Some(Self::Torus {
+                centre: center,
+                axis,
+                major: major_radius,
+                minor: minor_radius,
+            }),
             _ => None,
         }
     }
@@ -84,18 +121,27 @@ impl<T: Decide> Quadric<T> {
     }
 
     /// The length a dimensionless reading at `p` is levered by: the
-    /// sphere's radius, or the radius of the cone's parallel through `p`.
+    /// sphere's radius, the radius of the cone's parallel through `p`, or
+    /// the torus's tube radius or its parallel's through `p`, whichever
+    /// is smaller.
     pub(crate) fn lever(&self, p: Point3<T>) -> T {
         match *self {
             Self::Sphere { radius, .. } => radius,
             Self::Cone { apex, axis, .. } => Self::axial(apex, axis, p).1.norm(),
+            Self::Torus {
+                centre,
+                axis,
+                minor,
+                ..
+            } => minor.min(Self::axial(centre, axis, p).1.norm()),
         }
     }
 
     /// The chart normal at `p` (the outward one for a face of sense
     /// `true`): the sphere's radial direction, or the cone's
     /// `ŵ·cos α − â·sin α·sgn h`, `ŵ` the radial direction. `p` is off a
-    /// cone's apex ([`Self::off_apex`]).
+    /// cone's apex ([`Self::off_apex`]); on a torus, the direction from
+    /// the core circle's nearest point, off the axis and the core.
     fn chart_normal(&self, p: Point3<T>) -> Vec3<T> {
         match *self {
             Self::Sphere { centre, radius } => (p - centre) / radius,
@@ -108,7 +154,22 @@ impl<T: Decide> Quadric<T> {
                 let (s, c) = half_angle.sin_cos();
                 w / w.norm() * c - axis * h.select_le_zero(-s, s)
             }
+            Self::Torus {
+                centre,
+                axis,
+                major,
+                ..
+            } => {
+                let tube = p - Self::core(centre, axis, major, p);
+                tube / tube.norm()
+            }
         }
+    }
+
+    /// The core circle's point at `p`'s azimuth, `p` off the axis.
+    fn core(centre: Point3<T>, axis: Vec3<T>, major: T, p: Point3<T>) -> Point3<T> {
+        let w = Self::axial(centre, axis, p).1;
+        centre + w / w.norm() * major
     }
 
     /// The outward normal at `p` of a face of sense `sense`
@@ -117,12 +178,16 @@ impl<T: Decide> Quadric<T> {
         geom_brep::OutwardNormal::from_chart(self.chart_normal(p), sense).vec()
     }
 
-    /// Whether `p` is decided off a cone's apex (its distance from the
-    /// axis, **`split_ring_path_off_apex`**): always on a sphere.
+    /// Whether `p` is decided off a cone's apex or a torus's axis (its
+    /// distance from the axis, **`split_ring_path_off_apex`**): always on
+    /// a sphere.
     pub(crate) fn off_apex(&self, p: Point3<T>, band: Band) -> Result<bool, Indeterminate> {
         match *self {
             Self::Sphere { .. } => Ok(true),
-            Self::Cone { apex, axis, .. } => Ok(decide(
+            Self::Cone { apex, axis, .. }
+            | Self::Torus {
+                centre: apex, axis, ..
+            } => Ok(decide(
                 "split_ring_path_off_apex",
                 Margin::of(Self::axial(apex, axis, p).1.norm()),
                 band,
@@ -146,6 +211,16 @@ impl<T: Decide> Quadric<T> {
     ///   decided apart (**`split_ring_path_rise`**). The arrival across
     ///   the closing arc's section is transversal on one of them
     ///   wherever it is on either.
+    /// - A torus's are two, from ends decided off the axis and off the
+    ///   core circle (**`split_ring_path_off_core`**: the distance from
+    ///   it). Each first moves `from` along its tube radius onto the
+    ///   tube through `to` (a segment, as short as the ends' offsets off
+    ///   the carrier), then runs round that tube's meridian through the
+    ///   start to `to`'s parallel and round it, arriving along the
+    ///   parallel; or round the start's parallel to `to`'s meridian and
+    ///   round it, arriving along the meridian. A meridian loop arc
+    ///   holds the first's arrival transversal and a parallel the
+    ///   second's.
     pub(crate) fn paths(
         &self,
         (from, to): (Point3<T>, Point3<T>),
@@ -239,12 +314,67 @@ impl<T: Decide> Quadric<T> {
                 }
                 Ok(paths)
             }
+            Self::Torus {
+                centre,
+                axis,
+                major,
+                ..
+            } => {
+                if !self.off_apex(from, band)? || !self.off_apex(to, band)? {
+                    return Ok(Vec::new());
+                }
+                let core = |p| Self::core(centre, axis, major, p);
+                let (kf, kt) = (core(from), core(to));
+                let (off_f, off_t) = ((from - kf).norm(), (to - kt).norm());
+                for off in [off_f, off_t] {
+                    if decide("split_ring_path_off_core", Margin::of(off), band)? != Sign::Positive
+                    {
+                        return Ok(Vec::new());
+                    }
+                }
+                // Every piece lies on the tube of radius `off_t` about the
+                // core, through `to`: `from` is moved onto it first, along
+                // its own tube radius, so each turn is placed on the circle
+                // the next piece runs round and the pieces meet exactly,
+                // as the cone's do.
+                let start = kf + (from - kf) * (off_t / off_f);
+                let lead = Piece::Segment {
+                    from,
+                    to: start,
+                    ruling: Vec3::zero(),
+                    lever: T::zero(),
+                };
+                let radial = |k: Point3<T>| (k - centre) / major;
+                let (ef, et) = (radial(kf), radial(kt));
+                let (hs, ws) = Self::axial(centre, axis, start);
+                let (ht, wt) = Self::axial(centre, axis, to);
+                let (rs, rt) = (ws.norm(), wt.norm());
+                let mut paths = Vec::with_capacity(2);
+                // Round the start's meridian to `to`'s parallel, then round.
+                let turned = centre + axis * ht + ef * rt;
+                let meridian = parallel(kf, ef.cross(axis), off_t, start, turned);
+                let round = parallel(centre + axis * ht, axis, rt, turned, to);
+                paths.push(Path {
+                    pieces: vec![lead, Piece::Arc(meridian), Piece::Arc(round)],
+                    arrival: round.tangent(round.span.1),
+                });
+                // Round the start's parallel to `to`'s meridian, then round.
+                let turned = centre + axis * hs + et * rs;
+                let round = parallel(centre + axis * hs, axis, rs, start, turned);
+                let meridian = parallel(kt, et.cross(axis), off_t, turned, to);
+                paths.push(Path {
+                    pieces: vec![lead, Piece::Arc(round), Piece::Arc(meridian)],
+                    arrival: meridian.tangent(meridian.span.1),
+                });
+                Ok(paths)
+            }
         }
     }
 }
 
-/// The arc of the parallel centred `centre` (on the axis `axis`) of
-/// radius `radius` from `from` to `to`, the short way round.
+/// The arc of the circle centred `centre` about the unit `axis`, of
+/// radius `radius`, from `from` to `to` (both in its plane), the short
+/// way round: a parallel, or a torus's meridian.
 fn parallel<T: Decide>(
     centre: Point3<T>,
     axis: Vec3<T>,
@@ -338,9 +468,10 @@ pub(crate) struct Path<T: Real> {
     pub(crate) arrival: Vec3<T>,
 }
 
-/// An arc of a loop on a sphere or cone face, over its increasing span:
-/// a section conic (`centre + u_ref·a·cos t + (axis × u_ref)·b·sin t`,
-/// `a = b` on a circle) or a ruling (`origin + dir·t`).
+/// An arc of a loop on a sphere, cone or torus face, over its
+/// increasing span: a section conic
+/// (`centre + u_ref·a·cos t + (axis × u_ref)·b·sin t`, `a = b` on a
+/// circle) or a ruling (`origin + dir·t`).
 #[derive(Clone, Copy)]
 pub(crate) enum LoopArc<T: Real> {
     Conic {
@@ -350,6 +481,10 @@ pub(crate) enum LoopArc<T: Real> {
         a: T,
         b: T,
         span: (T, T),
+        /// On a torus, the side of its plane's two loops the conic's own
+        /// circle lies on; `None` where the plane cuts the surface in the
+        /// conic alone.
+        own: Option<ArcLoop<T>>,
     },
     Line {
         origin: Point3<T>,
@@ -377,6 +512,7 @@ impl<T: Real> LoopArc<T> {
                 a: radius,
                 b: radius,
                 span,
+                own: None,
             }),
             geom::Curve3::Ellipse {
                 center,
@@ -391,6 +527,7 @@ impl<T: Real> LoopArc<T> {
                 a: major,
                 b: minor,
                 span,
+                own: None,
             }),
             geom::Curve3::Line { origin, dir } => Some(Self::Line { origin, dir, span }),
             _ => None,
@@ -406,6 +543,151 @@ impl<T: Real> LoopArc<T> {
             dir: d / length,
             span: (T::zero(), length),
         }
+    }
+}
+
+/// **Which of its plane's two loops on a torus a loop arc's circle is**,
+/// as a margin in metres positive on that circle's side at a point of
+/// the plane near the torus. A meridian's plane holds the axis and cuts
+/// the meridian across it too, `2(R − r)` or more away: the side is
+/// `(p − c)·ê`, `ê` toward the circle's centre. A parallel's plane cuts
+/// the parallel across the tube: the side is `ρ − R`, signed outward
+/// for the outer parallel. Both are the boolean join's loop splits.
+#[derive(Clone, Copy)]
+pub(crate) enum ArcLoop<T: Real> {
+    /// A meridian: `(p − centre)·toward`, `toward` unit.
+    Meridian { centre: Point3<T>, toward: Vec3<T> },
+    /// A parallel: `p`'s distance from the axis `(centre, axis)` less
+    /// `major`, negated for the inner parallel (`outer` false).
+    Parallel {
+        centre: Point3<T>,
+        axis: Vec3<T>,
+        major: T,
+        outer: bool,
+    },
+}
+
+impl<T: Decide> ArcLoop<T> {
+    /// The margin at `p`, positive on the arc's own loop.
+    fn margin(&self, p: Point3<T>) -> T {
+        match *self {
+            Self::Meridian { centre, toward } => (p - centre).dot(toward),
+            Self::Parallel {
+                centre,
+                axis,
+                major,
+                outer,
+            } => {
+                let w = p - centre;
+                let off = (w - axis * w.dot(axis)).norm() - major;
+                if outer { off } else { -off }
+            }
+        }
+    }
+
+    /// **`split_ring_path_torus_loop`** at `p`.
+    fn read(&self, p: Point3<T>, band: Band) -> Result<Sign, Indeterminate> {
+        decide(
+            "split_ring_path_torus_loop",
+            Margin::of(self.margin(p)),
+            band,
+        )
+    }
+}
+
+impl<T: Decide> Quadric<T> {
+    /// **The loop arc of a circle on this torus**, over `params`: a
+    /// meridian or a parallel, with its [`ArcLoop`]; `Ok(None)` for any
+    /// other circle (no plane section of a torus outside the touching
+    /// poses is another circle) and on a sphere or a cone. The circle's
+    /// axis is decided square to the torus's
+    /// (**`split_ring_torus_meridian`**: `n̂·â`, levered at the circle's
+    /// radius) or along it (**`split_ring_torus_parallel`**:
+    /// `‖n̂ × â‖`, levered at the radius), and a parallel's side, its
+    /// radius less `R` (**`split_ring_torus_parallel_side`**), decided
+    /// apart from the tube's top or bottom circle, which its plane
+    /// touches.
+    pub(crate) fn torus_circle_arc(
+        &self,
+        carrier: &geom::Curve3<T>,
+        params: (T, T),
+        band: Band,
+    ) -> Result<Option<LoopArc<T>>, Indeterminate> {
+        let (
+            Self::Torus {
+                centre,
+                axis,
+                major,
+                ..
+            },
+            geom::Curve3::Circle {
+                center: k,
+                axis: n,
+                radius,
+                ..
+            },
+        ) = (*self, carrier)
+        else {
+            return Ok(None);
+        };
+        let (k, n, radius) = (*k, *n, *radius);
+        let Some(LoopArc::Conic {
+            centre: c,
+            axis: a,
+            u_ref,
+            a: ra,
+            b: rb,
+            span,
+            ..
+        }) = LoopArc::of(carrier, params)
+        else {
+            return Ok(None);
+        };
+        let arc = |own| LoopArc::Conic {
+            centre: c,
+            axis: a,
+            u_ref,
+            a: ra,
+            b: rb,
+            span,
+            own: Some(own),
+        };
+        if decide(
+            "split_ring_torus_meridian",
+            Margin::levered(n.dot(axis), radius),
+            band,
+        )? == Sign::Zero
+        {
+            let w = k - centre;
+            let w = w - axis * w.dot(axis);
+            return Ok(Some(arc(ArcLoop::Meridian {
+                centre,
+                toward: w / w.norm(),
+            })));
+        }
+        if decide(
+            "split_ring_torus_parallel",
+            Margin::levered(n.cross(axis).norm(), radius),
+            band,
+        )? != Sign::Zero
+        {
+            return Ok(None);
+        }
+        let outer = match decide(
+            "split_ring_torus_parallel_side",
+            Margin::of(radius - major),
+            band,
+        )? {
+            Sign::Positive => true,
+            Sign::Negative => false,
+            Sign::Zero => return Ok(None),
+        };
+        Ok(Some(arc(ArcLoop::Parallel {
+            centre,
+            axis,
+            major,
+            outer,
+        })))
     }
 }
 
@@ -435,6 +717,8 @@ impl<T: Real> LoopArc<T> {
 ///   another ruling nowhere off the apex (the two are decided apart,
 ///   **`split_ring_path_rulings_apart`**: the sine between them,
 ///   levered at the segment's distance from the apex).
+/// - On a torus, a meeting point counts only on the arc's own loop of
+///   its plane ([`ArcLoop`], **`split_ring_path_torus_loop`**).
 /// - Each meeting point counts when it lies strictly inside the piece's
 ///   span and the arc's (**`split_ring_path_in_span`**: the distance
 ///   along the piece or the arc to a span end — a parameter levered at a
@@ -460,12 +744,15 @@ pub(crate) fn path_parity<T: Decide>(
         ]
     };
     let inside = Ok(Sign::Positive);
+    // A crossing of a torus arc's plane on the plane's other loop is no
+    // crossing of the arc: its side is one more reading of the crossing.
+    let on_own = |own: Option<ArcLoop<T>>, x: Point3<T>| own.map_or(inside, |l| l.read(x, band));
     let mut odd = false;
     let last = path.pieces.len().saturating_sub(1);
     for (i, piece) in path.pieces.iter().enumerate() {
         for (j, arc) in arcs.iter().enumerate() {
             let arrival = i == last && arrives_on == Some(j);
-            let mut readings: Vec<[Result<Sign, Indeterminate>; 4]> = Vec::with_capacity(2);
+            let mut readings: Vec<[Result<Sign, Indeterminate>; 5]> = Vec::with_capacity(2);
             match (*piece, *arc) {
                 (
                     Piece::Arc(p),
@@ -476,6 +763,7 @@ pub(crate) fn path_parity<T: Decide>(
                         a,
                         b,
                         span,
+                        own,
                     },
                 ) => {
                     let (ca, cb) = (axis.dot(p.u_ref), axis.dot(p.v_ref()));
@@ -533,7 +821,7 @@ pub(crate) fn path_parity<T: Decide>(
                         let slope = (cb * ct - ca * st).abs();
                         let [p0, p1] = in_span(t, p.span, p.radius * slope);
                         let [a0, a1] = in_span(s, span, b * slope);
-                        readings.push([p0, p1, a0, a1]);
+                        readings.push([p0, p1, a0, a1, on_own(own, p.at(t))]);
                     }
                 }
                 (Piece::Arc(p), LoopArc::Line { origin, dir, span }) => {
@@ -555,7 +843,7 @@ pub(crate) fn path_parity<T: Decide>(
                     let slope = across.abs();
                     let [p0, p1] = in_span(t, p.span, p.radius * slope);
                     let [a0, a1] = in_span(s, span, slope);
-                    readings.push([p0, p1, a0, a1]);
+                    readings.push([p0, p1, a0, a1, inside]);
                 }
                 (
                     Piece::Segment { from, to, .. },
@@ -566,6 +854,7 @@ pub(crate) fn path_parity<T: Decide>(
                         a,
                         b,
                         span,
+                        own,
                     },
                 ) => {
                     if arrival {
@@ -580,14 +869,15 @@ pub(crate) fn path_parity<T: Decide>(
                     if s0 == s1 {
                         continue;
                     }
-                    let w = from + (to - from) * (d0 / (d0 - d1)) - centre;
+                    let x = from + (to - from) * (d0 / (d0 - d1));
+                    let w = x - centre;
                     let v_ref = axis.cross(u_ref);
                     let s = branch((w.dot(v_ref) / b).atan2(w.dot(u_ref) / a), span);
                     // The plane moved by δ moves the root by δ over the
                     // slope the segment crosses it at, `|n̂·d̂|`.
                     let slope = ((d0 - d1) / (to - from).norm()).abs();
                     let [a0, a1] = in_span(s, span, b * slope);
-                    readings.push([inside, inside, a0, a1]);
+                    readings.push([inside, inside, a0, a1, on_own(own, x)]);
                 }
                 (Piece::Segment { ruling, lever, .. }, LoopArc::Line { dir, .. }) => {
                     if arrival {
@@ -630,6 +920,10 @@ mod cone_path_grid;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod graze_rows;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+pub(crate) mod torus_islands;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -720,6 +1014,173 @@ mod tests {
                         points.push(p + quadric.chart_normal(p) * off);
                     }
                 }
+                for &a in &points {
+                    for &z in &points {
+                        for path in quadric.paths((a, z), b).unwrap() {
+                            asked += 1;
+                            let mut at = a;
+                            for piece in &path.pieces {
+                                let (from, to) = ends(piece);
+                                assert!(
+                                    (from - at).norm() <= 1e-13,
+                                    "a seam is open by {:e} from {a:?} to {z:?}",
+                                    (from - at).norm()
+                                );
+                                at = to;
+                            }
+                            assert!(
+                                (at - z).norm() <= 1e-13,
+                                "the path ends {:e} off {z:?}",
+                                (at - z).norm()
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        assert!(asked > 1000, "{asked} paths");
+    }
+
+    /// The torus islands' arcs, each read as the ring lane reads an
+    /// edge on the torus ([`Quadric::torus_circle_arc`]).
+    fn torus_arcs(
+        quadric: &Quadric<f64>,
+        island: &super::torus_islands::Island,
+    ) -> Vec<LoopArc<f64>> {
+        island
+            .edges
+            .iter()
+            .map(|e| {
+                quadric
+                    .torus_circle_arc(&e.carrier, e.params, band())
+                    .unwrap()
+                    .expect("a meridian or a parallel")
+            })
+            .collect()
+    }
+
+    /// A grid of the whole torus, off every island's meridians and
+    /// parallels: 12 azimuths by 8 tube angles.
+    fn torus_grid(f: super::cone_islands::Frame) -> Vec<Point3<f64>> {
+        (0..12)
+            .flat_map(|k| {
+                (0..8).map(move |j| {
+                    super::torus_islands::on_torus(
+                        f,
+                        -PI + (f64::from(k) + 0.31) * PI / 6.0,
+                        -PI + (f64::from(j) + 0.43) * PI / 4.0,
+                    )
+                })
+            })
+            .collect()
+    }
+
+    /// **Every path on a torus reads the parity the islands' oracles
+    /// give**, in three frames, with the torus's axis either way: a grid
+    /// of the whole torus taken pairwise, every path [`Quadric::paths`]
+    /// offers between them, against islands on the outer side, on the
+    /// inner side, over the tube's top, between one plane's two
+    /// parallels, and wider than half a turn. The paths run round the
+    /// back of the tube and the far side of the axis, so they cross the
+    /// islands' planes on each plane's other loop: those crossings are
+    /// passed over by the arc's loop side. Nearly every pair is decided,
+    /// and both parities are read.
+    #[test]
+    fn a_torus_path_crosses_an_island_by_the_oracle_parity() {
+        use super::torus_islands::{islands, torus};
+        let mut far = 0usize;
+        for f in frames() {
+            for mirror in [false, true] {
+                let surface = torus(f, mirror);
+                let quadric = Quadric::of(&surface).unwrap();
+                let points = torus_grid(f);
+                for (name, island) in islands(f) {
+                    let arcs = torus_arcs(&quadric, &island);
+                    let (mut decided, mut asked, mut odd) = (0usize, 0usize, 0usize);
+                    for (i, &a) in points.iter().enumerate() {
+                        for &b in &points[i + 1..] {
+                            let want = (island.inside)(a) != (island.inside)(b);
+                            for path in quadric.paths((a, b), band()).unwrap() {
+                                asked += 1;
+                                let got = path_parity(&path, &arcs, None, band()).unwrap();
+                                if let Some(got) = got {
+                                    assert_eq!(got, want, "{name}, mirror {mirror}: {a:?} → {b:?}");
+                                    decided += 1;
+                                    odd += usize::from(got);
+                                }
+                                // A path whose crossings of the arcs'
+                                // planes would miscount with the loop
+                                // side dropped.
+                                let blind: Vec<_> = arcs
+                                    .iter()
+                                    .map(|&arc| match arc {
+                                        LoopArc::Conic {
+                                            centre,
+                                            axis,
+                                            u_ref,
+                                            a,
+                                            b,
+                                            span,
+                                            ..
+                                        } => LoopArc::Conic {
+                                            centre,
+                                            axis,
+                                            u_ref,
+                                            a,
+                                            b,
+                                            span,
+                                            own: None,
+                                        },
+                                        other => other,
+                                    })
+                                    .collect();
+                                if path_parity(&path, &blind, None, band()).unwrap() == Some(!want)
+                                {
+                                    far += 1;
+                                }
+                            }
+                        }
+                    }
+                    assert!(
+                        decided * 100 >= asked * 99 && odd * 100 > decided,
+                        "{name}, mirror {mirror}: {decided} of {asked} paths decided, {odd} odd"
+                    );
+                }
+            }
+        }
+        assert!(
+            far > 1000,
+            "the rows cross the islands' planes on their other loops: {far} paths would miscount"
+        );
+    }
+
+    /// **A torus path's pieces meet exactly**, from end to end, wherever
+    /// its ends lie off the carrier within the band: the lead segment
+    /// takes the start onto the tube through the end, and each turn is
+    /// placed on the circle the next piece runs round. Points of the
+    /// whole torus in three frames, moved off it along its normal by up
+    /// to the escalation threshold.
+    #[test]
+    fn a_torus_paths_pieces_meet_at_their_seams() {
+        use super::torus_islands::torus;
+        let ends = |piece: &Piece<f64>| match *piece {
+            Piece::Arc(a) => (a.at(a.span.0), a.at(a.span.1)),
+            Piece::Segment { from, to, .. } => (from, to),
+        };
+        let b = band();
+        let mut asked = 0usize;
+        for f in frames() {
+            for mirror in [false, true] {
+                let quadric = Quadric::of(&torus(f, mirror)).unwrap();
+                let points: Vec<_> = torus_grid(f)
+                    .into_iter()
+                    .step_by(3)
+                    .enumerate()
+                    .map(|(k, p)| {
+                        let off = [0.0, b.zero(), -b.escalate(), b.escalate()][k % 4];
+                        p + quadric.chart_normal(p) * off
+                    })
+                    .collect();
                 for &a in &points {
                     for &z in &points {
                         for path in quadric.paths((a, z), b).unwrap() {

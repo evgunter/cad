@@ -183,7 +183,7 @@ fn dist_to_stem_center_arc(p: Point3<f64>) -> f64 {
 /// cross the other tube's carrier (the stem's inner equator, the arch's
 /// outer equator) are decided rather than refused. What this row
 /// re-derives now is: (a) wall 1 is past the gate AND the crossing
-/// layer, and stops at the join on the plane × torus germ frame; (b)
+/// layer, and stops at the join's plane × torus chord; (b)
 /// the far cap stands ~2 m clear of the stem wall's exact locus; (c) it
 /// is no longer inside the wall's box either; (d) the weld still has no
 /// torus×torus contact to declare (tube 0.060 vs 0.052 — the walls
@@ -202,20 +202,19 @@ fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
     // seam crosses the other tube's carrier only outside that face's
     // window, so neither pair is an event; the op reaches the join,
     // whose germ pair of the stem's weld cap against the arch's wall
-    // reads its frame off the arch's rim lying in the cap and has no
-    // join arm: it refuses on the arch's wall. The far-cap claims below
-    // are geometry and stand on their own.
-    let BooleanError::CurvedBooleanUnsupported {
-        operand: topo::Operand::B,
-        face,
-        kind: SurfaceKind::Torus,
-    } = err
-    else {
-        panic!("wall 1 stops at the join's plane × torus arm: {err:?}");
+    // takes the plane × wall arm and refuses at the cap's chord, whose
+    // guard has no torus partner. The far-cap claims below are geometry
+    // and stand on their own.
+    let BooleanError::Join(topo::SplitJoinError::SectionInvariant { face, what }) = err else {
+        panic!("wall 1 stops at the join's plane × torus chord: {err:?}");
     };
     assert!(
-        torus_faces(&a).contains(&face),
-        "the arch's face is its tube wall: {face:?}"
+        what.contains("planar-side germ partner is not"),
+        "the cap's chord guard: {what}"
+    );
+    assert!(
+        plane_faces(&s).iter().any(|&(f, _, _)| f == face),
+        "the stem's face is its weld cap: {face:?}"
     );
     let frame = arch_frame();
     let far_cap = plane_faces(&a)

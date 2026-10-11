@@ -58,6 +58,7 @@ fn case(
             a,
             b: a,
             span: (sv - pi, sv),
+            own: None,
         },
         LoopArc::Conic {
             centre: centre + jitter.0 * jitter.1,
@@ -66,6 +67,7 @@ fn case(
             a,
             b: a,
             span: (sv - beta, sv - beta + pi),
+            own: None,
         },
     ];
     (path, arcs)
@@ -399,6 +401,7 @@ fn split_ellipse(
             a: major,
             b: minor,
             span: (v - pi, v),
+            own: None,
         },
         LoopArc::Conic {
             centre: center + dir * jitter,
@@ -407,6 +410,7 @@ fn split_ellipse(
             a: major,
             b: minor,
             span: (v, v + pi),
+            own: None,
         },
     ]
 }
