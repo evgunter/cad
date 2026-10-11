@@ -32,9 +32,18 @@ The uncovered `(Zero, Zero)` arm of the same lane hands the ends' own
 ## Reach
 
 Not reached. The B2 dual review (R1) looked for a surviving case and
-found none: a cylinder's rim kissing a tilted block refuses
-`CurvedRestUnrecorded` first, and a peg-in-hole rim collapses as an
-incidence. No corpus, test, tour or Python scene reaches the refusal.
+found none: a peg-in-hole rim collapses as an incidence, and a
+cylinder's rim kissing a tilted block refused `CurvedRestUnrecorded`.
+That error is retired (CONTACTHOLD's at-rest record, PR 4604, records
+the edge–face pair instead), so the rim kiss was re-measured on
+2026-10-11: a two-arc drum (`sweep::test_support::disc_of_arcs`) under a
+block tilted 0.3 to touch its top rim at one point, at an arc's
+interior, at an arc's vertex and between, unioned. All three refuse
+before the carry: the arc-interior kiss with "an edge of the second
+operand touches or crosses a curved face of the other operand away from
+that face's edges", the other two with an unclosed section join. None
+reaches `cite_rows`, so the `ClassificationInvariant` is still not
+reached. No corpus, test, tour or Python scene reaches it.
 
 ## The fix
 

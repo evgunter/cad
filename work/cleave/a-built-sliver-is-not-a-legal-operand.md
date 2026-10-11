@@ -110,3 +110,24 @@ The certified role read on single-shell results at the gate, and how
 it should be typed, is put on TALLY's
 `a-threshold-straddling-in-band-shell-is-typed-the-kernels`.
 
+
+## Measured (2026-10-11, `flux/sphere-arm`, PR 4573)
+
+The sphere arm's Gauss–Bonnet form reads a region of at most a
+steradian by a fan of triangles inside it (`props::curved::solid_angle`),
+whose enclosure carries the region's own digits. On this pose, release,
+ε = 1e-9, against `lens(1, 50, d)`:
+
+| gap | a ∩ b | b ∩ a | operand |
+|---|---|---|---|
+| 2e-6 | +1.8e-9 | −9.0e-10 | true, both |
+| 3e-6 | −2.9e-9 | +1.3e-9 | true, both |
+| 5e-6 | +1.5e-9 | +2.9e-10 | true, both |
+| 1e-5 | −8.0e-10 | +2.5e-3 | true, both |
+
+`spheres_crossing_off_every_edge::a_large_ball_near_external_tangency_is_pinned`
+now pins the ∩ `OK SOUND … operand=true`. The `b ∩ a` residue at
+1e-5 is the flux's own cancellation, `R·Area` against `c·A⃗`, which
+the fan does not touch: FLUXTAIL's
+`a-sphere-faces-flux-cancels-r-times-its-area-against-its-vector-area`
+still owns it.

@@ -89,11 +89,13 @@ layer whose types it serves (`topo/src/query.rs`):
   mirrors (`Curve3::kind`, `Surface::kind`). This seat owns the
   comparand sets `CurveKindSet` and `SurfaceKindSet`, their bit
   numbering, and the predicates that read them.
-- The DECIDED atom: `datum_distance_sign` measures an entity's point
-  against a passed-in `DatumValue` through the `SEL_DATUM_DISTANCE`
-  funnel site in `geom-core`'s `k_stats`, with an honest `Margin` door
-  and a typed indeterminate in band. Datum-node resolution —
-  `RecipeNodeId` → `DatumValue` — stays in `editor-core`'s `prepare`.
+- The DECIDED atom is not here: `datum_distance_sign` measures an
+  entity's point against a passed-in `PoseValue` through the
+  `SEL_DATUM_DISTANCE` funnel site in `geom-core`'s `k_stats`, with an
+  honest `Margin` door and a typed indeterminate in band, and it lives in
+  `editor-core`'s `pose.rs` beside the type it measures against, whose
+  kinds are `editor-core`'s `VarKind`s (D10). Datum-node resolution —
+  `RecipeNodeId` → `PoseValue` — is `editor-core`'s `prepare`.
 - One further decision this seat names but does not house, because it is
   not a selection question: `geom_core::decide_unit_direction`, the
   workspace's one `Margin::norm3` decide-then-normalize body under
