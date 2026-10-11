@@ -84,6 +84,9 @@ crates/geom-core/src/spline/basis.rs	1	stored-carrier-data(nurbs-weights-and-kno
 crates/geom-core/src/spline/basis.rs	2	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	denom	a knot difference
 crates/geom-core/src/spline/basis.rs	2	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	u[span + 1 + r - j]	a stored knot
 crates/geom-core/src/spline/basis.rs	2	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	u[span + 1 + r]	a stored knot
+crates/geom-core/src/spline/locate.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	<block> if r <= p - k	a restricted window's blossom argument, inside the span's stored knots (the reader cuts the argument at its brace)
+crates/geom-core/src/spline/locate.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	knots[first + i + p + 1 - r]	a span's stored knot
+crates/geom-core/src/spline/locate.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	knots[first + i]	a span's stored knot
 crates/geom-core/src/sym.rs	1	constant	x	the Real impl's own door: Sym::from_f64 is the Lit
 crates/geom/src/convention.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/geom/src/curves/nurbs.rs	1	constant	active.len() as f64	a count of active basis functions

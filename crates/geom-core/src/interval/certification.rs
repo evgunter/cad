@@ -211,11 +211,10 @@ pub trait Certification: sealed::Sealed + Copy {
     /// `a_segment_cut_many_times_keeps_its_rows_ulp_wide` and
     /// `the_monotone_step_is_no_wider_than_the_convex_step_on_every_battery_row`
     /// (convex, lerp), `a_refined_weight_stays_between_its_sources`
-    /// (lerp, unmet), `geom-brep`'s
+    /// (lerp, unmet) and `geom-brep`'s
     /// `m5_pr7_ssi::refinement_past_the_arithmetics_floor_meets_the_wall_typed`
-    /// and `topo`'s `review_ssiflat_r1_probes` interval escalation at
-    /// ε 1e-12 (convex, lerp). The containment rows are soundness rows
-    /// and stay green under all three: each mutant is sound.
+    /// (convex, lerp). The containment rows are soundness rows and stay
+    /// green under all three: each mutant is sound.
     #[must_use]
     fn between(x: Self, y: Self, lambda: Self) -> Self;
 
