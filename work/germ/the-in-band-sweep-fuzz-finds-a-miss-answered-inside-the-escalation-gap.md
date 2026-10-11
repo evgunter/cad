@@ -39,3 +39,20 @@ not been traced.
 
 The row draws a fresh seed per run, so this turns any PR's `test` job red
 at random. That is why it is P1.
+
+**A second seed** (INTENT stage 3 A's CI on PR 4556, head 1bf7c00e2a).
+The INTENT orchestrator replayed it on main at 84498e62be, where it
+fails the same way:
+
+```
+CAD_FUZZ_SEED=0x9433bbf2eb0a13c0 CAD_FUZZ_EFFORT=1 \
+  cargo nextest run -p topo -E 'test(no_pose_inside_the_band_is_answered)'
+```
+
+```
+ε 1e-6, depth -9.679071350377893e-6 (true 9.679e-6, 0 true roots): Ok(Miss)
+```
+
+A clearance of 9.679ε, further inside the `< 10ε` gap than the first
+seed's 9.991ε, so frame rounding at the gap's edge is a less likely
+explanation for this one.
