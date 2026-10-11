@@ -3563,3 +3563,84 @@ fn a_union_across_two_flush_contacts_lands_as_one_action() {
         "channelled block plus boss: {got} vs {want}"
     );
 }
+
+/// R1 PROBE: the boolean tool's members and seats wait for a half, and
+/// carry the chosen port across a change of operation both ways.
+#[test]
+fn r1_probe_boolean_members_and_seats_carry_their_ports() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = common::xy_box_in(&mut session, B);
+    let plane = session_insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::Plane {
+                origin: len3([0.0, 0.0, B[2] / 4.0]),
+                normal: scl3([0.0, 0.0, 1.0]),
+            },
+        },
+    );
+    let split = session_insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: body.into(),
+            tool: plane,
+        },
+    );
+    let doc = session.committed_doc().clone();
+    let port = |h: SplitHalf| pncad::document::Operand::output(split, h.port());
+    let mut tool = BooleanTool::new();
+    tool.pick(&doc, split);
+    tool.pick(&doc, split);
+    assert_eq!(tool.awaiting_half(), vec![0, 1]);
+    assert!(matches!(
+        tool.spec(),
+        Err(SeatError::HalfUnchosen { seat: Seat::Member })
+    ));
+    tool.choose_half(1, SplitHalf::Below);
+    assert_eq!(tool.awaiting_half(), vec![0]);
+    tool.choose_half(0, SplitHalf::Above);
+    assert_eq!(
+        tool.spec().expect("chosen"),
+        BooleanSpec::Union(vec![port(SplitHalf::Above), port(SplitHalf::Below)])
+    );
+    tool.set_operation(BooleanOp::Subtract);
+    assert_eq!(
+        tool.spec().expect("seated"),
+        BooleanSpec::Subtract {
+            from: port(SplitHalf::Above),
+            tool: port(SplitHalf::Below)
+        }
+    );
+    tool.set_operation(BooleanOp::Intersect);
+    assert_eq!(
+        tool.spec().expect("members"),
+        BooleanSpec::Intersect(vec![port(SplitHalf::Above), port(SplitHalf::Below)])
+    );
+    // A pending pick survives the change too.
+    let mut tool = BooleanTool::new();
+    tool.pick(&doc, split);
+    tool.set_operation(BooleanOp::Subtract);
+    assert!(matches!(
+        tool.spec(),
+        Err(SeatError::HalfUnchosen { .. }) | Err(SeatError::Empty { .. })
+    ));
+    assert_eq!(tool.awaiting_half(), vec![0]);
+    tool.choose_half(0, SplitHalf::Below);
+    tool.pick(&doc, body);
+    let spec = tool.spec().expect("both seated");
+    println!("subtract after pending: {spec:?}");
+    assert_eq!(
+        spec,
+        BooleanSpec::Subtract {
+            from: port(SplitHalf::Below),
+            tool: body.into()
+        }
+    );
+    // And the whole thing commits and evaluates.
+    let outcome = session.perform(SessionOp::AddBoolean {
+        spec: BooleanSpec::Union(vec![port(SplitHalf::Above), port(SplitHalf::Below)]),
+        declare: Vec::new(),
+    });
+    println!("union of halves: {:?}", outcome.refusal);
+}

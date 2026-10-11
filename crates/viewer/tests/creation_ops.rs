@@ -1543,3 +1543,30 @@ fn an_add_on_an_existing_frame_mints_only_the_profile() {
         Some(Node::Profile(_))
     ));
 }
+
+/// R1 PROBE: a viewport pick on a revolve's body (a node with two
+/// outputs, body and axis) seats `Port::At(0)`; is it said and
+/// duplicated as the body it is?
+#[test]
+fn r1_probe_a_viewport_picked_revolve_is_not_a_split_half() {
+    use viewer::combine::DuplicateTool;
+    let tol = Tol::witness();
+    let (mut session, revolve) = authored_ring(tol);
+    session.pump();
+    let doc = session.committed_doc().clone();
+    let mut tool = DuplicateTool::new();
+    tool.pick_at(&doc, revolve, Some(0));
+    let line = viewer::seats::seat_line(tool.seats(), &doc);
+    println!("seat line: {line}; read: {:?}", tool.seats().read(0));
+    let op = tool.op().expect("seated");
+    let outcome = session.perform(op);
+    println!("viewport-picked duplicate refusal: {:?}", outcome.refusal);
+    let mut tree = DuplicateTool::new();
+    tree.pick(&doc, revolve);
+    let (mut session2, _) = authored_ring(tol);
+    session2.pump();
+    let outcome2 = session2.perform(tree.op().expect("seated"));
+    println!("tree-picked duplicate refusal: {:?}", outcome2.refusal);
+    assert!(!line.contains("half"), "a revolve is said as a split half: {line}");
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+}
