@@ -604,7 +604,7 @@ fn a_pin_pressed_into_a_bore_is_quiet_under_its_gap() {
 #[test]
 fn a_pin_bottoming_through_a_blind_bore_stays_loud() {
     use crate::fixture::{frame, piece};
-    use editor_core::{BooleanOp, LoopProgram, ProfileProgram};
+    use editor_core::{Bodies, LoopProgram, ProfileProgram};
     let circle = |r| LoopProgram::<Formula>::circle(0.0, 0.0, r).expect("a literal circle");
     let prism = |doc: ProfileDoc, z, loops, h| {
         let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
@@ -635,10 +635,8 @@ fn a_pin_bottoming_through_a_blind_bore_stays_loud() {
     let (doc, floor) = prism(doc, -0.5, vec![outline()], 0.5);
     let (doc, plate) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: holed.into(),
-            b: floor.into(),
+        Node::Union {
+            members: Bodies::Spelled(vec![holed.into(), floor.into()]),
             declare: Vec::new(),
         },
     );

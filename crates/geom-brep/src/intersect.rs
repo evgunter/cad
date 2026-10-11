@@ -887,17 +887,40 @@ pub fn plane_cylinder_section<T: Decide>(
     reach: &Reach<T>,
     band: Band,
 ) -> Result<PlaneCylinderSection<T>, SectionError> {
+    plane_cylinder_section_read(plane, cylinder, reach, band).map(|(section, _)| section)
+}
+
+/// [`plane_cylinder_section`], with `pc_axis_plane_parallel`'s verdict
+/// at `reach`: Zero on the rulings' lane, definite on the conic lane. It
+/// is the one row that reads the reach and parts the two lanes, for a
+/// caller that reads the section at two reaches bracketing what it
+/// consumes and must say what the two readings were where they part.
+///
+/// # Errors
+///
+/// As [`plane_cylinder_section`].
+pub fn plane_cylinder_section_read<T: Decide>(
+    plane: &Surface<T>,
+    cylinder: &Surface<T>,
+    reach: &Reach<T>,
+    band: Band,
+) -> Result<(PlaneCylinderSection<T>, Decided), SectionError> {
     let (pc, cyl_u) = plane_cylinder_data(plane, cylinder)?;
-    if let Some(ruled) = plane_cylinder_ruled(&pc, reach, band).map_err(SectionError::Escalated)? {
-        return Ok(match ruled {
-            RuledSection::ParallelLines { l1, l2 } => {
-                PlaneCylinderSection::ParallelLines { l1, l2 }
-            }
-            RuledSection::TangentLine { origin, dir, .. } => {
-                PlaneCylinderSection::TangentLine(Curve3::Line { origin, dir })
-            }
-            RuledSection::Empty => PlaneCylinderSection::Empty,
-        });
+    let (parallel, ruled) =
+        plane_cylinder_ruled_read(&pc, reach, band).map_err(SectionError::Escalated)?;
+    if let Some(ruled) = ruled {
+        return Ok((
+            match ruled {
+                RuledSection::ParallelLines { l1, l2 } => {
+                    PlaneCylinderSection::ParallelLines { l1, l2 }
+                }
+                RuledSection::TangentLine { origin, dir, .. } => {
+                    PlaneCylinderSection::TangentLine(Curve3::Line { origin, dir })
+                }
+                RuledSection::Empty => PlaneCylinderSection::Empty,
+            },
+            parallel,
+        ));
     }
     let PlaneCylinder { q, n, o, a, r } = pc;
     // Bounded cut: rim circle vs tilted ellipse.
@@ -906,24 +929,25 @@ pub fn plane_cylinder_section<T: Decide>(
     let sin_norm = sin_vec.norm();
     let t_star = (q - o).dot(n) / c;
     let center = o + a * t_star;
-    match decide("pc_rim_alignment", Margin::levered(sin_norm, r), band)
+    let section = match decide("pc_rim_alignment", Margin::levered(sin_norm, r), band)
         .map_err(SectionError::Escalated)?
     {
-        Sign::Zero => Ok(PlaneCylinderSection::Rim(Curve3::Circle {
+        Sign::Zero => PlaneCylinderSection::Rim(Curve3::Circle {
             center,
             axis: a,
             radius: r,
             u_ref: cyl_u,
-        })),
+        }),
         // The margin is a norm: Negative is unreachable; both
         // definite verdicts take the tilted lane.
         Sign::Positive | Sign::Negative => {
             let v_minor = sin_vec / sin_norm;
             let u_major = v_minor.cross(n);
             let e = Curve3::ellipse(center, n, r / c.abs(), r, u_major, band)?;
-            Ok(PlaneCylinderSection::TiltedEllipse(e))
+            PlaneCylinderSection::TiltedEllipse(e)
         }
-    }
+    };
+    Ok((section, parallel))
 }
 
 /// The axis-in-plane answers of [`plane_cylinder_section`]: its
@@ -955,6 +979,15 @@ pub(crate) fn plane_cylinder_ruled<T: Decide>(
     reach: &Reach<T>,
     band: Band,
 ) -> Result<Option<RuledSection<T>>, Indeterminate> {
+    plane_cylinder_ruled_read(pc, reach, band).map(|(_, ruled)| ruled)
+}
+
+/// [`plane_cylinder_ruled`], with `pc_axis_plane_parallel`'s verdict.
+fn plane_cylinder_ruled_read<T: Decide>(
+    pc: &PlaneCylinder<T>,
+    reach: &Reach<T>,
+    band: Band,
+) -> Result<(Decided, Option<RuledSection<T>>), Indeterminate> {
     let &PlaneCylinder { q, n, o, a, r } = pc;
     let o = reach.foot_on(o, a);
     let c = a.dot(n);
@@ -965,9 +998,9 @@ pub(crate) fn plane_cylinder_ruled<T: Decide>(
     let hinge = o - n * gap_signed;
     let cos = (T::one() - c.powi(2)).max(T::zero()).sqrt();
     let lever = reach.hinge_lever(o, -(gap_signed * c)) + reach.turn_lever(hinge, (n, a), c, cos);
-    match decide("pc_axis_plane_parallel", Margin::levered(c, lever), band)? {
-        Sign::Zero => {}
-        Sign::Positive | Sign::Negative => return Ok(None),
+    let parallel = decide_reported("pc_axis_plane_parallel", Margin::levered(c, lever), band)?;
+    if parallel.sign != Sign::Zero {
+        return Ok((parallel, None));
     }
     // A consumed point of the ruling stands off the plane by the tilt
     // levered from the hinge, and the wall stands `r − |gap|` off the
@@ -1003,7 +1036,7 @@ pub(crate) fn plane_cylinder_ruled<T: Decide>(
         },
         (Sign::Negative, _) => RuledSection::Empty,
     };
-    Ok(Some(section))
+    Ok((parallel, Some(section)))
 }
 
 /// A plane×cylinder pair: the plane's origin `q` and unit normal `n`,

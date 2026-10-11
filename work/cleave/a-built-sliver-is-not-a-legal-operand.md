@@ -2,7 +2,8 @@
 id: a-built-sliver-is-not-a-legal-operand
 kind: issue
 title: A boolean result a sliver thick passes the result gate though its at-infinity side cannot be decided, so it is not a legal operand
-status: open
+status: parked
+blocked_on: [a-sphere-faces-flux-cancels-r-times-its-area-against-its-vector-area]
 opened: 2026-10-09
 priority: P1
 cost: M
@@ -47,3 +48,65 @@ margin. That is the shape [ev] PR 4335 argues for in-band results
 (`near-tangent-boolean-results-ship-with-an-escalated-tier-3-census`).
 The rows are this pose's ∩ and a ∖ b, and the near-tangent batteries'
 slivers.
+
+## Measured (2026-10-10)
+
+CLEAVE lane `cleave-sliverop` (branch `cleave/sliver-not-an-operand`),
+main `9192ca4d3a`, release.
+
+**The sliver is not in band. The kernel cannot measure it.** The table
+is the pose above at ε = 1e-9, against the textbook lens (mpmath, 40
+digits).
+
+| gap | true V/A | kernel f64 V, a∩b / b∩a | certified V/A | operand |
+|---|---|---|---|---|
+| 2e-6 | 5.0e-7 (50 Kε) | −54% / −86% | [−9.2e-6, 9.7e-6] | false |
+| 3e-6 | 7.5e-7 | +29% / +8% | straddles 0 | false |
+| 5e-6 | 1.25e-6 | +15% / +7% | straddles 0 | false |
+| ≥ 1e-5 | ≥ 2.5e-6 | +6% / +14% | decides | true |
+| ≤ 1.5e-6 | | | | the op refuses earlier (`ps_center_gap`, or `VolumeUncomputable` on `props_rim_level`) |
+
+`a ∖ b` at `49 + gap` reads the same. At ε = 1e-6 the pose refuses
+`Escalated` at `bool_sphere_sphere_gap`, which is honest. At ε = 1e-12
+it refuses `CurvedPierceUnsupported`. So the sliver reaches the gate
+only at the default ε.
+
+**Root cause.** The role read re-derives each face's flux about the
+shell's corner. The unit sphere's faces enclose theirs to 2e-15. The
+`R = 50` faces enclose theirs to ±3.5e-10, around about 1e-11.
+`geom_brep::props::curved::sphere` takes `flux = ±R·area + (c − o)·A⃗`
+(`curved.rs:2674`), two terms of about `R·A` that cancel by `h/R ≈ 8e-10`.
+Its `area = R²·Δu·(hi − lo)` also cancels at the chart's pole, where the
+re-chart puts the cap. That is Q1's conditioning defect, filed as
+FLUXTAIL `a-sphere-faces-flux-cancels-r-times-its-area-against-its-vector-area`.
+
+**This row's premise is corrected.** The fix this row first named, a
+gate refusal `Escalated` with the at-infinity margin, is not the shape
+[ev] PR 4335 gives. That PR's honesty condition (designer B, and Q1 at
+`docs/DESIGN.md:1872`) says an amplified kernel error "typed Escalated
+would tell the user their input is ill-conditioned when the kernel's
+arithmetic is". Here the true `V/A` is 50 Kε, definite. The undecided
+enclosure is the formula's.
+
+**The three questions.**
+- **Where the gate reads this.** A single-shell solid's sign is decided
+  only by check 7, off the f64 closed form with `volume_pad = 0`.
+  Check 10's certified role read skips single-shell solids
+  (`validate.rs` `shell_winding_errors`). Where it does run and leaves an
+  enclosure undecided, `ops.rs` `finding_arm` already types it the
+  kernel's (`ShellRoleUndecided`, no certified sliver).
+- **The at-infinity reading is the right test.** It is the same
+  certified role walk as `classify_shells`, and both refuse with the
+  identical enclosure. A decided f64 volume sign does not imply it:
+  check 7 read 2.3e-7 and 7.2e-8 "definite", off wrong values. Once the
+  closed form is re-posed, the gap 2–5e-6 slivers should decide at
+  50–125 Kε and become legal operands, with no gate change.
+- **Would a gate refusal cost readable results?** That was not
+  measured, because no gate change is made. On this body a ray that
+  meets the boundary still answers (`point_in_solid` at
+  `(0, 0, 0.999999)` reads `In`).
+
+The certified role read on single-shell results at the gate, and how
+it should be typed, is put on TALLY's
+`a-threshold-straddling-in-band-shell-is-typed-the-kernels`.
+

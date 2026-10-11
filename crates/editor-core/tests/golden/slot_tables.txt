@@ -90,10 +90,13 @@ Shell { thickness: #0, open: @0 }
 Split { target: @0, tool: @1 }
   @0 Operand(Target)
   @1 Operand(Tool)
-Boolean { op: Union, a: @0, b: @1, declare: [] }
-  @0 Operand(A)
-  @1 Operand(B)
-Union { members: [@0, @1], declare: [] }
+Subtract { from: @0, tool: @1, declare: [] }
+  @0 Operand(From)
+  @1 Operand(Cut)
+Union { members: Spelled([@0, @1]), declare: [] }
+  @0 Operand(Member(0))
+  @1 Operand(Member(1))
+Intersect { members: Spelled([@0, @1]), declare: [] }
   @0 Operand(Member(0))
   @1 Operand(Member(1))
 Transform { input: @0, placement: Placement { steps: [Rigid { translation: [#0, #1, #2], axis: [#3, #4, #5], angle: #6 }] } }

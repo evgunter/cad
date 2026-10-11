@@ -31,7 +31,7 @@ exact-vs-decided reframing signed off.
   is this design's charter for §4.
 - **C4** (CONTACT-DESIGN): declarations are recipe data by stable
   name, verified never trusted, per-class tables, four typed
-  failures. A `Node::Boolean`'s and a `Node::Union`'s own `declare`
+  failures. A union's, an intersect's and a subtract's own `declare`
   payload (`Vec<DeclaredPair>`, settable on a live node by
   `DocEdit::SetDeclare`) is SHIPPED.
 - **The #256/#250 precedent**: degenerate coincidence has NO absorb

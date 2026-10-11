@@ -501,6 +501,18 @@ pub(super) fn zero_free_lower_bound(i: Interval) -> f64 {
     }
 }
 
+/// An enclosure in units of which `per` make one metre, crossed to
+/// metres by one outward division by the exact `per`.
+pub(super) fn in_meters(i: Interval, per: f64) -> Interval {
+    i / Interval::point(per)
+}
+
+/// A certified upper bound on the magnitude of [`in_meters`]'s
+/// enclosure, `NaN` where it is refused.
+pub(super) fn mag_in_meters(i: Interval, per: f64) -> f64 {
+    in_meters(i, per).mag()
+}
+
 /// A NURBS wall's certified chart speeds over its whole domain, one per
 /// axis: each a [`SupSpeed`] (metres per parameter unit) that is
 /// positive and finite, which is what [`NurbsBoxes::chart_speeds`]

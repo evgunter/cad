@@ -202,6 +202,19 @@ pub enum CertCheck {
     /// **sup-norm** bound over the whole span — the number that
     /// certifies (a bound, never a sampled max).
     PlaneNurbsHull,
+    /// Intersection, limb 2 against a NURBS operand:
+    /// `|S(P(t)) − C(t)|` at a break of limb 2's composite — the
+    /// carrier against the surface point its pcurve names, which bounds
+    /// the carrier's miss from the surface from above (C2 limb 1). It is
+    /// [`CertCheck::PlaneNurbsHull`]'s quantity read at a point, so past
+    /// the band it shows that bound cannot clear, and like it it is a
+    /// bound on the miss, never the miss.
+    PlaneNurbsHullValue,
+    /// Intersection, limb 2 against an analytic operand: the operand's
+    /// implicit form at the carrier, linearized to metres, at a break of
+    /// limb 2's composite — limb 1's own residual, measured where the
+    /// composite's bound did not clear.
+    AnalyticBreakResidual,
     /// Intersection, analytic rung 3: the carrier's certified distance
     /// bound from an analytic operand over the edge's whole interval
     /// (`crate::analytic_rung3`'s limb 2) — a bound on the miss, never
@@ -281,6 +294,12 @@ impl core::fmt::Display for CertCheck {
             Self::ChartResidual => "the unified conventional residual",
             Self::PlaneNurbsOnLocus => "the plane × NURBS on-locus residual",
             Self::PlaneNurbsHull => "the plane × NURBS sup-norm bound",
+            Self::PlaneNurbsHullValue => {
+                "the carrier's distance from the surface point its pcurve names, at a break"
+            }
+            Self::AnalyticBreakResidual => {
+                "the carrier's linearized residual against an analytic surface, at a break"
+            }
             Self::AnalyticHull => "the carrier's certified distance bound from an analytic surface",
             Self::PlaneNurbsReportedTransversality => {
                 "the plane × NURBS lane's reported minimum crossing angle"
@@ -908,14 +927,15 @@ impl CertCheck {
             // the exact analytic ones too, where a miss would be a defect:
             // the routing reads the decision alone and cannot see which
             // kind of carrier it measured.
-            Self::SurfaceResidual { .. } | Self::PlaneNurbsOnLocus => {
-                Ending::Residual(Unsized::Fit)
-            }
-            // Certified bounds on the miss: the tangent lane's sag bound
-            // and the two hull limbs.
-            Self::TangentHull | Self::PlaneNurbsHull | Self::AnalyticHull => {
-                Ending::Residual(Unsized::Bound)
-            }
+            Self::SurfaceResidual { .. }
+            | Self::PlaneNurbsOnLocus
+            | Self::AnalyticBreakResidual => Ending::Residual(Unsized::Fit),
+            // Certified bounds on the miss: the tangent lane's sag bound,
+            // the two hull limbs, and the NURBS hull's value at a break.
+            Self::TangentHull
+            | Self::PlaneNurbsHull
+            | Self::PlaneNurbsHullValue
+            | Self::AnalyticHull => Ending::Residual(Unsized::Bound),
         }
     }
 }
@@ -3432,7 +3452,7 @@ mod tests {
     /// below. Held total against the enum by
     /// [`all_is_the_whole_taxonomy`]'s compile-time visit, not by
     /// review.
-    fn all_checks() -> [CertCheck; 24] {
+    fn all_checks() -> [CertCheck; 26] {
         let surface = SurfaceKey::default();
         [
             CertCheck::ParamSpan,
@@ -3455,6 +3475,8 @@ mod tests {
             CertCheck::ChartResidual,
             CertCheck::PlaneNurbsOnLocus,
             CertCheck::PlaneNurbsHull,
+            CertCheck::PlaneNurbsHullValue,
+            CertCheck::AnalyticBreakResidual,
             CertCheck::AnalyticHull,
             CertCheck::PlaneNurbsReportedTransversality,
             CertCheck::PlaneNurbsChartSpeed,
@@ -3477,30 +3499,32 @@ mod tests {
     #[test]
     fn all_is_the_whole_taxonomy() {
         let rows = match CertCheck::ParamSpan {
-            CertCheck::ParamSpan => 24,
-            CertCheck::ParamSpanMeter => 24,
-            CertCheck::ParamWinding => 24,
-            CertCheck::EndpointStart => 24,
-            CertCheck::EndpointEnd => 24,
-            CertCheck::SurfaceResidual { .. } => 24,
-            CertCheck::WitnessSurfaceResidual { .. } => 24,
-            CertCheck::WitnessMidpoint => 24,
-            CertCheck::Transversality => 24,
-            CertCheck::TransversalityArm => 24,
-            CertCheck::TangentPlanes => 24,
-            CertCheck::TangentParallel => 24,
-            CertCheck::TangentSecondOrder => 24,
-            CertCheck::TangentHull => 24,
-            CertCheck::TangentTube => 24,
-            CertCheck::MappedSource => 24,
-            CertCheck::ChartImage => 24,
-            CertCheck::ChartResidual => 24,
-            CertCheck::PlaneNurbsOnLocus => 24,
-            CertCheck::PlaneNurbsHull => 24,
-            CertCheck::AnalyticHull => 24,
-            CertCheck::PlaneNurbsReportedTransversality => 24,
-            CertCheck::PlaneNurbsChartSpeed => 24,
-            CertCheck::PlaneNurbsChartSpeedBound => 24,
+            CertCheck::ParamSpan => 26,
+            CertCheck::ParamSpanMeter => 26,
+            CertCheck::ParamWinding => 26,
+            CertCheck::EndpointStart => 26,
+            CertCheck::EndpointEnd => 26,
+            CertCheck::SurfaceResidual { .. } => 26,
+            CertCheck::WitnessSurfaceResidual { .. } => 26,
+            CertCheck::WitnessMidpoint => 26,
+            CertCheck::Transversality => 26,
+            CertCheck::TransversalityArm => 26,
+            CertCheck::TangentPlanes => 26,
+            CertCheck::TangentParallel => 26,
+            CertCheck::TangentSecondOrder => 26,
+            CertCheck::TangentHull => 26,
+            CertCheck::TangentTube => 26,
+            CertCheck::MappedSource => 26,
+            CertCheck::ChartImage => 26,
+            CertCheck::ChartResidual => 26,
+            CertCheck::PlaneNurbsOnLocus => 26,
+            CertCheck::PlaneNurbsHull => 26,
+            CertCheck::PlaneNurbsHullValue => 26,
+            CertCheck::AnalyticBreakResidual => 26,
+            CertCheck::AnalyticHull => 26,
+            CertCheck::PlaneNurbsReportedTransversality => 26,
+            CertCheck::PlaneNurbsChartSpeed => 26,
+            CertCheck::PlaneNurbsChartSpeedBound => 26,
         };
         for (i, check) in all_checks().iter().enumerate() {
             assert!(
@@ -5962,6 +5986,8 @@ mod tests {
             (CertCheck::ChartImage, NoSize(Unsized::Defect)),
             (CertCheck::PlaneNurbsOnLocus, Miss(Unsized::Fit)),
             (CertCheck::PlaneNurbsHull, Miss(Unsized::Bound)),
+            (CertCheck::PlaneNurbsHullValue, Miss(Unsized::Bound)),
+            (CertCheck::AnalyticBreakResidual, Miss(Unsized::Fit)),
             (CertCheck::AnalyticHull, Miss(Unsized::Bound)),
             (
                 CertCheck::PlaneNurbsReportedTransversality,

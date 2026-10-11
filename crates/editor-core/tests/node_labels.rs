@@ -377,65 +377,96 @@ fn an_edit_refusal_names_each_node_as_the_document_holds_it() {
         "{wrong}"
     );
 
-    let twice = refusal(
+    // A union over the extrude declaring a side read through the
+    // profile, which is no operand of it.
+    let wall = fixture::fname(extrude, fixture::wall(&doc, extrude, 0));
+    let stray = refusal(
         &doc,
         DocEdit::InsertNode {
-            node: Box::new(Node::Union {
-                members: vec![extrude.into(), extrude.into()],
-                declare: Vec::new(),
-            }),
+            node: Box::new(stray_union(&doc, profile, extrude)),
             fresh: Vec::new(),
         },
     );
-    let EditError::DuplicateInput { node, input } = &twice else {
-        panic!("a member named twice refuses DuplicateInput, got {twice:?}");
+    let EditError::DeclaredSiteNotAnOperand { node, name, .. } = &stray else {
+        panic!("a side read through a non-operand refuses DeclaredSiteNotAnOperand, got {stray:?}");
     };
     assert_eq!(
-        (node.kind(), node.label(), input),
-        (Some("Union"), None, &doc.spoken(extrude)),
-        "the minted node by its kind alone, the input as the document holds it"
+        (node.kind(), node.label(), name),
+        (Some("Union"), None, &doc.spoken_name(&wall)),
+        "the minted node by its kind alone, the name as the document holds it"
     );
     assert!(
-        twice.to_string().contains(&format!(
-            "Extrude \"base plate\" ({e}) is taken as an input twice"
-        )),
-        "{twice}"
+        stray
+            .to_string()
+            .contains(&format!("Extrude \"base plate\" ({e})")),
+        "{stray}"
     );
 }
 
+/// A one-member union over `extrude` whose declared pair puts one side
+/// at `profile`'s read — a read the union does not take, so every door
+/// that writes the pair refuses it `DeclaredSiteNotAnOperand`.
+fn stray_union(
+    doc: &ProfileDoc,
+    profile: RecipeNodeId,
+    extrude: RecipeNodeId,
+) -> editor_core::AuthoredNode {
+    Node::Union {
+        members: editor_core::Bodies::Spelled(vec![extrude.into()]),
+        declare: editor_core::declare_rest(vec![(
+            editor_core::SitedRef::new(
+                fixture::out(doc, profile),
+                fixture::fname(extrude, fixture::wall(doc, extrude, 0)),
+            ),
+            editor_core::SitedRef::new(
+                fixture::out(doc, extrude),
+                fixture::fname(extrude, fixture::wall(doc, extrude, 1)),
+            ),
+        )]),
+    }
+}
+
 /// **A held node an edit rewrites is spoken with its label**: a
-/// `SetMembers` that names one member twice refuses about the union as
-/// the document holds it, label and all, not as the insert door's
-/// kind-and-tag spelling of a node being minted.
+/// `SetDeclare` that reads a side through a non-operand refuses about
+/// the union as the document holds it, label and all, not as the insert
+/// door's kind-and-tag spelling of a node being minted.
 #[test]
-fn a_set_members_refusal_names_the_labelled_union_it_rewrites() {
+fn a_set_declare_refusal_names_the_labelled_union_it_rewrites() {
     let doc = ProfileDoc::empty_derived("node-labels-set-members", Tol::witness());
-    let (doc, [_, _, left]) = block(doc, 0.0);
+    let (doc, [_, left_profile, left]) = block(doc, 0.0);
     let (doc, [_, _, right]) = block(doc, 2.0);
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![left.into(), right.into()],
+            members: editor_core::Bodies::Spelled(vec![left.into(), right.into()]),
             declare: Vec::new(),
         },
     );
     let doc = set_label(doc, union, Some("pair"));
     let doc = set_label(doc, left, Some("left"));
 
-    let twice = refusal(
+    // `left`'s wall, read through `left`'s profile rather than `left`.
+    let wall = fixture::fname(left, fixture::wall(&doc, left, 0));
+    let stray = refusal(
         &doc,
-        DocEdit::SetMembers {
+        DocEdit::SetDeclare {
             node: union,
-            members: vec![left.into(), left.into()],
+            pairs: editor_core::declare_rest(vec![(
+                editor_core::SitedRef::new(fixture::out(&doc, left_profile), wall.clone()),
+                editor_core::SitedRef::new(
+                    fixture::out(&doc, right),
+                    fixture::fname(right, fixture::wall(&doc, right, 0)),
+                ),
+            )]),
         },
     );
-    let EditError::DuplicateInput { node, input } = &twice else {
-        panic!("a member named twice refuses DuplicateInput, got {twice:?}");
+    let EditError::DeclaredSiteNotAnOperand { node, name, .. } = &stray else {
+        panic!("a side read through a non-operand refuses DeclaredSiteNotAnOperand, got {stray:?}");
     };
     assert_eq!(
-        (node, input),
-        (&doc.spoken(union), &doc.spoken(left)),
-        "both nodes as the document holds them"
+        (node, name),
+        (&doc.spoken(union), &doc.spoken_name(&wall)),
+        "the union and the name as the document holds them"
     );
     assert_eq!(
         node.label(),
@@ -443,11 +474,10 @@ fn a_set_members_refusal_names_the_labelled_union_it_rewrites() {
         "the rewritten union keeps its label"
     );
     assert!(
-        twice.to_string().contains(&format!(
-            "Extrude \"left\" ({}) is taken as an input twice",
-            tag(left.0.digest())
-        )),
-        "{twice}"
+        stray
+            .to_string()
+            .contains(&format!("Extrude \"left\" ({})", tag(left.0.digest()))),
+        "{stray}"
     );
 }
 
@@ -1326,13 +1356,11 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
             fresh: Vec::new(),
         },
     );
-    let twice = refusal(
+    let wall = fixture::fname(extrude, fixture::wall(&doc, extrude, 0));
+    let stray = refusal(
         &doc,
         DocEdit::InsertNode {
-            node: Box::new(Node::Union {
-                members: vec![extrude.into(), extrude.into()],
-                declare: Vec::new(),
-            }),
+            node: Box::new(stray_union(&doc, profile, extrude)),
             fresh: Vec::new(),
         },
     );
@@ -1361,13 +1389,13 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
         said.starts_with(&format!("Extrude \"slab\" ({e})'s profile reads ")),
         "a node arm says its node's new label: {said}"
     );
-    let EditError::DuplicateInput { node, input } = twice.respoken(&later) else {
-        panic!("respoken keeps the arm, got {twice:?}");
+    let EditError::DeclaredSiteNotAnOperand { node, name, .. } = stray.respoken(&later) else {
+        panic!("respoken keeps the arm, got {stray:?}");
     };
     assert_eq!(
-        (node.kind(), node.label(), input),
-        (Some("Union"), None, later.spoken(extrude)),
-        "the minted node, which no version holds, by its kind; the input as renamed"
+        (node.kind(), node.label(), name),
+        (Some("Union"), None, later.spoken_name(&wall)),
+        "the minted node, which no version holds, by its kind; the name as renamed"
     );
     assert_eq!(
         rebind.respoken(&later),

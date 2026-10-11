@@ -100,7 +100,7 @@ pub use dihedral::{
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
-    PlaneNurbsLimbs, PlaneNurbsRefusal, analytic_rung3, is_analytic, nurbs_pair_limbs,
+    PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb, analytic_rung3, is_analytic, nurbs_pair_limbs,
     plane_nurbs_limbs,
 };
 pub use enters::{
@@ -130,7 +130,8 @@ pub use intersect::{
     Rung, SectionError, SectionRadius, SphereSphereSection, cone_cylinder_section,
     cylinder_axes_coplanar, cylinder_axes_parallel, cylinder_cylinder_section,
     cylinder_sphere_section, parallel_axes_at, plane_cone_section, plane_cylinder_section,
-    plane_sphere_section, plane_torus_section, route, route_pose, sphere_sphere_section,
+    plane_cylinder_section_read, plane_sphere_section, plane_torus_section, route, route_pose,
+    sphere_sphere_section,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{TangentLocus, TangentLocusError, tangent_locus};
