@@ -930,3 +930,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Verified after merging main: topo `--profile ci` 2762/2763 (the one failure is main's `split_through_an_apex` row), touched rows 51/51 at three ε, gates, clippy and fmt.
   - The fix pass filed `tint/an-oblique-rod-clear-of-a-cone-refuses-the-extent-scan-at-1e-12` and `hone/subdivision-width-row-has-no-row-that-fails-without-it`.
   - The M-tier count toward the next full readout is 9.
+- 2026-10-11 05:07 — Check-in: nothing ready. The r4614 pair is alive (the restart at about 04:05 came before its dispatch; reports updated 04:30 and 04:58). The apex-reach P1 lane has pushed rows and is running per-crate nextest; no PR yet.
