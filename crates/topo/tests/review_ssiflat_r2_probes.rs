@@ -160,16 +160,18 @@ fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
 /// half turn (`div = 0.5`) down to 1/64 of a quarter certifies at the
 /// 1e-12 band at the interval scalar, the quarter turn included.
 ///
-/// What it guards is the WIDTH of a refinement made in the ring. A
-/// certificate that refined the carrier in the ring in the projective
-/// form `x + (y − x)·λ` put the quarter turn's bound at about 1.02e-12
-/// and escalated it. That number was the form's interval width, not
-/// the refined carrier's geometry: the `f64` lane reads the same rounded
-/// refinement at about 1.5e-15. So the row is red for a ring refinement
-/// that widens per step like that form. It cannot see a refinement made
-/// at `f64` and lifted thin, which reads like the `f64` lane; the
+/// A certificate that refined the carrier in the ring in the projective
+/// form `x + (y − x)·λ` put the quarter turn's first hull at about
+/// 1.02e-12, past this band. That number was the form's interval width,
+/// not the refined carrier's geometry: the `f64` lane reads the same
+/// rounded refinement at about 1.5e-15, and the described carrier, cut
+/// in the ring, reads 3.3e-15 to 5.0e-15 on every arc here. Limb 2 now
+/// subdivides its composite before it refuses, which brings even that
+/// form's bound under this band (it levels off near 3.9e-13), so this
+/// row does not single out the form's width any more; it holds that
+/// every arc certifies. What the ring refinement encloses is held by the
 /// exact-net rows in `geom_brep`'s `ssi::certify` and `edge_nurbs`
-/// tests hold that shape.
+/// tests, which also see a refinement made at `f64` and lifted thin.
 ///
 /// The full turn is not in the list: over a rung-3 chain carrier its
 /// map residual at the interval scalar reaches the 1e-12 band (sample
