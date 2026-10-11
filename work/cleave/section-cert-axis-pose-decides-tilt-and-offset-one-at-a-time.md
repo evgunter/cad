@@ -2,11 +2,13 @@
 id: section-cert-axis-pose-decides-tilt-and-offset-one-at-a-time
 kind: issue
 title: section_cert's axis_pose decides the axes' tilt and offset one at a time, not their sum
-status: dispatched
+status: closed
 opened: 2026-10-07
 priority: P2
 cost: M
 branch: cleave/section-cert-axis-pose
+closed: 2026-10-11
+pr: 4657
 ---
 
 ## What
@@ -85,3 +87,15 @@ parallel floors), every ε.
   `the_turn_of_a_point_read_off_the_pivot_counts` reads a tiny reach
   about the pivot where the turn of the torus centre, the cone's apex
   or the second apex is the residue past the band.
+
+## Closed (PR 4657, 2026-10-11)
+
+`axis_pose` decides the offset across the reach on one margin carrying
+the tilt's swing and each arm's second-order turn, through geom-brep's
+`decide_across` (now public, with its far row through the magnitude
+door). The cylinder pair's swing is `sin·reach + r₂·sin²`. Across the
+topo, sweep and geom-brep suites at all three ε, no verdict moved; the
+bounds were checked against dense samples (worst ratio 0.98). Two
+second-order terms are too small to pin (the cone turn's `e·tilt`, and
+the wall pair's `r₂·sin²` below kilometre walls); their derivations live
+at the sites.
