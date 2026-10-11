@@ -867,3 +867,4 @@ Signed (CLEAVE orchestrator).
 - 2026-10-11 — PR 4613 merged (mints unit 4). Its last run was red only on the census (fixed by 4713) and GERM's random fuzz. Its row was closed and the seal's `blocked_on` pruned in the PR.
 - 2026-10-11 — PR 4622 merged (crown spur). It was red only on the `mass_props` golden (NURBS 4684), and its row was closed in the PR. 4630's main merge conflicts with 4625 in `near_tangent_pierce_poses.rs`, and the lane is resolving it.
 - 2026-10-11 — Dispatched P1 `a-missed-ray-reads-the-solids-volume-sign-for-its-side` (FLUSH's thin-hollow fork finding; `solid_contain.rs` `at_infinity_side`) → lane `cleave-missedray`, branch `cleave/missed-ray-side`.
+- 2026-10-11 — Dispatched P2 `a-split-through-a-wrap-edges-vertex-cuts-the-wall-along-it` (its overlaps with 4622/4625 are gone) → lane `cleave-wrapedge`, branch `cleave/wrap-edge-split`.
