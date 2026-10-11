@@ -76,7 +76,7 @@
 //! `fixed_n3_*` test.)
 
 use geom::Surface;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, NO_DECLARATION_RECOURSE, Point3, Sign, Vec3};
 
 use crate::dihedral::decide;
 
@@ -120,15 +120,14 @@ impl core::fmt::Display for NewellError {
                 "vertex {vertex} lies definitely off the loop's plane, so the loop is not \
                  planar at tolerance"
             ),
-            Self::Escalated { vertex, cause } => write!(
-                f,
-                concat!(
-                    "whether vertex {} lies on the loop's plane",
-                    geom_core::undecided!(),
-                    ": {}"
-                ),
-                vertex, cause
-            ),
+            // Every caller (an extrusion's side planes, a sweep's caps)
+            // takes no declaration.
+            Self::Escalated { vertex, cause } => cause
+                .undecided(
+                    format_args!("whether vertex {vertex} lies on the loop's plane"),
+                    cause.ending(NO_DECLARATION_RECOURSE),
+                )
+                .fmt(f),
         }
     }
 }

@@ -132,3 +132,29 @@ pass's delta.
   lane whose diff touches `crates/sweep/tests` meets them, and two lanes
   spent time reproducing them before the FYI reached them.
 — (FLUSH orchestrator)
+
+## 2026-10-11 — the anti-parallel touch closes as fixed by PR 4496 (PR 4649)
+
+Tier: the orchestrator's read. The PR is a regression gate plus tracker
+edits, with no kernel change, and its gate is red at the commit before
+the fix. The lane bisected the fix to PR 4496 (INTENT stage 4 E,
+booleans glue on Zero). It also found that the class is 18 pose-ops,
+not the 8 the row named. The union and intersect poses refused
+`UndeclaredCoincidence` before PR 4496, so the original review never
+saw them. CONTACTHOLD's PRs 4598 and 4604 merged during this unit, so
+the tier-3′ rows (the corner ruling and its planar siblings) now read
+the new census. The track's load is 31/32, back under budget.
+## 2026-10-11 — wave 2 begins (CONTACTHOLD 4598/4604 merged; F still open)
+
+- **A designer pair on `a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses`**
+  (what a sliver measures for a solid), dispatched concurrently with one
+  problem statement and no candidate answers. The labels are on
+  `analysis/design-fork/flush-thin-hollow`. If the two recommend a fork
+  that is Ev's, it goes to an `[ev]` PR. Otherwise the orchestrator acts
+  on the recommendation.
+- **`flush/curved-pinch-reread`:** the curved shared-pinch row (P2) is
+  re-measured on main now that 4604 has extended the curved census. It
+  closes, re-homes to the owning lane, or is priced.
+- **Still held on F (PR 4641):** the pinch cluster, the wedge residue
+  and the E tail. Corner-ruling PR 4650 is merging 4598's conflict.
+— (FLUSH orchestrator)

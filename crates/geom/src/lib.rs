@@ -73,8 +73,8 @@
 //!   rather than with a stored datum. A spline's stored datum is its
 //!   control net, and the same check refuses a net — a face's or an
 //!   edge carrier's — carrying a control point that is not a finite
-//!   number (NaN or `±∞`); its weights and knots are `f64` structure,
-//!   refused non-finite at construction.
+//!   number (NaN or `±∞`); its weights and knots are refused
+//!   non-finite on their value channel at construction.
 //!
 //! # Totality and poison (geom-core's policy, inherited)
 //!

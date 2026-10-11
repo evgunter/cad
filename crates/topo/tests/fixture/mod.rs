@@ -158,8 +158,7 @@ fn restrict(branch: &ssi::SsiBranch, frac: (f64, f64)) -> NurbsCurve3<f64> {
 }
 
 fn lift3<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve3<T> {
-    let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
-    NurbsCurve3::new(c.knots().clone(), control, c.weights().to_vec()).expect("lifted structure")
+    c.map_scalar(T::from_f64)
 }
 
 /// Build the fixture at `T`: the edge, and the rows the mint derives.
