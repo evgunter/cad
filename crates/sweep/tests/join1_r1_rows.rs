@@ -16,7 +16,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::outcomes::outcome;
 use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
@@ -90,41 +89,26 @@ fn a_hexagon_unions_a_box_on_its_corner_edge_soundly() {
     );
     let (va, vb) = (0.75 * 2.0, 0.0625 * 4.0);
     let vi = 0.25 * 0.125 / 2.0 * 2.0;
-    // Declared (the flush detector finds the pair), it builds, and the
-    // merge stage glues the two faces: a legal operand.
-    use topo::flush::{declare_all, find_flush_candidates};
-    let d = declare_all(&find_flush_candidates(&hex, &b, tol()).unwrap());
+    // It builds, and the merge stage glues the `y = −0.5` faces, one
+    // carrier by margin: a legal operand.
     assert_sound(
-        "hex ∪ box, declared",
+        "hex ∪ box",
         topo::union(&hex, &b, tol()),
         va + vb - vi,
     );
-    let d = declare_all(&find_flush_candidates(&b, &hex, tol()).unwrap());
     assert_sound(
-        "box ∪ hex, declared",
+        "box ∪ hex",
         topo::union(&b, &hex, tol()),
         va + vb - vi,
     );
-    // Undeclared, the `y = −0.5` faces are one carrier by margin, so the
-    // op glues them as the continuation they are: the declared body bit
-    // for bit (D10).
-    for (what, (x, y)) in [("hex ∪ box", (&hex, &b)), ("box ∪ hex", (&b, &hex))] {
-        let d = declare_all(&find_flush_candidates(x, y, tol()).unwrap());
-        assert_eq!(
-            outcome(&topo::union(x, y, tol())),
-            outcome(&topo::union(x, y, tol())),
-            "{what}: undeclared is the declared union"
-        );
-    }
-    // The ∖ and ∩ of the same pose, declared, build soundly too.
-    let d = declare_all(&find_flush_candidates(&hex, &b, tol()).unwrap());
+    // The ∖ and ∩ of the same pose build soundly too.
     assert_sound(
-        "hex ∖ box, declared",
+        "hex ∖ box",
         topo::subtract(&hex, &b, tol()),
         va - vi,
     );
     assert_sound(
-        "hex ∩ box, declared",
+        "hex ∩ box",
         topo::intersect(&hex, &b, tol()),
         vi,
     );
@@ -135,7 +119,6 @@ fn a_hexagon_unions_a_box_on_its_corner_edge_soundly() {
 /// (that row checks tier 2 and the volume only).
 #[test]
 fn the_multi_spike_corner_meet_passes_tier_3() {
-    use topo::flush::{declare_all, find_flush_candidates};
     let a = finished(
         "brick A",
         brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol()),
@@ -146,7 +129,6 @@ fn the_multi_spike_corner_meet_passes_tier_3() {
         brick((1.0, 3.0), (1.0, 3.0), (0.0, 1.0), tol()),
         tol(),
     );
-    let decl = declare_all(&find_flush_candidates(&a, &b, tol()).unwrap());
     let ab = match topo::intersect(&a, &b, tol()).unwrap() {
         BooleanResult::Body(bb) => bb.body,
         BooleanResult::Empty => panic!("nonempty"),
@@ -155,7 +137,6 @@ fn the_multi_spike_corner_meet_passes_tier_3() {
         &[(1.0, 1.0), (2.0, 0.0), (3.0, 1.0), (2.0, 2.0)],
         (0.0, 1.0),
     );
-    let decl = declare_all(&find_flush_candidates(&ab, &c, tol()).unwrap());
     assert_sound(
         "AB ∩ C at the shared corner",
         topo::intersect(&ab, &c, tol()),

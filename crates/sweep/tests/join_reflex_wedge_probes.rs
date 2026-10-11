@@ -2,9 +2,8 @@
 //! fan profiles that share their corner at the origin, so their
 //! vertical corner edges coincide along `z ∈ [0.3, 1]`: `a` a wedge of
 //! `θa` from `+x`, `z ∈ [0, 1]`; `b` a wedge of `θb` from `φb`,
-//! `z ∈ [0.3, 1.6]`. Either wedge, or both, may be reflex. Where a flank
-//! of `b` runs along a flank plane of `a`, the coplanar pair is
-//! flush-declared for each operand order. The closed form is the
+//! `z ∈ [0.3, 1.6]`. Either wedge, or both, may be reflex, and a flank
+//! of `b` may run along a flank plane of `a`. The closed form is the
 //! profiles' common area times the common height.
 //!
 //! `rw_battery` prints one [`outcome`] line per pose, with no flank
@@ -15,8 +14,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use topo::test_support::{flush_declarations, prism_z};
-use topo::{Body, BooleanDeclarations, BooleanError, BooleanResult};
+use topo::test_support::prism_z;
+use topo::{Body, BooleanError, BooleanResult};
 
 use crate::common::differential::{area, ccw, clip_convex, outcome};
 
@@ -60,8 +59,6 @@ const OPS: [&str; 6] = ["I_ab", "I_ba", "U_ab", "U_ba", "S_ab", "S_ba"];
 struct Pose {
     a: Body<f64>,
     b: Body<f64>,
-    /// The flush declarations for the `(a, b)` and `(b, a)` orders.
-    d: (BooleanDeclarations, BooleanDeclarations),
     want: [f64; 6],
 }
 
@@ -81,20 +78,15 @@ fn pose(theta_a: f64, theta_b: f64, phi_b: f64) -> Pose {
     let va = sum(&ta) * (A_Z.1 - A_Z.0);
     let vb = sum(&tb) * (B_Z.1 - B_Z.0);
     let vi = common * (A_Z.1.min(B_Z.1) - A_Z.0.max(B_Z.0));
-    let d = (
-        flush_declarations(&a, &b, tol()),
-        flush_declarations(&b, &a, tol()),
-    );
     Pose {
         a,
         b,
-        d,
         want: [vi, vi, va + vb - vi, va + vb - vi, va - vi, vb - vi],
     }
 }
 
 fn run(p: &Pose, op: &str) -> Result<BooleanResult<f64>, BooleanError> {
-    let (a, b, (dab, dba), t) = (&p.a, &p.b, &p.d, tol());
+    let (a, b, t) = (&p.a, &p.b, tol());
     match op {
         "I_ab" => topo::intersect(&fin(a), &fin(b), t),
         "I_ba" => topo::intersect(&fin(b), &fin(a), t),

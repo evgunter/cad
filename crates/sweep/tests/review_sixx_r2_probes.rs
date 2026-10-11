@@ -25,7 +25,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use geom_core::{Point3, Tol};
 use topo::test_support as fixtures;
-use topo::{AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult};
+use topo::{AtRestBody, Body, BooleanError, BooleanResult};
 
 use crate::common::differential::outcome;
 use crate::join_pierce_runs_sweep::{convex_volume, frame};
@@ -578,8 +578,8 @@ fn review_sixx_counter_reads_the_pr_pose() {
     assert_eq!(count(&a, &Other::Cube { edge: true }, frame(m, 1.0)).0, 6);
 }
 
-fn rest_rows(records: &topo::ContactRecords) -> Vec<topo::CarriedVv> {
-    records.carried(topo::ContactClass::Rest).vv
+fn rest_rows(records: &topo::ContactRecords) -> Vec<topo::CarriedRecord<topo::VvContact>> {
+    records.carried().vv
 }
 
 /// **The nested plan at a shared vertex.** A pinch: a reflex wedge and a
@@ -608,7 +608,6 @@ fn review_sixx_pinch() {
         .collect();
     let v = [0.0, 0.0, 1.0];
     let bodies: Vec<AtRestBody<f64>> = ws.iter().map(|w| w.body(IDENT, v)).collect();
-    let decl = fixtures::flush_declarations(&bodies[0], &bodies[1], tol());
     let BooleanResult::Body(pinch) =
         topo::union(&bodies[0], &bodies[1], tol()).expect("the pinch builds")
     else {
@@ -648,27 +647,43 @@ fn review_sixx_pinch() {
                 convex_volume(&all)
             })
             .sum();
-        let mut ab = fixtures::flush_declarations(&pinch.body, &cube, tol());
-        ab.carried_a.vv.clone_from(&carried);
-        let mut ba = fixtures::flush_declarations(&cube, &pinch.body, tol());
-        ba.carried_b.vv.clone_from(&carried);
+        let rows = topo::OperandRecords {
+            vv: carried.clone(),
+            ..Default::default()
+        };
+        let ab = topo::BooleanInputs {
+            records_a: rows.clone(),
+            ..Default::default()
+        };
+        let ba = topo::BooleanInputs {
+            records_b: rows,
+            ..Default::default()
+        };
         let p = &pinch.body;
+        let (u, i, s) = (
+            topo::BooleanOp::Union,
+            topo::BooleanOp::Intersect,
+            topo::BooleanOp::Subtract,
+        );
         let runs: [(
             &str,
-            Op,
+            topo::BooleanOp,
             &AtRestBody<f64>,
             &AtRestBody<f64>,
-            &BooleanDeclarations,
+            &topo::BooleanInputs,
             f64,
         ); 6] = [
-            ("pc U", topo::union, p, &cube, &ab, va + vb - common),
-            ("pc I", topo::intersect, p, &cube, &ab, common),
-            ("pc S", topo::subtract, p, &cube, &ab, va - common),
-            ("cp U", topo::union, &cube, p, &ba, va + vb - common),
-            ("cp I", topo::intersect, &cube, p, &ba, common),
-            ("cp S", topo::subtract, &cube, p, &ba, vb - common),
+            ("pc U", u, p, &cube, &ab, va + vb - common),
+            ("pc I", i, p, &cube, &ab, common),
+            ("pc S", s, p, &cube, &ab, va - common),
+            ("cp U", u, &cube, p, &ba, va + vb - common),
+            ("cp I", i, &cube, p, &ba, common),
+            ("cp S", s, &cube, p, &ba, vb - common),
         ];
-        for (tag, run, x, y, d, want) in runs {
+        for (tag, op, x, y, d, want) in runs {
+            let run = |x, y, tol| {
+                topo::boolean_op_with(op, x, y, d, topo::SweepStrategy::Realized, tol)
+            };
             if std::env::var("SX_THREADS").is_ok_and(|t| t == "1") {
                 eprintln!("SXRUN pinch {what} {tag}");
             }

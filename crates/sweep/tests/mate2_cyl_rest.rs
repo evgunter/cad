@@ -1,8 +1,8 @@
-//! Issue 1032 — a declared cylindrical `Rest` that is the mate's ONLY
+//! Issue 1032 — a cylindrical `Rest` that is the mate's ONLY
 //! contact: a shaft in a bore with no shoulder, flange or seat.
 //!
 //! The rows are the issue's own four spellings, held at the two-peg
-//! acceptance fixture's face structure (3 declared wall faces against
+//! acceptance fixture's face structure (3 wall faces against
 //! 3, both rims `circle_split`-style 120° arcs):
 //!
 //!   (1) PARTIAL engagement — the peg proud of the bore at both ends;
@@ -13,10 +13,10 @@
 //!
 //! **Two different classes, and this suite is careful about which is
 //! which.** What the fix widens is the class the reduction admits: a
-//! declared cylindrical `Rest` on an azimuth-SPLIT shared carrier is no
+//! cylindrical `Rest` on an azimuth-SPLIT shared carrier is no
 //! longer refused there. Not every member of that class leaves the
 //! union clean: a partially engaged, floating or mid-bore peg leaves a
-//! cylindrical declared pair alive in the result, whose wall runs the
+//! cylindrical glued pair alive in the result, whose wall runs the
 //! F7 merge door records as period closures (`PeriodClosure`) as it
 //! ships the body. The probe suites beside this one carry those rows
 //! (`curved_mergedoor`, `r1_probes_m9_3`) and pin each as what it is.
@@ -41,7 +41,6 @@ use geom_core::{Point2, Tol};
 use mate2_common::*;
 use profile::{ProfileLoop, RawLoop};
 use sweep::test_support::{extruded, finished, sketch_at};
-use topo::{ContactClass, FacePairDeclaration};
 
 /// Spelling (3)/(1): the shaft-in-a-bore mate at fixture (i)'s face
 /// structure, PARTIAL engagement, cylindrical `Rest` the only contact.
@@ -49,8 +48,11 @@ use topo::{ContactClass, FacePairDeclaration};
 fn threaded_collar_partial_engagement_unions() {
     let c = finished("the collar", collar(), Tol::witness());
     let p = finished("the peg", peg(0.5, 2.0), Tol::witness());
-    let decls = wall_decls(&c, &p);
-    assert_eq!(decls.coincident_faces.len(), 9, "3 bore faces against 3");
+    assert_eq!(
+        (walls_at(&c, 0.5).len(), walls_at(&p, 0.5).len()),
+        (3, 3),
+        "3 bore faces against 3"
+    );
     let out = topo::union(&c, &p, Tol::witness());
     println!("partial engagement: {:?}", out.as_ref().err());
     let bb = boolean_body(out.expect("the cylindrical Rest unions"));
@@ -80,7 +82,6 @@ fn threaded_collar_partial_engagement_unions() {
 fn threaded_collar_full_engagement_unions() {
     let c = finished("the collar", collar(), Tol::witness());
     let p = finished("the peg", peg(1.0, 1.0), Tol::witness());
-    let decls = wall_decls(&c, &p);
     let out = topo::union(&c, &p, Tol::witness());
     println!("full engagement: {:?}", out.as_ref().err());
     let body = body_of(out.expect("full engagement unions"));
@@ -111,13 +112,12 @@ fn threaded_collar_full_engagement_unions() {
 #[test]
 fn seated_collar_with_a_planar_rest_unions() {
     // A seated peg, built the way fixture (i) builds its plate-and-peg
-    // operand: a shaft EMBEDDED in a PLATE (an undeclared boss union on
+    // operand: a shaft EMBEDDED in a PLATE (a boss union on
     // the shipped transverse lane), so the collar rests on the plate's
     // top face at z = 1 while the shaft fills its bore. The plate is
     // square and oversized so the mate's ONLY curved coincidence is the
-    // declared bore pair — a plate rim flush with the collar's outer
-    // wall would be an undeclared cosurface touch and refuse on its
-    // own account, which is a different question.
+    // bore pair — a plate rim flush with the collar's outer wall would
+    // be a cosurface touch, which is a different question.
     let plate = ProfileLoop::polygon([
         Point2::new(-2.0, -2.0),
         Point2::new(2.0, -2.0),
@@ -129,12 +129,6 @@ fn seated_collar_with_a_planar_rest_unions() {
     let shaft = finished("the shaft", peg(0.6, 1.9), Tol::witness());
     let seated = boolean_body(topo::union(&flange, &shaft, Tol::witness()).unwrap()).body;
     let c = finished("the collar", collar(), Tol::witness());
-    let mut decls = wall_decls(&c, &seated);
-    decls.coincident_faces.push(FacePairDeclaration::new(
-        plane_face(&c, 1.0, false),
-        plane_face(&seated, 1.0, true),
-        ContactClass::Rest,
-    ));
     let out = topo::union(&c, &seated, Tol::witness());
     println!("control (planar Rest present): {:?}", out.as_ref().err());
     let body = body_of(out.expect("the control mate unions"));

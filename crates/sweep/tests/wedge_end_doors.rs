@@ -291,7 +291,7 @@ fn a_split_tangent_to_a_rounded_shoulder_cuts_at_a_seam() {
 }
 
 // ---------------------------------------------------------------------
-// The boolean: an undeclared tangent operand pair refuses at the op.
+// The boolean: a tangent operand pair refuses at the op.
 // ---------------------------------------------------------------------
 
 /// **Each kiss the curved boolean could turn into a wedge end refuses
@@ -302,8 +302,7 @@ fn a_split_tangent_to_a_rounded_shoulder_cuts_at_a_seam() {
 /// cutter at the join; the declared route is
 /// `work/tang/declared-cusps-second-order-wedge-arm.md` item 3. The
 /// external kiss's coplanar caps glue and its walls' tangency is
-/// verified and declared, as its declared twin's are, and both then
-/// refuse `ClassificationInvariant` — an odd count of surviving
+/// verified, and it then refuses `ClassificationInvariant` — an odd count of surviving
 /// crossing records at a vertex pair, the classification's own
 /// invariant, which is a kernel defect rather than a frontier.
 #[test]
@@ -341,36 +340,6 @@ fn a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op() {
             BooleanErrorKind::CurvedBooleanUnsupported,
         ),
     ];
-    // The external kiss, its coplanar caps declared continuations and
-    // its walls `Tangent`: the boolean declares the same itself.
-    let walls = |b: &Body<f64>| -> Vec<topo::FaceKey> {
-        b.faces()
-            .filter(|(_, f)| {
-                matches!(
-                    b.get_surface(f.surface),
-                    Some(geom::Surface::Cylinder { .. })
-                )
-            })
-            .map(|(k, _)| k)
-            .collect()
-    };
-    let mut kiss = topo::flush::declare_all(
-        &topo::flush::find_flush_candidates(&left, &right, tol()).unwrap(),
-    );
-    for fa in walls(&left) {
-        for fb in walls(&right) {
-            kiss.coincident_faces.push(topo::FacePairDeclaration::new(
-                fa,
-                fb,
-                topo::ContactClass::Tangent,
-            ));
-        }
-    }
-    assert_eq!(
-        crate::common::outcomes::outcome(&topo::union(&left, &right, tol())),
-        crate::common::outcomes::outcome(&topo::union(&left, &right, tol())),
-        "external kiss, union: undeclared is the declared outcome"
-    );
     for (name, got, want) in rows {
         match got {
             Err(e) => assert_eq!(e.kind(), want, "{name}: {e}"),

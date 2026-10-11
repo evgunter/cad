@@ -36,13 +36,15 @@ use topo::BooleanResult;
 fn probe_misaligned_azimuth_split_unions() {
     let c = finished("the collar", collar(), Tol::witness());
     let p = finished("the peg", peg_at(60.0, 0.5, 2.0), Tol::witness());
-    let decls = wall_decls(&c, &p);
-    assert_eq!(decls.coincident_faces.len(), 9, "3 bore faces against 3");
+    assert_eq!(
+        (walls_at(&c, 0.5).len(), walls_at(&p, 0.5).len()),
+        (3, 3),
+        "3 bore faces against 3"
+    );
     let join = topo::test_support::boolean_join_refusal(
         topo::BooleanOp::Union,
         &c,
         &p,
-        &decls,
         Tol::witness(),
     );
     assert!(
@@ -84,7 +86,6 @@ fn probe_misaligned_azimuth_split_unions() {
 fn probe_out_by_height_reports_its_outcome() {
     let c = finished("the collar", collar(), Tol::witness());
     let p = finished("the peg", peg_at(0.0, 1.5, 1.0), Tol::witness());
-    let decls = wall_decls(&c, &p);
     let out = topo::union(&c, &p, Tol::witness());
     match out {
         Err(e) => println!("PROBE2 REFUSED: {e:?}"),
@@ -110,40 +111,6 @@ fn probe_out_by_height_reports_its_outcome() {
     }
 }
 
-/// PROBE 3 — the UNDECLARED control for probe 1's geometry.
-///
-/// Same misaligned mate with NO declarations at all. The fix claims the
-/// undeclared arms are byte-identical in behaviour; this row is run on
-/// both trees to check that.
-#[test]
-fn probe_undeclared_misaligned_reports_its_outcome() {
-    let c = finished("the collar", collar(), Tol::witness());
-    let p = finished("the peg", peg_at(60.0, 0.5, 2.0), Tol::witness());
-    let out = topo::union(&c, &p, Tol::witness());
-    match out {
-        Err(e) => println!("PROBE3 REFUSED: {e:?}"),
-        Ok(BooleanResult::Empty) => println!("PROBE3 EMPTY"),
-        Ok(BooleanResult::Body(bb)) => {
-            println!("PROBE3 UNIONED: volume {}", volume(&bb.body));
-        }
-    }
-}
-
-/// PROBE 4 — the UNDECLARED control for the unit's own aligned mate.
-#[test]
-fn probe_undeclared_aligned_reports_its_outcome() {
-    let c = finished("the collar", collar(), Tol::witness());
-    let p = finished("the peg", peg_at(0.0, 0.5, 2.0), Tol::witness());
-    let out = topo::union(&c, &p, Tol::witness());
-    match out {
-        Err(e) => println!("PROBE4 REFUSED: {e:?}"),
-        Ok(BooleanResult::Empty) => println!("PROBE4 EMPTY"),
-        Ok(BooleanResult::Body(bb)) => {
-            println!("PROBE4 UNIONED: volume {}", volume(&bb.body));
-        }
-    }
-}
-
 /// PROBE 5 — how loose is the additivity assertion?
 ///
 /// The unit relaxed fixture (i)'s BITWISE volume oracle to a relative
@@ -158,7 +125,6 @@ fn probe_reports_actual_additivity_ulps() {
     {
         let c = finished("the collar", collar(), Tol::witness());
         let p = finished("the peg", peg_at(0.0, 0.5, 2.0), Tol::witness());
-        let d = wall_decls(&c, &p);
         if let Ok(BooleanResult::Body(bb)) = topo::union(&c, &p, Tol::witness()) {
             let (v, vc, vp) = (volume(&bb.body), volume(&c), volume(&p));
             println!(
@@ -174,7 +140,6 @@ fn probe_reports_actual_additivity_ulps() {
     {
         let c = finished("the collar", collar(), Tol::witness());
         let p = finished("the peg", peg_at(0.0, 1.0, 1.0), Tol::witness());
-        let d = wall_decls(&c, &p);
         if let Ok(BooleanResult::Body(bb)) = topo::union(&c, &p, Tol::witness()) {
             let (v, vc, vp) = (volume(&bb.body), volume(&c), volume(&p));
             println!(
