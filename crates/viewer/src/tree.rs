@@ -190,7 +190,9 @@ use pncad::document::{
     ValuePayload, VarId, node_kind_noun,
 };
 use pncad::quantity::UnitDef;
-use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate, SplitHalf};
+use pncad::select::{
+    InterrogateError, Resolution, ResolveIndeterminate, RunCtx, SplitHalf, resolve,
+};
 
 use crate::frame::Tone;
 use crate::parts::PartFiles;
@@ -1112,15 +1114,15 @@ pub fn standing_as_drawn(standing: NodeStanding, evaluation: &Evaluation<f64>) -
     }
 }
 
-/// **A picked name's [`Resolution`]**, read in the read holding the
-/// body the pick met (NAMES N1: resolution names the read;
-/// `Doc::read_of_body`). A pick whose node the document no longer holds
-/// is stranded with it (`stranded_at`); one whose node defines no such
-/// read answers the node's standing.
+/// **A picked name's [`Resolution`], as drawn** ([`resolution_as_drawn`]):
+/// read in the read holding the body the pick met (NAMES N1: resolution
+/// names the read; `Doc::read_of_body`). A pick whose node the document
+/// no longer holds is stranded with it (`stranded_at`); one whose node
+/// defines no such read answers the node's standing.
 pub fn pick_resolution(
-    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+    doc: &pncad::document::Doc<ProfileProgram>,
     evaluation: &Evaluation<f64>,
-    node: pncad::document::RecipeNodeId,
+    node: RecipeNodeId,
     body: u32,
     name: &pncad::prelude::StableName,
 ) -> Resolution {
@@ -1128,19 +1130,25 @@ pub fn pick_resolution(
         return gone;
     }
     match doc.read_of_body(node, body) {
-        Some(read) => pncad::select::resolve(
-            pncad::select::RunCtx {
-                doc,
-                eval: evaluation,
-            },
-            read,
-            name,
+        Some(read) => resolution_as_drawn(
+            resolve(
+                RunCtx {
+                    doc,
+                    eval: evaluation,
+                },
+                read,
+                name,
+            ),
+            evaluation,
         ),
         None => Resolution::Indeterminate(ResolveIndeterminate {
-            standing: match evaluation.usable(node) {
-                Err(standing) => standing,
-                Ok(_) => pncad::document::NodeStanding::NotInDocument { node },
-            },
+            standing: standing_as_drawn(
+                evaluation
+                    .usable(node)
+                    .err()
+                    .unwrap_or(NodeStanding::NotInDocument { node }),
+                evaluation,
+            ),
         }),
     }
 }

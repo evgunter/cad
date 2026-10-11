@@ -421,8 +421,9 @@ entity of every output body from kernel birth data alone (`Extruded`/`Revolved`
 maps, `SplitNaming`, `BooleanNaming`, `BlendNaming`, D5 provenance); an unnamed
 live entity is `NamingError::Unnamed`, and `NameTable::insert` refuses aliasing
 and kind disagreement (`DuplicateName`). The table is bidirectional (`lookup`,
-`name_of`), lives in `NodeValue::name_table`, and rides memo hits with the
-geometry; consumed entities have no row. The invariant CI pins: the table is a
+`name_of`), one per output variable (N1, the scope), read through that
+variable alone (`Evaluation::table`), and rides memo hits with the geometry;
+consumed entities have no row. The invariant CI pins: the table is a
 function of (recipe structure, structural parameters, predicate verdict vector)
 only — same recipe and same verdicts give an identical table at f64 and at
 Interval (`tests/m4_pr3_names_ci.rs`, `tests/m4_pr3_names_interval.rs`,
@@ -509,7 +510,9 @@ Diagnosis is computable because every node evaluation records its verdict log
 
 **Two scopes.** The with-history lanes (recorded flips, structural parameters,
 recipe edits) read two scopes, in order (`resolve::upstream_nodes` states the
-rule): first the name's derivation path (N1: the nodes the name mentions),
+rule): first the name's derivation path (N1: the nodes the name mentions, and
+the node whose output the reference reads — a name is resolved in the read
+that holds its body, so a split piece that left its half is that split's),
 answering `PredicateFlip`, `StructuralParam` or `RecipeEdit`; then the nodes
 that were strict ancestors of the minting node in the last-good document or in
 the current one, each walked within its own document, minus the path,

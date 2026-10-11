@@ -137,9 +137,9 @@ pub use eval::{
     Arity, At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
     ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch, EvalOptions, EvalOutcome,
     EvalScalar, Evaluation, FramePlacement, NamingKey, NodeError, NodeErrorClass, NodeErrorKind,
-    NodeRefusal, NodeResult, NodeStanding, NodeValue, OutputNames, PartFault, PartReach,
-    PiecesFault, ProfileLift, ProfilePieces, SectionScalar, SplitSide, StepTurns, ValuePayload,
-    VerbKind, evaluate, mate_reach,
+    NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, PartReach, PiecesFault,
+    ProfileLift, ProfilePieces, SectionScalar, SplitSide, StepTurns, ValuePayload, VerbKind,
+    evaluate, mate_reach,
 };
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};

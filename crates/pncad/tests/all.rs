@@ -4741,7 +4741,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   goes where it goes.
 ///   `FragmentGroups` beside them too: the fragment-group record a node
 ///   value carries for the diagnosis ladder. A consumer can hold one
-///   (`NodeValue::fragment_groups`) and make an empty one, and can read
+///   (`Evaluation::groups`) and make an empty one, and can read
 ///   nothing from it; what it records reaches a consumer as
 ///   `Diagnosis::GroupResized`'s two counts.
 ///
@@ -4912,9 +4912,10 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 97] = [
+const NOT_CARRIED: [&str; 98] = [
     "AppearanceLoss",
     "AppearanceLossCause",
+    "AppearanceKey",
     "AppearanceMap",
     "AppearanceRecord",
     "AppearanceResolution",

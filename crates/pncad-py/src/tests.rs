@@ -5101,6 +5101,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "ambiguous_output",
             "anonymous_var_unread",
+            "appearance_body_not_a_read",
             "appearance_names_missing_node",
             "appearance_not_set",
             "appearance_wrong_kind",
@@ -5412,6 +5413,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "no_bodies",
             "no_such_body",
             "no_such_name",
+            "several_outputs",
             "whole_body",
             "wrong_kind",
         ],
@@ -6073,6 +6075,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_a_datum",
             "not_a_length",
             "pair_in_band",
+            "read_not_an_output",
             "tied_disagrees",
             "unreadable",
         ],

@@ -1023,12 +1023,8 @@ impl DocSession {
         body: u32,
         name: &StableName,
     ) -> Option<Box<Resolution>> {
-        self.landed_pair().map(|(doc, eval)| {
-            Box::new(crate::tree::resolution_as_drawn(
-                crate::tree::pick_resolution(doc, eval, node, body, name),
-                eval,
-            ))
-        })
+        self.landed_pair()
+            .map(|(doc, eval)| Box::new(crate::tree::pick_resolution(doc, eval, node, body, name)))
     }
 
     /// The most recent evaluation that answered the current document.
