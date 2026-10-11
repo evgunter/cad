@@ -284,7 +284,7 @@ area `api`; prefix `intent/`; tag `(INTENT orchestrator)`; ab_band `10800-10899`
 | P0 | `placed-carriers-compare-through-their-frames` | issue | H | parked | D10 stage 4 PR H: a placed carrier's canonical form reads its placement's frame, so a mate-placed face is structural | a-mate-relates-two-poses |  |
 | P0 | `the-at-rest-census-is-a-check` | issue | H | parked | D10 stage 5 PR C: the at-rest census is a check resident reporting interference and could-not-look; at-rest contacts go to the unproven-coincidence lint; nothing at rest refuses; A5's gate, assemble and Separation retire | mates-declare-no-contact, a-mate-on-a-pinned-copy-refuses |  |
 | P0 | `transform-retires-into-a-placement` | issue | H | parked | D10 stage 3 PR D: constructions read no frame and nothing moves a body; Datum, Transform and PlacedFrom retire, each use becoming a placement | a-mate-relates-two-poses |  |
-| P1 | `a-loft-is-the-nominal-surface-in-every-generic-lane` | issue | — | open | A loft or sweep is its nominal surface in every generic lane: Dual sees no derivative in a section's variables, Interval certifies the nominal over a box |  |  |
+| P1 | `a-loft-is-the-nominal-surface-in-every-generic-lane` | issue | M | open | A loft or sweep is its nominal surface in every generic lane: Dual sees no derivative in a section's variables, Interval certifies the nominal over a box | the-skin-computes-its-values-in-t |  |
 | P1 | `a-pierce-only-overlap-can-never-be-quieted` | issue | M | open | a pierce-only overlap can never be quieted: the containment arm's solid-pair crossing names no faces |  |  |
 | P1 | `an-instance-carries-its-parts-coincidences` | issue | M | open | An instance carries its part's coincidence rows, so the lint on a product document reports its parts' unproven glue | coincidences-are-recorded-at-one-door |  |
 | P1 | `python-profile-keyword-says-plane-for-a-frame` | issue | — | open | Python's Node.profile keyword says plane= for an operand whose slot, field, label and word are frame |  |  |
@@ -2842,6 +2842,7 @@ area `kernel`; prefix `walks/`; tag `(WALKS orchestrator)`; ab_band `6600-6699`.
 | `k-lint-eps-coupled-criterion-unwritten` | instr | parked | k-lint-roster-wants-a-kernel-side-vocabulary |
 | `a-construction-s-identities-are-a-generated-cache` | intent | parked | the-mitres-feet-distance-freezes-at-sym |
 | `a-gauge-swing-re-keys-the-mates-reading-its-instances` | intent | parked | a-placement-is-the-bundle-of-mates |
+| `a-loft-is-the-nominal-surface-in-every-generic-lane` | intent | open | the-skin-computes-its-values-in-t |
 | `a-mate-on-a-pinned-copy-refuses` | intent | parked | a-mate-relates-two-poses |
 | `a-mate-relates-two-poses` | intent | parked | a-placement-is-the-bundle-of-mates |
 | `a-placement-is-the-bundle-of-mates` | intent | parked | an-unattributed-contact-at-rest-is-a-finding |
