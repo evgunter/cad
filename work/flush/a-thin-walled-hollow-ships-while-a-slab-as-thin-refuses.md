@@ -8,6 +8,7 @@ priority: P2
 cost: M
 design: true
 refs: [a-result-that-is-only-a-sliver-shell-passes-the-door, 4636]
+needs_ev: true
 ---
 
 
@@ -50,3 +51,35 @@ This is a design question: what does "a sliver" measure for a solid?
   open: no single shell is the in-band one.
 - **Per wall.** The in-band face pairs a thin wall is made of. That is
   D10's "no in-band pair", which no reading at the gate builds today.
+
+## The fork (fork log row 113), converged after three rounds
+
+The designer pair converged on **pairs only**. The boolean door judges
+how thin a result is by its pairs of cells alone. The "shell" half of
+D10 is check 10's undecided role in a solid of several shells. PR
+4636's refusal of a solid's only shell, certified in band by V/A,
+retires.
+- **The hollow is right; the slab was wrongly refused.** Every wall
+  refuses below Kε on a pair and builds above it, whatever shape it is
+  part of.
+- **V/A is not a measure of material.** On main today,
+  `union(1 mm cube, 1 m² plate 1.5e-8 thick)` refuses through PR 4636's
+  gate (V/A 8e-9), though every pair is definite.
+- **The slab looked unusable as an operand only because of a measuring
+  defect.** An op that places a piece disjoint from the slab casts rays
+  that miss it, and `solid_contain.rs` `at_infinity_side` then reads the
+  side from the solid's volume sign (margin V/A). Filed on CLEAVE as
+  `a-missed-ray-reads-the-solids-volume-sign-for-its-side`.
+
+The question is with Ev on an `[ev]` PR, because it re-words D10 and
+retracts fork row 101's "the lump refuses `Escalated`". If Ev ratifies,
+the unit is:
+- remove `AtRestBody::slivers`, `PlusVVerdict::Sliver` and `gate`'s
+  `escalated(kept.slivers())`;
+- flip `a_slab_thinner_than_two_bands_refuses_and_a_thicker_one_builds`
+  and `a_result_that_is_only_a_sliver_refuses_in_band` to build in
+  [Kε, 2Kε), and add pair-refusal rows below Kε for the slab, the hollow
+  and the fin;
+- rename the hollow row's test;
+- close this row and re-open the gate half of
+  `a-result-that-is-only-a-sliver-shell-passes-the-door`.
