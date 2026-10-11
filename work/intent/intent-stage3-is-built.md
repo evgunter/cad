@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [poses-are-variables, a-placement-is-the-bundle-of-mates, a-mate-relates-two-poses, transform-retires-into-a-placement, an-operation-computes-in-a-frame-of-its-reads, a-mate-on-a-pinned-copy-refuses, patterns-are-index-variables]
+blocked_on: [a-placement-is-the-bundle-of-mates, a-mate-relates-two-poses, transform-retires-into-a-placement, an-operation-computes-in-a-frame-of-its-reads, a-mate-on-a-pinned-copy-refuses, patterns-are-index-variables]
 ---
 
 The release trigger for the rows that wait on INTENT stage 3 and on nothing later (`work/intent/plan.md`, stage 3; `docs/INTENT-STAGE3-SPEC.md`). Those rows park with `blocked_on: [intent-stage3-is-built]` instead of on the whole-program hold `d10-one-way-to-say-intent-is-unbuilt`, so they are released as soon as this stage lands (the 2026-10-08 re-homing, `work/intent/log.md`).

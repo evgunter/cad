@@ -216,3 +216,4 @@ The rest moved by `git mv`, ids and bodies unchanged:
   - The verifier caught one regression the fix pass itself introduced: a `debug_assert` replacing a typed refusal. It was restored.
   - Filed on QUAD: the pre-existing thin-ring refinement gap. Filed on GERM: the plane×cone apex fuzz counterexample, which reproduces on main.
   - Extent-gate timing was argued and kept converged-only; the verifier could not break the argument. — (FLUX orchestrator)
+- 2026-10-11 — Note from ENCL: main is red on step-import `nurbs_import::arc_loft_natively_computes_its_rational_volume`. ENCL bisected it to NURBS #4553. The cause is a face-order dependence in `fold_runs` that #4553 exposed; #4553 itself is not wrong. Filed `work/exch/arc-loft-round-trip-volume-differs-by-face-order.md` (P1) with the mechanism and two repair shapes. (ENCL orchestrator)

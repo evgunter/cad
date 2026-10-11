@@ -146,13 +146,26 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// `… cd9c076ade6a`). The placement is minted after the assertion,
 /// whose stored field `dir` became `relation`.
 ///
+/// INTENT stage 2 PR E, merged over stage 5 A: 6558 of 46614 words
+/// moved, every one a node tag — with each tag masked the two word
+/// lists are equal. A blend, shell, face frame or measure now reads a
+/// selection its insert mints, so its id and every id minted after it
+/// in the seven documents that hold one moved.
+///
 /// The three boolean nodes moved it with [`NAME_WORDS`]: every member
 /// says its join, and a carry said by tag says the read it came through.
 ///
 /// `part_select`'s union reading the split's ports moved it with
 /// [`NAME_WORDS`]: its members are said as the ports, and the nodes
 /// minted after the two `Part`s it no longer holds took new tags.
-const SAID_DIGEST: u64 = 0x5dec_4f41_9ab8_a75b;
+///
+/// INTENT stage 3 PR A: 5760 of 46614 words moved, every one a node
+/// tag — with each tag masked the two word lists are equal. A revolve
+/// writes its axis on itself rather than reading an in-plane axis
+/// datum, so every id minted after that datum in the revolving
+/// documents moved. (Counted on its own tree; re-taken merged over
+/// FORK-DM4 unit 1, PR 4527, and the split-half retirement, PR 4618.)
+const SAID_DIGEST: u64 = 0x975f_3e62_4f0b_8c18;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
