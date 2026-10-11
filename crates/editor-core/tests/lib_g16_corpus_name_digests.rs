@@ -173,6 +173,11 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// the half-free names; `part_select`'s union, which declares the rest
 /// between the halves by the section face, also took a new id. Every
 /// other row held its word, and the id-masked geometry fence held.
+///
+/// Re-taken merged over INTENT stage 3 PR A (a revolve's axis is a
+/// line on the node), which moved `kitchen_sink` too: its merged row is
+/// neither tree's value; every other row is the one of the two trees
+/// that moved it.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xadebdf8fa8c159b4),
     ("corner_table", 0x557d106640cda5b6),
@@ -182,8 +187,8 @@ const PINNED: &[(&str, u64)] = &[
     ("nested_islands_106_depth1", 0x21fc3461c8da2531),
     ("nested_islands_106_depth2", 0xa2b91f4b061a349c),
     ("declared_tangency", 0x370595ad9c1f1053),
-    ("kitchen_sink", 0xd32146daec65263e),
-    ("cut_cylinder", 0xecad82208268b4e3),
+    ("kitchen_sink", 0x08fd0ce734eed73d),
+    ("cut_cylinder", 0xe3bbfa5f63a97624),
     ("measured_web", 0xa8eab47c82dec152),
     ("boss_union", 0xe9503f4d4a3ff20a),
     ("die_fillet", 0x27b561518c428c4e),

@@ -174,7 +174,9 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// `part_select`'s union, which declares the rest between the halves by
 /// the half-free section face, took a new tag (`Union 2c250e7cb491` is
 /// now `… 0740ba2c7086`). Both totals shrank; no other word moved.
-const SAID_DIGEST: u64 = 0x975f_3e62_4f0b_8c18;
+/// Re-taken merged over INTENT stage 3 PR A, whose node tags moved
+/// the same documents' words: the merged digest is neither tree's.
+const SAID_DIGEST: u64 = 0x9404_db6e_4173_aee2;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

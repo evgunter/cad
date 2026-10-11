@@ -174,6 +174,11 @@ fn sans_epsilon(t: &str) -> String {
 /// The persisted text moved in `kitchen_sink` (its appearance key is
 /// now a body read and a name) and `part_select` (its union's declared
 /// names); `cut_cylinder`'s held.
+///
+/// Re-taken merged over INTENT stage 3 PR A (a revolve's axis is a
+/// line on the node), which moved `kitchen_sink` too: its merged row is
+/// neither tree's value; every other row is the one of the two trees
+/// that moved it.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0x7c0063c6f610214a, 0xb9fd427959fee070),
     ("corner_table", 0xeed262c8399c88d5, 0xa0430bdc34cc13fb),
@@ -191,8 +196,8 @@ const PINNED: &[(&str, u64, u64)] = &[
         0xa95f171e06017d0b,
     ),
     ("declared_tangency", 0xe7249c941ad4e6dd, 0x4ef7c39092eca21a),
-    ("kitchen_sink", 0xa83c6c96412051fa, 0x7c78103d9e3fef09),
-    ("cut_cylinder", 0x366fa42a35257323, 0x0b1584874c6521a2),
+    ("kitchen_sink", 0x676baf1ae4e54296, 0x3d589832e5eb1da9),
+    ("cut_cylinder", 0x6184d061f986e7dd, 0x0b1584874c6521a2),
     ("measured_web", 0x2d097b245fc55683, 0xe50e6ef2701011c2),
     ("boss_union", 0xbcca43ef807fea26, 0x6e5620818bd119f8),
     ("die_fillet", 0x5f66bd80c3d330ba, 0xcc827f4ab84ab2f7),
