@@ -3938,14 +3938,13 @@ impl core::fmt::Display for BooleanError {
             Self::GermSectionSpiric { loops, .. } => write!(
                 f,
                 "a flat face of one part cuts a torus face of the other at a slant, along a \
-                 curve the Boolean cannot yet trace ({}). Recourse: cut the torus with a \
-                 flat face through its axis, square to its axis, or parallel to its axis \
-                 inside its hole",
+                 curve the Boolean cannot yet trace ({}). {}",
                 match loops {
                     SpiricLoops::AroundAxis => "two loops round the axis",
                     SpiricLoops::AroundTube => "two loops round the tube",
                     SpiricLoops::Null => "one loop on the tube",
                 },
+                meeting_recourse(kind_word(geom::SurfaceKind::Torus)),
             ),
             // One sentence for BOTH radius cases: the walls may have
             // equal radii (the section crosses itself) or not (a space

@@ -9,10 +9,12 @@
 //! book's `ssortnulledges` ordering/orientation discipline is
 //! enforced as the derived sense data below, not as a sort).
 //!
-//! The section frame a conic germ turns about is read here too, keyed by
-//! the germ's two surface kinds ([`germ_section_frame`],
-//! [`pair_section_frame_at`]): a straight pair has none, and each conic
-//! pair names its centre and axis.
+//! The section frame a curved germ turns about is read here too, keyed
+//! by the germ's two surface kinds ([`germ_section_loops`],
+//! [`pair_section_frame_at`]): a straight pair has none, each conic pair
+//! names its centre and axis, and the plane×torus pair names two loops
+//! with a frame each ([`SectionLoops`]), of which a germ takes its own
+//! ([`germ_section_frame`]).
 //!
 //! # Matching is germ identity, not slots or senses (the below-copy
 //! # audit)
@@ -677,27 +679,44 @@ fn matched_records<T: Decide>(
 
 /// **Whether `rec` is a one-site record**: neither of its germs is
 /// used, both name one locus on both operands, and that locus pair's
-/// section is a conic, so the record's germs can only match each other.
-/// Its A germ and the frame of the loop it lies on.
-#[allow(clippy::type_complexity)] // (germ, its loop)
+/// section is curved, so the record's germs, at one site of one loop of
+/// it, can only match each other. Its A germ, the section's loops, and
+/// the loop the germ lies on with its index among them.
+#[allow(clippy::type_complexity)] // (germ, the loops, (index, its loop))
 fn one_site<T: Decide>(
     red: &BooleanReduction<T>,
     rec: &OpenRecord<T>,
     band: Band,
-) -> Result<Option<(HalfGerm<T>, SectionLoop<T>)>, BooleanError> {
+) -> Result<Option<(HalfGerm<T>, SectionLoops<T>, (usize, SectionLoop<T>))>, BooleanError> {
     let [(g0, used0), (g1, used1)] = rec.a;
     if used0 || used1 || g0.a_locus != g1.a_locus || g0.b_locus != g1.b_locus {
         return Ok(None);
     }
-    Ok(germ_section_frame(red, &g0, band)?.map(|frame| (g0, frame)))
+    let Some(loops) = germ_section_loops(red, &g0, band)? else {
+        return Ok(None);
+    };
+    let on = loops.at(germ_site(red, &g0)?, band)?;
+    Ok(Some((g0, loops, on)))
 }
 
-/// **The section loops with one site on a wrap edge**: a transverse
-/// section of a one-face closed wall crosses the wall's wrap edge (both
-/// its halves bound that face) once, so its loop has one site, and the
-/// record there carries both of the loop's germs, one each way round
-/// the conic. The loop is one segment, from that site round the whole
-/// conic back to it ([`crate::chord_join`]'s self-loop chord): its two
+/// The site of an A germ.
+fn germ_site<T: Decide>(
+    red: &BooleanReduction<T>,
+    germ: &HalfGerm<T>,
+) -> Result<Point3<T>, BooleanError> {
+    red.a
+        .half_edge_start_point(germ.he)
+        .ok_or(BooleanError::JoinDesync {
+            what: "germ site has no point",
+        })
+}
+
+/// **The section loops with one site on a wrap edge**: a loop of a
+/// transverse section of a one-face closed wall can cross the wall's
+/// wrap edge (both its halves bound that face) once, so that it has one
+/// site, and the record there carries both of the loop's germs, one each
+/// way round it. The loop is one segment, from that site round the whole
+/// loop back to it ([`crate::chord_join`]'s self-loop chord): its two
 /// ends are the record's two slots.
 ///
 /// Read from the records [`matched_records`]' quiescence left. A
@@ -712,10 +731,12 @@ fn one_site<T: Decide>(
 ///
 /// Where a record is taken, three things are kernel bugs, refused as
 /// [`BooleanError::JoinDesync`]: another record naming its locus pair
-/// (a conic of one face pair is one closed curve, which the record's
-/// two germs then cover alone); B germs whose loci are not the A
-/// germs'; and two germs that agree in sense or turn one way round the
-/// conic (insertion mints a null edge's two germs facing apart).
+/// on the same loop of its section ([`SectionLoops`]; each loop is one
+/// closed curve, which the record's two germs then cover alone, while a
+/// section of two loops, the plane×torus pair's, carries the other
+/// loop's records); B germs whose loci are not the A germs'; and two
+/// germs that agree in sense or turn one way round the loop (insertion
+/// mints a null edge's two germs facing apart).
 fn wrap_site_segments<T: Decide>(
     red: &BooleanReduction<T>,
     open: &[OpenRecord<T>],
@@ -731,7 +752,7 @@ fn wrap_site_segments<T: Decide>(
     };
     let mut out = Vec::new();
     for (r, rec) in open.iter().enumerate() {
-        let Some((g0, frame)) = one_site(red, rec, band)? else {
+        let Some((g0, loops, (own, frame))) = one_site(red, rec, band)? else {
             continue;
         };
         let (super::Locus::InFace(fa), super::Locus::InFace(fb)) = (g0.a_locus, g0.b_locus) else {
@@ -748,17 +769,17 @@ fn wrap_site_segments<T: Decide>(
         if !crossed {
             continue;
         }
-        let shared = open.iter().enumerate().any(|(o, other)| {
-            o != r
-                && other
-                    .a
-                    .iter()
-                    .any(|(g, _)| g.a_locus == g0.a_locus && g.b_locus == g0.b_locus)
-        });
-        if shared {
-            return Err(desync(
-                "a one-site record on a wrap edge shares its locus pair with another record",
-            ));
+        for (_, other) in open.iter().enumerate().filter(|&(o, _)| o != r) {
+            for (g, _) in &other.a {
+                if g.a_locus == g0.a_locus
+                    && g.b_locus == g0.b_locus
+                    && loops.at(germ_site(red, g)?, band)?.0 == own
+                {
+                    return Err(desync(
+                        "a one-site record on a wrap edge shares its loop with another record",
+                    ));
+                }
+            }
         }
         let g1 = rec.a[1].0;
         if rec
@@ -773,17 +794,14 @@ fn wrap_site_segments<T: Decide>(
         {
             return Err(desync("a one-site record's two germs agree in sense"));
         }
-        let p = red
-            .a
-            .half_edge_start_point(g0.he)
-            .ok_or(desync("germ site has no point"))?;
+        let p = germ_site(red, &g0)?;
         let senses = (
             rotational_sense(frame.turn(), p, g0.dir, band)?,
             rotational_sense(frame.turn(), p, g1.dir, band)?,
         );
         if senses.0 == senses.1 {
             return Err(desync(
-                "a one-site record's two germs turn one way round its conic",
+                "a one-site record's two germs turn one way round its loop",
             ));
         }
         out.push(SectionSegment {
@@ -1921,14 +1939,27 @@ fn germ_section_loops<T: Decide>(
             )),
         };
     }
+    face_pair_section_loops((&red.a, germ.a_face), (&red.b, germ.b_face), band)
+}
+
+/// **The section loops of a face pair**, read where the section is
+/// consumed ([`frame_reading`]) and levered at the consumed region's
+/// measure ([`frame_extent`]): [`germ_section_loops`] for a germ lying
+/// inside a face of each operand.
+pub(super) fn face_pair_section_loops<T: Decide>(
+    (body_a, face_a): (&Body<T>, FaceKey),
+    (body_b, face_b): (&Body<T>, FaceKey),
+    band: Band,
+) -> Result<Option<SectionLoops<T>>, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
     let surf = |body: &Body<T>, f: FaceKey| -> Result<geom::Surface<T>, BooleanError> {
         body.get_face(f)
             .and_then(|fd| body.get_surface(fd.surface))
             .cloned()
             .ok_or(desync("germ face surface no longer resolves"))
     };
-    let sa = surf(&red.a, germ.a_face)?;
-    let sb = surf(&red.b, germ.b_face)?;
+    let sa = surf(body_a, face_a)?;
+    let sb = surf(body_b, face_b)?;
     // `surf` resolved both faces above, and nothing writes between, so
     // `face_witnesses` reads each.
     let witnesses = |body: &Body<T>, f: FaceKey| {
@@ -1942,19 +1973,14 @@ fn germ_section_loops<T: Decide>(
     let (at, span) = frame_reading(
         &sa,
         &sb,
-        witnesses(&red.a, germ.a_face),
-        witnesses(&red.b, germ.b_face),
+        witnesses(body_a, face_a),
+        witnesses(body_b, face_b),
     )
     .map_err(desync)?;
-    let extent = frame_extent(
-        (&sa, &red.a, germ.a_face),
-        (&sb, &red.b, germ.b_face),
-        at,
-        span,
-    )
-    .map_err(desync)?;
+    let extent =
+        frame_extent((&sa, body_a, face_a), (&sb, body_b, face_b), at, span).map_err(desync)?;
     pair_section_frame_at(&sa, &sb, at, extent, band)
-        .map_err(|e| frame_refusal(e, (germ.a_face, &sa), (germ.b_face, &sb)))
+        .map_err(|e| frame_refusal(e, (face_a, &sa), (face_b, &sb)))
 }
 
 /// **The germ's own loop** of its pair's section
@@ -2656,7 +2682,7 @@ fn conic_section_frame_at<T: Decide>(
             let lever = match extent {
                 FrameExtent::Span(l) => l.max(r1.max(*r2)),
                 FrameExtent::Radii | FrameExtent::Wall { .. } => r1.max(*r2),
-                FrameExtent::Reach(_) => return Err(FrameError::Desync(CONE_REACH_ELSEWHERE)),
+                FrameExtent::Reach(_) => return Err(FrameError::Desync(FACE_REACH_ELSEWHERE)),
             };
             let reach = geom_brep::Reach::Measured { at, lever };
             match geom_brep::cylinder_axes_parallel(&reach, (*o1, *a1), (*o2, *a2), band) {
@@ -2711,7 +2737,7 @@ fn conic_section_frame_at<T: Decide>(
             &geom_brep::Reach::Measured { at, lever: radius },
             band,
         ),
-        FrameExtent::Reach(_) => return Err(FrameError::Desync(CONE_REACH_ELSEWHERE)),
+        FrameExtent::Reach(_) => return Err(FrameError::Desync(FACE_REACH_ELSEWHERE)),
     };
     match section {
         Ok(geom_brep::PlaneCylinderSection::Rim(geom::Curve3::Circle { center, axis, .. }))
@@ -2733,7 +2759,7 @@ fn conic_section_frame_at<T: Decide>(
 
 /// [`FrameExtent::Reach`] handed to a cylinder pair: only a cone or a
 /// torus face's frame is levered at it ([`frame_extent`]).
-const CONE_REACH_ELSEWHERE: &str = "a curved face's reach levered a pair with no cone or torus";
+const FACE_REACH_ELSEWHERE: &str = "a curved face's reach levered a pair with no cone or torus";
 
 /// A germ pair's section refusal that is not the table's verdict on the
 /// pair's locus: an undecided degeneracy, or a carrier the conic
@@ -2836,7 +2862,11 @@ fn pk_germ_frame<T: Decide>(
 /// the loops by the section certificate's own margins
 /// ([`section_cert::torus_plane_loops`](super::section_cert::torus_plane_loops)).
 /// A tangent circle or no section under a minted germ is the desync the
-/// sphere arm's tangent point is.
+/// sphere arm's tangent point is. Where the table routes the pose to its
+/// general rung and the certificate's unlevered margins read it touching
+/// or empty, the two readings straddle the band about one pose, which
+/// escalates ([`PT_TOUCHING_UNDER_A_GERM`]), as does a certificate
+/// margin left undecided.
 ///
 /// Levered at the torus face's reach from the reading point
 /// ([`FrameExtent::Reach`]); any other extent is a desync.
@@ -2935,16 +2965,24 @@ fn pt_germ_frame<T: Decide>(
         )),
         Err(e @ geom_brep::SectionError::RoutesToGeneralRung { .. }) => {
             match super::section_cert::torus_plane_loops((c, a, big_r, r), (q, n), band) {
-                Some(loops) => Err(FrameError::Spiric { loops, section: e }),
-                None => Err(FrameError::Desync(
-                    "the section certificate reads a touching or empty plane×torus section the \
-                     table routed to its general rung",
-                )),
+                Ok(Some(loops)) => Err(FrameError::Spiric { loops, section: e }),
+                Ok(None) => Err(FrameError::Escalated(crate::invalid_margin::invalid(
+                    band,
+                    PT_TOUCHING_UNDER_A_GERM,
+                ))),
+                Err(diag) => Err(FrameError::Escalated(diag)),
             }
         }
         Err(e) => Err(section_refusal(e)),
     }
 }
+
+/// [`pt_germ_frame`]'s escalation where the table, levered at the torus
+/// face's reach, routes a pose to its general rung and the section
+/// certificate's unlevered margins read it touching or empty: two
+/// readings of one pose straddling the band
+/// ([`crate::invalid_margin::invalid`]).
+const PT_TOUCHING_UNDER_A_GERM: &str = "bool_join_torus_section_touching_under_a_germ";
 
 /// **The intersecting-axes cylinder pair, routed by whether its radii
 /// decide equal.**

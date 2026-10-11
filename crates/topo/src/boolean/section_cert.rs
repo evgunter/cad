@@ -466,7 +466,9 @@ struct Pinch {
     name: &'static str,
     /// The margin's place in the list [`signs`] decided.
     index: usize,
-    zero: bool,
+    /// `None` where the margin decided `Zero`; its diagnostics where it
+    /// was undecided.
+    undecided: Option<geom_core::Indeterminate>,
 }
 
 impl<T: Real> From<Pinch> for Section<T> {
@@ -481,7 +483,7 @@ impl Pinch {
     /// loop about it, bounding a connected region where they stand within
     /// the margin; R-tan otherwise.
     fn touch<T: Real>(self, names: &[&'static str], at: impl FnOnce() -> Point3<T>) -> Section<T> {
-        if self.zero && names.contains(&self.name) {
+        if self.undecided.is_none() && names.contains(&self.name) {
             Section::Touch(Touch {
                 name: self.name,
                 at: at(),
@@ -500,24 +502,20 @@ fn signs<T: Decide, const N: usize>(
 ) -> Result<[bool; N], Pinch> {
     let mut out = [false; N];
     for (index, (slot, (name, m))) in out.iter_mut().zip(ms).enumerate() {
-        match sign(name, Margin::of(m), band) {
-            Some(Sign::Positive) => *slot = true,
-            Some(Sign::Negative) => {}
-            Some(Sign::Zero) => {
-                return Err(Pinch {
-                    name,
-                    index,
-                    zero: true,
-                });
+        let undecided = match decide(name, Margin::of(m), band) {
+            Ok(Sign::Positive) => {
+                *slot = true;
+                continue;
             }
-            None => {
-                return Err(Pinch {
-                    name,
-                    index,
-                    zero: false,
-                });
-            }
-        }
+            Ok(Sign::Negative) => continue,
+            Ok(Sign::Zero) => None,
+            Err(diag) => Some(diag),
+        };
+        return Err(Pinch {
+            name,
+            index,
+            undecided,
+        });
     }
     Ok(out)
 }
@@ -984,21 +982,23 @@ fn plane_cut<T: Decide>(big_r: T, r: T, h: T, s: T, band: Band) -> PlaneCut {
 
 /// **The loops a plane cuts on a ring torus**, by [`torus_plane`]'s own
 /// margins, so a refusal naming them and the certificate read one
-/// decision: `None` where those margins read a tangency or no section.
-/// The plane runs through `p0` with normal `n`, the torus is
+/// decision: `Ok(None)` where those margins decide a tangency or no
+/// section, and the diagnostics of the first margin they leave
+/// undecided. The plane runs through `p0` with normal `n`, the torus is
 /// `(c, a, R, r)`; neither direction need be unit.
 pub(super) fn torus_plane_loops<T: Decide>(
     (c, a, big_r, r): (Point3<T>, Vec3<T>, T, T),
     (p0, n): (Point3<T>, Vec3<T>),
     band: Band,
-) -> Option<super::SpiricLoops> {
+) -> Result<Option<super::SpiricLoops>, geom_core::Indeterminate> {
     let (a, n) = (unit(a), unit(n));
     let (_, s) = perp_to(n, a);
     match plane_cut(big_r, r, n.dot(p0 - c), s, band) {
-        PlaneCut::AroundAxis => Some(super::SpiricLoops::AroundAxis),
-        PlaneCut::AroundTube => Some(super::SpiricLoops::AroundTube),
-        PlaneCut::Null { .. } => Some(super::SpiricLoops::Null),
-        PlaneCut::Empty | PlaneCut::Pinch(_) => None,
+        PlaneCut::AroundAxis => Ok(Some(super::SpiricLoops::AroundAxis)),
+        PlaneCut::AroundTube => Ok(Some(super::SpiricLoops::AroundTube)),
+        PlaneCut::Null { .. } => Ok(Some(super::SpiricLoops::Null)),
+        PlaneCut::Empty => Ok(None),
+        PlaneCut::Pinch(tan) => tan.undecided.map_or(Ok(None), Err),
     }
 }
 
@@ -2504,7 +2504,7 @@ mod section_cert_cone_pair_rows;
 mod section_cert_cone_rows;
 #[cfg(test)]
 #[path = "section_cert_rows.rs"]
-mod section_cert_rows;
+pub(super) mod section_cert_rows;
 #[cfg(test)]
 #[path = "section_cert_square_rows.rs"]
 mod section_cert_square_rows;

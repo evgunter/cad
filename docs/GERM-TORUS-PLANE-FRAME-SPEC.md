@@ -196,7 +196,7 @@ order, through the table's own `geom_brep::plane_torus_section`:
 | `SpiricOvals { s1, s2 }` | `(k_σ, n̂)`, with `k_σ = c + n̂d + σŵ√(R² − d²)`: the core circle's crossing of the plane inside oval `σ` | the same `σ` |
 | `ConcentricCircles { c1, c2 }` | `(c + âh, â)`, one frame for both | `sign(ρ − R)`: outer or inner |
 | `TangentCircle`, `Empty` | `FrameError::Desync`: a touching configuration the reduction should not have paired, as the sphere arm's `TangentPoint` | — |
-| `Err(RoutesToGeneralRung)` | the general-pose refusal (§1.2) | — |
+| `Err(RoutesToGeneralRung)` | the general-pose refusal (§1.2); where the certificate's unlevered margins read the pose touching or empty, or leave a margin undecided, `FrameError::Escalated`: the two readings straddle the band about one pose | — |
 | `Err(Escalated)`, `Err(Spiric(Escalated))` | `FrameError::Escalated` | — |
 | `Err(DegenerateTorus)` | the ring-torus convention's refusal, as `plane-torus-section-degenerate-torus-ends-as-corruption` settles it | — |
 
@@ -207,22 +207,9 @@ order, through the table's own `geom_brep::plane_torus_section`:
   test reads only `â·((p − c₀) × ṗ)`, and sliding `c₀` along `â` leaves
   it unchanged, so one frame serves both loops. This is `cs_pair_frame`'s
   argument.
-- **The spiric ovals.** Take in-plane coordinates `t` along `σŵ` and `y`
-  along `â`, so that `ρ² = d² + t²`. Then `k_σ` is `(t₀, 0)` with
-  `t₀ = √(R² − d²)`. The two-ovals verdict (`|d| < R − r`) keeps the
-  oval at `t ≥ t_in = √((R − r)² − d²) > 0`. Its upper half is
-  `y = f(t)` with `f² = r² − (ρ − R)²`, so `f f′ = −(ρ − R)·t/ρ`. The
-  turn about `k_σ` of the upper half, times `f`, is
-
-  `f·((t − t₀)f′ − f) = −(t − t₀)(ρ − R)·t/ρ − r² + (ρ − R)²`.
-
-  `ρ` increases with `t > 0` and equals `R` at `t₀`, so
-  `(t − t₀)(ρ − R) ≥ 0`, and the first term is `≤ 0`. The rest is
-  `−f² ≤ 0`. At the two ends, where `f = 0`, the first term is strictly
-  negative. So the turn has one strict sign along the whole oval, and
-  the lower half follows by `y ↦ −y`. No germ on the oval is radial
-  about `k_σ`, and `k_σ` lies inside it (`t_in < t₀ < t_out`). The
-  meridian circles are the case `d = 0`.
+- **The spiric ovals** turn strictly monotonically about `k_σ`, which
+  lies inside them. The proof's one home is `join::pt_germ_frame`'s
+  doc. The meridian circles are its case `d = 0`.
 
 **The loop is the germ's, decided by a margin.** On a meridian circle
 or a spiric oval, `|(p − c)·ŵ| = √(ρ² − d²) ≥ √((R − r)² − d²)`. That is
@@ -237,7 +224,7 @@ contract is a statement about two surfaces, never about a germ ("keyed
 on the germ pair's two surface KINDS and nothing else"). So
 `pair_section_frame_at` returns the section's loops, one frame or two,
 each with a loop identity. `germ_section_frame` picks the germ's loop by
-its site (`half_edge_start_point(germ.he)`). Three consumers read the
+its site (`half_edge_start_point(germ.he)`). Four consumers read the
 frame:
 
 - **`germs_face_each_other`** (`join.rs` :2861) reads both germs'
@@ -254,6 +241,13 @@ frame:
   takes the oval's closed-form extent for its ball instead: `t` between
   `√((R − r)² − d²)` and `√((R + r)² − d²)`, and `|y| ≤ r`. A loop
   identity therefore carries whether its centre is a centre of symmetry.
+- **`wrap_site_segments`** takes a one-site loop on a wrap edge as one
+  segment round the whole loop, and refuses a second record **on the
+  same loop** of its face pair as a desync. A second record of the same
+  face pair on the other loop is legitimate: on a one-face torus each
+  meridian, concentric or spiric loop crosses a wrap edge once, and on a
+  torus seamed on `y = 0` both circles of a plane `y = h`, `|h| < r`,
+  lie on one face and cross its wrap edge once each.
 
 **The extent.** This is `FrameExtent::Reach`, the torus face's farthest
 distance from the reading point (`face_reach_from`), handed to the table
@@ -287,8 +281,11 @@ one decision. The measured poses take:
 | O1, O2 | `AroundTube` |
 | a plane a few degrees off axis-normal that still cuts both tube circles | `AroundAxis` |
 
-The recourse names the served configurations: cut with a plane through
-the axis, square to it, or parallel to it short of the inner equator.
+The recourse is the one the dispatch's torus refusal gives
+(`meeting_recourse`): no flat cut of a torus face builds a body until
+U-T2 to U-T4 land, so naming the served planes would point at doors
+that refuse too. The served planes join the recourse with the unit that
+first builds one.
 A tangency (S2, S4, V1, P3) never reaches this refusal: F0 refuses it
 first, and the certificate's own tangent verdict would refuse it at the
 guard.
@@ -547,8 +544,8 @@ Rows run in-crate, against `pair_section_frame_at` and
   `GermSectionOutsideInventory`: the hyperbola is outside the inventory
   by Ev's ruling (C1/C5, R1), while the spiric quartic's general rung is
   unbuilt (the table's own text: "blocked on the torus's exact meters
-  conversion"). Its recourse differs too: the spiric quartic's names the
-  served planes, the hyperbola's says cut all the way round.
+  conversion"). Its recourse differs too: the spiric quartic's is the
+  torus's meeting recourse, the hyperbola's says cut all the way round.
 - **Q4 Two loops on one face pair** (answered: the germ's loop, by
   margin). The cylinder pair's intersecting axes refuse as a pinch
   (`GermFrameCylinderPinch`) because no one frame serves both ellipses.

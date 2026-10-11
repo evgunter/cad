@@ -47,6 +47,7 @@
 use crate::common::operands::{bar, framed_bar};
 use crate::common::outcomes::outcome;
 use crate::common::revert_ops::subtract_both_orders_and_intersect;
+use crate::germ_plane_torus_frame::{TorusDoor, torus_door};
 use crate::revolve_common;
 use sweep::ExtrudeSide;
 
@@ -527,18 +528,10 @@ fn a_chord_across_the_hole_is_pierced_not_passed() {
         inner.iter().copied().collect(),
         "every event lands on the inner face; the chords record nothing on the outer one"
     );
-    let err =
-        topo::union(&d, &b, Tol::witness()).expect_err("the germ-pair dispatch has no torus arm");
-    assert!(
-        matches!(
-            err,
-            BooleanError::CurvedBooleanUnsupported {
-                operand: topo::Operand::A,
-                kind: geom::SurfaceKind::Torus,
-                ..
-            }
-        ),
-        "past the chord and the germ frame, the union stops at the dispatch: {err:?}"
+    assert_eq!(
+        torus_door(topo::BooleanOp::Union, &d, &b),
+        Ok(TorusDoor::Dispatch),
+        "past the chord and the germ frame, the union stops at the dispatch"
     );
 }
 
@@ -1253,24 +1246,27 @@ fn subtract_and_intersect_refuse_where_union_does() {
             true,
         ),
     ] {
+        if passes {
+            use topo::BooleanOp::{Intersect, Subtract};
+            for (op, door) in [
+                ("A ∖ B", torus_door(Subtract, &d, &b)),
+                ("B ∖ A", torus_door(Subtract, &b, &d)),
+                ("A ∩ B", torus_door(Intersect, &d, &b)),
+            ] {
+                assert_eq!(door, Ok(TorusDoor::Dispatch), "{name}, {op}");
+            }
+            continue;
+        }
         for (op, r) in subtract_both_orders_and_intersect(&d, &b, &none) {
             let err = r.expect_err(op);
-            let door = if passes {
-                matches!(
-                    err,
-                    BooleanError::CurvedBooleanUnsupported {
-                        kind: geom::SurfaceKind::Torus,
-                        ..
-                    }
-                )
-            } else {
+            assert!(
                 matches!(
                     err,
                     BooleanError::GermSectionSpiric { .. }
                         | BooleanError::CurvedPierceUnsupported { .. }
-                )
-            };
-            assert!(door, "{name}, {op}: {err:?}");
+                ),
+                "{name}, {op}: {err:?}"
+            );
         }
     }
     let far = topo::transform_rigid(

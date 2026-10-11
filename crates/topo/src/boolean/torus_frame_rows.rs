@@ -428,3 +428,154 @@ fn the_axis_tilt_is_levered_at_the_torus_faces_reach() {
         );
     }
 }
+
+/// A planar face on the plane through the origin with unit normal `n`:
+/// a lone segment from the origin to `to`, a point of the plane.
+fn plane_face(n: Vec3<f64>, to: Point3<f64>) -> (crate::Body<f64>, FaceKey) {
+    let mut body = crate::Body::<f64>::new();
+    let seed = body.mvfs(Point3::origin(), true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        crate::FaceSurface::New {
+            surface: geom::Surface::Plane {
+                origin: Point3::origin(),
+                normal: n,
+                u_ref: (to - Point3::origin()).normalize(),
+            },
+            sense: true,
+        },
+    )
+    .unwrap();
+    body.mev_line(
+        crate::MevSite::Lone {
+            r#loop: seed.r#loop,
+        },
+        to,
+        Tol::witness(),
+    )
+    .unwrap();
+    (body, seed.face)
+}
+
+/// **The frame levers a torus face at its own reach, through the
+/// production path** ([`face_pair_section_loops`], which a germ inside
+/// both faces reads): a quarter of the outer tube of the ring
+/// `R = 2`, `r = 0.5` about `z`, bounded by the parallels `t = ±π/4` and
+/// the meridians `u = 0`, `π/2` ([`torus_sheet`]), against a plane
+/// through the centre whose axis tilt `s` puts `s·L` at `6·zero` and at
+/// `15·zero`, `L` the face's reach from the reading point: each boundary
+/// circle's centre distance plus its radius. The first escalates
+/// `pt_axis_in_plane` and the second is definite, a general pose
+/// refused by name, in both member orders. A lever doubled reads the
+/// first definite; one halved reads the second in the band.
+#[test]
+fn a_torus_face_is_levered_at_its_own_reach_through_the_production_path() {
+    use super::join::{face_pair_section_loops, frame_reading};
+    let b = band();
+    let (big_r, r, a) = (2.0, 0.5, core::f64::consts::FRAC_PI_4);
+    let quarter = core::f64::consts::FRAC_PI_2;
+    let (torus, face) = super::section_cert::section_cert_rows::torus_sheet(
+        (big_r, r),
+        &[(0.0, -a), (quarter, -a), (quarter, a), (0.0, a)],
+    );
+    let surface = |body: &crate::Body<f64>, f: FaceKey| {
+        body.get_surface(body.get_face(f).unwrap().surface)
+            .unwrap()
+            .clone()
+    };
+    let on = super::carrier_pair::face_witnesses(&torus, face).unwrap();
+    let probe = plane([0.0, 0.0, 0.0], Vec3::unit_x());
+    let (at, _) = frame_reading(&surface(&torus, face), &probe, on, Vec::new()).unwrap();
+    let rho = big_r + r * a.cos();
+    let reach = [
+        (Point3::new(0.0, 0.0, r * a.sin()), rho),
+        (Point3::new(0.0, 0.0, -r * a.sin()), rho),
+        (Point3::new(big_r, 0.0, 0.0), r),
+        (Point3::new(0.0, big_r, 0.0), r),
+    ]
+    .iter()
+    .map(|&(centre, radius)| (centre - at).norm() + radius)
+    .fold(0.0, f64::max);
+    let azimuth = Vec3::new(1.0, -1.0, 0.0).normalize();
+    for (lever, want) in [(6.0, "escalated"), (15.0, "spiric")] {
+        let s = lever * b.zero() / reach;
+        let n = azimuth * (1.0 - s * s).sqrt() + Vec3::unit_z() * s;
+        let (flat, flat_face) = plane_face(n, Point3::new(1.0, 1.0, 0.0));
+        for (label, got) in [
+            (
+                "plane, torus",
+                face_pair_section_loops((&flat, flat_face), (&torus, face), b),
+            ),
+            (
+                "torus, plane",
+                face_pair_section_loops((&torus, face), (&flat, flat_face), b),
+            ),
+        ] {
+            let read = match &got {
+                Err(BooleanError::Escalated {
+                    decision:
+                        super::BooleanDecision::Coincidence(super::refusal_routes::Coincide::Section, _),
+                    diag,
+                }) if diag.predicate == Some("pt_axis_in_plane") => "escalated",
+                Err(BooleanError::GermSectionSpiric {
+                    loops: SpiricLoops::AroundTube,
+                    ..
+                }) => "spiric",
+                _ => "something else",
+            };
+            assert_eq!(
+                read, want,
+                "s·L = {lever}·zero, {label}, L = {reach}: got {got:?}"
+            );
+        }
+    }
+}
+
+/// **A pose the table routes to its general rung and the certificate
+/// reads touching escalates, never desyncs**: the two read one pose,
+/// the table levered at the face's reach and the certificate unlevered,
+/// so a disagreement between them is a band. Three poses:
+///
+/// - the axis-parallel plane `zero/2` short of the inner equator, where
+///   the table reads a node (`pt_spiric_two_ovals` Zero) and the
+///   certificate's near-tube margin decides Zero;
+/// - a plane 20° off the axis, `zero/2` inside tangency to the tube,
+///   whose near-tube margin decides Zero;
+/// - the same plane `4·zero` inside, whose near-tube margin is
+///   undecided: that escalation is the certificate's own.
+#[test]
+fn a_general_pose_the_certificate_reads_touching_escalates() {
+    let b = band();
+    let phi = 20.0_f64.to_radians();
+    let n = Vec3::new(phi.sin(), phi.cos(), 0.0);
+    let tangent = |inside: f64| {
+        let h = phi.sin() * BIG_R + SMALL_R - inside;
+        let o = n * h;
+        plane([o.x, o.y, o.z], n)
+    };
+    let node = BIG_R - SMALL_R - 0.5 * b.zero();
+    for (pose, p, want) in [
+        (
+            "the node",
+            plane([node, 0.0, 0.0], Vec3::unit_x()),
+            "bool_join_torus_section_touching_under_a_germ",
+        ),
+        (
+            "tangent, decided",
+            tangent(0.5 * b.zero()),
+            "bool_join_torus_section_touching_under_a_germ",
+        ),
+        (
+            "tangent, undecided",
+            tangent(4.0 * b.zero()),
+            "section_torus_plane_near_tube",
+        ),
+    ] {
+        let got = frame(&p);
+        assert!(
+            matches!(&got, Err(FrameError::Escalated(d)) if d.predicate == Some(want)),
+            "{pose}: want an escalation on {want}, got {}",
+            shape(&got)
+        );
+    }
+}

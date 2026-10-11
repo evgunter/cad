@@ -49,6 +49,49 @@ fn torus(big_r: f64, r: f64) -> AtRestBody<f64> {
     finished("the torus", t, Tol::witness())
 }
 
+/// A one-face torus about `y`: the one-segment circle about `(R, 0)` of
+/// radius `r`, its vertex at profile angle `phase`, revolved whole. Its
+/// face closes on itself both ways, across the meridian through the
+/// vertex and the parallel through it.
+fn one_face_torus(big_r: f64, r: f64, phase: f64) -> AtRestBody<f64> {
+    let lp = RawLoop::new([(
+        Point2::new(big_r + r * phase.cos(), r * phase.sin()),
+        profile::Segment::Arc(geom_core::Arc2 {
+            centre: Point2::new(big_r, 0.0),
+            radius: r,
+            sweep: core::f64::consts::TAU,
+        }),
+    )]);
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .expect("the one-face torus revolves")
+    .body;
+    finished("the one-face torus", t, Tol::witness())
+}
+
+/// The torus `(R, r)` about `y` seamed on `y = 0`: two faces, above and
+/// below, meeting on the equators, each closed on itself across the
+/// meridian `z = 0`, `x > 0`.
+fn seamed_torus(big_r: f64, r: f64) -> AtRestBody<f64> {
+    let lp = bulge_loop(vec![
+        (Point2::new(big_r + r, 0.0), 1.0),
+        (Point2::new(big_r - r, 0.0), 1.0),
+    ]);
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .expect("the seamed torus revolves")
+    .body;
+    finished("the seamed torus", t, Tol::witness())
+}
+
 /// The donut `D`.
 fn donut() -> AtRestBody<f64> {
     torus(2.0, 0.5)
@@ -105,30 +148,102 @@ fn tang() -> (AtRestBody<f64>, AtRestBody<f64>) {
 
 type Outcome = Result<topo::BooleanResult<f64>, BooleanError>;
 
+/// The six runs of a torus solid against a planar solid: each op's
+/// label, the op, and whether the planar solid is the first operand.
+const SIX: [(&str, BooleanOp, bool); 6] = [
+    ("T ∪ P", BooleanOp::Union, false),
+    ("P ∪ T", BooleanOp::Union, true),
+    ("T ∩ P", BooleanOp::Intersect, false),
+    ("P ∩ T", BooleanOp::Intersect, true),
+    ("T ∖ P", BooleanOp::Subtract, false),
+    ("P ∖ T", BooleanOp::Subtract, true),
+];
+
+/// `op` on `x`, `y`.
+fn run(op: BooleanOp, x: &AtRestBody<f64>, y: &AtRestBody<f64>) -> Outcome {
+    let tol = Tol::witness();
+    match op {
+        BooleanOp::Union => topo::union(x, y, tol),
+        BooleanOp::Intersect => topo::intersect(x, y, tol),
+        BooleanOp::Subtract => topo::subtract(x, y, tol),
+    }
+}
+
 /// The six runs of a torus solid `t` against a planar solid `p`, each
 /// labelled.
 fn six(t: &AtRestBody<f64>, p: &AtRestBody<f64>) -> Vec<(&'static str, Outcome)> {
-    let tol = Tol::witness();
-    vec![
-        ("T ∪ P", topo::union(t, p, tol)),
-        ("P ∪ T", topo::union(p, t, tol)),
-        ("T ∩ P", topo::intersect(t, p, tol)),
-        ("P ∩ T", topo::intersect(p, t, tol)),
-        ("T ∖ P", topo::subtract(t, p, tol)),
-        ("P ∖ T", topo::subtract(p, t, tol)),
-    ]
+    SIX.iter()
+        .map(|&(label, op, swap)| {
+            let (x, y) = if swap { (p, t) } else { (t, p) };
+            (label, run(op, x, y))
+        })
+        .collect()
 }
 
-/// A torus refusal at the germ-pair dispatch, or at the on-carrier
-/// sector ahead of the frame: the two raise one payload.
-fn names_the_torus(r: &Outcome) -> bool {
+/// Where a torus refusal stands. The on-carrier sector (F0) and the
+/// germ-pair dispatch (F2) raise one payload, `CurvedBooleanUnsupported`
+/// naming the torus, so the op's error alone cannot tell them apart.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TorusDoor {
+    /// F0: a torus sector on the plane, refused in the reduction, ahead
+    /// of the join.
+    OnCarrier,
+    /// F2: the germ-pair dispatch, past a frame that served every germ
+    /// and a matcher that consumed every one.
+    Dispatch,
+}
+
+/// The torus refusal's payload.
+fn names_the_torus(e: &BooleanError) -> bool {
     matches!(
-        r,
-        Err(BooleanError::CurvedBooleanUnsupported {
+        e,
+        BooleanError::CurvedBooleanUnsupported {
             kind: geom::SurfaceKind::Torus,
             ..
-        })
+        }
     )
+}
+
+/// **The door `op` on `x`, `y` refuses at**: the op names the torus,
+/// and the matcher, which runs the reduction and every germ's frame
+/// but not the dispatch, either refuses with that payload (the
+/// reduction raised it, F0) or consumes every germ (the dispatch raised
+/// it, F2). Anything else comes back described.
+pub(crate) fn torus_door(
+    op: BooleanOp,
+    x: &AtRestBody<f64>,
+    y: &AtRestBody<f64>,
+) -> Result<TorusDoor, String> {
+    match run(op, x, y) {
+        Err(e) if names_the_torus(&e) => {}
+        other => {
+            return Err(format!(
+                "the op: {:?}",
+                other.map(|r| r.body().map(|b| b.kind))
+            ));
+        }
+    }
+    match topo::test_support::boolean_segment_sites(op, x, y, Tol::witness()) {
+        Err(e) if names_the_torus(&e) => Ok(TorusDoor::OnCarrier),
+        Ok(Some((records, segments))) if segments.len() == records => Ok(TorusDoor::Dispatch),
+        other => Err(format!(
+            "the matcher: {:?}",
+            other.map(|s| s.map(|(records, segments)| (records, segments.len())))
+        )),
+    }
+}
+
+/// [`torus_door`] for the six runs of `t` against `p`, each labelled.
+fn doors(
+    t: &AtRestBody<f64>,
+    p: &AtRestBody<f64>,
+) -> Vec<(&'static str, Result<TorusDoor, String>)> {
+    SIX.iter()
+        .map(|&(label, op, swap)| {
+            let (x, y) = if swap { (p, t) } else { (t, p) };
+            (label, torus_door(op, x, y))
+        })
+        .collect()
 }
 
 /// **Every pose the frame serves passes it**, in every op, and stops at
@@ -158,8 +273,8 @@ fn every_served_pose_passes_the_frame_to_the_dispatch() {
         ("B5", &fat, corner_bar(1.0, 0.6, 0.1)),
         ("B5′", &fat, corner_bar(1.0, 0.6, 0.3)),
     ] {
-        for (op, r) in six(t, &p) {
-            assert!(names_the_torus(&r), "{pose}, {op}: {:?}", r.err());
+        for (op, door) in doors(t, &p) {
+            assert_eq!(door, Ok(TorusDoor::Dispatch), "{pose}, {op}");
         }
     }
 }
@@ -212,18 +327,27 @@ fn a_general_pose_refuses_at_its_frame_naming_its_loops() {
             SpiricLoops::AroundAxis,
         ),
     ] {
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let pierce_in_band = band.zero() < 5.2e-6 && 5.2e-6 < band.escalate();
         for (op, r) in six(&d, &p) {
             // B3's bar is 0.02 wide, and its pierce sector's curvature
             // margin (5.2e-6 m) lies in a coarse run's band: there the
             // pierce escalates ahead of the frame, which is not reached.
-            if let Err(BooleanError::Escalated {
-                decision: topo::BooleanDecision::PierceCurvature,
-                diag,
-            }) = &r
-                && pose == "B3"
-            {
-                println!(
-                    "SKIPPED {pose}, {op}: the run's band escalates the pierce first: {diag:?}"
+            if pose == "B3" && pierce_in_band {
+                assert!(
+                    matches!(
+                        &r,
+                        Err(BooleanError::Escalated {
+                            decision: topo::BooleanDecision::PierceCurvature,
+                            ..
+                        })
+                    ),
+                    "{pose}, {op}: the run's band escalates the pierce first: {:?}",
+                    r.err()
+                );
+                test_utils::vacuity::stood_down(
+                    &format!("{pose}, {op}"),
+                    "the frame's refusal: the pierce escalates ahead of it in this run's band",
                 );
                 continue;
             }
@@ -316,8 +440,8 @@ fn a_touching_plane_keeps_its_on_carrier_refusal() {
             ),
         ),
     ] {
-        for (op, r) in six(&d, &p) {
-            assert!(names_the_torus(&r), "{pose}, {op}: {:?}", r.err());
+        for (op, door) in doors(&d, &p) {
+            assert_eq!(door, Ok(TorusDoor::OnCarrier), "{pose}, {op}");
         }
     }
 }
@@ -408,6 +532,128 @@ fn the_coaxial_cylinder_sphere_pair_keeps_each_circle_to_itself() {
                 s.z.abs() > 0.1 && s.z.signum() == e.z.signum(),
                 "{what}: a segment joins the two circles: {s:?} → {e:?}"
             );
+        }
+    }
+}
+
+/// The poses that cut the one-face torus in two loops of one face pair,
+/// each crossing the face's wrap edges once: the meridian half-spaces
+/// M1 and M2 and a box whose face `x = 0` holds both meridian circles;
+/// the planes square to the axis at `y = 0.2` and `y = −0.3`, and a box
+/// whose face `y = 0.2` holds both circles; the axis-parallel plane S1
+/// and a box whose face `x = 0.3` holds both ovals.
+fn two_loop_poses() -> Vec<(&'static str, AtRestBody<f64>)> {
+    let m2 = Vec3::new(degrees(30.0).cos(), 0.0, degrees(30.0).sin());
+    vec![
+        ("M1", half_space(Point3::origin(), Vec3::unit_x())),
+        ("M2", half_space(Point3::origin(), m2)),
+        ("meridian box", bar((0.0, 1.0), (-1.0, 1.0), (-3.0, 3.0))),
+        ("P1", above(0.2)),
+        ("y ≥ −0.3", above(-0.3)),
+        ("concentric box", bar((-3.0, 3.0), (0.2, 1.0), (-3.0, 3.0))),
+        ("S1", half_space(Point3::new(0.3, 0.0, 0.0), Vec3::unit_x())),
+        ("spiric box", bar((0.3, 1.0), (-1.0, 1.0), (-3.0, 3.0))),
+    ]
+}
+
+/// **Two one-site loops on one face pair reach the dispatch**, as the
+/// donut's two-site loops do, in every op. On the one-face torus (its
+/// vertex on the outer equator, off it, and on the inner equator) each
+/// loop of a meridian, concentric or spiric section crosses the face's
+/// wrap edges once, so the section's two loops are two one-site records
+/// of one face pair. On the torus seamed on `y = 0`, the concentric
+/// circles of a plane `y = h`, `|h| < r`, both lie on one face and each
+/// crosses its wrap edge once; its meridian and spiric sections cross
+/// the equators twice per loop, as the donut's do. Each loop is its own
+/// closed curve: a check that read one face pair's records as one loop
+/// takes the other loop's record for a second record of its own.
+#[test]
+fn two_one_site_loops_on_one_face_pair_reach_the_dispatch() {
+    let mut runs = Vec::new();
+    for phase in [0.0, 1.0, core::f64::consts::PI] {
+        let t = one_face_torus(2.0, 0.5, phase);
+        for (pose, p) in two_loop_poses() {
+            runs.push((
+                format!("one-face torus, vertex at {phase}, {pose}"),
+                doors(&t, &p),
+            ));
+        }
+    }
+    let seamed = seamed_torus(2.0, 0.5);
+    for (pose, p) in [
+        ("P1", above(0.2)),
+        ("y ≥ −0.3", above(-0.3)),
+        ("concentric box", bar((-3.0, 3.0), (0.2, 1.0), (-3.0, 3.0))),
+    ] {
+        runs.push((format!("seamed torus, {pose}"), doors(&seamed, &p)));
+    }
+    for (what, doors) in runs {
+        for (op, door) in doors {
+            assert_eq!(door, Ok(TorusDoor::Dispatch), "{what}, {op}");
+        }
+    }
+}
+
+/// **A plane square to the axis just under the tube's top reaches the
+/// door the donut does**, at `y = 0.5 − δ`: past the frame to the
+/// dispatch where the run's band reads the two circles apart, at the
+/// on-carrier sector where it reads them one tangent circle. The
+/// one-face torus and the torus seamed on `y = 0` carry both circles on
+/// one face pair, each crossing a wrap edge once; the donut carries
+/// them on its outer and inner faces.
+#[test]
+fn a_band_pose_under_the_tubes_top_reaches_the_donuts_door() {
+    let (d, one, seamed) = (
+        donut(),
+        one_face_torus(2.0, 0.5, 0.0),
+        seamed_torus(2.0, 0.5),
+    );
+    for delta in [5e-7, 1e-6, 1e-5, 1e-3] {
+        let p = bar((-3.0, 3.0), (0.5 - delta, 1.0), (-3.0, 3.0));
+        let want = doors(&d, &p);
+        for (name, t) in [("one-face", &one), ("seamed", &seamed)] {
+            for ((op, door), (_, want)) in doors(t, &p).into_iter().zip(&want) {
+                assert!(want.is_ok(), "δ = {delta}, the donut, {op}: {want:?}");
+                assert_eq!(&door, want, "δ = {delta}, the {name} torus, {op}");
+            }
+        }
+    }
+}
+
+/// **A bar across the hole whose sections' ends tie for nearest within a
+/// run's band escalates the ranking, by name.** The bar
+/// `[x − w, x + w] × [−w, w] × [−2, 2]`, `x = 0.0053`, `w = 0.277`,
+/// passes the frame on every face, and where the matcher ranks a germ's
+/// candidates, two stand `3.2e-6 m` apart in the ranking's measure. Where
+/// that lies in the run's band (`ε = 1e-6`) every op escalates
+/// `bool_join_nearest` as a join coincidence; elsewhere every op reaches
+/// the dispatch. The ranking is the one every curved pair's germs take;
+/// this pose reaches it through the torus frame.
+#[test]
+fn a_nearest_tie_in_band_on_a_bar_across_the_hole_escalates_by_name() {
+    let d = donut();
+    let (x, w) = (0.0053, 0.277);
+    let p = bar((x - w, x + w), (-w, w), (-2.0, 2.0));
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let tie = 3.2e-6;
+    let in_band = band.zero() < tie && tie < band.escalate();
+    for &(label, op, swap) in &SIX {
+        let (a, b) = if swap { (&p, &d) } else { (&d, &p) };
+        if in_band {
+            let got = run(op, a, b);
+            assert!(
+                matches!(
+                    &got,
+                    Err(BooleanError::Escalated {
+                        decision: topo::BooleanDecision::Coincidence(topo::Coincide::Join, _),
+                        diag,
+                    }) if diag.predicate == Some("bool_join_nearest")
+                ),
+                "{label}: the tie escalates the ranking: {:?}",
+                got.err()
+            );
+        } else {
+            assert_eq!(torus_door(op, a, b), Ok(TorusDoor::Dispatch), "{label}");
         }
     }
 }
