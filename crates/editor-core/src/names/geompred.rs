@@ -252,6 +252,12 @@ pub enum SelectRefusal {
         /// That node's standing.
         NodeStanding,
     ),
+    /// One of the flush detector's two nodes defines no output for a
+    /// finding to be sited at.
+    NodeHasNoOutput {
+        /// That node.
+        node: RecipeNodeId,
+    },
     /// The stated value is not a length (`Dimension::Length`) — the
     /// comparand of a distance must be a distance.
     NotALength {
@@ -333,14 +339,17 @@ impl crate::spoken::Say for SelectRefusal {
         let named =
             |f: &mut core::fmt::Formatter<'_>, name: &StableName| write!(f, "{}", by.name(name));
         match self {
+            // The question closes before the name, so a name whose words
+            // run on (a join, a qualifier's list) reads as the subject in
+            // its bracket and never as more of the question.
             Self::InBand { name, source, .. } => {
-                f.write_str("select: the query cannot decide whether ")?;
-                named(f, name)?;
                 write!(
                     f,
-                    " is in or out: {}",
-                    source.under(geom_core::NO_DECLARATION_RECOURSE)
-                )
+                    "select: the query cannot decide whether the {} is in or out (",
+                    name.kind.noun()
+                )?;
+                named(f, name)?;
+                write!(f, "): {}", source.under(geom_core::NO_DECLARATION_RECOURSE))
             }
             Self::TiedDisagrees {
                 name,
@@ -385,6 +394,11 @@ impl crate::spoken::Say for SelectRefusal {
                     crate::spoken::Said(standing, by)
                 )
             }
+            Self::NodeHasNoOutput { node } => write!(
+                f,
+                "select: the flush query's {} defines no output to site a finding at",
+                by.node(*node)
+            ),
             Self::NotALength { dim } => write!(
                 f,
                 "select: the comparand of a distance is a distance, and this expression has \
@@ -641,6 +655,7 @@ mod census {
             NotADatum,
             DatumHasNoValue,
             NodeHasNoValue,
+            NodeHasNoOutput,
             NotALength,
             PairInBand,
             AcrossSpaces,
@@ -695,6 +710,9 @@ mod census {
             SelectRefusal::NodeHasNoValue(NodeStanding::Failed {
                 node: RecipeNodeId::new(0, 9),
             }),
+            SelectRefusal::NodeHasNoOutput {
+                node: RecipeNodeId::new(0, 9),
+            },
             SelectRefusal::NotALength {
                 dim: Dimension::Angle,
             },

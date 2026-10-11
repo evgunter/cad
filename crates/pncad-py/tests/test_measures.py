@@ -824,7 +824,7 @@ class TestTheDocumentCarriesIt(unittest.TestCase):
         doc = Doc()
         left = cylinder(doc, -0.30, 0.2)
         right = cylinder(doc, 0.30, 0.2)
-        placed = doc.place(doc.insert(Node.boolean(pncad.BooleanOp.Union, left, right)))
+        placed = doc.place(doc.insert(Node.union([left, right])))
         before = pncad.product(doc, evaluate(doc)).mass_properties().volume
         ev = evaluate(doc)
         doc.insert(
