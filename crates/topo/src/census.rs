@@ -7856,11 +7856,8 @@ mod tests {
             describe_as_intersections(&mut body, tol);
             let (fa, fb) = (low.seed.face, high.bottom.face);
             let mut records = ContactRecords::default();
-            records.patches.push(crate::Cited::new(
-                PatchContact {
-                    face_a: fa,
-                    face_b: fb,
-                },
+            records.push(crate::Cited::new(
+                crate::Contact::of(crate::Cell::Face(fa), crate::Cell::Face(fb)).unwrap(),
                 crate::Cites::decided(0),
             ));
             let what = format!("sin α {sin}, φ {phi:e}");
@@ -7882,7 +7879,7 @@ mod tests {
             let backing = ee_cross_backed(
                 &body,
                 &geo,
-                &Declared::index(&records),
+                &Declared::index(&geo, &records),
                 ea,
                 eb,
                 Point3::origin(),
