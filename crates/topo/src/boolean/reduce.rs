@@ -258,7 +258,7 @@ pub(super) fn pend(pending: &mut Vec<PendingRow>, row: PendingRow) -> usize {
 }
 
 /// A list index as a citation's.
-pub(super) fn index(k: usize) -> u32 {
+pub(crate) fn index(k: usize) -> u32 {
     u32::try_from(k).unwrap_or_else(|_| unreachable!("more than u32::MAX decisions in one op"))
 }
 
@@ -3360,14 +3360,16 @@ fn wall_crossing<T: Decide + Bounds>(
                 super::contain::driver_face_stale(face)
             }
             // The face's boundary read refused (a lone-vertex loop, a
-            // loop it cannot walk, a chart refusal): the roots are not
-            // placed, so the caller keeps its door.
+            // loop it cannot walk, a chart refusal, an arc's end its
+            // corners disagree with): the roots are not placed, so the
+            // caller keeps its door.
             Err(
                 super::contain::ContainError::EmptyLoop(_)
                 | super::contain::ContainError::LoopUnreadable(_)
                 | super::contain::ContainError::Curved(_)
                 | super::contain::ContainError::RayExhausted
-                | super::contain::ContainError::Uncrossable(_),
+                | super::contain::ContainError::Uncrossable(_)
+                | super::contain::ContainError::ArcEndClearOfCorners(_),
             ) => return Ok(SpanVerdict::Unsettled),
         }
     }
@@ -3868,7 +3870,8 @@ pub(super) fn esc(e: ContainError, operand: Operand, face: FaceKey) -> BooleanEr
         refusal @ (ContainError::RayExhausted
         | ContainError::EmptyLoop(_)
         | ContainError::LoopUnreadable(_)
-        | ContainError::Curved(_)) => BooleanError::PointInFaceRefused {
+        | ContainError::Curved(_)
+        | ContainError::ArcEndClearOfCorners(_)) => BooleanError::PointInFaceRefused {
             operand,
             face,
             refusal,
@@ -6161,6 +6164,45 @@ mod contact_acc_rows {
             cited,
             [0, 1, 2].map(|k| vec![crate::Backing::Decided(k)]).to_vec(),
             "each record cites its decision"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod arc_end_rows {
+    use super::{SpanVerdict, wall_crossing};
+    use crate::test_support_fixtures::half_disc_cap;
+    use geom_core::{Band, Tol, Vec3};
+
+    /// **A wall root landing at an arc's end its corners disagree with
+    /// keeps the caller's door**, as the face door's other refusals that
+    /// are no escalation do here. A line from a sphere's centre crosses
+    /// it at the point the band `(ε, 1.25ε)` reads at the half-disc
+    /// cap's arc end and clear of its corner; the face read is the cap's,
+    /// so the root is placed against that boundary.
+    #[test]
+    fn a_root_at_an_arc_end_clear_of_its_corners_is_unsettled() {
+        let tol = Tol::witness();
+        let zero = Band::linear(tol).unwrap().zero();
+        let (body, cap, end) = half_disc_cap(0.0, tol);
+        let q = end + Vec3::new(-0.95 * zero, 0.95 * zero, 0.0);
+        let narrow = Band::new(zero, 1.25 * zero).unwrap();
+        let reach = (q - geom_core::Point3::origin()).norm();
+        let sphere = geom::Surface::Sphere {
+            center: geom_core::Point3::origin(),
+            radius: reach,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let line = geom::Curve3::Line {
+            origin: geom_core::Point3::origin(),
+            dir: (q - geom_core::Point3::origin()) / reach,
+        };
+        let got = wall_crossing(&body, cap, &sphere, &line, 0.5 * reach, 1.5 * reach, narrow);
+        assert!(
+            matches!(got, Ok(SpanVerdict::Unsettled)),
+            "the root is not placed, and the caller keeps its door: {got:?}"
         );
     }
 }

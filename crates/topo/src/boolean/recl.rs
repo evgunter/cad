@@ -1495,8 +1495,19 @@ fn resolve_bisector_graze<T: Decide>(
     // a reflex sector with both bounds on one side does cross the
     // plane. So this Zero is the ambiguity band's, and it refuses
     // rather than read "not crossed".
+    // The bisector's `On` rides a record's code, which keeps no margin
+    // (a coplanar pair's codes are `On` with no bound read at all), so
+    // the Zero the gate rejects is the one every `On` states: within
+    // `±zero`.
     if k1 == k2 && k1 != SideCode::On {
-        return Err(super::sectors::bisector_zero_refusal(band));
+        let on = super::sectors::OnReading {
+            predicate: "bool_sector_bisector_side",
+            decided: geom_core::Decided {
+                sign: geom_core::Sign::Zero,
+                margin: geom_core::MarginDiag::enclosure(-band.zero(), band.zero()),
+            },
+        };
+        return Err(super::sectors::bisector_zero_refusal(on, band));
     }
     let crossing = matches!(
         (k1, k2),
@@ -1660,15 +1671,36 @@ mod tests {
             ..twin(bis, Reach::Bisector(1.0), bis, Reach::Bisector(1.0))
         }];
         let one_sided = twins([1.0, 0.0, 0.5], [-1.0, 0.0, 0.5]);
-        assert!(
-            matches!(
-                resolve_bisector_graze(&[], &one_sided, &reference, band, Some(0), Some(0)),
-                Err(BooleanError::Escalated {
-                    decision: crate::boolean::BooleanDecision::BisectorSide,
-                    diag,
-                }) if diag.predicate == Some("bool_sector_bisector_side")
-            ),
-            "the graze between two Out keys refuses as the bisector's own decision"
+        let bracket = geom_core::k_stats::Bracket::open();
+        let got = resolve_bisector_graze(&[], &one_sided, &reference, band, Some(0), Some(0));
+        let log = bracket.finish();
+        let Err(BooleanError::Escalated {
+            decision: crate::boolean::BooleanDecision::BisectorSide,
+            diag,
+        }) = got
+        else {
+            panic!(
+                "the graze between two Out keys refuses as the bisector's own decision: {got:?}"
+            );
+        };
+        assert_eq!(diag.predicate, Some("bool_sector_bisector_side"));
+        assert_eq!(
+            diag.margin.rejected_sign(),
+            Some(geom_core::Sign::Zero),
+            "the nonzero gate's rejection of the graze's Zero"
+        );
+        assert_eq!(
+            diag.margin.diagnostic_f64_for_error_text(),
+            geom_core::ErrorTextReading::Enclosure {
+                lo: -band.zero(),
+                hi: band.zero()
+            },
+            "the graze quotes the zero band an `On` states"
+        );
+        assert_eq!(
+            log.escalations.last().map(|e| e.source),
+            Some(diag),
+            "the rejection is on the log"
         );
         let crossing = twins([1.0, 0.0, 0.5], [-1.0, 0.0, -0.5]);
         let records = [rec(0, 0, (On, Out), (Out, In))];
