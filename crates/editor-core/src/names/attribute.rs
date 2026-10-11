@@ -40,7 +40,7 @@
 //! ORIGINAL minting node in [`StableName::node`] by construction, so
 //! the walk answers it without ever seeing the op.
 
-use crate::names::role::{RoleSeg, SplitHalf, StableName, name_free_seg};
+use crate::names::role::{RoleSeg, StableName, name_free_seg};
 use crate::node::RecipeNodeId;
 
 /// **Where a named entity came from**: the recipe nodes its derivation
@@ -101,11 +101,11 @@ pub(crate) enum CarriedAs {
     /// Copied into the product's world by a world placement, the same
     /// entity at another pose.
     Placed,
-    /// Shortened to the part on one side of a split.
-    Split(SplitHalf),
-    /// Copied onto one side of a split, where the tool plane passed
-    /// through it.
-    ToolCopy(SplitHalf),
+    /// Shortened to the part of it a split's half holds.
+    Split,
+    /// Copied into a split's half, where the tool plane passed through
+    /// it.
+    ToolCopy,
     /// Copied into a pattern's instance `i`.
     Instance(u32),
     /// Shortened where a blend band's trimline cut it.
@@ -125,8 +125,8 @@ pub(crate) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         // level down.
         RoleSeg::From { read, of } => SegOrigin::Carried(of, CarriedAs::From(*read)),
         RoleSeg::Placed { of } => SegOrigin::Carried(of, CarriedAs::Placed),
-        RoleSeg::SplitFragment { parent, side } => SegOrigin::Carried(parent, CarriedAs::Split(*side)),
-        RoleSeg::OnToolVertex { of, side } => SegOrigin::Carried(of, CarriedAs::ToolCopy(*side)),
+        RoleSeg::SplitFragment { parent } => SegOrigin::Carried(parent, CarriedAs::Split),
+        RoleSeg::OnToolVertex { of } => SegOrigin::Carried(of, CarriedAs::ToolCopy),
         RoleSeg::Instance { of, i } => SegOrigin::Carried(of, CarriedAs::Instance(*i)),
         RoleSeg::BandCut(of) => SegOrigin::Carried(of, CarriedAs::Cut),
 

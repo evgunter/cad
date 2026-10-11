@@ -1113,8 +1113,12 @@ fn enrich_impl<T: Decide, P: PriorCtx>(
     // candidates and witness by table lookup at `at`); everything
     // else — and any stale row — takes the full ladder below.
     if let AppearanceLossCause::Ambiguous { at, .. } = &loss.cause
-        && let Some(v) = new.eval.value(*at)
-        && let Some(Entry::Tied(ents)) = v.name_table.lookup(&loss.name)
+        && let Some(Entry::Tied(ents)) = new
+            .eval
+            .named_outputs(*at)
+            .into_iter()
+            .filter_map(|var| new.eval.table(var))
+            .find_map(|table| table.lookup(&loss.name))
     {
         return Resolution::Failed(ResolutionFailure {
             error: ResolveError::ambiguous(&loss.name, loss.name.clone(), *at, ents.len()),
@@ -1346,12 +1350,12 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
     fn tombstone<T: Decide>(&self, _new: RunCtx<'_, T>, name: &StableName) -> Option<Tombstone> {
         // A line is no row: its last-good entry is the least row on it,
         // as a union reads a cited line (N5, "A cited line").
-        let (node, entity) = lookup_unique(self.ctx.eval, name).or_else(|| {
+        let (carrier, entity) = lookup_unique(self.ctx.eval, name).or_else(|| {
             line_rows(self.ctx.eval, name)
                 .iter()
                 .find_map(|row| lookup_unique(self.ctx.eval, row))
         })?;
-        let table = &self.ctx.eval.value(node)?.name_table;
+        let (node, table) = (carrier.node, carrier.table);
         let Some(body) = table.name_of(&EntityRef {
             body: entity.body,
             key: EntityKey::Body,
@@ -1393,15 +1397,15 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
     //    carrying node in evaluation order wins (deterministic;
     //    pass-through tables carry the same rows).
     match lookup(new.eval, name) {
-        Some((node, Entry::Unique(entity))) => {
+        Some((carrier, Entry::Unique(entity))) => {
             return Resolution::Resolved(Resolved {
-                node,
-                entity: *entity,
+                node: carrier.node,
+                entity: carrier.in_value(*entity),
             });
         }
-        Some((node, Entry::Tied(ents))) => {
+        Some((carrier, Entry::Tied(ents))) => {
             return Resolution::Failed(ResolutionFailure {
-                error: ResolveError::ambiguous(name, name.clone(), node, ents.len()),
+                error: ResolveError::ambiguous(name, name.clone(), carrier.node, ents.len()),
                 offers: Vec::new(),
             });
         }
@@ -1414,9 +1418,9 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
     let mut offers = Vec::new();
     if let Some(base) = widened_base(name) {
         match lookup(new.eval, &base) {
-            Some((node, Entry::Tied(ents))) => {
+            Some((carrier, Entry::Tied(ents))) => {
                 return Resolution::Failed(ResolutionFailure {
-                    error: ResolveError::ambiguous(name, base, node, ents.len()),
+                    error: ResolveError::ambiguous(name, base, carrier.node, ents.len()),
                     offers: Vec::new(),
                 });
             }
@@ -1556,8 +1560,12 @@ fn line_rows<'a, T: Decide>(
     eval: &'a Evaluation<T>,
     line: &StableName,
 ) -> &'a [crate::names::NameRef] {
-    eval.value(line.node)
-        .map_or(&[], |v| v.name_table.on_line(line))
+    eval.named_outputs(line.node)
+        .into_iter()
+        .filter_map(|var| eval.table(var))
+        .map(|table| table.on_line(line))
+        .find(|rows| !rows.is_empty())
+        .unwrap_or(&[])
 }
 
 /// **Every name `name` cites by its line**, at every depth, `name`
@@ -1656,7 +1664,7 @@ fn border_delta<T: Decide>(
     let base = fragment_base(name)?;
     let was: BTreeSet<&StableName> = was.iter().collect();
     let mut now: BTreeSet<Vec<StableName>> = BTreeSet::new();
-    for (_, table) in tables(eval) {
+    for Carrier { table, .. } in tables(eval) {
         for (candidate, _) in table.iter() {
             if let Some(RoleSeg::Fragment(Qualifier::Borders(walls))) = candidate.path.last()
                 && candidate.kind == name.kind
@@ -1783,23 +1791,30 @@ fn group_resized<U: Decide, T: Decide>(
     name: &StableName,
 ) -> Option<Diagnosis> {
     let base = fragment_base(name)?;
-    let prior_value = prior.value(name.node)?;
-    prior_value.name_table.lookup(name)?;
-    let was = group_reading(&prior_value.fragment_groups, &base)?;
+    // The output whose table carried the name: a name is scoped by the
+    // variable that holds its body (N1), and a variable keeps its id
+    // across the two runs.
+    let var = prior.named_outputs(name.node).into_iter().find(|&var| {
+        prior
+            .table(var)
+            .is_some_and(|table| table.lookup(name).is_some())
+    })?;
+    let (prior_table, prior_groups) = (prior.table(var)?, prior.groups(var)?);
+    let was = group_reading(prior_groups, &base)?;
     if was.size == 0 {
         return None;
     }
-    let new_value = new.value(name.node)?;
-    let now = group_reading(&new_value.fragment_groups, &base)?;
+    let (new_table, new_groups) = (new.table(var)?, new.groups(var)?);
+    let now = group_reading(new_groups, &base)?;
     (was.size != now.size).then(|| Diagnosis::GroupResized {
         node: name.node,
         was: was.size,
         now: now.size,
         cutters: group_cutters(
-            &prior_value.name_table,
-            &new_value.name_table,
+            prior_table,
+            new_table,
             &base,
-            prior_value.fragment_groups.is_folded(),
+            prior_groups.is_folded(),
             match doc.node(name.node) {
                 Some(crate::node::Node::Subtract { from, .. }) => Some(from.read),
                 _ => None,
@@ -2069,29 +2084,57 @@ impl<'a> SeamParent<'a> {
 /// order and not four independent claims. Nodes that failed or were
 /// never evaluated carry no table and are skipped — a resolution
 /// reads what the run actually built.
-fn tables<T: Decide>(
-    eval: &Evaluation<T>,
-) -> impl Iterator<Item = (RecipeNodeId, &crate::names::NameTable)> {
-    eval.order
-        .iter()
-        .filter_map(|&id| eval.value(id).map(|v| (id, &*v.name_table)))
+fn tables<T: Decide>(eval: &Evaluation<T>) -> impl Iterator<Item = Carrier<'_>> {
+    // Each node's outputs in port order: a name is scoped by the
+    // variable that holds its body (N1), so a split is two tables.
+    eval.order.iter().flat_map(move |&id| {
+        eval.named_outputs(id).into_iter().filter_map(move |var| {
+            let (_, port) = eval.read_port(var)?;
+            Some(Carrier {
+                node: id,
+                port,
+                table: eval.table(var)?,
+            })
+        })
+    })
+}
+
+/// One output's table as the resolution ladder reads it: the node, and
+/// the port whose table it is, so an entity in it is said in the
+/// node's value ([`Carrier::in_value`]).
+#[derive(Clone, Copy)]
+struct Carrier<'a> {
+    node: RecipeNodeId,
+    port: u8,
+    table: &'a crate::names::NameTable,
+}
+
+impl Carrier<'_> {
+    /// `entity` of this table as the node's value holds it: a split's
+    /// half at its port, every other output's body as it stands.
+    fn in_value(self, entity: EntityRef) -> EntityRef {
+        EntityRef {
+            body: entity.body + u32::from(self.port),
+            key: entity.key,
+        }
+    }
 }
 
 /// The first (evaluation-order) Ok table carrying `name`.
 fn lookup<'a, T: Decide>(
     eval: &'a Evaluation<T>,
     name: &StableName,
-) -> Option<(RecipeNodeId, &'a Entry)> {
-    tables(eval).find_map(|(id, table)| table.lookup(name).map(|entry| (id, entry)))
+) -> Option<(Carrier<'a>, &'a Entry)> {
+    tables(eval).find_map(|carrier| carrier.table.lookup(name).map(|entry| (carrier, entry)))
 }
 
 /// [`lookup`], demanding a unique entry.
-fn lookup_unique<T: Decide>(
-    eval: &Evaluation<T>,
+fn lookup_unique<'a, T: Decide>(
+    eval: &'a Evaluation<T>,
     name: &StableName,
-) -> Option<(RecipeNodeId, EntityRef)> {
+) -> Option<(Carrier<'a>, EntityRef)> {
     match lookup(eval, name)? {
-        (node, Entry::Unique(e)) => Some((node, *e)),
+        (carrier, Entry::Unique(e)) => Some((carrier, *e)),
         _ => None,
     }
 }
@@ -2160,7 +2203,7 @@ fn widened_base(name: &StableName) -> Option<StableName> {
 /// depth costs it nothing.
 fn merge_offers<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<StableName> {
     let rows: Vec<&StableName> = tables(eval)
-        .flat_map(|(_, table)| table.iter().map(|(candidate, _)| candidate))
+        .flat_map(|carrier| carrier.table.iter().map(|(candidate, _)| candidate))
         .collect();
     crate::names::merged::offers(name, rows.iter().copied())
 }
@@ -2185,7 +2228,7 @@ fn merge_offers<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<Stabl
 /// offering un-rebindable names is not ergonomics.
 pub fn rebind_suggestions<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<StableName> {
     let mut out: Vec<StableName> = Vec::new();
-    for (_, table) in tables(eval) {
+    for Carrier { table, .. } in tables(eval) {
         for (candidate, _) in table.iter() {
             if candidate == name || candidate.kind != name.kind || out.contains(candidate) {
                 continue;

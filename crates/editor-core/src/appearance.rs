@@ -297,7 +297,11 @@ impl AppearanceResolution {
 /// or its standing (T-erased: names and tables are scalar-independent,
 /// so f64/Interval agree here whenever the tables agree — pinned by
 /// the interval lane's tests).
-pub(crate) type NodeState<'a> = Result<&'a NameTable, NodeStanding>;
+///
+/// A node's tables are its outputs' (NAMES N1, the scope), each with the
+/// output body its entities' body 0 is in the node's value (a split's
+/// halves at their ports, every other node's one output at 0).
+pub(crate) type NodeState<'a> = Result<Vec<(u32, &'a NameTable)>, NodeStanding>;
 
 /// Resolves the document's appearance store against one evaluation's
 /// tables (total: every entry lands in `resolved` or in `losses` —
@@ -337,17 +341,22 @@ pub(crate) fn resolve(
         // defining site; the others are derivable by lookup.
         let mut tie: Option<(RecipeNodeId, usize)> = None;
         for (id, state) in in_order() {
-            let Ok(table) = state else {
+            let Ok(tables) = state else {
                 continue;
             };
+            for &(base, table) in tables {
             match table.lookup(name) {
                 Some(Entry::Unique(ent)) => {
                     hit = true;
+                    let ent = EntityRef {
+                        body: base + ent.body,
+                        key: ent.key,
+                    };
                     resolution
                         .resolved
                         .entry(id)
                         .or_default()
-                        .entry(*ent)
+                        .entry(ent)
                         .or_default()
                         .extend(rec.attrs.iter().map(|(k, v)| (*k, v.clone())));
                 }
@@ -360,6 +369,7 @@ pub(crate) fn resolve(
                     }
                 }
                 None => {}
+            }
             }
         }
         if let Some((at, width)) = tie {
@@ -404,7 +414,8 @@ fn vanished_candidates<'s, 'a: 's>(
 ) -> Vec<StableName> {
     let rows: Vec<&StableName> = states
         .filter_map(|(_, state)| state.as_ref().ok())
-        .flat_map(|table| table.iter().map(|(candidate, _)| candidate))
+        .flatten()
+        .flat_map(|(_, table)| table.iter().map(|(candidate, _)| candidate))
         .collect();
     crate::names::merged::offers(name, rows.iter().copied())
 }

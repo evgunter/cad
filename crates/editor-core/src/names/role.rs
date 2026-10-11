@@ -1326,64 +1326,56 @@ pub enum RoleSeg {
     Fragment(Qualifier),
 
     // ---- Split ----
-    /// A split output body (the half is the tool plane's own
-    /// orientation — covariant).
-    SplitBody(SplitHalf),
-    /// A section face: the split-minted face on the tool plane,
-    /// bounding the `side` half; `section` is the position in section
+    //
+    // A name is scoped by the variable that holds its body (N1, the
+    // scope): each half is its own output with its own table, so no
+    // split role says which half — the variable a reader reads does.
+    /// A split output body: the body of the half whose table holds it.
+    SplitBody,
+    /// A section face: the split-minted face on the tool plane bounding
+    /// its half; `section` is the position in that half's section
     /// completion order — a function of the recipe + the recorded
     /// `split_join_order_*` verdicts (the exact-order sort), so
     /// covariant in N4's sense (reorderings are recorded flips).
     SectionFace {
-        /// Which output half this section face bounds.
-        side: SplitHalf,
         /// Position in section completion order (covariance: module
         /// docs of `topo::splitting::order` — the sort runs through
         /// named exact-order predicates).
         section: u32,
     },
     /// A section-boundary edge: where the section meets an operand
-    /// face (argument: the operand face's name), on the `side` half
-    /// (each half owns its own coincident copy).
+    /// face (argument: the operand face's name). Each half owns its own
+    /// coincident copy, in its own table.
     SectionEdge {
-        /// Which output half.
-        side: SplitHalf,
         /// The operand face the section boundary runs across.
         face: NameRef,
     },
     /// A fragment of an operand entity carved by the split: faces cut
-    /// by the section, edges crossing the plane. The side IS the N2
-    /// discriminator (the kernel's own decided classification against
-    /// the tool plane — the split node's recipe-covariant reference);
-    /// same-side face multiplicity appends `Fragment(Keeps)`, and
-    /// same-side edge multiplicity `Fragment(Ends)`.
+    /// by the section, edges crossing the plane. Which half holds it is
+    /// the kernel's own decided classification against the tool plane
+    /// (N2): the fragment is in that half's table, and a plane edit
+    /// that flips it moves it to the other table rather than renaming
+    /// it (N5's `PredicateFlip`). Several in one half: faces append
+    /// `Fragment(Keeps)`, edges `Fragment(Ends)`.
     SplitFragment {
-        /// Which output half holds this fragment.
-        side: SplitHalf,
         /// The operand entity's name.
         parent: NameRef,
     },
     /// A crossing vertex minted where the tool plane crossed an
     /// operand edge (argument: the operand edge's name; each half
-    /// keeps its own coincident copy — `side` names which), with the
+    /// keeps its own coincident copy, in its own table), with the
     /// edge's [`Sense`] against that half (N2).
     CrossingVertex {
-        /// Which output half holds this copy.
-        side: SplitHalf,
         /// The operand edge the plane crossed.
         edge: NameRef,
-        /// The edge's sense against the `side` half.
+        /// The edge's sense against the half that holds the copy.
         sense: Sense,
     },
-    /// A per-half copy of an operand vertex the tool plane passed
-    /// THROUGH (review R2): both halves keep a coincident copy, so
-    /// the operand name alone would alias — the side tag (the
-    /// kernel's own recorded side assignment, a verdict) is the
-    /// discriminator. Fully birth-derived: the operand identity via
-    /// the null-pair copy row, the side via which half owns the copy.
+    /// A half's copy of an operand vertex the tool plane passed THROUGH
+    /// (review R2): both halves keep a coincident copy, each in its own
+    /// table. Fully birth-derived: the operand identity via the
+    /// null-pair copy row.
     OnToolVertex {
-        /// Which output half holds this copy.
-        side: SplitHalf,
         /// The operand vertex the plane passed through.
         of: NameRef,
     },
@@ -1850,7 +1842,7 @@ macro_rules! inert_seg {
         $crate::names::RoleSeg::OutputBody
             | $crate::names::RoleSeg::Cap(_)
             | $crate::names::RoleSeg::RevolveCap(_)
-            | $crate::names::RoleSeg::SplitBody(_)
+            | $crate::names::RoleSeg::SplitBody
             | $crate::names::RoleSeg::SectionFace { .. }
     };
 }
@@ -2187,21 +2179,17 @@ impl RoleSeg {
                 Qualifier::Ends(ends) => Qualifier::Ends(rewrite_set(ends, w)?),
                 Qualifier::OrderAlong { .. } => q.clone(),
             }),
-            R::SectionEdge { side, face } => R::SectionEdge {
-                side: *side,
+            R::SectionEdge { face } => R::SectionEdge {
                 face: rewrite_ref(face, w)?,
             },
-            R::SplitFragment { side, parent } => R::SplitFragment {
-                side: *side,
+            R::SplitFragment { parent } => R::SplitFragment {
                 parent: rewrite_ref(parent, w)?,
             },
-            R::CrossingVertex { side, edge, sense } => R::CrossingVertex {
-                side: *side,
+            R::CrossingVertex { edge, sense } => R::CrossingVertex {
                 edge: rewrite_ref(edge, w)?,
                 sense: *sense,
             },
-            R::OnToolVertex { side, of } => R::OnToolVertex {
-                side: *side,
+            R::OnToolVertex { of } => R::OnToolVertex {
                 of: rewrite_ref(of, w)?,
             },
             R::BlendFace(n) => R::BlendFace(rewrite_ref(n, w)?),
@@ -2455,7 +2443,7 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::RevolveCap(_)
             | $crate::names::RoleSeg::Pole(_)
             | $crate::names::RoleSeg::AxisEdge(_)
-            | $crate::names::RoleSeg::SplitBody(_)
+            | $crate::names::RoleSeg::SplitBody
             | $crate::names::RoleSeg::SectionFace { .. }
             | $crate::names::RoleSeg::SectionEdge { .. }
             | $crate::names::RoleSeg::SplitFragment { .. }

@@ -81,7 +81,7 @@ use crate::node::RecipeNodeId;
 
 /// The split's naming emitter: this node's id, the two sides (each
 /// present or empty), the birth record, the target's id, table and
-/// body, and the tolerance, in.
+/// body, and the tolerance, in; each half's names out, in port order.
 pub(crate) type SplitEmitter<T> = fn(
     RecipeNodeId,
     Option<&Body<T>>,
@@ -91,7 +91,7 @@ pub(crate) type SplitEmitter<T> = fn(
     &NameTable,
     &Body<T>,
     Tol,
-) -> Result<names::Emitted, NamingError>;
+) -> Result<[names::Emitted; 2], NamingError>;
 
 /// **The split's correspondence**, as data — everything the split's
 /// lowering needs to turn a `Node::Split` into a [`verbs::Verb`] and its two

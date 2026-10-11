@@ -115,9 +115,8 @@ use topo::{Body, FaceKey, PlaneRelation};
 
 use crate::doc::Doc;
 use crate::edit::{Applied, DocEdit, EditError, apply};
-use crate::eval::{Evaluation, NodeValue};
+use crate::eval::Evaluation;
 use crate::names::geompred::SelectRefusal;
-use crate::names::interrogate;
 use crate::names::interrogate::InterrogateError;
 use crate::names::role::{EntityKind, StableName};
 use crate::names::table::{EntityKey, EntityRef, Entry};
@@ -199,37 +198,39 @@ pub type FlushFinding = topo::flush::FlushFinding<(SitedRef<crate::VarId>, Sited
 /// entry that does not resolve into its node's payload,
 /// [`SelectRefusal::Band`], carrying the band constructor's own
 /// diagnostic, if the ambient tolerance yields no usable band.
-pub fn find_flush_candidates<T: Decide, P>(
+pub fn find_flush_candidates<T: Decide>(
     ev: &Evaluation<T>,
-    doc: &crate::Doc<P>,
-    a: RecipeNodeId,
-    b: RecipeNodeId,
+    a: impl Into<crate::At>,
+    b: impl Into<crate::At>,
     tol: Tol,
 ) -> Result<Vec<FlushFinding>, SelectRefusal> {
-    let va = ev.usable(a).map_err(SelectRefusal::NodeHasNoValue)?;
-    let vb = ev.usable(b).map_err(SelectRefusal::NodeHasNoValue)?;
+    // Each side is the table of one output variable (NAMES N1): a node
+    // named alone is its one output, a split's half its port.
+    let side = |at: crate::At| -> Result<(crate::RecipeNodeId, crate::VarId), SelectRefusal> {
+        let node = match at {
+            crate::At::Node(node) => node,
+            crate::At::Read(var) => {
+                ev.read_port(var)
+                    .ok_or(SelectRefusal::ReadNotAnOutput { var })?
+                    .0
+            }
+        };
+        ev.usable(node).map_err(SelectRefusal::NodeHasNoValue)?;
+        let var = ev.at_var(at).ok_or(SelectRefusal::NodeHasNoOutput { node })?;
+        Ok((node, var))
+    };
+    let ((a, at_a), (b, at_b)) = (side(a.into())?, side(b.into())?);
     if let Some((group, cause)) = ev.across_spaces(a, b) {
         return Err(SelectRefusal::AcrossSpaces { group, cause });
     }
     let band = Band::linear(tol)?;
-    let fa = face_candidates(va)?;
-    let fb = face_candidates(vb)?;
+    let fa = face_candidates(ev, at_a)?;
+    let fb = face_candidates(ev, at_b)?;
     let mut out = Vec::new();
-    // A name is sited at the read of the output holding its body: the
-    // port of that body where the node has one per body (a split's
-    // halves), else the node's one output.
-    let read = |node: RecipeNodeId, body: u32| {
-        u8::try_from(body)
-            .ok()
-            .and_then(|port| doc.output(node, port))
-            .or_else(|| doc.output(node, 0))
-            .ok_or(SelectRefusal::NodeHasNoOutput { node })
-    };
-    for (na, ca, ka) in &fa {
-        for (nb, cb, kb) in &fb {
-            // The query's two nodes ARE the sites: a name from `a`'s
-            // table is read at `a`'s output, one from `b`'s at `b`'s.
-            let (at_a, at_b) = (read(a, *ka)?, read(b, *kb)?);
+    for (na, ca) in &fa {
+        for (nb, cb) in &fb {
+            // A name is sited at the read of the output holding its
+            // body: each side's own variable.
             if let Some(finding) = pair_verdict((a, b), (at_a, na), ca, (at_b, nb), cb, band)? {
                 out.push(finding);
             }
@@ -240,16 +241,22 @@ pub fn find_flush_candidates<T: Decide, P>(
 }
 
 /// One side's candidates: each FACE name with the `(body, key)`
-/// candidates it resolves to in this evaluation, and the index of the
-/// body its first candidate lies in.
-type FaceCandidates<'v, T> = Vec<(StableName, Vec<(&'v Body<T>, FaceKey)>, u32)>;
+/// candidates it resolves to in this evaluation.
+type FaceCandidates<'v, T> = Vec<(StableName, Vec<(&'v Body<T>, FaceKey)>)>;
 
-/// Every FACE name of one node's value with its resolved candidate
-/// keys — `Unique` gives one candidate, `Tied` all of them (GS-Q4:
-/// the tie is the table's fact; detection asks every candidate).
-fn face_candidates<T: Decide>(v: &NodeValue<T>) -> Result<FaceCandidates<'_, T>, SelectRefusal> {
+/// Every FACE name of the variable `var`'s table with its resolved
+/// candidate keys — `Unique` gives one candidate, `Tied` all of them
+/// (GS-Q4: the tie is the table's fact; detection asks every
+/// candidate).
+fn face_candidates<T: Decide>(
+    ev: &Evaluation<T>,
+    var: crate::VarId,
+) -> Result<FaceCandidates<'_, T>, SelectRefusal> {
     let mut out = Vec::new();
-    for (name, entry) in v.name_table.iter() {
+    let Some(table) = ev.table(var) else {
+        return Ok(out);
+    };
+    for (name, entry) in table.iter() {
         if name.kind != EntityKind::Face {
             continue;
         }
@@ -259,12 +266,14 @@ fn face_candidates<T: Decide>(v: &NodeValue<T>) -> Result<FaceCandidates<'_, T>,
         };
         let mut cands = Vec::with_capacity(refs.len());
         for ent in refs {
-            let body = interrogate::output_body(&v.payload, ent.body).map_err(|error| {
-                SelectRefusal::Unreadable {
-                    name: Box::new(name.clone()),
-                    error,
-                }
-            })?;
+            let unreadable = |error| SelectRefusal::Unreadable {
+                name: Box::new(name.clone()),
+                error,
+            };
+            let body = ev
+                .read_body(var, ent.body)
+                .map_err(SelectRefusal::NodeHasNoValue)?
+                .map_err(unreadable)?;
             let EntityKey::Face(f) = ent.key else {
                 // A Face-kind name resolving to a non-face key is an
                 // emitter invariant violation — reported, not skipped
@@ -279,7 +288,7 @@ fn face_candidates<T: Decide>(v: &NodeValue<T>) -> Result<FaceCandidates<'_, T>,
             };
             cands.push((body, f));
         }
-        out.push((name.clone(), cands, refs.first().map_or(0, |e| e.body)));
+        out.push((name.clone(), cands));
     }
     Ok(out)
 }

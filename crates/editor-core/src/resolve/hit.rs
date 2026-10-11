@@ -24,7 +24,7 @@
 use geom_core::Decide;
 use topo::{EdgeKey, FaceKey, VertexKey};
 
-use crate::eval::{Evaluation, NodeStanding, NodeValue};
+use crate::eval::{Evaluation, NodeStanding};
 use crate::names::{EntityKey, EntityRef, StableName};
 use crate::node::RecipeNodeId;
 
@@ -281,13 +281,12 @@ impl core::error::Error for HitTestError {}
 ///
 /// [`UnnamedEntity`], the lookup's one refusal.
 pub(super) fn lookup<T: Decide>(
-    value: &NodeValue<T>,
+    eval: &Evaluation<T>,
     node: RecipeNodeId,
     entity: EntityRef,
 ) -> Result<&StableName, UnnamedEntity> {
-    value
-        .name_table
-        .name_of(&entity)
+    eval.entity_read(node, entity)
+        .and_then(|(var, ent)| eval.table(var)?.name_of(&ent))
         .ok_or(UnnamedEntity { node, entity })
 }
 
@@ -305,7 +304,8 @@ pub fn entity_name<T: Decide>(
     node: RecipeNodeId,
     entity: EntityRef,
 ) -> Result<&StableName, HitTestError> {
-    Ok(lookup(eval.usable(node)?, node, entity)?)
+    eval.usable(node)?;
+    Ok(lookup(eval, node, entity)?)
 }
 
 /// [`entity_name`] for a face patch's back-reference.

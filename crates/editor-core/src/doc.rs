@@ -1828,6 +1828,15 @@ impl<P> Doc<P> {
             .map(|(&id, _)| id)
     }
 
+    /// **Every output variable and the port that defines it**, the map
+    /// an evaluation answers [`crate::Evaluation::table`] through.
+    pub(crate) fn output_ports(&self) -> BTreeMap<VarId, (RecipeNodeId, u8)> {
+        self.vars
+            .iter()
+            .filter_map(|(&id, var)| Some((id, var.def().output()?)))
+            .collect()
+    }
+
     /// **What an operand naming `node` alone reads**
     /// ([`crate::Operand::Node`], spec Q5): its one output. `None` for a
     /// node that is not live, defines nothing, or defines several

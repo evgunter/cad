@@ -2349,11 +2349,14 @@ fn windows_of(
             let mut out = Vec::new();
             for name in names {
                 let named = || Box::new(name.clone());
-                let Some(Entry::Unique(ent)) = value.name_table.lookup(name) else {
+                let found = ev
+                    .body_read_of(sel.at, sel.body)
+                    .and_then(|(var, index)| Some((ev.table(var)?.lookup(name), index)));
+                let Some((Some(Entry::Unique(ent)), index)) = found else {
                     return Err(refuse(SelectionRefusal::Unresolved { name: named() }));
                 };
                 match ent.key {
-                    EntityKey::Face(k) if ent.body == sel.body => out.push(k),
+                    EntityKey::Face(k) if ent.body == index => out.push(k),
                     _ => return Err(refuse(SelectionRefusal::NotAFace { name: named() })),
                 }
             }

@@ -1412,11 +1412,11 @@ impl NodePick {
         if let Some(m) = crate::ident::mispaired(self.document, eval.document) {
             return Err(m.into());
         }
-        let value = eval.usable(self.node)?;
+        eval.usable(self.node)?;
         Ok(keys
             .map(|key| {
                 lookup(
-                    value,
+                    eval,
                     self.node,
                     EntityRef {
                         body: self.body,

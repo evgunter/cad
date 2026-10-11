@@ -134,10 +134,10 @@ pub use edit::{
 };
 pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
-    Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
+    Arity, At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
     ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch, EvalOptions, EvalOutcome,
     EvalScalar, Evaluation, FramePlacement, NamingKey, NodeError, NodeErrorClass, NodeErrorKind,
-    NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, PartReach, PiecesFault,
+    NodeRefusal, NodeResult, NodeStanding, NodeValue, OutputNames, PartFault, PartReach, PiecesFault,
     ProfileLift, ProfilePieces, SectionScalar, SplitSide, StepTurns, ValuePayload, VerbKind,
     evaluate, mate_reach,
 };

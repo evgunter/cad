@@ -556,15 +556,20 @@ pub struct Speaker<'a> {
 }
 
 /// **The name tables a [`Speaker`] says names within**: a name is said
-/// within the table of the node that minted it, as an evaluation answers it.
+/// within the tables of the node that minted it, as an evaluation
+/// answers them — one per output that carries names (a split's halves
+/// two).
 pub trait NameTables {
-    /// The name table of `node`'s output, `None` where there is none.
-    fn table(&self, node: RecipeNodeId) -> Option<&NameTable>;
+    /// The name tables of `node`'s outputs, empty where there are none.
+    fn tables(&self, node: RecipeNodeId) -> Vec<&NameTable>;
 }
 
 impl<T: geom_core::Decide> NameTables for crate::Evaluation<T> {
-    fn table(&self, node: RecipeNodeId) -> Option<&NameTable> {
-        self.value(node).map(|value| &*value.name_table)
+    fn tables(&self, node: RecipeNodeId) -> Vec<&NameTable> {
+        self.named_outputs(node)
+            .into_iter()
+            .filter_map(|var| self.table(var))
+            .collect()
     }
 }
 
@@ -1097,9 +1102,13 @@ impl<'a> Speaker<'a> {
     /// The detail this speaker says `name` at ([`Speaker::within`]).
     pub(crate) fn detail_of(self, name: &StableName) -> Detail {
         self.scope
-            .and_then(|tables| tables.table(name.node))
-            .and_then(|table| table.detail(name))
-            .cloned()
+            .and_then(|tables| {
+                tables
+                    .tables(name.node)
+                    .into_iter()
+                    .find_map(|table| table.detail(name))
+                    .cloned()
+            })
             .unwrap_or(Detail::Full)
     }
 

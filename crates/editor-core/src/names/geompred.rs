@@ -258,6 +258,12 @@ pub enum SelectRefusal {
         /// That node.
         node: RecipeNodeId,
     },
+    /// One of the flush detector's two reads names no output of the
+    /// evaluated document.
+    ReadNotAnOutput {
+        /// That read.
+        var: crate::VarId,
+    },
     /// The stated value is not a length (`Dimension::Length`) — the
     /// comparand of a distance must be a distance.
     NotALength {
@@ -398,6 +404,11 @@ impl crate::spoken::Say for SelectRefusal {
                 f,
                 "select: the flush query's {} defines no output to site a finding at",
                 by.node(*node)
+            ),
+            Self::ReadNotAnOutput { var } => write!(
+                f,
+                "select: the flush query reads {var}, which no output of the evaluated \
+                 document defines"
             ),
             Self::NotALength { dim } => write!(
                 f,
@@ -656,6 +667,7 @@ mod census {
             DatumHasNoValue,
             NodeHasNoValue,
             NodeHasNoOutput,
+            ReadNotAnOutput,
             NotALength,
             PairInBand,
             AcrossSpaces,

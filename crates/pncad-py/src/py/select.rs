@@ -346,8 +346,6 @@ pub(crate) enum SideArg {
     Cap(CapEnd),
     /// `MeridianEnd`.
     Meridian(MeridianEnd),
-    /// `SplitHalf`.
-    Split(SplitHalf),
     /// `RimSupport`.
     Rim(RimSupport),
 }
@@ -358,7 +356,6 @@ impl SideArg {
             Self::Cap(CapEnd::End) => s::Side::Cap(s::CapEnd::End),
             Self::Cap(CapEnd::Start) => s::Side::Cap(s::CapEnd::Start),
             Self::Meridian(end) => s::Side::Meridian(end.to_kernel()),
-            Self::Split(half) => s::Side::Split(half.to_kernel()),
             Self::Rim(RimSupport::Host) => s::Side::Rim(s::RimSupport::Host),
             Self::Rim(RimSupport::Mate) => s::Side::Rim(s::RimSupport::Mate),
         }
@@ -1034,8 +1031,6 @@ mod growth_tripwire {
             s::Side::Meridian(s::MeridianEnd::End) => SideArg::Meridian(MeridianEnd::End),
             s::Side::Meridian(s::MeridianEnd::Seam) => SideArg::Meridian(MeridianEnd::Seam),
             s::Side::Meridian(s::MeridianEnd::Pi) => SideArg::Meridian(MeridianEnd::Pi),
-            s::Side::Split(s::SplitHalf::Above) => SideArg::Split(SplitHalf::Above),
-            s::Side::Split(s::SplitHalf::Below) => SideArg::Split(SplitHalf::Below),
             s::Side::Rim(s::RimSupport::Host) => SideArg::Rim(RimSupport::Host),
             s::Side::Rim(s::RimSupport::Mate) => SideArg::Rim(RimSupport::Mate),
         }

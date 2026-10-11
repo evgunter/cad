@@ -1033,7 +1033,7 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
                 node,
                 ix,
                 body,
-                Arc::clone(&value.name_table),
+                evaluation.shared_table_at(node).unwrap_or_else(crate::names::empty),
                 contacts,
                 rows,
             )

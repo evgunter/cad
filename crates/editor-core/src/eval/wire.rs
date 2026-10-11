@@ -81,10 +81,10 @@ type Results<T> = BTreeMap<RecipeNodeId, NodeResult<T>>;
 /// this field — "output body 0" would be a lie for its other bodies.
 pub(crate) struct OpOut<T: Decide> {
     pub payload: ValuePayload<T>,
-    pub names: Arc<NameTable>,
-    /// The fragment groups the op's emitter formed
-    /// (`names::FragmentGroups`); empty for an op that forms none.
-    pub groups: Arc<names::FragmentGroups>,
+    /// Each output's names, by port (`NodeValue::outputs`): one for an
+    /// op with one body output, a split's two halves apart; the
+    /// fragment groups beside them empty for an op that forms none.
+    pub outputs: Vec<super::OutputNames>,
     pub contacts: Arc<topo::ContactRecords>,
     /// Whose mate authored each of those records, and which mates of
     /// the documents below could not be minted at all; same arena, same
@@ -105,8 +105,7 @@ impl<T: Decide> OpOut<T> {
     fn plain(payload: ValuePayload<T>, names: Arc<NameTable>) -> Self {
         Self {
             payload,
-            names,
-            groups: Arc::default(),
+            outputs: vec![super::OutputNames::new(names, Arc::default())],
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(crate::assembly::CarriedDeclarations::default()),
             parts: 1,
@@ -151,13 +150,38 @@ impl<T: Decide> OpOut<T> {
 }
 
 impl<T: Decide> OpOut<T> {
-    /// This output with the fragment groups its emitter formed.
+    /// This output with the fragment groups its emitter formed beside
+    /// its one table.
     fn grouped(self, groups: Arc<names::FragmentGroups>) -> Self {
-        Self { groups, ..self }
+        let outputs = self
+            .outputs
+            .iter()
+            .map(|names| super::OutputNames::new(names.shared_table(), Arc::clone(&groups)))
+            .collect();
+        Self { outputs, ..self }
+    }
+
+    /// An op whose outputs carry names apart (a split's two halves):
+    /// `outputs` by port.
+    fn per_output(payload: ValuePayload<T>, outputs: Vec<super::OutputNames>) -> Self {
+        Self {
+            outputs,
+            ..Self::plain(payload, names::empty())
+        }
     }
 }
 
 type OpResult<T> = Result<OpOut<T>, NodeErrorKind>;
+
+/// **The table a read holds**: the names of the one output the read
+/// names, its value already resolved to that output (`reads_projected`
+/// for a split's port or a family's member, the operation's own value
+/// otherwise). Empty for an output that carries no names.
+fn read_table<T: Decide>(value: &super::NodeValue<T>) -> Arc<NameTable> {
+    value
+        .output(0)
+        .map_or_else(names::empty, super::OutputNames::shared_table)
+}
 /// A bare payload (datum/profile lanes — empty tables).
 type PayloadResult<T> = Result<ValuePayload<T>, NodeErrorKind>;
 
@@ -625,8 +649,7 @@ where
     };
     Ok(OpOut {
         payload: ValuePayload::Body(Arc::new(placed)),
-        names: table,
-        groups: Arc::default(),
+        outputs: vec![super::OutputNames::new(table, Arc::default())],
         contacts: Arc::new(part.contacts.carried_from(0)),
         carried: Arc::new(carried),
         parts: part.parts,
@@ -1961,7 +1984,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     }
     let body = finished_operand(results, target, tol)?;
     let size = need_scalar(vals, verb.slots.size_slot)?;
-    let target_table = Arc::clone(&value_of(results, target)?.name_table);
+    let target_table = read_table(value_of(results, target)?);
     // D9 order; the kernel refuses a repeated edge itself.
     let mut edges: Vec<topo::EdgeKey> = selection
         .ents
@@ -2022,7 +2045,7 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let (target_read, target) = (open.read, open.at);
     let body = finished_operand(results, target, tol)?;
     let thickness = need_scalar(vals, verb.slots.size_slot)?;
-    let target_table = Arc::clone(&value_of(results, target)?.name_table);
+    let target_table = read_table(value_of(results, target)?);
     // Designation order: the first designated face of a chart carries
     // its rim.
     let faces: Vec<topo::FaceKey> = open
@@ -2219,7 +2242,7 @@ fn select<T: Decide>(
         return Err(NodeErrorKind::UnresolvedRead { slot, var });
     };
     let at = super::read_at(doc, slot, selection.body)?;
-    let table = &value_of(results, at)?.name_table;
+    let table = &read_table(value_of(results, at)?);
     let mut ents = Vec::with_capacity(selection.names.len());
     for (reference, name) in selection.names.iter().enumerate() {
         let ent = ladder::resolve_in(name, doc, table, |error| NodeErrorKind::SelectResolve {
@@ -2499,7 +2522,7 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         SplitSide::Body(b) => Some(Arc::clone(b)),
         SplitSide::Empty => None,
     };
-    let target_table = Arc::clone(&value_of(results, target)?.name_table);
+    let target_table = read_table(value_of(results, target)?);
     let (ab, bb) = (as_body(&above), as_body(&below));
     let emitted = (verb.emitter)(
         id,
@@ -2512,8 +2535,17 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         tol,
     )
     .map_err(NodeErrorKind::Naming)?;
-    OpOut::plain(ValuePayload::Split { above, below }, emitted.table)
-        .grouped(Arc::new(names::FragmentGroups::minted(&emitted.groups)))
+    // Each half is its own output with its own names (N1, the scope).
+    let outputs = emitted
+        .iter()
+        .map(|half| {
+            super::OutputNames::new(
+                Arc::clone(&half.table),
+                Arc::new(names::FragmentGroups::minted(&half.groups)),
+            )
+        })
+        .collect();
+    OpOut::per_output(ValuePayload::Split { above, below }, outputs)
         .recording(
             &coincidences,
             &crate::coincide::RowInputs {
@@ -2565,8 +2597,7 @@ fn wire_part<T: Decide>(
         }
         _ => return Err(wrong_operand(value, of, super::family::INSTANCES)),
     };
-    let table = value
-        .name_table
+    let table = read_table(value)
         .project(index)
         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
     names::check_total(&table, &body, 0).map_err(NodeErrorKind::Naming)?;
@@ -2629,9 +2660,10 @@ fn body_rows(
 /// the operation it reads: a split's port is that half (FORK-1: a
 /// split defines two bodies); an indexed read at a body seat
 /// ([`crate::BodyRead`], DM3) is the family's member its index picks
-/// ([`instance_of`]). Either is the body alone, its table the
-/// operation's projected onto it ([`NameTable::project`]) and the
-/// operation's part count, so an indexed read and the `Part` spelling
+/// ([`instance_of`]). Either is the body alone with the operation's
+/// part count: a half with its own output's table (N1, the scope), a
+/// member with the family's table projected onto it
+/// ([`NameTable::project`]), so an indexed read and the `Part` spelling
 /// of it give one value. `results` with each such operation's entry
 /// replaced, or `None` when no read in `rows` is either.
 ///
@@ -2648,23 +2680,21 @@ fn reads_projected<T: Decide>(
 ) -> Result<Option<Results<T>>, NodeErrorKind> {
     let mut replaced: Vec<(RecipeNodeId, u32, super::NodeValue<T>)> = Vec::new();
     for &(seat, var) in rows {
+        // The value a read resolves to: the body alone at output 0,
+        // with that output's names.
         let projected = |of: RecipeNodeId,
                          value: &super::NodeValue<T>,
                          body: Arc<Body<T>>,
+                         names: super::OutputNames,
                          index: u32|
          -> Result<_, NodeErrorKind> {
-            let table = value
-                .name_table
-                .project(index)
-                .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
-            names::check_total(&table, &body, 0).map_err(NodeErrorKind::Naming)?;
+            names::check_total(names.table(), &body, 0).map_err(NodeErrorKind::Naming)?;
             Ok((
                 of,
                 index,
                 super::NodeValue {
                     payload: ValuePayload::Body(body),
-                    name_table: Arc::new(table),
-                    fragment_groups: Arc::default(),
+                    outputs: Arc::new([names]),
                     contacts: Arc::default(),
                     carried: Arc::default(),
                     ..value.clone()
@@ -2681,7 +2711,12 @@ fn reads_projected<T: Decide>(
                 return Err(wrong_operand(value, family, super::family::INSTANCES));
             };
             let (body, index) = instance_of(family, instances, vals, SlotId::Index { seat, k: 0 })?;
-            replaced.push(projected(family, value, body, index)?);
+            // A family's one table holds every member at its place.
+            let table = read_table(value)
+                .project(index)
+                .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
+            let names = super::OutputNames::new(Arc::new(table), Arc::default());
+            replaced.push(projected(family, value, body, names, index)?);
             continue;
         }
         let Some((split, port)) = doc
@@ -2698,7 +2733,9 @@ fn reads_projected<T: Decide>(
             unreachable!("a split evaluates to its two sides")
         };
         let body = split_side(split, half, above, below)?;
-        replaced.push(projected(split, value, body, half.output_body())?);
+        // The half's names are its own output's (N1, the scope).
+        let names = value.output(port).cloned().unwrap_or_default();
+        replaced.push(projected(split, value, body, names, half.output_body())?);
     }
     if replaced.is_empty() {
         return Ok(None);
@@ -2767,8 +2804,8 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // F5 threading: the declared pairs' names resolve through the
     // OPERANDS' name tables; failures are the N5 typed errors, never a
     // silent drop. The kernel verb receives only the arena-key form.
-    let a_table = Arc::clone(&value_of(results_a, a)?.name_table);
-    let b_table = Arc::clone(&value_of(results_b, b)?.name_table);
+    let a_table = read_table(value_of(results_a, a)?);
+    let b_table = read_table(value_of(results_b, b)?);
     // **The site is the side**: each name resolves in the ONE table its
     // site designates, so a name carried by both operands is not
     // ambiguous.
@@ -2927,7 +2964,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 Ok::<_, NodeErrorKind>(Member {
                     read,
                     body: Arc::new(finished_operand(results, at, tol)?),
-                    table: Arc::clone(&value_of(results, at)?.name_table),
+                    table: read_table(value_of(results, at)?),
                     records: records_of(value_of(results, at)?),
                 })
             })
@@ -2952,8 +2989,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 .enumerate()
                 .map(|(i, body)| {
                     let index = u32::try_from(i).unwrap_or(u32::MAX);
-                    let table = value
-                        .name_table
+                    let table = read_table(value)
                         .project(index)
                         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
                     names::check_total(&table, body, 0).map_err(NodeErrorKind::Naming)?;
@@ -4306,7 +4342,7 @@ fn wire_transform<T: Decide + topo::AtRestPolicy>(
     let placeable = placeable_operand(value, input)?;
     let map = placement.motion(vals, band(tol)?)?;
     let payload = placeable.map(|body, _| place(body, Some(&map), tol))?;
-    Ok(OpOut::plain(payload, Arc::clone(&value.name_table)).carrying(value.parts))
+    Ok(OpOut::plain(payload, read_table(value)).carrying(value.parts))
 }
 
 /// **A world placement** (A10): the body read, at port `port` of the
@@ -4363,8 +4399,7 @@ fn wire_place_in_world<T: Decide + topo::AtRestPolicy>(
         }
         _ => (read_body(results, of)?, 0),
     };
-    let table = value
-        .name_table
+    let table = read_table(value)
         .project(index)
         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
     let map = pose.motion_kept(vals, band(tol)?)?.non_identity();
@@ -4523,7 +4558,7 @@ fn wire_pattern<T: Decide + topo::AtRestPolicy>(
         instances.extend(place_each(master, &map, tol)?);
     }
     let table =
-        names::name_pattern(id, &value.name_table, n, master.len(), &instances).map_err(naming)?;
+        names::name_pattern(id, &read_table(value), n, master.len(), &instances).map_err(naming)?;
     Ok(OpOut::plain(ValuePayload::Instances(instances), table).carrying(value.parts))
 }
 
@@ -4600,7 +4635,7 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     }
     // Instance(i) wrapping (A8/N1), re-keyed onto the ONE output body
     // through each instance's graft bridge.
-    let master = Arc::clone(&value_of(results, input)?.name_table);
+    let master = read_table(value_of(results, input)?);
     let table =
         names::name_placed_union(id, &master, &bridges, &fused).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(ValuePayload::Body(Arc::new(fused)), table))

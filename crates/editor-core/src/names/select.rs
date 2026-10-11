@@ -53,7 +53,7 @@ use crate::node::RecipeNodeId;
 use super::geompred::{self, GeomPred, SelectRefusal};
 use super::interrogate;
 use super::role::{
-    CapEnd, EntityKind, MeridianEnd, Qualifier, RimSupport, RoleSeg, SplitHalf, StableName,
+    CapEnd, EntityKind, MeridianEnd, Qualifier, RimSupport, RoleSeg, StableName,
     name_free_seg,
 };
 use super::table::{EntityRef, Entry};
@@ -202,8 +202,6 @@ pub enum Side {
     Cap(CapEnd),
     /// A revolve meridian end.
     Meridian(MeridianEnd),
-    /// A split output half.
-    Split(SplitHalf),
     /// Which support of a rim blend.
     Rim(RimSupport),
 }
@@ -216,11 +214,6 @@ impl From<CapEnd> for Side {
 impl From<MeridianEnd> for Side {
     fn from(v: MeridianEnd) -> Self {
         Self::Meridian(v)
-    }
-}
-impl From<SplitHalf> for Side {
-    fn from(v: SplitHalf) -> Self {
-        Self::Split(v)
     }
 }
 impl From<RimSupport> for Side {
@@ -257,7 +250,7 @@ impl SegTag {
             RoleSeg::EdgeCrossing { .. } => Self::EdgeCrossing,
             RoleSeg::Merged(..) => Self::Merged,
             RoleSeg::Fragment(..) => Self::Fragment,
-            RoleSeg::SplitBody(..) => Self::SplitBody,
+            RoleSeg::SplitBody => Self::SplitBody,
             RoleSeg::SectionFace { .. } => Self::SectionFace,
             RoleSeg::SectionEdge { .. } => Self::SectionEdge,
             RoleSeg::SplitFragment { .. } => Self::SplitFragment,
@@ -345,15 +338,16 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         RoleSeg::Meridian(m, _) | RoleSeg::MeridianVertex(m, _) | RoleSeg::RevolveCap(m) => {
             Some(Side::Meridian(*m))
         }
-        RoleSeg::SplitBody(s)
-        | RoleSeg::SectionFace { side: s, .. }
-        | RoleSeg::SectionEdge { side: s, .. }
-        | RoleSeg::SplitFragment { side: s, .. }
-        | RoleSeg::CrossingVertex { side: s, .. }
-        | RoleSeg::OnToolVertex { side: s, .. } => Some(Side::Split(*s)),
         RoleSeg::BandTrim { support, .. } => Some(Side::Rim(*support)),
-        // Side-free segments (kept explicit — see the doc note).
-        RoleSeg::OutputBody
+        // Side-free segments (kept explicit — see the doc note). A
+        // split's half is the variable's, not the name's (N1, the scope).
+        RoleSeg::SplitBody
+        | RoleSeg::SectionFace { .. }
+        | RoleSeg::SectionEdge { .. }
+        | RoleSeg::SplitFragment { .. }
+        | RoleSeg::CrossingVertex { .. }
+        | RoleSeg::OnToolVertex { .. }
+        | RoleSeg::OutputBody
         | RoleSeg::Lateral(_)
         | RoleSeg::LateralEdge(_)
         | RoleSeg::LoftWall(_)
@@ -823,22 +817,18 @@ impl Selector {
 /// an empty selection refuses.
 ///
 /// **"No value" answers "no names" here, deliberately**: the question
-/// is which names `node`'s table holds, and a node with no value holds
-/// no table. The empty list is not the last word on it — the node that
+/// is which names the table `at` names holds, and a node with no value
+/// holds no table, nor does a node named alone whose outputs carry
+/// names apart (a split: read a half, NAMES N1). The empty list is not the last word on it — the node that
 /// consumes the stored selection reads `node` as its input, so it is
 /// poisoned through it while it has no value, and refuses the empty
 /// selection once it has one.
-pub fn select<T: Decide>(
-    ev: &Evaluation<T>,
-    node: RecipeNodeId,
-    sel: &Selector,
-) -> Vec<StableName> {
+pub fn select<T: Decide>(ev: &Evaluation<T>, at: impl Into<crate::At>, sel: &Selector) -> Vec<StableName> {
     // No value, no names: this function's doc.
-    let Some(value) = ev.value(node) else {
+    let Some(table) = ev.table_at(at) else {
         return Vec::new();
     };
-    let mut out: Vec<StableName> = value
-        .name_table
+    let mut out: Vec<StableName> = table
         .iter()
         .map(|(name, _)| name)
         .filter(|name| sel.matches(name))
@@ -899,20 +889,23 @@ pub fn select<T: Decide>(
 /// swallowed).
 pub fn select_where<T: Decide>(
     ev: &Evaluation<T>,
-    node: RecipeNodeId,
+    at: impl Into<crate::At>,
     sel: &Selector,
     geom: &[GeomPred],
     params: &VarEnv<T>,
     tol: Tol,
 ) -> Result<Vec<StableName>, SelectRefusal> {
     // No value, no names: `select`'s doc.
-    let Some(value) = ev.value(node) else {
+    let Some(var) = ev.at_var(at) else {
+        return Ok(Vec::new());
+    };
+    let Some(table) = ev.table(var) else {
         return Ok(Vec::new());
     };
     let atoms = geompred::prepare(ev, geom, params)?;
     let band = Band::linear(tol)?;
     let mut out: Vec<StableName> = Vec::new();
-    for (name, entry) in value.name_table.iter() {
+    for (name, entry) in table.iter() {
         if !sel.matches(name) {
             continue;
         }
@@ -932,12 +925,14 @@ pub fn select_where<T: Decide>(
         };
         let mut matched = 0usize;
         for ent in candidates {
-            let body = interrogate::output_body(&value.payload, ent.body).map_err(|error| {
-                SelectRefusal::Unreadable {
-                    name: Box::new(name.clone()),
-                    error,
-                }
-            })?;
+            let unreadable = |error| SelectRefusal::Unreadable {
+                name: Box::new(name.clone()),
+                error,
+            };
+            let body = ev
+                .read_body(var, ent.body)
+                .map_err(|standing| unreadable(interrogate::InterrogateError::Standing(standing)))?
+                .map_err(unreadable)?;
             if geompred::candidate_matches(body, ent.key, &atoms, band, name)? {
                 matched += 1;
             }

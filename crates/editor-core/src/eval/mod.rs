@@ -153,9 +153,145 @@ pub struct Evaluation<T: Decide> {
     /// The lane environment this run read its slots from: what
     /// [`Self::reading`] reads a variable's free inputs from.
     pub env: crate::expr::VarEnv<T>,
+    /// Each output variable of the evaluated document and the port that
+    /// defines it: what [`Self::table`] reads a variable through.
+    reads: Arc<BTreeMap<crate::VarId, (RecipeNodeId, u8)>>,
 }
 
 impl<T: Decide> Evaluation<T> {
+    /// **The name table of the variable `var`** (NAMES N1, the scope):
+    /// the names of the bodies that variable holds, a split's half its
+    /// own. The one door to a table: a name is scoped by the variable
+    /// that holds its body, so nothing reads a node's names as one set.
+    /// `None` for a variable no output defines, one whose node has no
+    /// value in this run, and a port that carries no names (a revolve's
+    /// axis).
+    pub fn table(&self, var: crate::VarId) -> Option<&NameTable> {
+        self.output_names(var).map(OutputNames::table)
+    }
+
+    /// [`Self::table_at`], shared: for a reader that keeps the table
+    /// beside the value it read (the product's gather).
+    pub(crate) fn shared_table_at(&self, at: impl Into<At>) -> Option<Arc<NameTable>> {
+        self.output_names(self.at_var(at)?)
+            .map(OutputNames::shared_table)
+    }
+
+    /// The fragment groups minted beside [`Self::table`]'s table.
+    pub fn groups(&self, var: crate::VarId) -> Option<&crate::names::FragmentGroups> {
+        self.output_names(var).map(OutputNames::groups)
+    }
+
+    /// The output and the port `var` reads, as the evaluated document
+    /// defined it.
+    pub fn read_port(&self, var: crate::VarId) -> Option<(RecipeNodeId, u8)> {
+        self.reads.get(&var).copied()
+    }
+
+    /// The variable `node`'s port `port` defines, in the evaluated
+    /// document.
+    pub fn output_var(&self, node: RecipeNodeId, port: u8) -> Option<crate::VarId> {
+        self.reads
+            .iter()
+            .find(|(_, at)| **at == (node, port))
+            .map(|(&var, _)| var)
+    }
+
+    /// **The variables of `node` that carry names**, in port order: one
+    /// for a node with one body output, two for a split.
+    pub fn named_outputs(&self, node: RecipeNodeId) -> Vec<crate::VarId> {
+        let Some(value) = self.value(node) else {
+            return Vec::new();
+        };
+        let mut ports: Vec<(u8, crate::VarId)> = self
+            .reads
+            .iter()
+            .filter(|(_, (at, port))| *at == node && value.output(*port).is_some())
+            .map(|(&var, &(_, port))| (port, var))
+            .collect();
+        ports.sort_unstable();
+        ports.into_iter().map(|(_, var)| var).collect()
+    }
+
+    /// **The variable `at` names**: a read as it is; a node named alone
+    /// its one output that carries names (`None` for a split, whose
+    /// halves are two, and for a node with no value).
+    pub fn at_var(&self, at: impl Into<At>) -> Option<crate::VarId> {
+        match at.into() {
+            At::Read(var) => Some(var),
+            At::Node(node) => match self.named_outputs(node).as_slice() {
+                [one] => Some(*one),
+                _ => None,
+            },
+        }
+    }
+
+    /// [`Self::table`] of the variable `at` names ([`Self::at_var`]).
+    pub fn table_at(&self, at: impl Into<At>) -> Option<&NameTable> {
+        self.table(self.at_var(at)?)
+    }
+
+    /// **The body entity `index` of `var`'s table is in**: a split's half
+    /// at its port (its table's one body), any other output's body at
+    /// `index` (a family's member at its place).
+    ///
+    /// # Errors
+    ///
+    /// The node's standing when it has no value; a
+    /// [`crate::InterrogateError`] when the value holds no such body.
+    pub fn read_body(
+        &self,
+        var: crate::VarId,
+        index: u32,
+    ) -> Result<Result<&Body<T>, crate::InterrogateError>, NodeStanding> {
+        let Some((node, port)) = self.read_port(var) else {
+            return Ok(Err(crate::InterrogateError::NoSuchBody { index }));
+        };
+        let value = self.usable(node)?;
+        Ok(match &value.payload {
+            ValuePayload::Split { .. } if index == 0 => value.payload.output_body(u32::from(port)),
+            ValuePayload::Split { .. } => Err(crate::InterrogateError::NoSuchBody { index }),
+            payload => payload.output_body(index),
+        })
+    }
+
+    /// **The read and the table entity an entity of `node`'s value
+    /// is** — [`Self::read_body`]'s inverse: a split's body `i` is its
+    /// half at port `i`, body 0 of that half's table; any other node's
+    /// entity is its one named output's as it stands.
+    pub fn entity_read(
+        &self,
+        node: RecipeNodeId,
+        entity: crate::names::EntityRef,
+    ) -> Option<(crate::VarId, crate::names::EntityRef)> {
+        let (var, body) = self.body_read_of(node, entity.body)?;
+        Some((
+            var,
+            crate::names::EntityRef {
+                body,
+                key: entity.key,
+            },
+        ))
+    }
+
+    /// **The read body `body` of `node`'s value is in, and its index
+    /// in that read's table**: a split's body `i` is its half at port
+    /// `i`, body 0 there; any other node's body is its one named
+    /// output's at the same index.
+    pub fn body_read_of(&self, node: RecipeNodeId, body: u32) -> Option<(crate::VarId, u32)> {
+        match &self.value(node)?.payload {
+            ValuePayload::Split { .. } => {
+                Some((self.output_var(node, u8::try_from(body).ok()?)?, 0))
+            }
+            _ => Some((self.at_var(node)?, body)),
+        }
+    }
+
+    fn output_names(&self, var: crate::VarId) -> Option<&OutputNames> {
+        let (node, port) = self.read_port(var)?;
+        self.value(node)?.output(port)
+    }
+
     /// **The node's value, or its standing** — the one read every door
     /// that needs a node's value makes, so the three ways to have none
     /// are spelled once, here, and a door's refusal carries the
@@ -585,23 +721,78 @@ impl<T: Decide> NodeResult<T> {
     }
 }
 
+/// **Where a name table is read** (NAMES N1, the scope): a read of an
+/// output variable, or a node named alone, which is its one output
+/// that carries names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum At {
+    /// A node named alone: its one named output.
+    Node(RecipeNodeId),
+    /// An output variable.
+    Read(crate::VarId),
+}
+
+impl From<RecipeNodeId> for At {
+    fn from(node: RecipeNodeId) -> Self {
+        Self::Node(node)
+    }
+}
+
+impl From<crate::VarId> for At {
+    fn from(var: crate::VarId) -> Self {
+        Self::Read(var)
+    }
+}
+
+/// **The names one output variable carries** (N1, N4): its name
+/// table — every boundary entity of the output's bodies,
+/// `StableName ↔` (body, arena key) — and the fragment groups the
+/// emitter formed beside it ([`crate::names::FragmentGroups`], the
+/// membership the diagnosis ladder's group-size rung counts; not
+/// persisted, like the verdict log).
+#[derive(Debug, Clone, Default)]
+pub struct OutputNames {
+    table: Arc<NameTable>,
+    groups: Arc<crate::names::FragmentGroups>,
+}
+
+impl OutputNames {
+    /// An output's names and groups.
+    pub(crate) fn new(table: Arc<NameTable>, groups: Arc<crate::names::FragmentGroups>) -> Self {
+        Self { table, groups }
+    }
+
+    /// The output's name table.
+    pub fn table(&self) -> &NameTable {
+        &self.table
+    }
+
+    /// The fragment groups minted beside it.
+    pub fn groups(&self) -> &crate::names::FragmentGroups {
+        &self.groups
+    }
+
+    /// The table, shared.
+    pub(crate) fn shared_table(&self) -> Arc<NameTable> {
+        Arc::clone(&self.table)
+    }
+}
+
 /// A successful node value (spec D2): the op-appropriate payload plus
 /// the reserved PR 3 / M6 slots and the node's content key.
 #[derive(Debug, Clone)]
 pub struct NodeValue<T: Decide> {
     /// What the node's op produced.
     pub payload: ValuePayload<T>,
-    /// The node's eagerly-emitted name table (N4, PR 3): every
-    /// boundary entity of the node's output bodies, `StableName ↔`
-    /// (body, arena key). Rides the value, so memo reuse transfers
-    /// names with geometry (the content key is the proof).
-    pub name_table: Arc<NameTable>,
-    /// The fragment groups the node's emitter formed
-    /// ([`crate::names::FragmentGroups`]): the membership the
-    /// diagnosis ladder's group-size rung counts. Rides the value with
-    /// the names it was minted beside; like the verdict log, it is
-    /// not persisted.
-    pub fragment_groups: Arc<crate::names::FragmentGroups>,
+    /// **The names each output carries** (NAMES N1, the scope), by
+    /// port: a name is scoped by the variable that holds its body, so
+    /// a split's two halves are two tables and an operation with one
+    /// body output has one. Reached only through
+    /// [`Evaluation::table`] (and, in the evaluator, the read it
+    /// resolves to): a table is the variable's, never the node's.
+    /// Rides the value, so memo reuse transfers names with geometry
+    /// (the content key is the proof).
+    outputs: Arc<[OutputNames]>,
     /// The DECLARED CONTACT RECORDS the node's output body 0 carries
     /// (ASM-R2b D-1's contacts channel; [`crate::eval::wire::OpOut`]
     /// states the invariant). Empty for every op but instantiate — a
@@ -703,6 +894,16 @@ pub struct NodeValue<T: Decide> {
     /// match — content certifies the geometry, naming certifies the
     /// node-id-embedding names half (see [`NamingKey`]).
     pub naming_key: NamingKey,
+}
+
+impl<T: Decide> NodeValue<T> {
+    /// **The names output `port` carries**: the one indexer of
+    /// [`NodeValue::outputs`], private to the evaluator. Everything
+    /// outside it reads a table by the variable that holds its body
+    /// ([`Evaluation::table`]).
+    fn output(&self, port: u8) -> Option<&OutputNames> {
+        self.outputs.get(usize::from(port))
+    }
 }
 
 /// One evaluation's per-node verdict vector (the [`NodeValue::verdicts`]
@@ -3920,6 +4121,7 @@ where
         part_evaluations: parts.evaluations(),
         appearance: resolved_appearance,
         env,
+        reads: Arc::new(doc.output_ports()),
     }
 }
 
@@ -4084,6 +4286,7 @@ where
         part_evaluations: 0,
         appearance: resolved_appearance,
         env: doc.var_env::<T>(),
+        reads: Arc::new(doc.output_ports()),
     }
 }
 
@@ -4100,7 +4303,14 @@ fn resolve_appearance<T: Decide>(
         .iter()
         .map(|&id| {
             let state = usable_in(nodes, id, || NodeStanding::NotEvaluated { node: id });
-            (id, state.map(|v| &*v.name_table))
+            (
+                id,
+                state.map(|v| {
+                    (0u8..)
+                        .map_while(|port| v.output(port).map(|out| (u32::from(port), out.table())))
+                        .collect()
+                }),
+            )
         })
         .collect();
     appearance::resolve(doc.appearance(), order, &states)
@@ -4550,8 +4760,7 @@ where
         (Ok(out), Ok(placement)) => NodeStep {
             result: NodeResult::Ok(NodeValue {
                 payload: out.payload,
-                name_table: out.names,
-                fragment_groups: out.groups,
+                outputs: out.outputs.into(),
                 contacts: out.contacts,
                 carried: out.carried,
                 coincidences: out.coincidences,
@@ -4636,8 +4845,7 @@ fn mate_log_is_the_solves(
 /// - a function of a closed enum — [`verb_content_tag`] over
 ///   `VerbKind::ALL`, [`verb_tag`] over `profile::Verb::ALL`,
 ///   [`arc_mode_tag`] over `ArcMode::ALL`, [`seg_content_tag`] over
-///   `SegTag::ALL`, [`split_half_tag`] over `SplitHalf::ALL`,
-///   [`extrude_side_tag`] over `ExtrudeSide::ALL`,
+///   `SegTag::ALL`, [`extrude_side_tag`] over `ExtrudeSide::ALL`,
 ///   `ContactClass::content_tag` over `ContactClass::ALL`, and
 ///   [`winding_tag`], [`side_tag`], [`target_tag`] over a local closed
 ///   list that an exhaustive match forces to name every variant (their
@@ -4662,8 +4870,7 @@ fn mate_log_is_the_solves(
 /// so a collision would have to be typed into the arms themselves. They
 /// stay matches because their enums are DOCM's, M10's or unowned and
 /// carry no `ALL` to iterate; the day one gains an `ALL`, its map
-/// becomes a function with a row here, as `split_half_tag` and
-/// `content_tag` have.
+/// becomes a function with a row here, as `content_tag` has.
 mod tag {
     /// Declares each group's words and its retired numbers, and
     /// projects the group's `ALL`, its `RETIRED` and the census roster
@@ -6515,17 +6722,6 @@ fn sense_tag(sense: crate::names::Sense) -> u8 {
     }
 }
 
-/// A split half's key tag — ONE spelling, read by the role-segment
-/// feed (every split segment carries a half);
-/// `split_half_tags_are_injective` checks it over `SplitHalf::ALL`.
-fn split_half_tag(half: crate::names::SplitHalf) -> u8 {
-    use crate::names::SplitHalf;
-    match half {
-        SplitHalf::Above => 1,
-        SplitHalf::Below => 2,
-    }
-}
-
 /// The content-key tag of a role segment — the ONE place a segment's
 /// key identity is chosen, keyed on the payload-free [`SegTag`] so the
 /// choice is a total function of the role vocabulary's own mirror and
@@ -6601,7 +6797,6 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         MeridianEnd::Seam => 3,
         MeridianEnd::Pi => 4,
     };
-    let half = split_half_tag;
     let rim = |s: crate::names::RimSupport| match s {
         crate::names::RimSupport::Host => 1u8,
         crate::names::RimSupport::Mate => 2,
@@ -6785,28 +6980,21 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::Fragment(q) => {
             qual(h, q);
         }
-        RoleSeg::SplitBody(s) => {
-            h.write_tag(half(*s));
-        }
-        RoleSeg::SectionFace { side, section } => {
-            h.write_tag(half(*side));
+        RoleSeg::SplitBody => {}
+        RoleSeg::SectionFace { section } => {
             h.write_u64(u64::from(*section));
         }
-        RoleSeg::SectionEdge { side, face } => {
-            h.write_tag(half(*side));
+        RoleSeg::SectionEdge { face } => {
             h.name(face);
         }
-        RoleSeg::SplitFragment { side, parent } => {
-            h.write_tag(half(*side));
+        RoleSeg::SplitFragment { parent } => {
             h.name(parent);
         }
-        RoleSeg::CrossingVertex { side, edge, sense } => {
-            h.write_tag(half(*side));
+        RoleSeg::CrossingVertex { edge, sense } => {
             h.name(edge);
             h.write_tag(sense_tag(*sense));
         }
-        RoleSeg::OnToolVertex { side, of } => {
-            h.write_tag(half(*side));
+        RoleSeg::OnToolVertex { of } => {
             h.name(of);
         }
         RoleSeg::InPart { of } | RoleSeg::Placed { of } => {
@@ -6883,7 +7071,7 @@ mod tag_vocabulary_tests {
 
     use super::{
         KeyHasher, RETIRED_NODE_KIND_TAGS, RETIRED_VERB_TAGS, arc_mode_tag, extrude_side_tag,
-        feed_lane_step, feed_step, seg_content_tag, side_tag, split_half_tag, tag, target_tag,
+        feed_lane_step, feed_step, seg_content_tag, side_tag, tag, target_tag,
         verb_content_tag, verb_tag, winding_tag,
     };
     use crate::names::SegTag;
@@ -7350,20 +7538,6 @@ mod tag_vocabulary_tests {
             &ExtrudeSide::ALL,
             extrude_side_tag,
             &[(ExtrudeSide::Along, 1), (ExtrudeSide::Against, 2)],
-            |a, b| a == b,
-        );
-    }
-
-    /// A split half's tag, injective and pinned over
-    /// [`crate::names::SplitHalf::ALL`].
-    #[test]
-    fn split_half_tags_are_injective() {
-        use crate::names::SplitHalf;
-        injective_and_pinned(
-            "split half",
-            &SplitHalf::ALL,
-            split_half_tag,
-            &[(SplitHalf::Above, 1), (SplitHalf::Below, 2)],
             |a, b| a == b,
         );
     }

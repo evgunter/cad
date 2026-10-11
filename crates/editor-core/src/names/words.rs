@@ -80,7 +80,7 @@ use crate::names::NameTable;
 use crate::names::attribute::{CarriedAs, SegOrigin, origin};
 use crate::names::role::{
     CapEnd, EntityKind, MeridianEnd, NameRef, PieceRun, ProfileEdgeRef, ProfileVertexRef,
-    Qualifier, RimSupport, RoleSeg, SectionCircle, SplitHalf, StableName, fragment_tail_start,
+    Qualifier, RimSupport, RoleSeg, SectionCircle, StableName, fragment_tail_start,
 };
 use crate::node::RecipeNodeId;
 use crate::spoken::Carry;
@@ -470,8 +470,8 @@ impl<'s> Cites<'_, '_, 's> {
 /// the leaf.
 enum Wrap<'n> {
     Part(&'n Qualifier),
-    Split(SplitHalf),
-    ToolCopy(SplitHalf),
+    Split,
+    ToolCopy,
     Instance(u32),
     Cut,
 }
@@ -526,8 +526,8 @@ fn walk<'n>(name: &'n StableName, by: Speaker<'_>) -> Walk<'n> {
             }
             // A world placement's copy is the same entity, placed.
             CarriedAs::Placed => None,
-            CarriedAs::Split(side) => Some(Step::Wrap(Wrap::Split(side))),
-            CarriedAs::ToolCopy(side) => Some(Step::Wrap(Wrap::ToolCopy(side))),
+            CarriedAs::Split => Some(Step::Wrap(Wrap::Split)),
+            CarriedAs::ToolCopy => Some(Step::Wrap(Wrap::ToolCopy)),
             CarriedAs::Instance(i) => Some(Step::Wrap(Wrap::Instance(i))),
             CarriedAs::Cut => Some(Step::Wrap(Wrap::Cut)),
         });
@@ -670,8 +670,8 @@ fn join_words(Join { at, read }: Join, by: Speaker<'_>) -> String {
 /// The words a carry says before the leaf.
 fn prefix(wrap: &Wrap<'_>, kind: EntityKind) -> String {
     match wrap {
-        Wrap::Split(side) => format!("the part {} of ", half(*side)),
-        Wrap::ToolCopy(side) => format!("the copy {} of ", half(*side)),
+        Wrap::Split => "the split's part of ".to_owned(),
+        Wrap::ToolCopy => "the split's copy of ".to_owned(),
         Wrap::Instance(i) => format!("instance {i}'s copy of "),
         Wrap::Cut => "the surviving part of ".to_owned(),
         Wrap::Part(Qualifier::OrderAlong { rank, of }) => {
@@ -693,13 +693,6 @@ fn plural(kind: EntityKind) -> &'static str {
         EntityKind::Face => "faces",
         EntityKind::Edge => "edges",
         EntityKind::Vertex => "vertices",
-    }
-}
-
-fn half(side: SplitHalf) -> &'static str {
-    match side {
-        SplitHalf::Above => "above the split",
-        SplitHalf::Below => "below the split",
     }
 }
 
@@ -900,19 +893,16 @@ fn role<'n, 's>(
             items.extend(cites.list(set));
             items
         }
-        RoleSeg::SplitBody(side) => one(format!("the body {}", half(*side))),
-        RoleSeg::SectionFace { side, section } => {
-            one(format!("section face {section} {}", half(*side)))
-        }
-        RoleSeg::SectionEdge { side, face } => vec![
-            text("the section edge across "),
+        RoleSeg::SplitBody => one("the split's body".to_owned()),
+        RoleSeg::SectionFace { section } => one(format!("the split's section face {section}")),
+        RoleSeg::SectionEdge { face } => vec![
+            text("the split's section edge across "),
             cites.one(face),
-            text(format!(" {}", half(*side))),
         ],
-        RoleSeg::CrossingVertex { side, edge, sense } => vec![
+        RoleSeg::CrossingVertex { edge, sense } => vec![
             text("the split's crossing where "),
             cites.one(edge),
-            text(format!(" {} the half {}", sense_verb(*sense), half(*side))),
+            text(format!(" {} the half", sense_verb(*sense))),
         ],
         RoleSeg::BlendFace(edge) => vec![text("the blend face over "), cites.one(edge)],
         RoleSeg::CornerFace(v) => vec![text("the corner face at "), cites.one(v)],
@@ -982,13 +972,8 @@ fn role<'n, 's>(
         RoleSeg::From { read, of } => {
             vec![cites.one(of), text(format!(" through {}", by.read(*read)))]
         }
-        RoleSeg::SplitFragment { parent, side } => vec![
-            text(format!("the part {} of ", half(*side))),
-            cites.one(parent),
-        ],
-        RoleSeg::OnToolVertex { of, side } => {
-            vec![text(format!("the copy {} of ", half(*side))), cites.one(of)]
-        }
+        RoleSeg::SplitFragment { parent } => vec![text("the split's part of "), cites.one(parent)],
+        RoleSeg::OnToolVertex { of } => vec![text("the split's copy of "), cites.one(of)],
         RoleSeg::Instance { of, i } => {
             vec![text(format!("instance {i}'s copy of ")), cites.one(of)]
         }
@@ -1151,22 +1136,19 @@ mod tests {
             "part 1 of 3 of (the end cap of node 000000000001, through read 000000000000 at node \
              000000000003)"
         );
-        let half = |side| {
-            name(
-                EntityKind::Face,
-                OP,
-                vec![RoleSeg::SplitFragment {
-                    side,
-                    parent: NameRef::new(wall(1)),
-                }],
-            )
-        };
-        assert_eq!(
-            said(&half(SplitHalf::Above)),
-            "the part above the split of the side wall over the profile step 000000000001 of \
-             node 000000000001"
+        let piece = name(
+            EntityKind::Face,
+            OP,
+            vec![RoleSeg::SplitFragment {
+                parent: NameRef::new(wall(1)),
+            }],
         );
-        assert_ne!(said(&half(SplitHalf::Above)), said(&half(SplitHalf::Below)));
+        // The half is the variable's, not the name's (N1, the scope).
+        assert_eq!(
+            said(&piece),
+            "the split's part of the side wall over the profile step 000000000001 of node \
+             000000000001"
+        );
     }
 
     /// A blend face, a shell's cavity twin and a split's section edge

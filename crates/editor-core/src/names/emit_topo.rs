@@ -39,6 +39,25 @@ struct Side<'a, T: Decide> {
     half: SplitHalf,
 }
 
+impl<T: Decide> Side<'_, T> {
+    /// The half's place among [`HalfNames`]: its output's port.
+    fn slot(&self) -> usize {
+        usize::try_from(self.ix).unwrap_or(usize::MAX)
+    }
+}
+
+/// **One half's names in the making** (NAMES N1, the scope): its own
+/// table, the ties it defers and the groups it formed. A name is scoped
+/// by the variable that holds its body, so each half is named apart and
+/// no name says which half it is in; every entity is body 0 of its
+/// half's table.
+#[derive(Default)]
+struct HalfNames {
+    t: NameTable,
+    tie: TieRows,
+    rec: GroupRecord,
+}
+
 /// Chases a face key through fragment rows to its root (the key that
 /// is not itself a minted fragment). Bounded by the row count.
 ///
@@ -139,7 +158,9 @@ fn chase_split_lineage<T: Decide>(
     Err(topo::SplitLineageCycle { edge: e }.into())
 }
 
-/// Names both sides of a split (spec D2's split vocabulary + N2).
+/// Names both sides of a split (spec D2's split vocabulary + N2), each
+/// in its own table, in port order (`SplitHalf::output_body`): a half
+/// with no material has an empty one.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn name_split<T: Decide>(
     node: RecipeNodeId,
@@ -150,10 +171,9 @@ pub(crate) fn name_split<T: Decide>(
     target_table: &NameTable,
     target_body: &Body<T>,
     tol: Tol,
-) -> Result<Emitted, NamingError> {
+) -> Result<[Emitted; 2], NamingError> {
     let b = band(tol)?;
-    let mut t = NameTable::new();
-    let mut rec = GroupRecord::new();
+    let mut halves: [HalfNames; 2] = Default::default();
     let frag_rows: BTreeMap<FaceKey, FaceKey> = naming.face_fragments.iter().copied().collect();
     let section_keys: BTreeSet<FaceKey> = naming.sections.iter().map(|&(f, _)| f).collect();
     let mut sides: Vec<Side<'_, T>> = Vec::new();
@@ -167,9 +187,9 @@ pub(crate) fn name_split<T: Decide>(
         }
     }
     for s in &sides {
-        t.insert(
-            name1(EntityKind::Body, node, RoleSeg::SplitBody(s.half)),
-            ent(s.ix, EntityKey::Body),
+        halves[s.slot()].t.insert(
+            name1(EntityKind::Body, node, RoleSeg::SplitBody),
+            ent(0, EntityKey::Body),
         )?;
     }
 
@@ -185,13 +205,6 @@ pub(crate) fn name_split<T: Decide>(
                 });
             }
         };
-        // The per-side counter is indexed by the half's OUTPUT-BODY
-        // index — the one mapping, not a second one.
-        let slot = usize::try_from(half.output_body()).map_err(|_| NamingError::Emission {
-            what: "a split half's output-body index exceeds usize",
-        })?;
-        let section = per_side_ix[slot];
-        per_side_ix[slot] += 1;
         // The face is live in exactly the side that kept it.
         let Some(s) = sides
             .iter()
@@ -201,25 +214,17 @@ pub(crate) fn name_split<T: Decide>(
                 what: "section face live in no matching side body",
             });
         };
-        t.insert(
-            name1(
-                EntityKind::Face,
-                node,
-                RoleSeg::SectionFace {
-                    side: half,
-                    section,
-                },
-            ),
-            ent(s.ix, EntityKey::Face(f)),
+        let section = per_side_ix[s.slot()];
+        per_side_ix[s.slot()] += 1;
+        halves[s.slot()].t.insert(
+            name1(EntityKind::Face, node, RoleSeg::SectionFace { section }),
+            ent(0, EntityKey::Face(f)),
         )?;
     }
 
-    let mut tie = TieRows::default();
     name_split_faces(
         node,
-        &mut t,
-        &mut tie,
-        &mut rec,
+        &mut halves,
         &sides,
         &frag_rows,
         &section_keys,
@@ -227,11 +232,12 @@ pub(crate) fn name_split<T: Decide>(
         target_table,
         target_body,
     )?;
-    tie.flush(&mut t)?;
+    for h in &mut halves {
+        h.tie.flush(&mut h.t)?;
+    }
     name_split_edges_vertices(
         node,
-        &mut t,
-        &mut tie,
+        &mut halves,
         &sides,
         &frag_rows,
         &section_keys,
@@ -241,12 +247,15 @@ pub(crate) fn name_split<T: Decide>(
         target_body,
         b,
     )?;
-    tie.flush(&mut t)?;
+    for h in &mut halves {
+        h.tie.flush(&mut h.t)?;
+    }
 
     for s in &sides {
-        super::emit::check_total(&t, s.body, s.ix)?;
+        super::emit::check_total(&halves[s.slot()].t, s.body, 0)?;
     }
-    Ok(Emitted::new(t, rec))
+    let [above, below] = halves;
+    Ok([above, below].map(|h| Emitted::new(h.t, h.rec)))
 }
 
 /// Chord edges: every boundary edge of `body`'s live section faces,
@@ -403,8 +412,7 @@ fn split_joined_readings<T: Decide>(
 #[allow(clippy::too_many_arguments)]
 fn name_split_edges_vertices<T: Decide>(
     node: RecipeNodeId,
-    t: &mut NameTable,
-    tie: &mut TieRows,
+    halves: &mut [HalfNames; 2],
     sides: &[Side<'_, T>],
     frag_rows: &BTreeMap<FaceKey, FaceKey>,
     section_keys: &BTreeSet<FaceKey>,
@@ -445,8 +453,10 @@ fn name_split_edges_vertices<T: Decide>(
         .map(|e| root_of[&e])
         .collect();
     let joined = split_joined_readings(node, sides, naming, &root_of, target_node, target_table)?;
-    for (slot, s) in sides.iter().enumerate() {
+    for s in sides {
+        let slot = s.slot();
         let body = s.body;
+        let HalfNames { t, tie, .. } = &mut halves[slot];
         let chord_faces = chord_faces(body, &naming.sections, section_keys)?;
         // Chord edges named by the operand face their section boundary
         // runs across. A section line that re-enters ONE operand face
@@ -472,10 +482,7 @@ fn name_split_edges_vertices<T: Decide>(
             let name = name1(
                 EntityKind::Edge,
                 node,
-                RoleSeg::SectionEdge {
-                    side: s.half,
-                    face: parent.name,
-                },
+                RoleSeg::SectionEdge { face: parent.name },
             );
             let group = edge_groups.entry((slot, name)).or_default();
             group.0 |= parent.tied;
@@ -490,11 +497,11 @@ fn name_split_edges_vertices<T: Decide>(
                 // A joined edge whose cover lies along whole operand
                 // edges: the one's own name, or the set of them.
                 Some(Joined::Whole(up)) => {
-                    tie.carry(up.clone(), ent(s.ix, EntityKey::Edge(e)))?;
+                    tie.carry(up.clone(), ent(0, EntityKey::Edge(e)))?;
                     continue;
                 }
                 Some(Joined::Set { name, tied }) => {
-                    put(t, tie, *tied, name.clone(), ent(s.ix, EntityKey::Edge(e)))?;
+                    put(t, tie, *tied, name.clone(), ent(0, EntityKey::Edge(e)))?;
                     continue;
                 }
                 None => {}
@@ -509,7 +516,7 @@ fn name_split_edges_vertices<T: Decide>(
             {
                 // Intact operand edge: pass-through.
                 let up = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(e)))?;
-                tie.carry(up, ent(s.ix, EntityKey::Edge(e)))?;
+                tie.carry(up, ent(0, EntityKey::Edge(e)))?;
                 continue;
             }
             if target_table
@@ -523,7 +530,6 @@ fn name_split_edges_vertices<T: Decide>(
                 EntityKind::Edge,
                 node,
                 RoleSeg::SplitFragment {
-                    side: s.half,
                     parent: parent.name,
                 },
             );
@@ -549,7 +555,7 @@ fn name_split_edges_vertices<T: Decide>(
                     .is_some()
             {
                 let up = upstream_name(target_table, target_node, ent(0, EntityKey::Vertex(v)))?;
-                tie.carry(up, ent(s.ix, EntityKey::Vertex(v)))?;
+                tie.carry(up, ent(0, EntityKey::Vertex(v)))?;
                 continue;
             }
             // Resolve the birth record — directly, or through the
@@ -595,12 +601,9 @@ fn name_split_edges_vertices<T: Decide>(
                     name1(
                         EntityKind::Vertex,
                         node,
-                        RoleSeg::OnToolVertex {
-                            side: s.half,
-                            of: of.name,
-                        },
+                        RoleSeg::OnToolVertex { of: of.name },
                     ),
-                    ent(s.ix, EntityKey::Vertex(v)),
+                    ent(0, EntityKey::Vertex(v)),
                 )?;
             } else {
                 return Err(bug(
@@ -629,7 +632,7 @@ fn name_split_edges_vertices<T: Decide>(
                 let on = by_line.entry((edge_line(&parent.name), sense)).or_default();
                 on.0 |= parent.tied;
                 on.1.push((
-                    ent(s.ix, EntityKey::Vertex(v)),
+                    ent(0, EntityKey::Vertex(v)),
                     vertex_point(body, v)?,
                     along,
                 ));
@@ -639,19 +642,20 @@ fn name_split_edges_vertices<T: Decide>(
             let base = name1(
                 EntityKind::Vertex,
                 node,
-                RoleSeg::CrossingVertex {
-                    side: s.half,
-                    edge: line,
-                    sense,
-                },
+                RoleSeg::CrossingVertex { edge: line, sense },
             );
             rank_crossings(t, tie, tied, &base, &on, bnd)?;
         }
     }
-    tie.flush(t)?;
-    let mut pieces = EdgePieces::default();
+    let mut pieces: [EdgePieces; 2] = Default::default();
+    for h in halves.iter_mut() {
+        h.tie.flush(&mut h.t)?;
+    }
     for ((slot, base), (from_tie, edges)) in edge_groups {
-        let s = &sides[slot];
+        let s = sides
+            .iter()
+            .find(|s| s.slot() == slot)
+            .ok_or_else(|| bug("a split edge group without a side body"))?;
         // A lone section chord is the whole of the section line across
         // its face; an operand edge's fragment is always a piece of it.
         let lone = match base.path.first() {
@@ -659,16 +663,19 @@ fn name_split_edges_vertices<T: Decide>(
             _ => Lone::Piece,
         };
         name_edge_pieces(
-            &mut pieces,
-            t,
+            &mut pieces[slot],
+            &mut halves[slot].t,
             from_tie,
             &base,
-            (s.body, s.ix),
+            (s.body, 0),
             &edges,
             lone,
         )?;
     }
-    pieces.mint(t, tie)
+    for (h, pieces) in halves.iter_mut().zip(pieces) {
+        pieces.mint(&mut h.t, &mut h.tie)?;
+    }
+    Ok(())
 }
 
 /// **The sense of a Split's crossing at `v`** (N2) against the half
@@ -3544,9 +3551,7 @@ fn insert_ranked_or_tied<K: Copy>(
 #[allow(clippy::too_many_arguments)]
 fn name_split_faces<T: Decide>(
     node: RecipeNodeId,
-    t: &mut NameTable,
-    tie: &mut TieRows,
-    rec: &mut GroupRecord,
+    halves: &mut [HalfNames; 2],
     sides: &[Side<'_, T>],
     frag_rows: &BTreeMap<FaceKey, FaceKey>,
     section_keys: &BTreeSet<FaceKey>,
@@ -3559,9 +3564,8 @@ fn name_split_faces<T: Decide>(
         .values()
         .map(|&p| chase(frag_rows, p))
         .collect::<Result<_, NamingError>>()?;
-    // (root, side-slot) → members.
-    type Members = Vec<(u32, SplitHalf, FaceKey)>;
-    let mut groups: BTreeMap<(FaceKey, u32), Members> = BTreeMap::new();
+    // (root, side) → members.
+    let mut groups: BTreeMap<(FaceKey, usize), Vec<FaceKey>> = BTreeMap::new();
     for s in sides {
         for (f, _) in s.body.faces() {
             if section_keys.contains(&f) {
@@ -3574,35 +3578,40 @@ fn name_split_faces<T: Decide>(
                 // its (face, side) group's one member, spelled by its
                 // upstream name rather than the group's base.
                 let up = upstream_name(target_table, target_node, ent(0, EntityKey::Face(f)))?;
-                rec.record(
-                    &split_base(node, s.half, up.name.clone()),
-                    vec![ent(s.ix, EntityKey::Face(f))],
+                let h = &mut halves[s.slot()];
+                h.rec.record(
+                    &split_base(node, up.name.clone()),
+                    vec![ent(0, EntityKey::Face(f))],
                     Parent::Elsewhere,
                 );
-                tie.carry(up, ent(s.ix, EntityKey::Face(f)))?;
+                h.tie.carry(up, ent(0, EntityKey::Face(f)))?;
             } else {
-                groups
-                    .entry((root, s.ix))
-                    .or_default()
-                    .push((s.ix, s.half, f));
+                groups.entry((root, s.slot())).or_default().push(f);
             }
         }
     }
-    for ((root, _), members) in groups {
+    for ((root, slot), members) in groups {
         let parent = upstream_name(target_table, target_node, ent(0, EntityKey::Face(root)))?;
         let from_tie = parent.tied;
-        let base_name = split_base(node, members[0].1, parent.name);
-        rec.record(
+        let base_name = split_base(node, parent.name);
+        let body = sides
+            .iter()
+            .find(|s| s.slot() == slot)
+            .ok_or(NamingError::Emission {
+                what: "split fragment group without a side body",
+            })?
+            .body;
+        let h = &mut halves[slot];
+        h.rec.record(
             &base_name,
             members
                 .iter()
-                .map(|&(ix, _, f)| ent(ix, EntityKey::Face(f)))
+                .map(|&f| ent(0, EntityKey::Face(f)))
                 .collect(),
             Parent::Elsewhere,
         );
-        if members.len() == 1 {
-            let (ix, _, f) = members[0];
-            put(t, tie, from_tie, base_name, ent(ix, EntityKey::Face(f)))?;
+        if let [f] = members.as_slice() {
+            put(&mut h.t, &mut h.tie, from_tie, base_name, ent(0, EntityKey::Face(*f)))?;
             continue;
         }
         // Same-side multiplicity: each piece by the parent's boundary
@@ -3621,14 +3630,7 @@ fn name_split_faces<T: Decide>(
             })
             .collect::<Result<_, _>>()?;
         let mut pieces = Vec::with_capacity(members.len());
-        for &(ix, _, f) in &members {
-            let body = sides
-                .iter()
-                .find(|s| s.ix == ix)
-                .ok_or(NamingError::Emission {
-                    what: "split fragment group without a side body",
-                })?
-                .body;
+        for &f in &members {
             let mut kept: BTreeSet<StableName> = BTreeSet::new();
             for he in face_half_edges(body, f)? {
                 let e = body
@@ -3649,23 +3651,19 @@ fn name_split_faces<T: Decide>(
             }
             pieces.push((
                 Qualifier::Keeps(kept.into_iter().collect()),
-                ent(ix, EntityKey::Face(f)),
+                ent(0, EntityKey::Face(f)),
             ));
         }
-        mint_qualified(t, tie, from_tie, &base_name, pieces)?;
+        mint_qualified(&mut h.t, &mut h.tie, from_tie, &base_name, pieces)?;
     }
     Ok(())
 }
 
-/// The base of a split's (face, side) group: the face `parent` on the
-/// `side` half. One spelling for the group the split divides and for
-/// the face it passes through whole.
-fn split_base(node: RecipeNodeId, side: SplitHalf, parent: NameRef) -> StableName {
-    name1(
-        EntityKind::Face,
-        node,
-        RoleSeg::SplitFragment { side, parent },
-    )
+/// The base of a split's (face, side) group: the face `parent` in the
+/// half whose table holds it. One spelling for the group the split
+/// divides and for the face it passes through whole.
+fn split_base(node: RecipeNodeId, parent: NameRef) -> StableName {
+    name1(EntityKind::Face, node, RoleSeg::SplitFragment { parent })
 }
 
 #[cfg(test)]

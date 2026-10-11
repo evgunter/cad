@@ -1576,8 +1576,8 @@ fn copy_face<'k, P: crate::ProfilePayload, T: Decide>(
     // landed on one face of `head.at`'s table (`eval::wire::select`), and
     // the ladder's landing is that table's row under the name.
     let ent = evaluation
-        .value(head.at)
-        .and_then(|value| match value.name_table.lookup(&head.name) {
+        .table(select.body)
+        .and_then(|table| match table.lookup(&head.name) {
             Some(Entry::Unique(ent)) if ent.key.face().is_some() => Some(ent),
             Some(Entry::Unique(_) | Entry::Tied(_)) | None => None,
         })
