@@ -102,9 +102,15 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// a regression. Merged over INTENT stage 2 C and D, both effects add:
 /// a world copy says its body's name, joins and all, under "the world
 /// copy of".
+///
+/// The totals rose again (12 and 68 words) when `part_select`'s union
+/// came to read the split's ports where it read a `Part` of each half:
+/// a member said as a port says the split and the half ("from Split
+/// …'s above"), where a `Part` was said by its one tag. The percentiles
+/// and maxima held.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 43, 57, 55_693]),
-    ("full", [19, 123, 196, 411_350]),
+    ("scoped faces", [16, 43, 57, 55_705]),
+    ("full", [19, 123, 196, 411_418]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -142,7 +148,11 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 ///
 /// The three boolean nodes moved it with [`NAME_WORDS`]: every member
 /// says its join, and a carry said by tag says the read it came through.
-const SAID_DIGEST: u64 = 0x923c_f479_cf51_72a7;
+///
+/// `part_select`'s union reading the split's ports moved it with
+/// [`NAME_WORDS`]: its members are said as the ports, and the nodes
+/// minted after the two `Part`s it no longer holds took new tags.
+const SAID_DIGEST: u64 = 0x5dec_4f41_9ab8_a75b;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

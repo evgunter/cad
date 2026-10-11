@@ -228,13 +228,23 @@ impl Selection {
     ///
     /// A pick is on a world placement's copy (A10), and a seat takes the
     /// body that placement places: [`crate::seats::Seats::pick`] reads
-    /// it through [`crate::world::seat_of`].
+    /// it through [`crate::world::seat_read`].
     pub fn seat_node(&self) -> Option<RecipeNodeId> {
         match self {
             Self::Node(id) => Some(*id),
             Self::Face(face) => Some(face.node),
             Self::Edge(edge) => Some(edge.node),
             Self::None | Self::Variable(_) => None,
+        }
+    }
+
+    /// **The output body a viewport pick hit** ([`FaceSelection::body`]),
+    /// beside [`Selection::seat_node`]; a tree click names none.
+    pub fn seat_body(&self) -> Option<u32> {
+        match self {
+            Self::Face(face) => Some(face.body),
+            Self::Edge(edge) => Some(edge.body),
+            Self::None | Self::Node(_) | Self::Variable(_) => None,
         }
     }
 

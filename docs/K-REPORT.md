@@ -958,7 +958,7 @@ ball from the oval's speed bound. The boundary reading's are
 | `point_in_arc_loop_spiric_advance` | a `const` in `spiric_arc`: a piece's ball's advance along the ray, less or plus its reach |
 | `point_in_arc_loop_reach` | (above) also a spiric piece's ball's clearance from the ray |
 
-**Roster addition (CLEAVE): a trimmed sphere face's region.** Fifteen
+**Roster addition (CLEAVE): a trimmed sphere face's region.** Fourteen
 names from `topo/src/boolean/sphere_region.rs`. Nine are its rays',
 which entered without an entry here: bare literals at their `decide`
 sites, and a `FirstHarmonicRows` value (`ROOT_ROWS`) for the
@@ -982,7 +982,6 @@ own circle:
 | `bool_sphere_region_arc_end` | `ConicRows` field (`BOUNDARY`): the distance to either end of the arc |
 | `bool_sphere_region_arc_trim` | `ConicRows` field (`BOUNDARY`): which side of the ends the point, or its foot, lies |
 | `bool_sphere_region_arc_straddle` | `ConicRows` field (`BOUNDARY`): an ellipse's straddle; a circle never mints it, and it never reaches the funnel |
-| `bool_sphere_region_roots_count` | a bare literal at an invalid-margin site: two computations of one root count disagree; a refusal of the query, never decided, and it never reaches the funnel |
 
 They pool with nothing: the region is read by the point-in-solid door
 at points on a sphere, a population apart from the planar walk's and

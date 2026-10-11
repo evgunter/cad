@@ -3276,7 +3276,7 @@ fn uncrossable(u: &crate::splitting::Uncrossable) -> Cow<'static, str> {
 /// arm does; the rest have texts of their own. At rest the body has
 /// passed tier 2, so an arena claim (`CorruptFace`, `NoSuchSolid`, a
 /// corrupt or off-plane loop) is the producer's defect.
-fn classify_point_in_solid(
+pub(crate) fn classify_point_in_solid(
     e: &crate::boolean::PointInSolidError,
 ) -> (Cow<'static, str>, Cow<'static, str>) {
     use crate::boolean::PointInSolidError as S;
@@ -3291,6 +3291,41 @@ fn classify_point_in_solid(
             diag,
             ..
         }) => close_to_boundary(Some((*decision).into()), *escalation, diag),
+        // The in-band escalation's story, read definitely (D4 ¶1 (iv)).
+        S::JunctionSidesDisagree { .. } => (
+            format!(
+                "{} is undecided at this tolerance",
+                crate::boolean::placement_subject(None)
+            )
+            .into(),
+            crate::boolean::unnamed_placement_ending(
+                geom_brep::recourse::RefusedArm::SignCertain(None),
+                Reading::AtRest,
+            )
+            .into(),
+        ),
+        // A limit of the kernel's reading, not of the geometry: each
+        // ends on the solid door's own note.
+        S::NarrowWindowUnread { .. } => (
+            "a point the check read lies near the end of a narrow cylinder wall's window, \
+             which the check cannot place it against"
+                .into(),
+            format!(
+                "{MOVE_GEOMETRY}; {}",
+                crate::boolean::solid_contain::NARROW_WINDOW_NOTE
+            )
+            .into(),
+        ),
+        S::RootCountDisagrees { .. } => (
+            "a test ray from a point the check read met a torus face where the kernel's count \
+             of its crossings came apart"
+                .into(),
+            format!(
+                "{MOVE_GEOMETRY}; {}",
+                crate::boolean::solid_contain::KERNEL_BUG_NOTE
+            )
+            .into(),
+        ),
         S::RayExhausted | S::Loop(L::RayExhausted { .. }) => (GRAZED.into(), MOVE_GEOMETRY.into()),
         S::Loop(L::CorruptLoop { .. }) => (UNWALKABLE.into(), DEFECT.into()),
         S::Loop(L::Uncrossable(u)) | S::EdgeCarrierUnsupported { cause: u, .. } => {
