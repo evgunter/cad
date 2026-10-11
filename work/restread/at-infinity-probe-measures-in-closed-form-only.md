@@ -305,3 +305,9 @@ Each pin this row names was measured on the branch at ε 1e-9, 1e-6 and
 What stays: a selection with no planar face offers no aim point, so
 where its closed form refuses, the refusal stands. No such pose was
 measured.
+
+FLUSH's `join3_r2_probes::j3r2_tilted_rod_operand`, re-run on
+`cleave/missed-ray-side` after main's E tail merged in (ε 1e-9): the
+tilted round rod and the tilted D at θ = 0.15 now unite with the far
+brick (`operand Ok(())`), along with every other row of the probe. The
+two batteries above were not re-run.
