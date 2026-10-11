@@ -47,9 +47,13 @@
 //!
 //! # What a lift is, and is not
 //!
-//! A lift is a **structural map**: every scalar field goes through `f`,
-//! every `f64` structure field (knots, weights, degrees, windows,
-//! tolerances) is carried verbatim, and no arithmetic is performed. It
+//! A lift is a **structural map**: every scalar field goes through `f`
+//! (a NURBS payload's control points, weights and held knots among
+//! them), every `f64` structure field (degrees, knot structure, the
+//! weights' value channel, windows, tolerances) is carried verbatim,
+//! and no arithmetic is performed. `f` keeps every value's point, so
+//! the structure carried over is still the lifted values' value
+//! channel. It
 //! is therefore exact whenever `f` is — `Real::from_f64` at every
 //! scalar, `Dual::constant` for the dual lanes — and then the lifted
 //! geometry **evaluates to the source**: bit for bit in a `Dual`'s

@@ -2,14 +2,15 @@
 //! 1250).
 //!
 //! The face a single planar cut leaves on a ball is bounded by one rim
-//! circle and nothing else, with the pole interior to it. Its levels
-//! hold that one latitude, so the closed form's extent collapsed and
-//! the face was refused `DegenerateFace` — an ordinary solid the
-//! kernel could not weigh. The extreme the levels are missing is the
-//! pole the rim's TRAVERSAL points at, and these rows read the result
-//! from outside: assemble the body through the Euler doors, certify it
-//! at all three tiers, and weigh it against the spherical-cap closed
-//! form `πh²(3R − h)/3`.
+//! circle and nothing else, with the pole interior to it. A chart
+//! singularity inside a face is a vertex of it, so this statement is
+//! one validity owes a refusal and import a normalisation
+//! (`work/restfront/validity-refuses-an-interior-chart-singularity.md`).
+//! Until then the closed form reads it by Gauss–Bonnet: the rim has a
+//! pole on each side, so its loop encodes no side, and the face measures
+//! under its bit. These rows read the result from outside: assemble the
+//! body through the Euler doors, certify it at all three tiers, and weigh
+//! it against the spherical-cap closed form `πh²(3R − h)/3`.
 //!
 //! Every volume here is a CLOSED FORM end to end — `volume_pad` is
 //! exactly zero, so no row is served by a certified enclosure whose
@@ -59,9 +60,9 @@ fn cut_circle(z: f64) -> Curve3<f64> {
 /// the same rim traversed `−u`.
 ///
 /// The circle is stated as two half-arcs because the Euler doors mint
-/// an edge between two vertices; `du_of_rims` sums their spans back to
-/// the full `2π`, which is one of the things the rows below check by
-/// getting the area right.
+/// an edge between two vertices; Gauss–Bonnet integrates both spans,
+/// which is one of the things the rows below check by getting the area
+/// right.
 ///
 /// Both edges come to REST between two faces, so each is described
 /// where it rests rather than left on the scaffolding door (D3's
@@ -210,9 +211,8 @@ fn the_other_traversal_of_the_same_rim_weighs_the_rest_of_the_ball() {
 }
 
 /// **A closed sphere split by ONE rim circle into two rim-only caps
-/// weighs `4πR³/3`.** Neither face has a meridian, so neither face's
-/// levels carry an extent of their own; each pole is named by its own
-/// cap's rim traversal, and the two closed forms sum to the ball.
+/// weighs `4πR³/3`.** Each cap measures under its own bit, and the two
+/// closed forms sum to the ball.
 #[test]
 fn a_sphere_split_into_two_rim_only_caps_weighs_the_ball() {
     for z in [0.5_f64, 0.0, -0.75] {

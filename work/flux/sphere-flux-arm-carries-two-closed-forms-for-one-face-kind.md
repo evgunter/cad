@@ -2,11 +2,13 @@
 id: sphere-flux-arm-carries-two-closed-forms-for-one-face-kind
 kind: issue
 title: The sphere flux arm measures a tilted-circle face by Gauss-Bonnet and every other face by the iso-rectangle form, where the first subsumes the second
-status: open
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: H
 design: true
+pr: 4573
+closed: 2026-10-11
 ---
 
 
@@ -108,7 +110,9 @@ while tier 3 stays green.
   term.
 - `a-sphere-face-whose-boundary-encodes-no-side…`: shrinks to faces with
   both poles on the loop. Those are seam siblings that meet tangentially,
-  where check 4's lamina reading catches a flip.
+  where check 4's lamina reading catches a flip of one sibling but not
+  of both, which keeps the seam consistent; that class is filed as
+  `a-pair-of-seam-siblings-flipped-together-is-silent`.
 - `sphere-wedge-arm-does-not-fold-split-meridians-by-lineage`: moot.
 - `rim-side-and-rim-dir-group-signs-are-facts-about-cycle-order`: closes
   with the cone-gate change.
@@ -126,3 +130,22 @@ Ev, on PR 4549: *"this works"*. The PR 2850 ruling, *a chart
 singularity inside a face is a vertex of it*, now bears the one-loop
 side check. Its present-tense home is `crates/geom-brep/README.md`,
 C12 (7). The build (`flux/sphere-arm`) keeps the one-loop reader.
+
+## Built (`flux/sphere-arm`, 2026-10-10)
+
+One closed form: `curved::sphere_face`, Gauss–Bonnet over every loop of
+any sphere face bounded by circle arcs, its premises named decides. The
+iso branch is gone from the flux lane and survives in
+`require_iso_rectangle` alone. One side reader, `sphere_loop_side`, read
+by the flux arm and check 6. Per fork row 109, a one-loop face whose
+poles off the loop read on opposite sides answers `Unencoded`; its
+refusal is validity's. Witnesses: `sweep/tests/a_flipped_shallow_dimple.rs`
+(the box ∖ shallow ball, both dimple faces flipped, named by check 6
+alone), the L-shaped, plus and staircase faces at exact area
+(`geom-brep/tests/s58_iso_rectangle.rs`, `cert1_r1_probes.rs`,
+`props_sphere_pole_side.rs`).
+
+## Closed (2026-10-11, PR 4573)
+
+(FLUX orchestrator) Merged after dual review, three fix passes and two
+independent verifiers. The DR row is `docs/dual-review-log/rows/PR-4573.md`.

@@ -9,8 +9,8 @@ refs: [VERBS-C5ARMS, 1048]
 priority: P1
 cost: H
 design: true
-branch: germ/torus-plane-frame-spec
-pr: 4603
+branch: germ/plane-torus-germ-frame
+pr: 4614
 ---
 
 ## From GitHub issue 1057
@@ -118,3 +118,15 @@ Measured on branch `tang/abutting-rim`: a z-axis tube of radius
 `z` (its rim on the torus's 45° latitude), unioned undeclared. Since that
 branch the rim is an ON event at the crossing layer, and the union stops
 here, `GermFrameUnsupported { Plane × Torus }`, in both member orders.
+
+## U-T1, the plane × torus germ frame (GERM, 2026-10-11)
+
+`docs/GERM-TORUS-PLANE-FRAME-SPEC.md`'s first unit, on
+`germ/plane-torus-germ-frame`. `pair_section_frame_at` serves the
+meridian circles, the spiric ovals and the concentric circles, each
+germ on its own loop, and refuses every other transverse plane as
+`GermSectionSpiric { loops }`. Every served pose of the spec's §0 now
+stops at the germ-pair dispatch (F2, U-T2's door); TANG's tube stops at
+the wall side's section (F3b); the donut's corner bar refuses at its end
+square's null oval. The coaxial cylinder × sphere loop question (Q6)
+measured not live.

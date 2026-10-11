@@ -83,19 +83,11 @@ fn cubic_chart(net: Net, scale: f64) -> NurbsSurface<f64> {
 }
 
 fn lift_surface<T: Real>(s: &NurbsSurface<f64>) -> NurbsSurface<T> {
-    let control = s.control().iter().map(|p| p.map(T::from_f64)).collect();
-    NurbsSurface::new(
-        s.knots_u().clone(),
-        s.knots_v().clone(),
-        control,
-        s.weights().to_vec(),
-    )
-    .unwrap()
+    s.map_scalar(T::from_f64)
 }
 
 fn lift_curve<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve3<T> {
-    let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
-    NurbsCurve3::new(c.knots().clone(), control, c.weights().to_vec()).unwrap()
+    c.map_scalar(T::from_f64)
 }
 
 /// The row `u = u*` exposed by knot insertion to multiplicity `p` —
