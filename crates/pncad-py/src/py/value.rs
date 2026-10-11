@@ -420,8 +420,8 @@ pub(crate) struct Body {
 }
 
 impl Body {
-    /// A body with no declared contacts — every door but the two that
-    /// have records to carry (an evaluated value, and `assemble`).
+    /// A body with no contact records — every door but those that have
+    /// records to carry (an evaluated value, `assemble`, an import).
     pub(crate) fn plain(inner: Arc<topo::Body<f64>>) -> Self {
         Self {
             inner,
@@ -429,8 +429,9 @@ impl Body {
         }
     }
 
-    /// A body with the declarations its producer minted for it.
-    pub(crate) fn declared(
+    /// A body with the contact records its producer carries, each citing
+    /// the decision that backs it.
+    pub(crate) fn recorded(
         inner: Arc<topo::Body<f64>>,
         contacts: Arc<topo::ContactRecords>,
     ) -> Self {
@@ -925,7 +926,7 @@ pub(crate) struct Value {
     /// The value's OWN contact-record channel (ASM-R2b D-1): what
     /// `instantiate` carried in from a part. A boolean's records ride
     /// its payload instead, and the two homes reconcile at
-    /// [`Value::declared_body`] — deliberately the same reconciliation
+    /// [`Value::recorded_body`] — deliberately the same reconciliation
     /// `editor_core::product::sources_of` makes, because a Python
     /// caller reading a body off a value and the gather reading the
     /// same body must not disagree about the contacts it carries.
@@ -934,20 +935,20 @@ pub(crate) struct Value {
 }
 
 impl Value {
-    /// One of this value's bodies with the declarations that body
+    /// One of this value's bodies with the contact records that body
     /// carries — `sources_of`'s rule, restated at the boundary.
     ///
     /// Multi-output payloads carry no records (the `OpOut` invariant:
     /// "output body 0" names nothing there), so `Instances` and
     /// `Split` halves are plain — no home to read from, and none is
     /// invented.
-    fn declared_body(&self, body: &Arc<topo::Body<f64>>) -> Body {
+    fn recorded_body(&self, body: &Arc<topo::Body<f64>>) -> Body {
         match &self.payload {
             d::ValuePayload::Body(_) => {
-                Body::declared(Arc::clone(body), Arc::clone(&self.contacts))
+                Body::recorded(Arc::clone(body), Arc::clone(&self.contacts))
             }
             d::ValuePayload::Boolean(d::BooleanValue::Body { contacts, .. }) => {
-                Body::declared(Arc::clone(body), Arc::clone(contacts))
+                Body::recorded(Arc::clone(body), Arc::clone(contacts))
             }
             _ => Body::plain(Arc::clone(body)),
         }
@@ -970,9 +971,9 @@ impl Value {
     /// other kind, and for an empty Boolean.
     fn body(&self, py: Python<'_>) -> PyResult<Body> {
         match &self.payload {
-            d::ValuePayload::Body(body) => Ok(self.declared_body(body)),
+            d::ValuePayload::Body(body) => Ok(self.recorded_body(body)),
             d::ValuePayload::Boolean(d::BooleanValue::Body { body, .. }) => {
-                Ok(self.declared_body(body))
+                Ok(self.recorded_body(body))
             }
             d::ValuePayload::Boolean(d::BooleanValue::Empty) => Err(eval_err(
                 py,
@@ -992,7 +993,7 @@ impl Value {
     /// Every body this value denotes: one for `Body`/`Boolean`, the
     /// whole list for `Instances`, both sides for a `Split`.
     fn bodies(&self) -> Vec<Body> {
-        let wrap = |body: &Arc<topo::Body<f64>>| self.declared_body(body);
+        let wrap = |body: &Arc<topo::Body<f64>>| self.recorded_body(body);
         let side = |s: &d::SplitSide<f64>| match s {
             d::SplitSide::Body(body) => Some(wrap(body)),
             d::SplitSide::Empty => None,
@@ -2282,7 +2283,7 @@ pub(crate) fn import_step(
             // document reads through this door.
             coincidences: _,
         }) => Ok(ImportReport {
-            body: Body::declared(Arc::new(body), Arc::new(contacts)),
+            body: Body::recorded(Arc::new(body), Arc::new(contacts)),
             enclosure: enclosure.map(MassProperties::from),
             eps_in,
             normalizations: normalizations

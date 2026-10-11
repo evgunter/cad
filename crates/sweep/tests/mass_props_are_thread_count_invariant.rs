@@ -500,12 +500,16 @@ fn digest() -> String {
 ///   `sym_arc_loft` 1254 → 1062 / 1244 → 1060 / 1253 → 1061 and
 ///   `sym_thin_strip` 1257 → 1178 / 1268 → 1177 / 1256 → 1177 at
 ///   ε = 1e-6 / 1e-9 / 1e-12. The walls are computed in `T` instead of
-///   lifted as opaque unknowns. This also undoes the movement PR 4708
-///   (`nurbs-weights-and-knots-are-the-scalar` u4) made on main without
-///   a re-cut: its parent reads `sz=40 num=612 frozen=3732` and
-///   `sz=36 num=624 frozen=2792`, which this commit returns to `sz=48`
-///   and `num=604` / `612`, the committed counts. Decisions, shapes and
-///   verdicts are unchanged.
+///   lifted as opaque unknowns. This also undoes two `sz` moves main
+///   made without a re-cut: PR 4703 turned the `pcurve_iso_boundary`
+///   theorems numeric (`sz=28` / `24`), and PR 4708 recovered most of
+///   them but lost the `pcurve_loop_continuity` ones (`sz=40` / `36`).
+///   This commit returns every decision class to its pre-4703 outcome,
+///   `sz=48` and `num=604` / `612` (the per-class table is in
+///   `work/nurbs/the-arc-loft-thread-count-digest-is-red-on-main.md`).
+///   The split is deterministic: 1 and 4 threads, run twice, alone and
+///   after the f64 block, read alike at every one of those commits.
+///   Decisions, shapes and verdicts are unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

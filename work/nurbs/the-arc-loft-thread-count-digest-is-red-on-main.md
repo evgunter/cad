@@ -42,6 +42,26 @@ merges) is the likely mover. The table's own rule (at `expected`): the
 branch whose change moved it re-cuts it at all three ε, if the new
 reading is right, and names what moved.
 
+## Two sym-session rows moved too (INTENT, 2026-10-11)
+
+Reproduced on `origin/main` alone at `9baeb0056e` (ε = 1e-9, four
+threads): besides `arc_loft_1e9eps`, the two `validate_geometric`
+sym-session rows no longer match the committed digest. Their decision
+counts and verdicts hold. Only the split between symbolic zeros,
+numeric discharges and frozen nodes moves:
+
+| row | committed | main |
+|---|---|---|
+| `sym_arc_loft` | `sz=48 num=604 frozen=1244` | `sz=28 num=624 frozen=3706` |
+| `sym_thin_strip` | `sz=48 num=612 frozen=1268` | `sz=24 num=636 frozen=3430` |
+
+PR 4684's re-cut covers the `arc_loft_1e9eps` line only, so the row
+stays red after it. 20 symbolic zeros now discharge numerically, which
+a re-cut alone should not paper over. The likely mover is PR 4703
+(NURBS weights and knots in `T`, which reclassed the arc rim's
+decisions). Found on INTENT's PR 4669 (the slow set runs there because
+its diff seeds sweep).
+
 ## Also moved (PR 4732's CI, ε = 1e-9)
 
 Seen on `cleave/chord-end-sample` at `090278cdb`, whose diff changes no
@@ -57,14 +77,54 @@ digest move. Their decisions and shapes do not:
 ## Closed (NURBS, PR 4684)
 
 Re-cut at all three ε on `nurbs/main-slow-set-reds-since-4553`, after
-merging main at `18555d6eca`. The movers were bisected:
-- **PR 4553** moved `v`, `a` and the pads. It put the rational patch
+merging main. Every mover was bisected on builds that compiled from
+source.
+
+**`arc_loft_1e9eps`:**
+- PR 4553 moved `v`, `a` and the pads. It put the rational patch
   lane's knot refinement on the certification ring, and the new
   enclosures nest inside the old.
-- **`8054ec236f`** (PR 4726, the skin in `T`) moved the pads again and
-  the `Sym` `frozen` column. It also undid PR 4708's `sz=40` / `sz=36`
-  movement in the table above.
+- `8054ec236f` (PR 4726, the skin in `T`) moved the pads again, by at
+  most 1.1e-9 of themselves, and `a` by an ulp at 1e-6. The arc
+  conversion's `libm` sines and cosines move the body by an ulp, so old
+  and new enclosures nest, though not always new inside old.
 
-The full account is in
-`work/nurbs/main-slow-set-reds-on-two-rows-since-4553.md` and in
-`expected()`'s re-cut log.
+**The two `validate_geometric` sym rows: deterministic, and every
+decision class is back where it was before PR 4703.** These were
+measured at ε = 1e-9 at four points:
+- pre-4703 `8d66dd7e97^1`;
+- 4703 `8d66dd7e97`;
+- `cb58e63b8b`, which carries 4708 (the 4708 merge itself does not
+  compile sweep's tests);
+- this branch's head.
+
+At each point the rows were run at 1 and 4 threads, twice each, with
+the Sym block alone and after the f64 block. Every reading at one
+commit is identical, so the split is deterministic. The two different
+readings above (`9baeb0056e` against `090278cdb`) differ by PR 4708,
+which only the second carries.
+
+Per decision class (predicate and outcome; only the classes that move):
+
+| row / class | pre-4703 | 4703 | +4708 | head |
+|---|---|---|---|---|
+| `sym_arc_loft` `pcurve_iso_boundary` Theorem / NumericZero | 20 / 2 | 0 / 22 | 14 / 8 | 20 / 2 |
+| `sym_arc_loft` `pcurve_loop_continuity` Theorem / NumericZero | 2 / 30 | 2 / 30 | 0 / 32 | 2 / 30 |
+| `sym_thin_strip` `pcurve_iso_boundary` Theorem / NumericZero | 24 / 4 | 0 / 28 | 16 / 12 | 24 / 4 |
+| `sym_thin_strip` `pcurve_loop_continuity` Theorem / NumericZero | 4 / 28 | 4 / 28 | 0 / 32 | 4 / 28 |
+
+What each step did:
+- **PR 4703's loss was a regression.** An iso pcurve on a patch's
+  boundary sits on the knot domain's end by construction, so the
+  residual is exactly zero. Once geom-brep read the carriers' held
+  knots as unknowns, it could only discharge those decisions
+  numerically.
+- **PR 4708** recovered most of them. It lost the
+  `pcurve_loop_continuity` theorems (2 and 4).
+- **`8054ec236f`** restored every class.
+- **At head, all 652 and 660 decisions have their pre-4703 outcomes**
+  and `sz=48`. Nothing is left to file on INTENT's slate.
+
+What the re-cut changes is the `frozen` column: 1060 and 1177 at head,
+against 3686 and 3414 pre-4703 and 1244 and 1268 committed. Fewer
+frozen nodes means the walk built more forms.

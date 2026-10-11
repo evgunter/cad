@@ -46,7 +46,10 @@ const PRODUCT: &str = include_str!("../src/product.rs");
 fn the_gather_gates_the_aggregate_once_and_sources_only_on_refusal() {
     let code = blanked(code_only, "editor-core/src/product.rs", PRODUCT);
     let what = "editor-core/src/product.rs (code view)";
-    let gates = required_matches(&code, what, "T::gate_at_rest");
+    let gates: Vec<usize> = required_matches(&code, what, "T::gate_at_rest")
+        .into_iter()
+        .filter(|at| !code[*at..].starts_with("T::gate_at_rest_declared"))
+        .collect();
     assert_eq!(gates.len(), 2, "{what}: the gate is called in two places");
     let on_aggregate = required_matches(&code, what, "match T::gate_at_rest_kept(aggregate");
     assert_eq!(on_aggregate.len(), 1, "{what}: one aggregate gate");
@@ -76,6 +79,29 @@ fn the_gather_gates_the_aggregate_once_and_sources_only_on_refusal() {
     assert!(
         calls.len() == 1 && refusal.contains(&calls[0]),
         "{what}: `attribute_at_rest` is called once, from the aggregate's refusal arm"
+    );
+}
+
+const ASSEMBLY: &str = include_str!("../src/assembly.rs");
+
+/// **The at-rest census runs in the gather, and only there.** The
+/// gather hands the tier-3′ census to the recording door once
+/// (`topo::record_at_rest`, whose next pass confirms what it records)
+/// and keeps its findings on the product (`Product::census`); the
+/// assembly gate reads them and calls no census of its own. Red if the
+/// gate runs the census again, or the gather calls it from a second
+/// site: an extra pass over one product changes no verdict, so no
+/// behavioural row can see it.
+#[test]
+fn the_census_runs_in_the_gather_and_never_at_the_gate() {
+    let census = "T::gate_at_rest_declared(";
+    let product = blanked(code_only, "editor-core/src/product.rs", PRODUCT);
+    let calls = required_matches(&product, "editor-core/src/product.rs (code view)", census);
+    assert_eq!(calls.len(), 1, "the gather calls the census from one site");
+    let assembly = blanked(code_only, "editor-core/src/assembly.rs", ASSEMBLY);
+    assert!(
+        !assembly.contains("gate_at_rest_declared"),
+        "editor-core/src/assembly.rs: the gate reads the gather's census and runs none"
     );
 }
 
