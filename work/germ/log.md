@@ -965,3 +965,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 - 2026-10-11 10:14 — Check-in: nothing ready. The 4646 fix pass started at 10:06; U-T2 has no PR yet.
 - 2026-10-11 20:10 — Usage is back after a pause of about 9h (the 11:16 check-in fired late). Both cloud lanes are on worker epoch 2 and running again: the 4646 fix pass (no new push yet; head still 8fd2ee212) and U-T2 (running its ring-closure mutants; no branch pushed yet). No local lanes were in flight. Re-armed for 21:11.
 - 2026-10-11 21:12 — Check-in: nothing ready. The 4646 fix pass has merged main and passed clippy; per-crate nextest is running, with nothing pushed yet. U-T2 is up as PR 4743 (head d5154a69), with CI running and the lane polling; I'll freeze and review it once the lane is idle and CI is green.
+- 2026-10-11 22:14 — Check-in: nothing ready.
+  - The 4646 fix pass pushed `f964b07ec` and is polling hosted CI.
+  - U-T2 (4743) is red on test, gate and demos; its lane is mid-fix (main merged; a demo wall pin and tour rows).
+  - Main's slow-set red belongs to others: NURBS's P0 on the u4 Sym serial golden (`mass_props_are_thread_count_invariant`, filed 14:50) and FUSE's `near_tangent_pierce_poses` at 1e-6. Not U-T1's.
