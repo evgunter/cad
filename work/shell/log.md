@@ -1439,3 +1439,9 @@ Ev said go.
   - `branch_at` answers a Region per Ev's letter: a Side region gives the wall's boundary row (`wall_row`, shared with `level_row`), and a Corner region refuses by name.
   - The row file is `docs/dual-review-log/rows/PR-4677.md` (sequential, protocol `24b76fff0e`).
   - Hosted `test` was red only on main's owned reds (GERM's support plates, NURBS's digest).
+- **Unit 20 merged** (2026-10-11 ~16:35Z): PR 4672 (61ee8bf). The fix pass at a4223c7 was verified.
+  - After two merges of main, the 1e-9 rim band was re-pinned at 1.5994e-6 ±5%, because main's rim derivation moved the value.
+  - Row file `docs/dual-review-log/rows/PR-4672.md` (sequential).
+  - Hosted `test` was red only on NURBS's digest.
+  - The lane noted the sweep 1e-12 set took 781 s locally, against 169 s earlier, cause unknown (main's changes or box load). Watch the nightly.
+- **Every unit in the plan has landed** (1–21). What's left on the slate is 16 P3 items, plus CLEAR's parked curved-clearance pair (SHELL-3/4). Closing versus continuing is put to Ev.
