@@ -137,7 +137,7 @@ pub fn read_output(
         Operand::Output { node, port } => Some((*node, Some(*port))),
         Operand::Var(var) => defined(*var),
         Operand::Name(name) => defined(doc.var_named(name.as_str())?),
-        Operand::Select { .. } => None,
+        Operand::Select { .. } | Operand::Pose(_) => None,
     }
 }
 
@@ -149,7 +149,7 @@ pub fn placements_of_read(doc: &Doc<ProfileProgram>, read: &Operand) -> Vec<Reci
         Operand::Output { node, port } => doc.output(*node, *port),
         Operand::Var(var) => Some(*var),
         Operand::Name(name) => doc.var_named(name.as_str()),
-        Operand::Select { .. } => None,
+        Operand::Select { .. } | Operand::Pose(_) => None,
     };
     var.map(|var| placements_of_var(doc, var))
         .unwrap_or_default()

@@ -4694,7 +4694,7 @@ mod split_edge_lineage {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::{Side, chase_edge_to_table, chase_split_edge_to_table};
-    use crate::eval::{CancelToken, DatumValue, EvalOptions, ValuePayload, evaluate};
+    use crate::eval::{CancelToken, EvalOptions, PoseValue, ValuePayload, evaluate};
     use crate::names::role::SplitHalf;
     use crate::names::table::{EntityKey, EntityRef};
     use crate::test_support::clipped_cylinder;
@@ -4716,7 +4716,7 @@ mod split_edge_lineage {
             panic!("the extrude is one body");
         };
         // The plane the split verb reads off the same datum.
-        let Some(ValuePayload::Datum(DatumValue::Plane { origin, normal })) =
+        let Some(ValuePayload::Datum(PoseValue::Plane { origin, normal })) =
             ev.value(tool).map(|v| &v.payload)
         else {
             panic!("the tool is a plane datum");

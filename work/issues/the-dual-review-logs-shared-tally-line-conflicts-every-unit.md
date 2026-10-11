@@ -2,10 +2,12 @@
 id: the-dual-review-logs-shared-tally-line-conflicts-every-unit
 kind: issue
 title: docs/DUAL-REVIEW-LOG.md's one tally line and global DR numbering make every unit's merge conflict with every other program's
-status: open
+status: closed
 opened: 2026-10-11
 priority: P4
 cost: M
+closed: 2026-10-11
+pr: 4647
 ---
 
 
@@ -67,3 +69,30 @@ The contention comes from two choices, and either could change:
 A derived foot would also make the count's omissions impossible.
 The protocol is `docs/DUAL-REVIEW-PROTOCOL.md`. Changing it is an
 experiment-protocol change, so it waits on Ev.
+
+## Closed
+
+Fixed by PR 4647 (merged 2026-10-11, `0aa103bc2`), under Ev's 2026-10-11
+"feel free to split into separate files". The second choice above is the
+one taken. Each row is its own file,
+`docs/dual-review-log/rows/PR-<n>.md`, so no two units touch one file.
+Its DR number is assigned on main in merge order by the
+`dual-review-log` workflow. The foot is computed from the rows' front
+matter by `scripts/dual-review-log.py`, and `docs/DUAL-REVIEW-LOG.md` is
+its render, which `work.py lint` refuses to see hand-edited.
+
+The damage listed under "Measured" was migrated as follows:
+- FLUX's duplicates were renumbered DR-155 and DR-159.
+- The rows below the rulings now sit in the table.
+- The computed foot restores the omissions: DR-123, DR-129, DR-132 and
+  DR-161 among the M-tier units, and FLUX's two pairs among the fair
+  pairs that found a MAJOR.
+
+## Closed
+
+Resolved by PR 4647 (`tooling/dual-review-log-per-row`, merged by Ev on
+2026-10-11). Each row is now its own file,
+`docs/dual-review-log/rows/PR-<n>.md`, so two PRs never share a file.
+Its DR number is assigned on main in merge order by the
+`dual-review-log` workflow. The foot is computed from the rows' front
+matter, so it cannot omit a row. CI latency stays with CIW's `latency-cut`.

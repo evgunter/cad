@@ -632,6 +632,7 @@ fn options_doors() -> Vec<Roster> {
         profile_lift: _,
         param_box: _,
         seed: _,
+        symbols: _,
     } = &eval;
 
     vec![
@@ -766,6 +767,17 @@ fn options_doors() -> Vec<Roster> {
                         reason: "the E4 tangent seed needs a scalar that carries a tangent, \
                                  and an f64 evaluation carries none — the box's twin, but \
                                  with no degenerate form that reaches f64 at all",
+                    },
+                ),
+                (
+                    "symbols",
+                    Spelling::NotBound {
+                        would_be: &["symbols"],
+                        reason: "every variable a symbol is the coincidence door's replay, \
+                                 which needs the symbolic scalar; an f64 evaluation binds a \
+                                 symbol as its value, so the switch would change nothing \
+                                 this door can show. The door's answers reach Python as each \
+                                 row's rung",
                     },
                 ),
             ],

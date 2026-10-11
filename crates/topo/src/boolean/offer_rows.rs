@@ -2291,10 +2291,10 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::FallbackExtentUnsupported
         | BooleanErrorKind::GermFrameUnsupported
         | BooleanErrorKind::GermSectionOutsideInventory
+        | BooleanErrorKind::GermSectionSpiric
         | BooleanErrorKind::GermFrameCylinderPinch
         | BooleanErrorKind::JoinDesync
         | BooleanErrorKind::JoinCarrierUnsupported
-        | BooleanErrorKind::CurvedRestUnrecorded
         | BooleanErrorKind::TornComponent
         | BooleanErrorKind::ShellWitnessExhausted
         | BooleanErrorKind::CoincidentShell
@@ -2655,6 +2655,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("insert.rs", "record_germ_dir", "Coincide::TangentLocus", 2),
     ("insert.rs", "strut_order", "Coincide::Sectors", 1),
     ("insert.rs", "walks_after", "Coincide::Sectors", 1),
+    ("join.rs", "at", "Coincide::Join", 1),
     ("join.rs", "bool_connect", "Coincide::Section", 1),
     ("join.rs", "frame_refusal", "BooleanDecision::Radius", 1),
     ("join.rs", "frame_refusal", "Coincide::Section", 1),
@@ -2752,12 +2753,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
-    (
-        "ops.rs",
-        "finished_body_refusal",
-        "BooleanDecision::ShellRole",
-        1,
-    ),
+    ("ops.rs", "escalated", "BooleanDecision::ShellRole", 1),
     ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),
     ("ops.rs", "sphere_extent_scan", "BooleanDecision::Sphere", 1),
     (

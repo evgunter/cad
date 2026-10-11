@@ -19,8 +19,8 @@
 //! **F15 IS RETIRED, and not the way its row proposed.** The row
 //! expected the sine levered at the profile's radial extent,
 //! kernel-side. What happened instead is that a revolve's axis became
-//! a `Datum::AxisInPlane`, written in the profile's own frame — so
-//! there is no out-of-plane component to classify and no predicate
+//! two coordinate pairs on the revolve, written in the profile's own
+//! frame — so there is no out-of-plane component to classify and no predicate
 //! left to lever. This probe still stands, and still passes, for the
 //! reason its own last sentence gives: it replicates the arithmetic
 //! LOCALLY, so it asserts the DEFECT's shape rather than any site's
