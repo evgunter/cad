@@ -832,6 +832,7 @@ impl crate::spline::SpanLocate for Interval {
 
     fn refine_homogeneous(
         refinement: &crate::spline::RingRefinement,
+        _knots: &crate::spline::Knots<Self>,
         channel: &[Self],
     ) -> Vec<Self> {
         refinement.refine(channel)
@@ -839,10 +840,10 @@ impl crate::spline::SpanLocate for Interval {
 
     fn refine_weights(
         refinement: &crate::spline::RingRefinement,
-        weights: &[f64],
+        _knots: &crate::spline::Knots<Self>,
+        weights: &[Self],
     ) -> Option<Vec<Self>> {
-        let lifted: Vec<Self> = weights.iter().map(|w| Self::from_f64(*w)).collect();
-        let refined = refinement.refine(&lifted);
+        let refined = refinement.refine(weights);
         crate::spline::algebra::certainly_positive(&refined).then_some(refined)
     }
 

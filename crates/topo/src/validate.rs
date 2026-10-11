@@ -6214,9 +6214,8 @@ fn datum_is_number<T: Real>(value: geom::DatumValue<T>) -> bool {
 /// [`ValidationError::PoisonedSurfaceDescription`] on a face, the net's
 /// poison verdict, and as [`ValidationError::PoisonedCurveDatum`] naming
 /// `Control` on an edge carrier ([`poisoned_curve_datums`]). Weights need
-/// no read: they are `f64` structure, and every
-/// door into a net refuses a non-finite one at construction
-/// (`SplineError::NonFiniteWeight`).
+/// no read: every door into a net refuses one that is non-finite on its
+/// value channel at construction (`SplineError::NonFiniteWeight`).
 fn net_is_finite<T: Real>(control: &[geom_core::Point3<T>]) -> bool {
     control.iter().all(is_finite_point)
 }
