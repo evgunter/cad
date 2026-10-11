@@ -386,6 +386,8 @@ mod holes_meeting_at_a_vertex;
 mod pierce_strut_at_a_pinch;
 #[path = "review_4694_carry_probes.rs"]
 mod review_4694_carry_probes;
+#[path = "review_4730_divided_carry_probes.rs"]
+mod review_4730_divided_carry_probes;
 #[path = "review_cleave_mint_doors.rs"]
 mod review_cleave_mint_doors;
 #[path = "spline_reanchor_rows.rs"]
