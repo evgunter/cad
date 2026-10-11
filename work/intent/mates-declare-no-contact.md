@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: M
-blocked_on: [placed-carriers-compare-through-their-frames, declared-pairs-retire, an-unattributed-contact-at-rest-is-a-finding]
+blocked_on: [placed-carriers-compare-through-their-frames, an-unattributed-contact-at-rest-is-a-finding]
 ---
 
 INTENT stage 4, PR I. Spec: `docs/INTENT-STAGE4-SPEC.md` §9.

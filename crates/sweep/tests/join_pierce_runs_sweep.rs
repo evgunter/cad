@@ -16,7 +16,7 @@
 
 use geom_core::{Point3, Tol};
 use topo::test_support as fixtures;
-use topo::{AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult, mass_properties};
+use topo::{AtRestBody, Body, BooleanError, BooleanResult, mass_properties};
 
 use crate::common::differential::outcome;
 use crate::common::pinch_cones::{
@@ -267,12 +267,7 @@ fn finished(what: &str, body: Body<f64>) -> AtRestBody<f64> {
 /// One run of an op: its tag, its result and the oracle's volume.
 type Run = (String, Result<BooleanResult<f64>, BooleanError>, f64);
 
-type Op = fn(
-    &AtRestBody<f64>,
-    &AtRestBody<f64>,
-    &BooleanDeclarations,
-    Tol,
-) -> Result<BooleanResult<f64>, BooleanError>;
+type Op = fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
 
 /// The placements: `v` inside the near face, on its edge along `w`
 /// (four turns about the face normal), at its corner (four turns).
@@ -314,16 +309,15 @@ fn every_op(
     (y, vy): (&AtRestBody<f64>, f64),
     common: f64,
 ) -> Vec<Run> {
-    let decls = BooleanDeclarations::default();
     let mut out = Vec::new();
     for (order, p, q, vp) in [(orders[0], x, y, vx), (orders[1], y, x, vy)] {
         let ops: [(&str, Op, f64); 3] = [
-            ("U", topo::union_with, vx + vy - common),
-            ("I", topo::intersect_with, common),
-            ("S", topo::subtract_with, vp - common),
+            ("U", topo::union, vx + vy - common),
+            ("I", topo::intersect, common),
+            ("S", topo::subtract, vp - common),
         ];
         for (op, run, want) in ops {
-            out.push((format!("{order} {op}"), run(p, q, &decls, tol()), want));
+            out.push((format!("{order} {op}"), run(p, q, tol()), want));
         }
     }
     out
@@ -633,7 +627,6 @@ fn six_crossing_corners_build_every_op() {
         ),
         ("wedge edge i=3 j=0 psi=0.3", wedge345, r2(3, 0), 0.3, edge),
     ];
-    let decls = BooleanDeclarations::default();
     let mut bad = Vec::new();
     for (pose, shape, m, psi, lo) in poses {
         let c = shape();
@@ -654,12 +647,12 @@ fn six_crossing_corners_build_every_op() {
         let common = clip(&cube_planes_at(c.v, f, lo));
         for (order, x, y, vx) in [("ac", &a, &b, va), ("ca", &b, &a, vb)] {
             let ops: [(&str, Op, f64); 3] = [
-                ("U", topo::union_with, va + vb - common),
-                ("I", topo::intersect_with, common),
-                ("S", topo::subtract_with, vx - common),
+                ("U", topo::union, va + vb - common),
+                ("I", topo::intersect, common),
+                ("S", topo::subtract, vx - common),
             ];
             for (op, run, want) in ops {
-                let line = outcome(run(x, y, &decls, tol()), want, tol());
+                let line = outcome(run(x, y, tol()), want, tol());
                 if !line.starts_with("OK SOUND") {
                     bad.push(format!("{pose} {order} {op}: {line}"));
                 }
@@ -771,7 +764,7 @@ fn a_corner_pinch_on_the_second_operands_side_builds() {
     let cube = finished("the cube", cube_at(v, f, lo));
     let common = shared(&cube_planes_at(v, f, lo));
     let want = 3.0 + SIDE * SIDE * SIDE - common;
-    let r = topo::union_with(&cube, &prism, &BooleanDeclarations::default(), tol());
+    let r = topo::union(&cube, &prism, tol());
     let pieces = (vec![cube_planes_at(v, f, lo)], box_pieces(&BOXES));
     let finding = r
         .as_ref()
@@ -1223,13 +1216,11 @@ fn a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies() 
     let (va, vb) = (vol(&prism), SIDE * SIDE * SIDE);
     // Whether the op leaves the pierce's copies apart at `v`.
     let ops: [(&str, Op, f64, bool); 2] = [
-        ("union", topo::union_with, va + vb - common, true),
-        ("subtract", topo::subtract_with, va - common, false),
+        ("union", topo::union, va + vb - common, true),
+        ("subtract", topo::subtract, va - common, false),
     ];
     for (op, run, want, apart) in ops {
-        let Ok(BooleanResult::Body(bb)) =
-            run(&prism, &cube, &BooleanDeclarations::default(), tol())
-        else {
+        let Ok(BooleanResult::Body(bb)) = run(&prism, &cube, tol()) else {
             panic!("{op}: the near-tangent pose did not build");
         };
         assert_eq!(topo::validate_closed(&bb.body), Ok(()), "{op}: tier 2");
@@ -1377,16 +1368,15 @@ fn corner_pair_runs(a: &Corner, b: &Corner, f: [[f64; 3]; 3]) -> Vec<Run> {
     );
     let (y, _) = posed(b, f, a.v);
     let (va, vb, common) = corner_pair_volumes(a, b, f);
-    let decls = BooleanDeclarations::default();
     let mut out = Vec::new();
     for (order, l, r, vl) in [("ab", &x, &y, va), ("ba", &y, &x, vb)] {
         let ops: [(&str, Op, f64); 3] = [
-            ("U", topo::union_with, va + vb - common),
-            ("I", topo::intersect_with, common),
-            ("S", topo::subtract_with, vl - common),
+            ("U", topo::union, va + vb - common),
+            ("I", topo::intersect, common),
+            ("S", topo::subtract, vl - common),
         ];
         for (op, run, want) in ops {
-            out.push((format!("{order} {op}"), run(l, r, &decls, tol()), want));
+            out.push((format!("{order} {op}"), run(l, r, tol()), want));
         }
     }
     out
@@ -1568,12 +1558,11 @@ fn pinch_runs(m: [f64; 3], psi: f64) -> Vec<Run> {
         fixtures::prism::<f64>(&c.profile, 1.0, tol()).body,
     );
     let f = frame(m, psi);
-    let decls = BooleanDeclarations::default();
     let (c1, c2) = (
         finished("a cube", cube_at(c.v, f, [0.0; 3])),
         finished("a cube", cube_at(c.v, f, [-SIDE; 3])),
     );
-    let BooleanResult::Body(pinch) = topo::union_with(&c1, &c2, &decls, tol()).unwrap() else {
+    let BooleanResult::Body(pinch) = topo::union(&c1, &c2, tol()).unwrap() else {
         panic!("the pinch is empty");
     };
     let b = pinch.body;
@@ -1594,12 +1583,12 @@ fn pinch_runs(m: [f64; 3], psi: f64) -> Vec<Run> {
     let mut out = Vec::new();
     for (order, x, y, vx) in [("ab", &a, &b, va), ("ba", &b, &a, vb)] {
         let ops: [(&str, Op, f64); 3] = [
-            ("U", topo::union_with, va + vb - common),
-            ("I", topo::intersect_with, common),
-            ("S", topo::subtract_with, vx - common),
+            ("U", topo::union, va + vb - common),
+            ("I", topo::intersect, common),
+            ("S", topo::subtract, vx - common),
         ];
         for (op, run, want) in ops {
-            out.push((format!("{order} {op}"), run(x, y, &decls, tol()), want));
+            out.push((format!("{order} {op}"), run(x, y, tol()), want));
         }
     }
     out
@@ -1657,11 +1646,10 @@ fn notch_against(pinch: &AtRestBody<f64>, pinch_pieces: &[Vec<Plane>]) -> (Vec<R
 
 /// Unites `bodies` one by one; `None` where a union refuses.
 fn unite_all(bodies: Vec<Body<f64>>) -> Option<AtRestBody<f64>> {
-    let decls = BooleanDeclarations::default();
     let mut parts = bodies.into_iter().map(|b| finished("a part", b));
     let mut acc = parts.next()?;
     for b in parts {
-        match topo::union_with(&acc, &b, &decls, tol()) {
+        match topo::union(&acc, &b, tol()) {
             Ok(BooleanResult::Body(bb)) => acc = bb.body,
             _ => return None,
         }
@@ -1872,9 +1860,7 @@ fn a_run_turned_at_a_shared_vertex_holds_two_siblings() {
     let w = wedge(50.0);
     let (b1, p1) = posed(&w, f, v);
     let (b2, p2) = posed(&w, g, v);
-    let BooleanResult::Body(pinch) =
-        topo::union_with(&b1, &b2, &BooleanDeclarations::default(), tol()).unwrap()
-    else {
+    let BooleanResult::Body(pinch) = topo::union(&b1, &b2, tol()).unwrap() else {
         panic!("the wedges' union is empty");
     };
     let pinch_pieces: Pieces = p1.into_iter().chain(p2).collect();
@@ -2149,7 +2135,7 @@ fn dbl((a, b): (&Corner, &Corner), seed: u64, fib: u32) -> Dbl {
         fixtures::prism::<f64>(&a.profile, 1.0, tol()).body,
     );
     let (x2, posed_pieces) = posed(b, seeded_rotation(seed * 31 + 5), v);
-    let pinched = topo::union_with(&x1, &x2, &BooleanDeclarations::default(), tol())
+    let pinched = topo::union(&x1, &x2, tol())
         .unwrap_or_else(|e| panic!("{pose}: the corners' union: {e:?}"));
     let pinched = pinched.body().expect("the union is not empty").body.clone();
     assert_eq!(
@@ -2196,7 +2182,7 @@ fn the_join_stage_leaves_a_pinchs_cones_their_vertices() {
     let v = asym().v;
     let d = dbl((&asym(), &asym()), 268, 11);
     let want = d.volume + SIDE.powi(3) - d.common;
-    let r = topo::union_with(&d.pinched, &d.cube, &BooleanDeclarations::default(), tol());
+    let r = topo::union(&d.pinched, &d.cube, tol());
     let body = r
         .as_ref()
         .ok()
@@ -2246,7 +2232,7 @@ fn the_join_stage_leaves_a_pinchs_cones_their_vertices() {
 /// orders builds at the pieces' clipped volume, holds one vertex per
 /// cone at `v`, and meshes: the unions and cube ∖
 /// operand `SOUND`; the rest fail tier 3′ only, on the vertices the cones
-/// leave at `v`, a contact no declaration names (D10). Red if the weld
+/// leave at `v`, a contact no record names. Red if the weld
 /// joins the second pierce to the other copy: its fan then reads two
 /// cones where cube ∖ operand has one, and the split's loops wind
 /// inside out (`LoopRoleInverted`).
@@ -2330,7 +2316,7 @@ fn a_pinchs_cones_share_one_point_key() {
         let cube_pieces = vec![d.planes.clone()];
         for (order, x, y) in [("xy", &d.pinched, &d.cube), ("yx", &d.cube, &d.pinched)] {
             shared_point_spread_finding();
-            let r = topo::union_with(x, y, &BooleanDeclarations::default(), tol());
+            let r = topo::union(x, y, tol());
             let (classes, spread) = shared_point_spread_finding();
             rebound += classes;
             assert_eq!(spread, None, "{pose} {order} U");
@@ -2378,9 +2364,7 @@ fn a_pinchs_unions_from_every_root_of_the_ring() {
         for root in 0..3 {
             let pose = format!("{names} seed={seed} fib{fib}, rooted at region {root}");
             for (order, x, y) in [("xy", &d.pinched, &d.cube), ("yx", &d.cube, &d.pinched)] {
-                let r = fixtures::with_ring_root(root, || {
-                    topo::union_with(x, y, &BooleanDeclarations::default(), tol())
-                });
+                let r = fixtures::with_ring_root(root, || topo::union(x, y, tol()));
                 let line = outcome(r, want, tol());
                 assert!(line.starts_with("OK SOUND"), "{pose} {order} U: {line}");
             }
@@ -2651,7 +2635,6 @@ fn eight_crossings_with_a_pinched_cube(
     az: f64,
     spin: f64,
 ) -> Result<Vec<(String, String)>, String> {
-    let decls = BooleanDeclarations::default();
     let x = finished(
         "a corner",
         fixtures::prism::<f64>(&a.profile, 1.0, tol()).body,
@@ -2662,7 +2645,7 @@ fn eight_crossings_with_a_pinched_cube(
         .map(|t| tilt.cos() * f[2][t] + tilt.sin() * (az.cos() * f[0][t] + az.sin() * f[1][t]));
     let g = corner_diagonal_frame(d, spin);
     let cube = finished("a cube", cube_sized(a.v, g, [0.0; 3], SIDE));
-    let united = match topo::union_with(&posed_b, &cube, &decls, tol()) {
+    let united = match topo::union(&posed_b, &cube, tol()) {
         Ok(BooleanResult::Body(bb)) => bb.body,
         other => return Err(format!("{pose}: the pinch {:?}", other.err())),
     };
@@ -2677,13 +2660,13 @@ fn eight_crossings_with_a_pinched_cube(
     let mut out = Vec::new();
     for (order, l, r, vl) in [("ab", &x, &united, va), ("ba", &united, &x, vb)] {
         let ops: [(&str, Op, f64); 3] = [
-            ("U", topo::union_with, va + vb - common),
-            ("I", topo::intersect_with, common),
-            ("S", topo::subtract_with, vl - common),
+            ("U", topo::union, va + vb - common),
+            ("I", topo::intersect, common),
+            ("S", topo::subtract, vl - common),
         ];
         for (op, run, want) in ops {
             let tag = format!("{order} {op}");
-            let res = run(l, r, &decls, tol());
+            let res = run(l, r, tol());
             let finding = res.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
                 pierce_point_finding(&bb.body, a.v, tag_cones(&tag, "ab", (&a_pieces, &b_pieces)))
             });

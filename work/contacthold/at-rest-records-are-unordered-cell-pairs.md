@@ -2,11 +2,12 @@
 id: at-rest-records-are-unordered-cell-pairs
 kind: unit
 title: Build the ruled at-rest record: ContactRecords is one list of unordered pairs of the body's cells plus citations; no operand label, stored granularity or witness
-status: review
+status: closed
 pr: 4598
 opened: 2026-10-10
 priority: P1
 cost: H
+closed: 2026-10-11
 ---
 
 
@@ -61,5 +62,9 @@ cells' carriers.
 PR 4598 (1/2): the one-list type (`Contact`, `ContactKind`,
 `ContactRecords`), the reduction's `ReductionContacts`, and every
 producer and consumer, with the census reading what it read before.
-PR 2/2, stacked on it, is the census's carrier-read generalisation and
-the new edge–face and face–face rows.
+PR 4604 (2/2), stacked on it, is the census's carrier-read
+generalisation and the new edge–face and face–face rows.
+
+## Closed 2026-10-11
+
+PR 4598 (the type, DR row file `PR-4598`) and PR 4604 (the census by carrier, `PR-4604`) merged. Filed residue: `restread/a-two-carrier-curve-touch-has-no-bounded-locus`, `restread/an-edge-face-record-off-a-line-and-a-plane-has-no-curve-touch-lane`, `msolve/a-tangent-mate-can-mint-a-two-carrier-face-pair`.

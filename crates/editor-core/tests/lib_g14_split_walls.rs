@@ -122,7 +122,6 @@ fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Subtract {
             from: a.into(),
             tool: b.into(),
-            declare: Vec::new(),
         },
     );
     (doc, a, sub)
@@ -186,7 +185,6 @@ fn boolean_over_a_tied_operand_names_and_keeps_the_tie() {
         Node::Subtract {
             from: sub.into(),
             tool: c.into(),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -222,7 +220,6 @@ fn a_tie_with_one_surviving_candidate_narrows_back_to_unique() {
         Node::Subtract {
             from: sub.into(),
             tool: c.into(),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);

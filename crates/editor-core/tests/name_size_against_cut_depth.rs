@@ -98,7 +98,6 @@ fn boolean_chain() -> (ProfileDoc, Vec<Trim>) {
             Node::Subtract {
                 from: body.into(),
                 tool: block.into(),
-                declare: Vec::new(),
             },
         );
         doc = d;

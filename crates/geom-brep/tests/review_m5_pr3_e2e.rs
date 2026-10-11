@@ -91,12 +91,7 @@ fn f9_enum_arm_nurbs_circle_locus() {
     // derivative channel is tangent to the circle (perpendicular to the
     // radius vector) and matches deriv() at f64.
     let n64 = nurbs_unit_circle();
-    let ctrl_d = n64
-        .control()
-        .iter()
-        .map(|p| p.map(Dual64::constant))
-        .collect();
-    let nd = geom::NurbsCurve3::new(n64.knots().clone(), ctrl_d, n64.weights().to_vec()).unwrap();
+    let nd = n64.map_scalar(Dual64::constant);
     let cd: Curve3<Dual64> = Curve3::Nurbs(Arc::new(nd));
     for t in [0.1, 0.4, 0.62, 0.9] {
         let d = cd.eval(Dual64::variable(t));

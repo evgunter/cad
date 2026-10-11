@@ -1651,20 +1651,6 @@ fn select_refusal_tags_are_stable() {
         "datum_has_no_value"
     );
     assert_eq!(
-        select_refusal_tag(&SelectRefusal::NodeHasNoValue(
-            pncad::document::NodeStanding::Failed {
-                node: RecipeNodeId::new(0, 0)
-            }
-        )),
-        "node_has_no_value"
-    );
-    assert_eq!(
-        select_refusal_tag(&SelectRefusal::NodeHasNoOutput {
-            node: RecipeNodeId::new(0, 0)
-        }),
-        "node_has_no_output"
-    );
-    assert_eq!(
         select_refusal_tag(&SelectRefusal::NotALength {
             dim: Dimension::Angle,
         }),
@@ -1690,7 +1676,7 @@ fn select_refusal_tags_are_stable() {
 }
 
 /// LIB-PYG5: `ContactClass` is `#[non_exhaustive]` kernel-side, so
-/// the Python mirror (`py/flush.rs`) is forced to carry a wildcard
+/// the Python mirror (`py/contact.rs`) is forced to carry a wildcard
 /// arm and the compile-time drift alarm is unavailable — an unknown
 /// class refuses typed (`unclassified`) at the crossing instead.
 ///
@@ -1719,25 +1705,6 @@ fn the_contact_class_mirror_matches_the_kernel() {
         "Tangent crossed into the mirror with M9-1; a class the binding \
          cannot name refuses typed at the crossing instead"
     );
-}
-
-/// LIB-PYG5: the declare-sugar refusal tags, exercised through the
-/// real doors on the default (no-Python) path. The `Edit` arm
-/// carries the document layer's own tag through.
-#[test]
-fn declare_error_tags_are_stable() {
-    use crate::tags::declare_error_tag;
-    use pncad::select::declare_all;
-
-    let doc = pncad::document::ProfileDoc::empty_derived("declare-error-tags", Tol::witness());
-    let empty = declare_all(
-        &doc,
-        pncad::document::RecipeNodeId::new(0, 1),
-        &[],
-        Tol::witness(),
-    )
-    .expect_err("declaring no findings refuses");
-    assert_eq!(declare_error_tag(&empty), "no_findings");
 }
 
 /// The binding matches `Formula::literal`'s OWN refusals rather than
@@ -2454,10 +2421,6 @@ fn node_error_tags_are_the_published_words() {
         PlacementRuleNonRigidFrame => "non_rigid_placement",
         UnschedulableCycle => "unschedulable_cycle",
         Naming => "naming",
-        DeclareResolve => "declare_resolve",
-        DeclareSiteNotAnOperand => "declare_site_not_an_operand",
-        DeclareUnsupportedPair => "declare_unsupported_pair",
-        DeclaredContactUnbacked => "declared_contact_unbacked",
         UnionFoldStep => "union_fold_step",
         FilletSelectionEmpty => "fillet_selection_empty",
         ChamferSelectionEmpty => "chamfer_selection_empty",
@@ -2794,25 +2757,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::WouldCycle { at: sp(1) }, &["node"]);
     carries(&E::ReadSiteMissingNode { at: sp(1) }, &["node"]);
     carries(&E::SetMembersOnNonList { node: sp(1) }, &["node"]);
-    carries(&E::SetDeclareOnNonDeclaring { node: sp(1) }, &["node"]);
-    carries(
-        &E::DeclaredSiteNotAnOperand {
-            node: sp(1),
-            name: named(),
-            site: pncad::document::SpokenVar::new(
-                pncad::document::VarId(id(2).0),
-                Some(pncad::document::VarName::new("lid").expect("a var name")),
-            ),
-        },
-        &["node", "param", "name"],
-    );
-    carries(
-        &E::DeclaredNameNotUpstream {
-            node: sp(1),
-            name: named(),
-        },
-        &["node", "name"],
-    );
     carries(&E::SetProgramOnNonProfile { node: sp(1) }, &["node"]);
     carries(
         &E::StepIdsRefused {
@@ -4894,7 +4838,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "curved_edge_unsupported",
             "curved_pair_unsupported",
             "curved_pierce_unsupported",
-            "curved_rest_unrecorded",
             "curved_sector_side_unsupported",
             "declaration_contradicted",
             "degenerate_torus",
@@ -4905,9 +4848,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "germ_frame_cylinder_pinch",
             "germ_frame_unsupported",
             "germ_section_outside_inventory",
+            "germ_section_spiric",
             "graft_recertify",
             "inside_out_operand",
-            "invalid_declaration",
+            "invalid_input",
             "join",
             "join_carrier_unsupported",
             "join_desync",
@@ -5087,11 +5031,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "declare_error_tag",
-        values: &["no_findings"],
-        delegates: &["edit_error_tag"],
-    },
-    TagEntry {
         function: "distribution_fault_tag",
         values: &[
             "nominal_outside_support",
@@ -5122,8 +5061,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "construction_reads_observed",
             "continuous_var_cannot_be_count",
             "declare_names_missing_node",
-            "declared_name_not_upstream",
-            "declared_site_not_an_operand",
             "defines_nothing",
             "definition_cycle",
             "definition_too_large",
@@ -5188,7 +5125,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rebind_target_missing_node",
             "rebind_unknown_name",
             "selection_shape",
-            "set_declare_on_non_declaring",
             "set_extrude_side_on_non_extrude",
             "set_members_on_non_list",
             "set_program_on_non_profile",
@@ -5578,10 +5514,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "chamfer_selection_empty",
             "crossing_unverified",
             "curved_solid_frontier",
-            "declare_resolve",
-            "declare_site_not_an_operand",
-            "declare_unsupported_pair",
-            "declared_contact_unbacked",
             "degenerate_direction",
             "degenerate_spacing",
             "degenerate_step",
@@ -5705,7 +5637,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "profile_error_tag",
             "readback_error_tag",
             "replay_error_tag",
-            "resolve_error_tag",
             "resolve_error_tag",
             "revolve_error_tag",
             "seed_error_tag",
@@ -6105,16 +6036,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "select_refusal_tag",
         values: &[
-            "across_spaces",
             "bad_value",
             "datum_has_no_value",
-            "distinct_finding",
             "in_band",
-            "node_has_no_output",
-            "node_has_no_value",
             "not_a_datum",
             "not_a_length",
-            "pair_in_band",
             "tied_disagrees",
             "unreadable",
         ],
@@ -6235,7 +6161,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "anonymous_var_unread",
             "assertion_bound",
-            "declared_name_not_upstream",
             "definition_cycle",
             "definition_reads_unminted_var",
             "definition_too_large",
@@ -6662,9 +6587,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
 /// the guard on THAT is this row's two directions: an entry no longer
 /// shared fails exactly as a new sharing does.
 const SHARED_TAG_WORDS: &[(&str, usize)] = &[
-    // One fact (A9, A11 (2)): two nodes in different spaces, which the
-    // pick and the flush detector each refuse to order or compare.
-    ("across_spaces", 2),
     ("ambiguous", 4),
     // One fact (VR7) at the edit and load doors: a variable with no
     // name that nothing reads.
@@ -6684,9 +6606,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("containment", 2),
     ("corrupt", 2),
     ("cosurface_escalated", 2),
-    // One fact at two doors: `node::declared_side_fault`, asked by the
-    // edit doors and by the load door.
-    ("declared_name_not_upstream", 2),
     // One fact (VR3) at the edit and load doors: a definition that
     // reads its own variable back.
     ("definition_cycle", 2),

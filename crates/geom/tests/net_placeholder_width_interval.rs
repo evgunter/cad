@@ -10,6 +10,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::spline::Knots;
 use std::sync::Arc;
 
 use bvh::{Aabb, Axis};
@@ -45,7 +46,12 @@ fn a_net_poisoned_in_one_channel_is_described_at_the_interval_scalar() {
             )
         })
         .collect();
-    let c = NurbsCurve3::new(knots5(), control, vec![1.0; 5]).unwrap();
+    let c = NurbsCurve3::new(
+        Knots::from(knots5()).lift(geom_core::Real::from_f64),
+        control,
+        vec![Real::one(); 5],
+    )
+    .unwrap();
     assert!(
         !c.is_placeholder(),
         "a described net corrupt in one channel must not read as the benign placeholder \
@@ -60,7 +66,13 @@ fn a_net_poisoned_in_one_channel_is_described_at_the_interval_scalar() {
             )
         })
         .collect();
-    let s = NurbsSurface::new(knots2(), knots2(), s_control, vec![1.0; 4]).unwrap();
+    let s = NurbsSurface::new(
+        Knots::from(knots2()).lift(geom_core::Real::from_f64),
+        Knots::from(knots2()).lift(geom_core::Real::from_f64),
+        s_control,
+        vec![Real::one(); 4],
+    )
+    .unwrap();
     assert!(!s.is_placeholder());
     assert!(matches!(Surface::Nurbs(Arc::new(s)), Surface::Nurbs(ref n) if !n.is_placeholder()));
 }
@@ -85,7 +97,12 @@ fn the_masquerade_lifts_to_a_described_interval_net() {
     let control: Vec<Point3<f64>> = (0..5)
         .map(|i| Point3::new(f64::NAN, 1.0, f64::from(i)))
         .collect();
-    let c = NurbsCurve3::new(knots5(), control, vec![1.0; 5]).unwrap();
+    let c = NurbsCurve3::new(
+        Knots::from(knots5()).lift(geom_core::Real::from_f64),
+        control,
+        vec![Real::one(); 5],
+    )
+    .unwrap();
     assert!(!c.is_placeholder());
     let e = Curve3::Nurbs(Arc::new(c));
     let ei: Curve3<Interval> = e.map_scalar(Interval::from_f64);
@@ -116,7 +133,13 @@ fn a_net_poisoned_in_one_channel_yields_the_poison_box_at_interval() {
             )
         })
         .collect();
-    let s = NurbsSurface::new(knots2(), knots2(), control, vec![1.0; 4]).unwrap();
+    let s = NurbsSurface::new(
+        Knots::from(knots2()).lift(geom_core::Real::from_f64),
+        Knots::from(knots2()).lift(geom_core::Real::from_f64),
+        control,
+        vec![Real::one(); 4],
+    )
+    .unwrap();
     let b = nurbs_surface_aabb(&s);
     for axis in [Axis::X, Axis::Y, Axis::Z] {
         assert!(b.min(axis).is_nan() && b.max(axis).is_nan());
@@ -141,18 +164,18 @@ fn an_all_empty_net_reads_as_the_placeholder_at_interval() {
         "the empty interval is this scalar's poison"
     );
     let c = NurbsCurve3::new(
-        knots5(),
+        Knots::from(knots5()).lift(geom_core::Real::from_f64),
         vec![Point3::new(empty, empty, empty); 5],
-        vec![1.0; 5],
+        vec![Real::one(); 5],
     )
     .unwrap();
     assert!(c.is_placeholder());
     // And one empty channel over finite ones is a described net, the
     // same masquerade the row above pins with NaI.
     let mixed = NurbsCurve3::new(
-        knots5(),
+        Knots::from(knots5()).lift(geom_core::Real::from_f64),
         vec![Point3::new(empty, Interval::from_f64(1.0), Interval::from_f64(2.0)); 5],
-        vec![1.0; 5],
+        vec![Real::one(); 5],
     )
     .unwrap();
     assert!(!mixed.is_placeholder());

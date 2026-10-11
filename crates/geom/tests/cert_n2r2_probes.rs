@@ -4,6 +4,7 @@
 
 use geom::{NurbsCurve2, NurbsCurve3, NurbsSurface};
 use geom_core::spline::KnotVector;
+use geom_core::spline::{Knots, SpanLocate};
 use geom_core::{Dual, Point2, Point3, Real};
 
 fn knots5() -> KnotVector {
@@ -12,11 +13,22 @@ fn knots5() -> KnotVector {
 fn knots2() -> KnotVector {
     KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap()
 }
-fn curve<T: Real>(f: impl Fn(usize) -> Point3<T>) -> NurbsCurve3<T> {
-    NurbsCurve3::new(knots5(), (0..5).map(f).collect(), vec![1.0; 5]).unwrap()
+fn curve<T: SpanLocate>(f: impl Fn(usize) -> Point3<T>) -> NurbsCurve3<T> {
+    NurbsCurve3::new(
+        Knots::from(knots5()).lift(geom_core::Real::from_f64),
+        (0..5).map(f).collect(),
+        vec![T::one(); 5],
+    )
+    .unwrap()
 }
-fn surf<T: Real>(f: impl Fn(usize) -> Point3<T>) -> NurbsSurface<T> {
-    NurbsSurface::new(knots2(), knots2(), (0..4).map(f).collect(), vec![1.0; 4]).unwrap()
+fn surf<T: SpanLocate>(f: impl Fn(usize) -> Point3<T>) -> NurbsSurface<T> {
+    NurbsSurface::new(
+        Knots::from(knots2()).lift(geom_core::Real::from_f64),
+        Knots::from(knots2()).lift(geom_core::Real::from_f64),
+        (0..4).map(f).collect(),
+        vec![T::one(); 4],
+    )
+    .unwrap()
 }
 fn nan() -> f64 {
     f64::NAN

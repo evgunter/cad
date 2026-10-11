@@ -9,7 +9,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::docm7_union_declare::block;
+use crate::blocks::block;
 use crate::fixture;
 use editor_core::{
     Dimension, Distribution, DocEdit, DocumentId, EditError, Formula, FreeVar, Node, PatternKind,
@@ -360,7 +360,6 @@ fn every_predicate_a_subtract_logs_has_words_or_a_reason() {
         Node::Subtract {
             from: a.into(),
             tool: m.into(),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc, &editor_core::EvalOptions::default());
