@@ -133,10 +133,11 @@ is stored. `select_where` filters on `SurfaceKind` exactly
 ## DM3 — One member of a family is read by index; a split's halves are ports
 
 A `Split` defines two `Body` outputs, `above` and `below` (the port index is
-`SplitHalf::output_body`'s), read like any other output; DM3's split-half
-projection retires. One member of a family (D10, Repetition) is read as
-`xs[i]`, or `xs[i, j]` for a family keyed by two indices: a read of the
-family at one `Count` expression per index (VR4); an index outside the
+`SplitHalf::output_body`'s), read like any other output: a read of a port
+is that half, its body and its rows of the split's table. One member of a
+family (D10, Repetition) is read as `xs[i]`, or `xs[i, j]` for a family
+keyed by two indices: a read of the family at one `Count` expression per
+index (VR4); an index outside the
 range leaves the reader unresolved and typed at evaluation, never
 re-pointed. `xs[i]` is not a variable: it is the read a per-`k` reader
 makes implicitly, with the index written in the slot rather than supplied
@@ -397,8 +398,8 @@ three nodes over one `Bodies` argument, keyed by the read, FORK-DM4 unit 1
 No door refuses a repeated read. A read that appears twice among one node's
 inputs — `Union([A, A])`, `Subtract { from: X, tool: X }`, a loft section
 listed twice — is the same case as two distinct variables that evaluate to
-one body (two `Part`s selecting one half of a split, `Part(Instance(0))`
-beside its master), and the operation answers both alike:
+one body (two `Part`s selecting one copy of a pattern, a transform of `A`
+by the identity beside `A`), and the operation answers both alike:
 
 - **Union and intersect keep both and glue.** `[A, A]` is judged like any
   pair (DM4): every cell meets its twin, one construction read twice, so

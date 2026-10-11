@@ -455,4 +455,32 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
       - S1–S9.
     - Fix pass sent to build B, with S8 not adopted.
   - **PR 4551's** fix pass is pushed (`52ba7469…`); CI is pending before the delta check. (NURBS orchestrator)
+- **2026-10-11 02:30Z.**
+  - **PR 4553**'s second-review fix pass is checked against MINOR-A/B/C, NOTE-A and S1–S7, S9:
+    - one `RingRefinement` owns the refined knots and the extent guard;
+    - one `certainly_positive`/`dehomogenize` guard;
+    - one `spline::knot_difference`;
+    - `BlockRefusal` is typed;
+    - `CellGrid` stores `(w·P, w)`;
+    - a row reads limb 2's `Interval` margin as an enclosure.
+  - **PR 4553's main merges:**
+    - Main's PR 4596 extended the `from_f64` gate to geom-core, so the orchestrator listed seven sites (stored knots and weights; the plan's λ, sealed off `Interval`).
+    - Build B resolved ENCL's limb-2 subdivision onto the described carrier, cut in the ring at `cert_grid ∪ cuts`.
+    - Its review row was renumbered three times, DR-153 → DR-157 → DR-158, as INTENT and GERM rows landed. The toward-count now reads 8.
+  - **PR 4551**'s fix pass is accepted (`d968ee5031`). `props/quad::de_boor` ships unrouted: routed through the blossom, it moved step-import's arc-loft volume one ulp apart between native and imported against a bit-identity pin. That is not a soundness loss. Filed as `quad-de-boor-through-the-blossom-breaks-the-import-bit-identity`. 4551 merges main after 4553 lands, then takes its DR row.
+  - **Shared review log, not NURBS's:** FLUX's DR-149 and DR-150 and GERM's DR-157 sit below the ruling bullets instead of in the table, and DR-149 and DR-150 are each used twice. Reported to the user, not edited. (NURBS orchestrator)
 - 2026-10-11 — Seam note from ENCL (PR 4616, merged): a test-only accessor `PatchSpans::cell_coeffs` was added in `geom-core/src/spline/compose/patch.rs` (`cfg(any(test, feature = "test-support"))`) for offset_fit's red-on-main weight row. Its doc (and the `Cargo.toml` feature comment) says "one coefficient", but it returns the whole cell's coefficient slice; that wording is yours to fix or ours on the next touch. (ENCL orchestrator)
+- **2026-10-11 04:49Z.** **PR 4553 merged** (`98e620a195`). Its review row is **DR-158**, renumbered from DR-153 and DR-157 as INTENT's and GERM's rows landed first. The readout toward-count now reads 10.
+  - Main kept moving under the PR, so it took five more main merges:
+    - INTENT's knots-in-T (PR 4608): `SpanLocate` unions `point_value` with this PR's methods, and probe 5's band zero moved from 4.5e-15 to 4.8e-15 because limb 1 now reads about 4.77e-15.
+    - The CLEAVE apex row, red on main since PR 4609: PR 4631's re-pin ported verbatim, with one PR comment.
+    - The rest were review-log renumberings.
+  - The final merge resolved only the review log over a green head (`3c22917974`), so that tree is GitHub's own merge of the green head plus that text. A workspace check, the gates and lint ran on it before the merge.
+  - The user caught that one conflict sat unnoticed while I read silence as "CI running". Mergeability is now checked directly with `git merge-tree` against main rather than inferred.
+  - Build A is told to merge main into PR 4551 next. (NURBS orchestrator)
+- **2026-10-11 05:55Z.**
+  - Re-read the three prompts, `work/README.md` and `orchestration-model.md` after the compaction, per the new `CLAUDE.md` clause (PR 4643).
+  - Two standing rules had been dropped:
+    - `work.py incoming` at each check-in. Now run: 0 incoming.
+    - Friction is a finding. Filed `work/issues/the-dual-review-logs-shared-tally-line-conflicts-every-unit.md` (DR-log contention, plus the 35-minute `test` job on PR 4553).
+  - PR 4551 is still waiting on build A's push of its main merge. (NURBS orchestrator)
