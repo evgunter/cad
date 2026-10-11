@@ -33,7 +33,7 @@ use topo::{
 
 /// The profile plane: `(u, v)` maps to `(x = v, z = u)`, extruded along
 /// `+y` from `y0`.
-fn lying_extrude(
+pub(crate) fn lying_extrude(
     vertices: Vec<(Point2<f64>, f64)>,
     y0: f64,
     depth: f64,
@@ -59,7 +59,7 @@ fn lying_extrude(
     finished(what, body, Tol::witness())
 }
 
-fn quarter_round() -> AtRestBody<f64> {
+pub(crate) fn quarter_round() -> AtRestBody<f64> {
     let b90 = (core::f64::consts::PI / 8.0).tan();
     lying_extrude(
         vec![
@@ -121,7 +121,7 @@ fn tilted_dipping_round(alpha: f64) -> AtRestBody<f64> {
     finished("the dipping round", body, Tol::witness())
 }
 
-fn slab(x1: f64, y0: f64, depth: f64) -> AtRestBody<f64> {
+pub(crate) fn slab(x1: f64, y0: f64, depth: f64) -> AtRestBody<f64> {
     lying_extrude(
         vec![
             (Point2::new(0.0, 0.0), 0.0),
@@ -135,7 +135,7 @@ fn slab(x1: f64, y0: f64, depth: f64) -> AtRestBody<f64> {
     )
 }
 
-fn plane_face(body: &Body<f64>, z: f64, up: bool) -> topo::FaceKey {
+pub(crate) fn plane_face(body: &Body<f64>, z: f64, up: bool) -> topo::FaceKey {
     let hits: Vec<_> = body
         .faces()
         .filter(|(_, f)| match body.get_surface(f.surface) {
@@ -152,7 +152,7 @@ fn plane_face(body: &Body<f64>, z: f64, up: bool) -> topo::FaceKey {
     f
 }
 
-fn cyl_face(body: &Body<f64>) -> topo::FaceKey {
+pub(crate) fn cyl_face(body: &Body<f64>) -> topo::FaceKey {
     let hits: Vec<_> = body
         .faces()
         .filter(|(_, f)| {
@@ -185,7 +185,7 @@ fn report(what: &str, r: Result<BooleanResult<f64>, topo::BooleanError>, want: O
 /// The ops' declarations at `level`: 0 undeclared, 1 the resting faces
 /// `Rest`, 2 the wall `Tangent` to the slab top too, each pair oriented
 /// as the op reads it (`slab_first`).
-fn declarations(
+pub(crate) fn declarations(
     s: &AtRestBody<f64>,
     round: &AtRestBody<f64>,
     level: u8,
@@ -214,7 +214,7 @@ fn declarations(
     d
 }
 
-const LEVELS: [(&str, u8); 3] = [("undeclared", 0), ("Rest", 1), ("Rest+Tangent", 2)];
+pub(crate) const LEVELS: [(&str, u8); 3] = [("undeclared", 0), ("Rest", 1), ("Rest+Tangent", 2)];
 
 /// **The wide slab's answers, at every declaration level**: the
 /// differences are the operands and the intersection is empty. The
@@ -423,7 +423,7 @@ fn the_untilted_dip() {
 }
 
 /// A slab `x ∈ [x0, x1]`, `z ∈ [0, 1]`, `y ∈ [y0, y0 + depth]`.
-fn slab_between(x0: f64, x1: f64, y0: f64, depth: f64) -> AtRestBody<f64> {
+pub(crate) fn slab_between(x0: f64, x1: f64, y0: f64, depth: f64) -> AtRestBody<f64> {
     lying_extrude(
         vec![
             (Point2::new(0.0, x0), 0.0),
