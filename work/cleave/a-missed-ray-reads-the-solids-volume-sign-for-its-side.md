@@ -101,13 +101,28 @@ red on main:
   (`SliverInsideOut`) in every op and both orders, against a far brick
   and one across it.
 
-**The inside-out operand (review blocker).** With the aimed read, an
+**The inside-out operand (review blockers).** With the aimed read, an
 inside-out sliver that finished at rest gave silent wrong answers
-(`brick ∩ rev` the brick, `brick ∖ rev` empty). The Boolean's operand
-gate now reads each sliver solid's orientation at a point outside its
-face boxes (`boolean/reduce.rs` `gate_sliver_orientation`) and refuses
-it as the inside-out operand. The evidence is on RESTFRONT's row, now
-P1.
+(`brick ∩ rev` the brick, `brick ∖ rev` empty). So did a reverted thin
+tube at ε 1e-12, whose one gate point read in band, and a reverted
+slab at a dual, which skips the at-rest gate.
 
-The sliver lens has no planar face, so it keeps the volume reading. Its
-row waits on FLUXTAIL.
+The refusal is now made where the reading is:
+- A selection read as given (`SolidFaces::read_as_given`, the
+  Boolean's witness reads of the other operand through
+  `point_in_operand`) whose side at infinity reads `In`, by the volume
+  or an aimed ray, refuses `PointInSolidError::InsideOut`. The Boolean
+  types that as `InsideOutOperand` with `SliverInsideOut` per solid.
+- The operand gate (`gate_sliver_orientation`) reads the at-rest
+  slivers, and every solid of a dual operand, at one point outside its
+  faces' reach boxes. That catches the routes that never read a far
+  side. A reading that does not decide, or a face with no reach box,
+  refuses typed.
+
+Pinned at every ε:
+- the slab, `Validated` and at a dual, in every op and both orders;
+- the reviewer's tube (`crates/sweep/tests/an_inside_out_thin_tube_operand.rs`):
+  `InsideOutOperand` at 1e-12, and an in-band refusal at the wider
+  rows, where it does not build.
+
+The evidence is on RESTFRONT's row, now P1.

@@ -2053,10 +2053,12 @@ pub enum BooleanError {
     /// complement of the region they enclose. A finished body never
     /// holds one of the first two; the door reads both checks itself on
     /// an operand whose scalar runs no at-rest gate (a dual,
-    /// [`crate::AtRestOutcome::NotRunAtThisScalar`]), reads the third on
-    /// every sliver the at-rest gate passed, and refuses before any
-    /// classification reads the operand, rather than answering for the
-    /// complement.
+    /// [`crate::AtRestOutcome::NotRunAtThisScalar`]). The third it reads
+    /// up front on each sliver the at-rest gate passed and on every solid
+    /// of a dual's operand, where one point outside the solid's faces'
+    /// reach boxes decides; and wherever a witness read of the operand
+    /// meets its side at infinity inside its material. In each case it
+    /// refuses rather than answering for the complement.
     InsideOutOperand {
         /// The offending operand.
         operand: Operand,

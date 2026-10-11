@@ -13,10 +13,10 @@
 
 use crate::common;
 use common::brick;
-use geom_core::{Band, Point3, Tol};
+use geom_core::{Band, Bounds, Decide, Dual64, Point3, Tol};
 use topo::{
-    AtRestBody, AtRestOutcome, Body, BooleanDecision, BooleanError, BooleanResult, Operand,
-    SolidContainment, ValidationError, point_in_solid,
+    AtRestBody, AtRestOutcome, AtRestPolicy, Body, BooleanDecision, BooleanError, BooleanResult,
+    Operand, SolidContainment, ValidationError, point_in_solid,
 };
 
 /// The slab thicknesses, in ε: the in-band window of `V/A`, its ends
@@ -50,10 +50,11 @@ fn far_brick(tol: Tol) -> AtRestBody<f64> {
 /// cannot read the side at infinity and the aimed rays have to.
 fn volume_in_band(what: &str, body: &Body<f64>) {
     let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
     let m = topo::mass_properties(body, tol).expect("the body measures");
     let va = (m.volume / m.surface_area).abs();
     assert!(
-        va > tol.eps() && va < tol.k() * tol.eps(),
+        va > band.zero() && va < band.escalate(),
         "{what}: |V/A| = {va:e} lies in the band"
     );
 }
@@ -234,23 +235,52 @@ fn two_thin_slabs_in_one_body_read_their_sides() {
     }
 }
 
+/// Every op in both orders between `rev` and each of `others` refuses
+/// `InsideOutOperand`, naming `rev`'s operand and its one solid.
+fn refused_as_inside_out<T: Decide + Bounds + AtRestPolicy>(
+    what: &str,
+    rev: &AtRestBody<T>,
+    others: &[(&str, AtRestBody<T>)],
+) {
+    type Op<T> = fn(&AtRestBody<T>, &AtRestBody<T>, Tol) -> Result<BooleanResult<T>, BooleanError>;
+    let tol = Tol::witness();
+    let ops: [(&str, Op<T>); 3] = [
+        ("∪", topo::union::<T>),
+        ("∩", topo::intersect::<T>),
+        ("∖", topo::subtract::<T>),
+    ];
+    for (place, other) in others {
+        for (name, op) in ops {
+            for (a, b, inside_out) in [(rev, other, Operand::A), (other, rev, Operand::B)] {
+                match op(a, b, tol) {
+                    Err(BooleanError::InsideOutOperand { operand, errors }) => {
+                        assert_eq!(operand, inside_out, "{what} {place} {name}: the operand");
+                        assert!(
+                            matches!(errors[..], [ValidationError::SliverInsideOut { .. }]),
+                            "{what} {place} {name}: {errors:?}"
+                        );
+                    }
+                    other => panic!(
+                        "{what} {place} {name} ({inside_out:?} inside-out): want \
+                         InsideOutOperand, got {:?}",
+                        other.map(|_| ())
+                    ),
+                }
+            }
+        }
+    }
+}
+
 /// **An inside-out slab is refused as an operand, in every op and both
 /// orders.** Its `V/A` is in band, so check 7 exempts it and it finishes
 /// at rest (`Validated`); the Boolean reads its orientation by a ray and
 /// refuses it as the inside-out operand, naming it, rather than
 /// answering for its complement. Against a brick far away and one
-/// across it alike: the gate reads it before any classification.
+/// across it alike.
 #[test]
 fn an_inside_out_slab_is_refused_as_an_operand() {
-    type Op =
-        fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
     let tol = Tol::witness();
-    let ops: [(&str, Op); 3] = [
-        ("∪", topo::union),
-        ("∩", topo::intersect),
-        ("∖", topo::subtract),
-    ];
-    let bricks = [
+    let others = [
         ("far", far_brick(tol)),
         (
             "across",
@@ -265,25 +295,34 @@ fn an_inside_out_slab_is_refused_as_an_operand() {
             AtRestOutcome::Validated,
             "{m}ε: the at-rest gate admits the inside-out slab"
         );
-        for (place, other) in &bricks {
-            for (name, op) in ops {
-                for (a, b, inside_out) in [(&rev, other, Operand::A), (other, &rev, Operand::B)] {
-                    match op(a, b, tol) {
-                        Err(BooleanError::InsideOutOperand { operand, errors }) => {
-                            assert_eq!(operand, inside_out, "{m}ε {place} {name}: the operand");
-                            assert!(
-                                matches!(errors[..], [ValidationError::SliverInsideOut { .. }]),
-                                "{m}ε {place} {name}: {errors:?}"
-                            );
-                        }
-                        other => panic!(
-                            "{m}ε {place} {name} ({inside_out:?} inside-out): want \
-                             InsideOutOperand, got {:?}",
-                            other.map(|_| ())
-                        ),
-                    }
-                }
-            }
-        }
+        refused_as_inside_out(&format!("{m}ε"), &rev, &others);
+    }
+}
+
+/// **At a dual too.** A dual's policy runs no at-rest gate, and the
+/// door's own orientation read passes a sign it leaves in band, so the
+/// inside-out slab reaches the Boolean with no verdict; the Boolean reads
+/// every solid of such an operand by a ray, and refuses it in every op
+/// and both orders.
+#[test]
+fn an_inside_out_slab_is_refused_as_an_operand_at_a_dual() {
+    let tol = Tol::witness();
+    let kept =
+        |b: Body<Dual64>| Dual64::gate_at_rest_kept(b, tol).expect("a dual gate runs nothing");
+    let others = [
+        (
+            "far",
+            kept(brick::<Dual64>((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), tol)),
+        ),
+        (
+            "across",
+            kept(brick::<Dual64>((0.5, 1.5), (0.5, 1.5), (-1.0, 1.0), tol)),
+        ),
+    ];
+    for m in WINDOW {
+        let t = m * tol.eps();
+        let rev = kept(brick::<Dual64>((0.0, 1.0), (0.0, 1.0), (0.0, t), tol).revert());
+        assert_eq!(rev.outcome(), AtRestOutcome::NotRunAtThisScalar);
+        refused_as_inside_out(&format!("dual {m}ε"), &rev, &others);
     }
 }

@@ -78,10 +78,19 @@ across the slab
 The reverted thin hollow does not need this: check 10 refuses it at
 rest (`ShellWinding` on both shells, at `12`–`18ε`, at every ε).
 
+**Second review (same day).** One far point is not enough: a reverted
+thin tube (profile `[r, r+t] × [0, 1]` revolved, `t = 20ε`, ε 1e-12)
+read in band at the gate's point and passed, and `brick (−20,20)³ ∖
+revtube` built the tube's own volume. A reverted slab at `Dual64`
+skipped the gate. Fixed at the root on PR 4725: every Boolean read of
+an operand's side at infinity (`SolidFaces::read_as_given`) refuses
+an `In` as `PointInSolidError::InsideOut`, typed `InsideOutOperand`.
+The gate now also reads every solid of a dual operand, and refuses
+typed where its reading does not decide.
+
 **Still open here:**
 - Every door that takes an at-rest operand and does not read its
-  orientation still admits it. The split is one; the dual gate reads
-  no slivers.
+  orientation still admits it. The split is one.
 - The question above is whether check 7 should read a sliver's
   orientation by a ray, so that `AtRestBody` never carries one. That
   would retire the Boolean's read.

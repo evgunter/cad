@@ -255,6 +255,13 @@ pub enum PointInSolidError {
     /// The at-infinity orientation probe found a (near-)zero signed
     /// volume — the body bounds no material to be inside of.
     ZeroVolumeBody,
+    /// A body read as given ([`SolidFaces::read_as_given`]) holds the side at
+    /// infinity in its material: a ray that met none of its boundary
+    /// left the point in it. A body a caller hands in bounds its
+    /// material from outside, so it is inside-out. A complement the
+    /// kernel builds for itself is not read as given, and answers `In`
+    /// there.
+    InsideOut,
     /// An in-plane loop test failed (nested typed error).
     Loop(PointInLoopError),
     /// A face is not walkable, or an entity it names is lost — an
@@ -551,6 +558,9 @@ impl PointInSolidError {
                 "the instance's signed volume is (near-)zero — no material side at \
                  infinity to classify against"
             }
+            Self::InsideOut => {
+                "the instance is inside-out: its material holds the side at infinity"
+            }
             Self::Loop(_) => "the in-plane region walk at the instance's boundary refused",
             Self::CorruptFace { .. } => {
                 "a face of the instance is not walkable, or an entity it names is lost"
@@ -627,6 +637,12 @@ impl core::fmt::Display for PointInSolidError {
             Self::ZeroVolumeBody => write!(
                 f,
                 "cannot tell what is inside the solid: it encloses no measurable volume"
+            ),
+            Self::InsideOut => write!(
+                f,
+                "the solid is inside-out: a test ray from the point met none of its \
+                 boundary and left the point in its material, so its faces point into \
+                 it. Recourse: build it with its faces pointing outward, or revert it"
             ),
             Self::CorruptFace { .. } => write!(
                 f,
@@ -3799,6 +3815,19 @@ pub fn point_in_solid<T: Decide + crate::props::AtRestPolicy>(
     point_in_faces(body, &sel, q, band, tol)
 }
 
+/// [`point_in_solid`] over a body read as given ([`SolidFaces::read_as_given`]):
+/// an operand a caller handed in, whose side at infinity reading `In`
+/// refuses [`PointInSolidError::InsideOut`].
+pub(crate) fn point_in_operand<T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    q: Point3<T>,
+    band: Band,
+    tol: Tol,
+) -> Result<SolidContainment, PointInSolidError> {
+    let sel = SolidFaces::select(body, body.faces().map(|(k, _)| k).collect())?.read_as_given();
+    point_in_faces(body, &sel, q, band, tol)
+}
+
 /// Trilean containment of `q` in the material of ONE solid of a
 /// multi-solid body: the faces of `solid`'s shells, in face-arena
 /// order, through the same closest-hit core as [`point_in_solid`] —
@@ -3842,6 +3871,9 @@ pub struct SolidFaces {
     /// role is already decided ([`SolidFaces::with_role`]); `None`
     /// reads it off the selection's closed-form signed volume.
     at_infinity: Option<SolidContainment>,
+    /// Whether the selection is read as given ([`SolidFaces::read_as_given`]):
+    /// its side at infinity reading `In` refuses.
+    as_given: bool,
 }
 
 impl SolidFaces {
@@ -3877,6 +3909,7 @@ impl SolidFaces {
             faces: live.iter().map(|&(k, _)| k).collect(),
             charts: ChartGroups::of_live(live),
             at_infinity: None,
+            as_given: false,
         }
     }
 
@@ -3888,6 +3921,7 @@ impl SolidFaces {
             faces,
             charts,
             at_infinity: None,
+            as_given: false,
         })
     }
 
@@ -3905,6 +3939,19 @@ impl SolidFaces {
         };
         Self {
             at_infinity: Some(side),
+            ..self
+        }
+    }
+
+    /// This selection **read as given**: the material of a body a caller
+    /// handed in, which a closed outward boundary bounds from outside, so
+    /// the side at infinity is outside it. A ray that crosses nothing
+    /// reading `In` then refuses [`PointInSolidError::InsideOut`] rather
+    /// than answering for the complement. A complement the kernel builds
+    /// for itself (∖'s transient `revert(B)`) is not read as given.
+    pub(crate) fn read_as_given(self) -> Self {
+        Self {
+            as_given: true,
             ..self
         }
     }
@@ -4168,9 +4215,7 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
     // ---- Closest-hit ray sweep over the fixed schedule. ----
     let reach = selection_reach(body, faces, q)?;
     // A ray that crosses nothing reads the at-infinity side
-    // (`missed_side`). An in-band reading is the ray's to set aside; a
-    // side neither the volume nor an aimed ray could read blocks the
-    // ray; the rest is about the body.
+    // (`missed_side`), which says how the ray's reading ranks.
     let reads = MissedReads::new();
     ray_walk::walk(
         &SCHEDULE,
@@ -4178,15 +4223,7 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
             let d = r.map(T::from_f64).normalize();
             match cast_ray(body, sel, q, d, reach, band)? {
                 Some(side) => Ok(side),
-                None => missed_side(body, sel, q, d, reach, band, tol, &reads).map_err(|e| {
-                    if e.in_band() {
-                        RayFault::InBand(e)
-                    } else if e.sideless() {
-                        RayFault::Blocked(e)
-                    } else {
-                        RayFault::Fatal(e)
-                    }
-                }),
+                None => missed_side(body, sel, q, d, reach, band, tol, &reads),
             }
         },
         || PointInSolidError::RayExhausted,
@@ -5628,7 +5665,7 @@ fn cast_ray<T: Decide>(
 /// ([`at_infinity_side`]) and the points its rays aim at ([`aim_points`]).
 struct MissedReads<T: Decide> {
     volume: core::cell::OnceCell<Result<SolidContainment, PointInSolidError>>,
-    aims: core::cell::OnceCell<Vec<Point3<T>>>,
+    aims: core::cell::OnceCell<Result<Vec<Point3<T>>, PointInSolidError>>,
 }
 
 impl<T: Decide> MissedReads<T> {
@@ -5637,6 +5674,19 @@ impl<T: Decide> MissedReads<T> {
             volume: core::cell::OnceCell::new(),
             aims: core::cell::OnceCell::new(),
         }
+    }
+}
+
+/// How a refusal about the body ranks as one ray's reading: in band is
+/// the ray's to set aside, a side no reading could give blocks it, and
+/// the rest refuses the query.
+fn as_ray_fault(e: PointInSolidError) -> RayFault<PointInSolidError> {
+    if e.in_band() {
+        RayFault::InBand(e)
+    } else if e.sideless() {
+        RayFault::Blocked(e)
+    } else {
+        RayFault::Fatal(e)
     }
 }
 
@@ -5650,13 +5700,22 @@ impl<T: Decide> MissedReads<T> {
 /// ([`at_infinity_side`]), and where it is not, rays aimed at the
 /// boundary from `from`, a point of the missed ray, do ([`aimed_side`]):
 /// the volume's margin is the selection's mean half-thickness, while an
-/// aimed ray reads the side off one crossing's outward normal. Any
-/// point of the missed ray is on `q`'s side; `from` is the one twice the
+/// aimed ray reads the side off one crossing's outward normal. Any point
+/// of the missed ray is on `q`'s side; `from` is the one twice the
 /// selection's reach out, past the ball about `q` that holds every
-/// face's loops, so the aimed rays leave from away from the carriers
-/// `q` may sit near. Where an aimed ray reads in band, that reading is
-/// the refusal: a tighter tolerance may decide it. Where none does, the
-/// volume's refusal stands.
+/// face's loops, so the aimed rays leave from away from the carriers `q`
+/// may sit near.
+///
+/// Where no aimed ray decides, the refusal is the first of: an aimed
+/// reading genuinely in band (a margin inside the band, which a tighter
+/// tolerance may decide, [`genuinely_in_band`]); then, ranked as a walk
+/// ranks ([`ray_walk::Evidence`]), the volume's refusal and the first
+/// limit the aimed rays met, a limit first and the volume's before an
+/// aimed one of the same rank.
+///
+/// A selection read as given ([`SolidFaces::read_as_given`]) whose side at
+/// infinity reads `In`, by the volume or by an aimed ray, refuses the
+/// query as [`PointInSolidError::InsideOut`].
 #[allow(clippy::too_many_arguments)] // one internal lane, each a named datum
 fn missed_side<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
@@ -5667,39 +5726,106 @@ fn missed_side<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
     reads: &MissedReads<T>,
-) -> Result<SolidContainment, PointInSolidError> {
+) -> Result<SolidContainment, RayFault<PointInSolidError>> {
     if let Some(side) = sel.at_infinity {
         return Ok(side);
     }
-    let refused = match reads
+    let side = match reads
         .volume
         .get_or_init(|| at_infinity_side(body, sel.faces(), band, tol))
     {
-        Ok(side) => return Ok(*side),
-        Err(refused) => refused.clone(),
+        Ok(side) => *side,
+        Err(refused) => {
+            let refused = as_ray_fault(refused.clone());
+            if let RayFault::Fatal(e) = refused {
+                return Err(RayFault::Fatal(e));
+            }
+            let aims = reads
+                .aims
+                .get_or_init(|| aim_points(body, sel, band))
+                .as_ref()
+                .map_err(|e| RayFault::Fatal(e.clone()))?;
+            let from = q + d * (reach * T::from_f64(2.0));
+            let aimed = aimed_side(body, sel, from, aims, band).map_err(RayFault::Fatal)?;
+            match aimed {
+                Aimed::Side(side) => side,
+                Aimed::Undecided {
+                    in_band: Some(e), ..
+                } => return Err(RayFault::InBand(e)),
+                Aimed::Undecided { limits, .. } => {
+                    let mut kept = ray_walk::Evidence::default();
+                    match refused {
+                        RayFault::InBand(e) => kept.in_band(e),
+                        RayFault::Blocked(e) => kept.blocked(e),
+                        _ => {}
+                    }
+                    if let Some(e) = limits {
+                        kept.blocked(e);
+                    }
+                    return Err(match kept.ranked() {
+                        ray_walk::Ranked::Blocked(e) => RayFault::Blocked(e),
+                        ray_walk::Ranked::InBand(e) => RayFault::InBand(e),
+                        ray_walk::Ranked::Neither => RayFault::Unread,
+                    });
+                }
+            }
+        }
     };
-    let aims = reads.aims.get_or_init(|| aim_points(body, sel, band));
-    let from = q + d * (reach * T::from_f64(2.0));
-    match aimed_side(body, sel, from, aims, band)? {
-        Ok(side) => Ok(side),
-        Err(in_band) => Err(in_band.unwrap_or(refused)),
+    if sel.as_given && side == SolidContainment::In {
+        return Err(RayFault::Fatal(PointInSolidError::InsideOut));
     }
+    Ok(side)
 }
 
 /// **The points a query's aimed rays aim at**: one certified strictly
 /// inside each planar face of the selection that offers one
-/// ([`crate::stands::planar_interior_point`]), in face order. A face
-/// whose candidate does not read offers none: that is about the face,
-/// and another face may serve.
-fn aim_points<T: Decide>(body: &Body<T>, sel: &SolidFaces, band: Band) -> Vec<Point3<T>> {
-    sel.faces()
-        .iter()
-        .filter_map(|&face| {
-            crate::stands::planar_interior_point(body, face, band)
-                .ok()
-                .flatten()
-        })
-        .collect()
+/// ([`crate::stands::planar_interior_point`]), in face order.
+///
+/// # Errors
+///
+/// A face that does not walk, or whose plane or in-face walk refuses
+/// other than in band: a broken body.
+fn aim_points<T: Decide>(
+    body: &Body<T>,
+    sel: &SolidFaces,
+    band: Band,
+) -> Result<Vec<Point3<T>>, PointInSolidError> {
+    let mut aims = Vec::new();
+    for &face in sel.faces() {
+        if let Some(aim) = crate::stands::planar_interior_point(body, face, band)? {
+            aims.push(aim);
+        }
+    }
+    Ok(aims)
+}
+
+/// What [`aimed_side`] read.
+enum Aimed {
+    /// An aimed ray decided.
+    Side(SolidContainment),
+    /// None did: the first reading genuinely in band among them, and the
+    /// first limit one met (a face it could not read, or a fatal reading
+    /// of its own). An escalation on a structural guard's invalid margin
+    /// is neither: it reads the same at every tolerance and says nothing
+    /// about the side, so the readings it stops are passed over.
+    Undecided {
+        in_band: Option<PointInSolidError>,
+        limits: Option<PointInSolidError>,
+    },
+}
+
+/// Whether `e` is a reading genuinely in band: an escalation whose
+/// margin is a value inside the band, which a tighter tolerance may
+/// decide. A structural guard's invalid margin is the same at every
+/// tolerance, and is a limit.
+fn genuinely_in_band(e: &PointInSolidError) -> bool {
+    match e {
+        PointInSolidError::Escalated { diag, .. }
+        | PointInSolidError::Loop(PointInLoopError::Escalated { diag, .. }) => {
+            !diag.margin.is_invalid()
+        }
+        _ => false,
+    }
 }
 
 /// **The side of `from` read off a ray aimed at the boundary**: for each
@@ -5707,35 +5833,34 @@ fn aim_points<T: Decide>(body: &Body<T>, sel: &SolidFaces, band: Band) -> Vec<Po
 /// closest crossing as a schedule ray is ([`cast_ray`]). An aim point is
 /// on the boundary, so its ray crosses the boundary there or before. The
 /// first ray that decides answers. Every other outcome is about that ray
-/// and passes to the next: a graze, a limit, a crossing it cannot read,
-/// or no crossing at all. `Err` is no ray deciding, carrying the first
-/// in-band reading among them.
+/// and passes to the next, kept as evidence ([`Aimed::Undecided`]).
 ///
 /// # Errors
 ///
-/// The outer `Err` is a refusal about the body: the selection's reach
-/// from `from`, which every ray of the query reads.
+/// A refusal about the body: the selection's reach from `from`, which
+/// every ray of the query reads.
 fn aimed_side<T: Decide>(
     body: &Body<T>,
     sel: &SolidFaces,
     from: Point3<T>,
     aims: &[Point3<T>],
     band: Band,
-) -> Result<Result<SolidContainment, Option<PointInSolidError>>, PointInSolidError> {
+) -> Result<Aimed, PointInSolidError> {
     let reach = selection_reach(body, sel.faces(), from)?;
-    let mut in_band = None;
+    let (mut in_band, mut limits) = (None, None);
     for &aim in aims {
         match cast_ray(body, sel, from, (aim - from).normalize(), reach, band) {
-            Ok(Some(side)) => return Ok(Ok(side)),
-            Err(RayFault::InBand(e)) => {
+            Ok(Some(side)) => return Ok(Aimed::Side(side)),
+            Err(RayFault::InBand(e)) if genuinely_in_band(&e) => {
                 in_band.get_or_insert(e);
             }
-            Ok(None)
-            | Err(RayFault::Graze | RayFault::Unread | RayFault::Blocked(_) | RayFault::Fatal(_)) =>
-                {}
+            Err(RayFault::Blocked(e) | RayFault::Fatal(e)) => {
+                limits.get_or_insert(e);
+            }
+            Ok(None) | Err(RayFault::InBand(_) | RayFault::Graze | RayFault::Unread) => {}
         }
     }
-    Ok(Err(in_band))
+    Ok(Aimed::Undecided { in_band, limits })
 }
 
 /// The at-infinity material side, from the EXACT signed volume the

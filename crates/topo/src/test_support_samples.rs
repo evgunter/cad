@@ -240,6 +240,7 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
             kind: geom::SurfaceKind::Nurbs,
         },
         S::VolumeUncertified,
+        S::InsideOut,
         S::PartialSphereFace { face },
         S::PartialConeFace { face },
         S::PartialTorusFace { face },

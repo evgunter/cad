@@ -572,60 +572,76 @@ pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
     gate_sliver_orientation(body, operand, band, tol)
 }
 
-/// **A sliver operand's orientation, read by a ray.** Check 7 passes a
-/// solid whose `V/A` is certified in band without reading its sign
-/// (D1's +V invariant exempts it), so an inside-out sliver finishes at
-/// rest. The containment fallback reads a missed ray's side as the side
-/// at infinity, which for a body the caller handed in is outside its
-/// material; an inside-out operand would turn every such reading round
-/// and answer for its complement. So each solid the at-rest gate passed
-/// as a sliver ([`crate::AtRestBody::slivers`]) is read at a point
+/// **An operand's thin solids' orientation, read by a ray, before
+/// anything else reads the operand.** Check 7 passes a solid whose `V/A`
+/// is certified in band without reading its sign (D1's +V invariant
+/// exempts it), so an inside-out sliver finishes at rest, and a dual's
+/// gate passes a sign it leaves open the same way. Every read of a
+/// missed ray's side against the operand refuses such a solid where it
+/// is made ([`super::solid_contain::SolidFaces::read_as_given`]); this reads
+/// it once, up front, for the routes that never ask: a solid the
+/// operation cuts is classified by its section, not by a missed ray.
+///
+/// The solids read: those the at-rest gate passed as slivers
+/// ([`crate::AtRestBody::slivers`]), or every solid of an operand that
+/// carries no verdict (a dual's). Each is read as given at one point
 /// outside the hull of its faces' reach boxes
 /// ([`crate::census::face_reach`], each a superset of its face, so a
-/// looser one only puts the point farther out) through
-/// [`super::point_in_solid_of`], and a solid whose material holds that
-/// point refuses [`BooleanError::InsideOutOperand`] with
-/// [`crate::ValidationError::SliverInsideOut`]. A reading that does not
-/// decide passes, as check 7 passed it, and so does a solid a face of
-/// which has no reach box. A dual operand carries no slivers, and none
-/// is read.
+/// looser one only puts the point farther out), and a solid holding the
+/// side at infinity refuses [`BooleanError::InsideOutOperand`] with
+/// [`crate::ValidationError::SliverInsideOut`].
+///
+/// A reading that does not decide refuses with that reading
+/// ([`BooleanError::Containment`]), and so does a solid a face of which
+/// has no reach box, so that no point is known to lie outside it (as
+/// the face's kind, or as a broken face): an operation that cuts such a
+/// solid would read it as given with nothing to say which side its
+/// material is on.
 fn gate_sliver_orientation<T: Decide + crate::props::AtRestPolicy>(
     body: &crate::AtRestBody<T>,
     operand: Operand,
     band: Band,
     tol: Tol,
 ) -> Result<(), BooleanError> {
-    'solids: for sliver in body.slivers() {
-        let Some(faces) = body.faces_of_solid(sliver.solid) else {
+    let solids: Vec<crate::entity::SolidKey> = match body.outcome() {
+        crate::AtRestOutcome::Validated => body.slivers().iter().map(|s| s.solid).collect(),
+        crate::AtRestOutcome::NotRunAtThisScalar => body.solids().map(|(k, _)| k).collect(),
+    };
+    for solid in solids {
+        let Ok(sel) = super::SolidFaces::of(body, solid) else {
             continue;
         };
-        let mut hull: Option<(Point3<T>, Point3<T>)> = None;
-        for face in faces {
+        let mut corners = Vec::with_capacity(2 * sel.faces().len());
+        for &face in sel.faces() {
             let Some((lo, hi)) = crate::census::face_reach(body, face, band) else {
-                continue 'solids;
+                return Err(BooleanError::Containment(
+                    match crate::query::face_surface_kind(body, face) {
+                        Some(kind @ geom::SurfaceKind::Nurbs) => {
+                            super::PointInSolidError::KindUnsupported { face, kind }
+                        }
+                        _ => super::PointInSolidError::CorruptFace { face },
+                    },
+                ));
             };
-            hull = Some(match hull {
-                None => (lo, hi),
-                Some((l, h)) => (
-                    Point3::new(l.x.min(lo.x), l.y.min(lo.y), l.z.min(lo.z)),
-                    Point3::new(h.x.max(hi.x), h.y.max(hi.y), h.z.max(hi.z)),
-                ),
-            });
+            corners.extend([lo, hi]);
         }
-        let Some((lo, hi)) = hull else {
+        let Some((lo, hi)) = crate::census::point_hull(corners) else {
             continue;
         };
         let span = (hi.x - lo.x).max(hi.y - lo.y).max(hi.z - lo.z) + T::one();
         let far = Point3::new(hi.x + span, hi.y + span, hi.z + span);
-        if super::point_in_solid_of(body, sliver.solid, far, band, tol)
-            == Ok(super::SolidContainment::In)
-        {
-            return Err(BooleanError::InsideOutOperand {
-                operand,
-                errors: vec![crate::ValidationError::SliverInsideOut {
-                    solid: sliver.solid,
-                }],
-            });
+        match super::point_in_solid_faces(body, &sel.read_as_given(), far, band, tol) {
+            Ok(super::SolidContainment::Out) => {}
+            Ok(super::SolidContainment::In) | Err(super::PointInSolidError::InsideOut) => {
+                return Err(BooleanError::InsideOutOperand {
+                    operand,
+                    errors: vec![crate::ValidationError::SliverInsideOut { solid }],
+                });
+            }
+            Ok(super::SolidContainment::OnBoundary) => {
+                unreachable!("a point outside every face's reach box is on no face of the solid")
+            }
+            Err(e) => return Err(BooleanError::Containment(e)),
         }
     }
     Ok(())

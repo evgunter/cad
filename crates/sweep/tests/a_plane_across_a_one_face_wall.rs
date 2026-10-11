@@ -21,9 +21,9 @@
 //! less a tube, which leaves a rod in the bore, fails tier 3′
 //! (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`),
 //! and a piece of the wall under a tilted plane is no legal operand: a
-//! ray from the far brick that meets nothing has its side read by a ray
-//! aimed at a planar face, and every such ray crosses the one-face
-//! wall's carrier, where the wall's period guard escalates
+//! ray from the far brick that meets nothing finds the wall's volume
+//! unmeasurable, and every ray aimed at a planar face crosses the
+//! one-face wall's carrier, where the wall's period guard cannot read it
 //! (`work/inside/revolved-tube-wall-refuses-bool-wall-trim-period.md`);
 //! a two-arc wall fails both the same way.
 //!
@@ -148,21 +148,23 @@ fn every_op(what: &str, a: Body<f64>, b: Body<f64>, v: (f64, f64, f64), known: &
         );
         let joined = topo::union(body, &far, tol());
         if matches!(k, Some(Known::Operand)) {
-            let held = match &joined {
-                Err(BooleanError::ShellWitnessExhausted {
-                    first_in_band: Some(PointInSolidError::Escalated { diag, .. }),
-                    ..
-                })
-                | Err(BooleanError::Containment(PointInSolidError::Escalated { diag, .. })) => {
-                    diag.predicate
-                }
-                _ => None,
-            };
-            assert_eq!(
-                held,
-                Some("bool_wall_trim_period"),
-                "{row}: ∪ a far brick refuses on the wall's period guard: {:?}",
-                joined.map(|_| ())
+            // The volume's refusal: the aimed rays' only reading is the
+            // wall's period guard, a structural invalid margin that no
+            // tolerance moves, so it does not stand in for the volume.
+            let text = joined
+                .as_ref()
+                .err()
+                .map(ToString::to_string)
+                .unwrap_or_default();
+            assert!(
+                matches!(
+                    joined,
+                    Err(BooleanError::Containment(
+                        PointInSolidError::VolumeUncertified
+                    ))
+                ) && text.contains("unmeasurable for a curved face")
+                    && !text.contains("tolerance"),
+                "{row}: ∪ a far brick refuses on the volume: {text}"
             );
         } else {
             let joined = joined.unwrap_or_else(|e| panic!("{row}: ∪ a far brick: {e:?}"));
