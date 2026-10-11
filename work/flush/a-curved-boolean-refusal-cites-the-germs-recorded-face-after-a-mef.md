@@ -2,12 +2,13 @@
 id: a-curved-boolean-refusal-cites-the-germs-recorded-face-after-a-mef
 kind: issue
 title: The join's CurvedBooleanUnsupported cites the germ's recorded face, which an earlier segment's mef may have divided, not the face that holds the segment
-status: review
+status: closed
 opened: 2026-10-04
 priority: P4
 cost: E
 branch: flush/e-tail
 pr: 4714
+closed: 2026-10-11
 ---
 
 Found by PR 4008's sweep (cause 2's class: a face key recorded before
@@ -55,3 +56,7 @@ cited operand now (`he_face` of `ea` or `eb`), which lies in the
 recorded face's lineage; a stale half refuses as the join's own
 `Corrupt`. The kind is read from the recorded face's surface as
 before: a `mef` fragment keeps its parent's.
+
+## Closed (2026-10-11, PR 4714)
+
+Fixed in the E-tail batch, PR 4714 (single FULL review, APPROVE-WITH-FIXES; every fix taken). The PR body has a section for this row.

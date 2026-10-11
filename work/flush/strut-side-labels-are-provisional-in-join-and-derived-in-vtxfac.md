@@ -2,12 +2,13 @@
 id: strut-side-labels-are-provisional-in-join-and-derived-in-vtxfac
 kind: issue
 title: join.rs calls pierce-ring strut labels provisional; vtxfac mints them as derived sense data
-status: review
+status: closed
 opened: 2026-10-08
 priority: P4
 cost: E
 branch: flush/e-tail
 pr: 4714
+closed: 2026-10-11
 ---
 
 
@@ -44,3 +45,7 @@ from the labels, the roles would make that check compare the labels
 with themselves. The "single-face seam ring has no in-solid label"
 clause went with the stale one: every null half there carries a label
 by the same rule.
+
+## Closed (2026-10-11, PR 4714)
+
+Fixed in the E-tail batch, PR 4714 (single FULL review, APPROVE-WITH-FIXES; every fix taken). The PR body has a section for this row.

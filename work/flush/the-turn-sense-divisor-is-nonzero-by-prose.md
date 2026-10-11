@@ -2,12 +2,13 @@
 id: the-turn-sense-divisor-is-nonzero-by-prose
 kind: issue
 title: Turn.sense is a bare T: the nonzero divisor turned_past and off_conic_slack read is held by call order, not by type
-status: review
+status: closed
 opened: 2026-10-09
 priority: P3
 cost: E
 branch: flush/e-tail
 pr: 4714
+closed: 2026-10-11
 ---
 
 
@@ -43,3 +44,7 @@ partner's rotational sense before `partners` built the `Turn`;
 - **The argued invariant** (the third bullet) is not this file's:
   the guard is in `chord_join.rs`, and it is filed on HONE as
   `a-kef-of-a-completed-null-face-is-ruled-out-by-a-debug-assert`.
+
+## Closed (2026-10-11, PR 4714)
+
+Fixed in the E-tail batch, PR 4714 (single FULL review, APPROVE-WITH-FIXES; every fix taken). The PR body has a section for this row.

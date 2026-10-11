@@ -2,12 +2,13 @@
 id: sibling-batteries-judge-sound-weaker-than-differential-outcome
 kind: issue
 title: Four differential batteries judge SOUND by their own outcome, weaker than common::differential::outcome
-status: review
+status: closed
 opened: 2026-10-08
 priority: P4
 cost: E
 branch: flush/e-tail
 pr: 4714
+closed: 2026-10-11
 ---
 
 
@@ -101,3 +102,7 @@ RESTREAD's `census-cross-solid-curved-pairs-undecidable-on-shell-results`.
 On the steep quad battery the 849 bodies' volumes sit within 2.3e-7 of
 the closed form; the nine past 1e-7 are all ∪ or cylinder ∖ prism, which
 keep the cylinder's trimmed wall, while every ∩ is within 1e-7.
+
+## Closed (2026-10-11, PR 4714)
+
+Fixed in the E-tail batch, PR 4714 (single FULL review, APPROVE-WITH-FIXES; every fix taken). The PR body has a section for this row.

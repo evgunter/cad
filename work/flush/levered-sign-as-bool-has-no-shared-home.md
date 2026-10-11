@@ -2,12 +2,13 @@
 id: levered-sign-as-bool-has-no-shared-home
 kind: issue
 title: A levered sign read as a bool has no shared home across boolean/
-status: review
+status: closed
 opened: 2026-10-03
 priority: P4
 cost: E
 branch: flush/e-tail
 pr: 4714
+closed: 2026-10-11
 ---
 
 
@@ -71,3 +72,7 @@ The rest of `NonzeroSign`'s matches map the sign to a domain value
 (`SideCode`, `MaterialWedge`, `ParallelSense`, `MaterialPairing`, a
 `±1`, a `Sign`, a slot index or a bucket) and are not a bool read.
 The sweep and its blind spot are in the PR body.
+
+## Closed (2026-10-11, PR 4714)
+
+Fixed in the E-tail batch, PR 4714 (single FULL review, APPROVE-WITH-FIXES; every fix taken). The PR body has a section for this row.
