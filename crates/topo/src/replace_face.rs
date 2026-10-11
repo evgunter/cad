@@ -1169,9 +1169,10 @@ fn transport_curve<T: Decide>(
 
 /// The chart normal at the centre of a NURBS surface's own domain.
 fn mid_domain_normal<T: Decide>(s: &NurbsSurface<T>) -> Option<Vec3<T>> {
-    let (u0, u1) = s.knots_u().domain();
-    let (v0, v1) = s.knots_v().domain();
-    let jet = s.ders(T::from_f64((u0 + u1) * 0.5), T::from_f64((v0 + v1) * 0.5));
+    let (u0, u1) = s.knot_values_u().domain();
+    let (v0, v1) = s.knot_values_v().domain();
+    let half = T::from_f64(0.5);
+    let jet = s.ders((u0 + u1) * half, (v0 + v1) * half);
     let n = jet.du.cross(jet.dv).normalize();
     (!n.x.is_poison() && !n.y.is_poison() && !n.z.is_poison()).then_some(n)
 }
@@ -2973,10 +2974,7 @@ fn derive_edge<T: Decide>(
     // it, so it spans that domain until `read_ends` reads its feet. A
     // closed form keeps the old span, as `read_ends` reads it.
     let (t0, t1) = match (&carrier, &refused) {
-        (Curve3::Nurbs(spline), None) => {
-            let (lo, hi) = spline.domain();
-            (T::from_f64(lo), T::from_f64(hi))
-        }
+        (Curve3::Nurbs(spline), None) => spline.knot_values().domain(),
         _ => (t0, t1),
     };
     let witness = carrier.mid_point(t0, t1);
@@ -3582,7 +3580,9 @@ fn gap_within_eps<T: Decide>(gap: T, tol: Tol, band: Band) -> Result<bool, Repla
 
 /// The parameter of `point`'s foot on the spline `carrier`, nearest
 /// `seed`, in `T` and as the lane measured it: Newton's `f64`, so it
-/// enters as a computed value.
+/// enters as a computed value, except where the domain clamp stopped it
+/// at an end, where it is the carrier's held end knot (the value
+/// `corner_of_root`'s short root enters too).
 fn carrier_foot<T: Decide>(
     lane: geom_brep::NurbsLane<T>,
     carrier: &NurbsCurve3<T>,
@@ -3590,7 +3590,15 @@ fn carrier_foot<T: Decide>(
     seed: T,
 ) -> Result<(T, f64), geom::ProjectionInconclusive> {
     let foot = lane.carrier_foot(carrier, point, seed)?;
-    Ok((T::from_computed(foot.t), foot.t))
+    let ((lo, hi), (held_lo, held_hi)) = (carrier.domain(), carrier.knot_values().domain());
+    let at = if foot.t == lo {
+        held_lo
+    } else if foot.t == hi {
+        held_hi
+    } else {
+        T::from_computed(foot.t)
+    };
+    Ok((at, foot.t))
 }
 
 /// **A corner's root along the spline carrier of `edge`**, nearest
@@ -3621,11 +3629,15 @@ fn spline_corner_root<T: Decide>(
     tol: Tol,
 ) -> Result<Result<T, crate::offset_derive::CornerVerdict<T>>, ReplaceFaceError<T>> {
     let root = lane.root(surface, spline, seed, extent, band);
-    corner_of_root(root, (vertex, edge, derived), d, band, tol)
+    // A short root stops at a domain end: the carrier's held end knot.
+    let held = spline.knot_values();
+    let end = |v: f64| held.value_at(v).unwrap_or_else(|| T::from_computed(v));
+    corner_of_root(root, (vertex, edge, derived), d, band, tol, &end)
 }
 
 /// [`spline_corner_root`]'s reading of the lane's verdict. The lane
-/// measures in `f64`, so its root and its gap enter as computed values.
+/// measures in `f64`, so its root and its gap enter as computed values;
+/// a short root's end is the carrier's own end knot, `held_end`'s.
 #[allow(clippy::type_complexity)]
 fn corner_of_root<T: Decide>(
     root: Result<crate::offset_derive::SplineRoot, crate::offset_derive::CornerVerdict<T>>,
@@ -3633,6 +3645,7 @@ fn corner_of_root<T: Decide>(
     d: T,
     band: Band,
     tol: Tol,
+    held_end: &dyn Fn(f64) -> T,
 ) -> Result<Result<T, crate::offset_derive::CornerVerdict<T>>, ReplaceFaceError<T>> {
     use crate::offset_derive::SplineRoot;
     match root {
@@ -3641,7 +3654,7 @@ fn corner_of_root<T: Decide>(
             end,
             near_gap,
             near: true,
-        }) if gap_within_eps(T::from_computed(near_gap), tol, band)? => Ok(Ok(T::from_f64(end))),
+        }) if gap_within_eps(T::from_computed(near_gap), tol, band)? => Ok(Ok(held_end(end))),
         Ok(SplineRoot::Short {
             near_gap,
             near: true,
@@ -4075,8 +4088,7 @@ fn read_ends<T: Decide>(
                 edge,
                 scalar: T::NAME,
             })?;
-            let (lo, hi) = spline.domain();
-            let (lo, hi) = seeds.unwrap_or((T::from_f64(lo), T::from_f64(hi)));
+            let (lo, hi) = seeds.unwrap_or_else(|| spline.knot_values().domain());
             let foot = |p, seed| {
                 carrier_foot(lane, spline, p, seed)
                     .map(|(t, _)| t)
@@ -5030,6 +5042,7 @@ mod from_computed_rows {
             S::from_f64(0.1),
             band(),
             Tol::witness(),
+            &S::from_f64,
         )
     }
 
@@ -5045,6 +5058,43 @@ mod from_computed_rows {
             found,
             Revalued {
                 kept: 0,
+                opaque: 1,
+                laundered: 0,
+            }
+        );
+    }
+
+    /// A short root's end is the carrier's held end knot (`held_end`):
+    /// with the end knot a variable, the corner re-values with it to
+    /// the bits the `p1` build computes (`kept`), where the `f64` end
+    /// entered as a constant would launder it. The ε decision on the
+    /// near gap reads the lane's measured gap, a computed value
+    /// (`opaque`).
+    #[test]
+    fn a_short_roots_end_is_the_held_end_knot() {
+        let found = revalued([1.0, 1.0 + 1.0e-3], |p, end_knot| {
+            let held_end = move |_: f64| end_knot;
+            let root = SplineRoot::Short {
+                end: p,
+                near_gap: 0.0,
+                near: true,
+            };
+            let corner = corner_of_root(
+                Ok(root),
+                (VertexKey::default(), EdgeKey::default(), false),
+                S::from_f64(0.1),
+                band(),
+                Tol::witness(),
+                &held_end,
+            )
+            .unwrap()
+            .unwrap();
+            vec![corner]
+        });
+        assert_eq!(
+            found,
+            Revalued {
+                kept: 1,
                 opaque: 1,
                 laundered: 0,
             }

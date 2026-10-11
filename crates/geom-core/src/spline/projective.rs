@@ -1,11 +1,13 @@
 //! The PROJECTIVE knot algebra's scalars, and the homogeneous applier
 //! at a generic scalar.
 //!
-//! [`crate::spline::algebra`] computes every knot-algebra plan as `f64`
-//! structure. Its two appliers combine control data off one schedule:
-//! [`CurvePlan::apply_points`] in the projective form, at the scalars
-//! named by [`ProjectiveScalar`] only, and [`CurvePlan::apply_certified`]
-//! in the homogeneous form, in the certification ring.
+//! [`crate::spline::algebra`] decides every knot-algebra plan as `f64`
+//! structure. Its appliers combine control data off one schedule:
+//! [`CurvePlan::apply_rational`] in the projective form, at the scalars
+//! named by [`ProjectiveScalar`] only, over the knots and weights held
+//! there; [`CurvePlan::apply_points`] the same form on the plan's own
+//! `f64` channel; and [`CurvePlan::apply_certified`] in the homogeneous
+//! form, in the certification ring.
 //! [`CurvePlan::apply_homogeneous_in`] is the homogeneous form at a
 //! caller's generic scalar, over the knots held there.
 
@@ -18,16 +20,16 @@ use crate::{Point2, Point3};
 /// `Probe`, and `Dual` and `Sym` over them — not `Interval`, and not
 /// `Dual<Interval>`.
 ///
-/// [`CurvePlan::apply_points`] combines de-homogenized points with
-/// [`CurvePlan::weights`]' stored `f64` quotient `λ`. At an evaluation
+/// [`CurvePlan::apply_rational`] combines de-homogenized points with
+/// a quotient `λ` it forms from the held weights. At an evaluation
 /// scalar that is the fixed association the tree documents. In the
-/// certification ring it would enclose `x + (y − x)·fl(λ)` under the
-/// rounded `f64` weights the plan minted, which is a neighbour of the
-/// described carrier and not that carrier (C6: a refinement inside a
-/// certificate is held only as homogeneous enclosures `(w·P, w)`,
-/// [`CurvePlan::apply_certified`]). So the applier, and every knot
-/// operation built on it, is bounded by this trait, and a call at the
-/// certification scalar does not typecheck:
+/// certification ring it would enclose a de-homogenized combination
+/// of the plan's projective form, which is not how a certificate holds
+/// a refinement (C6: a refinement inside a certificate is held only as
+/// homogeneous enclosures `(w·P, w)`, [`CurvePlan::apply_certified`]).
+/// So the applier, and every knot operation built on it, is bounded by
+/// this trait, and a call at the certification scalar does not
+/// typecheck:
 ///
 /// ```compile_fail,E0277
 /// use geom_core::Interval;
@@ -36,14 +38,22 @@ use crate::{Point2, Point3};
 /// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
 /// let plan = refine_plan(&kv, &[1.0, 1.0, 1.0], &[0.5]).unwrap().remove(0);
 /// let pt = |x: f64| Interval::from_bounds(x, x);
+/// let knots: Vec<Interval> = kv.knots().iter().map(|k| pt(*k)).collect();
 /// let old = [pt(0.0), pt(1.0), pt(2.0)];
-/// let _ = plan.apply_points(&old, Interval::refused(), |x, y, l: Interval| x + (y - x) * l);
+/// let _ = plan.apply_rational(
+///     &knots,
+///     &old,
+///     &[pt(1.0); 3],
+///     (Interval::refused(), &pt),
+///     |x, y, l: Interval| x + (y - x) * l,
+/// );
 /// ```
 ///
-/// The points are bounded with it ([`ProjectivePoint`]), so `λ` cannot
-/// stay an `f64` while the points it combines are ring enclosures —
-/// the shape that lifts `λ` inside the closure (an `f64` scalar over
-/// `Interval` points) does not typecheck either:
+/// The points are bounded with it ([`ProjectivePoint`]), so the
+/// scalar cannot stay at an evaluation scalar while the points it
+/// combines are ring enclosures: the shape that lifts `λ` inside the
+/// closure (an `f64` scalar over `Interval` points) does not typecheck
+/// either:
 ///
 /// ```compile_fail,E0277
 /// use geom_core::Interval;
@@ -53,9 +63,13 @@ use crate::{Point2, Point3};
 /// let plan = refine_plan(&kv, &[1.0, 1.0, 1.0], &[0.5]).unwrap().remove(0);
 /// let pt = |x: f64| Interval::from_bounds(x, x);
 /// let old = [pt(0.0), pt(1.0), pt(2.0)];
-/// let _ = plan.apply_points::<f64, Interval>(&old, Interval::refused(), |x, y, l| {
-///     x + (y - x) * Interval::from_bounds(l, l)
-/// });
+/// let _ = plan.apply_rational::<f64, Interval>(
+///     kv.knots(),
+///     &old,
+///     &[1.0; 3],
+///     (Interval::refused(), &|v| v),
+///     |x, y, l| x + (y - x) * Interval::from_bounds(l, l),
+/// );
 /// ```
 ///
 /// What the bound cannot see is a closure that computes in the ring
@@ -68,8 +82,14 @@ use crate::{Point2, Point3};
 /// use geom_core::spline::{KnotVector, algebra::refine_plan};
 /// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
 /// let plan = refine_plan(&kv, &[1.0, 1.0, 1.0], &[0.5]).unwrap().remove(0);
-/// let refined = plan.apply_points(&[0.0, 1.0, 2.0], f64::NAN, |x, y, l: f64| x + (y - x) * l);
-/// assert_eq!(refined.len(), 4);
+/// let (refined, weights) = plan.apply_rational(
+///     kv.knots(),
+///     &[0.0, 1.0, 2.0],
+///     &[1.0; 3],
+///     (f64::NAN, &|v| v),
+///     |x, y, l: f64| x + (y - x) * l,
+/// );
+/// assert_eq!((refined.len(), weights.len()), (4, 4));
 /// ```
 ///
 /// A methodless sealed marker over [`SpanLocate`]: it adds no

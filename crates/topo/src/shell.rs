@@ -4294,28 +4294,30 @@ impl<T: Decide> ArcPiece<T> {
 /// and `w` is at least the least weight. Hence
 /// `|C′| ≤ (max |A′ coefficient| + d · max |w′ coefficient|) / min w`.
 /// A coefficient over an empty knot span is skipped: its basis
-/// function's derivative is zero.
+/// function's derivative is zero. The skip reads the knots' structure;
+/// every factor is formed in the scalar over the held knots and
+/// weights.
 fn spline_speed<T: Real>(spline: &geom::NurbsCurve3<T>) -> T {
-    let (control, weights) = (spline.control(), spline.weight_channel());
-    let (knots, p) = (spline.knots().knots(), spline.degree());
+    let (control, weights) = (spline.control(), spline.weights());
+    let held = spline.knot_values();
+    let (knots, values, p) = (held.structure().knots(), held.values(), spline.degree());
     let c = control[0];
     let reach = control
         .iter()
         .fold(T::zero(), |r, q| r.max((*q - c).norm()));
-    let least = weights.iter().copied().fold(f64::INFINITY, f64::min);
-    let (mut point_rate, mut weight_rate) = (T::zero(), 0.0_f64);
+    let least = weights[1..].iter().fold(weights[0], |m, w| m.min(*w));
+    let (mut point_rate, mut weight_rate) = (T::zero(), T::zero());
     for i in 0..control.len().saturating_sub(1) {
-        let du = knots[i + p + 1] - knots[i + 1];
-        if du == 0.0 {
+        if knots[i + p + 1] - knots[i + 1] == 0.0 {
             continue;
         }
-        let k = p as f64 / du;
-        let step = (control[i + 1] - c) * T::from_f64(weights[i + 1])
-            - (control[i] - c) * T::from_f64(weights[i]);
-        point_rate = point_rate.max(step.norm() * T::from_f64(k));
+        #[allow(clippy::cast_precision_loss)]
+        let k = T::from_f64(p as f64) / (values[i + p + 1] - values[i + 1]);
+        let step = (control[i + 1] - c) * weights[i + 1] - (control[i] - c) * weights[i];
+        point_rate = point_rate.max(step.norm() * k);
         weight_rate = weight_rate.max((weights[i + 1] - weights[i]).abs() * k);
     }
-    (point_rate + reach * T::from_f64(weight_rate)) / T::from_f64(least)
+    (point_rate + reach * weight_rate) / least
 }
 
 impl<T: Decide> MovedWall<T> {

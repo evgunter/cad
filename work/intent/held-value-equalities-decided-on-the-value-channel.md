@@ -29,6 +29,11 @@ at the witness and carry nothing for the variables:
   by channel equality of two carriers' knots and weights.
 - `pcurve_cache/projected.rs`: the projected image's shared-net test
   (`net.knots() != c.knots() || net.weight_channel() != c.weight_channel()`).
+- `topo/src/offset_derive.rs`: `holds_row` (`w0 != w1` along the
+  boundary row and the one next in) and `translates_along`
+  (`w[at(i, j)] != w[at(i, 0)]`) decide that a net's weights are
+  constant along a row or a column on the channel (found while closing
+  `nurbs-weights-and-knots-are-the-scalar`, u4).
 
 Each claims an identity between two held values. Decided on the channel,
 it is a numeric coincidence at `Sym`, not a theorem. The fix is to decide

@@ -257,20 +257,22 @@ impl CurvePlan {
         &self.weights
     }
 
-    /// Applies the point schedule: `old` is the previous control
-    /// polygon, `lerp(x, y, λ)` the caller's affine combination
-    /// (`x + (y − x)·λ`, the fixed association every consumer
-    /// documents) with `λ` lifted to the caller's scalar `T` here, and
-    /// `poison` the caller's poison point — the total fallback for a
-    /// malformed plan, which the constructors rule out but the applier
-    /// does not trust (D4: fail loud, never panic). `T` is a
-    /// [`ProjectiveScalar`] and `P` a [`ProjectivePoint`] over it; the
-    /// certification ring's applier is [`CurvePlan::apply_certified`].
-    pub fn apply_points<T: ProjectiveScalar, P: ProjectivePoint<T>>(
+    /// Applies the point schedule on the plan's own `f64` channel:
+    /// `old` is the previous control polygon, `lerp(x, y, λ)` the
+    /// caller's affine combination (`x + (y − x)·λ`, the fixed
+    /// association every consumer documents) with the plan's `f64` `λ`,
+    /// and `poison` the caller's poison point — the total fallback for
+    /// a malformed plan, which the constructors rule out but the
+    /// applier does not trust (D4: fail loud, never panic). It is the
+    /// `f64` reference [`CurvePlan::apply_rational`] is pinned against;
+    /// a carrier at any scalar is refined by that applier, over its
+    /// held knots and weights, and the certification ring's applier is
+    /// [`CurvePlan::apply_certified`].
+    pub fn apply_points<P: Copy>(
         &self,
         old: &[P],
         poison: P,
-        lerp: impl Fn(P, P, T) -> P,
+        lerp: impl Fn(P, P, f64) -> P,
     ) -> Vec<P> {
         let n_new = self.knots.control_count();
         let mut new: Vec<Option<P>> = vec![None; n_new];
@@ -296,7 +298,7 @@ impl CurvePlan {
                 } => {
                     if target < n_new {
                         let combined = match (fetch(&new, x), fetch(&new, y)) {
-                            (Some(px), Some(py)) => Some(lerp(px, py, T::from_f64(lambda))),
+                            (Some(px), Some(py)) => Some(lerp(px, py, lambda)),
                             _ => None,
                         };
                         new[target] = combined;
