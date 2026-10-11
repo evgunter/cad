@@ -667,8 +667,8 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
                 })
                 .collect(),
         ),
-        // A12: the gather IGNORES a mate — it is a non-body root, and
-        // "ignored by the gather" is exactly this arm. E3/E10's two
+        // The gather IGNORES a mate — it denotes no body, and "ignored
+        // by the gather" is exactly this arm. E3/E10's two
         // sinks join it for the same reason: a measured quantity and an
         // an assertion's verdict denote no material, so a document
         // whose only addition is an assertion has the same product it
@@ -1010,7 +1010,7 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     let placements = doc.placements();
     for &placement in &placements {
         if let Some(crate::node::Node::PlaceInWorld { body, .. }) = doc.node(placement)
-            && doc.operation_of(*body).is_none()
+            && doc.operation_of(body.read).is_none()
         {
             return Err(ProductError::StrandedPlacement { placement });
         }
@@ -1130,7 +1130,7 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             unreachable!("a product source is a placement's copy")
         };
         let input = u32::try_from(cited_inputs.len()).unwrap_or(u32::MAX);
-        cited_inputs.push(crate::coincide::CitedInput::Read(*read));
+        cited_inputs.push(crate::coincide::CitedInput::Read(read.read));
         carry_contacts(&mut at_rest.contacts, &records.carried_from(input), keys)
             .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
         carry_declarations(&mut carried, &rows.minted, keys)
@@ -1168,14 +1168,21 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // graft, rather than being lost because the consuming document
     // never ran the mate loop.
     //
-    // Last, and after the gate: minting resolves references against
-    // the FINISHED name table, and the aggregate's own at-rest verdict
+    // Last, and after the gate: minting carries each mate's faces
+    // across the graft bridge, and the aggregate's own at-rest verdict
     // is about geometry, so a product that is not a body at all
     // refuses before any mate is read.
+    let bridge_of = |placement: RecipeNodeId| {
+        grafted
+            .iter()
+            .find(|((node, ..), _)| *node == placement)
+            .map(|(_, keys)| &**keys)
+    };
     let (minted, unminted) = crate::assembly::mint(
         doc,
         evaluation,
-        (&names, &aggregate),
+        &bridge_of,
+        &aggregate,
         &mut at_rest,
         space,
         geom_core::Band::linear(tol),

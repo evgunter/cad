@@ -20,8 +20,7 @@
 
 use crate::fixture::{insert, len, on_frame, scl};
 use editor_core::{
-    BooleanOp, Datum, Evaluation, ExtrudeSide, Node, PartSelect, ProfileDoc, RecipeNodeId, Speaker,
-    SplitHalf,
+    Datum, Evaluation, ExtrudeSide, Node, PartSelect, ProfileDoc, RecipeNodeId, Speaker, SplitHalf,
 };
 use geom_core::Tol;
 
@@ -92,10 +91,9 @@ fn boolean_chain() -> (ProfileDoc, Vec<RecipeNodeId>) {
         );
         let (d, trimmed) = insert(
             d,
-            Node::Boolean {
-                op: BooleanOp::Subtract,
-                a: body.into(),
-                b: block.into(),
+            Node::Subtract {
+                from: body.into(),
+                tool: block.into(),
                 declare: Vec::new(),
             },
         );

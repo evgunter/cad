@@ -13,12 +13,12 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, CancelToken, CapEnd, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc,
-    Qualifier, RecipeNodeId, RoleSeg, StableName, evaluate,
+    CancelToken, CapEnd, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc, Qualifier,
+    RecipeNodeId, RoleSeg, StableName, evaluate,
 };
 use fixture::{
-    ang, declare_x_offset_flush, declare_x_offset_flush_at, insert, len, minted, on_frame, scl,
-    table,
+    ang, declare_x_offset_flush, declare_x_offset_flush_at, insert, len, minted, on_frame, out,
+    scl, table,
 };
 use geom_core::Tol;
 
@@ -64,7 +64,7 @@ fn block(
     )
 }
 
-// ---- FromA/FromB + Seam + OrderAlong on the overlapping union. ----
+// ---- From + Seam + OrderAlong on the overlapping union. ----
 
 #[test]
 fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
@@ -74,10 +74,8 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
     let decl = declare_x_offset_flush(&doc, a, b);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: decl,
         },
     );
@@ -95,12 +93,18 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
         minted(
             EntityKind::Face,
             u,
-            RoleSeg::FromA(minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End)).into()),
+            RoleSeg::From {
+                read: out(&doc, a),
+                of: minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End)).into(),
+            },
         ),
         minted(
             EntityKind::Face,
             u,
-            RoleSeg::FromB(minted(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End)).into()),
+            RoleSeg::From {
+                read: out(&doc, b),
+                of: minted(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End)).into(),
+            },
         ),
     ];
     cap_constituents.sort_unstable();
@@ -133,9 +137,15 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
             RoleSeg::Lateral(crate::fixture::piece(&doc, node, 0, seg as usize).into()),
         );
         let seg = if wrap_a {
-            RoleSeg::FromA(inner.into())
+            RoleSeg::From {
+                read: out(&doc, a),
+                of: inner.into(),
+            }
         } else {
-            RoleSeg::FromB(inner.into())
+            RoleSeg::From {
+                read: out(&doc, b),
+                of: inner.into(),
+            }
         };
         assert!(
             matches!(
@@ -158,15 +168,14 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
     let (doc, n) = block(doc, (0.4, 0.6), (-0.5, 0.5), 0.5, 1.0);
     let (doc, u2) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: n.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), n.into()]),
             declare: Vec::new(),
         },
     );
     let ev = run(&doc);
     let t = table(&ev, u2);
+    let (a_read, n_read) = (out(&doc, a), out(&doc, n));
     // Cut rims are told apart by their ends (never bare indices), and so
     // is a lone piece: each of the notch's edges the cap cuts.
     let pieces: Vec<_> = t
@@ -181,16 +190,17 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
         .collect();
     let (of_a, of_n): (Vec<_>, Vec<_>) = pieces
         .iter()
-        .partition(|p| matches!(p.as_slice(), [RoleSeg::FromA(_)]));
+        .partition(|p| matches!(p.as_slice(), [RoleSeg::From { read, .. }] if *read == a_read));
     assert_eq!(of_a.len(), 2, "`a`'s cut rim in two pieces: {pieces:?}");
     assert_eq!(of_a[0], of_a[1], "both pieces of one rim");
     // `a` cuts four of the notch's edges, two start rims and two
     // laterals, and keeps one piece of each: still named by its ends.
     assert_eq!(of_n.len(), 4, "the notch's lone pieces: {pieces:?}");
     assert!(
-        of_n.iter()
-            .all(|p| matches!(p.as_slice(), [RoleSeg::FromB(_)]))
-            && of_n.windows(2).all(|w| w[0] != w[1]),
+        of_n.iter().all(|p| matches!(
+            p.as_slice(),
+            [RoleSeg::From { read, .. }] if *read == n_read
+        )) && of_n.windows(2).all(|w| w[0] != w[1]),
         "every other piece is the notch's, one of each edge: {pieces:?}"
     );
     // Seam vertices exist, with operand-name arguments.
@@ -223,16 +233,16 @@ fn slot_subtract_names_cap_fragments_by_the_walls_they_border() {
     let (doc, b) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, sub) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: a.into(),
-            b: b.into(),
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
             declare: Vec::new(),
         },
     );
     let ev = run(&doc);
     let t = table(&ev, sub);
     let end = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
+    let a_read = out(&doc, a);
     // Exactly two pieces of A's end cap, `Borders`-qualified, with
     // DISTINCT wall sets (each Unique — no tie: each borders its own
     // slot wall).
@@ -242,7 +252,7 @@ fn slot_subtract_names_cap_fragments_by_the_walls_they_border() {
             let is_frag = n.kind == EntityKind::Face
                 && matches!(
                     n.path.first(),
-                    Some(RoleSeg::FromA(inner)) if **inner == end
+                    Some(RoleSeg::From { read, of: inner }) if *read == a_read && **inner == end
                 )
                 && matches!(
                     n.path.get(1),
@@ -305,15 +315,15 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
     );
     let (doc, sub) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: a.into(),
-            b: b.into(),
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
             declare: Vec::new(),
         },
     );
     let ev = run(&doc);
     let t = table(&ev, sub);
+    let b_read = out(&doc, b);
     // The tie marks: at least one tied name, each with exactly two
     // candidates, and both caps' prong fragments are the tied ones.
     let ties: Vec<(&StableName, &Entry)> = t
@@ -327,7 +337,10 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
         };
         assert_eq!(cands.len(), 2, "tie should have 2 candidates: {n:?}");
         assert!(
-            matches!(n.path.first(), Some(RoleSeg::FromB(_))),
+            matches!(
+                n.path.first(),
+                Some(RoleSeg::From { read, .. }) if *read == b_read
+            ),
             "tie should be on B-cap fragments: {n:?}"
         );
     }
@@ -371,10 +384,8 @@ fn no_flip_translation_edit_leaves_every_table_identical() {
         let decl = declare_x_offset_flush_at(&doc, (a, a), (tb, b0));
         let (doc, u) = insert(
             doc,
-            Node::Boolean {
-                op: BooleanOp::Union,
-                a: a.into(),
-                b: tb.into(),
+            Node::Union {
+                members: editor_core::Bodies::Spelled(vec![a.into(), tb.into()]),
                 declare: decl,
             },
         );
@@ -416,10 +427,8 @@ fn flip_changes_exactly_the_boolean_nodes_table() {
         let decl = declare_x_offset_flush_at(&doc, (a, a), (tb, b0));
         let (doc, u) = insert(
             doc,
-            Node::Boolean {
-                op: BooleanOp::Union,
-                a: a.into(),
-                b: tb.into(),
+            Node::Union {
+                members: editor_core::Bodies::Spelled(vec![a.into(), tb.into()]),
                 declare: decl,
             },
         );

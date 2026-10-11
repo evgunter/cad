@@ -5177,6 +5177,10 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
     fn enclosure_hull(self, other: Self) -> Self {
         self.binary(other, self.value.enclosure_hull(other.value), SymOp::Hull)
     }
+
+    fn point_value(self) -> Option<f64> {
+        self.value.point_value()
+    }
 }
 
 /// **The whole of the tier's effect on decision-making** (E12): the
@@ -5271,7 +5275,18 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 impl<T: Decide> Decide for Sym<T> {
     fn sign_within(self, band: Band) -> Result<Decided, Indeterminate> {
         #[cfg(feature = "sym-revalue-testing")]
-        revalue::note(self.node, self.value);
+        let noted = revalue::note(self.node, self.value);
+        let decided = self.decide_sign(band);
+        #[cfg(feature = "sym-revalue-testing")]
+        revalue::settle(noted, &decided);
+        decided
+    }
+}
+
+impl<T: Decide> Sym<T> {
+    /// [`Decide::sign_within`]'s body, apart so the re-valuation hook
+    /// can read the outcome it returns.
+    fn decide_sign(self, band: Band) -> Result<Decided, Indeterminate> {
         // Where this decision's own K sample will land, read before the
         // base scalar records it (`k_stats::sink_mark`).
         #[cfg(feature = "probe")]
