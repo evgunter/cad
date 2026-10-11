@@ -135,6 +135,13 @@
 //! re-taken once more; only `measured_web`'s rows moved, where both
 //! changes meet.
 //!
+//! **ALL FOUR NUMBERS MOVED WHEN A SPLIT'S HALF BECAME ITS PORT**,
+//! through `part_select` alone: the document's two `Part` projections
+//! of a split's halves are gone and its union reads the split's two
+//! ports. Two nodes fewer is two outcomes fewer, so the id-masked fence
+//! moved too; `lib_g16_corpus_name_digests` moved that row and no
+//! other, and every point of the bodies that remain is where it was.
+//!
 //! A whole-corpus scalar is a blunt instrument for "did an existing
 //! document move", and there is now a SECOND, finer measurement to
 //! read beside it: `lib_g16_corpus_name_digests` pins a digest PER
@@ -851,7 +858,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x8ebe_48f9_0a04_3579, 0x9844_4d7e_108c_a95d),
+        (0xf5b3_9bf1_0c0d_c53a, 0x24e8_0c32_cdf5_41de),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -877,7 +884,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x73df_d026_6f39_bf49, 0x067a_c70e_59ac_19b5),
+        (0x9bbd_75cc_0e28_0cf6, 0xec33_72ed_12d5_bbd2),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -901,7 +908,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x8ebe_48f9_0a04_3579, 0x9844_4d7e_108c_a95d),
+        (0xf5b3_9bf1_0c0d_c53a, 0x24e8_0c32_cdf5_41de),
         "the corpus's Probe evaluation moved"
     );
 }
@@ -979,7 +986,7 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
     println!("m10-p fence id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0x4e83_a4d8_b6bd_ee50, 0x37d4_cb01_e189_8fac),
+        (0x5581_0c1a_eba7_19d0, 0x09d0_5e3c_2dc9_ae2c),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );

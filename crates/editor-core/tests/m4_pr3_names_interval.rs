@@ -3,7 +3,8 @@
 //! genericity boundary respected). `NameTable` is scalar-independent
 //! (names + arena keys), so the comparison is direct table equality
 //! per node, over a boolean-and-split-bearing corpus document. The
-//! corpus holds an N2 tie carried through a split and a part, so the
+//! corpus holds an N2 tie carried through a split and a read of one
+//! of its halves, so the
 //! equality also compares each tie candidate's number (N4, "A tie's
 //! candidates keep their identity"), which no name digest reads.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -12,8 +13,8 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    CancelToken, Datum, Entry, EvalOptions, Evaluation, Node, PartSelect, ProfileDoc, RecipeNodeId,
-    SplitHalf, evaluate,
+    CancelToken, Datum, Entry, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, SplitHalf,
+    evaluate,
 };
 use fixture::{insert, len, on_frame, scl, wall};
 use geom_core::Interval;
@@ -46,7 +47,7 @@ fn block(
 /// The corpus: an overlapping union, a through-slot subtract, a plane
 /// split, and the U-cutter subtract (`m4_pr3_names_bool`'s N2 tie: two
 /// cap fragments no covariant qualifier separates) split between its
-/// prongs, with a `Part` of one half — all dyadic.
+/// prongs, with a read of one half — all dyadic.
 fn corpus() -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_interval", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
@@ -144,10 +145,14 @@ fn corpus() -> ProfileDoc {
     );
     let (doc, _above) = insert(
         doc,
-        Node::Part {
-            of: editor_core::Operand::output(halves, SplitHalf::Above.port()),
-            select: PartSelect::SplitHalf(SplitHalf::Above),
-        },
+        Node::transform(
+            editor_core::Operand::output(halves, SplitHalf::Above.port()),
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: fixture::ang(0.0),
+            },
+        ),
     );
     doc
 }

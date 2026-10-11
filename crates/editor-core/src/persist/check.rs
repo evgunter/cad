@@ -227,8 +227,8 @@ pub(crate) enum Walk {
     PayloadRead,
     /// [`first_operand_read_fault`] over every operand's read (D10): it
     /// names a minted variable, and a live one of a kind its seat
-    /// admits; a part projection over a split reads its own half. A
-    /// read of an output deleted since is legal — its reader is
+    /// admits that is no world placement's copy. A read of an output
+    /// deleted since is legal — its reader is
     /// stranded, refused at evaluation. Snapshot only.
     OperandRead,
     /// [`first_unnamed_reader_fault`] over the variable table: a
@@ -632,16 +632,13 @@ fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 } else {
                     crate::SlotKind::Placeable
                 };
-                match snapshot.read_fault(held, expected, None, crate::doc::Reader::Observes)? {
+                match snapshot.read_fault(held, expected, crate::doc::Reader::Observes)? {
                     crate::doc::ReadFault::Kind { found } => SelectionBodyFault::Kind {
                         body: Box::new(snapshot.spoken_var(select.body)),
                         found,
                     },
                     crate::doc::ReadFault::WorldCopy { .. } => {
                         unreachable!("an observing read admits a world copy")
-                    }
-                    crate::doc::ReadFault::OtherHalf { .. } => {
-                        unreachable!("a selection's body read selects no half")
                     }
                 }
             }
@@ -769,7 +766,7 @@ fn first_slot_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotId,
 /// within a node in field order: a read of a variable the mint log
 /// does not hold, or a live read [`crate::Doc::read_fault`] — the edit
 /// doors' rule, stated once — refuses: a kind its seat does not admit,
-/// or a part projection over a split reading the other half. A placer's read
+/// or a world placement's copy. A placer's read
 /// keeping its output's shape is [`Walk::OutputSignature`]'s.
 fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     snapshot.nodes.iter().find_map(|(&id, node)| {
@@ -788,7 +785,6 @@ fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 match snapshot.read_fault(
                     held,
                     node.seat_kind(slot),
-                    node.selected_half(),
                     crate::doc::Reader::of(node.seat_kind(slot)),
                 )? {
                     crate::doc::ReadFault::Kind { found } => SnapshotError::SlotVarKind {
@@ -797,11 +793,6 @@ fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                         var: Box::new(snapshot.spoken_var(var)),
                         found,
                         expected: node.seat_kind(slot),
-                    },
-                    crate::doc::ReadFault::OtherHalf { half } => SnapshotError::PartHalfPort {
-                        node: snapshot.spoken(id),
-                        half,
-                        var: Box::new(snapshot.spoken_var(var)),
                     },
                     crate::doc::ReadFault::WorldCopy { placement } => {
                         SnapshotError::ReadsWorldCopy {
@@ -1198,16 +1189,6 @@ pub enum SnapshotError {
         slot: crate::OperandSlot,
         /// The read.
         var: SpokenVar,
-    },
-    /// A part projection over a split reads the split's other half —
-    /// the edit doors' [`crate::EditError::PartHalfPort`].
-    PartHalfPort {
-        /// The part projection.
-        node: SpokenNode,
-        /// The half it selects.
-        half: crate::SplitHalf,
-        /// The output it reads, boxed so the refusal stays a small `Err`.
-        var: Box<SpokenVar>,
     },
     /// A selection whose names are not in a stored form of its kind —
     /// the edit doors' [`crate::EditError::SelectionShape`].
@@ -1606,9 +1587,6 @@ impl core::fmt::Display for SnapshotError {
                  was a read. {}",
                 crate::sentence::Recourse(super::REGENERATE_RECOURSE)
             ),
-            Self::PartHalfPort { node, half, var } => {
-                write!(f, "{node} selects the {} half but reads {var}", half.name())
-            }
             Self::SelectionShape { var, fault } => {
                 write!(f, "{var} is not a selection a door writes: {fault}")
             }
@@ -2251,7 +2229,6 @@ mod tests {
             NameReadNotMinted,
             NameStepNotMinted,
             OperandUnminted,
-            PartHalfPort,
             ReadsWorldCopy,
             SelectionShape,
             SelectionBody,
@@ -2316,9 +2293,9 @@ mod tests {
                 Walk::SlotRead
             }
             SnapshotError::PayloadVarKind { .. } => Walk::PayloadRead,
-            SnapshotError::OperandUnminted { .. }
-            | SnapshotError::PartHalfPort { .. }
-            | SnapshotError::ReadsWorldCopy { .. } => Walk::OperandRead,
+            SnapshotError::OperandUnminted { .. } | SnapshotError::ReadsWorldCopy { .. } => {
+                Walk::OperandRead
+            }
             SnapshotError::AnonymousVarUnread { .. } | SnapshotError::SharedVarNeedsName { .. } => {
                 Walk::UnnamedReader
             }
@@ -2411,11 +2388,6 @@ mod tests {
                 var: Box::new(crate::SpokenVar::new(crate::VarId::new(0, 7), None)),
                 found: crate::VarKind::Profile,
                 expected: crate::SlotKind::Is(crate::VarKind::Body),
-            },
-            SnapshotError::PartHalfPort {
-                node: node(),
-                half: crate::SplitHalf::Below,
-                var: Box::new(crate::SpokenVar::new(crate::VarId::new(0, 7), None)),
             },
             SnapshotError::ReadsWorldCopy {
                 node: node(),

@@ -448,7 +448,7 @@ fn a_findings_attribution_resolves_to_its_subject() {
     assert_eq!(body.shells().count(), 2);
     // The subject's DECLARATIONS travel with it, so the tier-3′ gate
     // reached through an attribution asks about the same body the
-    // producer minted. This union declares nothing (`declare: Vec::new()`,
+    // producer minted. This union carries no records (no member holds one,
     // and its operands are three metres apart), so the honest claim
     // here is that the empty set is what arrived — not that the pair
     // is populated. The case where a non-empty set is the difference

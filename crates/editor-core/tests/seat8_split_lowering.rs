@@ -36,22 +36,21 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::ExtrudeSide;
-use std::sync::Arc;
 
 use crate::corpus;
 use crate::fixture;
 
 use corpus::{Recorder, eval, failures};
 use editor_core::{
-    Datum, Node, NodeErrorKind, NodeResult, PartSelect, ProfileDoc, RecipeNodeId, SplitHalf,
-    SplitSide, ValuePayload, persist,
+    Datum, Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SplitHalf, SplitSide,
+    ValuePayload, persist,
 };
 use fixture::digest::digest;
 use fixture::{len, scl, square, tol};
 
 /// The registered split documents, by name: a tilted plane through a
 /// cylinder (curved section edges), a plane through a box with both
-/// halves projected and unioned back (the DM3 payoff), and the kitchen
+/// halves read by port and unioned back (the DM3 payoff), and the kitchen
 /// sink's mid-height cut of a declared union. Every one cuts through
 /// its operand: two bodies out, no empty side anywhere — measured by
 /// `the_corpus_has_no_split_with_an_empty_side`, not read off.
@@ -108,12 +107,12 @@ fn the_corpus_has_no_split_with_an_empty_side() {
 }
 
 /// **The wire format is untouched**: `part_select` — a split with BOTH
-/// halves projected off it by `Node::Part` and unioned — saves, loads
-/// and re-saves byte-identically. The corpus-wide round-trip covers the
+/// halves read by port and unioned — saves, loads and re-saves
+/// byte-identically. The corpus-wide round-trip covers the
 /// same bytes; this is the per-document form beside the digest rows,
 /// so a red here names the split rather than the registry.
 #[test]
-fn a_split_document_with_projections_round_trips_byte_identical() {
+fn a_split_document_read_by_port_round_trips_byte_identical() {
     let doc = corpus::documents()
         .into_iter()
         .find(|d| d.name == "part_select")
@@ -228,12 +227,18 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// RE-BLESSED, `cut_cylinder` only, when a split's section face came to
 /// take its chart axis as its first chord projected into the plane: the
 /// tilted section's `u_ref` moved by one ulp in `z`, and nothing else did.
+///
+/// RE-BLESSED, `part_select` only, when its union came to read the
+/// split's two ports where it read a `Part` of each half: the two
+/// projections are gone from the evaluation this digest walks, and the
+/// union keys its members by the ports. `m4_pr8_corpus`'s exact mass
+/// pins held.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("cut_cylinder", 0xa6c1_1622_9a6f_5245u64),
-        ("part_select", 0xebfd_aa7c_81d0_27ad),
+        ("part_select", 0xdedb_e992_c753_8c6e),
         ("kitchen_sink", 0xcb26_4ee0_cf3b_2848),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
@@ -371,24 +376,29 @@ fn error_of(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> &NodeErrorKi
     }
 }
 
-/// **What the projection needs from the two-sided value, pinned where
-/// it reads it.** `Node::Part` selects a half by ROLE — above or below
-/// the plane's normal, never an index — refuses an empty half typed
-/// (`EmptyHalf`, naming the split and the side), and hands a present
-/// half on as the split's OWN body: the same `Arc`, no clone. Those three are the contract the split's out-type carries
-/// two role-tagged `Body | Empty` sides for, and the reason it is not
-/// a list of bodies or a body with a side marker.
+/// **What a read of a half needs from the two-sided value, pinned where
+/// it reads it.** Each port is one half by ROLE — above or below the
+/// plane's normal (`SplitHalf::port`) — a read of an empty half refuses
+/// typed (`EmptyHalf`, naming the split and the side), and a present
+/// half is read as the split's own side. Those three are the contract
+/// the split's out-type carries two role-tagged `Body | Empty` sides
+/// for, and the reason it is not a list of bodies or a body with a side
+/// marker.
 #[test]
-fn the_projection_reads_the_two_sided_value_by_role() {
+fn a_read_of_a_half_reads_the_two_sided_value_by_role() {
     let (mut r, split) = cube_split_at(5.0);
-    let above = r.insert(Node::Part {
-        of: editor_core::Operand::output(split, SplitHalf::Above.port()),
-        select: PartSelect::SplitHalf(SplitHalf::Above),
-    });
-    let below = r.insert(Node::Part {
-        of: editor_core::Operand::output(split, SplitHalf::Below.port()),
-        select: PartSelect::SplitHalf(SplitHalf::Below),
-    });
+    let still = |half: SplitHalf| {
+        Node::transform(
+            editor_core::Operand::output(split, half.port()),
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: fixture::ang(0.0),
+            },
+        )
+    };
+    let above = r.insert(still(SplitHalf::Above));
+    let below = r.insert(still(SplitHalf::Below));
     let ev = eval::<f64>(&r.doc);
     assert!(
         matches!(
@@ -405,14 +415,20 @@ fn the_projection_reads_the_two_sided_value_by_role() {
     else {
         panic!("the split's below side is a body");
     };
-    let Some(ValuePayload::Body(projected)) = ev.value(below).map(|v| &v.payload) else {
-        panic!(
-            "the present half projects to a body: {:?}",
-            ev.nodes.get(&below)
-        );
+    let Some(ValuePayload::Body(read)) = ev.value(below).map(|v| &v.payload) else {
+        panic!("the present half is read: {:?}", ev.nodes.get(&below));
     };
-    assert!(
-        Arc::ptr_eq(side, projected),
-        "the projection must hand on the split's own body, not a copy"
+    assert_eq!(
+        (
+            read.faces().count(),
+            read.edges().count(),
+            read.vertices().count()
+        ),
+        (
+            side.faces().count(),
+            side.edges().count(),
+            side.vertices().count()
+        ),
+        "the reader holds the split's own side"
     );
 }

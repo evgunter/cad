@@ -283,20 +283,20 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             angle: common::ang(1.0),
         },
         SessionOp::AddBoolean {
-            spec: BooleanSpec::Union(vec![node, node]),
+            spec: BooleanSpec::Union(vec![node.into(), node.into()]),
         },
         SessionOp::AddSplit {
-            target: node,
+            target: node.into(),
             tool: node,
         },
         SessionOp::AddTransform {
-            input: node,
+            input: node.into(),
             translation: len3([0.0; 3]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
             rotation_angle: common::ang(0.0),
         },
         SessionOp::AddPattern {
-            input: node,
+            input: node.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
                 direction: scl3([1.0, 0.0, 0.0]),
@@ -304,7 +304,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             },
         },
         SessionOp::AddPlacedUnion {
-            input: node,
+            input: node.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
                 direction: scl3([1.0, 0.0, 0.0]),
@@ -325,7 +325,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             of: node,
             select: PartSelectSpec::Instance(1),
         },
-        SessionOp::Duplicate { input: node },
+        SessionOp::Duplicate { input: node.into() },
         SessionOp::AddInstance {
             id: DocumentId::derive("view1b-no-such-part"),
         },
@@ -701,7 +701,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
     let pattern = common::session_insert(
         &mut session,
         SessionOp::AddPattern {
-            input: post,
+            input: post.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
                 direction: scl3([1.0, 0.0, 0.0]),

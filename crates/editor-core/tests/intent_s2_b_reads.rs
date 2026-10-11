@@ -14,26 +14,6 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-/// A block, its frame at height `z`: a unit square raised 1.
-fn block_at(doc: ProfileDoc, z: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, _, profile) = on_frame_keeping(
-        doc,
-        [0.0, 0.0, z],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![fixture::square(0.25, 0.25, 0.5)],
-    );
-    let (doc, extrude) = insert(
-        doc,
-        Node::Extrude {
-            profile: profile.into(),
-            distance: len(1.0),
-            side: editor_core::ExtrudeSide::Along,
-        },
-    );
-    (doc, profile, extrude)
-}
-
 /// A frame, a square on it and an extrude of the square, `dx` along x.
 fn block(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, _, profile) = on_frame_keeping(
@@ -493,90 +473,55 @@ fn the_slot_door_takes_a_formula_or_a_read_by_the_slots_kind() {
     ));
 }
 
-/// **A read of a split's port is that half** (FORK-1, Q2 ruled): a
-/// boolean over the split's first port builds, and is the same boolean
-/// over `Part { SplitHalf::Above }` of that split, bit for bit and name
-/// for name, up to the boolean's own id and the read each carries the
-/// half in through.
+/// **A read of a split's port is that half** (FORK-1): a union over
+/// the split's first port builds the union of the upper half and a
+/// block clear of it, its volume the half's and the block's, and every
+/// name it carries in through the port is one of the upper half's rows.
 #[test]
 fn a_split_port_read_is_its_half() {
-    let (doc, _, block) = block(
-        ProfileDoc::empty_derived("s2b-split-port", Tol::witness()),
-        0.0,
-    );
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.5)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
-    let (doc, split) = insert(
-        doc,
-        Node::Split {
-            target: block.into(),
-            tool: plane.into(),
-        },
-    );
-    let (doc, part) = insert(
-        doc,
-        Node::Part {
-            of: editor_core::Operand::output(split, editor_core::SplitHalf::Above.port()),
-            select: editor_core::PartSelect::SplitHalf(editor_core::SplitHalf::Above),
-        },
-    );
-    // The other member is minted after both reads of the half, so its
-    // read orders after either and a pair of names one row holds (a
-    // seam's two faces) is spelled in one order under both spellings.
-    let (doc, _, other) = block_at(doc, 0.3);
-    let (port_read, part_read) = (fixture::out(&doc, split), fixture::out(&doc, part));
-    let boolean = |a: Operand| Node::Union {
-        members: editor_core::Bodies::Spelled(vec![a.into(), other.into()]),
-    };
+    let (doc, split, far) = split_block("s2b-split-port");
+    let port = Operand::output(split, editor_core::SplitHalf::Above.port());
     let (doc, by_port) = insert(
         doc,
-        boolean(Operand::Output {
-            node: split,
-            port: 0,
-        }),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![port.into(), far.into()]),
+        },
     );
-    let (doc, by_part) = insert(doc, boolean(part.into()));
     let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
-    let (port, part) = (
-        ev.value(by_port)
-            .unwrap_or_else(|| panic!("{:?}", ev.node_error(by_port))),
-        ev.value(by_part).expect("the part spelling builds"),
+    let volume = volume(&ev, by_port);
+    assert!(
+        (volume - 1.5).abs() < 1e-12,
+        "the half (0.5) and the block (1): {volume}"
     );
-    // Each boolean stamps its own id on what it mints, and keys what it
-    // carries in by the read it came through; read the port spelling's
-    // id and read as the part spelling's, and the two are one.
-    let as_part = |text: String| {
-        text.replace(&format!("{:?}", by_port.0), &format!("{:?}", by_part.0))
-            .replace(
-                &by_port.0.digest().to_string(),
-                &by_part.0.digest().to_string(),
-            )
-            .replace(&format!("{:?}", port_read.0), &format!("{:?}", part_read.0))
-    };
-    assert_eq!(
-        as_part(format!("{:?}", port.payload)),
-        format!("{:?}", part.payload),
-        "one body, bit for bit"
-    );
-    // A table iterates in name order, and a read's id orders its names,
-    // so the rows are compared as sets.
-    let rows = |table: &editor_core::NameTable, map: &dyn Fn(String) -> String| {
-        let mut rows: Vec<String> = table
-            .iter()
-            .map(|(name, entry)| map(format!("{name:?} => {entry:?}")))
-            .collect();
-        rows.sort();
-        rows
-    };
-    assert_eq!(
-        rows(&port.name_table, &as_part),
-        rows(&part.name_table, &|text| text),
-        "and one name table"
+    let above_rows: Vec<editor_core::StableName> = ev
+        .value(split)
+        .expect("the split")
+        .name_table
+        .iter()
+        .filter(|(_, e)| {
+            matches!(e, editor_core::Entry::Unique(r) if r.body == editor_core::SplitHalf::Above.output_body())
+        })
+        .map(|(n, _)| n.clone())
+        .collect();
+    let port_read = doc
+        .output(split, editor_core::SplitHalf::Above.port())
+        .expect("the split's above port");
+    let carried: Vec<editor_core::StableName> = ev
+        .value(by_port)
+        .expect("the union")
+        .name_table
+        .iter()
+        .filter_map(|(n, _)| match n.path.first() {
+            Some(editor_core::RoleSeg::From { read, of }) if *read == port_read => {
+                Some(editor_core::StableName::clone(of))
+            }
+            _ => None,
+        })
+        .collect();
+    assert!(!carried.is_empty(), "the union carries the half's names");
+    assert!(
+        carried.iter().all(|n| above_rows.contains(n)),
+        "every name carried through the port is an upper-half row: {carried:?}"
     );
 }
 
@@ -716,7 +661,7 @@ fn every_re_blessed_document_is_the_pre_b_one_up_to_ids() {
     // the families document, beside this build's.
     let (old, new) = families_pair();
     let new = up_to_ids::reads_as_inputs(&new);
-    let old = up_to_ids::plane_field_as_frame(&up_to_ids::split_halves_as_ports(&old));
+    let old = up_to_ids::plane_field_as_frame(&up_to_ids::split_half_parts_as_reads(&old));
     up_to_ids::same_up_to_ids(&old, &new)
         .unwrap_or_else(|err| panic!("the families document: {err}"));
     println!("the families document: equal up to ids, reads as inputs");
@@ -944,9 +889,8 @@ fn dm5_is_over_the_variables_read() {
     );
     let (doc, once) = insert(
         doc,
-        Node::Part {
-            of: Operand::output(split, editor_core::SplitHalf::Above.port()),
-            select: editor_core::PartSelect::SplitHalf(editor_core::SplitHalf::Above),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![Operand::output(split, 0).into()]),
         },
     );
     let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
@@ -987,13 +931,14 @@ fn dm5_is_over_the_variables_read() {
 
 /// **Every operand family in one document** (review A's MINOR-2): a
 /// union, a loft, a sweep, a linear pattern and a part of one of its
-/// instances, a transform, a split and a part of each half, a fillet, a
+/// instances, a transform, a split read at each half, a fillet, a
 /// circular pattern of a revolve's body, and an instance of a part — so
 /// the one-shot's roots and reads cover each family, a list member
 /// among them. Inserted, never evaluated: what the one-shot compares is
 /// the saved document. `pre_b_families.json` is this document as the
 /// base built it, through its own fixtures, before an operand was a
-/// read.
+/// read, with a part of each half where it now reads each port
+/// ([`up_to_ids::split_half_parts_as_reads`]).
 pub(crate) fn families_document() -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("s2b-families", Tol::witness());
     let (doc, plane, low) = on_frame_keeping(
@@ -1086,12 +1031,6 @@ pub(crate) fn families_document() -> ProfileDoc {
             tool: cut.into(),
         },
     );
-    let half = |half: editor_core::SplitHalf| Node::Part {
-        of: Operand::output(split, half.port()),
-        select: editor_core::PartSelect::SplitHalf(half),
-    };
-    let (doc, above) = insert(doc, half(editor_core::SplitHalf::Above));
-    let (doc, below) = insert(doc, half(editor_core::SplitHalf::Below));
     let (doc, moved) = insert(doc, xform(sweep, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0], 0.0));
     let (doc, rounded) = insert(doc, Node::fillet(body, len(0.1), Vec::new()));
     let (doc, instance) = insert(
@@ -1106,8 +1045,8 @@ pub(crate) fn families_document() -> ProfileDoc {
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![
                 middle.into(),
-                above.into(),
-                below.into(),
+                Operand::output(split, editor_core::SplitHalf::Above.port()).into(),
+                Operand::output(split, editor_core::SplitHalf::Below.port()).into(),
                 moved.into(),
                 rounded.into(),
                 instance.into(),

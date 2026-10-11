@@ -2070,7 +2070,7 @@ FAMILIES: dict[str, str] = {
 #: INPUTS, and that is a step this census cannot prompt.
 #:
 #: What closing it bound: `Node.part(of, select)`,
-#: `PartSelect.split_half` / `PartSelect.instance`, `Node.pattern`,
+#: `PartSelect.instance`, `Node.pattern`,
 #: and `DocEdit.bind_instance_param`. The positive form is
 #: `tests/test_part_select.py`.
 #: **B-NOTATION is CLOSED and no longer a `gap` id here**
@@ -3683,7 +3683,6 @@ MEMBERS_BOUND_AS = {
     "EditError::OperandUnresolved": "EditError.variant",
     "EditError::AmbiguousOutput": "EditError.variant",
     "EditError::DefinesNothing": "EditError.variant",
-    "EditError::PartHalfPort": "EditError.variant",
     "EditError::ReadsWorldCopy": "EditError.variant",
     "EditError::UnknownSlot": "EditError.variant",
     "EditError::SlotDimensionMismatch": "EditError.variant",

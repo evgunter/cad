@@ -607,14 +607,12 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
         EditError::SetExtrudeSideOnNonExtrude { .. } => "set_extrude_side_on_non_extrude",
         EditError::StepIdsRefused { .. } => "step_ids_refused",
-        // The read doors: a read that resolves to no output, a node
-        // named alone that defines two or nothing, and a part over a
-        // split reading the other half. A read of a kind its slot does
-        // not admit is `slot_var_kind`, at any slot.
+        // The read doors: a read that resolves to no output, and a node
+        // named alone that defines two or nothing. A read of a kind its
+        // slot does not admit is `slot_var_kind`, at any slot.
         EditError::OperandUnresolved { .. } => "operand_unresolved",
         EditError::AmbiguousOutput { .. } => "ambiguous_output",
         EditError::DefinesNothing { .. } => "defines_nothing",
-        EditError::PartHalfPort { .. } => "part_half_port",
         EditError::ReadsWorldCopy { .. } => "reads_world_copy",
         EditError::UnknownSlot { .. } => "unknown_slot",
         EditError::SlotDimensionMismatch { .. } => "slot_dimension_mismatch",
@@ -1256,7 +1254,6 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::OperandUnresolved { .. } => None,
         EditError::AmbiguousOutput { .. } => None,
         EditError::DefinesNothing { .. } => None,
-        EditError::PartHalfPort { .. } => None,
         EditError::ReadsWorldCopy { .. } => None,
         EditError::UnknownSlot { .. } => None,
         EditError::SlotDimensionMismatch { .. } => None,
@@ -1975,7 +1972,6 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::NameReadNotMinted { .. } => "name_read_not_minted",
         SnapshotError::NameStepNotMinted { .. } => "name_step_not_minted",
         SnapshotError::OperandUnminted { .. } => "operand_unminted",
-        SnapshotError::PartHalfPort { .. } => "part_half_port",
         SnapshotError::ReadsWorldCopy { .. } => "reads_world_copy",
         SnapshotError::SelectionShape { .. } => "selection_shape",
         SnapshotError::SelectionBody { .. } => "selection_body",

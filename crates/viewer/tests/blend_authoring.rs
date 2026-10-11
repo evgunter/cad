@@ -861,7 +861,7 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
-            target,
+            target: target.into(),
             tool: plane,
         },
     );
@@ -982,7 +982,7 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
     let b = session_insert(
         &mut session,
         SessionOp::AddTransform {
-            input: raw_b,
+            input: raw_b.into(),
             translation: len3([SIDE * 0.5, SIDE * 0.25, SIDE * 0.25]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
             rotation_angle: ang(0.0),
@@ -991,7 +991,7 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
     let union = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            spec: BooleanSpec::Union(vec![a, b]),
+            spec: BooleanSpec::Union(vec![a.into(), b.into()]),
         },
     );
     session.pump();

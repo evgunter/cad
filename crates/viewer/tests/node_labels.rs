@@ -319,7 +319,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     let moved = run(
         &mut session,
         SessionOp::AddTransform {
-            input: block,
+            input: block.into(),
             translation: len3([0.005, 0.007, 0.003]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
             rotation_angle: ang(0.0),
@@ -329,7 +329,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     run(
         &mut session,
         SessionOp::AddBoolean {
-            spec: BooleanSpec::Intersect(vec![block, moved]),
+            spec: BooleanSpec::Intersect(vec![block.into(), moved.into()]),
         },
         "overlap",
     );
@@ -345,7 +345,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     run(
         &mut session,
         SessionOp::AddSplit {
-            target: block,
+            target: block.into(),
             tool: plane,
         },
         "halves",
@@ -357,7 +357,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     let pattern = run(
         &mut session,
         SessionOp::AddPattern {
-            input: block,
+            input: block.into(),
             count: 2,
             rule: row(),
         },
@@ -366,7 +366,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     run(
         &mut session,
         SessionOp::AddPlacedUnion {
-            input: block,
+            input: block.into(),
             count: 2,
             rule: row(),
         },
@@ -380,7 +380,13 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         },
         "second",
     );
-    run(&mut session, SessionOp::Duplicate { input: block }, "copy");
+    run(
+        &mut session,
+        SessionOp::Duplicate {
+            input: block.into(),
+        },
+        "copy",
+    );
     let edges = pncad::select::all_edges(session.evaluation().expect("landed"), block);
     run(
         &mut session,
