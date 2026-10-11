@@ -114,6 +114,22 @@ pub fn joined_edge(joins: &[EdgeJoin], edge: EdgeKey) -> EdgeKey {
         .fold(edge, |at, j| if j.gone == at { j.kept } else { at })
 }
 
+/// The live cell `cell` is after `joins`: a joined-away vertex or edge is
+/// the edge that holds its interior now ([`joined_edge`]), and every
+/// other cell is itself.
+#[must_use]
+pub fn joined_cell(joins: &[EdgeJoin], cell: super::Cell) -> super::Cell {
+    use super::Cell;
+    match cell {
+        Cell::Vertex(v) => joins
+            .iter()
+            .find(|j| j.vertex == v)
+            .map_or(cell, |j| Cell::Edge(joined_edge(joins, j.kept))),
+        Cell::Edge(e) => Cell::Edge(joined_edge(joins, e)),
+        Cell::Face(_) => cell,
+    }
+}
+
 /// One join an output stage made ([`join_stage`]): `vertex` and `gone`
 /// are dead, and `kept` holds both their interiors and its own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -838,9 +838,9 @@ pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
     BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
     CarriedContacts, CarriedRecord, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError,
-    CarrierRelation, Cell, Coincide, CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent,
-    Contact, ContactKind, ContactPairError, ContactRecords, ContainDecision, ContainError,
-    Contradiction, DeclarationRead, DiscardRow, EdgeJoin, EdgePieceClass, EeContact,
+    CarrierRelation, CarryRefusal, Cell, Coincide, CoincidenceMeasure, CompletedPolygonPair,
+    ConsumedExtent, Contact, ContactKind, ContactPairError, ContactRecords, ContainDecision,
+    ContainError, Contradiction, DeclarationRead, DiscardRow, EdgeJoin, EdgePieceClass, EeContact,
     FaceContainment, FacePairDeclaration, Fusions, HeldEdge, JOIN_LEVER, JOIN_SUBJECT, JoinReading,
     JoinRefusal, JoinUndecided, LeverArm, NullEdgePairRecord, Operand, OperandKeys, PairFace,
     PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError,
@@ -851,7 +851,7 @@ pub use boolean::{
     boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq, contfp,
     curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
     insert_voids, intersect, intersect_with, is_conventional_vertex, join_covers,
-    joinable_vertices, joined_edge, lineage_root, oriented_plane_eq, point_in_solid,
+    joinable_vertices, joined_cell, joined_edge, lineage_root, oriented_plane_eq, point_in_solid,
     point_in_solid_faces, point_in_solid_of, subtract, subtract_with, tangent_pair_relation, union,
     union_with,
 };
@@ -961,10 +961,10 @@ pub use splitting::{
     ConicCrossingsCase, ConicRootFault, CrossingDecision, Escalation, KnifeEdge, KnifeEdgeSite,
     LoopContainment, LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide,
     PointInLoopError, Section, SectionEdge, SectionError, SectionGermFault, SectionGermReading,
-    SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SectorReading, SplitError,
-    SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction,
-    SplitResult, TangencyReadings, Uncrossable, UncrossableCarrier, classify_neighborhood,
-    plane_section, point_in_loop, split, split_reduce, vertex_sides,
+    SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SectorReading, SplitContacts,
+    SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError,
+    SplitReduction, SplitResult, TangencyReadings, Uncrossable, UncrossableCarrier,
+    classify_neighborhood, plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
 pub use transform::{TransformError, check_rigid, not_rigid_reading, transform_rigid};
 pub use validate::{

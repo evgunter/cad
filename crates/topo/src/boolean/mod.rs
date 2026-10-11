@@ -112,7 +112,7 @@ pub mod plane_eq;
 #[cfg(test)]
 mod r2_probes;
 pub(crate) mod recl;
-mod records;
+pub(crate) mod records;
 pub(crate) mod reduce;
 pub(crate) mod refusal_routes;
 pub(crate) use refusal_routes::PlaneDoor;
@@ -167,7 +167,7 @@ pub use discard::{DiscardRow, HeldEdge, lineage_root};
 pub(crate) use edge_join::joinable_at_rest;
 pub use edge_join::{
     EdgeJoin, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
-    is_conventional_vertex, join_covers, joinable_vertices, joined_edge,
+    is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
 };
 pub use join::CompletedPolygonPair;
 pub use ops::{
@@ -176,7 +176,9 @@ pub use ops::{
 };
 pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
 pub(crate) use records::incident;
-pub use records::{Contact, ContactKind, ContactPairError, ContactRecords, RekeyRefusal};
+pub use records::{
+    CarryRefusal, Contact, ContactKind, ContactPairError, ContactRecords, RekeyRefusal,
+};
 #[cfg(feature = "sweep-testing")]
 pub use reduce::PlantedDegradation;
 pub use reduce::{SweepStrategy, SweepTrace};

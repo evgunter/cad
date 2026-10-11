@@ -317,6 +317,8 @@ mod split_gate_per_face;
 mod split_operand_gate;
 #[path = "stated_general_image_mint.rs"]
 mod stated_general_image_mint;
+#[path = "surgery_carries_records.rs"]
+mod surgery_carries_records;
 #[path = "trim_3_chart_bound.rs"]
 mod trim_3_chart_bound;
 #[path = "union_flush_onto_edge_contact.rs"]

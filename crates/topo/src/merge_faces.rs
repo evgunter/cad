@@ -39,7 +39,7 @@ use std::collections::BTreeMap;
 use geom::SurfaceKind;
 use geom::{NetState, Surface};
 use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized};
-use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Tol};
+use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Real, Tol};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
@@ -141,6 +141,36 @@ pub struct MergeCoplanarOutcome {
     /// [`Body::merge_coplanar_faces_declared`]'s *The placeholder is
     /// a third kind, not a curved one*.
     pub placeholders: Vec<FaceKey>,
+}
+
+impl MergeCoplanarOutcome {
+    /// `records`, the body's before the merge, carried onto `result`, the
+    /// body after it: an absorbed face and a killed shared edge are the
+    /// interior of the face their group kept, a joined-away cell is the
+    /// edge its join made, and every other cell is itself
+    /// ([`crate::ContactRecords::carried_through`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::ContactRecords::carried_through`], and
+    /// [`crate::CarryRefusal::Unmapped`] for a record naming one of a
+    /// group's `killed_vertices`, which is consumed.
+    pub fn carry_contacts<T: Real>(
+        &self,
+        records: &crate::boolean::ContactRecords,
+        result: &Body<T>,
+    ) -> Result<crate::boolean::ContactRecords, crate::boolean::CarryRefusal> {
+        use crate::boolean::Cell;
+        records.carried_through(0, result, |c| {
+            let merged = self.groups.iter().find_map(|g| match c {
+                Cell::Face(f) if g.absorbed.contains(&f) => Some(Some(Cell::Face(g.kept))),
+                Cell::Edge(e) if g.killed_edges.contains(&e) => Some(Some(Cell::Face(g.kept))),
+                Cell::Vertex(v) if g.killed_vertices.contains(&v) => Some(None),
+                _ => None,
+            });
+            merged.unwrap_or_else(|| Some(crate::boolean::joined_cell(&self.joins, c)))
+        })
+    }
 }
 
 /// One half-edge resolved to the facts the merge's scans read through

@@ -3776,16 +3776,7 @@ fn carry_rows<T: Real>(
 /// whatever its kind: how the census confirms it is read from its two
 /// cells' carriers, not decided here.
 fn record<T: Real>(body: &Body<T>, out: &mut ContactRecords, x: End, y: End, cites: Cites) {
-    // A conventional vertex has no identity of its own: a record at its
-    // point is a record on its closed edge's interior.
-    let cell = |c: Cell| match c {
-        Cell::Vertex(v) if super::edge_join::is_conventional_vertex(body, v) => body
-            .get_vertex(v)
-            .and_then(|d| d.emanating)
-            .and_then(|h| body.get_half_edge(h))
-            .map_or(c, |h| Cell::Edge(h.edge)),
-        _ => c,
-    };
+    let cell = |c: Cell| super::records::conventional_edge(body, c);
     if let Ok(contact) = Contact::new(body, cell(x.1), cell(y.1)) {
         out.push(Cited::new(contact, cites));
     }

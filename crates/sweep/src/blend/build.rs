@@ -124,6 +124,31 @@ pub struct Blended<T: Real> {
     pub coincidences: Vec<topo::Coincidence>,
 }
 
+impl<T: Real> Blended<T> {
+    /// `records`, the operand's, carried onto the blended body: the blend
+    /// keeps every key it does not carve away, so each cell is itself or
+    /// the edge the closing join made of it ([`topo::joined_cell`]), and
+    /// a cell the blend consumed — a requested edge, a corner it rounds,
+    /// a vertex it retracts — is refused
+    /// ([`topo::ContactRecords::carried_through`]). What the blend's new
+    /// faces would inherit from a record on a consumed cell is not
+    /// decided, so no record lands on one.
+    ///
+    /// # Errors
+    ///
+    /// [`topo::CarryRefusal::NoLineage`] where the body carries no birth
+    /// records, and [`topo::ContactRecords::carried_through`]'s refusals.
+    pub fn carry_contacts(
+        &self,
+        records: &topo::ContactRecords,
+    ) -> Result<topo::ContactRecords, topo::CarryRefusal> {
+        let naming = self.naming.as_ref().ok_or(topo::CarryRefusal::NoLineage)?;
+        records.carried_through(0, &self.body, |c| {
+            Some(topo::joined_cell(&naming.edge_joins, c))
+        })
+    }
+}
+
 /// **Fillet a set of a body's edges** at constant radius `radius`.
 ///
 /// The battery runs before any construction (module docs), behind

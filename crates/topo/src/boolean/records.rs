@@ -52,6 +52,35 @@ pub enum RekeyRefusal {
     Pair(ContactPairError),
 }
 
+/// Why an op's carry of its input's records refused one: a record the
+/// op cannot map is refused, never dropped ([`ContactRecords::carried_through`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CarryRefusal {
+    /// The op removed `cell`, which input record `record` names, and its
+    /// lineage names no live cell that holds it now.
+    Unmapped {
+        /// The record's index in the input's list.
+        record: u32,
+        /// The input cell.
+        cell: Cell,
+    },
+    /// Input record `record`'s two images are not a record in the result.
+    Pair {
+        /// The record's index in the input's list.
+        record: u32,
+        /// What the two images are instead.
+        error: ContactPairError,
+    },
+    /// The op parted input record `record`'s two cells into different
+    /// result bodies, which no one body's records can state.
+    Parted {
+        /// The record's index in the input's list.
+        record: u32,
+    },
+    /// The op's result holds no lineage to map the records through.
+    NoLineage,
+}
+
 /// **A record's kind, read from its cells' dimensions**: the six pairs
 /// a body's cells can make, each in canonical order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -164,6 +193,28 @@ pub(crate) fn incident<T: Real>(body: &Body<T>, cells: [Cell; 2]) -> bool {
                     .is_some_and(|hs| hs.iter().any(|&(h, _)| body.face_of_linked(h) == f))
         }
         _ => false,
+    }
+}
+
+/// Whether `body` holds `cell`.
+pub(crate) fn holds<T: Real>(body: &Body<T>, cell: Cell) -> bool {
+    match cell {
+        Cell::Vertex(v) => body.get_vertex(v).is_some(),
+        Cell::Edge(e) => body.get_edge(e).is_some(),
+        Cell::Face(f) => body.get_face(f).is_some(),
+    }
+}
+
+/// `cell`, or where it is a conventional vertex, its closed edge: a
+/// record at that point is a record on the edge's interior.
+pub(crate) fn conventional_edge<T: Real>(body: &Body<T>, cell: Cell) -> Cell {
+    match cell {
+        Cell::Vertex(v) if super::edge_join::is_conventional_vertex(body, v) => body
+            .get_vertex(v)
+            .and_then(|d| d.emanating)
+            .and_then(|h| body.get_half_edge(h))
+            .map_or(cell, |h| Cell::Edge(h.edge)),
+        _ => cell,
     }
 }
 
@@ -346,6 +397,62 @@ impl ContactRecords {
             })
             .collect();
         Self { rows }
+    }
+
+    /// These records as an op's that made `result` from its input
+    /// `input`: each cell mapped through `image`, the op's own lineage,
+    /// and each record citing this list's record ([`Backing::Carried`]).
+    ///
+    /// `image` answers what the op made of an input cell: itself where it
+    /// survives under its key, the cell that holds it now where the op
+    /// replaced it (a join's edge, a merge's face), and `None` where the
+    /// op names no replacement. A conventional vertex has no identity of
+    /// its own, so an image landing on one is its closed edge. Two records
+    /// mapped onto one pair are one record citing both.
+    ///
+    /// Whether a carried touch still holds is not read here: the
+    /// census confirms each record against the result's geometry.
+    ///
+    /// # Errors
+    ///
+    /// [`CarryRefusal::Unmapped`] for the first cell whose image is
+    /// `None` or not live in `result`, and [`CarryRefusal::Pair`] for the
+    /// first record whose images are one cell or incident there.
+    pub fn carried_through<T: Real>(
+        &self,
+        input: u32,
+        result: &Body<T>,
+        image: impl Fn(Cell) -> Option<Cell>,
+    ) -> Result<Self, CarryRefusal> {
+        let mut out = Self::default();
+        for k in 0..self.rows.len() {
+            out.push(self.carried_row(input, k, result, &image)?);
+        }
+        Ok(out)
+    }
+
+    /// Record `k` carried into `result` as [`Self::carried_through`]
+    /// carries each.
+    pub(crate) fn carried_row<T: Real>(
+        &self,
+        input: u32,
+        k: usize,
+        result: &Body<T>,
+        image: &impl Fn(Cell) -> Option<Cell>,
+    ) -> Result<Cited<Contact>, CarryRefusal> {
+        let record = super::reduce::index(k);
+        let [x, y] = self.rows[k].cells().map(|c| {
+            image(c)
+                .filter(|&i| holds(result, i))
+                .map(|i| conventional_edge(result, i))
+                .ok_or(CarryRefusal::Unmapped { record, cell: c })
+        });
+        let pair =
+            Contact::new(result, x?, y?).map_err(|error| CarryRefusal::Pair { record, error })?;
+        Ok(Cited::new(
+            pair,
+            Cites::one(Backing::Carried { input, record }),
+        ))
     }
 
     /// These records carried back into an op as one operand's own, each

@@ -70,6 +70,7 @@ use super::join::{CompletedSection, loop_points_of};
 use super::{KnifeEdge, KnifeEdgeSite, PlaneSide, SplitReduction, section_loops};
 use crate::attach::{Named, Rechart};
 use crate::body::Body;
+use crate::boolean::{CarryRefusal, Cell};
 use crate::chord_join::SplitJoinError;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
@@ -115,6 +116,83 @@ pub struct SplitResult<T: Real> {
     /// The coincidences the split decided from values (its pinches), in
     /// the operand's keys ([`crate::coincidence`]).
     pub coincidences: Vec<crate::Coincidence>,
+}
+
+/// The operand's contact records carried onto the split's two sides
+/// ([`SplitResult::carry_contacts`]): each side's own list, each record
+/// citing the operand's record it is.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SplitContacts {
+    /// The records the above side holds.
+    pub above: crate::boolean::ContactRecords,
+    /// The records the below side holds.
+    pub below: crate::boolean::ContactRecords,
+}
+
+impl<T: Real> SplitResult<T> {
+    /// `records`, the operand's, carried onto the side that holds both
+    /// of each record's cells, each cell read through that side's joins
+    /// ([`crate::boolean::joined_cell`]) and every record citing the
+    /// operand's ([`crate::ContactRecords::carried_through`]). A side's
+    /// survivors keep their operand keys (`carve` clones one arena), so
+    /// a record either lands whole on one side or is refused.
+    ///
+    /// # Errors
+    ///
+    /// [`CarryRefusal::Parted`] for a record whose cells the cut put on
+    /// different sides, and [`crate::ContactRecords::carried_through`]'s
+    /// refusals for one with a cell neither side holds.
+    pub fn carry_contacts(
+        &self,
+        records: &crate::boolean::ContactRecords,
+    ) -> Result<SplitContacts, CarryRefusal> {
+        let joins = |side: PlaneSide| -> Vec<crate::boolean::EdgeJoin> {
+            self.naming
+                .edge_joins
+                .iter()
+                .filter(|(s, _)| *s == side)
+                .map(|&(_, j)| j)
+                .collect()
+        };
+        let sides = [
+            (self.above.body(), joins(PlaneSide::Above)),
+            (self.below.body(), joins(PlaneSide::Below)),
+        ];
+        let mut out = [
+            crate::boolean::ContactRecords::default(),
+            crate::boolean::ContactRecords::default(),
+        ];
+        for (k, row) in records.rows().iter().enumerate() {
+            let held = |(body, joins): &(Option<&Body<T>>, Vec<crate::boolean::EdgeJoin>),
+                        c: Cell| {
+                body.is_some_and(|b| {
+                    crate::boolean::records::holds(b, crate::boolean::joined_cell(joins, c))
+                })
+            };
+            let [x, y] = row.cells();
+            let side = sides.iter().position(|s| held(s, x) && held(s, y));
+            let Some(at) = side else {
+                let record = crate::boolean::reduce::index(k);
+                if sides.iter().any(|s| held(s, x)) && sides.iter().any(|s| held(s, y)) {
+                    return Err(CarryRefusal::Parted { record });
+                }
+                let cell = if sides.iter().any(|s| held(s, x)) {
+                    y
+                } else {
+                    x
+                };
+                return Err(CarryRefusal::Unmapped { record, cell });
+            };
+            let (body, joins) = &sides[at];
+            let body = body.unwrap_or_else(|| unreachable!("a side that holds a cell has a body"));
+            out[at].push(
+                records
+                    .carried_row(0, k, body, &|c| Some(crate::boolean::joined_cell(joins, c)))?,
+            );
+        }
+        let [above, below] = out;
+        Ok(SplitContacts { above, below })
+    }
 }
 
 /// Mint-time naming facts of one split (M4 PR 3). Keys live in the
