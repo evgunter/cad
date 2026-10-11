@@ -331,13 +331,13 @@ impl<T: Real> std::error::Error for IsoRowError<T> {}
 /// end decided rather than passed, which is what a consumer holding an
 /// iso chart image's fixed parameter actually has.
 ///
-/// Returns the row together with the DOMAIN endpoint it sits at, so
-/// the caller re-states the description against the chart's own float
-/// rather than the one it came in with.
+/// Returns the row together with the DOMAIN endpoint it sits at, as the
+/// chart holds it, so the caller re-states the description against the
+/// chart's own end knot rather than the parameter it came in with.
 ///
 /// The coincidence `at = a₀` / `at = a₁` is a named margined decide
 /// (`iso_row_at_domain_end`), not an equality: a stored parameter and a
-/// stored knot are two floats, and asking whether they name the same
+/// held end knot are two values, and asking whether they name the same
 /// chart line is a question with a band.
 ///
 /// # Errors
@@ -474,7 +474,7 @@ mod tests {
     }
 
     /// [`iso_boundary_row`] selects the row the stored parameter names,
-    /// hands back the chart's OWN domain float for it, and refuses an
+    /// hands back the chart's OWN end knot for it, and refuses an
     /// interior parameter rather than approximating one.
     ///
     /// The row is asserted against the surface, not against a constant:
