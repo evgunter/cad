@@ -9,16 +9,15 @@
 //! nothing polygonal to share; the per-battery operands of
 //! `join1_r1_probes.rs` (prisms, rods, revolves), each one battery's;
 //! and `join_reflex_wedge_probes.rs`' fan-wedge `Pose`, whose operands
-//! are both parametrized by wedge angle and whose six runs each carry
-//! the flush declarations of their own operand order, which
-//! [`ReflexPose`]'s one fixed corner and single `d` do not.
+//! are both parametrized by wedge angle, which [`ReflexPose`]'s one
+//! fixed corner is not.
 
 use geom_core::{Point3, Tol};
 use sweep::test_support::finished;
 use topo::test_support::{
-    FaceGeometry, describe_as_intersections, flush_declarations, prism_ops, prism_z,
+    FaceGeometry, describe_as_intersections, prism_ops, prism_z,
 };
-use topo::{AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult};
+use topo::{AtRestBody, Body, BooleanError, BooleanResult};
 
 /// The signed area of a simple polygon (positive counter-clockwise).
 pub fn area(p: &[(f64, f64)]) -> f64 {
@@ -288,12 +287,10 @@ pub const REFLEX_OPS: [&str; 4] = ["I", "U", "S_ab", "S_ba"];
 /// One reflex pose: `a` the 315° prism `prism_z(REFLEX_A)`,
 /// z ∈ [0, 1]; `b` a `prism_ops` prism over z ∈ (1, 3) sheared
 /// `z' = z + sx·x + sy·y`, so its bottom cap passes through `a`'s
-/// corner `(0, 0, 1)`; their flush declarations (for the `(a, b)`
-/// order); and the closed-form volumes of [`REFLEX_OPS`].
+/// corner `(0, 0, 1)`; and the closed-form volumes of [`REFLEX_OPS`].
 pub struct ReflexPose {
     pub a: AtRestBody<f64>,
     pub b: AtRestBody<f64>,
-    pub d: BooleanDeclarations,
     pub want: [f64; 4],
 }
 
@@ -347,11 +344,9 @@ pub fn reflex_pose(profile: &str, rot: f64, sx: f64, sy: f64, tol: Tol) -> Refle
     };
     let vi = below(0.0) - below(-1.0);
     let (va, vb) = (area(&a_prof), area(&prof) * 2.0);
-    let d = flush_declarations(&a, &b, tol);
     ReflexPose {
         a: finished("the reflex corner", a, tol),
         b: finished("the sheared strut", b, tol),
-        d,
         want: [vi, va + vb - vi, va - vi, vb - vi],
     }
 }

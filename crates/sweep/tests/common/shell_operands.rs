@@ -231,9 +231,8 @@ pub fn bowl_sector(bulge: f64, deg: f64) -> Body<f64> {
 /// and the front still share their edge either side of the lip, and
 /// along the lip they come within the lip's width of each other: the
 /// shape in which two adjacent walls could cross away from their
-/// common edge. Built as the union a user would write, with the lip's
-/// foot declared resting on the top and its front continuing the
-/// block's.
+/// common edge. Built as the union a user would write: the lip's foot
+/// rests on the top and its front continues the block's.
 pub fn lipped_block(foot: f64, brim: f64, rise: f64) -> Body<f64> {
     let tol = Tol::witness();
     let base = block::<f64>(2.0, 2.0, 3.0, tol);
@@ -248,35 +247,6 @@ pub fn lipped_block(foot: f64, brim: f64, rise: f64) -> Body<f64> {
         1.0,
         tol,
     );
-    // The planar face of `body` whose outward normal is `n` and whose
-    // plane stands `at` along it.
-    let plane = |body: &Body<f64>, n: [f64; 3], at: f64| {
-        body.faces()
-            .find(|(_, f)| match body.get_surface(f.surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => {
-                    let out = if f.sense { *normal } else { -*normal };
-                    let along = origin.x * n[0] + origin.y * n[1] + origin.z * n[2];
-                    (out.x - n[0]).abs() + (out.y - n[1]).abs() + (out.z - n[2]).abs() < 1e-9
-                        && (along - at).abs() < 1e-9
-                }
-                _ => false,
-            })
-            .map(|(k, _)| k)
-            .unwrap_or_else(|| panic!("a plane {n:?} at {at}"))
-    };
-    let declared = topo::BooleanDeclarations {
-        coincident_faces: vec![
-            topo::FacePairDeclaration::rest(
-                plane(&base, [0.0, 1.0, 0.0], 2.0),
-                plane(&lip, [0.0, -1.0, 0.0], -2.0),
-            ),
-            topo::FacePairDeclaration::continuation(
-                plane(&base, [1.0, 0.0, 0.0], 2.0),
-                plane(&lip, [1.0, 0.0, 0.0], 2.0),
-            ),
-        ],
-        ..topo::BooleanDeclarations::none()
-    };
     topo::union(
         &finished("the block", base, tol),
         &finished("the lip", lip, tol),

@@ -79,9 +79,6 @@
 //!   readers of stored data;
 //! - [`revert_ops`] — ∖ in both operand orders and ∩: what a suite
 //!   drives a door WITH, as [`poses`];
-//! - [`seam_pairs`] — the face pairs of two face sets that meet along
-//!   a curve, so a seam or `Tangent` declaration names only those: what
-//!   a suite drives a door WITH, as [`revert_ops`];
 //! - [`differential`] — the differential batteries' polygon oracles,
 //!   their one per-pose `outcome` line and the reflex-corner pose: a
 //!   truth derived without the kernel plus the check every battery
@@ -272,10 +269,6 @@ pub mod differential;
 /// body holds there: a truth plus the check of a body against it, so
 /// beside [`differential`].
 pub mod pinch_cones;
-/// The pairs of two face sets that meet along a curve, kept from a
-/// cross product of seam or `Tangent` declarations. What a suite drives
-/// a door WITH, so it routes here.
-pub mod seam_pairs;
 /// The operands' point membership in closed form, and the check every
 /// body a boolean returns is held to against it (volume, tier 3,
 /// `point_in_solid`): a truth plus the check of a body against it, so

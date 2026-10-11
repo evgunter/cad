@@ -43,7 +43,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::outcomes::outcome;
 use core::f64::consts::PI;
 
 use geom::SurfaceKind;
@@ -1521,12 +1520,10 @@ fn quarter_rod_of(side: f64, len: f64, tol: Tol) -> AtRestBody<f64> {
 /// sweeps an arc about `(1, 0.5)` of radius √1.25 through 273.4°,
 /// dipping to `y ≈ −0.618` under that edge and closing above it. At the
 /// line the plate's bottom leaves on `y < 0`, though every boundary
-/// vertex and arc midpoint reads `y ≥ 0`. A quarter rod on `y < 0`
-/// tangent to the bottom along the line leaves it on the same side, a
-/// cusp, which is not this row's question. On `y > 0` it leaves on the
-/// other side, a seam: the boolean verifies it, and the union goes on
-/// past it. The square plate, which lies on
-/// `y < 0` everywhere, is the control. Both member orders.
+/// vertex and arc midpoint reads `y ≥ 0`. A quarter rod on `y > 0` leaves it on the other side, a seam:
+/// the boolean verifies it, and the union goes on past it. The square
+/// plate, which lies on `y < 0` everywhere, is the control. Both member
+/// orders.
 #[test]
 fn a_line_seam_is_read_where_the_faces_leave_the_line() {
     let tol = Tol::witness();
@@ -1563,54 +1560,26 @@ fn a_line_seam_is_read_where_the_faces_leave_the_line() {
         .unwrap()
         .body;
         let plate = finished("the plate", plate, tol);
-        {
-            let (pose, rod) = ("seam", quarter_rod(1.0, tol));
-            for (x, y) in [(&plate, &rod), (&rod, &plate)] {
-                let r = topo::union(x, y, tol);
-                match pose {
-                    // Verified; the square plate and the rod are
-                    // disjoint but for the line, and the union is both.
-                    _ if label == "square" => {
-                        let (v, _, _) = built(label, r);
-                        let want = 0.25 + PI * 0.25 / 4.0;
-                        assert!((v - want).abs() <= 1e-12, "{label} {pose}: {v} vs {want}");
-                    }
-                    // Verified; the dodge plate's outline also reaches
-                    // over the rod on `y > 0`, and that crossing stops
-                    // at the crossing layer, past the seam.
-                    _ => assert!(
-                        matches!(r, Err(BooleanError::CurvedPierceUnsupported { .. })),
-                        "{label} {pose}: verified at the door: {r:?}"
-                    ),
-                }
+        let rod = quarter_rod(1.0, tol);
+        for (x, y) in [(&plate, &rod), (&rod, &plate)] {
+            let r = topo::union(x, y, tol);
+            if label == "square" {
+                // The square plate and the rod are disjoint but for the
+                // line, and the union is both.
+                let (v, _, _) = built(label, r);
+                let want = 0.25 + PI * 0.25 / 4.0;
+                assert!((v - want).abs() <= 1e-12, "{label}: {v} vs {want}");
+            } else {
+                // The dodge plate's outline also reaches over the rod on
+                // `y > 0`, and that crossing stops at the crossing layer,
+                // past the seam.
+                assert!(
+                    matches!(r, Err(BooleanError::CurvedPierceUnsupported { .. })),
+                    "{label}: the crossing layer: {r:?}"
+                );
             }
         }
     }
-}
-
-/// A plate on `z ∈ [0, 0.25]` extruded from the polygon `outline` in
-/// the `xy` plane.
-fn plate(outline: &[(f64, f64)], tol: Tol) -> AtRestBody<f64> {
-    let lp = profile::test_support::bulge_loop(
-        outline
-            .iter()
-            .map(|&(x, y)| (Point2::new(x, y), 0.0))
-            .collect(),
-    );
-    let p = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
-        .validate(tol)
-        .unwrap();
-    let plate = extrude(
-        &p,
-        Extrusion::Distance {
-            depth: 0.25,
-            side: ExtrudeSide::Along,
-        },
-        tol,
-    )
-    .unwrap()
-    .body;
-    finished("the plate", plate, tol)
 }
 
 /// Narrow review (JOIN-1 fix pass 3): domes and bowls of several corner
