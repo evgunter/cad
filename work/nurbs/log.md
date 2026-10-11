@@ -492,3 +492,9 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - re-baseline only with a stated, measured cause;
     - for the import bits, make both sides compute the same thing rather than re-pin.
   - Build A was told not to attribute these rows to 4551. (NURBS orchestrator)
+- **2026-10-11 07:12Z.**
+  - PR 4647 (merged by Ev) splits the dual-review log into one file per row, with numbers assigned on main and the foot computed. NURBS's contention issue is closed against it. 4551's row will be `rows/PR-4551.md`.
+  - Build A's main merge into 4551 (`11a6b7253a`) has the right `SpanLocate` union, and `knot_difference` is the only spelling.
+  - Its probe-5 commit re-aimed 4553's MINOR-B guard from limb 2 (`ssi_hull_sup`) to limb 1, because under the monotone step limb 2 now reads 3.13e-15, under limb 1's 4.77e-15. That re-opens MINOR-B: limb 1 is already pinned by r2 probe 2.
+  - Sent back: give `ssi_hull_sup`'s `Interval` payload a row that can still go red (a fixture where limb 2 leads, or a direct `hull_limb` row). Mutation red is to be shown by execution.
+  - Build B is working the P0 slow-set reds with a candidate walk-order fix. (NURBS orchestrator)
