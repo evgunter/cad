@@ -823,7 +823,9 @@ impl Halved {
 /// m = 64 rows' and five times the corpus's. A carrier whose first
 /// composite has more spans than this is read on that hull alone; the
 /// one such carrier measured, a dome arc at ε 1e-14 over 4242 to 14 814
-/// spans, reads its lowest bound there.
+/// spans, reads its lowest bound there. The analytic rung-3 limb's 94
+/// calls over the same profiles all decide on their first hull (89
+/// cleared, 5 on a break's value), the largest costing 4080 parts.
 pub(crate) const SSI_HULL_WORK: usize = 4096;
 
 /// The most breaks limb 2's rounds add to its composite in all. A
