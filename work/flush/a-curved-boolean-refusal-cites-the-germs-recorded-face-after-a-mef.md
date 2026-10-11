@@ -2,10 +2,11 @@
 id: a-curved-boolean-refusal-cites-the-germs-recorded-face-after-a-mef
 kind: issue
 title: The join's CurvedBooleanUnsupported cites the germ's recorded face, which an earlier segment's mef may have divided, not the face that holds the segment
-status: open
+status: dispatched
 opened: 2026-10-04
 priority: P4
 cost: E
+branch: flush/e-tail
 ---
 
 Found by PR 4008's sweep (cause 2's class: a face key recorded before

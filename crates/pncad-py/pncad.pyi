@@ -5386,14 +5386,10 @@ class Evaluation:
         `min_clearance` at this point scalar); an evaluation over the
         bound values that refuses raises `ExprError`."""
 
-    def coincidences(
-        self, node: NodeId, full_symbolic_pass: bool = False
-    ) -> list[Coincidence]:
+    def coincidences(self, node: NodeId) -> list[Coincidence]:
         """The coincidences `node` decided from values (D10), in
         decision order, each with what the coincidence door decided
-        about it: at the resident budget, or at the full one with
-        `full_symbolic_pass`. A node with no value raises as `value`
-        does."""
+        about it. A node with no value raises as `value` does."""
 
     def succeeded(self, node: NodeId) -> bool: ...
     def order(self) -> list[NodeId]: ...
@@ -6868,11 +6864,7 @@ class ChecksConfig:
     not in the default pass. It reads every face of every rest body,
     and it reports a trimmed face's loops as out of its reach, which
     is true and is not actionable; ask for it rather than pay for it
-    on every run. `Off` is visible in `ChecksReport.skipped`.
-
-    `full_symbolic_pass` runs the coincidence door's symbolic rungs at
-    the full budget; by default they run at the resident one, cheap
-    enough for every evaluation."""
+    on every run. `Off` is visible in `ChecksReport.skipped`."""
 
     def __init__(
         self,
@@ -6881,7 +6873,6 @@ class ChecksConfig:
         separation: Advisory = ...,
         chart_coherence: Advisory = ...,
         unproven_coincidence: Advisory = ...,
-        full_symbolic_pass: bool = False,
     ) -> None: ...
     @property
     def connectedness(self) -> Severity: ...
@@ -6891,11 +6882,6 @@ class ChecksConfig:
     def chart_coherence(self) -> Advisory: ...
     @property
     def unproven_coincidence(self) -> Advisory: ...
-    @property
-    def full_symbolic_pass(self) -> bool:
-        """Whether the `unproven_coincidence` lint's door runs its
-        symbolic rungs at the full budget rather than the resident one,
-        which leaves a row it does not discharge saying so."""
     @property
     def expected_components(self) -> list[tuple[NodeId, int, int]]:
         """The stated expectations, ascending by subject."""

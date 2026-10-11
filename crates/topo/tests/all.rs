@@ -315,6 +315,8 @@ mod split_gate_per_face;
 mod split_operand_gate;
 #[path = "stated_general_image_mint.rs"]
 mod stated_general_image_mint;
+#[path = "surgery_carries_records.rs"]
+mod surgery_carries_records;
 #[path = "trim_3_chart_bound.rs"]
 mod trim_3_chart_bound;
 #[path = "union_flush_onto_edge_contact.rs"]
@@ -378,6 +380,8 @@ mod cleave_mint_doors;
 mod holes_meeting_at_a_vertex;
 #[path = "pierce_strut_at_a_pinch.rs"]
 mod pierce_strut_at_a_pinch;
+#[path = "review_4694_carry_probes.rs"]
+mod review_4694_carry_probes;
 #[path = "review_cleave_mint_doors.rs"]
 mod review_cleave_mint_doors;
 #[path = "spline_reanchor_rows.rs"]

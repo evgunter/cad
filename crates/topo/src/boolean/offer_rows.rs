@@ -2228,6 +2228,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermEdgeCarrierUnsupported
         | BooleanErrorKind::ArcLoopContainmentUnsupported
         | BooleanErrorKind::PointInFaceRefused
+        | BooleanErrorKind::RestPieceUnread
         | BooleanErrorKind::ScaffoldingOperand
         | BooleanErrorKind::InsideOutOperand
         | BooleanErrorKind::UnjoinedOperand
@@ -2255,6 +2256,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermSectionSpiric
         | BooleanErrorKind::GermFrameCylinderPinch
         | BooleanErrorKind::JoinDesync
+        | BooleanErrorKind::EdgeUndescribed
         | BooleanErrorKind::JoinCarrierUnsupported
         | BooleanErrorKind::TornComponent
         | BooleanErrorKind::ShellWitnessExhausted
@@ -2627,6 +2629,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "sphere_pair_cut", "SphereQuestion::CutIn", 1),
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
+    ("ops.rs", "of_describe", "BooleanDecision::EdgeOnFaces", 1),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
     ("ops.rs", "escalated", "BooleanDecision::ShellRole", 1),
     ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),
@@ -2648,6 +2651,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "ee_lineage", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "ee_lineage", "BooleanDecision::VertexOnVertex", 1),
     ("ops.rs", "ee_lineage", "SelfCheck::CarriedLineage", 1),
+    ("ops.rs", "piece_holds", "BooleanDecision::SelfCheck", 1),
+    ("ops.rs", "piece_holds", "SelfCheck::CarriedLineage", 1),
     ("ops.rs", "ledger", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "ledger", "BooleanDecision::VertexOnVertex", 1),
     ("ops.rs", "ledger", "SelfCheck::CarriedLineage", 1),

@@ -112,7 +112,7 @@ pub mod plane_eq;
 #[cfg(test)]
 mod r2_probes;
 pub(crate) mod recl;
-mod records;
+pub(crate) mod records;
 pub(crate) mod reduce;
 pub(crate) mod refusal_routes;
 pub(crate) use refusal_routes::PlaneDoor;
@@ -155,21 +155,24 @@ pub use carrier_eq::{
     CarrierDesc, CarrierEqError, CarrierRelation, CoincidenceMeasure, ConsumedExtent, carrier_eq,
 };
 pub use contain::{
-    CONTAINMENT_RAISED, ContainDecision, ContainError, FaceContainment, contfp,
+    ArcEndGaps, CONTAINMENT_RAISED, ContainDecision, ContainError, FaceContainment, contfp,
     curved_face_containment, placement_ending, placement_lever, placement_subject,
     unnamed_placement_ending,
 };
 // Crate-internal: tier 3's check 9 decides two whole-circle loops
 // against each other (its contact arm 4) on the same loop
-// classification this module's own walk dispatches on.
-pub(crate) use contain::{driver_face_stale, loop_circle};
+// classification this module's own walk dispatches on, and the census
+// places a record's point in its face through the boolean's own read.
+pub(crate) use contain::{
+    CurvedPlacement, PlacementError, driver_face_stale, face_placement, loop_circle,
+};
 pub use discard::{DiscardRow, HeldEdge, lineage_root};
 // Crate-internal: tier 3's check 11 reads every vertex through the
 // join's own predicate.
 pub(crate) use edge_join::joinable_at_rest;
 pub use edge_join::{
     EdgeJoin, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
-    is_conventional_vertex, join_covers, joinable_vertices, joined_edge,
+    is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
 };
 pub use join::CompletedPolygonPair;
 pub use ops::{
@@ -178,7 +181,7 @@ pub use ops::{
 };
 pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
 pub(crate) use records::incident;
-pub use records::{Contact, ContactKind, ContactPairError, ContactRecords, RekeyRefusal};
+pub use records::{CarryRefusal, Contact, ContactKind, ContactPairError, ContactRecords};
 #[cfg(feature = "sweep-testing")]
 pub use reduce::PlantedDegradation;
 pub use reduce::{SweepStrategy, SweepTrace};
@@ -2725,11 +2728,44 @@ pub enum BooleanError {
         /// wants a parameter inverse).
         closed: bool,
     },
+    /// **A rest the op carries could not be placed on the pieces of the
+    /// face it divided.** A vertex-on-face record's face was divided by
+    /// the section, and the record lands on the piece whose interior
+    /// holds its vertex (`ops::Descendants::holder`); no piece read
+    /// `In`, and this piece's read failed, so the rest may be on it.
+    RestPieceUnread {
+        /// The piece, in result keys.
+        face: FaceKey,
+        /// The containment door's refusal; `None` where the curved
+        /// chart trim gives no verdict for this face.
+        refusal: Option<ContainError>,
+    },
     /// The A/B lockstep invariant failed during joining, finishing, or
     /// the combine door (a kernel bug or corrupt reduction, loudly).
     JoinDesync {
         /// Which lockstep invariant broke.
         what: &'static str,
+    },
+    /// An edge the Boolean minted, or a boundary edge of a face its
+    /// merge left in place, could not be described against the two
+    /// faces it lies between: its halves did not walk, or the
+    /// attachment gate refused its description on a reading no move of
+    /// the parts reaches. It ends in the defect ending (a kernel bug,
+    /// loudly), or, on a fitted carrier, in the certification's own
+    /// last resort. An exact carrier read in band of one of its faces
+    /// is an [`BooleanError::Escalated`] of
+    /// [`BooleanDecision::EdgeOnFaces`].
+    EdgeUndescribed {
+        /// The edge, diagnostic only: the result is never returned.
+        edge: EdgeKey,
+        /// What the describer could not do.
+        failure: crate::merge_faces::EdgeDescribeFailure,
+        /// The attachment gate's refusal, where a description was
+        /// offered to it.
+        cause: Option<Box<EulerOpError>>,
+        /// Whether that description was offered on a fitted (spline)
+        /// carrier.
+        fitted: bool,
     },
     /// One distributed component carries section faces of both sides
     /// (kernel bug, loudly).
@@ -3014,8 +3050,12 @@ pub enum BooleanErrorKind {
     JoinUndecided,
     /// [`BooleanError::JoinCarrierUnsupported`].
     JoinCarrierUnsupported,
+    /// [`BooleanError::RestPieceUnread`].
+    RestPieceUnread,
     /// [`BooleanError::JoinDesync`].
     JoinDesync,
+    /// [`BooleanError::EdgeUndescribed`].
+    EdgeUndescribed,
     /// [`BooleanError::TornComponent`].
     TornComponent,
     /// [`BooleanError::ShellWitnessExhausted`].
@@ -3232,7 +3272,9 @@ impl BooleanError {
             Self::Join(_) => BooleanErrorKind::Join,
             Self::JoinUndecided(_) => BooleanErrorKind::JoinUndecided,
             Self::JoinCarrierUnsupported { .. } => BooleanErrorKind::JoinCarrierUnsupported,
+            Self::RestPieceUnread { .. } => BooleanErrorKind::RestPieceUnread,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
+            Self::EdgeUndescribed { .. } => BooleanErrorKind::EdgeUndescribed,
             Self::TornComponent { .. } => BooleanErrorKind::TornComponent,
             Self::ShellWitnessExhausted { .. } => BooleanErrorKind::ShellWitnessExhausted,
             Self::CoincidentShell { .. } => BooleanErrorKind::CoincidentShell,
@@ -3452,7 +3494,8 @@ impl core::fmt::Display for BooleanError {
                     ContainError::Curved(e) => write!(f, "the Boolean {e}"),
                     ContainError::Escalated { .. }
                     | ContainError::StaleFace(_)
-                    | ContainError::Uncrossable(_) => write!(f, "{preamble}: {refusal}"),
+                    | ContainError::Uncrossable(_)
+                    | ContainError::ArcEndClearOfCorners(_) => write!(f, "{preamble}: {refusal}"),
                 }
             }
             Self::ScaffoldingOperand { operand, .. } => write!(
@@ -3785,6 +3828,19 @@ impl core::fmt::Display for BooleanError {
                 crate::chord_join::UnderBoolean(e)
             ),
             Self::JoinUndecided(e) => write!(f, "{e}"),
+            Self::RestPieceUnread { face, refusal } => {
+                let preamble = format_args!(
+                    "the Boolean cannot tell which piece of a face it divided holds a vertex \
+                     resting on that face: it cannot read whether piece {face:?} holds it"
+                );
+                match refusal {
+                    Some(e) => write!(f, "{preamble} ({e})"),
+                    None => write!(
+                        f,
+                        "{preamble} (the containment door does not read this curved face's trim)"
+                    ),
+                }
+            }
             Self::JoinCarrierUnsupported {
                 edge,
                 carrier,
@@ -3806,6 +3862,27 @@ impl core::fmt::Display for BooleanError {
                 "A/B lockstep invariant violated: {what} (kernel bug or corrupt \
                  reduction)"
             ),
+            Self::EdgeUndescribed {
+                failure,
+                cause,
+                fitted,
+                ..
+            } => {
+                write!(
+                    f,
+                    "an edge of the result cannot be described against the two faces it lies \
+                     between: {}",
+                    failure.clause()
+                )?;
+                if let Some(cause) = cause {
+                    write!(f, " ({})", crate::merge_faces::refusal_payload(cause))?;
+                }
+                write!(
+                    f,
+                    ". {}",
+                    crate::merge_faces::undescribed_ending(cause.as_deref(), *fitted)
+                )
+            }
             Self::TornComponent { operand, shell } => write!(
                 f,
                 "component {shell:?} of the {} operand carries section faces \
@@ -6841,6 +6918,12 @@ mod tests {
                 source: crate::pcurves::PcurveMintError::Unminted { face },
             },
             BooleanError::JoinDesync { what: "a lockstep" },
+            BooleanError::EdgeUndescribed {
+                edge: EdgeKey::default(),
+                failure: crate::merge_faces::EdgeDescribeFailure::NotWalkable,
+                cause: None,
+                fitted: false,
+            },
             BooleanError::TornComponent {
                 operand: Operand::A,
                 shell: ShellKey::default(),
@@ -6969,7 +7052,9 @@ mod tests {
                 BooleanErrorKind::Join => "Join",
                 BooleanErrorKind::JoinUndecided => "JoinUndecided",
                 BooleanErrorKind::JoinCarrierUnsupported => "JoinCarrierUnsupported",
+                BooleanErrorKind::RestPieceUnread => "RestPieceUnread",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
+                BooleanErrorKind::EdgeUndescribed => "EdgeUndescribed",
                 BooleanErrorKind::TornComponent => "TornComponent",
                 BooleanErrorKind::ShellWitnessExhausted => "ShellWitnessExhausted",
                 BooleanErrorKind::CoincidentShell => "CoincidentShell",
