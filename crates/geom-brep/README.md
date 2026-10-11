@@ -401,9 +401,15 @@ transversality decision); a seed inside a tube already certified is
 that branch, any other is traced to the crossings it reaches as an
 interior seed is, fitted, refined and certified, and the answer is the
 branch whose certified tube holds the settled seed, or
-`SsiError::SeedOutsideTube`. Newton's convergence to the component
-nearest the seed is not proved; the tube check is what catches a seed
-that settled elsewhere. `all()` traces every open branch between the
+`SsiError::SeedOutsideTube`. What is proved is that the answer is
+the branch through the state Newton settled on. Newton's convergence to
+the component nearest the seed is not proved, and the tube check does
+not catch a seed that settled onto another component (the branch is
+traced through the settled state, so its tube holds it); a seed far
+from the section gets whichever branch Newton reaches, with no distance
+gate. The backstops are the caller's: the offset door's seed lies
+within `d / sin(φ/2)` of the moved seam, and a wrong branch
+disagrees with the edge's moved vertices (`VertexDisagreement`). `all()` traces every open branch between the
 crossings no certified branch already ends at, every closed loop from
 the pair lane's seeds (cells of the product whose two charts' boxes are
 not certified apart, at the seeding floor), and accounts every cell of
@@ -882,11 +888,19 @@ fit itself is not rooted, and a corner no root of which lies on a moved
 fit refuses (`CornerSection`, naming the corner's vertex and an edge of
 the fit meeting it). A fitted face's edge with a spline face or another fit, moved or held,
 is their NURBS × NURBS section through the old edge's middle
-(`Section::branch_at`), in the old edge's sense: a crease between two
-moved fits derives there, and a seam where the two are tangent (a
-smooth one) refuses by the section's transversality decision, a section
-outside either fit's window (a concave crease, or a wall moved alone
-beside a held one) by the seed's. Its other boundary refuses: `Approx`
+(`Section::branch_at`), in the old edge's sense. Measured: a crease
+between two moved fits derives there (the shelled twisted loft's four
+wall–wall seams at ε = 1e-6), and a seam where the two are tangent (a
+smooth one) refuses by the section's transversality decision. A wall
+moved alone beside a held spline wall refuses at that seam, typed by
+whichever reading of the section meets it first: inward, the boundary
+pass does not resolve the side the section runs along
+(`PairBoundaryUnresolved`); outward, the seed settles outside the fit's
+window (`SeedOffDomain`), or, where the move is far inside ε, the
+boundary pass refuses as inward or the trace loses the section at the
+side (`CrossingUnmatched`, or the step-progress decision). A concave
+crease's section lies outside both fits' windows; no row measures its
+verdict. Its other boundary refuses: `Approx`
 against a curved analytic face (`NeighborPairUnroutable`, naming
 `Approx`); by
 `FittedBoundaryUnsupported`, a curve on the fit that is no line of its

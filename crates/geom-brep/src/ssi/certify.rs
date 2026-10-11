@@ -1362,6 +1362,10 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
     let speeds = [sa.u.get(), sa.v.get(), sb.u.get(), sb.v.get()];
     let pair = PairBoxes::new(na.surface(), nb.surface(), speeds);
     let chain = pair_tube_chain((pa, pb), (pad_a, pad_b))?;
+    // The tangent is a DIRECTION — structure — selected through the
+    // bracket's upper end as the chart lane's is: the graph margin is
+    // certified for whatever direction it is handed, so the read only
+    // steers which determinant is asked.
     let tangent = |t: f64| -> Option<[f64; 4]> {
         let (da, db) = (pa.deriv(T::from_f64(t)), pb.deriv(T::from_f64(t)));
         let raw = [da.x.hi(), da.y.hi(), db.x.hi(), db.y.hi()];
@@ -1376,23 +1380,25 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
         worst = worst.min(zero_free_lower_bound(graph_margin(&pair, x, e)));
         boxes.push(x);
     }
+    // An end's state is a point the one-arc proof looks for inside an
+    // end box `ε/8` wide on each axis: on the `f64` lane the bracket is
+    // the point, and on a wider one any point of it is as good a read.
     let state = |t: f64| {
         let (p, q) = (pa.eval(T::from_f64(t)), pb.eval(T::from_f64(t)));
         [p.x.lo(), p.y.lo(), q.x.lo(), q.y.lo()]
     };
+    // Each end's dominant axis is read off its tangent; an unusable one
+    // refuses the rung, as one inside the chain does.
+    let (t0, t1) = pa.domain();
+    let [Some(e0), Some(e1)] = [t0, t1].map(tangent) else {
+        return None;
+    };
     let one = (worst > 0.0).then(|| {
-        let (t0, t1) = pa.domain();
-        let ends = [t0, t1].map(|t| {
-            let raw = tangent(t).unwrap_or([1.0, 0.0, 0.0, 0.0]);
+        let ends = [(t0, e0), (t1, e1)].map(|(t, raw)| {
             let e: [f64; 4] = core::array::from_fn(|k| raw[k] / speeds[k]);
             (state(t), dominant(&pair, e))
         });
-        let domain = Box4([
-            na.surface().knots_u().domain(),
-            na.surface().knots_v().domain(),
-            nb.surface().knots_u().domain(),
-            nb.surface().knots_v().domain(),
-        ]);
+        let domain = Box4::of_charts(na.surface(), nb.surface());
         one_arc_pair(&pair, (&boxes, domain), ends, band.zero())
     });
     #[allow(clippy::cast_possible_truncation)]

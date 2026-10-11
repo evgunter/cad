@@ -105,6 +105,8 @@ Ev, PR 4515, 2026-10-10 ("ok sweet, B then!"): the NURBS × NURBS arm is one **c
 - **One unproven step.** Newton's convergence from the seed to the near component is not proven. The old seam's `d·cot(φ/2)` proximity makes it benign, and the tube check and `VertexDisagreement` catch it if not.
 - **Before the unit:** grep `intersect::route`'s callers for any that read `implemented`.
 
+Orchestrator's note, 2026-10-11 (not Ev's words): as built, the tube check does not catch the unproven step — `branch_at` traces through the state Newton settled on, so the tube holds it by construction (`SeedOutsideTube` guards the trace and certificate, not the selection). The backstops are the seed's proximity (the old seam's middle lies `d / sin(φ/2)` from the moved seam at interior dihedral φ) and `VertexDisagreement`; a far seed returns the branch Newton reaches (`nurbs_nurbs_section::a_far_seed_returns_the_branch_newton_reaches`).
+
 ## Closed
 
 PR 4597 built the arm as `## Decided` rules it: `geom_brep::ssi::Section`
@@ -125,5 +127,10 @@ Left for later units: the plane × NURBS door's handle
 (`work/shell/the-plane-nurbs-door-selects-its-branch-by-nearest-sample.md`),
 side and corner regions on this lane
 (`work/ssiedge/the-nurbs-pair-boundary-pass-reports-no-side-or-corner-region.md`),
-and the pass's cost beside a near-coincident side row
-(`work/ssiedge/the-nurbs-pair-boundary-pass-is-slow-beside-a-near-coincident-side-row.md`).
+the pass's cost beside a near-coincident side row
+(`work/ssiedge/the-nurbs-pair-boundary-pass-is-slow-beside-a-near-coincident-side-row.md`),
+`all()`'s budget on a small loop
+(`work/ssiedge/the-nurbs-pair-all-exhausts-its-cell-budget-on-a-small-loop.md`),
+the ℝ⁴ walk's duplication of r3's
+(`work/ssiedge/the-r4-one-arc-walk-duplicates-r3s.md`), and the M8-4
+mint with a non-plane pair (`work/iso/the-m8-4-mint-with-a-non-plane-pair-is-untested.md`).

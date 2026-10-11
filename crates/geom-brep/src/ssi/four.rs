@@ -36,6 +36,17 @@ use super::section::sign;
 pub(crate) struct Box4(pub(crate) [(f64, f64); 4]);
 
 impl Box4 {
+    /// The product of `a`'s and `b`'s knot rectangles: the whole state
+    /// space of their section.
+    pub(crate) fn of_charts<T: Bounds>(a: &NurbsSurface<T>, b: &NurbsSurface<T>) -> Self {
+        Self([
+            a.knots_u().domain(),
+            a.knots_v().domain(),
+            b.knots_u().domain(),
+            b.knots_v().domain(),
+        ])
+    }
+
     /// The box holding the single state `x`.
     pub(crate) fn at(x: [f64; 4]) -> Self {
         Self(x.map(|c| (c, c)))
@@ -162,10 +173,7 @@ impl<'a, T: CertifiedBounds> PairBoxes<'a, T> {
 
     /// The widest side of `x` in metres, and its coordinate.
     fn widest(&self, x: Box4, free: &[usize]) -> usize {
-        let w = |k: usize| (x.0[k].1 - x.0[k].0) * self.speeds[k];
-        free.iter()
-            .copied()
-            .fold(free[0], |best, k| if w(k) > w(best) { k } else { best })
+        heaviest(free, |k| (x.0[k].1 - x.0[k].0) * self.speeds[k])
     }
 }
 
@@ -421,9 +429,15 @@ enum Near {
 /// **The box `r`'s piece reaches the carrier's end `at`**, `k` the
 /// coordinate the carrier's state runs most along there, in metres.
 /// - The slice of `r` through the end across `k` holds a solution.
-/// - Or a box about the end, each side `eps/8` metres at that axis's
-///   chart speed, cut to `r`, holds one on its boundary: a solution
-///   there lies within `eps/2` of the end's image on either chart.
+/// - Or a box about the end, its half-width `eps/8` metres at each
+///   axis's chart speed, cut to `r`, holds one on its boundary.
+///
+/// The box is r3's ball of diameter `eps` (`one_arc::r3_reaches_end`,
+/// half-width `eps/(2√3)` less the end's width) read in chart units: a
+/// chart's speed bounds its surface's motion along each of its two
+/// axes, so a point of the box lands within `eps/8 + eps/8 = eps/4` of
+/// the end's image on either chart, inside that ball with room. The end
+/// is a point, so no width of its own is taken off.
 ///
 /// [`Shortfall::Short`] only where both are certified not so; an end
 /// whose slice lies outside `r` along `k` is [`Shortfall::Undecided`].
@@ -467,8 +481,19 @@ fn reaches_end<T: CertifiedBounds>(
 /// The coordinate a state-space direction `e` runs most along, in
 /// metres at the pair's chart speeds.
 pub(crate) fn dominant<T: CertifiedBounds>(pair: &PairBoxes<'_, T>, e: [f64; 4]) -> usize {
-    let w = |k: usize| (e[k] * pair.speeds[k]).abs();
-    (1..4).fold(0, |best, k| if w(k) > w(best) { k } else { best })
+    heaviest(&ALL_AXES, |k| (e[k] * pair.speeds[k]).abs())
+}
+
+/// The four axes of the state.
+pub(crate) const ALL_AXES: [usize; 4] = [0, 1, 2, 3];
+
+/// The axis of `axes` (non-empty) with the largest weight `w`, the
+/// first on a tie: the widest side to split, or the axis a direction
+/// runs most along, each in metres at its chart's speed.
+pub(crate) fn heaviest(axes: &[usize], w: impl Fn(usize) -> f64) -> usize {
+    axes.iter()
+        .copied()
+        .fold(axes[0], |best, k| if w(k) > w(best) { k } else { best })
 }
 
 /// **The two-chart chain's solution set is one arc, and it spans the

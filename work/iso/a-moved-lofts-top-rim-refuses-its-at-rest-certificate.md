@@ -20,6 +20,12 @@ re-described on the moved charts:
 Escalated { check: PlaneNurbsHull, cause: Indeterminate { margin:
 1.9785634851144333e-6, band: (1e-6, 1e-5), predicate: "ssi_hull_sup_chart" } } }`
 
+Re-measured 2026-10-11 on main's refined limb 2 (`encl/hull-bound-refine`): the
+same rim, `Escalated { check: PlaneNurbsHullValue, cause: Indeterminate {
+margin: 1.0167785956182296e-6, .. } }`, limb 2's value at a break of
+its composite. The 257-sample measurement below predates that
+refinement.
+
 The raising site is `edge_nurbs::plane_nurbs_limbs`, whose chart image
 is `chart_image`'s degree-1 interpolant through `PXN_FIT_SAMPLES` (33)
 foot points. Measured, not argued: with the constant raised to 257 on a

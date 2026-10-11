@@ -29,8 +29,8 @@
 //!
 //! # The three arms wired here
 //!
-//! Every other
-//! rung-3 arm of the C5 table keeps its typed refusal **citing its
+//! The three below are the arms this module traces. Every other rung-3
+//! arm of the C5 table keeps its typed refusal **citing its
 //! unimplemented trace shape** — per-arm retirement, never wholesale
 //! (C12.1).
 //!
@@ -1959,11 +1959,14 @@ const TUBE_EXTENT: SizedDecision = SizedDecision {
     at_zero: None,
 };
 
-/// [`SsiError::SeedRefinementFailed`]'s ending, at the doors whose
-/// caller names the seed.
+/// [`SsiError::PairBoundaryUnresolved`]'s ending: the section touches
+/// or runs along a side, or passes through a corner, of either chart's
+/// rectangle.
 const PAIR_BOUNDARY_RECOURSE: &str = "Recourse: move either surface so the section crosses \
      each side of the other's domain at a clear angle, clear of its corners";
 
+/// [`SsiError::SeedRefinementFailed`]'s and [`SsiError::SeedOutsideTube`]'s
+/// ending, at the doors whose caller names the seed.
 const SEED_RECOURSE: &str = "Recourse: seed the trace at a point nearer where the surfaces meet";
 
 /// [`SsiError::SeedOffDomain`]'s ending, at the doors whose caller names

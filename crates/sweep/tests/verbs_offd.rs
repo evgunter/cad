@@ -500,7 +500,8 @@ fn a_shared_surface_key_refuses_typed() {
 /// not move with it, so the edge is the NURBS × NURBS section of the
 /// two, which at the prism's right angle runs along the moved fit's side
 /// (`d·cot 90° = 0`): the arm refuses it typed, an `EdgeSection` of
-/// `Approx × Nurbs` carrying the section's own verdict. The door decides
+/// `Approx × Nurbs` carrying the section's own verdict, per ε and side
+/// as `common::approx::assert_seam_verdict` pins it. The door decides
 /// that before it mutates.
 #[test]
 fn the_fitted_lane_refuses_at_a_seam_with_a_held_spline_wall() {
@@ -512,18 +513,7 @@ fn the_fitted_lane_refuses_at_a_seam_with_a_held_spline_wall() {
         let before = body.clone();
         let e = topo::replace_face_offset(&mut body, wall, d, Tol::witness())
             .expect_err("a fitted face's shared seam has nowhere to go");
-        assert!(
-            matches!(
-                e,
-                ReplaceFaceError::EdgeSection {
-                    kind: geom::SurfaceKind::Approx,
-                    other_kind: geom::SurfaceKind::Nurbs,
-                    verdict: topo::SectionVerdict::Ssi(_),
-                    ..
-                }
-            ),
-            "d = {d}: expected the seam's section to refuse, got {e}"
-        );
+        common::approx::assert_seam_verdict("planar prism", false, d, &e);
         assert_eq!(
             format!("{:?}", body.faces().collect::<Vec<_>>()),
             format!("{:?}", before.faces().collect::<Vec<_>>()),

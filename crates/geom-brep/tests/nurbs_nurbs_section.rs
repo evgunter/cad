@@ -252,15 +252,50 @@ fn branch_at_answers_the_branch_its_seed_settles_on() {
     }
     let between = Point3::new(0.6, 0.5, H + G * 0.5);
     let b = section.branch_at(between).expect("a branch").clone();
+    let q = b.carrier.eval(0.5 * (b.params.0 + b.params.1));
     let one = whole.branches.iter().any(|w| {
         let p = w.carrier.eval(0.5 * (w.params.0 + w.params.1));
-        let q = b.carrier.eval(0.5 * (b.params.0 + b.params.1));
         (p.x - 0.5).signum() == (q.x - 0.5).signum()
     });
     assert!(one, "the seed between them answered no branch `all` found");
+    // Measured: the seed at x = 0.6 settles onto the high branch, the
+    // nearer (x ≈ 0.755 at y = ½), its middle on the closed form.
+    let [_, hi] = branches_at(q.y);
+    assert!(
+        q.distance(hi) <= 2.0 * eps(),
+        "the seed between them answered the high branch: its middle is at {q:?}"
+    );
     assert!(
         matches!(b.certificate.tube, SsiTube::TwoChart { .. }),
         "the answer is certified by the two-chart tube"
+    );
+}
+
+/// **A far seed is answered by the branch Newton reaches.** No distance
+/// gate: a seed half a metre above the trough, nearer neither branch
+/// than the section's own size, settles onto one of the two, and that
+/// branch is the answer (the ruling's one unproven step; the caller's
+/// seed proximity is the backstop, not this door).
+#[test]
+fn a_far_seed_returns_the_branch_newton_reaches() {
+    let (s1, s2) = (trough(), tilted());
+    let mut section = Section::of(&s1, &s2, domain(), band()).expect("the section");
+    let far = Point3::new(0.9, 0.5, 0.5);
+    let b = section
+        .branch_at(far)
+        .expect("a branch, however far the seed");
+    let q = b.carrier.eval(0.5 * (b.params.0 + b.params.1));
+    // Measured: Newton reaches the high branch, its middle on the
+    // closed form, about 0.44 m from the seed.
+    let [_, hi] = branches_at(q.y);
+    assert!(
+        q.distance(hi) <= 2.0 * eps(),
+        "the far seed answered the high branch: its middle is at {q:?}"
+    );
+    assert!(
+        q.distance(far) > 0.4,
+        "the seed was far: {}",
+        q.distance(far)
     );
 }
 

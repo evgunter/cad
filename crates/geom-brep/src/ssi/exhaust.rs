@@ -1251,8 +1251,9 @@ impl SweepCell for PairCell {
         self.b.0.map(|(a, b)| 0.5 * (a + b))
     }
     fn split(self) -> (Self, Self) {
-        let w = |k: usize| (self.b.0[k].1 - self.b.0[k].0) * self.scale[k];
-        let k = (1..4).fold(0, |best, k| if w(k) > w(best) { k } else { best });
+        let k = super::four::heaviest(&super::four::ALL_AXES, |k| {
+            (self.b.0[k].1 - self.b.0[k].0) * self.scale[k]
+        });
         let (lo, hi) = self.b.0[k];
         let m = 0.5 * (lo + hi);
         let (mut a, mut b) = (self, self);

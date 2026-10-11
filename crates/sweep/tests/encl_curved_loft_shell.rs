@@ -63,6 +63,47 @@ fn assert_wall_seam(body: &Body<f64>, edge: EdgeKey, context: &str) {
     );
 }
 
+/// **The shelled twisted loft's wall–wall seams derive.** Every chart
+/// moved inward by `THICKNESS` at once, as `topo::shell` moves them, read
+/// per edge at its plan: each seam between two walls is the NURBS ×
+/// NURBS section of their two moved fits, selected through
+/// `Section::branch_at` at the old seam's middle, and plans. Where ε is
+/// tighter than the twisted wall's fit reaches, no fit mints and the row
+/// above is the pin.
+#[test]
+fn the_shelled_lofts_wall_seams_derive_where_its_fits_certify() {
+    let eps = Tol::witness().eps();
+    if eps < 1e-8 {
+        return;
+    }
+    let body = twisted_loft(0.3);
+    let faces: Vec<[FaceKey; 1]> = body.faces().map(|(k, _)| [k]).collect();
+    let moves: Vec<(&[FaceKey], f64)> = faces
+        .iter()
+        .map(|f| {
+            let sense = body.get_face(f[0]).expect("a live face").sense;
+            (&f[..], if sense { -THICKNESS } else { THICKNESS })
+        })
+        .collect();
+    let walls = nurbs_walls(&body);
+    let mut seams = 0;
+    for (edge, plan) in topo::offset_charts_edge_plans_for_tests(&body, &moves, Tol::witness()) {
+        let halves = body.get_edge(edge).expect("the edge resolves");
+        let sides: Vec<FaceKey> = [halves.he_plus, halves.he_minus]
+            .into_iter()
+            .filter_map(|he| body.face_of_half_edge(he))
+            .collect();
+        if sides.len() == 2 && sides.iter().all(|k| is_spline_wall(&walls, *k)) {
+            seams += 1;
+            assert!(
+                matches!(plan, Ok(None)),
+                "eps {eps:e}: the seam {edge:?} between two moved fits derives, got {plan:?}"
+            );
+        }
+    }
+    assert_eq!(seams, 4, "the twisted loft has four wall–wall seams");
+}
+
 /// An INWARD cap offset of the curved loft derives its rims: each is
 /// the moved plane's section of its wall — an interior row, minted
 /// exactly, stated as the cap and wall's `Intersection` with the
@@ -203,9 +244,10 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
         let ReplaceFaceError::Op {
             error:
                 topo::EulerOpError::RechartFalsifies {
+                    edge,
                     error:
                         geom_brep::CertifyError::Escalated {
-                            check: geom_brep::CertCheck::PlaneNurbsHull,
+                            check: geom_brep::CertCheck::PlaneNurbsHullValue,
                             ..
                         },
                     ..
@@ -215,6 +257,19 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
         else {
             panic!("eps {eps:e}: expected a rim's at-rest limb 2 to refuse, got {e}");
         };
+        // Measured at 1e-6: limb 2's value at a break, 1.02e-6 m, in the
+        // band. The refusing edge is a top rim: the top cap's edge with a
+        // wall.
+        let halves = body.get_edge(*edge).expect("the refused edge resolves");
+        let sides: Vec<FaceKey> = [halves.he_plus, halves.he_minus]
+            .into_iter()
+            .filter_map(|he| body.face_of_half_edge(he))
+            .collect();
+        let walls = nurbs_walls(&body);
+        assert!(
+            sides.contains(&top_cap(&body)) && sides.iter().any(|k| is_spline_wall(&walls, *k)),
+            "eps {eps:e}: {edge:?} is not a top rim, its faces are {sides:?}"
+        );
     }
 }
 

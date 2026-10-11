@@ -14,7 +14,9 @@
 //!   that settles into a tube already certified is that branch; any
 //!   other is traced to the crossings it reaches, fitted, refined and
 //!   certified, and the answer is the branch whose certified tube holds
-//!   the settled seed. The selection is proved, not sampled.
+//!   the settled seed. What is proved is that the answer is the branch
+//!   through the point Newton settled on, not that this is the branch
+//!   nearest the seed.
 //! - [`Section::all`] answers every branch: each open branch between
 //!   crossings, each closed loop from the subdivision's seeds, and the
 //!   accounting that every cell of the product is excluded or lies in a
@@ -33,9 +35,15 @@
 //! side or corner region, where the plane × NURBS pass reports one.
 //!
 //! **One unproven step.** Newton's convergence from a seed to the
-//! component nearest it is not proved. The tube check catches a seed
-//! that settled onto a branch whose tube does not hold it
-//! ([`SsiError::SeedOutsideTube`]).
+//! component nearest it is not proved, and nothing here catches a seed
+//! that settles onto another component: the branch is traced through
+//! the settled state, so its tube holds it ([`SsiError::SeedOutsideTube`]
+//! guards the trace and the certificate, not the selection). A seed far
+//! from the section is answered by whichever branch Newton reaches; no
+//! distance gate refuses it. The backstops sit with the caller: the
+//! offset door's seed lies within `d / sin(φ/2)` of the moved seam,
+//! and a branch that missed it disagrees with the edge's moved vertices
+//! (`VertexDisagreement`).
 
 use geom::NurbsSurface;
 use geom_core::{Band, Point3, SupSpeed};
@@ -97,16 +105,6 @@ impl core::fmt::Debug for Section<'_> {
     }
 }
 
-/// The product of the two knot rectangles.
-fn root(s1: &NurbsSurface<f64>, s2: &NurbsSurface<f64>) -> Box4 {
-    Box4([
-        s1.knots_u().domain(),
-        s1.knots_v().domain(),
-        s2.knots_u().domain(),
-        s2.knots_v().domain(),
-    ])
-}
-
 /// The control hull of a net, as a box.
 fn net_box(s: &NurbsSurface<f64>) -> Option<Box3> {
     s.control()
@@ -139,7 +137,7 @@ impl<'a> Section<'a> {
         let (a, b) = (ChartedNurbs::mint(s1)?, ChartedNurbs::mint(s2)?);
         let (sa, sb) = (a.speeds(), b.speeds());
         let speeds = [sa.u.get(), sa.v.get(), sb.u.get(), sb.v.get()];
-        let r = root(s1, s2);
+        let r = Box4::of_charts(s1, s2);
         let rect = |k: usize| super::exhaust::UvRect {
             u: r.0[k],
             v: r.0[k + 1],
@@ -195,7 +193,7 @@ impl<'a> Section<'a> {
     /// and as each face's walk found them.
     fn boundary_pass(&self) -> Result<Vec<Crossing>, SsiError> {
         let pair = self.boxes();
-        let r = root(self.a.surface(), self.b.surface());
+        let r = Box4::of_charts(self.a.surface(), self.b.surface());
         let roots =
             face_roots(&pair, r, PAIR_BOUNDARY_PIECES).ok_or(SsiError::PairBoundaryUnresolved {
                 pieces: PAIR_BOUNDARY_PIECES,
@@ -325,7 +323,10 @@ impl<'a> Section<'a> {
 
     /// **The branch through `seed`** (module docs). The seed is a point
     /// in space; each chart's foot of it, settled onto the section by
-    /// Newton, is the state the answer is selected by.
+    /// Newton, is the state the answer is selected by. The answer is the
+    /// branch through that settled state, wherever Newton took it: that
+    /// it is the component nearest the seed is not proved, and no
+    /// distance from the seed is refused.
     ///
     /// # Errors
     ///
@@ -338,7 +339,9 @@ impl<'a> Section<'a> {
     /// tangent there), the boundary pass's ([`Section::crossings`]), any
     /// refusal of the trace, the fit or the
     /// certificate, and [`SsiError::SeedOutsideTube`] where the certified
-    /// branch's tube does not hold the settled seed.
+    /// branch's tube does not hold the settled state (a trace or
+    /// certificate fault; it does not detect a seed settled onto another
+    /// component).
     pub fn branch_at(&mut self, seed: Point3<f64>) -> Result<&SsiBranch, SsiError> {
         let mode = StepperMode::Realized;
         let foot = |s: &NurbsSurface<f64>| {
@@ -471,7 +474,7 @@ impl<'a> Section<'a> {
     fn root_cell(&self) -> (PairCell, SupSpeed<f64>) {
         let fastest = self.speeds.iter().copied().fold(0.0, f64::max);
         let cell = PairCell {
-            b: root(self.a.surface(), self.b.surface()),
+            b: Box4::of_charts(self.a.surface(), self.b.surface()),
             scale: self.speeds.map(|s| s / fastest),
         };
         (cell, SupSpeed::new(fastest))

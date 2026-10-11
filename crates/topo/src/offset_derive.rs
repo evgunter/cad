@@ -832,7 +832,7 @@ fn pair_section(
         .and_then(|mut s| s.branch_at(mid).map(|branch| branch.carrier.clone()))
     {
         Ok(Curve3::Nurbs(c)) => (*c).clone(),
-        Ok(_) => return Ok(Err(SectionVerdict::NoBranch)),
+        Ok(_) => unreachable!("an `SsiBranch`'s carrier is a fitted `Curve3::Nurbs` (C1 rung 3)"),
         Err(e) => return Ok(Err(SectionVerdict::Ssi(e))),
     };
     running_as(carrier, (mid, tangent), band)
