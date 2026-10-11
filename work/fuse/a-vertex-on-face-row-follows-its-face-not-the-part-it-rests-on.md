@@ -2,11 +2,10 @@
 id: a-vertex-on-face-row-follows-its-face-not-the-part-it-rests-on
 kind: issue
 title: A vertex-on-face row follows its face's lineage, not the part of the face the vertex rests on: ∩ keeps it stale, ∖ drops it
-status: parked
+status: open
 opened: 2026-10-03
 priority: P1
 cost: M
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -52,3 +51,7 @@ all six ops.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: a lineage bug in the declared v-on-f rows of remap_contacts (Stale/UndeclaredContact); stage 4 retires those records and refusals. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by stage 4 F (2026-10-11)
+
+Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.

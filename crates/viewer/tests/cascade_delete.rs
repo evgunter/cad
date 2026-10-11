@@ -88,7 +88,6 @@ fn die_shaped(tol: Tol) -> Die {
             Node::Subtract {
                 from: body.into(),
                 tool: placed.into(),
-                declare: Vec::new(),
             },
             tol,
         );

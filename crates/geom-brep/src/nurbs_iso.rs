@@ -39,7 +39,7 @@ use geom::NurbsSurface;
 use geom_core::k_stats::decide;
 use geom_core::spline::basis::basis_funs_in;
 use geom_core::spline::{SpanLocate, SplineError};
-use geom_core::{Band, Decide, Indeterminate, Margin, NO_DECLARATION_RECOURSE, Point3, Real, Sign};
+use geom_core::{Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point3, Real, Sign};
 
 use crate::ssi::ChartAxis;
 
@@ -301,11 +301,10 @@ impl<T: Real> core::fmt::Display for IsoRowError<T> {
                 "a surface's control net, or the iso row read from it, is not valid spline \
                  structure: {source}"
             ),
-            // `iso_boundary_row` takes no declaration.
             Self::Escalated { source } => source
                 .undecided(
                     "whether an edge lies on the boundary of its face's fitted surface",
-                    source.ending(NO_DECLARATION_RECOURSE),
+                    source.ending(COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
             Self::WeightsNotSeparable { control_counts } => write!(
@@ -728,7 +727,7 @@ mod tests {
             // door's is read by `contains` rather than by position. Never a declaration:
             // this door takes none.
             assert!(
-                text.contains(NO_DECLARATION_RECOURSE) && !text.contains("declare"),
+                text.contains(COINCIDENCE_RECOURSE) && !text.contains("declare"),
                 "{kind}: no declaration is offered where none is taken: {text}"
             );
         }

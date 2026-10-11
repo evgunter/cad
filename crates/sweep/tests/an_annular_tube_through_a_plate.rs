@@ -309,7 +309,7 @@ fn two_arc_circles_agree_with_one_segment_ones() {
 
 /// **The uncut-shell witness reads a one-vertex disc**: a one-segment
 /// plug of radius 0.5 flush in a bore through the plate, both vertices
-/// at azimuth 0, the flush pairs declared. The plug is an uncut shell
+/// at azimuth 0, the flush pairs glued. The plug is an uncut shell
 /// every vertex and edge of which lies on the bore's wall, so only a
 /// point inside a cap decides its side, and a cap is a disc of one
 /// vertex. `∩` is empty and `∖` is either operand, in both orders, at
@@ -337,11 +337,10 @@ fn a_plug_flush_in_a_bore_is_sided_by_its_caps() {
             ("plug, plate", &plug, &bored, vp),
             ("plate, plug", &bored, &plug, vb),
         ] {
-            let d = topo::test_support::flush_declarations(x, y, tol());
             let row = format!("the plug over z ∈ {z:?}, {order}");
-            let meet = outcome(topo::intersect_with(x, y, &d, tol()), 0.0, tol());
+            let meet = outcome(topo::intersect(x, y, tol()), 0.0, tol());
             assert_eq!(meet, "EMPTY ok", "{row}: ∩");
-            let less = outcome(topo::subtract_with(x, y, &d, tol()), vx, tol());
+            let less = outcome(topo::subtract(x, y, tol()), vx, tol());
             assert!(less.starts_with("OK SOUND"), "{row}: ∖ {less}");
         }
     }

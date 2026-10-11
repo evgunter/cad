@@ -46,8 +46,7 @@ fn ball() -> AtRestBody<f64> {
 #[test]
 fn a_flipped_dimple_is_refused_by_the_side_reader() {
     let tol = Tol::witness();
-    let none = topo::BooleanDeclarations::none();
-    let body = topo::subtract_with(&slab(), &ball(), &none, tol)
+    let body = topo::subtract(&slab(), &ball(), tol)
         .expect("the slab less the ball builds")
         .body()
         .expect("a body")

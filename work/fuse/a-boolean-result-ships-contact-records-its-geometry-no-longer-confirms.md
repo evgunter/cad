@@ -2,11 +2,10 @@
 id: a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms
 kind: issue
 title: A boolean result ships contact records its geometry no longer confirms, so the tier-3′ pass refuses it StaleContactDeclaration
-status: parked
+status: open
 opened: 2026-10-02
 priority: P2
 cost: M
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -135,3 +134,7 @@ which goes red when this row or
 Main already ships the same findings at the neighbouring pose
 `w345 nt e1 a14 d1e-9`; the census counts 6 stale and 596 undeclared
 findings at 1e-12 on main, and these add 6 and 3.
+
+## Released by stage 4 F (2026-10-11)
+
+Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.

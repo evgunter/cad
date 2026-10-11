@@ -199,7 +199,6 @@ fn a_box_minus_a_cylinder_has_both_rims_filleted_in_one_node() {
         Node::Subtract {
             from: block.into(),
             tool: drill.into(),
-            declare: Vec::new(),
         },
     );
     let (doc, fillet) = fillet_both(doc, holed, 0.5, 2.5);
@@ -268,7 +267,6 @@ fn a_band_crossing_a_wall_seams_piece_cites_the_seams_line() {
         Node::Subtract {
             from: drill.into(),
             tool: notch.into(),
-            declare: Vec::new(),
         },
     );
     let (doc, holed) = fixture::insert(
@@ -276,7 +274,6 @@ fn a_band_crossing_a_wall_seams_piece_cites_the_seams_line() {
         Node::Subtract {
             from: block.into(),
             tool: notched.into(),
-            declare: Vec::new(),
         },
     );
     let (doc, fillet) = fillet_both(doc, holed, 0.5, 2.5);

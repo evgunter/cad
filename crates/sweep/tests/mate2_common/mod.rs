@@ -19,10 +19,7 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::test_support::{extruded, sketch_at};
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::{
-    Body, BooleanDeclarations, BooleanResult, ContactClass, FaceKey, FacePairDeclaration,
-    mass_properties,
-};
+use topo::{Body, BooleanResult, FaceKey, mass_properties};
 
 /// An annulus of bore `r` and outer radius `outer`, `z ∈ [z0, z0 + len]`,
 /// both rims three 120° arcs starting at `deg0` — the bore wall is 3
@@ -129,17 +126,6 @@ pub fn spheres_at(body: &Body<f64>, r: f64) -> Vec<FaceKey> {
         .collect()
 }
 
-/// Every pair of `a_faces` × `b_faces` declared `Rest` into `decls`.
-pub fn declare_rest(decls: &mut BooleanDeclarations, a_faces: &[FaceKey], b_faces: &[FaceKey]) {
-    for &fa in a_faces {
-        for &fb in b_faces {
-            decls
-                .coincident_faces
-                .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
-        }
-    }
-}
-
 /// The planar face at height `z` facing `up`.
 pub fn plane_face(body: &Body<f64>, z: f64, up: bool) -> topo::FaceKey {
     let hits: Vec<_> = body
@@ -156,33 +142,6 @@ pub fn plane_face(body: &Body<f64>, z: f64, up: bool) -> topo::FaceKey {
         panic!("expected exactly one z = {z} face (up = {up}), got {hits:?}");
     };
     f
-}
-
-/// Every (bore wall × peg wall) pair declared `Rest` — the mate's only
-/// contact unless a caller adds one — plus every continuation the two
-/// parts have (a peg end flush with the collar's face), which a union
-/// refuses undeclared.
-pub fn wall_decls(a: &Body<f64>, b: &Body<f64>) -> BooleanDeclarations {
-    wall_decls_at(a, b, 0.5)
-}
-
-/// [`wall_decls`] for walls of radius `r`.
-pub fn wall_decls_at(a: &Body<f64>, b: &Body<f64>, r: f64) -> BooleanDeclarations {
-    let mut decls = continuations(a, b);
-    declare_rest(&mut decls, &walls_at(a, r), &walls_at(b, r));
-    decls
-}
-
-/// Every continuation the flush detector finds between `a` and `b`
-/// (one carrier, aligned senses), declared.
-pub fn continuations(a: &Body<f64>, b: &Body<f64>) -> BooleanDeclarations {
-    let found = topo::flush::find_flush_candidates(a, b, Tol::witness())
-        .expect("a fixture's flush pairs decide definitely");
-    let picked: Vec<_> = found
-        .into_iter()
-        .filter(|f| f.class == topo::BooleanCoincidence::Continuation)
-        .collect();
-    topo::flush::declare_all(&picked)
 }
 
 pub fn volume(b: &Body<f64>) -> f64 {

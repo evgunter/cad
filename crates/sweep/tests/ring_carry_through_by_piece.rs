@@ -415,13 +415,13 @@ fn a_ring_pinched_to_a_rim_vertex_builds_and_its_rim_fillet_refuses() {
         ("pocket first", &pocketed, &hole),
     ] {
         use sweep::test_support::finished;
+        use topo::BooleanResult;
         use topo::boolean::{SweepStrategy, boolean_op_with};
-        use topo::{BooleanDeclarations, BooleanResult};
         let r = boolean_op_with(
             BooleanOp::Subtract,
             &finished("a", a.clone(), tol()),
             &finished("b", b.clone(), tol()),
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             tol(),
         );
@@ -482,7 +482,7 @@ mod interval_lane {
     use sweep::blend::build::fillet_edges;
     use sweep::test_support::{cube, finished, prism};
     use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-    use topo::{AtRestBody, BooleanDeclarations, EdgeKey};
+    use topo::{AtRestBody, EdgeKey};
 
     fn t() -> Tol {
         Tol::witness()
@@ -506,7 +506,7 @@ mod interval_lane {
             BooleanOp::Subtract,
             &finished("the cube", cube(1.0, t()), t()),
             &finished("the diamond", diamond, t()),
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             t(),
         )
