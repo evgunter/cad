@@ -892,10 +892,10 @@ impl Pass<'_> {
 /// The curve along `side` of `wall`'s domain: a row of a clamped wall's
 /// net, verbatim. Every `KnotVector` is clamped by construction, so no
 /// extraction beyond the copy is needed.
-pub(crate) fn side_row<T: geom_core::spline::SpanLocate>(
-    wall: &geom::NurbsSurface<T>,
+pub(crate) fn side_row(
+    wall: &geom::NurbsSurface<f64>,
     side: ChartSide,
-) -> Result<geom::NurbsCurve3<T>, geom_core::spline::SplineError> {
+) -> Result<geom::NurbsCurve3<f64>, geom_core::spline::SplineError> {
     let high = side.end == ChartEnd::High;
     match side.fixed {
         ChartAxis::U => boundary_iso_u(wall, high),
