@@ -787,3 +787,5 @@ Signed (CLEAVE orchestrator).
   - TOPO's recharted-residual row (P2);
   - CLEAVE's crown spur panic (P1);
   - HONE's two-homes germ-order row.
+- **PR 4581 merged** (near-tangent invariants; single FULL review, fix pass done). The 1e-12 trade is
+  pinned as `SHIPS_A_FINDING` and points at FUSE's row and the door-census row.

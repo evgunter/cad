@@ -55,3 +55,14 @@ the literal torus ball becomes a named helper.
 ## Re-homed from FLUX to FLUXTAIL (2026-10-10)
 
 (FLUX orchestrator) FLUX measured 125.5 budget points against 30 and was cut on its priority seam: FLUX kept the curved closed-form arms. FLUXTAIL collects the curved arms' numeric honesty rows: rim levels, chord lengths, span folds and bounds that cancel, drop a refusal or depend on the frame, under FLUX's closed forms. The id and the body above are unchanged; the move may have set `priority`, `cost` or `status` in the header.
+
+## Evidence: the maximal-faces gate's ball (PR 4581, 2026-10-10)
+
+`readback::edge_extent` is gone: its one caller, `boolean/reduce.rs`
+`gate_maximal_faces`, levered its ladder at it, and a lower bound on the
+diameter does not hold an arc past a half turn. The gate now reads a
+ball about the edge's start that holds the edge. That ball is a
+per-`Curve3` match of its own: a line's chord, a circle's farthest
+point from its start (`2r·sin(min(span, π)/2)`), a NURBS carrier's
+control hull, and any other carrier's box (`census::edge_reach_in`).
+So it is a fifth dispatcher, and a client of the home this row owes.

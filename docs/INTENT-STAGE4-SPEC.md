@@ -35,7 +35,7 @@ Scope: D10's **Coincidence** and **Booleans** paragraphs (`docs/DESIGN.md` §D10
   The curved ladder is `carrier_eq.rs` (`CarrierEqError::Undeclared`, `:109`).
 - **The boolean refuses a value-only coincidence.** `BooleanError::UndeclaredCoincidence` (`boolean/mod.rs:2134`) is raised at `mod.rs:5044`, `reduce.rs:880`, `recl.rs:170`, `vtxfac.rs:767` and `flush_rows.rs:250`, and the document layer wraps it as `NodeErrorKind::UndeclaredCoincidence` (`eval/mod.rs:1783`) with a declare menu (`wire.rs:3795`).
 - **Declarations.**
-  - The node payload is `Node::Boolean.declare` (`node.rs:2383`) and `Node::Union.declare` (`:2490`), with `DeclaredPair` at `:3218`.
+  - The node payload is the `declare` field of `Node::Union`, `Node::Intersect` and `Node::Subtract` (`node.rs`), with `DeclaredPair` beside them.
   - The kernel input is `BooleanDeclarations::coincident_faces` (`boolean/mod.rs:816`).
   - When the join refuses a declared union, `ops.rs:896` opens the declared-REST zip (`boolean/rest.rs`, 2693 lines).
 - **The records.**
@@ -378,7 +378,7 @@ After E, nothing reads a declaration except its contradiction check.
 
 **Document layer.**
 
-- The node fields go: `Node::Boolean.declare` (`node.rs:2383`), `Node::Union.declare` (`:2490`) and `DeclaredPair` (`:3218`). So do `declare_rest`/`declare_continuation` (`:3269`, `:3279`) and `DeclaredSideFault` (`:3223`).
+- The node fields go: the `declare` field of `Node::Union`, `Node::Intersect` and `Node::Subtract` (`node.rs`), and `DeclaredPair`. So do `declare_rest`/`declare_continuation` and `DeclaredSideFault`.
 - The edit doors go: `DocEdit::SetDeclare` (`edit.rs:142`, `:5827`), `check_declared_sides` (`:5145`), and `EditError`'s `SetDeclareOnNonDeclaring`, `DeclaredSiteNotAnOperand`, `DeclaredNameNotUpstream` and `DeclareNamesMissingNode`.
 - **The payload walks shrink.** `payload_names` (`node.rs:4699`), `payload_read_sites` (`:4777`), `rebind_payload_names` (`:3760`) and `declared_pairs` (`:4825`) lose their declare arm. The callers are `doc.rs:1757`, `edit.rs:4541`/`:6305`, `resolve/mod.rs:2263`, and `refactor.rs:259`, `:2047`, `:3274`.
   - If stage 2 E has landed, those walks hold only selects and the declared pairs, so F empties them to the selects. If F lands first, E's spec text "shrinks to the declared pairs" becomes "goes".
@@ -397,7 +397,7 @@ After E, nothing reads a declaration except its contradiction check.
 
 **Surfaces.**
 
-- Python: `BooleanCoincidence`, `Doc.declare`, `declare_all`, `Node.boolean(declare=)`, `Node.union(declare=)`, `DocEdit.set_declare` and `find_flush_candidates` go. That is 28 py-rs sites, 11 in the `.pyi`, and 54 test sites (`test_document.py` 19, `test_north_star.py` 10).
+- Python: `BooleanCoincidence`, `Doc.declare`, `declare_all`, `Node.union(declare=)`, `Node.intersect(declare=)`, `Node.subtract(declare=)`, `DocEdit.set_declare` and `find_flush_candidates` go. That is 28 py-rs sites, 11 in the `.pyi`, and 54 test sites (`test_document.py` 19, `test_north_star.py` 10).
 - Viewer: `add_boolean`'s declare list (`session.rs:2798`), `SessionOp::AddBoolean.declare` (`session/op.rs:628`), the declare-and-retry refusal (`session/refuse.rs:885`) and the create pane (`pane/create.rs:2751–2909`).
 - **Tour.**
   - `find_flush_candidates`/`declare_all` sites go from booleans (4), heatsink (8), lily (4), plate (3), projectbox (2) and twopeg (5).
@@ -583,7 +583,7 @@ Each changes ratified text or turns on a choice D10 does not make. None is resol
 - **The problem.** D10 puts structure at one door in the document. The kernel today carries an opaque `GeomSource` stamp per description (N6, ratified), and composes it through placements. After E no kernel decision reads it: same source implies a zero margin. The door needs, for each recorded cell, the construction that built its carrier.
 - **Options:**
   - (a) **Keep `GeomSource`** as a pure identity stamp, and key a document-side table of `CarrierForm`s by it. N6 keeps its identity half and loses "stay unglued".
-  - (b) **Read it from the names.** Each row's cells are named in the deciding operands' tables. A `StableName` already traces to its minting node and role (`FromA`/`FromB`, `Merged`, `Instance`), and the role is what `CarrierFlow` is keyed by. `GeomSource`, `GeomOrigin`'s `Recipe` arm, `stamp_minted` and `compose_placed` retire. N6 becomes "a carrier's identity is its construction, read at the door", and the bit witnesses become C's witness.
+  - (b) **Read it from the names.** Each row's cells are named in the deciding operands' tables. A `StableName` already traces to its minting node and role (`From { read }`, `Merged`, `Instance`), and the role is what `CarrierFlow` is keyed by. `GeomSource`, `GeomOrigin`'s `Recipe` arm, `stamp_minted` and `compose_placed` retire. N6 becomes "a carrier's identity is its construction, read at the door", and the bit witnesses become C's witness.
   - (c) **Stamp the canonical form itself** on the body in place of `GeomSource` (the agent survey's "side table on `Body`"), computed at mint from the node's slot forms.
 - **Recommendation: (b).** It has one provenance carrier (the name table) instead of two kept in step, and naming is already exhaustive over node kinds (`names::lift`'s precedent). (c) puts document variables into the kernel, which N6's layering note forbids. (a) keeps a second identity that only restates the name. Confidence: likely. It needs a designer pair, because N6 is ratified (#74) and (b) deletes its mechanism.
 

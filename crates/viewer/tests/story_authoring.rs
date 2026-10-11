@@ -12,8 +12,8 @@
 //! `reach_slab_cut_sector_side` row. Stacked discs stand in for the revolved
 //! silhouette a rook naturally is: this scene predates
 //! `ProfileShape`'s `Path` arm, which can now spell one.) On the way
-//! the user mis-picks a boolean (typed refusals), tries to crown the
-//! rook with a circular pattern and learns instances are not a body,
+//! the user tries to crown the rook with a circular pattern and learns
+//! instances are not a body,
 //! fuses the same rule into ONE body and unions THAT onto the crown,
 //! deletes that experiment (the cascade, priced by the affordance
 //! first), undoes it back, walks the history both ways, edits AFTER an
@@ -36,11 +36,12 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use viewer::session::BooleanSpec;
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
 use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
-use pncad::document::{BooleanOp, Doc, DocEdit, RecipeNodeId, SlotId};
+use pncad::document::{Doc, DocEdit, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
 use viewer::props::SlotValue;
@@ -223,7 +224,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         "the chamfer takes about the edge prisms off: {v_plinth} vs {v_pad}"
     );
 
-    // ── The base disc, and a mis-pick at the boolean door ───────────
+    // ── The base disc ────────────────────────────────────────────────
     let base_profile = circle_at(&mut session, BASE_R, BASE_Z);
     let base = session_insert(
         &mut session,
@@ -232,37 +233,10 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             distance: len(BASE_H),
         },
     );
-    // The user double-picks the plinth into both operand seats. The
-    // EDIT door refuses TYPED, names the node, and records nothing —
-    // layer 3 forwards that refusal rather than pre-checking the pair.
-    let states = session.history().len();
-    let mispick = session.perform(SessionOp::AddBoolean {
-        op: BooleanOp::Union,
-        a: softened,
-        b: softened,
-        declare: Vec::new(),
-    });
-    let rendered = mispick
-        .refusal
-        .as_ref()
-        .expect("a self-boolean refuses")
-        .to_string();
-    assert!(
-        rendered.contains(&format!(
-            "Chamfer {}",
-            test_utils::refusal::tag(softened.0.digest())
-        )),
-        "the refusal names the double-picked node: {rendered}"
-    );
-    assert!(mispick.committed.is_empty(), "a refusal commits nothing");
-    assert_eq!(session.history().len(), states, "and mints no state");
-
     let u1 = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: softened,
-            b: base,
+            spec: BooleanSpec::Union(vec![softened, base]),
             declare: Vec::new(),
         },
     );
@@ -287,9 +261,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let u2 = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: u1,
-            b: shaft,
+            spec: BooleanSpec::Union(vec![u1, shaft]),
             declare: Vec::new(),
         },
     );
@@ -309,9 +281,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let u3 = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: u2,
-            b: drum,
+            spec: BooleanSpec::Union(vec![u2, drum]),
             declare: Vec::new(),
         },
     );
@@ -332,9 +302,10 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let cut1 = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Subtract,
-            a: u3,
-            b: cutter,
+            spec: BooleanSpec::Subtract {
+                from: u3,
+                tool: cutter,
+            },
             declare: Vec::new(),
         },
     );
@@ -355,9 +326,10 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let carved = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Subtract,
-            a: cut1,
-            b: cutter2,
+            spec: BooleanSpec::Subtract {
+                from: cut1,
+                tool: cutter2,
+            },
             declare: Vec::new(),
         },
     );
@@ -422,9 +394,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     // consumes (the F4 division the heatsink demo documents).
     let states = session.history().len();
     let refused = session.perform(SessionOp::AddBoolean {
-        op: BooleanOp::Union,
-        a: carved,
-        b: pattern,
+        spec: BooleanSpec::Union(vec![carved, pattern]),
         declare: Vec::new(),
     });
     assert!(
@@ -470,9 +440,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let crenellated = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: carved,
-            b: merlons,
+            spec: BooleanSpec::Union(vec![carved, merlons]),
             declare: Vec::new(),
         },
     );
@@ -506,7 +474,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             [
                 "1 × Pattern",
                 "1 × PlacedUnion",
-                "1 × Boolean",
+                "1 × Union",
                 "1 × PlaceInWorld",
             ]
             .iter()

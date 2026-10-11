@@ -127,7 +127,7 @@ class TestCup(unittest.TestCase):
         self.assertEqual(len(rim), 1, "one designated chart, one rim")
         inner = ev.select(hollow, Selector.of(faces.seg(SegPat.tag(SegTag.Inner))))
         self.assertEqual(len(inner), 5, "the cavity floor and its four walls")
-        outer = ev.select(hollow, Selector.of(faces.seg(SegPat.tag(SegTag.FromTarget))))
+        outer = ev.select(hollow, Selector.of(faces.seg(SegPat.tag(SegTag.From))))
         self.assertEqual(len(outer), 5, "the bottom and the four sides carried through")
         # The shell's three roles group as the shell's; the survivors
         # speak as the carried-through shape.
