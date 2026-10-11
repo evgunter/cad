@@ -96,7 +96,7 @@
 // for a consumer of `pncad::document` alone, and the cost the other
 // way is the same name on two lists.
 pub use editor_core::{
-    BooleanCoincidence, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal,
+    At, BooleanCoincidence, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal,
     ContactVerdict, CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation,
     DuplicateName, EntityKind, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred,
     InterrogateError, LeafRole, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NamingError,

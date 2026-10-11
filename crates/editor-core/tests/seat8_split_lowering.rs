@@ -233,13 +233,20 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// projections are gone from the evaluation this digest walks, and the
 /// union keys its members by the ports. `m4_pr8_corpus`'s exact mass
 /// pins held.
+///
+/// RE-BLESSED, all three, when a name came to be scoped by the variable
+/// holding its body (FORK-DM4 unit 2): a split's halves are two tables
+/// and its names spell no half, which is what this digest's name table
+/// feed reads; `part_select`'s union, declared by the half-free section
+/// face, took a new id too. No body moved: the id-masked geometry fence
+/// held.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xa6c1_1622_9a6f_5245u64),
-        ("part_select", 0x023e_8e17_7f50_25c3),
-        ("kitchen_sink", 0xe9f2_08e8_5449_a003),
+        ("cut_cylinder", 0x17d8_7760_c728_b7f6u64),
+        ("part_select", 0x51ca_6d3e_a5b3_ea1c),
+        ("kitchen_sink", 0xfcad_2de0_d2ba_0e7a),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -343,6 +350,10 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
 /// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
 /// pins and `m5_pr8_bvh_diff` held.
+///
+/// RE-BLESSED when a name came to be scoped by the variable holding its
+/// body (FORK-DM4 unit 2): the split's one table became a table per
+/// half, the empty half's empty, and its names spell no half.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -363,7 +374,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x80bf_b0ea_1f66_8105,
+        got, 0x34f6_1e4d_65ea_b6a4,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

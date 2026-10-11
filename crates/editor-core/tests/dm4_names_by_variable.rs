@@ -12,7 +12,8 @@
 //!   the bare door finds the name in the other half and calls it
 //!   resolved;
 //! - a name a split mints in both halves (the section face) is one name,
-//!   each half's read its own copy;
+//!   each half's read its own copy, and a paint keyed by one half's read
+//!   leaves the other half's copy unpainted;
 //! - a name saved with a half refuses typed at load, the regenerate
 //!   recourse (`persist`: no migration chain).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -180,6 +181,55 @@ fn the_section_face_is_one_name_and_each_halfs_read_resolves_its_own() {
     assert_ne!(held[0], held[1], "two faces, one name");
 }
 
+/// **A paint on one half's section face leaves the other half's
+/// unpainted.** The two halves carry the section face under one name
+/// (above); an appearance entry is keyed by the body read and the name
+/// (ruling A on FORK-DM4 unit 2; D10, a repair is addressed by body and
+/// name), so it paints the face the read it names holds, and only that
+/// one. Keyed by the bare name it would paint both — one half's colour
+/// on the other.
+#[test]
+fn a_paint_on_one_halfs_section_face_leaves_the_other_halfs_unpainted() {
+    let (doc, _, _, split) = step_split(1.0);
+    let section = StableName {
+        kind: EntityKind::Face,
+        node: split,
+        path: vec![RoleSeg::SectionFace { section: 0 }],
+    };
+    let read = |half: SplitHalf| doc.output(split, half.port()).expect("a half's read");
+    let (painted, _) = fixture::step(
+        doc.clone(),
+        DocEdit::SetAppearance {
+            body: read(SplitHalf::Above),
+            name: section.clone(),
+            attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(200, 30, 30)),
+        },
+    );
+    let ev = fixture::run(&painted, &Default::default());
+    assert!(ev.appearance.is_lossless(), "{:?}", ev.appearance.losses);
+    let ctx = RunCtx {
+        doc: &painted,
+        eval: &ev,
+    };
+    let face = |half| match resolve_at(ctx, read(half), &section) {
+        Resolution::Resolved(r) => r.entity,
+        other => panic!("{half:?}: the section face resolves: {other:?}"),
+    };
+    let at_split = ev
+        .appearance
+        .for_node(split)
+        .expect("the split's value carries the paint");
+    assert!(
+        at_split.contains_key(&face(SplitHalf::Above)),
+        "the upper half's section face is painted"
+    );
+    assert!(
+        !at_split.contains_key(&face(SplitHalf::Below)),
+        "the lower half's section face is not"
+    );
+    assert_eq!(at_split.len(), 1, "one face painted: {at_split:?}");
+}
+
 /// **A name saved with a half refuses typed.** The half is not a field
 /// of a split's roles any more; the format carries no migration chain,
 /// so a document spelling one refuses at the deserializer, which names
@@ -196,4 +246,60 @@ fn a_split_role_spelled_with_a_half_refuses_typed() {
     let now: RoleSeg = serde_json::from_str(r#"{"SectionFace":{"section":0}}"#)
         .expect("the half-free spelling reads");
     assert_eq!(now, RoleSeg::SectionFace { section: 0 });
+}
+
+/// The stored documents this unit regenerated: each one whose
+/// appearance store holds an entry (`M4_PR6_BLESS_GOLDEN=1` for the
+/// golden).
+const REGENERATED: [&str; 1] = ["crates/editor-core/tests/golden/golden.cad"];
+
+/// **The regenerated documents are the base's under one total map**: an
+/// appearance key, which was a name, is that name read in the output its
+/// minting node defines (`{ "at": read, "name": name }`, the
+/// [`editor_core::AppearanceKey`] shape), and nothing else moves. No
+/// stored document spells a split role, so the half the roles drop
+/// strips nothing here (`a_split_role_spelled_with_a_half_refuses_typed`
+/// is what a file that did would meet).
+///
+/// Run against a checkout of the base: `DM4_BASE_TREE=<that checkout>`
+/// and `--run-ignored only`. Ignored because the base is not in this
+/// tree; the PR states the run.
+#[test]
+#[ignore = "one shot against a checkout of the base, named by DM4_BASE_TREE"]
+fn every_regenerated_document_is_the_base_one_with_its_appearance_keys_sited() {
+    let base = std::path::PathBuf::from(
+        std::env::var("DM4_BASE_TREE").expect("DM4_BASE_TREE names a checkout of the base"),
+    );
+    let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    for file in REGENERATED {
+        let read =
+            |root: &std::path::Path| std::fs::read_to_string(root.join(file)).expect("reads");
+        let old = crate::wire::wire_body(&read(&base));
+        let mut new = crate::wire::wire_body(&read(&here));
+        let defined_by = |var: &str| -> Option<String> {
+            let def = &new["snapshot"]["vars"][var]["def"]["Output"];
+            Some(def.get("node")?.as_str()?.to_owned())
+        };
+        let mut stripped = Vec::new();
+        for pair in new["snapshot"]["appearance"]
+            .as_array()
+            .expect("an appearance pair list")
+        {
+            let (key, record) = (&pair[0], &pair[1]);
+            let at = key["at"].as_str().expect("a key's read");
+            let name = &key["name"];
+            assert_eq!(
+                defined_by(at).as_deref(),
+                name["node"].as_str(),
+                "{file}: {at} is the output its name's minting node defines"
+            );
+            stripped.push(serde_json::json!([name, record]));
+        }
+        new["snapshot"]["appearance"] = serde_json::Value::Array(stripped);
+        assert_eq!(
+            old, new,
+            "{file}: the base's save, its appearance keys unsited"
+        );
+        println!("{file}: the base's save under the total map");
+    }
 }

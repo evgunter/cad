@@ -157,6 +157,14 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// selection variable each such node reads, so their node ids moved and
 /// every row naming them; every other row held its word, and the
 /// id-masked geometry fence held untouched.
+///
+/// **Re-pinned for FORK-DM4 unit 2** (a name is scoped by the variable
+/// holding its body): `cut_cylinder`, `kitchen_sink` and `part_select`,
+/// the three documents holding a split. A split's two halves are two
+/// tables and its names spell no half, so each row walks both tables of
+/// the half-free names; `part_select`'s union, which declares the rest
+/// between the halves by the section face, also took a new id. Every
+/// other row held its word, and the id-masked geometry fence held.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xadebdf8fa8c159b4),
     ("corner_table", 0x557d106640cda5b6),
@@ -166,8 +174,8 @@ const PINNED: &[(&str, u64)] = &[
     ("nested_islands_106_depth1", 0x21fc3461c8da2531),
     ("nested_islands_106_depth2", 0xa2b91f4b061a349c),
     ("declared_tangency", 0x370595ad9c1f1053),
-    ("kitchen_sink", 0x46f74d27b4f23841),
-    ("cut_cylinder", 0xecad82208268b4e3),
+    ("kitchen_sink", 0xc837a442e2eae85e),
+    ("cut_cylinder", 0xe3bbfa5f63a97624),
     ("measured_web", 0xa8eab47c82dec152),
     ("boss_union", 0xe9503f4d4a3ff20a),
     ("die_fillet", 0x27b561518c428c4e),
@@ -176,7 +184,7 @@ const PINNED: &[(&str, u64)] = &[
     ("heat_sink_fins", 0xf0b12754e2c4efed),
     ("die_tool", 0x37de0a4d1d097a20),
     ("face_sketch", 0x033a72b2be1ba6b8),
-    ("part_select", 0xafa2bacfee0553b0),
+    ("part_select", 0xef3cab5846985a2f),
     ("loft_prism", 0x4413e8ba1b27cd15),
     ("die_composed", 0x12b2f2012d9e168a),
     ("die_composed_tour", 0x161160c6434ac313),

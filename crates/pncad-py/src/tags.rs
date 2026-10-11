@@ -312,6 +312,7 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::DatumHasNoValue(_) => "datum_has_no_value",
         R::NodeHasNoValue(_) => "node_has_no_value",
         R::NodeHasNoOutput { .. } => "node_has_no_output",
+        R::ReadNotAnOutput { .. } => "read_not_an_output",
         R::NotALength { .. } => "not_a_length",
         R::PairInBand { .. } => "pair_in_band",
         R::BadValue(_) => "bad_value",
@@ -678,6 +679,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::RebindAppearanceCollision { .. } => "rebind_appearance_collision",
         EditError::AppearanceWrongKind { .. } => "appearance_wrong_kind",
         EditError::AppearanceNamesMissingNode { .. } => "appearance_names_missing_node",
+        EditError::AppearanceBodyNotARead { .. } => "appearance_body_not_a_read",
         EditError::AppearanceNotSet { .. } => "appearance_not_set",
         EditError::InvalidTolerance { .. } => "invalid_tolerance",
         EditError::MetaUnversioned { .. } => "meta_unversioned",
@@ -1326,6 +1328,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::RebindAppearanceCollision { .. } => None,
         EditError::AppearanceWrongKind { .. } => None,
         EditError::AppearanceNamesMissingNode { .. } => None,
+        EditError::AppearanceBodyNotARead { .. } => None,
         EditError::AppearanceNotSet { .. } => None,
         EditError::InvalidTolerance { .. } => None,
         EditError::MetaNonFinite { .. } => None,
@@ -2674,6 +2677,7 @@ pub fn interrogate_error_tag(err: &InterrogateError) -> &'static str {
         InterrogateError::WholeBody => "whole_body",
         InterrogateError::NoBodies { .. } => "no_bodies",
         InterrogateError::NoSuchBody { .. } => "no_such_body",
+        InterrogateError::SeveralOutputs { .. } => "several_outputs",
         InterrogateError::Readback(err) => readback_error_tag(err),
     }
 }

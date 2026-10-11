@@ -203,6 +203,7 @@ fn every_maintenance_row_rides_beside_a_refusal() {
             took: pncad::document::Took::Node,
         },
         Maintenance::StrandedAppearance {
+            body: pncad::document::SpokenVar::new(editor_core::VarId::new(0, tagged(9)), None),
             name: face(8),
             took: pncad::document::Took::Node,
         },
@@ -233,9 +234,9 @@ fn every_maintenance_row_rides_beside_a_refusal() {
         "nothing to undo \u{2022} node 000000000003 carries a name for the face of node \
          000000000007; this edit deleted node 000000000007, which minted the name, so the \
          name resolves to nothing until it is rebound \u{2022} the appearance store holds an \
-         attachment under a name for the face of node 000000000008; this edit deleted node \
-         000000000008, which minted the name, so the name resolves to nothing until it is \
-         rebound or cleared"
+         attachment under a name for the face of node 000000000008 read in variable \
+         000000000009; this edit deleted node 000000000008, which minted the name, so the \
+         name resolves to nothing until it is rebound or cleared"
     );
 }
 
@@ -252,6 +253,7 @@ fn a_delete_that_strands_an_appearance_key_reaches_the_line() {
         common::edited(
             doc,
             DocEdit::SetAppearance {
+                body: crate::fixture::painted_in(doc, name),
                 name: name.clone(),
                 attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
             },
@@ -263,6 +265,7 @@ fn a_delete_that_strands_an_appearance_key_reaches_the_line() {
     let doc = paint(&doc, &wall(&doc, kept, 0, 0));
 
     let expected = vec![Maintenance::StrandedAppearance {
+        body: doc.spoken_var(crate::fixture::painted_in(&doc, &painted)),
         name: doc.spoken_name(&painted),
         took: pncad::document::Took::Node,
     }];

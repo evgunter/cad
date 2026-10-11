@@ -40,6 +40,13 @@ use editor_core::Node;
 /// mints one selection ahead of its transforms, so each of its rows'
 /// ordinals moved by one and its words with them; every other row held,
 /// and so did the ids-masked geometry fence.
+///
+/// **Re-pinned for FORK-DM4 unit 2** (a name is scoped by the variable
+/// holding its body): `part_select`'s row alone. Its union declares the
+/// rest between the split's halves by the section face, which no longer
+/// spells the half, so the union and every node minted after it took
+/// new ids; the transform's word hashes its id. The id-masked geometry
+/// fence held.
 const PINNED: &[(&str, u32, u64)] = &[
     ("die", 206, 0x1d1f8e2cc2c77841),
     ("die", 217, 0xd99f3cebb7d169d6),
@@ -69,7 +76,7 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("heat_sink", 118, 0xd6b1054fe079adfd),
     ("kitchen_sink", 95, 0x6c3d200d1683b9be),
     ("die_pips", 68, 0xa472d779713b2147),
-    ("part_select", 60, 0xeabe5e43112b3fad),
+    ("part_select", 60, 0x30817a0fd48274c3),
     ("die_composed", 68, 0xa472d779713b2147),
     ("die_composed_tour", 72, 0x946fdec16be6d4dd),
     ("die_composed_tour", 81, 0x8eaed71b23301bfd),

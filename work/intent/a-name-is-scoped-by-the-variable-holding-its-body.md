@@ -24,12 +24,15 @@ that placement is built.
 
 The work:
 
-- `NodeValue.name_table` becomes one table per output variable, and the
-  evaluator's `Results` is keyed by the read (`VarId`), not the node.
-  The per-operand overlays that project a split's ports
-  (`split_ports_projected`, the overlays in `run_op`) retire with it; this
-  is the target `part-split-half-retires` already names, so the two are
-  built together or this one after it.
+- `NodeValue.name_table` becomes one table per output variable: a
+  value's outputs each carry their names (`OutputNames`, private to the
+  evaluator), and every reader reaches one through its read alone, by
+  the one door `Evaluation::table(var)` (wire's read delegating to it).
+  Node-level standing stays per node. A read of a split's port is a
+  lookup of that port's table (`reads_projected`); the per-operand
+  overlays that projected one node table onto a port retire with it;
+  this is the target `part-split-half-retires` already names, so the two
+  are built together or this one after it.
 - A split's roles drop the half: `SplitBody(half)` becomes a plain body
   role, `SectionFace { side, section }` → `SectionFace { section }`, and
   likewise `SectionEdge`, `SplitFragment` and `CrossingVertex`. The

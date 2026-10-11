@@ -1432,25 +1432,25 @@ impl Evaluation {
     /// Empty when the node has no value, no name table, or no edges.
     /// The fillet node is what refuses an EMPTY selection, so the
     /// emptiness surfaces there rather than here.
-    fn all_edges(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<String>> {
-        names(py, pncad::select::all_edges(&self.inner, node.0))
+    fn all_edges(&self, py: Python<'_>, node: super::doc::OperandArg) -> PyResult<Vec<String>> {
+        names(py, pncad::select::all_edges(&self.inner, node.at()))
     }
 
     /// Every FACE name of `node`'s output, [`Self::all_edges`]'s
     /// sibling — same contract, same alphabet.
-    fn all_faces(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<String>> {
-        names(py, pncad::select::all_faces(&self.inner, node.0))
+    fn all_faces(&self, py: Python<'_>, node: super::doc::OperandArg) -> PyResult<Vec<String>> {
+        names(py, pncad::select::all_faces(&self.inner, node.at()))
     }
 
     /// Every VERTEX name of `node`'s output, same contract.
-    fn all_vertices(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<String>> {
-        names(py, pncad::select::all_vertices(&self.inner, node.0))
+    fn all_vertices(&self, py: Python<'_>, node: super::doc::OperandArg) -> PyResult<Vec<String>> {
+        names(py, pncad::select::all_vertices(&self.inner, node.at()))
     }
 
     /// Every BODY name `node`'s evaluation carries, same contract.
     /// Usually one row; a split's two halves are the plural case.
-    fn all_bodies(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<String>> {
-        names(py, pncad::select::all_bodies(&self.inner, node.0))
+    fn all_bodies(&self, py: Python<'_>, node: super::doc::OperandArg) -> PyResult<Vec<String>> {
+        names(py, pncad::select::all_bodies(&self.inner, node.at()))
     }
 
     /// **Materialize a STRUCTURAL selection**: every name of `node`'s
@@ -1468,10 +1468,10 @@ impl Evaluation {
     fn select(
         &self,
         py: Python<'_>,
-        node: &NodeId,
+        node: super::doc::OperandArg,
         selector: &super::select::Selector,
     ) -> PyResult<Vec<String>> {
-        names(py, pncad::select::select(&self.inner, node.0, &selector.0))
+        names(py, pncad::select::select(&self.inner, node.at(), &selector.0))
     }
 
     /// **Materialize a selection narrowed by GEOMETRY**: `selector`
@@ -1500,7 +1500,7 @@ impl Evaluation {
     fn select_where(
         &self,
         py: Python<'_>,
-        node: &NodeId,
+        node: super::doc::OperandArg,
         selector: &super::select::Selector,
         geom: Vec<super::select::GeomPred>,
     ) -> PyResult<Vec<String>> {
@@ -1508,7 +1508,7 @@ impl Evaluation {
         let atoms: Vec<pncad::select::GeomPred> = geom.into_iter().map(|g| g.0).collect();
         match pncad::select::select_where(
             &self.inner,
-            node.0,
+            node.at(),
             &selector.0,
             &atoms,
             &self.params,
@@ -1546,11 +1546,11 @@ impl Evaluation {
     fn face_frame(
         &self,
         py: Python<'_>,
-        node: &NodeId,
+        node: super::doc::OperandArg,
         name: &str,
     ) -> PyResult<super::readback::Pose> {
         let name = super::doc::name_from_text(name)?;
-        pncad::select::face_frame(&self.inner, node.0, &name)
+        pncad::select::face_frame(&self.inner, node.at(), &name)
             .map(super::readback::Pose)
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
@@ -1568,11 +1568,11 @@ impl Evaluation {
     fn edge_frame(
         &self,
         py: Python<'_>,
-        node: &NodeId,
+        node: super::doc::OperandArg,
         name: &str,
     ) -> PyResult<super::readback::Pose> {
         let name = super::doc::name_from_text(name)?;
-        pncad::select::edge_frame(&self.inner, node.0, &name)
+        pncad::select::edge_frame(&self.inner, node.at(), &name)
             .map(super::readback::Pose)
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
@@ -1585,11 +1585,11 @@ impl Evaluation {
     fn vertex_position(
         &self,
         py: Python<'_>,
-        node: &NodeId,
+        node: super::doc::OperandArg,
         name: &str,
     ) -> PyResult<(Length, Length, Length)> {
         let name = super::doc::name_from_text(name)?;
-        pncad::select::vertex_position(&self.inner, node.0, &name)
+        pncad::select::vertex_position(&self.inner, node.at(), &name)
             .map(lengths)
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
@@ -1615,11 +1615,11 @@ impl Evaluation {
     fn face_carrier_kind(
         &self,
         py: Python<'_>,
-        node: &NodeId,
+        node: super::doc::OperandArg,
         name: &str,
     ) -> PyResult<super::select::SurfaceKind> {
         let name = super::doc::name_from_text(name)?;
-        pncad::select::face_carrier_kind(&self.inner, node.0, &name)
+        pncad::select::face_carrier_kind(&self.inner, node.at(), &name)
             .map(super::select::surface_kind)
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
@@ -1638,11 +1638,11 @@ impl Evaluation {
     fn denotation(
         &self,
         py: Python<'_>,
-        node: &NodeId,
+        node: super::doc::OperandArg,
         name: &str,
     ) -> PyResult<super::readback::Denotation> {
         let name = super::doc::name_from_text(name)?;
-        pncad::select::denotation(&self.inner, node.0, &name)
+        pncad::select::denotation(&self.inner, node.at(), &name)
             .map(super::readback::Denotation)
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }

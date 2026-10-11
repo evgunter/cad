@@ -343,14 +343,20 @@ fn both_sweeps_evaluate_in_one_document() {
 /// RE-BLESSED, `cut_cylinder` only, when a split's section face came to
 /// take its chart axis as its first chord projected into the plane: the
 /// tilted section's `u_ref` moved by one ulp in `z`, and nothing else did.
+///
+/// RE-BLESSED, `cut_cylinder` and `kitchen_sink`, the two holding a
+/// split, when a name came to be scoped by the variable holding its body
+/// (FORK-DM4 unit 2): the split's halves are two tables, which this
+/// digest's name table feed reads, and its names spell no half. No body
+/// moved: the id-masked geometry fence held.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0xa61c_0c7e_53e4_ef7f),
         ("corner_table", 0x3a0c_c743_4ba5_7aed),
-        ("cut_cylinder", 0xa6c1_1622_9a6f_5245),
+        ("cut_cylinder", 0x17d8_7760_c728_b7f6),
         ("boss_union", 0x95b5_a63f_f861_7235),
-        ("kitchen_sink", 0xe9f2_08e8_5449_a003),
+        ("kitchen_sink", 0xfcad_2de0_d2ba_0e7a),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

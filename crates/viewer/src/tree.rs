@@ -1143,6 +1143,7 @@ pub fn interrogation_as_drawn(
         | InterrogateError::WholeBody
         | InterrogateError::NoBodies { .. }
         | InterrogateError::NoSuchBody { .. }
+        | InterrogateError::SeveralOutputs { .. }
         | InterrogateError::Readback(_) => error,
     }
 }

@@ -865,6 +865,16 @@ impl OperandArg {
             Self::Var(var) => d::Operand::Var(var.0),
         }
     }
+
+    /// Where a name door reads a table (NAMES N1, the scope): a node
+    /// named alone at its one output, or a variable — a split's half by
+    /// its port's.
+    pub(crate) fn at(self) -> pncad::select::At {
+        match self {
+            Self::Node(node) => pncad::select::At::Node(node.0),
+            Self::Var(var) => pncad::select::At::Read(var.0),
+        }
+    }
 }
 
 /// **One member of a family, read by index** (REFERENCES DM3): `xs[i]`,

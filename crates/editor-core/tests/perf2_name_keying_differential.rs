@@ -154,6 +154,17 @@ fn sans_epsilon(t: &str) -> String {
 /// selection variable each such node reads, so their node ids moved and
 /// every row naming them; every other row held its word, and the
 /// id-masked geometry fence held untouched.
+///
+/// **Re-pinned for FORK-DM4 unit 2** (a name is scoped by the variable
+/// holding its body): `cut_cylinder`, `kitchen_sink` and `part_select`,
+/// the three documents holding a split. A split's two halves are two
+/// tables and its names spell no half, so each row walks both tables of
+/// the half-free names; `part_select`'s union, which declares the rest
+/// between the halves by the section face, also took a new id. Every
+/// other row held its word, and the id-masked geometry fence held.
+/// The persisted text moved in `kitchen_sink` (its appearance key is
+/// now a body read and a name) and `part_select` (its union's declared
+/// names); `cut_cylinder`'s held.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0x7c0063c6f610214a, 0xb9fd427959fee070),
     ("corner_table", 0xeed262c8399c88d5, 0xa0430bdc34cc13fb),
@@ -171,8 +182,8 @@ const PINNED: &[(&str, u64, u64)] = &[
         0xa95f171e06017d0b,
     ),
     ("declared_tangency", 0xe7249c941ad4e6dd, 0x4ef7c39092eca21a),
-    ("kitchen_sink", 0x37558c266b941c5a, 0xb7b95e5ed05b1b21),
-    ("cut_cylinder", 0x366fa42a35257323, 0x0b1584874c6521a2),
+    ("kitchen_sink", 0x31445fdcbbf95c4a, 0xc98d4973a70d6e01),
+    ("cut_cylinder", 0x6184d061f986e7dd, 0x0b1584874c6521a2),
     ("measured_web", 0x2d097b245fc55683, 0xe50e6ef2701011c2),
     ("boss_union", 0xbcca43ef807fea26, 0x6e5620818bd119f8),
     ("die_fillet", 0x5f66bd80c3d330ba, 0xcc827f4ab84ab2f7),
@@ -181,7 +192,7 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("heat_sink_fins", 0x248682fac9898b5a, 0xbdeed2f79c7c0af9),
     ("die_tool", 0x9009ee9ed80f29e7, 0xa3b3702e2dcb61fa),
     ("face_sketch", 0x25f0c5c4ab521837, 0x6ff3c25647b7831b),
-    ("part_select", 0x532deffc6bc26c61, 0x1cba794c32dcc54c),
+    ("part_select", 0x960492de0f766bb7, 0x203f508d658fd7c7),
     ("loft_prism", 0x9f15f3e0cf1e8ace, 0xc7ef1ffc56e06ac4),
     ("die_composed", 0xc77cf9d76cdd0346, 0x37861c55cc0974b2),
     ("die_composed_tour", 0xd3584553e82d23be, 0xd42d9188c66b7992),

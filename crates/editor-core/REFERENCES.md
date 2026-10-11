@@ -134,7 +134,8 @@ is stored. `select_where` filters on `SurfaceKind` exactly
 
 A `Split` defines two `Body` outputs, `above` and `below` (the port index is
 `SplitHalf::output_body`'s), read like any other output: a read of a port
-is that half, its body and its rows of the split's table. One member of a
+is that half, its body and its own name table (N1: one table per output
+variable). One member of a
 family (D10, Repetition) is read as `xs[i]`, or `xs[i, j]` for a family
 keyed by two indices: a read of the family at one `Count` expression per
 index (VR4); an index outside the

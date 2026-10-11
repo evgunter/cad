@@ -109,8 +109,8 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// …'s above"), where a `Part` was said by its one tag. The percentiles
 /// and maxima held.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 43, 57, 55_705]),
-    ("full", [19, 123, 196, 411_418]),
+    ("scoped faces", [16, 43, 57, 55_615]),
+    ("full", [19, 123, 196, 410_900]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -152,7 +152,16 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// `part_select`'s union reading the split's ports moved it with
 /// [`NAME_WORDS`]: its members are said as the ports, and the nodes
 /// minted after the two `Part`s it no longer holds took new tags.
-const SAID_DIGEST: u64 = 0x5dec_4f41_9ab8_a75b;
+///
+/// FORK-DM4 unit 2 (a name is scoped by the variable holding its body)
+/// moved it with [`NAME_WORDS`], in `cut_cylinder`, `kitchen_sink` and
+/// `part_select` alone, each holding a split: a split's names say no
+/// half ("section face 0 above the split" is "the split's section face
+/// 0", "the part above the split of" is "the split's part of"), and
+/// `part_select`'s union, which declares the rest between the halves by
+/// the half-free section face, took a new tag (`Union 2c250e7cb491` is
+/// now `… 0740ba2c7086`). Both totals shrank; no other word moved.
+const SAID_DIGEST: u64 = 0x93e2_1b00_d8c0_6591;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

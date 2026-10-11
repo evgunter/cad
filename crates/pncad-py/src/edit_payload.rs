@@ -616,6 +616,9 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         | EditError::NameUnresolvedInEvaluation { name }
         | EditError::AppearanceWrongKind { name }
         | EditError::AppearanceNamesMissingNode { name }
+        // The body read crosses in the message; the name is what the
+        // caller wrote and repairs.
+        | EditError::AppearanceBodyNotARead { name, .. }
         // The step and the counter cross in the message; the name is
         // what the caller wrote and repairs.
         | EditError::NameStepNeverMinted { name, .. } => EditPayload {
