@@ -963,3 +963,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Held: the derivation, the R term (7 over against main's 114), and e2e unions right in 24/24 per ε against main's 4/24.
   - Per rule 1's SEQUENTIAL arm, a MAJOR means a fix pass, then a SECOND review. Fix pass: cloud session `session_014SQNMgXS5CuJTwS7YqkWGd`. Report saved at `scratchpad/dr4646/R1.md`.
 - 2026-10-11 10:14 — Check-in: nothing ready. The 4646 fix pass started at 10:06; U-T2 has no PR yet.
+- 2026-10-11 20:10 — Usage is back after a pause of about 9h (the 11:16 check-in fired late). Both cloud lanes are on worker epoch 2 and running again: the 4646 fix pass (no new push yet; head still 8fd2ee212) and U-T2 (running its ring-closure mutants; no branch pushed yet). No local lanes were in flight. Re-armed for 21:11.
