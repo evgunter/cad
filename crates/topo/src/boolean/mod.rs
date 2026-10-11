@@ -4694,8 +4694,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         let (_, a_sectors, b_sectors, records, raw, (sector_records, sector_raw)) =
             &mut classified[i];
         (*records, *raw) = (sector_records.clone(), sector_raw.clone());
-        // A reversal moves a germ between flankers and reads no touch
-        // the first pass did not.
+        let mut retouched = Vec::new();
         recl::recl_edges(
             records,
             raw,
@@ -4707,8 +4706,16 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             &declared,
             band,
             &reversed,
-            &mut Vec::new(),
+            &mut retouched,
         )?;
+        // A reversal moves a germ between flankers, after the touch is
+        // read: the pass reads the touches the first did.
+        let first = line_touches.iter().filter(|(j, _)| *j == i).map(|(_, he)| he);
+        if !retouched.iter().eq(first) {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a reversed edge pass reads other touches than the first pass at its vertex pair",
+            });
+        }
     }
     let mut plans = classified
         .iter()
@@ -4776,20 +4783,22 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
 /// classification read at vertex pair `vv[i]` (`recl::recl_edges`), the
 /// two half-edges' edges, where both are lines, recorded as A's edge
 /// and B's. The reduction split each edge at every vertex of the other
-/// lying on it, so the two edges run between the same two points, and
-/// the row cites what C3's shortest chain asks of a pair two vertex
-/// identities imply: the vertex record at this end, `vv[i]`, and the
-/// one at the far end, the row pairing the two edges' far vertices.
-/// Read before the insertion, while every edge still ends at the
-/// vertex its row names. A touch along two curved edges writes no row:
-/// two arcs leaving a vertex along one tangent need not coincide.
+/// lying on it, so the two edges run between the same two points, each
+/// a vertex pair the classification reads, and it reads the touch at
+/// both. The row cites what C3's shortest chain asks of a pair two
+/// vertex identities imply: the vertex records at its two ends, the two
+/// pairs it was read at. Read before the insertion, while every edge
+/// still ends at the vertex its row names. A touch along two curved
+/// edges writes no row: two arcs leaving a vertex along one tangent
+/// need not coincide.
 ///
 /// # Errors
 ///
 /// [`BooleanError::JoinDesync`] where a half-edge does not resolve or
 /// its edge does not end at the pair's vertex;
-/// [`BooleanError::ClassificationInvariant`] where the far ends carry
-/// no vertex record: a bound D1 never infers.
+/// [`BooleanError::ClassificationInvariant`] where a touch is read at
+/// other than its two ends: an end with no vertex record is a bound D1
+/// never infers.
 fn touch_rows<T: Real>(
     a: &Body<T>,
     b: &Body<T>,
@@ -4797,48 +4806,41 @@ fn touch_rows<T: Real>(
     touches: &[(usize, [HalfEdgeKey; 2])],
 ) -> Result<Vec<Cited<EeContact>>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    // The edge `he` lies on, and its end other than `near`.
-    let far = |body: &Body<T>, he: HalfEdgeKey, near: VertexKey| {
+    // The edge `he` lies on, which ends at `near`.
+    let edge = |body: &Body<T>, he: HalfEdgeKey, near: VertexKey| {
         let edge = body
             .get_half_edge(he)
             .map(|h| h.edge)
             .ok_or_else(|| desync("a touch's half-edge does not resolve"))?;
-        let ends = body
-            .get_edge(edge)
-            .and_then(|e| {
-                Some([
-                    body.get_half_edge(e.he_plus)?.start,
-                    body.get_half_edge(e.he_minus)?.start,
-                ])
-            })
-            .ok_or_else(|| desync("a touch's edge does not resolve"))?;
-        let other = match ends {
-            [v, w] if v == near => w,
-            [w, v] if v == near => w,
-            _ => return Err(desync("a touch's edge does not end at its vertex pair")),
-        };
-        Ok((edge, other))
+        match body.edge_vertices(edge) {
+            Some((v, w)) if near == v || near == w => Ok(edge),
+            Some(_) => Err(desync("a touch's edge does not end at its vertex pair")),
+            None => Err(desync("a touch's edge does not resolve")),
+        }
     };
-    let mut out: Vec<Cited<EeContact>> = Vec::new();
+    // Each pair of edges, and the vertex pairs it was read at.
+    let mut read: Vec<(EeContact, Vec<usize>)> = Vec::new();
     for &(i, [ha, hb]) in touches {
-        let here = &vv[i];
-        let (ea, fa) = far(a, ha, here.a)?;
-        let (eb, fb) = far(b, hb, here.b)?;
+        let ea = edge(a, ha, vv[i].a)?;
+        let eb = edge(b, hb, vv[i].b)?;
         if !(crate::census::edge_is_line(a, ea) && crate::census::edge_is_line(b, eb)) {
             continue;
         }
-        let there = vv.iter().find(|c| (c.a, c.b) == (fa, fb)).ok_or(
-            BooleanError::ClassificationInvariant {
-                what: "two edges touching along a line have no vertex record at their far end",
-            },
-        )?;
-        let cites = here.cites.union(&there.cites);
-        match out.iter_mut().find(|r| (r.a, r.b) == (ea, eb)) {
-            Some(r) => r.cites = r.cites.union(&cites),
-            None => out.push(Cited::new(EeContact { a: ea, b: eb }, cites)),
+        let pair = EeContact { a: ea, b: eb };
+        match read.iter_mut().find(|(p, _)| *p == pair) {
+            Some((_, ends)) if ends.contains(&i) => {}
+            Some((_, ends)) => ends.push(i),
+            None => read.push((pair, vec![i])),
         }
     }
-    Ok(out)
+    read.into_iter()
+        .map(|(pair, ends)| match ends[..] {
+            [here, there] => Ok(Cited::new(pair, vv[here].cites.union(&vv[there].cites))),
+            _ => Err(BooleanError::ClassificationInvariant {
+                what: "two edges touching along a line are read at other than their two ends",
+            }),
+        })
+        .collect()
 }
 
 /// A point where the insertion hung runs at a turned run's copy

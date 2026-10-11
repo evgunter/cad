@@ -1414,15 +1414,13 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             });
         }
         if !germ_a {
-            // A flanking face the op keeps: one outside the other solid
-            // under a union, inside it under an intersection, and under a
-            // subtraction A's outside B and B's inside A.
-            let kept = |inside: bool, own_is_a: bool| match op {
-                BooleanOp::Union => !inside,
-                BooleanOp::Intersect => inside,
-                BooleanOp::Subtract => inside != own_is_a,
+            // A flanking face the op keeps lies on its operand's kept side.
+            let kept = |inside: bool, operand| {
+                let side = if inside { SideCode::In } else { SideCode::Out };
+                side == super::finish::kept_side(op, operand)
             };
-            let both = a_in.iter().all(|&i| kept(i, true)) && b_in.iter().all(|&i| kept(i, false));
+            let both = a_in.iter().all(|&i| kept(i, Operand::A))
+                && b_in.iter().all(|&i| kept(i, Operand::B));
             return Ok(if both {
                 EdgeEdge::Touch
             } else {

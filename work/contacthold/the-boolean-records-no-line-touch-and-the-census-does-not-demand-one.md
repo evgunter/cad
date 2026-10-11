@@ -51,7 +51,10 @@ Two parts of the code still follow the pre-4547 reading:
 - Make `ee_collinear_lane` demand the stored row.
 - Re-baseline the planar pins' vertex–vertex-only counts.
 
-The same-side fork's build (removing the short-circuit) lands with this
-row's `ee` writer in one PR (orchestrator's sequencing call). FUSE's
+The same-side fork's build (removing the short-circuit) does not land
+with this row's `ee` writer: it waits on Ev's ruling in `[ev]` PR 4723
+(`a-same-side-tangent-touch-refuses-at-every-op`). Once the
+short-circuit goes, a same-side tangent touch reaches the writer with no
+further plumbing. FUSE's
 `a-line-edge-in-a-curved-faces-interior-is-recorded-at-its-ends-only` is
 the edge–face slice of the same gap.

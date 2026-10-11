@@ -673,13 +673,17 @@ fn three_prisms_flush_along_one_line_build_undeclared_in_every_member_order() {
     }
 }
 
-/// **Carrying each step's own contact records serves the same body
+/// **The carried fold serves the uncarried fold's body and passes 3′
 /// (D10)**: every member order of the 50° fixture, of four prisms, and
 /// of the 50° fixture with a corner moved 0.1ε, each step carrying the
-/// records the step before it returned, builds the uncarried fold's
-/// body.
+/// records the step before it returned. Where each step carries the
+/// last one's records nothing on the line is dropped, so the result
+/// passes 3′ with no finding: the `dropped` counts [`every_order`] pins
+/// are the uncarried fold's alone. Red if the carry changes the body,
+/// if a carried edge-edge row's lineage loses a touch, or if the census
+/// asks for a row the carry never brings.
 #[test]
-fn carrying_each_steps_records_serves_the_same_body() {
+fn the_carried_fold_passes_three_prime_in_every_member_order() {
     let eps = t().eps();
     for (label, prisms) in [
         ("three", three()),
@@ -694,6 +698,7 @@ fn carrying_each_steps_records_serves_the_same_body() {
             let uncarried = shape(&fold(&members, &order).unwrap().body);
             let mut body = members[order[0]].clone();
             let mut carried = topo::OperandRecords::default();
+            let mut last = None;
             for (k, &i) in order.iter().enumerate().skip(1) {
                 let inputs = topo::BooleanInputs {
                     records_a: carried,
@@ -711,9 +716,17 @@ fn carrying_each_steps_records_serves_the_same_body() {
                     other => panic!("{what}: step {k}: {other:?}"),
                 };
                 carried = r.contacts.carried();
-                body = r.body;
+                body = r.body.clone();
+                last = Some(r);
             }
             assert!(shape(&body) == uncarried, "{what}: another body");
+            let r = last.expect("at least two members");
+            assert_eq!(
+                validate_pseudomanifold(&r.body, &r.contacts, t()).err(),
+                None,
+                "{what}: the carried fold at 3′ ({} e-e rows)",
+                r.contacts.edge_edge().count()
+            );
         }
     }
 }

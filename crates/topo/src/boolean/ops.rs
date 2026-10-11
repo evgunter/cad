@@ -3027,8 +3027,8 @@ fn piece_holds<T: Decide>(
 /// vertex-vertex row with the split vertex when its vertex is at it,
 /// stays on the parent when its vertex lies on the parent's span, and
 /// moves to the child otherwise. Each is asked as the census asks it
-/// ([`crate::census::on_segment_interior`]), as [`ee_lineage`] asks
-/// its own, so what lands is what the census confirms. Every edge-edge
+/// ([`crate::census::on_segment_interior`]), so what lands is what the
+/// census confirms. Every edge-edge
 /// row is placed by [`ee_lineage`]. Nothing searches the result for an
 /// edge the vertex lies on.
 ///
@@ -3229,11 +3229,14 @@ fn pieces<T: Real>(
 /// split minted on the contact is recorded against the other edge's
 /// piece it rests on (or the vertex it meets). An edge-edge record
 /// names no vertex, so where the contact lies is decided against the
-/// pieces themselves, by the census's own segment questions
-/// ([`crate::census`]), so what lands is what the census confirms. Only
-/// the record's own lineage is read: its two edges' pieces, never
-/// another cell of the body. A bound the record already had is a vertex
-/// record of its own, carried by its own lineage, and is not restated.
+/// pieces themselves, on the census's own span and segment predicates
+/// ([`crate::census`]): the span first, since a short piece's line
+/// extrapolated along a long one reads a gap the piece does not have,
+/// then the segment question on either piece's line, the first decided
+/// answer. Only the record's own lineage is read: its two edges'
+/// pieces, never another cell of the body. A bound the record already
+/// had is a vertex record of its own, carried by its own lineage, and is
+/// not restated.
 ///
 /// # Errors
 ///
@@ -3278,9 +3281,6 @@ fn ee_lineage<T: Decide>(
     for pa in &a {
         for pb in &b {
             let (sa, sb) = (segment(pa)?, segment(pb)?);
-            // The census's question reads the gap on its first segment's
-            // line, which a short piece extrapolates along a long one:
-            // asked on either piece's line, the first decided answer.
             let meet = || {
                 crate::census::segment_interiors_meet(sa, sb, band)
                     .or_else(|_| crate::census::segment_interiors_meet(sb, sa, band))
@@ -3341,7 +3341,7 @@ fn ee_lineage<T: Decide>(
                             let fresh = decide_one(
                                 pending,
                                 (side, Cell::Vertex(v)),
-                                (side, Cell::Vertex(uncopied(null_edges, side, w))),
+                                (side, Cell::Vertex(uncopied(null_edges, side, w)?)),
                                 margin,
                             );
                             push_cited(
@@ -3362,11 +3362,16 @@ fn ee_lineage<T: Decide>(
 /// edge minted `v` at another vertex, that vertex, read back through
 /// every null edge that hangs at a copy; `v` itself where none did. A
 /// decision's cells name the op's input, which holds no copy.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] where the copies' null edges close a
+/// cycle, so no vertex is the original.
 fn uncopied<T: Real>(
     null_edges: &[super::BoolNullEdgeRecord<T>],
     side: Operand,
     mut v: VertexKey,
-) -> VertexKey {
+) -> Result<VertexKey, BooleanError> {
     for _ in 0..=null_edges.len() {
         let minted = null_edges.iter().find(|r| {
             r.operand == side
@@ -3375,10 +3380,12 @@ fn uncopied<T: Real>(
         });
         match minted {
             Some(r) => v = r.at_vertex,
-            None => return v,
+            None => return Ok(v),
         }
     }
-    v
+    Err(BooleanError::JoinDesync {
+        what: "a vertex's null-edge copies close a cycle with no original",
+    })
 }
 
 /// One operand's own records re-entering an op, in its keys: the cell

@@ -1178,10 +1178,10 @@ fn pair_verified<T: Decide>(
 /// Snapshot drops one thing more than this models: a certified line
 /// edge whose endpoints do not resolve (tier 1 guarantees they do, so
 /// the skip's premise is not weakened by the difference in practice —
-/// but the difference is real, and it is here, not implied). Three
-/// further copies of the same match live outside the census
-/// (`merge_faces`, `validate`, `boolean::ops`); each answers its own
-/// question, not the snapshot's.
+/// but the difference is real, and it is here, not implied). The
+/// boolean's edge-edge rows (`boolean::touch_rows`) ask this one;
+/// `validate`'s segment readers match the carrier themselves, each
+/// answering its own question, not the snapshot's.
 pub(crate) fn edge_is_line<T: Real>(body: &Body<T>, ek: crate::entity::EdgeKey) -> bool {
     body.edges
         .get(ek)
@@ -6873,7 +6873,7 @@ pub(crate) fn segments_apart<T: Decide>(
 ) -> bool {
     let e = segment(a);
     let [t0, t1] = [b.0, b.1].map(|p| (p - e.p0).dot(e.dir));
-    let sign = |m: T| decide("pm_census_ee_overlap", Margin::of(m), band);
+    let sign = |m: T| decide("pm_census_ee_apart", Margin::of(m), band);
     let before = |t: T| sign(t) == Ok(Sign::Negative);
     let after = |t: T| sign(t - e.len) == Ok(Sign::Positive);
     (before(t0) && before(t1)) || (after(t0) && after(t1))
@@ -12365,9 +12365,9 @@ mod records_by_carrier {
         assert_eq!(origin.len(), 2, "a corner of each at the origin");
         let onto = body.vertices[origin[0]].point;
         body.share_point(&origin, onto).expect("both resolve");
-        let [tip] = at(&body, [0.5, 0.0, 0.0])[..] else {
-            panic!("the brick's corner on the cube's edge")
-        };
+        let tip = at(&body, [0.5, 0.0, 0.0]);
+        assert_eq!(tip.len(), 1, "the brick's corner on the cube's edge");
+        let tip = tip[0];
         let a_edge = edge_at(&body, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
         let c_edge = edge_at(&body, [0.0, 0.0, 0.0], [0.5, 0.0, 0.0]);
         let row = |x: Cell, y: Cell, k: u32| {
