@@ -24,6 +24,13 @@ client over the API), functional style, fail-loud.
   against, and they bind the orchestrator's own judgement too (e.g. a
   golden or stored bit that changes is never a cost to weigh against a
   change that makes the code right — re-baseline and say what moved).
+- **After a context compaction, an orchestrator re-reads its docs in
+  full before acting again**: `work/README.md`, the three prompts above,
+  `memories/orchestration-model.md`, and the memories `memories/MEMORY.md`
+  points it to for its work. A compaction summary keeps the task and
+  drops the standing exceptions. One that went missing cost hours: a
+  docs-only conflict resolution on a green head merges without a fresh
+  CI run.
 
 ## Memory convention (important)
 
