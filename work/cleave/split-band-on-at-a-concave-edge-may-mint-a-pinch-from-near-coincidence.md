@@ -163,3 +163,29 @@ change: (1) the δ = 5e-10 arm refusing in kernel-defect voice at the
 attachment gate, and (2) `SliverVertex`'s "within tolerance" text firing
 beyond ε. Item 3 (a scratch row for the undeclared refusal) belonged to
 the `SplitDeclarations` design D10 replaced, and lapses with it.
+
+## Built (branch cleave/band-on-pinch-residue)
+
+Measured on main (7244e06f5b), `NOTCHED` and `MIRRORED` under `±n`,
+`plane_y(1 + δ)`, at ε = 1e-9, 1e-6 and 1e-12:
+
+- **Item 1 was a kernel defect, not an honest refusal.** For
+  ε/8 < |δ| ≤ ε the split read the vertices ON, then refused at the
+  attachment gate (the chart residual, 8δ, in band, in kernel-defect
+  voice) or, in the mirror lane, as "a section is degenerate: it bounds
+  zero area". The cause: `section_loops::chord_u_ref` took the section
+  face's `u_ref` as the loop's first chord, unprojected. That chord
+  runs from a crossing minted on the plane to a corner δ off it, so the
+  chart axis leaned δ per unit out of the plane and the 8-long section's
+  edges missed their images by 8δ. Fixed: the axis is the chord's
+  in-plane component. Every |δ| < ε now cuts, with valid halves and the
+  pinch recorded, as δ ≤ ε/8 already did.
+- **Item 2.** `SliverVertex` fires only on a margin in (ε, Kε] or an
+  unreadable one, never within ε. Its text now reads "whether a vertex
+  lies on the split plane is undecided: margin … lies inside the
+  ambiguity band (…). Recourse: move the split plane or the geometry",
+  with an unreadable margin's note where one applies.
+
+Pins in `crates/topo/tests/m3_pr3_split.rs`, red on main at every ε:
+`a_plane_within_eps_of_a_pinch_cuts_it_and_records_the_pinch` and
+`a_vertex_in_the_band_of_the_split_plane_refuses_as_undecided`.
