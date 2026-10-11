@@ -243,9 +243,10 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
             "eps {eps:e}: the fit stopped at {achieved:e} on {grid:?}"
         );
     } else {
-        // Limb 2's value at a break: 1.64e-6 m at 1e-9, past the band,
-        // so it refuses outright; 1.02e-6 m at 1e-6, in the band, so it
-        // escalates.
+        // Limb 2's hull value at a break on the rim: 1.5994e-6 m at 1e-9,
+        // past the band, so it refuses outright; 1.02e-6 m at 1e-6, in the
+        // band, so it escalates. It moves when the rim's derivation does,
+        // so the 1e-9 arm reads it within 5%.
         let ReplaceFaceError::Op {
             error: topo::EulerOpError::RechartFalsifies { edge, error, .. },
             ..
@@ -263,7 +264,7 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
             };
             let value = margin.diagnostic_f64_for_error_text().value();
             assert!(
-                value.is_some_and(|v| (1.6e-6..1.7e-6).contains(&v)),
+                value.is_some_and(|v| (v - 1.5994e-6).abs() <= 0.05 * 1.5994e-6),
                 "eps {eps:e}: limb 2 reads {value:?}"
             );
         } else {

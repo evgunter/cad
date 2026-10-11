@@ -30,7 +30,7 @@ At the default ε 1e-9 the rim was unreached until SHELL's PR 4672 let
 the walls' offset fits certify there. It now refuses there outright,
 past the band: `RechartFalsifies { door: SetFaceSurfacesDescribing,
 edge: EdgeKey(12v1), error: PlaneNurbs(Limb { limb: HullValueChart,
-margin: Value(1.6377699604722858e-6) }) }`. It is pinned per ε in the
+margin: Value(1.599441575127619e-6) }) }` (1.6378e-6 before main's 2026-10-11 rim changes). It is pinned per ε in the
 same row.
 
 The raising site is `edge_nurbs::plane_nurbs_limbs`, whose chart image

@@ -33,4 +33,4 @@ The lever, ruled by the orchestrator:
 
 The saddle wall certifies at the default ε for `d = ±0.05` (49×26, round 9) and `±0.01`. At 1e-12 it stops at the cap on 62×35. These are pinned in `crates/sweep/tests/saddle_wall_offset_fit.rs`.
 
-The loft's shell now stops next at a top rim's plane × fit limb 2 at 1e-9 (1.64e-6 m, above the band). That is `work/iso/a-moved-lofts-top-rim-refuses-its-at-rest-certificate.md`, pinned in `shelling_the_curved_loft_refuses_at_a_walls_fit`.
+The loft's shell now stops next at a top rim's plane × fit limb 2 at 1e-9 (1.60e-6 m, above the band). That is `work/iso/a-moved-lofts-top-rim-refuses-its-at-rest-certificate.md`, pinned in `shelling_the_curved_loft_refuses_at_a_walls_fit`.
