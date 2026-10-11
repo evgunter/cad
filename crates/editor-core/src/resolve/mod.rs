@@ -337,11 +337,11 @@ impl ResolveError {
 /// Why a name vanished.
 ///
 /// N5's arms, including [`Self::GroupResized`] and the border delta
-/// ([`Self::BorderDelta`]), plus two additions that are NOT N5's and
-/// are marked as such wherever they are read: the reserved
+/// ([`Self::BorderDelta`]), plus one addition that is NOT N5's and is
+/// marked as such wherever it is read: the reserved
 /// `WitnessBifurcation` arm (SOLVER-DESIGN W3, constructed by the M6
-/// solver) and [`Self::ConsumedByFold`]. A consumer matching this enum
-/// is matching more than N5 wrote.
+/// solver). A consumer matching this enum is matching more than N5
+/// wrote.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Diagnosis {
     /// A recorded predicate flip on the name's derivation path — the
@@ -425,66 +425,6 @@ pub enum Diagnosis {
         /// What was found there.
         cause: UpstreamCause,
     },
-    /// An n-ary union's fold consumed the entity a member-space name
-    /// denotes, by a composition that leaves no one entity for the
-    /// name to denote — NOT N5's: the arm the rule *"a composition that
-    /// breaks one name denotes one entity refuses"* adds for the
-    /// compositions other than a merge. A merge's own case is looked
-    /// through, not refused (`Node::Union`).
-    ///
-    /// Read off the accumulation's rows at the step the name is fed
-    /// to, never by re-measuring the face: which composition consumed
-    /// it is the SHAPE of the rows that descend from it
-    /// ([`FoldConsumption`]). A refusal carrying this diagnosis offers
-    /// no replacement, because none is unique: a split and a
-    /// fragmented merge leave several candidates.
-    ///
-    /// The union is not a field: the name this diagnoses is a
-    /// member-space name, minted by that union, so it is the name's own
-    /// minting node, and the refusal carrying the name already says so.
-    ConsumedByFold {
-        /// How the fold consumed it.
-        by: FoldConsumption,
-    },
-}
-
-/// Which composition of a union's fold consumed a member's entity
-/// ([`Diagnosis::ConsumedByFold`]) — the structural shape of what the
-/// accumulation holds in its place.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FoldConsumption {
-    /// A later member SPLIT it: the accumulation holds fragments of
-    /// it (the name with `Fragment` qualifiers after it), bare or as
-    /// constituents of later merges, and never the name itself as a
-    /// face. The step that split it may also have merged part of it:
-    /// the name is then a constituent of a bare merged row beside its
-    /// own fragment, and that row holds only part of the face.
-    Split,
-    /// A declared MERGE consumed it and a later member split the
-    /// merged face: the accumulation holds fragments of a merged row
-    /// whose constituent set covers the name, and no bare merged row
-    /// that does.
-    FragmentedMerge,
-}
-
-// The composition as the clause of [`Diagnosis::ConsumedByFold`]'s
-// sentence that says what happened to the entity and why nothing is
-// offered in its place.
-impl core::fmt::Display for FoldConsumption {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(match self {
-            Self::Split => {
-                "a later member split it into fragments, some perhaps merged with \
-                 another member's face in the same step, and which piece the \
-                 reference means is not decidable from the names, so none is offered"
-            }
-            Self::FragmentedMerge => {
-                "a declared merge consumed it and a later member then split the merged \
-                 face, and which fragment the reference means is not decidable from the \
-                 names, so none is offered"
-            }
-        })
-    }
 }
 
 /// The seams on a resized group's parent that only one of the two runs
@@ -796,11 +736,6 @@ impl crate::spoken::Say for Diagnosis {
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
             }
-            Self::ConsumedByFold { by } => write!(
-                f,
-                "the union that minted it consumed it before the step its declared pair is \
-                 fed to: {by}"
-            ),
             Self::Upstream { node, cause } => write!(
                 f,
                 "{}, upstream of {}, the name's minting node, but not on its derivation path",
@@ -2272,9 +2207,6 @@ pub fn apply_with_names<T: Decide>(
             ..
         } => names.extend(read.selected_names()),
         DocEdit::Rebind { to, .. } => names.push(to),
-        DocEdit::SetDeclare { pairs, .. } => {
-            names.extend(pairs.iter().flat_map(|((a, b), _)| [&a.name, &b.name]));
-        }
         // Name-carrying and deliberately unchecked here: an appearance
         // name resolves at evaluation, where a miss is a typed
         // `AppearanceLoss` rather than a silent drop, and clearing is

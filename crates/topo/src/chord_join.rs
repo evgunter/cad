@@ -263,9 +263,8 @@ pub enum SplitJoinError {
     /// `work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`,
     /// or a planar one none of whose interior candidates certifies
     /// (`crate::stands`, rung 3) — or where the two solids' faces lie
-    /// within the band of each other (a
-    /// settled in-band coincidence,
-    /// `topo/tests/door_backstop_settled_residue.rs`). No kernel defect.
+    /// within the band of each other (a settled in-band coincidence).
+    /// No kernel defect.
     SectionLoopUndecided {
         /// The null face whose loops' roles went unread.
         face: FaceKey,
@@ -377,7 +376,7 @@ impl From<PointInLoopError> for SplitJoinError {
 /// under a split, which takes no declarations, and under a Boolean,
 /// which does; the levers true at both are the geometry and the
 /// tolerance, and `BooleanError::Join` adds the declaration.
-use geom_core::NO_DECLARATION_RECOURSE as JOIN_RECOURSE;
+use geom_core::COINCIDENCE_RECOURSE as JOIN_RECOURSE;
 
 impl core::fmt::Display for SplitJoinError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -4412,7 +4411,7 @@ mod tests {
             // under a Boolean.
             assert!(
                 err.to_string()
-                    .ends_with(&format!("Recourse: {}", geom_core::NO_DECLARATION_RECOURSE)),
+                    .ends_with(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE)),
                 "k = {k}: {err}"
             );
             assert!(

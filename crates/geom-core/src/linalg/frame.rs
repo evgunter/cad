@@ -138,7 +138,7 @@
 //! win; sharing an abstraction would cost a layer.
 
 use crate::linalg::{Affine3, Mat3, OrthoFrame, Point3, UnitVec3, UnitVec3Error, Vec3};
-use crate::predicate::{Band, BandError, Decide, Indeterminate, NO_DECLARATION_RECOURSE};
+use crate::predicate::{Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate};
 
 use crate::tolerance::Tol;
 
@@ -349,7 +349,7 @@ impl core::fmt::Display for FrameError {
                 indeterminate: None,
             } => write!(
                 f,
-                "the frame's {} is degenerate. Recourse: {NO_DECLARATION_RECOURSE}",
+                "the frame's {} is degenerate. Recourse: {COINCIDENCE_RECOURSE}",
                 input.name()
             ),
             FrameError::Degenerate {
@@ -358,7 +358,7 @@ impl core::fmt::Display for FrameError {
             } => i
                 .undecided(
                     input.subject(),
-                    crate::predicate::lever_recourse(NO_DECLARATION_RECOURSE, None),
+                    crate::predicate::lever_recourse(COINCIDENCE_RECOURSE, None),
                 )
                 .fmt(f),
             FrameError::NonFiniteLength { input } => write!(
@@ -1262,7 +1262,7 @@ mod tests {
         ] {
             let s = e.to_string();
             assert!(s.contains(needle), "{s}");
-            assert!(s.contains(NO_DECLARATION_RECOURSE), "{s}");
+            assert!(s.contains(COINCIDENCE_RECOURSE), "{s}");
             assert!(!s.contains("declare"), "{s}");
         }
         // The in-band arm: the decision in words, the classifier's
@@ -1292,7 +1292,7 @@ mod tests {
             "{s}"
         );
         assert!(s.contains("ambiguity band"), "{s}");
-        assert!(s.contains(NO_DECLARATION_RECOURSE), "{s}");
+        assert!(s.contains(COINCIDENCE_RECOURSE), "{s}");
         assert!(!s.contains("declare"), "{s}");
     }
 

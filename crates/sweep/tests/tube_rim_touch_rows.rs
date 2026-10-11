@@ -17,7 +17,7 @@
 
 use geom_core::{Point2, Point3, Tol};
 use topo::test_support::mapped_cube;
-use topo::{AtRestBody, Body, BooleanDeclarations, ContactRecords, EntityId, ValidationError};
+use topo::{AtRestBody, Body, ContactRecords, EntityId, ValidationError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -78,14 +78,13 @@ fn cylinder_pairs_refused(body: &Body<f64>, errors: &[ValidationError]) -> usize
 /// census cannot clear a contact nothing recorded.
 #[test]
 fn a_tube_rim_vertex_touching_a_turned_face_unions_past_tier_3_prime() {
-    let d = BooleanDeclarations::default();
     let t = AtRestBody::validate(tube(), tol()).unwrap();
     let exact = SIDE.powi(3) + std::f64::consts::PI * (1.0 - 0.25);
     for (rim, yv, k) in POSES {
         let c = AtRestBody::validate(cube(yv, k, 0.0), tol()).unwrap();
         for (order, p, q) in [("tube ∪ cube", &t, &c), ("cube ∪ tube", &c, &t)] {
             let tag = format!("{rim} rim, k = {k}, {order}");
-            let r = topo::union_with(p, q, &d, tol()).unwrap();
+            let r = topo::union(p, q, tol()).unwrap();
             let bb = r
                 .body()
                 .unwrap_or_else(|| panic!("{tag}: the union is a body"));
@@ -118,12 +117,11 @@ fn a_tube_rim_vertex_touching_a_turned_face_unions_past_tier_3_prime() {
 /// from the tube.
 #[test]
 fn a_turned_face_clear_of_a_tube_rim_passes_tier_3_prime() {
-    let d = BooleanDeclarations::default();
     let t = AtRestBody::validate(tube(), tol()).unwrap();
     for (rim, yv, k) in POSES {
         let c = AtRestBody::validate(cube(yv, k, 0.05), tol()).unwrap();
         let tag = format!("{rim} rim, k = {k}, 0.05 off");
-        let r = topo::union_with(&t, &c, &d, tol()).unwrap();
+        let r = topo::union(&t, &c, tol()).unwrap();
         let bb = r
             .body()
             .unwrap_or_else(|| panic!("{tag}: the union is a body"));

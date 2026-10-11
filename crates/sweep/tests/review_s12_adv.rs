@@ -4,12 +4,8 @@
 //! on a body the boolean itself built:
 //!
 //! - the TORUS gate: `union` has no per-class door of its own, so an
-//!   UNDECLARED torus must refuse at `reduce::gate_operand_pairs` —
-//!   this is what scopes the containment-fallback finding to the sphere
-//!   class. The qualifier is load-bearing: the gate reads declarations
-//!   now, and a pair they cover is admitted past it (the covered-pair
-//!   rung, `mate7a_torus_rest`). These fixtures declare nothing, so the
-//!   claim holds for them exactly as written;
+//!   torus must refuse at `reduce::gate_operand_pairs` — this is what
+//!   scopes the containment-fallback finding to the sphere class;
 //! - the RADIAL POKE: a cylinder wall escaping between its own seam
 //!   vertices, the shape that defeats a vertex probe — exact or typed,
 //!   never silent;
@@ -35,7 +31,7 @@ use std::f64::consts::PI;
 use sweep::ExtrudeSide;
 use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::boolean::{BooleanDeclarations, BooleanOp, boolean_op_with};
+use topo::boolean::{BooleanOp, boolean_op_with};
 use topo::{Body, SweepStrategy};
 
 fn vol(body: &Body<f64>) -> f64 {
@@ -94,7 +90,7 @@ fn probe_torus_union_is_never_silently_wrong() {
             op,
             &slab,
             &torus,
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         ) {
@@ -136,7 +132,7 @@ fn probe_cylinder_radial_poke_is_exact_or_typed() {
             op,
             &a,
             &b,
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         ) {
@@ -201,7 +197,7 @@ fn probe_horizontal_log_halfburied_is_exact_or_typed() {
             op,
             &slab,
             &log,
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         ) {
@@ -248,7 +244,7 @@ fn probe_contained_cylinder_reaches_the_fallback_soundly() {
             op,
             &a,
             &b,
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         ) {

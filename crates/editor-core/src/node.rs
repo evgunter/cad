@@ -13,7 +13,6 @@ use crate::var::VarId;
 // PR-1). Imported, never redefined: the boolean's own refusals must
 // carry the same words this node authors, and `crate::names::flush`
 // owns the single upward re-export.
-use topo::BooleanCoincidence;
 
 /// The [`Node`] variants whose payload REFERENCES no [`StableName`], as
 /// a PATTERN.
@@ -51,6 +50,9 @@ macro_rules! name_free_node {
             | $crate::node::Node::Chamfer { .. }
             | $crate::node::Node::Shell { .. }
             | $crate::node::Node::Split { .. }
+            | $crate::node::Node::Subtract { .. }
+            | $crate::node::Node::Union { .. }
+            | $crate::node::Node::Intersect { .. }
             | $crate::node::Node::Transform { .. }
             | $crate::node::Node::PlaceInWorld { .. }
             | $crate::node::Node::Pattern { .. }
@@ -1383,8 +1385,7 @@ use expr_table;
 /// name resolves against `at`'s own evaluated name table, through the
 /// N5 ladder every other authored name takes. `name` is a bare
 /// [`StableName`] because a measure reads a LENGTH between entities of
-/// any kind: a face, an edge, a vertex, a whole body. A declared pair's
-/// sides ([`DeclaredPair`]) are the other reader, and keep the shape.
+/// any kind: a face, an edge, a vertex, a whole body.
 ///
 /// A mate's side is authored in its own type, [`SitedFace`], which
 /// fixes the name's kind to a face and lowers the same way.
@@ -1395,17 +1396,15 @@ use expr_table;
 /// **`Rebind` never moves a reference's `at`.** `at` is a DAG edge
 /// the author chose, and an edit that rewrote it would be re-pointing
 /// a dependency behind the author's back; only the NAME is repaired
-/// (a measure's through its selection, `DocEdit::Rebind` with the
-/// selection's body; a declared pair's through
-/// `Node::rebind_payload_names`).
+/// (through its selection, `DocEdit::Rebind` with the selection's
+/// body).
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(deny_unknown_fields)]
 pub struct SitedRef<At = RecipeNodeId> {
     /// Where the carrier is read: a measure's node, whose evaluated
-    /// value is the PLACED geometry when that node placed it, or a
-    /// declared pair's member read ([`DeclaredPair`]).
+    /// value is the PLACED geometry when that node placed it.
     pub at: At,
     /// The entity's stable name, resolved against `at`'s table.
     pub name: StableName,
@@ -2088,49 +2087,19 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// the rest. A union of one body builds that body with no boolean
     /// run, and of none the typed empty body.
     ///
-    /// # Contact, and the `declare` field
+    /// # Contact
     ///
     /// Contact is judged pairwise, before the fold: every two members
-    /// whose boxes meet, or between which a pair is declared, are
-    /// evaluated as the two-member union of just those two, with the
-    /// pairs declared between them, so two members that touch with the
-    /// contact undeclared glue or refuse exactly as a pair boolean's
-    /// operands do. That holds in every member order, and for a contact
-    /// a third member covers too. The fold then builds the body and
-    /// judges no contact of its own. Declarations are the pair
-    /// boolean's: declared pairs on this node
-    /// ([`DeclaredPair`], set on a live node by
-    /// [`crate::DocEdit::SetDeclare`]) name SITED entities
-    /// ([`SitedRef`]): an entity's name in a member's own table, with
-    /// that member's read beside it, so a declaration names nothing of
-    /// this node's own and survives every edit that leaves its members.
-    ///
-    /// It records no fold position: the step each pair is fed at is
-    /// derived from where its two sites sit in the list, so reordering
-    /// re-derives the routing. A pair whose site left the list refuses
-    /// at the next evaluation as a vanished name (N5), since
-    /// `SetMembers` leaves `declare` as it was. Two sites in one member,
-    /// or at a read spelled twice, are that member's carried contact,
-    /// fed at the step it joins at.
-    ///
-    /// A declared pair resolves at its step through the MERGES the fold
-    /// has performed: a member's face inside a `Merged` row by then
-    /// resolves to that row (N3: the set is flat, so the row is the same
-    /// whatever order the merges happened in). A pair one of whose
-    /// faces another member contained whole before the pair's step is
-    /// satisfied. A face that survives only in pieces has no unique
-    /// successor, and a pair naming it at a later step refuses
-    /// `Vanished` with [`crate::Diagnosis::ConsumedByFold`]; once every
-    /// piece is contained whole the pair is satisfied, so the refusal
-    /// is not monotone in what later members cover.
+    /// whose boxes meet are evaluated as the two-member union of just
+    /// those two, so two members that touch glue or refuse exactly as a
+    /// pair boolean's operands do, in every member order, and for a
+    /// contact a third member covers too. The fold reads each carrier
+    /// pair's verdict from that judgement, through its faces' member
+    /// lineage, and decides none of its own.
     Union {
         /// The members, in fold order (D9: the order is the list's, and
         /// the list is data).
         members: Bodies<crate::BodyRead<S>>,
-        /// The declared contact pairs. [`crate::DocEdit::SetMembers`]
-        /// leaves it as it was.
-        #[serde(with = "crate::persist::kernel_wire::contact_class::pairs")]
-        declare: Vec<DeclaredPair>,
     },
     /// **The intersect** (DM4): the material in every member, over the
     /// kernel's intersection verb, judged and folded as [`Node::Union`]
@@ -2138,9 +2107,6 @@ pub enum Node<P, S: Slot = crate::VarId> {
     Intersect {
         /// The members, in fold order.
         members: Bodies<crate::BodyRead<S>>,
-        /// The declared contact pairs, as [`Node::Union`]'s.
-        #[serde(with = "crate::persist::kernel_wire::contact_class::pairs")]
-        declare: Vec<DeclaredPair>,
     },
     /// **The subtract** (DM4): `from` cut by `tool`, the one pair node,
     /// since difference neither commutes nor associates. Several tools
@@ -2150,11 +2116,6 @@ pub enum Node<P, S: Slot = crate::VarId> {
         from: crate::BodyRead<S>,
         /// The body cut away.
         tool: crate::BodyRead<S>,
-        /// The declared contact pairs ([`DeclaredPair`]); empty is
-        /// undeclared. Set on a live node by
-        /// [`crate::DocEdit::SetDeclare`].
-        #[serde(with = "crate::persist::kernel_wire::contact_class::pairs")]
-        declare: Vec<DeclaredPair>,
     },
     /// **A rigid placement of an upstream value** (F4: Transform):
     /// ONE map, its placement's motion, applied to every body the
@@ -2682,22 +2643,11 @@ macro_rules! node_rows {
                 select: PartSelect::Instance(index),
             } => $out.push((S::Instance, index)),
             Node::Split { target, tool: _ } => index_rows!(O::Target, target, $rows, $out),
-            Node::Subtract {
-                from,
-                tool,
-                declare: _,
-            } => {
+            Node::Subtract { from, tool } => {
                 index_rows!(O::From, from, $rows, $out);
                 index_rows!(O::Cut, tool, $rows, $out);
             }
-            Node::Union {
-                members,
-                declare: _,
-            }
-            | Node::Intersect {
-                members,
-                declare: _,
-            } => {
+            Node::Union { members } | Node::Intersect { members } => {
                 for (seat, member) in members.$rows() {
                     index_rows!(seat, member, $rows, $out);
                 }
@@ -2743,164 +2693,6 @@ macro_rules! node_rows {
             } => {}
         }
     }};
-}
-
-/// **One declared contact pair** (F5, CONTACT-DESIGN C4): two sited
-/// entities and the COINCIDENCE asserted between them — a contact of a
-/// class, or a continuation. A [`Node::Subtract`]'s, a
-/// [`Node::Union`]'s and a [`Node::Intersect`]'s `declare` payload is a list of these, and
-/// [`crate::DocEdit::SetDeclare`] replaces that list whole.
-///
-/// The class rides every pair rather than a node-level default: a
-/// declaration is "these two faces are in contact, of THIS kind" (or
-/// "these two faces are one surface carried on"), and one list may
-/// carry pairs of different kinds. A class-less pair is
-/// unrepresentable — defaulting would let a `Tangent` intent be
-/// verified against the conformal table.
-///
-/// **The names are references, not DAG edges** (spec D3 carve-out):
-/// [`crate::Doc::upstream`] does not include them. The edit door checks that
-/// every named node exists (a never-existed id is a typo), but a later
-/// edit MAY strand a name: that is NAMING-DESIGN N5's
-/// dangling-reference semantics — resolution fails loudly and
-/// [`crate::DocEdit::Rebind`] is the repair.
-///
-/// **A declared entity is SITED** (DM4): each side is a [`SitedRef`] —
-/// the entity's name, and the read it stands in, which is one of the
-/// node's own operands (a member's read, for a union; a seat's, for a
-/// subtract). The site is also the SIDE — a name carried by both
-/// operands says which one it means — so nothing about a declaration
-/// depends on the node's own name space.
-///
-/// **A declaration names only what exists before the node**: every
-/// door that writes a pair — the insert door,
-/// [`crate::DocEdit::SetDeclare`], [`crate::DocEdit::Rebind`] and the
-/// load door — refuses a name minted by the node itself or by a node
-/// after it in document order, and a site that is not one of the
-/// node's reads ([`declared_side_fault`]). Document order only
-/// grows at its end, so a name minted before the node stays so. A
-/// union's or an intersect's site alone can stop being an operand afterwards, when a
-/// [`crate::DocEdit::SetMembers`] drops the member it is read at: that
-/// is N5's stranded case, refused by the evaluation as a vanished name
-/// ([`crate::eval::NodeErrorKind::DeclareResolve`]).
-///
-/// **A union's own fold rows are therefore UNREPRESENTABLE here, not
-/// refused** — a `Seam`, a `Merged`, a `Fragment` or the output body of
-/// the union is minted by the union's evaluation and has no read it
-/// stands in. A pair of bare [`StableName`]s, which is the only spelling
-/// that could have named one, does not typecheck:
-///
-/// ```compile_fail,E0308
-/// let _: Vec<editor_core::DeclaredPair> =
-///     editor_core::declare_rest(vec![(named(), named())]);
-///
-/// fn named() -> editor_core::StableName {
-///     editor_core::StableName {
-///         kind: editor_core::EntityKind::Face,
-///         node: editor_core::RecipeNodeId::new(0, 0),
-///         path: Vec::new(),
-///     }
-/// }
-/// ```
-///
-/// **What that row proves, and what it does not.** Stable rustdoc
-/// checks only that the block FAILS to build; the `,E0308` beside it is
-/// not enforced, so a typo or a missing import would pass it just as
-/// well. The twin below is the same body with the ONE difference this
-/// claim is about — each side wrapped in a [`SitedRef`] — and it RUNS,
-/// so a defect anywhere but the side's type reddens here instead of
-/// satisfying the block above for the wrong reason.
-///
-/// ```
-/// let _: Vec<editor_core::DeclaredPair> =
-///     editor_core::declare_rest(vec![(sited(), sited())]);
-///
-/// fn sited() -> editor_core::SitedRef<editor_core::VarId> {
-///     editor_core::SitedRef::new(editor_core::VarId::new(1, 0), named())
-/// }
-///
-/// fn named() -> editor_core::StableName {
-///     editor_core::StableName {
-///         kind: editor_core::EntityKind::Face,
-///         node: editor_core::RecipeNodeId::new(0, 0),
-///         path: Vec::new(),
-///     }
-/// }
-/// ```
-///
-/// The persisted form is the other door the class could have come in
-/// through, and it refuses there instead of loading: the `Unreadable`
-/// detail is serde's own missing-field message
-/// (`a_declared_pair_side_that_is_a_bare_name_does_not_load`).
-pub type DeclaredPair = ((SitedRef<VarId>, SitedRef<VarId>), BooleanCoincidence);
-
-/// Why a node cannot carry a side of one of its declared pairs — the
-/// rule [`declared_side_fault`] states.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum DeclaredSideFault {
-    /// The side stands in a read the carrier does not hold, so the
-    /// carrier has no table to read its name in.
-    SiteNotAnOperand,
-    /// The side's name is minted by a node the carrier does not read,
-    /// directly or through what it reads — an entity the carrier's
-    /// operands cannot hold.
-    NameNotUpstream,
-}
-
-/// **The first of `sides` its carrier cannot carry**, and why: the one
-/// rule the insert door, `SetDeclare`, `Rebind` and the load door ask of
-/// a declared pair's sides ([`DeclaredPair`], [`declared_sides`]).
-///
-/// `operands` are the nodes whose outputs the carrier reads, or `None`
-/// where the sites are not this caller's to judge — the load door's,
-/// since a later re-point may have stranded a site. `upstream` says
-/// whether a minter could be upstream of the carrier
-/// ([`DeclaredSideFault::NameNotUpstream`] states when not). A
-/// name whose minter is not live is a strand (DM7) and is not this
-/// rule's to judge: the doors that write a name refuse a dead minter
-/// before they ask this.
-pub(crate) fn declared_side_fault<'p>(
-    sides: impl IntoIterator<Item = &'p SitedRef<VarId>>,
-    operands: Option<&[VarId]>,
-    upstream: impl Fn(RecipeNodeId) -> bool,
-) -> Option<(&'p SitedRef<VarId>, DeclaredSideFault)> {
-    sides.into_iter().find_map(|side| {
-        if operands.is_some_and(|operands| !operands.contains(&side.at)) {
-            return Some((side, DeclaredSideFault::SiteNotAnOperand));
-        }
-        (!upstream(side.name.node)).then_some((side, DeclaredSideFault::NameNotUpstream))
-    })
-}
-
-/// The sides of `pairs`, in order: each pair's first side, then its
-/// second.
-pub(crate) fn declared_sides<'p>(
-    pairs: impl IntoIterator<Item = &'p DeclaredPair>,
-) -> impl Iterator<Item = &'p SitedRef<VarId>> {
-    pairs.into_iter().flat_map(|((one, two), _)| [one, two])
-}
-
-/// Declared pairs that each assert the CONFORMAL class.
-///
-/// This NAMES `Rest` at the call site; it does not default it: a reader
-/// of the call sees which of C4's classes is being claimed, and a pair
-/// that means something else cannot arrive here by omission. A
-/// mixed-class list is built directly.
-pub fn declare_rest(pairs: Vec<(SitedRef<VarId>, SitedRef<VarId>)>) -> Vec<DeclaredPair> {
-    pairs
-        .into_iter()
-        .map(|p| (p, BooleanCoincidence::REST))
-        .collect()
-}
-
-/// Declared pairs that each assert a CONTINUATION — one carrier,
-/// aligned senses: two stacked parts' outer walls. Named at the call
-/// site for the reason [`declare_rest`] gives.
-pub fn declare_continuation(pairs: Vec<(SitedRef<VarId>, SitedRef<VarId>)>) -> Vec<DeclaredPair> {
-    pairs
-        .into_iter()
-        .map(|p| (p, BooleanCoincidence::Continuation))
-        .collect()
 }
 
 impl<P: crate::program::SlotPayload<S>, S: Slot> Node<P, S> {
@@ -3112,16 +2904,13 @@ impl<P> Node<P> {
             Node::Subtract {
                 from,
                 tool,
-                declare: _,
             } => vec![(O::From, from.read), (O::Cut, tool.read)],
             // In LIST ORDER: the order is the fold's (D9).
             Node::Union {
                 members,
-                declare: _,
             }
             | Node::Intersect {
                 members,
-                declare: _,
             } => members.rows().into_iter().map(|(o, r)| (o, r.read)).collect(),
             Node::Transform {
                 input,
@@ -3260,19 +3049,10 @@ impl<P> Node<P> {
                 vec![(O::Measured(verb, 0), a), (O::Measured(verb, 1), b)]
             }
             Node::Split { target, tool } => vec![(O::Target, &mut target.read), (O::Tool, tool)],
-            Node::Subtract {
-                from,
-                tool,
-                declare: _,
-            } => vec![(O::From, &mut from.read), (O::Cut, &mut tool.read)],
-            Node::Union {
-                members,
-                declare: _,
+            Node::Subtract { from, tool } => {
+                vec![(O::From, &mut from.read), (O::Cut, &mut tool.read)]
             }
-            | Node::Intersect {
-                members,
-                declare: _,
-            } => members
+            Node::Union { members } | Node::Intersect { members } => members
                 .rows_mut()
                 .into_iter()
                 .map(|(o, r)| (o, &mut r.read))
@@ -3365,8 +3145,8 @@ impl<P> Node<P> {
 
     /// Rewrites every payload reference EXACTLY equal to `from` into
     /// `to`, returning how many it rewrote — `Rebind`'s reach into the
-    /// names a node still carries (declared pairs, an instance's
-    /// crossings); a selection's names are the document's
+    /// names a node still carries (an instance's crossings); a
+    /// selection's names are the document's
     /// ([`crate::Doc::rewrite_selection_names`]).
     ///
     /// [`Node::rewrite_payload_names`] under the one-pair map; that
@@ -3399,18 +3179,6 @@ impl<P> Node<P> {
         &mut self,
         map: &mut dyn FnMut(&StableName) -> Option<StableName>,
     ) -> usize {
-        fn rewrite(
-            name: &mut StableName,
-            map: &mut dyn FnMut(&StableName) -> Option<StableName>,
-        ) -> usize {
-            match map(name) {
-                Some(next) => {
-                    *name = next;
-                    1
-                }
-                None => 0,
-            }
-        }
         /// A FACE-typed payload name rewritten through `map`, or
         /// `None` where the map leaves it — the re-derivation an
         /// instance's crossing `outer`s use.
@@ -3435,18 +3203,6 @@ impl<P> Node<P> {
         }
         let mut hits = 0usize;
         match self {
-            // The NAME rewrites; the SITE stays. A site is the node
-            // the author chose to read the entity at — an operand of
-            // the consumer — and moving it would re-author which
-            // member the declaration is about, which is not a repair
-            // for a name whose minting node went away.
-            Node::Subtract { declare, .. }
-            | Node::Union { declare, .. }
-            | Node::Intersect { declare, .. } => {
-                for r in declare.iter_mut().flat_map(|((a, b), _)| [a, b]) {
-                    hits += rewrite(&mut r.name, map);
-                }
-            }
             // An instance's crossing `outer`s — the reading twin's
             // list, rewritten. No re-canonicalization: a record is
             // ordered by the split's collection order and each
@@ -3907,22 +3663,15 @@ impl<P, S: Slot> Node<P, S> {
                 target: target.try_map(O::Target, f, read)?,
                 tool: read(O::Tool, tool)?,
             },
-            Node::Subtract {
-                from,
-                tool,
-                declare,
-            } => Node::Subtract {
+            Node::Subtract { from, tool } => Node::Subtract {
                 from: from.try_map(O::From, f, read)?,
                 tool: tool.try_map(O::Cut, f, read)?,
-                declare: declare.clone(),
             },
-            Node::Union { members, declare } => Node::Union {
+            Node::Union { members } => Node::Union {
                 members: members.try_map(|o, r| r.try_map(o, f, read))?,
-                declare: declare.clone(),
             },
-            Node::Intersect { members, declare } => Node::Intersect {
+            Node::Intersect { members } => Node::Intersect {
                 members: members.try_map(|o, r| r.try_map(o, f, read))?,
-                declare: declare.clone(),
             },
             Node::Transform { input, placement } => Node::Transform {
                 input: read(O::Input, input)?,
@@ -4270,8 +4019,8 @@ impl<P, S: Slot> Node<P, S> {
         }
     }
 
-    /// The [`StableName`]s this payload REFERENCES — declared pairs and
-    /// an instance's interface crossings' `outer`s; a
+    /// The [`StableName`]s this payload REFERENCES — an instance's
+    /// interface crossings' `outer`s; a
     /// name read through a slot is a selection's
     /// ([`crate::VarDef::Select`]), not a payload's. Document data, never DAG
     /// edges ([`crate::Doc::upstream`] excludes them): the edit door checks at
@@ -4303,22 +4052,13 @@ impl<P, S: Slot> Node<P, S> {
     /// document" and points here.
     pub fn payload_names(&self) -> Vec<&StableName> {
         match self {
-            // A declared pair's two NAMES. The sites beside them
-            // are node ids, not names, and are listed by
-            // [`Node::payload_read_sites`].
-            Node::Subtract { declare, .. }
-            | Node::Union { declare, .. }
-            | Node::Intersect { declare, .. } => declare
-                .iter()
-                .flat_map(|((a, b), _)| [&a.name, &b.name])
-                .collect(),
             // An instance's interface record: each crossing's `outer`,
             // in record order.
             //
             // An `outer` is a REMAINDER name — it denotes a face in
             // THIS document, on a node this document can delete and
             // under a name this document can rebind — so it is a
-            // payload name like a declared side, and the same FOUR
+            // payload name, and the same FOUR
             // doors reach it: the insert door's liveness check,
             // `DocEdit::Rebind`, DM7's strand report, and `split`'s
             // `PartNameReachesRemainder` precondition, which refuses
@@ -4349,7 +4089,7 @@ impl<P, S: Slot> Node<P, S> {
     }
 
     /// **The nodes a payload's references are READ AT that are not
-    /// also DAG inputs** — a declared pair's two sites.
+    /// also DAG inputs** — none of today's payloads has one.
     ///
     /// The insert door checks these are live exactly as it checks a
     /// payload name's head, and for the same reason: a never-existed
@@ -4357,10 +4097,6 @@ impl<P, S: Slot> Node<P, S> {
     /// dangling case, refused at evaluation rather than at the edit.
     pub fn payload_read_sites(&self) -> Vec<RecipeNodeId> {
         match self {
-            // A declared pair's sites are reads, which the doors hold to
-            // the node's own operands; a site a later edit strands is the
-            // EVALUATION's refusal.
-            Node::Subtract { .. } | Node::Union { .. } | Node::Intersect { .. } => Vec::new(),
             // EXHAUSTIVE, with no wildcard, so a new [`Node`] variant
             // is classified here or does not compile. The name-free
             // variants reference nothing that could have a read site
@@ -4377,19 +4113,6 @@ impl<P, S: Slot> Node<P, S> {
     /// existence the insert door checks.
     pub fn named_nodes(&self) -> Vec<RecipeNodeId> {
         self.payload_names().iter().map(|name| name.node).collect()
-    }
-
-    /// The node's declared pairs ([`DeclaredPair`]): a Boolean's or a
-    /// Union's own payload, and empty for every other kind, which
-    /// declares nothing.
-    #[must_use]
-    pub fn declared_pairs(&self) -> &[DeclaredPair] {
-        match self {
-            Node::Subtract { declare, .. }
-            | Node::Union { declare, .. }
-            | Node::Intersect { declare, .. } => declare,
-            _ => &[],
-        }
     }
 
     /// **Where name `reference` of the selection this node reads at
@@ -4413,51 +4136,6 @@ impl<P, S: Slot> Node<P, S> {
                 Some(("measure", format!("reference {i}")))
             }
             (Node::Mate { .. }, O::Side(side)) => Some(("mate", format!("side {}", side.name()))),
-            _ => None,
-        }
-    }
-
-    /// **Which of this payload's references a refusal is about, as a
-    /// person reads it** — [`Self::selection_slot`]'s twin for a name a
-    /// node still carries in its payload, a declared pair's: the node's
-    /// noun and the side. `reference` is the name's place among
-    /// [`Node::payload_names`]. `None` where the slot there does not hold
-    /// `name` — as authored, or as node `id`'s union reads it in member
-    /// space.
-    pub(crate) fn reference_slot(
-        &self,
-        id: RecipeNodeId,
-        reference: usize,
-        name: &StableName,
-    ) -> Option<(&'static str, String)> {
-        match self {
-            Node::Subtract { declare, .. }
-            | Node::Union { declare, .. }
-            | Node::Intersect { declare, .. } => {
-                let ((a, b), _) = declare.get(reference / 2)?;
-                let (held, side) = if reference.is_multiple_of(2) {
-                    (a, "first")
-                } else {
-                    (b, "second")
-                };
-                let holds = held.name == *name
-                    || crate::names::member_name(id, held.at, &held.name) == *name;
-                let noun = match self {
-                    Node::Subtract { .. } => "subtract",
-                    Node::Intersect { .. } => "intersect",
-                    _ => "union",
-                };
-                holds.then(|| {
-                    (
-                        noun,
-                        format!(
-                            "declared pair {}'s {side} {}",
-                            reference / 2,
-                            held.name.kind.noun()
-                        ),
-                    )
-                })
-            }
             _ => None,
         }
     }

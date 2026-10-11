@@ -150,7 +150,6 @@ fn boolean_part(label: &str) -> ProfileDoc {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
-            declare: Vec::new(),
         },
     );
     crate::fixture::place(doc, fused).0
@@ -1584,7 +1583,6 @@ fn two_cubes_glued_on_a_wall() -> (ProfileDoc, RecipeNodeId, Vec<editor_core::Na
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![ids[0].into(), ids[1].into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc, &opts);

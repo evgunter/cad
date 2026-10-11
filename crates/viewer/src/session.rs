@@ -67,7 +67,7 @@ use pncad::document::{
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
-use pncad::select::{FlushFinding, Resolution, RunCtx, declared_pairs, resolve};
+use pncad::select::{Resolution, RunCtx, resolve};
 use pncad::topo::Body;
 
 use crate::blend::BlendKindChoice;
@@ -1730,7 +1730,7 @@ impl DocSession {
                 axis_direction,
                 angle,
             } => self.add_revolve(profile, axis_origin, axis_direction, angle),
-            SessionOp::AddBoolean { spec, declare } => self.add_boolean(spec, declare),
+            SessionOp::AddBoolean { spec } => self.add_boolean(spec),
             SessionOp::AddSplit { target, tool } => self.add_split(target, tool),
             SessionOp::AddTransform {
                 input,
@@ -2882,9 +2882,8 @@ impl DocSession {
         })
     }
 
-    /// Insert one boolean of existing bodies, carrying the declaration
-    /// of the contacts it names ([`SessionOp::AddBoolean`]).
-    fn add_boolean(&mut self, spec: BooleanSpec, declare: Vec<FlushFinding>) -> OpOutcome {
+    /// Insert one boolean of existing bodies ([`SessionOp::AddBoolean`]).
+    fn add_boolean(&mut self, spec: BooleanSpec) -> OpOutcome {
         for seat in spec.operands() {
             if let Err(refusal) = self.require_read(&seat, NodeKindWanted::Body) {
                 return OpOutcome::refused(refusal);
@@ -2892,11 +2891,9 @@ impl DocSession {
         }
         // A node spelled twice is not refused: a repeated read glues
         // (A∪A = A∩A = A, A−A the typed empty body), so it is a
-        // document like any other. An empty list is the undeclared
-        // boolean.
-        let pairs = declared_pairs(&declare);
+        // document like any other.
         let staged = self.stage_run(|run| {
-            let node = run.insert(spec.node(pairs))?;
+            let node = run.insert(spec.node())?;
             combine_in_world(run, &spec.operands(), node)?;
             Ok(node)
         });
@@ -3256,7 +3253,6 @@ impl DocSession {
             DocEdit::InsertNode { .. }
             | DocEdit::DeleteNode { .. }
             | DocEdit::SetMembers { .. }
-            | DocEdit::SetDeclare { .. }
             // A profile's program replaced whole: structure, not a
             // panel field's value — and the identity program keeping
             // every step is the door's own no-op.

@@ -2,7 +2,8 @@
 id: a-boolean-drops-its-operands-own-contact-records
 kind: issue
 title: A boolean drops its operands' own contact records, so a union's record and 3′ verdict follow the member it folds last
-status: open
+status: closed
+closed: 2026-10-11
 opened: 2026-10-02
 priority: P1
 cost: M
@@ -76,3 +77,7 @@ All from `crates/editor-core/tests/union_pinch_member_order.rs`
 
 Same class as `transform-and-pattern-drop-a-values-contact-records`: a
 node hands on a body without the records that certify it.
+
+## Closed (2026-10-11, stage 4 F)
+
+Stage 4 F makes this row's ruling: an operand's own records carry mechanically into every pair boolean and every union fold step (`BooleanInputs::records_a`/`records_b`, `OperandRecords`, cited `Backing::Carried`), under the existing drop rules, at vertex and edge granularity (curve and patch records do not carry yet: `a-boolean-drops-its-operands-curve-and-patch-records`); a union's records cite its members by their place in the member list. `union_pinch_member_order`'s six scenes, the reused corner-kiss union and the member of two touching shells now pass 3′ in every member order, with one record. Nothing new refuses at rest.

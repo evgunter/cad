@@ -6,15 +6,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::docm7_union_declare::{block, failure, run};
+use crate::blocks::{block, failure, run};
 use crate::fixture::{ang, fname, insert, len, len2, on_frame, out, scl, table};
 
 use editor_core::{
-    Advisory, BooleanCoincidence, CapEnd, CheckEvidence, CheckId, ChecksConfig, Datum, EntityKey,
-    EntityKind, Entry, Evaluation, FindingSubject, Formula, LoopProgram, NamedCell,
-    NamedCoincidence, Node, PartSelect, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, Proof, RecipeNodeId, RoleSeg, Rung, Severity, SitedRef, SplitHalf, StableName,
-    ValuePayload, VarId, coincide, spoken_by,
+    Advisory, CapEnd, CheckEvidence, CheckId, ChecksConfig, Datum, EntityKey, EntityKind, Entry,
+    Evaluation, FindingSubject, Formula, LoopProgram, NamedCell, NamedCoincidence, Node,
+    PartSelect, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, Proof,
+    RecipeNodeId, RoleSeg, Rung, Severity, SplitHalf, StableName, ValuePayload,
+    VarId, coincide, spoken_by,
 };
 use geom_core::{MarginDiag, Point3, Tol};
 use topo::{DecisionSite, Relation};
@@ -100,36 +100,27 @@ fn entity(input: VarId, name: &StableName) -> NamedCell {
     }
 }
 
-/// **A declared glue is recorded** (§11 row 3). A plate resting flush
-/// on a block, unioned under a declared `Rest`: the union holds one
-/// `SameOpposite` row naming the block's top and the plate's bottom by
-/// their operands' own names, decided by the plane ladder's declared
-/// rung, and the check reports it unproven: the two caps are two
-/// constructions.
+/// **A glued rest is recorded** (§11 row 3). A plate resting flush on
+/// a block, unioned: the union holds one `SameOpposite` row naming the
+/// block's top and the plate's bottom by their operands' own names,
+/// decided by the plane ladder, and the check reports it unproven: the
+/// two caps are two constructions.
 #[test]
-fn a_declared_rest_is_one_unproven_row_named_by_its_operands() {
+fn a_glued_rest_is_one_unproven_row_named_by_its_operands() {
     let doc = ProfileDoc::empty_derived("coincide-declared-rest", Tol::witness());
     let (doc, base) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
     let (doc, plate) = block(doc, (0.5, 1.5), (0.5, 1.5), 1.0, 0.5);
     let top = fname(base, RoleSeg::Cap(CapEnd::End));
     let bottom = fname(plate, RoleSeg::Cap(CapEnd::Start));
-    let (base_read, plate_read) = (out(&doc, base), out(&doc, plate));
     let (doc, union) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![base.into(), plate.into()]),
-            declare: vec![(
-                (
-                    SitedRef::new(base_read, top.clone()),
-                    SitedRef::new(plate_read, bottom.clone()),
-                ),
-                BooleanCoincidence::REST,
-            )],
         },
     );
     let ev = run(&doc);
     let got = rows(&ev, union);
-    assert_eq!(got.len(), 1, "one row for the one declared pair: {got:?}");
+    assert_eq!(got.len(), 1, "one row for the one rest: {got:?}");
     let row = &got[0];
     assert_eq!(
         row.cells,
@@ -146,10 +137,10 @@ fn a_declared_rest_is_one_unproven_row_named_by_its_operands() {
     assert_eq!(
         row.margin.kind(),
         geom_core::MarginKind::Value,
-        "the declared reading's own margin, never a synthetic one"
+        "the reading's own margin, never a synthetic one"
     );
     let Proof::Unproven { residual, .. } = proof(&doc, union, row) else {
-        panic!("the same-construction rung proves a declared glue of two extrudes")
+        panic!("the same-construction rung proves a glue of two extrudes")
     };
     assert!(
         matches!(&residual.constructions, [Ok(a), Ok(b)] if a.origin != b.origin),
@@ -313,8 +304,8 @@ fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
 
 /// **A union's rows are its pairwise judgement's, in the author's
 /// order** (#4323: the list is the author's stated order). Two blocks
-/// overlapping in x, their caps and y-walls declared continuations,
-/// unioned as `[a, b]` and as `[b, a]`: the same decisions either way,
+/// overlapping in x, their caps and y-walls flush, unioned as `[a, b]`
+/// and as `[b, a]`: the same decisions either way,
 /// each row's first cell the listed-first member's face, named by that
 /// member's own table.
 #[test]
@@ -322,15 +313,13 @@ fn a_unions_rows_follow_its_member_order() {
     let doc = ProfileDoc::empty_derived("coincide-union-order", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let pairs = crate::fixture::flush_pairs(&doc, (a, a), (b, b));
-    let n = pairs.len();
+    let n = crate::fixture::flush_segs(&doc, a).len();
     let mut seen = Vec::new();
     for members in [[a, b], [b, a]] {
-        let (doc, union) =
-            crate::docm7_union_declare::declared_union(doc.clone(), &members, pairs.clone());
+        let (doc, union) = crate::fixture::union_over(doc.clone(), &members);
         let ev = run(&doc);
         let got = rows(&ev, union);
-        assert_eq!(got.len(), n, "{members:?}: one row per declared pair");
+        assert_eq!(got.len(), n, "{members:?}: one row per flush family");
         for row in &got {
             assert_eq!(
                 (row.relation, row.site),
@@ -680,7 +669,7 @@ fn the_check_off_is_visibly_skipped() {
 
 /// **A split's section faces are its tool's plane read twice** (§11
 /// row 4, on the spec's own scene). A box split in two and the halves
-/// unioned again, the section caps declared `Rest`: the union records
+/// unioned again, the section caps resting on each other: the union records
 /// one `SameOpposite` row over the two caps, and the door proves it,
 /// since both lie on the one tool plane the split read. The whole
 /// check run over the document is quiet: the lint's silent half, end
@@ -714,7 +703,6 @@ fn a_reunited_splits_section_caps_are_one_construction() {
             && matches!(below_cap.path.as_slice(), [RoleSeg::SectionFace { .. }]),
         "the premise: each cap is a section face of the split, {above_cap:?}, {below_cap:?}"
     );
-    let wall = |half, z| half_face_on(&ev, split, half, [0.0, 0.5, z], [-1.0, 0.0, 0.0]);
     let (above_read, below_read) = (
         port(&doc, split, SplitHalf::Above),
         port(&doc, split, SplitHalf::Below),
@@ -723,22 +711,6 @@ fn a_reunited_splits_section_caps_are_one_construction() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![above_read.into(), below_read.into()]),
-            declare: vec![
-                (
-                    (
-                        SitedRef::new(above_read, above_cap.clone()),
-                        SitedRef::new(below_read, below_cap.clone()),
-                    ),
-                    BooleanCoincidence::REST,
-                ),
-                (
-                    (
-                        SitedRef::new(above_read, wall(SplitHalf::Above, 0.75)),
-                        SitedRef::new(below_read, wall(SplitHalf::Below, 0.25)),
-                    ),
-                    BooleanCoincidence::Continuation,
-                ),
-            ],
         },
     );
     let ev = run(&doc);
@@ -791,52 +763,41 @@ fn a_reunited_splits_section_caps_are_one_construction() {
     );
 }
 
-/// Two unit blocks `gap` apart along x, their flush caps and y-walls
-/// declared continuations, joined by `op`: the boolean's own rows and
-/// its node.
-fn apart(subtract: bool, id: &str) -> (ProfileDoc, Evaluation<f64>, RecipeNodeId, usize) {
+/// Two unit blocks apart along x, their caps and y-walls on one
+/// carrier each, joined by `op`: the boolean's own rows and its node.
+fn apart(subtract: bool, id: &str) -> (ProfileDoc, Evaluation<f64>, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived(id, Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
-    let pairs = crate::fixture::flush_pairs(&doc, (a, a), (b, b));
-    let n = pairs.len();
-    let declare = pairs
-        .into_iter()
-        .map(|p| (p, BooleanCoincidence::Continuation))
-        .collect();
     let boolean = if subtract {
         Node::Subtract {
             from: a.into(),
             tool: b.into(),
-            declare,
         }
     } else {
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare,
         }
     };
     let (doc, node) = insert(doc, boolean);
     let ev = run(&doc);
     assert!(failure(&ev, node).is_none(), "{:?}", failure(&ev, node));
-    (doc, ev, node, n)
+    (doc, ev, node)
 }
 
-/// **A declared pair whose faces never meet records no row, through
-/// the containment fallback too.** Two blocks apart, their flush faces
-/// declared: the union's boundaries never cross, so it is the
-/// fallback's assembly, and the subtraction's is operand A whole (the
-/// single-operand finish). The declaration door verified each pair one
-/// carrier, but no face of one block meets a face of the other, so the
-/// glue took no effect and the result records no row (D1).
+/// **Faces on one carrier that never meet record no row, through the
+/// containment fallback too.** Two blocks apart, their caps and y-walls
+/// on one carrier each: the union's boundaries never cross, so it is
+/// the fallback's assembly, and the subtraction's is operand A whole
+/// (the single-operand finish). No face of one block meets a face of
+/// the other, so the result records no row (D1).
 #[test]
 fn the_fallbacks_record_no_row_for_faces_that_never_meet() {
     for (op, subtract, id) in [
         ("union", false, "coincide-apart-union"),
         ("subtract", true, "coincide-apart-subtract"),
     ] {
-        let (doc, ev, node, n) = apart(subtract, id);
-        assert!(n > 0, "the premise: flush faces to declare");
+        let (doc, ev, node) = apart(subtract, id);
         let got = rows(&ev, node);
         assert!(got.is_empty(), "{op:?}: no row for faces apart: {got:?}");
         assert!(unproven(&doc, &ev).is_empty(), "{op:?}");
@@ -1132,9 +1093,9 @@ fn a_union_records_a_vertex_touch_once() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 2.0);
     let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, pair) = crate::docm7_union_declare::declared_union(doc, &[a, b], Vec::new());
+    let (doc, pair) = crate::fixture::union_over(doc, &[a, b]);
     // The kiss is the last step's, so its record is the union's.
-    let (doc, union) = crate::docm7_union_declare::declared_union(doc, &[far, a, b], Vec::new());
+    let (doc, union) = crate::fixture::union_over(doc, &[far, a, b]);
     let ev = run(&doc);
     let mut all = Vec::new();
     for (what, node) in [("pair", pair), ("union", union)] {

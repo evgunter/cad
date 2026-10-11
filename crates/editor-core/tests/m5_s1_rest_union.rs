@@ -1,11 +1,9 @@
-//! Recipe layer: a declared REST union driven by recipe intent (the
-//! declared pairs on `Boolean{declare}`) — persistence round-trip of a
-//! glued body and the naming-key stability row.
+//! Recipe layer: a REST union — persistence round-trip of a glued
+//! body and the naming-key stability row.
 //!
-//! The document: two stacked plates (full-face REST contact at z = 1)
-//! whose recipe DECLARES the contact caps and the four flush wall
-//! pairs, then unions them. The kernel's join glues the mate; the
-//! recipe layer must carry it like any seamed boolean:
+//! The document: two stacked plates (full-face REST contact at z = 1,
+//! four flush wall pairs) unioned. The kernel's join glues the mate;
+//! the recipe layer must carry it like any seamed boolean:
 //!
 //! - the evaluation is green with the exact dyadic volume (8);
 //! - re-evaluating is BIT-identical (name tables, arenas, content
@@ -16,14 +14,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture;
 use editor_core::ExtrudeSide;
 
+use crate::fixture::{insert, len, on_frame};
 use editor_core::{
-    BooleanValue, CancelToken, CapEnd, EvalOptions, Node, ProfileDoc, RecipeNodeId, RoleSeg,
-    SitedRef, ValuePayload, evaluate, load, save,
+    BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, RecipeNodeId, ValuePayload, evaluate,
+    load, save,
 };
-use fixture::{fname, insert, len, on_frame, wall};
 use geom_core::Tol;
 
 /// An axis-aligned (0..2)² block at height z0, extruded dz.
@@ -45,49 +42,16 @@ fn block(doc: ProfileDoc, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-/// The stacked-plates REST document: plates + declared union.
+/// The stacked-plates REST document: plates + their union.
 /// Returns (doc, union node).
 fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m5_s1_rest_declare", Tol::witness());
     let (doc, a) = block(doc, 0.0, 1.0);
     let (doc, b) = block(doc, 1.0, 1.0);
-    // The author's intent, stated: the contact pair (A's end cap on
-    // B's start cap, a `Rest`) plus the four flush wall pairs (the
-    // same-plane sides the output stage merges — continuations).
-    let (ar, br) = (fixture::out(&doc, a), fixture::out(&doc, b));
-    let rest = (
-        SitedRef::new(ar, fname(a, RoleSeg::Cap(CapEnd::End))),
-        SitedRef::new(br, fname(b, RoleSeg::Cap(CapEnd::Start))),
-    );
-    let walls = vec![
-        (
-            SitedRef::new(ar, fname(a, wall(&doc, a, 0))),
-            SitedRef::new(br, fname(b, wall(&doc, b, 0))),
-        ),
-        (
-            SitedRef::new(ar, fname(a, wall(&doc, a, 1))),
-            SitedRef::new(br, fname(b, wall(&doc, b, 1))),
-        ),
-        (
-            SitedRef::new(ar, fname(a, wall(&doc, a, 2))),
-            SitedRef::new(br, fname(b, wall(&doc, b, 2))),
-        ),
-        (
-            SitedRef::new(ar, fname(a, wall(&doc, a, 3))),
-            SitedRef::new(br, fname(b, wall(&doc, b, 3))),
-        ),
-    ];
-    let mut pairs = vec![(rest, editor_core::BooleanCoincidence::REST)];
-    pairs.extend(
-        walls
-            .into_iter()
-            .map(|w| (w, editor_core::BooleanCoincidence::Continuation)),
-    );
     let (doc, u) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: pairs,
         },
     );
     (doc, u)
@@ -110,7 +74,7 @@ fn fingerprint(doc: &ProfileDoc) -> String {
 /// The glued union evaluates green: one seamed body, exact volume 8,
 /// rest records consumed (3′ ≡ tier 3 on the result).
 #[test]
-fn declared_rest_union_evaluates_green() {
+fn rest_union_evaluates_green() {
     let (doc, u) = rest_doc();
     let ev = evaluate::<f64>(
         &doc,
