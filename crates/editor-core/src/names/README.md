@@ -486,8 +486,16 @@ compare would restore the cost the cache exists to remove.
 ## Resolution
 
 **N5 — Typed resolution failure.** `ResolveError` is `Vanished { name, diagnosis,
-last_good: Option<Tombstone> }`, `Ambiguous { name, candidates, tie: TieWitness }`
-or `NodeGone { name, edit }`. `Diagnosis` is one of:
+last_good: Option<Tombstone> }`, `Ambiguous { name, candidates, tie: TieWitness }`,
+`ReadGone { name, read, edit }` or `NodeGone { name, edit }`. A reference is
+resolved in a read, its site (N1), and `ReadGone` is the first rung: the site is
+no longer the document's (`edit` is `Deleted`, its operation went, or `Foreign`,
+never minted), so there is no table to ask; it is repaired by re-siting the
+reference or removing it, never by `Rebind`, which repairs a name. A read the
+name itself carries (`From { read }`) is a fact of the name, not a site. A read
+the document holds that is no body output (a scalar, a selection, a datum's) is
+no question at all: the door refuses it typed (`ResolveRefusal`), never answers
+it. `Diagnosis` is one of:
 
 - `PredicateFlip { predicate, from, to }`, `StructuralParam { node, param }`,
   `RecipeEdit { edit }`: evidence on the name's derivation path;

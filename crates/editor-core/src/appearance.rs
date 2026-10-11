@@ -195,11 +195,15 @@ pub type AppearanceMap = BTreeMap<AppearanceKey, AppearanceRecord>;
 /// itself can see without that engine.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AppearanceLossCause {
-    /// The name's minting node, or the operation defining the entry's
-    /// body read, is no longer in the document (a later `DeleteNode`
-    /// stranded it — N5's `NodeGone` semantics; the repair is `Rebind`
-    /// for the name, a re-attachment for the read, or
-    /// `ClearAppearance`).
+    /// The entry's body read is no longer the document's: the
+    /// operation defining it was deleted (N5's `ReadGone`, ahead of
+    /// `NodeGone`). The repair re-attaches the record in a live read
+    /// (`SetAppearance` there, `ClearAppearance` here), never `Rebind`,
+    /// which repairs a name and keeps the read.
+    ReadGone,
+    /// The name's minting node is no longer in the document (a later
+    /// `DeleteNode` stranded it — N5's `NodeGone` semantics; the
+    /// repair is `Rebind` (PR 4) or `ClearAppearance`).
     NodeGone,
     /// The name's minting node, or the operation defining the entry's
     /// body read, has no value in this evaluation — its standing says
@@ -397,11 +401,17 @@ pub(crate) fn resolve(
             metadata: rec.metadata.clone(),
             cause,
         };
-        // The name's node, and the operation whose output the body read
-        // is, must both be the document's.
-        let site = reads.ports.get(&body).map(|&(node, _)| node);
-        let (Some(target), Some(Some(at))) = (states.get(&name.node), site.map(|n| states.get(&n)))
+        // The body read must be the document's (rung 0), then the
+        // name's node (rung 1).
+        let Some(at) = reads
+            .ports
+            .get(&body)
+            .and_then(|&(node, _)| states.get(&node))
         else {
+            resolution.losses.push(loss(AppearanceLossCause::ReadGone));
+            continue;
+        };
+        let Some(target) = states.get(&name.node) else {
             resolution.losses.push(loss(AppearanceLossCause::NodeGone));
             continue;
         };

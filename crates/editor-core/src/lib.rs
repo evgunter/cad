@@ -234,8 +234,8 @@ pub use report::{
 };
 pub use resolve::{
     AboutReference, Diagnosis, FlipSet, FoldConsumption, GroupCutters, HitTestError, MeshPatchKey,
-    NodeVerdictDelta, PredicateDivergence, RecipeEditRef, Resolution, ResolutionFailure,
-    ResolveError, ResolveIndeterminate, Resolved, RunCtx, RunStatus, TieWitness, Tombstone,
+    NodeVerdictDelta, PredicateDivergence, ReadEdit, RecipeEditRef, Resolution, ResolutionFailure,
+    ResolveError, ResolveIndeterminate, ResolveRefusal, Resolved, RunCtx, RunStatus, TieWitness, Tombstone,
     UnnamedEntity, UpstreamCause, VerdictFlip, appearance_rebind_suggestions, apply_with_names,
     body_name, derivation_nodes, derivation_reads, diff_verdicts, edge_name,
     enrich_appearance_loss, enrich_appearance_loss_with_prior, entity_name, face_name,

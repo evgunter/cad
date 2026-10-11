@@ -1008,6 +1008,7 @@ fn a_tied_first_name_waits_behind_the_second_names_own_faults() {
         match ev.nodes.get(&node) {
             Some(NodeResult::Failed(e)) => match &e.kind {
                 NodeErrorKind::DeclareResolve { error, .. } => match &**error {
+                    ResolveError::ReadGone { .. } => "read_gone",
                     ResolveError::NodeGone { .. } => "node_gone",
                     ResolveError::Vanished { .. } => "vanished",
                     ResolveError::Ambiguous { .. } => "ambiguous",

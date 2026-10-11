@@ -52,14 +52,18 @@ from pncad import (
     DocEdit,
     EntityKind,
     Formula,
+    FreeVar,
     Node,
     NodePick,
     Open,
     PncadError,
+    SelectRefusal,
     Start,
+    VarName,
     deg,
     evaluate,
     m,
+    mm,
 )
 
 #: The chordal budget the pick indices in this file are built at. The
@@ -272,6 +276,29 @@ class TestInOneRead(unittest.TestCase):
         self.assertEqual(ev.resolve(doc.output(split, 0), half).status, "resolved")
         with self.assertRaises(ValueError):
             ev.resolve(split, half)
+
+    def test_a_reference_whose_read_is_gone_and_a_read_with_no_table(self):
+        """The transform deleted: its read went with it. Asked in that
+        read, a name answers `failed` / `read_gone` — never a `vanished`
+        that blames the cube, which did not change. Asked at the node
+        handle, which kept no read and did not mint the name, the door
+        raises `SelectRefusal` `node_not_held`. A scalar variable holds
+        no table, so asking in it raises `read_not_an_output`, never a
+        verdict."""
+        name = self.ev.all_faces(self.moved)[0]
+        read = self.doc.output(self.moved)
+        self.doc.apply(DocEdit.delete_node(self.moved))
+        self.doc.apply(DocEdit.define_var(VarName("depth"), FreeVar.length(4.5 * mm)))
+        ev = evaluate(self.doc)
+        verdict = ev.resolve(read, name)
+        self.assertEqual((verdict.status, verdict.variant), ("failed", "read_gone"))
+        with self.assertRaises(SelectRefusal) as caught:
+            ev.resolve(self.moved, name)
+        self.assertEqual(caught.exception.reason, "node_not_held")
+        with self.assertRaises(SelectRefusal) as caught:
+            ev.resolve(self.doc.var(VarName("depth")), name)
+        self.assertEqual(caught.exception.reason, "read_not_an_output")
+        self.assertEqual(ev.resolve(self.cube, name).status, "resolved")
 
 
 def plate(doc, corners):

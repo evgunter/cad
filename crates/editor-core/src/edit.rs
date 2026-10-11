@@ -108,14 +108,15 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         fresh: Vec<FreshEntry>,
     },
-    /// Delete a node. Refused while any live node holds it as an
-    /// INPUT (typed, spec D3/D6); the id is never reused afterwards.
-    ///
-    /// A payload NAME of the node is not an input and does not refuse
-    /// (DM7, the §0 carve-out): the edit is accepted and every name it
-    /// stranded rides the record as a [`Maintenance::Strand`]. An
-    /// appearance key is the same carve-out at the store instead of a
-    /// payload, and rides it as a [`Maintenance::StrandedAppearance`].
+    /// Delete a node, and the variables it defines as outputs with it;
+    /// the id is never reused afterwards (D3). Nothing is refused (D10:
+    /// deleting a variable leaves its readers unresolved, typed, never
+    /// re-pointed): the record reports what the delete stranded. Each
+    /// live operand still reading one of the node's outputs rides it as
+    /// a [`Maintenance::StrandedRead`]; each surviving payload name the
+    /// node minted (DM7) as a [`Maintenance::Strand`]; and each
+    /// appearance key whose name the node minted, or whose body read it
+    /// defined, as a [`Maintenance::StrandedAppearance`].
     DeleteNode {
         /// The node to delete.
         id: RecipeNodeId,

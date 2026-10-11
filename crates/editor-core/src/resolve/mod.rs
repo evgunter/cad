@@ -125,6 +125,21 @@ pub enum ResolveError {
         /// The recorded tie's site and width.
         tie: TieWitness,
     },
+    /// The read the reference is resolved in — its SITE — is no longer
+    /// in the document: the operation defining it was deleted, or the
+    /// document never minted it. The first rung, ahead of `NodeGone`:
+    /// a reference with no read to be read in has no table to ask. The
+    /// repair re-sites the reference in a live read, or removes it — a
+    /// `Rebind` repairs a name, never a site. A read the NAME carries
+    /// (`RoleSeg::From { read }`) is a fact of the name, not this.
+    ReadGone {
+        /// The stranded name.
+        name: StableName,
+        /// The read it was resolved in.
+        read: crate::VarId,
+        /// Whether the document deleted the read or never minted it.
+        edit: ReadEdit,
+    },
     /// The name's minting node is no longer in the document (N5
     /// dangling semantics: a later `DeleteNode` may strand a name;
     /// the repair is the explicit `Rebind`).
@@ -176,6 +191,7 @@ impl ResolveError {
         match self {
             Self::Vanished { name, .. }
             | Self::Ambiguous { name, .. }
+            | Self::ReadGone { name, .. }
             | Self::NodeGone { name, .. } => name,
         }
     }
@@ -211,6 +227,19 @@ impl ResolveError {
                      tie is never broken by picking; refine the reference until one candidate \
                      remains",
                     tie.width
+                )
+            }
+            Self::ReadGone { name, read, edit } => {
+                lead(f, name)?;
+                write!(f, " is stranded: the read it is resolved in, {read}, ")?;
+                match edit {
+                    ReadEdit::Deleted => f.write_str("went with the operation defining it")?,
+                    ReadEdit::Foreign => f.write_str("was never minted by this document")?,
+                }
+                write!(
+                    f,
+                    ". {}",
+                    crate::sentence::Recourse("re-site the reference in a live read, or remove it")
                 )
             }
             Self::NodeGone { name, edit } => {
@@ -267,6 +296,30 @@ impl core::error::Error for ResolveError {}
 /// those stay where they are and these do not: a payload shape is
 /// held by one constructor rather than by two sites agreeing.
 impl ResolveError {
+    /// Rung 0: the read the reference is resolved in must still be in
+    /// the document, or the reference is stranded with it. `None` while
+    /// the document holds it. As for a node, ids are never reused: a
+    /// read the document has minted and no longer holds went with the
+    /// operation defining it, and one it never minted is not its own.
+    pub(crate) fn read_gone(
+        name: &StableName,
+        read: crate::VarId,
+        doc: &Doc<ProfileProgram>,
+    ) -> Option<Self> {
+        if doc.var(read).is_some() {
+            return None;
+        }
+        Some(Self::ReadGone {
+            name: name.clone(),
+            read,
+            edit: if doc.has_minted_var(read) {
+                ReadEdit::Deleted
+            } else {
+                ReadEdit::Foreign
+            },
+        })
+    }
+
     /// Rung 1: the minting node must still be in the document, or the
     /// name is stranded. `None` when it is live.
     ///
@@ -910,6 +963,80 @@ impl core::fmt::Display for RecipeEditRef {
     }
 }
 
+/// **What became of a reference's site read** ([`ResolveError::ReadGone`]),
+/// derived from the document as a node's is: read ids are never reused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReadEdit {
+    /// The document minted the read and no longer holds it: it went
+    /// with the operation defining it.
+    Deleted,
+    /// The document never minted the read: a foreign or corrupt
+    /// reference.
+    Foreign,
+}
+
+/// **A resolve the door refuses** — a question with no table to ask,
+/// never an answer about a name: typed, and never a [`Resolution`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ResolveRefusal {
+    /// The read is the document's but is no output holding a body or a
+    /// profile — a scalar, a selection, a datum's output — so no table
+    /// names what it holds. A reference is read in a body output.
+    ReadNotAnOutput {
+        /// The read named.
+        read: crate::VarId,
+    },
+    /// The node a reference kept, rather than its read, is no longer
+    /// in the document, and the name was not minted there: its read
+    /// went with it, and the node handle cannot say which it was.
+    /// Resolve in the read itself, which answers
+    /// [`ResolveError::ReadGone`].
+    NodeNotHeld {
+        /// The node named.
+        node: RecipeNodeId,
+    },
+}
+
+impl crate::spoken::Say for ResolveRefusal {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        match self {
+            Self::ReadNotAnOutput { read } => write!(
+                f,
+                "{read} is no output holding a body, so no table names what it holds. {}",
+                crate::sentence::Recourse("resolve the name in the body output it is read in")
+            ),
+            Self::NodeNotHeld { node } => write!(
+                f,
+                "{} is not in the document, and its outputs went with it. {}",
+                by.node(*node),
+                crate::sentence::Recourse("resolve the name in the read it was read in")
+            ),
+        }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for ResolveRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl core::error::Error for ResolveRefusal {}
+
+impl ResolveRefusal {
+    /// **The refusal as `doc` speaks it**: each node as the document
+    /// holds it now, a node it does not hold by its tag.
+    #[must_use]
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
+    }
+}
+
 /// The recorded tie a reference ran into (N2's tie mark, as evidence).
 #[derive(Debug, Clone, PartialEq)]
 pub struct TieWitness {
@@ -1051,7 +1178,16 @@ pub struct RunCtx<'a, T: Decide> {
 /// a node with one output is read in that output. The name a split's
 /// other half carries is not this half's, so it does not resolve here.
 /// Prefer [`resolve_with_prior`] whenever a last-good run exists.
-pub fn resolve<T: Decide>(new: RunCtx<'_, T>, at: crate::VarId, name: &StableName) -> Resolution {
+///
+/// # Errors
+///
+/// [`ResolveRefusal::ReadNotAnOutput`] when `at` is a live variable
+/// that is no output holding a body: there is no table to ask.
+pub fn resolve<T: Decide>(
+    new: RunCtx<'_, T>,
+    at: crate::VarId,
+    name: &StableName,
+) -> Result<Resolution, ResolveRefusal> {
     resolve_impl(new, NoPrior, at, name)
 }
 
@@ -1062,42 +1198,44 @@ pub fn resolve<T: Decide>(new: RunCtx<'_, T>, at: crate::VarId, name: &StableNam
 /// the flip from the split's recorded classification (NAMES N2, the
 /// Split op's pieces). The two runs may use different scalars (verdict
 /// logs are scalar-independent).
+///
+/// # Errors
+///
+/// [`resolve`]'s.
 pub fn resolve_with_prior<T: Decide, U: Decide>(
     new: RunCtx<'_, T>,
     prior: RunCtx<'_, U>,
     at: crate::VarId,
     name: &StableName,
-) -> Resolution {
+) -> Result<Resolution, ResolveRefusal> {
     resolve_impl(new, Prior { ctx: prior }, at, name)
 }
 
-/// **The verdict for a reference read at `node`, once the document no
-/// longer holds it**: `NodeGone`, naming the recipe edit that removed
-/// it (ids are never reused, so a live-then-gone node was deleted), or
-/// `None` while `node` is live. A caller that keeps a node rather than
-/// the read it was read in — a pick, a binding's node handle — has no
-/// read left to name once the node is deleted, since its outputs go
-/// with it; this is [`resolve`]'s answer for that read.
+/// **The verdict for a reference kept by `node`, once the document no
+/// longer holds it** — `None` while `node` is live. A caller that keeps
+/// a node rather than the read it was read in — a pick, a binding's
+/// node handle — has no read left to name once the node is deleted,
+/// since its outputs go with it. Where the name was minted at `node`,
+/// the name itself is stranded: `NodeGone`, naming the recipe edit that
+/// removed it. Otherwise the node handle cannot say which read is gone,
+/// and `NodeGone` is about a name's minting node, never a read's, so
+/// the door refuses ([`ResolveRefusal::NodeNotHeld`]): the read the
+/// caller resolved in answers [`ResolveError::ReadGone`].
 pub fn stranded_at(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
     name: &StableName,
-) -> Option<Resolution> {
+) -> Option<Result<Resolution, ResolveRefusal>> {
     if doc.node(node).is_some() {
         return None;
     }
-    let edit = if doc.has_minted(node) {
-        RecipeEditRef::NodeDeleted { node }
-    } else {
-        RecipeEditRef::ForeignNode { node }
-    };
-    Some(Resolution::Failed(ResolutionFailure {
-        error: ResolveError::node_gone(name, doc).unwrap_or(ResolveError::NodeGone {
-            name: name.clone(),
-            edit,
-        }),
-        offers: Vec::new(),
-    }))
+    Some(match ResolveError::node_gone(name, doc) {
+        Some(error) if name.node == node => Ok(Resolution::Failed(ResolutionFailure {
+            error,
+            offers: Vec::new(),
+        })),
+        _ => Err(ResolveRefusal::NodeNotHeld { node }),
+    })
 }
 
 /// Enriches one appearance loss with the full N5 ladder (spec D9's
@@ -1164,8 +1302,16 @@ fn enrich_impl<T: Decide, P: PriorCtx>(
             offers: Vec::new(),
         });
     }
-    // The entry's body read is its site (NAMES N1).
-    resolve_impl(new, prior, loss.body, &loss.name)
+    // The entry's body read is its site (NAMES N1): rung 0 first, then
+    // the rungs. The edit and load doors hold a key's read to a body
+    // output while the document holds it, so a held read is one.
+    if let Some(error) = ResolveError::read_gone(&loss.name, loss.body, new.doc) {
+        return Resolution::Failed(ResolutionFailure {
+            error,
+            offers: Vec::new(),
+        });
+    }
+    resolve_rungs(new, prior, loss.body, &loss.name)
 }
 
 /// Re-attachment offers for every appearance entry (the spec D9
@@ -1478,6 +1624,30 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
 }
 
 fn resolve_impl<T: Decide, P: PriorCtx>(
+    new: RunCtx<'_, T>,
+    prior: P,
+    site: crate::VarId,
+    name: &StableName,
+) -> Result<Resolution, ResolveRefusal> {
+    // 0. ReadGone: the site read is not the document's any more.
+    if let Some(error) = ResolveError::read_gone(name, site, new.doc) {
+        return Ok(Resolution::Failed(ResolutionFailure {
+            error,
+            offers: Vec::new(),
+        }));
+    }
+    // A live read that is no output holding a body — a scalar, a
+    // selection, a datum's — has no table to ask: the question is
+    // refused, never answered.
+    if !new.doc.holds_body(site) {
+        return Err(ResolveRefusal::ReadNotAnOutput { read: site });
+    }
+    Ok(resolve_rungs(new, prior, site, name))
+}
+
+/// [`resolve_impl`]'s rungs from 1 on, for a site read the document
+/// defines as an output.
+fn resolve_rungs<T: Decide, P: PriorCtx>(
     new: RunCtx<'_, T>,
     prior: P,
     site: crate::VarId,

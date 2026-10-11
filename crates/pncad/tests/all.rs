@@ -905,7 +905,7 @@ fn the_pick_index_refusal_is_matchable_through_the_select_list() {
 ///
 /// The two enums are matched arm by arm and exhaustively, which is
 /// the whole claim: a consumer branches on WHICH failure it got, and
-/// the six words below are six different repairs. `ResolutionFailure`
+/// the seven words below are seven different repairs. `ResolutionFailure`
 /// is the struct that pairs one of them with the offers, and it is
 /// read by field for the same reason.
 ///
@@ -918,9 +918,9 @@ fn the_resolution_payloads_are_matchable_through_the_select_list() {
     use pncad::document::NodeStanding;
     use pncad::select::{ResolutionFailure, ResolveError, ResolveIndeterminate};
 
-    // The repair each failure asks for, which is why the three stay
-    // three: rebind, refine among the candidates, or rebind onto a
-    // node that still exists.
+    // The repair each failure asks for, which is why the four stay
+    // four: rebind, refine among the candidates, re-site the reference
+    // in a live read, or rebind onto a node that still exists.
     fn repair(failure: &ResolutionFailure) -> (&'static str, usize) {
         let word = match &failure.error {
             ResolveError::Vanished { name, .. } => {
@@ -931,6 +931,7 @@ fn the_resolution_payloads_are_matchable_through_the_select_list() {
                 named::<&Vec<StableName>>(candidates);
                 "ambiguous"
             }
+            ResolveError::ReadGone { .. } => "read_gone",
             ResolveError::NodeGone { .. } => "node_gone",
         };
         (word, failure.offers.len())

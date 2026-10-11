@@ -638,7 +638,11 @@ class SelectRefusal(PncadError):
     `reason` is `in_band`, `tied_disagrees`, `unreadable`,
     `not_a_datum`, `datum_has_no_value`, `node_has_no_value`,
     `node_has_no_output` (a flush query's node defines no output for a
-    finding to be sited at), `not_a_length`, `pair_in_band`, `bad_value`, `band`, or
+    finding to be sited at), `read_not_an_output` (a read that is no
+    body output, so no table to ask — `Evaluation.resolve` raises it
+    too), `node_not_held` (`Evaluation.resolve` at a node handle the
+    document no longer holds, for a name it did not mint),
+    `not_a_length`, `pair_in_band`, `bad_value`, `band`, or
     `distinct_finding` (a kernel defect). The other attributes are
     the refusing arm's payload, always present and `None` where
     inapplicable: `name` (the candidate's opaque name text, a flush
@@ -5231,7 +5235,7 @@ class Resolution:
     a `failed`.
 
     `variant` is WHICH arm, under the two states that have one:
-    `vanished`, `ambiguous` or `node_gone` on a failure;
+    `vanished`, `ambiguous`, `read_gone` or `node_gone` on a failure;
     `target_failed`, `target_poisoned` or `target_not_evaluated` on an
     indeterminate; `None` when resolved. It is a second vocabulary
     rather than a finer `status` because the two answer different
@@ -5618,9 +5622,13 @@ class Evaluation:
 
         IN ONE READ, as every name door is: `at` is a `Var` — an
         output, `Doc.output(split, port)` for a split's half — or a
-        node, read at its one output (a name tells apart only what its
-        variable holds). A node the document no longer holds answers
-        `node_gone`; a node with several outputs is a `ValueError`.
+        node, read at its one body output (a name tells apart only what
+        its variable holds). A `Var` the document no longer holds answers
+        `failed` / `read_gone` (re-site the reference); a node it no
+        longer holds answers `node_gone` for a name it minted and raises
+        `SelectRefusal` `node_not_held` otherwise; a `Var` that is no body
+        output raises `SelectRefusal` `read_not_an_output`; a node with
+        several body outputs is a `ValueError`.
 
         The other raise is the boundary one every name-taking door
         shares: text that is not a name at all is a `ValueError`. A

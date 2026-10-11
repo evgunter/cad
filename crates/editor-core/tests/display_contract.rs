@@ -1147,6 +1147,7 @@ test_utils::f6_variants! {
         StepIds,
         MintLogOrder,
         NameReadNotMinted,
+        AppearanceReadNotABody,
         NameStepNotMinted,
         DeclaredNameNotUpstream,
     ];
@@ -1669,6 +1670,24 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 "carries the read",
                 "mint log does not hold",
                 "never minted it",
+            ],
+        ),
+        (
+            SnapshotError::AppearanceReadNotABody {
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId::new(0, tagged(4)),
+                        path: vec![RoleSeg::Cap(editor_core::CapEnd::End)],
+                    },
+                    node(),
+                ),
+                read: editor_core::VarId::new(0, tagged(9)),
+            },
+            vec![
+                "an appearance entry on",
+                "no output holding a body",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
             ],
         ),
         (
@@ -3124,7 +3143,7 @@ fn maintenance_display_says_what_the_edit_did() {
                 "the appearance store holds an attachment under a name for the end cap of \
                  Extrude 000000000007",
                 "this edit kept a step it names but no longer draws that piece",
-                "rebound or cleared",
+                "rebound, re-attached in a live body or cleared",
             ],
         ),
         (

@@ -908,6 +908,18 @@ pub(crate) fn select_refusal(
     typed_err(py, ErrorClass::Select, message, &fields)
 }
 
+/// **A resolve the Rust door refuses, raised typed** — the select
+/// door's class and fields, the tag [`resolve_refusal_tag`]'s, the
+/// message the kernel's sentence as the document speaks it.
+pub(crate) fn resolve_refusal(
+    py: Python<'_>,
+    err: &pncad::select::ResolveRefusal,
+    doc: &pncad::document::ProfileDoc,
+) -> PyErr {
+    let fields = refusal_fields(py, crate::tags::resolve_refusal_tag(err));
+    typed_err(py, ErrorClass::Select, err.spoken(doc), &fields)
+}
+
 /// **Kernel-growth tripwires**: one function per mirrored enum,
 /// matching the KERNEL type with NO wildcard arm — so a kernel
 /// variant this file does not mirror stops the `python`-feature build

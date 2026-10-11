@@ -1541,7 +1541,7 @@ fn resolution_status_tags_are_stable() {
             },
             read,
             &stored
-        )),
+        ).unwrap()),
         "resolved"
     );
 
@@ -1563,14 +1563,15 @@ fn resolution_status_tags_are_stable() {
         },
         read,
         &stored,
-    );
+    ).unwrap();
     assert_eq!(resolution_status_tag(&verdict), "failed");
-    // ...and WHICH failure, which is the word a repair branches on: a
-    // node that left the document is rebound onto a different
-    // feature, where a tie would have been refined among `offers`.
+    // ...and WHICH failure, which is the word a repair branches on: the
+    // read it was resolved in went with the node, and that rung comes
+    // first — the reference is re-sited in a live read, where a tie
+    // would have been refined among `offers`.
     match &verdict {
         Resolution::Failed(failure) => {
-            assert_eq!(resolve_error_tag(&failure.error), "node_gone");
+            assert_eq!(resolve_error_tag(&failure.error), "read_gone");
         }
         other => panic!("a deleted minting node must fail: {other:?}"),
     }
@@ -1590,7 +1591,7 @@ fn resolution_status_tags_are_stable() {
         },
         read,
         &stored,
-    );
+    ).unwrap();
     assert_eq!(resolution_status_tag(&verdict), "indeterminate");
     match &verdict {
         Resolution::Indeterminate(cause) => {
@@ -6026,7 +6027,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "resolve_error_tag",
-        values: &["ambiguous", "node_gone", "vanished"],
+        values: &["ambiguous", "node_gone", "read_gone", "vanished"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "resolve_refusal_tag",
+        values: &["node_not_held", "read_not_an_output"],
         delegates: &[],
     },
     TagEntry {
@@ -6242,6 +6248,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "snapshot_error_tag",
         values: &[
             "anonymous_var_unread",
+            "appearance_read_not_a_body",
             "assertion_bound",
             "declared_name_not_upstream",
             "definition_cycle",

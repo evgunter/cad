@@ -1724,9 +1724,14 @@ pub fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
 /// **The read `name` is read in where it was minted**: the one named
 /// output of its minting node as the evaluation reads it, else as the
 /// document defines it (a node with no value in the run), NAMES N1: a
-/// name is resolved in the read that holds its body. A node neither
-/// holds reads in a variable no document defines — the resolution
-/// ladder answers `NodeGone` before it reads any table.
+/// name is resolved in the read that holds its body.
+///
+/// # Panics
+///
+/// If the minting node is the document's and neither names one read
+/// for it (a split, whose halves are two): the row names its read.
+/// A node the document no longer holds has no read left, and reads in
+/// a variable no document defines.
 pub fn at_mint<T: geom_core::Decide>(
     ctx: editor_core::RunCtx<'_, T>,
     name: &StableName,
@@ -1734,27 +1739,51 @@ pub fn at_mint<T: geom_core::Decide>(
     ctx.eval
         .at_var(name.node)
         .or_else(|| ctx.doc.read_of_node(name.node))
-        .unwrap_or(editor_core::VarId::new(0, 0))
+        .unwrap_or_else(|| {
+            assert!(
+                ctx.doc.node(name.node).is_none(),
+                "{:?} has no one read: the row names the read {name:?} is read in",
+                name.node
+            );
+            editor_core::VarId::new(0, 0)
+        })
 }
 
 /// [`editor_core::resolve`] in the read `name` was minted in
 /// ([`at_mint`]): the row's site when it is about a name where its own
-/// node published it.
+/// node published it. A name whose minting node the document no longer
+/// holds is stranded with it ([`editor_core::stranded_at`]: `NodeGone`).
+///
+/// # Panics
+///
+/// If the door refuses the read: [`at_mint`] names a body output.
 pub fn resolve_at_mint<T: geom_core::Decide>(
     ctx: editor_core::RunCtx<'_, T>,
     name: &StableName,
 ) -> editor_core::Resolution {
-    editor_core::resolve(ctx, at_mint(ctx, name), name)
+    if let Some(gone) = editor_core::stranded_at(ctx.doc, name.node, name) {
+        return gone.expect("a name minted at a gone node is NodeGone");
+    }
+    editor_core::resolve(ctx, at_mint(ctx, name), name).expect("the mint's read holds a body")
 }
 
 /// [`editor_core::resolve_with_prior`] in the read `name` was minted in
-/// ([`at_mint`], in the new document).
+/// ([`at_mint`], in the new document); [`resolve_at_mint`]'s stranded
+/// case alike.
+///
+/// # Panics
+///
+/// [`resolve_at_mint`]'s.
 pub fn resolve_with_prior_at_mint<T: geom_core::Decide, U: geom_core::Decide>(
     new: editor_core::RunCtx<'_, T>,
     prior: editor_core::RunCtx<'_, U>,
     name: &StableName,
 ) -> editor_core::Resolution {
+    if let Some(gone) = editor_core::stranded_at(new.doc, name.node, name) {
+        return gone.expect("a name minted at a gone node is NodeGone");
+    }
     editor_core::resolve_with_prior(new, prior, at_mint(new, name), name)
+        .expect("the mint's read holds a body")
 }
 
 /// **The body read an appearance entry on `name` is read in**, for a

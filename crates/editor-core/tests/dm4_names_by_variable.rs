@@ -123,10 +123,10 @@ fn a_piece_whose_side_flips_leaves_its_reads_table_diagnosed_as_a_predicate_flip
     };
 
     assert!(
-        matches!(resolve(new, below, &riser), Resolution::Resolved(_)),
+        matches!(resolve(new, below, &riser).unwrap(), Resolution::Resolved(_)),
         "the lower half's read holds it"
     );
-    match resolve_with_prior(new, prior, above, &riser) {
+    match resolve_with_prior(new, prior, above, &riser).unwrap() {
         Resolution::Failed(f) => match f.error {
             ResolveError::Vanished {
                 diagnosis: Diagnosis::PredicateFlip { predicate, .. },
@@ -161,7 +161,7 @@ fn the_section_face_is_one_name_and_each_halfs_read_resolves_its_own() {
     let mut held = Vec::new();
     for half in [SplitHalf::Above, SplitHalf::Below] {
         let read = doc.output(split, half.port()).expect("a half's read");
-        let Resolution::Resolved(r) = resolve(ctx, read, &section) else {
+        let Resolution::Resolved(r) = resolve(ctx, read, &section).unwrap() else {
             panic!("{half:?}: the section face resolves through its read");
         };
         assert_eq!(r.node, split, "{half:?}");
@@ -205,7 +205,7 @@ fn a_paint_on_one_halfs_section_face_leaves_the_other_halfs_unpainted() {
         doc: &painted,
         eval: &ev,
     };
-    let face = |half| match resolve(ctx, read(half), &section) {
+    let face = |half| match resolve(ctx, read(half), &section).unwrap() {
         Resolution::Resolved(r) => r.entity,
         other => panic!("{half:?}: the section face resolves: {other:?}"),
     };
@@ -337,7 +337,7 @@ fn a_vanished_shared_fragments_tombstone_is_its_own_reads() {
         doc: &doc,
         eval: &before,
     };
-    let Resolution::Resolved(was) = resolve(prior, below, &frag) else {
+    let Resolution::Resolved(was) = resolve(prior, below, &frag).unwrap() else {
         panic!("the lower read resolves the fragment");
     };
     assert_eq!(was.entity.body, 1, "the lower half is the value's body 1");
@@ -355,7 +355,7 @@ fn a_vanished_shared_fragments_tombstone_is_its_own_reads() {
         doc: &moved,
         eval: &after,
     };
-    let Resolution::Failed(failed) = resolve_with_prior(new, prior, below, &frag) else {
+    let Resolution::Failed(failed) = resolve_with_prior(new, prior, below, &frag).unwrap() else {
         panic!("the lower read lost the fragment");
     };
     let ResolveError::Vanished {
@@ -542,4 +542,147 @@ fn a_repoint_that_takes_a_keys_name_out_of_reach_strands_it() {
         "the key's name left its read's reach: {:?}",
         applied.maintenance
     );
+}
+
+/// A cube and a transform of it: the cube's cap, carried through the
+/// transform's read under the cube's own name.
+fn cube_and_transform() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, StableName) {
+    let doc = ProfileDoc::empty_derived("dm4_read_gone", Tol::witness());
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(fixture::desc(
+            plane,
+            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+        )),
+    );
+    let (doc, cube) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (doc, moved) = insert(doc, fixture::xform(cube, [0.0, 0.0, 2.0], [0.0, 0.0, 1.0], 0.0));
+    let cap = fixture::fname(cube, RoleSeg::Cap(editor_core::CapEnd::End));
+    (doc, cube, moved, cap)
+}
+
+/// **A reference whose read is gone is stranded with its read, first**
+/// (N5's `ReadGone`, rung 0): the transform deleted, its read went with
+/// it, and the cap read there answers `ReadGone { Deleted }` — never a
+/// `Vanished` that blames the cube, which did not change. A read the
+/// document never minted is `Foreign`. With the cube deleted too, the
+/// name's own node is gone as well, and the read still answers first.
+#[test]
+fn a_reference_whose_read_is_gone_is_read_gone_before_node_gone() {
+    let (doc, cube, moved, cap) = cube_and_transform();
+    let read = fixture::out(&doc, moved);
+    let gone_read = |doc: &ProfileDoc, read| {
+        let ev = fixture::run(doc, &Default::default());
+        match resolve(RunCtx { doc, eval: &ev }, read, &cap).expect("a held read, or none") {
+            Resolution::Failed(f) => f.error,
+            other => panic!("a reference with no read must fail: {other:?}"),
+        }
+    };
+    let (no_transform, _) = fixture::step(doc.clone(), DocEdit::DeleteNode { id: moved });
+    assert_eq!(
+        gone_read(&no_transform, read),
+        ResolveError::ReadGone {
+            name: cap.clone(),
+            read,
+            edit: editor_core::ReadEdit::Deleted,
+        }
+    );
+    let never = editor_core::VarId::new(0, 0);
+    assert!(matches!(
+        gone_read(&doc, never),
+        ResolveError::ReadGone {
+            edit: editor_core::ReadEdit::Foreign,
+            ..
+        }
+    ));
+    let (neither, _) = fixture::step(no_transform, DocEdit::DeleteNode { id: cube });
+    assert!(
+        matches!(gone_read(&neither, read), ResolveError::ReadGone { .. }),
+        "the site read answers ahead of the name's node"
+    );
+    // A loss on a key read there is the same rung, and enriches to it.
+    let (painted, _) = fixture::step(
+        doc.clone(),
+        DocEdit::SetAppearance {
+            body: read,
+            name: cap.clone(),
+            attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(1, 2, 3)),
+        },
+    );
+    let (painted, _) = fixture::step(painted, DocEdit::DeleteNode { id: moved });
+    let ev = fixture::run(&painted, &Default::default());
+    let [loss] = ev.appearance.losses.as_slice() else {
+        panic!("one loss: {:?}", ev.appearance.losses);
+    };
+    assert_eq!(loss.cause, editor_core::AppearanceLossCause::ReadGone);
+    let enriched = editor_core::enrich_appearance_loss(
+        RunCtx {
+            doc: &painted,
+            eval: &ev,
+        },
+        loss,
+    );
+    assert!(matches!(
+        enriched,
+        Resolution::Failed(editor_core::ResolutionFailure {
+            error: ResolveError::ReadGone { .. },
+            ..
+        })
+    ));
+}
+
+/// **A read that holds no body is no question to ask**: a live scalar
+/// variable, and a datum's output, refuse `ReadNotAnOutput` — typed,
+/// never a `Resolution`. A node handle whose node went, holding a name
+/// it did not mint, refuses `NodeNotHeld`; one holding a name it minted
+/// answers `NodeGone`, about that node.
+#[test]
+fn a_read_that_holds_no_body_is_refused_and_a_gone_node_handle_says_so() {
+    let (doc, cube, moved, cap) = cube_and_transform();
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::DefineVar {
+            var: editor_core::VarName::from_static("depth").into(),
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
+                editor_core::Dimension::Length,
+                0.9,
+            )),
+            fresh: Vec::new(),
+        },
+    );
+    let depth = doc.var_named("depth").expect("the scalar");
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let ev = fixture::run(&doc, &Default::default());
+    let ctx = RunCtx {
+        doc: &doc,
+        eval: &ev,
+    };
+    for read in [depth, fixture::out(&doc, plane)] {
+        assert_eq!(
+            resolve(ctx, read, &cap),
+            Err(editor_core::ResolveRefusal::ReadNotAnOutput { read })
+        );
+    }
+    let (gone, _) = fixture::step(doc.clone(), DocEdit::DeleteNode { id: moved });
+    assert_eq!(
+        editor_core::stranded_at(&gone, moved, &cap),
+        Some(Err(editor_core::ResolveRefusal::NodeNotHeld { node: moved }))
+    );
+    let (gone, _) = fixture::step(gone, DocEdit::DeleteNode { id: cube });
+    assert!(matches!(
+        editor_core::stranded_at(&gone, cube, &cap),
+        Some(Ok(Resolution::Failed(editor_core::ResolutionFailure {
+            error: ResolveError::NodeGone { .. },
+            ..
+        })))
+    ));
+    assert_eq!(editor_core::stranded_at(&doc, cube, &cap), None);
 }

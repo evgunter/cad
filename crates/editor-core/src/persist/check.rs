@@ -1276,6 +1276,17 @@ pub enum SnapshotError {
         /// The read it carries.
         read: VarId,
     },
+    /// An appearance entry is read in a variable the document holds
+    /// live that is no output holding a body — a scalar, a selection,
+    /// a datum's output — so no table names what it holds. No edit
+    /// writes one (`EditError::AppearanceBodyNotARead`); a deleted
+    /// operation's read, the stranded key, is legal.
+    AppearanceReadNotABody {
+        /// The entry's name.
+        name: SpokenName,
+        /// The read it is keyed by.
+        read: VarId,
+    },
     /// A name the document holds spells a profile step its mint log
     /// does not hold — one the document never minted.
     NameStepNotMinted {
@@ -1698,6 +1709,12 @@ impl core::fmt::Display for SnapshotError {
                 f,
                 "{name} carries the read {read}, which the document's mint log does not hold \
                  as a variable's — the document never minted it",
+            ),
+            Self::AppearanceReadNotABody { name, read } => write!(
+                f,
+                "an appearance entry on {name} is read in {read}, which the document holds as \
+                 no output holding a body, so no table names what it holds. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
             Self::NameStepNotMinted { name, step } => write!(
                 f,
@@ -2129,6 +2146,14 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                 read,
             });
         }
+        // An appearance key's read, while the document holds it, holds
+        // a body: what the edit door admits (NAMES N1).
+        if let Some(read) = body.filter(|&r| doc.var(r).is_some() && !doc.holds_body(r)) {
+            return Err(SnapshotError::AppearanceReadNotABody {
+                name: doc.spoken_name(carrier.name()),
+                read,
+            });
+        }
         // And every profile step it spells, against the mint log: a
         // step a `SetProgram` dropped stays in it.
         if let Some(&step) = carrier
@@ -2395,6 +2420,7 @@ mod tests {
             StepIds,
             MintLogOrder,
             NameReadNotMinted,
+            AppearanceReadNotABody,
             NameStepNotMinted,
             DeclaredNameNotUpstream,
             OperandUnminted,
@@ -2480,6 +2506,7 @@ mod tests {
             SnapshotError::NodeNotMinted { .. }
             | SnapshotError::StepIds { .. }
             | SnapshotError::NameReadNotMinted { .. }
+            | SnapshotError::AppearanceReadNotABody { .. }
             | SnapshotError::NameStepNotMinted { .. }
             | SnapshotError::DeclaredNameNotUpstream { .. }
             | SnapshotError::ReadCycle { .. }
@@ -2542,6 +2569,10 @@ mod tests {
                 entry: crate::Minted::Step(crate::node::StepId::new(0, 3)),
             },
             SnapshotError::NameReadNotMinted {
+                name: crate::SpokenName::absent(face()),
+                read: crate::VarId::new(0, 9),
+            },
+            SnapshotError::AppearanceReadNotABody {
                 name: crate::SpokenName::absent(face()),
                 read: crate::VarId::new(0, 9),
             },

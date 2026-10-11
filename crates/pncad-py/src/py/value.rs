@@ -1642,10 +1642,16 @@ impl Evaluation {
     /// **In one read**, as every name door is (NAMES N1: a name tells
     /// apart only what its variable holds): `at` is a `Var` — an
     /// output, `Doc.output(split, port)` for a split's half — or a node,
-    /// read at its one output. A node the document no longer holds
-    /// answers `node_gone`: its read went with it. A node with several
-    /// outputs is a `ValueError`, since which one is meant is the
-    /// caller's to say.
+    /// read at its one body output. A `Var` the document no longer
+    /// holds answers `failed` / `read_gone`: re-site the reference. A
+    /// node the document no longer holds answers `node_gone` for a
+    /// name it minted, and otherwise raises `SelectRefusal`
+    /// `node_not_held`: the node took its read with it, and a node
+    /// handle cannot say which read that was. A `Var` that is no body
+    /// output (a scalar, a selection, a datum's) raises `SelectRefusal`
+    /// `read_not_an_output`: there is no table to ask. A node with
+    /// several body outputs is a `ValueError`, since which one is meant
+    /// is the caller's to say.
     ///
     /// The other raise is the boundary one every name-taking door
     /// shares: text that is not a name at all is a `ValueError`. A
@@ -1663,8 +1669,14 @@ impl Evaluation {
             super::doc::AtArg::Node(node) => match self.doc.read_of_node(node.0) {
                 Some(read) => read,
                 None => {
-                    if let Some(gone) = pncad::select::stranded_at(&self.doc, node.0, &name) {
-                        return super::resolve::resolution(py, &gone, &self.doc, &self.inner);
+                    match pncad::select::stranded_at(&self.doc, node.0, &name) {
+                        Some(Ok(gone)) => {
+                            return super::resolve::resolution(py, &gone, &self.doc, &self.inner);
+                        }
+                        Some(Err(refusal)) => {
+                            return Err(super::select::resolve_refusal(py, &refusal, &self.doc));
+                        }
+                        None => {}
                     }
                     return Err(pyo3::exceptions::PyValueError::new_err(format!(
                         "{} defines several outputs; resolve in one of them, by `Doc.output`",
@@ -1673,19 +1685,16 @@ impl Evaluation {
                 }
             },
         };
-        super::resolve::resolution(
-            py,
-            &pncad::select::resolve(
-                pncad::select::RunCtx {
-                    doc: &self.doc,
-                    eval: &self.inner,
-                },
-                read,
-                &name,
-            ),
-            &self.doc,
-            &self.inner,
+        let resolution = pncad::select::resolve(
+            pncad::select::RunCtx {
+                doc: &self.doc,
+                eval: &self.inner,
+            },
+            read,
+            &name,
         )
+        .map_err(|refusal| super::select::resolve_refusal(py, &refusal, &self.doc))?;
+        super::resolve::resolution(py, &resolution, &self.doc, &self.inner)
     }
 
     /// **What is under this ray?** — the nearest face hit across

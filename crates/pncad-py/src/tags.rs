@@ -2015,6 +2015,7 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::StepIds { .. } => "step_ids",
         SnapshotError::MintLogOrder { .. } => "mint_log_order",
         SnapshotError::NameReadNotMinted { .. } => "name_read_not_minted",
+        SnapshotError::AppearanceReadNotABody { .. } => "appearance_read_not_a_body",
         SnapshotError::NameStepNotMinted { .. } => "name_step_not_minted",
         SnapshotError::DeclaredNameNotUpstream { .. } => "declared_name_not_upstream",
         SnapshotError::OperandUnminted { .. } => "operand_unminted",
@@ -2925,7 +2926,19 @@ pub fn resolve_error_tag(err: &ResolveError) -> &'static str {
     match err {
         ResolveError::Vanished { .. } => "vanished",
         ResolveError::Ambiguous { .. } => "ambiguous",
+        ResolveError::ReadGone { .. } => "read_gone",
         ResolveError::NodeGone { .. } => "node_gone",
+    }
+}
+
+/// The stable tag for a resolve the door refuses — a question with no
+/// table to ask (`pncad::select::ResolveRefusal`), raised typed rather
+/// than answered: `read_not_an_output` shares its word with the select
+/// door's arm of the same meaning.
+pub fn resolve_refusal_tag(err: &pncad::select::ResolveRefusal) -> &'static str {
+    match err {
+        pncad::select::ResolveRefusal::ReadNotAnOutput { .. } => "read_not_an_output",
+        pncad::select::ResolveRefusal::NodeNotHeld { .. } => "node_not_held",
     }
 }
 

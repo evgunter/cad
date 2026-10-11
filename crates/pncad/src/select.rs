@@ -230,6 +230,6 @@ pub use editor_core::{
 // which is what a curated list owes; nothing here names one as a
 // type.
 pub use editor_core::{
-    AboutReference, Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate, RunCtx,
-    resolve, stranded_at,
+    AboutReference, ReadEdit, Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate,
+    ResolveRefusal, RunCtx, resolve, stranded_at,
 };

@@ -102,7 +102,7 @@ fn assert_total(doc: &editor_core::ProfileDoc, ev: &Evaluation<f64>) -> usize {
                 // resolution names the read): the name resolves there,
                 // to this very entity of this node's value, or is
                 // honestly tied.
-                match editor_core::resolve(ctx, var, name) {
+                match editor_core::resolve(ctx, var, name).unwrap() {
                     Resolution::Resolved(r) => {
                         assert_eq!((r.node, r.entity), (node, ent), "{name:?} resolves home");
                     }
