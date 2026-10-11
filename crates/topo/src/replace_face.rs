@@ -4897,6 +4897,82 @@ mod pair_over_its_span_rows {
             }
         }
     }
+
+    /// **A new edge from the apex reads the start on its own nappe.** The
+    /// cone of half-angle `π/12` about `z`, cut by a plane leaning to
+    /// `D = 1/512` (`M ≈ 0.52`) `0.04·ε` off the apex: its section starts
+    /// `≈ 0.08·ε` out on the nappe its gap and lean put nearest and
+    /// `≈ 20·ε` out on the other. A line of the pair served over a span
+    /// clear of the apex, then ending at the apex on the cone's `+z`
+    /// nappe, is kept where that nappe is the near one and refused naming
+    /// the hyperbola where it is the far one: the gap's sign, decided well
+    /// past its rounding, names the nappe.
+    #[test]
+    fn a_new_edge_from_the_apex_reads_its_own_nappe() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let eps = tol.eps();
+        let alpha = core::f64::consts::PI / 12.0;
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: alpha,
+            u_ref: Vec3::unit_x(),
+        };
+        let lean = (-1.0_f64 / 512.0).acos() - alpha;
+        let n = Vec3::new(lean.sin(), 0.0, lean.cos());
+        // `δ = (apex − origin)·n`: the `+z` nappe is the near one where
+        // `δ·(axis·n) < 0`, so where `δ < 0`.
+        for (delta, kept) in [(-0.04 * eps, true), (0.04 * eps, false)] {
+            let plane = Surface::Plane {
+                origin: Point3::origin() - n * delta,
+                normal: n,
+                u_ref: Vec3::unit_y(),
+            };
+            let old = geom_brep::Reach::Measured {
+                at: Point3::new(0.0, 0.0, 0.75),
+                lever: 0.25,
+            };
+            let Ok(geom_brep::PlaneConeSection::ApexLinePair { l1, .. }) =
+                geom_brep::plane_cone_section(&plane, &cone, &old, band)
+            else {
+                panic!("δ = {delta:e}: a span clear of the apex is served the pair");
+            };
+            let Curve3::Line { dir, .. } = l1 else {
+                unreachable!("a line of the pair")
+            };
+            let mut plan = EdgePlan {
+                edge: EdgeKey::default(),
+                spec: EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::Intersection {
+                        pair: SurfacePair::new(SurfaceKey::default(), SurfaceKey::default()),
+                        witness: Point3::origin(),
+                    },
+                    carrier: l1.clone(),
+                    param_start: 0.0,
+                    param_end: 1.0 / dir.z,
+                },
+                start: VertexKey::default(),
+                end: VertexKey::default(),
+                ends: None,
+                sides: [SurfaceKey::default(); 2],
+                refused: None,
+                apex_pair: Some((plane, cone.clone())),
+            };
+            let got = pair_over_its_span(&mut plan, band);
+            match (&got, kept) {
+                (Ok(()), true) => {}
+                (
+                    Err(ReplaceFaceError::EdgeSection {
+                        verdict: SectionVerdict::Closed(e),
+                        ..
+                    }),
+                    false,
+                ) if e.outside_conic() == Some(OutsideConic::Hyperbola) => {}
+                _ => panic!("δ = {delta:e}: kept {kept}, got {got:?}"),
+            }
+        }
+    }
 }
 
 /// [`spline_corner_root`] on one spline carrier, the straight segment
