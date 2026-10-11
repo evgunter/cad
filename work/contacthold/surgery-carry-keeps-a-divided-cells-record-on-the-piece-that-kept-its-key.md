@@ -2,13 +2,14 @@
 id: surgery-carry-keeps-a-divided-cells-record-on-the-piece-that-kept-its-key
 kind: issue
 title: The surgery carry keeps a record on a divided cell on the piece that kept its key
-status: review
+status: closed
 opened: 2026-10-11
 priority: P1
 cost: M
 refs: [topo-surgery-verbs-drop-a-bodys-contact-records, a-cut-through-a-recorded-touch-mints-a-pair-no-record-backs, the-boolean-and-the-surgery-carry-place-a-divided-cells-record-by-two-routes]
 branch: contacthold/divided-cell-carry
 pr: 4730
+closed: 2026-10-11
 ---
 
 ## What
