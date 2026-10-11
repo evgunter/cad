@@ -62,7 +62,12 @@ fn masquerading_curve<T: SpanLocate>() -> NurbsCurve3<T> {
             )
         })
         .collect();
-    NurbsCurve3::new(Knots::constant(knots5()), control, vec![Real::one(); 5]).unwrap()
+    NurbsCurve3::new(
+        Knots::from(knots5()).lift(geom_core::Real::from_f64),
+        control,
+        vec![Real::one(); 5],
+    )
+    .unwrap()
 }
 
 /// The masquerade, surface half: the same shape on a bilinear net.
@@ -77,8 +82,8 @@ fn masquerading_surface<T: SpanLocate>() -> NurbsSurface<T> {
         })
         .collect();
     NurbsSurface::new(
-        Knots::constant(knots2()),
-        Knots::constant(knots2()),
+        Knots::from(knots2()).lift(geom_core::Real::from_f64),
+        Knots::from(knots2()).lift(geom_core::Real::from_f64),
         control,
         vec![Real::one(); 4],
     )
@@ -96,7 +101,12 @@ fn mirrored_curve<T: SpanLocate>() -> NurbsCurve3<T> {
             )
         })
         .collect();
-    NurbsCurve3::new(Knots::constant(knots5()), control, vec![Real::one(); 5]).unwrap()
+    NurbsCurve3::new(
+        Knots::from(knots5()).lift(geom_core::Real::from_f64),
+        control,
+        vec![Real::one(); 5],
+    )
+    .unwrap()
 }
 
 /// The row the narrow predicate fails: a described net whose every
@@ -160,7 +170,7 @@ fn the_minted_placeholder_still_reads_as_the_placeholder() {
 #[test]
 fn the_widened_predicate_implies_the_narrow_one() {
     let described = NurbsCurve3::new(
-        Knots::constant(knots5()),
+        Knots::from(knots5()).lift(geom_core::Real::from_f64),
         (0..5)
             .map(|i| Point3::new(f64::from(i), 1.0, 0.0))
             .collect(),
@@ -175,7 +185,7 @@ fn the_widened_predicate_implies_the_narrow_one() {
         mirrored_curve::<f64>(),
         described,
         NurbsCurve3::new(
-            Knots::constant(knots5()),
+            Knots::from(knots5()).lift(geom_core::Real::from_f64),
             one_point_poisoned,
             vec![Real::one(); 5],
         )
@@ -279,8 +289,8 @@ fn a_net_poisoned_in_one_channel_yields_the_poison_box_on_every_axis() {
 
     // And a fully described net still gets its real, pruning box.
     let described = NurbsSurface::new(
-        Knots::constant(knots2()),
-        Knots::constant(knots2()),
+        Knots::from(knots2()).lift(geom_core::Real::from_f64),
+        Knots::from(knots2()).lift(geom_core::Real::from_f64),
         (0..4)
             .map(|i| Point3::new(f64::from(i), 1.0, 2.0))
             .collect(),
@@ -304,7 +314,7 @@ fn the_placeholder_set_differs_in_extension_between_scalars() {
     // file CAN spell, `1.E999` overflowing on read — is DESCRIBED, not
     // a placeholder, and its every channel is non-finite.
     let inf = NurbsCurve3::new(
-        Knots::constant(knots5()),
+        Knots::from(knots5()).lift(geom_core::Real::from_f64),
         vec![Point3::new(f64::INFINITY, f64::INFINITY, f64::INFINITY); 5],
         vec![Real::one(); 5],
     )
@@ -317,7 +327,7 @@ fn the_placeholder_set_differs_in_extension_between_scalars() {
     // At `Dual` the question is the VALUE channel only: a poisoned
     // value over a finite derivative reads as the placeholder.
     let d = NurbsCurve3::new(
-        Knots::constant(knots5()),
+        Knots::from(knots5()).lift(geom_core::Real::from_f64),
         vec![
             Point3::new(
                 Dual::new(f64::NAN, 1.0),

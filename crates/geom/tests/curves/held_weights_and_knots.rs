@@ -245,8 +245,13 @@ fn a_surface_carries_a_held_weight_through_its_knot_algebra() {
         c(1.0),
         c(1.0),
     ];
-    let held =
-        NurbsSurface::new(Knots::constant(ku), Knots::constant(kv), control, weights).unwrap();
+    let held = NurbsSurface::new(
+        Knots::from(ku).lift(geom_core::Real::from_f64),
+        Knots::from(kv).lift(geom_core::Real::from_f64),
+        control,
+        weights,
+    )
+    .unwrap();
     let refined = held
         .refine_knots_u(&[0.25, 0.5])
         .unwrap()
@@ -265,4 +270,141 @@ fn a_surface_carries_a_held_weight_through_its_knot_algebra() {
         }
     }
     assert!(moved, "the held weight reached no point");
+}
+
+/// The speed meter reads the held values: its tangent with respect to a
+/// held breakpoint (the polynomial arm) and to a held weight (the
+/// rational arm) is the central difference of the `f64` meter with that
+/// value moved.
+#[test]
+fn the_speed_meter_reads_held_knots_and_weights() {
+    let unit = [1.0; 5];
+    let polynomial = |k: Dual64| {
+        let c = Dual64::constant;
+        let knots = Knots::new(vec![(c(0.0), m(4)), (k, m(1)), (c(2.0), m(4))], 3).unwrap();
+        NurbsCurve3::new(
+            knots,
+            net().iter().map(|p| p.map(c)).collect(),
+            unit.map(c).to_vec(),
+        )
+        .unwrap()
+    };
+    let meter_f64 = |k: f64, w: [f64; 5]| curve_f64(k, w).speed_lower_bound().get();
+    let held = polynomial(Dual64::variable(0.8)).speed_lower_bound().get();
+    let fd = (meter_f64(0.8 + H, unit) - meter_f64(0.8 - H, unit)) / (2.0 * H);
+    assert_eq!(
+        held.value.to_bits(),
+        meter_f64(0.8, unit).to_bits(),
+        "polynomial: value"
+    );
+    assert!(
+        held.deriv != 0.0,
+        "polynomial: the held knot reached no meter reading"
+    );
+    close(held.deriv, fd, 1e-5, "polynomial: ∂meter/∂k");
+
+    let held = curve_dual(Dual64::constant(0.8), Dual64::variable(WEIGHTS[2]))
+        .speed_lower_bound()
+        .get();
+    let at = |dw: f64| {
+        let mut w = WEIGHTS;
+        w[2] += dw;
+        meter_f64(0.8, w)
+    };
+    let fd = (at(H) - at(-H)) / (2.0 * H);
+    assert_eq!(held.value.to_bits(), at(0.0).to_bits(), "rational: value");
+    assert!(
+        held.deriv != 0.0,
+        "rational: the held weight reached no meter reading"
+    );
+    close(held.deriv, fd, 1e-5, "rational: ∂meter/∂w₂");
+}
+
+/// A removal's bound reinserts the knot it took out as the curve's own
+/// held value: removing the last copy of a held breakpoint, the bound's
+/// tangent is the central difference of the `f64` bound with the knot
+/// moved.
+#[test]
+fn a_removal_bound_reads_the_held_knot_it_reinserts() {
+    let held = curve_dual(Dual64::variable(0.8), Dual64::constant(WEIGHTS[2]));
+    let (_, bound) = held.remove_knot(0.8, 1).unwrap();
+    let bound_f64 = |k: f64| curve_f64(k, WEIGHTS).remove_knot(k, 1).unwrap().1;
+    let fd = (bound_f64(0.8 + H) - bound_f64(0.8 - H)) / (2.0 * H);
+    assert_eq!(bound.value.to_bits(), bound_f64(0.8).to_bits(), "value");
+    close(bound.deriv, fd, 1e-5, "∂bound/∂k");
+}
+
+/// A surface carries a held weight through insertion, elevation and an
+/// insert-then-remove round trip in each direction, as through
+/// refinement.
+#[test]
+fn a_surface_carries_a_held_weight_through_every_knot_operation() {
+    let c = Dual64::constant;
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let control: Vec<Point3<Dual64>> = [
+        (0.0, 0.0, 0.0),
+        (0.0, 1.0, 0.2),
+        (1.0, 0.0, 0.5),
+        (1.0, 1.0, 0.9),
+        (2.0, 0.0, 0.1),
+        (2.0, 1.0, 0.3),
+    ]
+    .iter()
+    .map(|&(x, y, z)| Point3::new(c(x), c(y), c(z)))
+    .collect();
+    let weights = vec![
+        c(1.0),
+        c(1.0),
+        Dual64::variable(0.6),
+        c(0.6),
+        c(1.0),
+        c(1.0),
+    ];
+    let held = NurbsSurface::new(
+        Knots::from(ku).lift(c),
+        Knots::from(kv).lift(c),
+        control,
+        weights,
+    )
+    .unwrap();
+    let ops: Vec<(&str, NurbsSurface<Dual64>)> = vec![
+        ("insert u", held.insert_knot_u(0.4, 2).unwrap()),
+        ("insert v", held.insert_knot_v(0.3, 1).unwrap()),
+        ("elevate u", held.elevate_degree_u(1).unwrap()),
+        ("elevate v", held.elevate_degree_v(1).unwrap()),
+        (
+            "round trip u",
+            held.insert_knot_u(0.4, 2)
+                .unwrap()
+                .remove_knot_u(0.4, 2)
+                .unwrap()
+                .0,
+        ),
+        (
+            "round trip v",
+            held.insert_knot_v(0.3, 1)
+                .unwrap()
+                .remove_knot_v(0.3, 1)
+                .unwrap()
+                .0,
+        ),
+    ];
+    for (what, after) in ops {
+        for i in 0..=8 {
+            for j in 0..=4 {
+                let (u, v) = (f64::from(i) / 8.0, f64::from(j) / 4.0);
+                let (p, q) = (held.eval(c(u), c(v)), after.eval(c(u), c(v)));
+                for (a, b) in [(p.x, q.x), (p.y, q.y), (p.z, q.z)] {
+                    close(b.value, a.value, 1e-12, &format!("{what} ({u}, {v}) value"));
+                    close(
+                        b.deriv,
+                        a.deriv,
+                        1e-9,
+                        &format!("{what} ({u}, {v}) tangent"),
+                    );
+                }
+            }
+        }
+    }
 }

@@ -200,9 +200,10 @@ mod tests {
             )
         };
         let curve = NurbsCurve3::new(
-            geom_core::spline::Knots::constant(
+            geom_core::spline::Knots::from(
                 KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
-            ),
+            )
+            .lift(geom_core::Real::from_f64),
             vec![c(0.0, 0.0), c(1.0, 2.0), c(2.0, 0.0), c(3.0, 1.0)],
             vec![geom_core::Real::one(); 4],
         )

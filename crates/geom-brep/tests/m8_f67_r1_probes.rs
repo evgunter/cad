@@ -61,7 +61,7 @@ fn chord_sum(c: &Curve3<f64>, d0: f64, d1: f64, n: usize) -> f64 {
 fn quarter_circle(s: f64) -> Curve3<f64> {
     let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, s, s, s], 2).expect("knots");
     let n = NurbsCurve3::new(
-        Knots::constant(k),
+        Knots::from(k).lift(geom_core::Real::from_f64),
         vec![
             Point3::new(2.0, 0.0, 0.0),
             Point3::new(2.0, 2.0, 0.0),
@@ -78,7 +78,7 @@ fn wiggle(s: f64) -> Curve3<f64> {
     let k =
         KnotVector::clamped(vec![0.0, 0.0, 0.0, s, 2.0 * s, 2.0 * s, 2.0 * s], 2).expect("knots");
     let n = NurbsCurve3::new(
-        Knots::constant(k),
+        Knots::from(k).lift(geom_core::Real::from_f64),
         vec![
             Point3::new(0.0, 0.0, 0.0),
             Point3::new(1.0, 1.0, 0.0),
@@ -168,15 +168,19 @@ fn axis_planes_f64() -> (Surface<f64>, Surface<f64>) {
 fn degenerate_net() -> Curve3<f64> {
     let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("knots");
     let p = Point3::new(0.0, 0.0, 1.0);
-    let n = NurbsCurve3::new(Knots::constant(k), vec![p, p], vec![Real::one(); 2])
-        .expect("the degenerate net builds");
+    let n = NurbsCurve3::new(
+        Knots::from(k).lift(geom_core::Real::from_f64),
+        vec![p, p],
+        vec![Real::one(); 2],
+    )
+    .expect("the degenerate net builds");
     Curve3::Nurbs(Arc::new(n))
 }
 
 fn axis_segment_f64(length: f64) -> Curve3<f64> {
     let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("knots");
     let n = NurbsCurve3::new(
-        Knots::constant(k),
+        Knots::from(k).lift(geom_core::Real::from_f64),
         vec![Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 0.0, length)],
         vec![Real::one(); 2],
     )
@@ -329,7 +333,7 @@ fn fitted_lane_poison_meter_escalates_invalid_end_to_end() {
 fn probe_segment(length: f64, domain: f64) -> Curve3<Probe> {
     let k = KnotVector::clamped(vec![0.0, 0.0, domain, domain], 1).expect("knots");
     let n = NurbsCurve3::new(
-        Knots::constant(k),
+        Knots::from(k).lift(geom_core::Real::from_f64),
         vec![
             Point3::new(Probe(0.0), Probe(0.0), Probe(0.0)),
             Point3::new(Probe(0.0), Probe(0.0), Probe(length)),
@@ -362,8 +366,8 @@ fn iso_lane_gate_and_span_margins_are_reparametrization_invariant() {
         let w = FRAC_1_SQRT_2;
         Surface::Nurbs(Arc::new(
             NurbsSurface::new(
-                Knots::constant(ku),
-                Knots::constant(kv),
+                Knots::from(ku).lift(geom_core::Real::from_f64),
+                Knots::from(kv).lift(geom_core::Real::from_f64),
                 control,
                 [1.0, 1.0, w, w, 1.0, 1.0].map(Probe).to_vec(),
             )

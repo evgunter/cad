@@ -66,8 +66,12 @@ where
             witness: p0.lerp(p1, T::from_f64(0.5)),
         },
         carrier: geom::Curve3::Nurbs(std::sync::Arc::new(
-            geom::NurbsCurve3::new(Knots::constant(kv), vec![p0, p1], vec![Real::one(); 2])
-                .unwrap(),
+            geom::NurbsCurve3::new(
+                Knots::from(kv).lift(geom_core::Real::from_f64),
+                vec![p0, p1],
+                vec![Real::one(); 2],
+            )
+            .unwrap(),
         )),
         param_start: T::zero(),
         param_end: T::one(),
@@ -163,8 +167,12 @@ where
             witness: p0.lerp(mid, T::from_f64(0.5)),
         },
         carrier: geom::Curve3::Nurbs(std::sync::Arc::new(
-            geom::NurbsCurve3::new(Knots::constant(kv), vec![p0, mid], vec![Real::one(); 2])
-                .unwrap(),
+            geom::NurbsCurve3::new(
+                Knots::from(kv).lift(geom_core::Real::from_f64),
+                vec![p0, mid],
+                vec![Real::one(); 2],
+            )
+            .unwrap(),
         )),
         param_start: T::zero(),
         param_end: T::one(),

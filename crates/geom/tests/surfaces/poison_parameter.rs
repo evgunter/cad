@@ -25,8 +25,8 @@ fn dual_patch() -> NurbsSurface<Dual64> {
         }
     }
     NurbsSurface::new(
-        Knots::constant(ku),
-        Knots::constant(kv),
+        Knots::from(ku).lift(geom_core::Real::from_f64),
+        Knots::from(kv).lift(geom_core::Real::from_f64),
         control,
         vec![Real::one(); 8],
     )

@@ -113,14 +113,25 @@ fn wall<T: SpanLocate>(s: &Section) -> NurbsSurface<T> {
             weights.push(f(w[i]));
         }
     }
-    NurbsSurface::new(Knots::constant(ku), Knots::constant(kv), control, weights).unwrap()
+    NurbsSurface::new(
+        Knots::from(ku).lift(geom_core::Real::from_f64),
+        Knots::from(kv).lift(geom_core::Real::from_f64),
+        control,
+        weights,
+    )
+    .unwrap()
 }
 
 fn section_curve(s: &Section) -> NurbsCurve3<f64> {
     let (k, p, ctl, w) = s;
     let ku = KnotVector::clamped(k.clone(), *p).unwrap();
     let control = ctl.iter().map(|(x, y)| Point3::new(*x, *y, 0.0)).collect();
-    NurbsCurve3::new(Knots::constant(ku), control, w.clone()).unwrap()
+    NurbsCurve3::new(
+        Knots::from(ku).lift(geom_core::Real::from_f64),
+        control,
+        w.clone(),
+    )
+    .unwrap()
 }
 
 /// The vertical ruling of the wall through `(x, y)`.
@@ -128,7 +139,7 @@ fn ruling<T: SpanLocate>(x: f64, y: f64) -> NurbsCurve3<T> {
     let f = T::from_f64;
     let kv = KnotVector::clamped(vec![0., 0., 1., 1.], 1).unwrap();
     NurbsCurve3::new(
-        Knots::constant(kv),
+        Knots::from(kv).lift(geom_core::Real::from_f64),
         vec![
             Point3::new(f(x), f(y), f(0.0)),
             Point3::new(f(x), f(y), f(1.0)),

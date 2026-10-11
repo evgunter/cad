@@ -5760,8 +5760,8 @@ mod stretch_meter {
         ];
         Surface::Nurbs(Arc::new(
             NurbsSurface::new(
-                geom_core::spline::Knots::constant(kv.clone()),
-                geom_core::spline::Knots::constant(kv),
+                geom_core::spline::Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
                 control,
                 vec![geom_core::Real::one(); 4],
             )
@@ -6169,8 +6169,8 @@ mod derive_without_a_door {
         let lift = Dual64::from_f64;
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let chart = NurbsSurface::new(
-            geom_core::spline::Knots::constant(kv.clone()),
-            geom_core::spline::Knots::constant(kv.clone()),
+            geom_core::spline::Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
+            geom_core::spline::Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
             vec![
                 Point3::new(0.0, 0.0, 0.0),
                 Point3::new(0.0, 1.0, 0.0),
@@ -6182,7 +6182,7 @@ mod derive_without_a_door {
         .unwrap()
         .map_scalar(lift);
         let carrier = NurbsCurve3::new(
-            geom_core::spline::Knots::constant(kv),
+            geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
             vec![Point3::new(0.5, 0.0, 0.0), Point3::new(0.5, 1.0, 0.0)],
             vec![geom_core::Real::one(); 2],
         )
@@ -7386,8 +7386,8 @@ mod from_computed_rows {
                 .to_vec();
             let chart = Surface::Nurbs(Arc::new(
                 NurbsSurface::new(
-                    geom_core::spline::Knots::constant(kv.clone()),
-                    geom_core::spline::Knots::constant(kv),
+                    geom_core::spline::Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
+                    geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
                     control,
                     vec![geom_core::Real::one(); 4],
                 )

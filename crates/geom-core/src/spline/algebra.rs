@@ -1,20 +1,20 @@
 //! Knot-algebra **plans**: insertion, refinement, removal, and degree
-//! elevation computed entirely as `f64` STRUCTURE (new knot vectors,
-//! new weights, and affine combination schedules), applied to
-//! generically-typed control points by a tiny fold
-//! ([`CurvePlan::apply_points`]).
+//! elevation, DECIDED as `f64` STRUCTURE on the weights' and knots'
+//! value channel (new knot vectors, the combination schedule, and
+//! every refusal), and applied to a net held at the caller's scalar by
+//! a tiny fold ([`CurvePlan::apply_rational`]).
 //!
 //! # Why plans
 //!
 //! Every algorithm here (Book §5.2–§5.5) combines control points with
-//! coefficients that depend only on knots and weights — both `f64`
-//! structure (C6). Splitting each operation into a structure-computed
-//! *plan* plus a generic *applier* keeps the C6 boundary a module
-//! boundary: raw `f64` comparisons live in the plan constructors,
-//! while the applier does nothing but `from_f64`-lifted two-point
-//! affine combinations (`lerp`, fixed association `x + (y − x)·λ`) in
-//! plan order. One plan implementation serves 2-D curves, 3-D curves,
-//! and each row/column of a surface net.
+//! coefficients that depend only on knots and weights. Splitting each
+//! operation into a structure-computed *plan* plus a generic *applier*
+//! keeps the C6 boundary a module boundary: raw `f64` comparisons live
+//! in the plan constructors, on the value channel, while the applier
+//! forms each step's coefficient, weight and `λ` at its scalar from the
+//! held knots and weights and combines (`lerp`, fixed association
+//! `x + (y − x)·λ`) in plan order. One plan implementation serves 2-D
+//! curves, 3-D curves, and each row/column of a surface net.
 //!
 //! # Projective form (rational)
 //!
@@ -22,8 +22,10 @@
 //! `Q = a·(wᵢPᵢ, wᵢ) + b·(wⱼPⱼ, wⱼ)` becomes the structure weight
 //! `w_Q = a·wᵢ + b·wⱼ` and the **affine point combination**
 //! `P_Q = lerp(Pⱼ, Pᵢ, λ)` with `λ = a·wᵢ / w_Q` — exact in ℝ because
-//! the two projective coefficients sum to 1 by construction. Weights
-//! stay `f64` forever; only points are generic.
+//! the two projective coefficients sum to 1 by construction. A plan
+//! records the step's form (`Form`) and the constructor takes it on
+//! the `f64` channel ([`CurvePlan::weights`]); the applier takes the
+//! same form on the held values.
 //!
 //! # One schedule, two arithmetics
 //!
@@ -321,6 +323,12 @@ impl CurvePlan {
     /// constructor ran on the value channel) is the `f64` decision; this
     /// applies it, and decides nothing.
     ///
+    /// A value the step brings in that the input vector does not hold
+    /// (an insertion of a knot not present) is `fresh(v)`: the caller's
+    /// entry of it, which is the constant it is for an insertion at the
+    /// caller's `f64` parameter, and the held value a removal took out
+    /// when its bound reinserts it.
+    ///
     /// Total: a malformed plan, a short channel or a knot index past
     /// `knots` leaves `poison` and `T`'s poison weight
     /// (`from_f64(NaN)`) in the targets it reaches.
@@ -329,7 +337,7 @@ impl CurvePlan {
         knots: &[T],
         old: &[P],
         old_w: &[T],
-        poison: P,
+        (poison, fresh): (P, &dyn Fn(f64) -> T),
         lerp: impl Fn(P, P, T) -> P,
     ) -> (Vec<P>, Vec<T>) {
         let n_new = self.knots.control_count();
@@ -346,7 +354,7 @@ impl CurvePlan {
                 Coef::Knots { u, lo, hi } => {
                     let u = match u {
                         KnotAt::Index(i) => *knots.get(i)?,
-                        KnotAt::Fresh(v) => T::from_f64(v),
+                        KnotAt::Fresh(v) => fresh(v),
                     };
                     let (lo, hi) = (*knots.get(lo)?, *knots.get(hi)?);
                     Some((u - lo) / (hi - lo))
@@ -1864,7 +1872,7 @@ mod tests {
         let (mut knots, mut xr, mut wr) = (kv.knots().to_vec(), x.to_vec(), w.to_vec());
         let mut xp = x.to_vec();
         for (n, plan) in plans.iter().enumerate() {
-            (xr, wr) = plan.apply_rational(&knots, &xr, &wr, f64::NAN, lerp1);
+            (xr, wr) = plan.apply_rational(&knots, &xr, &wr, (f64::NAN, &|v| v), lerp1);
             xp = plan.apply_points(&xp, f64::NAN, lerp1);
             assert_eq!(bits(&xr), bits(&xp), "{what} link {n}: points");
             assert_eq!(bits(&wr), bits(plan.weights()), "{what} link {n}: weights");
@@ -1917,6 +1925,31 @@ mod tests {
             .map(|step| step.plan)
             .collect();
         rational_agrees_bitwise(&removal, &cubic, &wc, &xc, "remove");
+        // Distinct knots around the removed one, so each chain's ratio
+        // index is seen: `α(i) ≠ α(i + 1)` at every step of both chains.
+        // The net is 0.7, absent from the base, inserted to full
+        // multiplicity, so removing all three copies is exact (no weight
+        // collapses) and the last pass has two unknowns: one forward
+        // step and one backward step.
+        let base = KnotVector::clamped(
+            vec![0.0, 0.0, 0.0, 0.0, 0.2, 0.45, 1.3, 1.6, 2.0, 2.0, 2.0, 2.0],
+            3,
+        )
+        .unwrap();
+        let (wb, xb) = (
+            vec![1.0, 0.8, 1.3, 2.0, 0.6, 1.1, 0.9, 1.4],
+            vec![0.0, 1.0, -2.0, 3.0, 0.5, 4.0, 1.0, -1.0],
+        );
+        let ins = insert_knot_plan(&base, &wb, 0.7, 3).unwrap();
+        let last = ins.last().unwrap();
+        let (spread, ws) = (last.knots().clone(), last.weights().to_vec());
+        let xs = apply_chain(&ins, &xb);
+        let removal: Vec<CurvePlan> = remove_knot_plan(&spread, &ws, 0.7, 3)
+            .unwrap()
+            .into_iter()
+            .map(|step| step.plan)
+            .collect();
+        rational_agrees_bitwise(&removal, &spread, &ws, &xs, "remove, distinct neighbours");
     }
 
     /// A weight held as a variable carries its derivative through every
@@ -1937,7 +1970,13 @@ mod tests {
             wd[2] = Dual64::variable(w[2]);
             let mut xd: Vec<Dual64> = x.iter().map(|v| Dual64::constant(*v)).collect();
             for plan in &chain {
-                (xd, wd) = plan.apply_rational(&knots, &xd, &wd, Dual64::constant(f64::NAN), lerp);
+                (xd, wd) = plan.apply_rational(
+                    &knots,
+                    &xd,
+                    &wd,
+                    (Dual64::constant(f64::NAN), &Dual64::constant),
+                    lerp,
+                );
                 knots = plan
                     .knots()
                     .knots()

@@ -2451,10 +2451,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     // The stored net at the certification scalar: control points, held
     // knots and weights, each through the certified enclosure of its
     // value (a lift: every point is kept).
-    let lift =
-        |n: &NurbsCurve3<T>| -> Result<NurbsCurve3<geom_core::Interval>, PcurveCertifyError> {
-            Ok(n.map_scalar(cross))
-        };
+    let lift = |n: &NurbsCurve3<T>| n.map_scalar(cross);
     let chart = match image.chart {
         ProjectedChart::Plane => ProjectedChart::Plane,
         ProjectedChart::Cylinder => ProjectedChart::Cylinder,
@@ -2468,7 +2465,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             major: cross(major),
         },
     };
-    let lifted_net = Arc::new(lift(net)?);
+    let lifted_net = Arc::new(lift(net));
     let lifted = ProjectedImage {
         chart,
         carrier: FramedCarrier::Net(Arc::clone(&lifted_net)),
@@ -2570,7 +2567,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     // and its span's, both bounds on `|f|` over the part; its floors are
     // read off its own controls (`projected::piece_controls`, whose
     // ratios are formed in the scalar).
-    let twin_net = lift(twin_net)?;
+    let twin_net = lift(twin_net);
     let coords = twin_net.certified_coords();
     let data = CurveCertData::new(twin_net.knots(), twin_net.weight_channel(), &coords)
         .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;

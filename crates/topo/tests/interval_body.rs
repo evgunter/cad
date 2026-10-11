@@ -118,8 +118,8 @@ fn interval_described_net_carrying_poison_is_named_by_the_surface_check() {
         })
         .collect();
     let net = NurbsSurface::new(
-        Knots::constant(kv.clone()),
-        Knots::constant(kv),
+        Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
+        Knots::from(kv).lift(geom_core::Real::from_f64),
         control,
         vec![Real::one(); 4],
     )

@@ -557,7 +557,7 @@ fn a_carrier_domain_the_door_refuses_refuses_as_the_domain_door() {
     ];
     for (lo, hi, collapse, says) in rows {
         let fault = |f: &CarrierDomainFault| match f {
-            CarrierDomainFault::Collapse(_) | CarrierDomainFault::Merge => collapse,
+            CarrierDomainFault::Merge => collapse,
             CarrierDomainFault::Interval => !collapse,
         };
         let knots = KnotVector::clamped(vec![lo, lo, hi, hi], 1).unwrap();

@@ -23,8 +23,8 @@ fn patch<T: SpanLocate>(f: impl Fn(usize, Point3<f64>) -> Point3<T>) -> NurbsSur
         }
     }
     NurbsSurface::new(
-        Knots::constant(knots3()),
-        Knots::constant(knots3()),
+        Knots::from(knots3()).lift(geom_core::Real::from_f64),
+        Knots::from(knots3()).lift(geom_core::Real::from_f64),
         control,
         vec![Real::one(); 9],
     )

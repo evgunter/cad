@@ -418,8 +418,8 @@ mod tests {
             .map(|p| p.map(geom_core::Dual64::constant))
             .collect();
         let dual = NurbsSurface::new(
-            geom_core::spline::Knots::constant(ku),
-            geom_core::spline::Knots::constant(kv),
+            geom_core::spline::Knots::from(ku).lift(geom_core::Real::from_f64),
+            geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
             control,
             vec![geom_core::Real::one(); 6],
         )
@@ -431,6 +431,42 @@ mod tests {
                 assert!(c.value.is_nan() && c.deriv.is_nan(), "{p:?}");
             }
         }
+    }
+
+    /// The collapse reads the surface's HELD weights: a weight held as a
+    /// `Dual` variable (one quantity along its u-row, so the net is
+    /// constant along `v` on its value channel) moves the row's points
+    /// exactly as it moves the surface at `(u*, v)`, value and tangent.
+    #[test]
+    fn the_collapsed_row_carries_a_held_weights_tangent() {
+        use geom_core::Dual64;
+        let s = surface();
+        let c = Dual64::constant;
+        let w = Dual64::variable(0.6);
+        let dual = NurbsSurface::new(
+            geom_core::spline::Knots::from(s.knots_u().clone()).lift(c),
+            geom_core::spline::Knots::from(s.knots_v().clone()).lift(c),
+            s.control().iter().map(|p| p.map(c)).collect(),
+            vec![c(1.0), c(1.0), w, w, c(1.0), c(1.0)],
+        )
+        .unwrap();
+        let u = 0.3;
+        let row = interior_iso_u(&dual, c(u)).expect("a separable net collapses");
+        let mut moved = false;
+        for j in 0..=8 {
+            let v = f64::from(j) / 8.0;
+            let (on_row, on_surface) = (row.eval(c(v)), dual.eval(c(u), c(v)));
+            for (a, b) in [
+                (on_row.x, on_surface.x),
+                (on_row.y, on_surface.y),
+                (on_row.z, on_surface.z),
+            ] {
+                assert!((a.value - b.value).abs() < 1e-14, "v={v}: {a:?} vs {b:?}");
+                assert!((a.deriv - b.deriv).abs() < 1e-12, "v={v}: {a:?} vs {b:?}");
+                moved |= b.deriv != 0.0;
+            }
+        }
+        assert!(moved, "the held weight reached no point of the row");
     }
 
     /// [`iso_boundary_row`] selects the row the stored parameter names,

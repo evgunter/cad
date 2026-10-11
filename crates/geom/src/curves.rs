@@ -496,9 +496,9 @@ pub enum CurveDatum {
     MinorRadius,
     /// A spiric's plane stand-off `offset`.
     Offset,
-    /// A `Nurbs` carrier's control net — the one datum a spline stores
-    /// that is a number at the curve's scalar (its knots and weights are
-    /// `f64` structure, validated finite at construction).
+    /// A `Nurbs` carrier's control net — the datum this read checks
+    /// (its knots and weights are held at the scalar too, and refused
+    /// non-finite on their value channel at construction).
     Control,
 }
 

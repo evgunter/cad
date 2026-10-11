@@ -62,7 +62,12 @@ pub fn chain<T: SpanLocate>(circle: &Curve3<T>, f0: f64, f1: f64) -> NurbsCurve3
     }
     let kv = KnotVector::clamped(knots, 2).expect("the chain's knots");
     let weights = weights.into_iter().map(T::from_f64).collect();
-    NurbsCurve3::new(Knots::constant(kv), control, weights).expect("the arc's chain")
+    NurbsCurve3::new(
+        Knots::from(kv).lift(geom_core::Real::from_f64),
+        control,
+        weights,
+    )
+    .expect("the arc's chain")
 }
 
 /// The chain's chart image on a sphere of `radius` centred at the
@@ -96,7 +101,7 @@ pub fn image(chain: &NurbsCurve3<f64>, radius: f64, f0: f64, f1: f64) -> NurbsCu
         .collect();
     let kv = KnotVector::clamped(knots, fit.knots().degree()).expect("affine knot rescale");
     NurbsCurve2::new(
-        Knots::constant(kv),
+        Knots::from(kv).lift(geom_core::Real::from_f64),
         fit.control().to_vec(),
         fit.weights().to_vec(),
     )

@@ -23,7 +23,12 @@ fn knots5() -> KnotVector {
 }
 
 fn curve_from(control: Vec<Point3<f64>>) -> NurbsCurve3<f64> {
-    NurbsCurve3::new(Knots::constant(knots5()), control, vec![Real::one(); 5]).unwrap()
+    NurbsCurve3::new(
+        Knots::from(knots5()).lift(geom_core::Real::from_f64),
+        control,
+        vec![Real::one(); 5],
+    )
+    .unwrap()
 }
 
 /// Poison in y only, z only, and in two channels — every one of these
@@ -83,7 +88,7 @@ fn probe_dual_poison_is_the_value_channel_in_both_directions() {
         })
         .collect();
     let c = NurbsCurve3::new(
-        Knots::constant(knots5()),
+        Knots::from(knots5()).lift(geom_core::Real::from_f64),
         poisoned_deriv,
         vec![Real::one(); 5],
     )
@@ -103,7 +108,7 @@ fn probe_dual_poison_is_the_value_channel_in_both_directions() {
         })
         .collect();
     let c2 = NurbsCurve3::new(
-        Knots::constant(knots5()),
+        Knots::from(knots5()).lift(geom_core::Real::from_f64),
         poisoned_value,
         vec![Real::one(); 5],
     )
@@ -131,7 +136,12 @@ fn probe_the_two_channel_payload_has_no_placeholder_state() {
     let ctl: Vec<Point2<f64>> = (0..5)
         .map(|i| Point2::new(f64::NAN, f64::from(i)))
         .collect();
-    let _c = NurbsCurve2::new(Knots::constant(knots5()), ctl, vec![Real::one(); 5]).unwrap();
+    let _c = NurbsCurve2::new(
+        Knots::from(knots5()).lift(geom_core::Real::from_f64),
+        ctl,
+        vec![Real::one(); 5],
+    )
+    .unwrap();
 }
 
 /// The enum doors carry the answer for the 3-D curve and the surface —
@@ -147,8 +157,8 @@ fn probe_enum_doors_agree_on_every_partial_shape() {
     assert!(matches!(&e, Curve3::Nurbs(n) if !n.is_placeholder()));
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let s = NurbsSurface::new(
-        Knots::constant(kv.clone()),
-        Knots::constant(kv),
+        Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
+        Knots::from(kv).lift(geom_core::Real::from_f64),
         (0..4)
             .map(|i| Point3::new(f64::from(i), 1.0, f64::NAN))
             .collect(),
@@ -214,7 +224,7 @@ mod interval {
 
         let net = |c: Interval| {
             NurbsCurve3::new(
-                Knots::constant(knots5()),
+                Knots::from(knots5()).lift(geom_core::Real::from_f64),
                 (0..5).map(|_| Point3::new(c, c, c)).collect(),
                 vec![Real::one(); 5],
             )
@@ -233,7 +243,7 @@ mod interval {
 
         // One channel empty, the others point brackets: described.
         let mixed = NurbsCurve3::new(
-            Knots::constant(knots5()),
+            Knots::from(knots5()).lift(geom_core::Real::from_f64),
             (0..5)
                 .map(|i| {
                     Point3::new(

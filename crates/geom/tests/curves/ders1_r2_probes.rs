@@ -94,7 +94,12 @@ fn lift3<T: SpanLocate>(k: &KnotVector, w: &[f64]) -> Curve3<T> {
     let ctl: Vec<Point3<T>> = control(n).iter().map(|p| p.map(T::from_f64)).collect();
     let w = w.iter().map(|w| T::from_f64(*w)).collect();
     Curve3::Nurbs(Arc::new(
-        NurbsCurve3::new(Knots::constant(k.clone()), ctl, w).unwrap(),
+        NurbsCurve3::new(
+            Knots::from(k.clone()).lift(geom_core::Real::from_f64),
+            ctl,
+            w,
+        )
+        .unwrap(),
     ))
 }
 
@@ -105,7 +110,12 @@ fn lift2<T: SpanLocate>(k: &KnotVector, w: &[f64]) -> NurbsCurve2<T> {
         .map(|p| Point2::new(T::from_f64(p.x), T::from_f64(p.y)))
         .collect();
     let w = w.iter().map(|w| T::from_f64(*w)).collect();
-    NurbsCurve2::new(Knots::constant(k.clone()), ctl, w).unwrap()
+    NurbsCurve2::new(
+        Knots::from(k.clone()).lift(geom_core::Real::from_f64),
+        ctl,
+        w,
+    )
+    .unwrap()
 }
 
 /// The fixtures: (name, knots, weights), every one a shape the shipped

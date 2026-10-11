@@ -311,9 +311,10 @@ fn a_projected_net_image_boxes_a_nai_end_as_poison() {
     let lift = |x: f64| Interval::from_f64(x);
     let carrier = Curve3::Nurbs(std::sync::Arc::new(
         geom::NurbsCurve3::new(
-            geom_core::spline::Knots::constant(
+            geom_core::spline::Knots::from(
                 KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
-            ),
+            )
+            .lift(geom_core::Real::from_f64),
             vec![
                 Point3::new(lift(0.1), lift(-0.2), lift(0.0)),
                 Point3::new(lift(0.7), lift(0.9), lift(0.0)),
@@ -366,9 +367,10 @@ fn a_projected_image_answers_a_poison_dual_parameter_with_poison_in_every_channe
     let lift = Dual64::constant;
     let carrier = Curve3::Nurbs(std::sync::Arc::new(
         geom::NurbsCurve3::new(
-            geom_core::spline::Knots::constant(
+            geom_core::spline::Knots::from(
                 KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
-            ),
+            )
+            .lift(geom_core::Real::from_f64),
             vec![
                 Point3::new(lift(0.1), lift(-0.2), lift(0.0)),
                 Point3::new(lift(0.7), lift(0.9), lift(0.0)),

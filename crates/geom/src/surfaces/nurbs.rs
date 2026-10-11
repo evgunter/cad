@@ -1003,7 +1003,14 @@ impl<T: ProjectiveScalar> Column<T> {
     /// This column through a plan chain made on its value channel
     /// ([`spline::CurvePlan::apply_rational`], over the u knots held in
     /// `T` and carried plan to plan), with the knots the chain ends on.
-    fn through(self, knots: &Knots<T>, plans: &[spline::CurvePlan]) -> (Self, Knots<T>) {
+    /// A value a plan brings in is `fresh(v)` (the curve's
+    /// `apply_plans` says which entry each caller makes).
+    fn through(
+        self,
+        knots: &Knots<T>,
+        plans: &[spline::CurvePlan],
+        fresh: &dyn Fn(f64) -> T,
+    ) -> (Self, Knots<T>) {
         let Some(last) = plans.last() else {
             return (self, knots.clone());
         };
@@ -1014,10 +1021,10 @@ impl<T: ProjectiveScalar> Column<T> {
                 held.values(),
                 &points,
                 &weights,
-                net::poison_point::<T, Point3<T>>(),
+                (net::poison_point::<T, Point3<T>>(), fresh),
                 |x, y, l: T| x.lerp(y, l),
             );
-            held = held.restructure(plan.knots().clone(), T::from_f64);
+            held = held.restructure(plan.knots().clone(), fresh);
         }
         let channel = last.weights().to_vec();
         (
@@ -1068,7 +1075,7 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
         for iv in 0..nv {
             let col = self.u_column(iv);
             let plans = build(self.knots_u(), &col.channel)?;
-            let (col, knots) = col.through(&self.knots_u, &plans);
+            let (col, knots) = col.through(&self.knots_u, &plans, &T::from_f64);
             new_knots_u = knots;
             cols.push(col);
         }
@@ -1171,13 +1178,20 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
                     .into_iter()
                     .next()
                     .ok_or(KnotAlgebraError::KnotNotPresent { u })?;
-                let (removed, knots) = col.through(&cur.knots_u, core::slice::from_ref(&step.plan));
+                let (removed, knots) = col.through(
+                    &cur.knots_u,
+                    core::slice::from_ref(&step.plan),
+                    &T::from_f64,
+                );
+                // The reinsertion puts back the knot the removal took out:
+                // its held value (the curve's `remove_knot` says why).
+                let held = |v: f64| cur.knots_u.value_at(v).unwrap_or_else(|| T::from_f64(v));
                 let (reinserted, _) = Column {
                     points: removed.points.clone(),
                     weights: removed.weights.clone(),
                     channel: removed.channel.clone(),
                 }
-                .through(&knots, core::slice::from_ref(&step.reinsert));
+                .through(&knots, core::slice::from_ref(&step.reinsert), &held);
                 new_knots_u = knots;
                 removed_cols.push(removed);
                 reinserted_cols.push(reinserted);

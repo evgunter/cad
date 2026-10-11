@@ -15,7 +15,7 @@ fn knots2() -> KnotVector {
 }
 fn curve<T: SpanLocate>(f: impl Fn(usize) -> Point3<T>) -> NurbsCurve3<T> {
     NurbsCurve3::new(
-        Knots::constant(knots5()),
+        Knots::from(knots5()).lift(geom_core::Real::from_f64),
         (0..5).map(f).collect(),
         vec![T::one(); 5],
     )
@@ -23,8 +23,8 @@ fn curve<T: SpanLocate>(f: impl Fn(usize) -> Point3<T>) -> NurbsCurve3<T> {
 }
 fn surf<T: SpanLocate>(f: impl Fn(usize) -> Point3<T>) -> NurbsSurface<T> {
     NurbsSurface::new(
-        Knots::constant(knots2()),
-        Knots::constant(knots2()),
+        Knots::from(knots2()).lift(geom_core::Real::from_f64),
+        Knots::from(knots2()).lift(geom_core::Real::from_f64),
         (0..4).map(f).collect(),
         vec![T::one(); 4],
     )

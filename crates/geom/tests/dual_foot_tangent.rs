@@ -57,7 +57,12 @@ fn sliding_line<T: SpanLocate>(shift: T) -> NurbsCurve3<T> {
         Point3::new(T::from_f64(4.0) + shift, T::from_f64(0.0), T::from_f64(0.0)),
     ];
     let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    NurbsCurve3::new(Knots::constant(knots), control, vec![Real::one(); 2]).unwrap()
+    NurbsCurve3::new(
+        Knots::from(knots).lift(geom_core::Real::from_f64),
+        control,
+        vec![Real::one(); 2],
+    )
+    .unwrap()
 }
 
 /// The bilinear patch in `z = 0` over `x ∈ [s, 4 + s]`, `y ∈ [-2, 2]` —
@@ -69,8 +74,8 @@ fn sliding_patch<T: SpanLocate>(shift: T) -> NurbsSurface<T> {
     let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     NurbsSurface::new(
-        Knots::constant(ku),
-        Knots::constant(kv),
+        Knots::from(ku).lift(geom_core::Real::from_f64),
+        Knots::from(kv).lift(geom_core::Real::from_f64),
         control,
         vec![Real::one(); 4],
     )

@@ -36,8 +36,8 @@ fn kv() -> KnotVector {
 /// A bilinear patch whose `(0, 0)` corner carries `c` in `x`.
 fn patch(c: Interval) -> NurbsSurface<Interval> {
     NurbsSurface::new(
-        Knots::constant(kv()),
-        Knots::constant(kv()),
+        Knots::from(kv()).lift(geom_core::Real::from_f64),
+        Knots::from(kv()).lift(geom_core::Real::from_f64),
         vec![
             Point3::new(c, iv(0.0), iv(0.0)),
             Point3::new(iv(0.0), iv(1.0), iv(0.0)),

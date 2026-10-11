@@ -463,7 +463,12 @@ fn dual_kink_convention_at_knot_follows_the_tie_break() {
     ];
     let n64 = NurbsCurve3::new(kv.clone(), ctrl64.clone(), vec![1.0; 5]).unwrap();
     let ctrl: Vec<Point3<Dual64>> = ctrl64.iter().map(|p| p.map(Dual64::constant)).collect();
-    let nd = NurbsCurve3::new(Knots::constant(kv), ctrl, vec![Dual64::constant(1.0); 5]).unwrap();
+    let nd = NurbsCurve3::new(
+        Knots::from(kv).lift(geom_core::Real::from_f64),
+        ctrl,
+        vec![Dual64::constant(1.0); 5],
+    )
+    .unwrap();
     let t = 0.5;
     let span_right = n64.span_at(t).expect("a numeric parameter"); // the span starting at 0.5
     // The [0, 0.5) span (mult-2 knot between).
@@ -513,7 +518,7 @@ fn a_poison_parameter_evaluates_to_poison_in_every_channel() {
     ];
     let ctrl: Vec<Point3<Dual64>> = ctrl64.iter().map(|p| p.map(Dual64::constant)).collect();
     let nd = NurbsCurve3::new(
-        Knots::constant(kv.clone()),
+        Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
         ctrl,
         vec![Dual64::constant(1.0); 4],
     )
@@ -533,7 +538,7 @@ fn a_poison_parameter_evaluates_to_poison_in_every_channel() {
         assert!(all_nan(v), "ders at NaN, {name}: {v:?}");
     }
     let ci = NurbsCurve3::new(
-        Knots::constant(kv),
+        Knots::from(kv).lift(geom_core::Real::from_f64),
         ctrl64.iter().map(|p| p.map(Interval::from_f64)).collect(),
         vec![Interval::from_f64(1.0); 4],
     )

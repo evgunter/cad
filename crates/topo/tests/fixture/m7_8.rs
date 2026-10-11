@@ -31,8 +31,8 @@ pub fn nurbs_wall<T: SpanLocate>() -> geom::Surface<T> {
         }
     }
     let n = geom::NurbsSurface::new(
-        Knots::constant(k.clone()),
-        Knots::constant(k),
+        Knots::from(k.clone()).lift(geom_core::Real::from_f64),
+        Knots::from(k).lift(geom_core::Real::from_f64),
         control,
         weights,
     )
@@ -83,8 +83,12 @@ where
         }
         let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(
-            geom::NurbsCurve3::new(Knots::constant(kv), vec![p0, p1], vec![Real::one(); 2])
-                .unwrap(),
+            geom::NurbsCurve3::new(
+                Knots::from(kv).lift(geom_core::Real::from_f64),
+                vec![p0, p1],
+                vec![Real::one(); 2],
+            )
+            .unwrap(),
         ));
         body.set_edge_curve(
             edge_key,

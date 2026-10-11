@@ -42,21 +42,6 @@ pub struct KnotSpan<'a, T> {
 }
 
 impl<T: SpanLocate> Knots<T> {
-    /// The knots of `structure` entered as constants
-    /// (`Real::from_f64`, once per breakpoint): the door for a vector
-    /// that IS a constant of the construction's form or of an imported
-    /// file. A knot a numerical routine computed enters at its routine
-    /// instead, and one the model determines is computed in `T`
-    /// ([`Self::new`]).
-    #[must_use]
-    pub fn constant(structure: KnotVector) -> Self {
-        let mut values = Vec::with_capacity(structure.knots().len());
-        for (v, m) in structure.knot_runs() {
-            values.extend(core::iter::repeat_n(T::from_f64(v), m));
-        }
-        Self { structure, values }
-    }
-
     /// These knots carried onto `structure`, the vector a knot-algebra
     /// plan made of this one: a breakpoint `structure` shares with this
     /// vector (bit-equal value channel) keeps its held value, so it
@@ -115,7 +100,10 @@ impl<T: SpanLocate> Knots<T> {
     /// [`SplineError::DomainInvalid`] as [`KnotVector::on_domain`];
     /// otherwise [`Self::new`]'s refusals. Two breakpoints that
     /// rounding collapses onto one value refuse
-    /// ([`SplineError::KnotRunsNotIncreasing`]) rather than merge.
+    /// ([`SplineError::KnotRunsNotIncreasing`]) rather than merge, and
+    /// at an enclosure scalar an interior breakpoint whose map is
+    /// inexact comes out wider than a point and refuses
+    /// ([`SplineError::KnotNotAPoint`]).
     pub fn on_domain(&self, lo: f64, hi: f64) -> Result<Self, SplineError> {
         let span = hi - lo;
         if !(lo.is_finite() && hi.is_finite() && lo < hi && span.is_finite()) {
@@ -271,6 +259,15 @@ impl<T: Real> Knots<T> {
             at += m;
             (v, m)
         })
+    }
+
+    /// The held value of the breakpoint whose value channel is `v`
+    /// (bit-equal), or `None` when no breakpoint reads as `v`.
+    pub fn value_at(&self, v: f64) -> Option<T> {
+        self.runs()
+            .zip(self.structure.knot_runs())
+            .find(|(_, (k, _))| k.to_bits() == v.to_bits())
+            .map(|((value, _), _)| value)
     }
 
     /// The degree `p`.
@@ -438,9 +435,7 @@ mod tests {
     fn on_domain_and_constant_agree_with_the_vector_doors() {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.3, 0.3, 0.7, 2.0, 2.0, 2.0], 2).unwrap();
         let want = kv.on_domain(-1.5, 4.25).unwrap();
-        let got = Knots::<f64>::constant(kv.clone())
-            .on_domain(-1.5, 4.25)
-            .unwrap();
+        let got = Knots::from(kv.clone()).on_domain(-1.5, 4.25).unwrap();
         let bits = |v: &[f64]| v.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
         assert_eq!(bits(got.structure().knots()), bits(want.knots()));
         assert_eq!(bits(got.values()), bits(want.knots()));
@@ -458,7 +453,7 @@ mod tests {
         assert_eq!(moved.values()[3].value, 1.0);
         assert_eq!(moved.values()[3].deriv, 2.0, "d/dk of 4·k/2");
         assert!(matches!(
-            Knots::<f64>::constant(kv).on_domain(1.0, 1.0),
+            Knots::from(kv).on_domain(1.0, 1.0),
             Err(SplineError::DomainInvalid { .. })
         ));
     }

@@ -4949,8 +4949,8 @@ mod inf_arms {
         ];
         Surface::Nurbs(Arc::new(
             NurbsSurface::new(
-                geom_core::spline::Knots::constant(kv.clone()),
-                geom_core::spline::Knots::constant(kv),
+                geom_core::spline::Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
                 control,
                 vec![geom_core::Real::one(); 4],
             )
@@ -4976,8 +4976,8 @@ mod inf_arms {
         ];
         Surface::Nurbs(Arc::new(
             NurbsSurface::new(
-                geom_core::spline::Knots::constant(ku),
-                geom_core::spline::Knots::constant(kv),
+                geom_core::spline::Knots::from(ku).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
                 control,
                 vec![geom_core::Real::one(); 6],
             )
@@ -5102,8 +5102,8 @@ mod inf_arms {
         ];
         let s: Surface<f64> = Surface::Nurbs(Arc::new(
             NurbsSurface::new(
-                geom_core::spline::Knots::constant(ku),
-                geom_core::spline::Knots::constant(kv),
+                geom_core::spline::Knots::from(ku).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
                 control,
                 vec![geom_core::Real::one(); 6],
             )
@@ -5182,8 +5182,8 @@ mod inf_arms {
         }
         let s: Surface<f64> = Surface::Nurbs(Arc::new(
             NurbsSurface::new(
-                geom_core::spline::Knots::constant(ku),
-                geom_core::spline::Knots::constant(kv),
+                geom_core::spline::Knots::from(ku).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
                 control,
                 vec![geom_core::Real::one(); 8],
             )
@@ -5377,8 +5377,8 @@ mod inf_arms_interval {
         ];
         let s: Surface<Interval> = Surface::Nurbs(Arc::new(
             NurbsSurface::new(
-                geom_core::spline::Knots::constant(ku),
-                geom_core::spline::Knots::constant(kv),
+                geom_core::spline::Knots::from(ku).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
                 control,
                 vec![geom_core::Real::one(); 6],
             )

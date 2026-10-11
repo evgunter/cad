@@ -1980,8 +1980,8 @@ mod tests {
         /// and `S_v = (0, 1, 0)`, so `∇φ = (n·S_u, n·S_v) = (n.x, n.y)`.
         fn unit_patch() -> NurbsSurface<Interval> {
             NurbsSurface::new(
-                geom_core::spline::Knots::constant(linear_kv()),
-                geom_core::spline::Knots::constant(linear_kv()),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
                 vec![
                     Point3::new(iv(0.0), iv(0.0), iv(0.0)),
                     Point3::new(iv(0.0), iv(1.0), iv(0.0)),
@@ -1997,7 +1997,7 @@ mod tests {
         /// and the margin reads `n.y` alone.
         fn u_line() -> NurbsCurve2<Interval> {
             NurbsCurve2::new(
-                geom_core::spline::Knots::constant(linear_kv()),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
                 vec![Point2::new(iv(0.1), iv(0.5)), Point2::new(iv(0.9), iv(0.5))],
                 vec![geom_core::Real::one(); 2],
             )
@@ -2081,7 +2081,7 @@ mod tests {
             );
             assert!(!bad.is_certified(), "fixture drifted: it certifies");
             let pcurve = NurbsCurve2::new(
-                geom_core::spline::Knots::constant(linear_kv()),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
                 vec![Point2::new(bad, iv(0.5)), Point2::new(iv(0.9), iv(0.5))],
                 vec![geom_core::Real::one(); 2],
             )
@@ -2112,8 +2112,8 @@ mod tests {
         fn a_chart_constant_across_the_locus_refuses_rather_than_trying_a_smaller_rung() {
             let p = Point3::new(iv(0.3), iv(0.3), iv(0.0));
             let point_patch = NurbsSurface::new(
-                geom_core::spline::Knots::constant(linear_kv()),
-                geom_core::spline::Knots::constant(linear_kv()),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
                 vec![p; 4],
                 vec![geom_core::Real::one(); 4],
             )
@@ -2151,8 +2151,8 @@ mod tests {
             let a = Point3::new(iv(0.1), iv(0.1), iv(0.1));
             let b = Point3::new(iv(0.7), iv(0.7), iv(0.7));
             let ridge = NurbsSurface::new(
-                geom_core::spline::Knots::constant(linear_kv()),
-                geom_core::spline::Knots::constant(linear_kv()),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
                 vec![a, a, b, b],
                 vec![geom_core::Real::one(); 4],
             )
@@ -2183,7 +2183,7 @@ mod tests {
         #[test]
         fn a_pcurve_with_no_tangent_refuses_rather_than_trying_a_smaller_rung() {
             let still = NurbsCurve2::new(
-                geom_core::spline::Knots::constant(linear_kv()),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
                 vec![Point2::new(iv(0.5), iv(0.5)), Point2::new(iv(0.5), iv(0.5))],
                 vec![geom_core::Real::one(); 2],
             )
@@ -2221,7 +2221,7 @@ mod tests {
         #[allow(clippy::cast_precision_loss)]
         let control = (0..n).map(|i| Point3::new(i as f64, 0.0, 0.0)).collect();
         geom::NurbsCurve3::new(
-            geom_core::spline::Knots::constant(kv),
+            geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
             control,
             vec![geom_core::Real::one(); n],
         )
@@ -2274,7 +2274,7 @@ mod tests {
                     Point3::new(1.0, 1.0, 1.0),
                 ];
                 let curve = geom::NurbsCurve3::new(
-                    geom_core::spline::Knots::constant(kv),
+                    geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
                     control,
                     vec![geom_core::Real::one(); 3],
                 )
@@ -2394,7 +2394,7 @@ mod tests {
             "refined_net missed the exact net at {missed:?}"
         );
         let curve = NurbsCurve3::new(
-            geom_core::spline::Knots::constant(kv.clone()),
+            geom_core::spline::Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
             ctl.iter().map(|p| Point3::new(p[0], p[1], p[2])).collect(),
             weights.clone(),
         )
@@ -2506,8 +2506,8 @@ mod tests {
             control.push(Point3::new(x, y, 3.0));
         }
         let wall = NurbsSurface::new(
-            geom_core::spline::Knots::constant(ku),
-            geom_core::spline::Knots::constant(kv),
+            geom_core::spline::Knots::from(ku).lift(geom_core::Real::from_f64),
+            geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
             control,
             vec![geom_core::Real::one(); 8],
         )

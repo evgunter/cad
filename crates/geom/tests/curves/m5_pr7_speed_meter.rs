@@ -481,7 +481,7 @@ fn the_interval_meter_brackets_the_f64_meter() {
         )
     };
     let ci = NurbsCurve3::<Interval>::new(
-        Knots::constant(kv),
+        Knots::from(kv).lift(geom_core::Real::from_f64),
         vec![pt(0.0, 0.0, 0.0), pt(0.5, 0.3, 0.0), pt(1.0, 0.0, 0.0)],
         weights
             .iter()
@@ -527,7 +527,7 @@ fn a_carrier_on_non_dyadic_knots_meters_at_both_scalars() {
     let mf = cf.speed_lower_bound().get();
     let pt = |x: f64| Interval::from_bounds(x, x);
     let ci = NurbsCurve3::<Interval>::new(
-        Knots::constant(kv),
+        Knots::from(kv).lift(geom_core::Real::from_f64),
         ctl.iter()
             .map(|&(x, y, z)| Point3::new(pt(x), pt(y), pt(z)))
             .collect(),

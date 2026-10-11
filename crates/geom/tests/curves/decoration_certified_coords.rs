@@ -59,7 +59,7 @@ fn the_fixture_is_a_finite_bracket_that_cannot_certify() {
 #[test]
 fn construction_admits_a_violated_coefficient() {
     let c = NurbsCurve3::new(
-        Knots::constant(kv()),
+        Knots::from(kv()).lift(geom_core::Real::from_f64),
         vec![
             Point3::new(trv(), Interval::from_f64(0.0), Interval::from_f64(0.0)),
             Point3::new(
@@ -77,7 +77,7 @@ fn construction_admits_a_violated_coefficient() {
 #[test]
 fn curve3_certified_coords_refuses_a_violated_coefficient_per_channel() {
     let c = NurbsCurve3::new(
-        Knots::constant(kv()),
+        Knots::from(kv()).lift(geom_core::Real::from_f64),
         vec![
             Point3::new(trv(), healthy(), Interval::from_f64(0.0)),
             Point3::new(
@@ -107,7 +107,7 @@ fn curve3_certified_coords_refuses_a_violated_coefficient_per_channel() {
 #[test]
 fn curve2_certified_coords_refuses_a_violated_coefficient_per_channel() {
     let c = NurbsCurve2::new(
-        Knots::constant(kv()),
+        Knots::from(kv()).lift(geom_core::Real::from_f64),
         vec![
             Point2::new(healthy(), trv()),
             Point2::new(Interval::from_f64(1.0), Interval::from_f64(0.0)),
@@ -131,7 +131,7 @@ fn curve2_certified_coords_refuses_a_violated_coefficient_per_channel() {
 #[test]
 fn a_certified_net_crosses_unchanged() {
     let c = NurbsCurve3::new(
-        Knots::constant(kv()),
+        Knots::from(kv()).lift(geom_core::Real::from_f64),
         vec![
             Point3::new(healthy(), healthy(), healthy()),
             Point3::new(
