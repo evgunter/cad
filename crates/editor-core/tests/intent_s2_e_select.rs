@@ -476,7 +476,6 @@ fn inline_rehosts_a_selection_downstream_of_the_instance() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![p.extrude.into(), q.node.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, fillet) = insert(doc, Node::fillet(union, len(0.05), vec![p.edge.clone()]));
@@ -524,7 +523,6 @@ fn union_of(doc: ProfileDoc, a: RecipeNodeId, b: RecipeNodeId) -> (ProfileDoc, R
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     )
 }

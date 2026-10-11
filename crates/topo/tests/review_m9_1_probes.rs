@@ -8,15 +8,14 @@
 
 use crate::common;
 
-use common::{brick, finished, flush_declarations};
+use common::{brick, finished};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::contact_verify::tangent_locus_relation;
 use topo::boolean::plane_eq::PlaneIdentity;
 use topo::{
-    Body, BooleanCoincidence, CarrierDesc, CarrierEqError, CarrierRelation, ContactClass,
-    ContactRefusal, ContactVerdict, FacePairDeclaration, ValidationError, carrier_eq,
-    validate_pseudomanifold,
+    CarrierDesc, CarrierEqError, CarrierRelation, ContactRefusal, ContactVerdict, ValidationError,
+    carrier_eq, validate_pseudomanifold,
 };
 
 fn band() -> Band {
@@ -335,9 +334,7 @@ fn probe_records_partialeq_bites_on_mutation() {
         brick::<f64>((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), Tol::witness()),
         Tol::witness(),
     );
-    let decls = flush_declarations(&a, &b, Tol::witness());
-    let topo::BooleanResult::Body(out) = topo::union_with(&a, &b, &decls, Tol::witness()).unwrap()
-    else {
+    let topo::BooleanResult::Body(out) = topo::union(&a, &b, Tol::witness()).unwrap() else {
         panic!("union is a body");
     };
     let mut mutated = out.contacts.clone();
@@ -348,71 +345,6 @@ fn probe_records_partialeq_bites_on_mutation() {
         topo::Cites::decided(0),
     )]);
     assert_ne!(out.contacts, mutated, "PartialEq must see the new fields");
-}
-
-/// DEVIATION 8 — the C4 "silent no-op at the op" gap, CLOSED (M9-1 fix
-/// pass, F2; issue #539).
-///
-/// The fixture is the `m4_pr3_names_interval` corpus's shape (block top
-/// z = 1, slot top z = 1.5) declared as `Rest`. When this probe was
-/// written the subtract SUCCEEDED — the lie never met a verifier,
-/// because the only verify-at-use site was Union-only — while the carrier ladder, asked directly, contradicted
-/// it at `bool_plane_offset`. Red-then-green: the assertion below read
-/// `out.is_ok()` then; the op-door pass now refuses the same
-/// declaration before any classification runs, and the corpus that
-/// carried this shape no longer declares it.
-#[test]
-fn probe_dev8_false_declaration_is_a_silent_noop_at_the_op() {
-    let c = finished(
-        "c",
-        brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), Tol::witness()),
-        Tol::witness(),
-    );
-    let slot = finished(
-        "slot",
-        brick::<f64>((1.0, 2.0), (-1.0, 4.0), (0.5, 1.5), Tol::witness()),
-        Tol::witness(),
-    );
-    let z_face = |body: &Body<f64>, z: f64| {
-        body.faces()
-            .find(|(_, f)| match body.get_surface(f.surface) {
-                Some(&topo::Surface::Plane { origin, normal, .. }) => {
-                    normal.z.abs() > 0.5 && (origin.z - z).abs() < 1e-12
-                }
-                _ => false,
-            })
-            .map(|(k, _)| k)
-            .unwrap()
-    };
-    let c_top = z_face(&c, 1.0);
-    let slot_top = z_face(&slot, 1.5);
-    let mut decls = topo::BooleanDeclarations::default();
-    decls
-        .coincident_faces
-        .push(FacePairDeclaration::rest(c_top, slot_top));
-    // The lie is definite: the ladder, asked directly, contradicts.
-    let verdict =
-        topo::boolean::carrier_pair_relation(&c, c_top, &slot, slot_top, true, band()).unwrap();
-    assert!(
-        matches!(verdict, Err(CarrierEqError::Contradicted { .. })),
-        "the declared caps are definitely offset: {verdict:?}"
-    );
-    // And the op refuses it too, at the door, naming the same margin —
-    // the gap is closed, and the two sites agree because they share a
-    // ladder rather than mirroring one.
-    let err = topo::subtract_with(&c, &slot, &decls, Tol::witness())
-        .expect_err("a false declaration is no longer a silent no-op at the op");
-    match &err {
-        topo::BooleanError::ContactContradicted {
-            declaration,
-            margin,
-            ..
-        } => {
-            assert_eq!(declaration.class, ContactClass::Rest);
-            assert_eq!(margin.predicate, Some("bool_plane_offset"));
-        }
-        other => panic!("expected ContactContradicted, got {other:?}"),
-    }
 }
 
 /// CLAIM 7 / AQ6 — the definite verdict beats the declaration in BOTH
@@ -437,49 +369,4 @@ fn probe_aq6_definite_beats_declaration_both_directions() {
         carrier_eq(&a, &off, declared(), &at(1.0), band()),
         Err(CarrierEqError::Contradicted { .. })
     ));
-}
-
-/// CLAIM 3 — DeclaredPairs keyed-map semantics: the old `contains`
-/// behaviour (symmetric across operands, same-operand always false)
-/// is preserved through the op door: a same-operand "declaration"
-/// cannot be expressed at all (the field is cross-operand by type),
-/// and the A/B orientation of a declared pair still verifies.
-#[test]
-fn probe_declared_pair_direction_still_normalized() {
-    let a = finished(
-        "a",
-        brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness()),
-        Tol::witness(),
-    );
-    let b = finished(
-        "b",
-        brick::<f64>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness()),
-        Tol::witness(),
-    );
-    let decls = flush_declarations(&a, &b, Tol::witness());
-    assert!(!decls.coincident_faces.is_empty());
-    assert!(
-        topo::union_with(&a, &b, &decls, Tol::witness()).is_ok(),
-        "declared flush pair verifies through the map exactly as through the set"
-    );
-    // Class mint honesty: the helper spells each class from the sense
-    // the verifier decided — the mating plane is the one opposed pair
-    // (Rest), the four stacked walls are continuations — so no silent
-    // default hides in the map.
-    let count = |class| {
-        decls
-            .coincident_faces
-            .iter()
-            .filter(|d| d.class == class)
-            .count()
-    };
-    assert_eq!(
-        (
-            count(BooleanCoincidence::REST),
-            count(BooleanCoincidence::Continuation)
-        ),
-        (1, 4),
-        "{:?}",
-        decls.coincident_faces
-    );
 }

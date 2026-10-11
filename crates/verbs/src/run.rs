@@ -309,8 +309,8 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
         tol: Tol,
     ) -> Result<PairOut<T>, VerbError<T>> {
         match self {
-            Self::Boolean { op, declare } => {
-                match boolean_op_with(*op, a, b, declare, sweep, tol).map_err(VerbError::Boolean)? {
+            Self::Boolean { op, inputs } => {
+                match boolean_op_with(*op, a, b, inputs, sweep, tol).map_err(VerbError::Boolean)? {
                     BooleanResult::Empty => Ok(PairOut::Empty),
                     BooleanResult::Body(bb) => {
                         // Exhaustive destructure, deliberately: a field

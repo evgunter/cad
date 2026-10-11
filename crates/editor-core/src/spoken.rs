@@ -599,18 +599,6 @@ trait HoldsNodes {
     ) -> Option<crate::Formula> {
         None
     }
-    /// The slot of `node`'s payload at `reference` that holds `name`
-    /// ([`Node::reference_slot`]), `None` where it is not held here. A
-    /// door's held nodes keep none, so a refusal they say names the
-    /// reference by its words.
-    fn reference_slot(
-        &self,
-        _node: RecipeNodeId,
-        _reference: usize,
-        _name: &StableName,
-    ) -> Option<(&'static str, String)> {
-        None
-    }
     /// The place `name` holds in the selection `var`, where this
     /// document holds both.
     fn selection_position(&self, _var: crate::var::VarId, _name: &StableName) -> Option<usize> {
@@ -704,15 +692,6 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
             _ => Some(ports.get(usize::from(port))?.name),
         };
         Some(OutputOf { node, port })
-    }
-
-    fn reference_slot(
-        &self,
-        node: RecipeNodeId,
-        reference: usize,
-        name: &StableName,
-    ) -> Option<(&'static str, String)> {
-        self.node(node)?.reference_slot(node, reference, name)
     }
 
     fn selection_position(&self, var: crate::var::VarId, name: &StableName) -> Option<usize> {
@@ -1142,16 +1121,6 @@ impl<'a> Speaker<'a> {
             }
         });
         NodeAs("node", said)
-    }
-
-    /// **The reference `name` is, as the sentence's subject holds it**:
-    /// `this fillet's edge 2`, where the node the enclosing sentence is
-    /// about ([`Speaker::about`]) holds `name` at `reference`, its place
-    /// among the payload's names ([`crate::Node::payload_names`]), in
-    /// this speaker's document; `None` by tag, or where it does not.
-    pub(crate) fn reference(self, reference: usize, name: &StableName) -> Option<String> {
-        let (owner, slot) = self.doc?.reference_slot(self.subject?, reference, name)?;
-        Some(format!("this {owner}'s {slot}"))
     }
 
     /// [`Self::selection_reference`] for the place `name` holds in the
