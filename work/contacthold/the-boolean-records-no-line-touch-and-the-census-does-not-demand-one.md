@@ -8,6 +8,7 @@ priority: P2
 cost: M
 branch: contacthold/ee-line-touch-record
 refs: [a-line-edge-in-a-curved-faces-interior-is-recorded-at-its-ends-only, a-touch-along-a-glued-tangency-cites-no-tangency-decision, two-coincident-curved-edges-touching-record-no-edge-edge-row, 4723]
+pr: 4740
 ---
 
 
