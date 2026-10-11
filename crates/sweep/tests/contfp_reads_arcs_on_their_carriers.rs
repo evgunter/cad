@@ -237,6 +237,66 @@ fn a_slot_and_a_rounded_rectangle_answer_their_regions() {
     }
 }
 
+/// **`contfp` reads `q` against each edge once.** Its pre-pass places `q`
+/// off every edge, and the loop walk after it takes those readings rather
+/// than deciding them again: neither of the walk's own boundary rows
+/// (`point_in_arc_loop_conic_on`, `_trim`) is decided under `contfp`, and
+/// each of the slot's two arcs is read once, under the pre-pass's row.
+/// The walk's ray rows still decide its crossings. The probes
+/// include points on an arc's carrier beyond the arc, whose `Carrier`
+/// reading the walk's crossing count takes from the pre-pass.
+#[test]
+fn contfp_reads_each_edge_once() {
+    let slot = extruded(
+        SketchPlane::xy(),
+        vec![bulge_loop(vec![
+            (p2(-1.0, -0.5), 0.0),
+            (p2(1.0, -0.5), 1.0),
+            (p2(1.0, 0.5), 0.0),
+            (p2(-1.0, 0.5), 1.0),
+        ])],
+        1.0,
+        tol(),
+    );
+    let cap = cap_at(&slot, 1.0);
+    for (x, y, want) in [
+        (0.1, 0.2, FaceContainment::In),
+        (0.5, 0.0, FaceContainment::In),
+        (
+            1.0 - 0.5 * 0.3f64.cos(),
+            0.5 * 0.3f64.sin(),
+            FaceContainment::In,
+        ),
+        (-0.5, 0.0, FaceContainment::In),
+        (1.3, 0.1, FaceContainment::In),
+        (1.6, 0.0, FaceContainment::Out),
+        (0.0, 0.7, FaceContainment::Out),
+    ] {
+        let bracket = geom_core::k_stats::Bracket::open();
+        let got = ask(&slot, cap, Point3::new(x, y, 1.0));
+        let recorded = bracket.finish();
+        assert_eq!(got, want, "({x}, {y})");
+        let again: Vec<_> = recorded
+            .verdicts
+            .iter()
+            .filter(|v| {
+                ["point_in_arc_loop_conic_on", "point_in_arc_loop_conic_trim"]
+                    .contains(&v.predicate)
+            })
+            .collect();
+        assert!(
+            again.is_empty(),
+            "({x}, {y}): decided again by the walk: {again:?}"
+        );
+        let read = recorded
+            .verdicts
+            .iter()
+            .filter(|v| v.predicate == "bool_contact_arc")
+            .count();
+        assert_eq!(read, 2, "({x}, {y}): each arc read once");
+    }
+}
+
 /// A pie slice whose arc is SHORT (`w = 0.02` rad, radius 10): the
 /// cosine window's end zone along the carrier would be `ε / sin(w/2)`,
 /// a hundred times `ε`, with escalation ten times further out. Asked

@@ -11157,6 +11157,37 @@ mod tests {
         }
     }
 
+    /// **A straddle's enclosure is a margin that was read**: the census's
+    /// escalation of two decided bounds straddling the band (a crossing
+    /// cut's `pm_census_ef_cross_arc_straddle`) ends in the coincidence
+    /// menu, where the poisoned margin it carried before the enclosure
+    /// ended in the defect ending.
+    #[test]
+    fn too_close_reads_a_straddle_as_a_margin_that_was_read() {
+        use geom_core::{Decided, Sign};
+        let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+        let straddle = geom_core::k_stats::straddle(
+            "pm_census_ef_cross_arc_straddle",
+            Decided {
+                sign: Sign::Zero,
+                margin: geom_core::MarginDiag::value(0.5 * band.zero()),
+            },
+            Decided {
+                sign: Sign::Positive,
+                margin: geom_core::MarginDiag::value(3.0 * band.escalate()),
+            },
+            band,
+        );
+        assert_eq!(
+            super::too_close(&straddle.margin),
+            format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE)
+        );
+        assert_eq!(
+            super::too_close(&geom_core::MarginDiag::INVALID),
+            super::DEFECT
+        );
+    }
+
     /// `too_close` spells the shared coincidence menu, once in
     /// `geom_core`, on a margin that was read.
     #[test]
