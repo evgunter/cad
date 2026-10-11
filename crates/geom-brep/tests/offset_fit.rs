@@ -1105,3 +1105,102 @@ fn refinement_follows_the_anisotropy_on_a_thin_patch() {
         cert.cells, cert.rounds, cert.hull_sup
     );
 }
+
+/// **A seed over the cap refuses before any fit.** A bicubic patch with
+/// sixteen spans a direction seeds three pieces in each, 49 x 49
+/// samples, more than the cap holds, and the door refuses `SeedOverCap`
+/// on that seed rather than fitting it.
+#[test]
+fn a_patch_with_more_spans_than_the_cap_seeds_refuses_before_round_0() {
+    let spans = 16usize;
+    let mut knots = vec![0.0; 4];
+    #[allow(clippy::cast_precision_loss)]
+    knots.extend((1..spans).map(|i| i as f64 / spans as f64));
+    knots.extend([1.0; 4]);
+    let n = spans + 3;
+    let kv = KnotVector::clamped(knots, 3).unwrap();
+    let mut control = Vec::with_capacity(n * n);
+    for i in 0..n {
+        for j in 0..n {
+            #[allow(clippy::cast_precision_loss)]
+            let (x, y) = (i as f64 / (n - 1) as f64, j as f64 / (n - 1) as f64);
+            control.push(Point3::new(x, y, 0.05 * (3.0 * x).sin() * (2.0 * y).cos()));
+        }
+    }
+    let base = NurbsSurface::new(kv.clone(), kv, control, vec![1.0; n * n]).unwrap();
+    match fit_offset_at(&base, 0.05, 1e-6, band()) {
+        Err(ref e @ OffsetFitError::SeedOverCap { cap, grid }) => {
+            assert_eq!(cap, OFFSET_FIT_SAMPLE_CAP);
+            assert_eq!(grid, (49, 49));
+            assert!(e.to_string().ends_with("Recourse: split the face"), "{e}");
+        }
+        other => panic!("a seed over the cap was not refused before round 0: {other:?}"),
+    }
+}
+
+/// **A bound found and then lost.** The quarter cylinder at
+/// `d = -2e-8` and `1e-15` reaches a finite bound on a coarser grid and
+/// loses it on the finer one the cap stops at, so the not-finite face
+/// carries the bound it lost.
+#[test]
+fn a_bound_found_then_lost_carries_the_bound_it_lost() {
+    let base = quarter_cylinder(1.0, 1.0);
+    match fit_offset_at(&base, -2e-8, 1e-15, band()) {
+        Err(OffsetFitError::BoundNotFinite {
+            rounds,
+            grid,
+            best: Some(best),
+            ..
+        }) => {
+            assert_eq!((rounds, grid, best.grid), (10, (56, 29), (52, 29)));
+            assert!(
+                (best.bound - 4.987e-6).abs() < 1e-9,
+                "the lost bound is {:e}",
+                best.bound
+            );
+        }
+        other => panic!("expected a not-finite stop carrying a lost bound: {other:?}"),
+    }
+}
+
+/// **A round whose bound rose is answered, not refused.** The bumpy
+/// patch at `d = 5e-6` certifies `2e-9` on round 5, at 1.1284e-9, and
+/// round 6's bound rises above that: a request between the two runs
+/// past round 6. The loop takes the both-directions step there rather
+/// than stopping, falls again, and at `1e-15` refines to the cap, far
+/// below round 5's bound.
+#[test]
+fn a_round_whose_bound_rose_takes_the_both_directions_step() {
+    let base = bumpy_patch();
+    let d = 5e-6;
+    let (_, at5) = fit_offset_at(&base, d, 2e-9, band())
+        .unwrap_or_else(|e| panic!("the bumpy patch refused 2e-9: {e}"));
+    assert!(
+        at5.rounds == 5 && (at5.hull_sup - 1.1283921e-9).abs() < 1e-14,
+        "round {} carries {:e}",
+        at5.rounds,
+        at5.hull_sup
+    );
+    let (_, past) = fit_offset_at(&base, d, 1.1e-9, band())
+        .unwrap_or_else(|e| panic!("the bumpy patch refused 1.1e-9: {e}"));
+    assert!(
+        past.rounds > 6,
+        "a request under round 5's bound certified on round {}, so round 6 did not rise",
+        past.rounds
+    );
+    match fit_offset_at(&base, d, 1e-15, band()) {
+        Err(OffsetFitError::SampleCapReached {
+            rounds,
+            grid,
+            achieved,
+            ..
+        }) => {
+            assert_eq!((rounds, grid), (9, (38, 37)));
+            assert!(
+                (achieved - 7.39e-11).abs() < 1e-13,
+                "the cap stop carries {achieved:e}"
+            );
+        }
+        other => panic!("expected the bumpy patch to refine to the cap: {other:?}"),
+    }
+}

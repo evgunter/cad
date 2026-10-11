@@ -10,7 +10,7 @@ use geom_brep::offset_fit::{OFFSET_FIT_SAMPLE_CAP, fit_offset, fit_offset_at};
 use geom_core::Tol;
 
 /// **The sample cap is a total, not a per-direction count.** At
-/// `d = 0.05` and 1e-9 the wall certifies on a 49 x 26 grid, round 9:
+/// `d = ±0.05` and 1e-9 the wall certifies on a 49 x 26 grid, round 9:
 /// 49 samples in `u` alone, which a per-direction cap at
 /// `sqrt(OFFSET_FIT_SAMPLE_CAP)` refuses on the grid before (41 x 26,
 /// 1.008e-9 m, 0.8% over the tolerance).
@@ -18,25 +18,27 @@ use geom_core::Tol;
 fn a_saddle_wall_certifies_on_a_grid_longer_in_one_direction_than_a_square_cap() {
     let walls = nurbs_walls(&twisted_loft(0.3));
     let (_, wall) = &walls[0];
-    let (fit, cert) = fit_offset_at(wall, 0.05, 1e-9, band())
-        .unwrap_or_else(|e| panic!("the saddle wall's fit refused at 1e-9: {e}"));
-    let grid = fit.control_counts();
-    assert_eq!((grid, cert.rounds), ((49, 26), 9));
-    assert!(
-        grid.0 * grid.0 > OFFSET_FIT_SAMPLE_CAP && grid.0 * grid.1 <= OFFSET_FIT_SAMPLE_CAP,
-        "the grid {grid:?} no longer outgrows a square of the cap in one direction"
-    );
-    assert!(
-        (cert.hull_sup - 3.8534e-10).abs() < 1e-13,
-        "the wall certifies at {:e}",
-        cert.hull_sup
-    );
+    for d in [0.05, -0.05] {
+        let (fit, cert) = fit_offset_at(wall, d, 1e-9, band())
+            .unwrap_or_else(|e| panic!("d = {d}: the saddle wall's fit refused at 1e-9: {e}"));
+        let grid = fit.control_counts();
+        assert_eq!((grid, cert.rounds), ((49, 26), 9), "d = {d}");
+        assert!(
+            grid.0 * grid.0 > OFFSET_FIT_SAMPLE_CAP && grid.0 * grid.1 <= OFFSET_FIT_SAMPLE_CAP,
+            "d = {d}: the grid {grid:?} no longer outgrows a square of the cap in one direction"
+        );
+        assert!(
+            (cert.hull_sup - 3.8534e-10).abs() < 1e-13,
+            "d = {d}: the wall certifies at {:e}",
+            cert.hull_sup
+        );
+    }
 }
 
 /// **A wall's fit at the run's ε, at both thicknesses and signs.** The
 /// four walls are one saddle by symmetry, and the bound is linear in
-/// `|d|` and even in its sign, so one wall at `d = 0.05` and
-/// `d = -0.01` stands for the rest. Each certifies wherever ε is above
+/// `|d|` and even in its sign, so one wall at `d = ±0.05` and
+/// `d = ±0.01` stands for the rest. Each certifies wherever ε is above
 /// what the cap's last grid reaches, 62 x 35 on round 10: 1.3958e-10 m
 /// at `|d| = 0.05` and 2.7918e-11 m at `|d| = 0.01`. Below that each
 /// stops at the cap, carrying that bound.
@@ -46,7 +48,12 @@ fn a_saddle_wall_fits_at_the_runs_eps_or_stops_at_the_cap() {
     let eps = tol.eps();
     let walls = nurbs_walls(&twisted_loft(0.3));
     let (_, wall) = &walls[0];
-    for (d, reach) in [(0.05, 1.3958e-10), (-0.01, 2.7918e-11)] {
+    for (d, reach) in [
+        (0.05, 1.3958e-10),
+        (-0.05, 1.3958e-10),
+        (0.01, 2.7918e-11),
+        (-0.01, 2.7918e-11),
+    ] {
         match fit_offset(wall, d, tol) {
             Ok((_, cert)) => assert!(
                 eps >= reach && cert.hull_sup <= eps,

@@ -26,6 +26,13 @@ margin: 1.0167785956182296e-6, .. } }`, limb 2's value at a break of
 its composite. The 257-sample measurement below predates that
 refinement.
 
+At the default ε 1e-9 the rim was unreached until SHELL's PR 4672 let
+the walls' offset fits certify there. It now refuses there outright,
+past the band: `RechartFalsifies { door: SetFaceSurfacesDescribing,
+edge: EdgeKey(12v1), error: PlaneNurbs(Limb { limb: HullValueChart,
+margin: Value(1.6377699604722858e-6) }) }`. It is pinned per ε in the
+same row.
+
 The raising site is `edge_nurbs::plane_nurbs_limbs`, whose chart image
 is `chart_image`'s degree-1 interpolant through `PXN_FIT_SAMPLES` (33)
 foot points. Measured, not argued: with the constant raised to 257 on a

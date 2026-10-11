@@ -763,6 +763,10 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             tolerance: 0.0,
         },
         OffsetFitError::NonFiniteSample { uv: (0.5, 0.25) },
+        OffsetFitError::SeedOverCap {
+            cap: 4096,
+            grid: (65, 64),
+        },
         OffsetFitError::SampleCapReached {
             cap: 4096,
             rounds: 6,

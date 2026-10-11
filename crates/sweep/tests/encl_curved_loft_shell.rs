@@ -205,8 +205,9 @@ fn the_curved_lofts_cap_moves_its_corners_along_the_slanted_seams() {
 /// wall–wall seam derives as the NURBS × NURBS section of its two moved
 /// fits, and the shell refuses at a top rim's at-rest certificate: the
 /// plane × fit lane's chart image of the rim is the degree-1 interpolant
-/// of its fixed foot schedule, and on this twisted wall its limb-2 bound
-/// lands in the band
+/// of its fixed foot schedule, and on this twisted wall limb 2's value
+/// at a break is about 1e-6 m: in the band at 1e-6, where it escalates,
+/// and past it at 1e-9, where it refuses outright
 /// (`work/iso/a-moved-lofts-top-rim-refuses-its-at-rest-certificate.md`).
 #[test]
 fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
@@ -242,29 +243,41 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
             "eps {eps:e}: the fit stopped at {achieved:e} on {grid:?}"
         );
     } else {
-        // Limb 2's value at a break: measured at 1e-6, 1.02e-6 m, in the
-        // band, so it escalates; at 1e-9, 1.64e-6 m, above it, so it
-        // refuses outright.
+        // Limb 2's value at a break: 1.64e-6 m at 1e-9, past the band,
+        // so it refuses outright; 1.02e-6 m at 1e-6, in the band, so it
+        // escalates.
         let ReplaceFaceError::Op {
-            error:
-                topo::EulerOpError::RechartFalsifies {
-                    edge,
-                    error:
-                        geom_brep::CertifyError::Escalated {
-                            check: geom_brep::CertCheck::PlaneNurbsHullValue,
-                            ..
-                        }
-                        | geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                            limb: geom_brep::ssi::SsiLimb::HullValueChart,
-                            ..
-                        }),
-                    ..
-                },
+            error: topo::EulerOpError::RechartFalsifies { edge, error, .. },
             ..
         } = error.as_ref()
         else {
-            panic!("eps {eps:e}: expected a rim's at-rest limb 2 to refuse, got {error:?}");
+            panic!("eps {eps:e}: expected a rim's at-rest certificate to refuse, got {error:?}");
         };
+        if eps < 1e-7 {
+            let geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
+                limb: geom_brep::ssi::SsiLimb::HullValueChart,
+                margin,
+            }) = error
+            else {
+                panic!("eps {eps:e}: expected limb 2's value to refuse outright, got {error:?}");
+            };
+            let value = margin.diagnostic_f64_for_error_text().value();
+            assert!(
+                value.is_some_and(|v| (1.6e-6..1.7e-6).contains(&v)),
+                "eps {eps:e}: limb 2 reads {value:?}"
+            );
+        } else {
+            assert!(
+                matches!(
+                    error,
+                    geom_brep::CertifyError::Escalated {
+                        check: geom_brep::CertCheck::PlaneNurbsHullValue,
+                        ..
+                    }
+                ),
+                "eps {eps:e}: expected limb 2 to escalate in the band, got {error:?}"
+            );
+        }
         // The refusing edge is a top rim: the top cap's edge with a wall.
         let halves = body.get_edge(*edge).expect("the refused edge resolves");
         let sides: Vec<FaceKey> = [halves.he_plus, halves.he_minus]

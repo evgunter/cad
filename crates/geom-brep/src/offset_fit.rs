@@ -252,33 +252,36 @@ pub const OFFSET_FIT_DEGREE: usize = 3;
 /// fit. A CONSTANT (D9).
 pub const OFFSET_FIT_SEED_PER_SPAN: usize = 3;
 
-/// The cap on the fit's sample grid: the product of its per-direction
-/// sample counts, `us.len() · vs.len()`.
+/// The cap on every sample grid the fit interpolates: the product of
+/// its per-direction sample counts, `us.len() · vs.len()`, the seed's
+/// included.
 ///
-/// It is the refinement loop's one work bound, and so the one thing
-/// besides the stall guard that ends a loop that has not certified.
-/// The loop has no round budget: every round that does not refuse
-/// strictly grows the grid, so the cap bounds the rounds as well as
-/// the size of each fit, and a loop whose bound is still falling runs
-/// until it certifies or reaches the cap. What costs is the sample
-/// count — the interpolation solves and the certificate's cells both
-/// scale with it — so that is what is capped.
+/// It bounds the size of each fit, and with it the cost of each round:
+/// the interpolation solves and the certificate's cells both scale with
+/// the sample count. It does not bound the total work. The loop has no
+/// round budget, and each round fits its whole grid afresh, so a run
+/// pays one fit per round. What bounds the rounds is the cap with the
+/// growth: every round that does not refuse strictly grows the grid,
+/// and the grid never exceeds the cap, so the round count is finite.
+/// The bound that argument gives is loose; the largest measured on
+/// real requests is 11 rounds, about 18 s in a release build (the
+/// quarter cylinder at `d = -2e-8` and 1e-15).
 ///
 /// A refinement round bisects, in each worst-carrying cell, the sample
 /// intervals of the ONE direction that cell's model-space extent names,
 /// so the grid can grow in one direction while its partner stands
 /// still. The product admits that anisotropy up to the same total a
-/// square grid has, and still bounds a runaway direction: every
-/// direction keeps at least the `OFFSET_FIT_DEGREE + 1` samples its
-/// seed has, so neither direction exceeds
-/// `OFFSET_FIT_SAMPLE_CAP / (OFFSET_FIT_DEGREE + 1)`, and no loop runs
-/// more rounds than that bound less the seed's.
+/// square grid has. A direction never loses samples, so neither
+/// direction exceeds the cap divided by its partner's seed count — 576
+/// against the `OFFSET_FIT_DEGREE + 1` samples an interpolation needs,
+/// since a seed with fewer refuses at round 0's interpolation.
 ///
-/// This constant is the lever of [`OffsetFitError::SampleCapReached`],
-/// raised only when the NEXT round's schedule would exceed it; a cap
-/// stop with a non-finite bound on the grid it stopped on is
-/// [`OffsetFitError::BoundNotFinite`] instead. Never an uncertified
-/// return, and never an unbounded amount of work.
+/// This constant is the lever of [`OffsetFitError::SeedOverCap`], raised
+/// before round 0 when the seed alone exceeds it, and of
+/// [`OffsetFitError::SampleCapReached`], raised when the NEXT round's
+/// schedule would; a cap stop with a non-finite bound on the grid it
+/// stopped on is [`OffsetFitError::BoundNotFinite`] instead. Never an
+/// uncertified return.
 pub const OFFSET_FIT_SAMPLE_CAP: usize = 48 * 48;
 
 /// The per-direction on-locus sample count inside each certificate
@@ -373,16 +376,19 @@ pub struct BestBound {
 /// # How the refinement loop ends without a certificate
 ///
 /// The certify-and-insert loop of [`fit_offset_at`] (and so of every
-/// production door over it) leaves without a certificate in five ways.
+/// production door over it) leaves without a certificate in six ways.
 /// Two are propagations from a round's own work and say nothing about
 /// the loop: the interpolation's refusals ([`Self::Fit`],
 /// [`Self::Structure`], [`Self::NonFiniteSample`]) and the certificate
-/// assembly's ([`Self::PatchBound`]). The other three are the loop's
+/// assembly's ([`Self::PatchBound`]). The other four are the loop's
 /// own terminations, each a face whose doc below names the kernel
 /// lever that would have changed it. There is no round budget: a
 /// loop whose bound is still falling refines until it certifies or
 /// the cap stops it.
 ///
+/// 0. **The seed grid is already over the sample cap** —
+///    [`Self::SeedOverCap`], before any round; the lever is
+///    [`OFFSET_FIT_SAMPLE_CAP`], and the caller's is a face split.
 /// 1. **The sample cap stopped the next round** —
 ///    [`Self::SampleCapReached`]; the lever is
 ///    [`OFFSET_FIT_SAMPLE_CAP`]. The stall verdict is taken before the
@@ -417,7 +423,7 @@ pub struct BestBound {
 /// a kernel approximation limit leaves, with the note that the refusal
 /// may be a kernel bug ([`geom_core::KERNEL_LIMIT_LAST_RESORT`]).
 ///
-/// **D2 classification: row 1**, stated here once for the three faces
+/// **D2 classification: row 1**, stated here once for the four faces
 /// (their own docs point back here rather than restating it). Every
 /// input that any face refuses is refused — the admission set of the
 /// door is unchanged by which face speaks — and the split exists so
@@ -505,46 +511,54 @@ pub enum OffsetFitError {
         /// The smallest bound any round reached ([`BestBound`]).
         best: BestBound,
     },
+    /// The seed grid alone carries more samples than
+    /// [`OFFSET_FIT_SAMPLE_CAP`]: the base has so many knot spans that
+    /// seeding [`OFFSET_FIT_SEED_PER_SPAN`] pieces in each exceeds the
+    /// cap before any fit is made. Refused before round 0, so there is
+    /// no bound to carry. Classification: the enum's, above.
+    SeedOverCap {
+        /// The sample cap, `us.len() · vs.len()`.
+        cap: usize,
+        /// The seed grid, per direction.
+        grid: (usize, usize),
+    },
     /// The loop stopped with the bound on its last grid not finite —
-    /// on the sample cap, or on a stall with no
-    /// finite round behind it: the certifying limb answered `+∞`
-    /// there, so there is no achieved bound on that grid, and the type
-    /// carries `best` in place of an `inf` where the caller needs a
-    /// number. Two cases, told apart by that field, because they send
-    /// the caller to different places:
+    /// on the sample cap, or on a stall with no finite round behind it:
+    /// the certifying limb answered `+∞` there, so there is no achieved
+    /// bound on that grid, and the type carries `best` in place of an
+    /// `inf` where the caller needs a number. Two cases, told apart by
+    /// that field, because they send the caller to different places:
     ///
     /// - **`best: None` — no round ever produced a finite
     ///   bound.** A cell's sign witness or its lower bound on `‖E‖`
     ///   could not be proved at the sampled cells on any grid, and a
     ///   finer schedule did not change that; the module docs'
     ///   small-`|d|` limit is the shape of it. The lever is NOT a
-    ///   constant of this loop — the cap is not worth raising. What decides it is the limb's floors against
-    ///   the request's own `|d|`: the regularity floor the door meters
-    ///   certify and the floor on `‖E‖` — the larger of the
-    ///   componentwise mignitude assembly and the projection through
-    ///   the sign witness. The caller's move is there, not at the
-    ///   cap. Every instance the shipped corpus reaches stops on
-    ///   the cap. The other route,
-    ///   a stall with no finite round behind it, has no row either,
-    ///   and none was constructed: the stall guard stays silent until
-    ///   a round is finite, so the route is the schedule's exhaustion
-    ///   on a never-finite run, a both-directions marking that grows
-    ///   no direction. That needs every marked sample interval
-    ///   narrowed to adjacent floats, where `bisect` drops the
-    ///   midpoint, which takes some fifty halvings of each such
-    ///   interval, every one a round that keeps the cell's bound
-    ///   infinite, before the cap stops the loop; or a composite
-    ///   with no cells, to which a clamped knot pair never decomposes.
+    ///   constant of this loop, so the cap is not worth raising. What
+    ///   decides it is the limb's floors against the request's own
+    ///   `|d|`: the regularity floor the door meters certify and the
+    ///   floor on `‖E‖` — the larger of the componentwise mignitude
+    ///   assembly and the projection through the sign witness. The
+    ///   caller's move is there, not at the cap. Every instance the
+    ///   shipped corpus reaches stops on the cap. The stall route, a
+    ///   stall with no finite round behind it, has no row and none was
+    ///   constructed: the stall guard stays silent until a round is
+    ///   finite, so on a never-finite run the only stall is the
+    ///   schedule's exhaustion, a both-directions marking that grows no
+    ///   direction. That needs every marked sample interval narrowed to
+    ///   adjacent floats, where `bisect` drops the midpoint, and each
+    ///   halving is a round of its own; or a composite with no cells,
+    ///   to which a clamped knot pair never decomposes.
     /// - **`best: Some(b)` — a coarser grid reached the finite
     ///   bound `b.bound` and a finer one lost it.** The bound was
     ///   there and the schedule moved off it, so the schedule is the
     ///   lever and `b.bound` is the number the caller can size
-    ///   against ([`BestBound`]).
-    ///   Structurally reachable — the stall guard answers a first
+    ///   against ([`BestBound`]). The stall guard answers a first
     ///   finite-then-infinite round with the both-directions step
-    ///   rather than a verdict, so a cap stop can land on
-    ///   it — and no fixture reaches it: no request in the shipped
-    ///   corpus produces a finite round followed by a non-finite one.
+    ///   rather than a verdict, and a second infinite round after that
+    ///   step is the stall's face, so this case is a cap stop on the
+    ///   infinite round. The quarter cylinder at `d = -2e-8` and
+    ///   `1e-15` reaches it (`tests/offset_fit.rs`).
     ///
     /// Classification: the enum's, above.
     BoundNotFinite {
@@ -747,6 +761,13 @@ impl core::fmt::Display for OffsetFitError {
                 "the offset surface's fit reached its limit of {cap} samples, \
                  and its best certified error was {best} m against a tolerance of \
                  {tolerance} m. Recourse: split the face so each piece needs fewer samples"
+            ),
+            Self::SeedOverCap { cap, grid } => write!(
+                f,
+                "the offset surface's fit would start from {} x {} samples, more than its \
+                 limit of {cap} samples, because the face's surface has that many knot spans. \
+                 Recourse: split the face",
+                grid.0, grid.1
             ),
             Self::BoundNotFinite {
                 d,
@@ -959,7 +980,8 @@ pub fn fit_offset(
 ///
 /// [`OffsetFitError`] — the two door meters and their escalations,
 /// the patch-bound refusals, the interpolation stack's refusals,
-/// non-finite samples, and the refinement loop's three terminations —
+/// non-finite samples, and the refinement loop's four terminations —
+/// [`OffsetFitError::SeedOverCap`] before any round,
 /// [`OffsetFitError::SampleCapReached`] and
 /// [`OffsetFitError::RefinementStalled`] each carrying the last grid's
 /// bound and the smallest any round reached, and
@@ -1041,6 +1063,13 @@ fn refine_rounds_at<S>(
     // the grid, so the cap bounds the round count
     // (`OFFSET_FIT_SAMPLE_CAP`'s doc).
     let mut round = 0usize;
+    // The cap reads every grid the loop fits, the seed's included.
+    if us.len() * vs.len() > OFFSET_FIT_SAMPLE_CAP {
+        return Err(OffsetFitError::SeedOverCap {
+            cap: OFFSET_FIT_SAMPLE_CAP,
+            grid: (us.len(), vs.len()),
+        });
+    }
     loop {
         let (fit, report) = round_at(&us, &vs)?;
         let achieved = report.hull_sup;
@@ -1503,8 +1532,8 @@ fn expiry(
     d: f64,
     tolerance: f64,
 ) -> OffsetFitError {
-    // `rounds` is below `OFFSET_FIT_SAMPLE_CAP` (its doc), so the
-    // narrowing is exact.
+    // Every round adds a sample to a grid the cap bounds, so `rounds`
+    // is below `OFFSET_FIT_SAMPLE_CAP` and the narrowing is exact.
     #[allow(clippy::cast_possible_truncation)]
     let rounds = rounds as u32;
     let not_finite = || OffsetFitError::BoundNotFinite {
@@ -3388,6 +3417,10 @@ mod recourse_tests {
                 tolerance: 0.0,
             },
             OffsetFitError::NonFiniteSample { uv: (0.5, 0.5) },
+            OffsetFitError::SeedOverCap {
+                cap: 64,
+                grid: (9, 8),
+            },
             OffsetFitError::SampleCapReached {
                 cap: 64,
                 rounds: 3,
@@ -3460,14 +3493,14 @@ mod recourse_tests {
             OffsetFitError::Band(bands[0]),
             OffsetFitError::Band(bands[1]),
         ];
-        // Thirteen variants; `BoundNotFinite` at both of its `best`
+        // Fourteen variants; `BoundNotFinite` at both of its `best`
         // cases, which are two different messages sending the caller
         // to two different repairs, `Limb` at both limbs, which the
         // message names in two different words, and at a NaN bound,
         // which it names as no number, `MintLimb` at its limb's NaN and
         // finite bounds, and `Band` at both arms `Band::linear` can
         // return.
-        assert_eq!(arms.len(), 18, "an arm was added without a row here");
+        assert_eq!(arms.len(), 19, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             let delegated = match arm {
@@ -3632,6 +3665,39 @@ mod scripted_rounds {
     fn a_loop_still_improving_is_not_stopped_by_a_round_count() {
         let rounds = run(|k| if k < 20 { 100.0 - k as f64 } else { 0.5 }).unwrap();
         assert_eq!(rounds, 20);
+    }
+
+    /// A seed over the cap refuses before any round is fitted: the cap
+    /// reads the seed's grid as it reads every later one.
+    #[test]
+    fn a_seed_over_the_cap_refuses_before_round_0() {
+        let side: Vec<f64> = (0..49).map(|i| f64::from(i) / 48.0).collect();
+        assert!(side.len() * side.len() > OFFSET_FIT_SAMPLE_CAP);
+        let mut fitted = 0;
+        let r = refine_rounds_at((side.clone(), side), (1.0, 1.0), 0.1, 1.0, |_, _| {
+            fitted += 1;
+            Ok((
+                (),
+                Report {
+                    cells: 1,
+                    on_locus_max: 0.0,
+                    hull_sup: 0.5,
+                    failing: Vec::new(),
+                },
+            ))
+        });
+        assert!(
+            matches!(
+                r,
+                Err(OffsetFitError::SeedOverCap {
+                    cap: OFFSET_FIT_SAMPLE_CAP,
+                    grid: (49, 49)
+                })
+            ),
+            "a 49 x 49 seed: {:?}",
+            r.as_ref().err()
+        );
+        assert_eq!(fitted, 0, "a round was fitted on a seed over the cap");
     }
 
     /// A loop that never certifies and never stalls ends on the cap,

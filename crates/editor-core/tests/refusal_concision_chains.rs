@@ -2262,7 +2262,7 @@ fn wall_endings() -> [(&'static str, String); 2] {
 ///   raises every arm but `WindowUnsupported` (the mint certifies over
 ///   the chart rectangle it fitted), `Limb` (a limb refusing at the
 ///   mint is `MintLimb`) and `Band` (below). The loop's own
-///   terminations — `SampleCapReached`, `BoundNotFinite`,
+///   terminations — `SeedOverCap`, `SampleCapReached`, `BoundNotFinite`,
 ///   `RefinementStalled` — and the interpolation's `Fit`, `Structure`
 ///   and `NonFiniteSample` reach the user by this route and by the
 ///   transform's re-fit, and so does `MintLimb`, whose re-fit is the
@@ -2320,6 +2320,7 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
         ("Structure/", 1),
         ("InvalidRequest", 1),
         ("NonFiniteSample", 1),
+        ("SeedOverCap", 1),
         ("SampleCapReached", 1),
         ("BoundNotFinite", 2),
         ("RefinementStalled", 1),

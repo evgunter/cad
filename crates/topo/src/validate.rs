@@ -2947,6 +2947,10 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, Cow<'sta
             return (why, m.ending(Reading::AtRest).into());
         }
         O::SampleCapReached { .. } => (DRIFT, "Recourse: split the face"),
+        O::SeedOverCap { .. } => (
+            "its fitted surface has more knot spans than the fit's sample limit can seed",
+            "Recourse: split the face",
+        ),
         O::RefinementStalled { .. } | O::BoundNotFinite { best: Some(_), .. } => {
             (DRIFT, geom_core::KERNEL_LIMIT_RECOURSE)
         }
