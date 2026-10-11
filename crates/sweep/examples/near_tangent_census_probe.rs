@@ -28,7 +28,10 @@
 #[allow(dead_code, unreachable_pub)]
 mod differential;
 
-use differential::{NtPrism, nt_basis, nt_cube, nt_prisms, outcome};
+use differential::{
+    NtPoly as Poly, NtPrism, nt_clip as clip, nt_cube, nt_cube_poly, nt_poly_volume as volume,
+    nt_prisms, outcome,
+};
 use geom_core::{Band, Point3, Tol};
 use topo::entity::{EntityId, LoopBoundary};
 use topo::{
@@ -37,7 +40,6 @@ use topo::{
 };
 
 type V3 = [f64; 3];
-type Plane = (V3, f64); // n·x ≤ d
 
 fn tol() -> Tol {
     Tol::witness()
@@ -58,124 +60,6 @@ fn sub(a: V3, b: V3) -> V3 {
 fn add(a: V3, b: V3) -> V3 {
     [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
 }
-fn scale(a: V3, s: f64) -> V3 {
-    a.map(|c| c * s)
-}
-fn unit(a: V3) -> V3 {
-    scale(a, 1.0 / dot(a, a).sqrt())
-}
-
-/// Each convex piece of the prism as half-spaces.
-fn piece_planes(pr: &NtPrism) -> Vec<Vec<Plane>> {
-    pr.pieces
-        .iter()
-        .map(|poly| {
-            let n = poly.len();
-            let mut out: Vec<Plane> = (0..n)
-                .map(|i| {
-                    let (p, q) = (poly[i], poly[(i + 1) % n]);
-                    let nn = [q.1 - p.1, -(q.0 - p.0), 0.0];
-                    (nn, nn[0] * p.0 + nn[1] * p.1)
-                })
-                .collect();
-            out.push(([0.0, 0.0, 1.0], pr.h));
-            out.push(([0.0, 0.0, -1.0], 0.0));
-            out
-        })
-        .collect()
-}
-
-type Poly = Vec<Vec<V3>>; // faces, each CCW seen from outside
-
-fn clip(poly: &Poly, (n, d): Plane) -> Poly {
-    let mut out: Poly = Vec::new();
-    let mut cap: Vec<V3> = Vec::new();
-    for f in poly {
-        let mut g = Vec::new();
-        for i in 0..f.len() {
-            let (p, q) = (f[i], f[(i + 1) % f.len()]);
-            let (sp, sq) = (dot(n, p) - d, dot(n, q) - d);
-            if sp <= 0.0 {
-                g.push(p);
-            }
-            if (sp < 0.0 && sq > 0.0) || (sp > 0.0 && sq < 0.0) {
-                let t = sp / (sp - sq);
-                let x = add(p, scale(sub(q, p), t));
-                g.push(x);
-                cap.push(x);
-            }
-            if sp == 0.0 {
-                cap.push(p);
-            }
-        }
-        if g.len() >= 3 {
-            out.push(g);
-        }
-    }
-    if cap.len() >= 3 {
-        let c = scale(
-            cap.iter().fold([0.0; 3], |a, &b| add(a, b)),
-            1.0 / cap.len() as f64,
-        );
-        let (e1, e2) = nt_basis(unit(n));
-        let mut pts: Vec<(f64, V3)> = cap
-            .iter()
-            .map(|&p| {
-                let r = sub(p, c);
-                (dot(r, e2).atan2(dot(r, e1)), p)
-            })
-            .collect();
-        pts.sort_by(|a, b| a.0.total_cmp(&b.0));
-        pts.dedup_by(|a, b| dot(sub(a.1, b.1), sub(a.1, b.1)) < 1e-24);
-        out.push(pts.into_iter().map(|p| p.1).collect());
-    }
-    out
-}
-
-/// The polytope's volume, its divergence sum taken about one of its own
-/// vertices: about the world origin, a sliver's volume drowns in its
-/// faces' rounding.
-fn volume(poly: &Poly) -> f64 {
-    let Some(&o) = poly.first().and_then(|f| f.first()) else {
-        return 0.0;
-    };
-    poly.iter()
-        .map(|f| {
-            (1..f.len() - 1)
-                .map(|i| dot(sub(f[0], o), cross(sub(f[i], o), sub(f[i + 1], o))))
-                .sum::<f64>()
-        })
-        .sum::<f64>()
-        / 6.0
-}
-
-/// The cube `v + a u + b w + c m`, a, b ∈ [−2, 2], c ∈ [0, 4], as faces.
-fn cube_poly(v: V3, u: V3, w: V3, m: V3) -> Poly {
-    let p = |a: f64, b: f64, c: f64| add(v, add(scale(u, a), add(scale(w, b), scale(m, c))));
-    let c = |i: usize| {
-        let (a, b, z) = ((i & 1) as f64, ((i >> 1) & 1) as f64, ((i >> 2) & 1) as f64);
-        p(-2.0 + 4.0 * a, -2.0 + 4.0 * b, 4.0 * z)
-    };
-    let quads = [
-        [0, 2, 3, 1],
-        [4, 5, 7, 6],
-        [0, 1, 5, 4],
-        [2, 6, 7, 3],
-        [0, 4, 6, 2],
-        [1, 3, 7, 5],
-    ];
-    quads
-        .iter()
-        .map(|q| q.iter().map(|&i| c(i)).collect())
-        .collect()
-}
-
-fn common_cube(pr: &NtPrism, cube: &Poly) -> f64 {
-    piece_planes(pr)
-        .iter()
-        .map(|pl| volume(&pl.iter().fold(cube.clone(), |acc, &p| clip(&acc, p))))
-        .sum()
-}
 
 fn area(poly: &Poly) -> f64 {
     poly.iter()
@@ -192,7 +76,7 @@ fn area(poly: &Poly) -> f64 {
 /// (the role read's margin, `V/A`) and its greatest thickness off the
 /// cube's near face (`m·x ≥ m·v`), the lump a sliver shell would be.
 fn piece_lumps(pr: &NtPrism, cube: &Poly, v: V3, m: V3) -> Vec<String> {
-    piece_planes(pr)
+    pr.piece_planes()
         .iter()
         .enumerate()
         .map(|(i, pl)| {
@@ -431,12 +315,10 @@ fn main() {
                     continue;
                 }
                 let m = pr.near_normal(j, a, d);
-                let (u, w) = nt_basis(m);
                 let v = pr.v;
                 let cube = nt_cube(v, m, tol());
-                let poly = cube_poly(v, u, w, m);
-                let common = common_cube(&pr, &poly);
-                let lumps = piece_lumps(&pr, &poly, v, m);
+                let common = pr.overlap(m);
+                let lumps = piece_lumps(&pr, &nt_cube_poly(v, m), v, m);
                 run_all(&tag, &body, &cube, va, 64.0, common, &lumps);
             }
         }

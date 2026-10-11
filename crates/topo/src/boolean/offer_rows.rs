@@ -1634,11 +1634,11 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
         end: z,
         start_reach: Reach::Chord {
             base: o,
-            far: o + y,
+            far: o + y * arm,
         },
         end_reach: Reach::Chord {
             base: o,
-            far: o + z,
+            far: o + z * arm,
         },
         face,
         normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true),
@@ -1654,6 +1654,7 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
         Operand::B,
         &sector(pb.side_faces[3]),
         &declared,
+        super::super::recl::ReadOn::Faces,
         arm,
         band(),
     )
@@ -2762,6 +2763,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("recl.rs", "resolve_edge_edge", "Coincide::FlankSense", 1),
     ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),
+    ("recl.rs", "unglued_tilt", "Coincide::Sectors", 2),
     ("recl.rs", "wedge_is_reflex", "Coincide::Sectors", 1),
     (
         "reduce.rs",

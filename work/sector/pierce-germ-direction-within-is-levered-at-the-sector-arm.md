@@ -60,7 +60,8 @@ neither arm CLEAVE's census reached 534 times over three ε rows. On
 JOIN's near-tangent census that took 735 runs at 1e-9 (393 at 1e-12,
 309 at 1e-6) from a `Coincidence(Sectors)` escalation to sound bodies,
 and 483 more at 1e-6 to bodies within 2.2e-7 m³ of the oracle's volume
-(the census's line calls them BAD at 1e-7). The review's 5·10⁴·ε
+(the census's line calls them BAD at 1e-7). Of those 483, 231 fail
+tier 3′ on in-band census escalations only, and 252 pass it. The review's 5·10⁴·ε
 wedge witness above is unmeasured on that branch. `sectors::within`
 and its other callers (`pair_search`, `insert::germ_dir`, the
 polygon-cone reader) are unchanged, so the per-bound lever owed here

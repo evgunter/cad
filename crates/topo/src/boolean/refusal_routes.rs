@@ -3500,6 +3500,57 @@ pub(in crate::boolean) mod tests {
         }
     }
 
+    /// **The maximal-faces gate levers a bend at a ball holding the
+    /// shared edge** (F7): a disc on a block's top, its circle split
+    /// into arcs of 270° and 90°, the disc bent about its diameter
+    /// along `x` by an angle whose sweep reads just past the zero band
+    /// over the circle's diameter. The 270° arc reaches the diameter from
+    /// its start, so the gate reads the bend in band and refuses it as
+    /// its own escalation, where the arc's chord or sagitta (1.71 r)
+    /// would read it zero and call the two faces one plane.
+    #[test]
+    fn the_maximal_faces_gate_reads_an_arc_past_a_half_turn_at_its_diameter() {
+        let (b, tol) = (band(), Tol::witness());
+        let square = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)];
+        let prism = crate::test_support_fixtures::prism_z::<f64>(&square, 0.0, 1.0, tol);
+        let mut body = prism.body;
+        let outer = body.get_face(prism.top_face).unwrap().outer;
+        let crate::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("the top face's outer loop is a cycle");
+        };
+        let (center, radius) = (Point3::new(1.0, 1.0, 1.0), 0.5);
+        let disc =
+            crate::test_support_fixtures::plant_disc_face(&mut body, first, center, radius, tol);
+        body.split_edge(disc.edge, 1.5 * std::f64::consts::PI, tol)
+            .expect("the circle splits at three quarters of a turn");
+        let sin = 1.1 * b.zero() / (2.0 * radius);
+        let (up, along) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
+        body.set_face_surface_unvouched_for_tests(
+            disc.face,
+            crate::euler::FaceSurface::New {
+                surface: crate::Surface::Plane {
+                    origin: center,
+                    normal: up * (1.0 - sin * sin).sqrt() + along.cross(up) * sin,
+                    u_ref: along,
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+        let err = super::super::reduce::gate_maximal_faces(&body, Operand::A, b)
+            .expect_err("a bend in band refuses");
+        assert!(
+            matches!(
+                err,
+                BooleanError::Escalated {
+                    decision: BooleanDecision::Neighbours(PlaneRung::Parallel),
+                    ..
+                }
+            ),
+            "the bend reads in band over the arc's diameter: {err:?}"
+        );
+    }
+
     /// A unit prism whose top face is split along its diagonal, one half
     /// re-described on the plane `plane` gives from the diagonal's first
     /// end, its unit direction and its length. The new surface is its

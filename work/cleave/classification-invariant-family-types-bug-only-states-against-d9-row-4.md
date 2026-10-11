@@ -72,17 +72,20 @@ branch:
   definitely-distinct plane": the unglued pair's extent ball was
   centred at the world origin, so the offset rung read the tilt at the
   corner's distance from the origin while `bool_sector_coplanar` read
-  it at the arm. Centred at the pierce point, the parallel rung reads
-  that same margin at the same arm, and the offset is `p`'s standing
-  off the two planes it lies on. `Distinct` is now bug-only: a row 4
-  candidate.
+  it at the arm. The ball is now centred at the pierce point. It reaches
+  to the sector's farther bound, and the unglued pair's tilt is read at
+  that same reach, so the parallel rung reads the tilt's own margin,
+  decided zero. The offset is `p`'s standing off two planes it lies on.
+  `Distinct` is now bug-only: a row 4 candidate.
 - `boolean/recl.rs` `require_same`, "geometrically-ON sector pair with
   definitely-distinct carriers": the same origin-centred ball, now
-  centred at the corner. The offset arm is bug-only for the same
-  reason. The parallel arm is NOT shown bug-only: an all-On record says
-  each bound departs within the band at its reach, and a thin sector
-  tilted about its bisector satisfies that while its normals' cross at
-  the arm reads definitely off. `vtxfac`'s coplanar lump has an arm for
-  that state (the bounds' own margin, `bool_sector_coplanar` on the
-  steeper bound); `recl` has none. Unmeasured: no census run reached
-  it after the branch.
+  centred at the corner and reaching over the region the coplanarity
+  was read on (`ReadOn`).
+  - For an all-On record, that region is `pair_search`'s
+    `bool_faces_parallel` at the pair's arm: the parallel rung reads that
+    margin, and `Distinct` is bug-only (row 4 candidate).
+  - For a flanker or a wedge representative, the first sector's bounds
+    read On at their reach, and a thin sector tilted about a bound
+    reaches `Distinct` at that reach. That is now a typed refusal on the
+    bounds' margin (`recl::unglued_tilt`). Its own `Ok` arm ("a sector
+    bound read On departs definitely from the other's plane") is bug-only.

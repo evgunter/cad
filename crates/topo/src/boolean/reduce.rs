@@ -671,9 +671,9 @@ pub(super) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Pla
 /// same surface key, or Same±-oriented planes its margins decide one
 /// ([`super::oriented_plane_eq`]), across any edge ⇒
 /// [`BooleanError::NonMaximalFaces`]; a near-coplanar dihedral surfaces
-/// as the predicate's own typed escalation instead. The ladder reads the
-/// shared edge's extent ([`crate::readback::edge_extent`]) about the
-/// edge's start, so the offset is the planes' at the edge. It runs
+/// as the predicate's own typed escalation instead. The ladder reads a
+/// ball about the shared edge's start that holds the edge, so the offset
+/// is the planes' at the edge and the tilt is levered at its reach. It runs
 /// on an operand [`gate_operand`] passed, so every edge it reads holds
 /// a certified carrier.
 pub(super) fn gate_maximal_faces<T: Decide>(
@@ -711,18 +711,45 @@ pub(super) fn gate_maximal_faces<T: Decide>(
         let (Some(p1), Some(p2)) = (face_plane(body, f1), face_plane(body, f2)) else {
             continue;
         };
-        // The extent, not the chord: a closed edge's ends are one
-        // vertex, and its faces still meet along all of it.
-        let arm = crate::readback::edge_extent(body, edge_key).unwrap_or_else(|absence| {
-            unreachable!(
-                "{operand:?}'s edge {edge_key:?}, read out of its arena, has no extent \
-                 ({absence:?}): the operand gate refuses a null edge as scaffolding"
-            )
-        });
         let at = body.resolve_vertex_point(
             crate::live::proven(&body.half_edges, edge.he_plus, EntityId::HalfEdge).start,
             crate::live::Proven,
         );
+        // The ball about the edge's start that holds all of it: a line's
+        // chord; a circle's farthest point from its start, its far end or
+        // the point opposite, so a closed edge, whose ends are one vertex,
+        // reads its diameter; a fitted carrier's control polygon, whose
+        // hull holds it (its weights are positive); any other carrier's
+        // box.
+        let curve = body
+            .edge_curve_linked(edge_key, edge)
+            .certified()
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "{operand:?}'s edge {edge_key:?}, read out of its arena, has no \
+                     certified carrier: the operand gate refuses a null edge as scaffolding"
+                )
+            });
+        let end =
+            body.resolve_vertex_point(body.proven_half_edge_end(edge.he_plus), crate::live::Proven);
+        let arm = match curve.carrier() {
+            geom::Curve3::Line { .. } => (end - at).norm(),
+            geom::Curve3::Circle { radius, .. } => {
+                let (t0, t1) = curve.params();
+                let half =
+                    ((t1 - t0) * T::from_f64(0.5)).min(T::from_f64(core::f64::consts::FRAC_PI_2));
+                radius.abs() * T::from_f64(2.0) * half.sin()
+            }
+            geom::Curve3::Nurbs(n) => n
+                .control()
+                .iter()
+                .fold(T::zero(), |far, &q| far.max((q - at).norm())),
+            _ => crate::census::edge_reach_in(body, edge_key, &super::boxes::BoxFrame::World)
+                .map(|(lo, hi)| geom_brep::ExtentBall::of_box(lo, hi).lever_from(at))
+                .unwrap_or_else(|| {
+                    unreachable!("{operand:?}'s edge {edge_key:?}: a conic carrier has a box")
+                }),
+        };
         let extent =
             super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(at, arm));
         // One plane, decided by its margin: a pair the producing op

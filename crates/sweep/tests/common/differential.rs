@@ -432,12 +432,15 @@ impl NtPrism {
     /// The near face's unit normal for the pose `nt e{edge} a{a} d{d}`:
     /// `a + 1/4` sixteenths of a turn about the corner's edge `edge`,
     /// tilted `d` along it, so the face's plane lies `d` rad off that
-    /// edge.
+    /// edge. Normalized twice: JOIN's census measured the twice-rounded
+    /// normal, and a sub-ulp change of it moves which poses fire.
     pub fn near_normal(&self, edge: usize, a: u32, d: f64) -> V3 {
         let e = unit3(self.corner_edges()[edge]);
         let (p1, p2) = nt_basis(e);
         let al = std::f64::consts::TAU * (f64::from(a) + 0.25) / 16.0;
-        unit3([0, 1, 2].map(|k| p1[k] * al.cos() + p2[k] * al.sin() + e[k] * d))
+        unit3(unit3(
+            [0, 1, 2].map(|k| p1[k] * al.cos() + p2[k] * al.sin() + e[k] * d),
+        ))
     }
 }
 
@@ -571,4 +574,141 @@ fn nt_wedge(name: &'static str, alpha: f64) -> NtPrism {
         h: 1.0,
         v: [0.0, 0.0, 1.0],
     }
+}
+
+fn add3(a: V3, b: V3) -> V3 {
+    [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
+}
+
+fn sub3(a: V3, b: V3) -> V3 {
+    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+fn scale3(a: V3, s: f64) -> V3 {
+    a.map(|c| c * s)
+}
+
+/// A half-space `n·x ≤ d`.
+pub type NtPlane = (V3, f64);
+
+/// A convex polytope as its faces, each counter-clockwise seen from
+/// outside.
+pub type NtPoly = Vec<Vec<V3>>;
+
+impl NtPrism {
+    /// Each convex piece of the prism as half-spaces.
+    pub fn piece_planes(&self) -> Vec<Vec<NtPlane>> {
+        self.pieces
+            .iter()
+            .map(|poly| {
+                let n = poly.len();
+                let mut out: Vec<NtPlane> = (0..n)
+                    .map(|i| {
+                        let (p, q) = (poly[i], poly[(i + 1) % n]);
+                        let nn = [q.1 - p.1, -(q.0 - p.0), 0.0];
+                        (nn, nn[0] * p.0 + nn[1] * p.1)
+                    })
+                    .collect();
+                out.push(([0.0, 0.0, 1.0], self.h));
+                out.push(([0.0, 0.0, -1.0], 0.0));
+                out
+            })
+            .collect()
+    }
+
+    /// The volume the prism shares with [`nt_cube`]`(self.v, m)`: each
+    /// convex piece clipped by the cube's faces, independent of the
+    /// kernel.
+    pub fn overlap(&self, m: V3) -> f64 {
+        let cube = nt_cube_poly(self.v, m);
+        self.piece_planes()
+            .iter()
+            .map(|pl| nt_poly_volume(&pl.iter().fold(cube.clone(), |acc, &p| nt_clip(&acc, p))))
+            .sum()
+    }
+}
+
+/// [`nt_cube`] as a polytope.
+pub fn nt_cube_poly(v: V3, m: V3) -> NtPoly {
+    let (u, w) = nt_basis(m);
+    let p = |a: f64, b: f64, c: f64| add3(v, add3(scale3(u, a), add3(scale3(w, b), scale3(m, c))));
+    let c = |i: usize| {
+        let (a, b, z) = ((i & 1) as f64, ((i >> 1) & 1) as f64, ((i >> 2) & 1) as f64);
+        p(-2.0 + 4.0 * a, -2.0 + 4.0 * b, 4.0 * z)
+    };
+    let quads = [
+        [0, 2, 3, 1],
+        [4, 5, 7, 6],
+        [0, 1, 5, 4],
+        [2, 6, 7, 3],
+        [0, 4, 6, 2],
+        [1, 3, 7, 5],
+    ];
+    quads
+        .iter()
+        .map(|q| q.iter().map(|&i| c(i)).collect())
+        .collect()
+}
+
+/// `poly` clipped by the half-space `n·x ≤ d`, the cut capped.
+pub fn nt_clip(poly: &NtPoly, (n, d): NtPlane) -> NtPoly {
+    let mut out: NtPoly = Vec::new();
+    let mut cap: Vec<V3> = Vec::new();
+    for f in poly {
+        let mut g = Vec::new();
+        for i in 0..f.len() {
+            let (p, q) = (f[i], f[(i + 1) % f.len()]);
+            let (sp, sq) = (dot3(n, p) - d, dot3(n, q) - d);
+            if sp <= 0.0 {
+                g.push(p);
+            }
+            if (sp < 0.0 && sq > 0.0) || (sp > 0.0 && sq < 0.0) {
+                let t = sp / (sp - sq);
+                let x = add3(p, scale3(sub3(q, p), t));
+                g.push(x);
+                cap.push(x);
+            }
+            if sp == 0.0 {
+                cap.push(p);
+            }
+        }
+        if g.len() >= 3 {
+            out.push(g);
+        }
+    }
+    if cap.len() >= 3 {
+        let c = scale3(
+            cap.iter().fold([0.0; 3], |a, &b| add3(a, b)),
+            1.0 / cap.len() as f64,
+        );
+        let (e1, e2) = nt_basis(unit3(n));
+        let mut pts: Vec<(f64, V3)> = cap
+            .iter()
+            .map(|&p| {
+                let r = sub3(p, c);
+                (dot3(r, e2).atan2(dot3(r, e1)), p)
+            })
+            .collect();
+        pts.sort_by(|a, b| a.0.total_cmp(&b.0));
+        pts.dedup_by(|a, b| dot3(sub3(a.1, b.1), sub3(a.1, b.1)) < 1e-24);
+        out.push(pts.into_iter().map(|p| p.1).collect());
+    }
+    out
+}
+
+/// The polytope's volume, its divergence sum taken about one of its own
+/// vertices: about the world origin, a sliver's volume drowns in its
+/// faces' rounding.
+pub fn nt_poly_volume(poly: &NtPoly) -> f64 {
+    let Some(&o) = poly.first().and_then(|f| f.first()) else {
+        return 0.0;
+    };
+    poly.iter()
+        .map(|f| {
+            (1..f.len() - 1)
+                .map(|i| dot3(sub3(f[0], o), cross3(sub3(f[i], o), sub3(f[i + 1], o))))
+                .sum::<f64>()
+        })
+        .sum::<f64>()
+        / 6.0
 }
