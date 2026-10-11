@@ -230,7 +230,10 @@ fn a_structural_tube_refusal_reports_an_honest_typed_shape() {
 /// escalation there. Limb 2 stays under limb 1 over the arcs, tilts,
 /// radii and translations of this pair (hull/locus 0.06 to 0.88), so
 /// no band makes limb 2 the first limb in it, and the band here sits
-/// between the two: limb 1 escalates, limb 2 is under the band.
+/// between the two: limb 1 escalates, limb 2 is under the band. Limb
+/// 2's own `Interval` payload is guarded where it can still be driven
+/// into the band, at `hull_limb` itself
+/// (`geom_brep`'s `the_hull_bound_escalates_with_an_enclosure_at_interval`).
 ///
 /// Red if the margin is flattened to one `f64` (a value has one end,
 /// and renders as one), if the escalation moves off limb 1, or if limb
