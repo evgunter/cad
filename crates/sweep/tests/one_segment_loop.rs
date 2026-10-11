@@ -612,8 +612,13 @@ fn a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut() {
             "{what}: the strut is the body's one wrap edge"
         );
         let at_i = |loops: Vec<ProfileLoop<f64>>| {
-            let lofted = sweep::loft_body::<Interval>(&[loops.clone(), loops], &places, 1, tol())
-                .unwrap_or_else(|e| panic!("{what}: the loft builds at Interval: {e}"));
+            let lofted = sweep::loft_body::<Interval>(
+                &sweep::test_support::lift_sections::<Interval>(&[loops.clone(), loops]),
+                &sweep::test_support::lift_places::<Interval>(&places),
+                1,
+                tol(),
+            )
+            .unwrap_or_else(|e| panic!("{what}: the loft builds at Interval: {e}"));
             assert_eq!(validate(&lofted.body), Ok(()), "{what} at Interval: tier 1");
             assert_eq!(
                 validate_closed(&lofted.body),

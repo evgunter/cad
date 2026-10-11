@@ -1,12 +1,12 @@
 //! JOIN-1 fix-pass delta review: probes of the `AlongEdge` lane, the
 //! minted edge-edge record and the restated scaffold. Every building
-//! pose is judged by [`outcome`] against a closed-form volume (its
-//! arcs' areas extrapolated, [`chord_area`]), AND read for the seams a
-//! restated scaffold could hide: an edge between two faces of ONE
-//! planar surface key (a face cut in two), an edge between two faces
-//! whose planes coincide (a smooth planar seam), and a zero-length open
-//! edge. `#[ignore]`d batteries print one line per pose so two trees
-//! can be diffed.
+//! pose is judged by [`judged_with_seams`] against a closed-form
+//! volume (its arcs' areas extrapolated, [`chord_area`]), which also
+//! reads the seams a restated scaffold could hide: an edge between two
+//! faces of ONE planar surface key (a face cut in two), an edge between
+//! two faces whose planes coincide (a smooth planar seam), and a
+//! zero-length open edge. `#[ignore]`d batteries print one line per
+//! pose so two trees can be diffed.
 
 #![allow(
     clippy::unwrap_used,
@@ -20,9 +20,9 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
-use topo::{AtRestBody, Body, BooleanResult};
+use topo::AtRestBody;
 
-use crate::common::differential::{area, clip_convex, outcome};
+use crate::common::differential::{Verdict, area, clip_convex, judged_with_seams, outcome, seams};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -95,67 +95,6 @@ fn chord_area(a: &[(f64, f64, f64)], b: Option<(&[(f64, f64, f64)], (f64, f64))>
         }
     };
     (4.0 * at(2048) - at(1024)) / 3.0
-}
-
-/// The seams a restated scaffold could hide: (edges between two faces
-/// of one planar surface key, edges between two faces on one plane,
-/// zero-length open edges).
-fn seams(body: &Body<f64>) -> (usize, usize, usize) {
-    let (mut same_key, mut coplanar, mut zero) = (0, 0, 0);
-    for (_, e) in body.edges() {
-        let ends = (
-            body.get_half_edge(e.he_plus).map(|h| h.start),
-            body.half_edge_end(e.he_plus),
-        );
-        if let (Some(a), Some(b)) = ends
-            && a != b
-        {
-            let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-            if (p(a) - p(b)).norm() < 1e-9 {
-                zero += 1;
-            }
-        }
-        let (Some(f1), Some(f2)) = (
-            body.face_of_half_edge(e.he_plus),
-            body.face_of_half_edge(e.he_minus),
-        ) else {
-            continue;
-        };
-        if f1 == f2 {
-            continue;
-        }
-        let (k1, k2) = (
-            body.get_face(f1).unwrap().surface,
-            body.get_face(f2).unwrap().surface,
-        );
-        let plane = |k| match body.get_surface(k) {
-            Some(geom::Surface::Plane { origin, normal, .. }) => Some((*origin, *normal)),
-            _ => None,
-        };
-        if let (Some((o1, n1)), Some((o2, n2))) = (plane(k1), plane(k2)) {
-            if k1 == k2 {
-                same_key += 1;
-            } else if n1.cross(n2).norm() < 1e-9 && (o2 - o1).dot(n1).abs() < 1e-9 {
-                coplanar += 1;
-            }
-        }
-    }
-    (same_key, coplanar, zero)
-}
-
-/// The battery's line: the shared [`outcome`], and where the op built,
-/// the body's [`seams`].
-fn line(r: Result<BooleanResult<f64>, topo::BooleanError>, want: f64) -> String {
-    let seams = r
-        .as_ref()
-        .ok()
-        .and_then(BooleanResult::body)
-        .map(|bb| seams(&bb.body));
-    let line = outcome(r, want, tol());
-    match seams {
-        Some((sk, cp, z)) => format!("{line} samekey={sk} coplanar={cp} zero={z}"),
-        None => line,
-    }
 }
 
 /// Bulge of a CCW arc of included angle `deg`.
@@ -231,7 +170,7 @@ fn join1_delta_arc_battery() {
                         };
                         println!(
                             "ARC {na} {nb} d={d:?} zb={zb:?} {op} => {}",
-                            line(res, want)
+                            judged_with_seams(res, Some(want), tol()).line
                         );
                     }
                 }
@@ -276,7 +215,7 @@ fn join1_delta_brick_battery() {
                         };
                         println!(
                             "BRICK x={x:?} y={y:?} z={z:?} {order} {op} => {}",
-                            line(res, want)
+                            judged_with_seams(res, Some(want), tol()).line
                         );
                     }
                 }
@@ -302,12 +241,9 @@ fn overlapping_lens_prisms_union_builds() {
     if let Err(e) = &r {
         println!("[lens] {e:?}");
     }
-    let line = line(r, want);
-    println!("[lens] {line}");
-    assert!(
-        line.starts_with("OK SOUND") && line.contains(" samekey=0 ") && line.ends_with(" zero=0"),
-        "{line}"
-    );
+    let j = judged_with_seams(r, Some(want), tol());
+    println!("[lens] {}", j.line);
+    assert_eq!(j.verdict, Verdict::Sound, "{}", j.line);
     let r = topo::union(&a, &b, tol()).unwrap();
     sweep::test_support::assert_legal_operand("lens ∪", &r.body().unwrap().body, tol());
 }

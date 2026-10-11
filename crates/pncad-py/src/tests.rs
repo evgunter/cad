@@ -5406,6 +5406,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "far_section_not_forward",
             "far_stacking_escalated",
             "pcurve",
+            "placement_not_a_point",
             "reversed_stacking",
             "seam_structure",
             "section_structure",
