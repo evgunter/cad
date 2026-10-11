@@ -2,12 +2,13 @@
 id: a-wedge-flush-on-a-block-top-refuses-every-op-undeclared-though-its-face-reads-zero
 kind: issue
 title: A wedge flush on a block's top, its face tilted 1.2 to 2 eps, refuses every op undeclared though the face stands off the block's plane by a Zero margin; the declared spelling builds, and INTENT F retires it
-status: review
+status: closed
 opened: 2026-10-11
 priority: P1
 cost: M
 branch: flush/wedge-flush-reads-zero
 pr: 4709
+closed: 2026-10-11
 ---
 
 
@@ -166,3 +167,7 @@ No kernel change. INTENT's
 `an-in-band-glue-verdict-is-refused-as-the-corner-arms-unglued-coincidence`
 is the same structure (glue door in band, the corner reports its own
 reading) but not one fix (evidence added to that row).
+
+## Closed (2026-10-11, PR 4709)
+
+The refusal is correct, and it is pinned. The pair stands in the sliver band over its consumed extent: the block's corners are 2.76ε / 4.60ε off the wedge's plane. D10 refuses what falls in the sliver band, and DESIGN.md's thesis is that nearly-touching bodies fail loudly rather than guess. So there is no kernel change and no design fork. Every pose refuses `Coincidence(Sectors)` at `vtxfac`'s coplanar lump (`bool_sector_coplanar`), with a true offer. The glue door's offer would be false, and a test pins that. The PR had a single FULL review, APPROVE-WITH-FIXES, and every fix was taken. INTENT's in-band glue-verdict row carries the sibling family's facts.
