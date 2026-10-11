@@ -2,7 +2,8 @@
 id: offset-fit-composite-elevates-a-rational-direction-at-f64
 kind: issue
 title: offset_fit::Composite::build elevates degree-1 directions at f64 before the ring composite; a rational net's elevation ratio rounds
-status: review
+status: closed
+closed: 2026-10-11
 opened: 2026-10-10
 priority: P3
 cost: E
