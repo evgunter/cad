@@ -93,6 +93,8 @@ crates/sweep/src/blend/reach.rs	1	constant	band.zero()	the band's zero width, a 
 crates/sweep/src/blend/reach.rs	1	constant	pts.len() as f64	a point count
 crates/sweep/src/blend/reach.rs	3	constant	band.escalate()	the band's escalation width, a tolerance
 crates/sweep/src/loft.rs	1	constant	next.len() as f64	a count
+crates/sweep/src/loft.rs	1	launders(the-skin-computes-its-values-in-t)	x	a skinned wall's weights, computed by the f64 skin and lifted as constants
+crates/sweep/src/loft.rs	2	launders(the-skin-computes-its-values-in-t)	<fn>	a skinned wall's knot vectors, computed by the f64 skin and lifted as constants
 crates/sweep/src/test_support.rs	1	fixture	(core::f64::consts::FRAC_PI_2 / 4.0).tan()	a fixture arc's bulge
 crates/sweep/src/test_support.rs	2	fixture	<fn>	a fixture's f64 points lifted into T
 crates/topo/src/boolean/boxes.rs	1	constant	l as f64	a sample index
