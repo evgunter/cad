@@ -339,12 +339,16 @@ fn both_sweeps_evaluate_in_one_document() {
 /// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
 /// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
 /// pins and `m5_pr8_bvh_diff` held.
+///
+/// RE-BLESSED, `cut_cylinder` only, when a split's section face came to
+/// take its chart axis as its first chord projected into the plane: the
+/// tilted section's `u_ref` moved by one ulp in `z`, and nothing else did.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0xd6c9_f1b0_d590_d99f),
         ("corner_table", 0x4258_e6f3_cc74_7ad7),
-        ("cut_cylinder", 0x2f75_0d41_c9ca_4e19),
+        ("cut_cylinder", 0xa6c1_1622_9a6f_5245),
         ("boss_union", 0x662b_d224_b6df_3ccf),
         ("kitchen_sink", 0xd8ca_c8cc_c8f5_8725),
     ];
