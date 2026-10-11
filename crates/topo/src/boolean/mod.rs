@@ -2731,6 +2731,27 @@ pub enum BooleanError {
         /// Which lockstep invariant broke.
         what: &'static str,
     },
+    /// An edge the Boolean minted, or a boundary edge of a face its
+    /// merge left in place, could not be described against the two
+    /// faces it lies between: its halves did not walk, or the
+    /// attachment gate refused its description on a reading no move of
+    /// the parts reaches. It ends in the defect ending (a kernel bug,
+    /// loudly), or, on a fitted carrier, in the certification's own
+    /// last resort. An exact carrier read in band of one of its faces
+    /// is an [`BooleanError::Escalated`] of
+    /// [`BooleanDecision::EdgeOnFaces`].
+    EdgeUndescribed {
+        /// The edge, diagnostic only: the result is never returned.
+        edge: EdgeKey,
+        /// What the describer could not do.
+        failure: crate::merge_faces::EdgeDescribeFailure,
+        /// The attachment gate's refusal, where a description was
+        /// offered to it.
+        cause: Option<Box<EulerOpError>>,
+        /// Whether that description was offered on a fitted (spline)
+        /// carrier.
+        fitted: bool,
+    },
     /// One distributed component carries section faces of both sides
     /// (kernel bug, loudly).
     TornComponent {
@@ -3016,6 +3037,8 @@ pub enum BooleanErrorKind {
     JoinCarrierUnsupported,
     /// [`BooleanError::JoinDesync`].
     JoinDesync,
+    /// [`BooleanError::EdgeUndescribed`].
+    EdgeUndescribed,
     /// [`BooleanError::TornComponent`].
     TornComponent,
     /// [`BooleanError::ShellWitnessExhausted`].
@@ -3233,6 +3256,7 @@ impl BooleanError {
             Self::JoinUndecided(_) => BooleanErrorKind::JoinUndecided,
             Self::JoinCarrierUnsupported { .. } => BooleanErrorKind::JoinCarrierUnsupported,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
+            Self::EdgeUndescribed { .. } => BooleanErrorKind::EdgeUndescribed,
             Self::TornComponent { .. } => BooleanErrorKind::TornComponent,
             Self::ShellWitnessExhausted { .. } => BooleanErrorKind::ShellWitnessExhausted,
             Self::CoincidentShell { .. } => BooleanErrorKind::CoincidentShell,
@@ -3806,6 +3830,27 @@ impl core::fmt::Display for BooleanError {
                 "A/B lockstep invariant violated: {what} (kernel bug or corrupt \
                  reduction)"
             ),
+            Self::EdgeUndescribed {
+                failure,
+                cause,
+                fitted,
+                ..
+            } => {
+                write!(
+                    f,
+                    "an edge of the result cannot be described against the two faces it lies \
+                     between: {}",
+                    failure.clause()
+                )?;
+                if let Some(cause) = cause {
+                    write!(f, " ({})", crate::merge_faces::refusal_payload(cause))?;
+                }
+                write!(
+                    f,
+                    ". {}",
+                    crate::merge_faces::undescribed_ending(cause.as_deref(), *fitted)
+                )
+            }
             Self::TornComponent { operand, shell } => write!(
                 f,
                 "component {shell:?} of the {} operand carries section faces \
@@ -6841,6 +6886,12 @@ mod tests {
                 source: crate::pcurves::PcurveMintError::Unminted { face },
             },
             BooleanError::JoinDesync { what: "a lockstep" },
+            BooleanError::EdgeUndescribed {
+                edge: EdgeKey::default(),
+                failure: crate::merge_faces::EdgeDescribeFailure::NotWalkable,
+                cause: None,
+                fitted: false,
+            },
             BooleanError::TornComponent {
                 operand: Operand::A,
                 shell: ShellKey::default(),
@@ -6970,6 +7021,7 @@ mod tests {
                 BooleanErrorKind::JoinUndecided => "JoinUndecided",
                 BooleanErrorKind::JoinCarrierUnsupported => "JoinCarrierUnsupported",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
+                BooleanErrorKind::EdgeUndescribed => "EdgeUndescribed",
                 BooleanErrorKind::TornComponent => "TornComponent",
                 BooleanErrorKind::ShellWitnessExhausted => "ShellWitnessExhausted",
                 BooleanErrorKind::CoincidentShell => "CoincidentShell",

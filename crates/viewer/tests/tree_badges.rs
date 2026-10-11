@@ -755,7 +755,7 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         "product_recorded(",
         "product(",
         "pick_face(",
-        "run_checks_on(",
+        "run_checks_at_rest_on(",
     ];
     /// The re-reads a door call may sit inside, or share a statement
     /// with.
@@ -835,12 +835,12 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         ),
         (
             "session.rs",
-            "run_checks_on(",
+            "run_checks_at_rest_on(",
             "the registry's refusal is dropped (`.ok()`), never drawn",
         ),
         (
             "session.rs",
-            "run_checks_on(",
+            "run_checks_at_rest_on(",
             "the no-body subject's registry run; dropped the same way",
         ),
     ];

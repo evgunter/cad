@@ -385,8 +385,11 @@ fn verdict_multiset(edges: &[LoopEdge<f64>]) -> Vec<(String, usize)> {
 /// winding — the rim's two ends off the apex
 /// (`props_cone_loop_off_apex`), its sense (`props_cone_arc_sense`; a
 /// rim turns through its stored span, so no turn is decided) and the
-/// once-round threshold (`props_cone_loop_winding`). One edge has no
-/// two non-adjacent vertices, and no iso decide is asked.
+/// once-round threshold (`props_cone_loop_winding`). The rim's span is
+/// decided once, under certification's span bound, a full period
+/// sitting AT it (`props_rim_span_forward` Positive,
+/// `props_rim_span_winding` Zero). One edge has no two non-adjacent
+/// vertices, and no iso decide is asked.
 #[test]
 fn the_apex_cap_records_its_named_decides() {
     let got = verdict_multiset(&[rim(SL, 0.0, TAU, 0, 0)]);
@@ -401,6 +404,8 @@ fn the_apex_cap_records_its_named_decides() {
         ("props_rim_axis_parallel Zero", 1),
         ("props_rim_center_on_axis Zero", 1),
         ("props_rim_fit Zero", 1),
+        ("props_rim_span_forward Positive", 1),
+        ("props_rim_span_winding Zero", 1),
     ]
     .into_iter()
     .map(|(k, n)| (k.to_string(), n))

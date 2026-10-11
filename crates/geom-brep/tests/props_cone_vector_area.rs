@@ -557,15 +557,24 @@ fn the_slit_cap_sweeping_exactly_a_turn_measures_exactly() {
 /// `props_cone_apex_loop_sweep`: past a turn it covers part of the
 /// nappe twice, and the vector area counts that part twice. A sector of
 /// `2π + 0.1` pins the bound a hair past the slit cap, below every
-/// off-apex bound; the spiral steps outward as it goes round.
+/// off-apex bound; the spiral steps outward as it goes round. Each
+/// sector's rim is stated as two arcs, each within the turn a single
+/// rim's stored span may take (`props_rim_span_winding`), so the sweep
+/// is what refuses it.
 #[test]
 fn a_loop_through_the_apex_sweeping_past_a_turn_refuses_by_name() {
     let want = PropsError::ConeLoop {
         what: "props_cone_apex_loop_sweep",
     };
     for du in [TAU + 0.1, TAU + 2.0, TAU + 2.9] {
-        let face = sector(du);
-        for verts in [face.loops[0].clone(), reversed(&face.loops[0])] {
+        let verts = vec![
+            (0.0, 0.0),
+            (du, 0.0),
+            (du, 1.5),
+            (du / 2.0, 1.5),
+            (0.0, 1.5),
+        ];
+        for verts in [verts.clone(), reversed(&verts)] {
             refuses(&format!("sector of {du}"), &[chart_loop(&verts)], &want);
         }
     }
