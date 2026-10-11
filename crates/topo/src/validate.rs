@@ -1392,8 +1392,8 @@ pub enum ValidationError {
     ///   rectangle (`geom_brep::props`' `props_rim_level`, S58) and
     ///   the certified-quadrature lane consumes only conic/NURBS trims.
     /// * `RingOnCurvedFace` — **row 2** as well: a ringed curved face
-    ///   other than a cone wall or a rim-and-ruling cylinder or torus
-    ///   wall, which a boolean pierce leaves in the face it pierces.
+    ///   other than a cone wall, a cylinder wall or a rim-and-ruling
+    ///   torus wall, which a boolean pierce leaves in the face it pierces.
     /// * `Corrupt`, `NullScaffoldEdge` — **row 1** by their own docs:
     ///   unresolvable structure and a mid-surgery body carrying M3
     ///   null-edge scaffolding.
@@ -2711,7 +2711,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             }
         }
         CertifyError::AnalyticRung3(A::Limb { limb, .. }) => {
-            if A::check(*limb).bounds_a_miss() {
+            if limb.check().bounds_a_miss() {
                 BOUND
             } else {
                 MISMATCH
@@ -2770,9 +2770,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             certify_undecided(CertCheck::Transversality)
         }
         CertifyError::PlaneNurbs(P::Escalated { limb, .. }) => certify_undecided(limb.check()),
-        CertifyError::AnalyticRung3(A::Escalated { limb, .. }) => {
-            certify_undecided(A::check(*limb))
-        }
+        CertifyError::AnalyticRung3(A::Escalated { limb, .. }) => certify_undecided(limb.check()),
         CertifyError::PlaneNurbs(P::ReportedTransversalityPoisoned(_)) => {
             certify_undecided(CertCheck::PlaneNurbsReportedTransversality)
         }
@@ -2869,6 +2867,8 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         | CertCheck::ChartResidual
         | CertCheck::PlaneNurbsOnLocus
         | CertCheck::PlaneNurbsHull
+        | CertCheck::PlaneNurbsHullValue
+        | CertCheck::AnalyticBreakResidual
         | CertCheck::AnalyticHull => {
             geom_core::undecided!("whether it lies where its description says")
         }
@@ -3071,6 +3071,16 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             ),
             P::SenseContradicted => reading(
                 "a sphere face is inside-out against its own boundary",
+                DEFECT.into(),
+                true,
+            ),
+            P::RingWoundWithFace => reading(
+                "a hole in a face is wound the same way as the face",
+                DEFECT.into(),
+                true,
+            ),
+            P::ChartPeriodJump => reading(
+                "a face's stored boundary images do not meet on its chart",
                 DEFECT.into(),
                 true,
             ),
@@ -16104,7 +16114,7 @@ mod certify_escalation_rows {
                 says(CertifyError::AnalyticRung3(
                     geom_brep::AnalyticRung3Refusal::Limb {
                         operand: geom::SurfaceKind::Plane,
-                        limb: geom_brep::ssi::SsiLimb::HullSup,
+                        limb: geom_brep::Rung3Limb::HullSup,
                         margin: geom_core::MarginDiag::value(2.0e-8),
                     },
                 )),
