@@ -2,12 +2,13 @@
 id: cone-face-closed-form-runs-an-iso-premise-its-formula-does-not-need
 kind: issue
 title: cone_face_closed_form runs the S58 iso premise (require_rims_at_extremes, du_of_rims) on rim/generator loops, though apex·VA and |axis·VA|/sin α are exact for any one-nappe region
-status: review
+status: closed
 opened: 2026-10-10
 priority: P1
 cost: M
 pr: 4696
 branch: flux/cone-vector-area
+closed: 2026-10-11
 ---
 
 
@@ -28,3 +29,14 @@ It is the cone's half of the same "one closed form per face kind"
 question that the sphere row settles. It lands after or beside the
 sphere build, which also moves the cone's side gate onto
 `props_cone_area_side`. (FLUX orchestrator)
+
+## Closed (2026-10-11, PR 4696)
+
+(FLUX orchestrator) Every one-nappe cone face is now measured by its vector area over all of its loops. The iso premise has left the cone arm, and `du_of_rims` and its group-shape helpers are deleted.
+
+The unit went through a dual review (the holdout arm), two fix passes and two independent verifiers. The DR row is `docs/dual-review-log/rows/PR-4696.md`.
+
+Follow-ups:
+- `cone-incidence-decides-over-lever-toward-the-needle-and-the-flat`
+- `a-cone-face-whose-rings-leave-or-overlap-its-region-measures-silently`
+- `cone-ellipse-edges-carry-no-incidence-decide`
