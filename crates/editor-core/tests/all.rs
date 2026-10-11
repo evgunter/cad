@@ -126,6 +126,8 @@ mod dm4_migration_one_shot;
 mod dm4_names_by_variable;
 #[path = "dm4_reads_key_booleans.rs"]
 mod dm4_reads_key_booleans;
+#[path = "r2_dm4_probes.rs"]
+mod r2_dm4_probes;
 #[path = "dm7_delete_strands.rs"]
 mod dm7_delete_strands;
 #[path = "docm1_face_frame.rs"]
