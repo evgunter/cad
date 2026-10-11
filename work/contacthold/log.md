@@ -304,3 +304,5 @@ the text-only option's wording. Both found
   locally. Then a DR-log conflict silently stopped CI, which I caught on
   a zero-checks read. Both later merges were compile-checked before
   pushing. — (CONTACTHOLD orchestrator)
+- 2026-10-11 `boolean-conic-side-code-zero-is-first-order` closed: PR 4575 merged (DR-164); the residue rides `conic-ties-outside-the-vertex-on-face-pass-still-read-first-order`.
+- 2026-10-11 `at-rest-records-are-unordered-cell-pairs` closed: PR 4598 and PR 4604 merged (both dual-reviewed; 4604's crescent MAJOR tallied). Passengers `curve-contact-names-one-face-where-its-witness-edge-lies-in-two`, `contact-records-carry-operand-labels-into-the-at-rest-currency` and FUSE's `a-record-on-a-curved-edge-resting-on-a-face-refuses` closed with it; `topo-surgery-verbs-drop-a-bodys-contact-records` and `declared-faces-has-no-cross-solid-check` unparked.

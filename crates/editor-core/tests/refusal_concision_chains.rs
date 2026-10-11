@@ -195,7 +195,6 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
 pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     // work/wire/wire-refusals-short-of-the-shape-guard.md
     "AssertionDimension",
-    "AxisInDifferentPlane",
     "BlendSelectionEmpty",
     "SelectKind",
     "SelectResolve/Ambiguous",
@@ -1135,11 +1134,25 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
-            "AxisInDifferentPlane",
-            NodeErrorKind::AxisInDifferentPlane {
-                axis: RecipeNodeId::new(0, tagged(3)),
-                axis_plane: Some(RecipeNodeId::new(0, tagged(1))),
-                profile_plane: Some(RecipeNodeId::new(0, tagged(2))),
+            "PoseRead",
+            NodeErrorKind::PoseRead {
+                pose: editor_core::VarKind::Axis,
+                fault: editor_core::pose::PoseReadFault::NoAxis {
+                    carrier: editor_core::pose::Carrier::Surface(geom::SurfaceKind::Plane),
+                },
+            },
+        ),
+        row(
+            "PoseDegenerate",
+            NodeErrorKind::PoseDegenerate {
+                construction: editor_core::pose::PoseConstruction::Meet,
+            },
+        ),
+        row(
+            "PoseScalar",
+            NodeErrorKind::PoseScalar {
+                var: editor_core::VarId::new(0, tagged(4)),
+                source: editor_core::EvalError::NonFiniteResult,
             },
         ),
         row(
@@ -1243,7 +1256,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             "DerivedFrameSection",
             NodeErrorKind::DerivedFrameSection {
                 profile: RecipeNodeId::new(0, tagged(3)),
-                frame: RecipeNodeId::new(0, tagged(2)),
+                frame: Some(RecipeNodeId::new(0, tagged(2))),
             },
         ),
         row(
@@ -5077,6 +5090,29 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
         (
             "WallOutlineUnsupported",
             PointInSolidError::WallOutlineUnsupported { face },
+        ),
+        (
+            "JunctionSidesDisagree",
+            PointInSolidError::JunctionSidesDisagree {
+                face,
+                sides: (
+                    geom_core::MarginDiag::value(2.0e-9),
+                    geom_core::MarginDiag::value(-1.6e-9),
+                ),
+                band: geom_core::Band::new(1e-9, 1.5e-9).unwrap(),
+            },
+        ),
+        (
+            "NarrowWindowUnread",
+            PointInSolidError::NarrowWindowUnread { face, diag: diag() },
+        ),
+        (
+            "RootCountDisagrees",
+            PointInSolidError::RootCountDisagrees {
+                face,
+                certified: 2,
+                constructed: 4,
+            },
         ),
         (
             "NoSuchSolid",

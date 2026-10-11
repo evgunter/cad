@@ -1,7 +1,7 @@
 ---
 id: a-projected-split-is-unreachable-from-the-viewport
 kind: issue
-title: After one projection of a split or pattern, its other bodies are reachable only from the tree: a viewport click seats the projection, not the source
+title: After one projection of a pattern, its other copies are reachable only from the tree: a viewport click seats the projection, not the source
 status: open
 opened: 2026-09-24
 priority: P1
@@ -11,6 +11,11 @@ cost: D
 
 
 ## Finding
+
+**Narrowed to the pattern case** (PR 4618, `part-split-half-retires`):
+a split's halves are its outputs, read by port, and no `Part` projects
+one, so a viewport click on a placed half seats that half's port. What
+follows is the finding as filed; the pattern case stands as written.
 
 Found by AUTH-4's re-review (AUTHOR, PR 3052), filed by AUTH-4's lane
 under implementer-discipline §6. A capability AUTH-4 added and then

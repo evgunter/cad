@@ -292,7 +292,7 @@ class ValidationFinding:
       `"undecided"` neither; `None` on every other finding.
     - `stale_kind` — which contact record the tier-3′ census could
       not confirm (`"vertex_vertex"`, `"vertex_on_face"`,
-      `"vertex_on_edge"`, `"edge_edge"`, `"curve_locus"`, `"patch"`).
+      `"vertex_on_edge"`, `"edge_edge"`, `"edge_face"`, `"patch"`).
       A record a declaration made is withdrawn or re-seated at that
       granularity, and withdrawing another one leaves the refusal
       standing. `"vertex_on_edge"` and `"edge_edge"` are records an op
@@ -2100,19 +2100,10 @@ class PatternKind:
         EditError (`empty_placement_list`) at insert."""
 
 class PartSelect:
-    """Which body of a multi-body value a `Node.part` selects: the
-    named half of a split, or one instance of a pattern by index.
-
-    One class for the two because the node is one sentence — "this
-    body, out of those" — and the VALUE decides which arm is
-    well-typed. Any other pairing refuses at `evaluate`
-    (`wrong_operand`), never at construction.
+    """Which copy of a pattern a `Node.part` selects, by index. A
+    split's halves need no selector: each is an output of the split,
+    read as `doc.output(split, port)`.
     """
-
-    @staticmethod
-    def split_half(half: SplitHalf) -> PartSelect:
-        """The named half of a `Node.split` value. A half the cut left
-        with no material refuses at `evaluate` (`empty_half`)."""
 
     @staticmethod
     def instance(index: _CountArg) -> PartSelect:
@@ -2252,10 +2243,21 @@ class Node:
         `set_var_value` per value."""
 
     @staticmethod
-    def revolve(profile: _Operand, axis: _Operand, angle: _AngleArg) -> Node:
-        """Revolve a profile about a datum axis. `angle` mints a
-        literal in the node's `revolve_angle` slot, driven afterwards
-        by `DocEdit.set_param` as an extrude's `distance` is."""
+    def revolve(
+        profile: _Operand,
+        axis_origin: tuple[_LengthArg, _LengthArg],
+        axis_direction: tuple[_ScalarArg, _ScalarArg],
+        angle: _AngleArg,
+    ) -> Node:
+        """Revolve a profile about an axis line in its own plane.
+
+        `axis_origin` and `axis_direction` are the line in the
+        profile's own 2-D coordinates: four numbers in the plane, which
+        cannot leave it. The revolve's second output,
+        `Doc.output(revolve, 1)`, is the line lifted to 3-D, an axis
+        other nodes read. `angle` mints a literal in the node's
+        `revolve_angle` slot, driven afterwards by `DocEdit.set_param`
+        as an extrude's `distance` is."""
     @staticmethod
     def tube(
         frame: _Operand,
@@ -2333,18 +2335,6 @@ class Node:
         origin: tuple[_LengthArg, _LengthArg, _LengthArg],
         direction: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
     ) -> Node: ...
-    @staticmethod
-    def datum_axis_in_plane(
-        plane: _Operand,
-        origin: tuple[_LengthArg, _LengthArg],
-        direction: tuple[_ScalarArg, _ScalarArg],
-    ) -> Node:
-        """An axis written IN a sketch frame — a revolve's axis.
-
-        The two pairs are `plane`'s own 2-D coordinates. A revolve
-        takes one of these and not a `datum_axis`: an axis written in
-        the frame cannot leave the plane it turns.
-        """
     @staticmethod
     def datum_plane(
         origin: tuple[_LengthArg, _LengthArg, _LengthArg],
@@ -2425,8 +2415,12 @@ class Node:
 
     @staticmethod
     def split(target: _BodyArg, tool: _Operand) -> Node:
-        """Split `target` by `tool` (a `datum_plane`). The value is a
-        split — read it with `Value.split()`, not `Value.body()`."""
+        """Split `target` by `tool` (a plane: a `datum_plane`, or a
+        `PoseDef` of kind plane). The value is a split — read it with
+        `Value.split()`, not `Value.body()`. Its two outputs are its
+        halves, read by port (`doc.output(split, 0)` is the half above
+        the plane's normal); a read of a half the cut left with no
+        material refuses at `evaluate` (`empty_half`)."""
 
     @staticmethod
     def transform(
@@ -2546,15 +2540,14 @@ class Node:
 
     @staticmethod
     def part(of: _Operand, select: PartSelect) -> Node:
-        """ONE body out of a multi-body value — a split's half or a
-        pattern's instance.
+        """ONE body out of a pattern's copies.
 
-        A projection, not an operation: the body is the half's or the
-        instance's own and the names pass through verbatim, so a
-        selector spelled against that half resolves here unchanged.
-        Refuses at `evaluate`: `wrong_operand` when the selector and
-        the value disagree in kind, `empty_half`,
-        `instance_out_of_range`."""
+        A projection, not an operation: the body is the instance's own
+        and the names pass through verbatim, so a selector spelled
+        against that instance resolves here unchanged. `of` reads a
+        list of bodies, or the insert raises EditError
+        (`slot_var_kind`); an index outside `0 .. count` refuses at
+        `evaluate` (`instance_out_of_range`)."""
 
     @staticmethod
     def placed_union(input: _Operand, count: _CountArg, kind: PatternKind) -> Node:
@@ -2748,15 +2741,74 @@ _LengthArg: TypeAlias = Var | Formula | WrittenLength | Length
 _AngleArg: TypeAlias = Var | Formula | WrittenAngle | Angle
 _ScalarArg: TypeAlias = Var | Formula | float
 _CountArg: TypeAlias = Var | Formula | int
-_Operand: TypeAlias = NodeId | Var
+_Operand: TypeAlias = NodeId | Var | PoseDef
 """What an operand takes: a node, read at its one output (a node with
 several, a revolve's body and axis or a split's two halves, refuses
-`ambiguous_output`: read its port with `Doc.output(node, port)`), or a
-variable — an output by `Doc.output`, or a named one. The slot admits
-one kind, and a read of another refuses `slot_var_kind`."""
+`ambiguous_output`: read its port with `Doc.output(node, port)`), a
+variable — an output by `Doc.output`, or a named one — or a pose
+defined at the seat (`PoseDef`). The slot admits one kind, and a read
+of another refuses `slot_var_kind`."""
+
 _BodyArg: TypeAlias = NodeId | Var | IndexedRead
 """What a body seat takes: an operand, or one member of a family
 (`xs[i]`, `IndexedRead`)."""
+
+class PoseDef:
+    """A pose defined where it is read: pass it to an operand that reads
+    a pose (a split's `tool`, a profile's frame, a circular rule's
+    axis), and the edit door mints the pose variable there. No pose is
+    free and none is defined from nothing: each constructor reads
+    geometry, writes coordinates in a frame it reads, or constructs
+    from other poses."""
+
+    @staticmethod
+    def plane(at: _Operand, face: str) -> PoseDef:
+        """A face read as a plane: its carrier's plane, with the face's
+        outward normal. A curved face refuses `pose_read` at
+        `evaluate`."""
+    @staticmethod
+    def axis(at: _Operand, name: str) -> PoseDef:
+        """A cylinder's, a cone's or a torus's axis, a straight edge's
+        line, or a circular edge's axis."""
+    @staticmethod
+    def point(at: _Operand, name: str) -> PoseDef:
+        """A sphere's, a torus's or a circle's centre, a cone's apex, or
+        a vertex's point."""
+    @staticmethod
+    def in_frame(
+        frame: _Operand,
+        *,
+        origin: Optional[tuple[_LengthArg, _LengthArg, _LengthArg]] = None,
+        direction: Optional[tuple[_ScalarArg, _ScalarArg, _ScalarArg]] = None,
+        normal: Optional[tuple[_ScalarArg, _ScalarArg, _ScalarArg]] = None,
+        u: Optional[tuple[_ScalarArg, _ScalarArg, _ScalarArg]] = None,
+        v: Optional[tuple[_ScalarArg, _ScalarArg, _ScalarArg]] = None,
+    ) -> PoseDef:
+        """A pose written by coordinates in a frame: `origin` alone a
+        point, `direction` alone a direction, `origin` and `direction`
+        an axis, `origin` and `normal` a plane, `origin`, `u` and `v` a
+        frame. Any other combination raises `ValueError`."""
+    @staticmethod
+    def through(axis: _Operand, point: _Operand) -> PoseDef:
+        """The frame through an axis and a point: origin the foot of the
+        point on the axis, `z` the axis, `x` towards the point. A point
+        on the axis refuses `pose_degenerate` at `evaluate`."""
+    @staticmethod
+    def meet(a: _Operand, b: _Operand) -> PoseDef:
+        """The axis two planes meet in. Parallel planes refuse
+        `pose_degenerate` at `evaluate`."""
+    @staticmethod
+    def flip(pose: _Operand) -> PoseDef:
+        """The opposite sense of a direction, an axis, a plane or a
+        frame. A flip of a flip is the pose it flips: the edit door
+        normalises it, and a point, which has no sense, refuses."""
+    @staticmethod
+    def standoff(plane: _Operand, by: _LengthArg) -> PoseDef:
+        """A plane moved along its own normal by `by`."""
+    @staticmethod
+    def project(of: _Operand, to: str) -> PoseDef:
+        """A frame's `"plane"`, `"axis"` or `"point"`, or a plane's or
+        an axis's `"direction"`."""
 
 class Formula:
     """A dimension-checked expression — the recipe's arithmetic, as a
@@ -4981,18 +5033,6 @@ class Datum:
     def origin(self) -> tuple[Length, Length, Length]: ...
     @property
     def direction(self) -> Optional[tuple[float, float, float]]: ...
-    @property
-    def in_plane(self) -> Optional[tuple[tuple[Length, Length], tuple[float, float]]]:
-        """An in-plane axis in its frame's own 2-D coordinates — the
-        origin then the direction, as authored. `None` for every other
-        kind, whose numbers are all world numbers.
-
-        The halves cross differently because they are different
-        things. The ORIGIN is a position, so it carries `Length`s —
-        the same shape `Node.datum_axis_in_plane` writes it in and the
-        same shape `Datum.origin` reads back. The DIRECTION is
-        dimensionless and stays bare. Frame-local is a change of
-        datum, not of dimension."""
 
     @property
     def axes(
@@ -5464,10 +5504,14 @@ class Evaluation:
         `min_clearance` at this point scalar); an evaluation over the
         bound values that refuses raises `ExprError`."""
 
-    def coincidences(self, node: NodeId) -> list[Coincidence]:
+    def coincidences(
+        self, node: NodeId, full_symbolic_pass: bool = False
+    ) -> list[Coincidence]:
         """The coincidences `node` decided from values (D10), in
         decision order, each with what the coincidence door decided
-        about it. A node with no value raises as `value` does."""
+        about it: at the resident budget, or at the full one with
+        `full_symbolic_pass`. A node with no value raises as `value`
+        does."""
 
     def succeeded(self, node: NodeId) -> bool: ...
     def order(self) -> list[NodeId]: ...
@@ -6020,13 +6064,15 @@ class Subgroup:
     """A residual subgroup: what a fold left free.
 
     `normal`, `point` and `direction` are present on every arm and
-    `None` where that arm does not carry one. `planar` and `prismatic`
-    are point-FREE on purpose: rotations about any parallel axis, and
-    translations along any parallel line, are in the group."""
+    `None` where that arm does not carry one. `planar`, `prismatic`,
+    `parallel` and `plane_translation` are point-FREE on purpose:
+    rotations about any parallel axis, and translations along any
+    parallel line, are in the group."""
 
     @property
     def variant(self) -> str:
         """`se3`, `planar`, `cylindrical`, `prismatic`, `revolute`,
+        `spherical`, `parallel`, `translation`, `plane_translation`,
         `trivial`, or `empty`."""
 
     @property
@@ -6950,7 +6996,11 @@ class ChecksConfig:
     not in the default pass. It reads every face of every rest body,
     and it reports a trimmed face's loops as out of its reach, which
     is true and is not actionable; ask for it rather than pay for it
-    on every run. `Off` is visible in `ChecksReport.skipped`."""
+    on every run. `Off` is visible in `ChecksReport.skipped`.
+
+    `full_symbolic_pass` runs the coincidence door's symbolic rungs at
+    the full budget; by default they run at the resident one, cheap
+    enough for every evaluation."""
 
     def __init__(
         self,
@@ -6959,6 +7009,7 @@ class ChecksConfig:
         separation: Advisory = ...,
         chart_coherence: Advisory = ...,
         unproven_coincidence: Advisory = ...,
+        full_symbolic_pass: bool = False,
     ) -> None: ...
     @property
     def connectedness(self) -> Severity: ...
@@ -6968,6 +7019,11 @@ class ChecksConfig:
     def chart_coherence(self) -> Advisory: ...
     @property
     def unproven_coincidence(self) -> Advisory: ...
+    @property
+    def full_symbolic_pass(self) -> bool:
+        """Whether the `unproven_coincidence` lint's door runs its
+        symbolic rungs at the full budget rather than the resident one,
+        which leaves a row it does not discharge saying so."""
     @property
     def expected_components(self) -> list[tuple[NodeId, int, int]]:
         """The stated expectations, ascending by subject."""
@@ -7074,8 +7130,10 @@ class Coincidence:
     and `same_oriented` where its two pieces continue one carrier; a
     `tangent_witness` row is `tangent_contact` (the outward sides
     opposed) or `seam` (one face carried on into the other). `rung` is the door's rung that proved
-    it structural (`same_construction`), or `None`, and then `residual` says
-    what separates the two constructions."""
+    it structural (`same_construction`, `carrier_verdict` or
+    `margin_identity`), or `None`, and then `residual` says what separates
+    the two constructions and what the replay with every variable a
+    symbol made of the row."""
 
     @property
     def cells(self) -> list[tuple[Var | NodeId, Optional[str]]]: ...

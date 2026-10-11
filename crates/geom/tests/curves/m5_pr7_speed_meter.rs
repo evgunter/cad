@@ -494,6 +494,51 @@ fn the_interval_meter_brackets_the_f64_meter() {
     );
 }
 
+/// **A carrier on non-dyadic knots meters at both scalars**: its `f64`
+/// reading is real and under the sampled speed, and the `Interval`
+/// reading is real and brackets it. That is all it shows: a meter that
+/// took the knot difference as `T::from_f64(hi − lo)` reads this carrier
+/// alike. The difference's own enclosure is held by
+/// `knot_difference`'s exact row in `geom_core::spline::knots`.
+#[test]
+fn a_carrier_on_non_dyadic_knots_meters_at_both_scalars() {
+    use geom_core::{Bounds, Interval};
+    let knots = vec![0.0, 0.0, 0.0, 0.1, 0.7, 1.0, 1.0, 1.0];
+    let ctl = [
+        (0.0, 0.0, 0.0),
+        (0.3, 0.4, 0.0),
+        (0.9, 0.5, 0.1),
+        (1.4, 0.1, 0.0),
+        (2.0, 0.3, 0.0),
+    ];
+    let weights = vec![1.0, 0.3, 2.0, 0.6, 1.0];
+    let kv = KnotVector::clamped(knots, 2).unwrap();
+    let cf = NurbsCurve3::<f64>::new(
+        kv.clone(),
+        ctl.iter().map(|&(x, y, z)| Point3::new(x, y, z)).collect(),
+        weights.clone(),
+    )
+    .unwrap();
+    assert_real_and_sound("non-dyadic", &cf);
+    let mf = cf.speed_lower_bound().get();
+    let pt = |x: f64| Interval::from_bounds(x, x);
+    let ci = NurbsCurve3::<Interval>::new(
+        kv,
+        ctl.iter()
+            .map(|&(x, y, z)| Point3::new(pt(x), pt(y), pt(z)))
+            .collect(),
+        weights,
+    )
+    .unwrap();
+    let mi = ci.speed_lower_bound().get();
+    assert!(
+        mi.lo() > 0.0 && mi.lo() <= mf && mf <= mi.hi(),
+        "the interval meter [{}, {}] must be real and bracket the f64 meter {mf}",
+        mi.lo(),
+        mi.hi()
+    );
+}
+
 #[test]
 fn an_illegal_rational_carrier_is_still_poison() {
     // A non-positive weight breaks the convex-combination licence the

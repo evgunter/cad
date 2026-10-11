@@ -69,3 +69,17 @@ cheaper than it looks because the fixtures already exist in
 TRIM filed it from the clearance seam; the replay failure's ground is
 the evaluation lane's, and the rows that would land here are this
 program's.
+
+## Re-measured (INTENT stage 3 A, `poses-are-variables`)
+
+The two M10-5 R1 fixtures and the TRIM-3 E8 row revolved about a world
+`Datum::Axis`, which a revolve's axis seat refused as the wrong kind
+(`WrongOperand`, expected an axis in a sketch frame) at every scalar:
+the SELECTION-door refusal they printed was that refusal, not an
+interval replay failure. With the axis written as the revolve's own 2-D
+line, the y-axis quarter annulus builds at `Interval` over the ε box
+and its clearance answers `Holds` with every window tightened
+(`trim_3_windows_interval::a_revolved_quarter_band_is_windowed_and_holds`).
+Whether partial revolves at an arbitrary axis, cones, spheres and tori
+replay too is unmeasured; the premise above that none does is false for
+this fixture.

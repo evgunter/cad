@@ -1,11 +1,8 @@
-//! **Review probes for the rim-free spherical-wedge arm** (issue 542):
-//! the structural rule is attacked from the inputs it is allowed to
-//! read and from the ones it must not, the band ladder around the
-//! coplanar gate is walked, and the coincident-pair blind spot the
-//! review executed is pinned as the typed refusal the fix pass gave it
-//! (`props_band_opposite`), with the wedge arm's pole-to-pole premise
-//! decided rather than inherited. Adopted by the unit; the blind-spot
-//! rows are re-aimed, the rest stand as written.
+//! **Review probes for the rim-free spherical wedge** (issue 542), now
+//! measured by the sphere's Gauss–Bonnet arm: the lune is attacked from
+//! the inputs it is allowed to read and from the ones it must not, the
+//! band ladder around a hairline wedge is walked, and the coincident
+//! pair is pinned as the cusp it is.
 //!
 //! Every row states its own closed form. The sphere is `R = 10 mm`
 //! about `+Z` at the origin unless the row builds its own.
@@ -216,19 +213,14 @@ fn an_off_origin_tilted_ball_of_another_radius_reads_the_same_width() {
     }
 }
 
-/// **The band ladder across the coplanar gate.** `props_band_coplanar`
-/// decides `R·|sin φ|` and `props_wedge_azimuth` decides `R·φ` against
-/// the SAME band, and `|φ| ≥ |sin φ|`, so the first decide is the only
-/// one that ever moves: below the coincidence threshold the pair is
-/// coplanar and `props_band_opposite` refuses the hairline wedge as the
-/// SLIT it is, through the ladder's middle the coplanar decide
-/// escalates, and above the escalate threshold the wedge arm answers
-/// its own width. The `Zero` arm of `props_wedge_azimuth` — the arm's
-/// declared `DegenerateFace` floor — is never reached from `sphere()`
-/// (by the factor K, not by rounding), and this row is what goes red
-/// if it ever is.
+/// **The band ladder across a hairline wedge.** Below the coincidence
+/// threshold the two meridians' departures at each pole are antiparallel
+/// within the band, a cusp refused typed (`props_sphere_loop_cusp`);
+/// through the ladder's middle the cusp decide escalates; above the
+/// escalate threshold the arm answers the wedge's own width. No rung
+/// answers a degenerate face or another width.
 #[test]
-fn the_wedge_arms_zero_floor_is_never_reached_from_the_sphere_branch() {
+fn the_hairline_ladder_is_decided_by_the_cusp_alone() {
     let z = eps() / RS; // the azimuth whose lever puts it AT `zero`
     let mut seen = Vec::new();
     for f in [0.25_f64, 0.5, 1.0, 2.0, 5.0, 9.0, 10.0, 11.0, 20.0, 1e3] {
@@ -247,27 +239,21 @@ fn the_wedge_arms_zero_floor_is_never_reached_from_the_sphere_branch() {
             }
             Err(PropsError::Escalated { .. }) => "escalated",
             Err(PropsError::DegenerateFace) => "degenerate",
-            Err(PropsError::NotIsoRectangle { what })
-                if what.starts_with("a rimless sphere face whose coplanar meridians") =>
-            {
-                "slit"
-            }
+            Err(PropsError::SphereLoop {
+                what: "props_sphere_loop_cusp",
+            }) => "slit",
             Err(_) => "other refusal",
         };
         seen.push((f, tag));
         assert_ne!(
             tag, "degenerate",
-            "f = {f}: props_wedge_azimuth reached its Zero floor from sphere()"
+            "f = {f}: a hairline wedge reached a degenerate-face refusal"
         );
         assert_ne!(tag, "other", "f = {f}: unexplained width");
     }
-    // `f = 10` is `props_band_coplanar`'s escalate threshold itself,
-    // where `R·sin θ` sits a rounding BELOW `R·θ`: the rung reads
-    // `escalated` at some ε rows and `own width` at others, and which
-    // way it falls is not the subject. Every other rung is pinned, and
-    // the direction of the disagreement is: the coplanar decide is the
-    // indefinite one, which is what keeps the wedge arm's `Zero` floor
-    // out of reach.
+    // `f = 10` is the cusp decide's escalate threshold itself: the rung
+    // reads `escalated` at some ε rows and `own width` at others, and
+    // which way it falls is not the subject.
     let pinned: Vec<(f64, &str)> = seen.iter().copied().filter(|&(f, _)| f != 10.0).collect();
     assert_eq!(
         pinned,
@@ -282,71 +268,61 @@ fn the_wedge_arms_zero_floor_is_never_reached_from_the_sphere_branch() {
             (20.0, "own width"),
             (1e3, "own width"),
         ],
-        "the ladder is decided by props_band_coplanar alone"
+        "the ladder is decided by props_sphere_loop_cusp alone"
     );
 }
 
 /// **The coincident pair, refused in both readings.** Two meridian
-/// half-planes a hair apart are coplanar to `props_band_coplanar`,
-/// which cannot tell them from OPPOSITE half-planes; what can is the
-/// loop's traversal, which REVERSES at each pole here and continues on
-/// the two-band face — `props_band_opposite`. Both the hairline WEDGE
-/// and the hairline SLIT (a ball missing a sliver) refuse under that
-/// name; nothing is measured at `Δu = π`.
+/// half-planes a hair apart turn back on themselves at each pole, so
+/// both the hairline WEDGE and the hairline SLIT (a ball missing a
+/// sliver) refuse as the cusp they are; nothing is measured.
 #[test]
-fn the_coplanar_arm_refuses_a_hairline_wedge_and_a_slit_typed() {
+fn a_hairline_wedge_and_a_slit_refuse_as_cusps() {
     let delta = 0.5 * eps() / RS;
     for theta in [delta, TAU - delta] {
         assert_eq!(
             curved_face(&sphere(), &wedge(theta), true, band()).map(|_| ()),
-            Err(PropsError::NotIsoRectangle {
-                what: "a rimless sphere face whose coplanar meridians share one half-plane — a \
-                       slit the flux lane does not measure"
+            Err(PropsError::SphereLoop {
+                what: "props_sphere_loop_cusp"
             }),
             "theta = {theta}"
         );
     }
 }
 
-/// **The wedge arm's own premise — that the two arcs run pole to pole
-/// — is decided, not argued from loop closure.** Two non-coplanar
-/// meridian arcs that stop short of both poles, tagged as a closed
-/// loop, are a boundary only tier 1 could otherwise have refused; the
-/// arm refuses them under the premise's name, on the pole helper's own
-/// margins (`props_meridian_pole` definite Negative at both poles).
+/// **Two meridian arcs that stop short of both poles do not close.**
+/// Tagged as a closed loop, they leave a gap at each end, and the arm
+/// refuses them on its own closure decide (`props_loop_closed`)
+/// rather than trusting the tags.
 #[test]
-fn meridian_arcs_that_never_reach_the_poles_refuse_the_premise() {
+fn meridian_arcs_that_never_reach_the_poles_refuse_as_an_open_loop() {
     let edges = vec![
         great(0.0, FRAC_PI_4, -FRAC_PI_4, 0, 1),
         great(FRAC_PI_2, -FRAC_PI_4, FRAC_PI_4, 1, 0),
     ];
     assert_eq!(
         curved_face(&sphere(), &edges, true, band()).map(|_| ()),
-        Err(PropsError::NotIsoRectangle {
-            what: "a rimless wedge's meridians run pole to pole"
+        Err(PropsError::SphereLoop {
+            what: "props_loop_closed"
         })
     );
 }
 
-/// **A wedge whose meridians are SPLIT is refused as unfolded.** The
-/// arm reads a two-edge boundary only, so the same lune with both
-/// meridians cut at the equator — four arcs on two great circles,
-/// which is exactly a wedge — refuses under a `what` that says that
-/// and nothing more (the torus arm folds pieces by lineage; the sphere
-/// arm does not). The row pins the scope and the wording.
+/// **A wedge whose meridians are SPLIT measures the wedge.** The same
+/// lune with both meridians cut at the equator — four arcs on two great
+/// circles — turns by zero at each joint and measures the quarter lune
+/// `2R²·π/2`.
 #[test]
-fn a_wedge_whose_meridians_are_split_refuses_as_unfolded() {
+fn a_wedge_whose_meridians_are_split_measures_the_lune() {
     let four = vec![
         great(0.0, FRAC_PI_2, 0.0, 0, 1),
         great(0.0, 0.0, -FRAC_PI_2, 1, 2),
         great(FRAC_PI_2, -FRAC_PI_2, 0.0, 2, 3),
         great(FRAC_PI_2, 0.0, FRAC_PI_2, 3, 0),
     ];
-    assert_eq!(
-        curved_face(&sphere(), &four, true, band()).map(|_| ()),
-        Err(PropsError::NotIsoRectangle {
-            what: "the wedge arm reads a two-edge boundary; a meridian in pieces is not folded \
-                   on the sphere"
-        })
-    );
+    let area = curved_face(&sphere(), &four, true, band())
+        .expect("the quarter lune")
+        .area;
+    let exact = 2.0 * RS * RS * FRAC_PI_2;
+    assert!((area - exact).abs() / exact < 1e-12, "{area} vs {exact}");
 }

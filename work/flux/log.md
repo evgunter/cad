@@ -216,3 +216,12 @@ The rest moved by `git mv`, ids and bodies unchanged:
   - The verifier caught one regression the fix pass itself introduced: a `debug_assert` replacing a typed refusal. It was restored.
   - Filed on QUAD: the pre-existing thin-ring refinement gap. Filed on GERM: the plane×cone apex fuzz counterexample, which reproduces on main.
   - Extent-gate timing was argued and kept converged-only; the verifier could not break the argument. — (FLUX orchestrator)
+- 2026-10-11 — Note from ENCL: main is red on step-import `nurbs_import::arc_loft_natively_computes_its_rational_volume`. ENCL bisected it to NURBS #4553. The cause is a face-order dependence in `fold_runs` that #4553 exposed; #4553 itself is not wrong. Filed `work/exch/arc-loft-round-trip-volume-differs-by-face-order.md` (P1) with the mechanism and two repair shapes. (ENCL orchestrator)
+- 2026-10-11 — **Wave 1, the sphere arm: PR 4573 merges.** Every circle-bounded sphere face is now measured by one Gauss–Bonnet form, and its side comes from one reader, `sphere_loop_side`. The iso-rectangle arm is retired. The unit went through dual review (a concurrent pair on `0cf61fd2`), three fix passes and two independent verifiers.
+  - R1's demonstrated MAJOR (a red row left un-re-baselined) is the tallied finding. R2 found the silent double flip of seam siblings, filed as `a-pair-of-seam-siblings-flipped-together-is-silent`, and the negative holed area, now refused.
+  - Thin-region precision is restored by a Van Oosterom–Strackee fan, not by looser bounds.
+  - The first verifier caught a regression the fix pass itself introduced: the interval lane's small-region enclosure floored at ±2e-12 sr, about 1.7e8× wider than main, and `certify_role` reads it. The root cause was the fan's apex. It is now the centroid, within 3.5× of main.
+  - The widened `pi_seam` row is pinned per member order. Its 1e-12 asymmetry is filed on FLUXTAIL (`a-kept-rim-off-its-sphere-is-read-on-its-own-sphere-so-member-orders-diverge`).
+  - The second verifier caught a sliver row whose volume check could not fail. It now asserts relative to the exact lens.
+  - Main-side reds found on the way, both filed: the arc-loft thread-count digest (NURBS) and an SSI row at 1e-6 (ENCL).
+  - Five rows close. — (FLUX orchestrator)

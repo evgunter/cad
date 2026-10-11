@@ -2,10 +2,13 @@
 id: declared-flush-intersect-refuses-in-one-operand-order
 kind: issue
 title: A declared flush intersect refuses JoinDesync (every chord arc separates a loose scaffolding pair) in one operand order and builds in the other
-status: open
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: M
+closed: 2026-10-11
+branch: flush/readers-closes
+pr: 4635
 ---
 
 ## What
@@ -96,3 +99,29 @@ On JOIN-1's branch, `(H∩T)∩C` builds at V = 11/4, and the tour's `silhouette
 ## Released from the D10 hold (2026-10-08)
 
 Nothing D10 changes gates this row, so it is open: JOIN-1 built both witnesses; the open step is measuring (H∩C)∩T on main, and the join.rs JoinDesync arm survives D10. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (2026-10-11, `flush/readers-closes`)
+
+Measured on main `19b704d92f`, release build, through the plain
+`topo::intersect` with no declarations, at `Tol::witness()`, each
+result checked by `differential::outcome` (tiers 2 and 3′, the at-rest
+certificate, a legal operand, and the closed-form volume to 1e-7):
+
+| run | outcome |
+|---|---|
+| `H ∩ T`, `T ∩ H` | `OK SOUND`, V = 17/4 |
+| `H ∩ C`, `C ∩ H` | `OK SOUND`, V = 13/2 |
+| `T ∩ C`, `C ∩ T` | `OK SOUND`, V = 4 |
+| `(H∩T)∩C`, `C∩(H∩T)`, **`(H∩C)∩T`**, `T∩(H∩C)`, `(T∩C)∩H`, `H∩(T∩C)` | `OK SOUND`, V = 11/4 each |
+| `A ∩ Z`, `Z ∩ A` | `OK SOUND`, V = 38627/14336 each |
+
+`(H∩C)∩T` was the one nesting left unmeasured. It builds, so every
+order of every witness builds. The row's refusals were measured
+declared, and declarations retire with INTENT stage 4 F. The tour
+already builds both former walls declared (`letterforms.rs`,
+`az.rs`).
+
+Pinned by `crates/sweep/tests/letterform_intersects_in_every_order.rs`:
+`h_t_c_intersect_in_every_nesting` (the two-way results in both
+orders and all six three-way nestings) and
+`a_and_z_intersect_in_either_order`, green at ε 1e-9, 1e-6 and 1e-12.

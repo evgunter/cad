@@ -12,7 +12,7 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{Body, CensusContact, ContactRecords, FaceKey, PatchContact, ValidationError};
+use topo::{Body, CensusContact, ContactRecords, FaceKey, ValidationError};
 
 /// The cap `[0.1, 0.3] × [0.2, 0.42]` at `z = 0.5` under the shelf
 /// `[0, 0.9] × [0, 0.30] × [0.5, 0.54]`: the cap face and the shelf's
@@ -91,16 +91,10 @@ fn the_bare_lap_seat_reports_each_stretch_inside_its_face() {
 #[test]
 fn the_declared_lap_seat_certifies() {
     let (body, cap, underside) = lap_seat();
-    let records = ContactRecords {
-        patches: vec![topo::Cited::new(
-            PatchContact {
-                face_a: cap,
-                face_b: underside,
-            },
-            topo::Cites::decided(0),
-        )],
-        ..ContactRecords::default()
-    };
+    let records = topo::ContactRecords::from_iter(vec![topo::Cited::new(
+        topo::Contact::new(&body, topo::Cell::Face(cap), topo::Cell::Face(underside)).unwrap(),
+        topo::Cites::decided(0),
+    )]);
     let found = errors(&body, &records);
     assert!(found.is_empty(), "{found:?}");
 }

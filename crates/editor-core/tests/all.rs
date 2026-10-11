@@ -765,6 +765,8 @@ mod intent_literals_b_door;
 mod intent_literals_c_slots;
 #[path = "intent_literals_d_constants.rs"]
 mod intent_literals_d_constants;
+#[path = "intent_part_split_half.rs"]
+mod intent_part_split_half;
 #[path = "intent_s2_a_outputs.rs"]
 mod intent_s2_a_outputs;
 #[path = "intent_s2_b_reads.rs"]
@@ -777,6 +779,8 @@ mod intent_s2_d_measure;
 mod intent_s2_e_select;
 #[path = "intent_s2_f_mates.rs"]
 mod intent_s2_f_mates;
+#[path = "intent_s3_a_poses.rs"]
+mod intent_s3_a_poses;
 #[path = "intent_s5_a_relation.rs"]
 mod intent_s5_a_relation;
 #[path = "intent_s5_b_interference.rs"]
