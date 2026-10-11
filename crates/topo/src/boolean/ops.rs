@@ -3383,7 +3383,7 @@ fn cite_rows(
             relation: row.relation,
             site: crate::DecisionSite::VertexFusion,
             margin,
-            discharge: crate::Discharge::Numeric,
+            discharge: crate::Discharge::of(margin),
         });
     }
     let records = records

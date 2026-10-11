@@ -785,8 +785,7 @@ impl ValidationFinding {
 /// A datum: a construction plane, frame, axis, or point.
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Datum {
-    /// `"plane"`, `"frame"`, `"axis"`, `"axis_in_plane"`, or
-    /// `"point"`.
+    /// `"plane"`, `"frame"`, `"axis"`, or `"point"`.
     #[pyo3(get)]
     kind: &'static str,
     /// Plane/frame/axis origin, or the point's position, as metres.
@@ -796,22 +795,6 @@ pub(crate) struct Datum {
     /// for a point.
     #[pyo3(get)]
     direction: Option<(f64, f64, f64)>,
-    /// An in-plane axis in its frame's own 2-D coordinates — the
-    /// origin then the direction, as authored. `None` for every other
-    /// kind, whose numbers are all world numbers.
-    ///
-    /// The two halves cross differently because they ARE different
-    /// things. The origin is a POSITION — a distance from the frame's
-    /// own origin, measured in metres — so it crosses dimensioned, as
-    /// `origin` does and as `Node.datum_axis_in_plane` takes it. The
-    /// direction is dimensionless and crosses bare, which is the
-    /// placement vocabulary's rule: a bare float appears only where
-    /// the Rust side is itself a direction or a matrix entry. Being
-    /// written in a frame's coordinates rather than the world's
-    /// changes the DATUM a position is measured from, never its
-    /// dimension.
-    #[pyo3(get)]
-    in_plane: Option<((Length, Length), (f64, f64))>,
     /// A frame's sketch +x and +y axes, unit and perpendicular; `None`
     /// for every other kind.
     ///
@@ -829,11 +812,8 @@ pub(crate) struct Datum {
     // An alias would name the pair on the Rust side while the thing the
     // stub records stayed a bare nested tuple on the Python side, so a
     // reader checking the binding against the stub would have to chase
-    // the alias to learn nothing new. The two fields above it —
-    // `direction`'s triple and `in_plane`'s pair of pairs — are literal
-    // for the same reason and stay under clippy's threshold; naming
-    // only the third would make three projections of one kind read as
-    // two.
+    // the alias to learn nothing new. The field above it, `direction`'s
+    // triple, is literal for the same reason.
     #[allow(clippy::type_complexity)] // the tuple IS the Python-side contract; see above
     #[pyo3(get)]
     axes: Option<((f64, f64, f64), (f64, f64, f64))>,
@@ -1048,68 +1028,42 @@ impl Value {
     /// The datum this value denotes.
     fn datum(&self, py: Python<'_>) -> PyResult<Datum> {
         match &self.payload {
-            d::ValuePayload::Datum(d::DatumValue::Plane { origin, normal }) => {
+            d::ValuePayload::Datum(d::PoseValue::Plane { origin, normal }) => {
                 let n = normal.get();
                 Ok(Datum {
                     kind: "plane",
                     origin: lengths(*origin),
                     direction: Some((n.x, n.y, n.z)),
-                    in_plane: None,
                     axes: None,
                 })
             }
-            d::ValuePayload::Datum(d::DatumValue::Axis { origin, dir }) => {
+            d::ValuePayload::Datum(d::PoseValue::Axis { origin, dir }) => {
                 let v = dir.get();
                 Ok(Datum {
                     kind: "axis",
                     origin: lengths(*origin),
                     direction: Some((v.x, v.y, v.z)),
-                    in_plane: None,
                     axes: None,
                 })
             }
-            d::ValuePayload::Datum(d::DatumValue::Point { position }) => Ok(Datum {
+            d::ValuePayload::Datum(d::PoseValue::Point { position }) => Ok(Datum {
                 kind: "point",
                 origin: lengths(*position),
                 direction: None,
-                in_plane: None,
                 axes: None,
             }),
-            d::ValuePayload::Datum(d::DatumValue::Frame(f)) => {
+            d::ValuePayload::Datum(d::PoseValue::Frame(f)) => {
                 let (x, y) = (f.u().get(), f.v().get());
                 let n = f.w().get();
                 Ok(Datum {
                     kind: "frame",
                     origin: lengths(f.origin()),
                     direction: Some((n.x, n.y, n.z)),
-                    in_plane: None,
                     axes: Some(((x.x, x.y, x.z), (y.x, y.y, y.z))),
                 })
             }
-            // BOTH spellings reach Python: `origin`/`direction` are the
-            // world line, so a reader that only wants to know where the
-            // axis IS treats it like any other axis, and `in_plane`
-            // carries the sketch numbers a revolve consumes.
-            d::ValuePayload::Datum(d::DatumValue::AxisInPlane {
-                plane_origin,
-                plane_dir,
-                origin,
-                dir,
-            }) => {
-                let v = dir.get();
-                Ok(Datum {
-                    kind: "axis_in_plane",
-                    origin: lengths(*origin),
-                    direction: Some((v.x, v.y, v.z)),
-                    in_plane: Some((
-                        (
-                            Length(pncad::quantity::Length::from_meters(plane_origin.x)),
-                            Length(pncad::quantity::Length::from_meters(plane_origin.y)),
-                        ),
-                        (plane_dir.x, plane_dir.y),
-                    )),
-                    axes: None,
-                })
+            d::ValuePayload::Datum(d::PoseValue::Direction { .. }) => {
+                unreachable!("a datum node's value is a point, an axis, a plane or a frame")
             }
             other => Err(eval_err(
                 py,
@@ -1390,16 +1344,36 @@ impl Evaluation {
 
     /// **The coincidences `node` decided from values** (D10), in
     /// decision order, each with what the coincidence door decided
-    /// about it. A node with no value raises as [`Self::value`] does.
-    fn coincidences(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<Coincidence>> {
+    /// about it, at the resident budget or, with `full_symbolic_pass`,
+    /// the full one. A node with no value raises as [`Self::value`]
+    /// does.
+    #[pyo3(signature = (node, full_symbolic_pass = false))]
+    fn coincidences(
+        &self,
+        py: Python<'_>,
+        node: &NodeId,
+        full_symbolic_pass: bool,
+    ) -> PyResult<Vec<Coincidence>> {
         self.value(py, node)?;
         let Some(value) = self.inner.value(node.0) else {
             return Ok(Vec::new());
         };
+        let pass = if full_symbolic_pass {
+            d::SymbolicPass::Full
+        } else {
+            d::SymbolicPass::Resident
+        };
+        let proofs = d::coincide::prove(
+            &self.doc,
+            &[(node.0, &*value.coincidences)],
+            Tol::witness(),
+            pass,
+        );
         value
             .coincidences
             .iter()
-            .map(|row| Coincidence::new(py, row, &d::coincide::prove(&self.doc, row), &self.doc))
+            .zip(proofs.into_iter().flatten())
+            .map(|(row, proof)| Coincidence::new(py, row, &proof, &self.doc))
             .collect()
     }
 
@@ -2613,6 +2587,7 @@ pub(crate) fn evaluate(
         profile_lift: defaults.profile_lift,
         param_box: defaults.param_box,
         seed: defaults.seed,
+        symbols: defaults.symbols,
     };
     let token = cancel.map_or_else(d::CancelToken::new, CancelToken::token);
     let recipe = &doc.inner;
@@ -2729,8 +2704,9 @@ impl Coincidence {
         self.site
     }
 
-    /// The door's rung that proved it structural (`same_construction`), or
-    /// `None`: the door does not prove it structural.
+    /// The door's rung that proved it structural (`same_construction`,
+    /// `carrier_verdict` or `margin_identity`), or `None`: the door does
+    /// not prove it structural.
     #[getter]
     fn rung(&self) -> Option<&'static str> {
         self.rung

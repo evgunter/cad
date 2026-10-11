@@ -697,12 +697,12 @@ fn revolved(r: &mut Recorder, base: RecipeNodeId) -> RecipeNodeId {
         base,
         vec![fixture::square(1.5, 0.0, 0.5)],
     )));
-    let axis = r.insert(fixture::axis_in_plane(base, (0.0, 0.0), (0.0, 1.0)));
-    let rev = r.insert(Node::Revolve {
-        profile: p.into(),
-        axis: axis.into(),
-        angle: ang(std::f64::consts::PI),
-    });
+    let rev = r.insert(fixture::revolve_about(
+        p,
+        (0.0, 0.0),
+        (0.0, 1.0),
+        ang(std::f64::consts::PI),
+    ));
     r.insert(Node::Datum(Datum::FaceFrame {
         face: editor_core::Operand::select(
             editor_core::Operand::output(rev, 0),

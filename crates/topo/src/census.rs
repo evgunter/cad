@@ -6792,7 +6792,7 @@ pub fn census_rest_decision<T: Decide>(
         relation: crate::Relation::SameOpposite,
         site: crate::DecisionSite::CensusAtRest,
         margin,
-        discharge: crate::Discharge::Numeric,
+        discharge: crate::Discharge::of(margin),
     })
 }
 
