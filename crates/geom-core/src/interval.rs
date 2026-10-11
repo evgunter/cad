@@ -841,10 +841,7 @@ impl crate::spline::SpanLocate for Interval {
         // so the certified restriction reads the structure; the held
         // values are checked for length only, as at every scalar.
         if held.len() != span.knots().knots().len() {
-            return vec![
-                <Self as crate::interval::certification::Certification>::refused();
-                span.degree() + 1
-            ];
+            return vec![Self::from_f64(f64::NAN); span.degree() + 1];
         }
         crate::spline::blossom::restrict_window(window, span, ends)
     }
