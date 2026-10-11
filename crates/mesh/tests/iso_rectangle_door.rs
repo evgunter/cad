@@ -89,8 +89,8 @@ fn the_oblique_lens_refuses_at_the_shape_door() {
 /// The SHAPE door and the flux lane answer the same rimless lune on
 /// their own premises: the partial sphere wedge is a chart rectangle
 /// `[0, θ] × [−π/2, π/2]`, so the door admits it and it meshes, and
-/// `mass_properties` measures it by the flux lane's own reading of the
-/// two meridian half-planes (`props_wedge_azimuth`) — the wedge of the
+/// `mass_properties` measures it by the flux lane's Gauss–Bonnet
+/// reading of its loop — the wedge of the
 /// unit ball over `θ = 2`, volume `(2/3)·θ`. The door's answer is the
 /// shape's and does not depend on which lunes the flux lane measures.
 #[test]

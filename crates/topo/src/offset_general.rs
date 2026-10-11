@@ -52,8 +52,8 @@
 //! Every face of every SOLID the moves touch must be in the moving set,
 //! the siblings' gate ([`ReplaceFaceError::TogetherPartialSet`]); a
 //! chart named at a decided-zero distance holds and keeps its key. A
-//! wall–wall seam between two moved fits has no section this kernel can
-//! state yet, and refuses `NeighborPairUnroutable`.
+//! wall–wall seam between two moved fits is their NURBS × NURBS section
+//! through the old seam's middle (`geom_brep::Section::branch_at`).
 //!
 //! # Charts, not material
 //!

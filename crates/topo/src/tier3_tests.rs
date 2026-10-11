@@ -2092,8 +2092,13 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
 
 /// The 3′ pass judges a wedge end exactly as tier 3 does: the local
 /// battery reads no contact record, so a jet-determinate cusp passes
-/// 3′ with no records, and a curve record naming its edge — which the
-/// census certifies on the jet schedule — changes nothing about it.
+/// 3′ with no records. A face–face record of the cusp's two walls is
+/// the census's to read, never the battery's, and the census refuses
+/// it: the walls are tangent along their shared edge, but the cusp's
+/// material is the crescent between them, so as a contact of two
+/// materials their sheets overlap (`contact_tangent_overlap`). Nor do
+/// the walls' interiors meet: they touch only along the edge both
+/// bound.
 #[test]
 fn the_pseudomanifold_gate_judges_a_cusp_as_tier_3_does() {
     let tol = Tol::witness();
@@ -2106,18 +2111,31 @@ fn the_pseudomanifold_gate_judges_a_cusp_as_tier_3_does() {
         ),
         Ok(())
     );
-    let mut records = crate::boolean::ContactRecords::default();
-    records.curves.push(crate::Cited::new(
-        crate::boolean::CurveContact {
-            face_a: p.face_side[0],
-            face_b: p.face_side[2],
-            witness: kiss_edge(&p),
-        },
+    let records: crate::boolean::ContactRecords = [crate::Cited::new(
+        crate::Contact::new(
+            &p.body,
+            crate::Cell::Face(p.face_side[0]),
+            crate::Cell::Face(p.face_side[2]),
+        )
+        .unwrap(),
         crate::Cites::decided(0),
-    ));
-    assert_eq!(
-        crate::validate::validate_pseudomanifold(&p.body, &records, tol),
-        Ok(())
+    )]
+    .into_iter()
+    .collect();
+    let errors = crate::validate::validate_pseudomanifold(&p.body, &records, tol)
+        .expect_err("the census reads the record");
+    assert!(
+        matches!(
+            &errors[..],
+            [ValidationError::ContactContradicted {
+                margin: Indeterminate {
+                    predicate: Some("contact_tangent_overlap"),
+                    ..
+                },
+                ..
+            }]
+        ),
+        "only the record's own confirm refuses, on the material crescent: {errors:?}"
     );
 }
 
@@ -3323,7 +3341,7 @@ fn half_disc(r: f64, h: f64, (cx, cy, z0): (f64, f64, f64), far: bool, tol: Tol)
 mod line_conic_review {
     use super::*;
     use crate::FaceKey;
-    use crate::boolean::{ContactRecords, PatchContact};
+    use crate::boolean::{Cell, Contact, ContactRecords};
     use crate::test_support_fixtures::{
         FaceGeometry, describe_as_intersections, prism_ops, prism_z,
     };
@@ -3363,16 +3381,12 @@ mod line_conic_review {
     }
 
     fn patch(a: FaceKey, b: FaceKey) -> ContactRecords {
-        ContactRecords {
-            patches: vec![crate::Cited::new(
-                PatchContact {
-                    face_a: a,
-                    face_b: b,
-                },
-                crate::Cites::decided(0),
-            )],
-            ..ContactRecords::default()
-        }
+        [crate::Cited::new(
+            Contact::of(Cell::Face(a), Cell::Face(b)).unwrap(),
+            crate::Cites::decided(0),
+        )]
+        .into_iter()
+        .collect()
     }
 
     fn validate(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
@@ -3650,4 +3664,71 @@ fn the_census_gate_finds_a_far_slab_nested_in_another_solid() {
         )),
         "the slab stands inside the block's material: {errors:?}"
     );
+}
+
+/// The cusp prism and a brick whose top face y = 0 is tangent to the
+/// outer wall along the cusp's line (x = 0, y = 0), the normals opposed.
+mod a_tangent_record_off_the_cusp {
+    use super::*;
+    use crate::boolean::{Cell, ContactRecords};
+
+    /// **A face–face record on two carriers needs the faces to meet.**
+    /// The brick stands 4 m above the prism along the tangent line, so
+    /// the record of the outer wall and the brick's top names two faces
+    /// whose extents along the line are disjoint: stale, and so is the
+    /// inner wall's, before any sense is read. Red when the table runs
+    /// over the union of the two extents.
+    #[test]
+    fn a_tangent_record_of_two_faces_four_metres_apart_is_stale() {
+        let tol = Tol::witness();
+        let mut p = cusp_prism(tol);
+        let block =
+            crate::test_support_fixtures::brick::<f64>((-0.5, 0.5), (-1.0, 0.0), (5.0, 6.0), tol);
+        let keys = crate::graft_disjoint_all_keyed(&mut p.body, &block).unwrap();
+        let top = block
+            .faces()
+            .find(|(_, f)| match block.get_surface(f.surface) {
+                Some(Surface::Plane { origin, normal, .. }) => {
+                    normal.y.abs() > 0.5 && origin.y.abs() < 1e-12
+                }
+                _ => false,
+            })
+            .and_then(|(k, _)| keys.face(k))
+            .unwrap();
+        let record = |wall| -> ContactRecords {
+            [crate::Cited::new(
+                crate::Contact::new(&p.body, Cell::Face(wall), Cell::Face(top)).unwrap(),
+                crate::Cites::decided(0),
+            )]
+            .into_iter()
+            .collect()
+        };
+        let gate = |r: &ContactRecords| crate::validate::validate_pseudomanifold(&p.body, r, tol);
+        assert_eq!(
+            gate(&ContactRecords::default()),
+            Ok(()),
+            "apart, unrecorded"
+        );
+        let outer = gate(&record(p.face_side[0])).expect_err("apart along the line");
+        assert!(
+            outer.iter().any(|e| matches!(
+                e,
+                ValidationError::StaleContactDeclaration {
+                    declaration: crate::validate::StaleDeclaration::Patch { .. }
+                }
+            )),
+            "{outer:?}"
+        );
+        let inner = gate(&record(p.face_side[2])).expect_err("apart along the line");
+        assert_eq!(inner.len(), 1, "{inner:?}");
+        assert!(
+            matches!(
+                inner[0],
+                ValidationError::StaleContactDeclaration {
+                    declaration: crate::validate::StaleDeclaration::Patch { .. }
+                }
+            ),
+            "{inner:?}"
+        );
+    }
 }

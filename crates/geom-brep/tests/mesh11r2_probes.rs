@@ -194,13 +194,14 @@ fn r2_the_cone_floor_is_the_escalation_threshold_from_both_sides() {
 }
 
 /// **A SATURATED span (`dt > 2π`) refuses at the parse, at every δ,
-/// under one name** (issue 1601). A `2π + 2δ` span whose north pole
+/// on one bound** (issue 1601). A `2π + 2δ` span whose north pole
 /// sits `δ` inside it contains that pole twice, and the direction
 /// antipodal to the span's midpoint is an INTERIOR point of the span:
 /// no membership sign formed on such a span is a datum the fold or
 /// the branch door may read. Both consumers refuse the span before
-/// the pole arithmetic runs — `props_meridian_span_winding`,
-/// certification's own bound re-decided inside the pole helper. One
+/// the pole arithmetic runs — certification's own bound, re-decided
+/// inside the pole helper as `props_meridian_span_winding` and on every
+/// arc of the flux lane's loop as `props_sphere_arc_span_winding`. One
 /// arc per `δ`; the rimless pair closes with the complementary
 /// `2π − 2δ` arc so `curved_face` can be asked.
 #[test]
@@ -227,7 +228,12 @@ fn r2_a_saturated_span_with_the_pole_antipodal_to_its_midpoint() {
         if !matches!(&door, Err(PropsError::NotIsoRectangle { what }) if refused(what)) {
             door_wrong.push((delta, verdict(&door)));
         }
-        if !matches!(&fc, Err(PropsError::NotIsoRectangle { what }) if refused(what)) {
+        if !matches!(
+            &fc,
+            Err(PropsError::SphereLoop {
+                what: "props_sphere_arc_span_winding"
+            })
+        ) {
             fold_wrong.push((delta, format!("{fc:?}")));
         }
         if k <= 3 {
@@ -258,12 +264,11 @@ fn r2_a_saturated_span_with_the_pole_antipodal_to_its_midpoint() {
 /// edges traversed opposite ways. The SHAPE door still admits it — its
 /// carriers are a rim and a certified meridian great circle, and both
 /// rims sit at an extreme, which is all that door asks — and the
-/// BRANCH door still refuses it naming the meridian. What no longer
-/// holds is the middle line: the flux lane gave it the NEGATIVE of the
-/// half-cap's contribution off the same levels, which is how a closed
-/// sphere measured zero, and it now refuses the face by the premise
-/// the two traversals differ on. Three doors, three answers, and the
-/// one that changed is the one the issue was about.
+/// BRANCH door still refuses it naming the meridian. The flux lane
+/// once gave it the NEGATIVE of the half-cap's contribution off the
+/// same levels, which is how a closed sphere measured zero; it now
+/// reads the loop, whose left side holds the south pole with the north
+/// one on the loop, and refuses the face as one that would hold a pole.
 #[test]
 fn r2_the_l_shaped_complement_at_the_predicate() {
     let bd = band();
@@ -278,13 +283,8 @@ fn r2_the_l_shaped_complement_at_the_predicate() {
         fc_cap.flux, fc_cap.area
     );
     assert!(
-        matches!(
-            fc_ell,
-            Err(PropsError::NotIsoRectangle {
-                what: "props_rim_interior_side"
-            })
-        ),
-        "issue 1598: the complement's interior side points out of the folded extent"
+        matches!(fc_ell, Err(PropsError::SenseContradicted)),
+        "issue 1598: the complement would hold the south pole: {fc_ell:?}"
     );
     assert!(matches!(
         require_one_chart_branch(&sphere(), &ell, bd),
@@ -348,8 +348,8 @@ fn r2_the_saturated_span_sign_is_a_rounding_residual() {
         let area = curved_face(&sphere(), &pair, true, bd).map(|f| f.area);
         if !matches!(
             area,
-            Err(PropsError::NotIsoRectangle {
-                what: "props_meridian_span_winding"
+            Err(PropsError::SphereLoop {
+                what: "props_sphere_arc_span_winding"
             })
         ) {
             answered += 1;

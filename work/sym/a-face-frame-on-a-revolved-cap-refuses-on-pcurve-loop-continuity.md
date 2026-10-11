@@ -96,3 +96,7 @@ The revolve's wall here is a cylinder-family chart, so the refusal
 above cannot recur under its name. Not re-run: the row needs the
 SYM-5 e2e document rebuilt, and what refuses next (if anything) is
 this item's to measure.
+
+## Note (INTENT stage 3 A, 2026-10-10)
+
+`fixture::axis_in_plane` is gone: INTENT stage 3 A wrote the revolve's axis on the node, `fixture::revolve_about(profile, (0,0), (0,1), angle)`; the fixture's geometry is unchanged.

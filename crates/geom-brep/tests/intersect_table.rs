@@ -102,7 +102,7 @@ fn route_inventory() {
         (Sphere, Nurbs, Rung::General, false),
         (Torus, Torus, Rung::General, false),
         (Torus, Nurbs, Rung::General, false),
-        (Nurbs, Nurbs, Rung::General, false),
+        (Nurbs, Nurbs, Rung::General, true),
     ];
     assert_eq!(rows.len(), 21, "6 kinds ⇒ 21 unordered pairs");
     for &(a, b, rung, implemented) in rows {

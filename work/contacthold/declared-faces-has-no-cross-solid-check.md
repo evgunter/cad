@@ -2,12 +2,11 @@
 id: declared-faces-has-no-cross-solid-check
 kind: issue
 title: An intra-solid PATCH record is admitted into the census's backing index with no reading of its own (curve records are the designed cusp channel; patches have no such role)
-status: parked
+status: open
 opened: 2026-09-16
 refs: [750]
 priority: P3
 cost: M
-blocked_on: [at-rest-records-are-unordered-cell-pairs]
 design: true
 ---
 

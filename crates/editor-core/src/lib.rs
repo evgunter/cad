@@ -54,6 +54,7 @@ pub mod parse;
 pub mod part;
 pub mod persist;
 pub mod placement;
+pub mod pose;
 pub mod product;
 pub mod program;
 /// The certified locally-valid range of ONE field — the on-demand
@@ -116,7 +117,9 @@ pub use checks::{
     ChecksConfig, ChecksError, ChecksReport, FindingSubject, Severity, Subject, enforce_checks,
     run_checks, run_checks_on, subject_body,
 };
-pub use coincide::{CitedInput, NamedCell, NamedCoincidence, Proof, Residual, Rung};
+pub use coincide::{
+    CitedInput, NamedCell, NamedCoincidence, Proof, Residual, Rung, SymbolicPass, Unreplayed,
+};
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
 pub use doc::{
@@ -135,11 +138,11 @@ pub use edit::{
 pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
     Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
-    ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch, EvalOptions, EvalOutcome,
-    EvalScalar, Evaluation, FramePlacement, NamingKey, NodeError, NodeErrorClass, NodeErrorKind,
-    NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, PartReach, PiecesFault,
-    ProfileLift, ProfilePieces, SectionScalar, SplitSide, StepTurns, ValuePayload, VerbKind,
-    evaluate, mate_reach,
+    ContentBits, ContentKey, DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar,
+    Evaluation, FramePlacement, NamingKey, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal,
+    NodeResult, NodeStanding, NodeValue, PartFault, PartReach, PiecesFault, PoseValue, ProfileLift,
+    ProfilePieces, SectionScalar, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
+    mate_reach,
 };
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
