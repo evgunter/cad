@@ -511,7 +511,9 @@ pub(crate) fn section_closed<T: Decide>(
         }
     };
     // The old edge's span, which the plane×cylinder and plane×cone arms
-    // read the pose over, as `route_pose` did.
+    // read the pose over, as `route_pose` did. A line pair through a
+    // cone's apex is read again over the new edge's span once its ends
+    // are known (`replace_face`'s `pair_over_its_span`).
     let span_reach = || geom_brep::Reach::Span {
         carrier: old.clone(),
         t0: span.0,

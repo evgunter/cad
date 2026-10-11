@@ -361,18 +361,21 @@ pub enum Reach<T: Real> {
 }
 
 impl<T: Real> Reach<T> {
-    /// The lever a tilt pinned at `pivot` is metered at: an upper bound
-    /// on the consumed region's distance from `pivot`.
+    /// The lever a tilt pinned at `pivot` is metered at. For a reach the
+    /// carrier measures ([`Self::Ball`], [`Self::Span`]), an upper bound
+    /// on the consumed region's distance from `pivot`; for a length the
+    /// caller measured ([`Self::Measured`], [`Self::Face`]), that length,
+    /// whatever the pivot: the region's own reach from a point of it,
+    /// which is what a tilt that moves the region by ε is ε over.
     ///
     /// - [`Self::Ball`]: the ball's far side from `pivot`.
-    /// - [`Self::Measured`]: the caller's length, whatever the pivot:
-    ///   the germ frame's longer of the larger radius and the walls'
-    ///   span, which the cylinder pair also floors at the foot's distance
-    ///   from `at` ([`Self::lever_between`]).
-    /// - [`Self::Face`]: its farthest distance from `at`, plus `at`'s
-    ///   from `pivot` (the triangle inequality): the plane×cone arm levers
-    ///   its apex reading there. The plane×cylinder row reads a face from
-    ///   its hinge instead ([`Self::hinge_lever`]).
+    /// - [`Self::Measured`]: the caller's length: the germ frame's longer
+    ///   of the larger radius and the walls' span, which the cylinder
+    ///   pair also floors at the foot's distance from `at`
+    ///   ([`Self::lever_between`]).
+    /// - [`Self::Face`]: its farthest distance from `at`: the plane×cone
+    ///   arm levers its trileans at it. The plane×cylinder row reads a
+    ///   face from its hinge instead ([`Self::hinge_lever`]).
     /// - [`Self::Span`]: per carrier, never an underestimate and exact
     ///   where the carrier allows:
     ///   - a **line** segment: its endpoints (distance to a point is
@@ -392,7 +395,7 @@ impl<T: Real> Reach<T> {
         match self {
             Self::Ball(ball) => ball.lever_from(pivot),
             Self::Measured { lever, .. } => *lever,
-            Self::Face { at, across, .. } => (*at - pivot).norm() + *across,
+            Self::Face { across, .. } => *across,
             Self::Span { carrier, .. } => match carrier {
                 Curve3::Circle { center, radius, .. } => (*center - pivot).norm() + radius.abs(),
                 Curve3::Ellipse {
