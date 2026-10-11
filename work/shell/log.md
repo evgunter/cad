@@ -1409,3 +1409,8 @@ Ev said go.
 - **Unit 19** (2026-10-11 04:25Z):
   - main's `split_through_an_apex` red is CLEAVE P0 (PR 4609); one standing-down comment posted on PR 4597.
   - At 04:22Z the lane reported "ready for dual review" at d9a4152, apparently without the fix-pass message, so I resent it. The fix pass is not yet on the branch.
+- **Unit 19** (2026-10-11 06:55Z):
+  - The fix pass was verified at d1bdc76/ab22696. 415f603 ported `edge_nurbs` to main's cell-grid operands.
+  - The lane merged main cleanly at 6f97023; 595 rows green at three ε.
+  - DR-166 pushed as the last commit (7590997), so the merge waits on CI.
+  - Main-owned reds, each commented once on the PR: `split_through_an_apex` (CLEAVE P0, since fixed) and the serial-golden digest (NURBS P0, open).
