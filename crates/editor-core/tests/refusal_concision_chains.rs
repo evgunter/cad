@@ -2270,10 +2270,10 @@ fn wall_endings() -> [(&'static str, String); 2] {
 /// - **The transform op** (`Transform/ApproxRecertify/…`) raises the
 ///   certifier's arms on the image — `certify_offset_over` runs the
 ///   meters and the certificate limbs on a fit it did not make, so
-///   `Meter`, `PatchBound`, `WindowUnsupported`, `Limb` and
-///   `Elevation` — and the mint's arms on a re-fit, when a sound face's
-///   image refuses a limb and the map fits the mapped description
-///   afresh: every arm the shell route raises. So every arm but `Band`.
+///   `Meter`, `PatchBound`, `WindowUnsupported` and `Limb` — and the
+///   mint's arms on a re-fit, when a sound face's image refuses a limb
+///   and the map fits the mapped description afresh: every arm the
+///   shell route raises. So every arm but `Band`.
 ///
 /// `Band` reaches neither route. The door derives the run's band from
 /// the witness, and both ops derive the same band before they reach the
@@ -2327,7 +2327,6 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
         ("WindowUnsupported", 1),
         ("Limb", 2),
         ("MintLimb", 2),
-        ("Elevation/", 1),
     ] {
         let have = roster.iter().filter(|(n, _)| n.starts_with(arm)).count();
         assert!(
