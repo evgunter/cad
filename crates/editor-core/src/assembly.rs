@@ -1081,19 +1081,21 @@ impl core::error::Error for AssemblyError {}
 /// sub-assembly's declarations are already in the product this gate is
 /// handed, arriving under the graft's own descendant map exactly as a
 /// boolean's discovered records do. What this door adds is the
-/// verification — including of the carried declarations, which are
-/// re-verified here and never trusted.
+/// verdict: the gather's census verified every record, the carried
+/// declarations included (re-verified, never trusted), and this door
+/// reads its findings and attributes them.
 ///
 /// This is what "an assembly is valid at rest" MEANS for a document
 /// with mates: not a stronger check bolted onto the product gather,
 /// but the same tier-3′ door the boolean pipeline's results go
-/// through, fed the records the mates declared. The door is reached
+/// through, fed the records the gather minted. The door is reached
 /// through the SCALAR'S at-rest policy ([`topo::AtRestPolicy`],
 /// `docs/DUAL-DESIGN.md` DL3): certifying scalars run
 /// [`topo::validate_pseudomanifold`]'s verdict, reading tier 3's half of
 /// it off the verdict the gather kept on the product's body
 /// ([`topo::AtRestBody::validate_pseudomanifold`]), so the local battery
-/// runs once per aggregate and the census is what this gate adds; at a
+/// runs once per aggregate, and the census, which the gather ran once
+/// and kept ([`crate::Product::census`]), is read rather than rerun; at a
 /// dual the gate is structurally absent, and its success arm says so
 /// ([`topo::AtRestOutcome::NotRunAtThisScalar`]).
 ///

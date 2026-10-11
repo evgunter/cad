@@ -304,8 +304,8 @@ on one carrier (`topo::census_rest_decision`, a `CensusAtRest` row on
 the product, which the `unproven-coincidence` check reads), and a pair
 the census refuses mints no record, its finding raised by the gate
 beside the census's own. The gather's own tier-3 verdict rides
-on the product's body (`topo::AtRestBody`), so the gate runs tier 3′'s
-census over it rather than the local battery a second time. The gate
+on the product's body (`topo::AtRestBody`), so the gate reads both
+verdicts rather than running either a second time. The gate
 runs no predicate of its own; kernel findings come back as
 `AtRestFinding`s attributed to the mate whose declaration they concern.
 A touch between two copies that no record backs refuses nothing (D1

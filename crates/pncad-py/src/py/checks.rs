@@ -647,7 +647,11 @@ impl CheckFinding {
             }
             d::FindingSubject::Node(node) => format!("node {}", node.full()),
             d::FindingSubject::Copies { a, b } => {
-                format!("copies {} and {}", a.var, b.var)
+                let copy = |c: d::CopyRef| match c.member {
+                    0 => format!("{}", c.var),
+                    member => format!("{} member {member}", c.var),
+                };
+                format!("copies {} and {}", copy(a), copy(b))
             }
         };
         format!(

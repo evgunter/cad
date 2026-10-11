@@ -1671,8 +1671,8 @@ pub enum ValidationError {
         /// The unconfirmed declaration.
         declaration: StaleDeclaration,
     },
-    /// Tier 3′ (C4): a declared contact meets DEFINITE counter-evidence
-    /// — the declaration is a lie where it meets the geometry.
+    /// Tier 3′ (C4): a contact record meets DEFINITE counter-evidence
+    /// — the record is a lie where it meets the geometry.
     ///
     /// Distinct from [`Self::StaleContactDeclaration`], which is the
     /// *absence* of a witness: this is the presence of a

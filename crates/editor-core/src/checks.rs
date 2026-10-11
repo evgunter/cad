@@ -595,6 +595,15 @@ pub enum FindingSubject {
     },
 }
 
+/// A copy as a finding says it: its placement's output, and its member
+/// where the placement defines several.
+fn copy_said(copy: crate::checks::at_rest::CopyRef, by: crate::spoken::Speaker<'_>) -> String {
+    match copy.member {
+        0 => by.read(copy.var),
+        member => format!("{} member {member}", by.read(copy.var)),
+    }
+}
+
 // One story, one recourse, in one place, through the document layer's
 // one sink ([`crate::finding`]), each root said by the speaker the
 // finding is said by. The subject is the finding's (root, output)
@@ -607,15 +616,6 @@ pub enum FindingSubject {
 //   decision's ending read at rest ([`topo::props::SHELL_ROLE`] on
 //   [`ShellClassifyError::arm`]): the checks window reads a body at rest.
 // - StaleExpectation's pinned prose ends in its own ". Recourse:".
-/// A copy as a finding says it: its placement's output, and its member
-/// where the placement defines several.
-fn copy_said(copy: crate::checks::at_rest::CopyRef, by: crate::spoken::Speaker<'_>) -> String {
-    match copy.member {
-        0 => by.read(copy.var),
-        member => format!("{} member {member}", by.read(copy.var)),
-    }
-}
-
 impl crate::finding::Finding for SaidFinding<'_> {
     fn subject(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self(finding, by) = *self;
@@ -1327,32 +1327,32 @@ fn unproven_coincidence<P: crate::ProfilePayload, T: Decide>(
             .operation_of(a.var)
             .unwrap_or_else(|| unreachable!("a gathered copy is a live placement's output")),
     };
-    let subjects: Vec<FindingSubject> = ev
-        .order
-        .iter()
-        .filter(|&&node| {
-            ev.value(node)
-                .is_some_and(|value| !value.coincidences.is_empty())
-        })
-        .map(|&node| FindingSubject::Node(node))
-        .chain(at_rest.iter().map(|r| match r.by {
-            crate::assembly::AtRestBy::Mate(mate) => FindingSubject::Node(mate),
-            crate::assembly::AtRestBy::Copies(a, b) => FindingSubject::Copies { a, b },
-        }))
-        .collect();
-    let nodes: Vec<(RecipeNodeId, &[crate::coincide::NamedCoincidence])> = ev
+    // Each row set with the subject it is reported against, so a row is
+    // never paired with another set's subject.
+    let entries: Vec<(
+        FindingSubject,
+        RecipeNodeId,
+        &[crate::coincide::NamedCoincidence],
+    )> = ev
         .order
         .iter()
         .filter_map(|&node| ev.value(node).map(|value| (node, &*value.coincidences)))
         .filter(|(_, rows)| !rows.is_empty())
-        .chain(
-            at_rest
-                .iter()
-                .map(|r| (at_rest_node(&r.by), core::slice::from_ref(&r.row))),
-        )
+        .map(|(node, rows)| (FindingSubject::Node(node), node, rows))
+        .chain(at_rest.iter().map(|r| {
+            let subject = match r.by {
+                crate::assembly::AtRestBy::Mate(mate) => FindingSubject::Node(mate),
+                crate::assembly::AtRestBy::Copies(a, b) => FindingSubject::Copies { a, b },
+            };
+            (subject, at_rest_node(&r.by), core::slice::from_ref(&r.row))
+        }))
+        .collect();
+    let nodes: Vec<(RecipeNodeId, &[crate::coincide::NamedCoincidence])> = entries
+        .iter()
+        .map(|&(_, node, rows)| (node, rows))
         .collect();
     let proofs = crate::coincide::prove(doc, &nodes, tol, pass);
-    for ((subject, (_, rows)), proofs) in subjects.into_iter().zip(&nodes).zip(proofs) {
+    for ((subject, _, rows), proofs) in entries.into_iter().zip(proofs) {
         for (row, proof) in rows.iter().zip(proofs) {
             if let crate::coincide::Proof::Unproven { residual, recourse } = proof {
                 report.findings.push(CheckFinding {

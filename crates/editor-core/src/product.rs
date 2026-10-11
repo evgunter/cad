@@ -761,15 +761,18 @@ pub struct Product<T: Decide> {
     /// the identity BOTH arguments agreed on.
     pub document: crate::ident::DocumentId,
     /// The gathered aggregate, with the at-rest gate's verdict on it
-    /// kept ([`topo::AtRestBody`]): [`crate::assemble_gathered`] reads
-    /// it and pays tier 3′'s census alone.
+    /// kept ([`topo::AtRestBody`]). The gather runs tier 3′'s census
+    /// over it once ([`Self::census`]); [`crate::assemble_gathered`]
+    /// reads both and runs neither again.
     pub body: topo::AtRestBody<T>,
     /// Its stable names, re-keyed onto the aggregate ([`product_named`]).
     pub names: NameTable,
-    /// Its declared contacts, re-keyed onto the aggregate through the
-    /// graft's own descendant map. A source's record cites that source's
-    /// record ([`Self::cited_inputs`]); a record a mate minted cites the
-    /// at-rest census's row of [`Self::coincidences`].
+    /// Its contact records: each source's, re-keyed onto the aggregate
+    /// through the graft's own descendant map, citing that source's
+    /// record ([`Self::cited_inputs`]); each a mate minted, citing the
+    /// at-rest census's row of [`Self::coincidences`]; and each the
+    /// census recorded for a touch between copies, citing its own row
+    /// there ([`topo::record_at_rest`]).
     pub contacts: ContactRecords,
     /// **The at-rest census's decisions** ([`topo::DecisionSite::CensusAtRest`]):
     /// those the mates' records cite, in mint order, each cell named as
@@ -954,7 +957,7 @@ pub fn product_named<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     product_recorded(doc, evaluation, tol).map(|p| (p.body.into_body(), p.names))
 }
 
-/// The document's product with its name table AND its declared contact
+/// The document's product with its name table AND its contact
 /// records — the widest of the three doors, and the one the other two
 /// are defined by ([`Product`]).
 ///
@@ -965,8 +968,10 @@ pub fn product_named<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
 /// the boolean pipeline's substitution door (`carry`) states: a record's new key
 /// is the key the graft says its old entity BECAME, never a key
 /// re-derived by looking at the gathered geometry. Re-derivation is
-/// the scan-to-bless move F1 bans; there is no second opinion here
-/// about which faces touch.
+/// the scan-to-bless move F1 bans. The touches the census finds between
+/// copies are recorded beside the carried records, never in place of
+/// them: each is a row of its own decision ([`topo::record_at_rest`]),
+/// and a carried record is never re-derived from one.
 ///
 /// # Errors
 ///
