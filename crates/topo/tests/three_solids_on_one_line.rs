@@ -411,8 +411,10 @@ fn every_order(
 fn three_prisms_touching_along_one_line_build_one_body_in_every_member_order() {
     // Folded last, the plate leaves the three prisms' contacts to the
     // operands' records, and the 1.7-high prism the other two's stretch
-    // past its top.
-    let dropped = [6, 0, 2, 0];
+    // past its top; either then drops the edge-edge row of two of its
+    // operand's edges along the line, which no step but the one that
+    // joined them reads.
+    let dropped = [6, 1, 2, 1];
     every_order(
         "three prisms and the plate",
         &three(),
@@ -426,7 +428,7 @@ fn three_prisms_touching_along_one_line_build_one_body_in_every_member_order() {
         &three(),
         false,
         [15, 27, 18],
-        &[2, 2, 0],
+        &[2, 2, 1],
         &none,
     );
 }
@@ -440,7 +442,7 @@ fn four_prisms_touching_along_one_line_build_one_body_in_every_member_order() {
         &four(),
         true,
         [22, 48, 29],
-        &[12, 0, 2, 0, 6],
+        &[12, 2, 4, 2, 6],
         &none,
     );
 }
@@ -508,10 +510,10 @@ fn a_prism_tilted_within_the_zero_builds_as_upright() {
                 &prisms,
                 true,
                 [18, 39, 24],
-                &[6, 0, 2, 0],
+                &[6, 1, 2, 1],
                 &none,
             );
-            every_order(&label, &prisms, false, [15, 27, 18], &[2, 2, 0], &none);
+            every_order(&label, &prisms, false, [15, 27, 18], &[2, 2, 1], &none);
         }
     }
 }
@@ -582,7 +584,7 @@ fn a_prism_moved_off_the_line_builds_or_escalates_typed_in_every_member_order() 
             &three_off(k * eps),
             true,
             [18, 39, 24],
-            &[6, 0, 2, 0],
+            &[6, 1, 2, 1],
             &none,
         );
     }

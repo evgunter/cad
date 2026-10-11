@@ -3278,7 +3278,18 @@ fn ee_lineage<T: Decide>(
     for pa in &a {
         for pb in &b {
             let (sa, sb) = (segment(pa)?, segment(pb)?);
-            if crate::census::segment_interiors_meet(sa, sb, band).map_err(lineage)? {
+            // The census's question reads the gap on its first segment's
+            // line, which a short piece extrapolates along a long one:
+            // asked on either piece's line, the first decided answer.
+            let meet = || {
+                crate::census::segment_interiors_meet(sa, sb, band)
+                    .or_else(|_| crate::census::segment_interiors_meet(sb, sa, band))
+                    .map_err(lineage)
+            };
+            if !crate::census::segments_apart(sa, sb, band)
+                && !crate::census::segments_apart(sb, sa, band)
+                && meet()?
+            {
                 push_cited(
                     &mut carried.ee,
                     Cited::new(EeContact { a: pa.0, b: pb.0 }, row.cites.clone()),
@@ -3291,7 +3302,13 @@ fn ee_lineage<T: Decide>(
             {
                 for v in [mine.1, mine.2].into_iter().filter(|v| minted.contains(v)) {
                     let q = point(v)?;
-                    if crate::census::on_segment_interior(q, their_seg, band).map_err(lineage)? {
+                    // Past the other piece's span the vertex is on no
+                    // part of it, and its line's reading there is the
+                    // carrier's, not the piece's.
+                    if !crate::census::past_segment(q, their_seg, band)
+                        && crate::census::on_segment_interior(q, their_seg, band)
+                            .map_err(lineage)?
+                    {
                         push_cited(
                             &mut carried.ve,
                             Cited::new(

@@ -6785,6 +6785,34 @@ pub(crate) fn on_segment_interior<T: Decide>(
     escalation(on, errors)
 }
 
+/// Whether `q` lies definitely past either end of a segment, read along
+/// it by [`on_edge_interior`]'s own span decision: such a point is on
+/// no part of the segment's interior, whatever its distance from the
+/// segment's line reads.
+pub(crate) fn past_segment<T: Decide>(q: Point3<T>, s: (Point3<T>, Point3<T>), band: Band) -> bool {
+    let e = segment(s);
+    let along = (q - e.p0).dot(e.dir);
+    [along, e.len - along]
+        .into_iter()
+        .any(|m| decide("pm_census_ve_span", Margin::of(m), band) == Ok(Sign::Negative))
+}
+
+/// Whether segment `b` lies definitely past either end of segment `a`,
+/// read along `a`: two such segments' interiors meet nowhere, whatever
+/// the gap between their lines reads.
+pub(crate) fn segments_apart<T: Decide>(
+    a: (Point3<T>, Point3<T>),
+    b: (Point3<T>, Point3<T>),
+    band: Band,
+) -> bool {
+    let e = segment(a);
+    let [t0, t1] = [b.0, b.1].map(|p| (p - e.p0).dot(e.dir));
+    let sign = |m: T| decide("pm_census_ee_overlap", Margin::of(m), band);
+    let before = |t: T| sign(t) == Ok(Sign::Negative);
+    let after = |t: T| sign(t - e.len) == Ok(Sign::Positive);
+    (before(t0) && before(t1)) || (after(t0) && after(t1))
+}
+
 /// A census answer, or the escalation it pushed.
 ///
 /// # Panics
