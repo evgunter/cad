@@ -29,7 +29,7 @@ editor-core suites (7 042 tests) and the 25 JOIN batteries
 reach it. A pose needs a section running along an edge both solids
 hold, inside a ring of a curved face: coincident edges, which today is
 coincidence ground (held under D10 while
-`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md` is unbuilt).
+`work/intent/d10-one-way-to-say-intent-is-unbuilt.md` is unbuilt).
 
 ## What a fix has to supply
 

@@ -2,8 +2,11 @@
 id: the-transform-gesture-moves-a-placed-body-through-a-transform
 kind: issue
 title: The viewer's Transform gesture moves a placed body through a Transform; under D10 moving a placed body edits its placement
-status: open
+status: parked
 opened: 2026-10-09
+priority: P1
+cost: M
+blocked_on: [a-placement-is-the-bundle-of-mates]
 ---
 
 
@@ -29,3 +32,7 @@ suite's moved second block), which a placement's copy may not be
 (`ReadsWorldCopy`). Refusing the gesture on a placed body turned 24
 viewer rows red, among them `story_parametric::the_parametric_living_walk`,
 and would leave the GUI no way to make a moved body.
+
+## Priced (2026-10-11)
+
+P1 M, parked on INTENT stage 3's `a-placement-is-the-bundle-of-mates`: moving a placed body edits its placement there, and no door edits a placement's pose in place until then.
