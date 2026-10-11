@@ -24,12 +24,7 @@ lanes in flight are expected to close more, so the track is not split.
 | P2 | `a-curved-notch-at-a-corner-pinch-refuses-join-desync-on-a-section-vertexs-null-edge-copies` | M | a curved notch at a corner pinch refuses `JoinDesync` on a section vertex's null-edge copies (15 lines, 5 poses) |
 | P2 | `a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face` | M | `Joint::Hole` cannot tell a figure-8 hole from an island face |
 | P2 | `a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys` | M | a pinch whose keys no seam ties keeps its cones on separate point keys |
-| P3 | `the-turn-sense-divisor-is-nonzero-by-prose` | E | `Turn.sense`'s nonzero divisor is held by call order, not by type |
-| P3 | `two-pinch-poses-escalate-at-eps-1e-6` | E | two `pinch_faces_tessellate` poses escalate at ε 1e-6 |
-| P4 | `a-curved-boolean-refusal-cites-the-germs-recorded-face-after-a-mef` | E | `CurvedBooleanUnsupported` cites the germ's recorded face, which a `mef` may have divided |
-| P4 | `levered-sign-as-bool-has-no-shared-home` | E | a levered sign read as a bool has no shared home in `boolean/` |
-| P4 | `sibling-batteries-judge-sound-weaker-than-differential-outcome` | E | four batteries judge SOUND weaker than `differential::outcome` |
-| P4 | `strut-side-labels-are-provisional-in-join-and-derived-in-vtxfac` | E | `join.rs` calls strut labels provisional; `vtxfac` mints them as derived |
+| P3 | `two-pinch-poses-escalate-at-eps-1e-6` | M | pose 1 at ε 1e-6: can a cross-germ tie between pairs that share no germ change the greedy matching (a proof task; pose 2 is honest) |
 
 Parked, and not counted:
 
@@ -64,11 +59,8 @@ Parked, and not counted:
    `the-pre-zip-pinch-weld-retires-…`, `a-pinch-the-seams-do-not-link-…`,
    `a-hole-weld-cannot-tell-…` and `a-curved-notch-at-a-corner-pinch-refuses-join-desync-…`
    (the residue of the curved shared-pinch re-read, PR 4698).
-5. **The E tail** (dispatched after F as one lane, `flush/e-tail`):
-   `the-turn-sense-divisor-…`, `strut-side-labels-…`,
-   `a-curved-boolean-refusal-cites-…` and `levered-sign-as-bool-…` in
-   `boolean/`; `two-pinch-poses-…` and `sibling-batteries-…` in the
-   sweep tests.
+5. **The E tail** (done, PR 4714: five rows closed; `two-pinch-poses-…`
+   stays open as a proof task about pose 1's matcher tie).
 
 ## The intent-refactor hold (Ev, `[ev]` PR 3990, 2026-10-03)
 

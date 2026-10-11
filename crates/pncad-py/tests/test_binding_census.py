@@ -3104,6 +3104,10 @@ NOT_BOUND = {
     # One of a product's at-rest decisions, interior with its `Product`:
     # Python reads them as the unproven-coincidence lint's findings.
     "AtRestRow": INTERIOR,
+    # Whose decision a row is (a mate, or two copies), interior with
+    # its row: the lint's finding says it (`CheckFinding.node`,
+    # `CheckFinding.copies`).
+    "AtRestBy": INTERIOR,
     "own_spaces": INTERIOR,
     "Subject": INTERIOR,
     "assemble_gathered": INTERIOR,
@@ -3612,7 +3616,6 @@ MEMBERS_BOUND_AS = {
     "Attribution::Refuted": "Attribution.relation",
     "Attribution::Declined": "Attribution.relation",
     "Attribution::Carried": "Attribution.relation",
-    "Attribution::Unattributed": "Attribution.relation",
     # The registry's evidence, a value: which resident found what.
     "CheckEvidence::Connectedness": "CheckEvidence.variant",
     "CheckEvidence::Escalated": "CheckEvidence.variant",

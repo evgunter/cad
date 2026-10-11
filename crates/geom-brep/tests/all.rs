@@ -135,6 +135,8 @@ mod pn_apex_reach;
 mod props_cone_apex_cap;
 #[path = "props_cone_ring.rs"]
 mod props_cone_ring;
+#[path = "props_cone_vector_area.rs"]
+mod props_cone_vector_area;
 #[path = "props_sphere_circle_loop.rs"]
 mod props_sphere_circle_loop;
 #[path = "props_sphere_pole_side.rs"]
