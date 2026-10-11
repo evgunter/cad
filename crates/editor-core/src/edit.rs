@@ -1174,13 +1174,6 @@ fn lower_reads<P: crate::ProfilePayload>(
     fixed: Option<VarKind>,
     spoken: &impl Fn() -> SpokenNode,
 ) -> Result<Vec<VarId>, EditError> {
-    let half = match node {
-        Node::Part {
-            select: crate::PartSelect::SplitHalf(half),
-            ..
-        } => Some(*half),
-        _ => None,
-    };
     let mut reads = Vec::new();
     node.try_map_slots(
         |p, g, r| P::lower(p, g, r),
@@ -1190,7 +1183,7 @@ fn lower_reads<P: crate::ProfilePayload>(
                 (crate::OperandSlot::Input, Some(kind)) => crate::SlotKind::Is(kind),
                 _ => node.seat_kind(slot),
             };
-            let var = lower_operand(doc, spoken, SlotId::Operand(slot), read, half, expected)?;
+            let var = lower_operand(doc, spoken, SlotId::Operand(slot), read, expected)?;
             reads.push(var);
             Ok(var)
         },
@@ -1205,25 +1198,15 @@ fn lower_reads<P: crate::ProfilePayload>(
 /// (`expected`). A node with several outputs (a revolve's body and
 /// axis, a split's two halves) refuses the sugar
 /// ([`EditError::AmbiguousOutput`], naming its ports): the read spells
-/// its port. A part projection's selected half (`half`) refuses a read
-/// of the split's other half.
+/// its port.
 fn lower_operand<P: crate::ProfilePayload>(
     doc: &mut Doc<P>,
     spoken: &impl Fn() -> SpokenNode,
     slot: SlotId,
     read: &crate::Operand,
-    half: Option<crate::SplitHalf>,
     expected: crate::SlotKind,
 ) -> Result<VarId, EditError> {
-    lower_read(
-        doc,
-        spoken,
-        slot,
-        read,
-        half,
-        expected,
-        Reader::of(expected),
-    )
+    lower_read(doc, spoken, slot, read, expected, Reader::of(expected))
 }
 
 /// [`lower_operand`] read as `reader` reads: the seat's own reader,
@@ -1233,7 +1216,6 @@ fn lower_read<P: crate::ProfilePayload>(
     spoken: &impl Fn() -> SpokenNode,
     slot: SlotId,
     read: &crate::Operand,
-    half: Option<crate::SplitHalf>,
     expected: crate::SlotKind,
     reader: Reader,
 ) -> Result<VarId, EditError> {
@@ -1299,13 +1281,12 @@ fn lower_read<P: crate::ProfilePayload>(
             spoken,
             slot,
             body,
-            None,
             selection_body_kind(slot),
             Reader::Observes,
             unresolved,
         )?;
     }
-    check_read(doc, spoken, slot, var, half, expected, reader, unresolved)
+    check_read(doc, spoken, slot, var, expected, reader, unresolved)
 }
 
 /// **What a selection authored at `slot` may be read in**: a `Body`, or
@@ -1339,7 +1320,6 @@ fn mint_selection<P: crate::ProfilePayload>(
         spoken,
         slot,
         body,
-        None,
         selection_body_kind(slot),
         Reader::Observes,
     )?;
@@ -1402,7 +1382,6 @@ fn check_read<P: crate::ProfilePayload>(
     spoken: &impl Fn() -> SpokenNode,
     slot: SlotId,
     var: VarId,
-    half: Option<crate::SplitHalf>,
     expected: crate::SlotKind,
     reader: Reader,
     unresolved: impl Fn() -> EditError,
@@ -1410,7 +1389,7 @@ fn check_read<P: crate::ProfilePayload>(
     let Some(held) = doc.var(var) else {
         return Err(unresolved());
     };
-    match doc.read_fault(held, expected, half, reader) {
+    match doc.read_fault(held, expected, reader) {
         None => Ok(var),
         Some(crate::doc::ReadFault::Kind { found }) => Err(EditError::SlotVarKind {
             var: Box::new(doc.spoken_var(var)),
@@ -1418,11 +1397,6 @@ fn check_read<P: crate::ProfilePayload>(
             slot,
             found,
             expected,
-        }),
-        Some(crate::doc::ReadFault::OtherHalf { half }) => Err(EditError::PartHalfPort {
-            node: spoken(),
-            half,
-            var: Box::new(doc.spoken_var(var)),
         }),
         Some(crate::doc::ReadFault::WorldCopy { placement }) => Err(EditError::ReadsWorldCopy {
             node: spoken(),
@@ -1907,16 +1881,6 @@ pub enum EditError {
         input: SpokenNode,
         /// The slot.
         slot: SlotId,
-    },
-    /// A part projection over a split reads the split's other half: the
-    /// read and the selection name one half.
-    PartHalfPort {
-        /// The part projection.
-        node: SpokenNode,
-        /// The half it selects.
-        half: crate::SplitHalf,
-        /// The output it reads, boxed so the refusal stays a small `Err`.
-        var: Box<SpokenVar>,
     },
     /// A construction seat reads a world placement's copy (D10:
     /// construction never reads the world; a measure observes a copy's
@@ -3211,10 +3175,6 @@ impl EditError {
                 slot: _,
                 read: _,
             } => *node = node.respoken(doc),
-            Self::PartHalfPort { node, half: _, var } => {
-                *node = node.respoken(doc);
-                **var = var.respoken(doc);
-            }
             Self::ReadsWorldCopy {
                 node,
                 slot: _,
@@ -3479,10 +3439,6 @@ impl EditError {
             Self::DefinesNothing { input, slot } => {
                 write!(f, "{input} defines nothing a {slot} could read")?;
                 tail.recourse(f, format_args!("read an operation that defines a value"))
-            }
-            Self::PartHalfPort { node, half, var } => {
-                write!(f, "{node} selects the {} half but reads {var}", half.name())?;
-                tail.recourse(f, format_args!("read the split's {} output", half.name()))
             }
             Self::ReadsWorldCopy {
                 node,
@@ -5805,13 +5761,12 @@ fn set_operand<P: Clone + crate::ProfilePayload>(
             slot: SlotId::Operand(slot),
         });
     }
-    let half = current.selected_half();
     let expected = match (&current, new.output(node, 0).and_then(|v| new.var(v))) {
         (Node::Transform { .. }, Some(output)) => crate::SlotKind::Is(output.kind()),
         _ => current.seat_kind(slot),
     };
     let spoken = || doc.spoken(node);
-    let var = lower_operand(new, &spoken, SlotId::Operand(slot), read, half, expected)?;
+    let var = lower_operand(new, &spoken, SlotId::Operand(slot), read, expected)?;
     let mut rewritten = current;
     for (at, held) in rewritten.operand_rows_mut() {
         if at == slot {
@@ -6575,7 +6530,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         &spoken,
                         SlotId::Operand(slot),
                         &member.read,
-                        None,
                         member.kind(slot),
                     )
                 };
@@ -6792,7 +6746,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 // is.
                 (_, SlotValue::Read(read)) => {
                     let spoken = || doc.spoken(*node);
-                    let var = lower_operand(new, &spoken, *slot, read, None, slot.kind())?;
+                    let var = lower_operand(new, &spoken, *slot, read, slot.kind())?;
                     std::borrow::Cow::Owned(Formula::var(
                         var,
                         slot.dimension()
