@@ -153,12 +153,15 @@ const fn first_rows(decision: BooleanDecision) -> FirstHarmonicRows {
     }
 }
 
+/// The ladder's noise meter's row (module docs, "Two arms").
+const LADDER_NOISE: &str = "bool_conic_quadric_ladder_noise";
+
 /// The ladder's rows, per surface decision.
 const fn ladder_rows(decision: BooleanDecision) -> HalfAngleRows {
     HalfAngleRows {
         pole: "bool_conic_quadric_pole",
         conditioning: "bool_conic_quadric_pole_conditioning",
-        noise: "bool_conic_quadric_ladder_noise",
+        noise: LADDER_NOISE,
         quartic: QuarticRows {
             disc: "bool_conic_quadric_disc",
             shape: "bool_conic_quadric_shape",

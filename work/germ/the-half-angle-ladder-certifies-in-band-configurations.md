@@ -94,10 +94,13 @@ tilts drawn over the whole turn, 6,000 poses per ε:
   0.1 m): at ε = 1e-9, where the noise reads in the gap on every pose,
   the worst certified root is 3.5e-10 m from the oracle (the review saw
   1.09–1.23e-9 m). At 1e-6 the worst is 1.9e-9 m. At 1e-12 it is
-  1.33e-12 m, on two roots that are 0.64 and 4 ulp of θ from the
-  oracle's: that is the f64 parameter's own grid at this radius
-  (ρ·ulp(2π) = 1.3e-12 m), not the door. No `Miss` on a true crossing
-  at any ε.
+  1.33e-12 m, read through a wrap that rounded the difference at the
+  spacing near 2π. That is the judge's grid, not the door's or the
+  parameter's: the oracle's `φ₀ + 2·atan t` and its wrap into
+  `[0, 2π)` round a root near θ = 0 by up to `7.6u` (`ρ·8u` =
+  1.3e-12 m). Read without the wrap, over 36,000 poses at four seeds,
+  the worst is 0.85ε at 1e-12 (0.30ε at 1e-9). No `Miss` on a true
+  crossing at any ε.
 
 What decides these is not the width row. A graze's in-band stretch of
 arc, about √(Kερ), is far wider than the band's arc. The walk refuses
@@ -115,5 +118,17 @@ each with the mutant that turns it red:
 - `an_exact_tangency_is_escalated_at_every_tilt` (edge table): red under
   the same mutant, with 159 tangencies answered.
 - `a_circle_of_radius_1500_places_its_roots_within_the_zero_band`
-  (fuzz): red under the same mutant (72 wrong), and when the slack meter
-  accepts `Err` (50 wrong, up to 1.10e-9 m at ε = 1e-9).
+  (fuzz, judged at ε plus the oracle's own rounding, `ρ·8u`): red under
+  the same mutant (75 wrong). When the slack meter accepts `Err` it is
+  red only on some seeds (17 wrong at effort 10, none at effort 1 on
+  the seed drawn), so that mutant is pinned statically:
+- `a_root_whose_slack_reads_in_the_gap_is_refused` (static): red when
+  the slack meter accepts `Err`, which certifies its roots 2.05e-9 m off
+  at ε = 1e-9.
+
+Circle × torus, on the same subdivision, was measured too (fix pass of
+PR 4600): nothing within the zero band answered, while 244 of 4,500
+gap poses got a definite and true answer. That is
+`work/hone/circle-torus-clear-margin-reads-the-floor.md`'s question, and
+its evidence is recorded there
+(`a_circle_grazing_a_torus_is_answered_truly_or_not_at_all`).
