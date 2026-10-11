@@ -12133,3 +12133,230 @@ mod edge_face_residual {
         );
     }
 }
+
+/// Reviewer probes (PR 4604 delta, R1): the material-crescent read on
+/// every arrangement of two tangent carriers, both face orders, both
+/// bend directions, every sense assignment, against the truth of whether
+/// the two materials overlap near the line.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod review_4604_r1_delta {
+    use super::*;
+    use crate::boolean::{Cell, ContactRecords};
+    use crate::test_support_fixtures::{CylFrame, brick, cyl_wall_sheet};
+    use geom_core::{Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn one(body: &Body<f64>, x: Cell, y: Cell) -> ContactRecords {
+        [crate::Cited::new(
+            crate::Contact::new(body, x, y).unwrap(),
+            crate::Cites::decided(0),
+        )]
+        .into_iter()
+        .collect()
+    }
+
+    /// What the census says about the pair: `None` confirmed, else a
+    /// short label.
+    fn verdict(body: &Body<f64>, a: FaceKey, b: FaceKey) -> Option<String> {
+        let errors = census_and_certify(
+            body,
+            &one(body, Cell::Face(a), Cell::Face(b)),
+            band(),
+            Tol::witness(),
+            None,
+        );
+        let is = |x: FaceKey, y: FaceKey| (x, y) == (a, b) || (x, y) == (b, a);
+        let named: Vec<String> = errors
+            .iter()
+            .filter_map(|e| match e {
+                ValidationError::ContactContradicted {
+                    declaration,
+                    margin,
+                    ..
+                } if is(declaration.a, declaration.b) => {
+                    Some(format!("contradicted:{}", margin.predicate.unwrap_or("?")))
+                }
+                ValidationError::StaleContactDeclaration {
+                    declaration: StaleDeclaration::Patch { face_a, face_b },
+                } if is(*face_a, *face_b) => Some("stale".to_owned()),
+                ValidationError::CensusUnsupported {
+                    subject: CensusSubject::FacePair(x, y),
+                    ..
+                } if is(*x, *y) => Some("unsupported".to_owned()),
+                ValidationError::CensusEscalated { cause } => {
+                    Some(format!("escalated:{}", cause.predicate.unwrap_or("?")))
+                }
+                _ => None,
+            })
+            .collect();
+        (!named.is_empty()).then(|| named.join(","))
+    }
+
+    fn frame(origin: (f64, f64), r: f64) -> CylFrame {
+        let mut f = CylFrame::canonical(r);
+        f.origin = Point3::new(origin.0, origin.1, 0.0);
+        f
+    }
+
+    /// Two cylinder sheets; `first_big` decides which is minted first
+    /// (so which is the record's lesser key, `s1` in the table).
+    fn two_sheets(
+        big: (CylFrame, (f64, f64), bool),
+        small: (CylFrame, (f64, f64), bool),
+        first_big: bool,
+    ) -> Option<String> {
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        let order = if first_big {
+            [big, small]
+        } else {
+            [small, big]
+        };
+        let keys: Vec<FaceKey> = order
+            .iter()
+            .map(|(f, u, s)| {
+                let k = cyl_wall_sheet(&mut body, *f, *u, (0.0, 1.0), tol);
+                body.get_face_mut(k).unwrap().sense = *s;
+                k
+            })
+            .collect();
+        verdict(&body, keys[0], keys[1])
+    }
+
+    #[test]
+    fn the_crescent_read_on_every_tangent_arrangement() {
+        let mut bad = Vec::new();
+        for dir in [1.0f64, -1.0] {
+            // Angles about each axis centred on the tangent ruling.
+            let phi = if dir > 0.0 {
+                0.0
+            } else {
+                core::f64::consts::PI
+            };
+            let u = (phi - 0.5, phi + 0.5);
+            for first_big in [true, false] {
+                for sb in [true, false] {
+                    for ss in [true, false] {
+                        // Internal: big r = 1 at the origin, small r = 0.5
+                        // at dir·(0.5, 0). Disjoint only for a hollow big
+                        // around a solid small.
+                        let got = two_sheets(
+                            (frame((0.0, 0.0), 1.0), u, sb),
+                            (frame((dir * 0.5, 0.0), 0.5), u, ss),
+                            first_big,
+                        );
+                        let valid = !sb && ss;
+                        eprintln!(
+                            "internal dir={dir} first_big={first_big} big={sb} small={ss}: {got:?} (valid={valid})"
+                        );
+                        if valid != got.is_none() {
+                            bad.push(format!("internal dir={dir} first_big={first_big} big={sb} small={ss}: {got:?}"));
+                        }
+                        // External: r = 1 at the origin and r = 1 at dir·(2, 0),
+                        // the second sheet's angles centred on the far ruling.
+                        let u2 = (
+                            phi + core::f64::consts::PI - 0.5,
+                            phi + core::f64::consts::PI + 0.5,
+                        );
+                        let got = two_sheets(
+                            (frame((0.0, 0.0), 1.0), u, sb),
+                            (frame((dir * 2.0, 0.0), 1.0), u2, ss),
+                            first_big,
+                        );
+                        let valid = sb && ss;
+                        eprintln!(
+                            "external dir={dir} first={first_big} a={sb} b={ss}: {got:?} (valid={valid})"
+                        );
+                        if valid != got.is_none() {
+                            bad.push(format!(
+                                "external dir={dir} first={first_big} a={sb} b={ss}: {got:?}"
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        assert!(bad.is_empty(), "{bad:#?}");
+    }
+
+    /// Plane x = dir and a unit cylinder sheet about z touching it there;
+    /// the brick's face is the plane, its sense flipped where asked
+    /// (only the pair's own reading is looked at).
+    #[test]
+    fn the_crescent_read_on_a_plane_and_a_cylinder() {
+        let tol = Tol::witness();
+        let mut bad = Vec::new();
+        for dir in [1.0f64, -1.0] {
+            let phi = if dir > 0.0 {
+                0.0
+            } else {
+                core::f64::consts::PI
+            };
+            for cyl_first in [true, false] {
+                for plane_out_away in [true, false] {
+                    for cs in [true, false] {
+                        let mut body = Body::<f64>::new();
+                        let mint_cyl = |body: &mut Body<f64>| {
+                            let k = cyl_wall_sheet(
+                                body,
+                                CylFrame::canonical(1.0),
+                                (phi - 0.5, phi + 0.5),
+                                (0.0, 1.0),
+                                tol,
+                            );
+                            body.get_face_mut(k).unwrap().sense = cs;
+                            k
+                        };
+                        let xs = if dir > 0.0 { (1.0, 2.0) } else { (-2.0, -1.0) };
+                        let block = brick::<f64>(xs, (-0.5, 0.5), (0.0, 1.0), tol);
+                        let mut graft = |body: &mut Body<f64>| {
+                            let keys = crate::graft_disjoint_all_keyed(body, &block).unwrap();
+                            block
+                                .faces()
+                                .find(|(_, f)| match block.get_surface(f.surface) {
+                                    Some(geom::Surface::Plane { origin, normal, .. }) => {
+                                        normal.x.abs() > 0.5 && (origin.x - dir).abs() < 1e-12
+                                    }
+                                    _ => false,
+                                })
+                                .and_then(|(k, _)| keys.face(k))
+                                .unwrap()
+                        };
+                        let (c, p) = if cyl_first {
+                            let c = mint_cyl(&mut body);
+                            (c, graft(&mut body))
+                        } else {
+                            let p = graft(&mut body);
+                            (mint_cyl(&mut body), p)
+                        };
+                        // Set the plane's outward normal: pointing away
+                        // from the cylinder (material on the far side) or
+                        // toward it.
+                        let n = match body.get_surface(body.get_face(p).unwrap().surface) {
+                            Some(geom::Surface::Plane { normal, .. }) => *normal,
+                            _ => unreachable!(),
+                        };
+                        let away = Vec3::new(dir, 0.0, 0.0);
+                        let surface_points_away = n.dot(away) > 0.0;
+                        body.get_face_mut(p).unwrap().sense = surface_points_away == plane_out_away;
+                        let got = verdict(&body, c, p);
+                        // Plane material on the far side iff outward
+                        // points toward the cylinder.
+                        let valid = !plane_out_away && cs;
+                        eprintln!(
+                            "plane dir={dir} cyl_first={cyl_first} plane_out_away={plane_out_away} cyl={cs}: {got:?} (valid={valid})"
+                        );
+                        if valid != got.is_none() {
+                            bad.push(format!("plane dir={dir} cyl_first={cyl_first} out_away={plane_out_away} cyl={cs}: {got:?}"));
+                        }
+                    }
+                }
+            }
+        }
+        assert!(bad.is_empty(), "{bad:#?}");
+    }
+}
