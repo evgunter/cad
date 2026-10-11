@@ -372,13 +372,13 @@ fn error_of(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> &NodeErrorKi
     }
 }
 
-/// **What the projection needs from the two-sided value, pinned where
-/// it reads it.** `Node::Part` selects a half by ROLE — above or below
-/// the plane's normal, never an index — refuses an empty half typed
-/// (`EmptyHalf`, naming the split and the side), and hands a present
-/// half on as the split's OWN body: the same `Arc`, no clone. Those three are the contract the split's out-type carries
-/// two role-tagged `Body | Empty` sides for, and the reason it is not
-/// a list of bodies or a body with a side marker.
+/// **What a read of a half needs from the two-sided value, pinned where
+/// it reads it.** A port names a half by ROLE — above or below the
+/// plane's normal, never an index — a read of an empty half refuses
+/// typed (`EmptyHalf`, naming the split and the side), and a present
+/// half is read as the split's own side. Those three are the contract the split's out-type carries two
+/// role-tagged `Body | Empty` sides for, and the reason it is not a
+/// list of bodies or a body with a side marker.
 #[test]
 fn a_read_of_a_half_reads_the_two_sided_value_by_role() {
     let (mut r, split) = cube_split_at(5.0);
