@@ -642,8 +642,9 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
         | Node::Chamfer { .. }
         | Node::Shell { .. }
         | Node::Split { .. }
-        | Node::Boolean { .. }
+        | Node::Subtract { .. }
         | Node::Union { .. }
+        | Node::Intersect { .. }
         | Node::Transform { .. }
         | Node::Pattern { .. }
         | Node::Part { .. }
@@ -839,8 +840,9 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
         | Node::Chamfer { .. }
         | Node::Shell { .. }
         | Node::Split { .. }
-        | Node::Boolean { .. }
+        | Node::Subtract { .. }
         | Node::Union { .. }
+        | Node::Intersect { .. }
         | Node::Transform { .. }
         | Node::Pattern { .. }
         | Node::Part { .. }
@@ -1191,7 +1193,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::ProductOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }
-        | NodeErrorKind::MembersShareAnOperation { .. }
         | NodeErrorKind::InstanceOutOfRange { .. } => None,
         // Names an id no live node holds, so there is no row to go to.
         NodeErrorKind::MissingInput { .. } => None,

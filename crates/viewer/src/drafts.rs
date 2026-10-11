@@ -14,7 +14,7 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, Dimension, DimensionError, Doc, Formula, HeldNodes, Label, LabelFault, LoopProgram,
+    Dimension, DimensionError, Doc, Formula, HeldNodes, Label, LabelFault, LoopProgram,
     Maintenance, Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId, VarId,
     VarName,
 };
@@ -200,8 +200,6 @@ pub(crate) struct Drafts {
     /// (unitless). Opens as the profile's +y, the axis a profile drawn
     /// beside it turns about.
     pub(crate) revolve_axis_direction: [f64; 2],
-    /// The boolean tool's operation choice.
-    pub(crate) boolean_op: BooleanOp,
     /// The transform tool's translation, metres.
     pub(crate) transform_translation: [f64; 3],
     /// Its rotation axis (unitless).
@@ -681,7 +679,6 @@ impl Default for Drafts {
             revolve_angle: core::f64::consts::TAU,
             revolve_axis_origin: Point2::origin(),
             revolve_axis_direction: [0.0, 1.0],
-            boolean_op: BooleanOp::Union,
             transform_translation: [0.0; 3],
             transform_axis: [0.0, 0.0, 1.0],
             transform_angle: 0.0,

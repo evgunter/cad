@@ -26,10 +26,9 @@ use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use editor_core::{
-    BooleanOp, CancelToken, Cmp, CurveKind, CurveKindSet, Datum, EntityKind, Entry, EvalOptions,
-    Evaluation, GeomPred, NamePat, NameTable, NamingError, Node, NodeErrorKind, ProfileDoc,
-    RecipeNodeId, RoleSeg, SegPat, SegTag, Selector, StableName, VarEnv, evaluate, select,
-    select_where,
+    CancelToken, Cmp, CurveKind, CurveKindSet, Datum, EntityKind, Entry, EvalOptions, Evaluation,
+    GeomPred, NamePat, NameTable, NamingError, Node, NodeErrorKind, ProfileDoc, RecipeNodeId,
+    RoleSeg, SegPat, SegTag, Selector, StableName, VarEnv, evaluate, select, select_where,
 };
 
 // `table` panics on a node with no value rather than answering `None`,
@@ -120,10 +119,9 @@ fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let (doc, sub) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: a.into(),
-            b: b.into(),
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
             declare: Vec::new(),
         },
     );
@@ -167,7 +165,7 @@ fn split_over_a_tied_operand_names_and_keeps_the_tie() {
     assert!(
         after.iter().any(|(n, _)| matches!(
             n.path.first(),
-            Some(RoleSeg::SplitFragment { .. } | RoleSeg::FromB(_))
+            Some(RoleSeg::SplitFragment { .. } | RoleSeg::From { .. })
         )),
         "no propagated tie carries a split or operand role: {:?}",
         after.iter().map(|(n, _)| *n).collect::<Vec<_>>()
@@ -185,10 +183,9 @@ fn boolean_over_a_tied_operand_names_and_keeps_the_tie() {
     let (doc, c) = block(doc, (1.0, 3.0), (1.0, 3.0), 3.5, 2.0);
     let (doc, sub2) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: sub.into(),
-            b: c.into(),
+        Node::Subtract {
+            from: sub.into(),
+            tool: c.into(),
             declare: Vec::new(),
         },
     );
@@ -222,10 +219,9 @@ fn a_tie_with_one_surviving_candidate_narrows_back_to_unique() {
     let (doc, c) = block(doc, (1.5, 4.5), (2.25, 3.25), 0.5, 3.0);
     let (doc, sub2) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: sub.into(),
-            b: c.into(),
+        Node::Subtract {
+            from: sub.into(),
+            tool: c.into(),
             declare: Vec::new(),
         },
     );
@@ -233,11 +229,12 @@ fn a_tie_with_one_surviving_candidate_narrows_back_to_unique() {
     let up_ties = ties(table(&ev, sub));
     assert!(!up_ties.is_empty(), "fixture lost its upstream tie");
     let t = table(&ev, sub2);
+    let sub_read = crate::fixture::out(&doc, sub);
     for (tn, _) in &up_ties {
         let descendants: Vec<(&StableName, &Entry)> = t
             .iter()
             .filter(|(n, _)| match n.path.first() {
-                Some(RoleSeg::FromA(inner)) => &**inner == *tn,
+                Some(RoleSeg::From { read, of: inner }) => *read == sub_read && &**inner == *tn,
                 _ => false,
             })
             .collect();

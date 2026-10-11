@@ -102,7 +102,7 @@ fn split_by(doc: ProfileDoc, body: RecipeNodeId, tool: Operand) -> (ProfileDoc, 
     let (doc, split) = fixture::insert(
         doc,
         Node::Split {
-            target: Operand::output(body, 0),
+            target: Operand::output(body, 0).into(),
             tool,
         },
     );
@@ -184,7 +184,7 @@ fn a_split_tool_refuses_an_axis_and_admits_a_projected_frame() {
     let refused = fixture::insert_refused(
         &doc,
         Node::Split {
-            target: Operand::output(cube, 0),
+            target: Operand::output(cube, 0).into(),
             tool: pose(PoseDef::Axis {
                 of: Operand::select(Operand::output(cube, 0), vec![edge]),
             }),
@@ -209,7 +209,7 @@ fn a_split_tool_refuses_an_axis_and_admits_a_projected_frame() {
     let (doc, split) = fixture::insert(
         doc,
         Node::Split {
-            target: Operand::output(cube, 0),
+            target: Operand::output(cube, 0).into(),
             tool: pose(PoseDef::Project {
                 of: Operand::output(frame, 0),
                 to: VarKind::Plane,
@@ -416,7 +416,7 @@ fn a_pose_moved_by_a_measured_length_is_observed() {
     let refused = fixture::insert_refused(
         &doc,
         Node::Split {
-            target: Operand::output(cube, 0),
+            target: Operand::output(cube, 0).into(),
             tool: pose(PoseDef::Standoff {
                 plane: pose(PoseDef::Plane {
                     face: select(cube, cap),
@@ -699,7 +699,7 @@ fn a_pose_trees_leaves_are_keyed_by_the_port_they_read() {
     let (first, split) = fixture::insert(
         doc,
         Node::Split {
-            target: Operand::output(cube, 0),
+            target: Operand::output(cube, 0).into(),
             tool: meet_through_tool(f1, f2, f1),
         },
     );
@@ -908,7 +908,7 @@ fn the_door_normalises_a_flip_of_a_flip() {
     let refused = fixture::insert_refused(
         &unit_box().0,
         Node::Split {
-            target: Operand::output(cube, 0),
+            target: Operand::output(cube, 0).into(),
             tool: pose(PoseDef::Flip {
                 pose: pose(PoseDef::Flip {
                     pose: pose(PoseDef::Point {

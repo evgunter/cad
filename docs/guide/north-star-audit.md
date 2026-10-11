@@ -183,7 +183,7 @@ Everything Python can say about geometry, in full:
   more section profiles in skin order, at an integer v-degree. There
   is no placement argument: each section rides its own profile's
   sketch plane.
-- `Node.boolean(op, a, b, declare=…)` — union, intersect, subtract.
+- `Node.union(members, declare=…)`, `Node.intersect(members, declare=…)`, `Node.subtract(from_, tool, declare=…)`.
   `declare` is the DATA door for a declared contact: the boolean's own
   list of declared pairs, given as the inspected `FlushFinding`s.
   `Evaluation.find_flush_candidates(a, b)` reports the flush pairs as

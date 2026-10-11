@@ -21,9 +21,7 @@ use crate::corpus::body_of;
 use crate::docm7_union_declare::{block, failure, run};
 use crate::emit_shared_rim_several::permutations;
 use crate::fixture::{frame, insert, len};
-use editor_core::{
-    BooleanOp, Evaluation, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId,
-};
+use editor_core::{Evaluation, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId};
 use geom_core::Tol;
 
 /// A disc of radius `r` about `(cx, cy)` on the plane `z = z0`,
@@ -75,10 +73,9 @@ fn a_slab_cut_through_a_drum_answers_its_volume() {
     let (doc, cutter) = block(doc, (-0.020, 0.020), (-half_t, half_t), cut_z, 0.008);
     let (doc, n) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: drum.into(),
-            b: cutter.into(),
+        Node::Subtract {
+            from: drum.into(),
+            tool: cutter.into(),
             declare: Vec::new(),
         },
     );
@@ -118,7 +115,9 @@ fn a_slab_across_a_round_boss_builds_in_every_order() {
         let (doc, n) = insert(
             doc.clone(),
             Node::Union {
-                members: order.iter().map(|&i| ids[i].into()).collect(),
+                members: editor_core::Bodies::Spelled(
+                    order.iter().map(|&i| ids[i].into()).collect(),
+                ),
                 declare: Vec::new(),
             },
         );
