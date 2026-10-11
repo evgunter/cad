@@ -87,7 +87,7 @@ fn corner_kiss_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPol
     let a = finished_brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = finished_brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
     let body = run_body(union_with as BoolOp<T>, &a, &b);
-    assert_eq!(body.contacts.vv.len(), 1);
+    assert_eq!(body.contacts.vertex_vertex().count(), 1);
     assert_promoted(&body);
 }
 
@@ -105,7 +105,7 @@ fn tangent_edge_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPo
     let a = finished_brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = finished_brick::<T>((1.0, 2.0), (0.0, 1.0), (1.0, 2.0));
     let body = run_body(union_with as BoolOp<T>, &a, &b);
-    assert_eq!(body.contacts.vv.len(), 2);
+    assert_eq!(body.contacts.vertex_vertex().count(), 2);
     assert_promoted(&body);
 }
 
@@ -127,8 +127,8 @@ fn skew_edges_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPoli
     let a = finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = finished_brick::<T>((1.5, 3.5), (0.5, 2.5), (2.0, 4.0));
     let body = run_body(union_with as BoolOp<T>, &a, &b);
-    assert!(body.contacts.vv.is_empty());
-    assert!(body.contacts.a_on_b.is_empty() && body.contacts.b_on_a.is_empty());
+    assert!(body.contacts.vertex_vertex().next().is_none());
+    assert!(body.contacts.vertex_face().next().is_none());
     assert_eq!(
         validate_pseudomanifold(&body.body, &body.contacts, Tol::witness()),
         Ok(())
@@ -149,7 +149,7 @@ fn skew_edges_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPoli
         BooleanResult::Empty
     ));
     let sub = run_body(subtract_with as BoolOp<T>, &a, &b);
-    assert!(sub.contacts.vv.is_empty() && sub.contacts.b_on_a.is_empty());
+    assert!(sub.contacts.is_empty());
     assert_eq!(
         validate_pseudomanifold(&sub.body, &sub.contacts, Tol::witness()),
         Ok(())
@@ -187,8 +187,18 @@ fn vertex_on_face_kiss_promoted() {
     );
     let tilted = finished("the tilted cube", tilted, Tol::witness());
     let body = run_body(union_with as BoolOp<f64>, &tilted, &slab);
-    assert_eq!(body.contacts.a_on_b.len(), 1, "{:?}", body.contacts);
-    assert!(body.contacts.vv.is_empty() && body.contacts.b_on_a.is_empty());
+    assert_eq!(
+        body.contacts.kinds().count(),
+        body.contacts.vertex_face().count(),
+        "{:?}",
+        body.contacts
+    );
+    assert_eq!(
+        body.contacts.vertex_face().count(),
+        1,
+        "{:?}",
+        body.contacts
+    );
     assert_promoted(&body);
 }
 
@@ -206,8 +216,17 @@ fn edge_rest_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolic
     let body = run_body(union_with as BoolOp<T>, &a, &b);
     // Two joined records: B's corner (1,0,2) on A's edge interior;
     // A's corner (2,0,2) on B's edge interior.
-    assert_eq!(body.contacts.ve.len(), 2, "{:?}", body.contacts);
-    assert!(body.contacts.vv.is_empty(), "{:?}", body.contacts);
+    assert_eq!(
+        body.contacts.vertex_edge().count(),
+        2,
+        "{:?}",
+        body.contacts
+    );
+    assert!(
+        body.contacts.vertex_vertex().next().is_none(),
+        "{:?}",
+        body.contacts
+    );
     assert_promoted(&body);
 }
 
@@ -230,7 +249,7 @@ fn flush_rests_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPol
     let slab = finished_brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
     let pillar = finished_brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 3.0));
     let body = run_body(union_with as BoolOp<T>, &slab, &pillar);
-    assert!(body.contacts.vv.is_empty() && body.contacts.b_on_a.is_empty());
+    assert!(body.contacts.is_empty());
     assert_eq!(
         validate_pseudomanifold(&body.body, &body.contacts, Tol::witness()),
         Ok(())
@@ -244,9 +263,8 @@ fn flush_rests_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPol
     // undeclared row for this shape).
     let glued = run_body(union_with as BoolOp<T>, &slab, &corner);
     assert!(
-        glued.contacts.vv.is_empty()
-            && glued.contacts.a_on_b.is_empty()
-            && glued.contacts.b_on_a.is_empty(),
+        glued.contacts.vertex_vertex().next().is_none()
+            && glued.contacts.vertex_face().next().is_none(),
         "corner-flush REST records are consumed into seam structure"
     );
     assert_eq!(
@@ -298,7 +316,7 @@ fn tier3_equivalence_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtR
     let a = finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = finished_brick::<T>((1.0, 3.0), (1.0, 3.0), (1.0, 3.0));
     let body = run_body(union_with as BoolOp<T>, &a, &b);
-    assert!(body.contacts.vv.is_empty());
+    assert!(body.contacts.vertex_vertex().next().is_none());
     assert_eq!(validate_geometric(&body.body, Tol::witness()), Ok(()));
     assert_eq!(
         validate_pseudomanifold(&body.body, &body.contacts, Tol::witness()),
@@ -324,15 +342,17 @@ fn tampered_declaration_is_stale() {
     let a = finished_brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = finished_brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
     let body = run_body(union_with as BoolOp<f64>, &a, &b);
-    let mut tampered = body.contacts.clone();
-    let real_a = tampered.vv[0].a;
+    let (real_a, real_b) = body.contacts.vertex_vertex().next().unwrap();
     let wrong = body
         .body
         .vertices()
         .map(|(k, _)| k)
-        .find(|&k| k != real_a && k != tampered.vv[0].b)
+        .find(|&k| k != real_a && k != real_b)
         .unwrap();
-    tampered.vv[0].record.a = wrong;
+    let tampered = topo::test_support::records(
+        &body.body,
+        [(topo::Cell::Vertex(wrong), topo::Cell::Vertex(real_b))],
+    );
     let errors = validate_pseudomanifold(&body.body, &tampered, Tol::witness()).unwrap_err();
     assert!(
         errors

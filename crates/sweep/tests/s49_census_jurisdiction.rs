@@ -304,13 +304,10 @@ fn a_vf_record_defers_the_faces_at_its_own_interface_and_no_others() {
     let rim = face_vertices(&body, cap);
     let v0 = rim[0];
     let mut records = ContactRecords::default();
-    records.b_on_a.push(topo::Cited::new(
-        topo::VfContact {
-            vertex: v0,
-            face: brick_top,
-        },
+    records.extend([topo::Cited::new(
+        topo::Contact::new(&body, topo::Cell::Vertex(v0), topo::Cell::Face(brick_top)).unwrap(),
         topo::Cites::decided(0),
-    ));
+    )]);
     // The fixture's own precondition, and it is what makes the
     // "stays deferred" assertion below a statement about the
     // DEFERRAL: if the record ever stops being built, this reddens
@@ -318,11 +315,14 @@ fn a_vf_record_defers_the_faces_at_its_own_interface_and_no_others() {
     // deferral having been deleted. The two are indistinguishable
     // downstream — both leave every wall refused.
     assert_eq!(
-        records.b_on_a.len(),
+        records.vertex_face().count(),
         1,
         "the fixture declares exactly one rest, on the brick's top face"
     );
-    assert_eq!(records.b_on_a[0].face, brick_top);
+    assert_eq!(
+        records.vertex_face().next().map(|(_, f)| f),
+        Some(brick_top)
+    );
     let (holding, apart) = walls_by_vertex(&body, v0);
     assert_eq!(holding.len(), 2, "two walls share each rim vertex");
     assert_eq!(apart.len(), 1, "one wall holds neither of its ends");

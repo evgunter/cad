@@ -4215,12 +4215,11 @@ fn every_stale_declaration_arm_projects_the_payload_it_carries() {
         Some("edge_edge")
     );
     assert_eq!(
-        word(StaleDeclaration::CurveLocus {
-            face_a: FaceKey::default(),
-            face_b: FaceKey::default(),
-            witness: Default::default(),
+        word(StaleDeclaration::EdgeFace {
+            edge: Default::default(),
+            face: FaceKey::default(),
         }),
-        Some("curve_locus")
+        Some("edge_face")
     );
     assert_eq!(
         word(StaleDeclaration::Patch {
@@ -5074,7 +5073,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "carrier_ladder",
             "census_at_rest",
             "coaxial_sphere",
-            "import_anchor",
             "plane_ladder",
             "profile_junction",
             "split_on",
@@ -6319,8 +6317,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "stale_declaration_tag",
         values: &[
-            "curve_locus",
             "edge_edge",
+            "edge_face",
             "patch",
             "vertex_on_edge",
             "vertex_on_face",
@@ -6356,7 +6354,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "adoption",
             "assembly",
             "dangling_reference",
-            "declaration_unresolved",
             "instance",
             "invalid_eps_override",
             "join",

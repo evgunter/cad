@@ -292,7 +292,7 @@ class ValidationFinding:
       `"undecided"` neither; `None` on every other finding.
     - `stale_kind` — which contact record the tier-3′ census could
       not confirm (`"vertex_vertex"`, `"vertex_on_face"`,
-      `"vertex_on_edge"`, `"edge_edge"`, `"curve_locus"`, `"patch"`).
+      `"vertex_on_edge"`, `"edge_edge"`, `"edge_face"`, `"patch"`).
       A record a declaration made is withdrawn or re-seated at that
       granularity, and withdrawing another one leaves the refusal
       standing. `"vertex_on_edge"` and `"edge_edge"` are records an op
@@ -590,7 +590,6 @@ class StepImportError(PncadError):
     `dangling_reference`, `wrong_entity_type`, `malformed_record`,
     `unsupported_entity`, `unsupported_unit`, `nothing_to_import`,
     `structure`, `missing_uncertainty`, `invalid_eps_override`,
-    `declaration_unresolved`,
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
@@ -7125,7 +7124,7 @@ class Coincidence:
     `co_ruled`; `site` is `plane_ladder`, `carrier_ladder`,
     `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn`,
     `battery_joint`, `battery_support_axis`, `profile_junction`,
-    `vertex_fusion`, `census_at_rest` or `import_anchor`. A
+    `vertex_fusion` or `census_at_rest`. A
     `profile_junction` row is `tangent` or `cusp` between two carriers
     and `same_oriented` where its two pieces continue one carrier; a
     `tangent_witness` row is `tangent_contact` (the outward sides
@@ -7149,8 +7148,10 @@ class Coincidence:
 class CheckFinding:
     """One finding of one check on one subject: a copy a placement
     defines, attributed as `(root, output_ix)` with `root` the placement,
-    or a node of the document (`node`) — the node that decided an
-    unproven coincidence. Whichever it is not answers `None`.
+    a node of the document (`node`) — the node that decided an unproven
+    coincidence — or two copies the at-rest census found touching with
+    no mate between them (`copies`). Whichever it is not answers
+    `None`.
 
     A REPORT about geometry, not a verdict on the program: holding one
     changes nothing. `subject_body` resolves the attribution back to
@@ -7166,15 +7167,21 @@ class CheckFinding:
     @property
     def root(self) -> NodeId | None:
         """The root whose value carries the subject body; `None` for a
-        finding about a node."""
+        finding about a node or two copies."""
     @property
     def output_ix(self) -> int | None:
         """Which output body of that root; `None` for a finding about a
-        node."""
+        node or two copies."""
     @property
     def node(self) -> NodeId | None:
         """The node the finding is about, root or not; `None` for a
-        finding about a root output."""
+        finding about a root output or two copies."""
+    @property
+    def copies(self) -> tuple[tuple[Var, int], tuple[Var, int]] | None:
+        """The two copies the finding is about, earlier in gather order
+        first, each as its placement's output and its member there (as
+        `InterferenceFinding.a` spells one); `None` for any other
+        subject."""
     @property
     def evidence(self) -> CheckEvidence: ...
     def __eq__(self, other: object) -> bool: ...

@@ -692,7 +692,7 @@ impl Body {
 ///   `"undecided"` neither; `None` on every other finding.
 /// * `stale_kind` — which contact record the census could not confirm
 ///   (`"vertex_vertex"`, `"vertex_on_face"`, `"vertex_on_edge"`,
-///   `"edge_edge"`, `"curve_locus"`, `"patch"`). A record a declaration
+///   `"edge_edge"`, `"edge_face"`, `"patch"`). A record a declaration
 ///   made is withdrawn or re-seated at that granularity; withdrawing
 ///   another one leaves the refusal standing. `"vertex_on_edge"` and
 ///   `"edge_edge"` are records an op wrote, never a declaration: a stale
@@ -2301,9 +2301,7 @@ impl ImportReport {
 /// a check restated here.
 ///
 /// Its options are a literal naming every field, held to
-/// `ImportOptions` by the surface census's options roster — which is
-/// also where `declared_contacts`, the field this door does not take,
-/// carries its reason.
+/// `ImportOptions` by the surface census's options roster.
 #[pyfunction]
 #[pyo3(signature = (text, *, eps_in = None))]
 pub(crate) fn import_step(
@@ -2315,7 +2313,6 @@ pub(crate) fn import_step(
     let defaults = pncad::step_import::ImportOptions::default();
     let options = pncad::step_import::ImportOptions {
         eps_in: eps_in.map(|e| e.0.meters()).or(defaults.eps_in),
-        declared_contacts: defaults.declared_contacts,
         // This door asks for no chart-coherence examination, because
         // `ImportReport` has no field to report one on: asking would
         // measure the body and drop the measurement. Written as the
@@ -2338,10 +2335,13 @@ pub(crate) fn import_step(
             // examination, and `None` means NOT ASKED — which is the
             // one thing an empty report would not say.
             coherence: _,
-            // Empty by construction: the options declare no anchor.
+            contacts,
+            // The rows `contacts` cite: the body carries its records,
+            // and the rows are the import's own decisions, which no
+            // document reads through this door.
             coincidences: _,
         }) => Ok(ImportReport {
-            body: Body::plain(Arc::new(body)),
+            body: Body::declared(Arc::new(body), Arc::new(contacts)),
             enclosure: enclosure.map(MassProperties::from),
             eps_in,
             normalizations: normalizations
@@ -2698,7 +2698,7 @@ impl Coincidence {
     /// Where it was decided: `plane_ladder`, `carrier_ladder`,
     /// `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn`,
     /// `battery_joint`, `battery_support_axis`, `profile_junction`,
-    /// `vertex_fusion`, `census_at_rest` or `import_anchor`.
+    /// `vertex_fusion` or `census_at_rest`.
     #[getter]
     fn site(&self) -> &'static str {
         self.site

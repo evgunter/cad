@@ -20,7 +20,7 @@
 use crate::common;
 use geom_core::{Band, Point3, Tol};
 use topo::{
-    Body, ContactRecords, SolidContainment, SolidKey, ValidationError, VfContact, VoidContainment,
+    Body, ContactRecords, SolidContainment, SolidKey, ValidationError, VoidContainment,
     VoidEvidence, insert_void, point_in_solid_of, validate_pseudomanifold,
 };
 
@@ -218,15 +218,17 @@ fn probe_g_a_post_through_the_container_is_the_reverse_ordering_s_interference()
         if !coords_in(p, &[2.0, 8.0, 0.0, 10.0]) || !(1.9..8.1).contains(&p.x) {
             continue;
         }
-        records.b_on_a.push(topo::Cited::new(
-            VfContact {
-                vertex: v,
-                face: if p.z == 0.0 { bottom } else { top },
-            },
+        let face = if p.z == 0.0 { bottom } else { top };
+        records.extend([topo::Cited::new(
+            topo::Contact::new(&body, topo::Cell::Vertex(v), topo::Cell::Face(face)).unwrap(),
             topo::Cites::decided(0),
-        ));
+        )]);
     }
-    assert_eq!(records.b_on_a.len(), 8, "the post's eight resting corners");
+    assert_eq!(
+        records.vertex_face().count(),
+        8,
+        "the post's eight resting corners"
+    );
 
     // The witness the reverse ordering finds: a cavity corner of the
     // container, strictly inside the post.

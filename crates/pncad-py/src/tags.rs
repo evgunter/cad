@@ -2145,7 +2145,6 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Structure { .. } => "structure",
         StepImportError::MissingUncertainty => "missing_uncertainty",
         StepImportError::InvalidEpsOverride { .. } => "invalid_eps_override",
-        StepImportError::DeclarationUnresolved { .. } => "declaration_unresolved",
         StepImportError::MalformedReal { .. } => "malformed_real",
         StepImportError::Topology { .. } => "topology",
         StepImportError::Assembly { .. } => "assembly",
@@ -3027,7 +3026,6 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::BatterySupportAxis => "battery_support_axis",
         S::VertexFusion => "vertex_fusion",
         S::CensusAtRest => "census_at_rest",
-        S::ImportAnchor => "import_anchor",
         S::ProfileJunction => "profile_junction",
     }
 }
@@ -3319,8 +3317,8 @@ pub fn census_contact_tag(contact: &CensusContact) -> &'static str {
 ///
 /// The word decides which record a caller withdraws or re-seats. A
 /// `vertex_vertex` or `vertex_on_face` record names entities, so the
-/// repair is at those entities; a `curve_locus` record was certified
-/// by a witness EDGE whose locus is gone, and a `patch` record by a
+/// repair is at those entities; an `edge_face` record names an edge
+/// and the face it lies in, and a `patch` record was certified by a
 /// trim overlap in a shared chart. Withdrawing the wrong granularity
 /// leaves the refusal standing, which is what a caller reading only
 /// `stale_contact_declaration` cannot avoid.
@@ -3333,7 +3331,7 @@ pub fn stale_declaration_tag(declaration: &StaleDeclaration) -> &'static str {
         StaleDeclaration::VertexOnFace { .. } => "vertex_on_face",
         StaleDeclaration::VertexOnEdge { .. } => "vertex_on_edge",
         StaleDeclaration::EdgeEdge { .. } => "edge_edge",
-        StaleDeclaration::CurveLocus { .. } => "curve_locus",
+        StaleDeclaration::EdgeFace { .. } => "edge_face",
         StaleDeclaration::Patch { .. } => "patch",
     }
 }

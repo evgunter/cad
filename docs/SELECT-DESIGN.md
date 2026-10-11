@@ -307,7 +307,7 @@ no-fusion rule is structural. C4's verify-at-use backstops lies
 either way (`ContactContradicted`, never silent).
 
 **(d) The refusal menu — two arms, ratified shape.** The boolean's
-`UndeclaredContact { finding }` refusal carries the SAME
+`UnrecordedContact { finding }` refusal carries the SAME
 `FlushFinding` the detector produces (one vocabulary end-to-end),
 and its recourse menu has exactly two arms: **declare the named
 class** (→ (c)) or **move the geometry**. NO absorb arm — the #256
@@ -334,7 +334,7 @@ for that from day one (the `class` field, not a `flush: bool`).
 **(e) Where the vocabulary lives, and what M9-1 changed.** The
 `ContactClass` this section names is the KERNEL's
 (`topo::contact::ContactClass`, M9-1 PR-1): the boolean's own
-`UndeclaredContact` / `ContactContradicted` refusals must carry the
+`UnrecordedContact` / `ContactContradicted` refusals must carry the
 same words the detector produces, and `topo` cannot depend on
 `editor-core`, so the enum is defined lowest and re-exported upward
 through `editor_core::names::flush` → `editor_core` → `pncad::select`

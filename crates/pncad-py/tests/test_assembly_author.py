@@ -47,7 +47,8 @@ mints its declaration on the world copy of that body. `Node.mate` takes
 the node a side is read at, so a mate read at a transform that a
 `placed_union` consumes is authorable: no placement reads that
 transform, so the mate is no statement about the product, and the seat
-it would have declared is an unrecorded contact (asserted below).
+it would have declared is a touch between two copies, which the
+`unproven-coincidence` check reports against them (asserted below).
 `RefusedRef`'s one arm, `ref_ambiguous`, is a side whose body two
 placements copy; it is bound and tagged, and the kernel's own row
 (`intent_s2_f_mates`) reaches it.
@@ -109,6 +110,7 @@ from pncad import (
     Alignment,
     AxisSense,
     CapEnd,
+    CheckId,
     ContactClass,
     Doc,
     DocEdit,
@@ -133,6 +135,7 @@ from pncad import (
     product,
     rad,
     random_document_id,
+    run_checks,
     solve_document,
 )
 
@@ -1120,8 +1123,10 @@ class TestAssemblyRefusals(BenchWorkspace):
         """The shelf is lifted by a transform and the transform is
         read by a `placed_union`; the mate is read AT the transform.
         The solve places it and the product gathers, but no placement
-        reads the transform, so the mate declares nothing and the seat
-        it would have declared reaches the gate undeclared."""
+        reads the transform, so the mate declares nothing: the seat it
+        would have declared is a touch between two copies, which the
+        gather records and the `unproven-coincidence` check reports
+        against those copies, and the gate refuses nothing."""
         doc = Doc("pncad-moved-above")
         post_a = doc.insert(Node.instantiate_part(self.post_ref))
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
@@ -1168,11 +1173,13 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertEqual(solve_document(doc, resolver=self.ws).role(mate), MateRole.Determining)
         ev = evaluate(doc, resolver=self.ws)
         product(doc, ev)
-        with self.assertRaises(pncad.AssemblyError) as caught:
-            assemble(doc, ev)
-        err = caught.exception
-        self.assertEqual(err.variant, "at_rest")
-        self.assertIn("is a contact no record backs", str(err))
+        assemble(doc, ev)
+        seats = [
+            f
+            for f in run_checks(doc, ev).findings
+            if f.check == CheckId.UnprovenCoincidence and f.copies is not None
+        ]
+        self.assertTrue(seats, "the seat is the two copies' finding")
 
     def test_a_mate_head_that_is_not_a_face_refuses_where_the_mate_is_built(self):
         """A mate's declaration is a FACE-PAIR contact, and the kernel

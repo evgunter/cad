@@ -84,18 +84,20 @@ fn the_gather_gates_the_aggregate_once_and_sources_only_on_refusal() {
 
 const ASSEMBLY: &str = include_str!("../src/assembly.rs");
 
-/// **The at-rest census runs once per product, in the gather.** The
-/// gather calls the tier-3′ census once and keeps its findings on the
-/// product (`Product::census`), and the assembly gate reads them and
-/// calls no census of its own. Red if the gate runs the census again,
-/// or the gather runs it twice: an extra pass over one product changes
-/// no verdict, so no behavioural row can see it.
+/// **The at-rest census runs in the gather, and only there.** The
+/// gather hands the tier-3′ census to the recording door once
+/// (`topo::record_at_rest`, whose next pass confirms what it records)
+/// and keeps its findings on the product (`Product::census`); the
+/// assembly gate reads them and calls no census of its own. Red if the
+/// gate runs the census again, or the gather calls it from a second
+/// site: an extra pass over one product changes no verdict, so no
+/// behavioural row can see it.
 #[test]
-fn the_census_runs_once_in_the_gather_and_never_at_the_gate() {
+fn the_census_runs_in_the_gather_and_never_at_the_gate() {
     let census = "T::gate_at_rest_declared(";
     let product = blanked(code_only, "editor-core/src/product.rs", PRODUCT);
     let calls = required_matches(&product, "editor-core/src/product.rs (code view)", census);
-    assert_eq!(calls.len(), 1, "the gather runs the census once");
+    assert_eq!(calls.len(), 1, "the gather calls the census from one site");
     let assembly = blanked(code_only, "editor-core/src/assembly.rs", ASSEMBLY);
     assert!(
         !assembly.contains("gate_at_rest_declared"),

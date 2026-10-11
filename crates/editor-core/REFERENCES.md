@@ -298,7 +298,7 @@ intersection.
   because it cannot touch. The judgement costs up to n(n−1)/2 two-member
   unions, bounded by that pruning; if it becomes a measured performance
   problem, it is raised to Ev, not optimized around the rule.
-- A pair that touches with the contact undeclared refuses `UndeclaredContact`
+- A pair that touches with the contact undeclared refuses `UnrecordedContact`
   exactly as the two-member union's operands do, in every member order.
 - A declared pair that the geometry contradicts refuses as a subtract's
   does.
@@ -387,7 +387,7 @@ cap fed at `p`'s step, `[a, s, half, p]` refuses the split when `half`
 contains one piece, while `[a, s, big, p]` fuses when `big` contains both.
 
 **The refusal names member faces.** A contact is judged between two members,
-so an `UndeclaredContact` finding sites both of its sides at member faces,
+so an `UnrecordedContact` finding sites both of its sides at member faces,
 and the caller declares exactly what the refusal names. No refusal names a
 row the fold minted, such as a `Fragment` (a `Seam` mints edges and vertices,
 never a face). A fold step never meets an undeclared contact: a certified
@@ -397,7 +397,7 @@ it in pieces (above). A fold step that refuses a contact anyway is an emission
 bug, because the fold mints no contact verdict, and a contact refusal from it
 would tell the user to declare a pair the judgement already passed. The
 refusal menu of `docs/SELECT-DESIGN.md` §3d keeps its two arms for every
-`UndeclaredContact`.
+`UnrecordedContact`.
 
 *Built: the node, its naming and `SetMembers`, DOCM-3 (PR 1803); the
 member-space declaration channel, DOCM-7 (PR 2028), sited at the members

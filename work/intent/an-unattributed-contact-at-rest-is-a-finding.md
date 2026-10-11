@@ -2,10 +2,11 @@
 id: an-unattributed-contact-at-rest-is-a-finding
 kind: issue
 title: D10 stage 4 PR J: A5's hard error on an unattributed contact becomes an unproven-coincidence finding; a contact between copies no mate attributes is recorded at the door
-status: open
+status: closed
 priority: P0
 cost: M
 opened: 2026-10-09
+closed: 2026-10-11
 ---
 
 INTENT stage 4, PR J. Spec: `docs/INTENT-STAGE4-SPEC.md` §8b.
@@ -31,3 +32,21 @@ contact" messages), and `props.rs`. A boolean's records are cited, not
 declared, since stage 4 B2. `contacthold/declared-wording` left these
 alone because this PR retires `UndeclaredContact` and reshapes that
 relation; rename them with it.
+
+## Closed
+
+The gather runs the tier-3′ census through the census's recording door
+(`topo::record_at_rest`, `the-census-records-what-it-decides`), each
+copy its own group, and keeps its findings on the product
+(`Product::census`). A touch between two copies that no record backs is
+a `CensusAtRest` row (`AtRestRow { by: AtRestBy::Copies(a, b) }`) and a
+record citing it. The `unproven-coincidence` check reports it against
+the two copies (`FindingSubject::Copies`), and `assemble` reads the
+kept census and refuses nothing for it. A record the census minted
+backs no mate, so `Separation` stays loud about the pair (interim,
+until I). `Attribution::Unattributed` retired: `AtRestFinding::attribution`
+is an `Option`. A5's hard-error sentence is replaced in ASSEMBLY.md.
+The vocabulary rename is `UnrecordedContact`. The recourse these rows
+carry is whatever the coincidence door computes; the assertion
+recourse for an opaque residual is the door lane's
+(`the-symbolic-door-proves-at-one-strength-at-rest`).

@@ -384,8 +384,7 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
             "a blend's two supports read as sharing the axis its band is minted on"
         }
         topo::DecisionSite::VertexFusion => "a vertex its margin read on another operand's cell",
-        topo::DecisionSite::CensusAtRest => "two placed faces the at-rest census read as one",
-        topo::DecisionSite::ImportAnchor => "two imported vertices an anchor read as one",
+        topo::DecisionSite::CensusAtRest => "two cells at rest the census read as one",
         topo::DecisionSite::ProfileJunction => "a profile junction no constructor made",
     }
 }

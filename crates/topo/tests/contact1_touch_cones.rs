@@ -21,7 +21,7 @@ use crate::common;
 use geom_core::{Band, Point3, Tol};
 use topo::{
     Body, CensusContact, ContactRecords, EntityId, SolidContainment, SolidKey, ValidationError,
-    VvContact, point_in_solid_of, validate_pseudomanifold,
+    point_in_solid_of, validate_pseudomanifold,
 };
 
 /// The L profile: counterclockwise from `+z`, reflex at (1, 1).
@@ -265,13 +265,8 @@ fn a_tilted_block_touching_a_corner_clears_declared_or_not() {
             _ => None,
         })
         .unwrap();
-    let records = ContactRecords {
-        vv: vec![topo::Cited::new(
-            VvContact { a, b },
-            topo::Cites::decided(0),
-        )],
-        ..ContactRecords::default()
-    };
+    let records =
+        topo::test_support::records(&body, [(topo::Cell::Vertex(a), topo::Cell::Vertex(b))]);
     assert_eq!(
         validate_pseudomanifold(&body, &records, Tol::witness()),
         Ok(())

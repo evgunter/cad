@@ -1650,7 +1650,23 @@ fn declared_pairs<T: Decide>(
     // the honest reading is that a broken declaration makes this
     // resident LOUDER about the pair it named, never quieter. The
     // unresolvable-ENTITY direction is `note`'s doing below.
-    let contacts = &gathered.contacts;
+    //
+    // A record the census minted between two copies no mate relates
+    // suppresses nothing: it backs a contact the `unproven-coincidence`
+    // check reports, and quieting the separation finding beside it would
+    // let a touch nobody stated read as clean twice over. A record
+    // counts here only where it cites a row a mate's pair decided. One
+    // that rode up from a source relates two solids of that one copy,
+    // a pair this resident never examines.
+    let mated = |cites: &topo::Cites| {
+        cites.iter().any(|backing| match backing {
+            topo::Backing::Decided(k) => gathered
+                .coincidences
+                .get(k as usize)
+                .is_some_and(|row| matches!(row.by, crate::assembly::AtRestBy::Mate(_))),
+            topo::Backing::Carried { .. } => false,
+        })
+    };
     let owner = topo::SolidOwners::of(&gathered.body);
     let mut out = std::collections::BTreeSet::new();
     let mut note = |a: Option<topo::SolidKey>, b: Option<topo::SolidKey>| {
@@ -1670,8 +1686,11 @@ fn declared_pairs<T: Decide>(
             .and_then(|h| owner.vertex(h.start)),
         topo::Cell::Face(f) => owner.face(f),
     };
-    for (a, b) in contacts.cell_pairs() {
-        note(solid(a), solid(b));
+    for record in gathered.contacts.rows() {
+        if mated(&record.cites) {
+            let [a, b] = record.cells();
+            note(solid(a), solid(b));
+        }
     }
     out
 }

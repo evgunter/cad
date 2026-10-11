@@ -493,8 +493,8 @@ impl CheckEvidence {
     /// Where that coincidence was decided, on `unproven_coincidence`
     /// alone: `plane_ladder`, `carrier_ladder`, `tangent_witness`,
     /// `coaxial_sphere`, `split_on`, `battery_turn`, `battery_joint`,
-    /// `battery_support_axis`, `profile_junction`, `vertex_fusion`,
-    /// `census_at_rest` or `import_anchor`.
+    /// `battery_support_axis`, `profile_junction`, `vertex_fusion` or
+    /// `census_at_rest`.
     #[getter]
     fn site(&self) -> Option<&'static str> {
         self.payload().site
@@ -577,7 +577,7 @@ impl CheckFinding {
     }
 
     /// The root whose value carries the subject body; `None` for a
-    /// finding about a node.
+    /// finding about a node or two copies.
     #[getter]
     fn root(&self) -> Option<NodeId> {
         match self.finding.subject {
@@ -587,7 +587,7 @@ impl CheckFinding {
     }
 
     /// Which output body of that root — 0 for a single-body root;
-    /// `None` for a finding about a node.
+    /// `None` for a finding about a node or two copies.
     #[getter]
     fn output_ix(&self) -> Option<u32> {
         match self.finding.subject {

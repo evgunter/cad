@@ -22,7 +22,7 @@ use crate::common;
 use geom_core::{Band, Point3, Tol};
 use topo::{
     Body, CensusContact, ContactRecords, EntityId, FaceKey, SolidContainment, SolidKey,
-    ValidationError, VfContact, VoidContainment, VoidEvidence, insert_void, point_in_solid_of,
+    ValidationError, VoidContainment, VoidEvidence, insert_void, point_in_solid_of,
     validate_pseudomanifold,
 };
 
@@ -81,16 +81,13 @@ fn lbracket(declared: bool, dx: f64) -> (Body<f64>, ContactRecords) {
         for v in vertices_where(&body, |p| {
             (p.x - (1.0 + dx)).abs() < 1e-12 && (1.1..2.1).contains(&p.y)
         }) {
-            records.b_on_a.push(topo::Cited::new(
-                VfContact {
-                    vertex: v,
-                    face: wall,
-                },
+            records.extend([topo::Cited::new(
+                topo::Contact::new(&body, topo::Cell::Vertex(v), topo::Cell::Face(wall)).unwrap(),
                 topo::Cites::decided(0),
-            ));
+            )]);
         }
         assert_eq!(
-            records.b_on_a.len(),
+            records.vertex_face().count(),
             4,
             "the fixture's four resting corners"
         );
@@ -132,15 +129,12 @@ fn embedded() -> (Body<f64>, ContactRecords) {
     for v in vertices_where(&body, |p| {
         p.z.abs() < 1e-12 && (0.9..2.1).contains(&p.x) && (0.9..2.1).contains(&p.y)
     }) {
-        records.b_on_a.push(topo::Cited::new(
-            VfContact {
-                vertex: v,
-                face: big_bottom,
-            },
+        records.extend([topo::Cited::new(
+            topo::Contact::new(&body, topo::Cell::Vertex(v), topo::Cell::Face(big_bottom)).unwrap(),
             topo::Cites::decided(0),
-        ));
+        )]);
     }
-    assert_eq!(records.b_on_a.len(), 4);
+    assert_eq!(records.vertex_face().count(), 4);
     (body, records)
 }
 
@@ -496,16 +490,14 @@ fn split_straddle() -> (Body<f64>, ContactRecords) {
             ..
         } = e
         {
-            records.b_on_a.push(topo::Cited::new(
-                VfContact {
-                    vertex: *vertex,
-                    face: *face,
-                },
+            records.extend([topo::Cited::new(
+                topo::Contact::new(&body, topo::Cell::Vertex(*vertex), topo::Cell::Face(*face))
+                    .unwrap(),
                 topo::Cites::decided(0),
-            ));
+            )]);
         }
     }
-    assert_eq!(records.b_on_a.len(), 8, "{errors:?}");
+    assert_eq!(records.vertex_face().count(), 8, "{errors:?}");
     (body, records)
 }
 

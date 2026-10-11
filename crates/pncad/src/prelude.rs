@@ -587,33 +587,11 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // situation this curation rung exists to close: a fact
 // readable only out of a message is not matchable.
 //
-// **`ImportContact` is a different defect and is carried for a
-// different reason: it is an INPUT, not a payload.**
-// `ImportOptions::declared_contacts` is a `pub Vec<ImportContact>` —
-// the import-side declaration channel (M9-2, D7 step 4), the position
-// anchored declarations a caller attaches to an import so they are
-// certified by the SAME tier-3′ gate a native body's contact records
-// run. `ImportOptions` was on this list and `ImportContact` was not,
-// which is not a matchability gap but a REACH one: a prelude caller
-// could name the options struct, could set `eps_in`, and could not
-// put a declaration in it, because filling a public field means
-// spelling its element type. Every other door on this list is
-// callable from it; this one was callable and not fillable, so the
-// declaration channel had no prelude caller at all.
-//
-// The rung under both closes here rather than stopping.
-// `PromotedKind`'s arms carry nothing, and an `ImportContact` is one
-// arm carrying three `f64` — the anchor position — so a caller states
-// a declaration in numbers it already holds.
-//
 // The Python halves differ, and the difference follows the carrier
 // each time. `StepImportError` projects a tag, so `PromotedKind`
 // projects its own beside it (`StepImportError.promoted_kind`);
 // `ImportOptions` crosses FIELD BY FIELD rather than as a type —
-// Python's `import_step` takes `eps_in=`, and the declaration channel
-// is the field it withholds, because a list keyword whose elements a
-// caller cannot build is a door onto nothing — so `ImportContact`
-// has nothing to project until it gains a value class of its own.
+// Python's `import_step` takes `eps_in=`.
 // **The SUCCESS half crosses under the same clause, and it is the
 // reach one.** `import_step` answers
 // `Result<StepImport, StepImportError>`. The refusal above is
@@ -626,8 +604,8 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 //
 // So `StepImport` joins the list with the record vocabulary its
 // `Solid` arm names, because the arm's fields are the answer and each
-// is a `pub` field of a curated type — the `ImportContact` reasoning
-// one paragraph up, applied to the other side of the call. The
+// is a `pub` field of a curated type: a door's answer is spellable
+// from the list that carries the door. The
 // records are what the adoption CHANGED about the file, and the
 // types' own documentation says twice that a caller reads them:
 // `SurfacePromotion` is "reported, never silent", and the assembly
@@ -695,7 +673,7 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // no examination, and `pncad-py`'s surface census carries that as a
 // `NotBound` row with its reason.
 pub use step_import::{
-    CurvePromotion, FaceCensus, ImportContact, ImportOptions, NormalizationKind, PlacedInstance,
+    CurvePromotion, FaceCensus, ImportOptions, NormalizationKind, PlacedInstance,
     PromotedCurveKind, PromotedKind, StepImport, StepImportError, StructureNormalization,
     import_step,
 };

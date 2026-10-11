@@ -1727,11 +1727,7 @@ FAMILIES: dict[str, str] = {
 #:   producer text rather than re-spelling either.
 #:
 #:   `ImportOptions` is `import_step`'s `eps_in=` — the reading end of
-#:   the ε `step_string` writes as `uncertainty=`. Its second field,
-#:   `declared_contacts`, is the roster's one written refusal here:
-#:   binding it means minting a Python spelling for `ImportContact`,
-#:   which is its own surface work, and the census's decay half is
-#:   what stops that reason outliving the fact.
+#:   the ε `step_string` writes as `uncertainty=`.
 #:
 #:   `EvalOptions` is `evaluate`'s `resolver=`, the one field of it
 #:   that changes an ANSWER, bound at LIB-G18a — which is also when
@@ -2510,24 +2506,6 @@ NOT_BOUND = {
     # analysis box, which has no Python door to come apart behind.
     "FramePlacement": SHAPE,
     "ImportOptions": SHAPE,
-    # The element type of `ImportOptions::declared_contacts`, curated
-    # at the prelude because filling a public field means spelling its
-    # element type and a Rust caller could not: the import-side
-    # declaration channel was callable and not FILLABLE. That defect
-    # is a Rust one and it does not reproduce here, which is why this
-    # entry is `different-shape` rather than a gap.
-    #
-    # Its carrier IS bound now — `ImportOptions` crosses as
-    # `import_step`'s `eps_in=` — and this row is the one field that
-    # did not come with it: a list keyword whose elements a caller
-    # cannot build would be a door onto nothing, so the surface census
-    # records the refusal to bind it, with the reason, and decays that
-    # reason against the door's own keywords. Binding it is what makes
-    # this entry stop being honest, in exactly the shape the
-    # `EvalOutcome` entry above records: at that moment
-    # `ImportContact` needs a Python spelling of its own, a
-    # constructor for the position anchor.
-    "ImportContact": SHAPE,
     "InterrogateError": SHAPE,
     "LineTarget": SHAPE,
     # `continue_to`'s target trait, absorbed into the verb exactly as
@@ -4003,7 +3981,6 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Structure": "StepImportError.variant",
     "StepImportError::MissingUncertainty": "StepImportError.variant",
     "StepImportError::InvalidEpsOverride": "StepImportError.variant",
-    "StepImportError::DeclarationUnresolved": "StepImportError.variant",
     "StepImportError::MalformedReal": "StepImportError.variant",
     "StepImportError::Topology": "StepImportError.variant",
     "StepImportError::Assembly": "StepImportError.variant",

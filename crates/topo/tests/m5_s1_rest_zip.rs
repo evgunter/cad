@@ -94,7 +94,7 @@ fn assert_glued<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(g: 
         Ok(())
     );
     assert!(
-        g.contacts.vv.is_empty() && g.contacts.a_on_b.is_empty() && g.contacts.b_on_a.is_empty(),
+        g.contacts.vertex_vertex().next().is_none() && g.contacts.vertex_face().next().is_none(),
         "REST records are consumed into seam structure: {:?}",
         g.contacts
     );

@@ -160,19 +160,17 @@ fn the_straddle_declared_as_far_as_the_vocabulary_reaches() {
             ..
         } = e
         {
-            records.b_on_a.push(topo::Cited::new(
-                VfContact {
-                    vertex: *vertex,
-                    face: *face,
-                },
+            records.extend([topo::Cited::new(
+                topo::Contact::new(&body, topo::Cell::Vertex(*vertex), topo::Cell::Face(*face))
+                    .unwrap(),
                 topo::Cites::decided(0),
-            ));
+            )]);
         }
     }
     let residue = validate_pseudomanifold(&body, &records, Tol::witness());
     println!(
         "straddle declared ({} v-on-f records): {residue:?}",
-        records.b_on_a.len()
+        records.vertex_face().count()
     );
     let kinds: Vec<String> = match &residue {
         Ok(()) => vec![],
@@ -451,13 +449,12 @@ fn a_vertex_touching_straddler_is_decided_by_its_inside_corner() {
         1,
         "{errors:?}"
     );
-    let records = ContactRecords {
-        b_on_a: touches
+    let records = topo::test_support::records(
+        &body,
+        touches
             .into_iter()
-            .map(|c| topo::Cited::new(c, topo::Cites::decided(0)))
-            .collect(),
-        ..Default::default()
-    };
+            .map(|c| (topo::Cell::Vertex(c.vertex), topo::Cell::Face(c.face))),
+    );
     let declared = validate_pseudomanifold(&body, &records, tol).unwrap_err();
     assert_eq!(declared.len(), 1, "{declared:?}");
     assert!(inside_corner(&declared[0]), "{declared:?}");

@@ -606,53 +606,45 @@ fn r1_in_band_dihedral_wedge_never_ships_silently() {
     }
 }
 
-/// **The R1 finding, RETIRED AS PINNED (M9-2)**: the finding recorded
-/// that the shipped tier-3 gate passed the touching kiss the 3′(∅)
-/// form would refuse — the substantive residue of the #260 one-gate
-/// ruling. The shared gate is now the 3′ form over the import-side
-/// declaration channel (D7 step 4), so the residue is GONE in exactly
-/// the pinned direction: the kiss refuses UNDECLARED at import — the
-/// old pin's inversion, exact — and certifies WITH the declared
-/// corner, through the same `validate_pseudomanifold` a native
-/// declared-contact body runs.
+/// **The kiss certifies, its touch recorded** (D7 step 4, D1 (iii)):
+/// the shared gate is the 3′ form, and the corner where the file's two
+/// instances meet is a contact between two groups, so the gate records
+/// it rather than refusing it — a vertex–vertex record on the shipped
+/// body, citing the census's row for that Zero — and confirms the
+/// record on its next pass, through the same `validate_pseudomanifold`
+/// a native body runs. Red if the kiss refuses, ships no record, or
+/// ships a record citing no row.
 #[test]
-fn r1_finding_retired_kiss_refuses_undeclared_and_certifies_declared() {
+fn r1_the_kiss_certifies_with_its_touch_recorded() {
     let text = fixture("../step-export/tests/fixtures/kiss_assembly.step");
-    // WITHOUT: the undeclared corner kiss is the census's finding.
-    let err = import_step(&text, &ImportOptions::default(), Tol::witness())
-        .expect_err("the undeclared kiss refuses at the shared 3′ gate");
-    let StepImportError::TierInvalid { errors, .. } = &err else {
-        panic!("expected the gate's refusal, got {err:?}");
-    };
-    assert!(
-        errors
-            .iter()
-            .any(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
-        "the refusal is exactly the undeclared kiss: {errors:?}"
-    );
-    // WITH: the declared corner certifies — same file, same gate.
-    let options = ImportOptions {
-        declared_contacts: vec![step_import::ImportContact::VertexRest {
-            at: [1.0, 1.0, 1.0],
-        }],
-        ..ImportOptions::default()
-    };
-    let StepImport::Solid { body, .. } = import_step(&text, &options, Tol::witness()).unwrap()
+    let StepImport::Solid {
+        body,
+        contacts,
+        coincidences,
+        ..
+    } = import_step(&text, &ImportOptions::default(), Tol::witness()).expect("the kiss imports")
     else {
-        panic!("the declared kiss imports as a solid");
+        panic!("the kiss imports as a solid");
     };
     assert_eq!(body.solids().count(), 2, "both kissing solids ship");
-    // A wrong anchor is a typed refusal, never a silent drop.
-    let bad = ImportOptions {
-        declared_contacts: vec![step_import::ImportContact::VertexRest {
-            at: [9.0, 9.0, 9.0],
-        }],
-        ..ImportOptions::default()
-    };
-    match import_step(&text, &bad, Tol::witness()) {
-        Err(StepImportError::DeclarationUnresolved { found: 0, .. }) => {}
-        other => panic!("an unresolvable anchor must refuse typed, got {other:?}"),
-    }
+    assert!(
+        !coincidences.is_empty()
+            && coincidences
+                .iter()
+                .all(|row| row.site == topo::DecisionSite::CensusAtRest),
+        "each touch is the census's row: {coincidences:?}"
+    );
+    assert!(
+        contacts.vertex_vertex().count() >= 1,
+        "the corner is a vertex–vertex record: {contacts:?}"
+    );
+    let rows = u32::try_from(coincidences.len()).expect("few rows");
+    assert!(
+        contacts.decided().iter().all(|&k| k < rows),
+        "every record cites a row the import ships"
+    );
+    topo::validate_pseudomanifold(&body, &contacts, Tol::witness())
+        .expect("the shipped records confirm at rest");
 }
 
 /// D9 determinism: importing the same file twice yields byte-identical

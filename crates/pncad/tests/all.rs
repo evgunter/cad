@@ -476,15 +476,10 @@ fn stale_declaration_and_ring_contact_are_matchable(
             named::<EdgeKey>(b);
             "edge_edge"
         }
-        StaleDeclaration::CurveLocus {
-            face_a,
-            face_b,
-            witness,
-        } => {
-            named::<FaceKey>(face_a);
-            named::<FaceKey>(face_b);
-            named::<EdgeKey>(witness);
-            "curve_locus"
+        StaleDeclaration::EdgeFace { edge, face } => {
+            named::<EdgeKey>(edge);
+            named::<FaceKey>(face);
+            "edge_face"
         }
         StaleDeclaration::Patch { .. } => "patch",
     };
@@ -1271,19 +1266,11 @@ fn revolved_kind_is_matchable(kind: &RevolvedKind) -> &'static str {
 /// **The import surface, on both sides of the call** — the refusal a
 /// caller matches, and the options a caller fills.
 ///
-/// The two halves are two different curation defects and this pins
-/// each. `PromotedKind` is `RecognitionAmbiguous`'s discriminant: the
-/// arm was matchable and the kind whose estimator declined was
-/// readable only out of the message prose. `ImportContact` is the
-/// element type of a `pub` field on the options struct, so the
-/// declaration channel was callable and not FILLABLE — the value
-/// below could not be written from this list at all.
-///
-/// What the `import_step` call pins is exactly that: the door accepts
-/// options a prelude caller filled. Whether an anchor RESOLVES is
-/// `step-import`'s own suite, on a file with vertices to resolve
-/// against; here the text is not a STEP file and the refusal is the
-/// parser's.
+/// `PromotedKind` is `RecognitionAmbiguous`'s discriminant: the arm
+/// was matchable and the kind whose estimator declined was readable
+/// only out of the message prose. What the `import_step` call pins is
+/// that the door accepts options a prelude caller filled; the text is
+/// not a STEP file and the refusal is the parser's.
 #[test]
 fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
     assert_eq!(
@@ -1311,9 +1298,6 @@ fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
 
     let options = ImportOptions {
         eps_in: Some(1e-7),
-        declared_contacts: vec![ImportContact::VertexRest {
-            at: [0.0, 0.0, 0.5],
-        }],
         examine_chart_coherence: true,
     };
     assert!(matches!(
@@ -1375,6 +1359,7 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         curve_promotions,
         instances,
         coherence,
+        contacts,
         coincidences,
     } = imported
     else {
@@ -1395,12 +1380,13 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     // empty report; `topo`'s own door draws the same line about the
     // two lists inside a report it did produce.
     named::<Option<CoherenceReport>>(coherence.clone());
-    // The anchors' decisions: none, since the default import declares
-    // no anchor.
+    // The touches between instances the gate recorded, and the rows
+    // they cite: none, since one box touches nothing.
+    named::<ContactRecords>(contacts.clone());
     named::<Vec<pncad::document::coincidence::Coincidence>>(coincidences.clone());
     assert!(
-        coincidences.is_empty(),
-        "the default import declares no anchor"
+        contacts.is_empty() && coincidences.is_empty(),
+        "one box records no contact"
     );
     assert!(
         coherence.is_none(),

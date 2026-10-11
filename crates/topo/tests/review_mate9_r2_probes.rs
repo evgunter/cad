@@ -45,7 +45,7 @@ use crate::common;
 
 use geom::Surface;
 use geom_core::{Band, Point3, Tol, Vec3};
-use topo::{Body, CensusContact, ContactRecords, FaceKey, PatchContact, ValidationError};
+use topo::{Body, CensusContact, ContactRecords, FaceKey, ValidationError};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -82,18 +82,13 @@ fn straddle_parts() -> (Body<f64>, FaceKey, FaceKey, FaceKey, FaceKey) {
     )
 }
 
-fn declared(pairs: &[(FaceKey, FaceKey)]) -> ContactRecords {
-    ContactRecords {
-        patches: pairs
+fn declared(body: &Body<f64>, pairs: &[(FaceKey, FaceKey)]) -> ContactRecords {
+    topo::test_support::records(
+        body,
+        pairs
             .iter()
-            .map(|&(a, b)| PatchContact {
-                face_a: a,
-                face_b: b,
-            })
-            .map(|c| topo::Cited::new(c, topo::Cites::decided(0)))
-            .collect(),
-        ..ContactRecords::default()
-    }
+            .map(|&(a, b)| (topo::Cell::Face(a), topo::Cell::Face(b))),
+    )
 }
 
 fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
@@ -214,7 +209,10 @@ fn r2_the_undecided_arm_is_a_precondition_violation_not_an_epsilon_residue() {
 fn r2_the_side_question_is_order_free_and_never_duplicated() {
     let (body, post_top, post_side_x030, shelf_bottom, shelf_side_y030) = straddle_parts();
 
-    let perp_only = errors(&body, &declared(&[(post_side_x030, shelf_side_y030)]));
+    let perp_only = errors(
+        &body,
+        &declared(&body, &[(post_side_x030, shelf_side_y030)]),
+    );
     let escalations = perp_only
         .iter()
         .filter(|e| matches!(e, ValidationError::CensusEscalated { .. }))
@@ -231,7 +229,7 @@ fn r2_the_side_question_is_order_free_and_never_duplicated() {
     );
 
     // The seat certifies alone through the resting pair.
-    let clean = errors(&body, &declared(&[(post_top, shelf_bottom)]));
+    let clean = errors(&body, &declared(&body, &[(post_top, shelf_bottom)]));
     assert!(clean.is_empty(), "the seat certifies alone: {clean:?}");
 
     // Both declarations together, in BOTH record orders: identical
@@ -240,11 +238,17 @@ fn r2_the_side_question_is_order_free_and_never_duplicated() {
     // refusal, and nothing depends on which pair sorts first.
     let ab = errors(
         &body,
-        &declared(&[(post_top, shelf_bottom), (post_side_x030, shelf_side_y030)]),
+        &declared(
+            &body,
+            &[(post_top, shelf_bottom), (post_side_x030, shelf_side_y030)],
+        ),
     );
     let ba = errors(
         &body,
-        &declared(&[(post_side_x030, shelf_side_y030), (post_top, shelf_bottom)]),
+        &declared(
+            &body,
+            &[(post_side_x030, shelf_side_y030), (post_top, shelf_bottom)],
+        ),
     );
     assert_eq!(
         format!("{ab:?}"),
@@ -319,7 +323,7 @@ fn r2_an_unverified_opposed_pair_backs_no_crossing() {
     // The far post genuinely rests under the shelf, so declaring it is
     // honest; what it must NOT do is answer for the OTHER post's
     // crossings.
-    let with = crossings(&errors(&body, &declared(&[(far_top, shelf_b)])));
+    let with = crossings(&errors(&body, &declared(&body, &[(far_top, shelf_b)])));
     assert_eq!(
         format!("{bare:?}"),
         format!("{with:?}"),

@@ -83,8 +83,14 @@ mod boolean_discards;
 mod boolean_pinch_copies;
 #[path = "box_with_hole.rs"]
 mod box_with_hole;
+#[path = "carried_citations_past_index_zero.rs"]
+mod carried_citations_past_index_zero;
+#[path = "cell_pair_records.rs"]
+mod cell_pair_records;
 #[path = "census_g2_carrier.rs"]
 mod census_g2_carrier;
+#[path = "census_records_what_it_decides.rs"]
+mod census_records_what_it_decides;
 #[path = "cone_apex_cap_body.rs"]
 mod cone_apex_cap_body;
 #[path = "cone_apex_sector_joints.rs"]

@@ -278,16 +278,16 @@ fn row1_a_parts_declared_contacts_survive_instantiation() {
     let part_ev = run(&part, &EvalOptions::default());
     let part_product = product_recorded(&part, &part_ev, Tol::witness()).expect("the part gathers");
     assert_eq!(
-        part_product.contacts.vv.len(),
+        part_product.contacts.vertex_vertex().count(),
         1,
         "the kiss union records one v-v contact: {:?}",
         part_product.contacts
     );
     let part_pair = {
-        let c = part_product.contacts.vv[0].record;
+        let (a, b) = part_product.contacts.vertex_vertex().next().unwrap();
         (
-            names_of(&part_product.names, EntityKey::Vertex(c.a)),
-            names_of(&part_product.names, EntityKey::Vertex(c.b)),
+            names_of(&part_product.names, EntityKey::Vertex(a)),
+            names_of(&part_product.names, EntityKey::Vertex(b)),
         )
     };
 
@@ -301,15 +301,15 @@ fn row1_a_parts_declared_contacts_survive_instantiation() {
     let product = product_recorded(&doc, &ev, Tol::witness()).expect("the assembly gathers");
 
     assert_eq!(
-        product.contacts.vv.len(),
+        product.contacts.vertex_vertex().count(),
         1,
         "the record crossed the seam, exactly once: {:?}",
         product.contacts
     );
-    let c = product.contacts.vv[0].record;
+    let (a, b) = product.contacts.vertex_vertex().next().unwrap();
     let moved = (
-        names_of(&product.names, EntityKey::Vertex(c.a)).map(|n| unwrap_in_part(&n)),
-        names_of(&product.names, EntityKey::Vertex(c.b)).map(|n| unwrap_in_part(&n)),
+        names_of(&product.names, EntityKey::Vertex(a)).map(|n| unwrap_in_part(&n)),
+        names_of(&product.names, EntityKey::Vertex(b)).map(|n| unwrap_in_part(&n)),
     );
     assert_eq!(
         moved, part_pair,
@@ -326,8 +326,8 @@ fn row1_a_parts_declared_contacts_survive_instantiation() {
 /// type, no adapter (A3).
 ///
 /// Asserted POSITIVELY, on the record set itself: the uncertified arm
-/// hands back what the gate was given, so the `PatchContact` claim is
-/// pinned by the type of the thing in `patches`, not inferred from a
+/// hands back what the gate was given, so the face–face claim is
+/// pinned by the kind of the record itself, not inferred from a
 /// refusal's shape.
 #[test]
 fn row2_a_solved_rest_mate_mints_its_declaration() {
@@ -338,7 +338,7 @@ fn row2_a_solved_rest_mate_mints_its_declaration() {
     // into the evaluated body's contact record set), so the record is
     // already in the product the assembly door is handed.
     let product = product_recorded(&doc, &ev, Tol::witness()).expect("gathers");
-    assert_eq!(product.contacts.patches.len(), 1);
+    assert_eq!(product.contacts.face_face().count(), 1);
     assert_eq!(
         product.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),
         vec![mate]
@@ -347,14 +347,14 @@ fn row2_a_solved_rest_mate_mints_its_declaration() {
     let result = assemble(&doc, &ev, Tol::witness());
     let (contacts, residue) = gate_records(&result);
 
-    // The record: one, a `PatchContact`, keyed to the faces the
+    // The record: one, a face–face pair, keyed to the faces the
     // references resolved to.
     assert_eq!(
-        contacts.patches.len(),
+        contacts.face_face().count(),
         1,
         "one mate, one minted record: {contacts:?}"
     );
-    let record: topo::PatchContact = contacts.patches[0].record;
+    let record = contacts.face_face().next().unwrap();
 
     // RE-BLESSED at #1063: this pair CERTIFIES now, so the minting is
     // read off the gate's own `minted` row rather than out of a
@@ -379,9 +379,10 @@ fn row2_a_solved_rest_mate_mints_its_declaration() {
         ),
         "and both of its references"
     );
+    let (fa, fb) = declared.faces;
     assert_eq!(
-        (record.face_a, record.face_b),
-        declared.faces,
+        record,
+        (fa.min(fb), fa.max(fb)),
         "the record is keyed to the faces the references resolved to"
     );
 }
@@ -492,11 +493,12 @@ fn row2_b_a_declaring_mate_mints_identically() {
 
 // ---- Row 3: the F1 pair, both directions ----
 
-/// INVARIANT (the scan-to-bless ban, unmated direction): two instances
-/// that touch with no mate between them are no record, and no refusal
-/// either (D1 (iii), D10): the gate assembles, and the product carries
-/// the contact as rows of the two copies, which the
-/// `unproven-coincidence` check reads.
+/// INVARIANT (the unmated direction, D1 (iii), D10): two instances that
+/// touch with no mate between them are no refusal. The gather records
+/// each touch as a row of the two copies and a record citing it, which
+/// the census's next pass confirms; the gate assembles, and the
+/// `unproven-coincidence` check reads the rows. Red if a record cites
+/// anything but a row of the two copies, or if the pair refuses.
 #[test]
 fn row3_a_an_unmated_touching_pair_is_rows_of_the_two_copies() {
     // The same touching geometry, with the mate DELETED after the
@@ -511,9 +513,19 @@ fn row3_a_an_unmated_touching_pair_is_rows_of_the_two_copies() {
     let product =
         editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("the pair gathers");
     assert!(
-        product.contacts.patches.is_empty() && !product.coincidences.is_empty(),
-        "no record, and the contact is rows: {:?} (instances {ids:?})",
+        !product.coincidences.is_empty()
+            && product
+                .coincidences
+                .iter()
+                .all(|r| matches!(r.by, editor_core::AtRestBy::Copies(..))),
+        "the contact is rows of the two copies: {:?} (instances {ids:?})",
         product.coincidences
+    );
+    let rows = u32::try_from(product.coincidences.len()).expect("few rows");
+    assert!(
+        !product.contacts.is_empty() && product.contacts.decided().iter().all(|&k| k < rows),
+        "each record cites one of those rows: {:?}",
+        product.contacts
     );
     assemble(&doc, &ev, Tol::witness()).expect("an unmated touching pair assembles");
 }
@@ -558,7 +570,7 @@ fn row3_b_the_declared_touching_pair_is_not_an_unrecorded_contact() {
         .as_ref()
         .expect("the declared touching pair certifies");
     assert_eq!(
-        contacts.patches.len(),
+        contacts.face_face().count(),
         1,
         "and the certification is OF the minted record: {contacts:?}"
     );
@@ -1807,7 +1819,7 @@ fn a_flush_seat_certifies_at_the_gate() {
     let result = assemble(&doc, &ev, Tol::witness());
     let (contacts, residue) = gate_records(&result);
     assert_eq!(
-        contacts.patches.len(),
+        contacts.face_face().count(),
         1,
         "the seat is declared once, at face granularity"
     );
@@ -1835,8 +1847,10 @@ fn a_flush_seat_certifies_at_the_gate() {
 /// flush seat with its mate removed assembles, the gather records each
 /// contact the census finds between the two instances as a row of the
 /// product, and the `unproven-coincidence` check reports every one,
-/// against the two copies. Red if the seat refuses, if a contact
-/// reaches the product with no row, or if the check proves one.
+/// against the two copies; the records citing those rows quiet no
+/// `Separation` finding, since no mate stated the touch. Red if the
+/// seat refuses, if a contact reaches the product with no row, if the
+/// check proves one, or if a census-minted record quiets Separation.
 #[test]
 fn the_same_flush_seat_unmated_is_a_finding_not_a_refusal() {
     let (doc, mate, store) = flush_seat("asm-r2b-flush-bare");
@@ -1882,6 +1896,16 @@ fn the_same_flush_seat_unmated_is_a_finding_not_a_refusal() {
         })
         .count();
     assert_eq!(reported, rows, "each row is reported: {report}");
+    // The records the census minted for those rows back no mate, so
+    // they quiet no separation finding: the two copies still touch
+    // where nobody said they would.
+    assert!(
+        report
+            .findings
+            .iter()
+            .any(|f| f.check == editor_core::CheckId::Separation),
+        "a census-minted record does not quiet Separation: {report}"
+    );
 }
 
 /// **The refusal's rendering composes through the finding sink**: each
@@ -2109,8 +2133,10 @@ fn twinned_part(label: &str) -> ProfileDoc {
 /// The fixture is an instantiated part whose own product has two
 /// co-located copies, so the instance's one placement is a single
 /// `(placement, output)` subject carrying two COINCIDENT solids. Nothing else can suppress:
-/// a gather discovers no contacts (F1 — no scan-to-bless), so the
-/// declared set is empty, which the row asserts rather than assumes.
+/// the only records are the part's own, carried up from its gather (the
+/// touches between its two copies, which its census recorded), and a
+/// carried record suppresses no separation finding, so no mate's record
+/// is here — which the row asserts rather than assumes.
 #[test]
 fn two_solids_of_one_subject_are_skipped_by_the_guard_not_by_geometry() {
     let mut store = PartStore::default();
@@ -2145,16 +2171,16 @@ fn two_solids_of_one_subject_are_skipped_by_the_guard_not_by_geometry() {
          passes, this row stops proving anything about the guard"
     );
 
-    // And nothing is DECLARED between them either, so the suppression
-    // under test is the subject check and only the subject check.
+    // And no mate's record relates them either: every record rode up
+    // from the part, so the suppression under test is the subject check
+    // and only the subject check.
     let contacts = &product.contacts;
     assert!(
-        contacts.vv.is_empty()
-            && contacts.a_on_b.is_empty()
-            && contacts.b_on_a.is_empty()
-            && contacts.curves.is_empty()
-            && contacts.patches.is_empty(),
-        "the gather discovers no contacts (F1), so nothing here is declared: {contacts:?}"
+        contacts.rows().iter().all(|record| record
+            .cites
+            .iter()
+            .all(|backing| matches!(backing, topo::Backing::Carried { .. }))),
+        "every record is the part's, carried: {contacts:?}"
     );
 
     // Therefore: silent, and the guard is the only reason.
