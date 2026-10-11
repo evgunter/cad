@@ -926,3 +926,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **U-T1 (4614)**: the lane is idle, and its only red is that main row. Frozen `28e49bde7`. A HOLDOUT pair, r4614a and r4614b, runs from one brief (sha256 `d4e8e8c3c608`). Coding byte 13, odd: A = R2.
     - The briefs now sit in each lane's own directory, so neither lane sees the other's filename (4592's flagged glimpse came from a shared scratch directory).
   - **4600**: the fix pass is done. I'm verifying locally after merging main: full topo `--profile ci`, expecting only the main-red row, plus the touched rows at three ε.
+- 2026-10-11 04:25 — **PR 4600 merged as DR-163**: SEQUENTIAL, one review, 0 tallied. Both half-angle items close with no kernel change.
+  - Verified after merging main: topo `--profile ci` 2762/2763 (the one failure is main's `split_through_an_apex` row), touched rows 51/51 at three ε, gates, clippy and fmt.
+  - The fix pass filed `tint/an-oblique-rod-clear-of-a-cone-refuses-the-extent-scan-at-1e-12` and `hone/subdivision-width-row-has-no-row-that-fails-without-it`.
+  - The M-tier count toward the next full readout is 9.
