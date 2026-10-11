@@ -2181,14 +2181,20 @@ fn check_residual<T: Decide>(
 }
 
 /// **σ, the orientation of the shared normal** at a tangent sample: the
-/// sign of the two unit implicit gradients' alignment, metered at the
-/// folded lever arm as the opposed-senses reading of
-/// `topo::boolean::contact_verify` is. At a tangency the normals are
-/// parallel, so the reading is `±arm`, as far from the band as the
-/// geometry allows. A reading that does not decide a sign means there
-/// is no shared normal to read the separation along: it escalates under
-/// [`CertCheck::TangentGap`] carrying the reading, its margin included
-/// where it decided the normals perpendicular.
+/// sign of the two unit implicit gradients' alignment, which must be
+/// definite (`decide_nonzero`). At a tangency the normals are parallel,
+/// so the cosine is `±1`, as far from zero as it can be; it is metered
+/// over the edge's extent, the ordinary angular door, so a surface
+/// curving on a scale near ε (whose folded arm puts every angle in
+/// band) still has an orientation to read the gap along.
+///
+/// No definite sign means no shared normal to read the separation
+/// along. A definite parallelism defect at the folded arm is then the
+/// cause, named as itself (the second-order arm's renaming, below);
+/// otherwise the orientation's own refusal escalates under
+/// [`CertCheck::TangentGap`]. Both readings run detached, so the log
+/// carries only the escalation the error carries; the naming reading
+/// never refuses, it only names.
 fn gap_orientation<T: Decide>(
     surf1: &Surface<T>,
     surf2: &Surface<T>,
@@ -2199,36 +2205,52 @@ fn gap_orientation<T: Decide>(
 ) -> Result<T, CertifyError> {
     let n1 = crate::implicit::implicit_gradient(surf1, p).normalize();
     let n2 = crate::implicit::implicit_gradient(surf2, p).normalize();
+    let (oriented, orientation) = geom_core::k_stats::detached(|| {
+        geom_core::k_stats::decide_nonzero(
+            "tangent_gap_orientation",
+            Margin::levered(n1.dot(n2), extent),
+            band,
+        )
+    });
+    let cause = match oriented {
+        Ok(sign) => {
+            geom_core::k_stats::splice(orientation);
+            return Ok(match sign {
+                geom_core::k_stats::NonzeroSign::Positive => T::from_f64(1.0),
+                geom_core::k_stats::NonzeroSign::Negative => T::from_f64(-1.0),
+            });
+        }
+        Err(cause) => cause,
+    };
     let arm = crate::folded_lever_arm(surf1, surf2, p, extent);
-    let escalated = |cause| CertifyError::Escalated {
+    let (renamed, naming) = geom_core::k_stats::detached(|| {
+        match decide_reported(
+            "tangent_normal_parallel",
+            Margin::levered(n1.cross(n2).norm(), arm),
+            band,
+        ) {
+            Ok(Decided {
+                sign: Sign::Positive | Sign::Negative,
+                margin,
+            }) => Some(margin),
+            Ok(_) | Err(_) => None,
+        }
+    });
+    geom_core::k_stats::splice_superseded(naming);
+    if let Some(margin) = renamed {
+        geom_core::k_stats::splice_superseded(orientation);
+        return Err(CertifyError::ResidualExceeded {
+            check: CertCheck::TangentParallel,
+            sample,
+            margin,
+        });
+    }
+    geom_core::k_stats::splice(orientation);
+    Err(CertifyError::Escalated {
         check: CertCheck::TangentGap,
         sample,
         cause,
-    };
-    match decide_reported(
-        "tangent_gap_orientation",
-        Margin::levered(n1.dot(n2), arm),
-        band,
-    ) {
-        Ok(Decided {
-            sign: Sign::Positive,
-            ..
-        }) => Ok(T::from_f64(1.0)),
-        Ok(Decided {
-            sign: Sign::Negative,
-            ..
-        }) => Ok(T::from_f64(-1.0)),
-        Ok(Decided {
-            sign: Sign::Zero,
-            margin,
-        }) => Err(escalated(Indeterminate {
-            margin,
-            band,
-            predicate: Some("tangent_gap_orientation"),
-            terminal_sliver: false,
-        })),
-        Err(cause) => Err(escalated(cause)),
-    }
+    })
 }
 
 /// The plane × NURBS lane's refusal in this module's vocabulary: a

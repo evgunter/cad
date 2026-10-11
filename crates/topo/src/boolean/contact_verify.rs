@@ -536,10 +536,11 @@ pub(crate) fn tangent_locus_reading<T: Decide>(
 /// alignment. The opposed-senses reading has already decided the
 /// outward normals opposed, so σ is the senses' `−ε₁ε₂` (εᵢ = ±1 the
 /// face's bit), and `ε₁·s = ε₁r₁ + ε₂r₂` is the sum of the witness's
-/// heights above each face: positive where the surfaces stand apart,
-/// negative where each runs into the other's material. The witness's
-/// position along the normal cancels, so a witness between the two
-/// surfaces reads their whole gap rather than each half of it.
+/// heights above each face (a residual read along the face's outward
+/// normal): positive where the surfaces stand apart, negative where
+/// each runs into the other's material. The witness's position along
+/// the normal cancels, so a witness between the two surfaces reads
+/// their whole gap rather than each half of it.
 ///
 /// - Zero passes; the span between samples is the caller's line.
 /// - A definite sign contradicts (`contact_tangent_gap`, its margin
@@ -557,9 +558,8 @@ fn touching<T: Decide>(
     sense2: bool,
     band: Band,
 ) -> Result<T, ContactRefusal> {
-    let bit = |sense: bool| if sense { T::one() } else { -T::one() };
-    let sigma = -(bit(sense1) * bit(sense2));
-    let separation = bit(sense1) * (r1 - sigma * r2);
+    let height = |r: T, sense: bool| if sense { r } else { -r };
+    let separation = height(r1, sense1) + height(r2, sense2);
     match crate::validate::decide_reported("contact_tangent_gap", Margin::of(separation), band) {
         Ok(geom_core::Decided {
             sign: Sign::Zero, ..
@@ -884,6 +884,89 @@ mod tests {
             };
             assert_eq!(got, want, "{why}: r = {r:e}, sag = {sag:e}");
         }
+    }
+
+    /// A unit cylinder resting on the plane `z = 0` with its axis lifted
+    /// to `z = 1 + gap` (a negative gap sinks it in), read along the
+    /// line at height `z = witness` under the ruling: the pair's touch
+    /// and the witness's place are set apart.
+    fn lifted_cylinder_on_plane(gap: f64, witness: f64) -> Result<ContactVerdict, ContactRefusal> {
+        let cyl = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 1.0 + gap),
+            axis: Vec3::new(1.0, 0.0, 0.0),
+            radius: 1.0,
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+        };
+        let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
+        let along = line([0.0, 0.0, witness], [1.0, 0.0, 0.0]);
+        tangent_locus_relation(&cyl, true, &flat, true, &along, -1.0, 1.0, true, band())
+    }
+
+    /// The signed margin a refusal's reading carries.
+    fn margin_of(diag: &Indeterminate) -> f64 {
+        diag.margin
+            .diagnostic_f64_for_error_text()
+            .value()
+            .expect("a decided point margin")
+    }
+
+    /// **The touch is read on the pair, not on each half of it.** A
+    /// witness halfway between two surfaces stands within each by half
+    /// their gap, so two residual rows each pass where the gap is under
+    /// 2ε; the separation `s = r₁ − σ·r₂` reads the whole gap.
+    ///
+    /// - 1.8ε apart: each residual is 0.9ε, within ε; the gap is in
+    ///   band and escalates under its own name.
+    /// - 15ε apart: the gap is definite, a separation (positive), and
+    ///   carries the `Fit` steer. Each residual (7.5ε) is in band, so a
+    ///   decider reading only the residuals escalates here.
+    /// - 15ε into each other: the gap is definite and negative, a
+    ///   crossing, with the same steer.
+    #[test]
+    fn a_witness_between_the_surfaces_reads_their_whole_gap() {
+        let eps = band().zero();
+        match lifted_cylinder_on_plane(1.8 * eps, 0.9 * eps) {
+            Err(ContactRefusal::Escalated { diag }) => {
+                assert_eq!(diag.predicate, Some("contact_tangent_gap"), "1.8ε: {diag:?}");
+            }
+            other => panic!("1.8ε apart escalates on the gap: {other:?}"),
+        }
+        for (gap, sign, what) in [(15.0, 1.0, "separation"), (-15.0, -1.0, "crossing")] {
+            match lifted_cylinder_on_plane(gap * eps, 0.5 * gap * eps) {
+                Err(ContactRefusal::Contradicted { diag, steer }) => {
+                    assert_eq!(diag.predicate, Some("contact_tangent_gap"), "{what}: {diag:?}");
+                    assert!(
+                        margin_of(&diag) * sign > 0.0,
+                        "{what}: the margin's sign names it: {diag:?}"
+                    );
+                    assert_eq!(steer, Some(FIT_DEFERRAL), "{what}: the Fit steer");
+                }
+                other => panic!("{what} by 15ε contradicts on the gap: {other:?}"),
+            }
+        }
+    }
+
+    /// **A witness off a touching pair is a bad witness, not a gap.**
+    /// Displaced 11ε along the shared normal, the witness is 11ε out of
+    /// the cylinder and 11ε above the plane, and the two heights cancel
+    /// in the gap: the pair touches. The residual row contradicts,
+    /// naming the first surface it reads, with no `Fit` steer, since no
+    /// designed clearance is what the geometry holds.
+    #[test]
+    fn a_witness_off_a_touching_pair_contradicts_as_a_bad_witness() {
+        let eps = band().zero();
+        match lifted_cylinder_on_plane(0.0, 11.0 * eps) {
+            Err(ContactRefusal::Contradicted { diag, steer }) => {
+                assert_eq!(diag.predicate, Some("contact_tangent_off_1"), "{diag:?}");
+                assert_eq!(steer, None, "a bad witness carries no Fit steer");
+            }
+            other => panic!("a witness 11ε off contradicts on its residual: {other:?}"),
+        }
+        assert_eq!(
+            lifted_cylinder_on_plane(0.0, 0.0).unwrap(),
+            ContactVerdict::Definite,
+            "the same pair read along its ruling"
+        );
     }
 
     /// A pin in a bore, radii `1` and `1 + δ`, axes along z, placed so
