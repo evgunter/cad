@@ -56,29 +56,35 @@
 //! solid's signed volume, read on that solid's own faces), so no check
 //! compares one solid against another and solids that OVERLAP pass THIS
 //! call undetected — inter-solid interference is not among its checks.
-//! It is not local in what it REPORTS (`attribute_at_rest`). Undeclared
-//! cross-instance contact is A5's hard error and an overlap between
-//! copies is A5's interference finding; both are decided by the tier-3′
-//! door ([`topo::validate_pseudomanifold`]), which the ASSEMBLY gate
-//! runs over this gather's output ([`crate::assemble`]) and which this
-//! function does not. The aggregate gate's verdict rides on the
-//! product's body ([`topo::AtRestBody`]), so that gate pays tier 3′'s
-//! census over it and not the local battery a second time.
+//! It is not local in what it REPORTS (`attribute_at_rest`). Contact
+//! and overlap between copies are decided by the tier-3′ census
+//! ([`topo::validate_pseudomanifold`]), and the gather runs it too,
+//! through the census's recording door ([`topo::record_at_rest`], each
+//! copy its own group): a touch between two copies no record backs is
+//! a `CensusAtRest` row of the product and a record citing it (D1 (iii),
+//! D10), and every other finding is kept on the product
+//! ([`Product::census`]) for the ASSEMBLY gate ([`crate::assemble`]),
+//! which reads it and the kept tier-3 verdict ([`topo::AtRestBody`])
+//! and runs neither again.
 //!
-//! **That is a division of labour, not a gap**: the census reaches the
-//! touching/overlap space and nothing in it validates silently. The
-//! gather stays on the local battery because the census refuses what a
-//! caller gathering on every edit must still be handed — the corpus
-//! heat sink at 160 fins (161 solids / 991 faces), whose fins meet the
-//! base, refuses there with 125 findings — and because it costs the
-//! same order as the gather itself. The gather, not the registry above
-//! it, is what a landing pays for, which is why a caller gathers ONCE.
-//! The terms are measured over that heat sink, not stated here: the
-//! `registry split` row of `crates/editor-core/tests/m4_pr8_latency.rs`
-//! appends `registry_split.gather_ms`, `checks_ms` (the registry over a
-//! subject already gathered) and `census_ms` (the assembly gate over
-//! the kept verdict) to `docs/perf-data/rebuild-latency/`, on a nightly
-//! cron gated on `main` having moved. What the gather
+//! **The gather does not refuse on the census**: what the census finds
+//! is kept, not raised, because a caller gathering on every edit must
+//! still be handed the product — the corpus heat sink at 160 fins (161
+//! solids / 991 faces), whose fins overlap the base, is handed over
+//! with its census's findings, which the gate turns into interference
+//! findings. The census costs the same order as the gather itself, and
+//! more than once where a touch between copies is unmated (the door
+//! reruns to confirm what it recorded, at most four passes), so every
+//! gather door pays it, and the
+//! gather, not the registry above it, is what a landing pays for, which
+//! is why a caller gathers ONCE. The terms are measured over that heat
+//! sink, not stated here: the `registry split` row of
+//! `crates/editor-core/tests/m4_pr8_latency.rs` appends
+//! `registry_split.gather_ms` (the census included), `checks_ms` (the
+//! registry over a subject already gathered) and `census_ms` (one census
+//! pass over the gathered product and its records) to
+//! `docs/perf-data/rebuild-latency/`, on a nightly cron gated on `main`
+//! having moved. What the gather
 //! DOES owe — [`topo::graft_disjoint_all_keyed`] asserts nothing about
 //! its operands, so every caller of it must establish disjointness —
 //! is discharged by [`crate::checks`]'s separation resident, which

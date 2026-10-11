@@ -3530,8 +3530,8 @@ pub(crate) enum Undecided {
     TouchDegenerate,
     /// Arm 2: a touch at a corner whose edge length is not a number.
     TouchChordScale,
-    /// Arm 2: a declared face-pair record backing sideless events.
-    DeclaredFacePair,
+    /// Arm 2: a face-pair contact record backing sideless events.
+    RecordedFacePair,
     /// Arm 2: every vertex of the contained instance on the boundary.
     AllOn,
     /// Arm 2: the contained instance has no vertex.
@@ -3702,7 +3702,7 @@ impl Undecided {
                  Recourse: rescale the model so every edge length is an ordinary number, \
                  or move them until their bounding boxes no longer overlap"
             }
-            Self::DeclaredFacePair => {
+            Self::RecordedFacePair => {
                 "a contact record between their faces touches only at corners the check \
                  cannot yet place. There is no way through yet for this record"
             }
@@ -5993,7 +5993,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             }
         }
         if !records_on_their_word && records.iter().any(|r| matches!(r, Recorded::FacePair)) {
-            return Some(Undecided::DeclaredFacePair);
+            return Some(Undecided::RecordedFacePair);
         }
         undecided_touch
     };

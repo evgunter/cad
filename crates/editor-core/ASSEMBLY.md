@@ -356,9 +356,12 @@ in the same `Relation` (`refuted` or `declined`) the own-minted arms
 use; so a carried decline reaches `AssemblyError::Uncertified` under its
 own name. A finding no declaration this document holds a row for
 answers for, its own or a part's, carries no attribution
-(`AtRestFinding::attribution` is `None`). That is currently every
-declaration in the tree, because the only path a record
-can take without its row (a boolean over a source) is one no instance
+(`AtRestFinding::attribution` is `None`): a finding about no
+declaration at all (a structural defect, an overlap or a touch no
+record backs inside one copy, an unrecorded touch of a pair the census
+could not clear, a census that could not look), never a declaration
+that lost its row. Every declaration in the tree keeps its row,
+because the only path a record can take without its row (a boolean over a source) is one no instance
 carrying a declaration can reach: such an instance is a product of
 several parts, whose part count the placers and a sub-assembly that
 instantiates it carry through (`NodeValue::parts`), and every op that

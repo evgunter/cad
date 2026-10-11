@@ -1538,3 +1538,46 @@ fn a_symbolic_run_with_a_resolver_refuses_every_node() {
         );
     }
 }
+
+/// **Two copies of one body are two constructions placed apart, never
+/// one** (D10, `Placed::World`). A unit block placed at the identity
+/// and again turned half a turn about z and moved 2 along x and 1
+/// along y: the copies meet at x = 1, each by the image of the block's
+/// own +x wall, so every row between them names the same face, edge or
+/// vertex of the one construction in each cell. The door walks each
+/// cell through its copy's placement, so none of those rows is proven
+/// `SameConstruction`, and the check reports every one.
+///
+/// Red if the walk drops the placement: same-cell rows between copies
+/// then read as one construction and go silent.
+#[test]
+fn two_copies_meeting_by_the_same_face_are_not_one_construction() {
+    let doc = ProfileDoc::empty_derived("coincide-copies-same-face", Tol::witness());
+    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, _) = crate::fixture::place(doc, the_box);
+    let turned: editor_core::Placement<Formula> = editor_core::Step::Rigid {
+        translation: [len(2.0), len(1.0), len(0.0)],
+        axis: [scl(0.0), scl(0.0), scl(1.0)],
+        angle: ang(std::f64::consts::PI),
+    }
+    .into();
+    let (doc, q) = crate::fixture::step(doc, editor_core::DocEdit::place(the_box, Some(turned)));
+    q.expect("the placement inserts");
+    let ev = run(&doc);
+    let product = editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("it gathers");
+    let rows = product.coincidences.len();
+    assert!(
+        rows > 0
+            && product
+                .coincidences
+                .iter()
+                .all(|r| matches!(r.by, editor_core::AtRestBy::Copies(..))),
+        "the copies' touch is their rows: {:?}",
+        product.coincidences
+    );
+    let reported = unproven(&doc, &ev)
+        .into_iter()
+        .filter(|f| matches!(f.subject, FindingSubject::Copies { .. }))
+        .count();
+    assert_eq!(reported, rows, "every row between the copies is unproven");
+}

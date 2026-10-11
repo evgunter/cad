@@ -60,10 +60,10 @@
 //!   A carried declaration the census merely declines therefore
 //!   reaches the frontier arm under its own name, naming the inner
 //!   document, the inner mate and the route this document reached it
-//!   by. A finding no declaration this document holds a row for
-//!   answers for — its own or a part's, which today is every
-//!   declaration in the tree — carries no attribution
-//!   ([`AtRestFinding::attribution`]).
+//!   by. A finding no declaration answers for carries no attribution
+//!   ([`AtRestFinding::attribution`]); it is never a declaration that
+//!   lost its row, since this document holds a row for every
+//!   declaration in the tree, its own or a part's.
 //!
 //! Each says why at its own definition. The kernel's finding passes
 //! straight through either way — stated, never swallowed, never
@@ -697,8 +697,11 @@ impl AtRestFinding {
 pub struct AtRestFinding {
     /// Which declaration the finding names, and in what relation; `None`
     /// where it names none: a finding about the product's own structure
-    /// or geometry, an overlap inside one copy, or a pair the census
-    /// could not look at, none of which a mate's declaration speaks for.
+    /// or geometry, an overlap or a touch no record backs inside one
+    /// copy, an unrecorded touch between copies the census could not
+    /// clear (kept as a finding, not a row: `topo::record_at_rest`), or a
+    /// pair the census could not look at, none of which a mate's
+    /// declaration speaks for.
     pub attribution: Option<Attribution>,
     /// The kernel's own finding, verbatim.
     pub error: ValidationError,

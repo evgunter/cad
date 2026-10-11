@@ -624,7 +624,7 @@ validate_pseudomanifold(body, &result.contacts, tol)
   on. It runs tier 2 first.
 - **Tier 3′, `validate_pseudomanifold(body, contacts)`** — tier 3 for
   a body that legitimately touches itself, checked against the
-  declared contacts the boolean pipeline carried into the result.
+  contact records the boolean pipeline carried into the result.
 
 The 3-versus-3′ choice is mechanical, and the tour makes it the same
 way you should: **if the value came from a boolean, gate it at 3′
@@ -633,12 +633,13 @@ body from `split` carries no contacts, so it takes plain tier 3.
 
 All four rungs are bound in Python as methods on `Body`, and the
 fourth takes **no** contacts argument there: a Python `Body` carries
-the declarations its own producer minted for it, so
+the contact records its own producer minted for it, so
 `body.validate_pseudomanifold()` certifies against those and the
 choice above is already made. An `assemble`d at-rest body arrives
-with its mates' records and passes over its seats; `product`, which
-gathers the same solids and carries no records, reports every seat
-as an unrecorded contact.
+with its mates' records and the records its gather made of every
+other touch between copies, and passes over its seats; `product`,
+which gathers the same solids and carries no records, reports every
+seat as an unrecorded contact.
 
 ```
 use pncad::prelude::*;
