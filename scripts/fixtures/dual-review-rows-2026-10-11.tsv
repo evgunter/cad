@@ -1,5 +1,7 @@
 # The front matter of every dual-review row as migrated from the single-file log
 # (origin/main 8585f14be): name, dr, arm, letter, tallied, major, miss, excluded.
+# FLUX's two duplicates (PR-4554, PR-4557) are kept here at main's 149 and 150; the row
+# files carry their renumbering to DR-155 and DR-159 (from PR 4602).
 # scripts/dual-review-log.py --selftest reproduces main's foot from it.
 PR-3148.md	1	concurrent	M	0	false	no	
 PR-3153.md	2	concurrent	L	0	false	no	method divergence
