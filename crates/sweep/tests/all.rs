@@ -117,6 +117,8 @@ mod carved_sphere_operand;
 mod cone_join_lane;
 #[path = "cone_operand_rows.rs"]
 mod cone_operand_rows;
+#[path = "continuation_pose.rs"]
+mod continuation_pose;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
 #[path = "four_crossings_on_one_section_circle.rs"]
