@@ -3108,6 +3108,7 @@ fn maintenance_display_says_what_the_edit_did() {
         ),
         (
             Maintenance::StrandedAppearance {
+                body: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
                 name: spoken_face_name(),
                 took: editor_core::Took::Piece,
             },

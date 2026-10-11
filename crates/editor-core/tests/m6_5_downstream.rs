@@ -197,6 +197,7 @@ fn an_appearance_record_on_a_fillet_minted_face_resolves() {
     let doc = apply(
         &doc,
         &DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&doc, &blend),
             name: blend.clone(),
             attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(9, 8, 7)),
         },

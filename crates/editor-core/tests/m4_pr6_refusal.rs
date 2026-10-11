@@ -541,6 +541,9 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
     m.insert("v".to_owned(), MetaValue::Int(1.into()));
     m.insert("x".to_owned(), MetaValue::Float(f64::NAN));
     let meta_edit = DocEdit::SetAppearanceMeta {
+        body: doc
+            .read_of_node(doc.ids()[1])
+            .expect("the body's one output"),
         name: editor_core::StableName {
             kind: editor_core::EntityKind::Body,
             node: doc.ids()[1],
@@ -640,6 +643,7 @@ fn metadata_convention_doors_refuse_typed() {
     let no_v = apply(
         &doc,
         &DocEdit::SetAppearanceMeta {
+            body: crate::fixture::painted_in(&doc, &name),
             name: name.clone(),
             key: "k".into(),
             value: MetaValue::map(m).expect("a shallow value"),
@@ -655,6 +659,7 @@ fn metadata_convention_doors_refuse_typed() {
     let scalar = apply(
         &doc,
         &DocEdit::SetAppearanceMeta {
+            body: crate::fixture::painted_in(&doc, &name),
             name,
             key: "k".into(),
             value: MetaValue::Int(1.into()),
@@ -820,6 +825,9 @@ fn unreplayable_edit_log_refuses_at_save() {
     let mut m = std::collections::BTreeMap::new();
     m.insert("x".to_owned(), MetaValue::Int(3.into()));
     let bad = DocEdit::SetAppearanceMeta {
+        body: doc
+            .read_of_node(doc.ids()[1])
+            .expect("the body's one output"),
         name: editor_core::StableName {
             kind: editor_core::EntityKind::Body,
             node: doc.ids()[1],

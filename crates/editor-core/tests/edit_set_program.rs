@@ -208,6 +208,7 @@ fn paint(doc: &editor_core::ProfileDoc, name: &StableName) -> ProfileDoc {
     apply(
         doc,
         &DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&doc, &name),
             name: name.clone(),
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
@@ -591,6 +592,7 @@ fn a_segment_after_a_fillet_on_another_carrier_is_its_own_steps_piece() {
     assert_eq!(
         crate::fixture::without_anonymous(&applied.maintenance),
         vec![Maintenance::StrandedAppearance {
+            body: doc.spoken_var(crate::fixture::painted_in(&doc, &arc)),
             name: doc.spoken_name(&arc).steps_respoken(&applied.doc),
             took: editor_core::Took::Step
         }],
@@ -655,6 +657,7 @@ fn a_name_on_a_dropped_step_inserts_and_one_on_a_never_minted_step_refuses() {
     });
     let painted = paint(&reshaped, &dropped);
     never(DocEdit::SetAppearance {
+        body: crate::fixture::painted_in(&reshaped, &unminted),
         name: unminted.clone(),
         attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(1, 2, 3)),
     });
@@ -697,6 +700,7 @@ fn a_reshaping_reports_its_strands_then_its_stranded_keys() {
                 editor_core::Took::Step,
             ),
             Maintenance::StrandedAppearance {
+                body: doc.spoken_var(crate::fixture::painted_in(&doc, &right)),
                 name: doc.spoken_name(&right).steps_respoken(&applied.doc),
                 took: editor_core::Took::Step
             },
@@ -1547,7 +1551,7 @@ fn a_parameter_through_a_state_that_does_not_replay_moves_no_name() {
         crate::fixture::without_anonymous(&end.maintenance),
         Vec::new()
     );
-    assert!(end.doc.appearance().contains_key(&half));
+    assert!(crate::fixture::painted(&end.doc, &half).is_some());
     assert!(
         end.doc.bit_eq(&doc),
         "the round trip is the document it left"
@@ -1729,6 +1733,7 @@ fn a_fillet_inserted_before_a_kept_leg_strands_the_names_on_it() {
         vec![
             fixture::selection_strand(&doc, frame, said.clone(), editor_core::Took::Piece,),
             Maintenance::StrandedAppearance {
+                body: doc.spoken_var(crate::fixture::painted_in(&doc, said.name())),
                 name: said,
                 took: editor_core::Took::Piece
             },
@@ -1913,6 +1918,10 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
     assert_eq!(
         crate::fixture::without_anonymous(&fewer.maintenance),
         vec![Maintenance::StrandedAppearance {
+            body: doc.spoken_var(crate::fixture::painted_in(
+                &doc,
+                &wall_by(ext, hole, PieceRole::Piece(3))
+            )),
             name: doc.spoken_name(&wall_by(ext, hole, PieceRole::Piece(3))),
             took: editor_core::Took::Piece
         }],
@@ -2453,8 +2462,8 @@ fn a_loft_wall_whose_pairing_changes_vanishes() {
     let ev = fixture::run(&applied.doc, &EvalOptions::default());
     assert!(ev.value(loft).is_some(), "{:?}", corpus::failures(&ev));
     assert!(
-        applied.doc.appearance().contains_key(&kept)
-            && applied.doc.appearance().contains_key(&moved),
+        crate::fixture::painted(&applied.doc, &kept).is_some()
+            && crate::fixture::painted(&applied.doc, &moved).is_some(),
         "both painted names keep their spelling"
     );
     let table = ev.table_at(loft).expect("the loft evaluates");
@@ -2515,6 +2524,7 @@ fn a_later_sections_reshaping_moves_a_loft_name_only_where_it_drops_a_step() {
     let report = |n: &StableName, after: &ProfileDoc| {
         if n.kind == EntityKind::Face {
             Maintenance::StrandedAppearance {
+                body: doc.spoken_var(crate::fixture::painted_in(&doc, n)),
                 name: doc.spoken_name(n).steps_respoken(after),
                 took: editor_core::Took::Step,
             }

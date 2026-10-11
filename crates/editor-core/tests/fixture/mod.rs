@@ -1715,6 +1715,32 @@ pub fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
         .unwrap_or_else(|| panic!("node {id:?} has no one table: {:?}", ev.nodes.get(&id)))
 }
 
+/// **The body read an appearance entry on `name` is read in**, for a
+/// row that paints a name where it was minted (NAMES N1: an entry is
+/// keyed by its body read and its name): the read an entry the store
+/// already holds on `name` is in, else the one output of the node that
+/// minted it. A name with neither — its node gone or with several
+/// outputs, and nothing painted on it — reads in a variable no document
+/// defines: a row about a refusal the door raises before it reads the
+/// body.
+pub fn painted_in(doc: &ProfileDoc, name: &StableName) -> editor_core::VarId {
+    doc.appearance()
+        .keys()
+        .find(|key| key.name == *name)
+        .map(|key| key.at)
+        .or_else(|| doc.read_of_node(name.node))
+        .unwrap_or(editor_core::VarId::new(0, 0))
+}
+
+/// **The appearance record on `name`, read where it was minted** —
+/// [`painted_in`]'s entry.
+pub fn painted<'a>(
+    doc: &'a ProfileDoc,
+    name: &StableName,
+) -> Option<&'a editor_core::AppearanceRecord> {
+    doc.appearance_of(painted_in(doc, name), name)
+}
+
 /// **The name table of `split`'s half `half`** — the read of its port
 /// (NAMES N1: each half its own table, its body that table's body 0).
 pub fn half(ev: &Evaluation<f64>, split: RecipeNodeId, half: editor_core::SplitHalf) -> &NameTable {

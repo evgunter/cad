@@ -516,9 +516,11 @@ fn row3_instance_qualified_names_round_trip_persistence() {
         .find(|n| n.kind == editor_core::EntityKind::Face)
         .expect("a face name");
 
+    let read = crate::fixture::painted_in(&doc, &name);
     let (doc, _) = step(
         doc,
         DocEdit::SetAppearance {
+            body: read,
             name: name.clone(),
             attr: editor_core::Attr::Color(editor_core::Rgba8 {
                 r: 1,
@@ -531,7 +533,7 @@ fn row3_instance_qualified_names_round_trip_persistence() {
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     let loaded = load(&text, Tol::witness()).expect("loads").doc;
     assert!(
-        loaded.appearance().keys().any(|k| *k == name),
+        loaded.appearance().keys().any(|k| k.name == name),
         "an instance-qualified name survives the wire verbatim"
     );
     assert!(loaded.bit_eq(&doc), "the whole document round-trips");

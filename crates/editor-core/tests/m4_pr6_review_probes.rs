@@ -456,9 +456,11 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         node: boole,
         path: vec![RoleSeg::OutputBody],
     };
+    let read = crate::fixture::painted_in(&doc, &body);
     push(
         &mut doc,
         DocEdit::SetAppearance {
+            body: read,
             name: body.clone(),
             attr: Attr::Color(Rgba8::opaque(1, 2, 3)),
         },
@@ -466,26 +468,32 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     let mut m = std::collections::BTreeMap::new();
     m.insert("v".to_owned(), MetaValue::Int(1.into()));
     m.insert("neg".to_owned(), MetaValue::Float(-0.0));
+    let read = crate::fixture::painted_in(&doc, &body);
     push(
         &mut doc,
         DocEdit::SetAppearanceMeta {
+            body: read,
             name: body.clone(),
             key: "adv/probe".into(),
             value: MetaValue::map(m.clone()).expect("a shallow value"),
         },
     );
+    let read = crate::fixture::painted_in(&doc, &body);
     push(
         &mut doc,
         DocEdit::SetAppearanceMeta {
+            body: read,
             name: body.clone(),
             key: "adv/probe2".into(),
             value: MetaValue::map(m).expect("a shallow value"),
         },
     );
     // 11 ClearAppearanceMeta
+    let read = crate::fixture::painted_in(&doc, &body);
     push(
         &mut doc,
         DocEdit::ClearAppearanceMeta {
+            body: read,
             name: body.clone(),
             key: "adv/probe2".into(),
         },
@@ -505,9 +513,11 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         },
     );
     // 13 ClearAppearance (attr moved with the record to `to`)
+    let read = crate::fixture::painted_in(&doc, &to);
     push(
         &mut doc,
         DocEdit::ClearAppearance {
+            body: read,
             name: to,
             kind: AttrKind::Color,
         },
@@ -651,6 +661,7 @@ fn attack_meta_order_canonical() {
         let d = apply(
             &doc,
             &DocEdit::SetAppearanceMeta {
+                body: crate::fixture::painted_in(&doc, &name),
                 name: name.clone(),
                 key: "k".into(),
                 value: tree(order),
@@ -698,6 +709,7 @@ fn duplicate_keys_refuse_in_every_map() {
     let doc = apply(
         &doc,
         &DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&doc, &body),
             name: body.clone(),
             attr: Attr::Color(Rgba8::opaque(1, 2, 3)),
         },
@@ -711,6 +723,7 @@ fn duplicate_keys_refuse_in_every_map() {
     let doc = apply(
         &doc,
         &DocEdit::SetAppearanceMeta {
+            body: crate::fixture::painted_in(&doc, &body),
             name: body,
             key: "k".into(),
             value: MetaValue::map(m).expect("a shallow value"),

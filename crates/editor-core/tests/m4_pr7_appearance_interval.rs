@@ -112,7 +112,15 @@ fn f64_and_interval_lanes_resolve_appearance_identically() {
             Attr::Visibility(false),
         ),
     ] {
-        (doc, _) = step(doc, DocEdit::SetAppearance { name, attr });
+        let read = crate::fixture::painted_in(&doc, &name);
+        (doc, _) = step(
+            doc,
+            DocEdit::SetAppearance {
+                body: read,
+                name,
+                attr,
+            },
+        );
     }
 
     let ef: Evaluation<f64> = run(&doc);

@@ -447,9 +447,11 @@ fn row2_appearance_rides_the_bridge_both_ways() {
         .map(|(n, _)| n.clone())
         .find(|n| n.kind == editor_core::EntityKind::Face)
         .expect("a face name");
+    let read = crate::fixture::painted_in(&doc, &face);
     let (doc, _) = step(
         doc,
         DocEdit::SetAppearance {
+            body: read,
             name: face.clone(),
             attr: editor_core::Attr::Color(editor_core::Rgba8 {
                 r: 1,
@@ -481,11 +483,11 @@ fn row2_appearance_rides_the_bridge_both_ways() {
         .in_copy(out.node_map[&placement_reading(&doc, ids[1])]),
     );
     assert!(
-        out.remainder.appearance_of(&face).is_none(),
+        crate::fixture::painted(&out.remainder, &face).is_none(),
         "the local key is gone from the remainder"
     );
     assert!(
-        out.remainder.appearance_of(&expected).is_some(),
+        crate::fixture::painted(&out.remainder, &expected).is_some(),
         "the record re-anchored to the instance-qualified key"
     );
     assert!(
@@ -510,10 +512,10 @@ fn row2_appearance_rides_the_bridge_both_ways() {
         path: face.path.clone(),
     };
     assert!(
-        inlined.doc.appearance_of(&restored).is_some(),
+        crate::fixture::painted(&inlined.doc, &restored).is_some(),
         "inline restores the local (re-minted) key"
     );
-    assert!(inlined.doc.appearance_of(&expected).is_none());
+    assert!(crate::fixture::painted(&inlined.doc, &expected).is_none());
 }
 
 // ---- Row 3: refusals ----
@@ -1104,9 +1106,11 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         node: ids[1],
         path: vec![RoleSeg::OutputBody],
     };
+    let read = crate::fixture::painted_in(&doc, &body_name);
     let (doc, _) = step(
         doc,
         DocEdit::SetAppearance {
+            body: read,
             name: body_name.clone(),
             attr: editor_core::Attr::Visibility(false),
         },
@@ -1533,9 +1537,11 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             .into(),
         }],
     };
+    let read = crate::fixture::painted_in(&host, &foreign);
     let (host, _) = step(
         host,
         DocEdit::SetAppearance {
+            body: read,
             name: foreign.clone(),
             attr: editor_core::Attr::Visibility(false),
         },
@@ -1567,9 +1573,11 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
         node: inst,
         path: vec![RoleSeg::OutputBody],
     };
+    let read = crate::fixture::painted_in(&host, &body_name);
     let (host, _) = step(
         host,
         DocEdit::SetAppearance {
+            body: read,
             name: body_name.clone(),
             attr: editor_core::Attr::Visibility(false),
         },

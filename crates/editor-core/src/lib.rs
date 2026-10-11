@@ -102,8 +102,8 @@ pub use analysis::{
     var_env_over,
 };
 pub use appearance::{
-    AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceRecord, AppearanceResolution,
-    Attr, AttrKind, AttrSet, Rgba8,
+    AppearanceKey, AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceRecord,
+    AppearanceResolution, Attr, AttrKind, AttrSet, Rgba8,
 };
 pub use assembly::{
     Assembly, AssemblyError, AtRestFinding, AtRestRow, Attribution, CarriedDeclaration,

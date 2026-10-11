@@ -42,7 +42,16 @@ fn red() -> Attr {
 }
 
 fn set(doc: ProfileDoc, name: StableName, attr: Attr) -> ProfileDoc {
-    step(doc, DocEdit::SetAppearance { name, attr }).0
+    let read = crate::fixture::painted_in(&doc, &name);
+    step(
+        doc,
+        DocEdit::SetAppearance {
+            body: read,
+            name,
+            attr,
+        },
+    )
+    .0
 }
 
 /// A rectangular block: profile on the plane z = `z0`, extruded `dz`.
@@ -86,6 +95,7 @@ fn set_appearance_validates_and_applies_purely() {
     let applied = doc
         .apply(
             &DocEdit::SetAppearance {
+                body: crate::fixture::painted_in(&doc, &cap),
                 name: cap.clone(),
                 attr: red(),
             },
@@ -98,9 +108,7 @@ fn set_appearance_validates_and_applies_purely() {
     assert_eq!(applied.record.minted, None);
     assert!(doc.appearance().is_empty(), "apply must be pure");
     assert_eq!(
-        applied
-            .doc
-            .appearance_of(&cap)
+        crate::fixture::painted(&applied.doc, &cap)
             .unwrap()
             .attrs
             .get(&AttrKind::Color),
@@ -116,6 +124,7 @@ fn set_appearance_validates_and_applies_purely() {
     assert_eq!(
         doc.apply(
             &DocEdit::SetAppearance {
+                body: crate::fixture::painted_in(&doc, &edge),
                 name: edge.clone(),
                 attr: red(),
             },
@@ -137,6 +146,7 @@ fn set_appearance_validates_and_applies_purely() {
     assert_eq!(
         doc.apply(
             &DocEdit::SetAppearance {
+                body: crate::fixture::painted_in(&doc, &bogus),
                 name: bogus.clone(),
                 attr: red(),
             },
@@ -165,6 +175,7 @@ fn multi_attribute_per_entity_and_clear_semantics() {
     assert_eq!(
         doc.apply(
             &DocEdit::ClearAppearance {
+                body: crate::fixture::painted_in(&doc, &body),
                 name: body.clone(),
                 kind: AttrKind::Color,
             },
@@ -186,7 +197,7 @@ fn multi_attribute_per_entity_and_clear_semantics() {
         body.clone(),
         Attr::Label(editor_core::Label::new("housing").unwrap()),
     );
-    let attrs = doc.appearance_of(&body).unwrap();
+    let attrs = crate::fixture::painted(&doc, &body).unwrap();
     assert_eq!(attrs.attrs.len(), 3);
     assert_eq!(
         attrs.attrs.get(&AttrKind::Label),
@@ -195,7 +206,7 @@ fn multi_attribute_per_entity_and_clear_semantics() {
 
     // Same-kind set replaces (one slot per kind).
     let doc = set(doc, body.clone(), Attr::Color(Rgba8::opaque(0, 0, 255)));
-    let attrs = doc.appearance_of(&body).unwrap();
+    let attrs = crate::fixture::painted(&doc, &body).unwrap();
     assert_eq!(attrs.attrs.len(), 3);
     assert_eq!(
         attrs.attrs.get(&AttrKind::Color),
@@ -204,35 +215,41 @@ fn multi_attribute_per_entity_and_clear_semantics() {
 
     // Clear kind-by-kind; clearing the last one drops the entry, and
     // a second clear of the same kind is loud.
+    let read = crate::fixture::painted_in(&doc, &body);
     let (doc, _) = step(
         doc,
         DocEdit::ClearAppearance {
+            body: read,
             name: body.clone(),
             kind: AttrKind::Color,
         },
     );
     assert!(
-        !doc.appearance_of(&body)
+        !crate::fixture::painted(&doc, &body)
             .unwrap()
             .attrs
             .contains_key(&AttrKind::Color)
     );
+    let read = crate::fixture::painted_in(&doc, &body);
     let (doc, _) = step(
         doc,
         DocEdit::ClearAppearance {
+            body: read,
             name: body.clone(),
             kind: AttrKind::Visibility,
         },
     );
+    let read = crate::fixture::painted_in(&doc, &body);
     let (doc, _) = step(
         doc,
         DocEdit::ClearAppearance {
+            body: read,
             name: body.clone(),
             kind: AttrKind::Label,
         },
     );
     assert!(
-        doc.appearance_of(&body).is_none(),
+        crate::fixture::painted(&doc, &body).is_none(),
         "empty set drops the entry"
     );
     assert!(doc.appearance().is_empty());
@@ -286,6 +303,7 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
             fresh: Vec::new(),
         },
         DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&doc3, &cap),
             name: cap,
             attr: red(),
         },
@@ -436,12 +454,14 @@ fn deleting_the_minting_node_strands_the_attribute_loudly() {
     // Nothing silently dropped: the payload rides the loss and the
     // store still holds the entry.
     assert_eq!(loss.attrs.get(&AttrKind::Color), Some(&red()));
-    assert!(doc.appearance_of(&cap).is_some());
+    assert!(crate::fixture::painted(&doc, &cap).is_some());
     // ClearAppearance is the repair path and works on the stranded
     // name (no liveness requirement).
+    let read = crate::fixture::painted_in(&doc, &cap);
     let (doc, _) = step(
         doc,
         DocEdit::ClearAppearance {
+            body: read,
             name: cap,
             kind: AttrKind::Color,
         },

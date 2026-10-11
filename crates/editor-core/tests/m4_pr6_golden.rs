@@ -272,6 +272,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&doc, &body),
             name: body.clone(),
             attr: Attr::Color(Rgba8::opaque(10, 20, 30)),
         },
@@ -287,6 +288,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::SetAppearanceMeta {
+            body: crate::fixture::painted_in(&doc, &body),
             name: body.clone(),
             key: "tool.example/pin".into(),
             value: MetaValue::map(m).expect("a shallow value"),

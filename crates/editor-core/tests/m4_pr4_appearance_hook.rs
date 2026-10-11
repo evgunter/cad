@@ -49,7 +49,16 @@ fn red() -> Attr {
 }
 
 fn set(doc: ProfileDoc, name: StableName, attr: Attr) -> ProfileDoc {
-    step(doc, DocEdit::SetAppearance { name, attr }).0
+    let read = crate::fixture::painted_in(&doc, &name);
+    step(
+        doc,
+        DocEdit::SetAppearance {
+            body: read,
+            name,
+            attr,
+        },
+    )
+    .0
 }
 
 /// A rectangular block: profile on the plane z = `z0`, extruded `dz`.
@@ -459,12 +468,13 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
 /// The union-side suggestion for `cap`: a face name minted at `uni`
 /// wrapping `cap` (`FromA(cap)`-headed derivation).
 fn union_suggestion(
-    suggestions: &std::collections::BTreeMap<StableName, Vec<StableName>>,
+    suggestions: &std::collections::BTreeMap<editor_core::AppearanceKey, Vec<StableName>>,
     cap: &StableName,
     uni: RecipeNodeId,
 ) -> StableName {
     suggestions
-        .get(cap)
+        .iter()
+        .find_map(|(key, offers)| (key.name == *cap).then_some(offers))
         .expect("the suggestion map is total over the appearance store")
         .iter()
         .find(|s| s.node == uni && s.kind == EntityKind::Face)
@@ -506,9 +516,11 @@ fn suggestions_offer_the_final_wrapping_derivation_and_rebind_repairs_the_gap() 
         )
         .expect("an appearance key is a rebind site");
     assert!(!applied.record.structural);
-    assert!(applied.doc.appearance_of(&cap).is_none());
+    assert!(crate::fixture::painted(&applied.doc, &cap).is_none());
     assert_eq!(
-        applied.doc.appearance_of(&target).unwrap().attrs[&AttrKind::Color],
+        crate::fixture::painted(&applied.doc, &target)
+            .unwrap()
+            .attrs[&AttrKind::Color],
         red()
     );
 
@@ -571,9 +583,11 @@ fn rebind_appearance_collision_is_refused_typed() {
     );
     // Disjoint kinds merge: clear the source's Color, carry a Label
     // instead — both kinds land on the target.
+    let read = crate::fixture::painted_in(&doc, &cap);
     let (doc, _) = step(
         doc,
         DocEdit::ClearAppearance {
+            body: read,
             name: cap.clone(),
             kind: AttrKind::Color,
         },
@@ -594,7 +608,7 @@ fn rebind_appearance_collision_is_refused_typed() {
             &editor_core::RefusingReach,
         )
         .expect("disjoint attribute kinds merge");
-    let merged = applied.doc.appearance_of(&target).unwrap();
+    let merged = crate::fixture::painted(&applied.doc, &target).unwrap();
     assert_eq!(merged.attrs.len(), 2);
     assert_eq!(
         merged.attrs[&AttrKind::Label],
@@ -618,5 +632,7 @@ fn suggestion_map_is_total_over_the_store() {
     let ev = run(&doc);
     let suggestions = appearance_rebind_suggestions(doc.appearance(), &ev);
     assert_eq!(suggestions.len(), 1);
-    assert_eq!(suggestions[&cap], Vec::<StableName>::new());
+    let (key, offers) = suggestions.first_key_value().expect("one key");
+    assert_eq!(key.name, cap);
+    assert_eq!(*offers, Vec::<StableName>::new());
 }

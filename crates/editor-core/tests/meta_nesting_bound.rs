@@ -242,8 +242,13 @@ fn extrude_body() -> (Recorder, StableName) {
 }
 
 /// `value` set on the extrude's body.
-fn set_meta(body: &StableName, value: MetaValue) -> DocEdit<editor_core::ProfileProgram> {
+fn set_meta(
+    doc: &editor_core::ProfileDoc,
+    body: &StableName,
+    value: MetaValue,
+) -> DocEdit<editor_core::ProfileProgram> {
     DocEdit::SetAppearanceMeta {
+        body: crate::fixture::painted_in(doc, body),
         name: body.clone(),
         key: KEY.to_owned(),
         value,
@@ -450,7 +455,7 @@ fn every_door_takes_a_value_at_the_bound_on_the_smallest_stack() {
         );
 
         let (mut r, body) = extrude_body();
-        r.push(set_meta(&body, value.clone()));
+        r.push(set_meta(&r.doc, &body, value.clone()));
         let pin = content_pin(&r.doc, Tol::witness()).expect("the document pins");
         let mut deepest = 0;
         for (label, text) in both_saves(&r) {
@@ -463,9 +468,7 @@ fn every_door_takes_a_value_at_the_bound_on_the_smallest_stack() {
                 "the {label} loads back to the document it saved"
             );
             assert_eq!(
-                loaded
-                    .doc
-                    .appearance_of(&body)
+                crate::fixture::painted(&loaded.doc, &body)
                     .and_then(|record| record.metadata.get(KEY)),
                 Some(&value),
                 "the {label} loads the value back"
@@ -486,7 +489,7 @@ fn every_door_takes_a_value_at_the_bound_on_the_smallest_stack() {
 fn a_file_nested_past_the_bound_refuses_on_the_smallest_stack() {
     on_the_smallest_stack(|| {
         let (mut r, body) = extrude_body();
-        r.push(set_meta(&body, at_the_bound()));
+        r.push(set_meta(&r.doc, &body, at_the_bound()));
         // The empty list at the value's bottom as a save spells it, and
         // the same list holding `levels` more.
         let empty = "\"List\": []";

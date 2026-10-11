@@ -90,6 +90,7 @@ fn paint(doc: &editor_core::ProfileDoc, name: &StableName) -> ProfileDoc {
     apply(
         doc,
         &DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&doc, &name),
             name: name.clone(),
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
@@ -714,7 +715,7 @@ fn an_appearance_key_minted_by_a_live_node_is_never_reported() {
         crate::fixture::without_anonymous(&applied.maintenance)
     );
     assert!(
-        applied.doc.appearance().contains_key(&live),
+        crate::fixture::painted(&applied.doc, &live).is_some(),
         "and the live node's paint is still in the store"
     );
 }
@@ -756,6 +757,7 @@ fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
                 took: editor_core::Took::Node
             },
             Maintenance::StrandedAppearance {
+                body: doc.spoken_var(crate::fixture::painted_in(&doc, &painted)),
                 name: doc.spoken_name(&painted),
                 took: editor_core::Took::Node
             },
@@ -907,6 +909,7 @@ fn a_reported_appearance_strand_is_still_clearable() {
     let cleared = apply(
         &applied.doc,
         &DocEdit::ClearAppearance {
+            body: crate::fixture::painted_in(&doc, &painted),
             name: painted.clone(),
             kind: AttrKind::Color,
         },
@@ -916,7 +919,7 @@ fn a_reported_appearance_strand_is_still_clearable() {
     .expect("clearing does not require the name's node to be live")
     .doc;
     assert!(
-        !cleared.appearance().contains_key(&painted),
+        !crate::fixture::painted(&cleared, &painted).is_some(),
         "the stranded attachment is gone once its last attribute is cleared"
     );
 }

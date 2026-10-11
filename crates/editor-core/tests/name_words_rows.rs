@@ -744,6 +744,7 @@ fn a_strand_row_names_the_node_the_delete_took() {
     let doc = apply(
         &doc,
         &DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&doc, &painted),
             name: painted,
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
@@ -900,6 +901,7 @@ fn a_strand_row_names_a_deleted_union() {
     let doc = apply(
         &doc,
         &DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&doc, &painted),
             name: painted,
             attr: Attr::Color(Rgba8::opaque(1, 2, 3)),
         },

@@ -993,6 +993,7 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
     let doc = doc
         .apply(
             &DocEdit::SetAppearance {
+                body: doc.read_of_node(a).expect("the instance's one output"),
                 name: in_part(a, body, CapEnd::End),
                 attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(200, 30, 30)),
             },

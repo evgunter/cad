@@ -286,29 +286,35 @@ pub fn document() -> CorpusDoc {
         path: vec![RoleSeg::OutputBody],
     };
     r.push(DocEdit::SetAppearance {
+        body: crate::fixture::painted_in(&r.doc, &body),
         name: body.clone(),
         attr: Attr::Color(Rgba8::opaque(200, 40, 40)),
     });
     r.push(DocEdit::SetAppearance {
+        body: crate::fixture::painted_in(&r.doc, &body),
         name: body.clone(),
         attr: Attr::Label(editor_core::Label::new("kitchen sink").unwrap()),
     });
     r.push(DocEdit::SetAppearanceMeta {
+        body: crate::fixture::painted_in(&r.doc, &body),
         name: body.clone(),
         key: "tool.example/annotation".into(),
         value: meta_tree(),
     });
     r.push(DocEdit::SetAppearanceMeta {
+        body: crate::fixture::painted_in(&r.doc, &body),
         name: body.clone(),
         key: "tool.example/scratch".into(),
         value: MetaValue::map(BTreeMap::from([("v".into(), MetaValue::Int(1.into()))]))
             .expect("a shallow value"),
     });
     r.push(DocEdit::ClearAppearanceMeta {
+        body: crate::fixture::painted_in(&r.doc, &body),
         name: body.clone(),
         key: "tool.example/scratch".into(),
     });
     r.push(DocEdit::ClearAppearance {
+        body: crate::fixture::painted_in(&r.doc, &body),
         name: body,
         kind: AttrKind::Label,
     });
@@ -325,6 +331,7 @@ pub fn document() -> CorpusDoc {
         path: vec![RoleSeg::OutputBody],
     };
     r.push(DocEdit::SetAppearance {
+        body: crate::fixture::painted_in(&r.doc, &a_body),
         name: a_body.clone(),
         attr: Attr::Color(Rgba8::opaque(20, 90, 160)),
     });

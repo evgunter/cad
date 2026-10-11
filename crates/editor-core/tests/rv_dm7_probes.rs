@@ -208,6 +208,7 @@ fn rv_a_stranded_appearance_key_round_trips_after_the_delete() {
     let doc = apply(
         &doc,
         &DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&doc, &painted),
             name: painted.clone(),
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
@@ -222,7 +223,7 @@ fn rv_a_stranded_appearance_key_round_trips_after_the_delete() {
         .expect("the post-delete document saves with its stranded key");
     let loaded = editor_core::persist::load(&text, Tol::witness()).expect("and loads");
     assert!(
-        loaded.doc.appearance().contains_key(&painted),
+        crate::fixture::painted(&loaded.doc, &painted).is_some(),
         "the stranded attachment is document state, not a residue"
     );
     assert!(
@@ -246,6 +247,7 @@ fn rv_a_reported_appearance_strand_is_rebindable() {
     let doc = apply(
         &doc,
         &DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&doc, &painted),
             name: painted.clone(),
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
@@ -259,6 +261,7 @@ fn rv_a_reported_appearance_strand_is_rebindable() {
     assert_eq!(
         crate::fixture::without_anonymous(&applied.maintenance),
         vec![Maintenance::StrandedAppearance {
+            body: doc.spoken_var(crate::fixture::painted_in(&doc, &painted)),
             name: doc.spoken_name(&painted),
             took: editor_core::Took::Node
         }],
@@ -278,11 +281,11 @@ fn rv_a_reported_appearance_strand_is_rebindable() {
     .expect("the reported key is rebindable onto a live name")
     .doc;
     assert!(
-        !repaired.appearance().contains_key(&painted),
+        !crate::fixture::painted(&repaired, &painted).is_some(),
         "the stranded key is gone"
     );
     assert!(
-        repaired.appearance().contains_key(&live),
+        crate::fixture::painted(&repaired, &live).is_some(),
         "and the attachment moved to the live name"
     );
 }

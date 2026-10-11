@@ -132,14 +132,16 @@ fn loaded_metadata_round_trips_structurally() {
         .keys()
         .find(|n| {
             ks.doc
-                .appearance_of(n)
+                .appearance()
+                .get(n)
                 .is_some_and(|r| r.metadata.contains_key("tool.example/annotation"))
         })
         .expect("the annotated name survived")
         .clone();
     let rec = loaded
         .doc
-        .appearance_of(&attributed)
+        .appearance()
+        .get(&attributed)
         .expect("record survived");
     assert_eq!(
         rec.metadata["tool.example/annotation"],
