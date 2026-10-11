@@ -279,3 +279,68 @@ fn the_sphere_less_two_caps_measures_under_its_encoded_side() {
         Err(geom_brep::props::PropsError::SenseInverted)
     );
 }
+
+/// The loop of a cap of half-angle `theta` about `d` on the sphere of
+/// radius `r` about `c`, in `n` arcs, run counterclockwise about `d`.
+fn general_cap(c: Vec3<f64>, r: f64, d: Vec3<f64>, theta: f64, n: usize) -> Vec<LoopEdge<f64>> {
+    let d = d * (1.0 / d.norm());
+    let u = d.cross(v3(0.0, 0.0, 1.0));
+    let u = u * (1.0 / u.norm());
+    let step = core::f64::consts::TAU / n as f64;
+    (0..n)
+        .map(|k| {
+            LoopEdge::hand_built(
+                Curve3::Circle {
+                    center: p3(c.x, c.y, c.z) + d * (r * theta.cos()),
+                    axis: d,
+                    radius: r * theta.sin(),
+                    u_ref: u,
+                },
+                k as f64 * step,
+                (k + 1) as f64 * step,
+                true,
+                0,
+                0,
+            )
+        })
+        .collect()
+}
+
+/// **A thin cap in a general pose keeps the fan form's absolute
+/// floor** (review of PR 4573). The fan reads a small region from
+/// terms the region's own size, so its error is a few ulps of those
+/// terms: relative where the region is symmetric about the fan's apex
+/// (an axial cap, `sweep/tests/a_thin_cap_keeps_its_digits.rs`), and
+/// an absolute floor of some `1e-17` sr in a general pose, where the
+/// arcs' points carry their own rounding. Pinned on an off-centre
+/// sphere with the cap's axis oblique to every chart and world axis,
+/// over solid angles from a hundred times the band to `1e-2` sr stated in 1, 3 and 7
+/// arcs, against `4π·sin²(θ/2)`.
+#[test]
+fn a_thin_cap_in_a_general_pose_keeps_the_fans_absolute_floor() {
+    let c = v3(0.3, -1.1, 0.7);
+    let d = v3(0.8, 0.5, 0.33);
+    let s = Surface::Sphere {
+        center: p3(c.x, c.y, c.z),
+        radius: R,
+        axis: v3(0.0, 0.0, 1.0),
+        u_ref: v3(1.0, 0.0, 0.0),
+    };
+    for n in [1usize, 3, 7] {
+        // From well clear of the area decide's band (`props_sphere_loop_area`,
+        // levered by `R`) up to a hundredth of a steradian.
+        let mut solid = 100.0 * band().escalate() / R;
+        while solid < 1e-2 {
+            let theta = 2.0 * (solid / (4.0 * PI)).sqrt().asin();
+            let exact = 4.0 * PI * (theta / 2.0).sin().powi(2);
+            let lp = general_cap(c, R, d, theta, n);
+            let fc = curved_face(&s, &lp, true, band()).expect("the thin cap");
+            // Measured at most 5.8e-17 sr over this sweep, at ε 1e-9 and
+            // 1e-12; the pin is the floor, not a relative bound, so a
+            // cancellation that scaled with the sphere reds it.
+            let err = (fc.area / (R * R) - exact).abs();
+            assert!(err <= 2e-16, "{n} arcs, {exact:e} sr: off by {err:e} sr");
+            solid *= 10.0;
+        }
+    }
+}

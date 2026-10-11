@@ -7,11 +7,15 @@
 //! digits that way, and the divergence theorem's own cancellation
 //! between the cap and its disc costs another `R/h` of the volume's. The
 //! flux arm reads a small region as a fan of triangles inside it instead
-//! (`props::curved::solid_angle`), so the volume loses only the second
-//! — measured alongside main's former reading of the cap as a chart
+//! (`props::curved::solid_angle`), so the volume loses only the second.
+//! The cap here is axial, symmetric about the fan's apex, so its area
+//! keeps a few ulps of itself; a cap in a general pose keeps the fan's
+//! absolute floor instead, some `1e-17` sr
+//! (`geom-brep/tests/props_sphere_circle_loop.rs`,
+//! `a_thin_cap_in_a_general_pose_keeps_the_fans_absolute_floor`).
+//! Measured alongside main's former reading of the cap as a chart
 //! rectangle, the two land within the same few ulps of `R/h`, either
-//! one ahead at a given height.
-//! The ball's chart pole is on the slab's normal, so the cap's rim is a
+//! one ahead at a given height. The ball's chart pole is on the slab's normal, so the cap's rim is a
 //! latitude with the pole inside the face.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

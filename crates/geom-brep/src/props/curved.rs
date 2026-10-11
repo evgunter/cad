@@ -2417,16 +2417,23 @@ fn sphere_face<T: Decide>(
 /// The fan is exact modulo `4π` for an apex anywhere off the loop, so
 /// it is read against Gauss–Bonnet's value: shifted by the whole turns
 /// that bring it nearest, and taken where it then agrees to within
-/// `1e-12` sr — far wider than either form's rounding and far
-/// narrower than any region. Where it does not (an apex at the loop,
-/// or at the centre for a loop whose vector area vanishes), the
-/// correction fades to zero by `2e-12` sr and Gauss–Bonnet stands. The
-/// blend is branch-free in the scalar, and it is taken only for a
-/// region of at most one steradian ([`Real::select_le_zero`], the door
-/// that picks the well-conditioned candidate): Gauss–Bonnet's rounding
-/// is already a few ulps of a larger region, and a large region's
-/// vector area can vanish — a hemisphere's does — leaving the fan's
-/// apex at the centre, where an enclosure's triangles are undefined.
+/// [`FAN_AGREEMENT_SR`]. Where it does not (an apex at the loop, or at
+/// the centre for a loop whose vector area vanishes), the answer
+/// fades to Gauss–Bonnet's by twice that. The blend is the fan less a
+/// residue `r(gap)` of the gap between the two forms, built from
+/// `min`/`max` so that it is EXACTLY zero while the gap is inside the
+/// agreement band: an enclosure then carries the fan's own width, not
+/// Gauss–Bonnet's, and a value carries the fan's bits. It is taken
+/// only for a region of at most [`FAN_REGION_SR`]
+/// ([`Real::select_le_zero`], the door that picks the well-conditioned
+/// candidate).
+///
+/// The fan's error has an absolute floor, a few ulps of each
+/// triangle's own size: on a region far smaller than a steradian it
+/// keeps a few ulps of the region where the fan's apex sits on an
+/// axis the region is symmetric about, and some `1e-17` sr in a
+/// general pose (`sweep/tests/a_thin_cap_keeps_its_digits.rs` pins
+/// both).
 fn solid_angle<T: Decide>(center: Point3<T>, lp: &SphereLoop<T>, left: bool) -> T {
     let tau = T::tau();
     let gauss = if left {
@@ -2434,28 +2441,36 @@ fn solid_angle<T: Decide>(center: Point3<T>, lp: &SphereLoop<T>, left: bool) -> 
     } else {
         tau + lp.turning()
     };
-    let apex = if left {
-        lp.vector_area
-    } else {
-        -lp.vector_area
-    };
     let pieces = T::from_f64(3.0);
+    // Each arc's points at its thirds, from the sphere's centre.
+    let thirds: Vec<[Vec3<T>; 4]> = lp
+        .arcs
+        .iter()
+        .map(|arc| {
+            let u = arc.start - arc.centre;
+            let w = arc.axis.cross(u);
+            let at = |phi: T| (arc.centre - center) + u * phi.cos() + w * phi.sin();
+            let delta = arc.span / pieces;
+            // The arc's own end points, as its edge evaluates them, so
+            // the faces either side of an edge fan over the same points.
+            let (first, last) = if arc.forward {
+                (arc.from, arc.at)
+            } else {
+                (arc.at, arc.from)
+            };
+            [first - center, at(delta), at(delta + delta), last - center]
+        })
+        .collect();
+    // The apex: the centroid of those points, a sum of vectors of the
+    // sphere's radius that leans into a small region, so its direction
+    // is read to the points' own precision.
+    let apex = thirds
+        .iter()
+        .flat_map(|ends| ends.iter())
+        .fold(Vec3::zero(), |sum, &p| sum + p);
     let mut fan = T::zero();
-    for arc in &lp.arcs {
-        // The arc's points at `φ` along its stored direction, from the
-        // sphere's centre.
-        let u = arc.start - arc.centre;
-        let w = arc.axis.cross(u);
-        let at = |phi: T| (arc.centre - center) + u * phi.cos() + w * phi.sin();
+    for (arc, ends) in lp.arcs.iter().zip(&thirds) {
         let delta = arc.span / pieces;
-        // The arc's own end points, as its edge evaluates them, so the
-        // faces either side of an edge fan over the same points.
-        let (first, last) = if arc.forward {
-            (arc.from, arc.at)
-        } else {
-            (arc.at, arc.from)
-        };
-        let ends = [first - center, at(delta), at(delta + delta), last - center];
         // The carrier plane's offset along its (unit) axis, over the
         // sphere's radius as the carrier states it, and `ρ²/R²`.
         let offset = (arc.centre - center).dot(arc.axis);
@@ -2497,12 +2512,35 @@ fn solid_angle<T: Decide>(center: Point3<T>, lp: &SphereLoop<T>, left: bool) -> 
     }
     let four_pi = tau + tau;
     let turns = ((gauss - fan) / four_pi + T::from_f64(0.5)).floor();
-    let gap = fan + four_pi * turns - gauss;
-    let reach = T::from_f64(1e-12);
-    let held = gap.max(-reach).min(reach);
-    let blended = gauss + held - (gap - held).max(-reach).min(reach);
-    (gauss - T::one()).select_le_zero(blended, gauss)
+    let fixed = fan + four_pi * turns;
+    let gap = fixed - gauss;
+    // The residue the fan gives up to Gauss–Bonnet: zero for
+    // `|gap| ≤ τ`, the whole gap for `|gap| ≥ 2τ`, linear between —
+    // `shrink + clamp(shrink)`, with `shrink` the gap less `τ` toward
+    // zero. Both halves are `min`/`max` of the gap against constants,
+    // so an enclosure inside the band yields `[0, 0]` exactly.
+    let reach = T::from_f64(FAN_AGREEMENT_SR);
+    let shrink = (gap - reach).max(T::zero()) + (gap + reach).min(T::zero());
+    let residue = shrink + shrink.max(-reach).min(reach);
+    let blended = fixed - residue;
+    (gauss - T::from_f64(FAN_REGION_SR)).select_le_zero(blended, gauss)
 }
+
+/// **How far the fan form may stand from Gauss–Bonnet's value and
+/// still be taken** ([`solid_angle`]), in steradians: far wider than
+/// either form's rounding (a few ulps of `2π`, `~1e-15`, summed over a
+/// loop's terms) and far narrower than any region. A fan further off
+/// than this is one whose apex sits at the loop or at the centre, and
+/// the answer fades to Gauss–Bonnet's by twice it.
+const FAN_AGREEMENT_SR: f64 = 1e-12;
+
+/// **The largest region the fan form serves** ([`solid_angle`]), in
+/// steradians. Below it Gauss–Bonnet's `2π ∓ turning` cancels to a
+/// region whose own digits it cannot keep; above it Gauss–Bonnet's
+/// rounding is already a few ulps of the region, and the region's
+/// vector area — the fan's apex — can vanish (a hemisphere's does),
+/// where an enclosure's triangles are undefined.
+const FAN_REGION_SR: f64 = 1.0;
 
 /// The signed solid angle of the geodesic triangle `(q, a, b)` seen
 /// from the sphere's centre, positive when the three run

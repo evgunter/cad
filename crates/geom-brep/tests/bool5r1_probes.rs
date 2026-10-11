@@ -318,6 +318,13 @@ fn probe_the_coincident_plane_ladder_at_interval() {
                     area.lo() <= exact && exact <= area.hi(),
                     "k = {k}: {area:?} vs {exact}"
                 );
+                // The enclosure's WIDTH, not only its containment: the
+                // fan form carries the lune's own digits on this lane
+                // too (measured 4.2e-14 relative, full width, at every
+                // ε row; main's iso-rectangle closed form measured a
+                // half-width of 6e-15 relative, so this is 3.5× main's).
+                let width = (area.hi() - area.lo()) / exact;
+                assert!(width < 1e-13, "k = {k}: relative width {width:e}");
             }
             _ => {}
         }

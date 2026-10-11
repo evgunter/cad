@@ -109,7 +109,9 @@ while tier 3 stays green.
   term.
 - `a-sphere-face-whose-boundary-encodes-no-side…`: shrinks to faces with
   both poles on the loop. Those are seam siblings that meet tangentially,
-  where check 4's lamina reading catches a flip.
+  where check 4's lamina reading catches a flip of one sibling but not
+  of both, which keeps the seam consistent; that class is filed as
+  `a-pair-of-seam-siblings-flipped-together-is-silent`.
 - `sphere-wedge-arm-does-not-fold-split-meridians-by-lineage`: moot.
 - `rim-side-and-rim-dir-group-signs-are-facts-about-cycle-order`: closes
   with the cone-gate change.
