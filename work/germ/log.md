@@ -905,3 +905,11 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **U-T1** (M) is dispatched. Arm byte 144, mod 3 = 0: **HOLDOUT**. Cloud session `session_014Sj6YgYpZtxCW7SzpqV4aK`, branch `germ/plane-torus-germ-frame`.
   - The PR 4592 fix pass is running.
 - 2026-10-11 01:02 — Check-in: nothing ready. The 4592 fix pass is running its ε sweep and gates. r4600 is running (container uptime 1h; it started after the restart). U-T1 has no PR yet.
+- 2026-10-11 01:17 — PR 4600's single review (r4600, SEQUENTIAL) is in: **APPROVE-WITH-FIXES, 0/3/2** (+ a style note on mutants), saved at `scratchpad/dr4600/R1.md`.
+  - Its own 60-digit oracle ran 18,900 poses across circle × wall, ellipse × wall, ellipse × sphere and circle × torus at three ε. It found 0 wrong answers, 0 definite answers within ε, and a worst root of 0.92ε.
+  - No MAJOR, so no second review.
+  - MINORs:
+    - a pre-existing 1e-12 `cone_operand_rows` failure is unfiled and its citation wrong;
+    - row 3's 1e-12 slack is about 4× too loose, from the judge's own wrap;
+    - circle × torus answers definitely in the gap (114 of 4,500 poses, all true), which is evidence for HONE `circle-torus-clear-margin-reads-the-floor`.
+  - Fix pass: cloud session `session_015NqA7H5FNUR7a8UGfuSwwj`.
