@@ -42,9 +42,26 @@ from the full pass's own "unproven" and from "not replayed". All three
 are pinned in tests.
 
 The question: does a budget parameter on one door fit D10's "one way
-to say one thing"? The alternative would be one budget everywhere. At
-the full budget that costs the hot-path times above. At the resident
-budget nothing past rung 0 is ever proven.
+to say one thing"?
+
+**Two designers (fork-log row 112) both say no.** Their recommendation:
+
+- Delete the resident/full switch, so the door has one proving strength.
+- Synchronous callers (`run_checks`, Python, CI) get the full verdict.
+- The viewer runs the door at rest, off the draw path, as a
+  generation-keyed job that the next edit cancels. Until it lands, the
+  rows read as *pending*, which is a state of the report and not a
+  finding.
+
+They differ on two points:
+- whether the strength is a bare kernel constant (A) or one
+  `SymbolicDials` value type that tests may set but no product surface
+  offers (B);
+- whether "unproven" splits into *not an identity* and *undecided*
+  (A), or stays one wording among the residual's five (B).
+
+The orchestrator's two-pass ruling, which PR 4628 built, is not
+ratified text. Retiring it changes nothing in D10.
 
 ## Q2. The mitre and a per-node theorem cache
 
