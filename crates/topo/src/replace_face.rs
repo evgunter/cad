@@ -4923,7 +4923,7 @@ mod pair_over_its_span_rows {
     fn a_new_edge_reaching_the_apex_reads_the_start() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let eps = tol.eps();
+        let eps = band.zero();
         let alpha = (1.0_f64 / 64.0).asin();
         let cone = Surface::Cone {
             apex: Point3::origin(),
@@ -5000,7 +5000,7 @@ mod pair_over_its_span_rows {
     fn a_new_edge_from_the_apex_reads_its_own_nappe() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let eps = tol.eps();
+        let eps = band.zero();
         let alpha = core::f64::consts::PI / 12.0;
         let cone = Surface::Cone {
             apex: Point3::origin(),
