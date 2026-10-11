@@ -1426,3 +1426,8 @@ Ev said go.
   - Ruled: the round budget no longer stops an Improved loop, and the cap becomes a total-sample cap (nu·nv ≤ 2304). The default ε then certifies, and 1e-12 refuses `SampleCapReached` typed.
   - Provenance: the cap and its README phrase are agent text (ce235c86f1 VERBS-OFF-B; 1d242b4917 / 887f5e39d3), so the change is not Ev's.
   - M tier: the review draw comes when the lane is green.
+- **Unit 21 reviewed** (2026-10-11 ~11:50Z): PR 4677 @267928e, sequential (byte 32), one Opus review: APPROVE-WITH-FIXES, no MAJOR, so no second review.
+  - The differential and the moved rows were confirmed independently.
+  - Ruled: `SeedInRegion` departs from Ev's letter ("a region is the answer"), and a Side region at the old middle is a valid row edge. The fix pass implements the letter (Side → the row via `level_row`'s carrier, Corner → refuse), plus the de-duplication and docs.
+  - Fix pass sent.
+- **Unit 20 review dispatched**: PR 4672 @5ffb365, sequential (byte 109), one Opus review.
