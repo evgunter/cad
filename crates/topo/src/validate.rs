@@ -2854,6 +2854,7 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         CertCheck::TangentSecondOrder | CertCheck::TangentTube => {
             "its faces curve apart too little to decide where it runs at this tolerance"
         }
+        CertCheck::TangentGap => geom_core::undecided!("whether its faces touch along it"),
         CertCheck::ChartImage => {
             geom_core::undecided!("where it sits on its face's parameter chart")
         }

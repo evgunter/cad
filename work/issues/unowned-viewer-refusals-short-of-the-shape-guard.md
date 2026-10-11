@@ -57,12 +57,10 @@ renders the whole `Indeterminate`, so it ends in
 `COINCIDENCE_RECOURSE` ("declare the coincidence, …"), and each
 reaches doors that take no declaration:
 
-- `NewellError::Escalated` (`crates/geom-brep/src/newell.rs` near
-  :95, `Display` near :113): "whether vertex {vertex} lies on the
-  loop's plane is undecided: {cause}". Wrapped whole by
-  `ExtrudeError::CapPlane`/`SidePlane`, `RevolveError::CapPlane`
-  and `LoftError::CapPlane` (`crates/sweep/src/`). No extrude,
-  revolve or loft node takes a declaration.
+- `NewellError::Escalated` (`crates/geom-brep/src/newell.rs`): PR
+  4629 closes it. The arm now ends in `NO_DECLARATION_RECOURSE`
+  through `Indeterminate::undecided`, since no extrude, revolve or
+  loft door that reaches it takes a declaration.
 - `PcurveMintError::Escalated` (`crates/topo/src/pcurves.rs` near
   :415, `Display` near :476): "the pcurve at half-edge {half_edge:?}
   escalated: {cause}", with an arena key as well. `PinMiss::Escalated`

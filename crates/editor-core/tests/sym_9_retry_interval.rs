@@ -555,11 +555,11 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
         ("r1_segment_boss", [521, 2, 26, 376], [521, 2, 26, 376], 0),
         (
             "r2_filleted_bracket",
-            [1376, 5, 47, 986],
-            [1376, 5, 47, 986],
+            [1386, 5, 57, 1004],
+            [1386, 5, 57, 1004],
             0,
         ),
-        ("r2_link", [774, 0, 48, 627], [774, 0, 48, 627], 0),
+        ("r2_link", [814, 0, 48, 663], [814, 0, 48, 663], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -632,8 +632,9 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// `retried=4` after the discharge columns, and the human form names
 /// the four as discharges a second attempt reached. Without the ladder
 /// neither appears and the line is the one a drive wrote before the
-/// ladder existed. The four are theorems (`symbolic_zero` 1256 → 1260;
-/// 1340 → 1344 before PCERT's chart-angle unit retired the loop's angle
+/// ladder existed. The four are theorems (`symbolic_zero` 1306 → 1310;
+/// 1256 → 1260 before the tangent certificate read each tangency's gap,
+/// and 1340 → 1344 before PCERT's chart-angle unit retired the loop's angle
 /// comparisons and check 5, which took 84 theorems and 84 numeric
 /// decisions out of both receipts and left the ladder's four as they
 /// were).
@@ -684,11 +685,11 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             d.numeric,
             d.retried
         ],
-        [1260, 2, 54, 1188, 4],
+        [1310, 2, 64, 1280, 4],
         "the shipped ladder's leaf receipt"
     );
     assert!(
-        line.contains("registered=54 retried=4\n"),
+        line.contains("registered=64 retried=4\n"),
         "the goldening line carries `retried=` after the discharge columns: {line}"
     );
     assert!(
@@ -704,7 +705,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             b.numeric,
             b.retried
         ],
-        [1256, 2, 54, 1192, 0]
+        [1306, 2, 64, 1284, 0]
     );
     assert!(
         !bare.serialize().contains("retried="),
