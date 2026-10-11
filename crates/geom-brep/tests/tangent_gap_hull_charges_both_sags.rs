@@ -61,11 +61,11 @@ fn certify_half_circle(
 #[test]
 fn the_certificates_gap_hull_charges_the_sum_sag() {
     let eps = band().zero();
-    let (bounds, got) = certify_half_circle(0.995 * eps);
+    let (bounds, got) = certify_half_circle(0.985 * eps);
     // The fixture's premise: the sum sag puts the span line past ε at
-    // 0.995ε, the larger residual sag alone would not.
-    assert!(0.995 * eps + bounds.gap_sag > eps, "{bounds:?}");
-    assert!(0.995 * eps + bounds.residual_sag <= eps, "{bounds:?}");
+    // 0.985ε, the larger residual sag alone would not.
+    assert!(0.985 * eps + bounds.gap_sag > eps, "{bounds:?}");
+    assert!(0.985 * eps + bounds.residual_sag <= eps, "{bounds:?}");
     let (_, inside) = certify_half_circle(0.5 * eps);
     assert!(inside.is_ok(), "0.5ε certifies: {inside:?}");
     match got {
@@ -73,6 +73,6 @@ fn the_certificates_gap_hull_charges_the_sum_sag() {
             check: CertCheck::TangentHull,
             ..
         }) => {}
-        other => panic!("0.995ε: the gap hull refuses on the sag: {other:?}"),
+        other => panic!("0.985ε: the gap hull refuses on the sag: {other:?}"),
     }
 }
