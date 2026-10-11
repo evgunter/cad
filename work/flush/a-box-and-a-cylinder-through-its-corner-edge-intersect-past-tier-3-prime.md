@@ -4,6 +4,7 @@ kind: issue
 title: A box intersected with a cylinder whose wall passes through the box's corner edge builds at the right volume and fails tier 3′
 status: review
 branch: flush/corner-ruling-tier3
+pr: 4650
 priority: P0
 cost: M
 opened: 2026-10-09
