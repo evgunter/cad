@@ -140,7 +140,7 @@ impl Fnv {
                 for p in n.control() {
                     self.p3(p);
                 }
-                for w in n.weights() {
+                for w in n.weight_channel() {
                     self.u64(w.to_bits());
                 }
                 for k in n.knots().knots() {
@@ -220,7 +220,7 @@ impl Fnv {
                 for p in n.control() {
                     self.p3(p);
                 }
-                for w in n.weights() {
+                for w in n.weight_channel() {
                     self.u64(w.to_bits());
                 }
                 for k in n.knots_u().knots() {

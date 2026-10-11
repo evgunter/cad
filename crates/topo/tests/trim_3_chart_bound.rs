@@ -15,6 +15,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::spline::Knots;
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3, Surface};
@@ -605,8 +606,12 @@ fn t9_a_nurbs_carrier_on_a_plane_chart_describes_through_its_projected_image() {
         .unwrap();
     let q1 = *body.get_point(body.get_vertex(end).unwrap().point).unwrap();
     let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    let spline = NurbsCurve3::new(knots, vec![q0, q1], vec![1.0, 1.0])
-        .expect("the chord as a degree-1 spline");
+    let spline = NurbsCurve3::new(
+        Knots::from(knots).lift(geom_core::Real::from_f64),
+        vec![q0, q1],
+        vec![Real::one(); 2],
+    )
+    .expect("the chord as a degree-1 spline");
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(s1, s2),

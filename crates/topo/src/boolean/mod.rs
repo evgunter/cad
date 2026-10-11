@@ -5546,7 +5546,7 @@ fn verify_tangency_declaration<T: Decide>(
     let kinds = (sa.kind(), sb.kind());
     // 2. The witness locus.
     let mut overlap = None;
-    let (carrier, t0, t1, rim, margin) = match tangent_line((a, fa, &sa), (b, fb, &sb), band)? {
+    let (carrier, t0, t1, rim, located) = match tangent_line((a, fa, &sa), (b, fb, &sb), band)? {
         Ok(line) => {
             overlap = Some(line.overlap);
             (line.carrier, line.span.0, line.span.1, None, line.gap)
@@ -5565,7 +5565,7 @@ fn verify_tangency_declaration<T: Decide>(
             // An UNDECIDABLE rim identity escalates typed rather than
             // reading as "no rim here": only the second means the
             // geometry was examined and cleared.
-            let (rim, margin) = rim_wedge::shared_rim(a, fa, b, fb, band)
+            let (rim, identity) = rim_wedge::shared_rim(a, fa, b, fb, band)
                 .map_err(|diag| BooleanError::coincidence(Coincide::Rim, spent, diag))?
                 .ok_or_else(|| claim.unsupported())?;
             if claim == Tangency::Contact {
@@ -5584,7 +5584,7 @@ fn verify_tangency_declaration<T: Decide>(
                 T::zero(),
                 T::from_f64(core::f64::consts::TAU),
                 Some(rim),
-                margin,
+                identity,
             )
         }
     };
@@ -5592,15 +5592,17 @@ fn verify_tangency_declaration<T: Decide>(
     // for a seam.
     let sense_b = sense_b != (claim == Tangency::Seam);
     let table = match claim {
-        Tangency::Contact => contact_verify::tangent_locus_relation(
+        Tangency::Contact => contact_verify::tangent_locus_reading(
             &sa, sense_a, &sb, sense_b, &carrier, t0, t1, true, band,
         ),
-        Tangency::Seam => contact_verify::tangent_seam_relation(
-            &sa, sense_a, &sb, sense_b, &carrier, t0, t1, band,
-        ),
+        Tangency::Seam => {
+            contact_verify::tangent_seam_reading(&sa, sense_a, &sb, sense_b, &carrier, t0, t1, band)
+        }
     };
-    match table {
-        Ok(_) => {}
+    let margin = match table {
+        // The reading is the touch's; it is a theorem only where the
+        // locus it was read along is one too.
+        Ok((_, touch)) => touch.jointly(located),
         Err(crate::contact::ContactRefusal::Contradicted { diag, steer }) => {
             let margin = match (claim, diag.predicate) {
                 // The reversed bit's opposition IS the seam's alignment.
@@ -5619,7 +5621,7 @@ fn verify_tangency_declaration<T: Decide>(
         Err(crate::contact::ContactRefusal::NotCertifiable { .. }) => {
             return Err(claim.unsupported());
         }
-    }
+    };
     // 4. Which way a seam's two faces leave its locus, read at the locus.
     if claim == Tangency::Seam {
         let locus = match (rim, &carrier) {
@@ -5678,8 +5680,10 @@ fn verify_tangency_declaration<T: Decide>(
 /// What [`verify_tangency_declaration`] certified: the two carriers'
 /// kinds (A's first); for a `Tangent` along a line the operand whose
 /// plane face the locus runs through, or that read's refusal; and the
-/// margin that decided the tangency (the locus's gap, or the shared
-/// rim's).
+/// margin that decided the touch (the pair's separation along the
+/// witness, `contact_verify`'s `contact_tangent_touch`), standing jointly
+/// for the locus it was read along (the locus's gap, or the shared
+/// rim's identity).
 type TangencyVerified = (
     (geom::SurfaceKind, geom::SurfaceKind),
     Result<Option<Operand>, BooleanError>,

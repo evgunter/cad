@@ -390,5 +390,7 @@ mod spline_reanchor_rows;
 mod split_tangent_edge;
 #[path = "split_through_an_apex.rs"]
 mod split_through_an_apex;
+#[path = "tangent_touch_charges_both_sags.rs"]
+mod tangent_touch_charges_both_sags;
 #[path = "three_solids_on_one_line.rs"]
 mod three_solids_on_one_line;
